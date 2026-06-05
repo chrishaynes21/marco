@@ -1,0 +1,29 @@
+the SaveData is a set.
+this's Path is a text.
+
+the Game is an actor.
+this's State is a SaveData.
+
+this can Save.
+this's Save does...
+    do this's Resolve.
+    if that is Saved, Saved with that!
+    or, failed with that's error!
+
+this can Resolve.
+this's Resolve does...
+    if this's State exists?
+        this is Saved with this's State!
+    or?
+        this is failed with error "no state"!
+
+the App is a script.
+
+Game's State is a SaveData with Path "/c".
+
+do Game's Save...
+    if that is Saved?
+        log "saved".
+        log that's Path.
+    or?
+        log that's error.

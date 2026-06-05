@@ -1,0 +1,1 @@
+action Game's Outer emits status "Booming" which is not allowed by contract OnlySaved

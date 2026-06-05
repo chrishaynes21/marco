@@ -1,0 +1,23 @@
+the Long is a contract.
+this is cancelable.
+
+the State is a set.
+this's V is a number.
+
+the Game is an actor.
+this can Slow.
+this's Slow does...
+    that is Long.
+    lock State...
+        State's V is 1.
+    this is ok!
+
+the App is a script.
+
+State's V is 0.
+
+start Game's Slow as S...
+    when S is ok?
+        log "done".
+    or when S is canceled?
+        log "stopped".

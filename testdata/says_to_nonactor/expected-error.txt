@@ -1,0 +1,1 @@
+Notes is a feed, not a channel, actor, or set

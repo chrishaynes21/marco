@@ -1,0 +1,49 @@
+the error SaveError is an error.
+this's Code is a text.
+
+the Saveable is a contract.
+this allows Saved with SaveData.
+this allows failed with an optional error.
+this allows canceled.
+this can retry.
+
+the SaveData is a set.
+this's Path is a text.
+
+the Game is an actor.
+this's State is a SaveData.
+
+this can WriteToFile.
+this's WriteToFile does...
+    this is ok with input!
+
+this can Save.
+this's Save does...
+    that is Saveable.
+
+    lock this's State...
+        do this's WriteToFile with this's State...
+            when ok?
+                this is Saved with that!
+            or?
+                this is failed with that's error!
+
+when this hears SaveRequested?
+    start this's Save as SaveFlow...
+        when SaveFlow is Saved?
+            says SaveCompleted to this!
+        or when SaveFlow is failed?
+            says SaveFailed to this!
+        or?
+
+when this hears SaveCompleted?
+    log "save completed".
+
+when this hears SaveFailed?
+    log "save failed".
+
+the App is a script.
+
+Game's State is a SaveData with Path "/spec".
+
+says SaveRequested to Game.

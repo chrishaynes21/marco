@@ -1,0 +1,10 @@
+the WorkQueue is a queue of any.
+
+the App is a script.
+
+put "task1" into WorkQueue.
+put "task2" into WorkQueue.
+put "task3" into WorkQueue.
+
+while WorkQueue has next...
+    log item.

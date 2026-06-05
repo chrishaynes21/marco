@@ -1,0 +1,12 @@
+the Game is an actor.
+this can Save.
+this's Save does...
+    this is ok!
+
+the App is a script.
+
+do Game's Save...
+    or?
+
+when not failed?
+    log "succeeded".

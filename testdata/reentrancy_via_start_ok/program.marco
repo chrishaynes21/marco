@@ -1,0 +1,20 @@
+the State is a set.
+this's Done is a boolean.
+
+the Game is an actor.
+this can Spawn.
+this's Spawn does...
+    when State's Done is true?
+        this is ok!
+    or?
+        State's Done is true.
+        start this's Spawn as Next...
+            or?
+        this is ok!
+
+the App is a script.
+
+State's Done is false.
+do Game's Spawn...
+    or?
+log "spawned".

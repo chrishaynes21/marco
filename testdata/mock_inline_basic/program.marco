@@ -1,0 +1,14 @@
+the EmailService is an actor.
+this can Send.
+this's Send does...
+    log "real send".
+    this is ok!
+
+mock EmailService's Send is failed.
+
+the App is a script.
+
+do EmailService's Send...
+    when failed?
+        log "got mocked failed".
+    or?

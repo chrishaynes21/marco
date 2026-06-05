@@ -1,0 +1,7 @@
+[inspect] a
+[inspect] b
+[inspect] c
+[inspect] wait-a
+[inspect] wait-b
+[inspect] wait-c
+3

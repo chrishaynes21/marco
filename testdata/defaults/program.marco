@@ -1,0 +1,18 @@
+the User is a set.
+this's Name is a text.
+this's Age is a number.
+
+User's Age is 18 by default.
+User's Name is "anon" by default.
+
+the App is a script.
+
+the Bob is a User with Name "Bob".
+
+log Bob's Name.
+log Bob's Age.
+
+the Anon is a User.
+
+log Anon's Name.
+log Anon's Age.

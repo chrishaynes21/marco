@@ -1,0 +1,17 @@
+the ApiUser is a set.
+this's Fullname is a text.
+this's Email is a text.
+
+the User is a set.
+this's Fullname is a text.
+this's Email is a text.
+
+the App is a script.
+
+the Api is an ApiUser with Fullname "Ada Lovelace", Email "ada@example.com".
+the Bridge is Api as a partial User.
+log Bridge's Fullname.
+log Bridge's Email.
+
+the Promoted is Bridge as a User.
+log Promoted's Fullname.

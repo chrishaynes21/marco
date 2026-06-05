@@ -1,0 +1,14 @@
+the Game is an actor.
+this can Save.
+this can Reload.
+this's Save does...
+    log callstack.
+    what happened?
+    what was previous that?
+    this is ok!
+
+the App is a script.
+
+do Game's Save.
+log root.
+what can that do?

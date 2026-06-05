@@ -1,0 +1,13 @@
+the User is a set.
+this's First is a text.
+this's Last is a text.
+
+the App is a script.
+
+the Chris is a User with First "Chris", Last "Haynes".
+
+the Greeting is "Hello, " + Chris's First + " " + Chris's Last + "!".
+log Greeting.
+
+the Total is 10 + 20 + 12.
+log Total.

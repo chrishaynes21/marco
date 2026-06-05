@@ -1,0 +1,10 @@
+the Bot is an actor.
+this can Compute.
+this's Compute does...
+    log "computed".
+    this is ok!
+
+the App is a script.
+
+execute Bot's Compute.
+log "after execute".

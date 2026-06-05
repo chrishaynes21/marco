@@ -1,0 +1,9 @@
+the Greeter is an actor.
+this can Hi.
+this's Hi does...
+    log "hi".
+
+the Hidden is an actor.
+this can Secret.
+this's Secret does...
+    log "should not run".

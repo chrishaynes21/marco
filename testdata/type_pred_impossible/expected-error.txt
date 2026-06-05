@@ -1,0 +1,1 @@
+`input is SaveData?` is impossible: input has type User, not SaveData

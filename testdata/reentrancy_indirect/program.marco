@@ -1,0 +1,17 @@
+the Game is an actor.
+
+this can A.
+this's A does...
+    do this's B.
+
+this can B.
+this's B does...
+    do this's C.
+
+this can C.
+this's C does...
+    do this's A.
+
+the App is a script.
+
+do Game's A.

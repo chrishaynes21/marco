@@ -1,0 +1,15 @@
+the Settings is a set.
+this's Theme is a text.
+
+the App is a script.
+
+when Settings unlocked?
+    log "settings free".
+or?
+    log "still locked".
+
+lock Settings...
+    Settings's Theme is "light".
+
+wait until Settings unlocked...
+    log Settings's Theme.

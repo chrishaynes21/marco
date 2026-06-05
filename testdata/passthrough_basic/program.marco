@@ -1,0 +1,22 @@
+the Saveable is a contract.
+this allows Saved.
+
+the Game is an actor.
+this can Inner.
+this's Inner does...
+    that is Saveable.
+    this is Saved with "data"!
+
+this can Outer.
+this's Outer does...
+    do this's Inner.
+    this is that!
+
+the App is a script.
+
+do Game's Outer...
+    when that is Saved?
+        log "got saved".
+        log that's result.
+    or?
+        log "other".

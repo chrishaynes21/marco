@@ -1,0 +1,13 @@
+the Calculator is an actor.
+this can Compute.
+this's Compute does...
+    this is ok with 42 as Total, "ok" as Status!
+
+the App is a script.
+
+do Calculator's Compute...
+    when ok?
+        log that's Total.
+        log that's Status.
+    or?
+        log that's error.

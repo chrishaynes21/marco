@@ -1,0 +1,12 @@
+the Game is an actor.
+this can Save.
+this's Save does...
+    when input exists?
+        this is ok!
+        log "after in arm".
+    or?
+        this is failed!
+
+the App is a script.
+do Game's Save with "x"...
+    or?

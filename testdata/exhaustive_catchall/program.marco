@@ -1,0 +1,28 @@
+the Saveable is a contract.
+this allows Saved.
+this allows Booming.
+
+the Tiny is a contract.
+this allows ok.
+
+the Game is an actor.
+this can Inner.
+this's Inner does...
+    that is Saveable.
+    if input exists?
+        this is Saved!
+    or?
+        this is Booming!
+
+this can Outer.
+this's Outer does...
+    that is Tiny.
+    do this's Inner...
+        when that is Saved?
+            this is ok!
+        or?
+            this is ok!
+
+the App is a script.
+do Game's Outer with "x".
+log "ok".

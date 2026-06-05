@@ -1,0 +1,15 @@
+the Ahk is an act.
+this exports Click.
+this exports SendText.
+
+this's Click does...
+    log "click".
+    this is ok!
+this's SendText does...
+    log "send".
+    this is ok!
+
+the App is a script.
+
+do Ahk's Click.
+do Ahk's SendText.

@@ -1,0 +1,20 @@
+the GameChannel is a channel.
+
+the Game is an actor.
+this's Saved is a number.
+
+this can RecordSave.
+this's RecordSave does...
+    this is ok!
+
+when GameChannel hears SaveRequested?
+    log "channel got it".
+
+when this hears SaveRequested?
+    do this's RecordSave.
+    log "actor got it".
+
+the App is a script.
+
+says SaveRequested to GameChannel.
+says SaveRequested to Game.

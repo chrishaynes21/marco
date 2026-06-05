@@ -1,0 +1,15 @@
+the Long is a contract.
+this is cancelable.
+
+the Worker is an actor.
+this can Run.
+this's Run does...
+    that is Long.
+    this is canceled!
+
+the App is a script.
+
+do Worker's Run...
+    when canceled?
+        log "stopped".
+    or?

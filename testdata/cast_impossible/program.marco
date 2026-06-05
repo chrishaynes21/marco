@@ -1,0 +1,11 @@
+the User is a set.
+this's First is a text.
+
+the SaveArgs is a set.
+this's Token is a text.
+
+the App is a script.
+
+the U is a User with First "Ada".
+the S is U as a SaveArgs.
+log S's Token.

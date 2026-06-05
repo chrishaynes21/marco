@@ -1,0 +1,21 @@
+the User is a set.
+this's Id is a text.
+
+the Saveable is a contract.
+this allows Saved with User.
+this allows failed.
+
+the Backend is an actor.
+this can Save.
+this's Save does...
+    that is Saveable.
+    this is Saved with a User with Id "real"!
+
+mock Backend's Save is Saved with a User with Id "mocked".
+
+the App is a script.
+
+do Backend's Save...
+    when Saved?
+        log that's Id.
+    or?

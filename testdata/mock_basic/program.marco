@@ -1,0 +1,17 @@
+the EmailService is an actor.
+this can Send.
+this's Send does...
+    log "real send".
+    this is ok!
+
+the FakeEmailService is an actor.
+this can Send.
+this's Send does...
+    log "fake send".
+    this is ok!
+
+mock EmailService with FakeEmailService.
+
+the App is a script.
+
+do EmailService's Send.

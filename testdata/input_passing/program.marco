@@ -1,0 +1,15 @@
+the User is a set.
+this's Name is a text.
+
+the Greeter is an actor.
+this can Hello.
+this's Hello does...
+    this is ok with "Hi, " + input's Name + "!"!
+
+the App is a script.
+
+do Greeter's Hello with a User with Name "Chris"...
+    when ok?
+        log that.
+    or?
+        log that's error.

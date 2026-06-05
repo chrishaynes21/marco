@@ -1,0 +1,1 @@
+arm `when that is bogus?` is unreachable: Game's Save never emits status "bogus"

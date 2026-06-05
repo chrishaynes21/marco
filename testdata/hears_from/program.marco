@@ -1,0 +1,17 @@
+the Bus is a channel.
+
+the Speaker is an actor.
+this can Shout.
+this's Shout does...
+    says Hi to Bus.
+    this is ok!
+
+when Bus hears Hi from Speaker?
+    log "from speaker".
+
+when Bus hears Hi from Other?
+    log "from other".
+
+the App is a script.
+
+do Speaker's Shout.

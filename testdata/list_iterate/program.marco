@@ -1,0 +1,13 @@
+the Words is a list of text.
+
+the App is a script.
+
+put "alpha" into Words.
+put "beta" into Words.
+put "gamma" into Words.
+
+for each item in Words...
+    log key.
+    log item.
+
+log Words at 1.

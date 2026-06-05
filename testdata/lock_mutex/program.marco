@@ -1,0 +1,36 @@
+the Counter is a set.
+this's N is a number.
+
+the Inc is an actor.
+this can Bump.
+this's Bump does...
+    lock Counter...
+        the prev is Counter's N.
+        Counter's N is prev + 1.
+    this is ok!
+
+the App is a script.
+
+Counter's N is 0.
+
+start Inc's Bump as A...
+    if A is ok?
+        inspect "a".
+    or?
+start Inc's Bump as B...
+    if B is ok?
+        inspect "b".
+    or?
+start Inc's Bump as C...
+    if C is ok?
+        inspect "c".
+    or?
+
+wait until A is ok...
+    inspect "wait-a".
+wait until B is ok...
+    inspect "wait-b".
+wait until C is ok...
+    inspect "wait-c".
+
+log Counter's N.

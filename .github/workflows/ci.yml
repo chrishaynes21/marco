@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./... -count=1
+
+      # The race detector guards the multi-active scheduler: Frame status and
+      # shared containers are touched from parent and spawned-child goroutines,
+      # so any unsynchronized access must fail CI. Requires cgo + a C compiler,
+      # both preinstalled on ubuntu-latest.
+      - name: Test (race)
+        run: go test ./... -race -count=1

@@ -1,0 +1,22 @@
+the User is a set.
+this's Name is a text.
+this's Age is a number.
+
+the People is an actor.
+this's Active is a User.
+
+this can Greet.
+this's Greet does...
+    when this has Active and this's Active's Age is 30?
+        log "thirty alice".
+    or when this has Active or this's Active's Age is 25?
+        log "either".
+    or?
+        log "neither".
+    this is ok!
+
+the App is a script.
+
+People's Active is a User with Name "Chris", Age 30.
+
+do People's Greet.

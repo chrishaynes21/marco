@@ -1,0 +1,30 @@
+the Counter is an actor.
+this's Tries is a number.
+
+this can Try.
+this's Try does...
+    when this has Tries?
+        when this's Tries is 0?
+            this's Tries is 1.
+            this is failed with error "first attempt"!
+        or?
+            this's Tries is 2.
+            this is ok with "second attempt"!
+    or?
+        this's Tries is 0.
+        this is failed with error "no tries field"!
+
+the App is a script.
+
+Counter's Tries is 0.
+
+do Counter's Try...
+    when failed?
+        log that's error.
+        do that retry.
+        when ok?
+            log that.
+        or?
+            log "still failed".
+    or?
+        log that.

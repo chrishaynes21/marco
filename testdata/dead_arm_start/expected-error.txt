@@ -1,0 +1,1 @@
+arm `when Job is failed?` is unreachable: Game's Render never emits status "failed"

@@ -1,0 +1,12 @@
+the FullUser is a set.
+this's First is a text.
+this's Last is a text.
+
+the Name is a set.
+this's First is a text.
+
+the App is a script.
+
+the U is a FullUser with First "Ada", Last "Lovelace".
+the N is U as a Name.
+log N's First.

@@ -1,0 +1,7 @@
+the Game is an actor.
+this can Save.
+this's Save does...
+    log "side effect only".
+
+the App is a script.
+do Game's Save, when ok, log "done".

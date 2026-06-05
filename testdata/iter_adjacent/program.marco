@@ -1,0 +1,15 @@
+the Words is a list of text.
+
+the App is a script.
+
+put "a" into Words.
+put "b" into Words.
+put "c" into Words.
+
+for each x in Words...
+    when first?
+        log "first " + x.
+    or when last?
+        log "last " + x.
+    or?
+        log "mid " + x + " prev " + previous's item + " next " + next's item.

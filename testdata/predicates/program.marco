@@ -1,0 +1,29 @@
+the User is a set.
+this's Name is a text.
+this's Age is a number.
+
+the People is an actor.
+this's Active is a User.
+
+this can Greet.
+this's Greet does...
+    when this has Active?
+        when this's Active's Age is 30?
+            log "thirty".
+        or when this's Active's Age is not 30?
+            log "other".
+        or?
+            log "unknown".
+    or?
+        log "no active user".
+    this is ok!
+
+the App is a script.
+
+People's Active is a User with Name "Chris", Age 30.
+
+do People's Greet...
+    when ok?
+        log "done".
+    or?
+        log that's error.

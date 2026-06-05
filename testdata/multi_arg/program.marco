@@ -1,0 +1,12 @@
+the Math is an actor.
+this can Add.
+this's Add does...
+    this is ok with input at 0 + input at 1!
+
+the App is a script.
+
+do Math's Add with 10 and 32...
+    when ok?
+        log that.
+    or?
+        log that's error.

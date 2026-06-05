@@ -1,0 +1,16 @@
+the Game is an actor.
+
+this can SaveOk.
+this's SaveOk does...
+    this is ok with "saved"!
+
+this can SaveBad.
+this's SaveBad does...
+    this is failed with error "nope"!
+
+the App is a script.
+
+do Game's SaveOk, when ok, log "ok branch ran".
+do Game's SaveBad...
+    or?
+do Game's SaveOk, then log "always after", when ok, log "and gated too".

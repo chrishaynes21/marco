@@ -1,0 +1,15 @@
+the SaveButton is an actor.
+when this hears Reload?
+    log "button reloaded".
+
+the ErrorBanner is an actor.
+when this hears Reload?
+    log "banner reloaded".
+
+the Components is a set.
+it has SaveButton.
+it has ErrorBanner.
+
+the App is a script.
+
+says Reload to Components.

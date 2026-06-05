@@ -1,0 +1,18 @@
+the Saveable is a contract.
+this allows Saved with SaveData.
+
+the SaveData is a set.
+this's Path is a text.
+
+the Game is an actor.
+this can Save.
+this's Save does...
+    that is Saveable.
+    this is Saved with a SaveData with Path "/ok"!
+
+the App is a script.
+
+do Game's Save...
+    when that is Saved?
+        log "saved".
+        log that's Path.

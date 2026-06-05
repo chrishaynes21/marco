@@ -1,0 +1,17 @@
+the Bot is an actor.
+
+this can Compute.
+this's Compute does...
+    log "computing".
+    this is Done!
+
+when this hears Run?
+    log "got Run".
+    start this's Compute as Job...
+        when Job is Done?
+            log "Job Done".
+
+the App is a script.
+
+says Run to Bot.
+log "after says".

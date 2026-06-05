@@ -1,0 +1,17 @@
+the Logger is an actor.
+this can First.
+this's First does...
+    this is ok with "first"!
+
+this can Second.
+this's Second does...
+    this is ok with "second"!
+
+this can Third.
+this's Third does...
+    this is ok with "third"!
+
+the App is a script.
+
+do Logger's First, then do Logger's Second, then do Logger's Third.
+log that.

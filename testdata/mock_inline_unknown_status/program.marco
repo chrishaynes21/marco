@@ -1,0 +1,18 @@
+the Saveable is a contract.
+this allows Saved.
+this allows failed.
+
+the Backend is an actor.
+this can Save.
+this's Save does...
+    that is Saveable.
+    this is Saved!
+
+mock Backend's Save is bogus.
+
+the App is a script.
+
+do Backend's Save...
+    when Saved?
+        log "saved".
+    or?

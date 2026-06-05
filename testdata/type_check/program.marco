@@ -1,0 +1,26 @@
+the User is a set.
+this's Name is a text.
+
+the SaveData is a set.
+this's Path is a text.
+
+the Sorter is an actor.
+this's Item is a User.
+
+this can Tell.
+this's Tell does...
+    when this's Item is User?
+        log "user".
+    or when this's Item is SaveData?
+        log "save".
+    or?
+        log "unknown".
+    this is ok!
+
+the App is a script.
+
+Sorter's Item is a User with Name "Chris".
+do Sorter's Tell.
+
+Sorter's Item is a SaveData with Path "/p".
+do Sorter's Tell.

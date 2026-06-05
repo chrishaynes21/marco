@@ -1,0 +1,9 @@
+the App is a script.
+
+when it's been 0 seconds?
+    log "elapsed".
+or?
+    log "not yet".
+
+wait until it's been 0.05 seconds...
+    log "after wait".

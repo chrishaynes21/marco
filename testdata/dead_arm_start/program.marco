@@ -1,0 +1,15 @@
+the Game is an actor.
+this can Render.
+this's Render does...
+    this is ok!
+
+when this hears Tick?
+    start this's Render as Job...
+        when Job is ok?
+            log "ok".
+        or when Job is failed?
+            log "never".
+        or?
+
+the App is a script.
+says Tick to Game.

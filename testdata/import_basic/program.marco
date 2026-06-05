@@ -1,0 +1,11 @@
+use Game.
+
+the App is a script.
+
+Game's State is a SaveData with Path "/imported".
+
+do Game's Save...
+    when ok?
+        log that's Path.
+    or?
+        log that's error.

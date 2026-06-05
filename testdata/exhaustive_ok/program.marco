@@ -1,0 +1,18 @@
+the Saveable is a contract.
+this allows Saved.
+this allows failed.
+
+the Game is an actor.
+this can Save.
+this's Save does...
+    that is Saveable.
+    when input exists?
+        this is Saved!
+    or?
+        this is failed with error "no input"!
+
+the App is a script.
+
+do Game's Save with "x"...
+    or?
+log "ok".

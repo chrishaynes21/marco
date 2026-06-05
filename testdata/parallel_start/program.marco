@@ -1,0 +1,15 @@
+the Worker is an actor.
+this can Job.
+this's Job does...
+    log input.
+    this is ok with input!
+
+the App is a script.
+
+start Worker's Job with "alpha" as A...
+    if A is ok?
+        log "A done".
+
+start Worker's Job with "beta" as B...
+    if B is ok?
+        log "B done".

@@ -1,0 +1,17 @@
+the SaveData is a set.
+this's Path is a text.
+
+the Game is an actor.
+this can Save.
+this's Save does...
+    this is ok with a SaveData with Path "/p"!
+
+the App is a script.
+
+do Game's Save with "x"...
+    when ok?
+        log "saved".
+    or?
+expect that's Path exists.
+expect that's Path is "/p".
+log "done".

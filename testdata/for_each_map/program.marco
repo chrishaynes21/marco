@@ -1,0 +1,10 @@
+the Counts is a map of text to number.
+
+the App is a script.
+
+Counts's "alice" is 30.
+Counts's "bob" is 25.
+
+for each item in Counts...
+    log key.
+    log item.

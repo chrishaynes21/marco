@@ -1,0 +1,39 @@
+the Saveable is a contract.
+this allows Saved.
+this allows Booming.
+
+the Game is an actor.
+this can Inner.
+this's Inner does...
+    that is Saveable.
+    if input exists?
+        this is Saved with "yes"!
+    or?
+        this is Booming!
+
+this can Outer.
+this's Outer does...
+    that is Saveable.
+    do this's Inner with input...
+        when that is Saved?
+            this is Saved with that!
+        or?
+            this is that!
+
+the App is a script.
+
+do Game's Outer with "x"...
+    when that is Saved?
+        log "saved " + that.
+    or when that is Booming?
+        log "booming".
+    or?
+        log "other".
+
+do Game's Outer...
+    when that is Saved?
+        log "saved-no " + that.
+    or when that is Booming?
+        log "booming-no".
+    or?
+        log "other-no".

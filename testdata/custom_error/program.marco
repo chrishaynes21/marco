@@ -1,0 +1,14 @@
+the SaveError is an error.
+this's Code is a text.
+
+the Game is an actor.
+this can Save.
+this's Save does...
+    this is failed with a SaveError with Code "auth", message "denied"!
+
+the App is a script.
+
+do Game's Save...
+    or?
+        log that's error.
+        log that's error's Code.

@@ -1,0 +1,16 @@
+the Game is an actor.
+this can Save.
+this's Save does...
+    this is failed with error "boom"!
+
+    finally...
+        when this was failed?
+            log "rollback".
+        or?
+            log "no rollback".
+
+the App is a script.
+
+do Game's Save...
+    or?
+log "after".

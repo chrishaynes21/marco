@@ -1,0 +1,11 @@
+the Q is a queue of any.
+
+the Game is an actor.
+this can Tick.
+this's Tick does...
+    lock Q...
+        log "in".
+    this is ok!
+
+the App is a script.
+do Game's Tick, when ok, log "done".

@@ -1,0 +1,16 @@
+the Ahk is an act.
+this can Click.
+this's Click does...
+    log "click".
+    this is ok!
+
+the SaveScene is a scene.
+this can Render.
+this's Render does...
+    log "rendered".
+    this is ok!
+
+the App is a script.
+
+do Ahk's Click.
+do SaveScene's Render.

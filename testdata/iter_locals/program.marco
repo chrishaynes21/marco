@@ -1,0 +1,14 @@
+the Items is a list of text.
+
+the App is a script.
+
+put "alpha" into Items.
+put "beta" into Items.
+put "gamma" into Items.
+
+for each item in Items...
+    when first?
+        log "first:".
+    when last?
+        log "last:".
+    log item.

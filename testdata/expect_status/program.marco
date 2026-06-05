@@ -1,0 +1,13 @@
+the Game is an actor.
+this can Save.
+this's Save does...
+    this is ok!
+
+the App is a script.
+
+do Game's Save...
+    when ok?
+        log "saved".
+    or?
+expect that is failed.
+log "should not reach".

@@ -1,0 +1,12 @@
+the Worker is an actor.
+this can Job.
+this's Job does...
+    log "working".
+    this is ok with "result"!
+
+the App is a script.
+
+start Worker's Job as W...
+    wait until W is ok...
+        log "post-wait".
+        log W's result.

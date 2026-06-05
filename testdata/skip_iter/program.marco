@@ -1,0 +1,13 @@
+the Items is a list of text.
+
+the App is a script.
+
+put "alpha" into Items.
+put "beta" into Items.
+put "gamma" into Items.
+put "delta" into Items.
+
+for each word in Items...
+    when word is "beta"?
+        skip.
+    log word.

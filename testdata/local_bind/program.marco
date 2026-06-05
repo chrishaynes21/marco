@@ -1,0 +1,23 @@
+the User is a set.
+this's Name is a text.
+
+the Repo is an actor.
+this's Active is a User.
+
+this can Bring.
+this's Bring does...
+    when this has Active?
+        this is ok with this's Active!
+    or?
+        this is failed with error "no user"!
+
+the App is a script.
+
+Repo's Active is a User with Name "Chris".
+
+do Repo's Bring...
+    when ok?
+        the U is that.
+        log U's Name.
+    or?
+        log that's error.

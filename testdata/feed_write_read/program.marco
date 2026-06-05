@@ -1,0 +1,12 @@
+the GameEvents is a feed of any.
+
+when GameEvents reads SaveStarted?
+    log "save started".
+
+when GameEvents reads SaveCompleted?
+    log input.
+
+the App is a script.
+
+write SaveStarted to GameEvents.
+write SaveCompleted with "/p" to GameEvents.

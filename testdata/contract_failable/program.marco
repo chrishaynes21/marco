@@ -1,0 +1,19 @@
+the Doable is a contract.
+this is failable.
+
+the Game is an actor.
+this can Try.
+this's Try does...
+    that is Doable.
+    when input exists?
+        this is ok!
+    or?
+        this is failed!
+
+the App is a script.
+
+do Game's Try with "x"...
+    when ok?
+        log "ok".
+    or when failed?
+        log "failed".

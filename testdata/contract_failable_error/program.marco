@@ -1,0 +1,15 @@
+the Doable is a contract.
+this is failable with error.
+
+the Game is an actor.
+this can Try.
+this's Try does...
+    that is Doable.
+    this is failed with error "boom"!
+
+the App is a script.
+
+do Game's Try...
+    when failed?
+        log "got: " + that's error's message.
+    or?

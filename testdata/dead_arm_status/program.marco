@@ -1,0 +1,13 @@
+the Game is an actor.
+this can Save.
+this's Save does...
+    this is failed!
+
+the App is a script.
+
+do Game's Save...
+    when failed?
+        log "fail".
+    or when bogus?
+        log "never".
+    or?

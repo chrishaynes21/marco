@@ -1,0 +1,12 @@
+the Saveable is a contract.
+this allows Saved.
+
+the Game is an actor.
+this can Save.
+this's Save does...
+    that is Saveable.
+    this is Wonky!
+
+the App is a script.
+
+do Game's Save.

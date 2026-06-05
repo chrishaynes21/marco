@@ -1,0 +1,21 @@
+the User is a set.
+this's First is a text.
+this's Last is a text.
+this's Email is a text.
+
+the Profile is a set.
+this's First is a text.
+this's Last is a text.
+
+the UserToProfile is a translator.
+it takes a User.
+it gives a Profile.
+this does...
+    it maps what it can.
+    this is ok with that!
+
+the App is a script.
+
+do UserToProfile with a User with First "Chris", Last "Haynes", Email "c@x".
+log that's First.
+log that's Last.

@@ -1,0 +1,13 @@
+the User is a set.
+this's Id is a text.
+
+the SaveData is a set.
+this's Path is a text.
+
+the Game is an actor.
+it can Save with a SaveData.
+this's Save does...
+    this is ok!
+
+the App is a script.
+do Game's Save with a User with Id "x", when ok, log "done".

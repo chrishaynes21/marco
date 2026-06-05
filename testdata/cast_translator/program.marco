@@ -1,0 +1,19 @@
+the User is a set.
+this's First is a text.
+this's Last is a text.
+
+the FullName is a set.
+this's Full is a text.
+
+the UserToFullName is a translator.
+this takes a User.
+this gives a FullName.
+this does...
+    the Joined is input's First + " " + input's Last.
+    this is ok with a FullName with Full Joined!
+
+the App is a script.
+
+the U is a User with First "Ada", Last "Lovelace".
+the F is U as a FullName.
+log F's Full.
