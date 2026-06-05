@@ -143,6 +143,16 @@ A translator is invoked when:
 
 If a translator named `<A>To<B>` exists, the compiler may use it implicitly to satisfy `<value> as a <B>` from a value of type `<A>`. Explicit invocation is also possible — `do ApiUserToUser with apiUser` runs the translator like any other action.
 
+### Compile-Time Check
+
+When the source type is statically known, the compiler verifies that the cast can succeed at runtime. A non-`partial` cast `<expr> as a <Target>` is rejected unless one of the following holds:
+
+- source type is identical to `Target`
+- source is a set whose declared fields contain every field declared on `Target` (structural-bridge promotion)
+- a translator with matching `takes` and `gives` types is declared
+
+A `partial` cast is always permitted (it yields a bridge whose missing fields require `has` proof at use sites). A cast on an expression whose type cannot be inferred statically is left to the runtime to validate.
+
 ---
 ## One-Line Lock {#one-line-lock}
 ---

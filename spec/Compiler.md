@@ -70,6 +70,7 @@ Suggestions should respect:
 - Prefer concrete suggestions over generic error messages.
 - Use the graph: contracts, scopes, and named Frames are all introspectable at compile time.
 - Surface the contract surface — if a `failable` action is missing a `failed` handler, name the contract.
+- For unresolved capability or subject names, suggest the closest declared name (`did you mean "Save"?`) when one is within edit-distance threshold.
 
 ---
 ## One-Line Lock {#one-line-lock}
@@ -78,11 +79,40 @@ Suggestions should respect:
 **Marco is strict at compile time and generous in guidance.**
 
 ---
+## Diagnostic Format {#diagnostic-format}
+---
+
+Diagnostics are surfaced two ways:
+
+- **Human-readable** (default) — file:line:column followed by the message; `marco run` and `marco check` emit this on stderr/stdout. When more than one diagnostic is reported, each is printed with its own source-line preview, ordered by source position.
+- **Machine-readable** — `marco check --json <file>` emits a JSON array, one object per diagnostic:
+
+```json
+{
+  "severity": "error",
+  "code": "dead-arm",
+  "file": "...",
+  "line": 11,
+  "column": 5,
+  "message": "..."
+}
+```
+
+Each diagnostic carries a stable `code` for editor tooling: `dead-arm`, `unreachable`, `missing-return`, `missing-input`, `input-type`, `that-field`, `impossible-type-pred`, `exhaustiveness`, … Codes without a stable id are omitted from the JSON.
+
+`severity` is one of `"error" | "warning" | "info"`. Today every diagnostic is `error`; warnings are reserved for future advisory checks.
+
+### Multi-Error Reporting
+
+The compiler does not stop at the first error. Each check pass (exhaustiveness, dead-arm, unreachable, missing-return, …) runs to completion and aggregates its findings; passes that iterate over actions / scripts / tests / listeners further collect per-top-level-node so multiple violations across the file appear in a single invocation. Diagnostics are sorted by source position before emission so editors and humans can read top-down.
+
+The graph-rewriting stage (`apply inline mocks`) and the build / parse / lex pipeline still fail fast — a malformed graph cannot be meaningfully analyzed.
+
+---
 ## Open Questions {#open-questions}
 ---
 
-- Severity model — errors vs warnings vs notes; whether warnings are configurable per project.
-- Whether the compiler emits machine-readable diagnostics (LSP / JSON) alongside human-readable text by default.
+- Whether warnings are configurable per project (warning *issuance* is supported by the model but no warnings are issued today — open until a real warning use case lands).
 - Quick-fix protocol — whether suggested fixes are auto-applicable or advisory only.
 - How autocomplete handles partial sentences mid-line (e.g., between two run-on `when` clauses).
 - Whether the compiler exposes the inferred contract for an action (see [[Contracts#Implicit Contracts]]) directly in tooling.

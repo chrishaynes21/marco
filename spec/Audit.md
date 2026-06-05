@@ -326,9 +326,7 @@ Forms used in `marco` code blocks but lacking a defining section.
 - Both can be reconciled (`or?` resolves, then if it didn't return, execution continues), but the wording is not harmonized.
 
 ### F. Phrase resolution rule vs declaration Frames being implicit `ok`
-- Phrases.md: "Falling off the end of a phrase is a compile error."
-- Declarations.md: "Declaration Frames are implicitly `ok`".
-- These coexist (declarations end in `.`, completing the Frame), but the interplay between declaration-mode constructs that *open* phrases (e.g., `this's iterator does...`) and the must-resolve rule is not aligned.
+- **RESOLVED.** The compiler now enforces the Phrases.md rule for action and translator bodies: every path must end in an explicit terminal return. Branch groups with a bare `or?` propagate termination when every arm terminates; `lock <X>... <body>` propagates when its body always terminates; `finally...` is a deferred cleanup hook and does not satisfy termination on its own. Declaration Frames remain implicit `ok` — they are not phrases (no `...`).
 
 ### G. `failable with error` canonical payload
 - Contracts.md: "`failable with error` means `failed` carries `its error`."

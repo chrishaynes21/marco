@@ -305,6 +305,78 @@ Unresolved statuses **haunt** the parent Frame until they are explicitly handled
 
 A phrase may not close while unresolved child statuses remain.
 
+---
+## Unreachable Arms {#unreachable-arms}
+---
+
+The compiler also rejects the inverse of an unhandled obligation: an arm that matches a status the callee provably never emits.
+
+```marco
+do User's Save...
+    when Saved?
+        this is ok!
+    or when bogus?      // compile error: User's Save never emits "bogus"
+        log "never".
+    or?
+```
+
+Rules:
+
+- only literal `<ref> is <Status>` arms (and the `<Status>` shorthand) are checked; predicate arms with `exists`, `is <value>`, `has`, or compound expressions are not analyzed
+- `exited` and `died` are runtime-panic canonicals — they may arise from any callee and are never flagged
+- the diagnostic includes the callee's inferred contract so the author can see what statuses are actually reachable
+
+---
+## Unreachable Code {#unreachable-code}
+---
+
+The compiler also rejects code that follows a terminal return in the same straight-line path.
+
+```marco
+this's Save does...
+    this is ok!
+    log "after".        // compile error: unreachable code after terminal return
+```
+
+Rules:
+
+- terminal returns are `this is <Status>!`, `this is <Status> with <expr>!`, `this is failed with error "<msg>"!`, and `this is that!`
+- a branch group is itself terminal when every arm terminates AND a bare `or?` fallback is present (so some arm always fires); code after such a group is unreachable
+- branch arms otherwise reset the analysis — each arm is a separate path
+- `finally...` blocks are a deferred cleanup hook and are exempt; they may follow a terminal return
+
+---
+## Frame Reference Validation {#frame-reference-validation}
+---
+
+Inside an arm of `do <Subject>'s <Action>...` matching `when that is <Status>?`, accesses to `that's <Field>` are checked against the callee's contract:
+
+- if the callee's contract allows `<Status>` with no value, any `that's <Field>` is rejected (there is no result set)
+- if the callee's contract allows `<Status> with <Shape>`, the field must exist on `<Shape>`
+- `that's error` is always allowed — every frame has an error slot
+- accesses outside a status-matched arm are not analyzed (the result shape isn't known)
+
+```marco
+do User's Save...
+    when Saved?
+        log that's Id.          // valid if Saveable allows Saved with a User { Id }
+        log that's BogusField.  // compile error: User has no field "BogusField"
+    or?
+```
+
+---
+## Type Predicates {#type-predicates}
+---
+
+`when <ref> is <Type>?` is a runtime type assertion. The compiler validates against the ref's *statically known* type when one is available — currently only `input` (immutable for the frame). State slots (`this's <Field>`) are intentionally polymorphic and are not analyzed.
+
+```marco
+it can Process with a User.
+this's Process does...
+    when input is SaveData?    // compile error: input has type User, not SaveData
+        ...
+```
+
 ### Invalid Example
 
 ```marco
