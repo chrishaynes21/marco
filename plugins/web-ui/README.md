@@ -9,9 +9,13 @@ It shells out to:
 
 | Endpoint | Runs | Shows |
 |---|---|---|
-| `GET /api/routes` | `marco routes --json` | your routes + their scope |
-| `GET /api/active` | `marco active` | the foreground app (context) |
+| `GET /api/routes` | `marco routes --json` | every route + its scope |
+| `GET /api/status` | `marco active` + running set | foreground app + routes currently running |
 | `POST /api/do` | `marco do "<name>"` | runs a route, returns its output |
+
+The page lists **all routes**, **highlights the one running**, and takes commands
+by **typing or voice** (the mic uses the browser's Web Speech API in Chrome/Edge;
+it's hidden where unsupported).
 
 ## Build & run
 
