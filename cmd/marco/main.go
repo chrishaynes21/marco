@@ -28,6 +28,17 @@ func main() {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
+	case "serve":
+		path, hosts, err := parseRunArgs(os.Args[2:])
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			usage()
+			os.Exit(2)
+		}
+		if err := driver.ServeFile(path, os.Stdin, os.Stdout, hosts); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
 	case "test":
 		if err := driver.RunTests(os.Args[2], os.Stdout); err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -102,7 +113,8 @@ func parseRunArgs(args []string) (path string, hosts map[string]runtime.Host, er
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: marco run [--host dryrun|windows|bridge:<exe>] <file.marco>")
+	fmt.Fprintln(os.Stderr, "usage: marco run   [--host dryrun|windows|bridge:<exe>] <file.marco>")
+	fmt.Fprintln(os.Stderr, "       marco serve [--host dryrun|windows|bridge:<exe>] <file.marco>")
 	fmt.Fprintln(os.Stderr, "       marco test <file.marco>")
 	fmt.Fprintln(os.Stderr, "       marco contracts <file.marco>")
 	fmt.Fprintln(os.Stderr, "       marco check [--json] <file.marco>")

@@ -122,13 +122,20 @@ hotkey press, a window-focus change — into a running program. These map onto M
 **feeds**: the host writes events that feed listeners react to.
 
 ```marco
-the Hotkeys is a feed.
+the Hotkeys is a feed of any.
 
 when Hotkeys reads Leader?
     do OS's BeginCommand.
 
 when Hotkeys reads Stop?
     do OS's CancelAll.
+```
+
+Events are fed in as one JSON object per line on the server's stdin:
+
+```
+{"feed":"Hotkeys","event":"Leader"}
+{"feed":"Hotkeys","event":"Stop"}
 ```
 
 Receiving host events requires a **persistent** run (`marco serve <file>`): the program
