@@ -142,6 +142,15 @@ interface with per-OS backends (Windows implemented; macOS/Linux additive).
 See [`spec/Hosts.md`](spec/Hosts.md) for the host-FFI design and `spec/` for the
 language reference.
 
+### The engine is headless; UIs are plugins
+
+`marco` itself is a CLI — there's no built-in GUI. A user interface is an
+**external plugin** that drives the engine, the same way the resolver and bridge
+are external. The control seam is just the CLI: `marco routes --json` (routes +
+scope), `marco active` (foreground app), `marco do "<name>"` (run). A reference
+web control panel lives in [`plugins/web-ui`](plugins/web-ui); the MacroMarco
+AutoHotkey overlay can drive marco through the same seam.
+
 ---
 
 ## Command reference

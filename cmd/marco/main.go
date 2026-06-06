@@ -32,7 +32,10 @@ func main() {
 		runAssistant(os.Args[2:])
 		return
 	case "routes":
-		runRoutes()
+		runRoutes(os.Args[2:])
+		return
+	case "active":
+		runActive()
 		return
 	case "forget":
 		runForget(os.Args[2:])
@@ -153,7 +156,8 @@ Assistant (teach by demonstration, then run by name):
   marco do "<name>"        run a route; if unknown, record it once and remember
   marco teach "<name>"     record/overwrite a route by demonstration
   marco assistant          interactive loop — say what you want, in plain words
-  marco routes             list known routes
+  marco routes [--json]    list known routes (--json for a UI plugin)
+  marco active             print the foreground app (context)
   marco forget "<name>"    delete a route
   marco secret set|list|rm <name>   manage stored passwords (OS credential store)
 
@@ -171,6 +175,7 @@ delegates to an external program (e.g. AutoHotkey). Routes live in ./routes
 (override with $MARCO_ROUTES). While teaching, type {{name}} for a password.
 Press Esc to abort a running route. Set $MARCO_RESOLVER to a resolver-plugin
 executable to let the assistant fall back to it (e.g. the Claude one in
-plugins/claude-resolver) for loosely-phrased commands. Marco itself has no deps.
+plugins/claude-resolver) for loosely-phrased commands. The engine is headless;
+UIs are plugins that drive it (see plugins/web-ui). Marco itself has no deps.
 `)
 }

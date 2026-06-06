@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -60,8 +61,24 @@ func runAssistantDo(args []string) {
 	}
 }
 
-func runRoutes() {
+func runRoutes(args []string) {
 	list := newDeps().Reg.List()
+	if len(args) > 0 && args[0] == "--json" {
+		// Machine-readable, for a UI plugin: [{ "name", "slug", "app" }]
+		type jr struct {
+			Name string `json:"name"`
+			Slug string `json:"slug"`
+			App  string `json:"app"`
+		}
+		out := make([]jr, 0, len(list))
+		for _, rt := range list {
+			out = append(out, jr{Name: prettyRoute(rt.Slug), Slug: rt.Slug, App: rt.App})
+		}
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		_ = enc.Encode(out)
+		return
+	}
 	if len(list) == 0 {
 		fmt.Println("No routes yet. Teach one with: marco teach \"<name>\"")
 		return
@@ -73,6 +90,14 @@ func runRoutes() {
 			scope = "in " + rt.App
 		}
 		fmt.Printf("  %-28s (%s)\n", prettyRoute(rt.Slug), scope)
+	}
+}
+
+// runActive prints the current foreground app — the context a UI plugin shows
+// and that scoped routes resolve against.
+func runActive() {
+	if a := winctx.Active(); a != "" {
+		fmt.Println(a)
 	}
 }
 
