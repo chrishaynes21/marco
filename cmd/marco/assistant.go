@@ -6,12 +6,12 @@ import (
 	"os"
 	"strings"
 
-	"github.com/chaynes-simpleclouds/marco/internal/llm"
 	"github.com/chaynes-simpleclouds/marco/internal/nlu"
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
 	"github.com/chaynes-simpleclouds/marco/internal/oshost"
 	"github.com/chaynes-simpleclouds/marco/internal/osmod"
 	"github.com/chaynes-simpleclouds/marco/internal/recorder"
+	"github.com/chaynes-simpleclouds/marco/internal/resolver"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
 	"github.com/chaynes-simpleclouds/marco/internal/runtime"
 )
@@ -49,7 +49,7 @@ func runAssistantDo(args []string) {
 	target := name
 	if m := nlu.Resolve(name, d.Reg.List()); m.Route != "" && (m.Exact || m.Score >= 0.75) {
 		target = m.Route
-	} else if r := llm.Resolve(context.Background(), name, d.Reg.List()); r != "" {
+	} else if r := resolver.Resolve(context.Background(), name, d.Reg.List()); r != "" {
 		target = r // optional model fallback for loose phrasing
 	}
 	if err := dispatchDo(d, target); err != nil {
@@ -142,9 +142,9 @@ func runAssistant(_ []string) {
 				runDo(d, line) // teach as a new command under the typed name
 			}
 		default:
-			// Deterministic matcher unsure → optional Claude Haiku fallback
-			// (only if ANTHROPIC_API_KEY is set; otherwise this is a no-op).
-			if r := llm.Resolve(context.Background(), line, d.Reg.List()); r != "" &&
+			// Deterministic matcher unsure → optional external resolver plugin
+			// ($MARCO_RESOLVER). A no-op when unset.
+			if r := resolver.Resolve(context.Background(), line, d.Reg.List()); r != "" &&
 				askYes(fmt.Sprintf("Did you mean %q? [Y/n] ", prettyRoute(r))) {
 				runDo(d, r)
 			} else {

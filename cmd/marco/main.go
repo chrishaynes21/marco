@@ -169,7 +169,8 @@ Language tooling:
 Hosts: dryrun logs calls (default); windows performs real input; bridge:<exe>
 delegates to an external program (e.g. AutoHotkey). Routes live in ./routes
 (override with $MARCO_ROUTES). While teaching, type {{name}} for a password.
-Press Esc to abort a running route. Set ANTHROPIC_API_KEY to let the assistant
-fall back to Claude Haiku for loosely-phrased commands.
+Press Esc to abort a running route. Set $MARCO_RESOLVER to a resolver-plugin
+executable to let the assistant fall back to it (e.g. the Claude one in
+plugins/claude-resolver) for loosely-phrased commands. Marco itself has no deps.
 `)
 }

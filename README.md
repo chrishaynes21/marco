@@ -47,10 +47,19 @@ marco assistant
 > open the inventory     # resolves to "open inventory" and runs it
 ```
 
-Matching is deterministic and offline by default. Set `ANTHROPIC_API_KEY` to let
-the assistant fall back to **Claude Haiku** for loosely-phrased requests ("fire
-up the pirate game"). It's used only when the local matcher is unsure, and the
-tool works fully without a key.
+Matching is deterministic and offline by default. For loosely-phrased requests
+("fire up the pirate game") you can plug in a model-backed resolver: build the
+reference one and point `$MARCO_RESOLVER` at it —
+
+```sh
+go -C plugins/claude-resolver build -o claude-resolver .
+export MARCO_RESOLVER=$PWD/plugins/claude-resolver/claude-resolver
+export ANTHROPIC_API_KEY=sk-...
+```
+
+The resolver is an **external plugin** (a separate Go module), so **Marco itself
+has zero dependencies**. It's consulted only when the local matcher is unsure,
+and the tool works fully without it.
 
 Press **Esc** at any time to abort a running route.
 
