@@ -3,7 +3,9 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
+	"github.com/chaynes-simpleclouds/marco/internal/bridgehost"
 	"github.com/chaynes-simpleclouds/marco/internal/driver"
 	"github.com/chaynes-simpleclouds/marco/internal/oshost"
 	"github.com/chaynes-simpleclouds/marco/internal/runtime"
@@ -83,18 +85,24 @@ func parseRunArgs(args []string) (path string, hosts map[string]runtime.Host, er
 	if path == "" {
 		return "", nil, fmt.Errorf("missing <file.marco>")
 	}
-	switch hostName {
-	case "dryrun":
+	switch {
+	case hostName == "dryrun":
 		return path, nil, nil
-	case "windows", "os":
+	case hostName == "windows" || hostName == "os":
 		return path, map[string]runtime.Host{"*": oshost.New()}, nil
+	case strings.HasPrefix(hostName, "bridge:"):
+		exe := strings.TrimPrefix(hostName, "bridge:")
+		if exe == "" {
+			return "", nil, fmt.Errorf("bridge host needs a path: --host bridge:<exe>")
+		}
+		return path, map[string]runtime.Host{"*": bridgehost.New(exe)}, nil
 	default:
-		return "", nil, fmt.Errorf("unknown host %q (want dryrun, windows)", hostName)
+		return "", nil, fmt.Errorf("unknown host %q (want dryrun, windows, bridge:<exe>)", hostName)
 	}
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: marco run [--host dryrun|windows] <file.marco>")
+	fmt.Fprintln(os.Stderr, "usage: marco run [--host dryrun|windows|bridge:<exe>] <file.marco>")
 	fmt.Fprintln(os.Stderr, "       marco test <file.marco>")
 	fmt.Fprintln(os.Stderr, "       marco contracts <file.marco>")
 	fmt.Fprintln(os.Stderr, "       marco check [--json] <file.marco>")
