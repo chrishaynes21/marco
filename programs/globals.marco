@@ -1,0 +1,57 @@
+// globals.marco — global commands ported from MacroMarco's globals module,
+// driven by hotkey events. Run as a persistent server and pipe Hotkeys events
+// (e.g. from the AHK UI capturing the backtick leader key) to its stdin:
+//
+//   marco serve --host windows programs/globals.marco
+//   ...then feed lines like: {"feed":"Hotkeys","event":"E"}
+//
+// Each command is one action; the host performs the real key/mouse work.
+
+use os.
+
+// Inbound global-hotkey events (host -> Marco). A host that captures the
+// backtick leader key writes these as {"feed":"Hotkeys","event":"E"} lines.
+the Hotkeys is a feed of any.
+
+the Globals is an actor.
+
+this can PressE.
+this's PressE does...
+    do OS's Key with "e".
+    this is ok!
+
+this can ClickHere.
+this's ClickHere does...
+    do OS's Click.
+    this is ok!
+
+this can Greet.
+this's Greet does...
+    do OS's Type with "gg".
+    do OS's Key with "enter".
+    this is ok!
+
+// Leader-key command routing: each hotkey event runs one command.
+when Hotkeys reads E?
+    do Globals's PressE...
+        when ok?
+            log "pressed e".
+        or?
+            log that's error.
+
+when Hotkeys reads Click?
+    do Globals's ClickHere...
+        when ok?
+            log "clicked".
+        or?
+            log that's error.
+
+when Hotkeys reads Greet?
+    do Globals's Greet...
+        when ok?
+            log "greeted".
+        or?
+            log that's error.
+
+the App is a script.
+log "globals ready".

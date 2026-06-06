@@ -1,0 +1,42 @@
+// ark.marco — ARK: Survival Evolved cloud-pull transfer, ported from the
+// original MacroMarco AHK module. The multi-step click/wait/type sequence is
+// exactly what Marco expresses well; the OS act performs each primitive.
+//
+//   marco run --host dryrun  programs/ark.marco   # see the steps
+//   marco run --host windows programs/ark.marco   # drive the real game UI
+
+use os.
+
+the Ark is an actor.
+
+this can Transfer.
+this's Transfer does...
+    the argent is a Point with X 1258, Y 550.
+    the cloudPull is a Point with X 1493, Y 28.
+    the search is a Point with X 1400, Y 80.
+    the slot1 is a Point with X 1400, Y 200.
+    the transferAll is a Point with X 1500, Y 600.
+    the close is a Point with X 1900, Y 28.
+
+    do OS's Click with argent.
+    do OS's Sleep with 250.
+    do OS's Click with cloudPull.
+    do OS's Sleep with 250.
+    do OS's Click with search.
+    do OS's Sleep with 150.
+    do OS's Type with "stone".
+    do OS's Sleep with 150.
+    do OS's Click with slot1.
+    do OS's Sleep with 500.
+    do OS's Click with transferAll.
+    do OS's Sleep with 500.
+    do OS's Click with close.
+    this is ok!
+
+the App is a script.
+
+do Ark's Transfer...
+    when ok?
+        log "transferred stone from argent".
+    or?
+        log that's error.

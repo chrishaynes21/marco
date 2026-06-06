@@ -1,0 +1,12 @@
+the OS is an act.
+this exports Key.
+this exports Type.
+this exports Click.
+this exports Move.
+this exports Sleep.
+this exports Color.
+this exports Focus.
+
+the Point is a set.
+this's X is a number.
+this's Y is a number.

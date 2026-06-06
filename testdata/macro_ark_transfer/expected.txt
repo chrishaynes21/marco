@@ -1,0 +1,14 @@
+[dryrun] OS's Click with {X=1258, Y=550}
+[dryrun] OS's Sleep with 250
+[dryrun] OS's Click with {X=1493, Y=28}
+[dryrun] OS's Sleep with 250
+[dryrun] OS's Click with {X=1400, Y=80}
+[dryrun] OS's Sleep with 150
+[dryrun] OS's Type with stone
+[dryrun] OS's Sleep with 150
+[dryrun] OS's Click with {X=1400, Y=200}
+[dryrun] OS's Sleep with 500
+[dryrun] OS's Click with {X=1500, Y=600}
+[dryrun] OS's Sleep with 500
+[dryrun] OS's Click with {X=1900, Y=28}
+transferred stone from argent

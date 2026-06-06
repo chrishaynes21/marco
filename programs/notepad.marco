@@ -1,0 +1,27 @@
+// notepad.marco — the type-and-Enter demo, ported from MacroMarco's Notepad
+// module. Focus a Notepad window first, then:
+//
+//   marco run --host windows programs/notepad.marco
+//
+// Under --host dryrun it prints the steps without typing.
+
+use os.
+
+the Notepad is an actor.
+
+this can Demo.
+this's Demo does...
+    do OS's Type with "Marco says hello!".
+    do OS's Key with "enter".
+    do OS's Sleep with 200.
+    do OS's Type with "This line was automated by a Marco program.".
+    do OS's Key with "enter".
+    this is ok!
+
+the App is a script.
+
+do Notepad's Demo...
+    when ok?
+        log "notepad demo complete".
+    or?
+        log that's error.
