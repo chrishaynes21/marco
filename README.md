@@ -47,6 +47,13 @@ marco assistant
 > open the inventory     # resolves to "open inventory" and runs it
 ```
 
+Matching is deterministic and offline by default. Set `ANTHROPIC_API_KEY` to let
+the assistant fall back to **Claude Haiku** for loosely-phrased requests ("fire
+up the pirate game"). It's used only when the local matcher is unsure, and the
+tool works fully without a key.
+
+Press **Esc** at any time to abort a running route.
+
 ### Passwords never get recorded
 
 While teaching, type a **placeholder** `{{name}}` where a secret goes. The

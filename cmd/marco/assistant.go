@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
 
+	"github.com/chaynes-simpleclouds/marco/internal/llm"
 	"github.com/chaynes-simpleclouds/marco/internal/nlu"
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
 	"github.com/chaynes-simpleclouds/marco/internal/oshost"
@@ -47,6 +49,8 @@ func runAssistantDo(args []string) {
 	target := name
 	if m := nlu.Resolve(name, d.Reg.List()); m.Route != "" && (m.Exact || m.Score >= 0.75) {
 		target = m.Route
+	} else if r := llm.Resolve(context.Background(), name, d.Reg.List()); r != "" {
+		target = r // optional model fallback for loose phrasing
 	}
 	if err := dispatchDo(d, target); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -138,7 +142,14 @@ func runAssistant(_ []string) {
 				runDo(d, line) // teach as a new command under the typed name
 			}
 		default:
-			runDo(d, line) // unknown → teach
+			// Deterministic matcher unsure → optional Claude Haiku fallback
+			// (only if ANTHROPIC_API_KEY is set; otherwise this is a no-op).
+			if r := llm.Resolve(context.Background(), line, d.Reg.List()); r != "" &&
+				askYes(fmt.Sprintf("Did you mean %q? [Y/n] ", prettyRoute(r))) {
+				runDo(d, r)
+			} else {
+				runDo(d, line) // unknown → teach
+			}
 		}
 	}
 }
