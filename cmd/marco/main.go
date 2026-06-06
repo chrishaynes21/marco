@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -52,8 +53,13 @@ func main() {
 			usage(os.Stderr)
 			os.Exit(2)
 		}
-		if err := driver.RunFileWithHosts(path, os.Stdout, hosts); err != nil {
-			fmt.Fprintln(os.Stderr, err)
+		// hosts != nil means a real host (windows/bridge) — give it an Esc
+		// panic-stop. dryrun (nil) needs none.
+		runErr := withPanicStop(hosts != nil, func(ctx context.Context) error {
+			return driver.RunFileWithHostsCtx(ctx, path, os.Stdout, hosts)
+		})
+		if runErr != nil {
+			fmt.Fprintln(os.Stderr, runErr)
 			os.Exit(1)
 		}
 	case "serve":

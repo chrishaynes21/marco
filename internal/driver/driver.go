@@ -1,6 +1,7 @@
 package driver
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -141,12 +142,25 @@ func RunFile(path string, out io.Writer) error {
 // spec/Hosts.md). A nil map uses the dryrun host for every foreign act. The
 // special key "*" sets the default host for any act not named in the map.
 func RunFileWithHosts(path string, out io.Writer, hosts map[string]runtime.Host) error {
+	return RunFileWithHostsCtx(context.Background(), path, out, hosts)
+}
+
+// RunFileWithHostsCtx is RunFileWithHosts with a cancelable context: canceling
+// ctx aborts the run (the Esc panic-stop).
+func RunFileWithHostsCtx(ctx context.Context, path string, out io.Writer, hosts map[string]runtime.Host) error {
 	src, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("read %s: %w", path, err)
 	}
 	dir := filepath.Dir(path)
-	if err := runWith(string(src), dir, out, hosts); err != nil {
+	g, err := buildGraph(string(src), dir, map[string]bool{})
+	if err != nil {
+		return decorateError(err, path, string(src))
+	}
+	if err := compile.Compile(g, nil); err != nil {
+		return decorateError(fmt.Errorf("compile: %w", err), path, string(src))
+	}
+	if err := runtime.RunWithHostsContext(ctx, g, out, hosts); err != nil {
 		return decorateError(err, path, string(src))
 	}
 	return nil

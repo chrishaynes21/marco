@@ -48,7 +48,7 @@ func runAssistantDo(args []string) {
 	if m := nlu.Resolve(name, d.Reg.List()); m.Route != "" && (m.Exact || m.Score >= 0.75) {
 		target = m.Route
 	}
-	if err := d.Do(target); err != nil {
+	if err := dispatchDo(d, target); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
@@ -144,7 +144,7 @@ func runAssistant(_ []string) {
 }
 
 func runDo(d orchestrator.Deps, name string) {
-	if err := d.Do(name); err != nil {
+	if err := dispatchDo(d, name); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 	}
 }

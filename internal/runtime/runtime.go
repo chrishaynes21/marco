@@ -63,6 +63,13 @@ func RunTest(g *graph.Graph, test *graph.Node, w io.Writer) error {
 }
 
 func runFromEntry(g *graph.Graph, entry *graph.Node, w io.Writer, hosts map[string]Host) error {
+	return runFromEntryCtx(context.Background(), g, entry, w, hosts)
+}
+
+// runFromEntryCtx runs entry and, if ctx is canceled before the run finishes,
+// cancels the whole frame tree — aborting in-flight host calls and unwinding
+// through `finally` blocks. This is the panic-stop seam.
+func runFromEntryCtx(ctx context.Context, g *graph.Graph, entry *graph.Node, w io.Writer, hosts map[string]Host) error {
 	var defaultHost Host = DryRunHost{}
 	if d, ok := hosts["*"]; ok {
 		defaultHost = d
@@ -87,6 +94,17 @@ func runFromEntry(g *graph.Graph, entry *graph.Node, w io.Writer, hosts map[stri
 		}
 		r.markDone(root)
 	})
+	if ctx != nil {
+		done := make(chan struct{})
+		defer close(done)
+		go func() {
+			select {
+			case <-ctx.Done():
+				cancelTree(root)
+			case <-done:
+			}
+		}()
+	}
 	r.sched.drive()
 	// For tests, a `failed` / `died` terminal status on the test itself counts
 	// as a failure. Additionally, an unhandled child failure left in `that`

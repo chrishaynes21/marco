@@ -50,6 +50,13 @@ func Run(g *graph.Graph, w io.Writer) error {
 // hosts uses that Host for its foreign actions; any other foreign act falls
 // back to the dryrun host.
 func RunWithHosts(g *graph.Graph, w io.Writer, hosts map[string]Host) error {
+	return RunWithHostsContext(context.Background(), g, w, hosts)
+}
+
+// RunWithHostsContext is RunWithHosts with a cancelable context: canceling ctx
+// aborts the run (in-flight host calls stop; `finally` blocks run). Used for the
+// Esc panic-stop.
+func RunWithHostsContext(ctx context.Context, g *graph.Graph, w io.Writer, hosts map[string]Host) error {
 	script := g.Script()
 	if script == nil {
 		return fmt.Errorf("no script declared")
@@ -57,7 +64,7 @@ func RunWithHosts(g *graph.Graph, w io.Writer, hosts map[string]Host) error {
 	if script.BodyBlock == nil {
 		return fmt.Errorf("script %s has no body", script.Name)
 	}
-	return runFromEntry(g, script, w, hosts)
+	return runFromEntryCtx(ctx, g, script, w, hosts)
 }
 
 // hostFor returns the host registered for an act, or the default dryrun host.
