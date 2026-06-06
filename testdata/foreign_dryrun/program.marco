@@ -1,0 +1,10 @@
+the Ahk is an act.
+this exports Key.
+
+the App is a script.
+
+do Ahk's Key with "e"...
+    when ok?
+        log "pressed".
+    or?
+        log "failed".

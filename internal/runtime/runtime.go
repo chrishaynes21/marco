@@ -5,6 +5,7 @@
 package runtime
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"strconv"
@@ -39,23 +40,13 @@ func (errSkipSignal) Error() string { return "skip" }
 
 var errSkip error = errSkipSignal{}
 
-// Run executes the script in the graph, writing `log` output to w.
+// Run, RunWithHosts, and the Host interface live in host.go.
 //
 // Each Frame runs in its own goroutine and frames execute in true parallel.
 // Per-resource locks (Frame.mu, Set.mu, Queue.mu, Channel.mu, Feed.mu, plus
 // runner-level resMu/outMu) provide the synchronization. `start` spawns
 // children non-blockingly; `do` parks the parent on the child's Done channel
 // until termination.
-func Run(g *graph.Graph, w io.Writer) error {
-	script := g.Script()
-	if script == nil {
-		return fmt.Errorf("no script declared")
-	}
-	if script.BodyBlock == nil {
-		return fmt.Errorf("script %s has no body", script.Name)
-	}
-	return runFromEntry(g, script, w)
-}
 
 // RunTest runs a single test node's body in an isolated runner. The graph
 // (actors, contracts, channels, etc.) is shared, but actor state and other
@@ -68,11 +59,11 @@ func RunTest(g *graph.Graph, test *graph.Node, w io.Writer) error {
 	if test.BodyBlock == nil {
 		return fmt.Errorf("test %s has no body", test.Name)
 	}
-	return runFromEntry(g, test, w)
+	return runFromEntry(g, test, w, nil)
 }
 
-func runFromEntry(g *graph.Graph, entry *graph.Node, w io.Writer) error {
-	r := &runner{g: g, out: w, sched: newScheduler()}
+func runFromEntry(g *graph.Graph, entry *graph.Node, w io.Writer, hosts map[string]Host) error {
+	r := &runner{g: g, out: w, sched: newScheduler(), hosts: hosts, defaultHost: DryRunHost{}}
 	if len(g.Mocks) > 0 {
 		r.mocks = make(map[string]*graph.Node, len(g.Mocks))
 		for _, m := range g.Mocks {
@@ -149,6 +140,11 @@ func (r *runner) markDone(f *Frame) {
 
 	if f.Done != nil {
 		close(f.Done)
+	}
+	// Release the frame's cancellation context now that it's terminal (no-op if
+	// already canceled). Keeps chained child contexts from being retained.
+	if f.cancelCtx != nil {
+		f.cancelCtx()
 	}
 
 	for _, ln := range listeners {
@@ -291,6 +287,12 @@ type runner struct {
 	// on a mocked owner.
 	mocks map[string]*graph.Node
 
+	// hosts: act name → foreign-action provider. defaultHost (dryrun) serves
+	// any foreign act not in the map. Both are set at construction and read
+	// lock-free thereafter.
+	hosts       map[string]Host
+	defaultHost Host
+
 	// thatStatusAsserted is set when an `expect that is <Status>?` (or via
 	// shorthand) evaluates true at runtime. The test runner uses it to know
 	// the author has explicitly accounted for the most-recent child's
@@ -428,6 +430,11 @@ func (r *runner) newFrame(parent *Frame, action *graph.Node, owner *graph.Node) 
 	r.frameID++
 	id := r.frameID
 	r.resMu.Unlock()
+	pctx := context.Background()
+	if parent != nil {
+		pctx = parent.ctx()
+	}
+	ctx, cancel := context.WithCancel(pctx)
 	f := &Frame{
 		ID:        id,
 		Action:    action,
@@ -436,6 +443,8 @@ func (r *runner) newFrame(parent *Frame, action *graph.Node, owner *graph.Node) 
 		Parent:    parent,
 		Done:      make(chan struct{}),
 		CreatedAt: time.Now(),
+		goctx:     ctx,
+		cancelCtx: cancel,
 	}
 	return f
 }
@@ -1112,7 +1121,9 @@ func (r *runner) dispatch(f *Frame, e graph.Edge) (bool, error) {
 		f.addChild(child)
 		// Spawn child in its own goroutine; park parent until child finishes.
 		r.sched.spawn(child, func() {
-			if action.BodyBlock != nil {
+			if action.Foreign {
+				r.invokeForeign(child, action)
+			} else if action.BodyBlock != nil {
 				if err := r.runBlock(child, action.BodyBlock); err != nil {
 					r.recordErr(err)
 				}
@@ -1246,7 +1257,9 @@ func (r *runner) dispatch(f *Frame, e graph.Edge) (bool, error) {
 		child.setStatus(StatusRunning, "")
 		f.addChild(child)
 		r.sched.spawn(child, func() {
-			if action.BodyBlock != nil {
+			if action.Foreign {
+				r.invokeForeign(child, action)
+			} else if action.BodyBlock != nil {
 				if err := r.runBlock(child, action.BodyBlock); err != nil {
 					r.recordErr(err)
 				}
@@ -1462,7 +1475,9 @@ func (r *runner) dispatch(f *Frame, e graph.Edge) (bool, error) {
 		}
 		// Spawn the child without blocking the parent.
 		r.sched.spawn(child, func() {
-			if action.BodyBlock != nil {
+			if action.Foreign {
+				r.invokeForeign(child, action)
+			} else if action.BodyBlock != nil {
 				if err := r.runBlock(child, action.BodyBlock); err != nil {
 					r.recordErr(err)
 				}

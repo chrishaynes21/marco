@@ -1,0 +1,2 @@
+[dryrun] Ahk's Key with e
+pressed

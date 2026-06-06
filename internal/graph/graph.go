@@ -97,6 +97,14 @@ type Node struct {
 	// used by the exhaustiveness checker.
 	AdoptedContractName string
 
+	// Foreign marks an action whose implementation is provided by a host in
+	// another language. Set by the compiler on exported act capabilities that
+	// end the build with no Marco `does...` body. The runtime dispatches these
+	// through a Host instead of walking a BodyBlock; the compiler skips
+	// body-shape checks and infers the result contract (declared, or the
+	// default {ok, failed}). See spec/Hosts.md.
+	Foreign bool
+
 	// Members are nodes added via `it has <Member>.` on a set declaration.
 	// Used for group routing: `says X to <Set>` fans out to each member.
 	Members []*Node

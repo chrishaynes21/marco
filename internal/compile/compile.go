@@ -178,6 +178,11 @@ func Compile(g *graph.Graph, _ *ast.File) error {
 	if err := c.applyInlineMocks(); err != nil {
 		return err
 	}
+	// markForeign flags exported, bodyless act capabilities as foreign before
+	// any check pass reads the flag. Must run after body compilation (so a
+	// `this's X does...` that follows the `exports` has been attached) and
+	// before the checks slice.
+	c.markForeign()
 	// All check passes share c.errs. Each pass appends; we run them all so a
 	// single editor invocation can surface multiple, independent diagnostics
 	// (e.g. a dead arm AND a missing return). A pass may also return an error
@@ -1598,12 +1603,56 @@ func (a *analyzer) bodyCancellable(host *graph.Node, b *graph.Block) bool {
 	return false
 }
 
+// markForeign flags every exported act capability that ended the build with no
+// Marco body as a foreign action — its implementation lives in a host (see
+// spec/Hosts.md). The flag distinguishes the intentional FFI seam (exported +
+// bodyless) from a genuinely empty action, and lets later passes skip
+// body-shape checks and infer the result contract.
+func (c *compiler) markForeign() {
+	for _, name := range c.g.Order {
+		owner := c.g.Nodes[name]
+		if owner.Kind != graph.KindActor {
+			continue
+		}
+		for _, cap := range owner.Caps {
+			act := cap.Action
+			if cap.Exported && act != nil && act.Kind == graph.KindAction &&
+				act.Body == nil && act.BodyBlock == nil {
+				act.Foreign = true
+			}
+		}
+	}
+}
+
+// foreignStatuses returns the effective status set for a foreign action: the
+// statuses of its adopted contract if it declares one, else the default
+// {ok, failed}. Foreign code can always fail, so `failed` is included unless a
+// contract narrows it.
+func foreignStatuses(g *graph.Graph, n *graph.Node) map[string]ast.Sentence {
+	out := map[string]ast.Sentence{"ok": {}}
+	if n.AdoptedContractName != "" {
+		if ct, ok := g.Nodes[n.AdoptedContractName]; ok && ct.Kind == graph.KindContract {
+			for _, as := range ct.AllowedStatuses {
+				out[as.Name] = ast.Sentence{}
+			}
+			return out
+		}
+	}
+	out["failed"] = ast.Sentence{}
+	return out
+}
+
 // effectiveStatuses returns the action's full emission set (cached). For an
 // action with an adopted contract we still compute from the body — the
 // verifier later checks that this set ⊆ contract.allowed.
 func (a *analyzer) effectiveStatuses(n *graph.Node) map[string]ast.Sentence {
 	if cached, ok := a.emissions[n]; ok {
 		return cached
+	}
+	if n.Foreign {
+		out := foreignStatuses(a.g, n)
+		a.emissions[n] = out
+		return out
 	}
 	if a.inProgress[n] {
 		// Cycle: return a placeholder; caller adds to its own set without

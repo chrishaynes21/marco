@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -115,6 +116,22 @@ type Frame struct {
 	// Listener installers that observe terminated == true must fire the body
 	// themselves — markDone has already drained the list.
 	terminated bool
+
+	// goctx is canceled when this frame is canceled or reaches a terminal
+	// status. It is chained from the parent frame's context, so canceling a
+	// frame cancels its whole subtree — matching cancelTree. Foreign host calls
+	// receive it via HostCall.Ctx so a long-running host can abort on cancel.
+	goctx     context.Context
+	cancelCtx context.CancelFunc
+}
+
+// ctx returns the frame's cancellation context (never nil). Handed to foreign
+// hosts so they can abort blocking work when the frame's tree is canceled.
+func (f *Frame) ctx() context.Context {
+	if f.goctx == nil {
+		return context.Background()
+	}
+	return f.goctx
 }
 
 // StatusListener is a reactive listener for a Frame's status transition. It
@@ -237,6 +254,9 @@ func (f *Frame) cancelIfRunning() bool {
 	}
 	f.status = StatusCanceled
 	f.customStatus = ""
+	if f.cancelCtx != nil {
+		f.cancelCtx()
+	}
 	return true
 }
 
