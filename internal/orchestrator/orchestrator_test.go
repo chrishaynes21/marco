@@ -59,20 +59,22 @@ func TestTeachThenRun(t *testing.T) {
 	var out bytes.Buffer
 	d := Deps{
 		Reg: reg, Rec: &fakeRecorder{events: events},
-		In:  strings.NewReader("y\n"),
+		// save? yes; available-everywhere? no → scoped to the app.
+		In:  strings.NewReader("y\nn\n"),
 		Out: &out,
 		App: func() string { return "sea-of-thieves" }, // context captured at teach time
 	}
 
-	// First Do: unknown → teaches, saves, and runs under dryrun.
+	// First Do: unknown → teaches, saves (scoped), and runs under dryrun.
 	if err := d.Do("open chest"); err != nil {
 		t.Fatalf("Do(teach): %v\n%s", err, out.String())
 	}
-	if !reg.Has("open chest") {
-		t.Fatal("route was not saved")
+	scoped := routes.Route{App: "sea-of-thieves", Slug: "open-chest"}
+	if !reg.Has(scoped) {
+		t.Fatal("route was not saved under its app scope")
 	}
 	// The Esc stop gesture must not appear as a step in the saved route.
-	saved, _ := os.ReadFile(reg.Path("open chest"))
+	saved, _ := os.ReadFile(reg.Path(scoped))
 	if strings.Contains(string(saved), `Key with "esc"`) {
 		t.Fatalf("stop key leaked into route:\n%s", saved)
 	}

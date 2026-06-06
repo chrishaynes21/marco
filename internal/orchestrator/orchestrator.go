@@ -36,17 +36,19 @@ func (d Deps) activeApp() string {
 	return d.App()
 }
 
-// Do runs the named route if known; otherwise teaches it, then runs it.
+// Do runs the route best matching name in the current app context; if there
+// isn't one, it teaches it, then offers to run.
 func (d Deps) Do(name string) error {
-	if d.Reg.Has(name) {
-		return d.run(name)
+	app := d.activeApp()
+	if rt, ok := d.Reg.Resolve(app, name); ok {
+		return d.Run(rt)
 	}
 	fmt.Fprintf(d.Out, "I don't know %q yet.\n", name)
 	if err := d.Teach(name); err != nil {
 		return err
 	}
-	if d.Reg.Has(name) && d.confirm("Run it now? [Y/n] ") {
-		return d.run(name)
+	if rt, ok := d.Reg.Resolve(d.activeApp(), name); ok && d.confirm("Run it now? [Y/n] ") {
+		return d.Run(rt)
 	}
 	return nil
 }
@@ -82,15 +84,27 @@ func (d Deps) Teach(name string) error {
 		fmt.Fprintln(d.Out, "Discarded.")
 		return nil
 	}
-	if err := d.Reg.Save(name, src); err != nil {
+	// Scope: default to the app it was taught in (resolves preferentially there);
+	// opt into global so it's available everywhere.
+	scope := app
+	if app != "" && d.confirm(fmt.Sprintf("Make it available everywhere, not just in %s? [y/N] ", app)) {
+		scope = ""
+	}
+	if err := d.Reg.Save(scope, name, src); err != nil {
 		return err
 	}
-	fmt.Fprintf(d.Out, "Learned %q → %s\n", name, d.Reg.Path(name))
+	rt := routes.Route{App: scope, Slug: routes.Slug(name)}
+	where := "everywhere"
+	if scope != "" {
+		where = "in " + scope
+	}
+	fmt.Fprintf(d.Out, "Learned %q (%s) → %s\n", name, where, d.Reg.Path(rt))
 	return nil
 }
 
-func (d Deps) run(name string) error {
-	return driver.RunFileWithHosts(d.Reg.Path(name), d.Out, d.Hosts)
+// Run executes a specific route.
+func (d Deps) Run(rt routes.Route) error {
+	return driver.RunFileWithHosts(d.Reg.Path(rt), d.Out, d.Hosts)
 }
 
 // waitForStop blocks until the stop key (Esc) is seen on the recorder's event

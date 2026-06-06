@@ -49,9 +49,9 @@ func runAssistantDo(args []string) {
 	// teaching a duplicate. `do` is non-interactive, so only act on confident
 	// matches; otherwise pass the phrase through (Do teaches if unknown).
 	target := name
-	if m := nlu.Resolve(name, d.Reg.List()); m.Route != "" && (m.Exact || m.Score >= 0.75) {
+	if m := nlu.Resolve(name, d.Reg.Slugs()); m.Route != "" && (m.Exact || m.Score >= 0.75) {
 		target = m.Route
-	} else if r := resolver.Resolve(context.Background(), name, d.Reg.List()); r != "" {
+	} else if r := resolver.Resolve(context.Background(), name, d.Reg.Slugs()); r != "" {
 		target = r // optional model fallback for loose phrasing
 	}
 	if err := dispatchDo(d, target); err != nil {
@@ -67,8 +67,12 @@ func runRoutes() {
 		return
 	}
 	fmt.Println("Known routes:")
-	for _, r := range list {
-		fmt.Println("  " + prettyRoute(r))
+	for _, rt := range list {
+		scope := "everywhere"
+		if rt.App != "" {
+			scope = "in " + rt.App
+		}
+		fmt.Printf("  %-28s (%s)\n", prettyRoute(rt.Slug), scope)
 	}
 }
 
@@ -79,15 +83,16 @@ func runForget(args []string) {
 		os.Exit(2)
 	}
 	d := newDeps()
-	if !d.Reg.Has(name) {
+	rt, ok := d.Reg.Resolve(appOf(d), name)
+	if !ok {
 		fmt.Fprintf(os.Stderr, "No route named %q.\n", name)
 		os.Exit(1)
 	}
-	if err := d.Reg.Delete(name); err != nil {
+	if err := d.Reg.Delete(rt); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	fmt.Printf("Forgot %q.\n", name)
+	fmt.Printf("Forgot %q.\n", prettyRoute(rt.Slug))
 }
 
 func runAssistantTeach(args []string) {
@@ -127,13 +132,17 @@ func runAssistant(_ []string) {
 			fmt.Fprintln(os.Stdout, "  and set it with: marco secret set <name>")
 			continue
 		case "list":
-			for _, r := range d.Reg.List() {
-				fmt.Fprintln(os.Stdout, "  "+prettyRoute(r))
+			for _, rt := range d.Reg.List() {
+				scope := "everywhere"
+				if rt.App != "" {
+					scope = "in " + rt.App
+				}
+				fmt.Fprintf(os.Stdout, "  %-28s (%s)\n", prettyRoute(rt.Slug), scope)
 			}
 			continue
 		}
 
-		m := nlu.Resolve(line, d.Reg.List())
+		m := nlu.Resolve(line, d.Reg.Slugs())
 		switch {
 		case m.Exact:
 			runDo(d, m.Route)
@@ -146,7 +155,7 @@ func runAssistant(_ []string) {
 		default:
 			// Deterministic matcher unsure → optional external resolver plugin
 			// ($MARCO_RESOLVER). A no-op when unset.
-			if r := resolver.Resolve(context.Background(), line, d.Reg.List()); r != "" &&
+			if r := resolver.Resolve(context.Background(), line, d.Reg.Slugs()); r != "" &&
 				askYes(fmt.Sprintf("Did you mean %q? [Y/n] ", prettyRoute(r))) {
 				runDo(d, r)
 			} else {

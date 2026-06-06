@@ -63,6 +63,16 @@ and the tool works fully without it.
 
 Press **Esc** at any time to abort a running route.
 
+### Context-aware routes
+
+A route remembers the app you taught it in and **brings that app to the front
+before running** — so "log into Facebook" focuses Chrome first. A route is
+either **global** (works anywhere) or **scoped to an app**, chosen when you save
+it. Scoped routes let the *same phrase* mean different things per app: "switch to
+sword" can resolve to your Sea of Thieves route when it's focused and a different
+game's route when that is. Resolution prefers the route for the foreground app,
+then a global one. `marco routes` shows each route's scope.
+
 ### Passwords never get recorded
 
 While teaching, type a **placeholder** `{{name}}` where a secret goes. The

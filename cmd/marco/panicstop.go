@@ -43,12 +43,22 @@ func withPanicStop(realInput bool, fn func(context.Context) error) error {
 	return err
 }
 
-// dispatchDo runs a known route under the Esc panic-stop, or teaches an unknown
-// command (teaching uses the recorder itself, so it isn't wrapped).
+// appOf returns the current foreground app for a Deps (used for scoped route
+// resolution), or "" when unavailable.
+func appOf(d orchestrator.Deps) string {
+	if d.App == nil {
+		return ""
+	}
+	return d.App()
+}
+
+// dispatchDo resolves the command to a route in the current app context and runs
+// it under the Esc panic-stop; an unknown command is taught (teaching drives the
+// recorder itself, so it isn't wrapped).
 func dispatchDo(d orchestrator.Deps, name string) error {
-	if d.Reg.Has(name) {
+	if rt, ok := d.Reg.Resolve(appOf(d), name); ok {
 		return withPanicStop(true, func(ctx context.Context) error {
-			return driver.RunFileWithHostsCtx(ctx, d.Reg.Path(name), os.Stdout, d.Hosts)
+			return driver.RunFileWithHostsCtx(ctx, d.Reg.Path(rt), os.Stdout, d.Hosts)
 		})
 	}
 	return d.Do(name)
