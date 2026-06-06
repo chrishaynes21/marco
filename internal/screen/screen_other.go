@@ -8,5 +8,5 @@ func New() Screen { return stub{} }
 
 type stub struct{}
 
-func (stub) Pixel(int, int) (uint32, error)             { return 0, ErrUnsupported }
-func (stub) Find(string, Region, int) (Match, error)    { return Match{}, ErrUnsupported }
+func (stub) Pixel(int, int) (uint32, error)          { return 0, ErrUnsupported }
+func (stub) Find(string, Region, int) (Match, error) { return Match{}, ErrUnsupported }

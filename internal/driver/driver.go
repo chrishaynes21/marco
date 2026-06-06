@@ -21,8 +21,8 @@ import (
 // Diagnostic is the wire form of a compiler message. Suitable for editor /
 // LSP integration via `marco check --json`.
 type Diagnostic struct {
-	Severity string `json:"severity"`        // "error" | "warning" | "info"
-	Code     string `json:"code,omitempty"`  // short stable id (e.g. "dead-arm")
+	Severity string `json:"severity"`       // "error" | "warning" | "info"
+	Code     string `json:"code,omitempty"` // short stable id (e.g. "dead-arm")
 	File     string `json:"file"`
 	Line     int    `json:"line"`
 	Column   int    `json:"column"`
@@ -275,7 +275,7 @@ func (b *testBuffer) Write(p []byte) (int, error) {
 	b.data = append(b.data, p...)
 	return len(p), nil
 }
-func (b *testBuffer) Len() int     { return len(b.data) }
+func (b *testBuffer) Len() int { return len(b.data) }
 func (b *testBuffer) String() string {
 	return string(b.data)
 }

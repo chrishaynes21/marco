@@ -8,9 +8,9 @@ import (
 
 	"github.com/chaynes-simpleclouds/marco/internal/nlu"
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
+	"github.com/chaynes-simpleclouds/marco/internal/oshost"
 	"github.com/chaynes-simpleclouds/marco/internal/osmod"
 	"github.com/chaynes-simpleclouds/marco/internal/recorder"
-	"github.com/chaynes-simpleclouds/marco/internal/oshost"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
 	"github.com/chaynes-simpleclouds/marco/internal/runtime"
 )
@@ -41,10 +41,48 @@ func runAssistantDo(args []string) {
 		fmt.Fprintln(os.Stderr, `usage: marco do "<name>"`)
 		os.Exit(2)
 	}
-	if err := newDeps().Do(name); err != nil {
+	d := newDeps()
+	// Resolve to an existing route so close phrasings reuse it instead of
+	// teaching a duplicate. `do` is non-interactive, so only act on confident
+	// matches; otherwise pass the phrase through (Do teaches if unknown).
+	target := name
+	if m := nlu.Resolve(name, d.Reg.List()); m.Route != "" && (m.Exact || m.Score >= 0.75) {
+		target = m.Route
+	}
+	if err := d.Do(target); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+func runRoutes() {
+	list := newDeps().Reg.List()
+	if len(list) == 0 {
+		fmt.Println("No routes yet. Teach one with: marco teach \"<name>\"")
+		return
+	}
+	fmt.Println("Known routes:")
+	for _, r := range list {
+		fmt.Println("  " + prettyRoute(r))
+	}
+}
+
+func runForget(args []string) {
+	name := strings.TrimSpace(strings.Join(args, " "))
+	if name == "" {
+		fmt.Fprintln(os.Stderr, `usage: marco forget "<name>"`)
+		os.Exit(2)
+	}
+	d := newDeps()
+	if !d.Reg.Has(name) {
+		fmt.Fprintf(os.Stderr, "No route named %q.\n", name)
+		os.Exit(1)
+	}
+	if err := d.Reg.Delete(name); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	fmt.Printf("Forgot %q.\n", name)
 }
 
 func runAssistantTeach(args []string) {

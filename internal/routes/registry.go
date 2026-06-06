@@ -69,6 +69,15 @@ func (r Registry) Save(name, source string) error {
 	return os.WriteFile(r.Path(name), []byte(source), 0o644)
 }
 
+// Delete removes a named route (no error if absent).
+func (r Registry) Delete(name string) error {
+	err := os.Remove(r.Path(name))
+	if os.IsNotExist(err) {
+		return nil
+	}
+	return err
+}
+
 // List returns the known route slugs.
 func (r Registry) List() []string {
 	entries, err := os.ReadDir(r.Dir)

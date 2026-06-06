@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -13,10 +14,13 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		usage()
+		usage(os.Stderr)
 		os.Exit(2)
 	}
 	switch os.Args[1] {
+	case "help", "-h", "--help":
+		usage(os.Stdout)
+		return
 	case "do":
 		runAssistantDo(os.Args[2:])
 		return
@@ -26,12 +30,18 @@ func main() {
 	case "assistant":
 		runAssistant(os.Args[2:])
 		return
+	case "routes":
+		runRoutes()
+		return
+	case "forget":
+		runForget(os.Args[2:])
+		return
 	case "secret":
 		runSecret(os.Args[2:])
 		return
 	}
 	if len(os.Args) < 3 {
-		usage()
+		usage(os.Stderr)
 		os.Exit(2)
 	}
 	switch os.Args[1] {
@@ -39,7 +49,7 @@ func main() {
 		path, hosts, err := parseRunArgs(os.Args[2:])
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
-			usage()
+			usage(os.Stderr)
 			os.Exit(2)
 		}
 		if err := driver.RunFileWithHosts(path, os.Stdout, hosts); err != nil {
@@ -50,7 +60,7 @@ func main() {
 		path, hosts, err := parseRunArgs(os.Args[2:])
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
-			usage()
+			usage(os.Stderr)
 			os.Exit(2)
 		}
 		if err := driver.ServeFile(path, os.Stdin, os.Stdout, hosts); err != nil {
@@ -72,7 +82,7 @@ func main() {
 		path := os.Args[2]
 		if path == "--json" {
 			if len(os.Args) < 4 {
-				usage()
+				usage(os.Stderr)
 				os.Exit(2)
 			}
 			jsonMode = true
@@ -82,7 +92,7 @@ func main() {
 			os.Exit(1)
 		}
 	default:
-		usage()
+		usage(os.Stderr)
 		os.Exit(2)
 	}
 }
@@ -130,14 +140,28 @@ func parseRunArgs(args []string) (path string, hosts map[string]runtime.Host, er
 	}
 }
 
-func usage() {
-	fmt.Fprintln(os.Stderr, "usage: marco run   [--host dryrun|windows|bridge:<exe>] <file.marco>")
-	fmt.Fprintln(os.Stderr, "       marco serve [--host dryrun|windows|bridge:<exe>] <file.marco>")
-	fmt.Fprintln(os.Stderr, "       marco do \"<name>\"      run a named route, or teach it if unknown")
-	fmt.Fprintln(os.Stderr, "       marco teach \"<name>\"   record/overwrite a named route")
-	fmt.Fprintln(os.Stderr, "       marco assistant         interactive loop: type a command per line")
-	fmt.Fprintln(os.Stderr, "       marco secret set|list|rm <name>   manage stored passwords")
-	fmt.Fprintln(os.Stderr, "       marco test <file.marco>")
-	fmt.Fprintln(os.Stderr, "       marco contracts <file.marco>")
-	fmt.Fprintln(os.Stderr, "       marco check [--json] <file.marco>")
+func usage(w io.Writer) {
+	fmt.Fprint(w, `marco — a sentence-driven automation language and self-teaching assistant.
+
+Assistant (teach by demonstration, then run by name):
+  marco do "<name>"        run a route; if unknown, record it once and remember
+  marco teach "<name>"     record/overwrite a route by demonstration
+  marco assistant          interactive loop — say what you want, in plain words
+  marco routes             list known routes
+  marco forget "<name>"    delete a route
+  marco secret set|list|rm <name>   manage stored passwords (OS credential store)
+
+Run Marco programs:
+  marco run   [--host dryrun|windows|bridge:<exe>] <file.marco>
+  marco serve [--host dryrun|windows|bridge:<exe>] <file.marco>
+
+Language tooling:
+  marco check [--json] <file.marco>   static check + diagnostics
+  marco test <file.marco>             run test blocks
+  marco contracts <file.marco>        print inferred action contracts
+
+Hosts: dryrun logs calls (default); windows performs real input; bridge:<exe>
+delegates to an external program (e.g. AutoHotkey). Routes live in ./routes
+(override with $MARCO_ROUTES). While teaching, type {{name}} for a password.
+`)
 }

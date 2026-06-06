@@ -22,7 +22,7 @@ var (
 )
 
 const (
-	credTypeGeneric       = 1
+	credTypeGeneric         = 1
 	credPersistLocalMachine = 2
 )
 

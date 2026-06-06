@@ -35,7 +35,7 @@ type parser struct {
 	i    int
 }
 
-func (p *parser) peek() token.Token   { return p.toks[p.i] }
+func (p *parser) peek() token.Token { return p.toks[p.i] }
 func (p *parser) peekAt(o int) token.Token {
 	if p.i+o >= len(p.toks) {
 		return token.Token{Kind: token.EOF}

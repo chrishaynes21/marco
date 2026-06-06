@@ -9,6 +9,6 @@ func New() Recorder { return stubRecorder{} }
 
 type stubRecorder struct{}
 
-func (stubRecorder) Start() error                  { return ErrUnsupported }
-func (stubRecorder) Stop() []RecordedEvent         { return nil }
-func (stubRecorder) Events() <-chan RecordedEvent  { return nil }
+func (stubRecorder) Start() error                 { return ErrUnsupported }
+func (stubRecorder) Stop() []RecordedEvent        { return nil }
+func (stubRecorder) Events() <-chan RecordedEvent { return nil }

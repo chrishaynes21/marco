@@ -3099,12 +3099,12 @@ func (c *compiler) compileSentence(s *ast.Sentence) ([]graph.Edge, error) {
 				n, ok := c.g.Nodes[subjName]
 				if !ok {
 					return nil, &Error{Pos: *s, Msg: fmt.Sprintf("unknown subject %q%s",
-					subjName, suggestClosest(subjName, c.g.Order))}
+						subjName, suggestClosest(subjName, c.g.Order))}
 				}
 				cap := findCap(n, capName)
 				if cap == nil {
 					return nil, &Error{Pos: *s, Msg: fmt.Sprintf("%s has no capability %q%s",
-					subjName, capName, suggestClosest(capName, capNames(n)))}
+						subjName, capName, suggestClosest(capName, capNames(n)))}
 				}
 				action = cap.Action
 			}

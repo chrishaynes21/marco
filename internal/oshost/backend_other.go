@@ -19,10 +19,10 @@ func unsupported(op string) error {
 	return fmt.Errorf("OS host: %s not supported on %s", op, runtime.GOOS)
 }
 
-func (stubBackend) key(context.Context, string) error         { return unsupported("key") }
-func (stubBackend) typeText(context.Context, string) error    { return unsupported("type") }
-func (stubBackend) click(context.Context, string) error       { return unsupported("click") }
-func (stubBackend) move(context.Context, int, int) error      { return unsupported("move") }
+func (stubBackend) key(context.Context, string) error      { return unsupported("key") }
+func (stubBackend) typeText(context.Context, string) error { return unsupported("type") }
+func (stubBackend) click(context.Context, string) error    { return unsupported("click") }
+func (stubBackend) move(context.Context, int, int) error   { return unsupported("move") }
 func (stubBackend) color(context.Context, int, int) (uint32, error) {
 	return 0, unsupported("color")
 }

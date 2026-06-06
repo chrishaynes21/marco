@@ -12,15 +12,15 @@ import (
 )
 
 var (
-	kernel32          = syscall.NewLazyDLL("kernel32.dll")
-	procGetStdHandle  = kernel32.NewProc("GetStdHandle")
+	kernel32           = syscall.NewLazyDLL("kernel32.dll")
+	procGetStdHandle   = kernel32.NewProc("GetStdHandle")
 	procGetConsoleMode = kernel32.NewProc("GetConsoleMode")
 	procSetConsoleMode = kernel32.NewProc("SetConsoleMode")
 )
 
 const (
-	stdInputHandle    = uintptr(0xFFFFFFF6) // -10 as DWORD
-	enableEchoInput   = 0x0004
+	stdInputHandle  = uintptr(0xFFFFFFF6) // -10 as DWORD
+	enableEchoInput = 0x0004
 )
 
 // readPassword reads a line from the console with echo disabled. handled is

@@ -72,14 +72,14 @@ func (k NodeKind) String() string {
 
 // Node represents one named entity in the program graph.
 type Node struct {
-	Name       string
-	Kind       NodeKind
-	Fields     []Field
-	Caps       []*Capability
-	Owner      *Node          // for `this can X` declared inside an actor
-	Body       *ast.Sentence  // action: the `does...` sentence; nil otherwise
-	ScriptBody []ast.Sentence // script: collected top-level non-declaration sentences
-	BodyBlock  *Block         // populated by phrase compiler
+	Name         string
+	Kind         NodeKind
+	Fields       []Field
+	Caps         []*Capability
+	Owner        *Node          // for `this can X` declared inside an actor
+	Body         *ast.Sentence  // action: the `does...` sentence; nil otherwise
+	ScriptBody   []ast.Sentence // script: collected top-level non-declaration sentences
+	BodyBlock    *Block         // populated by phrase compiler
 	IsScript     bool
 	IsReplayable bool // for feeds: buffer history & replay to late listeners
 
@@ -176,42 +176,42 @@ type Block struct {
 type EdgeKind int
 
 const (
-	EdgeUnknown EdgeKind = iota
-	EdgeReturnOK              // this is ok!
-	EdgeReturnOKWith          // this is ok with <expr>!
-	EdgeReturnFailedWithError // this is failed with error "<msg>"!
-	EdgeReturnFailedWith      // this is failed with <expr>!
-	EdgeBranchOpen            // when <pred>?
-	EdgeBranchFallback        // or?
-	EdgeBranchClose           // end of branch group
-	EdgeLog                   // log <expr>.
-	EdgeInvokePhrase          // do <action>.
-	EdgeFieldExists           // when <ref> exists?
-	EdgeAssign                // <ref> is <expr>.
-	EdgeForEach               // for each item in <ref>...
-	EdgeWhile                 // while <pred>...
-	EdgeStart                 // start <action> as <Name>...
-	EdgeRepeat                // repeat <N> times...
-	EdgeWaitUntil             // wait until <pred>...
-	EdgePutInto               // put <expr> into <Queue>.
-	EdgeWriteTo               // write <Msg> [with <Data>] to <Feed>.
-	EdgeSays                  // says <Msg> [with <Data>] to <Target>.
-	EdgeFinally               // finally... — runs on every terminal status.
-	EdgeBindLocal             // the <Name> is <expr>.  — local binding
-	EdgeInspect               // inspect <expr>.
-	EdgeFrameCap              // do <ref> <cap>.  — invoke built-in cap on a frame
-	EdgeCancel                // cancel <ref>.    — cancel a frame
-	EdgeShow                  // show <expr> [with <data>].  — UI render
-	EdgeWhat                  // what <ref>?      — debug introspection
-	EdgeAutoMap               // it maps what it can.  — translator auto-map
-	EdgeStop                  // stop.   — break out of enclosing loop
-	EdgeSkip                  // skip.   — continue to next iteration
-	EdgeStateUpdate           // it is <Status>.  — non-returning status update
-	EdgeLock                  // lock <ref>...  — acquire per-set lock for body
-	EdgeExecute               // execute <action>.  — fire-and-forget spawn
-	EdgeCast                  // <expr> as a <Type>  — translator dispatch / coercion
-	EdgeReturnPassthrough     // this is that!  — adopt that's status/result/error verbatim
-	EdgeExpect                // expect <pred>.  — test assertion; fails the test if pred is false
+	EdgeUnknown               EdgeKind = iota
+	EdgeReturnOK                       // this is ok!
+	EdgeReturnOKWith                   // this is ok with <expr>!
+	EdgeReturnFailedWithError          // this is failed with error "<msg>"!
+	EdgeReturnFailedWith               // this is failed with <expr>!
+	EdgeBranchOpen                     // when <pred>?
+	EdgeBranchFallback                 // or?
+	EdgeBranchClose                    // end of branch group
+	EdgeLog                            // log <expr>.
+	EdgeInvokePhrase                   // do <action>.
+	EdgeFieldExists                    // when <ref> exists?
+	EdgeAssign                         // <ref> is <expr>.
+	EdgeForEach                        // for each item in <ref>...
+	EdgeWhile                          // while <pred>...
+	EdgeStart                          // start <action> as <Name>...
+	EdgeRepeat                         // repeat <N> times...
+	EdgeWaitUntil                      // wait until <pred>...
+	EdgePutInto                        // put <expr> into <Queue>.
+	EdgeWriteTo                        // write <Msg> [with <Data>] to <Feed>.
+	EdgeSays                           // says <Msg> [with <Data>] to <Target>.
+	EdgeFinally                        // finally... — runs on every terminal status.
+	EdgeBindLocal                      // the <Name> is <expr>.  — local binding
+	EdgeInspect                        // inspect <expr>.
+	EdgeFrameCap                       // do <ref> <cap>.  — invoke built-in cap on a frame
+	EdgeCancel                         // cancel <ref>.    — cancel a frame
+	EdgeShow                           // show <expr> [with <data>].  — UI render
+	EdgeWhat                           // what <ref>?      — debug introspection
+	EdgeAutoMap                        // it maps what it can.  — translator auto-map
+	EdgeStop                           // stop.   — break out of enclosing loop
+	EdgeSkip                           // skip.   — continue to next iteration
+	EdgeStateUpdate                    // it is <Status>.  — non-returning status update
+	EdgeLock                           // lock <ref>...  — acquire per-set lock for body
+	EdgeExecute                        // execute <action>.  — fire-and-forget spawn
+	EdgeCast                           // <expr> as a <Type>  — translator dispatch / coercion
+	EdgeReturnPassthrough              // this is that!  — adopt that's status/result/error verbatim
+	EdgeExpect                         // expect <pred>.  — test assertion; fails the test if pred is false
 )
 
 // Edge is one runtime instruction in a Block.
@@ -291,10 +291,10 @@ type ImportDecl struct {
 // registration parsed at the declaration level. The compiler turns its body
 // into a Block; the runtime attaches it to the target on startup.
 type ListenerDecl struct {
-	Target     *Node    // actor / channel / feed it listens on
-	Message    string   // message name; "" matches any (future)
-	Verb       string   // "hears" | "reads"
-	FromSource string   // optional: only fire when message came from this name
+	Target     *Node  // actor / channel / feed it listens on
+	Message    string // message name; "" matches any (future)
+	Verb       string // "hears" | "reads"
+	FromSource string // optional: only fire when message came from this name
 	Body       *Block
 	Source     []ast.Sentence // raw body sentences (compiler input)
 }

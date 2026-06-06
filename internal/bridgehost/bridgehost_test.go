@@ -15,7 +15,7 @@ import (
 // receives each decoded request and returns the wire response to send back.
 func fakeBridge(t *testing.T, respond func(req map[string]any) string) *Host {
 	t.Helper()
-	reqR, reqW := io.Pipe()  // host writes requests here; responder reads
+	reqR, reqW := io.Pipe()   // host writes requests here; responder reads
 	respR, respW := io.Pipe() // responder writes responses here; host reads
 	h := &Host{}
 	h.startFn = func() (io.Writer, io.Reader, func() error, error) {

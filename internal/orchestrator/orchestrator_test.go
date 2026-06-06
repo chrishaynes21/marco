@@ -97,9 +97,9 @@ func TestTeachThenRun(t *testing.T) {
 
 func TestSlug(t *testing.T) {
 	cases := map[string]string{
-		"login to facebook": "login-to-facebook",
+		"login to facebook":     "login-to-facebook",
 		"Start Sea of Thieves!": "start-sea-of-thieves",
-		"  spaced  out  ":   "spaced-out",
+		"  spaced  out  ":       "spaced-out",
 	}
 	for in, want := range cases {
 		if got := routes.Slug(in); got != want {
