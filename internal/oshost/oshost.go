@@ -8,7 +8,9 @@ package oshost
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/runtime"
@@ -27,12 +29,21 @@ type backend interface {
 
 // Host adapts a backend to runtime.Host, dispatching foreign action names to
 // platform primitives and marshalling the call's Input/Output Values.
-type Host struct{ b backend }
+//
+// It also owns the background spam loop: like the original MacroMarco engine,
+// at most one spam runs at a time (Spam replaces it, StopSpam ends it). The spam
+// goroutine is host-owned — not tied to a Marco frame — so it survives across
+// hotkey events until StopSpam.
+type Host struct {
+	b          backend
+	mu         sync.Mutex
+	spamCancel context.CancelFunc
+}
 
 // New returns the native OS host for the current platform.
-func New() runtime.Host { return Host{b: newBackend()} }
+func New() runtime.Host { return &Host{b: newBackend()} }
 
-func (h Host) Invoke(c runtime.HostCall) (string, runtime.Value, error) {
+func (h *Host) Invoke(c runtime.HostCall) (string, runtime.Value, error) {
 	switch strings.ToLower(c.Action) {
 	case "key":
 		return ok(h.b.key(c.Ctx, c.Input.AsText()))
@@ -54,14 +65,147 @@ func (h Host) Invoke(c runtime.HostCall) (string, runtime.Value, error) {
 		return h.doFocus(c)
 	case "repeat":
 		return h.doRepeat(c)
+	case "spam":
+		return h.doSpam(c)
+	case "stopspam", "stop":
+		return h.doStopSpam()
+	case "roll":
+		return h.doRoll(c)
+	case "eightball":
+		return h.doEightBall()
+	case "name":
+		return h.doName()
 	default:
 		return fail(fmt.Sprintf("OS host has no action %q", c.Action))
 	}
 }
 
+// doSpam starts (or replaces) the single background spam loop. Input is a set
+// { Key: text, Every: ms } to spam a key, or { Button: text, Every: ms } to spam
+// a mouse click. Returns ok immediately; the loop runs until StopSpam (or a new
+// Spam) cancels it. The loop's context is independent of the calling frame so it
+// outlives the `do OS's Spam` that started it.
+func (h *Host) doSpam(c runtime.HostCall) (string, runtime.Value, error) {
+	set := c.Input.AsSet()
+	if set == nil {
+		return fail("spam needs a set with Key or Button, and Every")
+	}
+	keyVal, _ := set.Get("Key")
+	btnVal, _ := set.Get("Button")
+	everyVal, _ := set.Get("Every")
+	key := keyVal.AsText()
+	button := btnVal.AsText()
+	if key == "" && button == "" {
+		return fail("spam needs a Key or a Button")
+	}
+	every, okN := everyVal.AsNumber()
+	if !okN || every <= 0 {
+		every = 50
+	}
+	interval := time.Duration(every) * time.Millisecond
+
+	h.mu.Lock()
+	if h.spamCancel != nil {
+		h.spamCancel()
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	h.spamCancel = cancel
+	h.mu.Unlock()
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+			if key != "" {
+				_ = h.b.key(ctx, key)
+			} else {
+				_ = h.b.click(ctx, button)
+			}
+			select {
+			case <-time.After(interval):
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	return "ok", runtime.Absent(), nil
+}
+
+// doStopSpam cancels the background spam loop if one is running.
+func (h *Host) doStopSpam() (string, runtime.Value, error) {
+	h.mu.Lock()
+	if h.spamCancel != nil {
+		h.spamCancel()
+		h.spamCancel = nil
+	}
+	h.mu.Unlock()
+	return "ok", runtime.Absent(), nil
+}
+
+// doRoll returns a random integer in [Min, Max] (defaults 1..100). Input may be
+// a set { Min, Max }, or a single number used as Max.
+func (h *Host) doRoll(c runtime.HostCall) (string, runtime.Value, error) {
+	lo, hi := 1, 100
+	if n, okN := c.Input.AsNumber(); okN {
+		hi = int(n)
+	} else if set := c.Input.AsSet(); set != nil {
+		if v, ok2 := set.Get("Min"); ok2 {
+			if n, ok3 := v.AsNumber(); ok3 {
+				lo = int(n)
+			}
+		}
+		if v, ok2 := set.Get("Max"); ok2 {
+			if n, ok3 := v.AsNumber(); ok3 {
+				hi = int(n)
+			}
+		}
+	}
+	if lo > hi {
+		lo, hi = hi, lo
+	}
+	n := lo + rand.Intn(hi-lo+1)
+	return "ok", runtime.Number(float64(n)), nil
+}
+
+var eightBallResponses = []string{
+	"It is certain.", "It is decidedly so.", "Without a doubt.",
+	"Yes, definitely.", "You may rely on it.", "As I see it, yes.",
+	"Most likely.", "Outlook good.", "Yes.", "Signs point to yes.",
+	"Reply hazy, try again.", "Ask again later.", "Better not tell you now.",
+	"Cannot predict now.", "Concentrate and ask again.",
+	"Don't count on it.", "My reply is no.", "My sources say no.",
+	"Outlook not so good.", "Very doubtful.",
+}
+
+func (h *Host) doEightBall() (string, runtime.Value, error) {
+	return "ok", runtime.Text(eightBallResponses[rand.Intn(len(eightBallResponses))]), nil
+}
+
+var (
+	nameStarts = []string{"Ael", "Bran", "Cas", "Dor", "El", "Fae", "Gar", "Har",
+		"Il", "Jas", "Kel", "Lor", "Mir", "Nyx", "Or", "Phe", "Quel", "Rae",
+		"Syl", "Tal", "Ul", "Val", "Wren", "Xan", "Yor", "Zel"}
+	nameMids = []string{"a", "an", "el", "en", "ia", "iel", "in", "ion", "ir",
+		"is", "or", "oth", "un", "wyn"}
+	nameEnds = []string{"ath", "dor", "en", "eth", "ion", "ir", "is", "ith",
+		"or", "oth", "rath", "rin", "thar", "wyn"}
+)
+
+func (h *Host) doName() (string, runtime.Value, error) {
+	name := nameStarts[rand.Intn(len(nameStarts))]
+	if rand.Intn(2) == 1 {
+		name += nameMids[rand.Intn(len(nameMids))]
+	}
+	name += nameEnds[rand.Intn(len(nameEnds))]
+	return "ok", runtime.Text(name), nil
+}
+
 // doClick: a Point input moves there first; a text input names the button;
 // absent input clicks left at the current position.
-func (h Host) doClick(c runtime.HostCall) (string, runtime.Value, error) {
+func (h *Host) doClick(c runtime.HostCall) (string, runtime.Value, error) {
 	if x, y, present := point(c.Input); present {
 		if err := h.b.move(c.Ctx, x, y); err != nil {
 			return fail(err.Error())
@@ -75,7 +219,7 @@ func (h Host) doClick(c runtime.HostCall) (string, runtime.Value, error) {
 	return ok(h.b.click(c.Ctx, button))
 }
 
-func (h Host) doSleep(c runtime.HostCall) (string, runtime.Value, error) {
+func (h *Host) doSleep(c runtime.HostCall) (string, runtime.Value, error) {
 	ms, present := c.Input.AsNumber()
 	if !present {
 		return fail("sleep needs a number of milliseconds")
@@ -88,7 +232,7 @@ func (h Host) doSleep(c runtime.HostCall) (string, runtime.Value, error) {
 	}
 }
 
-func (h Host) doColor(c runtime.HostCall) (string, runtime.Value, error) {
+func (h *Host) doColor(c runtime.HostCall) (string, runtime.Value, error) {
 	x, y, present := point(c.Input)
 	if !present {
 		return fail("color needs a Point with X and Y")
@@ -102,7 +246,7 @@ func (h Host) doColor(c runtime.HostCall) (string, runtime.Value, error) {
 
 // doFocus resolves ok when the active window's exe matches the given substring
 // (case-insensitive), failed otherwise — used to gate window-scoped macros.
-func (h Host) doFocus(c runtime.HostCall) (string, runtime.Value, error) {
+func (h *Host) doFocus(c runtime.HostCall) (string, runtime.Value, error) {
 	spec := c.Input.AsText()
 	exe, err := h.b.activeExe(c.Ctx)
 	if err != nil {
@@ -117,7 +261,7 @@ func (h Host) doFocus(c runtime.HostCall) (string, runtime.Value, error) {
 // doRepeat presses a key on an interval until the frame is canceled. Input is a
 // set { Key: text, Every: number-of-ms }. This mirrors the original MacroMarco
 // Runners.Repeat continuous-spam pattern; cancellation (Esc/stop) ends it ok.
-func (h Host) doRepeat(c runtime.HostCall) (string, runtime.Value, error) {
+func (h *Host) doRepeat(c runtime.HostCall) (string, runtime.Value, error) {
 	set := c.Input.AsSet()
 	if set == nil {
 		return fail("repeat needs a set with Key and Every")

@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/runtime"
 )
@@ -46,7 +47,7 @@ func (r *recBackend) move(_ context.Context, x, y int) error {
 func (r *recBackend) color(_ context.Context, _, _ int) (uint32, error) { return 0x112233, nil }
 func (r *recBackend) activeExe(context.Context) (string, error)         { return r.exe, nil }
 
-func call(h Host, action string, input runtime.Value) (string, runtime.Value, error) {
+func call(h *Host, action string, input runtime.Value) (string, runtime.Value, error) {
 	return h.Invoke(runtime.HostCall{Action: action, Input: input, Ctx: context.Background()})
 }
 
@@ -59,7 +60,7 @@ func pointVal(x, y int) runtime.Value {
 
 func TestKeyAndType(t *testing.T) {
 	rec := &recBackend{}
-	h := Host{b: rec}
+	h := &Host{b: rec}
 	if st, _, _ := call(h, "Key", runtime.Text("e")); st != "ok" {
 		t.Fatalf("Key status = %q", st)
 	}
@@ -76,7 +77,7 @@ func TestKeyAndType(t *testing.T) {
 
 func TestClickAtPoint(t *testing.T) {
 	rec := &recBackend{}
-	h := Host{b: rec}
+	h := &Host{b: rec}
 	if st, _, _ := call(h, "Click", pointVal(10, 20)); st != "ok" {
 		t.Fatalf("Click status = %q", st)
 	}
@@ -89,7 +90,7 @@ func TestClickAtPoint(t *testing.T) {
 }
 
 func TestColorReturnsHex(t *testing.T) {
-	h := Host{b: &recBackend{}}
+	h := &Host{b: &recBackend{}}
 	st, data, _ := call(h, "Color", pointVal(1, 1))
 	if st != "ok" || data.AsText() != "0x112233" {
 		t.Fatalf("Color = %q %q", st, data.AsText())
@@ -97,7 +98,7 @@ func TestColorReturnsHex(t *testing.T) {
 }
 
 func TestFocusMatch(t *testing.T) {
-	h := Host{b: &recBackend{exe: `C:\Games\ShooterGame.exe`}}
+	h := &Host{b: &recBackend{exe: `C:\Games\ShooterGame.exe`}}
 	if st, _, _ := call(h, "Focus", runtime.Text("ShooterGame")); st != "ok" {
 		t.Fatalf("Focus match status = %q", st)
 	}
@@ -108,7 +109,7 @@ func TestFocusMatch(t *testing.T) {
 
 func TestRepeatStopsOnCancel(t *testing.T) {
 	rec := &recBackend{}
-	h := Host{b: rec}
+	h := &Host{b: rec}
 	ctx, cancel := context.WithCancel(context.Background())
 	s := runtime.NewSet()
 	s.Put("Key", runtime.Text("e"))
@@ -133,8 +134,54 @@ func TestRepeatStopsOnCancel(t *testing.T) {
 	}
 }
 
+func TestSpamStartStop(t *testing.T) {
+	rec := &recBackend{}
+	h := &Host{b: rec}
+	s := runtime.NewSet()
+	s.Put("Key", runtime.Text("e"))
+	s.Put("Every", runtime.Number(1))
+	if st, _, _ := call(h, "Spam", runtime.SetVal(s)); st != "ok" {
+		t.Fatalf("Spam status = %q", st)
+	}
+	for {
+		rec.mu.Lock()
+		n := len(rec.keys)
+		rec.mu.Unlock()
+		if n >= 2 {
+			break
+		}
+	}
+	if st, _, _ := call(h, "StopSpam", runtime.Absent()); st != "ok" {
+		t.Fatalf("StopSpam status = %q", st)
+	}
+	rec.mu.Lock()
+	stopped := len(rec.keys)
+	rec.mu.Unlock()
+	time.Sleep(20 * time.Millisecond)
+	rec.mu.Lock()
+	after := len(rec.keys)
+	rec.mu.Unlock()
+	if after > stopped+1 { // allow at most one in-flight press
+		t.Fatalf("spam kept running after stop: %d -> %d", stopped, after)
+	}
+}
+
+func TestRollInRange(t *testing.T) {
+	h := &Host{b: &recBackend{}}
+	s := runtime.NewSet()
+	s.Put("Min", runtime.Number(1))
+	s.Put("Max", runtime.Number(6))
+	for i := 0; i < 50; i++ {
+		_, data, _ := call(h, "Roll", runtime.SetVal(s))
+		n, ok := data.AsNumber()
+		if !ok || n < 1 || n > 6 {
+			t.Fatalf("Roll out of range: %v", n)
+		}
+	}
+}
+
 func TestUnknownAction(t *testing.T) {
-	h := Host{b: &recBackend{}}
+	h := &Host{b: &recBackend{}}
 	if st, _, _ := call(h, "Frobnicate", runtime.Absent()); st != "failed" {
 		t.Fatalf("unknown action status = %q", st)
 	}

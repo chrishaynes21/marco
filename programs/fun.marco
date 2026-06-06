@@ -1,0 +1,77 @@
+// fun.marco — the "fun" globals from MacroMarco: dice roller, Magic 8-Ball, and
+// fantasy name generator. These need randomness, which the OS act provides as
+// host primitives (Roll / EightBall / Name) — a clean example of the host
+// supplying capability Marco's pure runtime lacks.
+//
+// Randomness only works under a real host; run with --host windows:
+//   bridges\ahk-hotkeys.ahk | marco serve --host windows programs/fun.marco
+//   ...then events: {"feed":"Hotkeys","event":"Roll"}  {"event":"EightBall"} {"event":"Name"}
+//
+// (Under --host dryrun the host calls log and return no value, so the results
+// are blank — these commands are meant for a live host.)
+
+use os.
+
+the Hotkeys is a feed of any.
+
+// A dice-roll range.
+the Range is a set.
+this's Min is a number.
+this's Max is a number.
+
+the Fun is an actor.
+
+// `r` — roll a number in 1..20.
+this can Roll.
+this's Roll does...
+    the range is a Range with Min 1, Max 20.
+    do OS's Roll with range...
+        when ok?
+            log that.
+            this is ok!
+        or?
+            this is failed with that's error!
+
+// `8` — Magic 8-Ball answer.
+this can EightBall.
+this's EightBall does...
+    do OS's EightBall...
+        when ok?
+            log that.
+            this is ok!
+        or?
+            this is failed with that's error!
+
+// `n` — random fantasy name.
+this can Name.
+this's Name does...
+    do OS's Name...
+        when ok?
+            log that.
+            this is ok!
+        or?
+            this is failed with that's error!
+
+when Hotkeys reads Roll?
+    do Fun's Roll...
+        when ok?
+            log "rolled".
+        or?
+            log that's error.
+
+when Hotkeys reads EightBall?
+    do Fun's EightBall...
+        when ok?
+            log "8-ball".
+        or?
+            log that's error.
+
+when Hotkeys reads Name?
+    do Fun's Name...
+        when ok?
+            log "name".
+        or?
+            log that's error.
+
+the App is a script.
+log "fun ready".
