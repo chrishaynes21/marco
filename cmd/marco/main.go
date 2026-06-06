@@ -26,6 +26,9 @@ func main() {
 	case "assistant":
 		runAssistant(os.Args[2:])
 		return
+	case "secret":
+		runSecret(os.Args[2:])
+		return
 	}
 	if len(os.Args) < 3 {
 		usage()
@@ -133,6 +136,7 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "       marco do \"<name>\"      run a named route, or teach it if unknown")
 	fmt.Fprintln(os.Stderr, "       marco teach \"<name>\"   record/overwrite a named route")
 	fmt.Fprintln(os.Stderr, "       marco assistant         interactive loop: type a command per line")
+	fmt.Fprintln(os.Stderr, "       marco secret set|list|rm <name>   manage stored passwords")
 	fmt.Fprintln(os.Stderr, "       marco test <file.marco>")
 	fmt.Fprintln(os.Stderr, "       marco contracts <file.marco>")
 	fmt.Fprintln(os.Stderr, "       marco check [--json] <file.marco>")

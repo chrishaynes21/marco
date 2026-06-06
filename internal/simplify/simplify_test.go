@@ -125,6 +125,22 @@ func TestNearRepeatNotFolded(t *testing.T) {
 	}
 }
 
+func TestShiftedPlaceholderRecords(t *testing.T) {
+	// Typing {{pw}} = shift+[ shift+[ p w shift+] shift+] must record the braces.
+	evs := []recorder.RecordedEvent{
+		key("shift", true, 0),
+		key("[", true, 5), key("[", true, 10),
+		key("shift", false, 15),
+		key("p", true, 20), key("w", true, 25),
+		key("shift", true, 30),
+		key("]", true, 35), key("]", true, 40),
+		key("shift", false, 45),
+	}
+	got := Simplify(evs, DefaultOptions())
+	want := []macroir.Step{{Kind: macroir.StepType, Text: "{{pw}}"}}
+	assertSteps(t, got, want)
+}
+
 func assertSteps(t *testing.T, got, want []macroir.Step) {
 	t.Helper()
 	if !reflect.DeepEqual(got, want) {

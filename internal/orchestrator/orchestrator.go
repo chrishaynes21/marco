@@ -47,6 +47,7 @@ func (d Deps) Do(name string) error {
 // it. The user performs the actions and presses Esc to finish.
 func (d Deps) Teach(name string) error {
 	fmt.Fprintf(d.Out, "Show me how to %q. Do it now, then press Esc when finished.\n", name)
+	fmt.Fprintln(d.Out, "(For a password, type {{name}} instead of the real value, then set it with: marco secret set <name>)")
 	if err := d.Rec.Start(); err != nil {
 		return fmt.Errorf("can't record on this platform: %w", err)
 	}

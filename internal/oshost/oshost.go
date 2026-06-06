@@ -15,6 +15,7 @@ import (
 
 	"github.com/chaynes-simpleclouds/marco/internal/runtime"
 	"github.com/chaynes-simpleclouds/marco/internal/screen"
+	"github.com/chaynes-simpleclouds/marco/internal/secrets"
 )
 
 // backend is the platform-specific primitive surface. Implemented by the
@@ -38,12 +39,15 @@ type backend interface {
 type Host struct {
 	b          backend
 	scr        screen.Screen
+	sec        secrets.Store
 	mu         sync.Mutex
 	spamCancel context.CancelFunc
 }
 
 // New returns the native OS host for the current platform.
-func New() runtime.Host { return &Host{b: newBackend(), scr: screen.New()} }
+func New() runtime.Host {
+	return &Host{b: newBackend(), scr: screen.New(), sec: secrets.New()}
+}
 
 func (h *Host) Invoke(c runtime.HostCall) (string, runtime.Value, error) {
 	switch strings.ToLower(c.Action) {
@@ -79,9 +83,29 @@ func (h *Host) Invoke(c runtime.HostCall) (string, runtime.Value, error) {
 		return h.doName()
 	case "find":
 		return h.doFind(c)
+	case "secret":
+		return h.doSecret(c)
 	default:
 		return fail(fmt.Sprintf("OS host has no action %q", c.Action))
 	}
+}
+
+// doSecret types the value of a named secret from the OS credential store. The
+// value is never logged or returned — only typed. Resolves failed if the secret
+// isn't set, so the route surfaces a clear error instead of typing nothing.
+func (h *Host) doSecret(c runtime.HostCall) (string, runtime.Value, error) {
+	name := c.Input.AsText()
+	if name == "" {
+		return fail("secret needs a name")
+	}
+	val, found, err := h.sec.Get(name)
+	if err != nil {
+		return fail(fmt.Sprintf("secret %q: %v", name, err))
+	}
+	if !found {
+		return fail(fmt.Sprintf("secret %q is not set — run: marco secret set %s", name, name))
+	}
+	return ok(h.b.typeText(c.Ctx, val))
 }
 
 // doFind searches the screen for a template image and returns the match center

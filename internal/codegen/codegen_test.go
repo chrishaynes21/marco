@@ -43,6 +43,32 @@ func TestRouteStructure(t *testing.T) {
 	}
 }
 
+func TestSecretPlaceholders(t *testing.T) {
+	steps := []macroir.Step{
+		{Kind: macroir.StepType, Text: "{{fb-password}}"},
+		{Kind: macroir.StepType, Text: "user{{token}}!"},
+	}
+	src, err := Route("login", steps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		`do OS's Secret with "fb-password".`,
+		`do OS's Type with "user".`,
+		`do OS's Secret with "token".`,
+		`do OS's Type with "!".`,
+	} {
+		if !strings.Contains(src, want) {
+			t.Errorf("missing %q\n%s", want, src)
+		}
+	}
+	// The literal password must never appear, and the placeholder braces must be
+	// gone (converted to a Secret lookup).
+	if strings.Contains(src, "{{") {
+		t.Errorf("placeholder braces leaked into route:\n%s", src)
+	}
+}
+
 // TestGeneratedRoutesCompileAndRun feeds codegen output back through the driver
 // (under the dryrun host) to guarantee every generated route is valid Marco.
 func TestGeneratedRoutesCompileAndRun(t *testing.T) {
@@ -63,6 +89,13 @@ func TestGeneratedRoutesCompileAndRun(t *testing.T) {
 		},
 		"right click": {
 			{Kind: macroir.StepClick, X: 0, Y: 0, Button: "right"},
+		},
+		"secret login": {
+			{Kind: macroir.StepClick, X: 5, Y: 5, Button: "left"},
+			{Kind: macroir.StepType, Text: "myuser"},
+			{Kind: macroir.StepKey, Key: "tab"},
+			{Kind: macroir.StepType, Text: "{{login-pw}}"},
+			{Kind: macroir.StepKey, Key: "enter"},
 		},
 	}
 	osSrc, err := os.ReadFile(filepath.Join("..", "..", "programs", "os.marco"))

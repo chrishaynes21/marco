@@ -6,6 +6,7 @@ package codegen
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/chaynes-simpleclouds/marco/internal/macroir"
@@ -88,7 +89,15 @@ func emit(steps []macroir.Step, pts *points, depth int) (string, error) {
 				fmt.Fprintf(&b, "%sdo OS's Key with %q.\n", indent(depth+1), s.Key)
 			}
 		case macroir.StepType:
-			fmt.Fprintf(&b, "%sdo OS's Type with \"%s\".\n", pad, escape(s.Text))
+			// {{name}} placeholders become Secret lookups so passwords are never
+			// written into the route — the value lives in the OS credential store.
+			for _, seg := range splitSecrets(s.Text) {
+				if seg.secret {
+					fmt.Fprintf(&b, "%sdo OS's Secret with \"%s\".\n", pad, escape(seg.text))
+				} else if seg.text != "" {
+					fmt.Fprintf(&b, "%sdo OS's Type with \"%s\".\n", pad, escape(seg.text))
+				}
+			}
 		case macroir.StepDrag:
 			// No button-hold primitive yet — degrade to move-to-start + click-end.
 			start := pts.add(s.X, s.Y)
@@ -113,6 +122,34 @@ func emit(steps []macroir.Step, pts *points, depth int) (string, error) {
 }
 
 func indent(depth int) string { return strings.Repeat("    ", depth) }
+
+// secretRe matches a {{name}} placeholder.
+var secretRe = regexp.MustCompile(`\{\{([A-Za-z0-9_-]+)\}\}`)
+
+type segment struct {
+	text   string
+	secret bool
+}
+
+// splitSecrets breaks a typed string into literal and {{secret}} segments.
+func splitSecrets(s string) []segment {
+	var out []segment
+	last := 0
+	for _, m := range secretRe.FindAllStringSubmatchIndex(s, -1) {
+		if m[0] > last {
+			out = append(out, segment{text: s[last:m[0]]})
+		}
+		out = append(out, segment{text: s[m[2]:m[3]], secret: true})
+		last = m[1]
+	}
+	if last < len(s) {
+		out = append(out, segment{text: s[last:]})
+	}
+	if len(out) == 0 {
+		out = append(out, segment{text: s})
+	}
+	return out
+}
 
 // escape escapes a string for a Marco double-quoted literal.
 func escape(s string) string {

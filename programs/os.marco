@@ -18,6 +18,7 @@ this exports Roll.      // random number in [Min, Max]; result is the number
 this exports EightBall. // random Magic 8-Ball answer; result is the text
 this exports Name.      // random fantasy name; result is the text
 this exports Find.      // find an image on screen: { Image, Region?, Tolerance? } -> Point
+this exports Secret.    // type a stored secret by name (value never in the route)
 
 // A screen coordinate, passed to Click / Move / Color.
 the Point is a set.

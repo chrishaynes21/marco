@@ -317,9 +317,17 @@ func isModifier(name string) bool {
 	return false
 }
 
+// usShift maps an unshifted symbol/digit key to its shifted character on a US
+// layout, so typed text (and {{secret}} placeholders) record faithfully.
+var usShift = map[byte]string{
+	'1': "!", '2': "@", '3': "#", '4': "$", '5': "%", '6': "^", '7': "&",
+	'8': "*", '9': "(", '0': ")", '-': "_", '=': "+", '[': "{", ']': "}",
+	'\\': "|", ';': ":", '\'': "\"", ',': "<", '.': ">", '/': "?", '`': "~",
+}
+
 // printable returns the character a key types and true for a printable key with
-// no control modifier. Shift uppercases letters; other shifted symbols are left
-// as-is (a known v1 limitation).
+// no control modifier. Shift uppercases letters and maps symbols/digits (US
+// layout).
 func printable(name string, shift bool) (string, bool) {
 	if name == "space" {
 		return " ", true
@@ -333,8 +341,18 @@ func printable(name string, shift bool) (string, bool) {
 			}
 			return name, true
 		case c >= '0' && c <= '9':
+			if shift {
+				if s, ok := usShift[c]; ok {
+					return s, true
+				}
+			}
 			return name, true
 		case strings.ContainsRune("`-=[]\\;',./", rune(c)):
+			if shift {
+				if s, ok := usShift[c]; ok {
+					return s, true
+				}
+			}
 			return name, true
 		}
 	}
