@@ -1,0 +1,7 @@
+the App is a script.
+
+repeat 5 times...
+    log "a".
+    stop.
+
+log "after".

@@ -142,6 +142,28 @@ Rules:
 - the compiler may warn on obviously infinite loops without `wait`, `stop`, or an external condition
 
 ---
+## Repeat Loops {#repeat-loops}
+---
+
+`repeat <N> times...` opens a phrase that runs its body a fixed number of times,
+where `<N>` is a non-negative integer literal. It exposes no loop variable — use
+`for each` when you need the item, key, or position.
+
+### Example
+
+Canonical:
+```marco
+repeat 3 times...
+    do OS's Key with "e".
+```
+
+Rules:
+
+- `repeat` opens a phrase; the count is a literal number
+- the body runs exactly `<N>` times (zero or a negative count runs it zero times)
+- `skip` advances to the next repetition; `stop` exits the phrase
+
+---
 ## Waiting {#waiting}
 ---
 

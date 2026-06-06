@@ -1,0 +1,13 @@
+the Counter is a set.
+this's N is a number.
+
+the App is a script.
+
+Counter's N is 0.
+
+repeat 3 times...
+    the prev is Counter's N.
+    Counter's N is prev + 1.
+    log Counter's N.
+
+log "done".

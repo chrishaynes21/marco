@@ -464,7 +464,7 @@ func (c *compiler) checkThatRefs() error {
 					}
 				}
 				continue
-			case graph.EdgeForEach, graph.EdgeWhile, graph.EdgeWaitUntil,
+			case graph.EdgeForEach, graph.EdgeRepeat, graph.EdgeWhile, graph.EdgeWaitUntil,
 				graph.EdgeLock, graph.EdgeFinally:
 				if err := checkPred(e.Pred, cur); err != nil {
 					return err
@@ -556,7 +556,7 @@ func (c *compiler) checkInputs() error {
 				if e.Body != nil {
 					visit(host, e.Body)
 				}
-			case graph.EdgeForEach, graph.EdgeWhile, graph.EdgeWaitUntil,
+			case graph.EdgeForEach, graph.EdgeRepeat, graph.EdgeWhile, graph.EdgeWaitUntil,
 				graph.EdgeLock, graph.EdgeFinally:
 				visit(host, e.Body)
 			}
@@ -880,7 +880,7 @@ func (c *compiler) checkUnreachable() error {
 				graph.EdgeReturnPassthrough:
 				terminated = true
 				termPos = e.Pos
-			case graph.EdgeForEach, graph.EdgeWhile, graph.EdgeWaitUntil,
+			case graph.EdgeForEach, graph.EdgeRepeat, graph.EdgeWhile, graph.EdgeWaitUntil,
 				graph.EdgeLock, graph.EdgeStart:
 				if e.Body != nil {
 					if _, _, err := visitEdges(e.Body.Edges); err != nil {
@@ -1016,7 +1016,7 @@ func (c *compiler) checkDeadArms() error {
 				if err := visit(owner, e.Body); err != nil {
 					return err
 				}
-			case graph.EdgeForEach, graph.EdgeWhile, graph.EdgeWaitUntil, graph.EdgeLock, graph.EdgeFinally:
+			case graph.EdgeForEach, graph.EdgeRepeat, graph.EdgeWhile, graph.EdgeWaitUntil, graph.EdgeLock, graph.EdgeFinally:
 				if err := visit(owner, e.Body); err != nil {
 					return err
 				}
@@ -1180,7 +1180,7 @@ func collectSyncInvokes(a *analyzer, host *graph.Node, b *graph.Block) []syncInv
 				if callee := a.resolveCallee(host, *e); callee != nil {
 					out = append(out, syncInvoke{callee: callee, pos: e.Pos})
 				}
-			case graph.EdgeForEach, graph.EdgeWhile, graph.EdgeWaitUntil, graph.EdgeLock, graph.EdgeFinally, graph.EdgeStart:
+			case graph.EdgeForEach, graph.EdgeRepeat, graph.EdgeWhile, graph.EdgeWaitUntil, graph.EdgeLock, graph.EdgeFinally, graph.EdgeStart:
 				// Recurse into nested bodies, but EdgeStart's *callee* itself
 				// is exempt (spawned frame); we still need to walk its
 				// observation body for nested `do` edges in arms.
@@ -1363,7 +1363,7 @@ func (c *compiler) checkBlockShapes(host, contract *graph.Node,
 			if err := c.verifyReturnShape(host, contract, as, e); err != nil {
 				return err
 			}
-		case graph.EdgeForEach, graph.EdgeWhile, graph.EdgeWaitUntil, graph.EdgeLock, graph.EdgeFinally:
+		case graph.EdgeForEach, graph.EdgeRepeat, graph.EdgeWhile, graph.EdgeWaitUntil, graph.EdgeLock, graph.EdgeFinally:
 			if err := c.checkBlockShapes(host, contract, shapes, e.Body); err != nil {
 				return err
 			}
@@ -1594,7 +1594,7 @@ func (a *analyzer) bodyCancellable(host *graph.Node, b *graph.Block) bool {
 				a.cancelOrigin[host] = e.Pos
 				return true
 			}
-		case graph.EdgeForEach, graph.EdgeWhile, graph.EdgeFinally:
+		case graph.EdgeForEach, graph.EdgeRepeat, graph.EdgeWhile, graph.EdgeFinally:
 			if a.bodyCancellable(host, e.Body) {
 				return true
 			}
@@ -1766,7 +1766,7 @@ func (a *analyzer) collectFromBody(host *graph.Node, b *graph.Block) map[string]
 			if n := len(armStack); n > 0 && armStack[n-1].group == e.Branch {
 				armStack = armStack[:n-1]
 			}
-		case graph.EdgeForEach, graph.EdgeWhile, graph.EdgeWaitUntil, graph.EdgeLock, graph.EdgeFinally:
+		case graph.EdgeForEach, graph.EdgeRepeat, graph.EdgeWhile, graph.EdgeWaitUntil, graph.EdgeLock, graph.EdgeFinally:
 			for s, p := range a.collectFromBody(host, e.Body) {
 				out[s] = p
 			}
@@ -3060,6 +3060,22 @@ func (c *compiler) compileSentence(s *ast.Sentence) ([]graph.Edge, error) {
 				Pred: pred,
 				Body: body,
 				Pos:  *s,
+			}}, nil
+		}
+		// repeat <N> times... — run the body a fixed number of times.
+		if len(parts) == 3 &&
+			isWord(parts[0], "repeat") &&
+			parts[1].Kind == ast.PartNumber &&
+			isWord(parts[2], "times") {
+			body, err := c.compileBlock(s.Body)
+			if err != nil {
+				return nil, err
+			}
+			return []graph.Edge{{
+				Kind:   graph.EdgeRepeat,
+				Status: parts[1].Value, // literal count; parsed at runtime
+				Body:   body,
+				Pos:    *s,
 			}}, nil
 		}
 		// start <Subject>'s <Action> [with <expr>] [as <Name>]...

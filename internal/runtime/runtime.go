@@ -1444,6 +1444,27 @@ func (r *runner) dispatch(f *Frame, e graph.Edge) (bool, error) {
 			}
 		}
 
+	case graph.EdgeRepeat:
+		n, err := strconv.ParseFloat(strings.TrimSpace(e.Status), 64)
+		if err != nil {
+			return false, &Error{Frame: f, Msg: fmt.Sprintf("repeat count %q is not a number", e.Status)}
+		}
+		for i := 0; i < int(n); i++ {
+			if err := r.runBlock(f, e.Body); err != nil {
+				if err == errStop {
+					return false, nil
+				}
+				if err == errSkip {
+					continue
+				}
+				return false, err
+			}
+			if f.IsTerminal() {
+				return true, nil
+			}
+		}
+		return false, nil
+
 	case graph.EdgeStart:
 		// Async: spawn child as its own goroutine; the parent does not block.
 		// The observation body runs in the parent's context — `when N is
