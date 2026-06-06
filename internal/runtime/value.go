@@ -77,6 +77,15 @@ func (v Value) AsText() string {
 	}
 }
 
+// AsNumber returns the numeric value and true for a number Value; (0, false)
+// otherwise. Used by hosts to read coordinates, durations, and counts.
+func (v Value) AsNumber() (float64, bool) {
+	if v.tag == tagNumber {
+		return v.n, true
+	}
+	return 0, false
+}
+
 // String renders a Value the way `log` would print it.
 func (v Value) String() string {
 	switch v.tag {

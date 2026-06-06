@@ -134,12 +134,19 @@ func diagnosticsFromErr(err error, file string) []Diagnostic {
 }
 
 func RunFile(path string, out io.Writer) error {
+	return RunFileWithHosts(path, out, nil)
+}
+
+// RunFileWithHosts runs path with explicit foreign-act host providers (see
+// spec/Hosts.md). A nil map uses the dryrun host for every foreign act. The
+// special key "*" sets the default host for any act not named in the map.
+func RunFileWithHosts(path string, out io.Writer, hosts map[string]runtime.Host) error {
 	src, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("read %s: %w", path, err)
 	}
 	dir := filepath.Dir(path)
-	if err := runWith(string(src), dir, out); err != nil {
+	if err := runWith(string(src), dir, out, hosts); err != nil {
 		return decorateError(err, path, string(src))
 	}
 	return nil
@@ -147,7 +154,7 @@ func RunFile(path string, out io.Writer) error {
 
 // RunSource runs a source string with no import support (single-file).
 func RunSource(src string, out io.Writer) error {
-	if err := runWith(src, "", out); err != nil {
+	if err := runWith(src, "", out, nil); err != nil {
 		return decorateError(err, "", src)
 	}
 	return nil
@@ -285,7 +292,7 @@ func indent(s, prefix string) string {
 	return strings.Join(lines, "\n")
 }
 
-func runWith(src, dir string, out io.Writer) error {
+func runWith(src, dir string, out io.Writer, hosts map[string]runtime.Host) error {
 	g, err := buildGraph(src, dir, map[string]bool{})
 	if err != nil {
 		return err
@@ -293,7 +300,7 @@ func runWith(src, dir string, out io.Writer) error {
 	if err := compile.Compile(g, nil); err != nil {
 		return fmt.Errorf("compile: %w", err)
 	}
-	return runtime.Run(g, out)
+	return runtime.RunWithHosts(g, out, hosts)
 }
 
 // posRE matches the `<line>:<col>:` prefix that lex / parse / graph / compile

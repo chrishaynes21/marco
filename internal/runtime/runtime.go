@@ -63,7 +63,11 @@ func RunTest(g *graph.Graph, test *graph.Node, w io.Writer) error {
 }
 
 func runFromEntry(g *graph.Graph, entry *graph.Node, w io.Writer, hosts map[string]Host) error {
-	r := &runner{g: g, out: w, sched: newScheduler(), hosts: hosts, defaultHost: DryRunHost{}}
+	var defaultHost Host = DryRunHost{}
+	if d, ok := hosts["*"]; ok {
+		defaultHost = d
+	}
+	r := &runner{g: g, out: w, sched: newScheduler(), hosts: hosts, defaultHost: defaultHost}
 	if len(g.Mocks) > 0 {
 		r.mocks = make(map[string]*graph.Node, len(g.Mocks))
 		for _, m := range g.Mocks {

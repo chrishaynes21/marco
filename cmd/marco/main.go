@@ -5,6 +5,8 @@ import (
 	"os"
 
 	"github.com/chaynes-simpleclouds/marco/internal/driver"
+	"github.com/chaynes-simpleclouds/marco/internal/oshost"
+	"github.com/chaynes-simpleclouds/marco/internal/runtime"
 )
 
 func main() {
@@ -14,7 +16,13 @@ func main() {
 	}
 	switch os.Args[1] {
 	case "run":
-		if err := driver.RunFile(os.Args[2], os.Stdout); err != nil {
+		path, hosts, err := parseRunArgs(os.Args[2:])
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			usage()
+			os.Exit(2)
+		}
+		if err := driver.RunFileWithHosts(path, os.Stdout, hosts); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
@@ -48,8 +56,45 @@ func main() {
 	}
 }
 
+// parseRunArgs parses the args after `run`: an optional `--host <name>` flag
+// followed by the program path. Recognized hosts:
+//
+//	dryrun  (default) — log foreign calls, resolve ok; deterministic.
+//	windows | os      — native SendInput host; real keystrokes/mouse on Windows.
+//
+// The chosen host is registered as the default ("*") for every foreign act.
+func parseRunArgs(args []string) (path string, hosts map[string]runtime.Host, err error) {
+	hostName := "dryrun"
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--host":
+			if i+1 >= len(args) {
+				return "", nil, fmt.Errorf("--host needs a value")
+			}
+			hostName = args[i+1]
+			i++
+		default:
+			if path != "" {
+				return "", nil, fmt.Errorf("unexpected argument %q", args[i])
+			}
+			path = args[i]
+		}
+	}
+	if path == "" {
+		return "", nil, fmt.Errorf("missing <file.marco>")
+	}
+	switch hostName {
+	case "dryrun":
+		return path, nil, nil
+	case "windows", "os":
+		return path, map[string]runtime.Host{"*": oshost.New()}, nil
+	default:
+		return "", nil, fmt.Errorf("unknown host %q (want dryrun, windows)", hostName)
+	}
+}
+
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: marco run <file.marco>")
+	fmt.Fprintln(os.Stderr, "usage: marco run [--host dryrun|windows] <file.marco>")
 	fmt.Fprintln(os.Stderr, "       marco test <file.marco>")
 	fmt.Fprintln(os.Stderr, "       marco contracts <file.marco>")
 	fmt.Fprintln(os.Stderr, "       marco check [--json] <file.marco>")
