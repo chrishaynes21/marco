@@ -1,0 +1,16 @@
+# Normalize line endings: store text as LF, check out native.
+* text=auto
+*.go    text eol=lf
+*.md    text eol=lf
+*.marco text eol=lf
+*.mod   text eol=lf
+*.sum   text eol=lf
+*.yml   text eol=lf
+*.ahk   text eol=lf
+*.json  text eol=lf
+
+# Treat generated/binary artifacts as binary.
+*.exe binary
+*.png binary
+*.tar binary
+*.zip binary

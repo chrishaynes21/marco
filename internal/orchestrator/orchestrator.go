@@ -6,7 +6,6 @@
 package orchestrator
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"strings"
@@ -63,11 +62,15 @@ func (d Deps) Teach(name string) error {
 	if err != nil {
 		return err
 	}
+	fmt.Fprintf(d.Out, "Recorded %d steps:\n--- route ---\n%s\n", len(steps), src)
+	if !d.confirm(fmt.Sprintf("Save this as %q? [Y/n] ", name)) {
+		fmt.Fprintln(d.Out, "Discarded.")
+		return nil
+	}
 	if err := d.Reg.Save(name, src); err != nil {
 		return err
 	}
-	fmt.Fprintf(d.Out, "Learned %q → %s (%d steps)\n", name, d.Reg.Path(name), len(steps))
-	fmt.Fprintf(d.Out, "--- route ---\n%s\n", src)
+	fmt.Fprintf(d.Out, "Learned %q → %s\n", name, d.Reg.Path(name))
 	return nil
 }
 
@@ -106,14 +109,36 @@ func stripTrailingStop(events []recorder.RecordedEvent) []recorder.RecordedEvent
 	return events[:end]
 }
 
-// confirm reads a line from In and reports whether it is an affirmative
-// (empty/"y"/"yes"). Exposed for CLI flows that want an explicit prompt.
+// confirm prints a prompt and reports whether the reply is affirmative
+// (empty/"y"/"yes"). It reads one line without buffering ahead, so it can share
+// In (e.g. os.Stdin) with an interactive caller without stealing its input.
 func (d Deps) confirm(prompt string) bool {
 	fmt.Fprint(d.Out, prompt)
 	if d.In == nil {
 		return false
 	}
-	line, _ := bufio.NewReader(d.In).ReadString('\n')
-	line = strings.TrimSpace(strings.ToLower(line))
+	line := strings.TrimSpace(strings.ToLower(readLine(d.In)))
 	return line == "" || line == "y" || line == "yes"
+}
+
+// readLine reads up to and including a newline from r, one byte at a time (no
+// read-ahead), and returns the line without the trailing CR/LF.
+func readLine(r io.Reader) string {
+	var b []byte
+	var one [1]byte
+	for {
+		n, err := r.Read(one[:])
+		if n > 0 {
+			if one[0] == '\n' {
+				break
+			}
+			if one[0] != '\r' {
+				b = append(b, one[0])
+			}
+		}
+		if err != nil {
+			break
+		}
+	}
+	return string(b)
 }

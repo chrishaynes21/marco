@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"strings"
@@ -104,13 +103,13 @@ func runAssistantTeach(args []string) {
 func runAssistant(_ []string) {
 	d := newDeps()
 	fmt.Fprintln(os.Stdout, "marco assistant — say what you want (e.g. \"open chest\"). 'list', 'help', 'quit'.")
-	sc := bufio.NewScanner(os.Stdin)
 	for {
 		fmt.Fprint(os.Stdout, "> ")
-		if !sc.Scan() {
+		raw, ok := readStdinLine()
+		if !ok && raw == "" {
 			return
 		}
-		line := strings.TrimSpace(sc.Text())
+		line := strings.TrimSpace(raw)
 		switch line {
 		case "":
 			continue
@@ -133,7 +132,7 @@ func runAssistant(_ []string) {
 		case m.Exact:
 			runDo(d, m.Route)
 		case m.Route != "" && m.Score >= 0.6:
-			if askYes(sc, fmt.Sprintf("Did you mean %q? [Y/n] ", prettyRoute(m.Route))) {
+			if askYes(fmt.Sprintf("Did you mean %q? [Y/n] ", prettyRoute(m.Route))) {
 				runDo(d, m.Route)
 			} else {
 				runDo(d, line) // teach as a new command under the typed name
@@ -150,14 +149,32 @@ func runDo(d orchestrator.Deps, name string) {
 	}
 }
 
-// askYes reads a line via the REPL's scanner; empty/"y"/"yes" is affirmative.
-func askYes(sc *bufio.Scanner, prompt string) bool {
+// askYes prompts and reads one line; empty/"y"/"yes" is affirmative.
+func askYes(prompt string) bool {
 	fmt.Fprint(os.Stdout, prompt)
-	if !sc.Scan() {
-		return false
-	}
-	a := strings.TrimSpace(strings.ToLower(sc.Text()))
+	a, _ := readStdinLine()
+	a = strings.TrimSpace(strings.ToLower(a))
 	return a == "" || a == "y" || a == "yes"
+}
+
+// readStdinLine reads one line from stdin without buffering ahead (so it never
+// steals input from the orchestrator's own prompts on the same stdin). ok is
+// false only on EOF with no bytes read.
+func readStdinLine() (line string, ok bool) {
+	var b []byte
+	var one [1]byte
+	for {
+		n, err := os.Stdin.Read(one[:])
+		if n > 0 {
+			if one[0] == '\n' {
+				return strings.TrimRight(string(b), "\r"), true
+			}
+			b = append(b, one[0])
+		}
+		if err != nil {
+			return strings.TrimRight(string(b), "\r"), len(b) > 0
+		}
+	}
 }
 
 func prettyRoute(slug string) string { return strings.ReplaceAll(slug, "-", " ") }
