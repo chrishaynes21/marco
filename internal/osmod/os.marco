@@ -1,0 +1,24 @@
+// os.marco — the OS act surface: the foreign primitives a host fulfills (see
+// spec/Hosts.md). Imported by macro programs with `use os.`. Under `--host
+// dryrun` these log; under `--host windows` they perform real input; under
+// `--host bridge:<exe>` an external program (e.g. AHK) performs them.
+
+the OS is an act.
+this exports Key.       // press a named key, e.g. "e" or "enter"
+this exports Type.      // type a text string
+this exports Click.     // click; input may be a Point to move-then-click
+this exports Move.      // move the cursor to a Point
+this exports Sleep.     // sleep N milliseconds (a number)
+this exports Color.     // read the pixel at a Point; result is a hex text
+this exports Focus.     // ok if the active window matches the given text
+this exports Repeat.    // press a key on an interval until the frame is canceled
+this exports Spam.      // start the background spam loop: { Key|Button, Every }
+this exports StopSpam.  // stop the background spam loop
+this exports Roll.      // random number in [Min, Max]; result is the number
+this exports EightBall. // random Magic 8-Ball answer; result is the text
+this exports Name.      // random fantasy name; result is the text
+
+// A screen coordinate, passed to Click / Move / Color.
+the Point is a set.
+this's X is a number.
+this's Y is a number.

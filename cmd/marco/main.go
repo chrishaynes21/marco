@@ -12,6 +12,21 @@ import (
 )
 
 func main() {
+	if len(os.Args) < 2 {
+		usage()
+		os.Exit(2)
+	}
+	switch os.Args[1] {
+	case "do":
+		runAssistantDo(os.Args[2:])
+		return
+	case "teach":
+		runAssistantTeach(os.Args[2:])
+		return
+	case "assistant":
+		runAssistant(os.Args[2:])
+		return
+	}
 	if len(os.Args) < 3 {
 		usage()
 		os.Exit(2)
@@ -115,6 +130,9 @@ func parseRunArgs(args []string) (path string, hosts map[string]runtime.Host, er
 func usage() {
 	fmt.Fprintln(os.Stderr, "usage: marco run   [--host dryrun|windows|bridge:<exe>] <file.marco>")
 	fmt.Fprintln(os.Stderr, "       marco serve [--host dryrun|windows|bridge:<exe>] <file.marco>")
+	fmt.Fprintln(os.Stderr, "       marco do \"<name>\"      run a named route, or teach it if unknown")
+	fmt.Fprintln(os.Stderr, "       marco teach \"<name>\"   record/overwrite a named route")
+	fmt.Fprintln(os.Stderr, "       marco assistant         interactive loop: type a command per line")
 	fmt.Fprintln(os.Stderr, "       marco test <file.marco>")
 	fmt.Fprintln(os.Stderr, "       marco contracts <file.marco>")
 	fmt.Fprintln(os.Stderr, "       marco check [--json] <file.marco>")
