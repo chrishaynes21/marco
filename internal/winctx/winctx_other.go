@@ -8,3 +8,6 @@ func Active() string { return "" }
 
 // Activate is a no-op error on platforms without a window backend.
 func Activate(string) error { return ErrUnsupported }
+
+// Launch is a no-op error on platforms without a window backend.
+func Launch(string) error { return ErrUnsupported }

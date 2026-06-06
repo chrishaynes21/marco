@@ -88,6 +88,8 @@ func (h *Host) Invoke(c runtime.HostCall) (string, runtime.Value, error) {
 		return h.doSecret(c)
 	case "activate":
 		return ok(winctx.Activate(c.Input.AsText()))
+	case "launch":
+		return ok(winctx.Launch(c.Input.AsText()))
 	default:
 		return fail(fmt.Sprintf("OS host has no action %q", c.Action))
 	}

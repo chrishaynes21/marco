@@ -19,7 +19,8 @@ this exports EightBall. // random Magic 8-Ball answer; result is the text
 this exports Name.      // random fantasy name; result is the text
 this exports Find.      // find an image on screen: { Image, Region?, Tolerance? } -> Point
 this exports Secret.    // type a stored secret by name (value never in the route)
-this exports Activate.  // bring a named app to the foreground (e.g. "chrome")
+this exports Activate.  // focus a named app, launching it if not running (e.g. "chrome")
+this exports Launch.    // start an app/path/URL via the shell (e.g. "steam://rungameid/...")
 
 // A screen coordinate, passed to Click / Move / Color.
 the Point is a set.
