@@ -29,17 +29,18 @@ Loop {
 
     action := JsonField(line, "action")
     status := "ok"
+    global gData := "null"      ; set by actions that return data (e.g. find)
     try {
         Dispatch(action, line)
     } catch as e {
-        status := "failed"
-        Respond(stdout, status, e.Message)
+        Respond(stdout, "failed", e.Message, "null")
         continue
     }
-    Respond(stdout, status, "")
+    Respond(stdout, status, "", gData)
 }
 
 Dispatch(action, line) {
+    global gData
     switch StrLower(action) {
         case "key":
             Send("{" StrInput(line) "}")
@@ -55,17 +56,40 @@ Dispatch(action, line) {
             MouseMove(NumField(line, "X"), NumField(line, "Y"), 0)
         case "sleep":
             Sleep(NumInput(line))
+        case "find":
+            ; The optional AHK Find backend: ImageSearch returns the match's
+            ; top-left; we report the center as {X,Y} so it lines up with the
+            ; native host. Region defaults to the whole screen.
+            img := JsonField(line, "Image")
+            if (img == "")
+                throw Error("find needs an Image path")
+            x1 := NumField(line, "X1"), y1 := NumField(line, "Y1")
+            x2 := NumField(line, "X2"), y2 := NumField(line, "Y2")
+            if (x2 == "" || x2 = 0) {
+                x1 := 0, y1 := 0
+                x2 := A_ScreenWidth, y2 := A_ScreenHeight
+            }
+            tol := NumField(line, "Tolerance")
+            if (tol == "")
+                tol := 10
+            ; ImageSearch reports the match's top-left; report it as {X,Y}.
+            ; (Good enough for most click targets; the native host reports the
+            ; center.)
+            if ImageSearch(&fx, &fy, x1, y1, x2, y2, "*" tol " " img)
+                gData := '{"X":' fx ',"Y":' fy '}'
+            else
+                throw Error("image not found on screen")
         default:
             throw Error("unknown action: " action)
     }
 }
 
-; Respond writes a JSON response line. data is an optional error message.
-Respond(stdout, status, errMsg) {
+; Respond writes a JSON response line. On ok, data is a raw JSON fragment.
+Respond(stdout, status, errMsg, data) {
     if (status == "failed")
         stdout.Write('{"status":"failed","error":"' JsonEsc(errMsg) '"}`n')
     else
-        stdout.Write('{"status":"ok","data":null}`n')
+        stdout.Write('{"status":"ok","data":' data '}`n')
 }
 
 ; --- tiny JSON field extractors (flat objects only) ---

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/runtime"
+	"github.com/chaynes-simpleclouds/marco/internal/screen"
 )
 
 // backend is the platform-specific primitive surface. Implemented by the
@@ -36,12 +37,13 @@ type backend interface {
 // hotkey events until StopSpam.
 type Host struct {
 	b          backend
+	scr        screen.Screen
 	mu         sync.Mutex
 	spamCancel context.CancelFunc
 }
 
 // New returns the native OS host for the current platform.
-func New() runtime.Host { return &Host{b: newBackend()} }
+func New() runtime.Host { return &Host{b: newBackend(), scr: screen.New()} }
 
 func (h *Host) Invoke(c runtime.HostCall) (string, runtime.Value, error) {
 	switch strings.ToLower(c.Action) {
@@ -75,9 +77,58 @@ func (h *Host) Invoke(c runtime.HostCall) (string, runtime.Value, error) {
 		return h.doEightBall()
 	case "name":
 		return h.doName()
+	case "find":
+		return h.doFind(c)
 	default:
 		return fail(fmt.Sprintf("OS host has no action %q", c.Action))
 	}
+}
+
+// doFind searches the screen for a template image and returns the match center
+// as a Point. Input is a set { Image: text path, X1,Y1,X2,Y2?: region numbers,
+// Tolerance?: per-channel color tolerance (default 10) }. Resolves failed when
+// the image isn't on screen, so routes can branch: `when ok? do OS's Click with that.`
+func (h *Host) doFind(c runtime.HostCall) (string, runtime.Value, error) {
+	set := c.Input.AsSet()
+	if set == nil {
+		return fail("find needs a set with an Image path")
+	}
+	imgVal, _ := set.Get("Image")
+	imgPath := imgVal.AsText()
+	if imgPath == "" {
+		return fail("find needs an Image path")
+	}
+	var region screen.Region
+	region.X1 = setInt(set, "X1")
+	region.Y1 = setInt(set, "Y1")
+	region.X2 = setInt(set, "X2")
+	region.Y2 = setInt(set, "Y2")
+	tol := 10
+	if v, ok2 := set.Get("Tolerance"); ok2 {
+		if n, ok3 := v.AsNumber(); ok3 {
+			tol = int(n)
+		}
+	}
+	m, err := h.scr.Find(imgPath, region, tol)
+	if err != nil {
+		return fail(err.Error())
+	}
+	if !m.Found {
+		return "failed", runtime.Absent(), nil
+	}
+	pt := runtime.NewSet()
+	pt.Put("X", runtime.Number(float64(m.X)))
+	pt.Put("Y", runtime.Number(float64(m.Y)))
+	return "ok", runtime.SetVal(pt), nil
+}
+
+func setInt(set *runtime.Set, field string) int {
+	if v, ok := set.Get(field); ok {
+		if n, ok2 := v.AsNumber(); ok2 {
+			return int(n)
+		}
+	}
+	return 0
 }
 
 // doSpam starts (or replaces) the single background spam loop. Input is a set

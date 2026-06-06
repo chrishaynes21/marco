@@ -1,0 +1,33 @@
+// find-demo.marco — robust click-by-image: instead of a fixed coordinate, locate
+// an image on screen and click it. This is what makes routes survive moved
+// windows and changing layouts.
+//
+//   marco run --host windows programs/find-demo.marco   (needs button.png on disk + on screen)
+//
+// Under --host dryrun the Find/Click are logged without touching the screen.
+
+use os.
+
+// A find request: the template image to locate (optionally a region/tolerance).
+the Target is a set.
+this's Image is a text.
+
+the Bot is an actor.
+
+this can ClickButton.
+this's ClickButton does...
+    the button is a Target with Image "button.png".
+    do OS's Find with button...
+        when ok?
+            do OS's Click with that.
+            this is ok!
+        or?
+            this is failed with error "button not found on screen"!
+
+the App is a script.
+
+do Bot's ClickButton...
+    when ok?
+        log "clicked the button".
+    or?
+        log that's error.
