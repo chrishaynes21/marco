@@ -20,7 +20,7 @@ var sample = []macroir.Step{
 }
 
 func TestRouteStructure(t *testing.T) {
-	src, err := Route("open chest", sample)
+	src, err := Route("open chest", "", sample)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +48,7 @@ func TestSecretPlaceholders(t *testing.T) {
 		{Kind: macroir.StepType, Text: "{{fb-password}}"},
 		{Kind: macroir.StepType, Text: "user{{token}}!"},
 	}
-	src, err := Route("login", steps)
+	src, err := Route("login", "", steps)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +108,7 @@ func TestGeneratedRoutesCompileAndRun(t *testing.T) {
 			if err := os.WriteFile(filepath.Join(dir, "os.marco"), osSrc, 0o644); err != nil {
 				t.Fatal(err)
 			}
-			src, err := Route(name, steps)
+			src, err := Route(name, "", steps)
 			if err != nil {
 				t.Fatal(err)
 			}

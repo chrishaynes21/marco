@@ -16,6 +16,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/runtime"
 	"github.com/chaynes-simpleclouds/marco/internal/screen"
 	"github.com/chaynes-simpleclouds/marco/internal/secrets"
+	"github.com/chaynes-simpleclouds/marco/internal/winctx"
 )
 
 // backend is the platform-specific primitive surface. Implemented by the
@@ -85,6 +86,8 @@ func (h *Host) Invoke(c runtime.HostCall) (string, runtime.Value, error) {
 		return h.doFind(c)
 	case "secret":
 		return h.doSecret(c)
+	case "activate":
+		return ok(winctx.Activate(c.Input.AsText()))
 	default:
 		return fail(fmt.Sprintf("OS host has no action %q", c.Action))
 	}

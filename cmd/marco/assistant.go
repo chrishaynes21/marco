@@ -14,6 +14,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/resolver"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
 	"github.com/chaynes-simpleclouds/marco/internal/runtime"
+	"github.com/chaynes-simpleclouds/marco/internal/winctx"
 )
 
 // routesDir is where named routes live (override with $MARCO_ROUTES).
@@ -33,6 +34,7 @@ func newDeps() orchestrator.Deps {
 		Hosts: map[string]runtime.Host{"*": oshost.New()},
 		In:    os.Stdin,
 		Out:   os.Stdout,
+		App:   winctx.Active,
 	}
 }
 

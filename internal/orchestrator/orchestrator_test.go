@@ -57,7 +57,12 @@ func TestTeachThenRun(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	d := Deps{Reg: reg, Rec: &fakeRecorder{events: events}, In: strings.NewReader("y\n"), Out: &out}
+	d := Deps{
+		Reg: reg, Rec: &fakeRecorder{events: events},
+		In:  strings.NewReader("y\n"),
+		Out: &out,
+		App: func() string { return "sea-of-thieves" }, // context captured at teach time
+	}
 
 	// First Do: unknown → teaches, saves, and runs under dryrun.
 	if err := d.Do("open chest"); err != nil {
@@ -74,6 +79,10 @@ func TestTeachThenRun(t *testing.T) {
 	if !strings.Contains(string(saved), "do OS's Click with p1.") ||
 		!strings.Contains(string(saved), "do OS's Sleep with 350.") {
 		t.Fatalf("route missing expected steps:\n%s", saved)
+	}
+	// Context-aware: the route activates the app it was taught in, first.
+	if !strings.Contains(string(saved), `do OS's Activate with "sea-of-thieves".`) {
+		t.Fatalf("route is not context-aware (no Activate):\n%s", saved)
 	}
 	// It also ran (dryrun host logs the calls + the done line).
 	if !strings.Contains(out.String(), "[dryrun] OS's Click") ||

@@ -25,6 +25,15 @@ type Deps struct {
 	Hosts map[string]runtime.Host // route execution hosts (e.g. {"*": oshost.New()})
 	In    io.Reader               // prompts / confirmations
 	Out   io.Writer               // user-facing output
+	App   func() string           // current foreground app; nil disables context-awareness
+}
+
+// activeApp returns the foreground app name, or "" when unavailable.
+func (d Deps) activeApp() string {
+	if d.App == nil {
+		return ""
+	}
+	return d.App()
 }
 
 // Do runs the named route if known; otherwise teaches it, then runs it.
@@ -51,6 +60,9 @@ func (d Deps) Teach(name string) error {
 		return fmt.Errorf("can't record on this platform: %w", err)
 	}
 	waitForStop(d.Rec)
+	// Capture the app in front at the moment the demonstration ends — that's the
+	// app the route belongs to, so it becomes context-aware (focused on replay).
+	app := d.activeApp()
 	events := stripTrailingStop(d.Rec.Stop())
 
 	steps := simplify.Simplify(events, simplify.DefaultOptions())
@@ -58,9 +70,12 @@ func (d Deps) Teach(name string) error {
 		fmt.Fprintln(d.Out, "Nothing was recorded — not saving.")
 		return nil
 	}
-	src, err := codegen.Route(name, steps)
+	src, err := codegen.Route(name, app, steps)
 	if err != nil {
 		return err
+	}
+	if app != "" {
+		fmt.Fprintf(d.Out, "(context: %s)\n", app)
 	}
 	fmt.Fprintf(d.Out, "Recorded %d steps:\n--- route ---\n%s\n", len(steps), src)
 	if !d.confirm(fmt.Sprintf("Save this as %q? [Y/n] ", name)) {
