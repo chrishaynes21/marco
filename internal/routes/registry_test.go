@@ -6,7 +6,7 @@ import (
 )
 
 func newReg(t *testing.T) Registry {
-	return Registry{Dir: t.TempDir(), OS: "the OS is an act.\n"}
+	return Registry{Dir: t.TempDir()}
 }
 
 func TestScopePreference(t *testing.T) {

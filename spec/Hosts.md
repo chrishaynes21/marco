@@ -113,6 +113,35 @@ One JSON object per line, request and response:
 `input`/`data` are the JSON encoding of a Marco `Value` (text → string, number → number,
 set → object, absent → null). One subprocess is started per act and reused for the run.
 
+### Per-act host selection (layers)
+
+`--host <spec>` may be repeated, and a spec may be prefixed `Act=` to bind one act to its
+own host while others fall back to the default. This is how a run splits into **layers** —
+the macro OS effects in one process, an overlay HUD in another:
+
+```
+marco serve --host OS=bridge:marco-macros --host Overlay=bridge:overlay overlay.marco
+```
+
+A bare spec (`--host windows`) binds the default `*` host. Acts pointing at an identical
+spec share a single subprocess. The runtime already dispatches per act name
+(`hostFor(act)` → `hosts[act]`, else the default), so this is purely a selection concern.
+
+### Bidirectional bridge
+
+A bridge is normally request/response, but it may also **push events back** to a served
+program (see *Events* below) by writing feed lines on the same stdout, interleaved with
+responses. A single reader demuxes by shape — a line carrying `"feed"` is an event,
+anything else is the response to the in-flight request:
+
+```json
+← {"feed":"Hotkeys","event":"Stop"}
+← {"status":"ok","data":null}
+```
+
+This lets one process both fulfill an act *and* drive the program — e.g. the overlay HUD
+renders the `Overlay` act and pushes the leader-key / typed-command events that move it.
+
 ---
 ## Events: host → Marco {#host-events}
 ---
@@ -131,7 +160,8 @@ when Hotkeys reads Stop?
     do OS's CancelAll.
 ```
 
-Events are fed in as one JSON object per line on the server's stdin:
+Events are fed in as one JSON object per line, either on the server's stdin or — for a
+bidirectional bridge — on the bridge subprocess's stdout (the two are merged):
 
 ```
 {"feed":"Hotkeys","event":"Leader"}
@@ -140,6 +170,8 @@ Events are fed in as one JSON object per line on the server's stdin:
 
 Receiving host events requires a **persistent** run (`marco serve <file>`): the program
 stays alive while listeners are registered, draining inbound events until a quit event
-arrives. A stop event cancels in-flight frames via the frame's `Ctx` and the normal
+arrives. When the run has bridge event sources, it shuts down as soon as any of them
+closes (e.g. the overlay window is closed, so that process exits and its stdout ends);
+with no bridge sources it shuts down when stdin closes. A stop event cancels in-flight frames via the frame's `Ctx` and the normal
 cancellation tree. (One-shot `marco run` exits when the script body completes and is the
 right mode for sequenced macros that do not wait on hotkeys.)

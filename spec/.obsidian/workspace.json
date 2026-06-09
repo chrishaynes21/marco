@@ -4,31 +4,11 @@
     "type": "split",
     "children": [
       {
-        "id": "1033bd8ed4733fc5",
+        "id": "d85df8de68869215",
         "type": "tabs",
         "children": [
           {
-            "id": "3e708261c0ad037c",
-            "type": "leaf",
-            "state": {
-              "type": "markdown",
-              "state": {
-                "file": "Welcome.md",
-                "mode": "source",
-                "source": false
-              },
-              "icon": "lucide-file",
-              "title": "Welcome"
-            }
-          }
-        ]
-      },
-      {
-        "id": "ac15d6a251f36e60",
-        "type": "tabs",
-        "children": [
-          {
-            "id": "f4c0bf517d2456fe",
+            "id": "f7566f9f0a39d493",
             "type": "leaf",
             "state": {
               "type": "graph",
@@ -110,7 +90,6 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "Welcome.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -120,7 +99,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Backlinks for Welcome"
+              "title": "Backlinks"
             }
           },
           {
@@ -129,12 +108,11 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "Welcome.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
               "icon": "links-going-out",
-              "title": "Outgoing links from Welcome"
+              "title": "Outgoing links"
             }
           },
           {
@@ -172,13 +150,12 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "Welcome.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Outline of Welcome"
+              "title": "Outline"
             }
           }
         ]
@@ -199,14 +176,43 @@
       "bases:Create new base": false
     }
   },
-  "active": "3e708261c0ad037c",
+  "active": "f7566f9f0a39d493",
   "lastOpenFiles": [
-    "Lifecycles.md",
-    "Lifecycles.md.tmp.51680.1777428206546",
-    "Core Concepts.md",
-    "Core Concepts.md.tmp.51680.1777428197280",
+    "Audit.md.tmp.37936.1777510624554",
+    "Syntax.md.tmp.37936.1777510606334",
+    "Syntax.md.tmp.37936.1777510602120",
+    "Syntax.md.tmp.37936.1777510597927",
+    "Syntax.md.tmp.37936.1777510592024",
+    "Overview.md.tmp.37936.1777510571369",
+    "Example.md.tmp.37936.1777510565848",
+    "Example.md.tmp.37936.1777510562376",
+    "Example.md.tmp.37936.1777510558843",
+    "Data Model.md.tmp.37936.1777510554368",
+    "Data Model.md.tmp.37936.1777510545291",
+    "Translators.md",
+    "Compiler.md",
+    "Observability.md",
+    "Graph.md",
     "Overview.md",
-    "Overview.md.tmp.51680.1777428188733",
-    "Welcome.md"
+    "Example.md",
+    "Syntax.md",
+    "Audit.md",
+    "Iteration.md",
+    "Actors.md",
+    "Data Model.md",
+    "Reference Modes.md",
+    "Testing.md",
+    "Modules.md",
+    "Scoping.md",
+    "Locking.md",
+    "Welcome.md",
+    "Core Concepts.md",
+    "Inference.md",
+    "Actions.md",
+    "Contracts.md",
+    "Declarations.md",
+    "Frames.md",
+    "Lifecycles.md",
+    "Phrases.md"
   ]
 }

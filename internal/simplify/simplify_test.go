@@ -2,6 +2,7 @@ package simplify
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -10,6 +11,31 @@ import (
 )
 
 var base = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+// TestArgKeyPlaceholder: tapping the reserved arg key (F9) during a demo drops a
+// positional {{N}} Type step (Nth tap → {{N}}) and the key itself never leaks into
+// the macro as a press.
+func TestArgKeyPlaceholder(t *testing.T) {
+	events := []recorder.RecordedEvent{
+		key("h", true, 0), key("h", false, 20),
+		key("f9", true, 100), key("f9", false, 150), // arg 1
+		key("f9", true, 300), key("f9", false, 350), // arg 2
+	}
+	steps := Simplify(events, DefaultOptions())
+	var typed []string
+	for _, s := range steps {
+		if s.Kind == macroir.StepType {
+			typed = append(typed, s.Text)
+		}
+		if s.Kind == macroir.StepKey && s.Key == "f9" {
+			t.Fatalf("arg key leaked as a key press: %+v", steps)
+		}
+	}
+	joined := strings.Join(typed, "|")
+	if !strings.Contains(joined, "{{1}}") || !strings.Contains(joined, "{{2}}") {
+		t.Fatalf("arg key not converted to {{1}}/{{2}}; Type steps: %v\nall: %+v", typed, steps)
+	}
+}
 
 func at(ms int) time.Time { return base.Add(time.Duration(ms) * time.Millisecond) }
 
@@ -21,6 +47,164 @@ func click(btn string, down bool, x, y, ms int) recorder.RecordedEvent {
 }
 func move(x, y, ms int) recorder.RecordedEvent {
 	return recorder.RecordedEvent{Kind: recorder.EvMove, X: x, Y: y, T: at(ms)}
+}
+
+func appSwitch(app string, ms int) recorder.RecordedEvent {
+	return recorder.RecordedEvent{Kind: recorder.EvAppSwitch, KeyName: app, T: at(ms)}
+}
+
+// TestAppSwitchDropsNavClicks is the taskbar-click scenario: you start teaching
+// in one app, click the taskbar to switch to another (a brittle fixed-coordinate
+// click — and on a left/upper monitor, negative coords), then type. The recorded
+// route should focus the destination app robustly and NOT replay the navigation
+// click. The leading "code" activate collapses into the switch to notepad.
+func TestAppSwitchDropsNavClicks(t *testing.T) {
+	evs := []recorder.RecordedEvent{
+		appSwitch("code", 0),
+		click("left", true, -287, 739, 100), // taskbar click on a secondary monitor
+		click("left", false, -287, 739, 150),
+		appSwitch("notepad", 300),
+		key("h", true, 400), key("h", false, 402),
+		key("i", true, 410), key("i", false, 412),
+	}
+	got := Simplify(evs, DefaultOptions())
+	want := []macroir.Step{
+		{Kind: macroir.StepActivate, Text: "notepad"},
+		{Kind: macroir.StepType, Text: "hi"},
+	}
+	assertSteps(t, got, want)
+}
+
+// TestInAppClickSurvivesSwitch checks that a legitimate click made *in* an app is
+// kept; only the gesture immediately before a switch (the navigation) is dropped,
+// and a switch-away at the very end (nothing after it) is discarded.
+func TestInAppClickSurvivesSwitch(t *testing.T) {
+	evs := []recorder.RecordedEvent{
+		appSwitch("notepad", 0),
+		key("h", true, 10), key("h", false, 12),
+		key("i", true, 20), key("i", false, 22),
+		click("left", true, 50, 60, 100), // a real in-app click (e.g. Save)
+		click("left", false, 50, 60, 150),
+		click("left", true, -300, 740, 200), // taskbar click → switch
+		click("left", false, -300, 740, 250),
+		appSwitch("chrome", 400), // switch away at the end with nothing after
+	}
+	got := Simplify(evs, DefaultOptions())
+	want := []macroir.Step{
+		{Kind: macroir.StepActivate, Text: "notepad"},
+		{Kind: macroir.StepType, Text: "hi"},
+		{Kind: macroir.StepWait, Ms: 80},
+		{Kind: macroir.StepClick, X: 50, Y: 60, Button: "left"},
+	}
+	assertSteps(t, got, want)
+}
+
+func rhythmOpts() Options {
+	o := DefaultOptions()
+	o.TypingRhythmMs = DefaultTypingRhythmMs
+	return o
+}
+
+// TestTypingRhythmFolds: the default keeps per-letter keys + rhythm waits
+// (faithful, and "ll" even folds into a loop); with TypingRhythmMs on, the whole
+// varied run collapses into one clean Type step — and because rhythm-folding runs
+// before loop-folding, the repeated "l" never becomes a loop.
+func TestTypingRhythmFolds(t *testing.T) {
+	// "hello" typed at human speed: gaps >MinWaitMs (so waits appear by default)
+	// but <DefaultTypingRhythmMs (so they fold).
+	evs := []recorder.RecordedEvent{
+		key("h", true, 0), key("h", false, 2),
+		key("e", true, 140), key("e", false, 142),
+		key("l", true, 220), key("l", false, 222),
+		key("l", true, 310), key("l", false, 312),
+		key("o", true, 400), key("o", false, 402),
+	}
+	if faithful := Simplify(evs, DefaultOptions()); len(faithful) < 4 {
+		t.Fatalf("expected faithful per-letter steps, got %d: %+v", len(faithful), faithful)
+	}
+	got := Simplify(evs, rhythmOpts())
+	want := []macroir.Step{{Kind: macroir.StepType, Text: "hello"}}
+	assertSteps(t, got, want)
+}
+
+// TestTypingRhythmKeepsUniformSpam: a uniform key run with gaps (game spam) is
+// NOT folded into typing even with rhythm-folding on — its timing is preserved.
+func TestTypingRhythmKeepsUniformSpam(t *testing.T) {
+	evs := []recorder.RecordedEvent{
+		key("e", true, 0), key("e", false, 2),
+		key("e", true, 140), key("e", false, 142),
+		key("e", true, 280), key("e", false, 282),
+	}
+	got := Simplify(evs, rhythmOpts())
+	for _, s := range got {
+		if s.Kind == macroir.StepType {
+			t.Fatalf("uniform spam was wrongly folded into typing: %+v", got)
+		}
+	}
+}
+
+// TestAggressiveFoldsWordGap: a pause between words (here 320ms — longer than
+// DefaultTypingRhythmMs, so the default rhythm fold leaves it) is folded away
+// under AggressiveTypingRhythmMs, the value the explicit "simplify" paths use.
+func TestAggressiveFoldsWordGap(t *testing.T) {
+	evs := []recorder.RecordedEvent{
+		key("h", true, 0), key("h", false, 2),
+		key("i", true, 90), key("i", false, 92),
+		key("space", true, 180), key("space", false, 182),
+		// deliberate-looking 320ms gap between the two words
+		key("y", true, 502), key("y", false, 504),
+		key("o", true, 590), key("o", false, 592),
+	}
+	o := DefaultOptions()
+	o.TypingRhythmMs = AggressiveTypingRhythmMs
+	got := Simplify(evs, o)
+	want := []macroir.Step{{Kind: macroir.StepType, Text: "hi yo"}}
+	assertSteps(t, got, want)
+}
+
+// TestClickTemplateCarried: a captured patch on a click-down survives lowering
+// onto the click step, so codegen can turn it into an image find. A drag (moves
+// between down and up) does not carry one.
+func TestClickTemplateCarried(t *testing.T) {
+	patch := []byte("PNGBYTES")
+	evs := []recorder.RecordedEvent{
+		{Kind: recorder.EvClick, Button: "left", Down: true, X: 50, Y: 60, T: at(0), Image: patch},
+		{Kind: recorder.EvClick, Button: "left", Down: false, X: 50, Y: 60, T: at(5)},
+	}
+	got := Simplify(evs, DefaultOptions())
+	if len(got) != 1 || got[0].Kind != macroir.StepClick {
+		t.Fatalf("expected one click, got %+v", got)
+	}
+	if string(got[0].Template) != string(patch) {
+		t.Fatalf("click did not carry its template: %+v", got[0])
+	}
+}
+
+// TestCtrlComboBecomesChord: Ctrl+C records as a single "ctrl+c" key chord, not
+// as the letter "c" typed. The modifier is held across the key, not dropped.
+func TestCtrlComboBecomesChord(t *testing.T) {
+	evs := []recorder.RecordedEvent{
+		key("ctrl", true, 0),
+		key("c", true, 20), key("c", false, 25),
+		key("ctrl", false, 40),
+	}
+	got := Simplify(evs, DefaultOptions())
+	want := []macroir.Step{{Kind: macroir.StepKey, Key: "ctrl+c", Count: 1}}
+	assertSteps(t, got, want)
+}
+
+// TestCtrlShiftCombo: multiple held modifiers compose in a stable order.
+func TestCtrlShiftCombo(t *testing.T) {
+	evs := []recorder.RecordedEvent{
+		key("ctrl", true, 0),
+		key("shift", true, 5),
+		key("esc", true, 20), key("esc", false, 25),
+		key("shift", false, 40),
+		key("ctrl", false, 45),
+	}
+	got := Simplify(evs, DefaultOptions())
+	want := []macroir.Step{{Kind: macroir.StepKey, Key: "ctrl+shift+esc", Count: 1}}
+	assertSteps(t, got, want)
 }
 
 func TestClicksAndWait(t *testing.T) {

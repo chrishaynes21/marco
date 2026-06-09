@@ -43,6 +43,16 @@ type Host struct {
 	sec        secrets.Store
 	mu         sync.Mutex
 	spamCancel context.CancelFunc
+	args       map[string]string // current invocation's named args (for inline secrets)
+}
+
+// SetArgs records the named arguments of the invocation about to run, so a
+// secret-typed arg (password/pin/…) can be provided inline — used and remembered —
+// instead of pre-set with `marco secret set`.
+func (h *Host) SetArgs(a map[string]string) {
+	h.mu.Lock()
+	h.args = a
+	h.mu.Unlock()
 }
 
 // New returns the native OS host for the current platform.
@@ -103,12 +113,26 @@ func (h *Host) doSecret(c runtime.HostCall) (string, runtime.Value, error) {
 	if name == "" {
 		return fail("secret needs a name")
 	}
+	// The arg name is the part after the last ":" (route-qualified keys look like
+	// "login-to-facebook:password"). If the invocation provided that arg inline, use
+	// it and remember it — so a secret named arg is entered once, then reused.
+	argname := name
+	if i := strings.LastIndex(name, ":"); i >= 0 {
+		argname = name[i+1:]
+	}
+	h.mu.Lock()
+	provided, has := h.args[argname]
+	h.mu.Unlock()
+	if has && provided != "" {
+		_ = h.sec.Set(name, provided) // remember for next time
+		return ok(h.b.typeText(c.Ctx, provided))
+	}
 	val, found, err := h.sec.Get(name)
 	if err != nil {
 		return fail(fmt.Sprintf("secret %q: %v", name, err))
 	}
 	if !found {
-		return fail(fmt.Sprintf("secret %q is not set — run: marco secret set %s", name, name))
+		return fail(fmt.Sprintf("secret %q is not set — pass %s:<value> once, or run: marco secret set %s", name, argname, name))
 	}
 	return ok(h.b.typeText(c.Ctx, val))
 }
@@ -132,23 +156,38 @@ func (h *Host) doFind(c runtime.HostCall) (string, runtime.Value, error) {
 	region.Y1 = setInt(set, "Y1")
 	region.X2 = setInt(set, "X2")
 	region.Y2 = setInt(set, "Y2")
-	tol := 10
+	tol := 24
 	if v, ok2 := set.Get("Tolerance"); ok2 {
 		if n, ok3 := v.AsNumber(); ok3 {
 			tol = int(n)
 		}
 	}
-	m, err := h.scr.Find(imgPath, region, tol)
-	if err != nil {
-		return fail(err.Error())
+	// Timeout (ms): when > 0, WAIT for the image to appear — poll until found or
+	// the timeout elapses. This is what lets a route sit through a loading screen
+	// or a menu transition instead of failing the instant the target isn't there.
+	timeout := time.Duration(setInt(set, "Timeout")) * time.Millisecond
+
+	deadline := time.Now().Add(timeout)
+	for {
+		m, err := h.scr.Find(imgPath, region, tol)
+		if err != nil {
+			return fail(err.Error()) // unsupported / bad path — no point polling
+		}
+		if m.Found {
+			pt := runtime.NewSet()
+			pt.Put("X", runtime.Number(float64(m.X)))
+			pt.Put("Y", runtime.Number(float64(m.Y)))
+			return "ok", runtime.SetVal(pt), nil
+		}
+		if timeout <= 0 || time.Now().After(deadline) {
+			return "failed", runtime.Absent(), nil
+		}
+		select {
+		case <-c.Ctx.Done(): // Esc / abort stops the wait
+			return "failed", runtime.Absent(), nil
+		case <-time.After(250 * time.Millisecond):
+		}
 	}
-	if !m.Found {
-		return "failed", runtime.Absent(), nil
-	}
-	pt := runtime.NewSet()
-	pt.Put("X", runtime.Number(float64(m.X)))
-	pt.Put("Y", runtime.Number(float64(m.Y)))
-	return "ok", runtime.SetVal(pt), nil
 }
 
 func setInt(set *runtime.Set, field string) int {
@@ -286,7 +325,7 @@ func (h *Host) doName() (string, runtime.Value, error) {
 // doClick: a Point input moves there first; a text input names the button;
 // absent input clicks left at the current position.
 func (h *Host) doClick(c runtime.HostCall) (string, runtime.Value, error) {
-	if x, y, present := point(c.Input); present {
+	if x, y, present := clickTarget(c.Input); present {
 		if err := h.b.move(c.Ctx, x, y); err != nil {
 			return fail(err.Error())
 		}
@@ -387,6 +426,32 @@ func ok(err error) (string, runtime.Value, error) {
 
 func fail(msg string) (string, runtime.Value, error) {
 	return "failed", runtime.ErrVal(&runtime.Err{Message: msg}), nil
+}
+
+// clickTarget reads a click's Point, resolving a window-relative one. When the
+// Point carries RelX/RelY, they're an offset inside the active window: add the
+// foreground (just-activated) window's origin so the click lands at the same spot
+// in the window on any monitor or position. Falls back to the absolute X,Y if the
+// window can't be found (or the platform has no window backend).
+func clickTarget(v runtime.Value) (x, y int, present bool) {
+	x, y, present = point(v)
+	if !present {
+		return x, y, false
+	}
+	set := v.AsSet() // non-nil: point() already succeeded
+	rxv, okx := set.Get("RelX")
+	ryv, oky := set.Get("RelY")
+	if !okx || !oky {
+		return x, y, true // absolute click
+	}
+	rx, okrx := rxv.AsNumber()
+	ry, okry := ryv.AsNumber()
+	if okrx && okry {
+		if left, top, ok := winctx.ForegroundOrigin(); ok {
+			x, y = left+int(rx), top+int(ry)
+		}
+	}
+	return x, y, true
 }
 
 // point reads X and Y number fields from a set Value. Returns present=false if

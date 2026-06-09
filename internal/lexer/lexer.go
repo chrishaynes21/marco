@@ -147,7 +147,11 @@ func (l *lex) readToken() error {
 		}
 		return nil
 
-	case c >= '0' && c <= '9':
+	case c >= '0' && c <= '9',
+		// A leading '-' before a digit is a negative number literal (e.g. a click
+		// captured on a monitor left of / above the primary has negative screen
+		// coordinates). Marco has no subtraction operator, so '-' is unambiguous.
+		c == '-' && l.pos+1 < len(l.src) && l.src[l.pos+1] >= '0' && l.src[l.pos+1] <= '9':
 		num := l.readNumber()
 		l.emitAt(token.Number, num, startPos)
 		return nil
@@ -216,6 +220,9 @@ func (l *lex) readWord() string {
 
 func (l *lex) readNumber() string {
 	start := l.pos
+	if l.pos < len(l.src) && l.src[l.pos] == '-' {
+		l.advance() // leading minus of a negative literal
+	}
 	for l.pos < len(l.src) && (l.src[l.pos] >= '0' && l.src[l.pos] <= '9') {
 		l.advance()
 	}

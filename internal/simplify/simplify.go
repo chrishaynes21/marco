@@ -6,6 +6,7 @@ package simplify
 
 import (
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,7 +22,40 @@ type Options struct {
 	DragThresholdPx   int  // click-down→up move beyond this is a drag (default 6)
 	FoldLoops         bool // fold exact repeated cycles into loops (default true)
 	MinLoopReps       int  // minimum repetitions to fold (default 2)
+	// TypingRhythmMs, when > 0, merges a varied run of printable keys into one
+	// Type step even when separated by waits up to this many ms (the natural
+	// rhythm of human typing), dropping those interior waits. 0 (the default)
+	// keeps recording faithful — only no-gap runs coalesce — so game-timing
+	// macros are preserved. Used by Tighten / the "simplify further" teach option.
+	TypingRhythmMs int
+	// ArgKey is a reserved key (e.g. "f9") you tap during a demonstration to drop an
+	// argument placeholder — the Nth tap becomes a Type "{{name}}" step (named from
+	// ArgNames, else positional "{{N}}") that codegen keeps and the run fills from
+	// `<route> name:value`. So you mark "an argument goes here" without typing into
+	// the app. "" / "off" disables it.
+	ArgKey string
+	// ArgNames are the declared argument names (from the teach phrase's "with name,
+	// …" clause), used to name the placeholders the ArgKey drops, in order.
+	ArgNames []string
 }
+
+// DefaultArgKey is the reserved demonstration key for "an argument goes here" when
+// $MARCO_ARG_KEY isn't set. F9 is on every keyboard and rarely part of a macro.
+const DefaultArgKey = "f9"
+
+// DefaultTypingRhythmMs is the inter-key gap up to which spacing is treated as
+// typing rhythm (and folded away). Above this, a wait is a deliberate pause and
+// is kept.
+const DefaultTypingRhythmMs = 300
+
+// AggressiveTypingRhythmMs folds a typed run into one Type step even across
+// pauses up to a full second between keys — used by the explicit "simplify
+// further" / `marco simplify` paths, where the user has asked for the cleanest
+// possible Type steps and ordinary inter-key timing (even a pause between words)
+// no longer matters. A gap longer than this still reads as a deliberate pause
+// and is kept. The faithful default (0) preserves every gap, so game-timing
+// macros are untouched.
+const AggressiveTypingRhythmMs = 1000
 
 func (o Options) normalize() Options {
 	if o.WaitGranularityMs <= 0 {
@@ -41,9 +75,9 @@ func (o Options) normalize() Options {
 	return o
 }
 
-// DefaultOptions returns the recommended defaults (loop folding on).
+// DefaultOptions returns the recommended defaults (loop folding on, the F9 arg key).
 func DefaultOptions() Options {
-	o := Options{FoldLoops: true}.normalize()
+	o := Options{FoldLoops: true, ArgKey: DefaultArgKey}.normalize()
 	return o
 }
 
@@ -51,6 +85,7 @@ func DefaultOptions() Options {
 func Simplify(events []recorder.RecordedEvent, opt Options) []macroir.Step {
 	opt = opt.normalize()
 	timed := lower(events, opt)
+	timed = foldActivates(timed)
 	steps := insertWaits(timed, opt)
 	return SimplifySteps(steps, opt)
 }
@@ -60,7 +95,8 @@ func Simplify(events []recorder.RecordedEvent, opt Options) []macroir.Step {
 // previously recorded steps.
 func SimplifySteps(in []macroir.Step, opt Options) []macroir.Step {
 	opt = opt.normalize()
-	out := coalesceTyping(in)
+	out := coalesceTypingRhythm(in, opt.TypingRhythmMs)
+	out = coalesceTyping(out)
 	out = coalesceKeys(out)
 	out = mergeWaits(out)
 	out = trimEdgeWaits(out)
@@ -82,17 +118,29 @@ type timedStep struct {
 // into type runs; held-button drags are detected.
 func lower(events []recorder.RecordedEvent, opt Options) []timedStep {
 	var out []timedStep
-	shift := false
+	shift, ctrl, alt, win := false, false, false, false
 
 	// mouse-down tracking for drag detection
 	downActive := false
 	var downX, downY int
 	var downBtn string
 	var downT time.Time
+	var downImg []byte
+	var downRelX, downRelY int
+	var downWinRel bool
 	sawMove := false
+	argN := 0
+	argKey := strings.ToLower(strings.TrimSpace(opt.ArgKey))
 
 	for _, ev := range events {
 		switch ev.Kind {
+		case recorder.EvAppSwitch:
+			if ev.KeyName != "" {
+				out = append(out, timedStep{
+					step: macroir.Step{Kind: macroir.StepActivate, Text: ev.KeyName},
+					t:    ev.T,
+				})
+			}
 		case recorder.EvMove:
 			if downActive {
 				if abs(ev.X-downX) > opt.DragThresholdPx || abs(ev.Y-downY) > opt.DragThresholdPx {
@@ -103,6 +151,8 @@ func lower(events []recorder.RecordedEvent, opt Options) []timedStep {
 			if ev.Down {
 				downActive = true
 				downX, downY, downBtn, downT = ev.X, ev.Y, ev.Button, ev.T
+				downImg = ev.Image
+				downRelX, downRelY, downWinRel = ev.RelX, ev.RelY, ev.WinRel
 				sawMove = false
 			} else {
 				if !downActive {
@@ -116,21 +166,64 @@ func lower(events []recorder.RecordedEvent, opt Options) []timedStep {
 						t:    downT,
 					})
 				} else {
+					// The click carries its window-relative offset (default — follows the
+					// active window across monitors/position) and, when anchors are on, a
+					// captured patch (codegen turns it into an image find). Drags carry
+					// neither.
 					out = append(out, timedStep{
-						step: macroir.Step{Kind: macroir.StepClick, X: ev.X, Y: ev.Y, Button: downBtn},
-						t:    downT,
+						step: macroir.Step{
+							Kind: macroir.StepClick, X: ev.X, Y: ev.Y, Button: downBtn,
+							Template: downImg, RelX: downRelX, RelY: downRelY, WinRel: downWinRel,
+						},
+						t: downT,
 					})
 				}
 			}
 		case recorder.EvKey:
 			name := strings.ToLower(ev.KeyName)
+			// The reserved arg key (default F9) drops a positional placeholder: the Nth
+			// tap during the demo becomes a Type "{{N}}" step, filled at run time from
+			// `<route> with a, b`. So you mark "an argument goes here" without typing
+			// {{1}} into the app. Suppressed from the recording itself (it never types).
+			if argKey != "" && argKey != "off" && name == argKey {
+				if ev.Down {
+					argN++
+					ph := strconv.Itoa(argN) // positional fallback
+					if argN-1 < len(opt.ArgNames) {
+						ph = opt.ArgNames[argN-1] // named, from the "with …" clause
+					}
+					out = append(out, timedStep{
+						step: macroir.Step{Kind: macroir.StepType, Text: "{{" + ph + "}}"},
+						t:    ev.T,
+					})
+				}
+				continue
+			}
 			if isModifier(name) {
-				if strings.Contains(name, "shift") {
+				switch {
+				case strings.Contains(name, "shift"):
 					shift = ev.Down
+				case strings.Contains(name, "ctrl"), name == "control":
+					ctrl = ev.Down
+				case strings.Contains(name, "alt"):
+					alt = ev.Down
+				case strings.Contains(name, "win"):
+					win = ev.Down
 				}
 				continue
 			}
 			if !ev.Down {
+				continue
+			}
+			// With a command modifier (Ctrl/Alt/Win) held, this is a shortcut, not
+			// typing — emit a chord key (e.g. "ctrl+c", "ctrl+shift+esc") that the OS
+			// Key capability presses as a held combo. No Text, so it won't fold into
+			// a Type run.
+			if ctrl || alt || win {
+				out = append(out, timedStep{
+					step: macroir.Step{Kind: macroir.StepKey, Key: chord(ctrl, alt, shift, win, name), Count: 1},
+					t:    ev.T,
+				})
 				continue
 			}
 			// Emit one key step per press. Printable keys carry the typed char in
@@ -142,6 +235,59 @@ func lower(events []recorder.RecordedEvent, opt Options) []timedStep {
 			}
 			out = append(out, timedStep{step: step, t: ev.T})
 		}
+	}
+	return out
+}
+
+// isPrintableKey reports whether a step is a single printable keystroke (carries
+// the typed character in Text).
+func isPrintableKey(s macroir.Step) bool {
+	return s.Kind == macroir.StepKey && s.Text != "" && s.Count <= 1
+}
+
+// coalesceTypingRhythm merges a varied run of printable keys into one Type step
+// even when small waits (≤ maxGapMs — the rhythm of human typing) sit between
+// them, dropping those interior waits. A uniform run (the same key repeated,
+// e.g. game "e" spam) is left untouched so its timing is preserved. maxGapMs ≤ 0
+// disables the pass (the faithful default).
+func coalesceTypingRhythm(in []macroir.Step, maxGapMs int) []macroir.Step {
+	if maxGapMs <= 0 {
+		return in
+	}
+	var out []macroir.Step
+	i := 0
+	for i < len(in) {
+		if !isPrintableKey(in[i]) {
+			out = append(out, in[i])
+			i++
+			continue
+		}
+		// Scan a run of printable keys, allowing a single small wait between two
+		// keys. lastKey marks the final key, so a trailing wait is left behind.
+		var b strings.Builder
+		distinct := map[string]bool{}
+		j, lastKey := i, i
+		for j < len(in) {
+			if isPrintableKey(in[j]) {
+				b.WriteString(in[j].Text)
+				distinct[in[j].Text] = true
+				lastKey = j
+				j++
+				continue
+			}
+			if in[j].Kind == macroir.StepWait && in[j].Ms <= maxGapMs &&
+				j+1 < len(in) && isPrintableKey(in[j+1]) {
+				j++
+				continue
+			}
+			break
+		}
+		if len(distinct) >= 2 {
+			out = append(out, macroir.Step{Kind: macroir.StepType, Text: b.String()})
+		} else {
+			out = append(out, in[i:lastKey+1]...)
+		}
+		i = lastKey + 1
 	}
 	return out
 }
@@ -177,12 +323,67 @@ func coalesceTyping(in []macroir.Step) []macroir.Step {
 	return out
 }
 
+// foldActivates rewrites recorded app switches into clean Activate steps. An app
+// switch (EvAppSwitch → StepActivate) means the user navigated to another app —
+// by a taskbar click, Alt-Tab, etc. The gesture that performed the switch is
+// brittle (fixed pixel coordinates that may hit a different app later), so we
+// drop it and keep only the robust Activate, which focuses the app and launches
+// it if it isn't running. Then redundant/empty activates are collapsed.
+func foldActivates(in []timedStep) []timedStep {
+	isActivate := func(ts timedStep) bool { return ts.step.Kind == macroir.StepActivate }
+	isNav := func(ts timedStep) bool {
+		return ts.step.Kind == macroir.StepClick || ts.step.Kind == macroir.StepMove
+	}
+
+	// 1. Drop the navigation gesture (a click/move) immediately before a switch.
+	var a []timedStep
+	for i := 0; i < len(in); i++ {
+		if i+1 < len(in) && isActivate(in[i+1]) && isNav(in[i]) {
+			continue
+		}
+		a = append(a, in[i])
+	}
+
+	// 2. Collapse a run of consecutive activates to its last (e.g. you started in
+	// one app and immediately switched away), and drop a trailing activate that
+	// has no steps after it (switching away at the very end means nothing).
+	var b []timedStep
+	for i := 0; i < len(a); i++ {
+		if isActivate(a[i]) {
+			if i+1 < len(a) && isActivate(a[i+1]) {
+				continue
+			}
+			if i == len(a)-1 {
+				continue
+			}
+		}
+		b = append(b, a[i])
+	}
+
+	// 3. Drop an activate that re-focuses the app already in effect.
+	var c []timedStep
+	lastApp := ""
+	for _, ts := range b {
+		if isActivate(ts) {
+			if ts.step.Text == lastApp {
+				continue
+			}
+			lastApp = ts.step.Text
+		}
+		c = append(c, ts)
+	}
+	return c
+}
+
 // insertWaits computes the gap before each anchor (relative to the previous
-// anchor), rounds it, and emits a wait step when it clears the threshold.
+// anchor), rounds it, and emits a wait step when it clears the threshold. No
+// wait is emitted adjacent to an Activate — neither the time spent navigating to
+// an app (hunting for a taskbar icon) nor the time for it to come to the
+// foreground is meaningful to replay.
 func insertWaits(timed []timedStep, opt Options) []macroir.Step {
 	var out []macroir.Step
 	for i, ts := range timed {
-		if i > 0 {
+		if i > 0 && ts.step.Kind != macroir.StepActivate && timed[i-1].step.Kind != macroir.StepActivate {
 			gap := ts.t.Sub(timed[i-1].t)
 			ms := roundMs(int(gap/time.Millisecond), opt.WaitGranularityMs)
 			if ms >= opt.MinWaitMs {
@@ -306,6 +507,26 @@ func abs(n int) int {
 		return -n
 	}
 	return n
+}
+
+// chord builds a key-combo name like "ctrl+c" or "ctrl+shift+esc" from the held
+// modifiers (in a stable order) plus the base key.
+func chord(ctrl, alt, shift, win bool, key string) string {
+	var parts []string
+	if ctrl {
+		parts = append(parts, "ctrl")
+	}
+	if alt {
+		parts = append(parts, "alt")
+	}
+	if shift {
+		parts = append(parts, "shift")
+	}
+	if win {
+		parts = append(parts, "win")
+	}
+	parts = append(parts, key)
+	return strings.Join(parts, "+")
 }
 
 func isModifier(name string) bool {

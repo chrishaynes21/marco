@@ -1,0 +1,101 @@
+// overlay.marco — the gamer-HUD's behaviour, written in Marco. The native overlay
+// plugin (plugins/overlay) renders the HUD and fulfils the Overlay act; it pushes
+// the leader-key command (`m + text) as a Commands feed. Run:
+//
+//   marco serve --host Overlay=bridge:overlay programs/overlay.marco
+//
+// The HUD: backtick is the leader, `m opens the command line — type a route name,
+// Enter runs it. `<key> emits a Hotkeys event you can bind below for your own
+// quick macros (no built-in ones).
+
+// The overlay UI act — foreign (exports, no `does` body), fulfilled by the plugin.
+the Overlay is an act.
+this exports Show.        // show the HUD
+this exports Hide.        // hide the HUD
+this exports Status.      // set the one-line status (a text)
+this exports Log.         // append a line to the HUD log (a text)
+this exports Clear.       // clear the HUD log
+this exports SetInput.    // set the command-line buffer (a text)
+this exports ListRoutes.  // list known routes; result is the names
+this exports Run.         // run a route by name (a text)
+this exports Active.      // the foreground app; result is the text
+this exports Heard.       // show live voice text on the command line (a text)
+this exports Hotkey.      // run the route bound to a leader key (a text key)
+
+// Typed leader-key commands the overlay pushes (host -> Marco):
+// {event:"Run", data:"<route name>"}.
+the Commands is a feed of any.
+
+// Voice transcripts pushed by the voice plugin (mic -> Vosk -> here):
+// {event:"Partial", data:"<interim>"} live, {event:"Final", data:"<phrase>"}.
+the Voice is a feed of any.
+
+// Leader hotkeys the overlay pushes: `<key> -> {event:"Key", data:"<key>"}.
+the Hotkeys is a feed of any.
+
+the Hud is an actor.
+
+// Bring the HUD up and load the route list (wraps the failable Overlay calls so
+// the script root stays closed; handled once at the call site below).
+this can Boot.
+this's Boot does...
+    do Overlay's Show.
+    do Overlay's Status with "ready".
+    do Overlay's ListRoutes.
+    this is ok!
+
+// Run a typed command as a route. The host streams the route's output into the
+// HUD and sets the running/ran/failed status + duration, so this just forwards it.
+this can RunCommand.
+this's RunCommand does...
+    do Overlay's Run with input.
+    this is ok!
+
+// A finished voice phrase: clear the live preview, then run it as a command.
+this can RunVoice.
+this's RunVoice does...
+    do Overlay's Heard with "".
+    do Overlay's Run with input.
+    this is ok!
+
+// A leader hotkey: run whatever route is bound to it in the current app.
+this can RunHotkey.
+this's RunHotkey does...
+    do Overlay's Hotkey with input.
+    this is ok!
+
+when Commands reads Run?
+    do Hud's RunCommand with input...
+        when ok?
+            log "ran".
+        or?
+            log that's error.
+
+// Live voice preview (Google-style interim text on the command line).
+when Voice reads Partial?
+    do Overlay's Heard with input...
+        when ok?
+            log "heard".
+        or?
+            log that's error.
+
+when Voice reads Final?
+    do Hud's RunVoice with input...
+        when ok?
+            log "ran".
+        or?
+            log that's error.
+
+when Hotkeys reads Key?
+    do Hud's RunHotkey with input...
+        when ok?
+            log "hotkey".
+        or?
+            log that's error.
+
+the App is a script.
+do Hud's Boot...
+    when ok?
+        log "overlay ready".
+    or?
+        log that's error.

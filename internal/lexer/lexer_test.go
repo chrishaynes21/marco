@@ -144,6 +144,30 @@ func TestNumber(t *testing.T) {
 	}
 }
 
+func TestNegativeNumber(t *testing.T) {
+	// A click captured on a monitor left of / above the primary has negative
+	// screen coordinates; codegen emits them as bare number literals.
+	got, err := Lex("the p1 is a Point with X -1920, Y -5.\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "word(the) word(p1) word(is) word(a) word(Point) word(with) word(X) number(-1920) , word(Y) number(-5) . NL\nEOF\n"
+	if dump(got) != want {
+		t.Fatalf("got:\n%s\nwant:\n%s", dump(got), want)
+	}
+}
+
+func TestNegativeFloat(t *testing.T) {
+	got, err := Lex("its Bias is -3.14.\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "word(its) word(Bias) word(is) number(-3.14) . NL\nEOF\n"
+	if dump(got) != want {
+		t.Fatalf("got:\n%s", dump(got))
+	}
+}
+
 func TestRejectsTabs(t *testing.T) {
 	_, err := Lex("a\n\tb\n")
 	if err == nil {

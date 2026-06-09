@@ -6,11 +6,27 @@ package codegen
 
 import (
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strings"
 
 	"github.com/chaynes-simpleclouds/marco/internal/macroir"
 )
+
+// DefaultTolerance is the per-channel color slack used when a click is matched
+// by image and the step didn't specify its own. Paired with screen.MatchThreshold
+// (a fraction of pixels, not all), this tolerates anti-aliasing and overlays.
+const DefaultTolerance = 24
+
+// DefaultFindTimeoutMs is how long an image click WAITS for its target to appear
+// before giving up — so a route sits through loading screens and menu transitions
+// instead of clicking the instant the button isn't there yet.
+const DefaultFindTimeoutMs = 20000
+
+// DefaultWaitTimeoutMs is how long a "wait for this screen" step polls for the
+// captured screen before giving up — longer than a click find, since it's
+// explicitly there to sit through a load.
+const DefaultWaitTimeoutMs = 60000
 
 // Route renders a named macro as Marco source. name is the human command name
 // (e.g. "open chest"); it becomes the route's actor (PascalCase) and the log
@@ -18,10 +34,26 @@ import (
 // route brings it to the foreground first, so the route is context-aware (e.g.
 // "login to facebook" focuses Chrome before clicking). The generated route runs
 // on the OS act (`use os.`).
-func Route(name, app string, steps []macroir.Step) (string, error) {
+//
+// A click that carries a captured Template becomes a robust image-find ("locate
+// this image and click it; fall back to the recorded coordinate if not found").
+// Each such template is returned in assets, keyed by the absolute path codegen
+// embedded in the route (under assetDir) — the caller writes those files beside
+// the route. assets is nil when no click was image-matched.
+func Route(name, app string, steps []macroir.Step, assetDir string, declaredArgs ...string) (src string, assets map[string][]byte, err error) {
 	actor := pascal(name)
 	if actor == "" {
-		return "", fmt.Errorf("route name %q has no usable identifier characters", name)
+		return "", nil, fmt.Errorf("route name %q has no usable identifier characters", name)
+	}
+
+	declared := map[string]bool{}
+	for _, a := range declaredArgs {
+		declared[strings.ToLower(a)] = true
+	}
+	g := &gen{pts: &points{}, assetDir: assetDir, base: fileBase(name), assets: map[string][]byte{}, declared: declared}
+	body, err := emit(steps, g, 1)
+	if err != nil {
+		return "", nil, err
 	}
 
 	var b strings.Builder
@@ -30,23 +62,27 @@ func Route(name, app string, steps []macroir.Step) (string, error) {
 		fmt.Fprintf(&b, "// Context: %s (brought to the foreground before running).\n", app)
 	}
 	b.WriteString("use os.\n\n")
+	// An image-find click needs an Anchor set type to pass to OS's Find.
+	if g.anchorN > 0 {
+		b.WriteString("// An on-screen target located by image, so the click survives the UI moving.\n")
+		b.WriteString("the Anchor is a set.\n")
+		b.WriteString("this's Image is a text.\n")
+		b.WriteString("this's Tolerance is a number.\n")
+		b.WriteString("this's Timeout is a number.  // ms to wait for it to appear\n\n")
+	}
 	fmt.Fprintf(&b, "the %s is an actor.\n\n", actor)
 	b.WriteString("this can Run.\n")
 	b.WriteString("this's Run does...\n")
 
-	pts := &points{}
-	body, err := emit(steps, pts, 1)
-	if err != nil {
-		return "", err
-	}
 	// Point locals are declared at the top of the action body, then the steps.
-	for _, decl := range pts.decls {
+	for _, decl := range g.pts.decls {
 		fmt.Fprintf(&b, "%s%s\n", indent(1), decl)
 	}
 	// Context-aware: focus the app the route was taught in (no-op if already in
 	// front). A failure floats to the route's contract and is handled at the
-	// call site.
-	if app != "" {
+	// call site. Skipped when the steps already lead with their own Activate
+	// (the recorder detected the app switches), to avoid focusing twice.
+	if app != "" && !(len(steps) > 0 && steps[0].Kind == macroir.StepActivate) {
 		fmt.Fprintf(&b, "%sdo OS's Activate with \"%s\".\n", indent(1), escape(app))
 	}
 	b.WriteString(body)
@@ -58,7 +94,22 @@ func Route(name, app string, steps []macroir.Step) (string, error) {
 	fmt.Fprintf(&b, "%slog \"%s: done\".\n", indent(2), escape(name))
 	fmt.Fprintf(&b, "%sor?\n", indent(1))
 	fmt.Fprintf(&b, "%slog that's error.\n", indent(2))
-	return b.String(), nil
+	if len(g.assets) == 0 {
+		g.assets = nil
+	}
+	return b.String(), g.assets, nil
+}
+
+// gen carries the mutable state threaded through emit: point locals, the asset
+// directory + name base for template files, the accumulated assets, and the
+// running anchor counter.
+type gen struct {
+	pts      *points
+	assetDir string
+	base     string
+	assets   map[string][]byte
+	anchorN  int
+	declared map[string]bool // declared arg names: {{name}} kept (filled at run), not a secret
 }
 
 // points allocates and declares numbered Point locals (p1, p2, …).
@@ -74,21 +125,46 @@ func (p *points) add(x, y int) string {
 	return name
 }
 
+// addRel declares a window-relative Point: X,Y are the absolute fallback and
+// RelX,RelY the offset inside the active window. The OS host resolves RelX,RelY
+// against the foreground (just-activated) window so the click lands at the same
+// spot in the window on any monitor or position, falling back to X,Y if it's gone.
+func (p *points) addRel(x, y, rx, ry int) string {
+	p.n++
+	name := fmt.Sprintf("p%d", p.n)
+	p.decls = append(p.decls, fmt.Sprintf("the %s is a Point with X %d, Y %d, RelX %d, RelY %d.", name, x, y, rx, ry))
+	return name
+}
+
+// clickPoint declares the Point for a click step — window-relative when the
+// recorder captured an offset, else a plain absolute point.
+func (p *points) clickPoint(s macroir.Step) string {
+	if s.WinRel {
+		return p.addRel(s.X, s.Y, s.RelX, s.RelY)
+	}
+	return p.add(s.X, s.Y)
+}
+
 // emit renders steps at the given indent depth.
-func emit(steps []macroir.Step, pts *points, depth int) (string, error) {
+func emit(steps []macroir.Step, g *gen, depth int) (string, error) {
 	var b strings.Builder
 	pad := indent(depth)
 	for _, s := range steps {
 		switch s.Kind {
+		case macroir.StepActivate:
+			fmt.Fprintf(&b, "%sdo OS's Activate with \"%s\".\n", pad, escape(s.Text))
 		case macroir.StepClick:
-			if s.Button != "" && s.Button != "left" {
+			switch {
+			case s.Button != "" && s.Button != "left":
 				fmt.Fprintf(&b, "%sdo OS's Click with %q.\n", pad, s.Button)
-			} else {
-				name := pts.add(s.X, s.Y)
+			case len(s.Template) > 0:
+				g.emitImageClick(&b, s, depth)
+			default:
+				name := g.pts.clickPoint(s)
 				fmt.Fprintf(&b, "%sdo OS's Click with %s.\n", pad, name)
 			}
 		case macroir.StepMove:
-			name := pts.add(s.X, s.Y)
+			name := g.pts.add(s.X, s.Y)
 			fmt.Fprintf(&b, "%sdo OS's Move with %s.\n", pad, name)
 		case macroir.StepWait:
 			fmt.Fprintf(&b, "%sdo OS's Sleep with %d.\n", pad, s.Ms)
@@ -101,31 +177,39 @@ func emit(steps []macroir.Step, pts *points, depth int) (string, error) {
 				fmt.Fprintf(&b, "%sdo OS's Key with %q.\n", indent(depth+1), s.Key)
 			}
 		case macroir.StepType:
-			// {{name}} placeholders become Secret lookups so passwords are never
-			// written into the route — the value lives in the OS credential store.
-			for _, seg := range splitSecrets(s.Text) {
+			// {{name}} placeholders: a DECLARED arg (or numeric {{N}}) stays in the
+			// text to be filled at run time; any other {{name}} becomes a Secret lookup
+			// so passwords are never written into the route.
+			for _, seg := range splitSecrets(s.Text, g.declared) {
 				if seg.secret {
-					fmt.Fprintf(&b, "%sdo OS's Secret with \"%s\".\n", pad, escape(seg.text))
+					// A declared secret arg (password/pin/…) is route-qualified so each
+					// route remembers its own — "<route>:password" — while a plain typed
+					// {{name}} secret keeps its global name.
+					sname := seg.text
+					if seg.qualified {
+						sname = g.base + ":" + seg.text
+					}
+					fmt.Fprintf(&b, "%sdo OS's Secret with \"%s\".\n", pad, escape(sname))
 				} else if seg.text != "" {
 					fmt.Fprintf(&b, "%sdo OS's Type with \"%s\".\n", pad, escape(seg.text))
 				}
 			}
 		case macroir.StepDrag:
 			// No button-hold primitive yet — degrade to move-to-start + click-end.
-			start := pts.add(s.X, s.Y)
-			end := pts.add(s.X2, s.Y2)
+			start := g.pts.add(s.X, s.Y)
+			end := g.pts.add(s.X2, s.Y2)
 			fmt.Fprintf(&b, "%s// TODO drag (no hold primitive): move to start, click end.\n", pad)
 			fmt.Fprintf(&b, "%sdo OS's Move with %s.\n", pad, start)
 			fmt.Fprintf(&b, "%sdo OS's Click with %s.\n", pad, end)
 		case macroir.StepLoop:
 			fmt.Fprintf(&b, "%srepeat %d times...\n", pad, s.Count)
-			inner, err := emit(s.Steps, pts, depth+1)
+			inner, err := emit(s.Steps, g, depth+1)
 			if err != nil {
 				return "", err
 			}
 			b.WriteString(inner)
 		case macroir.StepFind:
-			return "", fmt.Errorf("codegen: StepFind not implemented yet")
+			g.emitWaitImage(&b, s, depth)
 		default:
 			return "", fmt.Errorf("codegen: unknown step kind %q", s.Kind)
 		}
@@ -133,25 +217,107 @@ func emit(steps []macroir.Step, pts *points, depth int) (string, error) {
 	return b.String(), nil
 }
 
-func indent(depth int) string { return strings.Repeat("    ", depth) }
-
-// secretRe matches a {{name}} placeholder.
-var secretRe = regexp.MustCompile(`\{\{([A-Za-z0-9_-]+)\}\}`)
-
-type segment struct {
-	text   string
-	secret bool
+// emitImageClick renders an image-matched click: locate the captured template on
+// screen and click its center; if it isn't found, fall back to the coordinate
+// the user originally clicked (so the route still works when image search is
+// unavailable, e.g. under the dryrun host or a bridge without screen support).
+func (g *gen) emitImageClick(b *strings.Builder, s macroir.Step, depth int) {
+	g.anchorN++
+	fname := fmt.Sprintf("%s-anchor-%d.png", g.base, g.anchorN)
+	abs := filepath.Join(g.assetDir, fname)
+	g.assets[abs] = s.Template
+	tol := s.Tolerance
+	if tol <= 0 {
+		tol = DefaultTolerance
+	}
+	anchor := fmt.Sprintf("a%d", g.anchorN)
+	fallback := g.pts.clickPoint(s)
+	pad := indent(depth)
+	fmt.Fprintf(b, "%sthe %s is an Anchor with Image \"%s\", Tolerance %d, Timeout %d.\n", pad, anchor, escape(abs), tol, DefaultFindTimeoutMs)
+	fmt.Fprintf(b, "%sdo OS's Find with %s...\n", pad, anchor)
+	fmt.Fprintf(b, "%swhen ok?\n", indent(depth+1))
+	fmt.Fprintf(b, "%sdo OS's Click with that.\n", indent(depth+2))
+	fmt.Fprintf(b, "%sor?\n", indent(depth+1))
+	fmt.Fprintf(b, "%sdo OS's Click with %s.\n", indent(depth+2), fallback)
 }
 
-// splitSecrets breaks a typed string into literal and {{secret}} segments.
-func splitSecrets(s string) []segment {
+// emitWaitImage renders a "wait for this screen" step: poll for the captured image
+// for up to DefaultWaitTimeoutMs, then continue. It does not click — it's purely a
+// barrier that sits through a load. A timeout logs a note but lets the route go on,
+// so a slightly-different screen doesn't hard-fail the whole macro.
+func (g *gen) emitWaitImage(b *strings.Builder, s macroir.Step, depth int) {
+	g.anchorN++
+	fname := fmt.Sprintf("%s-wait-%d.png", g.base, g.anchorN)
+	abs := filepath.Join(g.assetDir, fname)
+	g.assets[abs] = s.Template
+	tol := s.Tolerance
+	if tol <= 0 {
+		tol = DefaultTolerance
+	}
+	anchor := fmt.Sprintf("w%d", g.anchorN)
+	pad := indent(depth)
+	fmt.Fprintf(b, "%sthe %s is an Anchor with Image \"%s\", Tolerance %d, Timeout %d.\n", pad, anchor, escape(abs), tol, DefaultWaitTimeoutMs)
+	fmt.Fprintf(b, "%sdo OS's Find with %s...\n", pad, anchor)
+	fmt.Fprintf(b, "%swhen ok?\n", indent(depth+1))
+	fmt.Fprintf(b, "%slog \"screen ready\".\n", indent(depth+2))
+	fmt.Fprintf(b, "%sor?\n", indent(depth+1))
+	fmt.Fprintf(b, "%slog \"timed out waiting for screen\".\n", indent(depth+2))
+}
+
+// fileBase turns a route name into a filesystem-safe base for template files
+// (lowercase, runs of non-alphanumerics collapsed to one '-').
+func fileBase(name string) string {
+	var b strings.Builder
+	dash := false
+	for _, r := range strings.ToLower(name) {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			if dash && b.Len() > 0 {
+				b.WriteByte('-')
+			}
+			dash = false
+			b.WriteRune(r)
+		default:
+			dash = true
+		}
+	}
+	if b.Len() == 0 {
+		return "anchor"
+	}
+	return b.String()
+}
+
+func indent(depth int) string { return strings.Repeat("    ", depth) }
+
+// placeholderRe matches a {{name}} placeholder. A NUMERIC name ({{1}}, {{2}}) is a
+// positional run-time argument and is left in the typed text verbatim (the engine
+// fills it when the route is run with `… with a, b`); a named one ({{password}}) is
+// a secret looked up from the credential store.
+var placeholderRe = regexp.MustCompile(`\{\{([A-Za-z0-9_-]+)\}\}`)
+
+type segment struct {
+	text      string
+	secret    bool
+	qualified bool // a declared secret arg → route-qualified secret name
+}
+
+// splitSecrets breaks a typed string into literal and secret segments. A numeric
+// {{N}} or a declared PLAIN {{name}} stays in the literal (the run fills it); a
+// declared SECRET-typed arg ({{password}}) becomes a route-qualified secret; any
+// other {{name}} is a global secret.
+func splitSecrets(s string, declared map[string]bool) []segment {
 	var out []segment
 	last := 0
-	for _, m := range secretRe.FindAllStringSubmatchIndex(s, -1) {
+	for _, m := range placeholderRe.FindAllStringSubmatchIndex(s, -1) {
+		name := s[m[2]:m[3]]
+		isDeclared := declared[strings.ToLower(name)]
+		if isNumeric(name) || (isDeclared && !isSecretArg(name)) {
+			continue // a plain arg placeholder — keep {{…}} for run-time fill
+		}
 		if m[0] > last {
 			out = append(out, segment{text: s[last:m[0]]})
 		}
-		out = append(out, segment{text: s[m[2]:m[3]], secret: true})
+		out = append(out, segment{text: name, secret: true, qualified: isDeclared})
 		last = m[1]
 	}
 	if last < len(s) {
@@ -161,6 +327,25 @@ func splitSecrets(s string) []segment {
 		out = append(out, segment{text: s})
 	}
 	return out
+}
+
+// isSecretArg reports whether a declared arg name should be handled as a secret
+// (resolved from the credential store, never written into the route, masked).
+func isSecretArg(name string) bool {
+	switch strings.ToLower(name) {
+	case "password", "pass", "passwd", "pwd", "pin", "secret", "token", "otp", "apikey", "api-key", "key":
+		return true
+	}
+	return false
+}
+
+func isNumeric(s string) bool {
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return s != ""
 }
 
 // escape escapes a string for a Marco double-quoted literal.

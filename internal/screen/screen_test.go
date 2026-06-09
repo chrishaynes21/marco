@@ -6,6 +6,41 @@ import (
 	"testing"
 )
 
+func TestDistinctive(t *testing.T) {
+	// A uniform patch is not worth matching by image.
+	uniform := image.NewRGBA(image.Rect(0, 0, 32, 32))
+	fill(uniform, 0, 0, 32, 32, color.RGBA{200, 200, 200, 255})
+	if Distinctive(uniform) {
+		t.Error("a uniform patch should not be distinctive")
+	}
+	// A patch with a clear feature (a filled quadrant) is.
+	feature := image.NewRGBA(image.Rect(0, 0, 32, 32))
+	fill(feature, 0, 0, 32, 32, color.RGBA{255, 255, 255, 255})
+	fill(feature, 0, 0, 20, 20, color.RGBA{0, 0, 0, 255})
+	if !Distinctive(feature) {
+		t.Error("a patch with a strong feature should be distinctive")
+	}
+	if Distinctive(nil) {
+		t.Error("nil is not distinctive")
+	}
+}
+
+func TestEncodePNGRoundTrips(t *testing.T) {
+	img := image.NewRGBA(image.Rect(0, 0, 4, 4))
+	fill(img, 0, 0, 2, 2, color.RGBA{10, 20, 30, 255})
+	data, err := EncodePNG(img)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(data) == 0 {
+		t.Fatal("EncodePNG returned no bytes")
+	}
+	// PNG magic.
+	if string(data[1:4]) != "PNG" {
+		t.Fatalf("not a PNG: % x", data[:8])
+	}
+}
+
 // fill paints a solid rectangle into img.
 func fill(img *image.RGBA, x0, y0, x1, y1 int, c color.RGBA) {
 	for y := y0; y < y1; y++ {

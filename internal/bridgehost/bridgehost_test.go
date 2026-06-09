@@ -4,8 +4,10 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"testing"
+	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/runtime"
 )
@@ -69,6 +71,55 @@ func TestBridgeFailed(t *testing.T) {
 	status, data, _ := h.Invoke(runtime.HostCall{Act: "OS", Action: "Key", Ctx: context.Background()})
 	if status != "failed" || !data.IsError() || data.AsError().Message != "unknown key" {
 		t.Fatalf("got status=%q data=%#v", status, data)
+	}
+}
+
+// TestBridgePushesEvent proves the demux: a bridge may interleave a {"feed":...}
+// event line with its response — the event surfaces on Events() while Invoke
+// still pairs with the response line.
+func TestBridgePushesEvent(t *testing.T) {
+	h := fakeBridge(t, func(map[string]any) string {
+		// One event line, then the response line (fakeBridge appends a newline).
+		return `{"feed":"Hotkeys","event":"Stop"}` + "\n" + `{"status":"ok","data":null}`
+	})
+	evs := h.Events() // bring the source online
+	status, _, _ := h.Invoke(runtime.HostCall{Act: "OS", Action: "Key", Ctx: context.Background()})
+	if status != "ok" {
+		t.Fatalf("status=%q", status)
+	}
+	select {
+	case ev := <-evs:
+		if ev.Feed != "Hotkeys" || ev.Message != "Stop" {
+			t.Fatalf("got feed=%q msg=%q", ev.Feed, ev.Message)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("no event surfaced")
+	}
+}
+
+// TestBridgeStartFailureDegrades proves a bridge that can't launch (e.g. a
+// missing overlay/macros binary) degrades to failed and closes its event source,
+// instead of panicking the engine on a nil encoder.
+func TestBridgeStartFailureDegrades(t *testing.T) {
+	h := &Host{}
+	h.startFn = func() (io.Writer, io.Reader, func() error, error) {
+		return nil, nil, nil, errors.New("boom")
+	}
+	evs := h.Events() // triggers the (failed) start
+	status, _, err := h.Invoke(runtime.HostCall{Act: "X", Action: "Y", Ctx: context.Background()})
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if status != "failed" {
+		t.Fatalf("status=%q, want failed", status)
+	}
+	select {
+	case _, ok := <-evs:
+		if ok {
+			t.Fatal("expected a closed event channel after start failure")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("event channel not closed after start failure")
 	}
 }
 

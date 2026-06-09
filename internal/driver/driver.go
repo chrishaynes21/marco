@@ -15,9 +15,20 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/compile"
 	"github.com/chaynes-simpleclouds/marco/internal/graph"
 	"github.com/chaynes-simpleclouds/marco/internal/lexer"
+	"github.com/chaynes-simpleclouds/marco/internal/osmod"
 	"github.com/chaynes-simpleclouds/marco/internal/parser"
 	"github.com/chaynes-simpleclouds/marco/internal/runtime"
 )
+
+// builtinModule returns the embedded source for a built-in importable module, so
+// `use <module>.` resolves without a sibling file. Currently just the OS act
+// surface (os.marco), which every generated route imports.
+func builtinModule(name string) (string, bool) {
+	if name == "os" {
+		return osmod.Source, true
+	}
+	return "", false
+}
 
 // Diagnostic is the wire form of a compiler message. Suitable for editor /
 // LSP integration via `marco check --json`.
@@ -152,16 +163,23 @@ func RunFileWithHostsCtx(ctx context.Context, path string, out io.Writer, hosts 
 	if err != nil {
 		return fmt.Errorf("read %s: %w", path, err)
 	}
-	dir := filepath.Dir(path)
-	g, err := buildGraph(string(src), dir, map[string]bool{})
+	return RunSourceWithHostsCtx(ctx, string(src), filepath.Dir(path), path, out, hosts)
+}
+
+// RunSourceWithHostsCtx runs a route SOURCE (already loaded — e.g. with run-time
+// `with a, b` args substituted in) resolving `use` imports relative to dir; name is
+// only used to label errors. Lets the caller transform a route before running it
+// without writing a temp file.
+func RunSourceWithHostsCtx(ctx context.Context, src, dir, name string, out io.Writer, hosts map[string]runtime.Host) error {
+	g, err := buildGraph(src, dir, map[string]bool{})
 	if err != nil {
-		return decorateError(err, path, string(src))
+		return decorateError(err, name, src)
 	}
 	if err := compile.Compile(g, nil); err != nil {
-		return decorateError(fmt.Errorf("compile: %w", err), path, string(src))
+		return decorateError(fmt.Errorf("compile: %w", err), name, src)
 	}
 	if err := runtime.RunWithHostsContext(ctx, g, out, hosts); err != nil {
-		return decorateError(err, path, string(src))
+		return decorateError(err, name, src)
 	}
 	return nil
 }
@@ -402,15 +420,26 @@ func buildGraph(src, dir string, loaded map[string]bool) (*graph.Graph, error) {
 			continue
 		}
 		loaded[imp.Module] = true
-		if dir == "" {
-			return nil, fmt.Errorf("`use %s.` requires a file-based source", imp.Module)
+
+		// Resolve the module source: a sibling <module>.marco if present, else a
+		// built-in (the os act surface is embedded in the binary, so routes don't
+		// each need their own os.marco copy beside them).
+		var modSrc string
+		if dir != "" {
+			if b, err := os.ReadFile(filepath.Join(dir, imp.Module+".marco")); err == nil {
+				modSrc = string(b)
+			}
 		}
-		modPath := filepath.Join(dir, imp.Module+".marco")
-		modSrc, err := os.ReadFile(modPath)
-		if err != nil {
-			return nil, fmt.Errorf("import %s: %w", imp.Module, err)
+		if modSrc == "" {
+			if b, ok := builtinModule(imp.Module); ok {
+				modSrc = b
+			} else if dir == "" {
+				return nil, fmt.Errorf("`use %s.` requires a file-based source", imp.Module)
+			} else {
+				return nil, fmt.Errorf("import %s: no %s.marco beside the program and no built-in", imp.Module, imp.Module)
+			}
 		}
-		modG, err := buildGraph(string(modSrc), dir, map[string]bool{})
+		modG, err := buildGraph(modSrc, dir, map[string]bool{})
 		if err != nil {
 			return nil, fmt.Errorf("import %s: %w", imp.Module, err)
 		}

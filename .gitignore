@@ -30,3 +30,9 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# Claude Code local settings (per-machine)
+.claude/
+
+# Downloaded Vosk speech model (fetched by setup.ps1 -Voice, ~68MB)
+plugins/voice/model/

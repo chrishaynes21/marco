@@ -22,9 +22,6 @@ type Route struct {
 // Registry is a directory tree of routes.
 type Registry struct {
 	Dir string // e.g. "routes"
-	// OS is the shared act-surface source (os.marco), written alongside routes
-	// (in each scope dir) so `use os.` resolves; empty disables that.
-	OS string
 }
 
 // Slug turns a command name into a filesystem slug: lowercase, runs of
@@ -59,6 +56,58 @@ func (r Registry) Path(rt Route) string {
 	return filepath.Join(r.dirFor(rt.App), rt.Slug+".marco")
 }
 
+// recExt is the suffix for a route's stored demonstration (the raw recorded
+// events, JSON). It is kept beside the .marco so the route can be re-simplified
+// later from the original recording — re-simplifying must start from raw events,
+// since already-folded steps have lost the per-keystroke detail. Not a .marco
+// file, so List/Resolve/Slugs ignore it. The recording only ever holds
+// placeholder keystrokes for secrets ({{name}}), never real values.
+const recExt = ".rec.json"
+
+// RecordingPath returns the path of a route's stored demonstration.
+func (r Registry) RecordingPath(rt Route) string {
+	return filepath.Join(r.dirFor(rt.App), rt.Slug+recExt)
+}
+
+// SaveRecording stores a route's raw demonstration beside it (dir created lazily).
+func (r Registry) SaveRecording(app, name string, data []byte) error {
+	rt := Route{App: app, Slug: Slug(name)}
+	if err := os.MkdirAll(r.dirFor(app), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(r.RecordingPath(rt), data, 0o644)
+}
+
+// LoadRecording returns a route's stored demonstration, or ok=false if none was
+// kept (a route taught before recordings were saved, or a hand-written one).
+func (r Registry) LoadRecording(rt Route) ([]byte, bool) {
+	data, err := os.ReadFile(r.RecordingPath(rt))
+	if err != nil {
+		return nil, false
+	}
+	return data, true
+}
+
+// ScopeDir returns the directory a route of the given scope is stored in
+// (app "" = the registry root) — the absolute base codegen embeds for a route's
+// image-template files.
+func (r Registry) ScopeDir(app string) string { return r.dirFor(app) }
+
+// WriteAssets writes each path→bytes entry (codegen template files), creating
+// parent directories. Paths are the absolute names codegen already embedded in
+// the route.
+func (r Registry) WriteAssets(assets map[string][]byte) error {
+	for path, data := range assets {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(path, data, 0o644); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Has reports whether a specific route exists.
 func (r Registry) Has(rt Route) bool {
 	if rt.Slug == "" {
@@ -68,28 +117,31 @@ func (r Registry) Has(rt Route) bool {
 	return err == nil
 }
 
-// Save writes the route source under the given scope (app "" = global),
-// creating the directory and (once) the shared os.marco so the route's `use os.`
-// import resolves.
+// Save writes the route source under the given scope (app "" = global), creating
+// the directory. The route's `use os.` import resolves against the built-in OS
+// act surface embedded in the binary (see driver.builtinModule), so no per-scope
+// os.marco copy is written.
 func (r Registry) Save(app, name, source string) error {
 	rt := Route{App: app, Slug: Slug(name)}
 	dir := r.dirFor(app)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	if r.OS != "" {
-		osPath := filepath.Join(dir, "os.marco")
-		if _, err := os.Stat(osPath); os.IsNotExist(err) {
-			if err := os.WriteFile(osPath, []byte(r.OS), 0o644); err != nil {
-				return err
-			}
-		}
-	}
 	return os.WriteFile(r.Path(rt), []byte(source), 0o644)
 }
 
-// Delete removes a route (no error if absent).
+// Delete removes a route, its stored demonstration, and any image-template files
+// it generated (no error if absent).
 func (r Registry) Delete(rt Route) error {
+	if err := os.Remove(r.RecordingPath(rt)); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	// Template files are named "<slug>-anchor-N.png" beside the route.
+	if matches, err := filepath.Glob(filepath.Join(r.dirFor(rt.App), rt.Slug+"-anchor-*.png")); err == nil {
+		for _, m := range matches {
+			_ = os.Remove(m)
+		}
+	}
 	err := os.Remove(r.Path(rt))
 	if os.IsNotExist(err) {
 		return nil

@@ -11,3 +11,10 @@ func Activate(string) error { return ErrUnsupported }
 
 // Launch is a no-op error on platforms without a window backend.
 func Launch(string) error { return ErrUnsupported }
+
+// ForegroundOrigin is unavailable without a window backend, so window-relative
+// clicks fall back to their absolute coordinate.
+func ForegroundOrigin() (left, top int, ok bool) { return 0, 0, false }
+
+// CursorPos is unavailable without a window backend.
+func CursorPos() (x, y int) { return 0, 0 }

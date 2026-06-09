@@ -9,8 +9,11 @@ package oshost
 import (
 	"context"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 	"syscall"
+	"time"
 	"unsafe"
 )
 
@@ -18,30 +21,99 @@ func newBackend() backend { return &winBackend{} }
 
 type winBackend struct{}
 
-func (winBackend) key(ctx context.Context, name string) error {
-	vk, scan, extended := resolveKey(name)
-	if vk == 0 && scan == 0 {
-		return fmt.Errorf("unknown key: %q", name)
+// typeCadence is the delay between characters when typing a string. Sending
+// keystrokes back-to-back makes some apps/games drop characters; a small gap
+// lets each WM_CHAR land. Override with $MARCO_TYPE_CADENCE_MS (0 = blast).
+var typeCadence = typeCadenceFromEnv()
+
+func typeCadenceFromEnv() time.Duration {
+	if v := os.Getenv("MARCO_TYPE_CADENCE_MS"); v != "" {
+		if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil && n >= 0 {
+			return time.Duration(n) * time.Millisecond
+		}
 	}
-	sendKeyDown(vk, scan, extended)
-	sendKeyUp(vk, scan, extended)
+	return 12 * time.Millisecond
+}
+
+func (winBackend) key(ctx context.Context, name string) error {
+	// A chord like "ctrl+c" or "ctrl+shift+esc": all parts but the last are
+	// modifiers held down while the last key is tapped, then released in reverse.
+	// A plain "c" is just a one-element chord.
+	parts := splitChord(name)
+	if len(parts) == 0 {
+		return fmt.Errorf("empty key")
+	}
+	type resolved struct {
+		vk, scan uint16
+		ext      bool
+	}
+	keys := make([]resolved, len(parts))
+	for i, p := range parts {
+		vk, scan, ext := resolveKey(p)
+		if vk == 0 && scan == 0 {
+			return fmt.Errorf("unknown key: %q", p)
+		}
+		keys[i] = resolved{vk, scan, ext}
+	}
+	// Hold modifiers down.
+	for i := 0; i < len(keys)-1; i++ {
+		if !sendKeyDown(keys[i].vk, keys[i].scan, keys[i].ext) {
+			return fmt.Errorf("SendInput rejected key %q", parts[i])
+		}
+	}
+	last := keys[len(keys)-1]
+	okDown := sendKeyDown(last.vk, last.scan, last.ext)
+	okUp := sendKeyUp(last.vk, last.scan, last.ext)
+	// Release modifiers in reverse order, even if the tap was rejected.
+	for i := len(keys) - 2; i >= 0; i-- {
+		sendKeyUp(keys[i].vk, keys[i].scan, keys[i].ext)
+	}
+	if !okDown || !okUp {
+		return fmt.Errorf("SendInput rejected key %q", name)
+	}
 	return ctx.Err()
 }
 
+// splitChord splits a key spec on '+' into non-empty parts. A bare "+" (the plus
+// key itself) falls back to the whole string so it isn't lost.
+func splitChord(name string) []string {
+	var out []string
+	for _, p := range strings.Split(name, "+") {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	if len(out) == 0 && strings.TrimSpace(name) != "" {
+		out = []string{strings.TrimSpace(name)}
+	}
+	return out
+}
+
 func (winBackend) typeText(ctx context.Context, text string) error {
-	for _, ch := range text {
+	for i, ch := range text {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		sendUnicodeChar(ch)
+		if !sendUnicodeChar(ch) {
+			return fmt.Errorf("SendInput rejected character %q", string(ch))
+		}
+		// Pace the keystrokes so fast apps/games don't drop characters.
+		if typeCadence > 0 && i < len(text)-1 {
+			select {
+			case <-time.After(typeCadence):
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
 	}
 	return nil
 }
 
 func (winBackend) click(ctx context.Context, button string) error {
 	down, up := mouseButtonFlags(button)
-	sendMouseInput(0, 0, 0, down)
-	sendMouseInput(0, 0, 0, up)
+	if !sendMouseInput(0, 0, 0, down) || !sendMouseInput(0, 0, 0, up) {
+		return fmt.Errorf("SendInput rejected %s click", button)
+	}
 	return ctx.Err()
 }
 
@@ -115,9 +187,14 @@ const (
 	_MOUSEEVENTF_MIDDLEUP   = 0x0040
 )
 
+// inputT mirrors the Win32 INPUT struct exactly. On x64 that is: a 4-byte type,
+// 4 bytes of padding so the union is 8-byte aligned, then the union (large enough
+// for MOUSEINPUT, the bigger arm, at 32 bytes). Total 40 bytes — SendInput's
+// cbSize MUST equal this or the call fails and injects nothing.
 type inputT struct {
 	inputType uint32
-	padding   [40]byte // union of KEYBDINPUT / MOUSEINPUT — 40 bytes covers both on x64
+	_         uint32
+	union     [32]byte
 }
 
 type keybdInput struct {
@@ -137,51 +214,60 @@ type mouseInput struct {
 	dwExtraInfo uintptr
 }
 
-func sendKeyDown(vk, scan uint16, extended bool) {
+// sendInput dispatches one INPUT and reports whether the OS accepted it (the
+// return value is the number of events inserted; 0 means it was blocked or the
+// struct size was wrong).
+func sendInput(inp *inputT) bool {
+	n, _, _ := procSendInput.Call(1, uintptr(unsafe.Pointer(inp)), unsafe.Sizeof(*inp))
+	return n == 1
+}
+
+func sendKeyDown(vk, scan uint16, extended bool) bool {
 	var inp inputT
 	inp.inputType = _INPUT_KEYBOARD
-	kb := (*keybdInput)(unsafe.Pointer(&inp.padding[0]))
+	kb := (*keybdInput)(unsafe.Pointer(&inp.union[0]))
 	kb.wVk = vk
 	kb.wScan = scan
 	if extended {
 		kb.dwFlags = _KEYEVENTF_EXTENDEDKEY
 	}
-	procSendInput.Call(1, uintptr(unsafe.Pointer(&inp)), unsafe.Sizeof(inp))
+	return sendInput(&inp)
 }
 
-func sendKeyUp(vk, scan uint16, extended bool) {
+func sendKeyUp(vk, scan uint16, extended bool) bool {
 	var inp inputT
 	inp.inputType = _INPUT_KEYBOARD
-	kb := (*keybdInput)(unsafe.Pointer(&inp.padding[0]))
+	kb := (*keybdInput)(unsafe.Pointer(&inp.union[0]))
 	kb.wVk = vk
 	kb.wScan = scan
 	kb.dwFlags = _KEYEVENTF_KEYUP
 	if extended {
 		kb.dwFlags |= _KEYEVENTF_EXTENDEDKEY
 	}
-	procSendInput.Call(1, uintptr(unsafe.Pointer(&inp)), unsafe.Sizeof(inp))
+	return sendInput(&inp)
 }
 
-func sendUnicodeChar(ch rune) {
+func sendUnicodeChar(ch rune) bool {
 	var inp inputT
 	inp.inputType = _INPUT_KEYBOARD
-	kb := (*keybdInput)(unsafe.Pointer(&inp.padding[0]))
+	kb := (*keybdInput)(unsafe.Pointer(&inp.union[0]))
 	kb.wScan = uint16(ch)
 	kb.dwFlags = _KEYEVENTF_UNICODE
-	procSendInput.Call(1, uintptr(unsafe.Pointer(&inp)), unsafe.Sizeof(inp))
+	okDown := sendInput(&inp)
 	kb.dwFlags = _KEYEVENTF_UNICODE | _KEYEVENTF_KEYUP
-	procSendInput.Call(1, uintptr(unsafe.Pointer(&inp)), unsafe.Sizeof(inp))
+	okUp := sendInput(&inp)
+	return okDown && okUp
 }
 
-func sendMouseInput(dx, dy int32, mouseData uint32, flags uint32) {
+func sendMouseInput(dx, dy int32, mouseData uint32, flags uint32) bool {
 	var inp inputT
 	inp.inputType = _INPUT_MOUSE
-	mi := (*mouseInput)(unsafe.Pointer(&inp.padding[0]))
+	mi := (*mouseInput)(unsafe.Pointer(&inp.union[0]))
 	mi.dx = dx
 	mi.dy = dy
 	mi.mouseData = mouseData
 	mi.dwFlags = flags
-	procSendInput.Call(1, uintptr(unsafe.Pointer(&inp)), unsafe.Sizeof(inp))
+	return sendInput(&inp)
 }
 
 func mouseButtonFlags(button string) (down, up uint32) {

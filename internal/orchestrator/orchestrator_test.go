@@ -34,18 +34,9 @@ func at(ms int) time.Time {
 	return time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC).Add(time.Duration(ms) * time.Millisecond)
 }
 
-func osSource(t *testing.T) string {
-	t.Helper()
-	b, err := os.ReadFile(filepath.Join("..", "..", "programs", "os.marco"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return string(b)
-}
-
 func TestTeachThenRun(t *testing.T) {
 	dir := t.TempDir()
-	reg := routes.Registry{Dir: dir, OS: osSource(t)}
+	reg := routes.Registry{Dir: dir}
 
 	// Demonstration: click (100,200), wait ~350ms, click (400,500), then Esc.
 	events := []recorder.RecordedEvent{
@@ -59,10 +50,11 @@ func TestTeachThenRun(t *testing.T) {
 	var out bytes.Buffer
 	d := Deps{
 		Reg: reg, Rec: &fakeRecorder{events: events},
-		// save? yes; available-everywhere? no → scoped to the app.
-		In:  strings.NewReader("y\nn\n"),
-		Out: &out,
-		App: func() string { return "sea-of-thieves" }, // context captured at teach time
+		// save? yes; only-in-app? yes (the happy path) → scoped to the app.
+		In:      strings.NewReader("y\ny\n"),
+		Out:     &out,
+		App:     func() string { return "sea-of-thieves" }, // context captured at teach time
+		StopKey: "esc",                                     // these fixtures end with an Esc press
 	}
 
 	// First Do: unknown → teaches, saves (scoped), and runs under dryrun.
@@ -104,6 +96,211 @@ func TestTeachThenRun(t *testing.T) {
 	if !strings.Contains(out2.String(), "open chest: done") {
 		t.Fatalf("second Do did not run:\n%s", out2.String())
 	}
+}
+
+// TestTeachSimplifyOption exercises the third save-menu option: the user types
+// at human speed (per-letter keys by default), chooses "s" to simplify, and the
+// saved route has a single clean Type step instead of letter-by-letter presses.
+func TestTeachSimplifyOption(t *testing.T) {
+	dir := t.TempDir()
+	reg := routes.Registry{Dir: dir}
+
+	events := []recorder.RecordedEvent{
+		{Kind: recorder.EvKey, KeyName: "h", Down: true, T: at(0)},
+		{Kind: recorder.EvKey, KeyName: "e", Down: true, T: at(140)},
+		{Kind: recorder.EvKey, KeyName: "l", Down: true, T: at(220)},
+		{Kind: recorder.EvKey, KeyName: "l", Down: true, T: at(310)},
+		{Kind: recorder.EvKey, KeyName: "o", Down: true, T: at(400)},
+		{Kind: recorder.EvKey, KeyName: "esc", Down: true, T: at(900)},
+	}
+
+	var out bytes.Buffer
+	d := Deps{
+		Reg: reg, Rec: &fakeRecorder{events: events},
+		In:      strings.NewReader("s\ny\ny\n"), // simplify further, save, then only-in-app (scoped)
+		Out:     &out,
+		App:     func() string { return "editor" },
+		StopKey: "esc",
+	}
+	if err := d.Do("type hello"); err != nil {
+		t.Fatalf("Do: %v\n%s", err, out.String())
+	}
+	rt := routes.Route{App: "editor", Slug: "type-hello"}
+	if !reg.Has(rt) {
+		t.Fatal("route was not saved")
+	}
+	saved, _ := os.ReadFile(reg.Path(rt))
+	if !strings.Contains(string(saved), `do OS's Type with "hello".`) {
+		t.Fatalf("simplify-further did not fold typing into a Type step:\n%s", saved)
+	}
+	if strings.Contains(string(saved), `do OS's Key with "h".`) {
+		t.Fatalf("per-letter key presses remained after simplify:\n%s", saved)
+	}
+}
+
+// TestTeachSimplifySaves: with SimplifySaves set (the overlay, which can't show
+// the preview), choosing "s" simplifies AND saves in one step — no re-confirm. The
+// input is "s" then the scope answer "y" (only-in-app); the "exactly one save
+// prompt" check below is the real guard — if SimplifySaves were broken, a second
+// "Save this as" re-prompt would appear and consume the "y".
+func TestTeachSimplifySaves(t *testing.T) {
+	dir := t.TempDir()
+	reg := routes.Registry{Dir: dir}
+
+	events := []recorder.RecordedEvent{
+		{Kind: recorder.EvKey, KeyName: "h", Down: true, T: at(0)},
+		{Kind: recorder.EvKey, KeyName: "e", Down: true, T: at(140)},
+		{Kind: recorder.EvKey, KeyName: "l", Down: true, T: at(220)},
+		{Kind: recorder.EvKey, KeyName: "l", Down: true, T: at(310)},
+		{Kind: recorder.EvKey, KeyName: "o", Down: true, T: at(400)},
+		{Kind: recorder.EvKey, KeyName: "esc", Down: true, T: at(900)},
+	}
+
+	var out bytes.Buffer
+	d := Deps{
+		Reg: reg, Rec: &fakeRecorder{events: events},
+		In:            strings.NewReader("s\ny\n"), // simplify (auto-saves), then only-in-app (scoped)
+		Out:           &out,
+		App:           func() string { return "editor" },
+		StopKey:       "esc",
+		SimplifySaves: true,
+	}
+	if err := d.Teach("type hello"); err != nil {
+		t.Fatalf("Teach: %v\n%s", err, out.String())
+	}
+	rt := routes.Route{App: "editor", Slug: "type-hello"}
+	if !reg.Has(rt) {
+		t.Fatalf("route was not saved — simplify did not auto-save:\n%s", out.String())
+	}
+	saved, _ := os.ReadFile(reg.Path(rt))
+	if !strings.Contains(string(saved), `do OS's Type with "hello".`) {
+		t.Fatalf("simplify did not fold typing into a Type step:\n%s", saved)
+	}
+	// And it must NOT have re-asked "Save this as ... [y]es / [n]o:" after simplify.
+	if strings.Count(out.String(), "Save this as") != 1 {
+		t.Fatalf("expected exactly one save prompt (the menu), got a re-prompt:\n%s", out.String())
+	}
+}
+
+// TestSimplifyRoute teaches a verbose route (per-letter typing kept faithful),
+// then re-simplifies the SAVED route from its stored recording — proving the
+// demonstration is persisted beside the route and that `marco simplify` folds
+// the typing into a clean Type step in place.
+func TestSimplifyRoute(t *testing.T) {
+	dir := t.TempDir()
+	reg := routes.Registry{Dir: dir}
+
+	events := []recorder.RecordedEvent{
+		{Kind: recorder.EvKey, KeyName: "h", Down: true, T: at(0)},
+		{Kind: recorder.EvKey, KeyName: "e", Down: true, T: at(140)},
+		{Kind: recorder.EvKey, KeyName: "l", Down: true, T: at(220)},
+		{Kind: recorder.EvKey, KeyName: "l", Down: true, T: at(310)},
+		{Kind: recorder.EvKey, KeyName: "o", Down: true, T: at(400)},
+		{Kind: recorder.EvKey, KeyName: "esc", Down: true, T: at(900)},
+	}
+
+	// Teach and save faithfully (no simplify at teach time): keys stay per-letter.
+	var out bytes.Buffer
+	d := Deps{
+		Reg: reg, Rec: &fakeRecorder{events: events},
+		In:      strings.NewReader("y\ny\n"), // save; scoped
+		Out:     &out,
+		App:     func() string { return "editor" },
+		StopKey: "esc",
+	}
+	if err := d.Teach("type hello"); err != nil {
+		t.Fatalf("Teach: %v\n%s", err, out.String())
+	}
+	rt := routes.Route{App: "editor", Slug: "type-hello"}
+	if saved, _ := os.ReadFile(reg.Path(rt)); !strings.Contains(string(saved), `do OS's Key with "h".`) {
+		t.Fatalf("expected faithful per-letter route before simplify:\n%s", saved)
+	}
+	if _, ok := reg.LoadRecording(rt); !ok {
+		t.Fatal("teach did not persist the recording beside the route")
+	}
+
+	// Now re-simplify the saved route from its recording.
+	var out2 bytes.Buffer
+	d2 := Deps{
+		Reg: reg, Rec: &fakeRecorder{},
+		In:  strings.NewReader("y\n"), // save the simplified version
+		Out: &out2,
+		App: func() string { return "editor" },
+	}
+	if err := d2.SimplifyRoute("type hello"); err != nil {
+		t.Fatalf("SimplifyRoute: %v\n%s", err, out2.String())
+	}
+	saved, _ := os.ReadFile(reg.Path(rt))
+	if !strings.Contains(string(saved), `do OS's Type with "hello".`) {
+		t.Fatalf("simplify did not fold typing into a Type step:\n%s", saved)
+	}
+	if strings.Contains(string(saved), `do OS's Key with "h".`) {
+		t.Fatalf("per-letter key presses remained after simplify:\n%s", saved)
+	}
+}
+
+// TestSimplifyRouteNoRecording reports a clear error (not a crash) when a route
+// has no stored demonstration to re-simplify from.
+func TestSimplifyRouteNoRecording(t *testing.T) {
+	dir := t.TempDir()
+	reg := routes.Registry{Dir: dir}
+	if err := reg.Save("editor", "hand written", "use os.\n"); err != nil {
+		t.Fatal(err)
+	}
+	d := Deps{Reg: reg, Out: &bytes.Buffer{}, App: func() string { return "editor" }}
+	if err := d.SimplifyRoute("hand written"); err == nil {
+		t.Fatal("expected an error for a route with no recording")
+	}
+}
+
+// TestTeachImageClick: teaching a click that carries a captured template saves
+// an image-find route and writes the template PNG beside the route.
+func TestTeachImageClick(t *testing.T) {
+	dir := t.TempDir()
+	reg := routes.Registry{Dir: dir}
+
+	patch := []byte("\x89PNG\r\n\x1a\n fake template bytes")
+	events := []recorder.RecordedEvent{
+		{Kind: recorder.EvClick, Button: "left", Down: true, X: 300, Y: 200, T: at(0), Image: patch},
+		{Kind: recorder.EvClick, Button: "left", Down: false, X: 300, Y: 200, T: at(5)},
+		{Kind: recorder.EvKey, KeyName: "esc", Down: true, T: at(500)},
+	}
+	var out bytes.Buffer
+	d := Deps{
+		Reg: reg, Rec: &fakeRecorder{events: events},
+		In:      strings.NewReader("y\ny\n"), // save; scoped
+		Out:     &out,
+		App:     func() string { return "game" },
+		StopKey: "esc",
+	}
+	if err := d.Teach("grab loot"); err != nil {
+		t.Fatalf("Teach: %v\n%s", err, out.String())
+	}
+	rt := routes.Route{App: "game", Slug: "grab-loot"}
+	saved, _ := os.ReadFile(reg.Path(rt))
+	if !strings.Contains(string(saved), "do OS's Find with a1...") {
+		t.Fatalf("route is not image-matched:\n%s", saved)
+	}
+	// The template file was written beside the route, with the captured bytes.
+	asset := filepath.Join(dir, "game", "grab-loot-anchor-1.png")
+	got, err := os.ReadFile(asset)
+	if err != nil {
+		t.Fatalf("template not written: %v", err)
+	}
+	if string(got) != string(patch) {
+		t.Fatal("written template bytes don't match the captured patch")
+	}
+	// The route references that absolute path.
+	if !strings.Contains(string(saved), escapeForMarco(asset)) {
+		t.Fatalf("route does not reference the template path %q:\n%s", asset, saved)
+	}
+}
+
+// escapeForMarco mirrors codegen's backslash/quote escaping so the test can look
+// for the embedded Windows path.
+func escapeForMarco(s string) string {
+	s = strings.ReplaceAll(s, "\\", "\\\\")
+	return s
 }
 
 func TestSlug(t *testing.T) {

@@ -6,11 +6,12 @@
 package screen
 
 import (
+	"bytes"
 	"errors"
 	"image"
 	"image/draw"
 	_ "image/jpeg" // decode jpeg templates
-	_ "image/png"  // decode png templates
+	"image/png"
 	"os"
 )
 
@@ -54,6 +55,47 @@ func LoadTemplate(path string) (*image.RGBA, error) {
 	return toRGBA(img), nil
 }
 
+// EncodePNG encodes an image as PNG bytes — used to persist a captured click
+// target as a route template. OS-agnostic.
+func EncodePNG(img image.Image) ([]byte, error) {
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+// DistinctiveTolerance is the per-channel color difference under which two
+// pixels count as "the same" when judging whether a patch is distinctive.
+const DistinctiveTolerance = 12
+
+// Distinctive reports whether a captured patch has enough visual variety to be
+// worth matching by image — i.e. it isn't a near-uniform area (blank canvas,
+// flat background) that would match almost anywhere on screen. A click on such
+// an area is better left as a fixed coordinate. The test: at least 15% of pixels
+// differ from the top-left pixel by more than DistinctiveTolerance on a channel.
+func Distinctive(img *image.RGBA) bool {
+	if img == nil {
+		return false
+	}
+	w, h := img.Rect.Dx(), img.Rect.Dy()
+	total := w * h
+	if total == 0 {
+		return false
+	}
+	r0, g0, b0 := at(img, 0, 0)
+	differing := 0
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			r, g, b := at(img, x, y)
+			if !within(r, g, b, r0, g0, b0, DistinctiveTolerance) {
+				differing++
+			}
+		}
+	}
+	return differing*100 >= total*15
+}
+
 func toRGBA(img image.Image) *image.RGBA {
 	if rgba, ok := img.(*image.RGBA); ok {
 		return rgba
@@ -64,43 +106,82 @@ func toRGBA(img image.Image) *image.RGBA {
 	return dst
 }
 
-// match scans scr for tmpl, allowing per-channel difference up to tol. Returns
-// the center of the first (top-left-most) match in scr's coordinate space.
-// Pure and OS-agnostic — the unit-tested core of Find.
+// MatchThreshold is the fraction of a template's pixels that must be within
+// tolerance for a location to count as a match. Below 1.0 on purpose: requiring
+// EVERY pixel match is far too brittle — a mouse cursor, tooltip, focus glow, or
+// one anti-aliased edge over the target makes an exact match fail. Accepting ~88%
+// tolerates that incidental overlay while still being specific to the target.
+const MatchThreshold = 0.88
+
+// match scans scr for tmpl, allowing per-channel difference up to tol, and
+// returns the center of the BEST-scoring location whose matching-pixel fraction
+// is at least MatchThreshold. Pure and OS-agnostic — the unit-tested core of Find.
 func match(scr, tmpl *image.RGBA, tol int) Match {
 	sw, sh := scr.Rect.Dx(), scr.Rect.Dy()
 	tw, th := tmpl.Rect.Dx(), tmpl.Rect.Dy()
 	if tw == 0 || th == 0 || tw > sw || th > sh {
 		return Match{}
 	}
-	t0r, t0g, t0b := at(tmpl, 0, 0)
+	total := tw * th
+	maxMiss := total - int(float64(total)*MatchThreshold) // mismatches allowed
+	bestMiss := maxMiss + 1
+	best := Match{}
 	for y := 0; y <= sh-th; y++ {
 		for x := 0; x <= sw-tw; x++ {
-			// Quick reject on the template's top-left pixel.
-			sr, sg, sb := at(scr, x, y)
-			if !within(sr, sg, sb, t0r, t0g, t0b, tol) {
+			// Cheap pre-filter: 5 spread sample points must mostly agree, so most
+			// positions are rejected without the full per-pixel scan (and it
+			// doesn't hinge on any single pixel, unlike a top-left-only reject).
+			if !preFilter(scr, tmpl, x, y, tol) {
 				continue
 			}
-			if fullMatch(scr, tmpl, x, y, tol) {
-				return Match{X: x + tw/2, Y: y + th/2, Found: true}
+			miss := countMismatch(scr, tmpl, x, y, tol, bestMiss-1)
+			if miss < bestMiss {
+				bestMiss = miss
+				best = Match{X: x + tw/2, Y: y + th/2, Found: true}
+				if miss == 0 {
+					return best // perfect; can't do better
+				}
 			}
 		}
 	}
-	return Match{}
+	return best
 }
 
-func fullMatch(scr, tmpl *image.RGBA, ox, oy, tol int) bool {
+// preFilter samples 5 points (corners + center) of the template at (ox,oy) and
+// requires at least 3 within tolerance — a fast rejection that tolerates a couple
+// of off pixels (a cursor sitting on a corner, say).
+func preFilter(scr, tmpl *image.RGBA, ox, oy, tol int) bool {
 	tw, th := tmpl.Rect.Dx(), tmpl.Rect.Dy()
+	pts := [5][2]int{{0, 0}, {tw - 1, 0}, {0, th - 1}, {tw - 1, th - 1}, {tw / 2, th / 2}}
+	hits := 0
+	for _, p := range pts {
+		tr, tg, tb := at(tmpl, p[0], p[1])
+		sr, sg, sb := at(scr, ox+p[0], oy+p[1])
+		if within(sr, sg, sb, tr, tg, tb, tol) {
+			hits++
+		}
+	}
+	return hits >= 3
+}
+
+// countMismatch returns how many template pixels at (ox,oy) differ by more than
+// tol, aborting early once it exceeds limit (so hopeless positions bail fast).
+func countMismatch(scr, tmpl *image.RGBA, ox, oy, tol, limit int) int {
+	tw, th := tmpl.Rect.Dx(), tmpl.Rect.Dy()
+	miss := 0
 	for ty := 0; ty < th; ty++ {
 		for tx := 0; tx < tw; tx++ {
 			tr, tg, tb := at(tmpl, tx, ty)
 			sr, sg, sb := at(scr, ox+tx, oy+ty)
 			if !within(sr, sg, sb, tr, tg, tb, tol) {
-				return false
+				miss++
+				if miss > limit {
+					return miss
+				}
 			}
 		}
 	}
-	return true
+	return miss
 }
 
 // at returns the RGB of a pixel at the image-local coordinate.

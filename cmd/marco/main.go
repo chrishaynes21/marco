@@ -28,6 +28,9 @@ func main() {
 	case "teach":
 		runAssistantTeach(os.Args[2:])
 		return
+	case "simplify":
+		runAssistantSimplify(os.Args[2:])
+		return
 	case "assistant":
 		runAssistant(os.Args[2:])
 		return
@@ -37,11 +40,26 @@ func main() {
 	case "active":
 		runActive()
 		return
+	case "bind":
+		runBind(os.Args[2:])
+		return
+	case "unbind":
+		runUnbind(os.Args[2:])
+		return
+	case "hotkey":
+		runHotkey(os.Args[2:])
+		return
 	case "forget":
 		runForget(os.Args[2:])
 		return
+	case "args":
+		runArgs(os.Args[2:])
+		return
 	case "secret":
 		runSecret(os.Args[2:])
+		return
+	case "diag":
+		runDiag(os.Args[2:])
 		return
 	}
 	if len(os.Args) < 3 {
@@ -106,23 +124,39 @@ func main() {
 	}
 }
 
-// parseRunArgs parses the args after `run`: an optional `--host <name>` flag
-// followed by the program path. Recognized hosts:
+// parseRunArgs parses the args after `run`/`serve`: zero or more `--host <spec>`
+// flags and the program path. A spec is one of:
 //
 //	dryrun  (default) — log foreign calls, resolve ok; deterministic.
 //	windows | os      — native SendInput host; real keystrokes/mouse on Windows.
+//	bridge:<exe>      — delegate to an external program over JSON stdio.
 //
-// The chosen host is registered as the default ("*") for every foreign act.
+// A bare spec selects the default host for every foreign act ("*"). Prefix it
+// with `Act=` to bind one act to its own layer — e.g. route OS effects to the
+// macros bridge and the HUD to the overlay bridge in a single run:
+//
+//	marco serve --host OS=bridge:marco-macros --host Overlay=bridge:overlay overlay.marco
+//
+// Acts sharing an identical spec share a single host instance (one subprocess).
+// A nil hosts map means "all dryrun" (no real host; no panic-stop).
 func parseRunArgs(args []string) (path string, hosts map[string]runtime.Host, err error) {
-	hostName := "dryrun"
+	type binding struct{ act, spec string }
+	var bindings []binding
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--host":
 			if i+1 >= len(args) {
 				return "", nil, fmt.Errorf("--host needs a value")
 			}
-			hostName = args[i+1]
+			spec := args[i+1]
 			i++
+			act := "*"
+			// `Act=spec` binds one act; an act name is a bare identifier (bridge
+			// specs carry ':' but not a leading `name=`).
+			if eq := strings.IndexByte(spec, '='); eq > 0 && isActName(spec[:eq]) {
+				act, spec = spec[:eq], spec[eq+1:]
+			}
+			bindings = append(bindings, binding{act, spec})
 		default:
 			if path != "" {
 				return "", nil, fmt.Errorf("unexpected argument %q", args[i])
@@ -133,20 +167,59 @@ func parseRunArgs(args []string) (path string, hosts map[string]runtime.Host, er
 	if path == "" {
 		return "", nil, fmt.Errorf("missing <file.marco>")
 	}
-	switch {
-	case hostName == "dryrun":
-		return path, nil, nil
-	case hostName == "windows" || hostName == "os":
-		return path, map[string]runtime.Host{"*": oshost.New()}, nil
-	case strings.HasPrefix(hostName, "bridge:"):
-		exe := strings.TrimPrefix(hostName, "bridge:")
-		if exe == "" {
-			return "", nil, fmt.Errorf("bridge host needs a path: --host bridge:<exe>")
+	hosts = map[string]runtime.Host{}
+	cache := map[string]runtime.Host{} // spec → shared instance
+	for _, b := range bindings {
+		h, ok := cache[b.spec]
+		if !ok {
+			if h, err = hostFromSpec(b.spec); err != nil {
+				return "", nil, err
+			}
+			cache[b.spec] = h
 		}
-		return path, map[string]runtime.Host{"*": bridgehost.New(exe)}, nil
-	default:
-		return "", nil, fmt.Errorf("unknown host %q (want dryrun, windows, bridge:<exe>)", hostName)
+		if h != nil { // dryrun contributes no host (it is the default)
+			hosts[b.act] = h
+		}
 	}
+	if len(hosts) == 0 {
+		return path, nil, nil
+	}
+	return path, hosts, nil
+}
+
+// hostFromSpec builds a host from one --host spec, or (nil, nil) for dryrun.
+func hostFromSpec(spec string) (runtime.Host, error) {
+	switch {
+	case spec == "dryrun":
+		return nil, nil
+	case spec == "windows" || spec == "os":
+		return oshost.New(), nil
+	case strings.HasPrefix(spec, "bridge:"):
+		exe := strings.TrimPrefix(spec, "bridge:")
+		if exe == "" {
+			return nil, fmt.Errorf("bridge host needs a path: --host bridge:<exe>")
+		}
+		return bridgehost.New(exe), nil
+	default:
+		return nil, fmt.Errorf("unknown host %q (want dryrun, windows, bridge:<exe>)", spec)
+	}
+}
+
+// isActName reports whether s is a bare act identifier (or "*"), used to tell a
+// `Act=spec` host binding from a plain spec.
+func isActName(s string) bool {
+	if s == "*" {
+		return true
+	}
+	for i, r := range s {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z':
+		case i > 0 && (r >= '0' && r <= '9'):
+		default:
+			return false
+		}
+	}
+	return s != ""
 }
 
 func usage(w io.Writer) {
@@ -155,6 +228,7 @@ func usage(w io.Writer) {
 Assistant (teach by demonstration, then run by name):
   marco do "<name>"        run a route; if unknown, record it once and remember
   marco teach "<name>"     record/overwrite a route by demonstration
+  marco simplify "<name>"  re-simplify a saved route as far as it goes
   marco assistant          interactive loop — say what you want, in plain words
   marco routes [--json]    list known routes (--json for a UI plugin)
   marco active             print the foreground app (context)
@@ -162,8 +236,8 @@ Assistant (teach by demonstration, then run by name):
   marco secret set|list|rm <name>   manage stored passwords (OS credential store)
 
 Run Marco programs:
-  marco run   [--host dryrun|windows|bridge:<exe>] <file.marco>
-  marco serve [--host dryrun|windows|bridge:<exe>] <file.marco>
+  marco run   [--host [Act=]dryrun|windows|bridge:<exe>]... <file.marco>
+  marco serve [--host [Act=]dryrun|windows|bridge:<exe>]... <file.marco>
 
 Language tooling:
   marco check [--json] <file.marco>   static check + diagnostics
@@ -171,9 +245,13 @@ Language tooling:
   marco contracts <file.marco>        print inferred action contracts
 
 Hosts: dryrun logs calls (default); windows performs real input; bridge:<exe>
-delegates to an external program (e.g. AutoHotkey). Routes live in ./routes
+delegates to an external program (e.g. AutoHotkey). Prefix a spec with Act= to
+give one act its own layer (e.g. OS=bridge:marco-macros Overlay=bridge:overlay);
+a bridge may also push events back to drive serve. Routes live in ./routes
 (override with $MARCO_ROUTES). While teaching, type {{name}} for a password.
-Press Esc to abort a running route. Set $MARCO_RESOLVER to a resolver-plugin
+The stop key ends a recording and aborts a running route — default F12, so Esc
+is free to record as an ordinary key; change it with $MARCO_STOP_KEY (e.g. "esc",
+"home", "ctrl+f12"). Set $MARCO_RESOLVER to a resolver-plugin
 executable to let the assistant fall back to it (e.g. the Claude one in
 plugins/claude-resolver) for loosely-phrased commands. The engine is headless;
 UIs are plugins that drive it (see plugins/web-ui). Marco itself has no deps.

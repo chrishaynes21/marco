@@ -26,15 +26,51 @@ var (
 	procDeleteObject        = gdi32.NewProc("DeleteObject")
 	procDeleteDC            = gdi32.NewProc("DeleteDC")
 	procGetPixel            = gdi32.NewProc("GetPixel")
+
+	procSetProcessDpiAwarenessContext = user32.NewProc("SetProcessDpiAwarenessContext")
+	procSetProcessDPIAware            = user32.NewProc("SetProcessDPIAware")
 )
 
+// dpiPerMonitorAwareV2 is DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 ((HANDLE)-4).
+const dpiPerMonitorAwareV2 = ^uintptr(3)
+
+// init makes the process per-monitor DPI aware so screen capture and cursor
+// coordinates are real (physical) pixels and stay consistent across monitors
+// with different scaling. Without it Windows hands back DPI-virtualized
+// coordinates and downscaled captures, which breaks clicks and image matching on
+// scaled or secondary (e.g. left) monitors. oshost imports this package, so every
+// macro process (do/teach/marco-macros) gets it. Must run before any GetDC; an
+// init does (before main). Re-teach image templates after this change if older
+// ones were captured while DPI-unaware.
+func init() {
+	if r, _, _ := procSetProcessDpiAwarenessContext.Call(dpiPerMonitorAwareV2); r == 0 {
+		procSetProcessDPIAware.Call() // Windows 8.1 / older fallback (system-DPI aware)
+	}
+}
+
 const (
-	smCxScreen = 0
-	smCyScreen = 1
-	srcCopy    = 0x00CC0020
-	biRGB      = 0
-	dibRGB     = 0
+	// Virtual-screen metrics span ALL monitors (the origin can be negative when a
+	// monitor sits left of / above the primary), so capture and Find work across
+	// the whole desktop regardless of layout.
+	smXVirtualScreen  = 76
+	smYVirtualScreen  = 77
+	smCxVirtualScreen = 78
+	smCyVirtualScreen = 79
+	smCxScreen        = 0 // primary monitor width
+	smCyScreen        = 1 // primary monitor height
+	srcCopy           = 0x00CC0020
+	biRGB             = 0
+	dibRGB            = 0
 )
+
+// PrimarySize returns the primary monitor's pixel dimensions (physical pixels —
+// the process is per-monitor DPI aware). Returns 0,0 if unavailable. Used to size
+// the recorder's click templates relative to the screen.
+func PrimarySize() (w, h int) {
+	cx, _, _ := procGetSystemMetrics.Call(smCxScreen)
+	cy, _, _ := procGetSystemMetrics.Call(smCyScreen)
+	return int(int32(cx)), int(int32(cy))
+}
 
 type bitmapInfoHeader struct {
 	Size          uint32
@@ -72,9 +108,13 @@ func (winScreen) Find(templatePath string, region Region, tolerance int) (Match,
 	}
 	x, y, w, h := region.X1, region.Y1, region.X2-region.X1, region.Y2-region.Y1
 	if region.Empty() {
-		cx, _, _ := procGetSystemMetrics.Call(smCxScreen)
-		cy, _, _ := procGetSystemMetrics.Call(smCyScreen)
-		x, y, w, h = 0, 0, int(cx), int(cy)
+		// Whole virtual desktop, not just the primary monitor — origin may be
+		// negative. int32 first so a negative metric isn't read as a huge uintptr.
+		vx, _, _ := procGetSystemMetrics.Call(smXVirtualScreen)
+		vy, _, _ := procGetSystemMetrics.Call(smYVirtualScreen)
+		vw, _, _ := procGetSystemMetrics.Call(smCxVirtualScreen)
+		vh, _, _ := procGetSystemMetrics.Call(smCyVirtualScreen)
+		x, y, w, h = int(int32(vx)), int(int32(vy)), int(int32(vw)), int(int32(vh))
 	}
 	if w <= 0 || h <= 0 {
 		return Match{}, fmt.Errorf("screen: empty search region")
@@ -89,6 +129,15 @@ func (winScreen) Find(templatePath string, region Region, tolerance int) (Match,
 		m.Y += y
 	}
 	return m, nil
+}
+
+// CaptureRegion grabs a screen rectangle as an *image.RGBA (absolute screen
+// coords). Used by the recorder to snapshot a click target for image matching.
+func CaptureRegion(x, y, w, h int) (*image.RGBA, error) {
+	if w <= 0 || h <= 0 {
+		return nil, fmt.Errorf("screen: empty capture region")
+	}
+	return capture(x, y, w, h)
 }
 
 // capture grabs a screen rectangle into an *image.RGBA via GDI BitBlt+GetDIBits.
