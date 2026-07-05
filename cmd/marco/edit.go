@@ -862,6 +862,11 @@ const editPage = `<!doctype html><html><head><meta charset="utf-8"><title>MARCO<
  kbd{padding:1px 6px;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;color:var(--accent);background:#0d0e10;font:12px var(--mono)}
  .help h3{color:var(--text);font-size:13px;letter-spacing:1px;text-transform:uppercase;margin:18px 0 6px}
  .help p,.help li{color:var(--dim);font-size:13px}
+ .help ol{color:var(--dim);font-size:13px;padding-left:20px;margin:6px 0}
+ .help li{margin:3px 0}
+ .help b{color:var(--text)}
+ .help h3{border-top:1px solid var(--line);padding-top:14px}
+ .help kbd+kbd{margin-left:3px}
  a.plain{color:var(--accent);cursor:pointer;text-decoration:none}
  .banner{position:fixed;top:14px;left:50%;transform:translateX(-50%) translateY(-70px);background:var(--run);color:#04110f;
    padding:11px 22px;border-radius:8px;font-weight:700;letter-spacing:1px;box-shadow:0 6px 24px rgba(0,0,0,.55);
@@ -908,18 +913,76 @@ const editPage = `<!doctype html><html><head><meta charset="utf-8"><title>MARCO<
   <div id="bindings" style="margin-top:14px"></div>
  </section>
  <section id="view-help" hidden class="help"><h2>Help</h2>
-  <h3>Overlay hotkeys</h3>
-  <ul><li><kbd>` + "`" + `</kbd> leader, then <kbd>m</kbd> opens the command line; type a route + Enter.</li>
-   <li><kbd>` + "`" + `</kbd> then a bound key (e.g. <kbd>0</kbd>) runs its macro.</li>
-   <li><kbd>` + "`" + `</kbd> while a route runs = stop/cancel, and the leader also finishes a teach.</li></ul>
-  <h3>Commands (type or say)</h3>
-  <ul><li><b>teach &lt;name&gt;</b> — record a new route. <b>edit &lt;name&gt;</b> — open this editor.</li>
-   <li><b>bind &lt;key&gt; &lt;route&gt;</b> / <b>unbind &lt;key&gt;</b> — hotkeys.</li>
-   <li><b>voice on|off</b>, <b>mute</b>, <b>stop listening</b> — the mic.</li></ul>
-  <h3>The settle wait</h3>
-  <p>New routes end with a short <b>settle</b> wait so the final click registers before the run ends. Bump it for slow screens; deleting it can make the last step flaky.</p>
-  <h3>OS harness</h3>
-  <p>Steps map to the OS host: click / move / drag, press / hold / release a key, type, focus / launch an app, a secret, a wait, and repeat-N-times blocks. CV is off in alpha — coordinates + timings drive everything.</p>
+  <p class="hint">Marco turns things you demonstrate once into small, editable programs that drive
+    real mouse + keyboard. Teach a command in the overlay, tune it here, fire it by name or a hotkey.</p>
+
+  <h3>The leader key</h3>
+  <p>Everything in the overlay starts with the <b>leader</b> — the <kbd>` + "`" + `</kbd> key (change it in Config). Tap it, then:</p>
+  <ul>
+   <li><kbd>` + "`" + `</kbd><kbd>m</kbd> — open the command line; type a route name (or a command) and press <kbd>Enter</kbd>.</li>
+   <li><kbd>` + "`" + `</kbd><kbd>&lt;key&gt;</kbd> — run the route bound to that key (see Hotkeys).</li>
+   <li><kbd>` + "`" + `</kbd> while a route is running — stop / cancel it.</li>
+  </ul>
+
+  <h3>Teach a new route</h3>
+  <ol>
+   <li>Focus the app or game you want to automate.</li>
+   <li><kbd>` + "`" + `</kbd><kbd>m</kbd>, type <b>teach &lt;name&gt;</b>, <kbd>Enter</kbd>.</li>
+   <li>Do the actions for real — clicks, keys, typing. Marco records them.</li>
+   <li>Press the <b>leader</b> to finish; it saves and asks the scope (context / focus / global).</li>
+  </ol>
+  <p>Prefer to talk it through? <b>narrate teach &lt;name&gt;</b> (alias <b>voice teach</b>) builds the route
+    from spoken or typed phrases: "click this", "type hello", "press enter", "wait for this screen", "done".</p>
+
+  <h3>Run a route</h3>
+  <ul>
+   <li>Type its name in the command line, or say it out loud (voice).</li>
+   <li>Bind it to a key and press <kbd>` + "`" + `</kbd><kbd>&lt;key&gt;</kbd>.</li>
+   <li>In the <b>Routes</b> tab here: <b>▶ run</b> (performs real input) or <b>edit</b> to tune it.</li>
+  </ul>
+
+  <h3>Hotkeys — the Bindings tab</h3>
+  <p>Enter a key + a route and press <b>Bind</b>; fire it with <kbd>` + "`" + `</kbd><kbd>&lt;key&gt;</kbd>. A binding
+    <b>scopes to the route's app</b>, so the same key can mean different macros in different games —
+    <kbd>` + "`" + `</kbd><kbd>e</kbd> = "enter freeplay" in Rocket League, something else elsewhere. Global routes bind
+    everywhere. From the overlay: <b>bind &lt;key&gt; &lt;route&gt;</b> / <b>unbind &lt;key&gt;</b>.</p>
+
+  <h3>Voice</h3>
+  <p>Speak a route's name to run it. Toggle the mic with <b>voice on</b> / <b>voice off</b>, or <b>mute</b> /
+    <b>unmute</b>, or <b>stop listening</b> / <b>listen</b> (also a switch in Config). Typed commands still work while muted.</p>
+
+  <h3>Edit a route — this tab</h3>
+  <p>Every step is editable in place; <b>+</b> inserts a step after it, <b>✕</b> deletes, <b>Save</b> writes it back.</p>
+  <ul>
+   <li><b>Waits</b> — the ms between steps (the pacing that matters most).</li>
+   <li><b>Click / move</b> — the x, y coordinates; <b>drag</b> turns a click into a click-and-drag.</li>
+   <li><b>Press / Hold / Release</b> a key · <b>Type</b> text · <b>Focus / Launch</b> an app · <b>Secret</b> — the credential name.</li>
+   <li><b>Repeat</b> — the loop count; its steps sit indented beneath it. Add one via <b>+ → repeat…</b>.</li>
+   <li>The last <b>settle · keep</b> wait lets the final action land before the route ends — deleting it can make the last step flaky.</li>
+  </ul>
+
+  <h3>Route scopes</h3>
+  <ul>
+   <li><b>context</b> — runs only while its app is in front (menus, in-game actions).</li>
+   <li><b>focus</b> — runs from anywhere and switches to the app first.</li>
+   <li><b>global</b> — app-less, runs anywhere (copy, paste, alt-tab…).</li>
+  </ul>
+  <p>Change a route's scope with the dropdown in the <b>Routes</b> tab — it moves the file to the new scope.</p>
+
+  <h3>The OS harness — what a step can be</h3>
+  <ul>
+   <li><b>Click / Move / Drag</b> — the mouse at x, y (drag = press, glide, release).</li>
+   <li><b>Press / Hold / Release</b> a key — a tap, a key-down held, a key-up.</li>
+   <li><b>Type</b> text · <b>Secret</b> — types a stored credential (never written into the route).</li>
+   <li><b>Focus</b> / <b>Launch</b> an app · <b>Wait</b> (ms) · <b>Repeat</b> N times.</li>
+  </ul>
+
+  <h3>Good to know (alpha)</h3>
+  <ul>
+   <li>Routes are pure <b>coordinates + recorded timings</b>. Record and replay at the same resolution / DPI.</li>
+   <li>If a screen loads slowly, bump the wait before that click here in the editor.</li>
+   <li>Games that hide or lock the cursor (raw input — the pointer stays at screen-center) can't be driven by coordinates yet.</li>
+  </ul>
  </section>
 </main>
 <script>
