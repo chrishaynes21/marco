@@ -7,6 +7,8 @@
   and runs the overlay stack.
 
     powershell -ExecutionPolicy Bypass -File .\pack.ps1
+
+  To change the app icon: run branding.ps1 (optionally -Png <path>), then re-run this.
 #>
 $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
