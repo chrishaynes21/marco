@@ -54,6 +54,7 @@ func runEdit(args []string) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-store") // always serve the current page (no stale JS)
 		fmt.Fprint(w, editPage)
 	})
 	mux.HandleFunc("/api/route", ed.handleRoute)   // the active route's steps + source
@@ -64,7 +65,8 @@ func runEdit(args []string) {
 	mux.HandleFunc("/api/bindings", ed.handleBindings)
 	mux.HandleFunc("/api/bind", ed.handleBind)
 	mux.HandleFunc("/api/unbind", ed.handleUnbind)
-	mux.HandleFunc("/api/scope", ed.handleScope) // move a route between context/focus/global
+	mux.HandleFunc("/api/scope", ed.handleScope)   // move a route between context/focus/global
+	mux.HandleFunc("/api/delete", ed.handleDelete) // delete a route
 
 	where := "all routes"
 	if name != "" {
@@ -224,6 +226,31 @@ func (e *editor) handleUnbind(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
+	writeJSON(w, map[string]any{"ok": true})
+}
+
+// handleDelete removes a route (its .marco, recording, and any anchor templates). CurApp/Scope
+// identify which one when the same slug exists in several scopes.
+func (e *editor) handleDelete(w http.ResponseWriter, r *http.Request) {
+	var req struct{ Name, App, Scope string }
+	if json.NewDecoder(r.Body).Decode(&req) != nil || strings.TrimSpace(req.Name) == "" {
+		http.Error(w, "bad request", 400)
+		return
+	}
+	rt := routes.Route{App: req.App, Focus: req.Scope == "focus", Slug: routes.Slug(req.Name)}
+	if !e.reg.Has(rt) {
+		http.Error(w, "no such route", 404)
+		return
+	}
+	if err := e.reg.Delete(rt); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	e.mu.Lock()
+	if e.rt == rt { // the open route is gone — fall back to the browser
+		e.rt, e.path, e.src = routes.Route{}, "", ""
+	}
+	e.mu.Unlock()
 	writeJSON(w, map[string]any{"ok": true})
 }
 
@@ -786,8 +813,11 @@ const editPage = `<!doctype html><html><head><meta charset="utf-8"><title>MARCO<
  .mini{background:#12312e;color:var(--accent);padding:4px 9px;border:1px solid var(--line);border-radius:5px;cursor:pointer;font:13px var(--mono)}
  .mini:hover{border-color:var(--accent)}
  .mini.on{background:var(--accent);color:#04110f}
+ .ops{margin-left:auto;display:inline-flex;gap:8px;align-items:center}
+ .ops .del{margin-left:0}
  .del{margin-left:auto;background:#2a1414;color:var(--err);padding:4px 9px;border:1px solid #3a1e1e;border-radius:5px;cursor:pointer;font:inherit}
  .del:hover{background:#3a1c1c}
+ .trash{font-size:14px;letter-spacing:.5px}
  .deleted{opacity:.4;text-decoration:line-through}
  .added{border-color:#1e3a2a;background:#0e1a12}
  .tin{width:150px;padding:5px 7px;background:#0d0e10;border:1px solid var(--line);color:var(--accent);border-radius:5px;font:inherit;text-align:left}
@@ -879,6 +909,8 @@ function coord(v){ const i=document.createElement('input'); i.type='number'; i.c
 function numIn(v){ const i=document.createElement('input'); i.type='number'; i.className='coord'; i.value=v; return {el:i, val:()=>parseInt(i.value||'0',10)}; }
 function txtIn(v){ const i=document.createElement('input'); i.className='tin'; i.value=v; return {el:i, val:()=>i.value}; }
 function esc(s){ return (s||'').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+// ops wraps a row's trailing controls in a right-aligned cluster so the ✕ lines up across rows.
+function ops(...els){ const s=document.createElement('span'); s.className='ops'; els.forEach(e=> e && s.append(e)); return s; }
 // ---- nav / drawer ----
 function toggleNav(){ document.getElementById('drawer').classList.toggle('open'); document.getElementById('scrim').classList.toggle('on'); }
 function closeNav(){ document.getElementById('drawer').classList.remove('open'); document.getElementById('scrim').classList.remove('on'); }
@@ -983,7 +1015,7 @@ async function loadEdit(){
         lbl.innerHTML='<span class="num">'+n+'.</span>↻ Repeat';
         rec.cnt=document.createElement('input'); rec.cnt.type='number'; rec.cnt.min='1'; rec.cnt.value=s.count;
         const w=document.createElement('span'); w.className='rep'; w.append(rec.cnt); w.append(' times');
-        row.append(lbl, w, plusBtn(s.line,row), delBtn(rec,row));
+        row.append(lbl, w, ops(plusBtn(s.line,row), delBtn(rec,row)));
       } else {
         let labelText = LABELS[s.act] || s.label;
         const label=document.createElement('span'); label.className='lbl';
@@ -1002,13 +1034,15 @@ async function loadEdit(){
             const wrap=document.createElement('span'); wrap.className='dragbox'; wrap.append(btn, to); row.appendChild(wrap);
           }
         }
-        row.append(plusBtn(s.line,row), delBtn(rec,row));
+        row.append(ops(plusBtn(s.line,row), delBtn(rec,row)));
       }
     } else {
       row.className='wait' + (s.depth? ' depth1':'');
       rec.ms=document.createElement('input'); rec.ms.type='number'; rec.ms.min='0'; rec.ms.step='50'; rec.ms.value=s.ms;
-      row.append('⏱ wait', rec.ms, 'ms', plusBtn(s.line,row), delBtn(rec,row, finalWait?FINAL_WAIT_WARN:''));
-      if(finalWait){ const k=document.createElement('span'); k.className='keep'; k.textContent='settle · keep'; k.title='auto-added so the last action registers'; row.appendChild(k); }
+      let keep=null;
+      if(finalWait){ keep=document.createElement('span'); keep.className='keep'; keep.textContent='settle · keep'; keep.title='auto-added so the last action registers'; }
+      // settle-keep text sits INSIDE the delete button, so the ✕ stays outermost and lines up.
+      row.append('⏱ wait', rec.ms, 'ms', ops(plusBtn(s.line,row), keep, delBtn(rec,row, finalWait?FINAL_WAIT_WARN:'')));
     }
     steps.push(rec); box.appendChild(row);
   }
@@ -1058,8 +1092,16 @@ function routeRow(r){
   sc.onchange=()=>changeScope(r, sc.value, sc);
   const e=document.createElement('button'); e.className='mini'; e.textContent='edit'; e.onclick=()=>openRoute(r.Name);
   const run=document.createElement('button'); run.className='mini'; run.textContent='▶ run'; run.title='runs for real (types/clicks)'; run.onclick=()=>doRoute(r.Name);
-  d.append(sc, e, run);
+  const del=document.createElement('button'); del.className='del trash'; del.style.marginLeft='0'; del.textContent='🗑 delete'; del.title='delete route'; del.onclick=()=>delRoute(r);
+  d.append(sc, e, run, del);
   return d;
+}
+async function delRoute(r){
+  if(!confirm('Delete route "'+r.Name+'"? This removes its .marco and its recording.')) return;
+  const resp=await fetch('/api/delete',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({name:r.Name, app:r.App, scope:r.Scope})});
+  if(!resp.ok){ flash('delete failed'); return; }
+  flash('deleted '+r.Name); loadRoutes();
 }
 async function changeScope(r, scope, sel){
   if(scope===r.Scope){ return; }
