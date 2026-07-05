@@ -43,3 +43,12 @@ plugins/vision/models/
 
 # User routes ignored
 routes/
+
+# Bundled Windows build (pack.ps1): staged embed assets + the packed exe
+plugins/marco-app/assets/marco.exe
+plugins/marco-app/assets/marco-macros.exe
+plugins/marco-app/assets/overlay.exe
+plugins/marco-app/assets/overlay.marco
+plugins/marco-app/assets/version.txt
+plugins/marco-app/assets/routes/
+dist/

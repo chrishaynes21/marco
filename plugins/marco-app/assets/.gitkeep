@@ -1,0 +1,2 @@
+# pack.ps1 stages the embedded stack here (marco.exe, marco-macros.exe, overlay.exe,
+# overlay.marco, version.txt, routes/). Those are gitignored; this file keeps the dir.
