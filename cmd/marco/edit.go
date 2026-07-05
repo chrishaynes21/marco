@@ -1,6 +1,7 @@
 package main
 
 import (
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -15,6 +16,11 @@ import (
 
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
 )
+
+// faviconPNG is the neon >m mark, served at /icon.png for the control center's favicon + logo.
+//
+//go:embed favicon.png
+var faviconPNG []byte
 
 // runEdit opens the Marco control center — a small local web app served from stdlib net/http
 // (so the zero-dep engine rule holds). It opens on the named route's Edit view, where every step
@@ -56,6 +62,11 @@ func runEdit(args []string) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store") // always serve the current page (no stale JS)
 		fmt.Fprint(w, editPage)
+	})
+	mux.HandleFunc("/icon.png", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		w.Header().Set("Cache-Control", "max-age=86400")
+		w.Write(faviconPNG)
 	})
 	mux.HandleFunc("/api/route", ed.handleRoute)   // the active route's steps + source
 	mux.HandleFunc("/api/save", ed.handleSave)     // write step edits back
@@ -777,6 +788,7 @@ func openBrowser(url string) {
 }
 
 const editPage = `<!doctype html><html><head><meta charset="utf-8"><title>MARCO</title>
+<link rel="icon" type="image/png" href="/icon.png">
 <style>
  :root{--bg:#0A0A0A;--panel:#121316;--panel2:#17181c;--line:#1e2a2a;--accent:#00E5CC;--text:#DDD;
    --dim:#6A9A98;--run:#4DC94D;--err:#F56565;--listen:#5AB4F5;--amber:#E0B050;--mono:ui-monospace,"Cascadia Mono",Consolas,monospace}
@@ -787,6 +799,7 @@ const editPage = `<!doctype html><html><head><meta charset="utf-8"><title>MARCO<
  .burger{background:none;border:1px solid var(--line);color:var(--accent);font-size:18px;line-height:1;
    padding:5px 10px;border-radius:6px;cursor:pointer}
  .burger:hover{border-color:var(--accent);box-shadow:0 0 10px rgba(0,229,204,.25)}
+ .logo{width:26px;height:26px;border-radius:6px;box-shadow:0 0 10px rgba(122,0,255,.5)}
  .brand{font-weight:700;letter-spacing:3px;color:var(--accent);text-shadow:0 0 10px rgba(0,229,204,.45)}
  .sub{color:var(--dim);letter-spacing:0;font-weight:400;margin-left:10px}
  .saved{margin-left:auto;color:var(--run);font-size:13px;text-shadow:0 0 8px rgba(77,201,77,.4)}
@@ -859,6 +872,7 @@ const editPage = `<!doctype html><html><head><meta charset="utf-8"><title>MARCO<
 <div id="banner" class="banner"></div>
 <header>
   <button class="burger" onclick="toggleNav()">☰</button>
+  <img src="/icon.png" alt="" class="logo">
   <span class="brand">MARCO<span class="sub" id="rt">…</span></span>
   <span id="saved" class="saved"></span>
 </header>
