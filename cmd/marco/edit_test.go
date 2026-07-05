@@ -118,6 +118,108 @@ func TestEditRebuild(t *testing.T) {
 	}
 }
 
+// harnessSample exercises the fuller OS-harness surface: focus/launch, hold/release, secret,
+// and a repeat block with a body.
+const harnessSample = `// Auto-generated. Edit freely.
+use os.
+
+the Foo is an actor.
+this can Run.
+this's Run does...
+    the p1 is a Point with X 10, Y 20.
+    do OS's Activate with "game".
+    do OS's Click with p1.
+    do OS's KeyDown with "w".
+    do OS's Sleep with 500.
+    do OS's KeyUp with "w".
+    do OS's Secret with "login:password".
+    repeat 3 times...
+        do OS's Key with "e".
+        do OS's Sleep with 120.
+    do OS's Launch with "steam".
+    this is ok!
+`
+
+// parseSteps surfaces every one-text-arg action (activate/keydown/keyup/secret/launch) with its
+// literal, and a repeat block as an editable-count header followed by its Depth-1 body steps.
+func TestEditHarnessParse(t *testing.T) {
+	e := &editor{src: harnessSample}
+	steps := e.parseSteps()
+	byAct := map[string]step{}
+	for _, s := range steps {
+		if s.Act != "" {
+			byAct[s.Act] = s
+		}
+	}
+	for act, wantText := range map[string]string{
+		"activate": "game", "keydown": "w", "keyup": "w", "secret": "login:password", "launch": "steam",
+	} {
+		if byAct[act].Text != wantText {
+			t.Errorf("%s text = %q, want %q", act, byAct[act].Text, wantText)
+		}
+	}
+	rep := byAct["repeat"]
+	if rep.Count != 3 {
+		t.Errorf("repeat count = %d, want 3", rep.Count)
+	}
+	// The two steps after the header are its body (Depth 1): the key and the wait.
+	var body []step
+	for _, s := range steps {
+		if s.Depth == 1 {
+			body = append(body, s)
+		}
+	}
+	if len(body) != 2 || body[0].Act != "key" || body[0].Text != "e" || body[1].Kind != "wait" || body[1].Ms != 120 {
+		t.Errorf("repeat body = %+v, want [key e, wait 120]", body)
+	}
+}
+
+// rebuild edits a repeat's count by line, and deleting the repeat header cascades to its body.
+func TestEditRepeatEditAndDelete(t *testing.T) {
+	e := &editor{src: harnessSample}
+	var repLine int
+	for _, s := range e.parseSteps() {
+		if s.Act == "repeat" {
+			repLine = s.Line
+		}
+	}
+	out := e.rebuild(saveReq{Repeats: map[string]int{strconv.Itoa(repLine): 9}})
+	if !strings.Contains(out, "repeat 9 times...") || strings.Contains(out, "repeat 3 times") {
+		t.Errorf("repeat count not updated:\n%s", out)
+	}
+	// Deleting the header removes the whole block (header + both body lines), keeping Launch.
+	out2 := e.rebuild(saveReq{Deletes: []int{repLine}})
+	if strings.Contains(out2, "repeat ") || strings.Contains(out2, `do OS's Key with "e".`) || strings.Contains(out2, "Sleep with 120") {
+		t.Errorf("repeat block not fully deleted:\n%s", out2)
+	}
+	if !strings.Contains(out2, `do OS's Launch with "steam".`) {
+		t.Errorf("delete cascaded too far — Launch missing:\n%s", out2)
+	}
+}
+
+// genAdd (via rebuild) inserts the fuller harness: hold/release/secret/activate/launch, and a
+// repeat wrapping an inner action.
+func TestEditAddHarness(t *testing.T) {
+	e := &editor{src: editSample}
+	out := e.rebuild(saveReq{Adds: []addStep{
+		{After: -1, Act: "keydown", Text: "shift"},
+		{After: -1, Act: "secret", Text: "token"},
+		{After: -1, Act: "launch", Text: "game.exe"},
+		{After: -1, Act: "repeat", Count: 4, Inner: "key", Text: "q"},
+	}})
+	for _, want := range []string{
+		`do OS's KeyDown with "shift".`,
+		`do OS's Secret with "token".`,
+		`do OS's Launch with "game.exe".`,
+		"repeat 4 times...",
+		`        do OS's Key with "q".`, // inner action indented under the block
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in:\n%s", want, out)
+		}
+	}
+}
+
 // parseSteps exposes a Key/Type action's literal for editing, and rebuild rewrites it by line.
 func TestEditParseAndEditText(t *testing.T) {
 	src := strings.Replace(editSample, "    do OS's Move with p2.",

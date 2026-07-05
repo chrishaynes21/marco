@@ -11,40 +11,38 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
 )
 
-// runEdit opens a small local web editor for a saved route's TIMINGS and CLICK COORDINATES —
-// the `do OS's Sleep with N.` waits between actions (the pacing that matters most now CV is off
-// by default) and each click's X,Y. It resolves the route, serves an editor page, opens the
-// browser, and writes the edits back to the route file. Self-contained (net/http is stdlib, so
-// the zero-dep engine rule holds); Ctrl+C to stop.
+// runEdit opens the Marco control center — a small local web app served from stdlib net/http
+// (so the zero-dep engine rule holds). It opens on the named route's Edit view, where every step
+// across the OS harness is editable (waits, coordinates, keys/hold/release, type, focus/launch,
+// secrets, repeat blocks); a hamburger nav switches to Routes (browse / open / run), Bindings
+// (leader hotkeys), and Help. Ctrl+C to stop.
 //
 //	marco edit "enter freeplay"
 func runEdit(args []string) {
 	name := strings.TrimSpace(strings.Join(args, " "))
-	if name == "" {
-		fmt.Fprintln(os.Stderr, `usage: marco edit "<route name>"`)
-		os.Exit(2)
-	}
 	d := newDeps()
-	rt, ok := d.Reg.Resolve(appOf(d), name)
-	if !ok {
-		// Fall back to a name/slug match across ALL scopes — you may be editing a route for an
-		// app that isn't in the foreground.
-		if rt, ok = findRouteByName(d.Reg, name); !ok {
-			fmt.Fprintf(os.Stderr, "No route named %q. Known routes: run `marco routes`.\n", name)
+	ed := &editor{reg: d.Reg, app: appOf(d)}
+	// With a name, open on that route's Edit view; without one (marco ui / bare marco edit) the
+	// control center lands on the all-routes browser and no route is loaded yet.
+	if name != "" {
+		rt, ok := d.Reg.Resolve(appOf(d), name)
+		if !ok {
+			if rt, ok = findRouteByName(d.Reg, name); !ok {
+				fmt.Fprintf(os.Stderr, "No route named %q. Known routes: run `marco routes`.\n", name)
+				os.Exit(1)
+			}
+		}
+		ed.rt, ed.path = rt, d.Reg.Path(rt)
+		if err := ed.loadSrc(); err != nil {
+			fmt.Fprintf(os.Stderr, "read %s: %v\n", ed.path, err)
 			os.Exit(1)
 		}
 	}
-	ed := &editor{reg: d.Reg, rt: rt, path: d.Reg.Path(rt)}
-	src, err := os.ReadFile(ed.path)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "read %s: %v\n", ed.path, err)
-		os.Exit(1)
-	}
-	ed.src = string(src)
 
 	ln, err := net.Listen("tcp", "localhost:0") // any free port
 	if err != nil {
@@ -58,10 +56,21 @@ func runEdit(args []string) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		fmt.Fprint(w, editPage)
 	})
-	mux.HandleFunc("/api/route", ed.handleRoute)
-	mux.HandleFunc("/api/save", ed.handleSave)
+	mux.HandleFunc("/api/route", ed.handleRoute)   // the active route's steps + source
+	mux.HandleFunc("/api/save", ed.handleSave)     // write step edits back
+	mux.HandleFunc("/api/routes", ed.handleRoutes) // every route (the Routes view)
+	mux.HandleFunc("/api/load", ed.handleLoad)     // switch which route is being edited
+	mux.HandleFunc("/api/do", ed.handleDo)         // run a route for real
+	mux.HandleFunc("/api/bindings", ed.handleBindings)
+	mux.HandleFunc("/api/bind", ed.handleBind)
+	mux.HandleFunc("/api/unbind", ed.handleUnbind)
+	mux.HandleFunc("/api/scope", ed.handleScope) // move a route between context/focus/global
 
-	fmt.Printf("editing %q → %s  (Ctrl+C when done)\n", prettyRoute(rt.Slug), url)
+	where := "all routes"
+	if name != "" {
+		where = fmt.Sprintf("%q", prettyRoute(ed.rt.Slug))
+	}
+	fmt.Printf("marco control center (%s) → %s  (Ctrl+C when done)\n", where, url)
 	openBrowser(url)
 	if err := http.Serve(ln, mux); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -69,12 +78,220 @@ func runEdit(args []string) {
 	}
 }
 
-// editor holds one route-editing session.
+// editor holds one control-center session: the registry, the app context, and the route
+// currently open in the Edit view (swappable via /api/load).
 type editor struct {
 	reg  routes.Registry
+	app  string // foreground app when launched — the default scope for new bindings
+	mu   sync.Mutex
 	rt   routes.Route
 	path string
 	src  string
+}
+
+// loadSrc reads the active route's source into e.src.
+func (e *editor) loadSrc() error {
+	b, err := os.ReadFile(e.path)
+	if err != nil {
+		return err
+	}
+	e.src = string(b)
+	return nil
+}
+
+// scopeOf names a route's scope for display: focus (anywhere, switches), context (only in-app),
+// or global (app-less, anywhere).
+func scopeOf(rt routes.Route) string {
+	switch {
+	case rt.Focus:
+		return "focus"
+	case rt.App != "":
+		return "context"
+	default:
+		return "global"
+	}
+}
+
+// handleRoutes lists every route (name, app, scope) plus which one is open — the Routes view.
+func (e *editor) handleRoutes(w http.ResponseWriter, _ *http.Request) {
+	e.mu.Lock()
+	cur := e.rt
+	e.mu.Unlock()
+	type row struct {
+		Name, App, Scope string
+		Current          bool
+	}
+	var rows []row
+	for _, rt := range e.reg.List() {
+		rows = append(rows, row{prettyRoute(rt.Slug), rt.App, scopeOf(rt), rt == cur})
+	}
+	writeJSON(w, rows)
+}
+
+// handleLoad switches the Edit view to another route by name, reloading its source.
+func (e *editor) handleLoad(w http.ResponseWriter, r *http.Request) {
+	var req struct{ Name string }
+	if json.NewDecoder(r.Body).Decode(&req) != nil || strings.TrimSpace(req.Name) == "" {
+		http.Error(w, "bad request", 400)
+		return
+	}
+	rt, ok := e.reg.Resolve(e.app, req.Name)
+	if !ok {
+		if rt, ok = findRouteByName(e.reg, req.Name); !ok {
+			http.Error(w, "no such route", 404)
+			return
+		}
+	}
+	e.mu.Lock()
+	e.rt, e.path = rt, e.reg.Path(rt)
+	err := e.loadSrc()
+	e.mu.Unlock()
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	writeJSON(w, map[string]any{"ok": true, "name": prettyRoute(rt.Slug)})
+}
+
+// handleDo runs a route for real (types/clicks) by spawning a fresh marco process, like the
+// overlay and web-ui do — the engine stays out of this server's process.
+func (e *editor) handleDo(w http.ResponseWriter, r *http.Request) {
+	var req struct{ Name string }
+	if json.NewDecoder(r.Body).Decode(&req) != nil || strings.TrimSpace(req.Name) == "" {
+		http.Error(w, "bad request", 400)
+		return
+	}
+	self, err := os.Executable()
+	if err != nil {
+		self = os.Args[0]
+	}
+	if err := exec.Command(self, "do", req.Name).Start(); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	writeJSON(w, map[string]any{"ok": true})
+}
+
+// handleBindings lists every leader-hotkey binding (key → command, scoped to an app).
+func (e *editor) handleBindings(w http.ResponseWriter, _ *http.Request) {
+	type row struct{ App, Key, Cmd string }
+	var rows []row
+	for _, b := range e.reg.Bindings() {
+		cmd := b.Cmd
+		if cmd == "" {
+			cmd = b.Slug // legacy single-route binding
+		}
+		rows = append(rows, row{b.App, b.Key, cmd})
+	}
+	writeJSON(w, map[string]any{"bindings": rows, "app": e.app})
+}
+
+// handleBind binds `leader+key` to a command. The scope is the ROUTE's app, so a hotkey only
+// fires while that app is in front — the same key can drive different macros in different games
+// (overloading). When App isn't given, it's inferred from the command's first route (a global
+// route → a global binding). Pass App explicitly to override.
+func (e *editor) handleBind(w http.ResponseWriter, r *http.Request) {
+	var req struct{ App, Key, Cmd string }
+	if json.NewDecoder(r.Body).Decode(&req) != nil || req.Key == "" || strings.TrimSpace(req.Cmd) == "" {
+		http.Error(w, "key and command required", 400)
+		return
+	}
+	app := strings.TrimSpace(req.App)
+	if app == "" {
+		first := strings.TrimSpace(req.Cmd)
+		if i := strings.Index(strings.ToLower(first), " then "); i >= 0 {
+			first = strings.TrimSpace(first[:i]) // scope to the first route in a chain
+		}
+		if rt, ok := findRouteByName(e.reg, first); ok {
+			app = rt.App // "" for a global route → a global binding
+		}
+	}
+	if err := e.reg.Bind(app, strings.ToLower(req.Key), strings.TrimSpace(req.Cmd)); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	writeJSON(w, map[string]any{"ok": true, "app": app})
+}
+
+// handleUnbind removes a binding.
+func (e *editor) handleUnbind(w http.ResponseWriter, r *http.Request) {
+	var req struct{ App, Key string }
+	if json.NewDecoder(r.Body).Decode(&req) != nil || req.Key == "" {
+		http.Error(w, "bad request", 400)
+		return
+	}
+	if err := e.reg.Unbind(req.App, strings.ToLower(req.Key)); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	writeJSON(w, map[string]any{"ok": true})
+}
+
+// handleScope moves a route between scopes — context (in-app), focus (anywhere, switches to the
+// app), or global (app-less). It relocates the .marco (and its recording) to the new scope dir:
+// save at the destination, carry the recording, delete the source. CurApp/CurScope identify which
+// route (same slug can exist in several scopes); App is the destination app (context/focus need one).
+func (e *editor) handleScope(w http.ResponseWriter, r *http.Request) {
+	var req struct{ Name, CurApp, CurScope, Scope, App string }
+	if json.NewDecoder(r.Body).Decode(&req) != nil || strings.TrimSpace(req.Name) == "" {
+		http.Error(w, "bad request", 400)
+		return
+	}
+	from := routes.Route{App: req.CurApp, Focus: req.CurScope == "focus", Slug: routes.Slug(req.Name)}
+	if !e.reg.Has(from) {
+		http.Error(w, "no such route", 404)
+		return
+	}
+	app := strings.TrimSpace(req.App)
+	if app == "" {
+		app = from.App // keep the existing app unless the caller supplies a new one
+	}
+	var to routes.Route
+	switch req.Scope {
+	case "global":
+		to = routes.Route{Slug: from.Slug}
+	case "context":
+		to = routes.Route{App: app, Slug: from.Slug}
+	case "focus":
+		to = routes.Route{App: app, Focus: true, Slug: from.Slug}
+	default:
+		http.Error(w, "scope must be context, focus, or global", 400)
+		return
+	}
+	if to.App == "" && req.Scope != "global" {
+		http.Error(w, req.Scope+" scope needs an app", 400)
+		return
+	}
+	if to == from {
+		writeJSON(w, map[string]any{"ok": true})
+		return
+	}
+	if e.reg.Has(to) {
+		http.Error(w, "a route already exists at that scope", 409)
+		return
+	}
+	src, err := os.ReadFile(e.reg.Path(from))
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	if err := e.reg.Save(to, string(src)); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	if rec, ok := e.reg.LoadRecording(from); ok {
+		_ = e.reg.SaveRecording(to, rec)
+	}
+	if err := e.reg.Delete(from); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	e.mu.Lock()
+	if e.rt == from { // keep the open route pointing at its new home
+		e.rt, e.path = to, e.reg.Path(to)
+	}
+	e.mu.Unlock()
+	writeJSON(w, map[string]any{"ok": true})
 }
 
 // sleepRE matches a top-level wait step: `do OS's Sleep with <ms>.` (any indent). The captured
@@ -90,9 +307,14 @@ var pointDeclRE = regexp.MustCompile(`(?m)^(\s*the )(\w+)( is a Point with )([^\
 // point's coordinates to the step.
 var clickPointRE = regexp.MustCompile(`^do OS's (Click|Move) with (\w+)\.`)
 
-// textActRE matches a top-level action whose only argument is a string literal the editor can
-// expose for in-place editing: `do OS's Key with "…"` (a keypress) and `do OS's Type with "…"`.
-var textActRE = regexp.MustCompile(`^do OS's (Key|Type) with "(.*)"\.`)
+// textActRE matches an OS action whose only argument is a string literal the editor exposes for
+// in-place editing — the whole "one text arg" slice of the harness: a keypress (Key), a hold /
+// release (KeyDown/KeyUp), typed text (Type), a named Secret, and app focus/launch
+// (Activate/Launch). Captured: the verb, then the literal.
+var textActRE = regexp.MustCompile(`^do OS's (Key|KeyDown|KeyUp|Type|Secret|Activate|Launch) with "(.*)"\.`)
+
+// repeatRE matches a `repeat N times...` loop header (any indent). Captured: indent, count.
+var repeatRE = regexp.MustCompile(`^(\s*)repeat (\d+) times\.\.\.\s*$`)
 
 // pointVals holds a Point's editable coordinates.
 type pointVals struct {
@@ -106,34 +328,64 @@ type pointVals struct {
 type step struct {
 	Kind    string `json:"kind"` // "action" | "wait"
 	Label   string `json:"label,omitempty"`
-	Act     string `json:"act,omitempty"`   // action subtype the editor can edit: click|move|key|type
-	Ms      int    `json:"ms,omitempty"`    // wait
-	Point   string `json:"point,omitempty"` // action: the Point name it clicks (empty otherwise)
-	X       int    `json:"x"`               // action: that point's coordinates (when Point != "")
+	Act     string `json:"act,omitempty"`   // editable subtype: click|move|key|keydown|keyup|type|secret|activate|launch|repeat
+	Ms      int    `json:"ms,omitempty"`    // wait: milliseconds
+	Count   int    `json:"count,omitempty"` // repeat: iteration count
+	Point   string `json:"point,omitempty"` // click/move: the Point name (empty otherwise)
+	X       int    `json:"x"`               // click/move: that point's coordinates
 	Y       int    `json:"y"`
-	Text    string `json:"text,omitempty"` // key/type action: the editable string literal
-	CanDrag bool   `json:"canDrag"`        // a click/move at a point can be converted to a drag
-	Line    int    `json:"line"`           // source line index (keys delete / wait / drag ops)
+	Text    string `json:"text,omitempty"`  // key/keydown/keyup/type/secret/activate/launch: the literal
+	Depth   int    `json:"depth,omitempty"` // 0 = top level, 1 = inside a repeat block (indent in the UI)
+	CanDrag bool   `json:"canDrag"`         // a click/move at a point can be converted to a drag
+	EndLine int    `json:"-"`               // repeat: last source line of the block (delete cascades to it)
+	Line    int    `json:"line"`            // source line index (keys delete / wait / count / drag ops)
 }
 
-// parseSteps walks the route body and returns the ordered action/wait sequence for display.
-// Only TOP-LEVEL body lines (a `do …` action) are shown — nested `when ok?/or?` arms of a Find
-// and the point/anchor declarations are context the editor hides. Waits become editable.
+// parseSteps walks the route body and returns the ordered step sequence the editor shows: the
+// top-level actions/waits, plus one level of `repeat N times...` block — its header (editable
+// count) and its indented body steps (Depth 1). A Find block's `when ok?/or?` arms and the
+// point/anchor declarations stay hidden. Each editable action carries its subtype + fields.
 func (e *editor) parseSteps() []step {
 	pts := e.parsePoints()
 	var steps []step
-	for i, line := range strings.Split(e.src, "\n") {
+	lines := strings.Split(e.src, "\n")
+	repeatBodyIndent := -1 // indent of the current repeat block's body (-1 = not in one)
+	repeatHdr := -1        // index into steps of the open repeat header (to extend its EndLine)
+	for i, line := range lines {
 		t := strings.TrimSpace(line)
-		indent := len(line) - len(strings.TrimLeft(line, " "))
-		if m := sleepRE.FindStringSubmatch(line); m != nil {
-			ms, _ := strconv.Atoi(m[2])
-			steps = append(steps, step{Kind: "wait", Ms: ms, Line: i})
+		if t == "" {
 			continue
 		}
-		// A top-level action is a `do …` at the body indent (4 spaces). Deeper `do …` lines are
-		// the found/fallback arms inside a Find block — part of that step, not separate.
-		if indent == 4 && strings.HasPrefix(t, "do ") {
-			s := step{Kind: "action", Label: humanizeAction(t), Line: i}
+		indent := len(line) - len(strings.TrimLeft(line, " "))
+		// A repeat block ends when indentation returns to (or above) its header level.
+		if repeatBodyIndent >= 0 && indent < repeatBodyIndent {
+			repeatBodyIndent, repeatHdr = -1, -1
+		}
+		inBody := repeatBodyIndent >= 0 && indent == repeatBodyIndent
+		depth := 0
+		if inBody {
+			depth = 1
+			steps[repeatHdr].EndLine = i // grow the block to cover this body line
+		}
+		// A top-level `repeat N times...` header: editable count, body follows indented.
+		if m := repeatRE.FindStringSubmatch(line); m != nil && indent == 4 {
+			n, _ := strconv.Atoi(m[2])
+			steps = append(steps, step{Kind: "action", Act: "repeat", Count: n,
+				Label: fmt.Sprintf("Repeat %d times", n), Line: i, EndLine: i})
+			repeatBodyIndent, repeatHdr = 8, len(steps)-1
+			continue
+		}
+		show := indent == 4 || inBody
+		if !show {
+			continue
+		}
+		if m := sleepRE.FindStringSubmatch(line); m != nil {
+			ms, _ := strconv.Atoi(m[2])
+			steps = append(steps, step{Kind: "wait", Ms: ms, Depth: depth, Line: i})
+			continue
+		}
+		if strings.HasPrefix(t, "do ") {
+			s := step{Kind: "action", Label: humanizeAction(t), Depth: depth, Line: i}
 			// A click/move at a named point → attach coords for editing, allow drag conversion.
 			if cm := clickPointRE.FindStringSubmatch(t); cm != nil {
 				if pv, ok := pts[cm[2]]; ok {
@@ -141,8 +393,9 @@ func (e *editor) parseSteps() []step {
 					s.Point, s.X, s.Y, s.CanDrag = cm[2], pv.X, pv.Y, true
 				}
 			} else if tm := textActRE.FindStringSubmatch(t); tm != nil {
-				// A keypress / typed text → expose the literal for in-place editing.
-				s.Act, s.Text = strings.ToLower(tm[1]), unquoteLit(tm[2]) // "key" | "type"
+				// A one-text-arg action (key/hold/release/type/secret/activate/launch) → expose
+				// the literal for in-place editing.
+				s.Act, s.Text = strings.ToLower(tm[1]), unquoteLit(tm[2])
 			}
 			steps = append(steps, s)
 		}
@@ -215,6 +468,12 @@ func humanizeAction(line string) string {
 		return "Release " + strings.Trim(strings.TrimPrefix(s, "OS's KeyUp with "), `"`)
 	case strings.HasPrefix(s, "OS's Activate with "):
 		return "Focus " + strings.Trim(strings.TrimPrefix(s, "OS's Activate with "), `"`)
+	case strings.HasPrefix(s, "OS's Launch with "):
+		return "Launch " + strings.Trim(strings.TrimPrefix(s, "OS's Launch with "), `"`)
+	case strings.HasPrefix(s, "OS's Secret with "):
+		return "Secret " + strings.Trim(strings.TrimPrefix(s, "OS's Secret with "), `"`)
+	case strings.HasPrefix(s, "OS's Drag"):
+		return "Drag"
 	case strings.HasPrefix(s, "OS's Find") || strings.HasPrefix(s, "Text's Find") || strings.HasPrefix(s, "Vision's Locate"):
 		return "Find target, then click"
 	}
@@ -222,9 +481,13 @@ func humanizeAction(line string) string {
 }
 
 func (e *editor) handleRoute(w http.ResponseWriter, _ *http.Request) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	writeJSON(w, map[string]any{
+		"loaded": e.rt.Slug != "",
 		"name":   prettyRoute(e.rt.Slug),
 		"app":    e.rt.App,
+		"scope":  scopeOf(e.rt),
 		"path":   e.path,
 		"steps":  e.parseSteps(),
 		"source": e.src,
@@ -234,20 +497,24 @@ func (e *editor) handleRoute(w http.ResponseWriter, _ *http.Request) {
 // saveReq is the editor's save payload. Everything is keyed by SOURCE LINE INDEX (or point
 // name), so operations don't shift when steps are deleted.
 type saveReq struct {
-	Waits   map[string]int    `json:"waits"`   // line → new ms
+	Waits   map[string]int    `json:"waits"`   // line → new ms (Sleep)
+	Repeats map[string]int    `json:"repeats"` // line → new count (repeat header)
 	Points  map[string][2]int `json:"points"`  // point name → [x, y]
-	Texts   map[string]string `json:"texts"`   // line → new key/type literal
-	Deletes []int             `json:"deletes"` // line indexes to remove (the step's line)
+	Texts   map[string]string `json:"texts"`   // line → new one-text-arg literal (key/type/…)
+	Deletes []int             `json:"deletes"` // line indexes to remove (a repeat header cascades to its body)
 	Drags   map[string][4]int `json:"drags"`   // line → [fromX, fromY, toX, toY] (click → drag)
 	Adds    []addStep         `json:"adds"`    // new steps to insert
 }
 
 // addStep is one new command the editor inserts. After is the source-line index to insert it
-// AFTER (-1 = at the end of the body, just before `this is ok!`). Act selects which fields matter.
+// AFTER (-1 = at the end of the body, just before `this is ok!`). Act selects which fields matter;
+// a "repeat" wraps a single inner action (Inner + the shared fields) in a `repeat Count times`.
 type addStep struct {
 	After int    `json:"after"`
-	Act   string `json:"act"` // wait | click | move | key | type | drag
+	Act   string `json:"act"` // wait|click|move|key|keydown|keyup|type|secret|activate|launch|drag|repeat
 	Ms    int    `json:"ms"`
+	Count int    `json:"count"` // repeat: iterations
+	Inner string `json:"inner"` // repeat: the inner action's act
 	X     int    `json:"x"`
 	Y     int    `json:"y"`
 	ToX   int    `json:"toX"`
@@ -297,8 +564,26 @@ func genAdd(a addStep, indent string, used map[string]bool) []string {
 		return []string{fmt.Sprintf("%sdo OS's Sleep with %d.", indent, max(a.Ms, 0))}
 	case "key":
 		return []string{fmt.Sprintf(`%sdo OS's Key with "%s".`, indent, quoteLit(a.Text))}
+	case "keydown":
+		return []string{fmt.Sprintf(`%sdo OS's KeyDown with "%s".`, indent, quoteLit(a.Text))}
+	case "keyup":
+		return []string{fmt.Sprintf(`%sdo OS's KeyUp with "%s".`, indent, quoteLit(a.Text))}
 	case "type":
 		return []string{fmt.Sprintf(`%sdo OS's Type with "%s".`, indent, quoteLit(a.Text))}
+	case "secret":
+		return []string{fmt.Sprintf(`%sdo OS's Secret with "%s".`, indent, quoteLit(a.Text))}
+	case "activate":
+		return []string{fmt.Sprintf(`%sdo OS's Activate with "%s".`, indent, quoteLit(a.Text))}
+	case "launch":
+		return []string{fmt.Sprintf(`%sdo OS's Launch with "%s".`, indent, quoteLit(a.Text))}
+	case "repeat":
+		// A self-contained loop wrapping one inner action.
+		inner := addStep{Act: a.Inner, Text: a.Text, X: a.X, Y: a.Y, ToX: a.ToX, ToY: a.ToY, Ms: a.Ms}
+		body := genAdd(inner, indent+"    ", used)
+		if len(body) == 0 { // unknown inner → a no-op wait so the block stays valid Marco
+			body = []string{fmt.Sprintf("%sdo OS's Sleep with 0.", indent+"    ")}
+		}
+		return append([]string{fmt.Sprintf("%srepeat %d times...", indent, max(a.Count, 1))}, body...)
 	case "click", "move":
 		p := freshName(used, "p")
 		verb := "Click"
@@ -328,6 +613,25 @@ func (e *editor) rebuild(req saveReq) string {
 	del := make(map[int]bool, len(req.Deletes))
 	for _, l := range req.Deletes {
 		del[l] = true
+	}
+	// Deleting a `repeat N times...` header cascades to its indented body (an orphaned indented
+	// body would be invalid Marco).
+	for _, l := range req.Deletes {
+		if l < 0 || l >= len(lines) {
+			continue
+		}
+		if m := repeatRE.FindStringSubmatch(lines[l]); m != nil {
+			hdr := len(m[1])
+			for j := l + 1; j < len(lines); j++ {
+				if strings.TrimSpace(lines[j]) == "" {
+					continue
+				}
+				if len(lines[j])-len(strings.TrimLeft(lines[j], " ")) <= hdr {
+					break
+				}
+				del[j] = true
+			}
+		}
 	}
 	used := map[string]bool{}
 	for _, m := range anyDeclRE.FindAllStringSubmatch(e.src, -1) {
@@ -370,6 +674,11 @@ func (e *editor) rebuild(req saveReq) string {
 		if m := sleepRE.FindStringSubmatch(line); m != nil {
 			if ms, ok := req.Waits[strconv.Itoa(i)]; ok {
 				line = m[1] + strconv.Itoa(max(ms, 0)) + m[3]
+			}
+		}
+		if m := repeatRE.FindStringSubmatch(line); m != nil {
+			if n, ok := req.Repeats[strconv.Itoa(i)]; ok {
+				line = fmt.Sprintf("%srepeat %d times...", m[1], max(n, 1))
 			}
 		}
 		if txt, ok := req.Texts[strconv.Itoa(i)]; ok {
@@ -440,86 +749,192 @@ func openBrowser(url string) {
 	_ = cmd.Start()
 }
 
-const editPage = `<!doctype html><html><head><meta charset="utf-8"><title>marco · edit timings</title>
+const editPage = `<!doctype html><html><head><meta charset="utf-8"><title>MARCO</title>
 <style>
- body{font:15px system-ui;margin:0;background:#1e1e22;color:#e6e6e6}
- header{padding:14px 18px;background:#26262c;border-bottom:1px solid #34343c;display:flex;justify-content:space-between;align-items:center}
- #name{color:#9ad;font-weight:600}
- #saved{color:#5cb85c;font-size:13px}
- main{padding:18px;max-width:640px}
- .action{padding:8px 12px;border:1px solid #34343c;border-radius:6px;margin:6px 0;display:flex;gap:8px;align-items:center}
- .num{color:#666;min-width:22px}
+ :root{--bg:#0A0A0A;--panel:#121316;--panel2:#17181c;--line:#1e2a2a;--accent:#00E5CC;--text:#DDD;
+   --dim:#6A9A98;--run:#4DC94D;--err:#F56565;--listen:#5AB4F5;--amber:#E0B050;--mono:ui-monospace,"Cascadia Mono",Consolas,monospace}
+ *{box-sizing:border-box}
+ body{font:15px/1.45 var(--mono);margin:0;background:var(--bg);color:var(--text)}
+ header{position:sticky;top:0;z-index:5;padding:12px 16px;background:linear-gradient(180deg,#111 0,#0b0b0b 100%);
+   border-bottom:1px solid var(--line);display:flex;gap:14px;align-items:center}
+ .burger{background:none;border:1px solid var(--line);color:var(--accent);font-size:18px;line-height:1;
+   padding:5px 10px;border-radius:6px;cursor:pointer}
+ .burger:hover{border-color:var(--accent);box-shadow:0 0 10px rgba(0,229,204,.25)}
+ .brand{font-weight:700;letter-spacing:3px;color:var(--accent);text-shadow:0 0 10px rgba(0,229,204,.45)}
+ .sub{color:var(--dim);letter-spacing:0;font-weight:400;margin-left:10px}
+ .saved{margin-left:auto;color:var(--run);font-size:13px;text-shadow:0 0 8px rgba(77,201,77,.4)}
+ nav{position:fixed;left:-240px;top:0;bottom:0;width:220px;background:var(--panel);border-right:1px solid var(--line);
+   transition:left .18s ease;z-index:20;padding-top:56px}
+ nav.open{left:0;box-shadow:0 0 40px rgba(0,0,0,.7)}
+ nav a{display:flex;gap:10px;align-items:center;padding:13px 20px;color:var(--dim);cursor:pointer;
+   border-left:3px solid transparent;letter-spacing:1px;text-transform:uppercase;font-size:13px}
+ nav a:hover{color:var(--text);background:var(--panel2)}
+ nav a.active{color:var(--accent);border-left-color:var(--accent);background:rgba(0,229,204,.07)}
+ #scrim{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10;display:none}
+ #scrim.on{display:block}
+ main{padding:20px 18px;max-width:680px}
+ h2{color:var(--accent);font-size:14px;letter-spacing:2px;text-transform:uppercase;margin:0 0 14px;
+   border-bottom:1px solid var(--line);padding-bottom:8px}
+ .hint{color:var(--dim);font-size:13px;margin:0 0 16px}
+ .action{padding:8px 12px;border:1px solid var(--line);border-radius:6px;margin:6px 0;display:flex;gap:8px;align-items:center;background:var(--panel)}
+ .action.depth1{margin-left:26px;border-left:2px solid var(--accent)}
+ .num{color:#4a5a5a;min-width:22px}
  .lbl{display:flex;gap:8px;align-items:center}
- .xy,.to{color:#7aacc0;display:inline-flex;align-items:center;gap:5px;font-size:13px}
- .coord{width:64px;padding:5px 6px;background:#26262c;border:1px solid #3a3a44;color:#8dd;border-radius:5px;font:inherit;text-align:right}
+ .xy,.to{color:var(--listen);display:inline-flex;align-items:center;gap:5px;font-size:13px}
+ .coord{width:66px;padding:5px 6px;background:#0d0e10;border:1px solid var(--line);color:var(--accent);border-radius:5px;font:inherit;text-align:right}
  .dragbox{display:inline-flex;align-items:center;gap:6px}
- .mini{background:#3a4a5a;color:#cde;padding:4px 9px;border:0;border-radius:5px;cursor:pointer;font:13px system-ui}
- .mini.on{background:#3a6ea5;color:#fff}
- .del{margin-left:auto;background:#4a3030;color:#e6a0a0;padding:4px 9px;border:0;border-radius:5px;cursor:pointer;font:inherit}
- .del:hover{background:#6a4040}
- .deleted{opacity:.45;text-decoration:line-through}
- .added{border-color:#3a5a3a;background:#232a23}
- .tin{width:150px;padding:5px 7px;background:#26262c;border:1px solid #3a3a44;color:#8dd;border-radius:5px;font:inherit;text-align:left}
- .addfields{display:inline-flex;align-items:center;gap:6px;color:#7aacc0;font-size:13px}
- select.mini{background:#3a4a5a;color:#cde;border:0;border-radius:5px;padding:4px 6px;font:13px system-ui}
- .plus{background:#2f4a2f;color:#bfe0bf}
- .wait .del{margin-left:8px}
- .wait{display:flex;align-items:center;gap:8px;margin:2px 0 2px 30px;color:#e0b050}
- .wait input{width:90px;padding:6px 8px;background:#26262c;border:1px solid #3a3a44;color:#e0b050;border-radius:6px;font:inherit;text-align:right}
- .bar{margin-top:18px;display:flex;gap:10px;align-items:center}
- button{padding:9px 16px;background:#3a6ea5;color:#fff;border:0;border-radius:6px;cursor:pointer;font:inherit}
- button:hover{background:#4a7eb5}
- details{margin-top:22px;color:#aaa}
- pre{background:#141417;padding:12px;border-radius:6px;white-space:pre-wrap;font:13px ui-monospace,monospace;color:#cfcfcf}
- .hint{color:#888;font-size:13px;margin:0 0 14px}
+ .mini{background:#12312e;color:var(--accent);padding:4px 9px;border:1px solid var(--line);border-radius:5px;cursor:pointer;font:13px var(--mono)}
+ .mini:hover{border-color:var(--accent)}
+ .mini.on{background:var(--accent);color:#04110f}
+ .del{margin-left:auto;background:#2a1414;color:var(--err);padding:4px 9px;border:1px solid #3a1e1e;border-radius:5px;cursor:pointer;font:inherit}
+ .del:hover{background:#3a1c1c}
+ .deleted{opacity:.4;text-decoration:line-through}
+ .added{border-color:#1e3a2a;background:#0e1a12}
+ .tin{width:150px;padding:5px 7px;background:#0d0e10;border:1px solid var(--line);color:var(--accent);border-radius:5px;font:inherit;text-align:left}
+ .addfields{display:inline-flex;align-items:center;gap:6px;color:var(--dim);font-size:13px;flex-wrap:wrap}
+ select.mini{background:#12312e;color:var(--accent);border:1px solid var(--line);border-radius:5px;padding:4px 6px;font:13px var(--mono)}
+ .plus{background:#12312e;color:var(--accent)}
+ .rep{color:var(--accent)}
+ .rep input{width:60px;padding:5px 6px;background:#0d0e10;border:1px solid var(--line);color:var(--accent);border-radius:5px;font:inherit;text-align:right}
+ .wait{display:flex;align-items:center;gap:8px;margin:3px 0 3px 30px;color:var(--amber)}
+ .wait.depth1{margin-left:56px}
+ .wait input{width:90px;padding:6px 8px;background:#0d0e10;border:1px solid var(--line);color:var(--amber);border-radius:6px;font:inherit;text-align:right}
+ .keep{color:var(--run);font-size:12px;margin-left:6px}
+ .bar{margin-top:18px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+ button.go{padding:9px 18px;background:var(--accent);color:#04110f;border:0;border-radius:6px;cursor:pointer;font:inherit;font-weight:700;letter-spacing:1px}
+ button.go:hover{box-shadow:0 0 14px rgba(0,229,204,.5)}
+ details{margin-top:22px;color:var(--dim)}
+ pre{background:#070708;padding:12px;border:1px solid var(--line);border-radius:6px;white-space:pre-wrap;font:13px var(--mono);color:#b8c4c2}
+ .grouphead{color:var(--accent);font-size:12px;letter-spacing:2px;text-transform:uppercase;margin:18px 0 6px;opacity:.85}
+ .rowcard{display:flex;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:6px;margin:6px 0;background:var(--panel)}
+ .rowcard .nm{color:var(--text)}
+ .tag{font-size:11px;letter-spacing:1px;text-transform:uppercase;padding:2px 7px;border-radius:4px;border:1px solid var(--line);color:var(--dim)}
+ .tag.context{color:var(--accent);border-color:#12312e}
+ .tag.focus{color:var(--listen);border-color:#12283a}
+ .tag.global{color:var(--amber);border-color:#3a3018}
+ .tag.cur{color:#04110f;background:var(--accent);border-color:var(--accent)}
+ .spacer{margin-left:auto}
+ .key{display:inline-block;min-width:20px;text-align:center;padding:2px 7px;border:1px solid var(--line);border-radius:4px;color:var(--accent);background:#0d0e10}
+ input.field{padding:7px 9px;background:#0d0e10;border:1px solid var(--line);color:var(--text);border-radius:6px;font:inherit}
+ kbd{padding:1px 6px;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;color:var(--accent);background:#0d0e10;font:12px var(--mono)}
+ .help h3{color:var(--text);font-size:13px;letter-spacing:1px;text-transform:uppercase;margin:18px 0 6px}
+ .help p,.help li{color:var(--dim);font-size:13px}
+ a.plain{color:var(--accent);cursor:pointer;text-decoration:none}
 </style></head><body>
-<header><span>marco · edit timings — <span id="name">…</span></span><span id="saved"></span></header>
+<header>
+  <button class="burger" onclick="toggleNav()">☰</button>
+  <span class="brand">MARCO<span class="sub" id="rt">…</span></span>
+  <span id="saved" class="saved"></span>
+</header>
+<nav id="drawer">
+  <a data-view="edit" class="active" onclick="nav('edit')">◆ Edit</a>
+  <a data-view="routes" onclick="nav('routes')">▤ Routes</a>
+  <a data-view="bindings" onclick="nav('bindings')">⌨ Bindings</a>
+  <a data-view="help" onclick="nav('help')">? Help</a>
+</nav>
+<div id="scrim" onclick="closeNav()"></div>
 <main>
- <p class="hint">Edit each step in place — wait (ms), click/move coordinates (x, y), or the key
-   a <b>Press</b> sends and the text a <b>Type</b> enters. <b>+</b> adds a step after this one;
-   <b>✕</b> deletes; <b>drag</b> turns a click into a click-and-drag. With CV off, these
-   coordinates + timings are the whole route.</p>
- <div id="steps"></div>
- <div class="bar"><button onclick="save()">Save</button>
-   <button type="button" class="mini" onclick="document.getElementById('steps').appendChild(addRow(-1))">+ add step at end</button>
-   <span id="saved2"></span></div>
- <details><summary>Full route source</summary><pre id="src"></pre></details>
+ <section id="view-edit">
+  <h2>Edit route</h2>
+  <p class="hint">Every step is editable in place — wait (ms), coordinates (x, y), the key a
+    <b>Press/Hold/Release</b> sends, <b>Type</b> text, a <b>Focus/Launch</b> app, a <b>Secret</b> name,
+    or a <b>Repeat</b> count. <b>+</b> inserts after; <b>✕</b> deletes; <b>drag</b> turns a click
+    into a click-drag. The last <b>settle · keep</b> wait lets the final action land before the run ends.</p>
+  <div id="steps"></div>
+  <div class="bar"><button class="go" onclick="save()">Save</button>
+    <button type="button" class="mini" onclick="document.getElementById('steps').appendChild(addRow(-1))">+ add step</button>
+    <span id="saved2"></span></div>
+  <details><summary>Full route source</summary><pre id="src"></pre></details>
+ </section>
+ <section id="view-routes" hidden><h2>Routes</h2><div id="routes"></div></section>
+ <section id="view-bindings" hidden>
+  <h2>Bindings — leader hotkeys</h2>
+  <p class="hint">Press the leader (<kbd>` + "`" + `</kbd>) then a key to fire a route. A binding <b>scopes to its
+    route's app</b>, so <kbd>` + "`" + `</kbd><kbd>e</kbd> can run one macro in Rocket League and another
+    elsewhere. Global routes bind everywhere.</p>
+  <div class="bar"><input class="field" id="bkey" placeholder="key (e.g. e)" style="width:110px">
+    <input class="field" id="bcmd" placeholder="route (e.g. enter freeplay)" style="flex:1;min-width:160px">
+    <button class="go" onclick="bindAdd()">Bind</button></div>
+  <div id="bindings" style="margin-top:14px"></div>
+ </section>
+ <section id="view-help" hidden class="help"><h2>Help</h2>
+  <h3>Overlay hotkeys</h3>
+  <ul><li><kbd>` + "`" + `</kbd> leader, then <kbd>m</kbd> opens the command line; type a route + Enter.</li>
+   <li><kbd>` + "`" + `</kbd> then a bound key (e.g. <kbd>0</kbd>) runs its macro.</li>
+   <li><kbd>` + "`" + `</kbd> while a route runs = stop/cancel, and the leader also finishes a teach.</li></ul>
+  <h3>Commands (type or say)</h3>
+  <ul><li><b>teach &lt;name&gt;</b> — record a new route. <b>edit &lt;name&gt;</b> — open this editor.</li>
+   <li><b>bind &lt;key&gt; &lt;route&gt;</b> / <b>unbind &lt;key&gt;</b> — hotkeys.</li>
+   <li><b>voice on|off</b>, <b>mute</b>, <b>stop listening</b> — the mic.</li></ul>
+  <h3>The settle wait</h3>
+  <p>New routes end with a short <b>settle</b> wait so the final click registers before the run ends. Bump it for slow screens; deleting it can make the last step flaky.</p>
+  <h3>OS harness</h3>
+  <p>Steps map to the OS host: click / move / drag, press / hold / release a key, type, focus / launch an app, a secret, a wait, and repeat-N-times blocks. CV is off in alpha — coordinates + timings drive everything.</p>
+ </section>
 </main>
 <script>
-let steps = [];  // existing rows (keyed by source line)
-let adds  = [];  // new steps to insert: {after, node, get:()=>payload}
+const LABELS={key:'Press',keydown:'Hold',keyup:'Release',type:'Type',secret:'Secret',activate:'Focus',launch:'Launch'};
+let steps=[], adds=[];
 function coord(v){ const i=document.createElement('input'); i.type='number'; i.className='coord'; i.value=v; return i; }
 function numIn(v){ const i=document.createElement('input'); i.type='number'; i.className='coord'; i.value=v; return {el:i, val:()=>parseInt(i.value||'0',10)}; }
 function txtIn(v){ const i=document.createElement('input'); i.className='tin'; i.value=v; return {el:i, val:()=>i.value}; }
-function delBtn(rec, row){
-  const b=document.createElement('button'); b.type='button'; b.className='del'; b.title='delete this step'; b.textContent='✕';
-  b.onclick=()=>{ rec.del=!rec.del; row.classList.toggle('deleted', rec.del); };
+function esc(s){ return (s||'').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+// ---- nav / drawer ----
+function toggleNav(){ document.getElementById('drawer').classList.toggle('open'); document.getElementById('scrim').classList.toggle('on'); }
+function closeNav(){ document.getElementById('drawer').classList.remove('open'); document.getElementById('scrim').classList.remove('on'); }
+function nav(v){
+  for(const s of document.querySelectorAll('main section')) s.hidden = (s.id!=='view-'+v);
+  for(const a of document.querySelectorAll('nav a')) a.classList.toggle('active', a.dataset.view===v);
+  closeNav();
+  if(v==='edit') loadEdit(); else if(v==='routes') loadRoutes(); else if(v==='bindings') loadBindings();
+}
+// ---- edit view ----
+const FINAL_WAIT_WARN='This is the final settle wait. Deleting it can make the last step (e.g. a click) fire and the route end before the app processes it, so it may not register. Delete anyway?';
+function delBtn(rec,row,warn){
+  const b=document.createElement('button'); b.type='button'; b.className='del'; b.textContent='✕';
+  b.title = warn ? 'delete the final settle wait (not recommended)' : 'delete this step';
+  b.onclick=()=>{ if(warn && !rec.del && !confirm(warn)) return; rec.del=!rec.del; row.classList.toggle('deleted', rec.del); };
   return b;
 }
-function plusBtn(afterLine, row){
+function plusBtn(afterLine,row){
   const b=document.createElement('button'); b.type='button'; b.className='mini plus'; b.title='add a step after this'; b.textContent='+';
   b.onclick=()=>{ row.after(addRow(afterLine)); };
   return b;
 }
-// addRow builds an editable "new step" row; its type <select> swaps the relevant fields, and its
-// get() returns the save payload. after<0 means append at the end of the body.
+// addRow builds an editable "new step" row across the OS harness; get() returns the save payload.
 function addRow(after){
   const rec={after};
   const row=document.createElement('div'); row.className='action added';
   const sel=document.createElement('select'); sel.className='mini';
-  for(const [v,l] of [['wait','wait'],['click','click'],['move','move cursor'],['key','press key'],['type','type text'],['drag','drag']]){
+  for(const [v,l] of [['wait','wait'],['key','press key'],['keydown','hold key'],['keyup','release key'],
+      ['type','type text'],['click','click'],['move','move cursor'],['drag','drag'],
+      ['activate','focus app'],['launch','launch app'],['secret','secret'],['repeat','repeat…']]){
     const o=document.createElement('option'); o.value=v; o.textContent=l; sel.appendChild(o);
   }
   const fields=document.createElement('span'); fields.className='addfields';
+  const T=(ph,g)=>{ const k=txtIn(ph); fields.append(g, k.el); return k; };
   function render(){
     fields.textContent=''; const t=sel.value;
-    if(t==='wait'){ const ms=numIn(200); fields.append('wait', ms.el, 'ms'); rec.get=()=>({after, act:'wait', ms:ms.val()}); }
-    else if(t==='key'){ const k=txtIn('enter'); fields.append('press', k.el); rec.get=()=>({after, act:'key', text:k.val()}); }
-    else if(t==='type'){ const k=txtIn('hello'); fields.append('type', k.el); rec.get=()=>({after, act:'type', text:k.val()}); }
+    if(t==='wait'){ const ms=numIn(200); fields.append('wait', ms.el, 'ms'); rec.get=()=>({after,act:'wait',ms:ms.val()}); }
+    else if(t==='key'||t==='keydown'||t==='keyup'){ const k=T('e',LABELS[t].toLowerCase()); rec.get=()=>({after,act:t,text:k.val()}); }
+    else if(t==='type'){ const k=T('hello','type'); rec.get=()=>({after,act:'type',text:k.val()}); }
+    else if(t==='secret'){ const k=T('password','name'); rec.get=()=>({after,act:'secret',text:k.val()}); }
+    else if(t==='activate'){ const k=T('Rocket League','app'); rec.get=()=>({after,act:'activate',text:k.val()}); }
+    else if(t==='launch'){ const k=T('steam://run/252950','app'); rec.get=()=>({after,act:'launch',text:k.val()}); }
     else if(t==='drag'){ const x=numIn(0),y=numIn(0),tx=numIn(80),ty=numIn(0);
       fields.append('from', x.el, y.el, '→ to', tx.el, ty.el);
-      rec.get=()=>({after, act:'drag', x:x.val(), y:y.val(), toX:tx.val(), toY:ty.val()}); }
-    else { const x=numIn(0),y=numIn(0); fields.append('x', x.el, 'y', y.el); rec.get=()=>({after, act:t, x:x.val(), y:y.val()}); }
+      rec.get=()=>({after,act:'drag',x:x.val(),y:y.val(),toX:tx.val(),toY:ty.val()}); }
+    else if(t==='repeat'){ const cnt=numIn(3);
+      const isel=document.createElement('select'); isel.className='mini';
+      for(const [v,l] of [['key','press key'],['wait','wait'],['click','click']]){ const o=document.createElement('option'); o.value=v; o.textContent=l; isel.appendChild(o); }
+      const inner=document.createElement('span'); inner.className='addfields';
+      function ir(){ inner.textContent=''; const it=isel.value;
+        if(it==='key'){ const k=txtIn('e'); inner.append('press', k.el); rec.get=()=>({after,act:'repeat',count:cnt.val(),inner:'key',text:k.val()}); }
+        else if(it==='wait'){ const ms=numIn(100); inner.append('wait', ms.el, 'ms'); rec.get=()=>({after,act:'repeat',count:cnt.val(),inner:'wait',ms:ms.val()}); }
+        else { const x=numIn(0),y=numIn(0); inner.append('x', x.el, 'y', y.el); rec.get=()=>({after,act:'repeat',count:cnt.val(),inner:'click',x:x.val(),y:y.val()}); } }
+      isel.onchange=ir; ir();
+      fields.append('repeat', cnt.el, 'times:', isel, inner); }
+    else { const x=numIn(0),y=numIn(0); fields.append('x', x.el, 'y', y.el); rec.get=()=>({after,act:t,x:x.val(),y:y.val()}); }
   }
   sel.onchange=render; render();
   const rm=document.createElement('button'); rm.type='button'; rm.className='del'; rm.textContent='✕'; rm.title='discard';
@@ -529,52 +944,80 @@ function addRow(after){
   rec.node=row; adds.push(rec);
   return row;
 }
-async function load(){
+async function loadEdit(){
   const r = await (await fetch('/api/route')).json();
-  document.getElementById('name').textContent = r.name + (r.app? (' · '+r.app):'');
+  const box=document.getElementById('steps'); box.innerHTML=''; steps=[]; adds=[];
+  if(!r.loaded){
+    document.getElementById('rt').textContent='';
+    document.getElementById('src').textContent='';
+    box.innerHTML='<p class="hint">Pick a route to edit:</p>';
+    const rows = await (await fetch('/api/routes')).json();
+    const groups={}; (rows||[]).forEach(x=>{ const k=x.App||''; (groups[k]=groups[k]||[]).push(x); });
+    const apps=Object.keys(groups).sort((a,b)=> a===''?1 : b===''?-1 : a.localeCompare(b));
+    if(!apps.length){ box.innerHTML+='<p class="hint">No routes yet.</p>'; return; }
+    for(const app of apps){
+      const h=document.createElement('div'); h.className='grouphead'; h.textContent=app||'Global'; box.appendChild(h);
+      groups[app].forEach(x=>{
+        const d=document.createElement('div'); d.className='rowcard';
+        const nm=document.createElement('span'); nm.className='nm'; nm.textContent=x.Name; d.appendChild(nm);
+        const sp=document.createElement('span'); sp.className='spacer'; d.appendChild(sp);
+        const b=document.createElement('button'); b.className='mini'; b.textContent='edit ✎'; b.onclick=()=>openRoute(x.Name);
+        d.appendChild(b); box.appendChild(d);
+      });
+    }
+    return;
+  }
+  document.getElementById('rt').textContent = ' · ' + r.name + (r.app? (' ['+r.app+']'):'');
   document.getElementById('src').textContent = r.source;
-  const box = document.getElementById('steps');
-  box.innerHTML=''; steps=[]; adds=[]; let n=0;
-  for(const s of r.steps){
-    const rec = {line: s.line, kind: s.kind, point: s.point, del:false, dragOn:false};
-    const row = document.createElement('div');
+  let n=0;
+  for(let idx=0; idx<r.steps.length; idx++){
+    const s=r.steps[idx];
+    const finalWait = (idx===r.steps.length-1 && s.kind==='wait');
+    const rec={line:s.line, kind:s.kind, point:s.point, act:s.act, del:false, dragOn:false};
+    const row=document.createElement('div');
     if(s.kind==='action'){
       n++;
-      row.className='action';
-      let labelText=s.label; if(s.act==='key') labelText='Press'; if(s.act==='type') labelText='Type';
-      const label=document.createElement('span'); label.className='lbl';
-      label.innerHTML='<span class="num">'+n+'.</span><span>'+esc(labelText)+'</span>';
-      row.appendChild(label);
-      if(s.act==='key' || s.act==='type'){ // editable keypress / typed text
-        rec.txt=txtIn(s.text); row.appendChild(rec.txt.el);
-      } else if(s.point){ // a click/move at a known point → editable coordinates
-        rec.xi=coord(s.x); rec.yi=coord(s.y);
-        const xy=document.createElement('span'); xy.className='xy';
-        xy.append('x', rec.xi, 'y', rec.yi); row.appendChild(xy);
-        if(s.canDrag){ // convert to a press-drag-release
-          rec.txi=coord(s.x+80); rec.tyi=coord(s.y);
-          const to=document.createElement('span'); to.className='to'; to.style.display='none';
-          to.append('→ to', rec.txi, rec.tyi);
-          const btn=document.createElement('button'); btn.type='button'; btn.className='mini'; btn.textContent='drag';
-          btn.title='make this a click-and-drag';
-          btn.onclick=()=>{ rec.dragOn=!rec.dragOn; to.style.display=rec.dragOn?'inline-flex':'none'; btn.classList.toggle('on', rec.dragOn); };
-          const wrap=document.createElement('span'); wrap.className='dragbox'; wrap.append(btn, to);
-          row.appendChild(wrap);
+      row.className='action' + (s.depth? ' depth1':'');
+      if(s.act==='repeat'){ // loop header: editable count
+        const lbl=document.createElement('span'); lbl.className='lbl rep';
+        lbl.innerHTML='<span class="num">'+n+'.</span>↻ Repeat';
+        rec.cnt=document.createElement('input'); rec.cnt.type='number'; rec.cnt.min='1'; rec.cnt.value=s.count;
+        const w=document.createElement('span'); w.className='rep'; w.append(rec.cnt); w.append(' times');
+        row.append(lbl, w, plusBtn(s.line,row), delBtn(rec,row));
+      } else {
+        let labelText = LABELS[s.act] || s.label;
+        const label=document.createElement('span'); label.className='lbl';
+        label.innerHTML='<span class="num">'+n+'.</span><span>'+esc(labelText)+'</span>';
+        row.appendChild(label);
+        if(LABELS[s.act] && s.act!=='click' && s.act!=='move'){ // one-text-arg action → editable literal
+          rec.txt=txtIn(s.text); row.appendChild(rec.txt.el);
+        } else if(s.point){
+          rec.xi=coord(s.x); rec.yi=coord(s.y);
+          const xy=document.createElement('span'); xy.className='xy'; xy.append('x', rec.xi, 'y', rec.yi); row.appendChild(xy);
+          if(s.canDrag){
+            rec.txi=coord(s.x+80); rec.tyi=coord(s.y);
+            const to=document.createElement('span'); to.className='to'; to.style.display='none'; to.append('→ to', rec.txi, rec.tyi);
+            const btn=document.createElement('button'); btn.type='button'; btn.className='mini'; btn.textContent='drag'; btn.title='make this a click-and-drag';
+            btn.onclick=()=>{ rec.dragOn=!rec.dragOn; to.style.display=rec.dragOn?'inline-flex':'none'; btn.classList.toggle('on', rec.dragOn); };
+            const wrap=document.createElement('span'); wrap.className='dragbox'; wrap.append(btn, to); row.appendChild(wrap);
+          }
         }
+        row.append(plusBtn(s.line,row), delBtn(rec,row));
       }
-      row.append(plusBtn(s.line,row), delBtn(rec,row));
     } else {
-      row.className='wait';
+      row.className='wait' + (s.depth? ' depth1':'');
       rec.ms=document.createElement('input'); rec.ms.type='number'; rec.ms.min='0'; rec.ms.step='50'; rec.ms.value=s.ms;
-      row.append('⏱ wait', rec.ms, 'ms', plusBtn(s.line,row), delBtn(rec,row));
+      row.append('⏱ wait', rec.ms, 'ms', plusBtn(s.line,row), delBtn(rec,row, finalWait?FINAL_WAIT_WARN:''));
+      if(finalWait){ const k=document.createElement('span'); k.className='keep'; k.textContent='settle · keep'; k.title='auto-added so the last action registers'; row.appendChild(k); }
     }
     steps.push(rec); box.appendChild(row);
   }
 }
 async function save(){
-  const waits={}, points={}, deletes=[], drags={}, texts={};
+  const waits={}, repeats={}, points={}, deletes=[], drags={}, texts={};
   for(const s of steps){
     if(s.del){ deletes.push(s.line); continue; }
+    if(s.act==='repeat'){ repeats[s.line]=Math.max(1, parseInt(s.cnt.value||'1',10)); continue; }
     if(s.kind==='wait'){ waits[s.line]=Math.max(0, parseInt(s.ms.value||'0',10)); continue; }
     if(s.txt){ texts[s.line]=s.txt.val(); continue; }
     if(s.point){
@@ -583,13 +1026,100 @@ async function save(){
       else { points[s.point]=[x, y]; }
     }
   }
-  const addList = adds.map(a=>a.get());
   const res = await (await fetch('/api/save',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({waits, points, deletes, drags, texts, adds:addList})})).json();
-  document.getElementById('saved').textContent = res.ok ? 'saved' : 'save failed';
-  setTimeout(()=>document.getElementById('saved').textContent='', 2500);
-  load();
+    body:JSON.stringify({waits, repeats, points, deletes, drags, texts, adds:adds.map(a=>a.get())})})).json();
+  flash(res.ok ? 'saved' : 'save failed'); loadEdit();
 }
-function esc(s){ return s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
-load();
+function flash(msg){ const s=document.getElementById('saved'); s.textContent=msg; setTimeout(()=>s.textContent='', 2500); }
+// ---- routes view (grouped by app) ----
+async function loadRoutes(){
+  const rows = await (await fetch('/api/routes')).json();
+  const box=document.getElementById('routes'); box.innerHTML='';
+  // group: app name → its routes; "" (global) sorts last under "Global".
+  const groups={};
+  (rows||[]).forEach(r=>{ const k=r.App||''; (groups[k]=groups[k]||[]).push(r); });
+  const apps=Object.keys(groups).sort((a,b)=> a===''?1 : b===''?-1 : a.localeCompare(b));
+  if(!apps.length){ box.innerHTML='<p class="hint">No routes yet — teach one from the overlay: <kbd>` + "`" + `</kbd> then type <b>teach &lt;name&gt;</b>.</p>'; return; }
+  for(const app of apps){
+    const h=document.createElement('div'); h.className='grouphead'; h.textContent = app || 'Global';
+    box.appendChild(h);
+    groups[app].forEach(r=> box.appendChild(routeRow(r)));
+  }
+}
+function routeRow(r){
+  const d=document.createElement('div'); d.className='rowcard';
+  const nm=document.createElement('span'); nm.className='nm'; nm.textContent=r.Name;
+  d.appendChild(nm);
+  if(r.Current){ const c=document.createElement('span'); c.className='tag cur'; c.textContent='open'; d.appendChild(c); }
+  const sp=document.createElement('span'); sp.className='spacer'; d.appendChild(sp);
+  // scope switcher
+  const sc=document.createElement('select'); sc.className='mini'; sc.title='scope';
+  for(const s of ['context','focus','global']){ const o=document.createElement('option'); o.value=s; o.textContent=s; if(s===r.Scope) o.selected=true; sc.appendChild(o); }
+  sc.onchange=()=>changeScope(r, sc.value, sc);
+  const e=document.createElement('button'); e.className='mini'; e.textContent='edit'; e.onclick=()=>openRoute(r.Name);
+  const run=document.createElement('button'); run.className='mini'; run.textContent='▶ run'; run.title='runs for real (types/clicks)'; run.onclick=()=>doRoute(r.Name);
+  d.append(sc, e, run);
+  return d;
+}
+async function changeScope(r, scope, sel){
+  if(scope===r.Scope){ return; }
+  let app = r.App;
+  if((scope==='context'||scope==='focus') && !app){
+    app = prompt('Which app should this route be scoped to? (its exe/window name, e.g. rocketleague)');
+    if(!app){ sel.value=r.Scope; return; }
+  }
+  const resp = await fetch('/api/scope',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({name:r.Name, curApp:r.App, curScope:r.Scope, scope, app})});
+  if(!resp.ok){ sel.value=r.Scope; flash((await resp.text()).trim()||'scope change failed'); return; }
+  flash(r.Name+' → '+scope); loadRoutes();
+}
+async function openRoute(name){
+  const resp = await fetch('/api/load',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+  if(!resp.ok){ flash('could not open '+name); return; }
+  nav('edit'); // switch to the editor (loadEdit runs from nav)
+}
+async function doRoute(name){
+  const res = await (await fetch('/api/do',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})})).json();
+  flash(res.ok ? ('running: '+name) : 'run failed');
+}
+// ---- bindings view ----
+async function loadBindings(){
+  const r = await (await fetch('/api/bindings')).json();
+  const box=document.getElementById('bindings'); box.innerHTML='';
+  const rows = r.bindings||[];
+  if(!rows.length){ box.innerHTML='<p class="hint">No bindings yet.</p>'; return; }
+  // group by app so overloaded keys read clearly (` + "`" + `e in one game vs another)
+  const groups={}; rows.forEach(b=>{ const k=b.App||''; (groups[k]=groups[k]||[]).push(b); });
+  const apps=Object.keys(groups).sort((a,b)=> a===''?1 : b===''?-1 : a.localeCompare(b));
+  for(const app of apps){
+    const h=document.createElement('div'); h.className='grouphead'; h.textContent=app||'Global'; box.appendChild(h);
+    groups[app].forEach(b=>{
+      const d=document.createElement('div'); d.className='rowcard';
+      const k=document.createElement('span'); k.className='key'; k.textContent=b.Key;
+      const nm=document.createElement('span'); nm.className='nm'; nm.textContent=b.Cmd;
+      const sp=document.createElement('span'); sp.className='spacer';
+      const x=document.createElement('button'); x.className='del'; x.style.marginLeft='0'; x.textContent='✕'; x.onclick=()=>unbind(b.App,b.Key);
+      d.append(k, nm, sp, x); box.appendChild(d);
+    });
+  }
+}
+async function bindAdd(){
+  const key=document.getElementById('bkey').value.trim(), cmd=document.getElementById('bcmd').value.trim();
+  if(!key||!cmd){ flash('key + route'); return; }
+  const resp=await fetch('/api/bind',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({app:'', key, cmd})}); // app:'' → server scopes to the route's app
+  if(!resp.ok){ flash('bind failed'); return; }
+  const res=await resp.json();
+  document.getElementById('bkey').value=''; document.getElementById('bcmd').value='';
+  loadBindings(); flash('bound '+key+(res.app?(' · '+res.app):' · global'));
+}
+async function unbind(app,key){
+  const res=await (await fetch('/api/unbind',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({app,key})})).json();
+  if(res.ok) loadBindings();
+}
+// ---- startup: land on the open route's editor, or the all-routes browser (marco ui) ----
+async function init(){
+  const r = await (await fetch('/api/route')).json();
+  nav(r.loaded ? 'edit' : 'routes');
+}
+init();
 </script></body></html>`

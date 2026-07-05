@@ -169,7 +169,7 @@ func dispatch(h *model, req request) response {
 			return okData(nil)
 		}
 		// "teach <name>" records a new route IN-PLACE (no console window): the SAME
-		// interactive teach as the CLI. Demonstrate, press F12 to finish; the engine
+		// interactive teach as the CLI. Demonstrate, press the leader to finish; the engine
 		// streams its save / scope / simplify prompts into the HUD and the controller
 		// answers them with a single y/n/s keypress (see runTeachInteractive).
 		if len(fields) >= 1 && fields[0] == "teach" {
@@ -181,11 +181,11 @@ func dispatch(h *model, req request) response {
 			startTeach(h, tname)
 			return okData(nil)
 		}
-		// "edit <name>" opens the browser route editor (timings, coordinates, add/delete
-		// steps). It runs its own local web server, so launch it detached rather than
-		// streaming it like a route — the HUD just notes it opened.
-		if len(fields) >= 2 && fields[0] == "edit" {
-			ename := strings.TrimSpace(strings.Join(fields[1:], " "))
+		// "ui" (or bare "edit") opens the control center on the all-routes browser; "edit
+		// <name>" opens it on that route's editor. It runs its own local web server, so launch
+		// it detached rather than streaming it like a route — the HUD just notes it opened.
+		if fields[0] == "ui" || fields[0] == "edit" {
+			ename := strings.TrimSpace(strings.Join(fields[1:], " ")) // "" for the browser
 			startEdit(h, ename)
 			return okData(nil)
 		}
@@ -311,25 +311,29 @@ var (
 // browser itself, so the HUD just notes it rather than streaming it like a route. Any prior
 // editor server is killed first so ports don't pile up.
 func startEdit(h *model, name string) {
-	if name == "" {
-		h.setStatus("edit needs a name — `m edit <route>`")
-		return
+	// No name → open the control center on the all-routes browser (marco ui); a name opens it
+	// on that route's editor (marco edit <name>).
+	args := []string{"ui"}
+	note := "control center"
+	if name != "" {
+		args = []string{"edit", name}
+		note = `editing "` + name + `"`
 	}
 	editMu.Lock()
 	if editCmd != nil && editCmd.Process != nil {
 		_ = editCmd.Process.Kill()
 	}
-	cmd := exec.Command(marcoBin(), "edit", name)
+	cmd := exec.Command(marcoBin(), args...)
 	if err := cmd.Start(); err != nil {
 		editMu.Unlock()
 		mlogE("overlay: edit failed to start", "name", name, "err", err)
-		h.log("edit failed: " + name)
+		h.log("ui failed to open")
 		return
 	}
 	editCmd = cmd
 	editMu.Unlock()
-	mlogI("overlay: editing", "name", name)
-	h.log(`editing "` + name + `" — opened in your browser`)
+	mlogI("overlay: ui", "name", name)
+	h.log(note + " — opened in your browser")
 	go func() { _ = cmd.Wait() }() // reap when the user closes it
 }
 
@@ -717,11 +721,13 @@ func helpLines() []string {
 		"`m then type:",
 		"  <route>            run it",
 		"  teach <name>       record a new one (leader to save)",
+		"  ui                 open the visual editor (all routes)",
+		"  edit <route>       edit one route in the browser",
 		"  simplify <route>   re-clean its steps",
 		"  rename <old> to <new>  rename it",
 		"  forget <route>     delete it",
 		"  bind <key> <route> hotkey it for this app",
-		"  config / help / exit",
+		"  voice on|off / config / help / exit",
 		"`<key>  run the route bound to it   Esc  cancel",
 		"",
 	}

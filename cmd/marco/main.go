@@ -34,7 +34,9 @@ func main() {
 	case "simplify":
 		runAssistantSimplify(os.Args[2:])
 		return
-	case "edit":
+	case "edit", "ui":
+		// `marco edit "<route>"` opens on that route; `marco edit` / `marco ui` (no arg) opens
+		// the control center on the all-routes browser.
 		runEdit(os.Args[2:])
 		return
 	case "assistant":
@@ -243,7 +245,8 @@ Assistant (teach by demonstration, then run by name):
   marco press <key>        press a key or chord (e.g. enter, ctrl+c, control shift esc)
   marco teach "<name>"     record/overwrite a route by demonstration
   marco simplify "<name>"  re-simplify a saved route as far as it goes
-  marco edit "<name>"      open a web editor for a route's timings + click coordinates
+  marco ui                 open the control center (all routes, bindings, help) in a browser
+  marco edit "<name>"      open the control center on one route's visual editor
   marco assistant          interactive loop — say what you want, in plain words
   marco routes [--json]    list known routes (--json for a UI plugin)
   marco active             print the foreground app (context)
