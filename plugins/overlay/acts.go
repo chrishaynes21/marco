@@ -79,6 +79,9 @@ func dispatch(h *model, req request) response {
 	switch req.Action {
 	case "Show":
 		h.show(true)
+		bootHintOnce.Do(func() { // one-time nudge toward the web control center
+			h.log("tip: type  ui  for the visual editor — routes · bindings · config · help")
+		})
 		return okData(nil)
 	case "Hide":
 		h.show(false)
@@ -306,6 +309,9 @@ var (
 	editMu  sync.Mutex
 	editCmd *exec.Cmd
 )
+
+// bootHintOnce logs the "open the visual editor" tip a single time, on the first Show.
+var bootHintOnce sync.Once
 
 // startEdit launches `marco edit <name>` detached — it serves the editor page and opens the
 // browser itself, so the HUD just notes it rather than streaming it like a route. Any prior
@@ -721,7 +727,7 @@ func helpLines() []string {
 		"`m then type:",
 		"  <route>            run it",
 		"  teach <name>       record a new one (leader to save)",
-		"  ui                 open the visual editor (all routes)",
+		"  ui                 visual editor: routes · bindings · config · help",
 		"  edit <route>       edit one route in the browser",
 		"  simplify <route>   re-clean its steps",
 		"  rename <old> to <new>  rename it",
