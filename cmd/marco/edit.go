@@ -76,8 +76,9 @@ func runEdit(args []string) {
 	mux.HandleFunc("/api/bindings", ed.handleBindings)
 	mux.HandleFunc("/api/bind", ed.handleBind)
 	mux.HandleFunc("/api/unbind", ed.handleUnbind)
-	mux.HandleFunc("/api/scope", ed.handleScope)   // move a route between context/focus/global
-	mux.HandleFunc("/api/delete", ed.handleDelete) // delete a route
+	mux.HandleFunc("/api/scope", ed.handleScope)     // move a route between context/focus/global
+	mux.HandleFunc("/api/delete", ed.handleDelete)   // delete a route
+	mux.HandleFunc("/api/oconfig", ed.handleOConfig) // read/write the overlay settings
 
 	where := "all routes"
 	if name != "" {
@@ -859,6 +860,10 @@ const editPage = `<!doctype html><html><head><meta charset="utf-8"><title>MARCO<
  .spacer{margin-left:auto}
  .key{display:inline-block;min-width:20px;text-align:center;padding:2px 7px;border:1px solid var(--line);border-radius:4px;color:var(--accent);background:#0d0e10}
  input.field{padding:7px 9px;background:#0d0e10;border:1px solid var(--line);color:var(--text);border-radius:6px;font:inherit}
+ .crow{display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--line)}
+ .crow label{color:var(--dim);min-width:160px;font-size:13px}
+ .crow input{width:150px;padding:6px 8px;background:#0d0e10;border:1px solid var(--line);color:var(--accent);border-radius:6px;font:inherit}
+ .crow select{background:#12312e;color:var(--accent);border:1px solid var(--line);border-radius:5px;padding:6px 8px;font:13px var(--mono)}
  kbd{padding:1px 6px;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;color:var(--accent);background:#0d0e10;font:12px var(--mono)}
  .help h3{color:var(--text);font-size:13px;letter-spacing:1px;text-transform:uppercase;margin:18px 0 6px}
  .help p,.help li{color:var(--dim);font-size:13px}
@@ -885,6 +890,7 @@ const editPage = `<!doctype html><html><head><meta charset="utf-8"><title>MARCO<
   <a data-view="edit" class="active" onclick="nav('edit')">◆ Edit</a>
   <a data-view="routes" onclick="nav('routes')">▤ Routes</a>
   <a data-view="bindings" onclick="nav('bindings')">⌨ Bindings</a>
+  <a data-view="config" onclick="nav('config')">⚙ Config</a>
   <a data-view="help" onclick="nav('help')">? Help</a>
 </nav>
 <div id="scrim" onclick="closeNav()"></div>
@@ -911,6 +917,16 @@ const editPage = `<!doctype html><html><head><meta charset="utf-8"><title>MARCO<
     <input class="field" id="bcmd" placeholder="route (e.g. enter freeplay)" style="flex:1;min-width:160px">
     <button class="go" onclick="bindAdd()">Bind</button></div>
   <div id="bindings" style="margin-top:14px"></div>
+ </section>
+ <section id="view-config" hidden>
+  <h2>Overlay settings</h2>
+  <p class="hint">The overlay's config, mirrored here — the <b>leader</b> key, the voice
+    <b>activation phrase</b>, theme, HUD placement, and more. Saved to the same overlay.json the
+    overlay reads; changes apply <b>next time the overlay launches</b> (for live tweaks, use the
+    overlay's own panel: leader → <b>config</b>).</p>
+  <div id="oconfig"></div>
+  <div class="bar"><button class="go" onclick="saveConfigView()">Save</button>
+    <span class="hint" id="ocpath" style="margin:0"></span></div>
  </section>
  <section id="view-help" hidden class="help"><h2>Help</h2>
   <p class="hint">Marco turns things you demonstrate once into small, editable programs that drive
@@ -947,9 +963,16 @@ const editPage = `<!doctype html><html><head><meta charset="utf-8"><title>MARCO<
     <kbd>` + "`" + `</kbd><kbd>e</kbd> = "enter freeplay" in Rocket League, something else elsewhere. Global routes bind
     everywhere. From the overlay: <b>bind &lt;key&gt; &lt;route&gt;</b> / <b>unbind &lt;key&gt;</b>.</p>
 
-  <h3>Voice</h3>
-  <p>Speak a route's name to run it. Toggle the mic with <b>voice on</b> / <b>voice off</b>, or <b>mute</b> /
-    <b>unmute</b>, or <b>stop listening</b> / <b>listen</b> (also a switch in Config). Typed commands still work while muted.</p>
+  <h3>Voice + the activation phrase</h3>
+  <p>Voice is two-phase: say the <b>activation phrase</b> (the wake word, default <b>"marco"</b>) to arm
+    the mic, then speak the command — or say both in one breath. Change the phrase in the <b>Config</b>
+    tab (it applies when the overlay next launches). Toggle the mic with <b>voice on</b> / <b>voice off</b>,
+    <b>mute</b> / <b>unmute</b>, or <b>stop listening</b> / <b>listen</b>. Typed commands still work while muted.</p>
+
+  <h3>Config tab — the overlay's settings</h3>
+  <p>Edit the <b>leader</b> key, the voice <b>activation phrase</b>, theme, HUD corner / width / opacity,
+    and more. It writes the same overlay.json the overlay reads, so changes apply next launch. (The
+    overlay's own in-HUD panel — leader → <b>config</b> — applies the non-text settings live.)</p>
 
   <h3>Edit a route — this tab</h3>
   <p>Every step is editable in place; <b>+</b> inserts a step after it, <b>✕</b> deletes, <b>Save</b> writes it back.</p>
@@ -1001,7 +1024,52 @@ function nav(v){
   for(const s of document.querySelectorAll('main section')) s.hidden = (s.id!=='view-'+v);
   for(const a of document.querySelectorAll('nav a')) a.classList.toggle('active', a.dataset.view===v);
   closeNav();
-  if(v==='edit') loadEdit(); else if(v==='routes') loadRoutes(); else if(v==='bindings') loadBindings();
+  if(v==='edit') loadEdit(); else if(v==='routes') loadRoutes(); else if(v==='bindings') loadBindings(); else if(v==='config') loadConfigView();
+}
+const BT=String.fromCharCode(96); // backtick, kept out of the Go raw string
+// ---- config view (overlay settings) ----
+const OCFG=[
+ {k:'leader', label:'Leader key', type:'select', opts:[BT,'capslock','tab','f8']},
+ {k:'wake', label:'Activation phrase', type:'text', ph:'marco'},
+ {k:'voice', label:'Voice listening', type:'bool'},
+ {k:'theme', label:'Theme', type:'select', opts:['default','dracula','solarized-dark','monokai','nord','tokyo-night','catppuccin-mocha','gruvbox-dark','rose-pine','light']},
+ {k:'idle', label:'Opacity', type:'number', step:'0.05', min:'0.2', max:'1'},
+ {k:'corner', label:'HUD corner', type:'select', opts:['top-right','top-left','bottom-right','bottom-left','top-center']},
+ {k:'width', label:'HUD width', type:'number', step:'20'},
+ {k:'maxLines', label:'Max log lines', type:'number'},
+ {k:'monitor', label:'Monitor', type:'number'},
+ {k:'border', label:'Accent border', type:'bool'},
+ {k:'mini', label:'Mini mode', type:'bool'},
+ {k:'metrics', label:'CPU / RAM widget', type:'bool'},
+ {k:'coords', label:'Cursor coords', type:'bool'},
+];
+async function loadConfigView(){
+  const r = await (await fetch('/api/oconfig')).json();
+  const cfg = r.config||{};
+  document.getElementById('ocpath').textContent = r.path||'';
+  const box=document.getElementById('oconfig'); box.innerHTML='';
+  for(const f of OCFG){
+    const row=document.createElement('div'); row.className='crow';
+    const lab=document.createElement('label'); lab.textContent=f.label; row.appendChild(lab);
+    let inp;
+    if(f.type==='select'){ inp=document.createElement('select');
+      for(const o of f.opts){ const op=document.createElement('option'); op.value=o; op.textContent=(o===BT?BT+' (backtick)':o); if(o===cfg[f.k]) op.selected=true; inp.appendChild(op); } }
+    else if(f.type==='bool'){ inp=document.createElement('select');
+      for(const [v,l] of [['true','on'],['false','off']]){ const op=document.createElement('option'); op.value=v; op.textContent=l; if(String(!!cfg[f.k])===v) op.selected=true; inp.appendChild(op); } }
+    else { inp=document.createElement('input'); inp.type=f.type; if(f.step)inp.step=f.step; if(f.min)inp.min=f.min; if(f.max)inp.max=f.max; if(f.ph)inp.placeholder=f.ph; inp.value = cfg[f.k]!==undefined?cfg[f.k]:''; }
+    inp.dataset.k=f.k; inp.dataset.t=f.type; row.appendChild(inp); box.appendChild(row);
+  }
+}
+async function saveConfigView(){
+  const out={};
+  for(const inp of document.querySelectorAll('#oconfig [data-k]')){
+    const k=inp.dataset.k, t=inp.dataset.t;
+    if(t==='bool') out[k] = inp.value==='true';
+    else if(t==='number') out[k] = (k==='idle') ? parseFloat(inp.value||'0') : parseInt(inp.value||'0',10);
+    else out[k]=inp.value;
+  }
+  const resp=await fetch('/api/oconfig',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(out)});
+  banner(resp.ok ? '✓ Settings saved — relaunch the overlay to apply' : '✗ Save failed', !resp.ok);
 }
 // ---- edit view ----
 const FINAL_WAIT_WARN='This is the final settle wait. Deleting it can make the last step (e.g. a click) fire and the route end before the app processes it, so it may not register. Delete anyway?';

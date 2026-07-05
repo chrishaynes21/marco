@@ -39,6 +39,11 @@ func main() {
 		// the control center on the all-routes browser.
 		runEdit(os.Args[2:])
 		return
+	case "wake":
+		// Print the voice activation phrase from overlay.json (the launcher reads it into
+		// $MARCO_VOICE_WAKE so the Config tab's edit takes effect on relaunch).
+		runWake()
+		return
 	case "assistant":
 		runAssistant(os.Args[2:])
 		return

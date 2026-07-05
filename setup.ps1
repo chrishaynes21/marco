@@ -381,7 +381,9 @@ $voicePrefix = ""
 # built by -Voice or from a prior run), unless -NoVoice opts out. Mute it live with `m voice off.
 $voiceExe = Join-Path $root "plugins\voice\voice.exe"
 if ((Test-Path $voiceExe) -and -not $NoVoice) {
-    $voicePrefix = "plugins\voice\voice.exe --model plugins\voice\model --wake `"$Wake`" | "
+    # No static --wake: the activation phrase comes from overlay.json (edit it in the UI's Config
+    # tab), read into MARCO_VOICE_WAKE just below. voice.exe honours that env var.
+    $voicePrefix = "plugins\voice\voice.exe --model plugins\voice\model | "
 }
 $lines = [System.Collections.ArrayList]@(
     '@echo off',
@@ -390,6 +392,10 @@ $lines = [System.Collections.ArrayList]@(
     'cd /d "%~dp0"',
     'set "MARCO_BIN=%CD%\marco.exe"'
 )
+if ($voicePrefix -ne "") {
+    # Pull the voice activation phrase from overlay.json so the Config tab can change it.
+    [void]$lines.Add('for /f "usebackq delims=" %%w in (`marco.exe wake`) do set "MARCO_VOICE_WAKE=%%w"')
+}
 # The CV master switch (A/B the whole anchor stack). -CV = kitchen sink, -NoCV = off.
 if ($CV) {
     [void]$lines.Add('set "MARCO_CV=max"')
