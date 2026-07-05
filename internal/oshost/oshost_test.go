@@ -348,6 +348,32 @@ func TestFindHoversBeforeMatching(t *testing.T) {
 	}
 }
 
+// TestFindCVOffClicksRecorded: with $MARCO_CV=off, Find skips matching entirely and resolves
+// straight to the recorded coordinate — no hover, no polling — even though the fake screen
+// would "match" somewhere else. This is the alpha "just replay coordinates + timings" mode.
+func TestFindCVOffClicksRecorded(t *testing.T) {
+	t.Setenv("MARCO_CV", "off")
+	rec := &recBackend{}
+	h := &Host{b: rec, scr: fakeScreen{found: true, fx: 800, fy: 600, fscore: 0.99}} // would match at (800,600)
+	st, data, _ := call(h, "Find", anchorVal(map[string]runtime.Value{
+		"Image":   runtime.Text("b.png"),
+		"X":       runtime.Number(250),
+		"Y":       runtime.Number(175),
+		"Timeout": runtime.Number(1500),
+	}))
+	if st != "ok" {
+		t.Fatalf("CV-off Find status = %q, want ok", st)
+	}
+	if got := pointXY(data.AsSet()); got != [2]int{250, 175} {
+		t.Fatalf("CV-off Find resolved to %v, want the recorded point (250,175)", got)
+	}
+	rec.mu.Lock()
+	defer rec.mu.Unlock()
+	if len(rec.moves) != 0 {
+		t.Fatalf("CV-off Find should not hover/move the cursor, got moves=%v", rec.moves)
+	}
+}
+
 // TestFindMovedTarget: a STRONG image match far from the recorded point, with colour
 // CORROBORATING the target there (and the old spot's colour now wrong), means the target
 // moved — the scorer follows it and clicks the new location.

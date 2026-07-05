@@ -454,6 +454,19 @@ sink captures MORE signals, never clicks less safely). The one flag to A/B the w
 stack; re-run `setup.ps1` + relaunch `overlay.cmd` to flip. Tests: `recorder`
 `cv_windows_test.go`.
 
+**`MARCO_CV=off` is a first-class ALPHA mode: pure coordinates + recorded timings, no CV.** On
+real game UIs the anchor wait-gate was the failure mode — it hovers, polls for a match that
+never confidently resolves, and on timeout clicks the recorded coordinate anyway, by which time
+the menu has moved → "random" clicks. So `off` now fully scraps CV at BOTH ends: teach captures
+plain coordinates (recorder), AND (1) `orchestrator.teachOptions` drops the 50ms wait cap
+(`MaxWaitMs`→~∞) so the ROUTE carries the REAL recorded pauses as `Sleep` steps (the pacing the
+CV poll used to provide), and (2) `oshost.doFind` short-circuits to the recorded coordinate
+immediately (no hover, no poll) — so existing anchored routes stop waiting too, no re-teach
+needed to un-hang them (though re-teaching gives the proper timings vs the old capped 50ms).
+Gate: `cvOff()` (`$MARCO_CV=off` or `$MARCO_ANCHORS=0/off`), defined in both packages. Teach at
+the game's real pace — the pauses you make become the replay waits. Tests: `oshost`
+`TestFindCVOffClicksRecorded`.
+
 **`MARCO_CV_SENSITIVITY`** (0 = strict … 1 = loose, default 0.5) — the **CV find dial**,
 the fine control beside the coarse `MARCO_CV` switch. One knob that scales how eagerly an
 anchor is found, trusted, and followed. **0.5 reproduces every legacy value exactly** (each

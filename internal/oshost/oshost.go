@@ -303,6 +303,13 @@ func (h *Host) doFind(c runtime.HostCall) (string, runtime.Value, error) {
 	px, py := h.anchorPoint(set)       // recorded click, window-relative when this run activated
 	_, hasX := set.Get("X")
 	_, hasY := set.Get("Y")
+	// Alpha "no CV" mode ($MARCO_CV=off / $MARCO_ANCHORS=off): skip the anchor entirely and
+	// resolve to the recorded coordinate NOW — no hover, no matching, no polling. The route's
+	// recorded Sleep timings drive pacing, so nothing "clicks randomly" waiting for a match.
+	if cvOff() && (hasX || hasY) {
+		mlog.Debug("find: CV off — clicking the recorded coordinate", "at", fmt.Sprintf("(%d,%d)", px, py))
+		return okPoint(px, py)
+	}
 	// Restrict the image search to a box around the recorded point when no explicit region
 	// is given AND there IS a recorded point. The target is AT/near the click, so scanning
 	// the whole (multi-monitor) desktop — and re-capturing it every poll — is what makes a
@@ -753,6 +760,20 @@ func (h *Host) glide(ctx context.Context, x, y int) error {
 		}
 	}
 	return h.b.move(ctx, x, y) // land exactly on the target
+}
+
+// cvOff reports whether computer vision / anchors are switched off ($MARCO_CV=off, or
+// $MARCO_ANCHORS=0/off) — the "just click recorded coordinates + timings" alpha mode, where
+// doFind skips matching and resolves straight to the recorded point.
+func cvOff() bool {
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("MARCO_CV")), "off") {
+		return true
+	}
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("MARCO_ANCHORS"))) {
+	case "0", "off", "false", "no":
+		return true
+	}
+	return false
 }
 
 // cvSensitivity is the master CV looseness dial (0 = strict, 1 = loose), default 0.5.

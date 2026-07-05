@@ -15,6 +15,7 @@ import (
 	"image/draw"
 	"image/png"
 	"io"
+	"os"
 	"strings"
 
 	"github.com/chaynes-simpleclouds/marco/internal/codegen"
@@ -58,7 +59,26 @@ func (d Deps) teachOptions() simplify.Options {
 	if k := strings.TrimSpace(d.ArgKey); k != "" {
 		o.ArgKey = strings.ToLower(k)
 	}
+	// With CV/anchors OFF there is no wait-gate to absorb menu-transition time, so the ROUTE
+	// must carry the real pauses: preserve the recorded timings faithfully instead of capping
+	// every wait to 50ms (the cap only made sense when the CV poll did the real waiting).
+	if cvOff() {
+		o.MaxWaitMs = 24 * 60 * 60 * 1000 // effectively no cap — keep the exact recorded gaps
+	}
 	return o
+}
+
+// cvOff reports whether computer vision / anchors are switched off ($MARCO_CV=off, or
+// $MARCO_ANCHORS=0/off) — the "just replay recorded coordinates + timings" alpha mode.
+func cvOff() bool {
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("MARCO_CV")), "off") {
+		return true
+	}
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("MARCO_ANCHORS"))) {
+	case "0", "off", "false", "no":
+		return true
+	}
+	return false
 }
 
 // argKeyHint is the recording prompt's note about the arg key (or "" when off),
