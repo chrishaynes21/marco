@@ -96,13 +96,21 @@ func dispatch(h *model, req request) response {
 		h.setInput(asText(req.Input))
 		return okData(nil)
 	case "Heard":
-		h.setHeard(asText(req.Input))
+		if voiceEnabled.Load() {
+			h.setHeard(asText(req.Input))
+		} else {
+			h.setHeard("") // muted: don't show live mic text
+		}
 		return okData(nil)
 	case "ListRoutes":
 		names := listRoutes()
 		h.setRoutes(names)
 		return okData(names)
-	case "Run":
+	case "Run", "RunVoice":
+		// A finished spoken phrase arrives as RunVoice; drop it while voice is toggled off.
+		if req.Action == "RunVoice" && !voiceEnabled.Load() {
+			return okData(nil)
+		}
 		name := asText(req.Input)
 		if name == "" {
 			return fail("empty command")
@@ -113,6 +121,22 @@ func dispatch(h *model, req request) response {
 		if voiceActive.Load() {
 			mlogD("overlay: forwarding to voice-teach", "phrase", name)
 			writeVoicePhrase(name)
+			return okData(nil)
+		}
+		// Voice-listening toggle (the overlay's mic config): "voice on|off|toggle", or the
+		// natural aliases "mute"/"unmute" and "stop listening"/"listen". setVoice mirrors it to
+		// the settings panel and persists it. Typed commands are never gated, so you can always
+		// type `m voice on (or `m listen) to un-mute even after muting by voice.
+		if on, matched := voiceToggleCmd(fields); matched {
+			setVoice(on)
+			if on {
+				h.setStatus("voice on")
+				h.log("voice on — say a command")
+			} else {
+				h.setStatus("voice off")
+				h.log("voice off — type `m voice on to un-mute")
+				h.setHeard("")
+			}
 			return okData(nil)
 		}
 		// "narrate teach <name>" (alias "voice teach") starts narration-driven
@@ -346,6 +370,29 @@ var (
 	voiceActive atomic.Bool
 )
 
+// voiceEnabled gates whether finished spoken phrases run — the live mirror of cfg.Voice
+// (settings panel + `voice on|off` command). On by default; MARCO_VOICE=off / a saved config
+// starts muted. Typed commands are never gated, so you can always type `voice on` to un-mute
+// even after muting by voice.
+var voiceEnabled atomic.Bool
+
+func init() { voiceEnabled.Store(cfgVoice()) }
+
+// voiceToggleCmd recognises the mic-listening commands and returns the desired state. Beyond
+// "voice on|off|toggle" it takes natural phrasings — "mute"/"unmute", "stop listening",
+// "listen" — so speaking or typing "stop listening" mutes.
+func voiceToggleCmd(fields []string) (on bool, matched bool) {
+	switch strings.ToLower(strings.Join(fields, " ")) {
+	case "voice", "voice toggle":
+		return !voiceEnabled.Load(), true
+	case "voice on", "unmute", "listen", "listen on", "start listening":
+		return true, true
+	case "voice off", "mute", "stop listening", "stop voice", "listen off", "quit listening":
+		return false, true
+	}
+	return false, false
+}
+
 // writeVoicePhrase forwards one narration phrase to the voice-teach child's stdin.
 func writeVoicePhrase(phrase string) {
 	voiceMu.Lock()
@@ -431,17 +478,10 @@ func streamChild(h *model, trackCancel bool, args ...string) (error, bool, strin
 	// into teach-on-unknown. SIMPLIFY_SAVES: teach's [s] simplifies AND saves (the
 	// HUD can't show the preview to re-confirm). All harmless to non-teach commands.
 	cmd.Env = append(os.Environ(), "MARCO_NO_PANIC_STOP=1", "MARCO_NO_TEACH=1", "MARCO_SIMPLIFY_SAVES=1")
-	// CV find dial (config slider) → the engine's anchor scoring. Passed to every command
-	// (run-time scoring; teach ignores it) so dragging the slider takes effect on the next
-	// command with no overlay restart. Only when the user has moved it off the neutral 0.5.
-	if s := cfgSensitivity(); s != 0.5 {
-		cmd.Env = append(cmd.Env, "MARCO_CV_SENSITIVITY="+strconv.FormatFloat(s, 'f', 3, 64))
-	}
 	if len(args) > 0 && args[0] == "teach" {
-		// Two-key recording: the leader stops the demo (so F12 is free) and F12 is the
-		// hold-to-anchor key. The overlay passes the leader through while recording so
+		// The leader key stops the demo. The overlay passes it through while recording so
 		// it reaches the recorder's stop detection (see handleKey's recording gate).
-		cmd.Env = append(cmd.Env, "MARCO_STOP_KEY="+cfgLeader(), "MARCO_ANCHOR_KEY=f12")
+		cmd.Env = append(cmd.Env, "MARCO_STOP_KEY="+cfgLeader())
 	}
 	inW, err := cmd.StdinPipe()
 	if err != nil {

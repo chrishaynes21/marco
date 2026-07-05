@@ -13,7 +13,10 @@
     -Voice     offline voice (Vosk). Sets up the external deps: downloads
                libvosk + a model and builds voice.exe with cgo. Needs a C
                compiler (gcc) on PATH; if missing it builds the demo-only voice
-               and tells you how to get gcc.
+               and tells you how to get gcc. Once built, voice is ON BY DEFAULT
+               in overlay.cmd on every re-run (toggle it live with `m voice
+               on|off, or bake it off with -NoVoice).
+    -NoVoice   leave voice out of overlay.cmd even if voice.exe is built.
     -WebUI     the web control panel (plugins/web-ui)
     -Resolver  the Claude NL resolver plugin (plugins/claude-resolver)
     -OCR       the text/OCR anchor resolver (plugins/ocr). Builds ocr.exe AND
@@ -47,6 +50,7 @@
 [CmdletBinding()]
 param(
     [switch]$Voice,
+    [switch]$NoVoice,
     [switch]$WebUI,
     [switch]$Resolver,
     [switch]$OCR,
@@ -373,7 +377,10 @@ if ($Voice) {
 Step "Launcher"
 $env:CGO_ENABLED = ""
 $voicePrefix = ""
-if ($voiceReady) {
+# Voice is ON BY DEFAULT once built: emit the prefix whenever voice.exe exists (whether just
+# built by -Voice or from a prior run), unless -NoVoice opts out. Mute it live with `m voice off.
+$voiceExe = Join-Path $root "plugins\voice\voice.exe"
+if ((Test-Path $voiceExe) -and -not $NoVoice) {
     $voicePrefix = "plugins\voice\voice.exe --model plugins\voice\model --wake `"$Wake`" | "
 }
 $lines = [System.Collections.ArrayList]@(

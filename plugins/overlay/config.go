@@ -38,12 +38,7 @@ type Config struct {
 	Mini     bool    `json:"mini"`     // mini mode — just the command line
 	Metrics  bool    `json:"metrics"`  // show the CPU/RAM widget in the crown (full mode only)
 	Coords   bool    `json:"coords"`   // show a persistent live cursor-coordinates tooltip
-
-	// Sensitivity is the CV find dial (0 = strict, 1 = loose), passed to the engine as
-	// $MARCO_CV_SENSITIVITY on each run. Higher = try harder to find/follow a box.
-	// 0.5 reproduces the engine's legacy fixed thresholds. Default in defaultConfig; an
-	// old config file without the key keeps 0.5 (json leaves the default untouched).
-	Sensitivity float64 `json:"sensitivity"`
+	Voice    bool    `json:"voice"`    // act on spoken commands (the mic gate; the pipe still runs)
 }
 
 var corners = []string{"top-right", "top-left", "bottom-right", "bottom-left", "top-center"}
@@ -63,7 +58,7 @@ var (
 var applyLeaderHook = func() {}
 
 func defaultConfig() Config {
-	return Config{Theme: "default", Idle: 0.72, Monitor: 0, Corner: "top-right", Width: 340, Height: 270, Leader: "`", Font: "", MaxLines: 5, Sensitivity: 0.5}
+	return Config{Theme: "default", Idle: 0.72, Monitor: 0, Corner: "top-right", Width: 340, Height: 270, Leader: "`", Font: "", MaxLines: 5, Voice: true}
 }
 
 func configPath() string {
@@ -96,7 +91,9 @@ func loadConfig() Config {
 	if n, ok := envInt("MARCO_OVERLAY_MAXLINES"); ok {
 		c.MaxLines = n
 	}
-	c.Sensitivity = envFloat("MARCO_CV_SENSITIVITY", c.Sensitivity)
+	if v := os.Getenv("MARCO_VOICE"); v != "" {
+		c.Voice = !strings.EqualFold(v, "off") // MARCO_VOICE=off starts muted
+	}
 
 	// file overlay (authoritative once the editor has saved)
 	if b, err := os.ReadFile(configPath()); err == nil {
@@ -132,10 +129,20 @@ func cfgMaxLines() int {
 	}
 	return cfg.MaxLines
 }
-func cfgSensitivity() float64 { cfgMu.Lock(); defer cfgMu.Unlock(); return cfg.Sensitivity }
-func cfgMini() bool           { cfgMu.Lock(); defer cfgMu.Unlock(); return cfg.Mini }
-func cfgMetrics() bool        { cfgMu.Lock(); defer cfgMu.Unlock(); return cfg.Metrics }
-func cfgCoords() bool         { cfgMu.Lock(); defer cfgMu.Unlock(); return cfg.Coords }
+func cfgMini() bool    { cfgMu.Lock(); defer cfgMu.Unlock(); return cfg.Mini }
+func cfgMetrics() bool { cfgMu.Lock(); defer cfgMu.Unlock(); return cfg.Metrics }
+func cfgCoords() bool  { cfgMu.Lock(); defer cfgMu.Unlock(); return cfg.Coords }
+func cfgVoice() bool   { cfgMu.Lock(); defer cfgMu.Unlock(); return cfg.Voice }
+
+// setVoice flips voice listening, mirrors it to the live gate (voiceEnabled), and persists it —
+// the shared path for the `voice on|off` command and the settings panel.
+func setVoice(on bool) {
+	cfgMu.Lock()
+	cfg.Voice = on
+	cfgMu.Unlock()
+	voiceEnabled.Store(on)
+	_ = saveConfig()
+}
 
 func onOff(b bool) string {
 	if b {
@@ -213,7 +220,7 @@ func configLines() []string {
 		"metrics   " + onOff(c.Metrics),
 		"coords    " + onOff(c.Coords),
 		"leader    " + c.Leader,
-		"cv find   " + fmt.Sprintf("%.2f", c.Sensitivity),
+		"voice     " + onOff(c.Voice),
 	}
 }
 
@@ -245,7 +252,7 @@ func configChange(sel, delta int) {
 	case 10:
 		cfg.Leader = cycle(leaderNames, cfg.Leader, delta)
 	case 11:
-		cfg.Sensitivity = clampF(cfg.Sensitivity+0.05*float64(delta), 0.0, 1.0)
+		cfg.Voice = !cfg.Voice
 	}
 	cfgMu.Unlock()
 
@@ -256,6 +263,8 @@ func configChange(sel, delta int) {
 		applyWindow()
 	case 10:
 		applyLeaderHook()
+	case 11:
+		voiceEnabled.Store(cfgVoice()) // mirror the panel toggle to the live gate
 	}
 }
 
