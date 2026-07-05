@@ -783,7 +783,7 @@ func historyRowCount(s snapshot, innerW float64) int {
 // the latest log word-wrapped to innerW (so a long teach prompt isn't truncated).
 func descRows(s snapshot, innerW float64) []string {
 	if !s.editing && (s.state == "idle" || s.state == "listen") {
-		return []string{"`m help  ·  `m config"}
+		return []string{"`m ui  ·  `m help  ·  `m config"}
 	}
 	if len(s.logs) > 0 {
 		return wrapText(s.logs[len(s.logs)-1], faceSmall, innerW)
