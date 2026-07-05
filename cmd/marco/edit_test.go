@@ -117,3 +117,56 @@ func TestEditRebuild(t *testing.T) {
 		t.Errorf("unedited sleeps changed:\n%s", out)
 	}
 }
+
+// parseSteps exposes a Key/Type action's literal for editing, and rebuild rewrites it by line.
+func TestEditParseAndEditText(t *testing.T) {
+	src := strings.Replace(editSample, "    do OS's Move with p2.",
+		"    do OS's Key with \"enter\".\n    do OS's Type with \"hi\".", 1)
+	e := &editor{src: src}
+	var keyLine = -1
+	for _, s := range e.parseSteps() {
+		if s.Act == "key" {
+			keyLine = s.Line
+			if s.Text != "enter" {
+				t.Errorf("key text = %q, want enter", s.Text)
+			}
+		}
+		if s.Act == "type" && s.Text != "hi" {
+			t.Errorf("type text = %q, want hi", s.Text)
+		}
+	}
+	if keyLine < 0 {
+		t.Fatal("no key step parsed")
+	}
+	out := e.rebuild(saveReq{Texts: map[string]string{strconv.Itoa(keyLine): "esc"}})
+	if !strings.Contains(out, `do OS's Key with "esc".`) || strings.Contains(out, `Key with "enter"`) {
+		t.Errorf("key literal not rewritten:\n%s", out)
+	}
+}
+
+// rebuild inserts added steps after their anchor line, and end-adds land before `this is ok!`.
+// A click add mints a fresh Point decl + call; the numbering avoids existing p1/p2.
+func TestEditRebuildAdd(t *testing.T) {
+	e := &editor{src: editSample}
+	firstWait := -1
+	for _, s := range e.parseSteps() {
+		if s.Kind == "wait" {
+			firstWait = s.Line
+			break
+		}
+	}
+	out := e.rebuild(saveReq{Adds: []addStep{
+		{After: firstWait, Act: "key", Text: "enter"}, // after the first wait
+		{After: -1, Act: "click", X: 500, Y: 600},     // at the end of the body
+	}})
+	if !strings.Contains(out, `do OS's Key with "enter".`) {
+		t.Errorf("inserted keypress missing:\n%s", out)
+	}
+	if !strings.Contains(out, "the p3 is a Point with X 500, Y 600.") || !strings.Contains(out, "do OS's Click with p3.") {
+		t.Errorf("end-added click not appended with fresh point p3:\n%s", out)
+	}
+	// The end-add must precede the closing `this is ok!`.
+	if i, j := strings.Index(out, "Click with p3."), strings.Index(out, "this is ok!"); i < 0 || j < 0 || i > j {
+		t.Errorf("end-add did not land before `this is ok!`:\n%s", out)
+	}
+}

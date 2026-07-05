@@ -88,7 +88,11 @@ var pointDeclRE = regexp.MustCompile(`(?m)^(\s*the )(\w+)( is a Point with )([^\
 
 // clickPointRE matches a top-level click/move at a named Point, so the editor can attach that
 // point's coordinates to the step.
-var clickPointRE = regexp.MustCompile(`^do OS's (?:Click|Move) with (p\w+)\.`)
+var clickPointRE = regexp.MustCompile(`^do OS's (Click|Move) with (\w+)\.`)
+
+// textActRE matches a top-level action whose only argument is a string literal the editor can
+// expose for in-place editing: `do OS's Key with "…"` (a keypress) and `do OS's Type with "…"`.
+var textActRE = regexp.MustCompile(`^do OS's (Key|Type) with "(.*)"\.`)
 
 // pointVals holds a Point's editable coordinates.
 type pointVals struct {
@@ -102,12 +106,14 @@ type pointVals struct {
 type step struct {
 	Kind    string `json:"kind"` // "action" | "wait"
 	Label   string `json:"label,omitempty"`
+	Act     string `json:"act,omitempty"`   // action subtype the editor can edit: click|move|key|type
 	Ms      int    `json:"ms,omitempty"`    // wait
 	Point   string `json:"point,omitempty"` // action: the Point name it clicks (empty otherwise)
 	X       int    `json:"x"`               // action: that point's coordinates (when Point != "")
 	Y       int    `json:"y"`
-	CanDrag bool   `json:"canDrag"` // a click/move at a point can be converted to a drag
-	Line    int    `json:"line"`    // source line index (keys delete / wait / drag ops)
+	Text    string `json:"text,omitempty"` // key/type action: the editable string literal
+	CanDrag bool   `json:"canDrag"`        // a click/move at a point can be converted to a drag
+	Line    int    `json:"line"`           // source line index (keys delete / wait / drag ops)
 }
 
 // parseSteps walks the route body and returns the ordered action/wait sequence for display.
@@ -130,9 +136,13 @@ func (e *editor) parseSteps() []step {
 			s := step{Kind: "action", Label: humanizeAction(t), Line: i}
 			// A click/move at a named point → attach coords for editing, allow drag conversion.
 			if cm := clickPointRE.FindStringSubmatch(t); cm != nil {
-				if pv, ok := pts[cm[1]]; ok {
-					s.Point, s.X, s.Y, s.CanDrag = cm[1], pv.X, pv.Y, true
+				if pv, ok := pts[cm[2]]; ok {
+					s.Act = strings.ToLower(cm[1]) // "click" | "move"
+					s.Point, s.X, s.Y, s.CanDrag = cm[2], pv.X, pv.Y, true
 				}
+			} else if tm := textActRE.FindStringSubmatch(t); tm != nil {
+				// A keypress / typed text → expose the literal for in-place editing.
+				s.Act, s.Text = strings.ToLower(tm[1]), unquoteLit(tm[2]) // "key" | "type"
 			}
 			steps = append(steps, s)
 		}
@@ -172,6 +182,17 @@ func parsePointArgs(args string) pointVals {
 		}
 	}
 	return pv
+}
+
+// quoteLit / unquoteLit round-trip a Marco string literal's inner text (escaping the backslash
+// first so the quote-escape isn't double-processed), so an edited keypress or typed phrase stays
+// a valid literal even if it contains a quote.
+func quoteLit(s string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(s, `\`, `\\`), `"`, `\"`)
+}
+
+func unquoteLit(s string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(s, `\"`, `"`), `\\`, `\`)
 }
 
 // humanizeAction turns a `do …` line into a short readable label.
@@ -215,8 +236,23 @@ func (e *editor) handleRoute(w http.ResponseWriter, _ *http.Request) {
 type saveReq struct {
 	Waits   map[string]int    `json:"waits"`   // line → new ms
 	Points  map[string][2]int `json:"points"`  // point name → [x, y]
+	Texts   map[string]string `json:"texts"`   // line → new key/type literal
 	Deletes []int             `json:"deletes"` // line indexes to remove (the step's line)
 	Drags   map[string][4]int `json:"drags"`   // line → [fromX, fromY, toX, toY] (click → drag)
+	Adds    []addStep         `json:"adds"`    // new steps to insert
+}
+
+// addStep is one new command the editor inserts. After is the source-line index to insert it
+// AFTER (-1 = at the end of the body, just before `this is ok!`). Act selects which fields matter.
+type addStep struct {
+	After int    `json:"after"`
+	Act   string `json:"act"` // wait | click | move | key | type | drag
+	Ms    int    `json:"ms"`
+	X     int    `json:"x"`
+	Y     int    `json:"y"`
+	ToX   int    `json:"toX"`
+	ToY   int    `json:"toY"`
+	Text  string `json:"text"`
 }
 
 // handleSave rebuilds the source from the edits and writes it back.
@@ -235,35 +271,100 @@ func (e *editor) handleSave(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"ok": true})
 }
 
-// dragNumRE finds existing `the dragN is a Drag` locals so a new conversion gets a fresh number.
-var dragNumRE = regexp.MustCompile(`the drag(\d+) is a Drag`)
+// anyDeclRE matches any local declaration name (`the <name> is a …`) so new points/drags get a
+// name that doesn't collide with an existing one.
+var anyDeclRE = regexp.MustCompile(`(?m)^\s*the (\w+) is a`)
 
-// rebuild produces the new source: drop deleted lines, rewrite edited Sleep waits, convert a
-// click line to a Drag (a decl + call using the given from/to coords), then patch surviving
-// point coordinates by name. Line-based so a delete doesn't disturb the other edits.
+// indentOf returns the leading spaces of a line, so an inserted step matches the body indent.
+func indentOf(line string) string { return line[:len(line)-len(strings.TrimLeft(line, " "))] }
+
+// freshName returns "<base><n>" for the smallest n not already used, and marks it used.
+func freshName(used map[string]bool, base string) string {
+	for n := 1; ; n++ {
+		cand := base + strconv.Itoa(n)
+		if !used[cand] {
+			used[cand] = true
+			return cand
+		}
+	}
+}
+
+// genAdd renders a new step's source line(s) at the given indent. Click/move/drag mint a fresh
+// local (point/drag) declaration alongside the call so the insertion is self-contained.
+func genAdd(a addStep, indent string, used map[string]bool) []string {
+	switch a.Act {
+	case "wait":
+		return []string{fmt.Sprintf("%sdo OS's Sleep with %d.", indent, max(a.Ms, 0))}
+	case "key":
+		return []string{fmt.Sprintf(`%sdo OS's Key with "%s".`, indent, quoteLit(a.Text))}
+	case "type":
+		return []string{fmt.Sprintf(`%sdo OS's Type with "%s".`, indent, quoteLit(a.Text))}
+	case "click", "move":
+		p := freshName(used, "p")
+		verb := "Click"
+		if a.Act == "move" {
+			verb = "Move"
+		}
+		return []string{
+			fmt.Sprintf("%sthe %s is a Point with X %d, Y %d.", indent, p, a.X, a.Y),
+			fmt.Sprintf("%sdo OS's %s with %s.", indent, verb, p),
+		}
+	case "drag":
+		d := freshName(used, "drag")
+		return []string{
+			fmt.Sprintf(`%sthe %s is a Drag with FromX %d, FromY %d, ToX %d, ToY %d, Button "left".`, indent, d, a.X, a.Y, a.ToX, a.ToY),
+			fmt.Sprintf("%sdo OS's Drag with %s.", indent, d),
+		}
+	}
+	return nil
+}
+
+// rebuild produces the new source in one line-keyed pass: drop deleted lines, rewrite edited
+// Sleep waits and key/type literals, convert a click line to a Drag, insert any added steps after
+// their anchor line (or before `this is ok!` for end-adds), then patch point coordinates by name.
+// Keyed by source line so a delete doesn't disturb the other edits.
 func (e *editor) rebuild(req saveReq) string {
 	lines := strings.Split(e.src, "\n")
 	del := make(map[int]bool, len(req.Deletes))
 	for _, l := range req.Deletes {
 		del[l] = true
 	}
-	dn := 0
-	for _, m := range dragNumRE.FindAllStringSubmatch(e.src, -1) {
-		if n, _ := strconv.Atoi(m[1]); n > dn {
-			dn = n
+	used := map[string]bool{}
+	for _, m := range anyDeclRE.FindAllStringSubmatch(e.src, -1) {
+		used[m[1]] = true
+	}
+	addsAfter := map[int][]addStep{}
+	var endAdds []addStep
+	for _, a := range req.Adds {
+		if a.After < 0 {
+			endAdds = append(endAdds, a)
+		} else {
+			addsAfter[a.After] = append(addsAfter[a.After], a)
 		}
 	}
-	out := make([]string, 0, len(lines)+len(req.Drags))
+	out := make([]string, 0, len(lines)+2*(len(req.Drags)+len(req.Adds)))
+	flush := func(as []addStep, indent string) {
+		for _, a := range as {
+			out = append(out, genAdd(a, indent, used)...)
+		}
+	}
 	for i, line := range lines {
+		// End-of-body adds land just before the closing `this is ok!`.
+		if strings.TrimSpace(line) == "this is ok!" && len(endAdds) > 0 {
+			flush(endAdds, indentOf(line))
+			endAdds = nil
+		}
 		if del[i] {
+			flush(addsAfter[i], indentOf(line)) // a step added after a now-deleted step still lands here
 			continue
 		}
 		if d, ok := req.Drags[strconv.Itoa(i)]; ok {
-			indent := line[:len(line)-len(strings.TrimLeft(line, " "))]
-			dn++
+			indent := indentOf(line)
+			name := freshName(used, "drag")
 			out = append(out,
-				fmt.Sprintf(`%sthe drag%d is a Drag with FromX %d, FromY %d, ToX %d, ToY %d, Button "left".`, indent, dn, d[0], d[1], d[2], d[3]),
-				fmt.Sprintf("%sdo OS's Drag with drag%d.", indent, dn))
+				fmt.Sprintf(`%sthe %s is a Drag with FromX %d, FromY %d, ToX %d, ToY %d, Button "left".`, indent, name, d[0], d[1], d[2], d[3]),
+				fmt.Sprintf("%sdo OS's Drag with %s.", indent, name))
+			flush(addsAfter[i], indent)
 			continue
 		}
 		if m := sleepRE.FindStringSubmatch(line); m != nil {
@@ -271,8 +372,15 @@ func (e *editor) rebuild(req saveReq) string {
 				line = m[1] + strconv.Itoa(max(ms, 0)) + m[3]
 			}
 		}
+		if txt, ok := req.Texts[strconv.Itoa(i)]; ok {
+			if tm := textActRE.FindStringSubmatch(strings.TrimSpace(line)); tm != nil {
+				line = fmt.Sprintf(`%sdo OS's %s with "%s".`, indentOf(line), tm[1], quoteLit(txt))
+			}
+		}
 		out = append(out, line)
+		flush(addsAfter[i], indentOf(line))
 	}
+	flush(endAdds, "    ") // no `this is ok!` found → append at body indent
 	return applyPoints(strings.Join(out, "\n"), req.Points)
 }
 
@@ -350,6 +458,11 @@ const editPage = `<!doctype html><html><head><meta charset="utf-8"><title>marco 
  .del{margin-left:auto;background:#4a3030;color:#e6a0a0;padding:4px 9px;border:0;border-radius:5px;cursor:pointer;font:inherit}
  .del:hover{background:#6a4040}
  .deleted{opacity:.45;text-decoration:line-through}
+ .added{border-color:#3a5a3a;background:#232a23}
+ .tin{width:150px;padding:5px 7px;background:#26262c;border:1px solid #3a3a44;color:#8dd;border-radius:5px;font:inherit;text-align:left}
+ .addfields{display:inline-flex;align-items:center;gap:6px;color:#7aacc0;font-size:13px}
+ select.mini{background:#3a4a5a;color:#cde;border:0;border-radius:5px;padding:4px 6px;font:13px system-ui}
+ .plus{background:#2f4a2f;color:#bfe0bf}
  .wait .del{margin-left:8px}
  .wait{display:flex;align-items:center;gap:8px;margin:2px 0 2px 30px;color:#e0b050}
  .wait input{width:90px;padding:6px 8px;background:#26262c;border:1px solid #3a3a44;color:#e0b050;border-radius:6px;font:inherit;text-align:right}
@@ -362,37 +475,79 @@ const editPage = `<!doctype html><html><head><meta charset="utf-8"><title>marco 
 </style></head><body>
 <header><span>marco · edit timings — <span id="name">…</span></span><span id="saved"></span></header>
 <main>
- <p class="hint">Edit the wait between steps (ms) and click coordinates (x, y); <b>✕</b> deletes a
-   step; <b>drag</b> turns a click into a click-and-drag (set the "to" point). Save writes it
-   back. With CV off, these coordinates + timings are the whole route.</p>
+ <p class="hint">Edit each step in place — wait (ms), click/move coordinates (x, y), or the key
+   a <b>Press</b> sends and the text a <b>Type</b> enters. <b>+</b> adds a step after this one;
+   <b>✕</b> deletes; <b>drag</b> turns a click into a click-and-drag. With CV off, these
+   coordinates + timings are the whole route.</p>
  <div id="steps"></div>
- <div class="bar"><button onclick="save()">Save</button><span id="saved2"></span></div>
+ <div class="bar"><button onclick="save()">Save</button>
+   <button type="button" class="mini" onclick="document.getElementById('steps').appendChild(addRow(-1))">+ add step at end</button>
+   <span id="saved2"></span></div>
  <details><summary>Full route source</summary><pre id="src"></pre></details>
 </main>
 <script>
-let steps = [];  // per-row edit state
+let steps = [];  // existing rows (keyed by source line)
+let adds  = [];  // new steps to insert: {after, node, get:()=>payload}
 function coord(v){ const i=document.createElement('input'); i.type='number'; i.className='coord'; i.value=v; return i; }
+function numIn(v){ const i=document.createElement('input'); i.type='number'; i.className='coord'; i.value=v; return {el:i, val:()=>parseInt(i.value||'0',10)}; }
+function txtIn(v){ const i=document.createElement('input'); i.className='tin'; i.value=v; return {el:i, val:()=>i.value}; }
 function delBtn(rec, row){
   const b=document.createElement('button'); b.type='button'; b.className='del'; b.title='delete this step'; b.textContent='✕';
   b.onclick=()=>{ rec.del=!rec.del; row.classList.toggle('deleted', rec.del); };
   return b;
+}
+function plusBtn(afterLine, row){
+  const b=document.createElement('button'); b.type='button'; b.className='mini plus'; b.title='add a step after this'; b.textContent='+';
+  b.onclick=()=>{ row.after(addRow(afterLine)); };
+  return b;
+}
+// addRow builds an editable "new step" row; its type <select> swaps the relevant fields, and its
+// get() returns the save payload. after<0 means append at the end of the body.
+function addRow(after){
+  const rec={after};
+  const row=document.createElement('div'); row.className='action added';
+  const sel=document.createElement('select'); sel.className='mini';
+  for(const [v,l] of [['wait','wait'],['click','click'],['move','move cursor'],['key','press key'],['type','type text'],['drag','drag']]){
+    const o=document.createElement('option'); o.value=v; o.textContent=l; sel.appendChild(o);
+  }
+  const fields=document.createElement('span'); fields.className='addfields';
+  function render(){
+    fields.textContent=''; const t=sel.value;
+    if(t==='wait'){ const ms=numIn(200); fields.append('wait', ms.el, 'ms'); rec.get=()=>({after, act:'wait', ms:ms.val()}); }
+    else if(t==='key'){ const k=txtIn('enter'); fields.append('press', k.el); rec.get=()=>({after, act:'key', text:k.val()}); }
+    else if(t==='type'){ const k=txtIn('hello'); fields.append('type', k.el); rec.get=()=>({after, act:'type', text:k.val()}); }
+    else if(t==='drag'){ const x=numIn(0),y=numIn(0),tx=numIn(80),ty=numIn(0);
+      fields.append('from', x.el, y.el, '→ to', tx.el, ty.el);
+      rec.get=()=>({after, act:'drag', x:x.val(), y:y.val(), toX:tx.val(), toY:ty.val()}); }
+    else { const x=numIn(0),y=numIn(0); fields.append('x', x.el, 'y', y.el); rec.get=()=>({after, act:t, x:x.val(), y:y.val()}); }
+  }
+  sel.onchange=render; render();
+  const rm=document.createElement('button'); rm.type='button'; rm.className='del'; rm.textContent='✕'; rm.title='discard';
+  rm.onclick=()=>{ row.remove(); adds=adds.filter(a=>a!==rec); };
+  const lead=document.createElement('span'); lead.className='lbl'; lead.innerHTML='<span class="num">+</span>';
+  row.append(lead, sel, fields, rm);
+  rec.node=row; adds.push(rec);
+  return row;
 }
 async function load(){
   const r = await (await fetch('/api/route')).json();
   document.getElementById('name').textContent = r.name + (r.app? (' · '+r.app):'');
   document.getElementById('src').textContent = r.source;
   const box = document.getElementById('steps');
-  box.innerHTML=''; steps=[]; let n=0;
+  box.innerHTML=''; steps=[]; adds=[]; let n=0;
   for(const s of r.steps){
     const rec = {line: s.line, kind: s.kind, point: s.point, del:false, dragOn:false};
     const row = document.createElement('div');
     if(s.kind==='action'){
       n++;
       row.className='action';
+      let labelText=s.label; if(s.act==='key') labelText='Press'; if(s.act==='type') labelText='Type';
       const label=document.createElement('span'); label.className='lbl';
-      label.innerHTML='<span class="num">'+n+'.</span><span>'+esc(s.label)+'</span>';
+      label.innerHTML='<span class="num">'+n+'.</span><span>'+esc(labelText)+'</span>';
       row.appendChild(label);
-      if(s.point){ // a click/move at a known point → editable coordinates
+      if(s.act==='key' || s.act==='type'){ // editable keypress / typed text
+        rec.txt=txtIn(s.text); row.appendChild(rec.txt.el);
+      } else if(s.point){ // a click/move at a known point → editable coordinates
         rec.xi=coord(s.x); rec.yi=coord(s.y);
         const xy=document.createElement('span'); xy.className='xy';
         xy.append('x', rec.xi, 'y', rec.yi); row.appendChild(xy);
@@ -407,28 +562,30 @@ async function load(){
           row.appendChild(wrap);
         }
       }
-      row.appendChild(delBtn(rec,row));
+      row.append(plusBtn(s.line,row), delBtn(rec,row));
     } else {
       row.className='wait';
       rec.ms=document.createElement('input'); rec.ms.type='number'; rec.ms.min='0'; rec.ms.step='50'; rec.ms.value=s.ms;
-      row.append('⏱ wait', rec.ms, 'ms', delBtn(rec,row));
+      row.append('⏱ wait', rec.ms, 'ms', plusBtn(s.line,row), delBtn(rec,row));
     }
     steps.push(rec); box.appendChild(row);
   }
 }
 async function save(){
-  const waits={}, points={}, deletes=[], drags={};
+  const waits={}, points={}, deletes=[], drags={}, texts={};
   for(const s of steps){
     if(s.del){ deletes.push(s.line); continue; }
     if(s.kind==='wait'){ waits[s.line]=Math.max(0, parseInt(s.ms.value||'0',10)); continue; }
+    if(s.txt){ texts[s.line]=s.txt.val(); continue; }
     if(s.point){
       const x=parseInt(s.xi.value||'0',10), y=parseInt(s.yi.value||'0',10);
       if(s.dragOn && s.txi){ drags[s.line]=[x, y, parseInt(s.txi.value||'0',10), parseInt(s.tyi.value||'0',10)]; }
       else { points[s.point]=[x, y]; }
     }
   }
+  const addList = adds.map(a=>a.get());
   const res = await (await fetch('/api/save',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({waits, points, deletes, drags})})).json();
+    body:JSON.stringify({waits, points, deletes, drags, texts, adds:addList})})).json();
   document.getElementById('saved').textContent = res.ok ? 'saved' : 'save failed';
   setTimeout(()=>document.getElementById('saved').textContent='', 2500);
   load();
