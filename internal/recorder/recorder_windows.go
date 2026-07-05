@@ -130,9 +130,15 @@ type captureReq struct {
 var captureReqs chan captureReq
 
 // anchorKey is the key you TAP to start an image anchor; the next left-click ends it
-// — that click is captured as an image anchor (regardless of the global
-// captureAnchors toggle). One-handed: tap, then click, no holding. "" disables it.
-var anchorKey = AnchorKey()
+// — that click is captured as an image anchor. One-handed: tap, then click, no holding.
+// "" disables it. Gated on captureAnchors: with CV off (the alpha default) we don't
+// listen for it at all, so F12 stays a normal key that reaches the game.
+var anchorKey = func() string {
+	if !captureAnchors {
+		return ""
+	}
+	return AnchorKey()
+}()
 
 // anchorArmed is set by a tap of the anchor key and consumed by the next click,
 // which is then captured as a template — even when MARCO_ANCHORS is off.
