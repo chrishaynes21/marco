@@ -157,6 +157,14 @@ func dispatch(h *model, req request) response {
 			startTeach(h, tname)
 			return okData(nil)
 		}
+		// "edit <name>" opens the browser route editor (timings, coordinates, add/delete
+		// steps). It runs its own local web server, so launch it detached rather than
+		// streaming it like a route — the HUD just notes it opened.
+		if len(fields) >= 2 && fields[0] == "edit" {
+			ename := strings.TrimSpace(strings.Join(fields[1:], " "))
+			startEdit(h, ename)
+			return okData(nil)
+		}
 		// Verb commands; anything else is a route to run.
 		args := []string{"do", name}
 		switch {
@@ -266,6 +274,39 @@ func listRoutes() []string {
 		names = append(names, r.Name)
 	}
 	return names
+}
+
+// editState tracks the detached `marco edit` server so opening a new editor replaces the prior
+// one (each edit server holds a port until it's killed).
+var (
+	editMu  sync.Mutex
+	editCmd *exec.Cmd
+)
+
+// startEdit launches `marco edit <name>` detached — it serves the editor page and opens the
+// browser itself, so the HUD just notes it rather than streaming it like a route. Any prior
+// editor server is killed first so ports don't pile up.
+func startEdit(h *model, name string) {
+	if name == "" {
+		h.setStatus("edit needs a name — `m edit <route>`")
+		return
+	}
+	editMu.Lock()
+	if editCmd != nil && editCmd.Process != nil {
+		_ = editCmd.Process.Kill()
+	}
+	cmd := exec.Command(marcoBin(), "edit", name)
+	if err := cmd.Start(); err != nil {
+		editMu.Unlock()
+		mlogE("overlay: edit failed to start", "name", name, "err", err)
+		h.log("edit failed: " + name)
+		return
+	}
+	editCmd = cmd
+	editMu.Unlock()
+	mlogI("overlay: editing", "name", name)
+	h.log(`editing "` + name + `" — opened in your browser`)
+	go func() { _ = cmd.Wait() }() // reap when the user closes it
 }
 
 // runState tracks the in-flight CLI child so a stop key can cancel it.
