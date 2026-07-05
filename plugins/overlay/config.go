@@ -209,6 +209,7 @@ const configFieldCount = 12
 func configLines() []string {
 	c := cfgSnapshot()
 	return []string{
+		"leader    " + c.Leader,
 		"theme     " + c.Theme,
 		"opacity   " + fmt.Sprintf("%.2f", c.Idle),
 		"monitor   " + strconv.Itoa(c.Monitor),
@@ -219,7 +220,6 @@ func configLines() []string {
 		"mini      " + onOff(c.Mini),
 		"metrics   " + onOff(c.Metrics),
 		"coords    " + onOff(c.Coords),
-		"leader    " + c.Leader,
 		"voice     " + onOff(c.Voice),
 	}
 }
@@ -229,28 +229,28 @@ func configChange(sel, delta int) {
 	cfgMu.Lock()
 	switch sel {
 	case 0:
-		cfg.Theme = cycle(themeNames, cfg.Theme, delta)
+		cfg.Leader = cycle(leaderNames, cfg.Leader, delta)
 	case 1:
-		cfg.Idle = clampF(cfg.Idle+0.05*float64(delta), 0.2, 1.0)
+		cfg.Theme = cycle(themeNames, cfg.Theme, delta)
 	case 2:
+		cfg.Idle = clampF(cfg.Idle+0.05*float64(delta), 0.2, 1.0)
+	case 3:
 		n := max(len(ebiten.AppendMonitors(nil)), 1)
 		cfg.Monitor = (cfg.Monitor + delta + n) % n
-	case 3:
-		cfg.Corner = cycle(corners, cfg.Corner, delta)
 	case 4:
-		cfg.Width = clampI(cfg.Width+20*delta, 220, 1400)
+		cfg.Corner = cycle(corners, cfg.Corner, delta)
 	case 5:
-		cfg.MaxLines = clampI(cfg.MaxLines+delta, 1, 20)
+		cfg.Width = clampI(cfg.Width+20*delta, 220, 1400)
 	case 6:
-		cfg.Border = !cfg.Border
+		cfg.MaxLines = clampI(cfg.MaxLines+delta, 1, 20)
 	case 7:
-		cfg.Mini = !cfg.Mini
+		cfg.Border = !cfg.Border
 	case 8:
-		cfg.Metrics = !cfg.Metrics
+		cfg.Mini = !cfg.Mini
 	case 9:
-		cfg.Coords = !cfg.Coords
+		cfg.Metrics = !cfg.Metrics
 	case 10:
-		cfg.Leader = cycle(leaderNames, cfg.Leader, delta)
+		cfg.Coords = !cfg.Coords
 	case 11:
 		cfg.Voice = !cfg.Voice
 	}
@@ -258,11 +258,11 @@ func configChange(sel, delta int) {
 
 	switch sel {
 	case 0:
-		applyTheme()
-	case 2, 3, 4:
-		applyWindow()
-	case 10:
 		applyLeaderHook()
+	case 1:
+		applyTheme()
+	case 3, 4, 5:
+		applyWindow()
 	case 11:
 		voiceEnabled.Store(cfgVoice()) // mirror the panel toggle to the live gate
 	}

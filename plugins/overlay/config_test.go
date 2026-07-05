@@ -36,15 +36,15 @@ func TestConfigChange(t *testing.T) {
 	cfg = defaultConfig()
 	cfgMu.Unlock()
 
-	configChange(0, 1) // theme: default -> dracula
+	configChange(1, 1) // theme (index 1 now that leader leads): default -> dracula
 	if cfgSnapshot().Theme != "dracula" {
 		t.Fatalf("theme cycle: %s", cfgSnapshot().Theme)
 	}
-	configChange(1, -1) // opacity 0.72 -> 0.67
+	configChange(2, -1) // opacity 0.72 -> 0.67
 	if v := cfgSnapshot().Idle; v < 0.66 || v > 0.68 {
 		t.Fatalf("opacity: %v", v)
 	}
-	configChange(3, 1) // corner cycle off top-right
+	configChange(4, 1) // corner cycle off top-right
 	if cfgSnapshot().Corner == "top-right" {
 		t.Fatal("corner did not change")
 	}
