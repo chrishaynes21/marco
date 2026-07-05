@@ -50,5 +50,4 @@ plugins/marco-app/assets/marco-macros.exe
 plugins/marco-app/assets/overlay.exe
 plugins/marco-app/assets/overlay.marco
 plugins/marco-app/assets/version.txt
-plugins/marco-app/assets/routes/
 dist/

@@ -23,13 +23,13 @@ func TestExtractBins(t *testing.T) {
 	}
 }
 
-// TestSeedRoutes copies the embedded starter routes and checks the folder tree comes through.
-func TestSeedRoutes(t *testing.T) {
+// TestSeedHello writes the starter hello route into the global scope.
+func TestSeedHello(t *testing.T) {
 	dir := t.TempDir()
-	if err := seedRoutes(dir); err != nil {
+	if err := seedHello(dir); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "global")); err != nil {
-		t.Errorf("global routes not seeded: %v", err)
+	if _, err := os.Stat(filepath.Join(dir, "global", "hello.marco")); err != nil {
+		t.Errorf("hello route not seeded: %v", err)
 	}
 }

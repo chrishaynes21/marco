@@ -24,14 +24,8 @@ if ($LASTEXITCODE) { throw "marco-macros build failed" }
 if ($LASTEXITCODE) { throw "overlay build failed" }
 Copy-Item (Join-Path $root "plugins\overlay\overlay.marco") (Join-Path $assets "overlay.marco") -Force
 
-Write-Host "==> staging starter routes" -ForegroundColor Cyan
-$rdst = Join-Path $assets "routes"
-if (Test-Path $rdst) { Remove-Item -Recurse -Force $rdst }
-Copy-Item -Recurse (Join-Path $root "routes") $rdst
-# Ship just the runnable routes: drop the built-in os module and the heavy demo artifacts
-# (recordings / anchor templates) — routes replay from their .marco alone.
-Remove-Item (Join-Path $rdst "os.marco") -Force -ErrorAction SilentlyContinue
-Get-ChildItem $rdst -Recurse -Include *.rec.json, *-anchor-*.png -ErrorAction SilentlyContinue | Remove-Item -Force
+# No starter routes are shipped — the launcher seeds a single "hello" route on first run
+# (see plugins\marco-app\main.go). Users teach the rest.
 
 $sha = (& git -C $root rev-parse --short HEAD 2>$null)
 if (-not $sha) { $sha = "dev" }

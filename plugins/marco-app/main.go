@@ -10,7 +10,6 @@ package main
 import (
 	"embed"
 	"fmt"
-	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -20,7 +19,6 @@ import (
 // checkout — pack.ps1 builds and stages them into assets/ before compiling this module.
 //
 //go:embed assets/marco.exe assets/marco-macros.exe assets/overlay.exe assets/overlay.marco assets/version.txt
-//go:embed all:assets/routes
 var assets embed.FS
 
 func main() {
@@ -39,10 +37,11 @@ func run() error {
 	if err := extractBins(binDir, string(ver)); err != nil {
 		return fmt.Errorf("unpack: %w", err)
 	}
-	// Seed the starter routes on first run only; a user's later edits are never overwritten.
+	// Seed a single "hello" starter route on first run only; a user's later edits (and any
+	// routes they teach) are never overwritten.
 	if _, err := os.Stat(routesDir); os.IsNotExist(err) {
-		if err := seedRoutes(routesDir); err != nil {
-			return fmt.Errorf("seed routes: %w", err)
+		if err := seedHello(routesDir); err != nil {
+			return fmt.Errorf("seed hello route: %w", err)
 		}
 	}
 
@@ -93,21 +92,31 @@ func extractBins(binDir, ver string) error {
 	return os.WriteFile(stamp, []byte(ver), 0o644)
 }
 
-// seedRoutes copies the embedded starter routes into routesDir, preserving the folder tree.
-func seedRoutes(routesDir string) error {
-	return fs.WalkDir(assets, "assets/routes", func(p string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		rel, _ := filepath.Rel("assets/routes", p)
-		dst := filepath.Join(routesDir, rel)
-		if d.IsDir() {
-			return os.MkdirAll(dst, 0o755)
-		}
-		data, err := assets.ReadFile(p)
-		if err != nil {
-			return err
-		}
-		return os.WriteFile(dst, data, 0o644)
-	})
+// helloRoute is the one starter route the bundle drops in — a friendly global "hello" so a
+// first-run user has something to run (and to see what a route looks like in `marco edit`).
+const helloRoute = `// Marco starter route — a friendly hello. Edit or delete it freely.
+use os.
+
+the Hello is an actor.
+this can Run.
+this's Run does...
+    do OS's Type with "hello".
+    do OS's Sleep with 500.
+    this is ok!
+
+the App is a script.
+do Hello's Run...
+    when ok?
+        log "hello: done".
+    or?
+        log that's error.
+`
+
+// seedHello writes the starter hello route into the global scope.
+func seedHello(routesDir string) error {
+	dst := filepath.Join(routesDir, "global", "hello.marco")
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(dst, []byte(helloRoute), 0o644)
 }
