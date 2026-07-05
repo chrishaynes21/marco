@@ -331,6 +331,12 @@ func (h *Host) doFind(c runtime.HostCall) (string, runtime.Value, error) {
 		mlog.Debug("find: search box", "x1", region.X1, "y1", region.Y1, "x2", region.X2, "y2", region.Y2)
 	}
 	timeout := time.Duration(setInt(set, "Timeout")) * time.Millisecond
+	// CV find dial: when loosened, be more PATIENT on the short click-gate (≤5s) so a
+	// slower-appearing target gets more time before the route clicks anyway. Long
+	// wait-for-screen barriers (already generous) are left alone.
+	if timeout > 0 && timeout <= 5*time.Second {
+		timeout = time.Duration(float64(timeout) * findTimeoutScale())
+	}
 	mlog.Debug("find: anchor", "image", filepath.Base(imgPath), "color", colStr,
 		"recorded", fmt.Sprintf("(%d,%d)", px, py), "tol", tol)
 
@@ -344,10 +350,10 @@ func (h *Host) doFind(c runtime.HostCall) (string, runtime.Value, error) {
 	// route end. Toggle with $MARCO_FIND_HOVER=0.
 	hovering := (hasX || hasY) && findHoverEnabled()
 	if hovering {
-		if err := h.b.move(c.Ctx, px, py); err == nil {
-			mlog.Debug("find: hovering the recorded point to settle the UI before matching", "at", fmt.Sprintf("(%d,%d)", px, py))
+		if err := h.glide(c.Ctx, px, py); err == nil {
+			mlog.Debug("find: gliding the cursor onto the recorded point to settle the UI before matching", "at", fmt.Sprintf("(%d,%d)", px, py))
 			select {
-			case <-time.After(hoverSettle):
+			case <-time.After(hoverSettle()):
 			case <-c.Ctx.Done():
 				return "failed", runtime.Absent(), nil
 			}
@@ -635,11 +641,11 @@ const corroborationFloor = 0.5
 
 // locateFloor is the minimum locator score to consider FOLLOWING the image to a new
 // location. Derived from cvSensitivity ($MARCO_CV_SENSITIVITY); s=0.5 → 0.90 (legacy).
-func locateFloor() float64 { return cvLerp(0.99, 0.81) }
+func locateFloor() float64 { return cvLerp(1.0, 0.80) }
 
 // moveMargin is how much a moved candidate must out-score the recorded point before the
 // click follows it there. Derived from cvSensitivity; s=0.5 → 0.12 (legacy).
-func moveMargin() float64 { return cvLerp(0.20, 0.04) }
+func moveMargin() float64 { return cvLerp(0.22, 0.02) }
 
 // colorCorroborates reports whether the colour at a candidate location supports the
 // target being there — required before the scorer follows the image to a new location.
@@ -651,10 +657,19 @@ func (h *Host) colorCorroborates(x, y int, wantCol uint32, hasCol bool, tol int)
 	return h.colorScoreAround(x, y, wantCol, tol) >= corroborationFloor
 }
 
-// hoverSettle is how long to wait after moving the cursor onto the recorded point before
-// matching, so a hover highlight / fade-in finishes rendering. Kept short — the wait loop
-// (250ms polls) covers a slower animation; this just makes the first attempt likely to hit.
-const hoverSettle = 80 * time.Millisecond
+// hoverSettle is how long to wait after gliding the cursor onto the recorded point before
+// matching (AND before the click fires), so a menu transition / hover highlight / fade-in
+// finishes rendering — the "let the screen settle before clicking" beat. The wait loop
+// (250ms polls) covers a slower animation; this sets the FIRST attempt's patience. Tunable
+// via $MARCO_FIND_SETTLE_MS (default 150ms; 0 disables).
+func hoverSettle() time.Duration {
+	if v := strings.TrimSpace(os.Getenv("MARCO_FIND_SETTLE_MS")); v != "" {
+		if ms, err := strconv.Atoi(v); err == nil && ms >= 0 {
+			return time.Duration(ms) * time.Millisecond
+		}
+	}
+	return 150 * time.Millisecond
+}
 
 // findHoverEnabled gates the hover-settle move (default on). $MARCO_FIND_HOVER=0/off
 // disables it for a UI where moving the pointer first would be undesirable.
@@ -684,6 +699,62 @@ func wiggleStep(n int) (int, int) {
 	return s[0], s[1]
 }
 
+// Cursor GLIDE (pull-to-target) for the hover-settle. Injecting ONE absolute MOVE teleports
+// the pointer straight to the target; a game UI that lights a control only when the cursor
+// physically TRAVELS onto it (RL's menu tiles) never sees the entry, so the hovered template
+// never matches. Gliding steps the move — a short trail of injected MOVE events from where the
+// cursor is now to the target — so the UI registers the pointer arriving. $MARCO_FIND_GLIDE=0
+// reverts to a single jump.
+const (
+	glideStepPx    = 22 // ~pixels between interpolation steps
+	glideMaxSteps  = 48 // cap so a cross-screen pull still finishes quickly
+	glideStepDelay = 6 * time.Millisecond
+)
+
+func findGlideEnabled() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("MARCO_FIND_GLIDE"))) {
+	case "0", "off", "false", "no":
+		return false
+	}
+	return true
+}
+
+// glide pulls the cursor from its current position to (x,y) as a trail of injected MOVE
+// events. Falls back to a single move when gliding is off, the start point is unknown (the
+// off-Windows stub reports (0,0)), or the target is within one step — so behaviour is
+// unchanged where a real trail isn't possible or isn't needed. Honours ctx cancellation
+// between steps.
+func (h *Host) glide(ctx context.Context, x, y int) error {
+	if !findGlideEnabled() {
+		return h.b.move(ctx, x, y)
+	}
+	sx, sy := winctx.CursorPos()
+	dx, dy := x-sx, y-sy
+	dist := iabs(dx)
+	if a := iabs(dy); a > dist {
+		dist = a // Chebyshev distance — steps scale with the longer axis
+	}
+	steps := dist / glideStepPx
+	if (sx == 0 && sy == 0) || steps <= 1 {
+		return h.b.move(ctx, x, y)
+	}
+	if steps > glideMaxSteps {
+		steps = glideMaxSteps
+	}
+	for i := 1; i < steps; i++ {
+		t := float64(i) / float64(steps)
+		if err := h.b.move(ctx, sx+int(float64(dx)*t), sy+int(float64(dy)*t)); err != nil {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(glideStepDelay):
+		}
+	}
+	return h.b.move(ctx, x, y) // land exactly on the target
+}
+
 // cvSensitivity is the master CV looseness dial (0 = strict, 1 = loose), default 0.5.
 // The overlay's "cv find" slider writes $MARCO_CV_SENSITIVITY; findConfidence, locateFloor
 // and moveMargin all derive from it (via cvLerp), so one control tunes how eagerly an
@@ -703,6 +774,18 @@ func cvSensitivity() float64 {
 // ends by the current cvSensitivity.
 func cvLerp(strict, loose float64) float64 { return strict + (loose-strict)*cvSensitivity() }
 
+// findTimeoutScale stretches the SHORT click-gate timeout when the dial is loosened past
+// neutral, so a slower-appearing button gets more time before the route gives up and clicks
+// its recorded coordinate anyway ("it went too fast"). 1× at/below 0.5 (legacy), up to 4× at
+// full-loose. Long wait-for-screen barriers are left untouched (they're already generous).
+func findTimeoutScale() float64 {
+	s := cvSensitivity()
+	if s <= 0.5 {
+		return 1.0
+	}
+	return 1.0 + (s-0.5)*6.0 // 0.5 → 1×, 1.0 → 4×
+}
+
 // findConfidence is the score an anchor must reach to be clicked at its located point.
 // Derived from cvSensitivity ($MARCO_CV_SENSITIVITY); s=0.5 → 0.6 (legacy default).
 // $MARCO_FIND_CONFIDENCE (0..1) overrides outright.
@@ -712,7 +795,7 @@ func findConfidence() float64 {
 			return f
 		}
 	}
-	return cvLerp(0.9, 0.3)
+	return cvLerp(0.95, 0.25)
 }
 
 // anchorPoint resolves the anchor's recorded click point — window-relative against the

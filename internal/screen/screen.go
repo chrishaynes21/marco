@@ -121,6 +121,13 @@ func cvSensitivity() float64 {
 
 func cvLerp(strict, loose float64) float64 { return strict + (loose-strict)*cvSensitivity() }
 
+// cropScale grows the capture-time crop-size gates as the CV dial is loosened past neutral,
+// so a loosened dial lets AutoCrop capture BIG buttons whole (game UIs — a control can be
+// enormous) instead of rejecting them into the small click-centred fallback patch. 1× at/
+// below 0.5 (legacy — desktop menus where an over-grab would re-centre onto the wrong row),
+// up to 4× at full-loose. Capture-time, so it takes effect on the next TEACH.
+func cropScale() float64 { return 1.0 + max(0.0, cvSensitivity()-0.5)*6.0 }
+
 func edgeToleranceFromEnv() int {
 	if v := strings.TrimSpace(os.Getenv("MARCO_EDGE_TOLERANCE")); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
@@ -129,7 +136,7 @@ func edgeToleranceFromEnv() int {
 	}
 	// Sobel-magnitude scale (~4× a raw step). s=0.5 → 100 (legacy). Lower = fainter edges
 	// count, so a subtle button border is detected (looser crop) and edge-matched (looser find).
-	return int(cvLerp(130, 70))
+	return int(cvLerp(150, 50))
 }
 
 // edgeStrength is the largest per-channel difference between a pixel and its right/below
@@ -229,8 +236,9 @@ const autoCropMargin = 6
 
 // buttonSearchWin (px) is how far from the click AutoCropAt looks for the button's edges
 // — generous so a WIDE control (a menu banner) still fits in the window and groups into a
-// single component, the thing a fixed 128px patch couldn't contain.
-const buttonSearchWin = 480
+// single component, the thing a fixed 128px patch couldn't contain. Dial-scaled (cropScale):
+// a loosened dial searches farther so a HUGE game button's far edges still fall in the window.
+func buttonSearchWin() int { return int(480 * cropScale()) }
 
 // AutoCropAt crops img to the button CONTAINING the click (cx,cy, in img's coordinate
 // space) and returns the cropped template plus the button's CENTRE (also in img space).
@@ -252,7 +260,8 @@ func AutoCropAt(img *image.RGBA, cx, cy, fallbackR int) (out *image.RGBA, center
 	// Candidate region + crop margin: a detected button (tight margin) or a click-centred
 	// fallback patch (no margin) when none is found there.
 	margin := autoCropMargin
-	r, ok := buttonNear(img, cx, cy, buttonSearchWin)
+	fallbackR = int(float64(fallbackR) * cropScale()) // dial-scaled: a bigger fallback patch for a big undetected button
+	r, ok := buttonNear(img, cx, cy, buttonSearchWin())
 	if ok && buttonCropSane(r, cx, cy) {
 		// DetectButtons bounds the box to the edge structure it found — often just the
 		// text/icon, a fragment of a wide button. Grow it out to the control's full fill so
@@ -279,19 +288,19 @@ func AutoCropAt(img *image.RGBA, cx, cy, fallbackR int) (out *image.RGBA, center
 // near its centre (you clicked the control, not one row of a merged panel). Otherwise the
 // caller keeps the click as the template centre (a click-centred crop), which is always
 // safe — the template still matches and the click lands where you actually clicked.
-const (
-	maxButtonDim  = 600
-	maxRecenterPx = 140
-)
+// Dial-scaled (cropScale): a loosened dial trusts a MUCH bigger detected box and a click
+// farther from its centre — game buttons are huge, so "button-sized" has to stretch.
+func maxButtonDim() int  { return int(600 * cropScale()) }
+func maxRecenterPx() int { return int(140 * cropScale()) }
 
 // buttonCropSane reports whether r is a plausible single control to re-centre on: not panel-
 // sized, and centred near the click.
 func buttonCropSane(r image.Rectangle, cx, cy int) bool {
-	if r.Dx() > maxButtonDim || r.Dy() > maxButtonDim {
+	if r.Dx() > maxButtonDim() || r.Dy() > maxButtonDim() {
 		return false
 	}
 	ccx, ccy := (r.Min.X+r.Max.X)/2, (r.Min.Y+r.Max.Y)/2
-	return absI(cx-ccx) <= maxRecenterPx && absI(cy-ccy) <= maxRecenterPx
+	return absI(cx-ccx) <= maxRecenterPx() && absI(cy-ccy) <= maxRecenterPx()
 }
 
 func absI(n int) int {
@@ -401,7 +410,7 @@ func matchThresholdFromEnv() float64 {
 			return f
 		}
 	}
-	return cvLerp(0.90, 0.60) // s=0.5 → 0.75 (legacy). Lower = a present-but-imperfect button still registers as found.
+	return cvLerp(1.00, 0.50) // s=0.5 → 0.75 (legacy). Lower = a present-but-imperfect button still registers as found.
 }
 
 // maskAlpha is the alpha below which a template pixel is treated as MASKED — not

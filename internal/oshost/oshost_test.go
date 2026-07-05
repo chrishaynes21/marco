@@ -2,6 +2,7 @@ package oshost
 
 import (
 	"context"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -328,7 +329,9 @@ func TestFindAmbiguousDoesNotMove(t *testing.T) {
 
 // TestFindHoversBeforeMatching: a positioned anchor moves the cursor onto the recorded
 // point BEFORE matching, so a button that only highlights while hovered enters that state
-// and matches the (hovered) template instead of falling back to its coordinate.
+// and matches the (hovered) template instead of falling back to its coordinate. The hover
+// GLIDES (a trail of moves) so the cursor may pass through intermediate points, but it must
+// LAND on the recorded point before the match — assert that point is reached.
 func TestFindHoversBeforeMatching(t *testing.T) {
 	rec := &recBackend{}
 	h := &Host{b: rec, scr: fakeScreen{found: true, fx: 250, fy: 175, fscore: 0.95}}
@@ -340,8 +343,8 @@ func TestFindHoversBeforeMatching(t *testing.T) {
 	}))
 	rec.mu.Lock()
 	defer rec.mu.Unlock()
-	if len(rec.moves) == 0 || rec.moves[0] != [2]int{250, 175} {
-		t.Fatalf("expected a hover move to the recorded point before matching, got moves=%v", rec.moves)
+	if !slices.Contains(rec.moves, [2]int{250, 175}) {
+		t.Fatalf("expected the hover to land on the recorded point (250,175) before matching, got moves=%v", rec.moves)
 	}
 }
 

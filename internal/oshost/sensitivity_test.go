@@ -20,15 +20,32 @@ func TestCVSensitivityMapping(t *testing.T) {
 
 	// Loose end (1.0) — every knob at its most permissive.
 	t.Setenv("MARCO_CV_SENSITIVITY", "1")
-	approx("findConfidence@1", findConfidence(), 0.3)
-	approx("locateFloor@1", locateFloor(), 0.81)
-	approx("moveMargin@1", moveMargin(), 0.04)
+	approx("findConfidence@1", findConfidence(), 0.25)
+	approx("locateFloor@1", locateFloor(), 0.80)
+	approx("moveMargin@1", moveMargin(), 0.02)
 
 	// Strict end (0.0) — every knob at its tightest.
 	t.Setenv("MARCO_CV_SENSITIVITY", "0")
-	approx("findConfidence@0", findConfidence(), 0.9)
-	approx("locateFloor@0", locateFloor(), 0.99)
-	approx("moveMargin@0", moveMargin(), 0.20)
+	approx("findConfidence@0", findConfidence(), 0.95)
+	approx("locateFloor@0", locateFloor(), 1.0)
+	approx("moveMargin@0", moveMargin(), 0.22)
+}
+
+// The find-gate timeout stretches only when the dial is loosened past neutral: 1× at/below
+// 0.5 (legacy), scaling up to 4× at full-loose, so a slower-appearing target gets more time.
+func TestFindTimeoutScale(t *testing.T) {
+	cases := []struct {
+		s    string
+		want float64
+	}{
+		{"0", 1.0}, {"0.5", 1.0}, {"0.75", 2.5}, {"1", 4.0},
+	}
+	for _, c := range cases {
+		t.Setenv("MARCO_CV_SENSITIVITY", c.s)
+		if got := findTimeoutScale(); got-c.want > 1e-9 || got-c.want < -1e-9 {
+			t.Errorf("findTimeoutScale(%s) = %v, want %v", c.s, got, c.want)
+		}
+	}
 }
 
 // An unset or out-of-range dial defaults to 0.5 (legacy behaviour), and an explicit

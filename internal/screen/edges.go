@@ -156,7 +156,7 @@ func edgeMatchThresholdFromEnv() float64 {
 			return f
 		}
 	}
-	return cvLerp(0.70, 0.40) // s=0.5 → 0.55 (legacy)
+	return cvLerp(0.80, 0.30) // s=0.5 → 0.55 (legacy)
 }
 
 // Edge-match tuning.
@@ -423,10 +423,11 @@ func growButtonBand(img *image.RGBA, r image.Rectangle, cx, cy int) image.Rectan
 	}
 	tol := buttonFillTol()
 	fill := fillColor(img, r) // the button body — the median is the majority fill, not the text
+	mbd := maxButtonDim()     // dial-scaled: how far the fill may grow before "no border → revert"
 	// Vertical: grow up/down while each outer row still reads as fill; the button's top/bottom
 	// border (a row no longer fill) stops it. Reaching the cap = no border found → revert.
-	loY := clampI(cy-maxButtonDim, b.Min.Y, r.Min.Y)
-	hiY := clampI(cy+maxButtonDim, r.Max.Y-1, b.Max.Y-1)
+	loY := clampI(cy-mbd, b.Min.Y, r.Min.Y)
+	hiY := clampI(cy+mbd, r.Max.Y-1, b.Max.Y-1)
 	top := r.Min.Y
 	for top > loY && colorClose(rowMean(img, r.Min.X, r.Max.X, top-1), fill, tol) {
 		top--
@@ -443,8 +444,8 @@ func growButtonBand(img *image.RGBA, r image.Rectangle, cx, cy int) image.Rectan
 	}
 	// Horizontal over the grown height: each outer column still reads as fill until the
 	// button's left/right border.
-	loX := clampI(cx-maxButtonDim, b.Min.X, r.Min.X)
-	hiX := clampI(cx+maxButtonDim, r.Max.X-1, b.Max.X-1)
+	loX := clampI(cx-mbd, b.Min.X, r.Min.X)
+	hiX := clampI(cx+mbd, r.Max.X-1, b.Max.X-1)
 	left := r.Min.X
 	for left > loX && colorClose(colMean(img, top, bot+1, left-1), fill, tol) {
 		left--

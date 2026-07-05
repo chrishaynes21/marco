@@ -456,30 +456,50 @@ stack; re-run `setup.ps1` + relaunch `overlay.cmd` to flip. Tests: `recorder`
 
 **`MARCO_CV_SENSITIVITY`** (0 = strict … 1 = loose, default 0.5) — the **CV find dial**,
 the fine control beside the coarse `MARCO_CV` switch. One knob that scales how eagerly an
-anchor is found, trusted, and followed. It reaches SIX derived knobs across two packages
-(each keeps its own env override, and **0.5 reproduces every legacy value exactly**, so the
-dial is a no-op until dragged):
-  - `oshost` (via `oshost.cvLerp`) — the ACT-ON-evidence gates: `findConfidence` (0.9→0.3,
-    legacy 0.6; `$MARCO_FIND_CONFIDENCE`), `locateFloor` (0.99→0.81, 0.90) and `moveMargin`
-    (0.20→0.04, 0.12), i.e. how sure it must be to click a found box and to FOLLOW a moved one.
-  - `screen` (via `screen.cvLerp`) — the FOUND gates + edge detection, the fix for "the button
-    is on screen but it has no idea": `MatchThreshold` (0.90→0.60, legacy 0.75;
-    `$MARCO_FIND_THRESHOLD`) and `edgeMatchThreshold` (0.70→0.40, 0.55; `$MARCO_EDGE_MATCH`) are
-    the pixel/edge locators' `Found` gates — below them a present-but-imperfect button
-    contributes ZERO evidence (`scoreAnchor` only credits a locator when `l.found`), so no
-    confidence gate could rescue it; and `EdgeTolerance` (130→70, legacy 100;
-    `$MARCO_EDGE_TOLERANCE`) which drives BOTH edge matching and **AutoCrop/DetectButtons** — a
-    looser dial detects fainter button borders so the capture-time crop snaps to the control
-    (the "cropping doesn't work great" lever; crop changes need a **re-teach** to take effect,
-    the found/confidence gates apply to existing routes immediately).
+anchor is found, trusted, and followed. **0.5 reproduces every legacy value exactly** (each
+knob is a symmetric `cvLerp(strict, loose)` centred on its old value; each also keeps its own
+env override), so the dial is a no-op until dragged; the LOOSE end is deliberately aggressive
+(these are game UIs). It reaches three groups:
+  - `oshost` — ACT-ON-evidence gates (`oshost.cvLerp`): `findConfidence` (0.95→0.25, legacy 0.6;
+    `$MARCO_FIND_CONFIDENCE`), `locateFloor` (1.0→0.80, 0.90) and `moveMargin` (0.22→0.02, 0.12)
+    — how sure it must be to click a found box and to FOLLOW a moved one. PLUS `findTimeoutScale`:
+    the short click-gate timeout (≤5s, the 1500ms `DefaultFindTimeoutMs`) stretches 1×→4× above
+    neutral so a slower-appearing button gets more time before the route clicks anyway ("it went
+    too fast"); long wait-for-screen barriers untouched. Applied at run time in `doFind` → helps
+    EXISTING routes.
+  - `screen` — FOUND gates + edge detection (`screen.cvLerp`), the fix for "the button is on
+    screen but it has no idea": `MatchThreshold` (1.00→0.50, legacy 0.75; `$MARCO_FIND_THRESHOLD`)
+    and `edgeMatchThreshold` (0.80→0.30, 0.55; `$MARCO_EDGE_MATCH`) are the pixel/edge locators'
+    `Found` gates — below them a present-but-imperfect button contributes ZERO evidence
+    (`scoreAnchor` only credits a locator when `l.found`), so no confidence gate could rescue it;
+    `EdgeTolerance` (150→50, legacy 100; `$MARCO_EDGE_TOLERANCE`) drives edge matching AND
+    AutoCrop/DetectButtons. Run-time gates help existing routes; crop/edge-detect changes need a
+    **re-teach**.
+  - `screen` — CROP-SIZE gates (`screen.cropScale`, 1× at/below neutral → **4×** at full-loose,
+    floored at legacy so a stricter dial never shrinks a crop): the capture-time gates that were
+    rejecting HUGE game buttons into the small fallback patch — `maxButtonDim` (600→2400),
+    `maxRecenterPx` (140→560), `buttonSearchWin` (480→1920) and the `AutoCropAt` fallback radius
+    (×cropScale). Loosen the dial and re-teach → a big button is captured whole ("let the finder
+    work its magic"). Capture-time, so **re-teach** to take effect.
 Exposed as the overlay config editor's **`cv find`** slider (`config.go` `Sensitivity`, step
 0.05); the overlay passes `MARCO_CV_SENSITIVITY` to each spawned `marco` when off-neutral
 (`acts.go streamChild`) — run AND teach — so a drag takes effect on the **next command with no
-restart** (`marco do` runs the OS host in-process; `screen`'s vars read the env at package
-init of the fresh process). Tests: `oshost` `sensitivity_test.go`, `screen`
-`sensitivity_test.go` (`TestCVSensitivityGates`/`TestGateEnvOverride`).
+restart** (`marco do` runs the OS host in-process; `screen`/`recorder` vars read the env at
+package init of the fresh process). Tests: `oshost` `sensitivity_test.go`
+(`TestCVSensitivityMapping`/`FindTimeoutScale`), `screen` `sensitivity_test.go`
+(`TestCVSensitivityGates`/`TestCropScaleGates`/`TestGateEnvOverride`).
+
+**Cursor glide (hover-settle).** The find hover no longer TELEPORTS the cursor to the
+recorded point (one absolute `MOUSEEVENTF_MOVE`) — a game UI that lights a control only when
+the pointer physically travels onto it (RL's menu tiles) never saw the entry. `oshost.glide`
+now PULLS the cursor there as a trail of injected MOVE events (`winctx.CursorPos` start →
+interpolated steps → land on target), used at the hover-settle in `doFind`. `$MARCO_FIND_GLIDE=0`
+reverts to a single jump; the off-Windows stub (`CursorPos`→(0,0)) falls back to one move, so
+tests are unchanged. The OS `Move` act stays a single atomic move. Tests: `oshost`
+`TestFindHoversBeforeMatching` (asserts the glide LANDS on the recorded point).
 
 `MARCO_ROUTES`, `MARCO_STOP_KEY` (f12), `MARCO_ARG_KEY` (f9; `off`), `MARCO_ANCHORS`,
+`MARCO_FIND_HOVER`/`MARCO_FIND_WIGGLE`/`MARCO_FIND_GLIDE` (0 disables), `MARCO_FIND_SETTLE_MS` (150),
 `MARCO_RESOLVER`, `MARCO_BIN`, `MARCO_OVERLAY_IDLE`, `MARCO_VOICE_WAKE`,
 `MARCO_NARRATE_LOCK` (lock file path; default `$TEMP/marco-narrate.lock`),
 `MARCO_NO_PANIC_STOP`/`MARCO_NO_TEACH`/`MARCO_SIMPLIFY_SAVES` (set by the overlay).
