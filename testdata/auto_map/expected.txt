@@ -1,2 +1,2 @@
-Chris
-Haynes
+[INFO] Chris
+[INFO] Haynes

@@ -4,9 +4,11 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -73,6 +75,7 @@ func readRequests(h *model, out chan<- any) {
 
 // dispatch fulfils one Overlay act call.
 func dispatch(h *model, req request) response {
+	mlogD("overlay: dispatch", "action", req.Action)
 	switch req.Action {
 	case "Show":
 		h.show(true)
@@ -108,6 +111,7 @@ func dispatch(h *model, req request) response {
 		// While a voice-teach session is live, every phrase IS narration — forward it
 		// to the teach child (it handles "done"/"cancel" and exits) instead of running.
 		if voiceActive.Load() {
+			mlogD("overlay: forwarding to voice-teach", "phrase", name)
 			writeVoicePhrase(name)
 			return okData(nil)
 		}
@@ -117,6 +121,7 @@ func dispatch(h *model, req request) response {
 		// phrase or speak it.
 		if len(fields) >= 3 && (fields[0] == "narrate" || fields[0] == "voice") && fields[1] == "teach" {
 			vname := strings.TrimSpace(strings.Join(fields[2:], " "))
+			mlogI("overlay: narrate-teach starting", "name", vname)
 			voiceActive.Store(true) // set before spawning so no early phrase leaks to Run
 			h.setTeaching(true)
 			h.log("narrate teach \"" + vname + "\" — type or say: click / anchor this / type … / wait for this screen / done")
@@ -124,13 +129,17 @@ func dispatch(h *model, req request) response {
 				err := runNarrateTeach(h, vname)
 				h.setTeaching(false)
 				if err != nil {
+					mlogE("overlay: narrate-teach failed", "name", vname, "err", err)
 					h.log("narrate teach failed: " + vname)
+				} else {
+					mlogI("overlay: narrate-teach done", "name", vname)
 				}
 			}()
 			return okData(nil)
 		}
 		// "exit" / "quit" closes the overlay (the window quit also stops serve).
 		if len(fields) == 1 && (fields[0] == "exit" || fields[0] == "quit") {
+			mlogI("overlay: quit requested")
 			h.setStatus("bye")
 			h.requestQuit()
 			return okData(nil)
@@ -145,15 +154,7 @@ func dispatch(h *model, req request) response {
 				h.setStatus("teach needs a name — `m teach <name>")
 				return fail("teach needs a name")
 			}
-			h.setTeaching(true) // keep the HUD awake for the whole demonstration
-			h.log("recording \"" + tname + "\" — demonstrate now, press F12 to save")
-			go func() {
-				err := runTeachInteractive(h, tname) // streams prompts; answered in-HUD
-				h.setTeaching(false)
-				if err != nil {
-					h.log("teach failed: " + tname)
-				}
-			}()
+			startTeach(h, tname)
 			return okData(nil)
 		}
 		// Verb commands; anything else is a route to run.
@@ -161,13 +162,32 @@ func dispatch(h *model, req request) response {
 		switch {
 		case len(fields) > 0 && (fields[0] == "bind" || fields[0] == "unbind"):
 			args = fields
-		case len(fields) >= 2 && (fields[0] == "forget" || fields[0] == "delete" || fields[0] == "rm"):
+		case len(fields) >= 2 && fields[0] == "press":
+			args = fields // press a key or chord (e.g. "press enter", "press control c")
+		case len(fields) >= 2 && fields[0] == "forget":
 			args = append([]string{"forget"}, fields[1:]...) // delete a route
+		case len(fields) >= 4 && fields[0] == "rename":
+			// "rename old name to new name" — split on " to " and pass as separate args.
+			rest := strings.TrimSpace(strings.TrimPrefix(name, "rename "))
+			if idx := strings.Index(rest, " to "); idx > 0 {
+				args = []string{"rename", rest[:idx], "to", strings.TrimSpace(rest[idx+4:])}
+			}
 		case len(fields) >= 2 && fields[0] == "simplify":
 			args = fields // re-simplify a route from its recording
 		}
+		mlogI("overlay: running", "name", name, "args", args)
 		h.setStatus("running: " + name)
-		if _, outcome := runRecord(h, name, args...); outcome == "failed" {
+		_, outcome, route := runRecord(h, name, args...)
+		if outcome == "failed" {
+			// A run that never announced a [route] didn't resolve — it's an unknown
+			// command, so offer to teach it in-HUD rather than just erroring. (Other
+			// verbs like forget/rename aren't routes, so only the plain `do` path.)
+			if args[0] == "do" && route == "" {
+				mlogI("overlay: unknown command — offering teach", "name", name)
+				offerTeach(h, name)
+				return okData(nil)
+			}
+			mlogW2("overlay: command failed", "name", name)
 			return fail("command failed: " + name)
 		}
 		return okData(nil)
@@ -176,13 +196,16 @@ func dispatch(h *model, req request) response {
 		if key == "" {
 			return okData(nil)
 		}
+		mlogD("overlay: hotkey", "key", key)
 		if err, _, _ := runMarco(h, "hotkey", key); err != nil {
+			mlogE("overlay: hotkey failed", "key", key, "err", err)
 			return fail(err.Error())
 		}
 		return okData(nil)
 	case "Active":
 		return okData(activeApp())
 	default:
+		mlogW2("overlay: unknown action", "action", req.Action)
 		return fail("unknown Overlay action: " + req.Action)
 	}
 }
@@ -214,17 +237,30 @@ func marcoBin() string {
 }
 
 // listRoutes runs `marco routes --json` and returns the route display names.
-func listRoutes() []string {
+// routeInfo is one route with its scope. Scope is "context" (only in App), "focus"
+// (App, from anywhere — switches to it), or "global" (app-less, anywhere).
+type routeInfo struct {
+	Name  string `json:"name"`
+	App   string `json:"app"`
+	Scope string `json:"scope"`
+}
+
+// listRoutesFull returns every route with its scope (name + app).
+func listRoutesFull() []routeInfo {
 	out, err := exec.Command(marcoBin(), "routes", "--json").Output()
 	if err != nil {
 		return nil
 	}
-	var rows []struct {
-		Name string `json:"name"`
-	}
+	var rows []routeInfo
 	if json.Unmarshal(out, &rows) != nil {
 		return nil
 	}
+	return rows
+}
+
+// listRoutes returns just the route names (for autocomplete and the route ticker).
+func listRoutes() []string {
+	rows := listRoutesFull()
 	names := make([]string, 0, len(rows))
 	for _, r := range rows {
 		names = append(names, r.Name)
@@ -284,7 +320,24 @@ func writeVoicePhrase(phrase string) {
 // per-step status into the HUD. The child saves on "done" / discards on "cancel"
 // and exits, which ends the session here. Mirrors streamChild but with the
 // narration stdin pipe.
+// narrateLockPath returns the path of the lock file that signals the voice
+// plugin to stay armed between narration phrases. Both the overlay and the
+// voice plugin read MARCO_NARRATE_LOCK; if unset they share the same default.
+func narrateLockPath() string {
+	if p := os.Getenv("MARCO_NARRATE_LOCK"); p != "" {
+		return p
+	}
+	return filepath.Join(os.TempDir(), "marco-narrate.lock")
+}
+
 func runNarrateTeach(h *model, name string) error {
+	// Signal the voice plugin to re-arm between phrases for the duration of this
+	// session. The file is removed in the defer below (normal exit) or simply
+	// expires as stale if the overlay crashes.
+	lock := narrateLockPath()
+	_ = os.WriteFile(lock, nil, 0o600)
+	defer os.Remove(lock)
+
 	cmd := exec.Command(marcoBin(), "teach", "--narrate", name)
 	cmd.Env = append(os.Environ(), "MARCO_NO_PANIC_STOP=1")
 	inW, err := cmd.StdinPipe()
@@ -312,6 +365,7 @@ func runNarrateTeach(h *model, name string) error {
 		sc := bufio.NewScanner(pr)
 		for sc.Scan() {
 			if line := strings.TrimRight(sc.Text(), "\r"); line != "" {
+				fmt.Fprintln(os.Stderr, line) // full detail to the serve console
 				h.log(line)
 			}
 		}
@@ -336,6 +390,18 @@ func streamChild(h *model, trackCancel bool, args ...string) (error, bool, strin
 	// into teach-on-unknown. SIMPLIFY_SAVES: teach's [s] simplifies AND saves (the
 	// HUD can't show the preview to re-confirm). All harmless to non-teach commands.
 	cmd.Env = append(os.Environ(), "MARCO_NO_PANIC_STOP=1", "MARCO_NO_TEACH=1", "MARCO_SIMPLIFY_SAVES=1")
+	// CV find dial (config slider) → the engine's anchor scoring. Passed to every command
+	// (run-time scoring; teach ignores it) so dragging the slider takes effect on the next
+	// command with no overlay restart. Only when the user has moved it off the neutral 0.5.
+	if s := cfgSensitivity(); s != 0.5 {
+		cmd.Env = append(cmd.Env, "MARCO_CV_SENSITIVITY="+strconv.FormatFloat(s, 'f', 3, 64))
+	}
+	if len(args) > 0 && args[0] == "teach" {
+		// Two-key recording: the leader stops the demo (so F12 is free) and F12 is the
+		// hold-to-anchor key. The overlay passes the leader through while recording so
+		// it reaches the recorder's stop detection (see handleKey's recording gate).
+		cmd.Env = append(cmd.Env, "MARCO_STOP_KEY="+cfgLeader(), "MARCO_ANCHOR_KEY=f12")
+	}
 	inW, err := cmd.StdinPipe()
 	if err != nil {
 		return err, false, ""
@@ -367,8 +433,19 @@ func streamChild(h *model, trackCancel bool, args ...string) (error, bool, strin
 			if s == "" {
 				return
 			}
+			// The full route log (find/click/scores, errors, everything the child prints)
+			// goes to the CONSOLE — the overlay.cmd window where serve runs — uncapped, so
+			// the complete detail is always visible there even though the HUD only keeps a
+			// short tail.
+			fmt.Fprintln(os.Stderr, s)
 			if r, ok := strings.CutPrefix(s, "[route] "); ok {
 				route = strings.TrimSpace(r) // the resolved route name, not a log line
+				return
+			}
+			// Unknown-`do` error: the overlay offers to teach instead (see the `do`
+			// dispatch branch), so don't also log the raw engine error. Matched on the
+			// do-specific hint so a failed `bind`/etc. still surfaces its own error.
+			if strings.HasPrefix(s, "no route matches ") && strings.Contains(s, "marco teach") {
 				return
 			}
 			h.log(s)
@@ -435,9 +512,19 @@ func cancelRun() {
 	}
 }
 
+// isRunning reports whether a cancelable route is currently executing, so the
+// controller can make the leader key the panic/stop key while a route runs.
+func isRunning() bool {
+	runMu.Lock()
+	defer runMu.Unlock()
+	return runCmd != nil
+}
+
 // runRecord runs the command, sets the status, and appends it to the command
-// history with its outcome (ok/canceled/failed) and how long it took.
-func runRecord(h *model, name string, args ...string) (time.Duration, string) {
+// history with its outcome (ok/canceled/failed) and how long it took. It also
+// returns the canonical route the command resolved to ("" if none) so the caller
+// can tell an unknown command from a route that failed at run time.
+func runRecord(h *model, name string, args ...string) (time.Duration, string, string) {
 	start := time.Now()
 	err, canceled, route := runMarco(h, args...)
 	d := time.Since(start)
@@ -456,8 +543,83 @@ func runRecord(h *model, name string, args ...string) (time.Duration, string) {
 	default:
 		h.setStatus("ran: " + disp)
 	}
+	h.log(fmt.Sprintf("%s  %s  %s", outcomeIcon(outcome), disp, fmtDur(d)))
 	h.addHistory(disp, outcome, d)
-	return d, outcome
+	return d, outcome, route
+}
+
+// recording is true while a demonstration teach child is running. The keyboard hook
+// reads it to pass every key through to the recorder (and the app) — so the leader
+// key reaches the recorder's stop detection and ends the demo, instead of opening
+// the overlay command line.
+var recording atomic.Bool
+
+// startTeach kicks off an in-HUD demonstration teach for name (record → leader → save),
+// keeping the panel awake and streaming the engine's prompts into the HUD. Shared by
+// the explicit `m teach <name>` command and the unknown-command teach offer.
+func startTeach(h *model, name string) {
+	mlogI("overlay: teach starting", "name", name)
+	h.setTeaching(true) // keep the HUD awake for the whole demonstration
+	recording.Store(true)
+	h.log("recording \"" + name + "\" — demonstrate now, press " + strings.ToUpper(cfgLeader()) + " to save")
+	go func() {
+		err := runTeachInteractive(h, name) // streams prompts; answered in-HUD
+		recording.Store(false)
+		h.setTeaching(false)
+		if err != nil {
+			mlogE("overlay: teach failed", "name", name, "err", err)
+			h.log("teach failed: " + name)
+		} else {
+			mlogI("overlay: teach done", "name", name)
+		}
+	}()
+}
+
+// pendingTeach holds the route name an unknown-command teach offer would teach if
+// accepted ("" = none). Set when `marco do <name>` resolves nothing; consumed by the
+// controller when the user answers the in-HUD "Teach …?" prompt.
+var (
+	pendingTeachMu sync.Mutex
+	pendingTeach   string
+)
+
+// offerTeach shows an in-HUD "Teach \"name\"? [y]es / [n]o" prompt for an unknown
+// command, reusing the teach-prompt answering path (teachAsk). The controller starts
+// a demonstration on yes (see actTeachSubmit) and clears it on no.
+func offerTeach(h *model, name string) {
+	pendingTeachMu.Lock()
+	pendingTeach = name
+	pendingTeachMu.Unlock()
+	h.setStatus("unknown: " + name)
+	h.setTeachPrompt(fmt.Sprintf("Teach %q? [y]es / [n]o: ", name))
+	teachAsk.Store(true)
+}
+
+// takePendingTeach returns and clears the pending teach-offer name.
+func takePendingTeach() string {
+	pendingTeachMu.Lock()
+	defer pendingTeachMu.Unlock()
+	n := pendingTeach
+	pendingTeach = ""
+	return n
+}
+
+func outcomeIcon(outcome string) string {
+	switch outcome {
+	case "ok":
+		return "ok"
+	case "canceled":
+		return "canceled"
+	default:
+		return "failed"
+	}
+}
+
+func fmtDur(d time.Duration) string {
+	if d < time.Second {
+		return fmt.Sprintf("%dms", d.Milliseconds())
+	}
+	return fmt.Sprintf("%.1fs", d.Seconds())
 }
 
 // runMarco runs a marco subcommand, streaming output into the HUD and answering
@@ -473,26 +635,59 @@ func helpLines() []string {
 	lines := []string{
 		"`m then type:",
 		"  <route>            run it",
-		"  teach <name>       record a new one (F12 to save)",
+		"  teach <name>       record a new one (leader to save)",
 		"  simplify <route>   re-clean its steps",
+		"  rename <old> to <new>  rename it",
 		"  forget <route>     delete it",
 		"  bind <key> <route> hotkey it for this app",
 		"  config / help / exit",
 		"`<key>  run the route bound to it   Esc  cancel",
 		"",
-		"routes:",
 	}
-	routes := listRoutes()
-	if len(routes) == 0 {
-		lines = append(lines, "  (none yet — `m teach <name>)")
-	}
-	for i, r := range routes {
-		if i >= 8 {
-			lines = append(lines, "  …")
-			break
+	// Three groups, matching the route folders: CONTEXT (this app, in-place), FOCUS
+	// (an app's command you run from anywhere — it switches to that app), and GLOBAL
+	// (app-less). Other apps' context routes aren't runnable here, so they're omitted.
+	app := activeApp()
+	var context, focus, global []routeInfo
+	for _, r := range listRoutesFull() {
+		switch r.Scope {
+		case "global":
+			global = append(global, r)
+		case "focus":
+			focus = append(focus, r) // any app's focus is reachable from here
+		case "context":
+			if strings.EqualFold(r.App, app) {
+				context = append(context, r)
+			}
 		}
-		lines = append(lines, "  "+r)
 	}
+	addGroup := func(title string, rs []routeInfo, tagApp bool) {
+		lines = append(lines, title)
+		if len(rs) == 0 {
+			lines = append(lines, "  (none)")
+			return
+		}
+		for i, r := range rs {
+			if i >= 6 {
+				lines = append(lines, "  …")
+				break
+			}
+			label := r.Name
+			if tagApp && !strings.EqualFold(r.App, app) {
+				label += " (" + r.App + ")"
+			}
+			lines = append(lines, "  "+label)
+		}
+	}
+	if len(context)+len(focus)+len(global) == 0 {
+		lines = append(lines, "routes: (none yet — `m teach <name>)")
+		return lines
+	}
+	if app != "" {
+		addGroup("context — only in "+app+":", context, false)
+	}
+	addGroup("focus — switch to the app:", focus, true)
+	addGroup("global — anywhere:", global, false)
 	return lines
 }
 
@@ -513,7 +708,7 @@ func argHints(phrase string) []string {
 		return nil
 	}
 	var hints []string
-	for _, ln := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+	for ln := range strings.SplitSeq(strings.TrimSpace(string(out)), "\n") {
 		if ln = strings.TrimSpace(ln); ln != "" {
 			hints = append(hints, ln)
 		}

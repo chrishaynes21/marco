@@ -10,14 +10,14 @@ import (
 func TestSchedulerDriveWaitsForAll(t *testing.T) {
 	s := newScheduler()
 	const n = 50
-	var done int64
-	for i := 0; i < n; i++ {
+	var done atomic.Int64
+	for range n {
 		s.spawn(nil, func() {
-			atomic.AddInt64(&done, 1)
+			done.Add(1)
 		})
 	}
 	s.drive()
-	if got := atomic.LoadInt64(&done); got != n {
+	if got := done.Load(); got != n {
 		t.Errorf("after drive, %d/%d tasks finished — drive returned early", got, n)
 	}
 }
@@ -52,21 +52,21 @@ func TestSchedulerParkUnblocksOnClose(t *testing.T) {
 // still waits for the whole transitive set.
 func TestSchedulerNestedSpawn(t *testing.T) {
 	s := newScheduler()
-	var count int64
+	var count atomic.Int64
 	var release = make(chan struct{})
 	s.spawn(nil, func() {
-		atomic.AddInt64(&count, 1)
+		count.Add(1)
 		// Spawn a child before this task returns so the WaitGroup count is
 		// incremented before drive() can observe zero.
 		s.spawn(nil, func() {
 			<-release
-			atomic.AddInt64(&count, 1)
+			count.Add(1)
 		})
 	})
 	// Let the outer task register the child, then release it.
 	close(release)
 	s.drive()
-	if got := atomic.LoadInt64(&count); got != 2 {
+	if got := count.Load(); got != 2 {
 		t.Errorf("count = %d, want 2 (drive must wait for nested spawns)", got)
 	}
 }

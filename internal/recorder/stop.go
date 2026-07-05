@@ -26,7 +26,7 @@ func ParseStopKey(spec string) StopKey {
 		spec = DefaultStopKey
 	}
 	sk := StopKey{set: map[string]bool{}, held: map[string]bool{}}
-	for _, part := range strings.Split(spec, "+") {
+	for part := range strings.SplitSeq(spec, "+") {
 		k := strings.ToLower(strings.TrimSpace(part))
 		if k == "" || sk.set[k] {
 			continue

@@ -1,2 +1,2 @@
-button reloaded
-banner reloaded
+[INFO] button reloaded
+[INFO] banner reloaded

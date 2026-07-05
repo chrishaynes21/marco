@@ -1,2 +1,2 @@
-channel got it
-actor got it
+[INFO] channel got it
+[INFO] actor got it

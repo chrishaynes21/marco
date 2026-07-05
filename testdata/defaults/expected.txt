@@ -1,4 +1,4 @@
-Bob
-18
-anon
-18
+[INFO] Bob
+[INFO] 18
+[INFO] anon
+[INFO] 18

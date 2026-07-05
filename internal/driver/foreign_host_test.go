@@ -54,8 +54,8 @@ do OS's Boom...
 func TestForeignFailedWithError(t *testing.T) {
 	host := stubHost{status: "failed", data: runtime.ErrVal(&runtime.Err{Message: "kaboom"})}
 	got := runWithHost(t, foreignBoomProg, map[string]runtime.Host{"OS": host})
-	if got != "kaboom\n" {
-		t.Fatalf("got %q, want %q", got, "kaboom\n")
+	if got != "[INFO] kaboom\n" {
+		t.Fatalf("got %q, want %q", got, "[INFO] kaboom\n")
 	}
 }
 
@@ -64,8 +64,8 @@ func TestForeignFailedWithError(t *testing.T) {
 func TestForeignGoError(t *testing.T) {
 	host := stubHost{err: errors.New("explode")}
 	got := runWithHost(t, foreignBoomProg, map[string]runtime.Host{"OS": host})
-	if got != "explode\n" {
-		t.Fatalf("got %q, want %q", got, "explode\n")
+	if got != "[INFO] explode\n" {
+		t.Fatalf("got %q, want %q", got, "[INFO] explode\n")
 	}
 }
 
@@ -75,8 +75,8 @@ func TestForeignGoError(t *testing.T) {
 func TestForeignOK(t *testing.T) {
 	host := stubHost{status: "ok", data: runtime.Absent()}
 	got := runWithHost(t, foreignBoomProg, map[string]runtime.Host{"OS": host})
-	if got != "ok\n" {
-		t.Fatalf("got %q, want %q", got, "ok\n")
+	if got != "[INFO] ok\n" {
+		t.Fatalf("got %q, want %q", got, "[INFO] ok\n")
 	}
 }
 
@@ -84,7 +84,7 @@ func TestForeignOK(t *testing.T) {
 // host (logs the call, resolves ok).
 func TestForeignDryrunFallback(t *testing.T) {
 	got := runWithHost(t, foreignBoomProg, nil)
-	if got != "[dryrun] OS's Boom\nok\n" {
-		t.Fatalf("got %q, want %q", got, "[dryrun] OS's Boom\nok\n")
+	if got != "[dryrun] OS's Boom\n[INFO] ok\n" {
+		t.Fatalf("got %q, want %q", got, "[dryrun] OS's Boom\n[INFO] ok\n")
 	}
 }

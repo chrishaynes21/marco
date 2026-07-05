@@ -1,2 +1,2 @@
-a
-after
+[INFO] a
+[INFO] after

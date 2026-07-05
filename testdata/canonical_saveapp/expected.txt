@@ -1,2 +1,2 @@
-saved
-/canonical
+[INFO] saved
+[INFO] /canonical

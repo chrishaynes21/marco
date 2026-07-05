@@ -16,6 +16,22 @@
                and tells you how to get gcc.
     -WebUI     the web control panel (plugins/web-ui)
     -Resolver  the Claude NL resolver plugin (plugins/claude-resolver)
+    -OCR       the text/OCR anchor resolver (plugins/ocr). Builds ocr.exe AND
+               installs the tesseract OCR engine it needs (via winget, or a
+               -TesseractUrl silent installer), then pins MARCO_TESSERACT.
+    -Vision    the SEMANTIC UI-element resolver (plugins/vision). KITCHEN SINK:
+               auto-provisions the REAL detector — downloads onnxruntime, downloads
+               + exports an OmniParser ONNX model (needs Python+ultralytics; or pass
+               -VisionModel <model.onnx>), builds with -tags onnxvision (needs gcc),
+               and pins MARCO_VISION/MARCO_ONNXRUNTIME/MARCO_VISION_MODEL/_LABELS.
+               Any missing piece → the dependency-free null detector (re-run later).
+               Override: -OnnxRuntimeVersion, -VisionModelUrl, -VisionLabels.
+    -CV        KITCHEN SINK: pin MARCO_CV=max so every demonstrated click becomes a
+               multi-signal CV anchor (image+edge+colour+OCR, +Vision if a model is
+               wired), every button, even non-distinctive patches. Implies -OCR. The
+               one switch to A/B test the whole CV stack.
+    -NoCV      the other side of the A/B: pin MARCO_CV=off (record plain coordinates,
+               no anchors, no resolvers).
 
   Re-run any time; downloads are skipped if present (use -Force to refetch).
 
@@ -23,17 +39,31 @@
   .\setup.ps1                 # core only
   .\setup.ps1 -Voice          # core + offline voice (downloads libvosk + model)
   .\setup.ps1 -Voice -WebUI   # core + voice + web UI
+  .\setup.ps1 -OCR            # core + text/OCR resolver (installs tesseract)
+  .\setup.ps1 -CV             # kitchen-sink CV: every click a multi-signal anchor
+  .\setup.ps1 -CV -Vision     # ...plus auto-provision the semantic detector (downloads)
+  .\setup.ps1 -NoCV           # plain coordinates (the A/B baseline)
 #>
 [CmdletBinding()]
 param(
     [switch]$Voice,
     [switch]$WebUI,
     [switch]$Resolver,
+    [switch]$OCR,
+    [switch]$Vision,
+    [switch]$CV,
+    [switch]$NoCV,
     [switch]$Force,
     [string]$Model = "vosk-model-small-en-us-0.15",
     [string]$LibVoskVersion = "0.3.45",
     [string]$Wake = "marco",
-    [string]$ApiKey = ""
+    [string]$ApiKey = "",
+    [string]$TesseractUrl = "",
+    [string]$OnnxRuntime = "",
+    [string]$VisionModel = "",
+    [string]$OnnxRuntimeVersion = "1.26.0",
+    [string]$VisionModelUrl = "https://huggingface.co/microsoft/OmniParser-v2.0/resolve/main/icon_detect/model.pt",
+    [string]$VisionLabels = "icon"
 )
 
 $ErrorActionPreference = "Stop"
@@ -74,6 +104,132 @@ function Download($url, $dest) {
     Invoke-WebRequest -Uri $url -OutFile $dest
 }
 
+# Find-Tesseract returns the path to tesseract.exe — on PATH, or in the standard
+# install locations — or "" if it isn't installed.
+function Find-Tesseract {
+    $cmd = Get-Command tesseract -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+    $dirs = @($env:ProgramFiles, [Environment]::GetEnvironmentVariable("ProgramFiles(x86)"))
+    foreach ($d in $dirs) {
+        if ($d) {
+            $p = Join-Path $d "Tesseract-OCR\tesseract.exe"
+            if (Test-Path $p) { return $p }
+        }
+    }
+    return ""
+}
+
+# Install-Tesseract ensures the OCR engine is present and returns its path ("" if it
+# couldn't install it). Prefers an existing install; then a -TesseractUrl silent
+# installer (UB-Mannheim NSIS, supports /S); then winget. Either install path may
+# prompt for elevation (it installs into Program Files).
+function Install-Tesseract {
+    $found = Find-Tesseract
+    if ($found -ne "") { Info "have tesseract ($found)"; return $found }
+
+    if ($TesseractUrl -ne "") {
+        $exe = Join-Path $env:TEMP "tesseract-setup.exe"
+        Download $TesseractUrl $exe
+        Info "installing tesseract (silent)..."
+        Start-Process -FilePath $exe -ArgumentList "/S" -Wait
+    } elseif (Get-Command winget -ErrorAction SilentlyContinue) {
+        Info "installing tesseract via winget (UB-Mannheim.TesseractOCR)..."
+        # winget returns non-zero if it's already installed; that's not an error here.
+        & winget install -e --id UB-Mannheim.TesseractOCR `
+            --accept-package-agreements --accept-source-agreements --disable-interactivity
+    } else {
+        Warn "can't auto-install tesseract: no winget and no -TesseractUrl. Install it with"
+        Warn "  winget install UB-Mannheim.TesseractOCR"
+        Warn "  (or pass -TesseractUrl <installer.exe>), then re-run .\setup.ps1 -OCR."
+        return ""
+    }
+    return Find-Tesseract
+}
+
+# Install-OnnxRuntime downloads the ONNX Runtime Windows shared library and returns the
+# path to onnxruntime.dll (cached under _dl; skipped if present). "" on failure.
+function Install-OnnxRuntime {
+    $dl = Join-Path $root "_dl"
+    New-Item -ItemType Directory -Force -Path $dl | Out-Null
+    $name = "onnxruntime-win-x64-$OnnxRuntimeVersion"
+    $dir = Join-Path $dl $name
+    $dll = Join-Path $dir "lib\onnxruntime.dll"
+    if ((Test-Path $dll) -and -not $Force) { Info "have onnxruntime ($OnnxRuntimeVersion)"; return $dll }
+    $zip = Join-Path $dl "$name.zip"
+    $url = "https://github.com/microsoft/onnxruntime/releases/download/v$OnnxRuntimeVersion/$name.zip"
+    try {
+        Info "downloading onnxruntime $OnnxRuntimeVersion..."
+        Download $url $zip
+        Expand-Archive -Path $zip -DestinationPath $dl -Force
+    } catch { Warn "onnxruntime download failed: $($_.Exception.Message)"; return "" }
+    if (Test-Path $dll) { Ok "onnxruntime -> $dll"; return $dll }
+    Warn "onnxruntime.dll not found after extract (zip layout changed?)"
+    return ""
+}
+
+# Find-Python returns a real CPython interpreter that has ultralytics importable (for the
+# .pt -> .onnx export), preferring a standard install over the Microsoft Store execution
+# alias (WindowsApps\python.exe) — that alias shadows `python` on PATH but can't run
+# ultralytics. "" if none usable.
+function Find-Python {
+    $cands = New-Object System.Collections.ArrayList
+    $base = Join-Path $env:LOCALAPPDATA "Programs\Python"
+    if (Test-Path $base) {
+        Get-ChildItem $base -Directory -Filter "Python3*" -ErrorAction SilentlyContinue |
+            Sort-Object Name -Descending |
+            ForEach-Object { [void]$cands.Add((Join-Path $_.FullName "python.exe")) }
+    }
+    foreach ($d in @("C:\Python314", "C:\Python313", "C:\Python312")) {
+        [void]$cands.Add((Join-Path $d "python.exe"))
+    }
+    $cmd = Get-Command python -ErrorAction SilentlyContinue
+    if ($cmd -and $cmd.Source -notlike "*WindowsApps*") { [void]$cands.Add($cmd.Source) }
+    foreach ($p in $cands) {
+        if (Test-Path $p) {
+            try { & $p -c "import ultralytics" 2>$null } catch {}
+            if ($LASTEXITCODE -eq 0) { return $p }
+        }
+    }
+    return ""
+}
+
+# Get-VisionModel resolves an .onnx detector: an explicit -VisionModel wins; otherwise it
+# downloads the OmniParser icon_detect weights (.pt) and EXPORTS them to ONNX with
+# ultralytics (Python) when available. Returns the .onnx path, or "" if it can't (then the
+# null detector is built and the user supplies a model later). Model is the operator's
+# artifact (BYO) — its license is theirs; setup just fetches what's pointed at.
+function Get-VisionModel {
+    if ($VisionModel -ne "") {
+        if (-not (Test-Path $VisionModel)) { throw "VisionModel not found: $VisionModel" }
+        return (Resolve-Path $VisionModel).Path
+    }
+    $models = Join-Path $root "plugins\vision\models"
+    New-Item -ItemType Directory -Force -Path $models | Out-Null
+    $onnx = Join-Path $models "icon_detect.onnx"
+    if ((Test-Path $onnx) -and -not $Force) { Info "have vision model (icon_detect.onnx)"; return $onnx }
+    $pt = Join-Path $models "icon_detect.pt"
+    try { Info "downloading OmniParser icon_detect weights..."; Download $VisionModelUrl $pt }
+    catch { Warn "model download failed: $($_.Exception.Message)"; return "" }
+    # Export .pt -> .onnx via a real ultralytics-equipped Python (NOT the Store alias).
+    $pyExe = Find-Python
+    if ($pyExe -eq "") {
+        Warn "downloaded $pt but found no Python with ultralytics to export it (the Store"
+        Warn "  'python' alias won't work). Install: winget install Python.Python.3.13;"
+        Warn "  <python> -m pip install ultralytics. Then export:"
+        Warn "  yolo export model=`"$pt`" format=onnx imgsz=640 opset=12  (or pass -VisionModel <onnx>)"
+        return ""
+    }
+    Info "exporting model to ONNX (ultralytics: $pyExe)..."
+    & $pyExe -c "from ultralytics import YOLO; YOLO(r'$pt').export(format='onnx', imgsz=640, opset=12)" 2>&1 | Out-Host
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path $onnx)) {
+        Warn "ONNX export failed. Export manually:"
+        Warn "  & `"$pyExe`" -m ultralytics  # or: yolo export model=`"$pt`" format=onnx imgsz=640 opset=12"
+        return ""
+    }
+    Ok "vision model -> $onnx"
+    return $onnx
+}
+
 # --- core (always) ----------------------------------------------------------
 Step "Core layers"
 Need go "Install Go from https://go.dev/dl and reopen the terminal."
@@ -96,6 +252,64 @@ if ($Resolver) {
     } elseif (-not $env:ANTHROPIC_API_KEY) {
         Warn "no API key: set one with  setx ANTHROPIC_API_KEY sk-...  (or re-run with -ApiKey sk-...)"
     }
+}
+
+# --- OCR text resolver (optional) -------------------------------------------
+$ocrReady = $false
+$tesseractExe = ""
+if ($OCR -or $CV) {
+    Step "OCR text resolver"
+    BuildMod "plugins\ocr" "ocr.exe"
+    $ocrReady = $true
+    # The resolver shells out to the tesseract CLI (cross-platform). Install it now so
+    # text anchors work out of the box; if we can't, they degrade to the recorded
+    # coordinate until it's installed.
+    $tesseractExe = Install-Tesseract
+    if ($tesseractExe -ne "") {
+        Ok "tesseract: $tesseractExe"
+    } else {
+        Warn "ocr.exe built, but tesseract isn't installed - text anchors fall back for now."
+    }
+}
+
+# --- vision resolver (optional) ---------------------------------------------
+$visionReady = $false     # vision.exe exists (at least the null detector)
+$visionModel = ""         # path pinned only when the real detector is wired
+$visionLabels = ""        # class names for the wired model
+if ($Vision) {
+    Step "Vision (semantic UI-element resolver)"
+    $visionDir = Join-Path $root "plugins\vision"
+    # Kitchen sink: try to provision the WHOLE real detector automatically — the ONNX
+    # runtime lib, a model (download + export, or BYO via -VisionModel), and the cgo build.
+    # Any missing piece falls back to the dependency-free null detector (declines), so this
+    # never hard-fails; you can supply what's missing and re-run.
+    $ortPath = if ($OnnxRuntime -ne "") { (Resolve-Path $OnnxRuntime).Path } else { Install-OnnxRuntime }
+    $onnxModel = try { Get-VisionModel } catch { Warn $_.Exception.Message; "" }
+    $haveGcc = [bool](Get-Command gcc -ErrorAction SilentlyContinue)
+
+    if (($ortPath -ne "") -and ($onnxModel -ne "") -and $haveGcc) {
+        Info "fetching onnxruntime_go binding..."
+        & go -C $visionDir get github.com/yalue/onnxruntime_go
+        if ($LASTEXITCODE -ne 0) { throw "go get onnxruntime_go failed" }
+        $env:CGO_ENABLED = "1"
+        & go -C $visionDir build -tags onnxvision -o vision.exe .
+        $rc = $LASTEXITCODE
+        $env:CGO_ENABLED = ""
+        if ($rc -ne 0) { throw "vision (onnxvision) build failed" }
+        $visionModel = $onnxModel
+        $visionLabels = $VisionLabels
+        $script:OnnxRuntimePath = $ortPath
+        Ok "built vision.exe (REAL detector) - model $visionModel"
+        Ok "spike it:  .\marco.exe vision detect <screenshot.png>"
+    } else {
+        # Couldn't assemble the full stack — build the null detector and say what's missing.
+        BuildMod "plugins\vision" "vision.exe"
+        if (-not $haveGcc) { Warn "no gcc on PATH - the real detector needs cgo (e.g. 'scoop install mingw')." }
+        if ($ortPath -eq "") { Warn "no onnxruntime.dll (download failed or none supplied)." }
+        if ($onnxModel -eq "") { Warn "no .onnx model (supply -VisionModel, or install Python+ultralytics to auto-export)." }
+        Warn "built vision.exe with the NULL detector (declines until the above are resolved); re-run -Vision."
+    }
+    $visionReady = $true
 }
 
 # --- voice (optional) -------------------------------------------------------
@@ -169,14 +383,47 @@ $lines = [System.Collections.ArrayList]@(
     'cd /d "%~dp0"',
     'set "MARCO_BIN=%CD%\marco.exe"'
 )
+# The CV master switch (A/B the whole anchor stack). -CV = kitchen sink, -NoCV = off.
+if ($CV) {
+    [void]$lines.Add('set "MARCO_CV=max"')
+} elseif ($NoCV) {
+    [void]$lines.Add('set "MARCO_CV=off"')
+}
 if ($resolverReady) {
     # Claude resolves loose phrasing the local matcher misses (needs ANTHROPIC_API_KEY).
     [void]$lines.Add('set "MARCO_RESOLVER=%CD%\plugins\claude-resolver\claude-resolver.exe"')
 }
+if ($ocrReady) {
+    # The OCR resolver fulfils a route's text anchor (do Text's Find). Spawned `marco
+    # do` reads MARCO_OCR and launches it lazily, so it costs nothing until a text
+    # anchor runs.
+    [void]$lines.Add('set "MARCO_OCR=%CD%\plugins\ocr\ocr.exe"')
+    # Pin the tesseract path we found/installed, so it works even before a PATH refresh
+    # (a fresh install isn't on this session's PATH yet). The plugin prefers this.
+    if ($tesseractExe -ne "") {
+        [void]$lines.Add("set `"MARCO_TESSERACT=$tesseractExe`"")
+    }
+}
+if ($visionReady) {
+    # The vision resolver fulfils a route's Vision's Locate/Detect. Spawned `marco do`
+    # reads MARCO_VISION and launches it lazily. With no model pinned it's the null
+    # detector (declines), so this is safe to set either way.
+    [void]$lines.Add('set "MARCO_VISION=%CD%\plugins\vision\vision.exe"')
+    if ($visionModel -ne "") {
+        [void]$lines.Add("set `"MARCO_VISION_MODEL=$visionModel`"")
+        [void]$lines.Add("set `"MARCO_ONNXRUNTIME=$($script:OnnxRuntimePath)`"")
+        if ($visionLabels -ne "") {
+            [void]$lines.Add("set `"MARCO_VISION_LABELS=$visionLabels`"")
+        }
+    }
+}
 [void]$lines.Add($voicePrefix + 'marco.exe serve ^')
 [void]$lines.Add('  --host "OS=bridge:%CD%\marco-macros.exe" ^')
+if ($visionReady) {
+    [void]$lines.Add('  --host "Vision=bridge:%CD%\plugins\vision\vision.exe" ^')
+}
 [void]$lines.Add('  --host "Overlay=bridge:%CD%\plugins\overlay\overlay.exe" ^')
-[void]$lines.Add('  programs\overlay.marco %*')
+[void]$lines.Add('  plugins\overlay\overlay.marco %*')
 Set-Content -Path (Join-Path $root "overlay.cmd") -Value $lines -Encoding ascii
 Ok "wrote overlay.cmd"
 

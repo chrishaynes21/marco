@@ -1,2 +1,2 @@
-saved
-/ok
+[INFO] saved
+[INFO] /ok

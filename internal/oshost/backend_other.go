@@ -20,9 +20,14 @@ func unsupported(op string) error {
 }
 
 func (stubBackend) key(context.Context, string) error      { return unsupported("key") }
+func (stubBackend) keyDown(context.Context, string) error  { return unsupported("keydown") }
+func (stubBackend) keyUp(context.Context, string) error    { return unsupported("keyup") }
 func (stubBackend) typeText(context.Context, string) error { return unsupported("type") }
 func (stubBackend) click(context.Context, string) error    { return unsupported("click") }
-func (stubBackend) move(context.Context, int, int) error   { return unsupported("move") }
+func (stubBackend) clickAt(context.Context, string, int, int) error {
+	return unsupported("click")
+}
+func (stubBackend) move(context.Context, int, int) error { return unsupported("move") }
 func (stubBackend) color(context.Context, int, int) (uint32, error) {
 	return 0, unsupported("color")
 }

@@ -1,2 +1,2 @@
-elapsed
-after wait
+[INFO] elapsed
+[INFO] after wait

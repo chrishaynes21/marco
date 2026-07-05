@@ -8,6 +8,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/chaynes-simpleclouds/marco/internal/bridgehost"
+	"github.com/chaynes-simpleclouds/marco/internal/mlog"
 	"github.com/chaynes-simpleclouds/marco/internal/nlu"
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
 	"github.com/chaynes-simpleclouds/marco/internal/oshost"
@@ -35,10 +37,25 @@ func stopKeySpec() string { return os.Getenv("MARCO_STOP_KEY") }
 // newDeps builds the orchestrator with the real recorder and the native OS host
 // (routes drive and demonstrations capture real input).
 func newDeps() orchestrator.Deps {
+	hosts := map[string]runtime.Host{"*": oshost.New()}
+	// Wire the OCR text resolver when $MARCO_OCR points at the plugin binary, so a
+	// route's text anchor (do Text's Find) resolves by OCR. Launched lazily on first
+	// use, so it costs nothing when no route needs it. Absent → text anchors fall
+	// through to the OS host, which declines, and the click uses its recorded point.
+	if ocr := strings.TrimSpace(os.Getenv("MARCO_OCR")); ocr != "" {
+		hosts["Text"] = bridgehost.New(ocr)
+	}
+	// Wire the semantic vision resolver when $MARCO_VISION points at the plugin binary, so
+	// a route's `do Vision's Locate/Detect` resolves UI elements by a learned detector.
+	// Lazy like the OCR host; absent → Vision calls fall through and decline, and the click
+	// uses its recorded point or another resolver.
+	if vis := strings.TrimSpace(os.Getenv("MARCO_VISION")); vis != "" {
+		hosts["Vision"] = bridgehost.New(vis)
+	}
 	return orchestrator.Deps{
 		Reg:     routes.Registry{Dir: routesDir()},
 		Rec:     recorder.New(),
-		Hosts:   map[string]runtime.Host{"*": oshost.New()},
+		Hosts:   hosts,
 		In:      os.Stdin,
 		Out:     os.Stdout,
 		App:     winctx.Active,
@@ -58,36 +75,48 @@ func runAssistantDo(args []string) {
 		os.Exit(2)
 	}
 	d := newDeps()
-	// Peel off args ("name:value" or "… with a, b") before resolving — they belong
-	// to the invocation, not the route name.
-	base, named, positional := routes.ParseInvocation(name)
-	// Resolve to an existing route so close phrasings reuse it instead of
-	// teaching a duplicate. `do` is non-interactive, so only act on confident
-	// matches; otherwise pass the phrase through (Do teaches if unknown).
-	target := base
+	// A command may chain several steps with " then " — run them in order, stopping
+	// at the first failure. Each step keeps its own "… with a, b"/"name:" args.
+	for _, step := range routes.SplitChain(name) {
+		target, named, positional := resolveTarget(d, step)
+		mlog.Info("do: dispatching", "target", target, "app", appOf(d))
+		if err := dispatchDo(d, target, named, positional); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+	}
+}
+
+// resolveTarget peels a single command's args ("name:value" / "… with a, b") and
+// resolves its phrase to an existing route slug, preferring a confident nlu match,
+// then the optional model resolver, else the phrase as-is (Do teaches if unknown).
+func resolveTarget(d orchestrator.Deps, command string) (target string, named map[string]string, positional []string) {
+	base, named, positional := routes.ParseInvocation(command)
+	mlog.Debug("do: parsed invocation", "input", command, "base", base, "named_count", len(named), "positional_count", len(positional))
+	target = base
 	if m := nlu.Resolve(base, d.Reg.Slugs()); m.Route != "" && (m.Exact || m.Score >= 0.75) {
+		mlog.Debug("do: nlu match", "input", base, "route", m.Route, "exact", m.Exact, "score", m.Score)
 		target = m.Route
 	} else if r := resolver.Resolve(context.Background(), base, d.Reg.Slugs()); r != "" {
+		mlog.Debug("do: resolver match", "input", base, "route", r)
 		target = r // optional model fallback for loose phrasing
 	}
-	if err := dispatchDo(d, target, named, positional); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
+	return target, named, positional
 }
 
 func runRoutes(args []string) {
 	list := newDeps().Reg.List()
 	if len(args) > 0 && args[0] == "--json" {
-		// Machine-readable, for a UI plugin: [{ "name", "slug", "app" }]
+		// Machine-readable, for a UI plugin: [{ "name", "slug", "app", "scope" }]
 		type jr struct {
-			Name string `json:"name"`
-			Slug string `json:"slug"`
-			App  string `json:"app"`
+			Name  string `json:"name"`
+			Slug  string `json:"slug"`
+			App   string `json:"app"`
+			Scope string `json:"scope"` // "context" | "focus" | "global"
 		}
 		out := make([]jr, 0, len(list))
 		for _, rt := range list {
-			out = append(out, jr{Name: prettyRoute(rt.Slug), Slug: rt.Slug, App: rt.App})
+			out = append(out, jr{Name: prettyRoute(rt.Slug), Slug: rt.Slug, App: rt.App, Scope: scopeName(rt)})
 		}
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
@@ -100,11 +129,31 @@ func runRoutes(args []string) {
 	}
 	fmt.Println("Known routes:")
 	for _, rt := range list {
-		scope := "everywhere"
-		if rt.App != "" {
-			scope = "in " + rt.App
-		}
-		fmt.Printf("  %-28s (%s)\n", prettyRoute(rt.Slug), scope)
+		fmt.Printf("  %-28s (%s)\n", prettyRoute(rt.Slug), scopeDesc(rt))
+	}
+}
+
+// scopeName is a route's bare scope: context | focus | global.
+func scopeName(rt routes.Route) string {
+	switch {
+	case rt.App == "":
+		return "global"
+	case rt.Focus:
+		return "focus"
+	default:
+		return "context"
+	}
+}
+
+// scopeDesc is a human description of a route's reach, for listings.
+func scopeDesc(rt routes.Route) string {
+	switch {
+	case rt.App == "":
+		return "global — anywhere"
+	case rt.Focus:
+		return "focus — " + rt.App + " from anywhere"
+	default:
+		return "context — only in " + rt.App
 	}
 }
 
@@ -163,6 +212,32 @@ func runForget(args []string) {
 	fmt.Printf("Forgot %q.\n", prettyRoute(rt.Slug))
 }
 
+func runRename(args []string) {
+	phrase := strings.TrimSpace(strings.Join(args, " "))
+	before, after, found := strings.Cut(phrase, " to ")
+	oldName, newName := strings.TrimSpace(before), strings.TrimSpace(after)
+	if !found || oldName == "" || newName == "" {
+		fmt.Fprintln(os.Stderr, `usage: marco rename "old name" to "new name"`)
+		os.Exit(2)
+	}
+	d := newDeps()
+	rt, ok := d.Reg.Resolve(appOf(d), oldName)
+	if !ok {
+		fmt.Fprintf(os.Stderr, "No route named %q.\n", oldName)
+		os.Exit(1)
+	}
+	newRt := routes.Route{App: rt.App, Focus: rt.Focus, Slug: routes.Slug(newName)}
+	if d.Reg.Has(newRt) {
+		fmt.Fprintf(os.Stderr, "A route named %q already exists.\n", newName)
+		os.Exit(1)
+	}
+	if err := d.Reg.Rename(rt, newRt); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	fmt.Printf("Renamed %q to %q.\n", prettyRoute(rt.Slug), prettyRoute(newRt.Slug))
+}
+
 func runAssistantTeach(args []string) {
 	// --auto: non-interactive teach (record → simplify → save scoped to the
 	// foreground app), so a front-end like the overlay can drive teaching with no
@@ -210,17 +285,18 @@ func runAssistantTeach(args []string) {
 	}
 }
 
-// runArgs prints the argument labels of the route a phrase resolves to, one per
-// line — the overlay calls it to auto-pop "name:" labels as you type. Labels you've
-// already supplied ("name:…") are omitted. Prints nothing (and exits 0) when there's
-// no confident match or no args, so a front-end treats empty as "no hint".
+// runArgs prints the full, ordered argument labels of the route a phrase resolves
+// to, one per line — the overlay weaves them into the "with" clause as colored
+// hints in front of each value (so "say hello with chris" reads "with name: chris").
+// Prints nothing (and exits 0) when there's no confident match or no args, so a
+// front-end treats empty as "no hint".
 func runArgs(cliArgs []string) {
 	phrase := strings.TrimSpace(strings.Join(cliArgs, " "))
 	if phrase == "" {
 		return
 	}
 	d := newDeps()
-	base, named, _ := routes.ParseInvocation(phrase)
+	base, _, _ := routes.ParseInvocation(phrase)
 	target := base
 	if m := nlu.Resolve(base, d.Reg.Slugs()); m.Route != "" && (m.Exact || m.Score >= 0.75) {
 		target = m.Route
@@ -234,9 +310,7 @@ func runArgs(cliArgs []string) {
 		return
 	}
 	for _, name := range routes.ArgNames(string(src)) {
-		if _, supplied := named[strings.ToLower(name)]; !supplied {
-			fmt.Println(name)
-		}
+		fmt.Println(name)
 	}
 }
 
@@ -303,11 +377,7 @@ func runAssistant(_ []string) {
 			continue
 		case "list":
 			for _, rt := range d.Reg.List() {
-				scope := "everywhere"
-				if rt.App != "" {
-					scope = "in " + rt.App
-				}
-				fmt.Fprintf(os.Stdout, "  %-28s (%s)\n", prettyRoute(rt.Slug), scope)
+				fmt.Fprintf(os.Stdout, "  %-28s (%s)\n", prettyRoute(rt.Slug), scopeDesc(rt))
 			}
 			continue
 		}
@@ -337,6 +407,7 @@ func runAssistant(_ []string) {
 
 func runDo(d orchestrator.Deps, name string) {
 	base, named, positional := routes.ParseInvocation(name)
+	mlog.Debug("assistant: parsed invocation", "input", name, "base", base, "named_count", len(named), "positional_count", len(positional))
 	if err := dispatchDo(d, base, named, positional); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 	}

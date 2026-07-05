@@ -1,2 +1,2 @@
-42
-ok
+[INFO] 42
+[INFO] ok

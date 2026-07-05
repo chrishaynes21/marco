@@ -1,5 +1,5 @@
-first:
-alpha
-beta
-last:
-gamma
+[INFO] first:
+[INFO] alpha
+[INFO] beta
+[INFO] last:
+[INFO] gamma

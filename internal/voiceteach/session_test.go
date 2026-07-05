@@ -92,7 +92,7 @@ func TestSessionBuildsRoute(t *testing.T) {
 
 	// The route compiles.
 	dir := t.TempDir()
-	osSrc, err := os.ReadFile(filepath.Join("..", "..", "programs", "os.marco"))
+	osSrc, err := os.ReadFile(filepath.Join("..", "osmod", "os.marco"))
 	if err != nil {
 		t.Fatal(err)
 	}

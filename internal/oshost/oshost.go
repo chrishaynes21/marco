@@ -8,11 +8,17 @@ package oshost
 import (
 	"context"
 	"fmt"
+	"math"
 	"math/rand"
+	"os"
+	"path/filepath"
+	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/chaynes-simpleclouds/marco/internal/mlog"
 	"github.com/chaynes-simpleclouds/marco/internal/runtime"
 	"github.com/chaynes-simpleclouds/marco/internal/screen"
 	"github.com/chaynes-simpleclouds/marco/internal/secrets"
@@ -23,8 +29,11 @@ import (
 // Windows SendInput backend and a no-op stub elsewhere.
 type backend interface {
 	key(ctx context.Context, name string) error
+	keyDown(ctx context.Context, name string) error // press and hold
+	keyUp(ctx context.Context, name string) error   // release
 	typeText(ctx context.Context, text string) error
 	click(ctx context.Context, button string) error
+	clickAt(ctx context.Context, button string, x, y int) error
 	move(ctx context.Context, x, y int) error
 	color(ctx context.Context, x, y int) (uint32, error)
 	activeExe(ctx context.Context) (string, error)
@@ -44,12 +53,38 @@ type Host struct {
 	mu         sync.Mutex
 	spamCancel context.CancelFunc
 	args       map[string]string // current invocation's named args (for inline secrets)
+	// originL/originT cache the foreground window origin for window-relative clicks,
+	// snapshotted once and reused so a momentary focus flicker mid-route can't send a
+	// later click to the wrong origin. Activate clears it so the next click re-reads
+	// against the newly-focused window. originName is which window that origin came
+	// from (for diagnostics). Guarded by mu.
+	originL, originT int
+	originName       string
+	originSet        bool
+	// heldKeys are keys pressed by a KeyDown without a matching KeyUp yet. Tracked so a
+	// route end (success, error, or Esc) can release any still down — a per-command process
+	// exiting with a key held would leave it STUCK down in the target app. Guarded by mu.
+	heldKeys map[string]bool
+	// activated is set once this run brings a specific window to the front (Activate).
+	// Window-relative clicks resolve their origin from "the foreground window", which is
+	// only trustworthy AFTER an Activate (then foreground really is the target app).
+	// Without one, foreground may be the overlay (it holds focus when you type a
+	// command), so a click uses its ABSOLUTE recorded coordinate instead — exact for a
+	// fullscreen/in-place app, and immune to the focus race. Guarded by mu.
+	activated bool
 }
 
 // SetArgs records the named arguments of the invocation about to run, so a
 // secret-typed arg (password/pin/…) can be provided inline — used and remembered —
 // instead of pre-set with `marco secret set`.
 func (h *Host) SetArgs(a map[string]string) {
+	if len(a) > 0 {
+		keys := make([]string, 0, len(a))
+		for k := range a {
+			keys = append(keys, k)
+		}
+		mlog.Debug("oshost: args set", "keys", keys)
+	}
 	h.mu.Lock()
 	h.args = a
 	h.mu.Unlock()
@@ -60,19 +95,34 @@ func New() runtime.Host {
 	return &Host{b: newBackend(), scr: screen.New(), sec: secrets.New()}
 }
 
+// CursorSnapshot records the current cursor position and returns a function that
+// puts it back — so a route's clicks/moves don't leave the pointer parked on the
+// last target (a menu macro should return you to where you were). The driver calls
+// it around a real run; the dryrun host doesn't implement it, so dry runs never
+// touch the cursor. No-op off Windows (winctx.SetCursorPos is a stub there).
+func (h *Host) CursorSnapshot() func() {
+	x, y := winctx.CursorPos()
+	return func() { winctx.SetCursorPos(x, y) }
+}
+
 func (h *Host) Invoke(c runtime.HostCall) (string, runtime.Value, error) {
 	switch strings.ToLower(c.Action) {
 	case "key":
 		return ok(h.b.key(c.Ctx, c.Input.AsText()))
+	case "keydown":
+		return h.doKeyDown(c)
+	case "keyup":
+		return h.doKeyUp(c)
 	case "type":
 		return ok(h.b.typeText(c.Ctx, c.Input.AsText()))
 	case "click":
 		return h.doClick(c)
 	case "move":
-		x, y, present := point(c.Input)
+		x, y, present := h.clickTarget(c.Input) // window-relative + cached origin, like click
 		if !present {
 			return fail("move needs a Point with X and Y")
 		}
+		mlog.Debug("move: to point", "x", x, "y", y)
 		return ok(h.b.move(c.Ctx, x, y))
 	case "sleep":
 		return h.doSleep(c)
@@ -97,9 +147,18 @@ func (h *Host) Invoke(c runtime.HostCall) (string, runtime.Value, error) {
 	case "secret":
 		return h.doSecret(c)
 	case "activate":
-		return ok(winctx.Activate(c.Input.AsText()))
+		err := winctx.Activate(c.Input.AsText())
+		// We brought a specific window to the front: window-relative clicks are now
+		// trustworthy (foreground IS that window). Re-snapshot the origin against it.
+		h.mu.Lock()
+		h.activated = true
+		h.originSet = false
+		h.mu.Unlock()
+		return ok(err)
 	case "launch":
 		return ok(winctx.Launch(c.Input.AsText()))
+	case "restore":
+		return ok(winctx.RestorePrevious())
 	default:
 		return fail(fmt.Sprintf("OS host has no action %q", c.Action))
 	}
@@ -120,66 +179,203 @@ func (h *Host) doSecret(c runtime.HostCall) (string, runtime.Value, error) {
 	if i := strings.LastIndex(name, ":"); i >= 0 {
 		argname = name[i+1:]
 	}
+	mlog.Debug("secret: lookup", "key", name, "argname", argname)
 	h.mu.Lock()
 	provided, has := h.args[argname]
 	h.mu.Unlock()
 	if has && provided != "" {
+		mlog.Debug("secret: using inline arg, remembering", "argname", argname)
 		_ = h.sec.Set(name, provided) // remember for next time
 		return ok(h.b.typeText(c.Ctx, provided))
 	}
 	val, found, err := h.sec.Get(name)
 	if err != nil {
+		mlog.Error("secret: store error", "key", name, "err", err)
 		return fail(fmt.Sprintf("secret %q: %v", name, err))
 	}
 	if !found {
+		mlog.Warn("secret: not set", "key", name)
 		return fail(fmt.Sprintf("secret %q is not set — pass %s:<value> once, or run: marco secret set %s", name, argname, name))
 	}
+	mlog.Debug("secret: store hit", "key", name)
 	return ok(h.b.typeText(c.Ctx, val))
 }
 
-// doFind searches the screen for a template image and returns the match center
-// as a Point. Input is a set { Image: text path, X1,Y1,X2,Y2?: region numbers,
-// Tolerance?: per-channel color tolerance (default 10) }. Resolves failed when
-// the image isn't on screen, so routes can branch: `when ok? do OS's Click with that.`
+// doKeyDown presses and HOLDS a key, tracking it so a route end always releases it. The
+// hold persists across the steps that follow (a click, a move) until a matching KeyUp —
+// that's the "hold Q, click, release Q" pattern.
+func (h *Host) doKeyDown(c runtime.HostCall) (string, runtime.Value, error) {
+	name := c.Input.AsText()
+	if name == "" {
+		return fail("keydown needs a key")
+	}
+	if err := h.b.keyDown(c.Ctx, name); err != nil {
+		return fail(err.Error())
+	}
+	h.mu.Lock()
+	if h.heldKeys == nil {
+		h.heldKeys = map[string]bool{}
+	}
+	h.heldKeys[name] = true
+	h.mu.Unlock()
+	mlog.Debug("key: hold", "key", name)
+	return ok(nil)
+}
+
+// doKeyUp releases a held key.
+func (h *Host) doKeyUp(c runtime.HostCall) (string, runtime.Value, error) {
+	name := c.Input.AsText()
+	if name == "" {
+		return fail("keyup needs a key")
+	}
+	h.mu.Lock()
+	delete(h.heldKeys, name)
+	h.mu.Unlock()
+	mlog.Debug("key: release", "key", name)
+	return ok(h.b.keyUp(c.Ctx, name))
+}
+
+// ReleaseHeld releases any key still down from a KeyDown without a matching KeyUp. The
+// driver calls it at route end (success, error, or Esc), so a hold can never leave a key
+// stuck down after the per-command process exits. No-op when nothing is held.
+func (h *Host) ReleaseHeld() {
+	h.mu.Lock()
+	held := make([]string, 0, len(h.heldKeys))
+	for k := range h.heldKeys {
+		held = append(held, k)
+	}
+	h.heldKeys = nil
+	h.mu.Unlock()
+	for _, k := range held {
+		mlog.Debug("key: releasing still-held key at route end", "key", k)
+		_ = h.b.keyUp(context.Background(), k)
+	}
+}
+
+// doFind resolves an Anchor — an on-screen target — into the point to click, by SCORING
+// candidate locations and fusing the in-engine signals into a CONFIDENCE, rather than a
+// first-hit chain. Input is the Anchor set:
+//
+//	{ Image: template path, X1..Y2?: search region, Color: "0xRRGGBB",
+//	  X,Y: recorded click (+ RelX,RelY: window-relative), Tolerance?, Timeout? }
+//
+// Signals (each in-engine, OS-agnostic): IMAGE (how well the captured crop matches at a
+// location), COLOUR (how close the pixel there is to the recorded colour), POSITION (how
+// near the location is to the recorded click — the prior). Candidates are the recorded
+// point P (resolved window-relative) and the image's best match Lb; each is scored across
+// the present signals (weighted, normalised) and the best wins. Clears the confidence
+// threshold → click THERE (so a moved target is followed). Below it → resolve failed and
+// log a repair hint; the route falls back to its recorded coordinate. Text (OCR) is a
+// separate host, tried by the route's `or?` branch when this is unsure.
 func (h *Host) doFind(c runtime.HostCall) (string, runtime.Value, error) {
 	set := c.Input.AsSet()
 	if set == nil {
-		return fail("find needs a set with an Image path")
+		return fail("find needs an Anchor set")
 	}
-	imgVal, _ := set.Get("Image")
-	imgPath := imgVal.AsText()
-	if imgPath == "" {
-		return fail("find needs an Image path")
+	imgPath := textOf(set, "Image")
+	colStr := textOf(set, "Color")
+	if imgPath == "" && colStr == "" {
+		// A text-only anchor belongs to the Text (OCR) host; with none wired this falls
+		// through to us as the "*" default — decline quietly so the route uses its
+		// recorded coordinate instead of erroring on a request that was never ours.
+		if textOf(set, "Text") != "" {
+			mlog.Debug("find: text-only anchor, no OCR host wired — declining")
+			return "failed", runtime.Absent(), nil
+		}
+		return fail("find needs an Image or a Color")
 	}
-	var region screen.Region
-	region.X1 = setInt(set, "X1")
-	region.Y1 = setInt(set, "Y1")
-	region.X2 = setInt(set, "X2")
-	region.Y2 = setInt(set, "Y2")
+	region := screen.Region{X1: setInt(set, "X1"), Y1: setInt(set, "Y1"), X2: setInt(set, "X2"), Y2: setInt(set, "Y2")}
 	tol := 24
-	if v, ok2 := set.Get("Tolerance"); ok2 {
-		if n, ok3 := v.AsNumber(); ok3 {
+	if v, ok := set.Get("Tolerance"); ok {
+		if n, ok := v.AsNumber(); ok {
 			tol = int(n)
 		}
 	}
-	// Timeout (ms): when > 0, WAIT for the image to appear — poll until found or
-	// the timeout elapses. This is what lets a route sit through a loading screen
-	// or a menu transition instead of failing the instant the target isn't there.
+	// $MARCO_FIND_TOLERANCE overrides the per-channel match tolerance for every anchor —
+	// a quick way to test whether a stubborn match is just a colour/brightness shift.
+	if v := strings.TrimSpace(os.Getenv("MARCO_FIND_TOLERANCE")); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			tol = n
+		}
+	}
+	wantCol, hasCol := parseHexColor(colStr)
+	recWindow := textOf(set, "Window") // context: the window title this anchor was taught in
+	px, py := h.anchorPoint(set)       // recorded click, window-relative when this run activated
+	_, hasX := set.Get("X")
+	_, hasY := set.Get("Y")
+	// Restrict the image search to a box around the recorded point when no explicit region
+	// is given AND there IS a recorded point. The target is AT/near the click, so scanning
+	// the whole (multi-monitor) desktop — and re-capturing it every poll — is what makes a
+	// Find "take forever"; it also invites far-away false matches. A tight box is far faster
+	// and safer. (A "wait for this screen" anchor has no X,Y, so it keeps the full-screen
+	// search.) Misses only a target that moved very far — the text/OCR locator's job.
+	// Last-known: where this anchor resolved on a previous run. The search box covers BOTH
+	// the recorded point and last-known (so a drifted target is searched where it actually
+	// is, while the recorded point stays a safety net), and last-known also boosts the
+	// position prior there — together letting the search follow a UI that drifts across runs.
+	lastKnown, hasLast := anchorLastKnown(imgPath)
+	// Ignore a last-known that's implausibly far from the recorded point — a stale or
+	// poisoned cache entry. Trusting it would balloon the search box and risk chasing a
+	// wrong target; real drift between runs is small.
+	if hasLast && (iabs(lastKnown[0]-px) > maxDriftPx || iabs(lastKnown[1]-py) > maxDriftPx) {
+		mlog.Debug("find: ignoring an implausibly far last-known location", "lastKnown", fmt.Sprintf("(%d,%d)", lastKnown[0], lastKnown[1]))
+		hasLast = false
+	}
+	if region.Empty() && imgPath != "" && (hasX || hasY) {
+		x1, y1, x2, y2 := px-searchMargin, py-searchMargin, px+searchMargin, py+searchMargin
+		if hasLast {
+			x1, y1 = min(x1, lastKnown[0]-searchMargin), min(y1, lastKnown[1]-searchMargin)
+			x2, y2 = max(x2, lastKnown[0]+searchMargin), max(y2, lastKnown[1]+searchMargin)
+		}
+		region = screen.Region{X1: x1, Y1: y1, X2: x2, Y2: y2}
+		mlog.Debug("find: search box", "x1", region.X1, "y1", region.Y1, "x2", region.X2, "y2", region.Y2)
+	}
 	timeout := time.Duration(setInt(set, "Timeout")) * time.Millisecond
+	mlog.Debug("find: anchor", "image", filepath.Base(imgPath), "color", colStr,
+		"recorded", fmt.Sprintf("(%d,%d)", px, py), "tol", tol)
+
+	// Hover settle: many UIs draw a control differently while the pointer is OVER it
+	// (highlight, glow, a fill that fades in). The template was captured at teach time with
+	// the cursor on the target — i.e. hovered — so the live, un-hovered button never matches
+	// it and the anchor falls back to its coordinate. Put the cursor on the recorded point
+	// first so the live UI enters the SAME hover state the template captured, then match.
+	// Only for a positioned anchor (a "wait for this screen" gate has no point to hover);
+	// the recorded point is where we'd click anyway, and the driver restores the cursor at
+	// route end. Toggle with $MARCO_FIND_HOVER=0.
+	hovering := (hasX || hasY) && findHoverEnabled()
+	if hovering {
+		if err := h.b.move(c.Ctx, px, py); err == nil {
+			mlog.Debug("find: hovering the recorded point to settle the UI before matching", "at", fmt.Sprintf("(%d,%d)", px, py))
+			select {
+			case <-time.After(hoverSettle):
+			case <-c.Ctx.Done():
+				return "failed", runtime.Absent(), nil
+			}
+		}
+	}
 
 	deadline := time.Now().Add(timeout)
+	wiggle := 0
 	for {
-		m, err := h.scr.Find(imgPath, region, tol)
-		if err != nil {
-			return fail(err.Error()) // unsupported / bad path — no point polling
+		// Keep the highlight ALIVE while we look: some UIs only render (or refresh) a hover
+		// state on pointer MOVEMENT, so a stationary cursor lets it fade between polls. Nudge
+		// a pixel or two around the recorded point each round so the live control keeps showing
+		// the same hovered look the template captured. ±2px is well within the matcher's slack.
+		if hovering && findWiggleEnabled() {
+			dx, dy := wiggleStep(wiggle)
+			_ = h.b.move(c.Ctx, px+dx, py+dy)
+			wiggle++
 		}
-		if m.Found {
-			pt := runtime.NewSet()
-			pt.Put("X", runtime.Number(float64(m.X)))
-			pt.Put("Y", runtime.Number(float64(m.Y)))
-			return "ok", runtime.SetVal(pt), nil
+		best, conf := h.scoreAnchor(imgPath, region, tol, wantCol, hasCol, px, py, lastKnown, hasLast)
+		conf *= h.windowFactor(recWindow) // a match in the wrong window can't be confident
+		if conf >= findConfidence() {
+			mlog.Debug("find: resolved", "at", fmt.Sprintf("(%d,%d)", best[0], best[1]), "confidence", round2(conf))
+			rememberLocation(imgPath, best[0], best[1]) // follow drift on the next run
+			return okPoint(best[0], best[1])
 		}
 		if timeout <= 0 || time.Now().After(deadline) {
+			mlog.Warn("find: low confidence — falling back to the recorded coordinate; re-teach to repair this anchor",
+				"best", fmt.Sprintf("(%d,%d)", best[0], best[1]), "confidence", round2(conf), "threshold", findConfidence())
 			return "failed", runtime.Absent(), nil
 		}
 		select {
@@ -188,6 +384,483 @@ func (h *Host) doFind(c runtime.HostCall) (string, runtime.Value, error) {
 		case <-time.After(250 * time.Millisecond):
 		}
 	}
+}
+
+// locator is one LOCALISING signal's result: where it best matched, how well, and its
+// evidence weight. Image matches raw pixels; edge matches the button's outline (so it
+// survives a recolour/theme change).
+type locator struct {
+	name      string
+	weight    float64
+	found     bool
+	ambiguous bool // matched in several places: confirms the recorded point, never moves the click
+	x, y      int
+	score     float64
+	hist      float64 // colour-histogram (palette) similarity at the match, if available
+	hasHist   bool
+}
+
+// scoreAnchor evaluates the anchor's candidate locations once and returns the best
+// location and its CONFIDENCE (0..1). It fuses LOCATING signals (image, edge) with the
+// CONFIRMING colour signal, using position only as a selection prior.
+//
+// Candidates: the recorded point P (the default target), plus any locator's match that's
+// FAR from P AND colour-corroborated — a real move, not a false/ambiguous match that must
+// never drag the click. Each candidate's CONFIDENCE is the weighted, normalised evidence
+// of the signals that actually point at it (a locator credits a candidate only when its
+// best match is there; colour is probed at the candidate). POSITION is NOT evidence (P is
+// always distance 0 from itself) — it gently favours the nearer candidate so a far match
+// must clearly out-evidence the recorded point to win.
+func (h *Host) scoreAnchor(imgPath string, region screen.Region, tol int, wantCol uint32, hasCol bool, px, py int, lastKnown [2]int, hasLast bool) (loc [2]int, conf float64) {
+	// Hard safety net: the demonstrated point is the default, and a panic anywhere in the
+	// matchers (a malformed template, a bad capture) degrades to it instead of crashing the
+	// route mid-run.
+	loc = [2]int{px, py}
+	defer func() {
+		if r := recover(); r != nil {
+			mlog.Error("find: scorer panicked — falling back to the recorded point", "err", fmt.Sprintf("%v", r))
+			loc, conf = [2]int{px, py}, 0
+		}
+	}()
+	locate := func(name string, weight float64, find func() (screen.Match, error)) locator {
+		l := locator{name: name, weight: weight}
+		if imgPath == "" {
+			return l
+		}
+		m, err := find()
+		switch {
+		case err != nil || !m.Found:
+		case m.Ambiguous:
+			// Matches in MULTIPLE places (the same button across menus): we can't trust it to
+			// LOCATE a moved target, but if its best match sits at the recorded point it still
+			// CONFIRMS the template is (still) there. So keep it as evidence and flag it — the
+			// move-candidate pass excludes ambiguous locators, the scoring pass still lets it
+			// corroborate the demonstrated point. Without this a row of identical buttons would
+			// zero out the recorded point's evidence and collapse confidence on a static menu.
+			mlog.Debug("find: " + name + " ambiguous (matches multiple places) — confirming only, not moving by it")
+			l.found, l.ambiguous, l.x, l.y, l.score = true, true, m.X, m.Y, m.Score
+			l.hist, l.hasHist = m.ColorScore, m.ColorScore > 0
+		default:
+			l.found, l.x, l.y, l.score = true, m.X, m.Y, m.Score
+			l.hist, l.hasHist = m.ColorScore, m.ColorScore > 0 // palette confirm (image only)
+		}
+		return l
+	}
+	locs := []locator{locate("image", wImage, func() (screen.Match, error) { return h.scr.Find(imgPath, region, tol) })}
+	// Edge matching runs a distance transform over the region — heavier than a pixel
+	// match — so only do it on a region-restricted search (a click anchor near its point),
+	// not a full-screen wait-for-this-screen anchor.
+	if !region.Empty() {
+		locs = append(locs, locate("edge", wEdge, func() (screen.Match, error) { return h.scr.FindEdge(imgPath, region, tol) }))
+	}
+
+	type cand struct{ x, y int }
+	cands := []cand{{px, py}}
+	near := func(ax, ay, bx, by int) bool { return iabs(ax-bx) <= matchEpsilon && iabs(ay-by) <= matchEpsilon }
+	for _, l := range locs {
+		if !l.found || l.ambiguous || near(l.x, l.y, px, py) || l.score < locateFloor() {
+			continue
+		}
+		if !h.colorCorroborates(l.x, l.y, wantCol, hasCol, tol) {
+			continue
+		}
+		dup := false
+		for _, c := range cands {
+			if near(c.x, c.y, l.x, l.y) {
+				dup = true
+			}
+		}
+		if !dup {
+			cands = append(cands, cand{l.x, l.y})
+			mlog.Debug("find: "+l.name+" matched away from the recorded point and colour agrees — following the move",
+				"to", fmt.Sprintf("(%d,%d)", l.x, l.y), "score", round2(l.score))
+		}
+	}
+
+	best, bestSel, bestConf := [2]int{px, py}, -1.0, 0.0
+	pSel := 0.0 // the recorded point's selection score (cands[0]); a move must clearly beat it
+	for ci, c := range cands {
+		var sum, wsum float64
+		var parts []string
+		for _, l := range locs {
+			if l.found && near(l.x, l.y, c.x, c.y) {
+				sum += l.weight * l.score
+				wsum += l.weight
+				parts = append(parts, fmt.Sprintf("%s=%.2f", l.name, l.score))
+				if l.hasHist { // palette confirms this locator's match
+					sum += wColorHist * l.hist
+					wsum += wColorHist
+					parts = append(parts, fmt.Sprintf("palette=%.2f", l.hist))
+				}
+			}
+		}
+		colS := -1.0
+		if hasCol {
+			colS = 0
+			if s := h.colorScoreAround(c.x, c.y, wantCol, tol); s > 0 {
+				colS = s
+			}
+			sum += wColor * colS
+			wsum += wColor
+		}
+		evidence := 0.0
+		if wsum > 0 {
+			evidence = sum / wsum
+		}
+		// Position is a selection prior measured from the recorded point AND, if known, the
+		// place this anchor last resolved — so a target that has DRIFTED toward last-known is
+		// favoured there, letting the search follow it across runs instead of snapping back.
+		pos := positionScore(c.x, c.y, px, py)
+		if hasLast {
+			if lp := positionScore(c.x, c.y, lastKnown[0], lastKnown[1]); lp > pos {
+				pos = lp
+			}
+		}
+		sel := evidence * (positionFloor + (1-positionFloor)*pos)
+		// INFO: the per-candidate breakdown — the "why" behind where it clicks.
+		mlog.Debug("find: candidate", "at", fmt.Sprintf("(%d,%d)", c.x, c.y),
+			"signals", strings.Join(parts, ","), "colour", sigStr(hasCol, colS),
+			"evidence", round2(evidence), "score", round2(sel))
+		if ci == 0 {
+			pSel = sel // the recorded point, always evaluated first
+		} else if sel < pSel+moveMargin() {
+			// A moved candidate that doesn't CLEARLY beat the demonstrated point is not worth
+			// abandoning it for — stay where the user actually clicked.
+			mlog.Debug("find: candidate too close to the recorded point's score — keeping the recorded point",
+				"candidate", round2(sel), "recorded", round2(pSel))
+			continue
+		}
+		if sel > bestSel {
+			bestSel, best, bestConf = sel, [2]int{c.x, c.y}, evidence
+		}
+	}
+	return best, bestConf
+}
+
+// windowFactor scales an anchor's confidence by how well the CURRENT foreground window's
+// title matches the one recorded for the anchor — so a strong pixel/edge match in the
+// WRONG window of a multi-window app (Steam's library vs friends vs store) can't produce a
+// confident click. Only applied once a window was ACTIVATED this run (then the foreground
+// is reliably the target, not the overlay that took focus to type the command). 1.0 when
+// no window was recorded, none was activated, the titles agree, or the title is unreadable;
+// a hard penalty on a clear mismatch, with partial credit for a shared significant word so
+// a window whose title drifts (a game's level name) still passes.
+func (h *Host) windowFactor(recorded string) float64 {
+	if strings.TrimSpace(recorded) == "" || !h.didActivate() {
+		return 1.0
+	}
+	cur := winctx.ForegroundTitle()
+	f := windowMatchFactor(recorded, cur)
+	if f < 1.0 {
+		mlog.Debug("find: foreground window mismatch — penalising confidence",
+			"recorded", recorded, "current", cur, "factor", round2(f))
+	}
+	return f
+}
+
+// windowMatchFactor scores how well current matches recorded (case-insensitive): 1.0 when
+// either title contains the other or current is unreadable; windowPartialFactor on a shared
+// significant word (a title that drifts — a game level name); windowMismatchFactor on a
+// clear mismatch. Pure, so it's unit-testable without a live foreground window.
+func windowMatchFactor(recorded, current string) float64 {
+	r := strings.ToLower(strings.TrimSpace(recorded))
+	c := strings.ToLower(strings.TrimSpace(current))
+	if r == "" || c == "" || strings.Contains(c, r) || strings.Contains(r, c) {
+		return 1.0
+	}
+	if sharesSignificantWord(r, c) {
+		return windowPartialFactor
+	}
+	return windowMismatchFactor
+}
+
+// sharesSignificantWord reports whether a and b share a word of ≥4 letters (skipping short
+// connectors), so a title that only partly changed still counts as the same window.
+func sharesSignificantWord(a, b string) bool {
+	bw := strings.Fields(b)
+	for wa := range strings.FieldsSeq(a) {
+		if len(wa) < 4 {
+			continue
+		}
+		if slices.Contains(bw, wa) {
+			return true
+		}
+	}
+	return false
+}
+
+// Window-context confidence multipliers: a clear wrong-window match is knocked well below
+// the find threshold (fail-safe), while a partial title overlap keeps most of the score.
+const (
+	windowPartialFactor  = 0.7
+	windowMismatchFactor = 0.35
+)
+
+// sigStr formats a signal's score for logging, or "-" when it wasn't available.
+func sigStr(has bool, s float64) string {
+	if !has || s < 0 {
+		return "-"
+	}
+	return fmt.Sprintf("%.2f", s)
+}
+
+// matchEpsilon (px): a match this close to the recorded point counts as "didn't move".
+const matchEpsilon = 4
+
+// searchMargin (px): how far around the recorded point the image is searched when no
+// explicit region is set — a box ~5× the captured patch, so a slightly-shifted target is
+// still found without scanning (and re-capturing) the whole desktop every poll.
+const searchMargin = 250
+
+// maxDriftPx (px): the farthest a last-known location may sit from the recorded point and
+// still be trusted — beyond this the cache entry is treated as stale/poisoned and ignored.
+const maxDriftPx = 600
+
+// Evidence weights and the position selection floor. Image (raw pixels) and edge (the
+// outline — robust to recolour) are the locators; colour is the confirm.
+const (
+	wImage        = 0.5
+	wEdge         = 0.3
+	wColor        = 0.2
+	wColorHist    = 0.15 // palette confirm on an image match
+	positionFloor = 0.7
+)
+
+// Thresholds for FOLLOWING the image to a new location (vs. clicking the recorded point).
+// The demonstrated point is the safe default: a move is trusted only when a locator is a
+// STRONG match there, colour agrees, AND the moved candidate clearly out-scores the
+// recorded point (by moveMargin) — so a degraded crop, a lenient brightness match, or a
+// look-alike button in a busy menu can't drag the click off where you actually clicked.
+const corroborationFloor = 0.5
+
+// locateFloor is the minimum locator score to consider FOLLOWING the image to a new
+// location. Derived from cvSensitivity ($MARCO_CV_SENSITIVITY); s=0.5 → 0.90 (legacy).
+func locateFloor() float64 { return cvLerp(0.99, 0.81) }
+
+// moveMargin is how much a moved candidate must out-score the recorded point before the
+// click follows it there. Derived from cvSensitivity; s=0.5 → 0.12 (legacy).
+func moveMargin() float64 { return cvLerp(0.20, 0.04) }
+
+// colorCorroborates reports whether the colour at a candidate location supports the
+// target being there — required before the scorer follows the image to a new location.
+// With no colour signal recorded, we don't follow on image alone (too risky).
+func (h *Host) colorCorroborates(x, y int, wantCol uint32, hasCol bool, tol int) bool {
+	if !hasCol {
+		return false
+	}
+	return h.colorScoreAround(x, y, wantCol, tol) >= corroborationFloor
+}
+
+// hoverSettle is how long to wait after moving the cursor onto the recorded point before
+// matching, so a hover highlight / fade-in finishes rendering. Kept short — the wait loop
+// (250ms polls) covers a slower animation; this just makes the first attempt likely to hit.
+const hoverSettle = 80 * time.Millisecond
+
+// findHoverEnabled gates the hover-settle move (default on). $MARCO_FIND_HOVER=0/off
+// disables it for a UI where moving the pointer first would be undesirable.
+func findHoverEnabled() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("MARCO_FIND_HOVER"))) {
+	case "0", "off", "false", "no":
+		return false
+	}
+	return true
+}
+
+// findWiggleEnabled gates the per-poll hover wiggle (default on, only happens when hover is
+// on too). $MARCO_FIND_WIGGLE=0/off keeps the cursor still after the initial hover.
+func findWiggleEnabled() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("MARCO_FIND_WIGGLE"))) {
+	case "0", "off", "false", "no":
+		return false
+	}
+	return true
+}
+
+// wiggleStep returns a tiny ±1-2px offset cycling around the hover point, so each poll nudges
+// the cursor and the UI keeps firing the pointer-move events that sustain a hover highlight.
+func wiggleStep(n int) (int, int) {
+	steps := [...][2]int{{0, 0}, {1, 0}, {2, 1}, {1, 2}, {0, 1}, {-1, 1}, {-2, 0}, {-1, -1}, {0, -2}, {1, -1}}
+	s := steps[n%len(steps)]
+	return s[0], s[1]
+}
+
+// cvSensitivity is the master CV looseness dial (0 = strict, 1 = loose), default 0.5.
+// The overlay's "cv find" slider writes $MARCO_CV_SENSITIVITY; findConfidence, locateFloor
+// and moveMargin all derive from it (via cvLerp), so one control tunes how eagerly an
+// anchor is trusted and followed. A specific per-knob env override (e.g.
+// $MARCO_FIND_CONFIDENCE) still wins. Default 0.5 reproduces the legacy fixed values
+// exactly (conf 0.6, locateFloor 0.90, moveMargin 0.12).
+func cvSensitivity() float64 {
+	if v := strings.TrimSpace(os.Getenv("MARCO_CV_SENSITIVITY")); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil && f >= 0 && f <= 1 {
+			return f
+		}
+	}
+	return 0.5
+}
+
+// cvLerp interpolates a knob between its strict (sensitivity 0) and loose (sensitivity 1)
+// ends by the current cvSensitivity.
+func cvLerp(strict, loose float64) float64 { return strict + (loose-strict)*cvSensitivity() }
+
+// findConfidence is the score an anchor must reach to be clicked at its located point.
+// Derived from cvSensitivity ($MARCO_CV_SENSITIVITY); s=0.5 → 0.6 (legacy default).
+// $MARCO_FIND_CONFIDENCE (0..1) overrides outright.
+func findConfidence() float64 {
+	if v := strings.TrimSpace(os.Getenv("MARCO_FIND_CONFIDENCE")); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil && f > 0 && f <= 1 {
+			return f
+		}
+	}
+	return cvLerp(0.9, 0.3)
+}
+
+// anchorPoint resolves the anchor's recorded click point — window-relative against the
+// activated window (so colour/position probe the RIGHT pixel after an Activate), else the
+// absolute recorded coordinate (the same rule clicks use).
+func (h *Host) anchorPoint(set *runtime.Set) (x, y int) {
+	x, y = setInt(set, "X"), setInt(set, "Y")
+	rxv, okx := set.Get("RelX")
+	ryv, oky := set.Get("RelY")
+	rx, okrx := rxv.AsNumber()
+	ry, okry := ryv.AsNumber()
+	if okx && oky && okrx && okry && h.didActivate() {
+		if left, top, _, ok := h.windowOrigin(); ok {
+			return left + int(rx), top + int(ry)
+		}
+	}
+	return x, y
+}
+
+// colorSampleRadius is how far around a probe point colorScoreAround looks for the
+// recorded colour — a few pixels, enough to absorb a 1px anti-aliasing / rounding shift
+// (or the cursor sitting on the exact pixel) without blending in neighbouring controls.
+const colorSampleRadius = 2
+
+// colorScoreAround returns the BEST colorScore for the recorded colour within a small
+// neighbourhood of (x,y) — "does the recorded colour appear right here", robust to a tiny
+// positional shift in a way a single GetPixel is not (the static-menu false-low-colour
+// bug). Taking the max (not an average) avoids blending a button edge into its background.
+// Returns -1 when no pixel could be read.
+func (h *Host) colorScoreAround(x, y int, want uint32, tol int) float64 {
+	best := -1.0
+	for dy := -colorSampleRadius; dy <= colorSampleRadius; dy++ {
+		for dx := -colorSampleRadius; dx <= colorSampleRadius; dx++ {
+			if got, err := h.scr.Pixel(x+dx, y+dy); err == nil {
+				if s := colorScore(got, want, tol); s > best {
+					best = s
+				}
+			}
+		}
+	}
+	return best
+}
+
+// colorScore rates how close a probed colour is to the recorded one, tolerance-aware:
+// within tol it's strong (1.0 at an exact match, 0.8 at the tolerance edge); beyond tol
+// it falls to 0 by 3×tol. So a match scores high and a clear mismatch scores low,
+// rather than the linear-to-128 ramp that left moderately-off colours ambiguous.
+func colorScore(got, want uint32, tol int) float64 {
+	if tol <= 0 {
+		tol = 1
+	}
+	d := maxChannelDiff(got, want)
+	if d <= tol {
+		return 1 - 0.2*float64(d)/float64(tol)
+	}
+	if s := 0.8 - 0.8*float64(d-tol)/float64(2*tol); s > 0 {
+		return s
+	}
+	return 0
+}
+
+func maxChannelDiff(a, b uint32) int {
+	d := iabs(int(a>>16&0xff) - int(b>>16&0xff))
+	if g := iabs(int(a>>8&0xff) - int(b>>8&0xff)); g > d {
+		d = g
+	}
+	if bl := iabs(int(a&0xff) - int(b&0xff)); bl > d {
+		d = bl
+	}
+	return d
+}
+
+// positionScore is 1 at the recorded point and falls linearly to 0 at posMaxDist.
+func positionScore(x, y, px, py int) float64 {
+	const posMaxDist = 160.0
+	dx, dy := float64(x-px), float64(y-py)
+	if s := 1 - math.Hypot(dx, dy)/posMaxDist; s > 0 {
+		return s
+	}
+	return 0
+}
+
+func round2(f float64) float64 { return math.Round(f*100) / 100 }
+
+func textOf(set *runtime.Set, key string) string {
+	v, _ := set.Get(key)
+	return v.AsText()
+}
+
+// okPoint returns an ok status carrying a Point Value — the coordinate a resolver
+// settled on (image match centre or the colour-probed click point).
+func okPoint(x, y int) (string, runtime.Value, error) {
+	pt := runtime.NewSet()
+	pt.Put("X", runtime.Number(float64(x)))
+	pt.Put("Y", runtime.Number(float64(y)))
+	return "ok", runtime.SetVal(pt), nil
+}
+
+// parseHexColor reads a "0xRRGGBB" string (the format OS's Color emits) into a
+// packed RGB value. ok=false for an empty or malformed string.
+func parseHexColor(s string) (uint32, bool) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0, false
+	}
+	s = strings.TrimPrefix(strings.TrimPrefix(s, "0x"), "0X")
+	n, err := strconv.ParseUint(s, 16, 32)
+	if err != nil {
+		return 0, false
+	}
+	return uint32(n), true
+}
+
+func iabs(n int) int {
+	if n < 0 {
+		return -n
+	}
+	return n
+}
+
+// normAbsolute maps an absolute desktop pixel (x,y) to SendInput's ABSOLUTE
+// coordinate space (0..65535) over the virtual desktop, given the virtual screen's
+// origin (vsLeft,vsTop — negative when a monitor sits left/above the primary) and
+// size (vsW,vsH). MOUSEEVENTF_ABSOLUTE|MOUSEEVENTF_VIRTUALDESK then lands the cursor
+// on the exact pixel on ANY monitor — unlike SetCursorPos, the click can carry these
+// coords itself, so move+down+up are one atomic, race-free batch. Pure, so it's
+// unit-tested without a live desktop.
+func normAbsolute(x, y, vsLeft, vsTop, vsW, vsH int) (nx, ny int32) {
+	dw, dh := vsW-1, vsH-1
+	if dw < 1 {
+		dw = 1
+	}
+	if dh < 1 {
+		dh = 1
+	}
+	ax := ((x-vsLeft)*65535 + dw/2) / dw // +half-step → round to nearest
+	ay := ((y-vsTop)*65535 + dh/2) / dh
+	return int32(clampInt(ax, 0, 65535)), int32(clampInt(ay, 0, 65535))
+}
+
+func clampInt(v, lo, hi int) int {
+	if v < lo {
+		return lo
+	}
+	if v > hi {
+		return hi
+	}
+	return v
 }
 
 func setInt(set *runtime.Set, field string) int {
@@ -325,16 +998,20 @@ func (h *Host) doName() (string, runtime.Value, error) {
 // doClick: a Point input moves there first; a text input names the button;
 // absent input clicks left at the current position.
 func (h *Host) doClick(c runtime.HostCall) (string, runtime.Value, error) {
-	if x, y, present := clickTarget(c.Input); present {
-		if err := h.b.move(c.Ctx, x, y); err != nil {
-			return fail(err.Error())
-		}
-		return ok(h.b.click(c.Ctx, "left"))
+	if x, y, present := h.clickTarget(c.Input); present {
+		mlog.Debug("click: at point", "x", x, "y", y, "button", "left")
+		// Position and click in ONE atomic SendInput batch (move+down+up, all carrying
+		// the absolute target). A separate SetCursorPos-then-click races: the injected
+		// down/up can register before the move settles (a game's raw-input loop, an
+		// overlay LL mouse hook, DPI virtualisation), landing the click at a STALE
+		// position — the "resolved coords are right but it clicked the wrong thing" bug.
+		return ok(h.b.clickAt(c.Ctx, "left", x, y))
 	}
 	button := "left"
 	if t := c.Input.AsText(); t != "" {
 		button = t
 	}
+	mlog.Debug("click: at cursor", "button", button)
 	return ok(h.b.click(c.Ctx, button))
 }
 
@@ -428,12 +1105,15 @@ func fail(msg string) (string, runtime.Value, error) {
 	return "failed", runtime.ErrVal(&runtime.Err{Message: msg}), nil
 }
 
-// clickTarget reads a click's Point, resolving a window-relative one. When the
-// Point carries RelX/RelY, they're an offset inside the active window: add the
-// foreground (just-activated) window's origin so the click lands at the same spot
-// in the window on any monitor or position. Falls back to the absolute X,Y if the
-// window can't be found (or the platform has no window backend).
-func clickTarget(v runtime.Value) (x, y int, present bool) {
+// clickTarget reads a click's target pixel from its Point. The DEFAULT is the
+// recorded ABSOLUTE coordinate (X,Y) — exact for a fullscreen or in-place app and
+// immune to focus games. A Point's RelX/RelY (offset inside the app window) is only
+// resolved against the live window origin when this run has Activate'd a specific
+// window: only then is "the foreground window" reliably the target app. Without an
+// Activate, foreground may be the overlay (it holds focus when you type a command),
+// whose origin would shift every click — the random-misclick cause — so we trust the
+// recorded coordinate instead. Emits an INFO line breaking down every click.
+func (h *Host) clickTarget(v runtime.Value) (x, y int, present bool) {
 	x, y, present = point(v)
 	if !present {
 		return x, y, false
@@ -441,17 +1121,59 @@ func clickTarget(v runtime.Value) (x, y int, present bool) {
 	set := v.AsSet() // non-nil: point() already succeeded
 	rxv, okx := set.Get("RelX")
 	ryv, oky := set.Get("RelY")
-	if !okx || !oky {
-		return x, y, true // absolute click
-	}
 	rx, okrx := rxv.AsNumber()
 	ry, okry := ryv.AsNumber()
-	if okrx && okry {
-		if left, top, ok := winctx.ForegroundOrigin(); ok {
-			x, y = left+int(rx), top+int(ry)
-		}
+	hasRel := okx && oky && okrx && okry
+	if !hasRel {
+		mlog.Debug("click: absolute", "point", fmt.Sprintf("(%d,%d)", x, y), "why", "no window-relative offset recorded")
+		return x, y, true
 	}
-	return x, y, true
+	if !h.didActivate() {
+		mlog.Debug("click: absolute", "point", fmt.Sprintf("(%d,%d)", x, y),
+			"why", "no Activate this run — trusting the recorded point, not the foreground origin")
+		return x, y, true
+	}
+	left, top, name, ok := h.windowOrigin()
+	if !ok {
+		mlog.Debug("click: absolute", "point", fmt.Sprintf("(%d,%d)", x, y), "why", "no foreground window")
+		return x, y, true
+	}
+	rxi, ryi := int(rx), int(ry)
+	// The full breakdown: what was recorded, the relative offset it wanted, which
+	// window the origin came from (the "why"), and where it actually landed.
+	mlog.Debug("click: window-relative",
+		"recorded", fmt.Sprintf("(%d,%d)", x, y),
+		"wantRel", fmt.Sprintf("(%d,%d)", rxi, ryi),
+		"originWindow", name,
+		"origin", fmt.Sprintf("(%d,%d)", left, top),
+		"clicked", fmt.Sprintf("(%d,%d)", left+rxi, top+ryi))
+	return left + rxi, top + ryi, true
+}
+
+// didActivate reports whether this run brought a window to the front (Activate),
+// which is what makes window-relative origin resolution trustworthy.
+func (h *Host) didActivate() bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.activated
+}
+
+// windowOrigin returns the foreground window's origin and app name, snapshotted on
+// first use and cached for the rest of the route so window-relative clicks all resolve
+// against the same window. The activate case clears the cache so clicks after a focus
+// change re-read against the new window. Logs the snapshot (which window it locked on).
+func (h *Host) windowOrigin() (left, top int, name string, ok bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.originSet {
+		return h.originL, h.originT, h.originName, true
+	}
+	left, top, name, ok = winctx.ForegroundInfo()
+	if ok {
+		h.originL, h.originT, h.originName, h.originSet = left, top, name, true
+		mlog.Debug("origin: snapshot", "window", name, "origin", fmt.Sprintf("(%d,%d)", left, top))
+	}
+	return left, top, name, ok
 }
 
 // point reads X and Y number fields from a set Value. Returns present=false if

@@ -7,7 +7,7 @@
 //
 // Pipe it into a served program (the same event seam globals/ahk-hotkeys use):
 //
-//	voice --model vosk-model-small-en-us | marco serve --host Overlay=bridge:overlay programs/overlay.marco
+//	voice --model vosk-model-small-en-us | marco serve --host Overlay=bridge:overlay plugins/overlay/overlay.marco
 //
 // overlay.marco turns Partial into a live preview (Overlay's Heard) and Final
 // into a command (Overlay's Run).
@@ -22,6 +22,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -36,11 +37,21 @@ type event struct {
 func main() {
 	demo := flag.Bool("demo", false, "emit a canned phrase instead of using the mic (no cgo/model needed)")
 	model := flag.String("model", envOr("MARCO_VOSK_MODEL", "model"), "path to the Vosk model directory")
-	wake := flag.String("wake", envOr("MARCO_VOICE_WAKE", "marco"),
+	wake := flag.String("wake", envOr("MARCO_VOICE_WAKE", "computer"),
 		"assistant wake word: say it to activate, then speak the command (\"\" or \"off\" = always listen)")
 	flag.Parse()
 
 	w := strings.ToLower(strings.TrimSpace(*wake))
+
+	// narrateLock is a file the overlay creates while a narrate-teach session is
+	// live. When it exists the voice plugin re-arms after each command phrase, so
+	// the user never needs to repeat the wake word mid-narration.
+	narrateLock := envOr("MARCO_NARRATE_LOCK", filepath.Join(os.TempDir(), "marco-narrate.lock"))
+	inNarrateMode := func() bool {
+		_, err := os.Stat(narrateLock)
+		return err == nil
+	}
+
 	enc := json.NewEncoder(os.Stdout)
 	var encMu sync.Mutex
 	// write serializes stdout and reports a broken pipe — when serve exits (the
@@ -65,14 +76,18 @@ func main() {
 		}
 	}()
 
-	// Two-phase activation: say the wake word ("marco") to ARM — the HUD shows
-	// "listening..." — then the NEXT phrase is the command. Saying "marco <cmd>"
+	// Two-phase activation: say the wake word ("computer") to ARM — the HUD shows
+	// "listening..." — then the NEXT phrase is the command. Saying "computer <cmd>"
 	// in one breath also works (one-shot). No wake gating if w is ""/"off".
 	armed := false
 	var armedAt time.Time
 	const armWindow = 8 * time.Second
 
-	listening := func() bool { return armed && time.Since(armedAt) <= armWindow }
+	// listening() gates whether speech is treated as a command. In narrate-teach it's
+	// always on — the session stays live with no wake word and no arm-window timeout,
+	// so you can pause to read/navigate a menu and keep narrating. Otherwise it's the
+	// usual armed-within-the-window check.
+	listening := func() bool { return inNarrateMode() || (armed && time.Since(armedAt) <= armWindow) }
 	send := func(ev, data string) {
 		if w == "" || w == "off" {
 			emit(ev, data) // no activation: stream everything
@@ -83,6 +98,8 @@ func main() {
 			// listening, so idle/background speech never lands in the HUD.
 			if listening() {
 				emit("Partial", data)
+			} else {
+				mlogD("voice: partial suppressed (not armed)", "data", data)
 			}
 			return
 		}
@@ -93,11 +110,21 @@ func main() {
 		t := strings.ToLower(strings.TrimSpace(data))
 		// Armed: this phrase is the command (a leading wake word is fine too).
 		if listening() {
-			armed = false
+			if inNarrateMode() {
+				// Narrate-teach is active: re-arm immediately so the user doesn't
+				// need to repeat the wake word between phrases. The narrate child
+				// handles "done" / "cancel" and the overlay removes the lock file.
+				mlogD("voice: narrate mode re-arm", "phrase", t)
+				armedAt = time.Now()
+				emit("Partial", "listening...")
+			} else {
+				armed = false
+			}
 			if after, ok := strings.CutPrefix(t, w); ok {
 				t = strings.TrimSpace(strings.TrimLeft(after, " ,"))
 			}
 			if t != "" {
+				mlogI("voice: dispatching command", "phrase", t)
 				emit("Final", t)
 			}
 			return
@@ -107,11 +134,15 @@ func main() {
 		// (not shown), so the HUD isn't fed random speech.
 		if after, ok := strings.CutPrefix(t, w); ok {
 			if cmd := strings.TrimSpace(strings.TrimLeft(after, " ,")); cmd != "" {
-				emit("Final", cmd) // one-shot: "marco login to facebook"
+				mlogI("voice: one-shot command", "phrase", cmd)
+				emit("Final", cmd) // one-shot: "computer login to facebook"
 			} else {
-				armed, armedAt = true, time.Now() // just "marco" → wait for the command
+				mlogI("voice: armed", "wake", w)
+				armed, armedAt = true, time.Now() // just wake word → wait for the command
 				emit("Partial", "listening...")
 			}
+		} else {
+			mlogD("voice: ignored (not armed, no wake word)", "phrase", t)
 		}
 	}
 
@@ -128,14 +159,14 @@ func main() {
 // runDemo exercises the two-phase pipe without a mic or model: wake word arms,
 // then a command phrase runs.
 func runDemo(send func(ev, data string)) {
-	// Unaddressed speech first — must be suppressed (nothing reaches the HUD).
+	// Unaddressed speech first — must be suppressed.
 	send("Partial", "hello there")
 	send("Final", "hello there")
 	time.Sleep(300 * time.Millisecond)
-	// Activate, then command.
-	send("Partial", "marco")
+	// Wake word arms, then command.
+	send("Partial", "computer")
 	time.Sleep(400 * time.Millisecond)
-	send("Final", "marco") // arms → "listening..."
+	send("Final", "computer") // arms → "listening..."
 	time.Sleep(400 * time.Millisecond)
 	for _, p := range []string{"say", "say hello"} {
 		send("Partial", p)

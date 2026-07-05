@@ -1,2 +1,2 @@
-thirty
-done
+[INFO] thirty
+[INFO] done

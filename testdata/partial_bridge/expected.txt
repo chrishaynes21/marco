@@ -1,3 +1,3 @@
-Ada Lovelace
-ada@example.com
-Ada Lovelace
+[INFO] Ada Lovelace
+[INFO] ada@example.com
+[INFO] Ada Lovelace

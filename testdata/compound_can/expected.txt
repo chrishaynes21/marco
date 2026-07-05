@@ -1,1 +1,1 @@
-compiled
+[INFO] compiled

@@ -12,3 +12,6 @@ import "errors"
 func startInput(_ *model, _ func(event)) error {
 	return errors.New("global hotkey capture not implemented on this platform")
 }
+
+// cursorPos has no backend off Windows yet (the coords tooltip stays hidden).
+func cursorPos() (x, y int, ok bool) { return 0, 0, false }

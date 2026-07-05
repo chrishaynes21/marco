@@ -7,13 +7,24 @@ import (
 	"strings"
 )
 
-// Binding maps a leader hotkey to a route, scoped to a foreground app: `marco
-// hotkey <key>` runs the bound route only while App is in front (App "" = a
-// global binding that works anywhere). Stored as <Dir>/bindings.json.
+// Binding maps a leader hotkey to a command, scoped to a foreground app: `marco
+// hotkey <key>` runs it only while App is in front (App "" = a global binding that
+// works anywhere). Cmd is the command to run — a single route or a " then "-chained
+// sequence ("say hi then wave"). Slug is the legacy single-route field, still read
+// for bindings saved before chaining. Stored as <Dir>/bindings.json.
 type Binding struct {
 	App  string `json:"app"`
 	Key  string `json:"key"`
-	Slug string `json:"slug"`
+	Slug string `json:"slug,omitempty"` // legacy: a single resolved route slug
+	Cmd  string `json:"cmd,omitempty"`  // preferred: the command/chain to run
+}
+
+// command returns the command a binding runs — its Cmd, or the legacy Slug.
+func (b Binding) command() string {
+	if b.Cmd != "" {
+		return b.Cmd
+	}
+	return b.Slug
 }
 
 func (r Registry) bindingsPath() string { return filepath.Join(r.Dir, "bindings.json") }
@@ -40,8 +51,9 @@ func (r Registry) saveBindings(bs []Binding) error {
 	return os.WriteFile(r.bindingsPath(), data, 0o644)
 }
 
-// Bind sets key→slug for app, replacing any existing binding for that app+key.
-func (r Registry) Bind(app, key, slug string) error {
+// Bind sets key→cmd for app, replacing any existing binding for that app+key. cmd is
+// a command or a " then "-chained sequence.
+func (r Registry) Bind(app, key, cmd string) error {
 	key = strings.ToLower(key)
 	var out []Binding
 	for _, b := range r.Bindings() {
@@ -50,7 +62,7 @@ func (r Registry) Bind(app, key, slug string) error {
 		}
 		out = append(out, b)
 	}
-	out = append(out, Binding{App: app, Key: key, Slug: slug})
+	out = append(out, Binding{App: app, Key: key, Cmd: cmd})
 	return r.saveBindings(out)
 }
 
@@ -72,9 +84,9 @@ func (r Registry) Unbind(app, key string) error {
 	return r.saveBindings(out)
 }
 
-// HotkeySlug returns the slug bound to key for app (app-scoped first, then a
-// global App-"" binding), ok=false if none.
-func (r Registry) HotkeySlug(app, key string) (string, bool) {
+// HotkeyCmd returns the command bound to key for app (app-scoped first, then a
+// global App-"" binding), ok=false if none. The command may be a " then "-chain.
+func (r Registry) HotkeyCmd(app, key string) (string, bool) {
 	key = strings.ToLower(key)
 	var global string
 	for _, b := range r.Bindings() {
@@ -82,10 +94,10 @@ func (r Registry) HotkeySlug(app, key string) (string, bool) {
 			continue
 		}
 		if app != "" && b.App == app {
-			return b.Slug, true
+			return b.command(), true
 		}
 		if b.App == "" {
-			global = b.Slug
+			global = b.command()
 		}
 	}
 	if global != "" {

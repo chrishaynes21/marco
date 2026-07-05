@@ -101,15 +101,12 @@ func (winScreen) Pixel(x, y int) (uint32, error) {
 	return uint32(r<<16 | g<<8 | b), nil
 }
 
-func (winScreen) Find(templatePath string, region Region, tolerance int) (Match, error) {
-	tmpl, err := LoadTemplate(templatePath)
-	if err != nil {
-		return Match{}, err
-	}
-	x, y, w, h := region.X1, region.Y1, region.X2-region.X1, region.Y2-region.Y1
+// regionRect resolves a Region to an absolute (x,y,w,h) capture rectangle — the whole
+// virtual desktop (origin may be negative) when the Region is empty.
+func regionRect(region Region) (x, y, w, h int, err error) {
+	x, y, w, h = region.X1, region.Y1, region.X2-region.X1, region.Y2-region.Y1
 	if region.Empty() {
-		// Whole virtual desktop, not just the primary monitor — origin may be
-		// negative. int32 first so a negative metric isn't read as a huge uintptr.
+		// int32 first so a negative metric isn't read as a huge uintptr.
 		vx, _, _ := procGetSystemMetrics.Call(smXVirtualScreen)
 		vy, _, _ := procGetSystemMetrics.Call(smYVirtualScreen)
 		vw, _, _ := procGetSystemMetrics.Call(smCxVirtualScreen)
@@ -117,18 +114,70 @@ func (winScreen) Find(templatePath string, region Region, tolerance int) (Match,
 		x, y, w, h = int(int32(vx)), int(int32(vy)), int(int32(vw)), int(int32(vh))
 	}
 	if w <= 0 || h <= 0 {
-		return Match{}, fmt.Errorf("screen: empty search region")
+		return 0, 0, 0, 0, fmt.Errorf("screen: empty search region")
+	}
+	return x, y, w, h, nil
+}
+
+func (winScreen) Find(templatePath string, region Region, tolerance int) (Match, error) {
+	tmpl, err := LoadTemplate(templatePath)
+	if err != nil {
+		return Match{}, err
+	}
+	x, y, w, h, err := regionRect(region)
+	if err != nil {
+		return Match{}, err
 	}
 	scr, err := capture(x, y, w, h)
 	if err != nil {
 		return Match{}, err
 	}
-	m := match(scr, tmpl, tolerance)
+	m := matchMultiScale(scr, tmpl, tolerance)
 	if m.Found {
 		m.X += x // capture-relative → absolute screen coords
 		m.Y += y
 	}
 	return m, nil
+}
+
+func (winScreen) FindEdge(templatePath string, region Region, tolerance int) (Match, error) {
+	tmpl, err := LoadTemplate(templatePath)
+	if err != nil {
+		return Match{}, err
+	}
+	x, y, w, h, err := regionRect(region)
+	if err != nil {
+		return Match{}, err
+	}
+	scr, err := capture(x, y, w, h)
+	if err != nil {
+		return Match{}, err
+	}
+	// Match the template's OUTLINE against the screen via a distance transform: only the
+	// shape lines up (so a recoloured/re-themed button resolves) and it tolerates anti-
+	// aliasing / a small shift. tolerance is unused here — edge slack is fixed.
+	_ = tolerance
+	m := findEdgeMultiScale(scr, tmpl)
+	if m.Found {
+		m.X += x
+		m.Y += y
+	}
+	return m, nil
+}
+
+// CaptureVirtual grabs the WHOLE virtual desktop (all monitors) and returns the frame
+// plus its absolute top-left origin — negative when a monitor sits left of / above the
+// primary. The recorder uses it to capture a click target big enough to contain the whole
+// button (then crops to the button), so a control wider than a fixed patch is recognised
+// rather than clipped to a fragment. Map an absolute point into the frame by subtracting
+// the origin. The frame's own bounds are 0-origin.
+func CaptureVirtual() (img *image.RGBA, originX, originY int, err error) {
+	x, y, w, h, err := regionRect(Region{})
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	img, err = capture(x, y, w, h)
+	return img, x, y, err
 }
 
 // CaptureRegion grabs a screen rectangle as an *image.RGBA (absolute screen

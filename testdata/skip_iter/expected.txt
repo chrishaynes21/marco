@@ -1,3 +1,3 @@
-alpha
-gamma
-delta
+[INFO] alpha
+[INFO] gamma
+[INFO] delta

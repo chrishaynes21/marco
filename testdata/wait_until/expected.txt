@@ -1,3 +1,3 @@
-working
-post-wait
-result
+[INFO] working
+[INFO] post-wait
+[INFO] result

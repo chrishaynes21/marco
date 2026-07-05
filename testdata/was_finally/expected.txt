@@ -1,2 +1,2 @@
-rollback
-after
+[INFO] rollback
+[INFO] after

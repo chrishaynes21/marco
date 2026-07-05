@@ -3,6 +3,8 @@
 package recorder
 
 import (
+	"fmt"
+	"image"
 	"os"
 	"runtime"
 	"strconv"
@@ -17,37 +19,68 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/winctx"
 )
 
-// clickTemplateRadius is the half-size of the square patch captured around a
-// left-click, so codegen can later locate the target by image. The patch is
-// centered on the click, so locating it at run time and clicking its center
-// reproduces the exact click — the click position is inferred from the image.
-//
-// Default: a patch ~1/8 of the screen wide (radius = primary-width / 16), so it
-// takes in the target PLUS enough surrounding context (neighbouring controls,
-// panel borders, labels) to be distinctive and locatable when the UI moves, and
-// scales with resolution. A small patch is often a flat, non-distinctive interior
-// that matches everywhere and falls back to a fixed coordinate. The score-based
-// matcher tolerates the mouse cursor at the centre — a small fraction of the area.
-// Tune with $MARCO_CLICK_RADIUS (pixels; the patch is 2× this), which overrides
-// the screen-relative default.
+// clickTemplateRadius is the half-size of the FALLBACK patch captured around a left-click
+// — used only when button recognition can't isolate a control at the click (a flat panel,
+// a freeform canvas). The normal path captures the whole desktop and crops to the detected
+// button (screen.AutoCropAt), re-centring the anchor on it; the fallback patch is centred
+// on the click, so locating it and clicking its centre reproduces the click. Tune with
+// $MARCO_CLICK_RADIUS (pixels; the patch is 2× this).
 var clickTemplateRadius = clickRadiusFromEnv()
 
-// captureAnchors gates image-template capture on clicks. Default OFF: recordings
-// use plain coordinates (points) — exact and predictable for the same layout. Set
-// $MARCO_ANCHORS=1 to also capture a template per click so codegen emits an
-// image-find click that survives the UI moving, at the cost of match accuracy.
-var captureAnchors = os.Getenv("MARCO_ANCHORS") != ""
+// captureAnchors gates per-click anchor capture. Default ON — anchors are first-class:
+// every left click TRIES to anchor. A distinctive patch around the click becomes an
+// image+colour gate (robust to the UI moving); a flat, non-distinctive area silently
+// falls back to a plain coordinate, so nothing is lost by always trying. Set
+// $MARCO_ANCHORS=0 (or off/false/no) to record plain coordinates only.
+var captureAnchors = anchorsEnabled()
+
+// cvKitchenSink is the MARCO_CV=max mode — the one switch that throws EVERY signal at
+// EVERY click for a maximally robust (and maximally A/B-testable) capture: anchor every
+// button (not just left), and capture even a non-distinctive patch so the OCR/Vision
+// resolvers can still label it. Run-time scoring stays conservative (it won't move off
+// the recorded point without strong, corroborated evidence), so "kitchen sink" means more
+// signals captured, never less-safe clicking.
+var cvKitchenSink = cvMode() == "max"
+
+// cvMode reads the MARCO_CV master switch: "max" → the kitchen sink (above); "off" →
+// plain coordinates only; "" → leave the individual knobs (MARCO_ANCHORS, MARCO_OCR, …)
+// at their defaults. setup.ps1 -CV / -NoCV flip it so the whole CV stack toggles at once.
+func cvMode() string {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("MARCO_CV"))) {
+	case "max", "1", "on", "all", "true", "yes":
+		return "max"
+	case "0", "off", "false", "no", "none":
+		return "off"
+	default:
+		return ""
+	}
+}
+
+func anchorsEnabled() bool {
+	switch cvMode() {
+	case "max":
+		return true // CV on → anchors on, regardless of MARCO_ANCHORS
+	case "off":
+		return false // CV off → plain coordinates
+	}
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("MARCO_ANCHORS"))) {
+	case "0", "off", "false", "no":
+		return false
+	default:
+		return true
+	}
+}
 
 func clickRadiusFromEnv() int {
 	if v := os.Getenv("MARCO_CLICK_RADIUS"); v != "" {
-		if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil && n >= 8 && n <= 600 {
+		if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil && n >= 8 && n <= 1200 {
 			return n
 		}
 	}
-	if w, _ := screen.PrimarySize(); w > 0 {
-		return w / 16 // patch side = w/8 ≈ an eighth of the screen across
-	}
-	return 120 // fallback (~1/8 of a 1080p width) when metrics are unavailable
+	// Half-size of the fallback patch (radius 100 → ~200px) used when no button is cleanly
+	// detected at the click; the normal path crops to the recognised button instead. Kept
+	// generous so the click-centred fallback is still distinctive. Override $MARCO_CLICK_RADIUS.
+	return 100
 }
 
 // New returns the Windows recorder (global low-level keyboard + mouse hooks).
@@ -86,14 +119,29 @@ type winRecorder struct {
 // a hook that's too slow — taking the keyboard hook (and thus the F12 stop key)
 // down with it.
 type captureReq struct {
-	idx  int
-	x, y int
+	idx   int
+	x, y  int
+	armed bool // explicit anchor (tap-then-click): capture the whole screen to crop
 }
 
 // captureReqs carries click-template work from the hook thread to the worker.
 // Buffered so a burst of clicks never blocks the hook; over-full just drops the
 // template (the click degrades to a plain coordinate), never the click itself.
 var captureReqs chan captureReq
+
+// anchorKey is the key you TAP to start an image anchor; the next left-click ends it
+// — that click is captured as an image anchor (regardless of the global
+// captureAnchors toggle). One-handed: tap, then click, no holding. "" disables it.
+var anchorKey = AnchorKey()
+
+// anchorArmed is set by a tap of the anchor key and consumed by the next click,
+// which is then captured as a template — even when MARCO_ANCHORS is off.
+var anchorArmed atomic.Bool
+
+// stopKey is the recording's stop gesture, read from $MARCO_STOP_KEY (default F12).
+// When the anchor key is the same key, stopping wins — the key isn't treated as an
+// anchor, so the demo can still be ended (see keyboardProc).
+var stopKey = ParseStopKey(os.Getenv("MARCO_STOP_KEY"))
 
 func (r *winRecorder) Start() error {
 	recMu.Lock()
@@ -109,19 +157,74 @@ func (r *winRecorder) Start() error {
 	r.captureStopped = make(chan struct{})
 	captureReqs = make(chan captureReq, 256)
 
-	// Click-template capture worker: snapshots the patch around each left-click
-	// off the hook thread and writes the PNG back onto the recorded event, so the
-	// synchronous LL hooks return instantly (see captureReq). Drains on Stop.
+	// Capture worker: snapshots the click target off the hook thread and writes the
+	// PNG back onto the recorded event, so the synchronous LL hooks return instantly
+	// (see captureReq). An explicit (armed) anchor grabs the WHOLE screen — you crop
+	// it down to the target afterwards (keep the target centered, since the match
+	// clicks the patch centre). Global MARCO_ANCHORS mode grabs the small auto-patch.
+	// Drains on Stop.
 	go func() {
 		defer close(r.captureStopped)
 		for req := range captureReqs {
-			img := captureClickTemplate(req.x, req.y)
+			var img []byte
+			var color string
+			clickLX, clickLY := 0, 0
+			newX, newY, recenter := req.x, req.y, false
+			if req.armed {
+				// Explicit anchor: keep the whole frame to crop AND read the pixel under
+				// the click, so the anchor gets both a template and a colour resolver from
+				// the one capture. The frame is the primary screen at origin (0,0), so the
+				// click's position within it is just its absolute coordinate.
+				if frame := captureFullFrameRGBA(); frame != nil {
+					if data, err := screen.EncodePNG(frame); err == nil {
+						img = data
+						clickLX, clickLY = req.x, req.y
+					}
+					if col, ok := screen.ColorAt(frame, req.x, req.y); ok {
+						color = fmt.Sprintf("0x%06X", col)
+					}
+				}
+			} else if frame, ox, oy, err := screen.CaptureVirtual(); err == nil && frame != nil {
+				// Auto-anchor: capture the WHOLE desktop so a button bigger than a fixed
+				// patch fits, then crop to the button containing the click and re-centre the
+				// recorded click on that button — the template's centre is the click target
+				// the matcher resolves. A flat / non-distinctive spot drops the anchor (the
+				// click stays a plain coordinate). ox,oy map the absolute click into the frame.
+				lx, ly := req.x-ox, req.y-oy
+				tmpl, cgx, cgy, clx, cly := screen.AutoCropAt(frame, lx, ly, clickTemplateRadius)
+				if tmpl != nil && (cvKitchenSink || screen.Distinctive(tmpl)) {
+					if col, ok := screen.ColorAt(frame, cgx, cgy); ok {
+						color = fmt.Sprintf("0x%06X", col)
+					}
+					if data, encErr := screen.EncodePNG(tmpl); encErr == nil {
+						img = data
+						clickLX, clickLY = clx, cly
+					}
+					if nx, ny := cgx+ox, cgy+oy; nx != req.x || ny != req.y {
+						newX, newY, recenter = nx, ny, true
+					}
+				}
+			}
 			if img == nil {
 				continue
 			}
 			recMu.Lock()
 			if req.idx >= 0 && req.idx < len(recBuf) {
 				recBuf[req.idx].Image = img
+				recBuf[req.idx].ClickX, recBuf[req.idx].ClickY = clickLX, clickLY
+				if color != "" {
+					recBuf[req.idx].Color = color
+				}
+				// Re-centre the recorded click on the button centre, shifting the
+				// window-relative offset by the same delta so both stay consistent.
+				if recenter {
+					dx, dy := newX-recBuf[req.idx].X, newY-recBuf[req.idx].Y
+					recBuf[req.idx].X, recBuf[req.idx].Y = newX, newY
+					if recBuf[req.idx].WinRel {
+						recBuf[req.idx].RelX += dx
+						recBuf[req.idx].RelY += dy
+					}
+				}
 			}
 			recMu.Unlock()
 		}
@@ -241,7 +344,18 @@ func keyboardProc(nCode int, wParam, lParam uintptr) uintptr {
 			up := wParam == wmKeyUp || wParam == wmSysKeyUp
 			if down || up {
 				vk := uint16(kb.vkCode)
-				record(RecordedEvent{Kind: EvKey, VK: vk, KeyName: vkToName(vk), Down: down, T: time.Now()})
+				name := vkToName(vk)
+				// The anchor key is a recorder-only modifier: a TAP arms an anchor (the
+				// next click is captured), so it's never recorded and is swallowed so the
+				// app never sees it. Skip this when the anchor key is also the stop key —
+				// then it must fall through to be recorded so the demo can be stopped.
+				if anchorKey != "" && name == anchorKey && !stopKey.Has(name) {
+					if down {
+						anchorArmed.Store(true) // tap to start; the next click ends it
+					}
+					return 1 // suppress — never reaches the app
+				}
+				record(RecordedEvent{Kind: EvKey, VK: vk, KeyName: name, Down: down, T: time.Now()})
 			}
 		}
 	}
@@ -264,24 +378,15 @@ func mouseProc(nCode int, wParam, lParam uintptr) uintptr {
 					record(RecordedEvent{Kind: EvMove, X: x, Y: y, T: time.Now()})
 				}
 			case wmLButtonDown:
-				// Record the click now (fast) and capture its template off-thread —
-				// never BitBlt inside the hook (see captureReq). A full capture queue
-				// just drops the template; the click is already recorded.
-				idx := recordIndexed(newClick("left", true, x, y))
-				if captureAnchors {
-					select {
-					case captureReqs <- captureReq{idx: idx, x: x, y: y}:
-					default:
-					}
-				}
+				recordClickDown("left", x, y)
 			case wmLButtonUp:
 				record(newClick("left", false, x, y))
 			case wmRButtonDown:
-				record(newClick("right", true, x, y))
+				recordClickDown("right", x, y)
 			case wmRButtonUp:
 				record(newClick("right", false, x, y))
 			case wmMButtonDown:
-				record(newClick("middle", true, x, y))
+				recordClickDown("middle", x, y)
 			case wmMButtonUp:
 				record(newClick("middle", false, x, y))
 			}
@@ -289,6 +394,25 @@ func mouseProc(nCode int, wParam, lParam uintptr) uintptr {
 	}
 	ret, _, _ := procCallNextHookEx.Call(0, uintptr(nCode), wParam, lParam)
 	return ret
+}
+
+// recordClickDown records a button-press click (fast) and captures its template
+// off-thread — never BitBlt inside the hook (see captureReq) — when anchors are on
+// globally (left clicks, or EVERY button in kitchen-sink mode) OR the anchor key armed
+// this click (tap-then-click, any button). An armed click ends the anchor and disarms. A
+// full capture queue just drops the template; the click itself is already recorded.
+func recordClickDown(button string, x, y int) {
+	idx := recordIndexed(newClick(button, true, x, y))
+	armed := anchorArmed.Load()
+	if armed || (captureAnchors && (button == "left" || cvKitchenSink)) {
+		select {
+		case captureReqs <- captureReq{idx: idx, x: x, y: y, armed: armed}:
+		default:
+		}
+	}
+	if armed {
+		anchorArmed.Store(false) // consume the one-shot arm
+	}
 }
 
 // newClick builds an EvClick event. On a press it also records the click's offset
@@ -301,26 +425,24 @@ func newClick(button string, down bool, x, y int) RecordedEvent {
 		if left, top, ok := winctx.ForegroundOrigin(); ok {
 			ev.RelX, ev.RelY, ev.WinRel = x-left, y-top, true
 		}
+		ev.Window = winctx.ForegroundTitle() // context: which window was clicked
 	}
 	return ev
 }
 
-// captureClickTemplate grabs a generous fixed patch around a click (see
-// clickTemplateRadius) and returns it as PNG bytes, or nil for a near-uniform area
-// (blank background, not worth matching) so the click stays a plain coordinate.
-// No auto-trim: the patch is saved as-is — predictable, and the user can crop the
-// PNG beside the route for a tighter match. Best-effort: any failure returns nil.
-func captureClickTemplate(x, y int) []byte {
-	// Capture centered on the actual click — coords may be negative on a monitor
-	// left of / above the primary; the virtual-desktop capture handles that.
-	r := clickTemplateRadius
-	img, err := screen.CaptureRegion(x-r, y-r, r*2, r*2)
-	if err != nil || img == nil || !screen.Distinctive(img) {
+// captureFullFrameRGBA grabs the whole primary screen — the anchor image for an
+// explicit (armed) anchor, which you then crop down to the target (until cropped it
+// won't match the changed live screen, so the click falls back to its recorded
+// coordinate). The raw frame is returned (not yet PNG) so the worker can also read
+// the pixel under the click for the colour resolver. Best-effort: nil on any failure.
+func captureFullFrameRGBA() *image.RGBA {
+	w, h := screen.PrimarySize()
+	if w <= 0 || h <= 0 {
 		return nil
 	}
-	data, err := screen.EncodePNG(img)
-	if err != nil {
+	img, err := screen.CaptureRegion(0, 0, w, h)
+	if err != nil || img == nil {
 		return nil
 	}
-	return data
+	return img
 }

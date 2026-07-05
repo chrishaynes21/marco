@@ -1,0 +1,16 @@
+// vision.marco — the Vision act surface: SEMANTIC on-screen UI-element detection,
+// fulfilled by the resolver plugin (see plugins/vision). Imported by routes with
+// `use vision.`. Where image/colour/edge anchors are GEOMETRIC and Text is OCR, Vision is
+// a learned detector: it finds buttons, icons, menu items and prompts — including controls
+// with no clean edges (an icon on a gradient) — and labels each by KIND. With no
+// `--host Vision=bridge:vision` wired (or no model loaded), Locate/Detect resolve failed
+// and the route falls back to its recorded coordinate or another resolver — purely additive.
+
+the Vision is an act.
+this exports Detect.    // all elements: { X1?,Y1?,X2?,Y2? } -> { Elements }  (each { Label, X, Y, W, H, Score })
+this exports Locate.    // best element -> Point: { Label?, X?,Y? hint, X1?,Y1?,X2?,Y2? } -> { X, Y }
+
+// Locate returns an { X, Y } point in absolute screen coordinates — the same shape OS's
+// Click/Move and Text's Find accept — so it drops into the same resolver slot. The Point
+// type itself comes from os.marco (every route that uses Vision also `use os.`), so it
+// isn't redeclared here.

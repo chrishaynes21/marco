@@ -31,7 +31,7 @@ func TestValueStringFormatting(t *testing.T) {
 		v    Value
 		want string
 	}{
-		{"absent", Absent(), "<absent>"},
+		{"absent", Absent(), "<command absent>"},
 		{"text", Text("hello"), "hello"},
 		{"empty text", Text(""), ""},
 		{"int-valued number", Number(42), "42"},
@@ -124,7 +124,7 @@ func TestValueStringUnknownTag(t *testing.T) {
 	// Defensive default arm: a Value with an out-of-range tag renders <unknown>.
 	var v Value
 	v = Value{} // tagAbsent
-	if v.String() != "<absent>" {
+	if v.String() != "<command absent>" {
 		t.Fatalf("zero Value should be absent, got %q", v.String())
 	}
 	bogus := Value{tag: valueTag(99)}
@@ -357,16 +357,14 @@ func TestSetLockMutualExclusion(t *testing.T) {
 	const incsPer = 1000
 	var plainCounter int // guarded only by s's advisory lock
 	var wg sync.WaitGroup
-	for i := 0; i < goroutines; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for j := 0; j < incsPer; j++ {
+	for range goroutines {
+		wg.Go(func() {
+			for range incsPer {
 				s.AcquireLock()
 				plainCounter++ // racy iff the lock fails to exclude
 				s.ReleaseLock()
 			}
-		}()
+		})
 	}
 	wg.Wait()
 	if want := goroutines * incsPer; plainCounter != want {

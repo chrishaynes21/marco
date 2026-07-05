@@ -14,6 +14,7 @@ host-FFI boundary that plays nicely with other languages.
 $ marco assistant
 > log into facebook
 I don't know "log into facebook" yet.
+Teach it now? [y]es / [n]o: y
 Show me how to "log into facebook". Do it now, then press Esc when finished.
 (For a password, type {{name}} instead of the real value, then set it with: marco secret set <name>)
 …you click through the login, typing {{fb-password}} for the password, press Esc…
@@ -25,7 +26,7 @@ Run it now? [y]es / [n]o: y
 
 ## Quickstart
 
-Build the CLI (Go 1.22+):
+Build the CLI (Go 1.26+):
 
 ```sh
 go build -o marco ./cmd/marco
@@ -63,15 +64,23 @@ and the tool works fully without it.
 
 Press **Esc** at any time to abort a running route.
 
-### Context-aware routes
+### Where a route works (scope)
 
-A route remembers the app you taught it in and **brings that app to the front
-before running** — so "log into Facebook" focuses Chrome first. A route is
-either **global** (works anywhere) or **scoped to an app**, chosen when you save
-it. Scoped routes let the *same phrase* mean different things per app: "switch to
-sword" can resolve to your Sea of Thieves route when it's focused and a different
-game's route when that is. Resolution prefers the route for the foreground app,
-then a global one. `marco routes` shows each route's scope.
+When you save a route you choose one of three scopes:
+
+- **Only here (context)** — works *only* while the app you taught it in is in front,
+  and never switches windows. This is what lets the *same phrase* mean different
+  things per app ("leave game" in Rocket League vs. Sea of Thieves) — route
+  overloading. Foreground-only, so it won't fire from another app.
+- **Anywhere, focus first** — works from anywhere and **brings the app to the front
+  before running** (so "log into Facebook" focuses Chrome first). Focusing only
+  un-minimizes a *minimized* window; a maximized/fullscreen app (a game, the Xbox
+  app) is left as-is, so activation never knocks it out of fullscreen.
+- **Anywhere** — works in place with no window switch, for app-agnostic actions
+  (type some text, Ctrl+A then Delete).
+
+Resolution prefers the foreground app's context route, then a global one.
+`marco routes` shows each route's scope.
 
 ### Passwords never get recorded
 
@@ -94,31 +103,98 @@ Recorded clicks are **window-relative by default** — they're stored as an offs
 from the active window's top-left, so a route keeps working when you move the
 window or run it on another monitor or machine, without any monitor/DPI math.
 
-For cases where even that isn't enough (fullscreen, heavy re-layout), turn on
-**image anchors** — set `MARCO_ANCHORS=1` while teaching and each click also
-captures a picture of its target, so the route finds it on screen instead of
-trusting a coordinate:
+For a target that isn't there yet (a menu, a loading screen) or that **moves**
+between runs, attach an **anchor** — a first-class on-screen target the engine
+**recognises** rather than trusting a blind coordinate. `Find` scores several
+in-engine signals into one **confidence**; when confident it clicks the **located**
+point (following a target that drifted), and when unsure it falls back to the
+recorded coordinate. All of it is pure Go in the engine — **no OpenCV, no
+dependency**:
+
+- **Image** — template match of the button, made robust: **scale-invariant** (a
+  DPI/resolution change), **brightness- and contrast-invariant** (night mode, a
+  re-theme, a different monitor), plus a **colour-palette** check.
+- **Shape (edges)** — matches the button's *outline* (orientation-aware), so it
+  still resolves when a theme **recolours** the button and the pixels no longer match.
+- **Colour** — the pixel under the recorded click.
+- **Position** — how near a candidate is to where you clicked *and* to where the
+  anchor **resolved last time**, so the search follows a UI that drifts across runs.
+- **Window** — the **title** of the window you taught it in, so a perfect match in
+  the *wrong* window of a multi-window app (Steam's library vs. friends vs. store)
+  can't produce a confident click.
+
+When you anchor a click the captured patch is **auto-cropped to the button** it
+detects, and every signal above is captured automatically — nothing extra to do.
+A taught anchor reads like this; `when ok?` clicks the located point, `or?` is the
+safe fallback:
 
 ```marco
-do OS's Find with button...
-    when ok?  do OS's Click with that.
-    or?       do OS's Click with p1.   // falls back to the recorded point
+do OS's Find with menu...                // score the signals into a confidence
+    when ok?  do OS's Click with that.   // confident: click where it IS (follows a move)
+    or?       do OS's Click with p1.      // unsure: click the recorded coordinate
 ```
 
-Anchors are opt-in because the window-relative default covers ordinary windowed
-apps; you can also crop the captured image, or let a vision plugin crop it.
+For a target that moves *within* a reflowing UI (Discord's mute button), add the
+**text** resolver: it OCRs the screen, finds the word, and **snaps to the button
+containing it**. Narrate it with the cursor over the target: *"click the text Mute"*.
+
+```marco
+do OS's Find with menu...
+    when ok?  do OS's Click with that.
+    or?
+        do Text's Find with mute...      // OCR: locate the word, snap to its button
+            when ok?  do OS's Click with that.
+            or?       do OS's Click with p1.
+```
+
+Text is a **plugin** (OCR needs a dependency; the engine stays zero-dep). `setup.cmd
+-OCR` builds it **and installs the `tesseract` engine** it uses (via winget), then
+wires it up. Without it, a text anchor falls back to its recorded coordinate. See
+`plugins/ocr/README.md`. (Routes taught before this keep working; re-teach to pick up
+the newer signals and the button-cropped template.)
+
+Anchor a click **per click** by **tapping the anchor key, then clicking** that
+target during the demo — the tap starts the anchor, the click ends it. Only that
+click matches by image; everything else stays an exact, fast coordinate. It's
+one-handed (no holding). (Narration has the same gesture: say *"anchor this"* before
+a click.) To anchor *every* click for a session instead, set `MARCO_ANCHORS=1`. The
+anchor key is `$MARCO_ANCHOR_KEY` (default **F12**; `off` disables) and is swallowed
+during recording so it never reaches the app. In the overlay the leader stops the
+demo, leaving F12 free to anchor; in the CLI F12 is the stop key, so set
+`MARCO_ANCHOR_KEY` to another key to anchor there. You can also crop the captured
+image, or let a vision plugin crop it.
+
+### Holding a key
+
+Some actions need a key **held down** while you do something else — hold a movement
+key, hold Q while you click. Just do it during the demo: a key you **hold for ≥ ½
+second, or hold across a click or another key**, is recorded as an explicit hold that
+**persists** across the steps in between and releases where you released it. A quick
+tap stays an ordinary keystroke. The real hold *duration* is kept (a charge-hold
+stays long; a hold-and-click spans exactly your clicks), and a held key is always
+released when the run ends — even on error or **Esc** — so nothing is ever left stuck
+down. (Normal taps also get a small key-down→up linger so fast games register them;
+tune it with `$MARCO_KEY_HOLD_MS`.)
 
 ### Commands with arguments
 
 A route can take **named arguments**. Declare them with `with` when you teach,
 and a value goes wherever you tap the **arg key (F9)** during the demo (no typing
-`{{…}}` into the app):
+`{{…}}` into the app). Pass values two ways — by name, or positionally with the
+same `with` word, where each value fills the declared arg in order:
 
 ```sh
 marco teach "say hello with name"    # demo: tap F9 where the name goes
-marco do   "say hello name:chris"    # fills it in
+marco do   "say hello name:chris"    # by name
+marco do   "say hello with chris"    # positional — "chris" fills `name`
 marco do   "dm person:sam message:hi there"   # several; values may have spaces
+marco do   "dm with sam, hi there"            # positional, comma-separated
 ```
+
+In the overlay you type the positional form (`say hello with chris`) and it
+shows the arg name as a colored hint in front of each value
+(`say hello with `**`name:`**`chris`). The `name:` is a display-only label — the
+command stays `say hello with chris`; press **Tab** to step to the next arg slot.
 
 An argument named like a secret (**password**, `pin`, `token`, …) is special: it's
 resolved from the credential store, **never written into the route**, and
@@ -132,6 +208,19 @@ marco do   "login to facebook"                                 # reuses them
 
 You can also still type a `{{name}}` placeholder during the demo for a globally
 named secret (set it with `marco secret set <name>`).
+
+### Chaining commands
+
+Run several commands as one with **`then`** — each step keeps its own args and runs
+in order (stopping at the first failure):
+
+```sh
+marco do "say hello with chris then delete all then say hi"
+marco bind e "say hello with chris then delete all then say hi"   # one key, three steps
+```
+
+`bind <key> <command>` ties a leader hotkey (`` `e ``) to a command — a single route
+or a `then`-chain — scoped to the foreground app; `unbind <key>` removes it.
 
 ### Teach by talking
 
@@ -150,8 +239,9 @@ marco teach --narrate "open chest"
 
 In the overlay this is hands-free: say (or type) **"narrate teach open chest"**,
 then narrate. The vocabulary is forgiving — `click this`, `anchor this`, `wait for
-this screen`, `wait 2 seconds`, `type …`, `press enter`, `activate <app>`, plus
-`undo` / `done` / `cancel`.
+this screen`, `wait 2 seconds`, `type …`, `press enter`, `activate <app>`, menu
+navigation (`down`, `down arrow`, `tab`, `escape`, `select`), plus `undo` / `done` /
+`cancel`.
 
 ---
 
@@ -189,9 +279,10 @@ do OpenInventory's Run...
 
 The **record → simplify → codegen** pipeline turns a demonstration into that
 program: it drops mouse jitter, rounds waits, coalesces key-spam, folds repeated
-cycles into loops, records clicks window-relative, turns arg-key taps into
-named-argument placeholders, and converts `{{name}}` placeholders into secret
-lookups.
+cycles into loops, records clicks window-relative, **detects held keys** (press/hold
+that persists across clicks), **auto-crops anchors to the button** and captures their
+match signals, turns arg-key taps into named-argument placeholders, and converts
+`{{name}}` placeholders into secret lookups.
 
 Everything is **cross-platform by construction**: input capture, input
 synthesis, screen reading, and the credential store each sit behind a small
@@ -214,7 +305,8 @@ disabled" error):
 
 (`setup.cmd` just runs `setup.ps1` with `-ExecutionPolicy Bypass`; call the `.ps1`
 directly if your policy already allows it.) Voice uses a wake word (default
-**marco**, say "marco, <command>"); change it with `-Wake "<word>"`.
+**computer**, say "computer, <command>"); change it with `-Wake "<word>"`,
+or set it to `off` to listen to every phrase without arming.
 
 Natural-language route matching is **offline and key-free by default** (a
 deterministic matcher maps what you say to your route names). For loose phrasing
@@ -241,9 +333,12 @@ plugs in over the host boundary:
   - [`plugins/overlay`](plugins/overlay) — a **native, cross-platform gamer HUD**
     (transparent, click-through, always-on-top). A leader key (`` ` ``) opens a
     command line (`` `m <command>``); it teaches in-place (record → F12 → save),
-    narrates by voice or typing, auto-pops `name:` labels for routes that take
-    arguments (Tab to accept), and answers prompts in the HUD. Its behaviour lives
-    in Marco ([`programs/overlay.marco`](programs/overlay.marco)); it fulfils a
+    narrates by voice or typing, shows `name:` arg-name hints inline as you fill a
+    route's arguments (Tab to step between slots), and answers prompts in the HUD.
+    `` `m config `` opens an in-HUD editor (theme, opacity, monitor/corner, width,
+    mini mode, the CPU/RAM widget, and a live **screen-coords tooltip** — handy when
+    teaching across monitors). Its behaviour lives
+    in Marco ([`plugins/overlay/overlay.marco`](plugins/overlay/overlay.marco)); it fulfils a
     clean `Overlay` act and pushes input events back over a bidirectional bridge.
   - [`plugins/web-ui`](plugins/web-ui) — a reference local web control panel.
   - [`plugins/ahk-overlay`](plugins/ahk-overlay) — the original MacroMarco
@@ -252,7 +347,7 @@ plugs in over the host boundary:
 Run all three layers together:
 
 ```sh
-marco serve --host OS=bridge:marco-macros --host Overlay=bridge:overlay programs/overlay.marco
+marco serve --host OS=bridge:marco-macros --host Overlay=bridge:overlay plugins/overlay/overlay.marco
 ```
 
 ---
@@ -268,7 +363,10 @@ marco simplify "<name>"    re-simplify a saved route as far as it goes
 marco assistant            interactive loop — say what you want
 marco routes [--json]      list known routes
 marco args "<name>"        print a route's argument labels (used by the overlay)
+marco rename "<old>" to "<new>"   rename a route (keeps its recording + anchors)
 marco forget "<name>"      delete a route ("forget all" wipes them, after a confirm)
+marco bind <key> "<cmd>"   bind a leader hotkey to a command or `then`-chain
+marco unbind <key>         remove a hotkey binding
 marco secret set|list|rm <name>   manage stored passwords
 
 marco run   [--host …] <file.marco>     run a Marco program
@@ -287,11 +385,21 @@ Routes live in `./routes` (override with `$MARCO_ROUTES`).
 | `MARCO_ROUTES` | route directory (default `./routes`) |
 | `MARCO_STOP_KEY` | key that ends a recording / aborts a run (default `f12`) |
 | `MARCO_ARG_KEY` | key that drops an argument placeholder while teaching (default `f9`; `off` disables) |
-| `MARCO_ANCHORS` | `1` captures an image anchor per click while teaching |
+| `MARCO_ANCHOR_KEY` | key you tap, then click, to anchor that click by image (default `f12`; `off` disables) |
+| `MARCO_ANCHORS` | `1` captures an image anchor for *every* click while teaching |
+| `MARCO_CLICK_RADIUS` | half-size (px) of the captured anchor patch; default ≈ ¼ screen width, scaled to resolution |
+| `MARCO_LOG` | log level; `debug` shows the full per-click anchor-scoring / coordinate trace (default `info`) |
+| `MARCO_FIND_SCALES` | template scales tried when matching, for DPI/resolution changes (e.g. `0.8,1.0,1.25`) |
+| `MARCO_EDGE_TOLERANCE` | edge-detection sensitivity for shape matching and button recognition |
+| `MARCO_FIND_CONFIDENCE` / `MARCO_FIND_TOLERANCE` / `MARCO_FIND_THRESHOLD` | anchor confidence / colour-tolerance / image-match thresholds |
+| `MARCO_ANCHOR_CACHE` | `0` disables the last-known-location cache that follows a drifting target |
+| `MARCO_KEY_HOLD_MS` | linger between a tap's key-down and key-up so fast apps register it (default 25) |
 | `MARCO_RESOLVER` | path to a resolver plugin for loosely-phrased commands |
+| `MARCO_OCR` | path to the OCR text-resolver plugin (`plugins/ocr/ocr.exe`); fulfils a route's text anchor |
+| `MARCO_TESSERACT` | path to the `tesseract` binary if it isn't on `PATH` (used by the OCR plugin) |
 | `MARCO_BIN` | engine binary the overlay shells out to |
 | `MARCO_OVERLAY_IDLE` | overlay idle opacity (0–1) |
-| `MARCO_VOICE_WAKE` | voice wake word (default `marco`; `off` = always listen) |
+| `MARCO_VOICE_WAKE` | voice wake word (default `computer`; `off` = always listen) |
 
 ---
 

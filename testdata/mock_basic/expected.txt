@@ -1,1 +1,1 @@
-fake send
+[INFO] fake send

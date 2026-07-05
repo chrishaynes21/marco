@@ -52,7 +52,7 @@ func Resolve(input string, routes []string) Match {
 // collapses whitespace.
 func normalize(s string) string {
 	var toks []string
-	for _, w := range strings.Fields(strings.ToLower(s)) {
+	for w := range strings.FieldsSeq(strings.ToLower(s)) {
 		var b strings.Builder
 		for _, r := range w {
 			if r >= 'a' && r <= 'z' || r >= '0' && r <= '9' {
@@ -88,7 +88,7 @@ func jaccard(a, b string) float64 {
 
 func toksOf(s string) map[string]bool {
 	m := map[string]bool{}
-	for _, t := range strings.Fields(s) {
+	for t := range strings.FieldsSeq(s) {
 		m[t] = true
 	}
 	return m

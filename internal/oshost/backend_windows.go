@@ -32,7 +32,32 @@ func typeCadenceFromEnv() time.Duration {
 			return time.Duration(n) * time.Millisecond
 		}
 	}
-	return 12 * time.Millisecond
+	return 5 * time.Millisecond
+}
+
+// chordHold is how long a key combo's modifiers are held around the key tap, so the
+// target registers it (Alt+Tab, Ctrl+Shift+Esc, …). Override with $MARCO_CHORD_HOLD_MS.
+var chordHold = envDurationMs("MARCO_CHORD_HOLD_MS", 40)
+
+// tapHold is the small linger between a plain key's down and up, so a fast game/app
+// registers the press instead of dropping an instant tap. Override $MARCO_KEY_HOLD_MS.
+var tapHold = envDurationMs("MARCO_KEY_HOLD_MS", 25)
+
+func envDurationMs(name string, def int) time.Duration {
+	if v := os.Getenv(name); v != "" {
+		if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil && n >= 0 {
+			return time.Duration(n) * time.Millisecond
+		}
+	}
+	return time.Duration(def) * time.Millisecond
+}
+
+// sleepCtx waits for d, returning early if ctx is canceled (Esc/panic-stop).
+func sleepCtx(ctx context.Context, d time.Duration) {
+	select {
+	case <-time.After(d):
+	case <-ctx.Done():
+	}
 }
 
 func (winBackend) key(ctx context.Context, name string) error {
@@ -61,8 +86,21 @@ func (winBackend) key(ctx context.Context, name string) error {
 			return fmt.Errorf("SendInput rejected key %q", parts[i])
 		}
 	}
+	// A chord (held modifiers) gets a small hold so the app registers it — a combo
+	// like Alt+Tab needs the modifier settled before the key and the combo held a
+	// beat, or it's missed. A plain key still gets a SMALL linger (tapHold) so a fast
+	// game/app registers the press — an instant down+up is what they drop.
+	chord := len(keys) > 1
 	last := keys[len(keys)-1]
+	if chord {
+		sleepCtx(ctx, chordHold) // let the modifier(s) settle
+	}
 	okDown := sendKeyDown(last.vk, last.scan, last.ext)
+	if chord {
+		sleepCtx(ctx, chordHold) // hold the combo
+	} else {
+		sleepCtx(ctx, tapHold) // small linger so a plain tap registers
+	}
 	okUp := sendKeyUp(last.vk, last.scan, last.ext)
 	// Release modifiers in reverse order, even if the tap was rejected.
 	for i := len(keys) - 2; i >= 0; i-- {
@@ -74,11 +112,35 @@ func (winBackend) key(ctx context.Context, name string) error {
 	return ctx.Err()
 }
 
+// keyDown presses and HOLDS a single key (no release) — the start of a hold. keyUp
+// releases it. Single key only (a held combo isn't a recorded pattern).
+func (winBackend) keyDown(ctx context.Context, name string) error {
+	vk, scan, ext := resolveKey(name)
+	if vk == 0 && scan == 0 {
+		return fmt.Errorf("unknown key: %q", name)
+	}
+	if !sendKeyDown(vk, scan, ext) {
+		return fmt.Errorf("SendInput rejected key %q", name)
+	}
+	return ctx.Err()
+}
+
+func (winBackend) keyUp(ctx context.Context, name string) error {
+	vk, scan, ext := resolveKey(name)
+	if vk == 0 && scan == 0 {
+		return fmt.Errorf("unknown key: %q", name)
+	}
+	if !sendKeyUp(vk, scan, ext) {
+		return fmt.Errorf("SendInput rejected key %q", name)
+	}
+	return ctx.Err()
+}
+
 // splitChord splits a key spec on '+' into non-empty parts. A bare "+" (the plus
 // key itself) falls back to the whole string so it isn't lost.
 func splitChord(name string) []string {
 	var out []string
-	for _, p := range strings.Split(name, "+") {
+	for p := range strings.SplitSeq(name, "+") {
 		if p = strings.TrimSpace(p); p != "" {
 			out = append(out, p)
 		}
@@ -117,9 +179,53 @@ func (winBackend) click(ctx context.Context, button string) error {
 	return ctx.Err()
 }
 
-func (winBackend) move(ctx context.Context, x, y int) error {
-	procSetCursorPos.Call(uintptr(x), uintptr(y))
+// clickAt positions the cursor and clicks in ONE atomic SendInput batch (an absolute
+// move, then button down, then up — every event carrying the absolute target). Going
+// through one SendInput call means no other input interleaves and the down/up specify
+// their own position, so the click can't land at a stale spot the way a separate
+// SetCursorPos-then-click can race. Coordinates are normalised over the VIRTUAL desktop,
+// so it's correct on any monitor (including one with a negative origin).
+func (winBackend) clickAt(ctx context.Context, button string, x, y int) error {
+	down, up := mouseButtonFlags(button)
+	vx, vy, vw, vh := virtualDesk()
+	nx, ny := normAbsolute(x, y, vx, vy, vw, vh)
+	const absDesk = _MOUSEEVENTF_ABSOLUTE | _MOUSEEVENTF_VIRTUALDESK
+	inps := []inputT{
+		mouseInputT(nx, ny, 0, _MOUSEEVENTF_MOVE|absDesk),
+		mouseInputT(nx, ny, 0, down|absDesk),
+		mouseInputT(nx, ny, 0, up|absDesk),
+	}
+	if !sendInputs(inps) {
+		return fmt.Errorf("SendInput rejected %s click at (%d,%d)", button, x, y)
+	}
 	return ctx.Err()
+}
+
+// move sends a real injected mouse-MOVE event (SendInput), not a bare SetCursorPos.
+// SetCursorPos only repositions the pointer; many apps — and ESPECIALLY games reading raw
+// input — only fire their hover/highlight on an actual movement event, so a hover-settle
+// or wiggle done with SetCursorPos never lights the button up. An absolute MOUSEEVENTF_MOVE
+// over the virtual desktop is the same gesture clickAt uses, so it's correct on any
+// monitor; it falls back to SetCursorPos if SendInput is rejected.
+func (winBackend) move(ctx context.Context, x, y int) error {
+	vx, vy, vw, vh := virtualDesk()
+	nx, ny := normAbsolute(x, y, vx, vy, vw, vh)
+	const absDesk = _MOUSEEVENTF_ABSOLUTE | _MOUSEEVENTF_VIRTUALDESK
+	if !sendInputs([]inputT{mouseInputT(nx, ny, 0, _MOUSEEVENTF_MOVE|absDesk)}) {
+		procSetCursorPos.Call(uintptr(x), uintptr(y))
+	}
+	return ctx.Err()
+}
+
+// virtualDesk returns the virtual screen's origin and size (all monitors). The origin
+// is negative when a monitor sits left of / above the primary; int32 first so a negative
+// metric isn't read as a huge uintptr.
+func virtualDesk() (x, y, w, h int) {
+	vx, _, _ := procGetSystemMetrics.Call(_SM_XVIRTUALSCREEN)
+	vy, _, _ := procGetSystemMetrics.Call(_SM_YVIRTUALSCREEN)
+	vw, _, _ := procGetSystemMetrics.Call(_SM_CXVIRTUALSCREEN)
+	vh, _, _ := procGetSystemMetrics.Call(_SM_CYVIRTUALSCREEN)
+	return int(int32(vx)), int(int32(vy)), int(int32(vw)), int(int32(vh))
 }
 
 func (winBackend) color(ctx context.Context, x, y int) (uint32, error) {
@@ -160,6 +266,7 @@ var (
 
 	procSendInput            = user32.NewProc("SendInput")
 	procSetCursorPos         = user32.NewProc("SetCursorPos")
+	procGetSystemMetrics     = user32.NewProc("GetSystemMetrics")
 	procGetForegroundWindow  = user32.NewProc("GetForegroundWindow")
 	procGetWindowThreadPID   = user32.NewProc("GetWindowThreadProcessId")
 	procGetDC                = user32.NewProc("GetDC")
@@ -179,12 +286,22 @@ const (
 	_KEYEVENTF_KEYUP       = 0x0002
 	_KEYEVENTF_UNICODE     = 0x0004
 
-	_MOUSEEVENTF_LEFTDOWN   = 0x0002
-	_MOUSEEVENTF_LEFTUP     = 0x0004
-	_MOUSEEVENTF_RIGHTDOWN  = 0x0008
-	_MOUSEEVENTF_RIGHTUP    = 0x0010
-	_MOUSEEVENTF_MIDDLEDOWN = 0x0020
-	_MOUSEEVENTF_MIDDLEUP   = 0x0040
+	_MOUSEEVENTF_MOVE        = 0x0001
+	_MOUSEEVENTF_LEFTDOWN    = 0x0002
+	_MOUSEEVENTF_LEFTUP      = 0x0004
+	_MOUSEEVENTF_RIGHTDOWN   = 0x0008
+	_MOUSEEVENTF_RIGHTUP     = 0x0010
+	_MOUSEEVENTF_MIDDLEDOWN  = 0x0020
+	_MOUSEEVENTF_MIDDLEUP    = 0x0040
+	_MOUSEEVENTF_VIRTUALDESK = 0x4000
+	_MOUSEEVENTF_ABSOLUTE    = 0x8000
+
+	// Virtual-screen metrics (GetSystemMetrics) — span ALL monitors; the origin is
+	// negative when a monitor sits left of / above the primary.
+	_SM_XVIRTUALSCREEN  = 76
+	_SM_YVIRTUALSCREEN  = 77
+	_SM_CXVIRTUALSCREEN = 78
+	_SM_CYVIRTUALSCREEN = 79
 )
 
 // inputT mirrors the Win32 INPUT struct exactly. On x64 that is: a 4-byte type,
@@ -260,6 +377,13 @@ func sendUnicodeChar(ch rune) bool {
 }
 
 func sendMouseInput(dx, dy int32, mouseData uint32, flags uint32) bool {
+	inp := mouseInputT(dx, dy, mouseData, flags)
+	return sendInput(&inp)
+}
+
+// mouseInputT builds an INPUT for a single mouse event (dx,dy are absolute 0..65535
+// when flags carry MOUSEEVENTF_ABSOLUTE, else a relative delta).
+func mouseInputT(dx, dy int32, mouseData uint32, flags uint32) inputT {
 	var inp inputT
 	inp.inputType = _INPUT_MOUSE
 	mi := (*mouseInput)(unsafe.Pointer(&inp.union[0]))
@@ -267,7 +391,18 @@ func sendMouseInput(dx, dy int32, mouseData uint32, flags uint32) bool {
 	mi.dy = dy
 	mi.mouseData = mouseData
 	mi.dwFlags = flags
-	return sendInput(&inp)
+	return inp
+}
+
+// sendInputs dispatches a batch of INPUTs in a SINGLE SendInput call, so no other
+// (user or injected) input interleaves between them — the move+down+up of a click stay
+// atomic and ordered. Reports whether every event was accepted.
+func sendInputs(inps []inputT) bool {
+	if len(inps) == 0 {
+		return true
+	}
+	n, _, _ := procSendInput.Call(uintptr(len(inps)), uintptr(unsafe.Pointer(&inps[0])), unsafe.Sizeof(inps[0]))
+	return int(n) == len(inps)
 }
 
 func mouseButtonFlags(button string) (down, up uint32) {

@@ -14,14 +14,14 @@ func TestBindings(t *testing.T) {
 	}
 
 	// App-scoped resolves only in that app.
-	if slug, ok := r.HotkeySlug("notepad", "s"); !ok || slug != "say-hello" {
+	if slug, ok := r.HotkeyCmd("notepad", "s"); !ok || slug != "say-hello" {
 		t.Fatalf("notepad `s = %q,%v", slug, ok)
 	}
-	if _, ok := r.HotkeySlug("chrome", "s"); ok {
+	if _, ok := r.HotkeyCmd("chrome", "s"); ok {
 		t.Fatal("`s should not resolve in chrome")
 	}
 	// Global resolves anywhere.
-	if slug, ok := r.HotkeySlug("chrome", "g"); !ok || slug != "global-thing" {
+	if slug, ok := r.HotkeyCmd("chrome", "g"); !ok || slug != "global-thing" {
 		t.Fatalf("global `g = %q,%v", slug, ok)
 	}
 
@@ -29,13 +29,13 @@ func TestBindings(t *testing.T) {
 	if err := r.Bind("notepad", "s", "other"); err != nil {
 		t.Fatal(err)
 	}
-	if slug, _ := r.HotkeySlug("notepad", "s"); slug != "other" {
+	if slug, _ := r.HotkeyCmd("notepad", "s"); slug != "other" {
 		t.Fatalf("rebind = %q", slug)
 	}
 	if err := r.Unbind("notepad", "s"); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := r.HotkeySlug("notepad", "s"); ok {
+	if _, ok := r.HotkeyCmd("notepad", "s"); ok {
 		t.Fatal("`s should be unbound")
 	}
 }

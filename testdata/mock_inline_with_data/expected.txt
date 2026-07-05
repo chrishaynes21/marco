@@ -1,1 +1,1 @@
-mocked
+[INFO] mocked

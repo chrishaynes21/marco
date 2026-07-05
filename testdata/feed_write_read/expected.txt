@@ -1,2 +1,2 @@
-save started
-/p
+[INFO] save started
+[INFO] /p

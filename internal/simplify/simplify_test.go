@@ -70,6 +70,7 @@ func TestAppSwitchDropsNavClicks(t *testing.T) {
 	got := Simplify(evs, DefaultOptions())
 	want := []macroir.Step{
 		{Kind: macroir.StepActivate, Text: "notepad"},
+		{Kind: macroir.StepWait, Ms: 50}, // uniform gap after activate (window settle)
 		{Kind: macroir.StepType, Text: "hi"},
 	}
 	assertSteps(t, got, want)
@@ -92,8 +93,11 @@ func TestInAppClickSurvivesSwitch(t *testing.T) {
 	got := Simplify(evs, DefaultOptions())
 	want := []macroir.Step{
 		{Kind: macroir.StepActivate, Text: "notepad"},
+		// No forced wait after activate now — the 10ms recorded gap is below MinWaitMs
+		// and the activation latency is handled host-side (Activate waits for the
+		// window). Only the real type→click pause survives (capped at MaxWaitMs).
 		{Kind: macroir.StepType, Text: "hi"},
-		{Kind: macroir.StepWait, Ms: 80},
+		{Kind: macroir.StepWait, Ms: 50},
 		{Kind: macroir.StepClick, X: 50, Y: 60, Button: "left"},
 	}
 	assertSteps(t, got, want)
@@ -109,6 +113,61 @@ func rhythmOpts() Options {
 // (faithful, and "ll" even folds into a loop); with TypingRhythmMs on, the whole
 // varied run collapses into one clean Type step — and because rhythm-folding runs
 // before loop-folding, the repeated "l" never becomes a loop.
+func TestHoldKeySpansClick(t *testing.T) {
+	// Hold Q, click, release Q — Q's press brackets the click, so it becomes explicit
+	// KeyDown/KeyUp (the hold persists across the click) rather than a tap.
+	evs := []recorder.RecordedEvent{
+		key("q", true, 0),
+		click("left", true, 100, 100, 50),
+		click("left", false, 100, 100, 70),
+		key("q", false, 120),
+	}
+	got := Simplify(evs, DefaultOptions())
+	if len(got) == 0 || got[0].Kind != macroir.StepKeyDown || got[0].Key != "q" {
+		t.Fatalf("first step should be KeyDown q, got %+v", got)
+	}
+	if last := got[len(got)-1]; last.Kind != macroir.StepKeyUp || last.Key != "q" {
+		t.Fatalf("last step should be KeyUp q, got %+v", got)
+	}
+	hasClick := false
+	for _, s := range got {
+		if s.Kind == macroir.StepClick {
+			hasClick = true
+		}
+	}
+	if !hasClick {
+		t.Fatalf("the hold should bracket a Click, got %+v", got)
+	}
+}
+
+func TestHoldKeyByDuration(t *testing.T) {
+	// Hold Q for 600ms with nothing else (≥ holdThreshold) → still an explicit hold.
+	evs := []recorder.RecordedEvent{key("q", true, 0), key("q", false, 600)}
+	got := Simplify(evs, DefaultOptions())
+	if len(got) == 0 || got[0].Kind != macroir.StepKeyDown {
+		t.Fatalf("expected KeyDown first, got %+v", got)
+	}
+	up := false
+	for _, s := range got {
+		if s.Kind == macroir.StepKeyUp {
+			up = true
+		}
+	}
+	if !up {
+		t.Fatalf("expected a KeyUp, got %+v", got)
+	}
+}
+
+func TestQuickTapIsNotHold(t *testing.T) {
+	// A quick Q tap (20ms, nothing between) is typing/a key press — never a hold.
+	got := Simplify([]recorder.RecordedEvent{key("q", true, 0), key("q", false, 20)}, DefaultOptions())
+	for _, s := range got {
+		if s.Kind == macroir.StepKeyDown || s.Kind == macroir.StepKeyUp {
+			t.Fatalf("a quick tap must not produce hold steps, got %+v", got)
+		}
+	}
+}
+
 func TestTypingRhythmFolds(t *testing.T) {
 	// "hello" typed at human speed: gaps >MinWaitMs (so waits appear by default)
 	// but <DefaultTypingRhythmMs (so they fold).
@@ -215,7 +274,7 @@ func TestClicksAndWait(t *testing.T) {
 	got := Simplify(evs, DefaultOptions())
 	want := []macroir.Step{
 		{Kind: macroir.StepClick, X: 100, Y: 200, Button: "left"},
-		{Kind: macroir.StepWait, Ms: 350},
+		{Kind: macroir.StepWait, Ms: 50},
 		{Kind: macroir.StepClick, X: 400, Y: 500, Button: "left"},
 	}
 	assertSteps(t, got, want)
@@ -224,7 +283,7 @@ func TestClicksAndWait(t *testing.T) {
 func TestUniformKeyCoalesces(t *testing.T) {
 	// game-style "e" spam → key e count 3, not type "eee"
 	var evs []recorder.RecordedEvent
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		evs = append(evs, key("e", true, i*10), key("e", false, i*10+2))
 	}
 	got := Simplify(evs, DefaultOptions())
@@ -275,7 +334,7 @@ func TestCycleFold(t *testing.T) {
 	// Reps are tightly adjacent (inter-rep gap 15ms < MinWait, dropped) so the
 	// 3-step block tiles cleanly.
 	var evs []recorder.RecordedEvent
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		t0 := i * 115
 		evs = append(evs,
 			click("left", true, 0, 0, t0), click("left", false, 0, 0, t0+5),
@@ -287,9 +346,12 @@ func TestCycleFold(t *testing.T) {
 		t.Fatalf("expected one loop count 3, got %+v", got)
 	}
 	body := got[0].Steps
+	// Body = click, the real (capped) intra-rep pause, click. No trailing wait: the
+	// 15ms inter-rep gap is below MinWaitMs and dropped (waits are the recorded gap
+	// now, not a forced uniform delay), and the loop still folds.
 	want := []macroir.Step{
 		{Kind: macroir.StepClick, X: 0, Y: 0, Button: "left"},
-		{Kind: macroir.StepWait, Ms: 100},
+		{Kind: macroir.StepWait, Ms: 50},
 		{Kind: macroir.StepClick, X: 9, Y: 9, Button: "left"},
 	}
 	assertSteps(t, body, want)

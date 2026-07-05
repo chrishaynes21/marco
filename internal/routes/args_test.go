@@ -25,6 +25,24 @@ func TestSplitArgs(t *testing.T) {
 	}
 }
 
+func TestSplitChain(t *testing.T) {
+	cases := []struct {
+		in   string
+		want []string
+	}{
+		{"say hello", []string{"say hello"}},
+		{"say hi then wave then say bye", []string{"say hi", "wave", "say bye"}},
+		{"say hello with name then delete all", []string{"say hello with name", "delete all"}}, // args survive per step
+		{"open THEN close", []string{"open", "close"}},                                         // case-insensitive
+		{"strengthen the grip", []string{"strengthen the grip"}},                               // "then" inside a word doesn't split
+	}
+	for _, c := range cases {
+		if got := SplitChain(c.in); !reflect.DeepEqual(got, c.want) {
+			t.Errorf("SplitChain(%q) = %v, want %v", c.in, got, c.want)
+		}
+	}
+}
+
 func TestApplyArgs(t *testing.T) {
 	// Named args fill {{name}}.
 	named := map[string]string{"greeting": "hi", "who": "sam"}
@@ -37,6 +55,19 @@ func TestApplyArgs(t *testing.T) {
 	want := `do OS's Type with "hello".` + "\n" + `do OS's Type with "world".`
 	if got != want {
 		t.Fatalf("positional: got %q, want %q", got, want)
+	}
+	// Positional values fill NAMED placeholders by declared order: "say hello with
+	// chris" ≡ "name:chris". This is the bridge between the `with x` run form and a
+	// route taught with named args.
+	if got := ApplyArgs(`"{{name}}"`, nil, []string{"chris"}); got != `"chris"` {
+		t.Errorf("positional→named: got %q", got)
+	}
+	if got := ApplyArgs(`"{{greeting}} {{who}}"`, nil, []string{"hi", "sam"}); got != `"hi sam"` {
+		t.Errorf("positional→named (multi): got %q", got)
+	}
+	// An explicit name:value token wins over positional order.
+	if got := ApplyArgs(`"{{greeting}} {{who}}"`, map[string]string{"who": "sam"}, []string{"hi"}); got != `"hi sam"` {
+		t.Errorf("named beats positional: got %q", got)
 	}
 	// Missing arg → empty.
 	if got := ApplyArgs(`"{{1}}-{{2}}"`, nil, []string{"a"}); got != `"a-"` {
@@ -77,5 +108,10 @@ func TestParseInvocation(t *testing.T) {
 	route, named, pos = ParseInvocation("say hello with chris")
 	if route != "say hello" || named != nil || len(pos) != 1 || pos[0] != "chris" {
 		t.Errorf("positional fallback: route=%q named=%v pos=%v", route, named, pos)
+	}
+	// URL in route phrase must not be mis-read as a named arg.
+	route, named, pos = ParseInvocation("go to http://example.com")
+	if route != "go to http://example.com" || len(named) != 0 {
+		t.Errorf("url edge: route=%q named=%v pos=%v", route, named, pos)
 	}
 }

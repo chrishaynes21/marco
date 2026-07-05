@@ -1,2 +1,2 @@
-Hello, Chris Haynes!
-42
+[INFO] Hello, Chris Haynes!
+[INFO] 42

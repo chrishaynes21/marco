@@ -1,2 +1,2 @@
-ran
-done
+[INFO] ran
+[INFO] done

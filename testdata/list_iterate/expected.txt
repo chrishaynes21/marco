@@ -1,7 +1,7 @@
-0
-alpha
-1
-beta
-2
-gamma
-beta
+[INFO] 0
+[INFO] alpha
+[INFO] 1
+[INFO] beta
+[INFO] 2
+[INFO] gamma
+[INFO] beta

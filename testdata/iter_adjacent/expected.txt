@@ -1,3 +1,3 @@
-first a
-mid b prev a next c
-last c
+[INFO] first a
+[INFO] mid b prev a next c
+[INFO] last c

@@ -2,7 +2,7 @@
 // plugin (plugins/overlay) renders the HUD and fulfils the Overlay act; it pushes
 // the leader-key command (`m + text) as a Commands feed. Run:
 //
-//   marco serve --host Overlay=bridge:overlay programs/overlay.marco
+//   marco serve --host Overlay=bridge:overlay plugins/overlay/overlay.marco
 //
 // The HUD: backtick is the leader, `m opens the command line — type a route name,
 // Enter runs it. `<key> emits a Hotkeys event you can bind below for your own
@@ -67,29 +67,28 @@ this's RunHotkey does...
 when Commands reads Run?
     do Hud's RunCommand with input...
         when ok?
-            log "ran".
+            log input.
         or?
             log that's error.
 
-// Live voice preview (Google-style interim text on the command line).
+// Live voice preview (Google-style interim text on the command line). Fire-and-
+// forget: a dropped preview frame isn't worth logging — it fires several times a
+// second, so a bare `or?` swallows the failure instead of spamming the log.
 when Voice reads Partial?
     do Overlay's Heard with input...
-        when ok?
-            log "heard".
         or?
-            log that's error.
 
 when Voice reads Final?
     do Hud's RunVoice with input...
         when ok?
-            log "ran".
+            log input.
         or?
             log that's error.
 
 when Hotkeys reads Key?
     do Hud's RunHotkey with input...
         when ok?
-            log "hotkey".
+            log input.
         or?
             log that's error.
 

@@ -25,6 +25,9 @@ func main() {
 	case "do":
 		runAssistantDo(os.Args[2:])
 		return
+	case "press":
+		runPress(os.Args[2:])
+		return
 	case "teach":
 		runAssistantTeach(os.Args[2:])
 		return
@@ -52,6 +55,9 @@ func main() {
 	case "forget":
 		runForget(os.Args[2:])
 		return
+	case "rename":
+		runRename(os.Args[2:])
+		return
 	case "args":
 		runArgs(os.Args[2:])
 		return
@@ -60,6 +66,9 @@ func main() {
 		return
 	case "diag":
 		runDiag(os.Args[2:])
+		return
+	case "vision":
+		runVision(os.Args[2:])
 		return
 	}
 	if len(os.Args) < 3 {
@@ -90,6 +99,7 @@ func main() {
 			usage(os.Stderr)
 			os.Exit(2)
 		}
+		runtime.LogTimestamps = true // serve logs are watched live → stamp them
 		if err := driver.ServeFile(path, os.Stdin, os.Stdout, hosts); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
@@ -227,12 +237,14 @@ func usage(w io.Writer) {
 
 Assistant (teach by demonstration, then run by name):
   marco do "<name>"        run a route; if unknown, record it once and remember
+  marco press <key>        press a key or chord (e.g. enter, ctrl+c, control shift esc)
   marco teach "<name>"     record/overwrite a route by demonstration
   marco simplify "<name>"  re-simplify a saved route as far as it goes
   marco assistant          interactive loop — say what you want, in plain words
   marco routes [--json]    list known routes (--json for a UI plugin)
   marco active             print the foreground app (context)
   marco forget "<name>"    delete a route
+  marco rename "old" to "new"  rename a route
   marco secret set|list|rm <name>   manage stored passwords (OS credential store)
 
 Run Marco programs:
@@ -243,6 +255,9 @@ Language tooling:
   marco check [--json] <file.marco>   static check + diagnostics
   marco test <file.marco>             run test blocks
   marco contracts <file.marco>        print inferred action contracts
+
+Vision (semantic UI detector — needs $MARCO_VISION + a model):
+  marco vision detect <png> [out]     box every UI element it finds on a screenshot
 
 Hosts: dryrun logs calls (default); windows performs real input; bridge:<exe>
 delegates to an external program (e.g. AutoHotkey). Prefix a spec with Act= to

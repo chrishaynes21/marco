@@ -103,6 +103,11 @@ type `<thing>`, then Enter.
     type each phrase, finish with `done`.
     - PASS: per-step status streams into the HUD; `done` saves. (With `-Voice` set
       up, speak them; otherwise type each `` `m <phrase>``.)
+    - **Continuous-listen (voice only):** say `"marco narrate teach open chest"` to
+      start, then say `"click this"`, `"type hello"`, etc. — the wake word is only
+      needed once. The overlay creates `$TEMP\marco-narrate.lock` while the session
+      is live; the voice plugin re-arms automatically after each phrase. The file is
+      removed when `done`/`cancel` exits the session.
 
 ---
 
@@ -139,8 +144,10 @@ type `<thing>`, then Enter.
 20. **Image anchors (opt-in)**
     Re-teach with anchors on: set `$env:MARCO_ANCHORS="1"` before launching, teach a
     click, then resize/move things and run.
-    - PASS: the route finds the target by image; the saved route has an `Anchor`
-      with an `Image`, and falls back to the recorded point.
+    - PASS: the route finds the target and clicks it; the saved route has an `Anchor`
+      with an `Image` (and `Color`/`Window`), and falls back to the recorded point when
+      it can't resolve. The saved `*-anchor-*.png` is cropped tight to the **button**
+      (auto-crop), not a big square of background. (More anchor checks in section F.)
 
 21. **Stop key** — start a long route, press **F12**.
     - PASS: it aborts mid-run. (F12 also ends recordings; change with
@@ -151,6 +158,53 @@ type `<thing>`, then Enter.
       SetCursorPos round-trip that lands exactly (incl. negative-origin monitors).
 
 ---
+
+## F. Anchors (recognition) & key holds
+
+> Turn on the scoring trace first: the overlay console (`.\overlay.cmd`) prints
+> `find: candidate signals=image=…,edge=… colour=… …` and `find: resolved …` once
+> `MARCO_LOG=debug`. The default launcher is `info` (quiet); set `MARCO_LOG=debug`
+> in the environment before `.\overlay.cmd` to watch the decisions.
+
+23. **Anchor follows a moved / re-themed target**
+    Anchor a click on a button (tap **F12**, then click it). Then change the scene so
+    the button is in a **different place** (scroll/reflow) or **recoloured** (switch the
+    app's light/dark theme), and run the route.
+    - PASS: it clicks the button where it **now** is, not the old coordinate — the
+      `when ok?` branch fires (`do OS's Click with that`). At `MARCO_LOG=debug` you see
+      `edge=` carry the recolour and `image=` survive a brightness/scale change. A
+      target it genuinely can't find → low-confidence **Warn** and the recorded-point
+      fallback (it never clicks the wrong place confidently).
+
+24. **Window-name context (multi-window app)**
+    In an app that opens several windows (Steam: Library vs. Friends), anchor a click in
+    **one** window via a **focus** route (so the route activates the app). Bring a
+    **different** window of the same app to the front, then run the route.
+    - PASS: with the wrong window in front the anchor won't confidently click (a
+      `find: foreground window mismatch — penalising confidence` line at debug); with the
+      right window it resolves normally. The saved anchor carries `Window "<title>"`.
+
+25. **Text resolver snaps to the button (needs `-OCR`)**
+    `setup.cmd -OCR` once. Narrate an anchor over a labelled button: `` `m narrate teach
+    mute me``, say `click the text Mute`, `done`. Run it.
+    - PASS: it OCRs "Mute" and clicks the **centre of the button**, not the glyphs; the
+      route has a `do Text's Find with mute…` branch. Without OCR built it falls back to
+      the recorded coordinate.
+
+26. **Hold a key across a click**
+    Teach a route where you **press and hold Q**, click something, then **release Q**
+    (a quick tap won't count — hold it past ½ a second or across the click). Open the
+    saved `.marco`.
+    - PASS: it contains `do OS's KeyDown with "q"` … `do OS's Click …` … `do OS's KeyUp
+      with "q"` (the hold brackets the click). Run it against an app that shows held keys
+      (e.g. a game, or a key-state tester) — Q reads as **held** during the click.
+
+27. **A hold never gets stuck (safety)**
+    Run the hold route from step 26 but press **Esc** *between* the KeyDown and KeyUp
+    (start a long wait in the middle if needed).
+    - PASS: Q is **released** even though the route was aborted — check the key-state
+      tester shows Q up afterwards. (The driver releases any held key at route end on
+      success, error, or Esc.)
 
 ## Quick regression sweep (terminal only, ~1 min)
 
@@ -169,5 +223,5 @@ Remove-Item Env:MARCO_ROUTES
 > gets a `{{person}}` arg, runnable as `say hello person:bob`. Declaring no `with`
 > clause and narrating `type arg 1` gives a positional `{{1}}` instead.
 >
-> Known edge: a literal URL in a command (`go to http://…`) is mis-read as a
-> `key:value` arg — avoid colons in route phrases for now.
+> URLs in route phrases work fine (`go to http://…` stays intact — the `//` guard
+> in `ParseInvocation` prevents it from being treated as a `key:value` arg).

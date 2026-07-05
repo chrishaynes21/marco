@@ -1,2 +1,2 @@
-saved
-done
+[INFO] saved
+[INFO] done

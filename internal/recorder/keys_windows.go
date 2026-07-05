@@ -23,6 +23,7 @@ func vkToName(vk uint16) string {
 
 var vkNames = map[uint16]string{
 	0x08: "backspace", 0x09: "tab", 0x0D: "enter", 0x1B: "esc",
+	0x14: "capslock",
 	0x20: "space", 0x21: "pageup", 0x22: "pagedown", 0x23: "end", 0x24: "home",
 	0x25: "left", 0x26: "up", 0x27: "right", 0x28: "down",
 	0x2D: "insert", 0x2E: "delete",

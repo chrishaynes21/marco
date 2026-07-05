@@ -1,4 +1,4 @@
-alpha
-A done
-beta
-B done
+[INFO] alpha
+[INFO] A done
+[INFO] beta
+[INFO] B done

@@ -42,6 +42,21 @@ type RecordedEvent struct {
 	// is on screen — the default that makes routes portable across monitors/machines.
 	RelX, RelY int
 	WinRel     bool
+	// Color, on an EvClick down with an explicit (armed) anchor, is the "0xRRGGBB"
+	// pixel under the click, read from the captured frame. It becomes the anchor's
+	// secondary resolver — confirm the screen by that one pixel when the template
+	// match is marginal. Empty when there was no anchor capture.
+	Color string
+	// Window, on an EvClick down, is the title of the foreground window at click time.
+	// It becomes the anchor's CONTEXT check — confirm the route is acting on the right
+	// window of an app that opens several (Steam's library vs friends vs store), so a
+	// match in the wrong window can't produce a confident click. Empty when unknown.
+	Window string
+	// ClickX, ClickY, on an EvClick down with an Image, are the click's position WITHIN
+	// that Image (its own 0-origin pixel space). Teach-time OCR uses it to read the
+	// button under the click rather than every word in the crop. (0,0) when no anchor
+	// capture (no Image) — the OCR step then falls back to the template centre.
+	ClickX, ClickY int
 }
 
 // Recorder captures input until stopped. Implementations install OS hooks.

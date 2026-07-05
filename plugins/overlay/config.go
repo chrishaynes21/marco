@@ -37,6 +37,13 @@ type Config struct {
 	Border   bool    `json:"border"`   // draw an accent outline around the panel
 	Mini     bool    `json:"mini"`     // mini mode — just the command line
 	Metrics  bool    `json:"metrics"`  // show the CPU/RAM widget in the crown (full mode only)
+	Coords   bool    `json:"coords"`   // show a persistent live cursor-coordinates tooltip
+
+	// Sensitivity is the CV find dial (0 = strict, 1 = loose), passed to the engine as
+	// $MARCO_CV_SENSITIVITY on each run. Higher = try harder to find/follow a box.
+	// 0.5 reproduces the engine's legacy fixed thresholds. Default in defaultConfig; an
+	// old config file without the key keeps 0.5 (json leaves the default untouched).
+	Sensitivity float64 `json:"sensitivity"`
 }
 
 var corners = []string{"top-right", "top-left", "bottom-right", "bottom-left", "top-center"}
@@ -56,7 +63,7 @@ var (
 var applyLeaderHook = func() {}
 
 func defaultConfig() Config {
-	return Config{Theme: "default", Idle: 0.72, Monitor: 0, Corner: "top-right", Width: 340, Height: 270, Leader: "`", Font: "", MaxLines: 5}
+	return Config{Theme: "default", Idle: 0.72, Monitor: 0, Corner: "top-right", Width: 340, Height: 270, Leader: "`", Font: "", MaxLines: 5, Sensitivity: 0.5}
 }
 
 func configPath() string {
@@ -89,6 +96,7 @@ func loadConfig() Config {
 	if n, ok := envInt("MARCO_OVERLAY_MAXLINES"); ok {
 		c.MaxLines = n
 	}
+	c.Sensitivity = envFloat("MARCO_CV_SENSITIVITY", c.Sensitivity)
 
 	// file overlay (authoritative once the editor has saved)
 	if b, err := os.ReadFile(configPath()); err == nil {
@@ -124,8 +132,10 @@ func cfgMaxLines() int {
 	}
 	return cfg.MaxLines
 }
-func cfgMini() bool    { cfgMu.Lock(); defer cfgMu.Unlock(); return cfg.Mini }
-func cfgMetrics() bool { cfgMu.Lock(); defer cfgMu.Unlock(); return cfg.Metrics }
+func cfgSensitivity() float64 { cfgMu.Lock(); defer cfgMu.Unlock(); return cfg.Sensitivity }
+func cfgMini() bool           { cfgMu.Lock(); defer cfgMu.Unlock(); return cfg.Mini }
+func cfgMetrics() bool        { cfgMu.Lock(); defer cfgMu.Unlock(); return cfg.Metrics }
+func cfgCoords() bool         { cfgMu.Lock(); defer cfgMu.Unlock(); return cfg.Coords }
 
 func onOff(b bool) string {
 	if b {
@@ -186,7 +196,7 @@ func placeWindow(setMonitor bool) {
 
 // configFieldCount is the number of editable rows. Height is omitted — the panel
 // auto-fits its content.
-const configFieldCount = 10
+const configFieldCount = 12
 
 // configLines renders each setting as "label  value" for the editor view.
 func configLines() []string {
@@ -201,7 +211,9 @@ func configLines() []string {
 		"border    " + onOff(c.Border),
 		"mini      " + onOff(c.Mini),
 		"metrics   " + onOff(c.Metrics),
+		"coords    " + onOff(c.Coords),
 		"leader    " + c.Leader,
+		"cv find   " + fmt.Sprintf("%.2f", c.Sensitivity),
 	}
 }
 
@@ -214,10 +226,7 @@ func configChange(sel, delta int) {
 	case 1:
 		cfg.Idle = clampF(cfg.Idle+0.05*float64(delta), 0.2, 1.0)
 	case 2:
-		n := len(ebiten.AppendMonitors(nil))
-		if n < 1 {
-			n = 1
-		}
+		n := max(len(ebiten.AppendMonitors(nil)), 1)
 		cfg.Monitor = (cfg.Monitor + delta + n) % n
 	case 3:
 		cfg.Corner = cycle(corners, cfg.Corner, delta)
@@ -232,7 +241,11 @@ func configChange(sel, delta int) {
 	case 8:
 		cfg.Metrics = !cfg.Metrics
 	case 9:
+		cfg.Coords = !cfg.Coords
+	case 10:
 		cfg.Leader = cycle(leaderNames, cfg.Leader, delta)
+	case 11:
+		cfg.Sensitivity = clampF(cfg.Sensitivity+0.05*float64(delta), 0.0, 1.0)
 	}
 	cfgMu.Unlock()
 
@@ -241,7 +254,7 @@ func configChange(sel, delta int) {
 		applyTheme()
 	case 2, 3, 4:
 		applyWindow()
-	case 9:
+	case 10:
 		applyLeaderHook()
 	}
 }

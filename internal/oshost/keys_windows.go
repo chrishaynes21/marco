@@ -67,13 +67,13 @@ var keyMap = map[string]uint16{
 }
 
 func init() {
-	for i := 0; i < 26; i++ {
+	for i := range 26 {
 		keyMap[string(rune('a'+i))] = uint16(0x41 + i)
 	}
 	for i := 0; i <= 9; i++ {
 		keyMap[string(rune('0'+i))] = uint16(0x30 + i)
 	}
-	for i := 0; i < 12; i++ {
+	for i := range 12 {
 		keyMap[fmtF(i+1)] = uint16(vkF1 + i)
 	}
 }

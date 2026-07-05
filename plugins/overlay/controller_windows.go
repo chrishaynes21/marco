@@ -68,7 +68,23 @@ var (
 	procUnhookWindowsHookEx = user32.NewProc("UnhookWindowsHookEx")
 	procCallNextHookEx      = user32.NewProc("CallNextHookEx")
 	procGetMessageW         = user32.NewProc("GetMessageW")
+	procGetCursorPos        = user32.NewProc("GetCursorPos")
 )
+
+// point mirrors the Win32 POINT for GetCursorPos.
+type point struct{ x, y int32 }
+
+// cursorPos returns the cursor's virtual-desktop coordinates — the same space the
+// recorder logs clicks in, so it's correct on a second monitor (coords can be
+// negative left of / above the primary). ok=false if the call fails.
+func cursorPos() (x, y int, ok bool) {
+	var p point
+	r, _, _ := procGetCursorPos.Call(uintptr(unsafe.Pointer(&p)))
+	if r == 0 {
+		return 0, 0, false
+	}
+	return int(p.x), int(p.y), true
+}
 
 const (
 	whKeyboardLL = 13
@@ -198,7 +214,11 @@ func processActions(h *model, emit func(event)) {
 		case actBackspace:
 			h.backspace()
 		case actAcceptHint:
-			h.acceptArgHint()
+			// Tab autocompletes the route name first; once it's fully typed, Tab
+			// advances to the next argument slot.
+			if !h.completeRoute() {
+				h.acceptArgHint()
+			}
 		case actSubmit:
 			cmd := h.takeInput()
 			h.setEditing(false)
@@ -244,11 +264,22 @@ func processActions(h *model, emit func(event)) {
 			// Show the answer as you type it (y/n/s), not yet submitted.
 			h.setTeachPending(a.hot)
 		case actTeachSubmit:
-			// Enter: commit the pending answer to the transcript and send it (plus a
-			// newline) to the teach child. Off the hook thread, so the write is safe.
+			// Enter: commit the pending answer to the transcript. If this is the
+			// unknown-command teach OFFER (not a child prompt), y/Enter starts a
+			// demonstration teach and anything else declines; otherwise send the
+			// answer to the live teach child. Off the hook thread, so the write is safe.
 			if ans, ok := h.submitTeachPending(); ok {
 				teachAsk.Store(false)
-				writeTeachAnswer(ans)
+				if name := takePendingTeach(); name != "" {
+					// Unknown-command teach OFFER (no child runs on decline), so wipe the
+					// prompt/transcript ourselves — otherwise it lingers in the HUD.
+					h.clearTeachPrompt()
+					if ans == "" || ans == "y" || ans == "yes" {
+						startTeach(h, name)
+					}
+				} else {
+					writeTeachAnswer(ans)
+				}
 			}
 		case actCancelRun:
 			cancelRun()
@@ -278,6 +309,16 @@ func arm() {
 }
 
 func disarm() { leaderGen.Add(1); armed.Store(false) }
+
+// isTeachAnswer reports whether r is a single-key answer to a teach prompt: y/n/s
+// (save / discard / simplify) or c/f/g (scope: context / focus / global).
+func isTeachAnswer(r rune) bool {
+	switch r {
+	case 'y', 'n', 's', 'c', 'f', 'g':
+		return true
+	}
+	return false
+}
 
 func push(a action) {
 	select {
@@ -321,19 +362,24 @@ func handleKey(vk uint16, down bool) bool {
 		if down {
 			switch {
 			case vk == vkReturn:
-				push(action{kind: actTeachSubmit}) // Enter sends the pending answer
-			case vk == vkBack:
-				push(action{kind: actTeachType, hot: ""}) // clear what you typed
-			case vk == vkEscape:
-				push(action{kind: actTeachType, hot: "n"}) // Esc = decline: pre-fill "n"…
-				push(action{kind: actTeachSubmit})         // …and submit it
+				push(action{kind: actTeachSubmit}) // Enter = the default answer
 			default:
-				if r, ok := vkToRune(vk, false); ok && (r == 'y' || r == 'n' || r == 's') {
+				// Single keypress answers and submits: y/n/s (save) and c/f/g (scope:
+				// context / focus / global). No Enter needed — leader-then-n discards.
+				if r, ok := vkToRune(vk, false); ok && isTeachAnswer(r) {
 					push(action{kind: actTeachType, hot: string(r)})
+					push(action{kind: actTeachSubmit})
 				}
 			}
 		}
 		return true
+	}
+
+	// A demonstration is recording: let every key reach the recorder child and the
+	// app being demonstrated. The leader is the recorder's stop key, so pressing it
+	// ends the demo here instead of opening the overlay command line.
+	if recording.Load() {
+		return false
 	}
 
 	// Config editor open: arrows pick/change, S saves, Esc closes. Swallow all.
@@ -405,21 +451,21 @@ func handleKey(vk uint16, down bool) bool {
 		return true // consume the key after the leader
 	}
 
-	// Idle. The leader arms (consumed). Esc unfocuses + stops any spam but is NOT
-	// consumed, so games still receive it.
+	// Idle. The leader is also the panic/stop key: while a route is running, it
+	// cancels it (canceled, not failed); otherwise it arms the command line. Either
+	// way it's consumed.
 	if vk == leaderVK {
 		if down {
-			arm()
+			if isRunning() {
+				push(action{kind: actCancelRun})
+			} else {
+				arm()
+			}
 		}
 		return true
 	}
-	if vk == vkEscape {
-		if down {
-			push(action{kind: actCancelRun}) // stop a running route (canceled, not failed)
-			push(action{kind: actDismiss})
-		}
-		return false
-	}
+	// Esc is unbound — the only overlay hotkeys are the leader (start/stop/cancel)
+	// and the anchor key (F12). Esc passes straight through to the app/game.
 	return false
 }
 

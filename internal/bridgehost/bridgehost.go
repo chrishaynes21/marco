@@ -26,6 +26,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"io"
+	"os"
 	"os/exec"
 	"sync"
 
@@ -84,6 +85,11 @@ func New(path string, args ...string) *Host {
 
 func (h *Host) startProcess() (io.Writer, io.Reader, func() error, error) {
 	cmd := exec.Command(h.path, h.args...)
+	// Inherit the parent's stderr so the bridge child's LOGS reach the console. A nil
+	// Stderr would send them to the null device (Go's default) — which is why the
+	// overlay/macros bridges' debug output, and the route logs they relay, vanished.
+	// stdout stays the JSON protocol pipe; only stderr carries logs.
+	cmd.Stderr = os.Stderr
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, nil, nil, err

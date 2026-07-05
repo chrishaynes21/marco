@@ -31,4 +31,4 @@
 [dryrun] OS's Sleep with 25
 [dryrun] OS's Click with {X=1027, Y=865}
 [dryrun] OS's Sleep with 25
-argent: stone, flint
+[INFO] argent: stone, flint

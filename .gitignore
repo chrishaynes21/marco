@@ -36,3 +36,10 @@ go.work.sum
 
 # Downloaded Vosk speech model (fetched by setup.ps1 -Voice, ~68MB)
 plugins/voice/model/
+
+# Downloaded artifacts fetched by setup.ps1 (onnxruntime zips, vision model weights)
+_dl/
+plugins/vision/models/
+
+# User routes ignored
+routes/

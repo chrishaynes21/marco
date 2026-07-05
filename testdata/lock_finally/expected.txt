@@ -1,2 +1,2 @@
-save attempt complete
-/p
+[INFO] save attempt complete
+[INFO] /p

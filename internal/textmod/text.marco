@@ -1,0 +1,19 @@
+// text.marco — the Text act surface: on-screen TEXT recognition (OCR), fulfilled by
+// the resolver plugin (see plugins/ocr). Imported by generated routes with
+// `use text.`. It's the third anchor resolver: image and colour are wait GATES that
+// confirm a static screen (then click the recorded coordinate); text is a LOCATOR for
+// a target that MOVED (a reflowing UI), so Find returns where the word is NOW and the
+// route clicks there. With no `--host Text=bridge:ocr` wired, Find resolves failed and
+// the route falls back to its recorded coordinate — text is purely additive.
+
+the Text is an act.
+this exports Find.      // locate on-screen text: { Text, X1?,Y1?,X2?,Y2?, Timeout? } -> Point
+
+// The Text host (plugins/ocr) also serves a teach-time Read action — OCR a captured
+// button template ({ Image } base64 PNG) -> { Text } — used by the engine to LABEL a
+// demonstrated anchor so it gains this Find locator automatically. Read is invoked
+// directly over the bridge during teach, never from a route, so it isn't exported here.
+
+// Find returns a { X, Y } point in absolute screen coordinates — the same shape OS's
+// Click/Move accept. The Point type itself comes from os.marco (every route that uses
+// a text anchor also `use os.`), so it isn't redeclared here.

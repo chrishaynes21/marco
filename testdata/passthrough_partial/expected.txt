@@ -1,2 +1,2 @@
-saved yes
-booming-no
+[INFO] saved yes
+[INFO] booming-no

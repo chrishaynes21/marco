@@ -1,14 +1,17 @@
 // Package voiceteach turns spoken (or typed) narration into a macro: each phrase is
 // parsed into a Cmd, and a Session assembles the matching macroir Steps — "click
 // this", "anchor this", "wait for this screen", "type hello", "press enter", "wait 2
-// seconds", "activate notepad", plus the controls "undo" / "done" / "cancel". The
+// seconds", "activate notepad", menu navigation ("down", "down arrow", "tab",
+// "escape", "select"), plus the controls "undo" / "done" / "cancel". The
 // parser is pure and OS-agnostic (unit-tested here); the Session reads the live
 // cursor/screen through an Env so the OS-specific bits stay injectable.
 package voiceteach
 
 import (
+	"slices"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 // Kind is the recognized command class for a narration phrase.
@@ -18,6 +21,7 @@ const (
 	None       Kind = iota // not recognized — caller should ask the user to rephrase
 	Click                  // click where the cursor is
 	Anchor                 // capture an image of the target under the cursor, then click it
+	ClickText              // locate on-screen text by OCR and click it (a moved target)
 	WaitScreen             // wait until the current screen reappears (capture-now, find-at-run)
 	Wait                   // wait Ms milliseconds
 	Type                   // type Text
@@ -27,6 +31,18 @@ const (
 	Done                   // finish and save
 	Cancel                 // abandon without saving
 )
+
+var kindName = [...]string{
+	"none", "click", "anchor", "click-text", "wait-screen", "wait",
+	"type", "key", "activate", "undo", "done", "cancel",
+}
+
+func (k Kind) String() string {
+	if int(k) < len(kindName) {
+		return kindName[k]
+	}
+	return "unknown"
+}
 
 // Cmd is a parsed narration phrase. Only the fields relevant to Kind are set.
 type Cmd struct {
@@ -61,9 +77,25 @@ func Parse(phrase string) Cmd {
 	case "wait for this screen", "wait for the screen", "wait for screen", "wait for this",
 		"wait for this to load", "wait for the page", "wait for it":
 		return Cmd{Kind: WaitScreen}
+	// Menu navigation — bare directional/nav keys, so a hands-free narration can
+	// drive a menu (arrows + enter/escape/tab) without the cursor. "press X" works
+	// too; these are the natural one-word forms.
+	case "up", "down", "left", "right",
+		"up arrow", "down arrow", "left arrow", "right arrow",
+		"arrow up", "arrow down", "arrow left", "arrow right",
+		"page up", "page down", "tab", "escape", "home", "end",
+		"enter", "select", "confirm", "backspace":
+		return Cmd{Kind: Key, Key: normalizeKey(low)}
 	}
 
 	// Prefix forms — longest/most-specific prefixes first so "switch to" beats "to".
+	// Text (OCR) click: "click the text Mute" / "click the word Mute" — locate the
+	// word on screen and click it (for a target that moves), distinct from a plain
+	// "click" at the cursor. Checked before "type"/"press" so it isn't mis-split.
+	if rest, ok := cut(phrase, "click the text ", "click text ", "click the word ", "click word ",
+		"tap the text ", "tap text ", "click on the text ", "find the text ", "find text "); ok && rest != "" {
+		return Cmd{Kind: ClickText, Text: strings.TrimSpace(rest)}
+	}
 	if rest, ok := cut(phrase, "type ", "say ", "write ", "input "); ok && rest != "" {
 		if ph, ok := argPlaceholder(rest); ok {
 			return Cmd{Kind: Type, Text: ph} // "type arg 1" → {{1}}, filled at run time
@@ -71,7 +103,7 @@ func Parse(phrase string) Cmd {
 		return Cmd{Kind: Type, Text: rest}
 	}
 	if rest, ok := cut(phrase, "press the ", "press ", "hit the ", "hit ", "tap the ", "key "); ok && rest != "" {
-		return Cmd{Kind: Key, Key: normalizeKey(rest)}
+		return Cmd{Kind: Key, Key: NormalizeChord(rest)}
 	}
 	if rest, ok := cut(phrase, "switch to ", "go to ", "activate ", "focus on ", "focus ", "open up ", "open "); ok && rest != "" {
 		return Cmd{Kind: Activate, App: strings.ToLower(rest)}
@@ -155,15 +187,83 @@ func argPlaceholder(s string) (string, bool) {
 // names the OS Key capability expects.
 func normalizeKey(s string) string {
 	s = strings.ToLower(strings.TrimSpace(s))
+	s = strings.TrimSuffix(s, " key") // "down key" → "down", "tab key" → "tab"
 	switch s {
-	case "return":
+	case "return", "select", "confirm":
 		return "enter"
-	case "escape", "esc key":
+	case "escape":
 		return "esc"
 	case "space bar", "spacebar":
 		return "space"
 	case "control", "ctrl":
 		return "ctrl"
+	case "back space":
+		return "backspace"
+	case "up arrow", "arrow up":
+		return "up"
+	case "down arrow", "arrow down":
+		return "down"
+	case "left arrow", "arrow left":
+		return "left"
+	case "right arrow", "arrow right":
+		return "right"
+	case "page up":
+		return "pageup"
+	case "page down":
+		return "pagedown"
+	case "delete", "del":
+		return "delete"
 	}
 	return s
+}
+
+// chordModifiers maps a spoken/abbreviated modifier word to the canonical name the
+// OS Key capability holds while the chord's final key is tapped.
+var chordModifiers = map[string]string{
+	"ctrl": "ctrl", "control": "ctrl",
+	"shift": "shift",
+	"alt":   "alt", "option": "alt", "opt": "alt",
+	"win": "win", "windows": "win", "super": "win", "meta": "win",
+	"cmd": "win", "command": "win",
+}
+
+// NormalizeChord turns a spoken (or punctuated) key phrase into the canonical chord
+// spec the OS Key capability accepts — modifiers joined to the final key with '+'.
+// It accepts the spoken form ("control shift escape"), the punctuated form
+// ("ctrl+shift+esc"), and a plain single key ("page up" → "pageup", which passes
+// through normalizeKey). Modifier words (control/shift/alt/win and their synonyms)
+// are held while the remaining words — the final key — are tapped. If only
+// modifiers are said ("control"), the last becomes the key so a bare modifier still
+// presses on its own. Returns "" for an empty phrase.
+func NormalizeChord(phrase string) string {
+	fields := strings.FieldsFunc(strings.ToLower(strings.TrimSpace(phrase)), func(r rune) bool {
+		return r == '+' || unicode.IsSpace(r)
+	})
+	if len(fields) == 0 {
+		return ""
+	}
+	var mods, rest []string
+	for _, f := range fields {
+		if m, ok := chordModifiers[f]; ok {
+			if !slices.Contains(mods, m) { // "control control c" → ctrl+c
+				mods = append(mods, m)
+			}
+			continue
+		}
+		rest = append(rest, f)
+	}
+	key := normalizeKey(strings.Join(rest, " "))
+	if key == "" {
+		// Only modifier words were said — press the last as the key so it still does
+		// something on its own (e.g. "win").
+		if len(mods) == 0 {
+			return ""
+		}
+		key = mods[len(mods)-1]
+		mods = mods[:len(mods)-1]
+	}
+	if len(mods) == 0 {
+		return key
+	}
+	return strings.Join(mods, "+") + "+" + key
 }

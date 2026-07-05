@@ -5,6 +5,8 @@
 
 the OS is an act.
 this exports Key.       // press a named key, e.g. "e" or "enter"
+this exports KeyDown.    // press and HOLD a key (released by a later KeyUp)
+this exports KeyUp.      // release a held key
 this exports Type.      // type a text string
 this exports Click.     // click; input may be a Point to move-then-click
 this exports Move.      // move the cursor to a Point
@@ -17,10 +19,11 @@ this exports StopSpam.  // stop the background spam loop
 this exports Roll.      // random number in [Min, Max]; result is the number
 this exports EightBall. // random Magic 8-Ball answer; result is the text
 this exports Name.      // random fantasy name; result is the text
-this exports Find.      // find an image on screen: { Image, Region?, Tolerance? } -> Point
+this exports Find.      // resolve an Anchor (Image match, else Colour at X,Y) -> Point
 this exports Secret.    // type a stored secret by name (value never in the route)
 this exports Activate.  // focus a named app, launching it if not running (e.g. "chrome")
 this exports Launch.    // start an app/path/URL via the shell (e.g. "steam://rungameid/...")
+this exports Restore.   // return focus to the window that was in front before the last Activate
 
 // A screen coordinate, passed to Click / Move / Color.
 the Point is a set.

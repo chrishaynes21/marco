@@ -37,6 +37,11 @@ type Options struct {
 	// ArgNames are the declared argument names (from the teach phrase's "with name,
 	// …" clause), used to name the placeholders the ArgKey drops, in order.
 	ArgNames []string
+	// MaxWaitMs caps every wait step to this many milliseconds after all other
+	// passes, preventing recorded human-paced delays from slowing replay. The
+	// zero value is filled to 50 by normalize. Set to a negative value to preserve
+	// exact recorded timing (e.g. game macros that require specific inter-step gaps).
+	MaxWaitMs int
 }
 
 // DefaultArgKey is the reserved demonstration key for "an argument goes here" when
@@ -70,6 +75,9 @@ func (o Options) normalize() Options {
 	if o.MinLoopReps <= 0 {
 		o.MinLoopReps = 2
 	}
+	if o.MaxWaitMs == 0 {
+		o.MaxWaitMs = 50
+	}
 	// FoldLoops defaults to true; callers that want it off must set it explicitly
 	// via DefaultOptions then flip it.
 	return o
@@ -100,6 +108,7 @@ func SimplifySteps(in []macroir.Step, opt Options) []macroir.Step {
 	out = coalesceKeys(out)
 	out = mergeWaits(out)
 	out = trimEdgeWaits(out)
+	out = capWaits(out, opt.MaxWaitMs)
 	if opt.FoldLoops {
 		out = foldLoops(out, opt)
 	}
@@ -126,13 +135,21 @@ func lower(events []recorder.RecordedEvent, opt Options) []timedStep {
 	var downBtn string
 	var downT time.Time
 	var downImg []byte
+	var downColor string
+	var downWindow string
+	var downClickX, downClickY int
 	var downRelX, downRelY int
 	var downWinRel bool
 	sawMove := false
 	argN := 0
 	argKey := strings.ToLower(strings.TrimSpace(opt.ArgKey))
+	// Which key-presses are HOLDS (≥ holdThreshold or spanning an action) → emitted as
+	// explicit KeyDown/KeyUp instead of a tap, so a held key persists across the clicks
+	// in between (hold Q, click, release Q). Decided with full lookahead.
+	holdDown, holdUp := markHolds(events, argKey)
 
-	for _, ev := range events {
+	for i := range events {
+		ev := events[i]
 		switch ev.Kind {
 		case recorder.EvAppSwitch:
 			if ev.KeyName != "" {
@@ -152,6 +169,9 @@ func lower(events []recorder.RecordedEvent, opt Options) []timedStep {
 				downActive = true
 				downX, downY, downBtn, downT = ev.X, ev.Y, ev.Button, ev.T
 				downImg = ev.Image
+				downColor = ev.Color
+				downWindow = ev.Window
+				downClickX, downClickY = ev.ClickX, ev.ClickY
 				downRelX, downRelY, downWinRel = ev.RelX, ev.RelY, ev.WinRel
 				sawMove = false
 			} else {
@@ -173,7 +193,9 @@ func lower(events []recorder.RecordedEvent, opt Options) []timedStep {
 					out = append(out, timedStep{
 						step: macroir.Step{
 							Kind: macroir.StepClick, X: ev.X, Y: ev.Y, Button: downBtn,
-							Template: downImg, RelX: downRelX, RelY: downRelY, WinRel: downWinRel,
+							Template: downImg, Color: downColor, Window: downWindow,
+							AnchorClickX: downClickX, AnchorClickY: downClickY,
+							RelX: downRelX, RelY: downRelY, WinRel: downWinRel,
 						},
 						t: downT,
 					})
@@ -212,6 +234,16 @@ func lower(events []recorder.RecordedEvent, opt Options) []timedStep {
 				}
 				continue
 			}
+			// A HELD key (≥ holdThreshold or spanning an action) becomes an explicit
+			// press/release that brackets the steps in between — the hold persists.
+			if holdDown[i] {
+				out = append(out, timedStep{step: macroir.Step{Kind: macroir.StepKeyDown, Key: name}, t: ev.T})
+				continue
+			}
+			if holdUp[i] {
+				out = append(out, timedStep{step: macroir.Step{Kind: macroir.StepKeyUp, Key: name}, t: ev.T})
+				continue
+			}
 			if !ev.Down {
 				continue
 			}
@@ -237,6 +269,55 @@ func lower(events []recorder.RecordedEvent, opt Options) []timedStep {
 		}
 	}
 	return out
+}
+
+// holdThreshold is the press duration at/above which a key counts as a HOLD rather than a
+// tap even with nothing else happening (a charge-hold). A SHORTER press is still a hold if
+// another action (a click, another key) happens before it's released.
+const holdThreshold = 500 * time.Millisecond
+
+// markHolds decides, with full lookahead, which key-DOWN/UP event indices are HOLDS: a
+// non-modifier key whose press lasts ≥ holdThreshold OR spans another action (a click or
+// another key press) before its release. Those become explicit KeyDown/KeyUp so the hold
+// persists across the steps in between; everything else stays a tap. A press with no
+// captured release (recording stopped mid-hold) is left a tap — it releases itself.
+func markHolds(events []recorder.RecordedEvent, argKey string) (down, up map[int]bool) {
+	down, up = map[int]bool{}, map[int]bool{}
+	isArg := func(name string) bool { return argKey != "" && argKey != "off" && name == argKey }
+	for i := range events {
+		ev := events[i]
+		if ev.Kind != recorder.EvKey || !ev.Down {
+			continue
+		}
+		name := strings.ToLower(ev.KeyName)
+		if isModifier(name) || isArg(name) {
+			continue
+		}
+		j := -1
+		for k := i + 1; k < len(events); k++ {
+			e := events[k]
+			if e.Kind == recorder.EvKey && !e.Down && strings.ToLower(e.KeyName) == name {
+				j = k
+				break
+			}
+		}
+		if j < 0 {
+			continue // no release captured → leave it a tap
+		}
+		held := events[j].T.Sub(ev.T) >= holdThreshold
+		for k := i + 1; k < j && !held; k++ {
+			e := events[k]
+			ekn := strings.ToLower(e.KeyName)
+			if (e.Kind == recorder.EvClick && e.Down) ||
+				(e.Kind == recorder.EvKey && e.Down && !isModifier(ekn) && !isArg(ekn)) {
+				held = true
+			}
+		}
+		if held {
+			down[i], up[j] = true, true
+		}
+	}
+	return down, up
 }
 
 // isPrintableKey reports whether a step is a single printable keystroke (carries
@@ -337,7 +418,7 @@ func foldActivates(in []timedStep) []timedStep {
 
 	// 1. Drop the navigation gesture (a click/move) immediately before a switch.
 	var a []timedStep
-	for i := 0; i < len(in); i++ {
+	for i := range in {
 		if i+1 < len(in) && isActivate(in[i+1]) && isNav(in[i]) {
 			continue
 		}
@@ -375,15 +456,16 @@ func foldActivates(in []timedStep) []timedStep {
 	return c
 }
 
-// insertWaits computes the gap before each anchor (relative to the previous
-// anchor), rounds it, and emits a wait step when it clears the threshold. No
-// wait is emitted adjacent to an Activate — neither the time spent navigating to
-// an app (hunting for a taskbar icon) nor the time for it to come to the
-// foreground is meaningful to replay.
+// insertWaits keeps each step's REAL recorded gap (rounded), dropping gaps below
+// MinWaitMs so fast actions stay back-to-back. It does NOT force a uniform delay
+// between every action — opt.MaxWaitMs is only a CAP, applied later by capWaits, so
+// a long human pause doesn't slow replay while genuinely fast actions add nothing.
+// The window-activation latency that used to need a forced gap is now handled by the
+// host (Activate waits for the window to be focused and stable before returning).
 func insertWaits(timed []timedStep, opt Options) []macroir.Step {
 	var out []macroir.Step
 	for i, ts := range timed {
-		if i > 0 && ts.step.Kind != macroir.StepActivate && timed[i-1].step.Kind != macroir.StepActivate {
+		if i > 0 {
 			gap := ts.t.Sub(timed[i-1].t)
 			ms := roundMs(int(gap/time.Millisecond), opt.WaitGranularityMs)
 			if ms >= opt.MinWaitMs {
@@ -428,6 +510,24 @@ func mergeWaits(in []macroir.Step) []macroir.Step {
 	return out
 }
 
+// capWaits clamps every wait step to max milliseconds, replacing the recorded
+// human-paced delays with a uniform small gap. max < 0 is a no-op (exact
+// timing preserved). Applied before loop folding so identical cycles that
+// differ only in their recorded gap still fold into a single loop.
+func capWaits(in []macroir.Step, max int) []macroir.Step {
+	if max < 0 {
+		return in
+	}
+	out := make([]macroir.Step, len(in))
+	copy(out, in)
+	for i := range out {
+		if out[i].Kind == macroir.StepWait && out[i].Ms > max {
+			out[i].Ms = max
+		}
+	}
+	return out
+}
+
 // trimEdgeWaits drops waits at the very start and end of the sequence.
 func trimEdgeWaits(in []macroir.Step) []macroir.Step {
 	start := 0
@@ -447,11 +547,11 @@ func foldLoops(in []macroir.Step, opt Options) []macroir.Step {
 	var out []macroir.Step
 	i := 0
 	for i < len(in) {
-		p, reps := bestRepeat(in, i, opt)
+		p, reps, covered := bestRepeat(in, i, opt)
 		if p > 0 && reps >= opt.MinLoopReps {
 			body := foldLoops(append([]macroir.Step(nil), in[i:i+p]...), opt)
 			out = append(out, macroir.Step{Kind: macroir.StepLoop, Count: reps, Steps: body})
-			i += p * reps
+			i += covered
 			continue
 		}
 		out = append(out, in[i])
@@ -462,8 +562,12 @@ func foldLoops(in []macroir.Step, opt Options) []macroir.Step {
 
 // bestRepeat finds the smallest period p at index i whose block tiles forward
 // at least MinLoopReps times, preferring the longest total coverage. Returns
-// (0,0) if no qualifying repeat. A block made only of waits is never folded.
-func bestRepeat(in []macroir.Step, i int, opt Options) (period, reps int) {
+// (0,0,0) if no qualifying repeat. A block made only of waits is never folded.
+// covered is how many input steps the reps span — usually period*reps, but a block
+// that ends in a wait may have a final rep that omits that trailing wait (the
+// inter-iteration pacing gap, absent at the very end of the recording), so the loop
+// still folds cleanly; the body keeps the wait.
+func bestRepeat(in []macroir.Step, i int, opt Options) (period, reps, covered int) {
 	bestCover := 0
 	for p := 1; i+p*opt.MinLoopReps <= len(in); p++ {
 		block := in[i : i+p]
@@ -474,12 +578,20 @@ func bestRepeat(in []macroir.Step, i int, opt Options) (period, reps int) {
 		for i+(r+1)*p <= len(in) && blocksEqual(in[i:i+p], in[i+r*p:i+(r+1)*p]) {
 			r++
 		}
-		if r >= opt.MinLoopReps && p*r > bestCover {
-			bestCover = p * r
-			period, reps = p, r
+		cov := r * p
+		// Allow one more rep whose trailing wait is missing (trimmed end-of-recording).
+		if p > 1 && block[p-1].Kind == macroir.StepWait {
+			if tail := i + r*p; tail+p-1 <= len(in) && blocksEqual(block[:p-1], in[tail:tail+p-1]) {
+				r++
+				cov += p - 1
+			}
+		}
+		if r >= opt.MinLoopReps && cov > bestCover {
+			bestCover = cov
+			period, reps, covered = p, r, cov
 		}
 	}
-	return period, reps
+	return period, reps, covered
 }
 
 func blocksEqual(a, b []macroir.Step) bool { return reflect.DeepEqual(a, b) }

@@ -16,11 +16,9 @@ func newScheduler() *scheduler { return &scheduler{} }
 // argument is no longer used by the scheduler itself but is kept for callers
 // that may want it for diagnostics.
 func (s *scheduler) spawn(_ *Frame, fn func()) {
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
+	s.wg.Go(func() {
 		fn()
-	}()
+	})
 }
 
 // park blocks the caller until done is closed.

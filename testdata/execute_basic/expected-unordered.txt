@@ -1,2 +1,2 @@
-computed
-after execute
+[INFO] computed
+[INFO] after execute

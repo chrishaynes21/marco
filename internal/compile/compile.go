@@ -7,6 +7,8 @@ package compile
 import (
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -86,12 +88,10 @@ func (es Errors) Unwrap() []error {
 // asCompileError lifts any error to a *Error so it can be aggregated. If err
 // is already a *Error or Errors, the existing structure is preserved.
 func asCompileError(err error) []*Error {
-	var single *Error
-	if errors.As(err, &single) {
+	if single, ok := errors.AsType[*Error](err); ok {
 		return []*Error{single}
 	}
-	var multi Errors
-	if errors.As(err, &multi) {
+	if multi, ok := errors.AsType[Errors](err); ok {
 		return multi
 	}
 	return []*Error{{Msg: err.Error()}}
@@ -680,9 +680,7 @@ func (c *compiler) checkCasts() error {
 		// Each block snapshots its parent's locals; child bindings shadow but
 		// don't leak back to siblings of the parent.
 		locals := make(map[string]*graph.Node, len(parent))
-		for k, v := range parent {
-			locals[k] = v
-		}
+		maps.Copy(locals, parent)
 		for i := range b.Edges {
 			e := &b.Edges[i]
 			if e.Expr != nil {
@@ -992,7 +990,7 @@ func (c *compiler) checkDeadArms() error {
 			return nil
 		}
 		edges := b.Edges
-		for i := 0; i < len(edges); i++ {
+		for i := range edges {
 			e := &edges[i]
 			switch e.Kind {
 			case graph.EdgeInvokePhrase:
@@ -1453,11 +1451,12 @@ func refString(path []string) string {
 	if len(path) == 0 {
 		return ""
 	}
-	out := path[0]
+	var out strings.Builder
+	out.WriteString(path[0])
 	for _, seg := range path[1:] {
-		out += "'s " + seg
+		out.WriteString("'s " + seg)
 	}
-	return out
+	return out.String()
 }
 
 // shapeCompatible reports whether got fits the declared shape. Errors satisfy
@@ -1767,9 +1766,7 @@ func (a *analyzer) collectFromBody(host *graph.Node, b *graph.Block) map[string]
 				armStack = armStack[:n-1]
 			}
 		case graph.EdgeForEach, graph.EdgeRepeat, graph.EdgeWhile, graph.EdgeWaitUntil, graph.EdgeLock, graph.EdgeFinally:
-			for s, p := range a.collectFromBody(host, e.Body) {
-				out[s] = p
-			}
+			maps.Copy(out, a.collectFromBody(host, e.Body))
 		case graph.EdgeInvokePhrase:
 			callee := a.resolveCallee(host, e)
 			lastCallee = callee
@@ -1789,9 +1786,7 @@ func (a *analyzer) collectFromBody(host *graph.Node, b *graph.Block) map[string]
 			handled, hasBareOr, _ := a.analyzeTrailingBranches(armEdges, 0, e.Message)
 			a.addFloated(out, callee, handled, hasBareOr, e.Pos)
 			// Walk the observation body for explicit emissions inside arms.
-			for s, p := range a.collectFromBody(host, e.Body) {
-				out[s] = p
-			}
+			maps.Copy(out, a.collectFromBody(host, e.Body))
 		}
 		i++
 	}
@@ -1928,8 +1923,7 @@ func (c *compiler) collect(err error) {
 	if err == nil {
 		return
 	}
-	var ce *Error
-	if errors.As(err, &ce) {
+	if ce, ok := errors.AsType[*Error](err); ok {
 		c.report(ce)
 		return
 	}
@@ -2458,8 +2452,8 @@ func isBuiltinCap(name string) bool {
 }
 
 func lastIndexOfWord(parts []ast.Part, w string) int {
-	for i := len(parts) - 1; i >= 0; i-- {
-		if isWord(parts[i], w) {
+	for i, part := range slices.Backward(parts) {
+		if isWord(part, w) {
 			return i
 		}
 	}
@@ -2567,14 +2561,7 @@ func editDistance(a, b string) int {
 			if a[i-1] == b[j-1] {
 				cost = 0
 			}
-			d := prev[j] + 1
-			if curr[j-1]+1 < d {
-				d = curr[j-1] + 1
-			}
-			if prev[j-1]+cost < d {
-				d = prev[j-1] + cost
-			}
-			curr[j] = d
+			curr[j] = min(curr[j-1]+1, prev[j]+1, prev[j-1]+cost)
 		}
 		prev, curr = curr, prev
 	}
@@ -3540,8 +3527,8 @@ func (c *compiler) parseAtom(parts []ast.Part, src *ast.Sentence) (graph.Expr, e
 }
 
 func lastTopLevelPlus(parts []ast.Part) int {
-	for i := len(parts) - 1; i >= 0; i-- {
-		if parts[i].Kind == ast.PartPlus {
+	for i, part := range slices.Backward(parts) {
+		if part.Kind == ast.PartPlus {
 			return i
 		}
 	}

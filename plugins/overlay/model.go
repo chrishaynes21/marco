@@ -48,6 +48,8 @@ type model struct {
 	heard        string      // live voice transcript (Google-style preview)
 	history      []histEntry // recent commands with their outcome + time
 	cpu, ram     float64     // system metrics (%), for the optional widget
+	curX, curY   int         // live cursor position (virtual-desktop coords)
+	curHasPos    bool        // whether curX/curY have been sampled yet
 	teaching     bool        // a teach recording is in progress (keeps the HUD awake)
 	teachStart   time.Time   // when the current teach recording began (for the live timer)
 	configOn     bool        // the config editor is open
@@ -57,6 +59,7 @@ type model struct {
 	teachPrompt  string      // the active teach y/n/s prompt ("" = none), shown verbatim with its options
 	teachPending string      // the answer typed but not yet submitted (type y/n/s, then Enter)
 	argHints     []string    // arg labels to auto-pop for the route being typed ("name:" …)
+	routeNames   []string    // known route display names, for Tab autocomplete
 	quit         bool
 }
 
@@ -71,19 +74,95 @@ func (h *model) inputForHint() (string, bool) {
 // setArgHints stores the arg labels the engine suggested for the typed route.
 func (h *model) setArgHints(a []string) { h.mu.Lock(); h.argHints = a; h.mu.Unlock() }
 
-// acceptArgHint appends the first suggested "name:" label to the command line (Tab),
-// and returns whether there was one to accept.
+// setRouteNames stores the known route display names for Tab autocomplete.
+func (h *model) setRouteNames(names []string) { h.mu.Lock(); h.routeNames = names; h.mu.Unlock() }
+
+// completeRoute extends the typed command to the longest common prefix of the route
+// names it prefixes — Tab autocomplete for the route phrase. It only acts while
+// you're still typing the phrase (before a " with " args clause) and only when there
+// is more to add, so once the route is fully typed Tab falls through to the arg-slot
+// advance. Returns true if it changed the input.
+func (h *model) completeRoute() bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if strings.Contains(strings.ToLower(h.input), " with ") {
+		return false // in the args clause, not the route name
+	}
+	typed := strings.TrimSpace(h.input)
+	if typed == "" {
+		return false
+	}
+	low := strings.ToLower(typed)
+	var matches []string
+	for _, r := range h.routeNames {
+		if strings.HasPrefix(strings.ToLower(r), low) {
+			matches = append(matches, r)
+		}
+	}
+	if len(matches) == 0 {
+		return false
+	}
+	lcp := longestCommonPrefix(matches)
+	if len(lcp) <= len(typed) {
+		return false // already at the common prefix (or fully typed)
+	}
+	lead := h.input[:len(h.input)-len(strings.TrimLeft(h.input, " "))] // keep typed spaces
+	h.input = lead + lcp
+	h.lastActive = time.Now()
+	return true
+}
+
+// longestCommonPrefix returns the longest string that prefixes every input.
+func longestCommonPrefix(ss []string) string {
+	if len(ss) == 0 {
+		return ""
+	}
+	p := ss[0]
+	for _, s := range ss[1:] {
+		for !strings.HasPrefix(s, p) {
+			p = p[:len(p)-1]
+			if p == "" {
+				return ""
+			}
+		}
+	}
+	return p
+}
+
+// acceptArgHint advances to the next argument slot (Tab): inserts " with " before
+// the first arg, ", " before each subsequent one. The arg labels stay visible as a
+// colored guide but are never typed — values go in positionally after "with". The
+// label list (h.argHints) is the route's full arg set, refilled by the poller, so we
+// stop once every slot is filled rather than consuming the list.
 func (h *model) acceptArgHint() bool {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if len(h.argHints) == 0 {
 		return false
 	}
-	if h.input != "" && !strings.HasSuffix(h.input, " ") {
-		h.input += " "
+	lower := strings.ToLower(h.input)
+	i := strings.Index(lower, " with ")
+	if i < 0 {
+		if h.input != "" && !strings.HasSuffix(h.input, " ") {
+			h.input += " "
+		}
+		h.input += "with "
+		h.lastActive = time.Now()
+		return true
 	}
-	h.input += h.argHints[0] + ":"
-	h.argHints = h.argHints[1:]
+	// Already in the clause: advance only if there's an unfilled slot AND the current
+	// one has a value (no point adding a comma after an empty slot).
+	segs := strings.Split(h.input[i+len(" with "):], ",")
+	filled := 0
+	for _, s := range segs {
+		if strings.TrimSpace(s) != "" {
+			filled++
+		}
+	}
+	if filled >= len(h.argHints) || strings.TrimSpace(segs[len(segs)-1]) == "" {
+		return false
+	}
+	h.input = strings.TrimRight(h.input, " ") + ", "
 	h.lastActive = time.Now()
 	return true
 }
@@ -207,6 +286,14 @@ func (h *model) addHistory(cmd, outcome string, d time.Duration) {
 func (h *model) setMetrics(cpu, ram float64) {
 	h.mu.Lock()
 	h.cpu, h.ram = cpu, ram
+	h.mu.Unlock()
+}
+
+// setCursor updates the live cursor position for the coords tooltip. Like metrics,
+// it does NOT wake the panel — a background poll shouldn't keep the HUD lit.
+func (h *model) setCursor(x, y int, ok bool) {
+	h.mu.Lock()
+	h.curX, h.curY, h.curHasPos = x, y, ok
 	h.mu.Unlock()
 }
 
@@ -345,6 +432,8 @@ type snapshot struct {
 	status, state, input, lastRun, app string
 	leaderEcho, heard                  string
 	cpu, ram                           float64
+	curX, curY                         int
+	curHasPos                          bool
 	teaching                           bool
 	teachStart                         time.Time
 	configSel                          int
@@ -373,7 +462,8 @@ func (h *model) snapshot() snapshot {
 	return snapshot{
 		visible: h.visible, editing: h.editing, helpOn: h.helpOn, configOn: h.configOn,
 		status: h.status, state: h.state, input: h.input, lastRun: h.lastRun, app: h.app,
-		leaderEcho: h.leaderEcho, heard: h.heard, cpu: h.cpu, ram: h.ram, teaching: h.teaching,
+		leaderEcho: h.leaderEcho, heard: h.heard, cpu: h.cpu, ram: h.ram,
+		curX: h.curX, curY: h.curY, curHasPos: h.curHasPos, teaching: h.teaching,
 		teachStart: h.teachStart, configSel: h.configSel,
 		teachPrompt: h.teachPrompt, teachPending: h.teachPending, teachLog: tlog,
 		argHints: hints,

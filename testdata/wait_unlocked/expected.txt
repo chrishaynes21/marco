@@ -1,2 +1,2 @@
-settings free
-light
+[INFO] settings free
+[INFO] light

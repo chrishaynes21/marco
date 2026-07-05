@@ -1,2 +1,2 @@
-first attempt
-second attempt
+[INFO] first attempt
+[INFO] second attempt

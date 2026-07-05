@@ -18,14 +18,22 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/osmod"
 	"github.com/chaynes-simpleclouds/marco/internal/parser"
 	"github.com/chaynes-simpleclouds/marco/internal/runtime"
+	"github.com/chaynes-simpleclouds/marco/internal/textmod"
+	"github.com/chaynes-simpleclouds/marco/internal/visionmod"
 )
 
 // builtinModule returns the embedded source for a built-in importable module, so
-// `use <module>.` resolves without a sibling file. Currently just the OS act
-// surface (os.marco), which every generated route imports.
+// `use <module>.` resolves without a sibling file: the OS act surface (os.marco,
+// imported by every generated route) and the Text act surface (text.marco, the OCR
+// resolver, imported only by routes with a text anchor).
 func builtinModule(name string) (string, bool) {
-	if name == "os" {
+	switch name {
+	case "os":
 		return osmod.Source, true
+	case "text":
+		return textmod.Source, true
+	case "vision":
+		return visionmod.Source, true
 	}
 	return "", false
 }
@@ -114,8 +122,7 @@ func Check(path string, out io.Writer, jsonMode bool) error {
 // isn't a *compile.Error.
 func errToDiagnostic(err error, file string) Diagnostic {
 	d := Diagnostic{File: file, Severity: "error", Message: err.Error()}
-	var ce *compile.Error
-	if errors.As(err, &ce) {
+	if ce, ok := errors.AsType[*compile.Error](err); ok {
 		d.Severity = ce.Severity.String()
 		d.Code = ce.Code
 		d.Message = ce.Msg
@@ -134,8 +141,7 @@ func diagnosticsFromErr(err error, file string) []Diagnostic {
 	if err == nil {
 		return nil
 	}
-	var multi compile.Errors
-	if errors.As(err, &multi) {
+	if multi, ok := errors.AsType[compile.Errors](err); ok {
 		out := make([]Diagnostic, 0, len(multi))
 		for _, ce := range multi {
 			out = append(out, errToDiagnostic(ce, file))
@@ -178,10 +184,34 @@ func RunSourceWithHostsCtx(ctx context.Context, src, dir, name string, out io.Wr
 	if err := compile.Compile(g, nil); err != nil {
 		return decorateError(fmt.Errorf("compile: %w", err), name, src)
 	}
+	// Restore the cursor to where the user left it after the run (real OS host only;
+	// the dryrun host doesn't implement cursorSnapshotter). Also fires on an
+	// Esc-cancel or error, since it's deferred.
+	if cs, ok := hosts["*"].(cursorSnapshotter); ok {
+		defer cs.CursorSnapshot()()
+	}
+	// Release any key a hold (KeyDown) left down — on success, error, or Esc — so the
+	// process never exits with a key stuck down in the target app.
+	if hr, ok := hosts["*"].(heldKeyReleaser); ok {
+		defer hr.ReleaseHeld()
+	}
 	if err := runtime.RunWithHostsContext(ctx, g, out, hosts); err != nil {
 		return decorateError(err, name, src)
 	}
 	return nil
+}
+
+// cursorSnapshotter is an optional host capability: capture the cursor position and
+// return a func that restores it, so a route run puts the pointer back where the
+// user left it. Only the real OS host implements it.
+type cursorSnapshotter interface {
+	CursorSnapshot() func()
+}
+
+// heldKeyReleaser is an optional host capability: release any key left held by a KeyDown
+// at route end, so a hold can't leave a key stuck down. Only the real OS host implements it.
+type heldKeyReleaser interface {
+	ReleaseHeld()
 }
 
 // RunSource runs a source string with no import support (single-file).

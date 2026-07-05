@@ -19,22 +19,25 @@ func runBind(args []string) {
 		os.Exit(2)
 	}
 	key := strings.ToLower(args[0])
-	name := strings.TrimSpace(strings.Join(args[1:], " "))
+	cmd := strings.TrimSpace(strings.Join(args[1:], " "))
 	d := newDeps()
 	app := winctx.Active()
 
-	// Resolve the spoken/typed name to an existing route slug (confident match),
-	// else slugify as-is.
-	target := name
-	if m := nlu.Resolve(name, d.Reg.Slugs()); m.Route != "" && (m.Exact || m.Score >= 0.6) {
-		target = m.Route
+	// A binding can chain steps with " then " ("say hi then wave"). Validate that
+	// every step resolves to an existing route, so a typo can't be bound, then store
+	// the raw command — each step is resolved + its args applied at run time.
+	for _, step := range routes.SplitChain(cmd) {
+		base, _, _ := routes.ParseInvocation(step)
+		target := base
+		if m := nlu.Resolve(base, d.Reg.Slugs()); m.Route != "" && (m.Exact || m.Score >= 0.6) {
+			target = m.Route
+		}
+		if _, ok := d.Reg.Resolve(app, routes.Slug(target)); !ok {
+			fmt.Fprintf(os.Stderr, "no route matches %q (teach it first)\n", step)
+			os.Exit(1)
+		}
 	}
-	slug := routes.Slug(target)
-	if _, ok := d.Reg.Resolve(app, slug); !ok {
-		fmt.Fprintf(os.Stderr, "no route matches %q (teach it first)\n", name)
-		os.Exit(1)
-	}
-	if err := d.Reg.Bind(app, key, slug); err != nil {
+	if err := d.Reg.Bind(app, key, cmd); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
@@ -42,7 +45,7 @@ func runBind(args []string) {
 	if scope == "" {
 		scope = "everywhere"
 	}
-	fmt.Printf("bound `%s -> %s in %s\n", key, slug, scope)
+	fmt.Printf("bound `%s -> %s in %s\n", key, cmd, scope)
 }
 
 // runUnbind: `marco unbind <key>` — remove the hotkey for the current app.
@@ -69,15 +72,20 @@ func runHotkey(args []string) {
 	}
 	d := newDeps()
 	app := winctx.Active()
-	slug, ok := d.Reg.HotkeySlug(app, strings.ToLower(args[0]))
+	cmd, ok := d.Reg.HotkeyCmd(app, strings.ToLower(args[0]))
 	if !ok {
 		return
 	}
-	if _, ok := d.Reg.Resolve(app, slug); !ok {
-		return // binding points at a route that no longer exists
-	}
-	if err := dispatchDo(d, slug, nil, nil); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+	// Run each chained step in order. A step pointing at a route that no longer
+	// exists is skipped silently (a hotkey must never drop into teach-on-unknown).
+	for _, step := range routes.SplitChain(cmd) {
+		target, named, positional := resolveTarget(d, step)
+		if _, ok := d.Reg.Resolve(app, target); !ok {
+			continue
+		}
+		if err := dispatchDo(d, target, named, positional); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
 	}
 }

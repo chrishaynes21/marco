@@ -4,7 +4,7 @@ A **native, cross-platform gamer overlay** for the headless `marco` engine: a
 transparent, click-through, always-on-top HUD with a leader-key command line and
 spam hotkeys. It replaces the AutoHotkey overlay (`ahk-overlay`) with a real
 windowed app, and — unlike that one — its **behaviour lives in Marco**
-(`programs/overlay.marco`); this process only renders the window and captures
+(`plugins/overlay/overlay.marco`); this process only renders the window and captures
 global input.
 
 It's the **UI layer** in a three-layer split:
@@ -28,7 +28,7 @@ marco-macros (the macros layer)  ──OS act resp (Key/Click/Spam/Find/…)─�
 The overlay is split so behaviour lives in Marco and the Go process is a thin,
 well-separated front-end:
 
-- **Marco (the brain)** — `programs/overlay.marco`. Dispatches typed commands
+- **Marco (the brain)** — `plugins/overlay/overlay.marco`. Dispatches typed commands
   (runs the route), and pushes display state out through the `Overlay` act.
 - **Model** — `model.go`. The single source of truth for what the HUD shows.
   Driven by Marco (via the act handlers in `acts.go`) and by the controller for
@@ -104,7 +104,7 @@ go build -o marco-macros.exe ./cmd/marco-macros    # macros layer
 go -C plugins/overlay build -o overlay.exe .       # this UI layer
 
 set MARCO_BIN=%CD%\marco.exe
-marco serve --host OS=bridge:marco-macros --host Overlay=bridge:.\plugins\overlay\overlay.exe programs\overlay.marco
+marco serve --host OS=bridge:marco-macros --host Overlay=bridge:.\plugins\overlay\overlay.exe plugins\overlay\overlay.marco
 ```
 
 Closing the HUD window ends the served run (the engine reaps the macros layer).

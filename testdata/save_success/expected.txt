@@ -1,1 +1,1 @@
-/save/path
+[INFO] /save/path

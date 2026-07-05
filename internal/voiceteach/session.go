@@ -68,6 +68,15 @@ func (s *Session) Apply(c Cmd) (status string, done, canceled bool) {
 		x, y := s.env.Cursor()
 		s.steps = append(s.steps, s.clickStep(x, y, s.env.AnchorAt(x, y)))
 		return fmt.Sprintf("anchor + click (%d, %d)", x, y), false, false
+	case ClickText:
+		// Locate the spoken word on screen (OCR) and click it — for a target that moves.
+		// The cursor position is recorded as the fallback if the text isn't found / no
+		// OCR host is wired, so position the cursor over the target while you say it.
+		x, y := s.env.Cursor()
+		st := s.clickStep(x, y, nil)
+		st.AnchorText = c.Text
+		s.steps = append(s.steps, st)
+		return fmt.Sprintf("click the text %q", c.Text), false, false
 	case WaitScreen:
 		img := s.env.Screenshot()
 		if len(img) == 0 {

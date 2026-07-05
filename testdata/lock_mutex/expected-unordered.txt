@@ -4,4 +4,4 @@
 [inspect] wait-a
 [inspect] wait-b
 [inspect] wait-c
-3
+[INFO] 3

@@ -1,4 +1,4 @@
-got Run
-after says
-computing
-Job Done
+[INFO] got Run
+[INFO] after says
+[INFO] computing
+[INFO] Job Done

@@ -55,7 +55,7 @@ func TestServeDeliversEvents(t *testing.T) {
 	}
 
 	got := splitNonEmpty(out.String())
-	want := []string{"hello", "leader", "ready", "stopped"}
+	want := []string{"[INFO] hello", "[INFO] leader", "[INFO] ready", "[INFO] stopped"}
 	sort.Strings(got)
 	if strings.Join(got, "|") != strings.Join(want, "|") {
 		t.Fatalf("served output = %v, want %v", got, want)
@@ -64,7 +64,7 @@ func TestServeDeliversEvents(t *testing.T) {
 
 func splitNonEmpty(s string) []string {
 	var out []string
-	for _, l := range strings.Split(s, "\n") {
+	for l := range strings.SplitSeq(s, "\n") {
 		if strings.TrimSpace(l) != "" {
 			out = append(out, l)
 		}

@@ -13,7 +13,7 @@ transcript as Marco feed events on stdout — the same event seam `globals` /
 Pipe it into a served program:
 
 ```
-voice --model vosk-model-small-en-us-0.15 | marco serve --host Overlay=bridge:overlay programs/overlay.marco
+voice --model vosk-model-small-en-us-0.15 | marco serve --host Overlay=bridge:overlay plugins/overlay/overlay.marco
 ```
 
 `overlay.marco` turns **Partial** into a live preview (`Overlay`'s `Heard`) and
@@ -65,7 +65,7 @@ So the pipe is testable without any of the above:
 
 ```
 go -C plugins/voice build -o voice.exe .   # builds even with CGO_ENABLED=0
-voice --demo | marco serve --host Overlay=bridge:overlay programs/overlay.marco
+voice --demo | marco serve --host Overlay=bridge:overlay plugins/overlay/overlay.marco
 ```
 
 `--demo` emits a canned `Partial…Final "say hello"`, which flows through exactly

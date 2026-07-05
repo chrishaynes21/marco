@@ -354,9 +354,18 @@ func (r *runner) logf(format string, args ...any) {
 	r.outMu.Unlock()
 }
 
+// LogTimestamps, when set, prefixes each `log` line with a [HH:MM:SS] stamp. Off by
+// default so `marco run`/test output stays byte-deterministic (golden tests); the
+// `marco serve` command turns it on, since those logs are watched live.
+var LogTimestamps bool
+
 func (r *runner) logln(s string) {
 	r.outMu.Lock()
-	fmt.Fprintln(r.out, s)
+	if LogTimestamps {
+		fmt.Fprintln(r.out, time.Now().Format("[15:04:05]")+"[INFO] "+s)
+	} else {
+		fmt.Fprintln(r.out, "[INFO] "+s)
+	}
 	r.outMu.Unlock()
 }
 

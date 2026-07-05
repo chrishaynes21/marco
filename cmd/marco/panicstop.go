@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/chaynes-simpleclouds/marco/internal/driver"
+	"github.com/chaynes-simpleclouds/marco/internal/mlog"
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
 	"github.com/chaynes-simpleclouds/marco/internal/oshost"
 	"github.com/chaynes-simpleclouds/marco/internal/recorder"
@@ -66,7 +67,10 @@ func appOf(d orchestrator.Deps) string {
 // placeholders; an unknown command is taught (teaching drives the recorder itself,
 // so it isn't wrapped).
 func dispatchDo(d orchestrator.Deps, name string, named map[string]string, positional []string) error {
-	if rt, ok := d.Reg.Resolve(appOf(d), name); ok {
+	app := appOf(d)
+	mlog.Debug("dispatch: resolving", "name", name, "app", app, "named_count", len(named), "positional_count", len(positional))
+	if rt, ok := d.Reg.Resolve(app, name); ok {
+		mlog.Info("dispatch: route found", "input", name, "route", rt.Slug, "scope", rt.App)
 		// Announce the canonical route that's about to run, so a front-end (the
 		// overlay) can show what a loose phrase actually resolved to.
 		fmt.Printf("[route] %s\n", prettyRoute(rt.Slug))
@@ -74,6 +78,7 @@ func dispatchDo(d orchestrator.Deps, name string, named map[string]string, posit
 			return runRoute(ctx, d, rt, named, positional)
 		})
 	}
+	mlog.Info("dispatch: no route found", "name", name, "app", app)
 	// MARCO_NO_TEACH (set by the overlay): an unknown command errors instead of
 	// dropping into the interactive teach flow, which would block on stdin.
 	if os.Getenv("MARCO_NO_TEACH") != "" {
@@ -87,8 +92,10 @@ func dispatchDo(d orchestrator.Deps, name string, named map[string]string, posit
 // the file.
 func runRoute(ctx context.Context, d orchestrator.Deps, rt routes.Route, named map[string]string, positional []string) error {
 	path := d.Reg.Path(rt)
+	mlog.Debug("run: reading route", "route", rt.Slug, "path", path)
 	src, err := os.ReadFile(path)
 	if err != nil {
+		mlog.Error("run: read failed", "path", path, "err", err)
 		return fmt.Errorf("read %s: %w", path, err)
 	}
 	// Expose the named args to the OS host so a secret-typed arg (password/pin/…) can
@@ -96,5 +103,7 @@ func runRoute(ctx context.Context, d orchestrator.Deps, rt routes.Route, named m
 	if h, ok := d.Hosts["*"].(*oshost.Host); ok {
 		h.SetArgs(named)
 	}
-	return driver.RunSourceWithHostsCtx(ctx, routes.ApplyArgs(string(src), named, positional), filepath.Dir(path), path, os.Stdout, d.Hosts)
+	filled := routes.ApplyArgs(string(src), named, positional)
+	mlog.Info("run: executing", "route", rt.Slug, "scope", rt.App, "named_args", len(named), "positional_args", len(positional))
+	return driver.RunSourceWithHostsCtx(ctx, filled, filepath.Dir(path), path, os.Stdout, d.Hosts)
 }

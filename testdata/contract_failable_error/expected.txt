@@ -1,1 +1,1 @@
-got: boom
+[INFO] got: boom

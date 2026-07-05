@@ -1,2 +1,2 @@
-denied
-auth
+[INFO] denied
+[INFO] auth

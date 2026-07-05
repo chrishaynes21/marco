@@ -2,6 +2,8 @@ package orchestrator
 
 import (
 	"bytes"
+	"image"
+	"image/png"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +12,7 @@ import (
 
 	"github.com/chaynes-simpleclouds/marco/internal/recorder"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
+	"github.com/chaynes-simpleclouds/marco/internal/runtime"
 )
 
 // fakeRecorder replays a canned event stream, so the whole teach pipeline
@@ -50,8 +53,7 @@ func TestTeachThenRun(t *testing.T) {
 	var out bytes.Buffer
 	d := Deps{
 		Reg: reg, Rec: &fakeRecorder{events: events},
-		// save? yes; only-in-app? yes (the happy path) → scoped to the app.
-		In:      strings.NewReader("y\ny\n"),
+		In:      strings.NewReader("y\ny\nc\n"), // teach? yes; save? yes; scope? c (context: only here)
 		Out:     &out,
 		App:     func() string { return "sea-of-thieves" }, // context captured at teach time
 		StopKey: "esc",                                     // these fixtures end with an Esc press
@@ -71,12 +73,12 @@ func TestTeachThenRun(t *testing.T) {
 		t.Fatalf("stop key leaked into route:\n%s", saved)
 	}
 	if !strings.Contains(string(saved), "do OS's Click with p1.") ||
-		!strings.Contains(string(saved), "do OS's Sleep with 350.") {
+		!strings.Contains(string(saved), "do OS's Sleep with 50.") {
 		t.Fatalf("route missing expected steps:\n%s", saved)
 	}
-	// Context-aware: the route activates the app it was taught in, first.
-	if !strings.Contains(string(saved), `do OS's Activate with "sea-of-thieves".`) {
-		t.Fatalf("route is not context-aware (no Activate):\n%s", saved)
+	// Context scope is foreground-only, so it does NOT switch windows — no Activate.
+	if strings.Contains(string(saved), "Activate") {
+		t.Fatalf("context route should not activate:\n%s", saved)
 	}
 	// It also ran (dryrun host logs the calls + the done line).
 	if !strings.Contains(out.String(), "[dryrun] OS's Click") ||
@@ -84,9 +86,10 @@ func TestTeachThenRun(t *testing.T) {
 		t.Fatalf("route did not run; output:\n%s", out.String())
 	}
 
-	// Second Do: now known → runs directly without teaching.
+	// Second Do: now known → runs directly without teaching. A context route is
+	// foreground-only, so the app must be in front for it to resolve.
 	var out2 bytes.Buffer
-	d2 := Deps{Reg: reg, Rec: &fakeRecorder{}, Out: &out2}
+	d2 := Deps{Reg: reg, Rec: &fakeRecorder{}, Out: &out2, App: func() string { return "sea-of-thieves" }}
 	if err := d2.Do("open chest"); err != nil {
 		t.Fatalf("Do(run): %v", err)
 	}
@@ -117,7 +120,7 @@ func TestTeachSimplifyOption(t *testing.T) {
 	var out bytes.Buffer
 	d := Deps{
 		Reg: reg, Rec: &fakeRecorder{events: events},
-		In:      strings.NewReader("s\ny\ny\n"), // simplify further, save, then only-in-app (scoped)
+		In:      strings.NewReader("y\ns\ny\nc\n"), // teach? yes; simplify further; save; scope c (context)
 		Out:     &out,
 		App:     func() string { return "editor" },
 		StopKey: "esc",
@@ -159,7 +162,7 @@ func TestTeachSimplifySaves(t *testing.T) {
 	var out bytes.Buffer
 	d := Deps{
 		Reg: reg, Rec: &fakeRecorder{events: events},
-		In:            strings.NewReader("s\ny\n"), // simplify (auto-saves), then only-in-app (scoped)
+		In:            strings.NewReader("s\nc\n"), // simplify (auto-saves), then scope c (context)
 		Out:           &out,
 		App:           func() string { return "editor" },
 		StopKey:       "esc",
@@ -203,7 +206,7 @@ func TestSimplifyRoute(t *testing.T) {
 	var out bytes.Buffer
 	d := Deps{
 		Reg: reg, Rec: &fakeRecorder{events: events},
-		In:      strings.NewReader("y\ny\n"), // save; scoped
+		In:      strings.NewReader("y\nc\n"), // save; scope c (context)
 		Out:     &out,
 		App:     func() string { return "editor" },
 		StopKey: "esc",
@@ -244,7 +247,7 @@ func TestSimplifyRoute(t *testing.T) {
 func TestSimplifyRouteNoRecording(t *testing.T) {
 	dir := t.TempDir()
 	reg := routes.Registry{Dir: dir}
-	if err := reg.Save("editor", "hand written", "use os.\n"); err != nil {
+	if err := reg.Save(routes.Route{App: "editor", Slug: routes.Slug("hand written")}, "use os.\n"); err != nil {
 		t.Fatal(err)
 	}
 	d := Deps{Reg: reg, Out: &bytes.Buffer{}, App: func() string { return "editor" }}
@@ -268,7 +271,7 @@ func TestTeachImageClick(t *testing.T) {
 	var out bytes.Buffer
 	d := Deps{
 		Reg: reg, Rec: &fakeRecorder{events: events},
-		In:      strings.NewReader("y\ny\n"), // save; scoped
+		In:      strings.NewReader("y\nc\n"), // save; scope c (context)
 		Out:     &out,
 		App:     func() string { return "game" },
 		StopKey: "esc",
@@ -281,8 +284,9 @@ func TestTeachImageClick(t *testing.T) {
 	if !strings.Contains(string(saved), "do OS's Find with a1...") {
 		t.Fatalf("route is not image-matched:\n%s", saved)
 	}
-	// The template file was written beside the route, with the captured bytes.
-	asset := filepath.Join(dir, "game", "grab-loot-anchor-1.png")
+	// The template file was written beside the route (in its scope folder), with the
+	// captured bytes.
+	asset := filepath.Join(reg.ScopeDir(rt), "grab-loot-anchor-1.png")
 	got, err := os.ReadFile(asset)
 	if err != nil {
 		t.Fatalf("template not written: %v", err)
@@ -293,6 +297,206 @@ func TestTeachImageClick(t *testing.T) {
 	// The route references that absolute path.
 	if !strings.Contains(string(saved), escapeForMarco(asset)) {
 		t.Fatalf("route does not reference the template path %q:\n%s", asset, saved)
+	}
+}
+
+// fakeTextHost stands in for the OCR bridge: any Text's Read returns a fixed label,
+// so the teach-time anchor-labelling path is testable without tesseract. A nil reply
+// (replyText == "") models "nothing readable" — the anchor should stay gate-only.
+type fakeTextHost struct {
+	replyText string
+	calls     int
+}
+
+func (h *fakeTextHost) Invoke(c runtime.HostCall) (string, runtime.Value, error) {
+	if c.Act != "Text" || c.Action != "Read" {
+		return "failed", runtime.Absent(), nil
+	}
+	h.calls++
+	if h.replyText == "" {
+		return "failed", runtime.Absent(), nil
+	}
+	s := runtime.NewSet()
+	s.Put("Text", runtime.Text(h.replyText))
+	return "ok", runtime.SetVal(s), nil
+}
+
+// fakeVisionHost stands in for the vision bridge: any Vision's Identify returns a fixed
+// class label and (optionally) a detected box, so the teach-time vision-labelling and
+// re-cropping paths are testable without a model.
+type fakeVisionHost struct {
+	label string
+	box   [4]int // X,Y,W,H — when W>0, returned so the template gets re-cropped to it
+	calls int
+}
+
+func (h *fakeVisionHost) Invoke(c runtime.HostCall) (string, runtime.Value, error) {
+	if c.Act != "Vision" || c.Action != "Identify" {
+		return "failed", runtime.Absent(), nil
+	}
+	h.calls++
+	if h.label == "" {
+		return "failed", runtime.Absent(), nil
+	}
+	s := runtime.NewSet()
+	s.Put("Label", runtime.Text(h.label))
+	if h.box[2] > 0 {
+		s.Put("X", runtime.Number(float64(h.box[0])))
+		s.Put("Y", runtime.Number(float64(h.box[1])))
+		s.Put("W", runtime.Number(float64(h.box[2])))
+		s.Put("H", runtime.Number(float64(h.box[3])))
+	}
+	return "ok", runtime.SetVal(s), nil
+}
+
+// TestTeachVisionRecropsTemplate: with a Vision host that returns a box, the demonstrated
+// anchor's template is re-cropped to the detected control — the saved PNG is the box size.
+func TestTeachVisionRecropsTemplate(t *testing.T) {
+	dir := t.TempDir()
+	reg := routes.Registry{Dir: dir}
+
+	// A real 100x60 PNG template (so cropTemplate can decode + re-encode it).
+	var pngBuf bytes.Buffer
+	if err := png.Encode(&pngBuf, image.NewRGBA(image.Rect(0, 0, 100, 60))); err != nil {
+		t.Fatal(err)
+	}
+	events := []recorder.RecordedEvent{
+		{Kind: recorder.EvClick, Button: "left", Down: true, X: 300, Y: 200, T: at(0), Image: pngBuf.Bytes()},
+		{Kind: recorder.EvClick, Button: "left", Down: false, X: 300, Y: 200, T: at(5)},
+		{Kind: recorder.EvKey, KeyName: "esc", Down: true, T: at(500)},
+	}
+	vis := &fakeVisionHost{label: "button", box: [4]int{20, 10, 50, 30}} // detected control
+	var out bytes.Buffer
+	d := Deps{
+		Reg: reg, Rec: &fakeRecorder{events: events},
+		Hosts:   map[string]runtime.Host{"Vision": vis},
+		In:      strings.NewReader("y\nc\n"),
+		Out:     &out,
+		App:     func() string { return "game" },
+		StopKey: "esc",
+	}
+	if err := d.Teach("dodge"); err != nil {
+		t.Fatalf("Teach: %v\n%s", err, out.String())
+	}
+	rt := routes.Route{App: "game", Slug: "dodge"}
+	asset := filepath.Join(reg.ScopeDir(rt), "dodge-anchor-1.png")
+	data, err := os.ReadFile(asset)
+	if err != nil {
+		t.Fatalf("template not written: %v", err)
+	}
+	cfg, err := png.DecodeConfig(bytes.NewReader(data))
+	if err != nil {
+		t.Fatalf("saved template not a PNG: %v", err)
+	}
+	if cfg.Width != 50 || cfg.Height != 30 {
+		t.Fatalf("template not re-cropped to the detected box: got %dx%d, want 50x30", cfg.Width, cfg.Height)
+	}
+}
+
+// TestTeachVisionAnchorFromDetector: with a Vision host wired, a demonstrated anchor is
+// labelled with the clicked control's CLASS, and the saved route locates it via Vision.
+func TestTeachVisionAnchorFromDetector(t *testing.T) {
+	dir := t.TempDir()
+	reg := routes.Registry{Dir: dir}
+
+	patch := []byte("\x89PNG\r\n\x1a\n fake template bytes")
+	events := []recorder.RecordedEvent{
+		{Kind: recorder.EvClick, Button: "left", Down: true, X: 300, Y: 200, T: at(0), Image: patch},
+		{Kind: recorder.EvClick, Button: "left", Down: false, X: 300, Y: 200, T: at(5)},
+		{Kind: recorder.EvKey, KeyName: "esc", Down: true, T: at(500)},
+	}
+	vis := &fakeVisionHost{label: "icon"}
+	var out bytes.Buffer
+	d := Deps{
+		Reg: reg, Rec: &fakeRecorder{events: events},
+		Hosts:   map[string]runtime.Host{"Vision": vis},
+		In:      strings.NewReader("y\nc\n"),
+		Out:     &out,
+		App:     func() string { return "game" },
+		StopKey: "esc",
+	}
+	if err := d.Teach("use ability"); err != nil {
+		t.Fatalf("Teach: %v\n%s", err, out.String())
+	}
+	if vis.calls == 0 {
+		t.Fatal("Vision's Identify was never called to label the anchor")
+	}
+	rt := routes.Route{App: "game", Slug: "use-ability"}
+	saved, _ := os.ReadFile(reg.Path(rt))
+	if !strings.Contains(string(saved), "use vision.") ||
+		!strings.Contains(string(saved), `Anchor with Label "icon"`) ||
+		!strings.Contains(string(saved), "do Vision's Locate with v1...") {
+		t.Fatalf("route did not gain the vision locator:\n%s", saved)
+	}
+}
+
+// TestTeachTextAnchorFromOCR: a demonstrated anchor (a click carrying a template) gets
+// OCR-labelled at teach time, so the saved route also locates the target by text.
+func TestTeachTextAnchorFromOCR(t *testing.T) {
+	dir := t.TempDir()
+	reg := routes.Registry{Dir: dir}
+
+	patch := []byte("\x89PNG\r\n\x1a\n fake template bytes")
+	events := []recorder.RecordedEvent{
+		{Kind: recorder.EvClick, Button: "left", Down: true, X: 300, Y: 200, T: at(0), Image: patch},
+		{Kind: recorder.EvClick, Button: "left", Down: false, X: 300, Y: 200, T: at(5)},
+		{Kind: recorder.EvKey, KeyName: "esc", Down: true, T: at(500)},
+	}
+	host := &fakeTextHost{replyText: "Start Game"}
+	var out bytes.Buffer
+	d := Deps{
+		Reg: reg, Rec: &fakeRecorder{events: events},
+		Hosts:   map[string]runtime.Host{"Text": host},
+		In:      strings.NewReader("y\nc\n"), // save; scope c (context)
+		Out:     &out,
+		App:     func() string { return "game" },
+		StopKey: "esc",
+	}
+	if err := d.Teach("grab loot"); err != nil {
+		t.Fatalf("Teach: %v\n%s", err, out.String())
+	}
+	if host.calls == 0 {
+		t.Fatal("Text's Read was never called to label the anchor")
+	}
+	rt := routes.Route{App: "game", Slug: "grab-loot"}
+	saved, _ := os.ReadFile(reg.Path(rt))
+	// The anchor is both an image gate AND a text locator now.
+	if !strings.Contains(string(saved), "do OS's Find with a1...") {
+		t.Fatalf("route lost its image gate:\n%s", saved)
+	}
+	if !strings.Contains(string(saved), `Anchor with Text "Start Game"`) ||
+		!strings.Contains(string(saved), "do Text's Find with t1...") {
+		t.Fatalf("route did not gain the OCR text locator:\n%s", saved)
+	}
+}
+
+// TestTeachTextAnchorNoHost: with no Text host wired, teaching the same anchor stays
+// image-only — text labelling is purely additive and must not require OCR.
+func TestTeachTextAnchorNoHost(t *testing.T) {
+	dir := t.TempDir()
+	reg := routes.Registry{Dir: dir}
+
+	patch := []byte("\x89PNG\r\n\x1a\n fake template bytes")
+	events := []recorder.RecordedEvent{
+		{Kind: recorder.EvClick, Button: "left", Down: true, X: 300, Y: 200, T: at(0), Image: patch},
+		{Kind: recorder.EvClick, Button: "left", Down: false, X: 300, Y: 200, T: at(5)},
+		{Kind: recorder.EvKey, KeyName: "esc", Down: true, T: at(500)},
+	}
+	var out bytes.Buffer
+	d := Deps{
+		Reg: reg, Rec: &fakeRecorder{events: events},
+		In:      strings.NewReader("y\nc\n"),
+		Out:     &out,
+		App:     func() string { return "game" },
+		StopKey: "esc",
+	}
+	if err := d.Teach("grab loot"); err != nil {
+		t.Fatalf("Teach: %v\n%s", err, out.String())
+	}
+	rt := routes.Route{App: "game", Slug: "grab-loot"}
+	saved, _ := os.ReadFile(reg.Path(rt))
+	if strings.Contains(string(saved), "Text's Find") {
+		t.Fatalf("text locator appeared with no Text host wired:\n%s", saved)
 	}
 }
 

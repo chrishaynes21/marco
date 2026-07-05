@@ -1,2 +1,2 @@
-user
-save
+[INFO] user
+[INFO] save

@@ -1,2 +1,2 @@
-click
-rendered
+[INFO] click
+[INFO] rendered

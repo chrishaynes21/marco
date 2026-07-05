@@ -90,7 +90,7 @@ func (v Value) AsNumber() (float64, bool) {
 func (v Value) String() string {
 	switch v.tag {
 	case tagAbsent:
-		return "<absent>"
+		return "<command absent>"
 	case tagText:
 		return v.s
 	case tagNumber:

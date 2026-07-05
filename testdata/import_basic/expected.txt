@@ -1,1 +1,1 @@
-/imported
+[INFO] /imported

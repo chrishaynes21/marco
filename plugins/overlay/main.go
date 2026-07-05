@@ -5,14 +5,14 @@
 // it through the Overlay act (Show/Hide/Status/Log/Clear/SetInput/ListRoutes/
 // Run/Active), and it pushes back the events that move the HUD (the leader-key
 // command line → a Commands feed; the spam hotkeys → a Hotkeys feed). All HUD
-// behaviour lives in Marco (programs/overlay.marco); this process only renders
+// behaviour lives in Marco (plugins/overlay/overlay.marco); this process only renders
 // the window and captures global input.
 //
 //	marco serve --host OS=bridge:marco-macros --host Overlay=bridge:overlay overlay.marco
 //
 // The code is split Model/View/Controller: model.go (state, the single source of
 // truth, driven by Marco), view.go (ebiten rendering of the model), and
-// controller_*.go (input capture → model + intents). Marco (programs/overlay.marco)
+// controller_*.go (input capture → model + intents). Marco (plugins/overlay/overlay.marco)
 // is the brain: it dispatches typed commands and pushes display state via the
 // Overlay act. Rendering is cross-platform; global input capture is Windows-first
 // (controller_other.go is the macOS/Linux stub).
@@ -38,11 +38,36 @@ func main() {
 	go pollActiveApp(m)     // keep the state line's app context fresh
 	go pollMetrics(m)       // feed the optional CPU/RAM widget
 	go pollArgHints(m)      // auto-pop "name:" labels for the route being typed
+	go pollCursor(m)        // feed the optional screen-coords tooltip
+	go pollRoutes(m)        // known route names, for Tab autocomplete
 	emit := func(ev event) { out <- ev }
 	if err := startInput(m, emit); err != nil { // controller: input → model + intents
 		fmt.Fprintln(os.Stderr, "overlay: input capture unavailable:", err)
 	}
 	runView(m) // blocks on the main thread until the window closes
+}
+
+// pollRoutes refreshes the list of known route names (for Tab autocomplete) every
+// few seconds, so a just-taught route becomes completable without a restart.
+func pollRoutes(m *model) {
+	for {
+		if names := listRoutes(); names != nil {
+			m.setRouteNames(names)
+		}
+		time.Sleep(3 * time.Second)
+	}
+}
+
+// pollCursor samples the cursor position for the optional coords tooltip. It runs
+// regardless of the config toggle (the view decides whether to show it); a fast
+// GetCursorPos poll is cheap and doesn't wake the panel. ~30 Hz reads smoothly
+// without busy-spinning.
+func pollCursor(m *model) {
+	for {
+		x, y, ok := cursorPos()
+		m.setCursor(x, y, ok)
+		time.Sleep(33 * time.Millisecond)
+	}
 }
 
 // pollActiveApp keeps the state line's app context current (like the AHK
@@ -57,28 +82,34 @@ func pollActiveApp(m *model) {
 }
 
 // pollArgHints watches the command line and, when it settles on a route that takes
-// arguments, asks the engine (`marco args <input>`) for the labels and stores them
-// so the view can auto-pop "name:" suggestions. Debounced: it only queries once the
-// text stops changing, so it doesn't spawn a process per keystroke.
+// arguments, asks the engine (`marco args <route>`) for the labels and stores them so
+// the view can show them as "name:" hints. Debounced on the ROUTE part (the text
+// before " with "), not the whole line — so the labels resolve as soon as the route
+// name is stable and stay put while you type the values after "with", instead of
+// re-querying (or never settling) on every keystroke of the value.
 func pollArgHints(m *model) {
 	last, settled := "", false
 	for {
 		time.Sleep(150 * time.Millisecond)
 		in, editing := m.inputForHint()
-		if !editing || strings.TrimSpace(in) == "" {
+		base := in
+		if i := strings.Index(strings.ToLower(in), " with "); i >= 0 {
+			base = in[:i] // the route phrase; the values after "with" don't change its args
+		}
+		if !editing || strings.TrimSpace(base) == "" {
 			m.setArgHints(nil)
 			last, settled = "", false
 			continue
 		}
-		if in != last { // still typing — wait for it to settle
-			last, settled = in, false
+		if base != last { // route still changing — wait for it to settle
+			last, settled = base, false
 			continue
 		}
-		if settled { // already queried this exact text
+		if settled { // already queried this route
 			continue
 		}
 		settled = true
-		m.setArgHints(argHints(in))
+		m.setArgHints(argHints(base))
 	}
 }
 

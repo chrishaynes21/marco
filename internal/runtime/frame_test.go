@@ -120,7 +120,7 @@ func TestFrameChildren(t *testing.T) {
 func TestFrameConcurrentLocalsAndChildren(t *testing.T) {
 	f := &Frame{ID: 1}
 	var wg sync.WaitGroup
-	for i := 0; i < 16; i++ {
+	for i := range 16 {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()

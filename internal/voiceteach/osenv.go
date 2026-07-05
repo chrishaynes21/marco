@@ -27,7 +27,7 @@ func (OSEnv) Screenshot() []byte {
 	return captureAround(x, y)
 }
 
-// captureAround grabs a generous patch (~1/8 of screen width) centered on (x,y) and
+// captureAround grabs a generous patch (~1/4 of screen width) centered on (x,y) and
 // returns it as PNG, or nil if it's not distinctive enough to match (or unsupported).
 func captureAround(x, y int) []byte {
 	r := captureRadius()
@@ -44,7 +44,7 @@ func captureAround(x, y int) []byte {
 
 func captureRadius() int {
 	if w, _ := screen.PrimarySize(); w > 0 {
-		return w / 16
+		return w / 8
 	}
-	return 120
+	return 240
 }

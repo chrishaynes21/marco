@@ -25,12 +25,33 @@ func SplitArgs(command string) (route string, args []string) {
 		return strings.TrimSpace(command), nil
 	}
 	route = strings.TrimSpace(command[:i])
-	for _, a := range strings.Split(command[i+len(" with "):], ",") {
+	for a := range strings.SplitSeq(command[i+len(" with "):], ",") {
 		if a = strings.TrimSpace(a); a != "" {
 			args = append(args, a)
 		}
 	}
 	return route, args
+}
+
+// chainRe splits a command on the " then " keyword (case-insensitive, surrounded by
+// whitespace) — the separator that chains several commands under one trigger.
+var chainRe = regexp.MustCompile(`(?i)\s+then\s+`)
+
+// SplitChain splits a command into its sequential steps on " then ": "say hi then
+// wave then say bye" → ["say hi", "wave", "say bye"]. A command with no " then " is a
+// single step. Each step still carries its own " with …"/"name:" args, parsed later
+// by ParseInvocation. Used to run or bind several commands as one.
+func SplitChain(command string) []string {
+	var out []string
+	for _, p := range chainRe.Split(command, -1) {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	if len(out) == 0 {
+		return []string{strings.TrimSpace(command)}
+	}
+	return out
 }
 
 // ParseInvocation parses a run command into the route phrase and its arguments,
@@ -42,8 +63,8 @@ func ParseInvocation(command string) (route string, named map[string]string, pos
 	named = map[string]string{}
 	var routeToks []string
 	curKey := ""
-	for _, tok := range strings.Fields(command) {
-		if m := namedRe.FindStringSubmatch(tok); m != nil {
+	for tok := range strings.FieldsSeq(command) {
+		if m := namedRe.FindStringSubmatch(tok); m != nil && !strings.HasPrefix(m[2], "//") {
 			curKey = strings.ToLower(m[1])
 			named[curKey] = m[2]
 		} else if curKey != "" {
@@ -60,17 +81,32 @@ func ParseInvocation(command string) (route string, named map[string]string, pos
 }
 
 // ApplyArgs fills placeholders in a route's source: {{name}} from named (by name,
-// case-insensitive), {{N}} from positional (1-based). Each value is escaped for the
-// Marco string literal it sits in. An unfilled placeholder becomes empty. Source
-// with no placeholders is returned unchanged, so it's safe to call on every run.
+// case-insensitive), {{N}} from positional (1-based). A positional invocation also
+// fills NAMED placeholders — the values map onto the route's declared arg names in
+// order, so "say hello with chris" lands "chris" in {{name}} (i.e. `with chris` ≡
+// `name:chris`). Explicit "name:value" tokens win over the positional mapping. Each
+// value is escaped for the Marco string literal it sits in. An unfilled placeholder
+// becomes empty. Source with no placeholders is returned unchanged, so it's safe to
+// call on every run.
 func ApplyArgs(src string, named map[string]string, positional []string) string {
+	// Zip positional values onto the declared arg names (source order), so a value
+	// given without a "key:" still reaches its named placeholder.
+	byPos := map[string]string{}
+	for i, name := range ArgNames(src) {
+		if i < len(positional) {
+			byPos[strings.ToLower(name)] = positional[i]
+		}
+	}
 	return phRe.ReplaceAllStringFunc(src, func(m string) string {
-		key := m[2 : len(m)-2]
-		if v, ok := named[strings.ToLower(key)]; ok {
+		key := strings.ToLower(m[2 : len(m)-2])
+		if v, ok := named[key]; ok {
 			return escapeArg(v)
 		}
 		if n, err := strconv.Atoi(key); err == nil && n >= 1 && n <= len(positional) {
 			return escapeArg(positional[n-1])
+		}
+		if v, ok := byPos[key]; ok {
+			return escapeArg(v)
 		}
 		return ""
 	})

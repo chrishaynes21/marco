@@ -1,5 +1,5 @@
 // Package codegen turns a macro step list into a runnable Marco route on the OS
-// act. The output is the same shape as the hand-written routes in programs/
+// act. The output is the same shape as the hand-written routes under routes/
 // (an actor with a Run capability that does OS clicks/sleeps/keys/types, with
 // loops emitted as `repeat N times...`). It is OS-agnostic.
 package codegen
@@ -18,15 +18,30 @@ import (
 // (a fraction of pixels, not all), this tolerates anti-aliasing and overlays.
 const DefaultTolerance = 24
 
-// DefaultFindTimeoutMs is how long an image click WAITS for its target to appear
-// before giving up — so a route sits through loading screens and menu transitions
-// instead of clicking the instant the button isn't there yet.
-const DefaultFindTimeoutMs = 20000
+// DefaultFindTimeoutMs is how long an anchored click's GATE waits to confirm before
+// it clicks the recorded coordinate anyway. Short on purpose: with every click auto-
+// anchored, the gate is a quick confirmation, not a load-wait — and it must never hang
+// the route when a signal can't match (a toggled button, a tooltip in the crop). The
+// click is correct regardless (it's the recorded/window-relative point), so failing
+// fast and clicking beats waiting. Use an explicit "wait for this screen" step for a
+// genuine load (that's DefaultWaitTimeoutMs).
+const DefaultFindTimeoutMs = 1500
 
 // DefaultWaitTimeoutMs is how long a "wait for this screen" step polls for the
 // captured screen before giving up — longer than a click find, since it's
 // explicitly there to sit through a load.
 const DefaultWaitTimeoutMs = 60000
+
+// TextSearchMargin (px) is the half-size of the box a DEMONSTRATED text anchor searches
+// around its recorded click — generous enough that a label which reflowed within its
+// panel is still inside it, tight enough to stay fast and avoid a stray match elsewhere.
+const TextSearchMargin = 400
+
+// DefaultTextTimeoutMs is how long a text (OCR) locator polls. It's short: a text
+// anchor is for a target that MOVED but is already on screen (a reflowing UI), and
+// each poll re-captures + re-OCRs (expensive), so we don't sit on it for long. When
+// a text anchor backs an image gate, the gate already absorbed the loading wait.
+const DefaultTextTimeoutMs = 3000
 
 // Route renders a named macro as Marco source. name is the human command name
 // (e.g. "open chest"); it becomes the route's actor (PascalCase) and the log
@@ -61,12 +76,38 @@ func Route(name, app string, steps []macroir.Step, assetDir string, declaredArgs
 	if app != "" {
 		fmt.Fprintf(&b, "// Context: %s (brought to the foreground before running).\n", app)
 	}
-	b.WriteString("use os.\n\n")
-	// An image-find click needs an Anchor set type to pass to OS's Find.
+	b.WriteString("use os.\n")
+	// A text anchor resolves through the OCR resolver plugin (the Text act).
+	if g.textN > 0 {
+		b.WriteString("use text.\n")
+	}
+	// A vision anchor resolves through the semantic detector plugin (the Vision act).
+	if g.visionN > 0 {
+		b.WriteString("use vision.\n")
+	}
+	b.WriteString("\n")
+	// An anchored click needs an Anchor set type — one shape carries every resolver:
+	// OS's Find reads Image/Color/X/Y, Text's Find reads Text; each ignores the rest.
 	if g.anchorN > 0 {
-		b.WriteString("// An on-screen target located by image, so the click survives the UI moving.\n")
+		b.WriteString("// An on-screen target the engine resolves by SCORING signals into a confidence:\n")
+		b.WriteString("// the Image crop match, the pixel Colour at the click, and how near a candidate\n")
+		b.WriteString("// is to the recorded point (X,Y / window-relative RelX,RelY). Clears the bar →\n")
+		b.WriteString("// click the located point (follows a moved target); below it → fall back. Text is\n")
+		b.WriteString("// the OCR locator, tried when the scored signals are unsure.\n")
 		b.WriteString("the Anchor is a set.\n")
 		b.WriteString("this's Image is a text.\n")
+		b.WriteString("this's Color is a text.    // signal: the pixel colour at X,Y\n")
+		b.WriteString("this's Window is a text.   // context: the window title to act within\n")
+		b.WriteString("this's Text is a text.     // locator: on-screen text to find by OCR\n")
+		b.WriteString("this's Label is a text.    // locator: the control CLASS for the Vision detector\n")
+		b.WriteString("this's X is a number.\n")
+		b.WriteString("this's Y is a number.\n")
+		b.WriteString("this's RelX is a number.   // window-relative click (resolved after Activate)\n")
+		b.WriteString("this's RelY is a number.\n")
+		b.WriteString("this's X1 is a number.     // search region for the Text / Vision locators\n")
+		b.WriteString("this's Y1 is a number.\n")
+		b.WriteString("this's X2 is a number.\n")
+		b.WriteString("this's Y2 is a number.\n")
 		b.WriteString("this's Tolerance is a number.\n")
 		b.WriteString("this's Timeout is a number.  // ms to wait for it to appear\n\n")
 	}
@@ -109,6 +150,8 @@ type gen struct {
 	base     string
 	assets   map[string][]byte
 	anchorN  int
+	textN    int             // anchors carrying a Text locator → emit `use text.`
+	visionN  int             // anchors carrying a Vision locator → emit `use vision.`
 	declared map[string]bool // declared arg names: {{name}} kept (filled at run), not a secret
 }
 
@@ -155,10 +198,10 @@ func emit(steps []macroir.Step, g *gen, depth int) (string, error) {
 			fmt.Fprintf(&b, "%sdo OS's Activate with \"%s\".\n", pad, escape(s.Text))
 		case macroir.StepClick:
 			switch {
+			case len(s.Template) > 0 || s.AnchorText != "":
+				g.emitAnchoredClick(&b, s, depth) // image/colour gate and/or text locator
 			case s.Button != "" && s.Button != "left":
 				fmt.Fprintf(&b, "%sdo OS's Click with %q.\n", pad, s.Button)
-			case len(s.Template) > 0:
-				g.emitImageClick(&b, s, depth)
 			default:
 				name := g.pts.clickPoint(s)
 				fmt.Fprintf(&b, "%sdo OS's Click with %s.\n", pad, name)
@@ -176,6 +219,10 @@ func emit(steps []macroir.Step, g *gen, depth int) (string, error) {
 				fmt.Fprintf(&b, "%srepeat %d times...\n", pad, count)
 				fmt.Fprintf(&b, "%sdo OS's Key with %q.\n", indent(depth+1), s.Key)
 			}
+		case macroir.StepKeyDown:
+			fmt.Fprintf(&b, "%sdo OS's KeyDown with %q.\n", pad, s.Key)
+		case macroir.StepKeyUp:
+			fmt.Fprintf(&b, "%sdo OS's KeyUp with %q.\n", pad, s.Key)
 		case macroir.StepType:
 			// {{name}} placeholders: a DECLARED arg (or numeric {{N}}) stays in the
 			// text to be filled at run time; any other {{name}} becomes a Secret lookup
@@ -217,28 +264,142 @@ func emit(steps []macroir.Step, g *gen, depth int) (string, error) {
 	return b.String(), nil
 }
 
-// emitImageClick renders an image-matched click: locate the captured template on
-// screen and click its center; if it isn't found, fall back to the coordinate
-// the user originally clicked (so the route still works when image search is
-// unavailable, e.g. under the dryrun host or a bridge without screen support).
-func (g *gen) emitImageClick(b *strings.Builder, s macroir.Step, depth int) {
+// emitAnchoredClick renders a click resolved by one or more anchors. There are two
+// kinds, and they compose:
+//
+//   - GATE (Image and/or Colour): a wait gate. Find blocks until the captured
+//     screen/menu appears (its pixels don't move on a static page), then we click the
+//     recorded COORDINATE — exactly where you clicked, regardless of how the template
+//     was cropped (capture the whole menu for context without dragging the click to
+//     its centre). If it never appears we click the coordinate anyway (best effort).
+//
+//   - LOCATOR (Text, then Vision): used when the gate fails (or alone), because the
+//     target MOVED — a reflowing UI. Text's Find returns where the WORD is now; Vision's
+//     Locate returns where the nearest control of the same CLASS ("button"/"icon") is now
+//     — the resolver for a control with no text and no clean edge. Each clicks THERE
+//     (`that`). The locators run in order of precision — exact text, then class — and the
+//     chain falls through to the recorded coordinate if none resolves (or no host wired).
+//
+// Anchors are declared up front (siblings, so locals stay top-level, not nested in an
+// arm). A left click clicks the Point directly; a right/middle click moves there first.
+func (g *gen) emitAnchoredClick(b *strings.Builder, s macroir.Step, depth int) {
 	g.anchorN++
-	fname := fmt.Sprintf("%s-anchor-%d.png", g.base, g.anchorN)
-	abs := filepath.Join(g.assetDir, fname)
-	g.assets[abs] = s.Template
-	tol := s.Tolerance
-	if tol <= 0 {
-		tol = DefaultTolerance
-	}
-	anchor := fmt.Sprintf("a%d", g.anchorN)
-	fallback := g.pts.clickPoint(s)
+	n := g.anchorN
 	pad := indent(depth)
-	fmt.Fprintf(b, "%sthe %s is an Anchor with Image \"%s\", Tolerance %d, Timeout %d.\n", pad, anchor, escape(abs), tol, DefaultFindTimeoutMs)
-	fmt.Fprintf(b, "%sdo OS's Find with %s...\n", pad, anchor)
-	fmt.Fprintf(b, "%swhen ok?\n", indent(depth+1))
-	fmt.Fprintf(b, "%sdo OS's Click with that.\n", indent(depth+2))
-	fmt.Fprintf(b, "%sor?\n", indent(depth+1))
-	fmt.Fprintf(b, "%sdo OS's Click with %s.\n", indent(depth+2), fallback)
+	point := g.pts.clickPoint(s) // the recorded click coordinate (window-relative)
+	hasGate := len(s.Template) > 0
+	hasText := s.AnchorText != ""
+	hasVision := s.AnchorVision != ""
+
+	// clickRecorded clicks the recorded Point (the gate model / final fallback).
+	clickRecorded := func(d int) {
+		if s.Button == "" || s.Button == "left" {
+			fmt.Fprintf(b, "%sdo OS's Click with %s.\n", indent(d), point)
+			return
+		}
+		fmt.Fprintf(b, "%sdo OS's Move with %s.\n", indent(d), point)
+		fmt.Fprintf(b, "%sdo OS's Click with %q.\n", indent(d), s.Button)
+	}
+	// clickFound clicks where the located text is (`that`, the Point Text's Find returns).
+	clickFound := func(d int) {
+		if s.Button == "" || s.Button == "left" {
+			fmt.Fprintf(b, "%sdo OS's Click with that.\n", indent(d))
+			return
+		}
+		fmt.Fprintf(b, "%sdo OS's Move with that.\n", indent(d))
+		fmt.Fprintf(b, "%sdo OS's Click with %q.\n", indent(d), s.Button)
+	}
+
+	// Declare the gate anchor (Image + optional Colour) up front.
+	if hasGate {
+		fname := fmt.Sprintf("%s-anchor-%d.png", g.base, n)
+		abs := filepath.Join(g.assetDir, fname)
+		g.assets[abs] = s.Template
+		tol := s.Tolerance
+		if tol <= 0 {
+			tol = DefaultTolerance
+		}
+		// The scorer needs the recorded click point on the anchor: X,Y (absolute) plus
+		// RelX,RelY (window-relative) so colour/position probe the RIGHT pixel after an
+		// Activate. Colour, when captured, is an extra signal at that point.
+		extra := fmt.Sprintf(", X %d, Y %d", s.X, s.Y)
+		if s.WinRel {
+			extra += fmt.Sprintf(", RelX %d, RelY %d", s.RelX, s.RelY)
+		}
+		if s.Color != "" {
+			extra = fmt.Sprintf(", Color \"%s\"", escape(s.Color)) + extra
+		}
+		if s.Window != "" {
+			extra = fmt.Sprintf(", Window \"%s\"", escape(s.Window)) + extra
+		}
+		fmt.Fprintf(b, "%sthe a%d is an Anchor with Image \"%s\"%s, Tolerance %d, Timeout %d.\n", pad, n, escape(abs), extra, tol, DefaultFindTimeoutMs)
+	}
+	// A DEMONSTRATED anchor (hasGate → it carries the recorded click coordinate) restricts
+	// the locator search to a box around that point: the control moved within its panel,
+	// not across the screen, so a region is faster than a whole-screen scan and avoids a
+	// stray match elsewhere on a busy desktop. A coordinate-less narrated anchor searches
+	// the whole screen.
+	region := ""
+	if hasGate {
+		x1, y1 := s.X-TextSearchMargin, s.Y-TextSearchMargin
+		if x1 < 0 {
+			x1 = 0
+		}
+		if y1 < 0 {
+			y1 = 0
+		}
+		region = fmt.Sprintf(", X1 %d, Y1 %d, X2 %d, Y2 %d", x1, y1, s.X+TextSearchMargin, s.Y+TextSearchMargin)
+	}
+
+	// Declare the text locator (Text's Find: exact on-screen text).
+	if hasText {
+		g.textN++
+		fmt.Fprintf(b, "%sthe t%d is an Anchor with Text \"%s\"%s, Timeout %d.\n", pad, n, escape(s.AnchorText), region, DefaultTextTimeoutMs)
+	}
+	// Declare the vision locator (Vision's Locate: the control CLASS, nearest the recorded
+	// point) — the resolver for a control with no text and no clean edge.
+	if hasVision {
+		g.visionN++
+		hint := ""
+		if hasGate {
+			hint = fmt.Sprintf(", X %d, Y %d", s.X, s.Y)
+		}
+		fmt.Fprintf(b, "%sthe v%d is an Anchor with Label \"%s\"%s%s, Timeout %d.\n", pad, n, escape(s.AnchorVision), hint, region, DefaultTextTimeoutMs)
+	}
+
+	// The locators, in order of preference: exact TEXT, then semantic CLASS, then (in
+	// emitChain's base case) the recorded coordinate. Each resolves to a point and clicks
+	// it; on failure it falls through to the next.
+	var calls []string
+	if hasText {
+		calls = append(calls, fmt.Sprintf("Text's Find with t%d", n))
+	}
+	if hasVision {
+		calls = append(calls, fmt.Sprintf("Vision's Locate with v%d", n))
+	}
+	var emitChain func(i, d int)
+	emitChain = func(i, d int) {
+		if i >= len(calls) {
+			clickRecorded(d) // exhausted the locators — best-effort recorded coordinate
+			return
+		}
+		fmt.Fprintf(b, "%sdo %s...\n", indent(d), calls[i])
+		fmt.Fprintf(b, "%swhen ok?\n", indent(d+1))
+		clickFound(d + 2)
+		fmt.Fprintf(b, "%sor?\n", indent(d+1))
+		emitChain(i+1, d+2)
+	}
+
+	if hasGate {
+		fmt.Fprintf(b, "%sdo OS's Find with a%d...\n", pad, n) // scored resolve
+		fmt.Fprintf(b, "%swhen ok?\n", indent(depth+1))
+		clickFound(depth + 2) // confident → click the scored location (follows a moved target)
+		fmt.Fprintf(b, "%sor?\n", indent(depth+1))
+		emitChain(0, depth+2) // unsure — try text, then vision, then the recorded coordinate
+		return
+	}
+	// No gate (a narrated text/vision-only anchor): run the locator chain directly.
+	emitChain(0, depth)
 }
 
 // emitWaitImage renders a "wait for this screen" step: poll for the captured image

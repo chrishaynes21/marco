@@ -1,1 +1,1 @@
-from speaker
+[INFO] from speaker

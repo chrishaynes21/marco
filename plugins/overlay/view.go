@@ -13,6 +13,7 @@ import (
 	"image/color"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -255,10 +256,16 @@ func layoutHeight(s snapshot) int {
 	var y float64
 	if mini {
 		y = 16 + terminalHeight(s, innerW) // just the (wrapping) command line
+		if cfgCoords() && s.curHasPos {
+			y += 15 // coords tooltip line
+		}
 	} else {
 		y = 20 + 18 + 15 + 16 // title crown
 		if cfgMetrics() {
 			y += 15 // cpu/ram widget line
+		}
+		if cfgCoords() && s.curHasPos {
+			y += 15 // coords tooltip line
 		}
 		y += 12                        // separator
 		y += descHeight(s, innerW)     // description / hint line (wraps if long)
@@ -311,6 +318,10 @@ func (g *view) Draw(screen *ebiten.Image) {
 		y = 16
 		drawTerminalLine(screen, pad, y, innerW, s, scol, blink)
 		y += terminalHeight(s, innerW)
+		if c.Coords && s.curHasPos {
+			drawText(screen, fmt.Sprintf("x %d   y %d", s.curX, s.curY), pad, y, faceSmall, th.listen)
+			y += 15
+		}
 	} else {
 		// --- Title crown: clock / date / name, centred. ---
 		now := time.Now()
@@ -325,6 +336,12 @@ func (g *view) Draw(screen *ebiten.Image) {
 		// --- Optional system widget: CPU / RAM. ---
 		if c.Metrics {
 			centerText(screen, fmt.Sprintf("cpu %.0f%%   ram %.0f%%", s.cpu, s.ram), cx, y, faceSmall, th.desc)
+			y += 15
+		}
+
+		// --- Optional live cursor-coords tooltip (handy for teaching, esp. multi-monitor). ---
+		if c.Coords && s.curHasPos {
+			centerText(screen, fmt.Sprintf("x %d   y %d", s.curX, s.curY), cx, y, faceSmall, th.listen)
 			y += 15
 		}
 
@@ -410,8 +427,8 @@ func (g *view) Draw(screen *ebiten.Image) {
 		sep(screen, pad, y-4, innerW)
 		y += 8
 		right := pad + innerW
-		for i := len(s.history) - 1; i >= 0; i-- { // newest on top (a stack)
-			e := s.history[i]
+		for _, e := range slices.Backward(s.history) { // newest on top (a stack)
+
 			col := resultColor(e.outcome)
 			t := dur(e.dur)
 			tw, _ := text.Measure(t, faceSmall, 0)
@@ -432,7 +449,7 @@ func (g *view) Draw(screen *ebiten.Image) {
 // accent as the `m leader badge), so a marco command reads distinctly from a
 // plain route name.
 var marcoVerbs = map[string]bool{
-	"teach": true, "simplify": true, "forget": true, "delete": true, "rm": true,
+	"teach": true, "simplify": true, "forget": true, "rename": true,
 	"bind": true, "unbind": true, "config": true, "help": true,
 	"exit": true, "quit": true,
 }
@@ -446,22 +463,9 @@ func drawTerminalLine(dst *ebiten.Image, pad, y, innerW float64, s snapshot, sco
 	// space is one you type (`m + space + command), shown verbatim.
 	if s.editing {
 		bw := drawText(dst, "`m", pad, y, faceBody, scol) // accent badge
-		avail := innerW - bw
-		rows := wrapText(s.input, faceBody, avail)
-		// Short command: render richly on one line (verb accent + verbatim spaces),
-		// then any auto-popped arg labels after it.
-		if len(rows) <= 1 {
-			cur := drawCommand(dst, s.input, blink, pad+bw, y, scol)
-			drawArgHints(dst, s.argHints, cur, y)
-			return
-		}
-		// Long command: wrap under the badge, plain colour, cursor after the last row.
-		for i, ln := range rows {
-			cur := drawText(dst, ln, pad+bw, y+float64(i)*termContH, faceBody, th.cmd)
-			if i == len(rows)-1 {
-				drawText(dst, blink, pad+bw+cur, y+float64(i)*termContH, faceBody, th.cmd)
-			}
-		}
+		// Render the typed command with the verb accented and the arg labels woven into
+		// the "with" clause, wrapping across rows under the badge.
+		drawEditLine(dst, s.input, blink, s.argHints, pad+bw, y, innerW-bw, scol)
 		return
 	}
 	bw := drawText(dst, "> ", pad, y, faceBody, scol)
@@ -491,7 +495,10 @@ func terminalRows(s snapshot, innerW float64) int {
 	}
 	if s.editing {
 		bw, _ := text.Measure("`m", faceBody, 0)
-		return len(wrapText(s.input, faceBody, innerW-bw))
+		// Count rows the way drawEditLine lays them out (the labels widen the line, so a
+		// plain wrapText of the raw input would under-count).
+		_, row := layoutRuns(editRuns(s.input, s.argHints, th.name), 0, innerW-bw, nil)
+		return row + 1
 	}
 	bw, _ := text.Measure("> ", faceBody, 0)
 	avail := innerW - bw
@@ -510,35 +517,109 @@ func terminalHeight(s snapshot, innerW float64) float64 {
 	return 20 + float64(terminalRows(s, innerW)-1)*termContH
 }
 
-// drawCommand draws the typed command flush at x, then the blink cursor. Any
-// leading space the user typed is rendered verbatim; the first real word is
-// highlighted in the accent colour when it's a marco verb, the rest in th.cmd.
-func drawCommand(dst *ebiten.Image, in, blink string, x, y float64, accent color.RGBA) float64 {
-	cur := x
-	trimmed := strings.TrimLeft(in, " ")
-	if lead := in[:len(in)-len(trimmed)]; lead != "" {
-		cur += drawText(dst, lead, cur, y, faceBody, th.cmd) // the space(s) you typed
-	}
-	first, rest, hasSpace := strings.Cut(trimmed, " ")
-	if marcoVerbs[strings.ToLower(first)] {
-		cur += drawText(dst, first, cur, y, faceBody, accent)
-		if hasSpace {
-			cur += drawText(dst, " "+rest, cur, y, faceBody, th.cmd)
-		}
-	} else {
-		cur += drawText(dst, trimmed, cur, y, faceBody, th.cmd)
-	}
-	drawText(dst, blink, cur, y, faceBody, th.cmd)
-	return cur // end of the typed text, where arg-hint labels follow
+// editRun is one colored stretch of the command line (verb, plain text, or an
+// arg-name label). editRuns flattens the typed command into these; layoutRuns then
+// wraps and draws them so a long "with" clause flows across rows like plain text.
+type editRun struct {
+	s   string
+	col color.RGBA
 }
 
-// drawArgHints renders the auto-popped "name:" argument labels as a highlighted
-// suggestion after the command, with a (tab) hint to accept the first.
-func drawArgHints(dst *ebiten.Image, hints []string, x, y float64) {
-	if len(hints) == 0 {
+// editRuns flattens the command being typed into colored runs: leading spaces and
+// non-verb words in th.cmd, a recognized verb in the accent colour, and — once a
+// "with" clause is present — each positional value behind its colored arg-name label
+// ("say hello with name:chris"). The labels are a visual guide only; the command
+// sent to marco stays "say hello with chris".
+func editRuns(in string, names []string, accent color.RGBA) []editRun {
+	var rs []editRun
+	addCmd := func(part string) { // verb-accent the first word, rest in th.cmd
+		trimmed := strings.TrimLeft(part, " ")
+		if lead := part[:len(part)-len(trimmed)]; lead != "" {
+			rs = append(rs, editRun{lead, th.cmd})
+		}
+		first, rest, hasSpace := strings.Cut(trimmed, " ")
+		if marcoVerbs[strings.ToLower(first)] {
+			rs = append(rs, editRun{first, accent})
+			if hasSpace {
+				rs = append(rs, editRun{" " + rest, th.cmd})
+			}
+		} else if trimmed != "" {
+			rs = append(rs, editRun{trimmed, th.cmd})
+		}
+	}
+	idx := strings.Index(strings.ToLower(in), " with ")
+	if idx < 0 {
+		addCmd(in)
+		return rs
+	}
+	addCmd(in[:idx])
+	rs = append(rs, editRun{" with ", th.cmd})
+	for i, seg := range strings.Split(in[idx+len(" with "):], ",") {
+		if i > 0 {
+			rs = append(rs, editRun{", ", th.cmd})
+		}
+		if i < len(names) { // colored label in front of the value the user typed
+			rs = append(rs, editRun{names[i] + ":", th.listen})
+		}
+		rs = append(rs, editRun{strings.TrimSpace(seg), th.cmd})
+	}
+	return rs
+}
+
+// layoutRuns places styled runs left-to-right in faceBody, word-wrapping on spaces
+// within avail (a leading space after a wrap is dropped). emit draws each placed atom
+// at its (x, row); pass nil to only measure. Returns the end x and final row index,
+// so the caller can place the cursor / a trailing hint.
+func layoutRuns(rs []editRun, x0, avail float64, emit func(s string, col color.RGBA, x float64, row int)) (endX float64, row int) {
+	cur := x0
+	for _, r := range rs {
+		for i := 0; i < len(r.s); {
+			isSpace := r.s[i] == ' '
+			j := i
+			for j < len(r.s) && (r.s[j] == ' ') == isSpace {
+				j++
+			}
+			seg := r.s[i:j]
+			i = j
+			w, _ := text.Measure(seg, faceBody, 0)
+			if !isSpace && cur > x0 && cur-x0+w > avail { // word overflows → next row
+				row++
+				cur = x0
+			}
+			if isSpace && cur == x0 && row > 0 { // drop a leading space only after a wrap
+				continue
+			}
+			if emit != nil {
+				emit(seg, r.col, cur, row)
+			}
+			cur += w
+		}
+	}
+	return cur, row
+}
+
+// drawEditLine renders the command being typed, wrapping across rows from (x, y).
+// Before a "with" clause exists, the arg labels trail as a "name:  (tab)" suggestion;
+// once it does, they sit in front of each value (see editRuns).
+func drawEditLine(dst *ebiten.Image, in, blink string, names []string, x, y, avail float64, accent color.RGBA) {
+	rs := editRuns(in, names, accent)
+	endX, row := layoutRuns(rs, x, avail, func(s string, col color.RGBA, ax float64, r int) {
+		drawText(dst, s, ax, y+float64(r)*termContH, faceBody, col)
+	})
+	ry := y + float64(row)*termContH
+	drawText(dst, blink, endX, ry, faceBody, th.cmd)
+	if !strings.Contains(strings.ToLower(in), " with ") {
+		drawArgSuggestion(dst, names, endX, ry) // prompt to start the args clause
+	}
+}
+
+// drawArgSuggestion renders the arg labels as a trailing "name:  (tab)" suggestion,
+// shown before a "with" clause exists to prompt adding arguments.
+func drawArgSuggestion(dst *ebiten.Image, names []string, x, y float64) {
+	if len(names) == 0 {
 		return
 	}
-	drawText(dst, "  "+strings.Join(hints, ": ")+":  (tab)", x, y, faceSmall, th.listen)
+	drawText(dst, "  "+strings.Join(names, ": ")+":  (tab)", x, y, faceSmall, th.listen)
 }
 
 // drawResultIcon draws the outcome glyph as a VECTOR (no font dependency — the
@@ -762,9 +843,9 @@ func wrapText(s string, face *text.GoTextFace, maxWidth float64) []string {
 		return w <= maxWidth
 	}
 	var lines []string
-	for _, para := range strings.Split(s, "\n") {
+	for para := range strings.SplitSeq(s, "\n") {
 		cur := ""
-		for _, word := range strings.Fields(para) {
+		for word := range strings.FieldsSeq(para) {
 			switch {
 			case cur == "":
 				cur = word
