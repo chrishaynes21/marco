@@ -58,6 +58,7 @@ type recBackend struct {
 	typed    []string
 	clicks   []string
 	moves    [][2]int
+	drags    [][4]int
 	exe      string
 }
 
@@ -100,6 +101,12 @@ func (r *recBackend) clickAt(_ context.Context, b string, x, y int) error {
 	r.clicks = append(r.clicks, b)
 	return nil
 }
+func (r *recBackend) drag(_ context.Context, _ string, x1, y1, x2, y2 int) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.drags = append(r.drags, [4]int{x1, y1, x2, y2})
+	return nil
+}
 func (r *recBackend) move(_ context.Context, x, y int) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -118,6 +125,22 @@ func pointVal(x, y int) runtime.Value {
 	s.Put("X", runtime.Number(float64(x)))
 	s.Put("Y", runtime.Number(float64(y)))
 	return runtime.SetVal(s)
+}
+
+func TestDrag(t *testing.T) {
+	rec := &recBackend{}
+	h := &Host{b: rec}
+	s := runtime.NewSet()
+	for k, v := range map[string]int{"FromX": 10, "FromY": 20, "ToX": 300, "ToY": 400} {
+		s.Put(k, runtime.Number(float64(v)))
+	}
+	s.Put("Button", runtime.Text("left"))
+	if st, _, _ := call(h, "Drag", runtime.SetVal(s)); st != "ok" {
+		t.Fatalf("Drag status = %q", st)
+	}
+	if len(rec.drags) != 1 || rec.drags[0] != [4]int{10, 20, 300, 400} {
+		t.Fatalf("drags = %v, want one [10 20 300 400]", rec.drags)
+	}
 }
 
 func TestKeyAndType(t *testing.T) {

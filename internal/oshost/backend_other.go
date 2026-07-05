@@ -27,6 +27,9 @@ func (stubBackend) click(context.Context, string) error    { return unsupported(
 func (stubBackend) clickAt(context.Context, string, int, int) error {
 	return unsupported("click")
 }
+func (stubBackend) drag(context.Context, string, int, int, int, int) error {
+	return unsupported("drag")
+}
 func (stubBackend) move(context.Context, int, int) error { return unsupported("move") }
 func (stubBackend) color(context.Context, int, int) (uint32, error) {
 	return 0, unsupported("color")

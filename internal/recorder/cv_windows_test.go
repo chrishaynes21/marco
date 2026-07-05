@@ -29,14 +29,15 @@ func TestAnchorsEnabledHonorsCV(t *testing.T) {
 	if anchorsEnabled() {
 		t.Error("CV=off should force anchors off")
 	}
-	// With no CV switch, the existing MARCO_ANCHORS default (on) and override (off) hold.
+	// CV is a feature flag that's OFF BY DEFAULT now: with no CV switch and no MARCO_ANCHORS,
+	// anchors are off; MARCO_ANCHORS=1/on is the explicit opt-in.
 	t.Setenv("MARCO_CV", "")
-	t.Setenv("MARCO_ANCHORS", "0")
-	if anchorsEnabled() {
-		t.Error("no CV + MARCO_ANCHORS=0 should be off")
-	}
 	t.Setenv("MARCO_ANCHORS", "")
+	if anchorsEnabled() {
+		t.Error("no CV + no MARCO_ANCHORS should default OFF (CV is a feature flag)")
+	}
+	t.Setenv("MARCO_ANCHORS", "on")
 	if !anchorsEnabled() {
-		t.Error("no CV + no MARCO_ANCHORS should default on")
+		t.Error("MARCO_ANCHORS=on should enable anchors even with no CV switch")
 	}
 }

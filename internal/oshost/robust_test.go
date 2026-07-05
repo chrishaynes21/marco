@@ -9,8 +9,11 @@ import (
 )
 
 // TestMain isolates the anchor cache to a temp file so tests neither read nor pollute the
-// real one on the dev machine.
+// real one on the dev machine, and enables CV for the package — most Find tests exercise the
+// hover/score matching path, which is OFF by default now (a feature flag). The one CV-off test
+// overrides with MARCO_CV=off.
 func TestMain(m *testing.M) {
+	os.Setenv("MARCO_CV", "on")
 	dir, err := os.MkdirTemp("", "marco-oshost")
 	if err == nil {
 		os.Setenv("MARCO_ANCHOR_CACHE_FILE", filepath.Join(dir, "anchors.json"))

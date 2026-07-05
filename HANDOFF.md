@@ -448,8 +448,10 @@ go -C plugins/overlay build -o overlay.exe .
 demonstrated click becomes a multi-signal anchor (image+edge+colour+histogram+window, OCR
 text locator, Vision class locator, last-known cache), EVERY button, even a non-distinctive
 patch (`recorder.cvKitchenSink`: anchors all buttons + skips the `Distinctive` gate so the
-OCR/Vision resolvers can still label it); `off` = plain coordinates, no anchors/resolvers;
-unset = today's per-knob defaults. Run-time scoring stays conservative either way (kitchen
+OCR/Vision resolvers can still label it); `off` = plain coordinates, no anchors/resolvers.
+**CV IS NOW OFF BY DEFAULT** — a feature flag, because the anchor stack isn't reliable on real
+game UIs yet; **unset = off** (was: anchors on). Turn CV on with `MARCO_CV=on`/`max` or
+`MARCO_ANCHORS=1/on` (`setup.ps1 -CV`). Run-time scoring stays conservative either way (kitchen
 sink captures MORE signals, never clicks less safely). The one flag to A/B the whole CV
 stack; re-run `setup.ps1` + relaunch `overlay.cmd` to flip. Tests: `recorder`
 `cv_windows_test.go`.
@@ -466,6 +468,41 @@ needed to un-hang them (though re-teaching gives the proper timings vs the old c
 Gate: `cvOff()` (`$MARCO_CV=off` or `$MARCO_ANCHORS=0/off`), defined in both packages. Teach at
 the game's real pace — the pauses you make become the replay waits. Tests: `oshost`
 `TestFindCVOffClicksRecorded`.
+
+**`marco edit "<route>"` — a web editor for a route's TIMINGS + CLICK COORDINATES**
+(`cmd/marco/edit.go`), the companion to CV-off mode (where waits + coordinates ARE the whole
+route). Self-contained: `net/http` is stdlib, so it holds the zero-dep rule (no plugin needed).
+It resolves the route (`Reg.Resolve`, falling back to `findRouteByName` across scopes), reads the
+`.marco`, serves a local editor page (auto-opens the browser), and writes edits straight back via
+`Reg.Save`. The page shows the top-level action/wait sequence (`parseSteps`: `do …` body lines;
+nested Find arms + decls hidden): each `Sleep` is an editable ms input, and each click/move at a
+named Point gets editable x,y inputs (its coords, looked up from the Point decls via
+`parsePoints`), plus the full source in a `<details>`. Save posts `{waits[], points{name:[x,y]}}`;
+`applyWaits` rewrites the Nth `Sleep with N.` (`sleepRE`) and `applyPoints` rewrites each edited
+Point's X,Y (`pointDeclRE`), shifting its window-relative `RelX,RelY` by the SAME delta so both
+stay consistent. Tests: `cmd/marco` `edit_test.go`
+(`TestEditParseSteps`/`TestEditApplyPoints`/`TestEditRebuild`); verified end-to-end via the local
+server. NOTE: coord editing attaches to top-level `Click/Move with pN` steps (CV-off routes); an
+anchored route's top-level `Find` steps carry their coords on the anchor/fallback — editing those
+(anchor `Timeout`/`X,Y`) is the obvious next extension.
+
+**Editor now also DELETES steps and converts a click → DRAG.** The save engine is line-keyed
+(`rebuild` + `saveReq{Waits{line:ms}, Points{name:xy}, Deletes[line], Drags{line:[fromX,fromY,
+toX,toY]}}`): a `✕` marks a step's source line for removal (an unused Point decl left behind
+compiles fine — verified), and a `drag` toggle on a click/move reveals a "to" point and rewrites
+that line into a real `Drag` (a `the dragN is a Drag with FromX…ToY…` decl + `do OS's Drag with
+dragN`, numbered after any existing drags via `dragNumRE`). Line-keying means a delete doesn't
+disturb the other edits. Verified end-to-end: click→drag + delete + wait edit → the route still
+compiles.
+
+**Real drag primitive — `OS's Drag` (NEW).** Codegen used to fake a StepDrag as "move-to-start +
+click-end" (the old `// TODO drag (no hold primitive)`); now there's a genuine one. `os.marco`
+exports `Drag` + a `Drag` set (`FromX,FromY,ToX,ToY,Button`); `oshost.doDrag` reads it and calls
+`backend.drag`, which (Windows) presses the button at the start, GLIDES to the end as a trail of
+injected MOVE events (so a game registers the drag motion, not a teleport), then releases;
+`codegen` `StepDrag` emits `the dragN is a Drag …` + `do OS's Drag with dragN`. Backend interface
+gained `drag(ctx, button, x1,y1,x2,y2)` (+ stub + `recBackend`). Absolute coords (window-relative
+is a later add). Tests: `oshost` `TestDrag`.
 
 **`MARCO_CV_SENSITIVITY`** (0 = strict … 1 = loose, default 0.5) — the **CV find dial**,
 the fine control beside the coarse `MARCO_CV` switch. One knob that scales how eagerly an

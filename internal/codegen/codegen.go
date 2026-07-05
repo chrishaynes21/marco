@@ -152,6 +152,7 @@ type gen struct {
 	anchorN  int
 	textN    int             // anchors carrying a Text locator → emit `use text.`
 	visionN  int             // anchors carrying a Vision locator → emit `use vision.`
+	dragN    int             // Drag steps → numbered `the dragN is a Drag …` locals
 	declared map[string]bool // declared arg names: {{name}} kept (filled at run), not a secret
 }
 
@@ -242,12 +243,16 @@ func emit(steps []macroir.Step, g *gen, depth int) (string, error) {
 				}
 			}
 		case macroir.StepDrag:
-			// No button-hold primitive yet — degrade to move-to-start + click-end.
-			start := g.pts.add(s.X, s.Y)
-			end := g.pts.add(s.X2, s.Y2)
-			fmt.Fprintf(&b, "%s// TODO drag (no hold primitive): move to start, click end.\n", pad)
-			fmt.Fprintf(&b, "%sdo OS's Move with %s.\n", pad, start)
-			fmt.Fprintf(&b, "%sdo OS's Click with %s.\n", pad, end)
+			// A real press-hold-release drag (OS's Drag primitive): press at the start, glide to
+			// the end, release. The Drag set type comes from os.marco.
+			btn := s.Button
+			if btn == "" {
+				btn = "left"
+			}
+			g.dragN++
+			fmt.Fprintf(&b, "%sthe drag%d is a Drag with FromX %d, FromY %d, ToX %d, ToY %d, Button %q.\n",
+				pad, g.dragN, s.X, s.Y, s.X2, s.Y2, btn)
+			fmt.Fprintf(&b, "%sdo OS's Drag with drag%d.\n", pad, g.dragN)
 		case macroir.StepLoop:
 			fmt.Fprintf(&b, "%srepeat %d times...\n", pad, s.Count)
 			inner, err := emit(s.Steps, g, depth+1)

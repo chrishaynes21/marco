@@ -10,6 +10,7 @@ this exports KeyUp.      // release a held key
 this exports Type.      // type a text string
 this exports Click.     // click; input may be a Point to move-then-click
 this exports Move.      // move the cursor to a Point
+this exports Drag.      // press at (FromX,FromY), glide to (ToX,ToY), release — a real drag
 this exports Sleep.     // sleep N milliseconds (a number)
 this exports Color.     // read the pixel at a Point; result is a hex text
 this exports Focus.     // ok if the active window matches the given text
@@ -29,3 +30,11 @@ this exports Restore.   // return focus to the window that was in front before t
 the Point is a set.
 this's X is a number.
 this's Y is a number.
+
+// A press-hold-release drag from (FromX,FromY) to (ToX,ToY), passed to Drag.
+the Drag is a set.
+this's FromX is a number.
+this's FromY is a number.
+this's ToX is a number.
+this's ToY is a number.
+this's Button is a text.   // "left" | "right" | "middle" (default left)

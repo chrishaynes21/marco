@@ -34,6 +34,7 @@ type backend interface {
 	typeText(ctx context.Context, text string) error
 	click(ctx context.Context, button string) error
 	clickAt(ctx context.Context, button string, x, y int) error
+	drag(ctx context.Context, button string, x1, y1, x2, y2 int) error
 	move(ctx context.Context, x, y int) error
 	color(ctx context.Context, x, y int) (uint32, error)
 	activeExe(ctx context.Context) (string, error)
@@ -124,6 +125,8 @@ func (h *Host) Invoke(c runtime.HostCall) (string, runtime.Value, error) {
 		}
 		mlog.Debug("move: to point", "x", x, "y", y)
 		return ok(h.b.move(c.Ctx, x, y))
+	case "drag":
+		return h.doDrag(c)
 	case "sleep":
 		return h.doSleep(c)
 	case "color":
@@ -762,18 +765,40 @@ func (h *Host) glide(ctx context.Context, x, y int) error {
 	return h.b.move(ctx, x, y) // land exactly on the target
 }
 
-// cvOff reports whether computer vision / anchors are switched off ($MARCO_CV=off, or
-// $MARCO_ANCHORS=0/off) — the "just click recorded coordinates + timings" alpha mode, where
-// doFind skips matching and resolves straight to the recorded point.
+// doDrag performs a press-hold-release drag from (FromX,FromY) to (ToX,ToY) — the real drag
+// primitive behind a route's `do OS's Drag with …`. Absolute coordinates; Button defaults left.
+func (h *Host) doDrag(c runtime.HostCall) (string, runtime.Value, error) {
+	if !c.Input.IsSet() {
+		return fail("drag needs a Drag set with FromX, FromY, ToX, ToY")
+	}
+	s := c.Input.AsSet()
+	fx, fy := setInt(s, "FromX"), setInt(s, "FromY")
+	tx, ty := setInt(s, "ToX"), setInt(s, "ToY")
+	btn := strings.TrimSpace(textOf(s, "Button"))
+	if btn == "" {
+		btn = "left"
+	}
+	mlog.Debug("drag", "from", fmt.Sprintf("(%d,%d)", fx, fy), "to", fmt.Sprintf("(%d,%d)", tx, ty), "button", btn)
+	return ok(h.b.drag(c.Ctx, btn, fx, fy, tx, ty))
+}
+
+// cvOff reports whether computer vision / anchors are OFF — the DEFAULT now. The CV anchor
+// stack isn't reliable yet, so it's behind a feature flag: off unless explicitly enabled with
+// $MARCO_CV=on/max (or $MARCO_ANCHORS=1/on). When off, doFind resolves straight to the recorded
+// coordinate (no hover/matching) and teach preserves the recorded timings. Kept consistent with
+// recorder.anchorsEnabled and orchestrator.cvOff.
 func cvOff() bool {
-	if strings.EqualFold(strings.TrimSpace(os.Getenv("MARCO_CV")), "off") {
-		return true
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("MARCO_CV"))) {
+	case "max", "1", "on", "all", "true", "yes":
+		return false // CV explicitly on
+	case "0", "off", "false", "no", "none":
+		return true // CV explicitly off
 	}
 	switch strings.ToLower(strings.TrimSpace(os.Getenv("MARCO_ANCHORS"))) {
-	case "0", "off", "false", "no":
-		return true
+	case "1", "on", "true", "yes":
+		return false // anchors explicitly on
 	}
-	return false
+	return true // default: CV off
 }
 
 // cvSensitivity is the master CV looseness dial (0 = strict, 1 = loose), default 0.5.

@@ -201,6 +201,33 @@ func (winBackend) clickAt(ctx context.Context, button string, x, y int) error {
 	return ctx.Err()
 }
 
+// drag performs a REAL button-held drag: move to the start, press the button, GLIDE to the end
+// as a trail of injected MOVE events (so an app/game registers the drag motion, not a teleport),
+// then release. Absolute coordinates over the virtual desktop, like clickAt.
+func (winBackend) drag(ctx context.Context, button string, x1, y1, x2, y2 int) error {
+	down, up := mouseButtonFlags(button)
+	vx, vy, vw, vh := virtualDesk()
+	const absDesk = _MOUSEEVENTF_ABSOLUTE | _MOUSEEVENTF_VIRTUALDESK
+	send := func(x, y int, flags uint32) {
+		nx, ny := normAbsolute(x, y, vx, vy, vw, vh)
+		sendInputs([]inputT{mouseInputT(nx, ny, 0, flags)})
+	}
+	send(x1, y1, _MOUSEEVENTF_MOVE|absDesk) // to start
+	send(x1, y1, down|absDesk)              // press
+	const steps = 24
+	for i := 1; i < steps; i++ {
+		if ctx.Err() != nil {
+			break
+		}
+		t := float64(i) / float64(steps)
+		send(x1+int(float64(x2-x1)*t), y1+int(float64(y2-y1)*t), _MOUSEEVENTF_MOVE|absDesk)
+		time.Sleep(8 * time.Millisecond) // let the drag motion register between steps
+	}
+	send(x2, y2, _MOUSEEVENTF_MOVE|absDesk) // land exactly on the end
+	send(x2, y2, up|absDesk)                // release
+	return ctx.Err()
+}
+
 // move sends a real injected mouse-MOVE event (SendInput), not a bare SetCursorPos.
 // SetCursorPos only repositions the pointer; many apps — and ESPECIALLY games reading raw
 // input — only fire their hover/highlight on an actual movement event, so a hover-settle

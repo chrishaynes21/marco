@@ -15,6 +15,14 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/runtime"
 )
 
+// TestMain enables CV for the package — these teach tests were written for the CV-on default
+// (anchors captured, waits capped to 50ms). CV is a feature flag that's OFF by default now, so
+// without this the faithful-timing path would change the expected Sleep values.
+func TestMain(m *testing.M) {
+	os.Setenv("MARCO_CV", "on")
+	os.Exit(m.Run())
+}
+
 // fakeRecorder replays a canned event stream, so the whole teach pipeline
 // (record → simplify → codegen → save → run) is testable with no OS hooks.
 type fakeRecorder struct {

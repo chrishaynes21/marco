@@ -68,17 +68,22 @@ func (d Deps) teachOptions() simplify.Options {
 	return o
 }
 
-// cvOff reports whether computer vision / anchors are switched off ($MARCO_CV=off, or
-// $MARCO_ANCHORS=0/off) — the "just replay recorded coordinates + timings" alpha mode.
+// cvOff reports whether computer vision / anchors are OFF — the DEFAULT now (the anchor stack
+// isn't reliable yet, so CV is a feature flag). Off unless explicitly enabled with $MARCO_CV=
+// on/max (or $MARCO_ANCHORS=1/on); when off, teach preserves the recorded timings faithfully.
+// Kept consistent with recorder.anchorsEnabled and oshost.cvOff.
 func cvOff() bool {
-	if strings.EqualFold(strings.TrimSpace(os.Getenv("MARCO_CV")), "off") {
-		return true
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("MARCO_CV"))) {
+	case "max", "1", "on", "all", "true", "yes":
+		return false // CV explicitly on
+	case "0", "off", "false", "no", "none":
+		return true // CV explicitly off
 	}
 	switch strings.ToLower(strings.TrimSpace(os.Getenv("MARCO_ANCHORS"))) {
-	case "0", "off", "false", "no":
-		return true
+	case "1", "on", "true", "yes":
+		return false // anchors explicitly on
 	}
-	return false
+	return true // default: CV off
 }
 
 // argKeyHint is the recording prompt's note about the arg key (or "" when off),

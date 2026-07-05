@@ -27,11 +27,10 @@ import (
 // $MARCO_CLICK_RADIUS (pixels; the patch is 2× this).
 var clickTemplateRadius = clickRadiusFromEnv()
 
-// captureAnchors gates per-click anchor capture. Default ON — anchors are first-class:
-// every left click TRIES to anchor. A distinctive patch around the click becomes an
-// image+colour gate (robust to the UI moving); a flat, non-distinctive area silently
-// falls back to a plain coordinate, so nothing is lost by always trying. Set
-// $MARCO_ANCHORS=0 (or off/false/no) to record plain coordinates only.
+// captureAnchors gates per-click anchor capture. Default OFF — the CV anchor stack (match a
+// moving control by image/colour/edge) isn't reliable enough yet, so it's behind a feature
+// flag: teaching records plain coordinates + timings unless CV is explicitly turned on
+// ($MARCO_CV=on/max, or $MARCO_ANCHORS=1/on). See anchorsEnabled.
 var captureAnchors = anchorsEnabled()
 
 // cvKitchenSink is the MARCO_CV=max mode — the one switch that throws EVERY signal at
@@ -59,16 +58,17 @@ func cvMode() string {
 func anchorsEnabled() bool {
 	switch cvMode() {
 	case "max":
-		return true // CV on → anchors on, regardless of MARCO_ANCHORS
+		return true // CV explicitly on → anchors on, regardless of MARCO_ANCHORS
 	case "off":
-		return false // CV off → plain coordinates
+		return false // CV explicitly off → plain coordinates
 	}
+	// CV is a feature flag that's OFF BY DEFAULT (the anchor stack isn't reliable yet). Anchors
+	// turn on only when explicitly asked via MARCO_ANCHORS.
 	switch strings.ToLower(strings.TrimSpace(os.Getenv("MARCO_ANCHORS"))) {
-	case "0", "off", "false", "no":
-		return false
-	default:
+	case "1", "on", "true", "yes":
 		return true
 	}
+	return false
 }
 
 func clickRadiusFromEnv() int {
