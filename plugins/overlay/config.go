@@ -46,7 +46,7 @@ var themeNames = []string{
 	"default", "dracula", "solarized-dark", "monokai", "nord",
 	"tokyo-night", "catppuccin-mocha", "gruvbox-dark", "rose-pine", "light",
 }
-var leaderNames = []string{"`", "capslock", "tab", "f8"}
+var leaderNames = []string{"`", "/", "capslock", "tab", "f8"}
 
 var (
 	cfgMu sync.Mutex

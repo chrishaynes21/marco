@@ -1029,7 +1029,7 @@ function nav(v){
 const BT=String.fromCharCode(96); // backtick, kept out of the Go raw string
 // ---- config view (overlay settings) ----
 const OCFG=[
- {k:'leader', label:'Leader key', type:'select', opts:[BT,'capslock','tab','f8']},
+ {k:'leader', label:'Leader key', type:'select', opts:[BT,'/','capslock','tab','f8']},
  {k:'wake', label:'Activation phrase', type:'text', ph:'marco'},
  {k:'voice', label:'Voice listening', type:'bool'},
  {k:'theme', label:'Theme', type:'select', opts:['default','dracula','solarized-dark','monokai','nord','tokyo-night','catppuccin-mocha','gruvbox-dark','rose-pine','light']},

@@ -29,6 +29,8 @@ func parseLeader(spec string) uint16 {
 		return 0x09
 	case "\\", "backslash":
 		return 0xDC
+	case "/", "slash":
+		return 0xBF
 	case "[", "lbracket":
 		return 0xDB
 	default:
