@@ -32,6 +32,12 @@ const DefaultFindTimeoutMs = 1500
 // explicitly there to sit through a load.
 const DefaultWaitTimeoutMs = 60000
 
+// DefaultEndWaitMs is a settle wait appended after a route's last action, so the final
+// input (especially a click) is delivered and the screen settles before the run ends and
+// focus returns. Without it the last step can fire and the process exit before the app has
+// processed it — the "final click doesn't take" flake. Editable/removable in `marco edit`.
+const DefaultEndWaitMs = 500
+
 // TextSearchMargin (px) is the half-size of the box a DEMONSTRATED text anchor searches
 // around its recorded click — generous enough that a label which reflowed within its
 // panel is still inside it, tight enough to stay fast and avoid a stray match elsewhere.
@@ -127,6 +133,11 @@ func Route(name, app string, steps []macroir.Step, assetDir string, declaredArgs
 		fmt.Fprintf(&b, "%sdo OS's Activate with \"%s\".\n", indent(1), escape(app))
 	}
 	b.WriteString(body)
+	// Trailing settle wait so the final action registers before the run ends (see
+	// DefaultEndWaitMs). Skipped for an empty body or one that already ends on a wait.
+	if n := len(steps); n > 0 && steps[n-1].Kind != macroir.StepWait {
+		fmt.Fprintf(&b, "%sdo OS's Sleep with %d.\n", indent(1), DefaultEndWaitMs)
+	}
 	fmt.Fprintf(&b, "%sthis is ok!\n\n", indent(1))
 
 	fmt.Fprintf(&b, "the App is a script.\n\n")

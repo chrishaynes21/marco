@@ -3,6 +3,7 @@ package codegen
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -544,6 +545,29 @@ func TestRouteStructure(t *testing.T) {
 		if !strings.Contains(src, want) {
 			t.Errorf("generated route missing %q\n--- source ---\n%s", want, src)
 		}
+	}
+}
+
+// TestTrailingSettleWait: codegen appends a settle wait after the last action so the final
+// input registers before the run ends — but not when the route already ends on a wait.
+func TestTrailingSettleWait(t *testing.T) {
+	src, _, err := Route("open chest", "", sample, "") // ends on a Type
+	if err != nil {
+		t.Fatal(err)
+	}
+	sleep := fmt.Sprintf("do OS's Sleep with %d.", DefaultEndWaitMs)
+	if i, j := strings.LastIndex(src, sleep), strings.Index(src, "this is ok!"); i < 0 || i > j {
+		t.Errorf("expected a trailing %q just before `this is ok!`\n--- source ---\n%s", sleep, src)
+	}
+
+	// A route already ending on a wait gets no second one.
+	endsWithWait := []macroir.Step{{Kind: macroir.StepClick, X: 1, Y: 2}, {Kind: macroir.StepWait, Ms: 800}}
+	src2, _, err := Route("wait last", "", endsWithWait, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(src2, fmt.Sprintf("Sleep with %d.", DefaultEndWaitMs)) {
+		t.Errorf("route already ending on a wait should not get an extra settle wait:\n%s", src2)
 	}
 }
 
