@@ -319,12 +319,25 @@ var bootHintOnce sync.Once
 func startEdit(h *model, name string) {
 	// No name → open the control center on the all-routes browser (marco ui); a name opens it
 	// on that route's editor (marco edit <name>).
-	args := []string{"ui"}
-	note := "control center"
 	if name != "" {
-		args = []string{"edit", name}
-		note = `editing "` + name + `"`
+		launchUI(h, []string{"edit", name}, `editing "`+name+`"`)
+		return
 	}
+	launchUI(h, []string{"ui"}, "control center")
+}
+
+// startUI opens the control center on a specific tab (help/routes/bindings/config), e.g. the
+// help command opens the Help view in the browser instead of an in-HUD panel.
+func startUI(h *model, view string) {
+	args, note := []string{"ui"}, "control center"
+	if view != "" {
+		args, note = append(args, view), view
+	}
+	launchUI(h, args, note)
+}
+
+// launchUI spawns the control center detached, replacing any prior instance so ports don't stack.
+func launchUI(h *model, args []string, note string) {
 	editMu.Lock()
 	if editCmd != nil && editCmd.Process != nil {
 		_ = editCmd.Process.Kill()
@@ -332,13 +345,13 @@ func startEdit(h *model, name string) {
 	cmd := exec.Command(marcoBin(), args...)
 	if err := cmd.Start(); err != nil {
 		editMu.Unlock()
-		mlogE("overlay: edit failed to start", "name", name, "err", err)
+		mlogE("overlay: ui failed to start", "err", err)
 		h.log("ui failed to open")
 		return
 	}
 	editCmd = cmd
 	editMu.Unlock()
-	mlogI("overlay: ui", "name", name)
+	mlogI("overlay: ui", "args", strings.Join(args, " "))
 	h.log(note + " — opened in your browser")
 	go func() { _ = cmd.Wait() }() // reap when the user closes it
 }

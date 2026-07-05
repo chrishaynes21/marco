@@ -29,10 +29,21 @@ var faviconPNG []byte
 // (leader hotkeys), and Help. Ctrl+C to stop.
 //
 //	marco edit "enter freeplay"
-func runEdit(args []string) {
-	name := strings.TrimSpace(strings.Join(args, " "))
+//
+// uiView maps a `marco ui <arg>` argument to a known opening view, or "" (the default browser).
+func uiView(args []string) string {
+	switch v := strings.ToLower(strings.TrimSpace(strings.Join(args, " "))); v {
+	case "help", "routes", "bindings", "config", "edit":
+		return v
+	default:
+		return ""
+	}
+}
+
+func runEdit(name, view string) {
+	name = strings.TrimSpace(name)
 	d := newDeps()
-	ed := &editor{reg: d.Reg, app: appOf(d)}
+	ed := &editor{reg: d.Reg, app: appOf(d), view: view}
 	// With a name, open on that route's Edit view; without one (marco ui / bare marco edit) the
 	// control center lands on the all-routes browser and no route is loaded yet.
 	if name != "" {
@@ -97,6 +108,7 @@ func runEdit(args []string) {
 type editor struct {
 	reg  routes.Registry
 	app  string // foreground app when launched — the default scope for new bindings
+	view string // initial view to open (help/routes/bindings/config/edit); "" = default
 	mu   sync.Mutex
 	rt   routes.Route
 	path string
@@ -524,6 +536,7 @@ func (e *editor) handleRoute(w http.ResponseWriter, _ *http.Request) {
 	defer e.mu.Unlock()
 	writeJSON(w, map[string]any{
 		"loaded": e.rt.Slug != "",
+		"view":   e.view,
 		"name":   prettyRoute(e.rt.Slug),
 		"app":    e.rt.App,
 		"scope":  scopeOf(e.rt),
@@ -1319,7 +1332,7 @@ async function unbind(app,key){
 // ---- startup: land on the open route's editor, or the all-routes browser (marco ui) ----
 async function init(){
   const r = await (await fetch('/api/route')).json();
-  nav(r.loaded ? 'edit' : 'routes');
+  nav(r.view || (r.loaded ? 'edit' : 'routes')); // server can pin the opening view (e.g. help)
 }
 init();
 </script></body></html>`

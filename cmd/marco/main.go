@@ -34,10 +34,14 @@ func main() {
 	case "simplify":
 		runAssistantSimplify(os.Args[2:])
 		return
-	case "edit", "ui":
-		// `marco edit "<route>"` opens on that route; `marco edit` / `marco ui` (no arg) opens
-		// the control center on the all-routes browser.
-		runEdit(os.Args[2:])
+	case "edit":
+		// `marco edit "<route>"` opens the control center on that route's editor.
+		runEdit(strings.TrimSpace(strings.Join(os.Args[2:], " ")), "")
+		return
+	case "ui":
+		// `marco ui` opens the all-routes browser; `marco ui <view>` opens a specific tab
+		// (help / routes / bindings / config), e.g. the overlay's help command runs `marco ui help`.
+		runEdit("", uiView(os.Args[2:]))
 		return
 	case "wake":
 		// Print the voice activation phrase from overlay.json (the launcher reads it into

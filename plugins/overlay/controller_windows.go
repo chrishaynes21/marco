@@ -228,7 +228,7 @@ func processActions(h *model, emit func(event)) {
 			case "":
 				h.dismiss()
 			case "help", "?", "h":
-				h.showHelp(helpLines())
+				startUI(h, "help") // open the Help screen in the visual editor
 			case "config", "cfg", "settings":
 				inConfig.Store(true)
 				h.openConfig(configLines())
@@ -243,7 +243,7 @@ func processActions(h *model, emit func(event)) {
 			h.dismiss()
 		case actHelp:
 			h.setLeaderEcho("`" + string(a.r)) // show "`h" in the terminal
-			h.showHelp(helpLines())
+			startUI(h, "help")                 // open the Help screen in the visual editor
 		case actCfgUp:
 			h.configMove(-1, configFieldCount)
 		case actCfgDown:
