@@ -36,7 +36,7 @@ const DefaultWaitTimeoutMs = 60000
 // input (especially a click) is delivered and the screen settles before the run ends and
 // focus returns. Without it the last step can fire and the process exit before the app has
 // processed it — the "final click doesn't take" flake. Editable/removable in `marco edit`.
-const DefaultEndWaitMs = 500
+const DefaultEndWaitMs = 250
 
 // TextSearchMargin (px) is the half-size of the box a DEMONSTRATED text anchor searches
 // around its recorded click — generous enough that a label which reflowed within its

@@ -850,7 +850,13 @@ const editPage = `<!doctype html><html><head><meta charset="utf-8"><title>MARCO<
  .help h3{color:var(--text);font-size:13px;letter-spacing:1px;text-transform:uppercase;margin:18px 0 6px}
  .help p,.help li{color:var(--dim);font-size:13px}
  a.plain{color:var(--accent);cursor:pointer;text-decoration:none}
+ .banner{position:fixed;top:14px;left:50%;transform:translateX(-50%) translateY(-70px);background:var(--run);color:#04110f;
+   padding:11px 22px;border-radius:8px;font-weight:700;letter-spacing:1px;box-shadow:0 6px 24px rgba(0,0,0,.55);
+   opacity:0;transition:transform .25s ease,opacity .25s ease;z-index:50;pointer-events:none}
+ .banner.show{transform:translateX(-50%) translateY(0);opacity:1}
+ .banner.err{background:var(--err);color:#fff}
 </style></head><body>
+<div id="banner" class="banner"></div>
 <header>
   <button class="burger" onclick="toggleNav()">☰</button>
   <span class="brand">MARCO<span class="sub" id="rt">…</span></span>
@@ -1062,9 +1068,16 @@ async function save(){
   }
   const res = await (await fetch('/api/save',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({waits, repeats, points, deletes, drags, texts, adds:adds.map(a=>a.get())})})).json();
-  flash(res.ok ? 'saved' : 'save failed'); loadEdit();
+  if(res.ok){ banner('✓ Saved successfully'); } else { banner('✗ Save failed', true); }
+  loadEdit();
 }
 function flash(msg){ const s=document.getElementById('saved'); s.textContent=msg; setTimeout(()=>s.textContent='', 2500); }
+// banner shows a slide-down toast (green ok / red error), e.g. on save.
+function banner(msg, err){
+  const b=document.getElementById('banner');
+  b.textContent=msg; b.className='banner show' + (err?' err':'');
+  clearTimeout(b._t); b._t=setTimeout(()=>{ b.className='banner' + (err?' err':''); }, 2200);
+}
 // ---- routes view (grouped by app) ----
 async function loadRoutes(){
   const rows = await (await fetch('/api/routes')).json();
