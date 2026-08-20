@@ -71,7 +71,7 @@ func dispatchVoice(h *model, phrase string) {
 		// somewhere, so it takes the path it would have taken before any of this
 		// existed.
 		mlogW2("overlay: director unavailable — falling back to routes", "phrase", phrase, "why", ok)
-		h.log("director unavailable — trying routes")
+		h.log("director unavailable — trying saved plays")
 		_, outcome, route := runRecord(h, phrase, "do", phrase)
 		// Only an UNRESOLVED phrase becomes a teach offer. A learned play resolves,
 		// announces its [route], and is then performed by the Director — and that can

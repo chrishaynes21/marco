@@ -528,7 +528,7 @@ func (t *teachTail) SaveRoute(walk []observe.RelationshipRef, actor, verb string
 	teach.Saved, error) {
 
 	if len(walk) == 0 {
-		return teach.Saved{}, fmt.Errorf("a route needs at least one step to be written down")
+		return teach.Saved{}, fmt.Errorf("a demonstration needs at least one step to be written down")
 	}
 	steps := make([]service.LearnedStep, 0, len(walk))
 	for _, e := range walk {

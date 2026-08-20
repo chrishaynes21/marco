@@ -145,20 +145,20 @@ func Authorize(r Resolved, g Gate) Decision {
 // The only thing that decides what kind of play this is. Not the path, not the name, not where it
 // happens to sit — the origin record beside it, whose digest either still describes the file or
 // does not.
+// The switch that used to live here is now `routes.Registry.KindOf`, unchanged in behaviour and
+// moved so the PRODUCT LISTING reads the same one. A Plays surface that derived kind and
+// provenance for itself would be a second account of the fact this door is guarding, and the two
+// would disagree the first time a state was added — which is how a surface comes to call a play
+// learned that this function calls authored.
+//
+// What stays here is this function's own job: turning that answer into a Resolved, with the
+// phrase the person actually said.
+//
+// Deleting the KindOf call and re-deriving the switch must fail
+// TestTheDoorAndTheListingAgreeAboutEveryProvenance.
 func Classify(reg routes.Registry, rt routes.Route, phrase string) Resolved {
-	out := Resolved{Route: rt, Phrase: phrase, Kind: routes.KindAuthored}
-	o, state := reg.Origin(rt)
-	out.Provenance = state
-	switch state {
-	case routes.OriginNone:
-		// No record. An ordinary play somebody wrote, which is what most plays are.
-	case routes.OriginOrphaned, routes.OriginUnreadable:
-		// Provenance that describes nothing, or nothing this version understands. The file
-		// is still a play; it simply has no past worth believing.
-	default:
-		out.Kind = o.Kind
-	}
-	return out
+	kind, state := reg.KindOf(rt)
+	return Resolved{Route: rt, Phrase: phrase, Kind: kind, Provenance: state}
 }
 
 // AskToRun is the sentence a person is shown before a learned play runs.

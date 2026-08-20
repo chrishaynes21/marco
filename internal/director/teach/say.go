@@ -310,7 +310,7 @@ func (s Session) Watch() []string {
 		out = append(out, "  start: "+s.Start)
 	}
 	if s.Route.From != "" {
-		out = append(out, "  route: "+s.Route.From+" → "+s.Route.To)
+		out = append(out, "  path: "+s.Route.From+" → "+s.Route.To)
 	}
 	// The grounding, with its evidence rather than its sentence: which screen it was pinned to
 	// and how many regions came back. A Watch panel that showed only the Normal line could not
@@ -517,10 +517,10 @@ func unclear(rs []observe.AssessmentReason) string {
 			return "There was a lot of moving around in there and I couldn't tell which " +
 				"part was the actual step."
 		case observe.ReasonBacktracking:
-			return "It looked like you doubled back, so I'm not sure which way was the " +
-				"real route."
+			return "It looked like you doubled back, so I'm not sure which way you " +
+				"actually meant to go."
 		case observe.ReasonTransientCheckpoint:
-			return "I know the route, but there's a screen along the way I can't reliably " +
+			return "I know the way there, but there's a screen along it I can't reliably " +
 				"recognise yet."
 		case observe.ReasonNearCaptureBound:
 			return "That ran long enough that I may not have seen the end of it."

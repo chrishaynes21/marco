@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 )
 
 // Where a play came from, kept beside it and never inside it.
@@ -228,6 +229,43 @@ func (r Registry) Origin(rt Route) (Origin, OriginState) {
 	return o, OriginIntact
 }
 
+// MoveOrigin carries a play's provenance to another scope, byte for byte.
+//
+// # Why verbatim, and why not SaveWithOrigin
+//
+// Because `SaveWithOrigin` recomputes the digest from the source it is given, which is exactly
+// right when it is WRITING the play Director verified — and exactly wrong here. Moving a play
+// between scopes does not change its bytes, so re-digesting it would recompute a match and quietly
+// re-verify a play whose file the person had edited: `edited` would become `intact`, and a surface
+// that had honestly said "you have changed this since Marco wrote it down" would go back to
+// calling it the artifact Director verified.
+//
+// So the sidecar is copied, not rebuilt. An unreadable one stays unreadable for the same reason:
+// its state is a fact about this play, not damage to be tidied away by a move.
+//
+// A play with no sidecar is an ordinary authored one; there is nothing to carry and that is not an
+// error. Called while the source `.marco` is still in place, so `locDir`'s legacy fallback still
+// resolves the old location.
+//
+// Deleting this — or moving a play with SaveWithOrigin instead — must fail
+// TestChangingScopeDoesNotReVerifyAnEditedPlay.
+func (r Registry) MoveOrigin(from, to Route) error {
+	raw, err := os.ReadFile(r.OriginPath(from))
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if err := writeAtomic(r.OriginPath(to), raw); err != nil {
+		return err
+	}
+	if err := os.Remove(r.OriginPath(from)); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("routes: %s kept its past at the old location too: %w", from.Slug, err)
+	}
+	return nil
+}
+
 // DeleteOrigin removes a play's provenance, if it has any.
 func (r Registry) DeleteOrigin(rt Route) error {
 	err := os.Remove(r.OriginPath(rt))
@@ -250,10 +288,20 @@ func (r Registry) DeleteOrigin(rt Route) error {
 // looks, and a `"registered": true` that disagreed with the filesystem could not happen.
 const LearnedDir = "learned"
 
-// Staged is the route as it sits before registration.
+// LearnedFocus is the scope a staged play registers into.
 //
-// Same slug, same app, same scope rules — a different directory, and one discovery does not read.
-func Staged(rt Route) Route { return Route{App: rt.App, Focus: rt.Focus, Slug: rt.Slug} }
+// NOT a fact on disk, and saying so is the point: `stagedDir` puts every staged play in
+// `<app>/learned/` whatever `Route.Focus` says, so the bit cannot be recovered by reading the
+// filesystem. It is a decision, taken once — a learned play is asked for from anywhere and brings
+// its own application forward. See [[ADR-080-a-learned-play-is-asked-for-from-anywhere]].
+//
+// It is a constant so that the code which STAGES a play and the code which LISTS one read the
+// same fact. A listing that decided it independently could promise an activation that
+// registration would not perform.
+//
+// Deleting this and hard-coding the value in either place must fail
+// TestAStagedPlayListsAsBringingItsApplicationForward.
+const LearnedFocus = true
 
 // StagedPath is where a saved-but-unregistered play lives.
 func (r Registry) StagedPath(rt Route) string {
@@ -319,6 +367,93 @@ func (r Registry) StagedOrigin(rt Route) (Origin, OriginState) {
 	return o, OriginIntact
 }
 
+// ListStaged returns every saved-but-unregistered play, from both staging directories:
+// `global/learned/` for an app-less play and `<app>/learned/` for an application's.
+//
+// # Why this is a second function and not a wider List
+//
+// Because `Resolve` step 3 walks `List`, so widening `List` by one directory would make every
+// staged play answerable from every application — which is exactly the thing staging exists to
+// prevent (see LearnedDir). Two enumerations with two names means a caller has to say which set
+// it means, and no caller can reach the staged one by accident.
+//
+// # Read-only, and that is load-bearing
+//
+// `os.ReadDir` and nothing else. An application that has never saved a learned play has no
+// `learned/` directory, and LISTING plays may not create the directory SAVING one would need.
+//
+// The Focus bit is `LearnedFocus` — an intention, not something read from disk.
+//
+// Deleting this must fail TestStagedPlaysAreListedAndStayUnresolvable.
+func (r Registry) ListStaged() []Route {
+	entries, err := os.ReadDir(r.Dir)
+	if err != nil {
+		return nil
+	}
+	var out []Route
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		if name := e.Name(); name == GlobalDir {
+			out = append(out, r.listDir(filepath.Join(r.Dir, name, LearnedDir), "", false)...)
+		} else {
+			out = append(out,
+				r.listDir(filepath.Join(r.Dir, name, LearnedDir), name, LearnedFocus)...)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { // the order List uses, for the same reason
+		if out[i].Slug != out[j].Slug {
+			return out[i].Slug < out[j].Slug
+		}
+		return out[i].App < out[j].App
+	})
+	return out
+}
+
+// KindOf is what kind of play this is, and whether its provenance still describes it.
+//
+// # Why the answer is not simply Origin.Kind
+//
+// Because a sidecar that is orphaned or unreadable still carries a `kind` field, and believing it
+// would call a file learned on the strength of provenance that describes nothing. The state and
+// the kind have to be read together or not at all.
+//
+// This is THE decider, and there is one so that there is one. `orchestrator.Classify` — which
+// feeds the authority seam — and the product listing both call it, so a surface cannot come to a
+// different conclusion about the same file than the door that guards it.
+//
+// Read-only: `Origin` and nothing else.
+//
+// Deleting this and re-deriving the switch in either caller must fail
+// TestAnOrphanedSidecarDoesNotMakeAPlayLearned.
+func (r Registry) KindOf(rt Route) (Kind, OriginState) {
+	return kindFrom(r.Origin(rt))
+}
+
+// KindOfStaged is KindOf for a play that has not been registered yet.
+//
+// Separate because a staged play's sidecar is in a different directory: calling `KindOf` on a
+// staged route reads `<app>/focus/<slug>.origin.json`, finds nothing, and reports the learned play
+// Director just wrote as somebody's own writing.
+//
+// Deleting this and calling KindOf must fail TestAStagedPlayIsNotReportedAsAuthored.
+func (r Registry) KindOfStaged(rt Route) (Kind, OriginState) {
+	return kindFrom(r.StagedOrigin(rt))
+}
+
+// kindFrom is the one switch both readers share.
+func kindFrom(o Origin, state OriginState) (Kind, OriginState) {
+	switch state {
+	case OriginNone, OriginOrphaned, OriginUnreadable:
+		// No record, a record of nothing, or a record this version cannot read. The file is
+		// still a play; it simply has no past worth believing.
+		return KindAuthored, state
+	default:
+		return o.Kind, state
+	}
+}
+
 // StagedSource returns a staged play's source.
 func (r Registry) StagedSource(rt Route) (string, bool) {
 	data, err := os.ReadFile(r.StagedPath(rt))
@@ -326,6 +461,36 @@ func (r Registry) StagedSource(rt Route) (string, bool) {
 		return "", false
 	}
 	return string(data), true
+}
+
+// DeleteStaged removes a saved-but-unregistered play and its provenance, and nothing else.
+//
+// # Why this is not Unregister
+//
+// `Unregister` forgets EVERYTHING that answers to a name in a scope — the registered play, its
+// provenance, and any staged copy waiting behind it. That is right for "Marco no longer has this
+// play", which is what a person means when they say it once about a name.
+//
+// It is wrong for a surface that lists the two SEPARATELY. The Plays list shows a registered play
+// and a staged play of the same name as two rows, because they are two files with two different
+// standings — and a staged play is normally in that position precisely BECAUSE registration was
+// refused for colliding with the registered one. Forgetting one row through `Unregister` deleted
+// the other, so following the registry's own advice ("rename the learned play or remove the other
+// one first") destroyed the learned play it was telling you to keep.
+//
+// So each row gets a door onto its own files. This one opens on `<app>/learned/` and cannot reach
+// anywhere else.
+//
+// Deleting this — and forgetting a staged play through Unregister — must fail
+// TestForgettingAStagedPlayLeavesTheRegisteredOneAlone.
+func (r Registry) DeleteStaged(rt Route) error {
+	if err := os.Remove(r.stagedOriginPath(rt)); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	if err := os.Remove(r.StagedPath(rt)); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }
 
 // Register moves a staged play into the scope the resolver reads.

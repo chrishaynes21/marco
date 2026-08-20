@@ -35,12 +35,14 @@ func main() {
 		runAssistantSimplify(os.Args[2:])
 		return
 	case "edit":
-		// `marco edit "<route>"` opens the control center on that route's editor.
+		// `marco edit "<play>"` opens the control center on that play's editor.
 		runEdit(strings.TrimSpace(strings.Join(os.Args[2:], " ")), "")
 		return
 	case "ui":
-		// `marco ui` opens the all-routes browser; `marco ui <view>` opens a specific tab
-		// (help / routes / bindings / config), e.g. the overlay's help command runs `marco ui help`.
+		// `marco ui` opens the all-plays browser; `marco ui <view>` opens a specific tab.
+		// The view IDENTIFIERS (help / routes / bindings / config) are not product words and
+		// do not change with the vocabulary — the overlay's help command runs `marco ui help`,
+		// and the plays tab is still reached as `marco ui routes`.
 		runEdit("", uiView(os.Args[2:]))
 		return
 	case "wake":
@@ -63,13 +65,25 @@ func main() {
 		runDirector(os.Args[2:])
 		return
 	case "dispatch":
-		// Classify a phrase into one ROUTE-LEVEL decision (run/teach/chat/clarify)
+		// Classify a phrase into one PLAY-LEVEL decision (run/teach/chat/clarify)
 		// without acting. This is NOT the Director (which plans desktop actions from a
-		// world model) — it only picks among the routes you already have. A front-end
+		// world model) — it only picks among the plays you already have. A front-end
 		// uses `marco dispatch "<phrase>" --json` to converse. See internal/dispatch.
 		runDispatch(os.Args[2:])
 		return
+	case "plays":
+		// THE PRODUCT LISTING: every play, the saved-but-not-yet-askable ones included.
+		// `marco routes` below is the older, narrower question — see runPlays for why both
+		// exist and why only one of them may be offered to a front end.
+		runPlays(os.Args[2:])
+		return
+	case "register":
+		// Make a saved play askable. It exists because `marco plays` offers it by name.
+		runRegister(os.Args[2:])
+		return
 	case "routes":
+		// Kept, unrenamed, and narrower than `marco plays` on purpose: it lists only the
+		// plays anything can ASK FOR. Front ends outside this module call it.
 		runRoutes(os.Args[2:])
 		return
 	case "active":
@@ -174,7 +188,7 @@ func main() {
 //	bridge:<exe>      — delegate to an external program over JSON stdio.
 //
 // A bare spec selects the default host for every foreign act ("*"). Prefix it
-// with `Act=` to bind one act to its own layer — e.g. route OS effects to the
+// with `Act=` to bind one act to its own layer — e.g. send OS effects to the
 // macros bridge and the HUD to the overlay bridge in a single run:
 //
 //	marco serve --host OS=bridge:marco-macros --host Overlay=bridge:overlay overlay.marco
@@ -268,18 +282,20 @@ func usage(w io.Writer) {
 	fmt.Fprint(w, `marco — a sentence-driven automation language and self-teaching assistant.
 
 Assistant (teach by demonstration, then run by name):
-  marco do "<name>"        run a route; if unknown, record it once and remember
+  marco do "<name>"        run a play; if unknown, record it once and remember
   marco press <key>        press a key or chord (e.g. enter, ctrl+c, control shift esc)
-  marco teach "<name>"     record/overwrite a route by demonstration
-  marco simplify "<name>"  re-simplify a saved route as far as it goes
-  marco ui                 open the control center (all routes, bindings, help) in a browser
-  marco edit "<name>"      open the control center on one route's visual editor
+  marco teach "<name>"     record/overwrite a play by demonstration
+  marco simplify "<name>"  re-simplify a saved play as far as it goes
+  marco ui                 open the control center (all plays, bindings, help) in a browser
+  marco edit "<name>"      open the control center on one play's visual editor
   marco assistant          interactive loop — say what you want, in plain words
   marco dispatch "<phrase>" [--json]  classify a phrase (run/teach/chat/clarify)
-  marco routes [--json]    list known routes (--json for a UI plugin)
+  marco plays [--json]     list every play, the saved-not-yet-askable ones included
+  marco routes [--json]    list the plays you can ask for (--json for a UI plugin)
+  marco register "<name>"  make a saved play askable
   marco active             print the foreground app (context)
-  marco forget "<name>"    delete a route
-  marco rename "old" to "new"  rename a route
+  marco forget "<name>"    delete a play
+  marco rename "old" to "new"  rename a play
   marco secret set|list|rm <name>   manage stored passwords (OS credential store)
 
 Run Marco programs:
@@ -297,9 +313,10 @@ Vision (semantic UI detector — needs $MARCO_VISION + a model):
 Hosts: dryrun logs calls (default); windows performs real input; bridge:<exe>
 delegates to an external program (e.g. AutoHotkey). Prefix a spec with Act= to
 give one act its own layer (e.g. OS=bridge:marco-macros Overlay=bridge:overlay);
-a bridge may also push events back to drive serve. Routes live in ./routes
-(override with $MARCO_ROUTES). While teaching, type {{name}} for a password.
-The stop key ends a recording and aborts a running route — default F12, so Esc
+a bridge may also push events back to drive serve. Plays live in ./routes — the
+directory keeps its old name (override with $MARCO_ROUTES). While teaching, type
+{{name}} for a password.
+The stop key ends a recording and aborts a running play — default F12, so Esc
 is free to record as an ordinary key; change it with $MARCO_STOP_KEY (e.g. "esc",
 "home", "ctrl+f12"). Set $MARCO_RESOLVER to a resolver-plugin
 executable to let the assistant fall back to it (e.g. the Claude one in

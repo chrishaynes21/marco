@@ -16,7 +16,7 @@ import (
 
 // withPanicStop runs fn with a kill-switch when realInput is true: a global
 // press of the stop key (see stopKeySpec) cancels the context, aborting the
-// route mid-run (in-flight host calls stop and `finally` blocks run). It returns
+// play mid-run (in-flight host calls stop and `finally` blocks run). It returns
 // to the caller rather than killing the process, so an `assistant` session
 // survives an abort.
 //
@@ -26,7 +26,7 @@ import (
 func withPanicStop(realInput bool, fn func(context.Context) error) error {
 	// A front-end that already owns global hotkeys (e.g. the AHK overlay) sets
 	// MARCO_NO_PANIC_STOP so this child doesn't install its own competing
-	// WH_KEYBOARD_LL/WH_MOUSE_LL hooks — dueling low-level hooks plus the route's
+	// WH_KEYBOARD_LL/WH_MOUSE_LL hooks — dueling low-level hooks plus the play's
 	// own injected input is a deadlock/zombie risk. The front-end owns aborting.
 	if !realInput || os.Getenv("MARCO_NO_PANIC_STOP") != "" {
 		return fn(context.Background())
@@ -52,7 +52,7 @@ func withPanicStop(realInput bool, fn func(context.Context) error) error {
 	return err
 }
 
-// appOf returns the current foreground app for a Deps (used for scoped route
+// appOf returns the current foreground app for a Deps (used for scoped play
 // resolution), or "" when unavailable.
 func appOf(d orchestrator.Deps) string {
 	if d.App == nil {
@@ -61,9 +61,9 @@ func appOf(d orchestrator.Deps) string {
 	return d.App()
 }
 
-// dispatchDo resolves the command to a route in the current app context and runs it
+// dispatchDo resolves the command to a play in the current app context and runs it
 // under the stop-key panic-stop (see stopKeySpec), filling any args (named
-// "name:value" or positional "… with a, b") into the route's {{name}}/{{N}}
+// "name:value" or positional "… with a, b") into the play's {{name}}/{{N}}
 // placeholders; an unknown command is taught (teaching drives the recorder itself,
 // so it isn't wrapped).
 func dispatchDo(d orchestrator.Deps, name string, named map[string]string, positional []string) error {
@@ -87,8 +87,16 @@ func dispatchDo(d orchestrator.Deps, name string, named map[string]string, posit
 			// one deserves a non-zero exit.
 			return nil
 		}
-		// Announce the canonical route that's about to run, so a front-end (the
+		// Announce the canonical play that's about to run, so a front-end (the
 		// overlay) can show what a loose phrase actually resolved to.
+		//
+		// "[route] " IS WIRE PROTOCOL, NOT USER TEXT. plugins/overlay/acts.go reads the
+		// line with strings.CutPrefix on exactly this literal; renaming it with the product
+		// vocabulary would leave the overlay unable to say what it just ran, and the two
+		// sides ship as separate modules so nothing would fail to compile. It is
+		// deliberately NOT renamed.
+		//
+		// Changing this prefix must fail TestABridgeFailureStillAnnouncesTheResolvedRoute.
 		fmt.Printf("[route] %s\n", prettyRoute(rt.Slug))
 		// THE FORK. A play MARCO wrote by watching is performed by the Director; everything
 		// else runs here exactly as it always has.
@@ -122,13 +130,20 @@ func dispatchDo(d orchestrator.Deps, name string, named map[string]string, posit
 	mlog.Info("dispatch: no route found", "name", name, "app", app)
 	// MARCO_NO_TEACH (set by the overlay): an unknown command errors instead of
 	// dropping into the interactive teach flow, which would block on stdin.
+	//
+	// "no play matches " is the engine's one unknown-command prefix, shared with bind.go and
+	// PREFIX-MATCHED by plugins/overlay (acts.go, const noPlayMatches) to decide that this is
+	// the error it should answer with an offer to teach. The `marco teach` mention is part of
+	// that match and stays, verb and all.
+	//
+	// Deleting the shared spelling must fail TestTheUnknownCommandErrorIsOnePrefix.
 	if os.Getenv("MARCO_NO_TEACH") != "" {
-		return fmt.Errorf("no route matches %q (teach it: marco teach %q, or `m teach … in the overlay)", name, name)
+		return fmt.Errorf("no play matches %q (teach it: marco teach %q, or `m teach … in the overlay)", name, name)
 	}
 	return d.Do(name)
 }
 
-// runRoute runs a saved route, substituting named/positional args into its
+// runRoute runs a saved play, substituting named/positional args into its
 // {{name}}/{{N}} placeholders. With no placeholders/args it's the same as running
 // the file.
 func runRoute(ctx context.Context, d orchestrator.Deps, rt routes.Route, named map[string]string, positional []string) error {

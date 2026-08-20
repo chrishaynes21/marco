@@ -10,12 +10,12 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/winctx"
 )
 
-// runBind: `marco bind <key> "<route>"` — bind the leader hotkey `<key> to a
-// route, scoped to the current foreground app. So `s in Notepad can run "say
+// runBind: `marco bind <key> "<play>"` — bind the leader hotkey `<key> to a
+// play, scoped to the current foreground app. So `s in Notepad can run "say
 // hello" while doing nothing elsewhere.
 func runBind(args []string) {
 	if len(args) < 2 {
-		fmt.Fprintln(os.Stderr, `usage: marco bind <key> "<route>"`)
+		fmt.Fprintln(os.Stderr, `usage: marco bind <key> "<play>"`)
 		os.Exit(2)
 	}
 	key := strings.ToLower(args[0])
@@ -24,7 +24,7 @@ func runBind(args []string) {
 	app := winctx.Active()
 
 	// A binding can chain steps with " then " ("say hi then wave"). Validate that
-	// every step resolves to an existing route, so a typo can't be bound, then store
+	// every step resolves to an existing play, so a typo can't be bound, then store
 	// the raw command — each step is resolved + its args applied at run time.
 	for _, step := range routes.SplitChain(cmd) {
 		base, _, _ := routes.ParseInvocation(step)
@@ -33,7 +33,13 @@ func runBind(args []string) {
 			target = m.Route
 		}
 		if _, ok := d.Reg.Resolve(app, routes.Slug(target)); !ok {
-			fmt.Fprintf(os.Stderr, "no route matches %q (teach it first)\n", step)
+			// "no play matches " is the engine's one unknown-command prefix, shared with
+			// panicstop.go and PREFIX-MATCHED by plugins/overlay (acts.go, const
+			// noPlayMatches). Changing the wording on one side only breaks the overlay's
+			// offer-to-teach silently — it simply stops recognising the error.
+			//
+			// Deleting the shared spelling must fail TestTheUnknownCommandErrorIsOnePrefix.
+			fmt.Fprintf(os.Stderr, "no play matches %q (teach it first)\n", step)
 			os.Exit(1)
 		}
 	}
@@ -63,7 +69,7 @@ func runUnbind(args []string) {
 	fmt.Printf("unbound `%s\n", key)
 }
 
-// runHotkey: `marco hotkey <key>` — run the route bound to the leader hotkey in
+// runHotkey: `marco hotkey <key>` — run the play bound to the leader hotkey in
 // the current foreground app, or do nothing if none is bound (silent no-op so an
 // unbound key over a game is harmless).
 func runHotkey(args []string) {
@@ -76,7 +82,7 @@ func runHotkey(args []string) {
 	if !ok {
 		return
 	}
-	// Run each chained step in order. A step pointing at a route that no longer
+	// Run each chained step in order. A step pointing at a play that no longer
 	// exists is skipped silently (a hotkey must never drop into teach-on-unknown).
 	for _, step := range routes.SplitChain(cmd) {
 		target, named, positional := resolveTarget(d, step)

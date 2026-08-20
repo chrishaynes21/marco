@@ -10,7 +10,7 @@ depends_on:
   - marco-boundary
 used_by:
   - service
-updated: 2026-08-10
+updated: 2026-08-20
 source_paths:
   - internal/director/observe/lowering.go
   - internal/director/observe/rehearsal.go
@@ -200,12 +200,19 @@ A completed Learn asks for both halves, so the ordinary end state is saved **and
 registered is still reachable — a slug already taken is the common way — and it is a state with
 its own refusal (`play_not_registered`), its own sentence (*"the play is safe — it is a file you
 can read and edit"*), and its own reason carried up from the registry. It is never reported as
-`save_failed`, and no surface may claim such a play is in the Routes tab. `Unregister` reaches
-the staged copy too, so a refused registration does not strand an artifact nothing can remove.
+`save_failed`, and no surface may claim such a play is somewhere it cannot be found. `Unregister`
+reaches the staged copy too, so a refused registration does not strand an artifact nothing can
+remove.
 
-Where a learned play lands: `<app>/context/`. It resolves while its application is in front and
-nowhere else. Pinned by `TestALearnedPlayIsRegisteredWhenItIsSaved`; whether that should be
-`focus/` is an open product question.
+Where a learned play lands: `<app>/focus/`, so it is asked for from anywhere and the Director
+brings its application forward itself. Pinned by `TestALearnedPlayIsRegisteredWhenItIsSaved`; the
+scope is one decision in one place, `routes.LearnedFocus`, read by the code that stages a play and
+by the code that lists one ([[ADR-080-a-learned-play-is-asked-for-from-anywhere]]).
+
+Saved-and-not-registered is no longer a state only a developer command can leave: it is a **row in
+the Plays surface**, standing `saved`, with a Register button beside it and a `marco register`
+command that does the same thing. [[Plays]] is the product model — the standings, the kinds, the
+scopes, and which call decides each.
 
 ## The source owns the meaning; the sidecar owns nothing
 
@@ -275,6 +282,7 @@ Proven from a cold process with an unrelated application in front.
 
 ## Related
 
+- [[Plays]] — what the person is holding once this chain finishes: kind, scope, standing
 - [[Passive-Observation]] — where candidates come from
 - [[Demonstrations]] — how a procedure is extracted from what was shown
 - [[Semantic-Memory]] — durable subjects, and the one string a user writes

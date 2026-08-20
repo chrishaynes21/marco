@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/service"
+	"github.com/chaynes-simpleclouds/marco/internal/plays"
+	"github.com/chaynes-simpleclouds/marco/internal/routes"
 )
 
 // The Learn panel's server side, proved through the production constructor.
@@ -158,5 +160,95 @@ func TestAnsweringRefusesAGet(t *testing.T) {
 	learnMux().ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/learn/answer", nil))
 	if w.Code != http.StatusMethodNotAllowed {
 		t.Errorf("GET /api/learn/answer answered %d, want it refused", w.Code)
+	}
+}
+
+// Learn's account of a play and the Plays listing's account are the same account.
+//
+// # Why this test names both surfaces
+//
+// Because the failure it guards is not a broken handler — it is two surfaces telling a person two
+// different things about one file. The Learn panel used to say "Saved. It is in the Routes tab."
+// on the strength of a play existing on disk, while the tab it named could not contain a staged
+// play at all. The fix is not a better sentence; it is that both surfaces read the same value out
+// of internal/plays.
+//
+// Mutation: give addLifecycle its own words, or drop it, and this fails.
+func TestLearnReportsTheSameStandingThePlaysListWould(t *testing.T) {
+	dir := t.TempDir()
+	reg := routes.Registry{Dir: dir}
+	src := "script main...\n  do nothing.\n"
+
+	ready := routes.Route{App: "settings", Focus: routes.LearnedFocus, Slug: "registered-one"}
+	if err := reg.SaveStaged(ready, src, routes.Origin{Kind: routes.KindLearned, Application: "settings"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := reg.Register(ready); err != nil {
+		t.Fatal(err)
+	}
+	waiting := routes.Route{App: "settings", Focus: routes.LearnedFocus, Slug: "staged-one"}
+	if err := reg.SaveStaged(waiting, src, routes.Origin{Kind: routes.KindLearned, Application: "settings"}); err != nil {
+		t.Fatal(err)
+	}
+
+	listed := map[string]plays.Life{}
+	for _, p := range plays.List(reg) {
+		listed[p.Slug] = p.Life
+	}
+
+	for _, c := range []struct {
+		what            string
+		saved, learned  bool
+		slug            string
+		mustNotSayReady bool
+	}{
+		{"saved and registered", true, true, "registered-one", false},
+		{"saved and not registered", true, false, "staged-one", true},
+	} {
+		view := map[string]any{}
+		if c.saved {
+			view["saved"] = true
+		}
+		if c.learned {
+			view["learned"] = true
+		}
+		addLifecycle(view)
+
+		got, ok := view["life"].(string)
+		if !ok {
+			t.Fatalf("%s: the panel reports no standing at all", c.what)
+		}
+		if want := string(listed[c.slug]); got != want {
+			t.Errorf("%s: Learn says %q, the Plays list says %q — two accounts of one play",
+				c.what, got, want)
+		}
+		word, _ := view["life_word"].(string)
+		says, _ := view["life_says"].(string)
+		if want := listed[c.slug].Word(); word != want {
+			t.Errorf("%s: Learn's badge is %q, the listing's is %q", c.what, word, want)
+		}
+		if says == "" {
+			t.Errorf("%s: Learn reports a standing with no sentence", c.what)
+		}
+		if c.mustNotSayReady {
+			if strings.Contains(strings.ToLower(word), "ready") ||
+				strings.Contains(strings.ToLower(says), "you can ask") {
+				t.Errorf("%s: Learn calls an unregistered play askable: %q / %q",
+					c.what, word, says)
+			}
+		}
+		// And whatever it says, it may not send anybody to a tab under an old name.
+		for _, s := range []string{word, says} {
+			if strings.Contains(strings.ToLower(s), "route") {
+				t.Errorf("%s: Learn still says route: %q", c.what, s)
+			}
+		}
+	}
+
+	// Nothing saved, nothing claimed.
+	empty := map[string]any{"stage": "watching"}
+	addLifecycle(empty)
+	if _, claimed := empty["life"]; claimed {
+		t.Error("the panel reports a standing for a play that was never written down")
 	}
 }

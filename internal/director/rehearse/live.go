@@ -750,7 +750,7 @@ func (l *Live) finish(a *Attempt, out RehearsalResult, started time.Time) Rehear
 // stronger sentence, and everything else must not borrow it.
 func (r RehearsalResult) Describe() []string {
 	out := []string{"rehearsal attempt"}
-	out = append(out, "  route: "+r.Relationship.From+" → "+r.Relationship.To)
+	out = append(out, "  path: "+r.Relationship.From+" → "+r.Relationship.To)
 	if !r.Live {
 		out = append(out, "  nothing reached the computer: this ran against a recording host")
 	}
@@ -1073,7 +1073,7 @@ func (r StepRecord) Describe() []string {
 	}
 	out := []string{
 		"rehearsal attempt",
-		"  route: " + r.Relationship.From + " → " + r.Relationship.To,
+		"  path: " + r.Relationship.From + " → " + r.Relationship.To,
 		fmt.Sprintf("  step: %d", r.Position),
 		"  started on: " + r.Source,
 		"  sent: " + strings.Join(words, ", "),

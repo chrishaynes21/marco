@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/service"
+	"github.com/chaynes-simpleclouds/marco/internal/plays"
 )
 
 // The Learn panel's server side: four verbs and one read.
@@ -133,8 +134,41 @@ func writeLearn(w http.ResponseWriter, q service.ObserveLearn) {
 		return
 	}
 	view["available"] = true
+	addLifecycle(view)
 	writeLearnJSON(w, view)
 }
+
+// addLifecycle says where the play Learn just wrote down actually stands, in the words the Plays
+// surface uses for the same play.
+//
+// # Why the panel is not allowed its own sentence
+//
+// Because it had one, and it was false. "Saved. It is in the Routes tab." was a claim about
+// DISCOVERY made from a fact about STORAGE: a saved play lands in `<app>/learned/`, and route
+// discovery scans four directories that structurally cannot contain it. Phase 0 split the claim in
+// two so the sentence stopped lying. This closes the gap it came out of — the panel now renders
+// `plays.Life`, the same value a row in the Plays list carries, so the two surfaces cannot drift
+// apart again by somebody editing one of them.
+//
+// `learned` is the Director's name for saved AND registered (see cmd/director/learnview.go), which
+// is the same fact `plays.Registered` names: whether the resolver can reach the file.
+//
+// Deleting this must fail TestLearnReportsTheSameStandingThePlaysListWould.
+func addLifecycle(view map[string]any) {
+	life, ok := plays.AfterLearn(truthy(view["saved"]), truthy(view["learned"]))
+	if !ok {
+		return
+	}
+	view["life"] = string(life)
+	view["life_word"] = life.Word()
+	view["life_says"] = life.Says()
+}
+
+// truthy reads one of the Director's optional booleans out of a decoded view.
+//
+// `omitempty` means a false flag is ABSENT, not present-and-false, so a missing key and a false one
+// have to mean the same thing here.
+func truthy(v any) bool { b, _ := v.(bool); return b }
 
 // writeLearnJSON is this panel's encoder.
 //

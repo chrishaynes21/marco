@@ -9,7 +9,7 @@ ones. Windows, with the overlay stack running unless noted.
 .\overlay.cmd          # launch the HUD stack (leave it running)
 ```
 
-> Tip: to avoid touching your real routes, run CLI checks with a throwaway store:
+> Tip: to avoid touching your real plays, run CLI checks with a throwaway store:
 > `$env:MARCO_ROUTES="$env:TEMP\marco-e2e"`. Unset it (`Remove-Item Env:MARCO_ROUTES`)
 > to go back to the real `.\routes`.
 
@@ -34,7 +34,7 @@ type `<thing>`, then Enter.
 
 3. **Run it**
    `` `m open notepad`` (or `marco do "open notepad"` in a terminal).
-   - PASS: the route replays.
+   - PASS: the play replays.
 
 4. **Scope happy-path** — re-teach something and just press **Enter, Enter** at the
    two prompts.
@@ -47,8 +47,8 @@ type `<thing>`, then Enter.
    - PASS: gone from `marco routes`.
 
 6. **Forget all** — `marco forget all` (or `` `m delete all`` in the HUD).
-   - PASS: `Forget ALL N routes? This can't be undone.` → **y** wipes them; **n**
-     keeps them. (Earlier this wrongly said "no route named delete all".)
+   - PASS: `Forget ALL N plays? This can't be undone.` → **y** wipes them; **n**
+     keeps them. (Earlier this wrongly reported no such play.)
 
 ---
 
@@ -78,9 +78,9 @@ type `<thing>`, then Enter.
       `do OS's Secret with "login-to-facebook:password"` and **no plaintext
       password** (username may appear as `{{username}}`).
 
-11. **Global `{{name}}` secret still works** — teach a route where you type
+11. **Global `{{name}}` secret still works** — teach a play where you type
     `{{token}}` literally, then `marco secret set token`.
-    - PASS: route stores only the name; the value comes from the credential store.
+    - PASS: the play stores only the name; the value comes from the credential store.
 
 ---
 
@@ -114,7 +114,7 @@ type `<thing>`, then Enter.
 ## D. Overlay UX
 
 15. **Auto-popped argument labels**
-    Start typing a route that takes args, e.g. `` `m login to facebook`` and pause.
+    Start typing a play that takes args, e.g. `` `m login to facebook`` and pause.
     - PASS: after a beat, **highlighted `username: password:  (tab)`** appears after
       your text. **Tab** appends `username:` to the line so you just type the value;
       it then offers `password:`.
@@ -138,18 +138,18 @@ type `<thing>`, then Enter.
 
 19. **Window-relative clicks (the default)**
     Teach a click in a windowed app. **Move the window** (or drag it to another
-    monitor). Run the route.
+    monitor). Run the play.
     - PASS: it clicks the right spot relative to the window, no monitor/DPI setup.
 
 20. **Image anchors (opt-in)**
     Re-teach with anchors on: set `$env:MARCO_ANCHORS="1"` before launching, teach a
     click, then resize/move things and run.
-    - PASS: the route finds the target and clicks it; the saved route has an `Anchor`
+    - PASS: the play finds the target and clicks it; the saved play has an `Anchor`
       with an `Image` (and `Color`/`Window`), and falls back to the recorded point when
       it can't resolve. The saved `*-anchor-*.png` is cropped tight to the **button**
       (auto-crop), not a big square of background. (More anchor checks in section F.)
 
-21. **Stop key** — start a long route, press **F12**.
+21. **Stop key** — start a long play, press **F12**.
     - PASS: it aborts mid-run. (F12 also ends recordings; change with
       `$env:MARCO_STOP_KEY`.)
 
@@ -169,7 +169,7 @@ type `<thing>`, then Enter.
 23. **Anchor follows a moved / re-themed target**
     Anchor a click on a button (tap **F12**, then click it). Then change the scene so
     the button is in a **different place** (scroll/reflow) or **recoloured** (switch the
-    app's light/dark theme), and run the route.
+    app's light/dark theme), and run the play.
     - PASS: it clicks the button where it **now** is, not the old coordinate — the
       `when ok?` branch fires (`do OS's Click with that`). At `MARCO_LOG=debug` you see
       `edge=` carry the recolour and `image=` survive a brightness/scale change. A
@@ -178,8 +178,8 @@ type `<thing>`, then Enter.
 
 24. **Window-name context (multi-window app)**
     In an app that opens several windows (Steam: Library vs. Friends), anchor a click in
-    **one** window via a **focus** route (so the route activates the app). Bring a
-    **different** window of the same app to the front, then run the route.
+    **one** window via a **focus** play (so the play activates the app). Bring a
+    **different** window of the same app to the front, then run the play.
     - PASS: with the wrong window in front the anchor won't confidently click (a
       `find: foreground window mismatch — penalising confidence` line at debug); with the
       right window it resolves normally. The saved anchor carries `Window "<title>"`.
@@ -188,11 +188,11 @@ type `<thing>`, then Enter.
     `setup.cmd -OCR` once. Narrate an anchor over a labelled button: `` `m narrate teach
     mute me``, say `click the text Mute`, `done`. Run it.
     - PASS: it OCRs "Mute" and clicks the **centre of the button**, not the glyphs; the
-      route has a `do Text's Find with mute…` branch. Without OCR built it falls back to
+      play has a `do Text's Find with mute…` branch. Without OCR built it falls back to
       the recorded coordinate.
 
 26. **Hold a key across a click**
-    Teach a route where you **press and hold Q**, click something, then **release Q**
+    Teach a play where you **press and hold Q**, click something, then **release Q**
     (a quick tap won't count — hold it past ½ a second or across the click). Open the
     saved `.marco`.
     - PASS: it contains `do OS's KeyDown with "q"` … `do OS's Click …` … `do OS's KeyUp
@@ -200,11 +200,75 @@ type `<thing>`, then Enter.
       (e.g. a game, or a key-state tester) — Q reads as **held** during the click.
 
 27. **A hold never gets stuck (safety)**
-    Run the hold route from step 26 but press **Esc** *between* the KeyDown and KeyUp
+    Run the hold play from step 26 but press **Esc** *between* the KeyDown and KeyUp
     (start a long wait in the middle if needed).
-    - PASS: Q is **released** even though the route was aborted — check the key-state
-      tester shows Q up afterwards. (The driver releases any held key at route end on
+    - PASS: Q is **released** even though the play was aborted — check the key-state
+      tester shows Q up afterwards. (The driver releases any held key at play end on
       success, error, or Esc.)
+
+---
+
+## G. Plays — saved, then askable (~3 min)
+
+A **play** is one durable behaviour; **saved** and **askable** are two different states.
+This section walks a play across that line and watches every surface agree about it.
+
+You need a **staged** play (saved, not registered). A completed Learn saves *and* registers, so
+reach the state on purpose with the developer half of the lifecycle — save without register:
+
+```powershell
+$env:MARCO_ROUTES="$env:TEMP\marco-e2e"     # marco and director share this; set it for both
+# --save without --register: written down, and nothing can ask for it
+director learned --application <app> --name "<what you want to ask for>" --save
+```
+
+Read the play's name off `marco plays` and use it below; the steps say `"<name>"`.
+
+28. **A staged play is listed, and says plainly that nothing can ask for it.**
+    `marco plays`.
+    - PASS: it appears under **`Saved, not askable yet:`** as
+      `Learned · Saved — not askable yet`, with `(marco register "<name>")` printed
+      beside it — the command that fixes it, named where the problem is shown.
+    - PASS: `marco routes` does **not** list it, and neither does `marco routes --json`.
+      That listing is what a front end may offer, and a staged play cannot answer.
+
+29. **The control centre shows the same two groups.**
+    `marco ui plays` (or `marco ui`, which now lands on Plays with no play named).
+    - PASS: the tab reads **Plays**; the staged play is in its own group with a
+      **Register** button and the sentence *"Saved. It is a file you can read and edit —
+      nothing can ask for it until you register it."*
+    - PASS: an askable play has **no** Register button.
+
+30. **Register it, and watch it become ready.**
+    `marco register "<name>"` (or the Register button — either one).
+    - PASS: `Registered "<name>". You can ask for it now.`
+    - PASS: `marco plays` now lists it under **`Known plays:`** as
+      `Learned · Ready · from anywhere (brings <app> forward)`, and the
+      staged group is gone.
+    - PASS: `marco routes` lists it too, and `marco plays --json` shows
+      `"life": "ready"`, `"registered": true`, `"activates": "<app>"`.
+    - PASS: the Plays tab shows **Ready** and *"You can ask for this play."* — the same
+      words, because both surfaces read them from the same place.
+
+31. **It answers from another application.**
+    Leave the terminal (or anything that is not the play's app) in front.
+    - PASS: `marco dispatch "<name>"` now prints `run: <name>` — the classifier only
+      ever offers registered plays. Registering, not the foreground, is what changed.
+    - PASS: `marco routes --json` shows `"scope": "focus"` for it. A learned play is
+      asked for from anywhere, and Marco brings its application forward itself.
+    - Only now, and only if you are ready for **real input**: `marco do "<name>"` from
+      that same foreground. Marco asks *"Marco learned … Run it now?"*
+      first — answer **n** to confirm the question arrives, or **y** to watch it bring
+      the app forward and perform. PASS either way: the question is the door, and a
+      staged play never got this far.
+
+32. **The play's past survives a move.**
+    In the Plays tab, change the registered play's scope with the dropdown (focus →
+    only-here, say).
+    - PASS: it still reads **Learned** afterwards, not Authored — the provenance moved
+      with the file. If you had edited the `.marco` by hand first, it still reads
+      `Ready · edited`: moving a play never re-verifies it.
+    - PASS: nothing is left behind at the old scope (`marco plays` lists it once).
 
 ## Quick regression sweep (terminal only, ~1 min)
 
@@ -219,11 +283,11 @@ Remove-Item Env:MARCO_ROUTES
 - PASS: teaches, reports the arg, runs with the value, and clears.
 
 > **Narration makes named args too:** `marco teach --narrate "say hello with
-> person"` then narrate `type person` (or `type the first argument`) → the route
+> person"` then narrate `type person` (or `type the first argument`) → the play
 > gets a `{{person}}` arg, runnable as `say hello person:bob`. Declaring no `with`
 > clause and narrating `type arg 1` gives a positional `{{1}}` instead.
 >
-> URLs in route phrases work fine (`go to http://…` stays intact — the `//` guard
+> URLs in play phrases work fine (`go to http://…` stays intact — the `//` guard
 > in `ParseInvocation` prevents it from being treated as a `key:value` arg).
 
 ## Realistic Learn acceptance (Roadmap 34, goal-centric — needs a human, ~5 min)
@@ -265,7 +329,7 @@ page (Settings grounds cleanly; Explorer cannot be pointed at — see Experiment
      (no unconditional `unrecognised`).
 
 3. **Reuse from somewhere other than the demonstrated start.**
-   Walk Settings to wherever the route's start was (e.g. Bluetooth & devices) by hand, then
+   Walk Settings to wherever the play's start was (e.g. Bluetooth & devices) by hand, then
    `director reach "open mouse settings"`.
    - PASS: the plan starts from where you ARE. If you're already on Mouse, it says you're
      already there. From a page with no known chain, it says "I know what you want to

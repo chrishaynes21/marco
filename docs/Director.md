@@ -69,6 +69,7 @@ succeeding. [[Learned-Plays]] is the note; ADRs 023–032 are the constraints.
 
 **Acting**
 - [[Marco-Boundary]] — every desktop effect lowers to legal Marco source
+- [[Plays]] — the product model: a Play, a Binding, the three kinds, the three scopes, saved vs registered
 - [[Learned-Plays]] — what Marco watched, becoming a play it performs and verifies
 - [[Action-Graph]] — what was done, in a form replay can re-lower
 - [[Demonstrations]] — recording, and extracting a procedure from what was shown

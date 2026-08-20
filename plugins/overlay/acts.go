@@ -80,7 +80,7 @@ func dispatch(h *model, req request) response {
 	case "Show":
 		h.show(true)
 		bootHintOnce.Do(func() { // one-time nudge toward the web control center
-			h.log("tip: type  ui  for the visual editor — routes · bindings · config · help")
+			h.log("tip: type  ui  for the visual editor — plays · bindings · config · help")
 		})
 		return okData(nil)
 	case "Hide":
@@ -515,6 +515,12 @@ func runNarrateTeach(h *model, name string) error {
 	return err
 }
 
+// noPlayMatches is the prefix of the engine's unknown-command error. It is PRODUCED
+// in the ROOT module by cmd/marco/panicstop.go and cmd/marco/bind.go; nothing links
+// the two literals at compile time because the overlay is a separate Go module, so
+// they must be changed together. Deleting or editing it must fail TestNoPlayMatchesPrefix.
+const noPlayMatches = "no play matches "
+
 // streamChild runs a marco subcommand, streams its stdout/stderr into the HUD,
 // and makes ANY interactive prompt it raises answerable from the overlay: the
 // child gets a stdin pipe (teachPipe) that the controller writes the y/n/s answer
@@ -570,14 +576,17 @@ func streamChild(h *model, trackCancel bool, args ...string) (error, bool, strin
 			// the complete detail is always visible there even though the HUD only keeps a
 			// short tail.
 			fmt.Fprintln(os.Stderr, s)
+			// "[route] " is WIRE PROTOCOL, not user text: the engine announces the
+			// resolved play on it and cmd/marco has a live test pinning the producer
+			// side. It is deliberately NOT renamed with the product vocabulary.
 			if r, ok := strings.CutPrefix(s, "[route] "); ok {
-				route = strings.TrimSpace(r) // the resolved route name, not a log line
+				route = strings.TrimSpace(r) // the resolved play name, not a log line
 				return
 			}
 			// Unknown-`do` error: the overlay offers to teach instead (see the `do`
 			// dispatch branch), so don't also log the raw engine error. Matched on the
 			// do-specific hint so a failed `bind`/etc. still surfaces its own error.
-			if strings.HasPrefix(s, "no route matches ") && strings.Contains(s, "marco teach") {
+			if strings.HasPrefix(s, noPlayMatches) && strings.Contains(s, "marco teach") {
 				return
 			}
 			h.log(s)
@@ -762,20 +771,20 @@ func runMarco(h *model, args ...string) (error, bool, string) {
 	return streamChild(h, true, args...)
 }
 
-// helpLines builds the help menu: the leader keys plus the known routes.
+// helpLines builds the help menu: the leader keys plus the known plays.
 func helpLines() []string {
 	lines := []string{
 		"`m then type:",
-		"  <route>            run it",
+		"  <play>             run it",
 		"  teach <name>       record a new one (leader to save)",
-		"  ui                 visual editor: routes · bindings · config · help",
-		"  edit <route>       edit one route in the browser",
-		"  simplify <route>   re-clean its steps",
+		"  ui                 visual editor: plays · bindings · config · help",
+		"  edit <play>        edit one play in the browser",
+		"  simplify <play>    re-clean its steps",
 		"  rename <old> to <new>  rename it",
-		"  forget <route>     delete it",
-		"  bind <key> <route> hotkey it for this app",
+		"  forget <play>      delete it",
+		"  bind <key> <play>  hotkey it for this app",
 		"  voice on|off / config / help / exit",
-		"`<key>  run the route bound to it   Esc  cancel",
+		"`<key>  run the play bound to it   Esc  cancel",
 		"",
 	}
 	// Three groups, matching the route folders: CONTEXT (this app, in-place), FOCUS
@@ -814,7 +823,7 @@ func helpLines() []string {
 		}
 	}
 	if len(context)+len(focus)+len(global) == 0 {
-		lines = append(lines, "routes: (none yet — `m teach <name>)")
+		lines = append(lines, "plays: (none yet — `m teach <name>)")
 		return lines
 	}
 	if app != "" {

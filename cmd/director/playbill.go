@@ -1115,13 +1115,13 @@ func loweringBecause(j observe.LoweringJudgement) string {
 		case observe.RefusalNotVerified, observe.RefusalNoRehearsal:
 			return "I've watched this, but I haven't tried it myself yet."
 		case observe.RefusalRehearsalIncomplete:
-			return "I tried it and stopped part way, so I can't say the whole route works."
+			return "I tried it and stopped part way, so I can't say the whole way there works."
 		case observe.RefusalEvidenceStale:
 			return "I did try this, but what you showed me has changed since."
 		case observe.RefusalEndpointUnknown:
-			return "I no longer recognise one end of this route."
+			return "I no longer recognise one end of this path."
 		case observe.RefusalCannotSayText:
-			return "this route goes through somewhere you typed, and I kept none of it."
+			return "this path goes through somewhere you typed, and I kept none of it."
 		case observe.RefusalNoTargetToName:
 			return "part of this was a click I could not attribute to any control, so there " +
 				"is no name to write down."

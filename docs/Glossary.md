@@ -77,3 +77,23 @@ pointing at their live UI. The person still performs every action. Reserved for 
 **not** the acquisition flow, whatever the code is still called.
 
 **Do** — Marco performs a learned behaviour itself, under the existing authority model.
+
+**Play** — a durable behaviour Marco can perform: legal Core Marco on disk, with a past. The
+product-facing noun; it is STORED by `internal/routes`, which keeps its name for the same reason
+`teach` does. See [[Plays]] and [[ADR-081-a-durable-behaviour-is-a-play]].
+
+**Binding** — a way IN to a Play, never the Play itself: a hotkey (`routes.Binding`) or the
+Play's own scoped name resolved by `Registry.Resolve`. See [[Plays]].
+
+**Saved** — a Play is written down, readable and editable, and nothing can ask for it: it sits in
+`<app>/learned/`, which route discovery does not scan. **Registered** — the file has been moved
+where the resolver looks, so a name reaches it. Two operations against two directories, not a
+flag. See [[ADR-028-a-learned-play-is-a-file-with-a-past]].
+
+**Focus** *(scope)* — the Play answers from anywhere AND Marco brings its application forward
+before running it. Distinct from **global**, which answers anywhere and switches nothing, and
+from **context**, which answers only while its application is already in front. A learned Play
+registers as focus. See [[ADR-080-a-learned-play-is-asked-for-from-anywhere]].
+
+**Recorded** — how a Play generated from a demonstration (`routes.KindTaught`) is presented,
+because *Teach* above is spent on the other direction of travel. See [[Plays]].

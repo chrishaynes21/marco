@@ -104,6 +104,12 @@ func (r Registry) RecordingPath(rt Route) string {
 	return filepath.Join(r.locDir(rt), rt.Slug+recExt)
 }
 
+// HasRecording reports whether a play kept the demonstration it was taught from.
+//
+// A Stat, where LoadRecording is a read of the whole file. The difference does not matter for one
+// play and does for a listing of every play, which is the only reason this exists.
+func (r Registry) HasRecording(rt Route) bool { return fileExists(r.RecordingPath(rt)) }
+
 // SaveRecording stores a route's raw demonstration beside it (dir created lazily).
 func (r Registry) SaveRecording(rt Route, data []byte) error {
 	if err := os.MkdirAll(r.locDir(rt), 0o755); err != nil {
@@ -158,14 +164,23 @@ func (r Registry) Save(rt Route, source string) error {
 	return os.WriteFile(r.Path(rt), []byte(source), 0o644)
 }
 
-// Rename moves a route (its source, recording, and anchor images) to a new slug within
-// the same scope. The caller must verify the new slug doesn't exist first.
+// Rename moves a route (its source, recording, provenance, and anchor images) to a new
+// slug within the same scope. The caller must verify the new slug doesn't exist first.
 func (r Registry) Rename(from, to Route) error {
 	dir := r.locDir(from)
 	if err := os.Rename(filepath.Join(dir, from.Slug+".marco"), filepath.Join(dir, to.Slug+".marco")); err != nil {
 		return err
 	}
 	_ = os.Rename(filepath.Join(dir, from.Slug+recExt), filepath.Join(dir, to.Slug+recExt))
+	// THE PAST COMES WITH IT. The digest is over the source, which renaming does not
+	// change, so the sidecar still describes the file at its new name — while leaving it
+	// behind would do two wrongs at once: the renamed play would read as somebody's own
+	// writing, and an orphaned sidecar would sit under the old slug waiting for the next
+	// unrelated play saved there. `Origin` refuses that inheritance separately; not
+	// creating the orphan is better than refusing it.
+	//
+	// Deleting this must fail TestRenamingAPlayCarriesItsPast.
+	_ = os.Rename(filepath.Join(dir, from.Slug+originExt), filepath.Join(dir, to.Slug+originExt))
 	if matches, _ := filepath.Glob(filepath.Join(dir, from.Slug+"-anchor-*.png")); len(matches) > 0 {
 		for _, m := range matches {
 			suffix := strings.TrimPrefix(filepath.Base(m), from.Slug)

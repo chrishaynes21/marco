@@ -67,7 +67,7 @@ func TestTheTeachTailWritesTheRealPlayThroughTheRealSavePath(t *testing.T) {
 	//
 	// Teach used to ask only to save, and Marco.s completion sentence — "you can ask me to
 	// do it later" — was then false: the artifact sat in `learned/`, which the resolver
-	// deliberately cannot see, and `marco routes` reported "No routes yet" for a capability
+	// deliberately cannot see, and `marco routes` reported "No plays yet" for a capability
 	// Marco had just claimed. Measured live.
 	if !saved.Registered {
 		t.Error("a completed Learn saved the play and left nothing able to ask for it. " +
@@ -491,7 +491,7 @@ func TestTheTailsGrantIsScopedToItsRoute(t *testing.T) {
 //
 // Marco completed a Learn, said "you can ask me to do it later", and `marco routes` reported:
 //
-//	No routes yet. Teach one with: marco teach "<name>"
+//	No plays yet. Teach one with: marco teach "<name>"
 //
 // The artifact was on disk, legal and correct — in `<app>/learned/`, which the resolver
 // deliberately cannot see. Saved and registered are two places on purpose, so the two can never

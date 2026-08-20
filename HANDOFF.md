@@ -5147,3 +5147,59 @@ is about the mechanism, not about who crosses it.
 about a name rather than a file.
 [[ADR-078-a-learned-play-is-performed-by-the-director]] — corrected: `bringForward` preceding the
 Stage read IS now gated, contrary to what it previously claimed.
+
+# Roadmap 34F Phase 1 — the product noun is a Play (2026-08-20)
+
+Phase 0 made one runnable product. Phase 1 gave it a vocabulary, and a surface that shows the
+whole of what a person has — including the plays that are saved and cannot yet answer.
+
+**No file moved and no directory was renamed.** `internal/routes` keeps its name, `routes/` keeps
+its name, `$MARCO_ROUTES` keeps its name, and `marco routes` keeps its name, its result set and
+its published JSON keys. Product vocabulary and implementation vocabulary are allowed to differ —
+the same divergence this repository already runs for Learn/`teach`.
+
+## What landed
+
+- **`internal/plays`** — one package holding the product projection AND the product wording:
+  `List` / `Registered` / `Staged` / `Find`, `ScopeOf`, `LifeOf`, `AfterLearn`, `KindWord`. Kinds
+  present as **Authored / Recorded / Learned**; standing is one of `ready | edited | unverified |
+  saved | stuck`, each with its badge and its sentence.
+- **An additive registry API** — `ListStaged`, `KindOf`, `KindOfStaged`, `HasRecording`,
+  `MoveOrigin`, `LearnedFocus`. `Registry.List` and `Registry.Resolve` were not touched: the
+  Plays surface JOINS two enumerations rather than widening one, because `Resolve` walks `List`.
+- **One decider for provenance** — `orchestrator.Classify` now calls `reg.KindOf`, the same call
+  the listing makes, so the authority door and the listing cannot disagree about a file.
+- **The control centre's Routes tab is the Plays surface** — registered and staged together,
+  `GET /api/plays`, `POST /api/register`, delete via `Unregister`, and `/api/scope` carrying the
+  `.origin.json` verbatim through `MoveOrigin`. The landing tab with no play named is Plays. The
+  view identifiers (`routes`, `nav('routes')`, `marco ui routes`) deliberately did not move.
+- **`marco plays` and `marco register`** — the listing that shows a saved play, and the command
+  that listing names. `marco routes` stayed narrow on purpose: it is what may be OFFERED to a
+  front end, and a staged name would advertise something `marco do` cannot find.
+- **One unknown-command prefix** — `"no play matches "`, with `plugins/overlay`'s suppression
+  constant moved to match. The wire prefix `"[route] "` is protocol and did not change.
+
+## The two defects this made visible
+
+1. **A scope change stripped a learned play's past.** `/api/scope` carried the `.marco` and the
+   `.rec.json` and left the `.origin.json` behind — so the moved play re-listed as *Authored*, and
+   an orphaned sidecar sat under the old scope waiting for the next play saved there. Invisible
+   while nothing displayed provenance.
+2. **Writing the sidecar at the destination would have been worse.** `SaveWithOrigin` recomputes
+   the digest, so a play the person had edited would come out of a move reading `ready` — Marco
+   silently re-vouching for an artifact it never verified. `MoveOrigin` copies the bytes instead.
+
+## Decisions
+
+[[ADR-081-a-durable-behaviour-is-a-play]] — the product noun, the four alternatives that were
+rejected (including renaming the package), and the costs of keeping two vocabularies.
+[[ADR-082-a-plays-past-travels-with-the-file]] — Rename and the scope change carry provenance
+verbatim, so a move can neither lose a past nor re-verify an edited play.
+
+## Where to read it
+
+[[Plays]] is the new subsystem note: the Play and the Binding, the three kinds, the three scopes,
+the five standings, and a table of which call decides each fact. [[Learned-Plays]] was corrected
+where it still said a learned play lands in `context/` — it lands in `focus/`, and has since
+[[ADR-080-a-learned-play-is-asked-for-from-anywhere]]. README documents `marco plays` and
+`marco register`; E2E section **G** walks a staged play across the line and back.

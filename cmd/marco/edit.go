@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/chaynes-simpleclouds/marco/internal/plays"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
 )
 
@@ -23,16 +24,27 @@ import (
 var faviconPNG []byte
 
 // runEdit opens the Marco control center — a small local web app served from stdlib net/http
-// (so the zero-dep engine rule holds). It opens on the named route's Edit view, where every step
+// (so the zero-dep engine rule holds). It opens on the named play's Edit view, where every step
 // across the OS harness is editable (waits, coordinates, keys/hold/release, type, focus/launch,
-// secrets, repeat blocks); a hamburger nav switches to Routes (browse / open / run), Bindings
-// (leader hotkeys), and Help. Ctrl+C to stop.
+// secrets, repeat blocks); a hamburger nav switches to Plays (browse / open / run / register),
+// Bindings (leader hotkeys), and Help. Ctrl+C to stop.
 //
 //	marco edit "enter freeplay"
 //
 // uiView maps a `marco ui <arg>` argument to a known opening view, or "" (the default browser).
+//
+// # "plays" and "routes" are ONE view under two words
+//
+// The view IDENTIFIER stays `routes`: it is the DOM id, the nav key and the argument this command
+// has always taken, and an identifier is not a product word. The Audience's word for what the view
+// lists is now PLAY, so `marco ui plays` has to reach the same place — otherwise the tab a person
+// can see says one thing and the only argument that opens it says another.
+//
+// Deleting the "plays" arm must fail TestMarcoUiPlaysOpensThePlaysView.
 func uiView(args []string) string {
 	switch v := strings.ToLower(strings.TrimSpace(strings.Join(args, " "))); v {
+	case "plays":
+		return "routes"
 	case "help", "routes", "bindings", "config", "edit":
 		return v
 	default:
@@ -44,13 +56,14 @@ func runEdit(name, view string) {
 	name = strings.TrimSpace(name)
 	d := newDeps()
 	ed := &editor{reg: d.Reg, app: appOf(d), view: view}
-	// With a name, open on that route's Edit view; without one (marco ui / bare marco edit) the
-	// control center lands on the all-routes browser and no route is loaded yet.
+	// With a name, open on that play's Edit view; without one (marco ui / bare marco edit) the
+	// control center lands on the Plays browser and no play is loaded yet — the step editor is a
+	// tool for a play you already have, not the front door to the product.
 	if name != "" {
 		rt, ok := d.Reg.Resolve(appOf(d), name)
 		if !ok {
 			if rt, ok = findRouteByName(d.Reg, name); !ok {
-				fmt.Fprintf(os.Stderr, "No route named %q. Known routes: run `marco routes`.\n", name)
+				fmt.Fprintf(os.Stderr, "No play named %q. Known plays: run `marco plays`.\n", name)
 				os.Exit(1)
 			}
 		}
@@ -79,21 +92,27 @@ func runEdit(name, view string) {
 		w.Header().Set("Cache-Control", "max-age=86400")
 		w.Write(faviconPNG)
 	})
-	mux.HandleFunc("/api/route", ed.handleRoute)   // the active route's steps + source
-	mux.HandleFunc("/api/save", ed.handleSave)     // write step edits back
-	mux.HandleFunc("/api/routes", ed.handleRoutes) // every route (the Routes view)
-	mux.HandleFunc("/api/load", ed.handleLoad)     // switch which route is being edited
-	mux.HandleFunc("/api/do", ed.handleDo)         // run a route for real
+	mux.HandleFunc("/api/route", ed.handleRoute) // the active play's steps + source
+	mux.HandleFunc("/api/save", ed.handleSave)   // write step edits back
+	// /api/routes is the EDIT view's picker and keeps its shape exactly — untagged Go names,
+	// registered plays only. /api/plays is the product listing: registered AND staged, with the
+	// lifecycle words. Two endpoints because they answer two different questions; a picker that
+	// offered a staged play would offer something `Resolve` cannot find.
+	mux.HandleFunc("/api/routes", ed.handleRoutes)
+	mux.HandleFunc("/api/plays", ed.handlePlays)
+	mux.HandleFunc("/api/register", ed.handleRegister) // stage → askable
+	mux.HandleFunc("/api/load", ed.handleLoad)         // switch which play is being edited
+	mux.HandleFunc("/api/do", ed.handleDo)             // run a play for real
 	mux.HandleFunc("/api/bindings", ed.handleBindings)
 	mux.HandleFunc("/api/bind", ed.handleBind)
 	mux.HandleFunc("/api/unbind", ed.handleUnbind)
-	mux.HandleFunc("/api/scope", ed.handleScope)     // move a route between context/focus/global
-	mux.HandleFunc("/api/delete", ed.handleDelete)   // delete a route
+	mux.HandleFunc("/api/scope", ed.handleScope)     // move a play between context/focus/global
+	mux.HandleFunc("/api/delete", ed.handleDelete)   // forget a play
 	mux.HandleFunc("/api/oconfig", ed.handleOConfig) // read/write the overlay settings
 	// THE Learn panel. Its endpoints hold no state and decide nothing — see learnui.go.
 	learnAPI(mux)
 
-	where := "all routes"
+	where := "all plays"
 	if name != "" {
 		where = fmt.Sprintf("%q", prettyRoute(ed.rt.Slug))
 	}
@@ -105,7 +124,7 @@ func runEdit(name, view string) {
 	}
 }
 
-// editor holds one control-center session: the registry, the app context, and the route
+// editor holds one control-center session: the registry, the app context, and the play
 // currently open in the Edit view (swappable via /api/load).
 type editor struct {
 	reg  routes.Registry
@@ -117,7 +136,7 @@ type editor struct {
 	src  string
 }
 
-// loadSrc reads the active route's source into e.src.
+// loadSrc reads the active play's source into e.src.
 func (e *editor) loadSrc() error {
 	b, err := os.ReadFile(e.path)
 	if err != nil {
@@ -127,20 +146,19 @@ func (e *editor) loadSrc() error {
 	return nil
 }
 
-// scopeOf names a route's scope for display: focus (anywhere, switches), context (only in-app),
+// scopeOf names a play's scope for display: focus (anywhere, switches), context (only in-app),
 // or global (app-less, anywhere).
-func scopeOf(rt routes.Route) string {
-	switch {
-	case rt.Focus:
-		return "focus"
-	case rt.App != "":
-		return "context"
-	default:
-		return "global"
-	}
-}
+//
+// ONE definition, in internal/plays. The copy that used to live here tested Focus BEFORE App and
+// so disagreed with the folder the file actually goes in: an app-less play with the bit set read
+// as "focus". Nothing produced that combination, which is exactly why it survived — and this
+// handler builds Routes out of posted JSON, where it would stop being hypothetical.
+func scopeOf(rt routes.Route) string { return string(plays.ScopeOf(rt)) }
 
-// handleRoutes lists every route (name, app, scope) plus which one is open — the Routes view.
+// handleRoutes lists every registered play (name, app, scope) plus which one is open.
+//
+// The EDIT view's picker, unchanged on purpose: it offers plays to open in the step editor, so it
+// must offer only what `Resolve` can reach. The product listing is handlePlays.
 func (e *editor) handleRoutes(w http.ResponseWriter, _ *http.Request) {
 	e.mu.Lock()
 	cur := e.rt
@@ -156,7 +174,124 @@ func (e *editor) handleRoutes(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, rows)
 }
 
-// handleLoad switches the Edit view to another route by name, reloading its source.
+// playRow is one play as the Plays view is shown it.
+//
+// Every word here comes out of internal/plays — kind, scope and lifecycle, each as a machine value
+// AND as the sentence the product says. Nothing on this row is derived locally, because a second
+// derivation is a second account: the Learn panel and this list once disagreed about the same file
+// precisely because each computed its own wording.
+//
+// The JSON tags are EXPLICIT, unlike the older handlers' untagged Go names, so renaming a Go field
+// cannot silently blank a column in the page.
+type playRow struct {
+	Name string `json:"name"`
+	// Slug is the only safe handle for an action — see plays.Play.Slug.
+	Slug         string `json:"slug"`
+	App          string `json:"app"`
+	Kind         string `json:"kind"`
+	KindWord     string `json:"kindWord"`
+	KindSays     string `json:"kindSays"`
+	Scope        string `json:"scope"`
+	ScopeWord    string `json:"scopeWord"`
+	ScopeSays    string `json:"scopeSays"`
+	Life         string `json:"life"`
+	LifeWord     string `json:"lifeWord"`
+	LifeSays     string `json:"lifeSays"`
+	Registered   bool   `json:"registered"`
+	Registerable bool   `json:"registerable"`
+	Askable      bool   `json:"askable"`
+	Activates    string `json:"activates"`
+	Current      bool   `json:"current"`
+}
+
+// bindingRow is one hotkey that REACHES a play.
+//
+// Alongside the rows, never among them. A binding is a trigger — routes.Binding — and a play is a
+// behaviour; a list that mixed them would invite forgetting a key in order to forget a macro.
+type bindingRow struct {
+	App string `json:"app"`
+	Key string `json:"key"`
+	Cmd string `json:"cmd"`
+}
+
+// handlePlays is the product listing: every play Marco has, registered and staged together, with
+// the words the product uses for each.
+//
+// READ-ONLY on disk, and that is the property to protect — `plays.List` is os.ReadDir/ReadFile/Stat
+// and nothing else, and nothing added here may change that.
+//
+// Deleting the staged half must fail TestThePlaysListingShowsRegisteredAndStagedPlaysDifferently.
+func (e *editor) handlePlays(w http.ResponseWriter, _ *http.Request) {
+	e.mu.Lock()
+	cur := e.rt
+	e.mu.Unlock()
+	rows := []playRow{}
+	for _, p := range plays.List(e.reg) {
+		rows = append(rows, playRow{
+			Name: p.Name, Slug: p.Slug, App: p.Application,
+			Kind: string(p.Kind), KindWord: plays.KindWord(p.Kind), KindSays: plays.KindSays(p.Kind),
+			Scope: string(p.Scope), ScopeWord: p.Scope.Word(), ScopeSays: p.Scope.Says(p.Application),
+			Life: string(p.Life), LifeWord: p.Life.Word(), LifeSays: p.Life.Says(),
+			Registered: p.Registered, Registerable: p.Life.Registerable(), Askable: p.Life.Askable(),
+			Activates: p.Activates,
+			// A STAGED play is never "open": e.rt names a registered location, and a staged
+			// Route carries routes.LearnedFocus as an intention rather than a place.
+			Current: p.Registered && p.Route == cur,
+		})
+	}
+	binds := []bindingRow{}
+	for _, b := range e.reg.Bindings() {
+		cmd := b.Cmd
+		if cmd == "" {
+			cmd = b.Slug // legacy single-play binding
+		}
+		binds = append(binds, bindingRow{App: b.App, Key: b.Key, Cmd: cmd})
+	}
+	writeJSON(w, map[string]any{"plays": rows, "bindings": binds})
+}
+
+// unprefixRoutes strips the package name out of a registry error before a person reads it.
+//
+// `internal/routes` prefixes its errors "routes: " — correct for a log, wrong in a sentence shown
+// beside a Register button, where it names a package the Audience has no word for.
+func unprefixRoutes(s string) string {
+	if rest, ok := strings.CutPrefix(s, "routes: "); ok {
+		return rest
+	}
+	return s
+}
+
+// handleRegister moves a saved play to where the resolver looks, making it askable.
+//
+// # It acts on the SLUG, never on a display name
+//
+// A staged play's slug came from the phrase the Audience used when Learn saved it. `plays.Pretty`
+// is lossy in the direction that matters — re-deriving a slug from a shown name can land on a
+// different file, or on none — so the listing carries the slug and the button posts it back
+// unchanged. See plays.Play.Slug.
+//
+// Deleting the Slug field and slugging req name instead must fail
+// TestRegisteringActsOnTheSlugTheListingCarried.
+func (e *editor) handleRegister(w http.ResponseWriter, r *http.Request) {
+	var req struct{ Slug, App string }
+	if json.NewDecoder(r.Body).Decode(&req) != nil || strings.TrimSpace(req.Slug) == "" {
+		http.Error(w, "bad request", 400)
+		return
+	}
+	rt := routes.Route{App: req.App, Focus: routes.LearnedFocus, Slug: strings.TrimSpace(req.Slug)}
+	if err := e.reg.Register(rt); err != nil {
+		// The registry REFUSED, and the page must say so. A collision leaves the play exactly
+		// where it was — saved, not askable — and reporting success here would be the one lie
+		// this whole staging design exists to prevent.
+		//
+		// Deleting this arm must fail TestARefusedRegistrationStillShowsThePlayAsSaved.
+		http.Error(w, unprefixRoutes(err.Error()), 409)
+		return
+	}
+	writeJSON(w, map[string]any{"ok": true, "name": prettyRoute(rt.Slug)})
+}
+
+// handleLoad switches the Edit view to another play by name, reloading its source.
 func (e *editor) handleLoad(w http.ResponseWriter, r *http.Request) {
 	var req struct{ Name string }
 	if json.NewDecoder(r.Body).Decode(&req) != nil || strings.TrimSpace(req.Name) == "" {
@@ -166,7 +301,7 @@ func (e *editor) handleLoad(w http.ResponseWriter, r *http.Request) {
 	rt, ok := e.reg.Resolve(e.app, req.Name)
 	if !ok {
 		if rt, ok = findRouteByName(e.reg, req.Name); !ok {
-			http.Error(w, "no such route", 404)
+			http.Error(w, "no such play", 404)
 			return
 		}
 	}
@@ -181,7 +316,7 @@ func (e *editor) handleLoad(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"ok": true, "name": prettyRoute(rt.Slug)})
 }
 
-// handleDo runs a route for real (types/clicks) by spawning a fresh marco process, like the
+// handleDo runs a play for real (types/clicks) by spawning a fresh marco process, like the
 // overlay and web-ui do — the engine stays out of this server's process.
 func (e *editor) handleDo(w http.ResponseWriter, r *http.Request) {
 	var req struct{ Name string }
@@ -207,17 +342,17 @@ func (e *editor) handleBindings(w http.ResponseWriter, _ *http.Request) {
 	for _, b := range e.reg.Bindings() {
 		cmd := b.Cmd
 		if cmd == "" {
-			cmd = b.Slug // legacy single-route binding
+			cmd = b.Slug // legacy single-play binding
 		}
 		rows = append(rows, row{b.App, b.Key, cmd})
 	}
 	writeJSON(w, map[string]any{"bindings": rows, "app": e.app})
 }
 
-// handleBind binds `leader+key` to a command. The scope is the ROUTE's app, so a hotkey only
+// handleBind binds `leader+key` to a command. The scope is the PLAY's app, so a hotkey only
 // fires while that app is in front — the same key can drive different macros in different games
-// (overloading). When App isn't given, it's inferred from the command's first route (a global
-// route → a global binding). Pass App explicitly to override.
+// (overloading). When App isn't given, it's inferred from the command's first play (a global
+// play → a global binding). Pass App explicitly to override.
 func (e *editor) handleBind(w http.ResponseWriter, r *http.Request) {
 	var req struct{ App, Key, Cmd string }
 	if json.NewDecoder(r.Body).Decode(&req) != nil || req.Key == "" || strings.TrimSpace(req.Cmd) == "" {
@@ -228,10 +363,10 @@ func (e *editor) handleBind(w http.ResponseWriter, r *http.Request) {
 	if app == "" {
 		first := strings.TrimSpace(req.Cmd)
 		if i := strings.Index(strings.ToLower(first), " then "); i >= 0 {
-			first = strings.TrimSpace(first[:i]) // scope to the first route in a chain
+			first = strings.TrimSpace(first[:i]) // scope to the first play in a chain
 		}
 		if rt, ok := findRouteByName(e.reg, first); ok {
-			app = rt.App // "" for a global route → a global binding
+			app = rt.App // "" for a global play → a global binding
 		}
 	}
 	if err := e.reg.Bind(app, strings.ToLower(req.Key), strings.TrimSpace(req.Cmd)); err != nil {
@@ -255,44 +390,117 @@ func (e *editor) handleUnbind(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"ok": true})
 }
 
-// handleDelete removes a route (its .marco, recording, and any anchor templates). CurApp/Scope
-// identify which one when the same slug exists in several scopes.
+// handleDelete forgets a play — registered or staged — together with everything that described it:
+// its .marco, its recording, its anchor templates AND its provenance sidecar.
+//
+// # Why Unregister rather than Delete
+//
+// `reg.Delete` deliberately leaves the `.origin.json` behind, which is right for a MOVE (the past
+// is about to be rewritten beside the new copy) and wrong for a forget: it left an orphaned sidecar
+// that no command a person has could ever remove, and that a later unrelated play saved under the
+// same slug would sit next to. `reg.Unregister` is the documented door for "this play is gone" and
+// removes the provenance, the staged pair and the play in one call.
+//
+// Deleting the Unregister call — going back to Delete — must fail
+// TestForgettingAPlayLeavesNoOrphanedProvenance.
 func (e *editor) handleDelete(w http.ResponseWriter, r *http.Request) {
-	var req struct{ Name, App, Scope string }
-	if json.NewDecoder(r.Body).Decode(&req) != nil || strings.TrimSpace(req.Name) == "" {
+	var req struct {
+		Name, Slug, App, Scope string
+		Staged                 bool
+	}
+	if json.NewDecoder(r.Body).Decode(&req) != nil {
 		http.Error(w, "bad request", 400)
 		return
 	}
-	rt := routes.Route{App: req.App, Focus: req.Scope == "focus", Slug: routes.Slug(req.Name)}
-	if !e.reg.Has(rt) {
-		http.Error(w, "no such route", 404)
+	// The SLUG when the listing carried one; the shown name only as the compatibility path for
+	// the older payload. See plays.Play.Slug for why re-deriving a slug can miss.
+	slug := strings.TrimSpace(req.Slug)
+	if slug == "" {
+		slug = routes.Slug(req.Name)
+	}
+	if slug == "" {
+		http.Error(w, "bad request", 400)
 		return
 	}
-	if err := e.reg.Delete(rt); err != nil {
-		http.Error(w, err.Error(), 500)
+	rt := routes.Route{App: req.App, Focus: req.Scope == "focus", Slug: slug}
+	// EACH ROW FORGETS ITS OWN FILES, and this is not a detail.
+	//
+	// The Plays list shows a registered play and a staged play of the same name as two rows,
+	// because they are two files with two different standings — and that is the NORMAL position
+	// for a staged play, since registration is refused on a name collision. Forgetting either row
+	// through `reg.Unregister` reached both: Unregister is "Marco no longer has this play at all",
+	// and it removes the registered play, its provenance AND the staged copy. So forgetting the
+	// saved row deleted the working play, and following the registry's own advice — "rename the
+	// learned play or remove the other one first" — destroyed the learned play it was telling you
+	// to keep. Both were silent, both returned 200.
+	//
+	// Deleting either branch's own door must fail
+	// TestForgettingAStagedPlayLeavesTheRegisteredOneAlone.
+	var err error
+	if req.Staged {
+		// A staged play lives in `<app>/learned/`, so `reg.Has` — which asks about the
+		// REGISTERED location — would answer no for every one of them. The listing's own
+		// enumeration is the honest existence check.
+		rt = routes.Route{App: req.App, Focus: routes.LearnedFocus, Slug: slug}
+		if _, ok := plays.Find(e.reg, slug, req.App, true); !ok {
+			http.Error(w, "no such play", 404)
+			return
+		}
+		err = e.reg.DeleteStaged(rt)
+	} else {
+		if !e.reg.Has(rt) {
+			http.Error(w, "no such play", 404)
+			return
+		}
+		// The play AND its provenance, so forgetting leaves no sidecar describing a file that
+		// is not there — and nothing in the staging directory, which is a different play.
+		if err = e.reg.DeleteOrigin(rt); err == nil {
+			err = e.reg.Delete(rt)
+		}
+	}
+	if err != nil {
+		http.Error(w, unprefixRoutes(err.Error()), 500)
 		return
 	}
 	e.mu.Lock()
-	if e.rt == rt { // the open route is gone — fall back to the browser
+	if e.rt == rt { // the open play is gone — fall back to the browser
 		e.rt, e.path, e.src = routes.Route{}, "", ""
 	}
 	e.mu.Unlock()
 	writeJSON(w, map[string]any{"ok": true})
 }
 
-// handleScope moves a route between scopes — context (in-app), focus (anywhere, switches to the
-// app), or global (app-less). It relocates the .marco (and its recording) to the new scope dir:
-// save at the destination, carry the recording, delete the source. CurApp/CurScope identify which
-// route (same slug can exist in several scopes); App is the destination app (context/focus need one).
+// handleScope moves a play between scopes — context (in-app), focus (anywhere, switches to the
+// app), or global (app-less). It relocates the .marco, its recording AND its provenance to the new
+// scope dir: save at the destination, carry the recording, delete the source. CurApp/CurScope
+// identify which play (same slug can exist in several scopes); App is the destination app
+// (context/focus need one).
+//
+// # Provenance travels with the file
+//
+// It did not, and that was a defect: the copy carried the source and the recording, `Delete` left
+// the `.origin.json` behind, and so changing a learned play's scope silently stripped its past —
+// it re-listed as Authored — while an unreachable sidecar stayed behind in the old directory.
+// Moving a play is not supposed to change what it IS.
+//
+// Deleting the SaveWithOrigin arm must fail TestChangingScopeKeepsALearnedPlayLearned.
 func (e *editor) handleScope(w http.ResponseWriter, r *http.Request) {
-	var req struct{ Name, CurApp, CurScope, Scope, App string }
-	if json.NewDecoder(r.Body).Decode(&req) != nil || strings.TrimSpace(req.Name) == "" {
+	var req struct{ Name, Slug, CurApp, CurScope, Scope, App string }
+	if json.NewDecoder(r.Body).Decode(&req) != nil {
 		http.Error(w, "bad request", 400)
 		return
 	}
-	from := routes.Route{App: req.CurApp, Focus: req.CurScope == "focus", Slug: routes.Slug(req.Name)}
+	slug := strings.TrimSpace(req.Slug)
+	if slug == "" {
+		slug = routes.Slug(req.Name)
+	}
+	if slug == "" {
+		http.Error(w, "bad request", 400)
+		return
+	}
+	from := routes.Route{App: req.CurApp, Focus: req.CurScope == "focus", Slug: slug}
 	if !e.reg.Has(from) {
-		http.Error(w, "no such route", 404)
+		http.Error(w, "no such play", 404)
 		return
 	}
 	app := strings.TrimSpace(req.App)
@@ -320,7 +528,7 @@ func (e *editor) handleScope(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if e.reg.Has(to) {
-		http.Error(w, "a route already exists at that scope", 409)
+		http.Error(w, "a play already exists at that scope", 409)
 		return
 	}
 	src, err := os.ReadFile(e.reg.Path(from))
@@ -329,18 +537,37 @@ func (e *editor) handleScope(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := e.reg.Save(to, string(src)); err != nil {
-		http.Error(w, err.Error(), 500)
+		http.Error(w, unprefixRoutes(err.Error()), 500)
 		return
 	}
 	if rec, ok := e.reg.LoadRecording(from); ok {
 		_ = e.reg.SaveRecording(to, rec)
+	}
+	// THE PLAY'S PAST MOVES WITH IT, and it moves VERBATIM.
+	//
+	// This handler used to carry the `.marco` and the `.rec.json` and leave the `.origin.json`
+	// behind, and `Delete` does not remove one — so changing a learned play's scope stripped its
+	// provenance (it re-listed as Authored) and left an orphaned sidecar under the old scope for
+	// the next play saved there. Now that the Plays surface shows kind and provenance, that is
+	// visible the first time anybody touches the scope control.
+	//
+	// `MoveOrigin` copies the bytes rather than rebuilding them, which is the difference between
+	// carrying the past and rewriting it: a play the person has edited stays `edited`.
+	//
+	// BEFORE Delete, not after: `locDir` falls back to the legacy loose location only while the
+	// `.marco` is still there, so the old sidecar has to be reached while the play still is.
+	//
+	// Deleting this must fail TestChangingScopeKeepsALearnedPlayLearned.
+	if err := e.reg.MoveOrigin(from, to); err != nil {
+		http.Error(w, unprefixRoutes(err.Error()), 500)
+		return
 	}
 	if err := e.reg.Delete(from); err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
 	e.mu.Lock()
-	if e.rt == from { // keep the open route pointing at its new home
+	if e.rt == from { // keep the open play pointing at its new home
 		e.rt, e.path = to, e.reg.Path(to)
 	}
 	e.mu.Unlock()
@@ -375,7 +602,7 @@ type pointVals struct {
 	HasRel           bool
 }
 
-// step is one entry shown in the editor, in route order: an ACTION (read-only label) or a WAIT
+// step is one entry shown in the editor, in play order: an ACTION (read-only label) or a WAIT
 // (editable ms). A click/move action also carries the Point it targets and that point's X,Y,
 // which the editor exposes as editable coordinates.
 type step struct {
@@ -394,7 +621,7 @@ type step struct {
 	Line    int    `json:"line"`            // source line index (keys delete / wait / count / drag ops)
 }
 
-// parseSteps walks the route body and returns the ordered step sequence the editor shows: the
+// parseSteps walks the play body and returns the ordered step sequence the editor shows: the
 // top-level actions/waits, plus one level of `repeat N times...` block — its header (editable
 // count) and its indented body steps (Depth 1). A Find block's `when ok?/or?` arms and the
 // point/anchor declarations stay hidden. Each editable action carries its subtype + fields.
@@ -777,7 +1004,7 @@ func writeJSON(w http.ResponseWriter, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
-// findRouteByName matches a route across all scopes by its pretty name or slug (case-insensitive).
+// findRouteByName matches a play across all scopes by its pretty name or slug (case-insensitive).
 func findRouteByName(reg routes.Registry, name string) (routes.Route, bool) {
 	n := strings.ToLower(strings.TrimSpace(name))
 	for _, rt := range reg.List() {
@@ -865,13 +1092,26 @@ const editPage = `<!doctype html><html><head><meta charset="utf-8"><title>MARCO<
  details{margin-top:22px;color:var(--dim)}
  pre{background:#070708;padding:12px;border:1px solid var(--line);border-radius:6px;white-space:pre-wrap;font:13px var(--mono);color:#b8c4c2}
  .grouphead{color:var(--accent);font-size:12px;letter-spacing:2px;text-transform:uppercase;margin:18px 0 6px;opacity:.85}
- .rowcard{display:flex;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:6px;margin:6px 0;background:var(--panel)}
+ .rowcard{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 12px;border:1px solid var(--line);border-radius:6px;margin:6px 0;background:var(--panel)}
  .rowcard .nm{color:var(--text)}
  .tag{font-size:11px;letter-spacing:1px;text-transform:uppercase;padding:2px 7px;border-radius:4px;border:1px solid var(--line);color:var(--dim)}
  .tag.context{color:var(--accent);border-color:#12312e}
  .tag.focus{color:var(--listen);border-color:#12283a}
  .tag.global{color:var(--amber);border-color:#3a3018}
  .tag.cur{color:#04110f;background:var(--accent);border-color:var(--accent)}
+ /* WHERE A PLAY CAME FROM. Learned reads apart from the two a person made themselves. */
+ .tag.learned{color:#B48CF2;border-color:#2c2140}
+ .tag.taught{color:var(--listen);border-color:#12283a}
+ .tag.authored{color:var(--dim)}
+ /* WHERE IT STANDS. Green only for askable; a saved play must never look like a ready one. */
+ .tag.ready{color:var(--run);border-color:#153a1e}
+ .tag.edited{color:var(--run);border-color:#3a3018}
+ .tag.saved{color:var(--amber);border-color:#3a3018}
+ .tag.unverified,.tag.stuck{color:var(--err);border-color:#3a1e1e}
+ /* A TRIGGER, not the play: keyboard-shaped, and it keeps the key's own casing. */
+ .tag.hot{color:var(--accent);border-color:#12312e;background:#0d0e10;text-transform:none;letter-spacing:0}
+ .lifesays{color:var(--dim);font-size:12px;max-width:320px}
+ .subhead{color:var(--amber);font-size:11px;letter-spacing:2px;text-transform:uppercase;margin:12px 0 4px 2px;opacity:.9}
  .spacer{margin-left:auto}
  .key{display:inline-block;min-width:20px;text-align:center;padding:2px 7px;border:1px solid var(--line);border-radius:4px;color:var(--accent);background:#0d0e10}
  input.field{padding:7px 9px;background:#0d0e10;border:1px solid var(--line);color:var(--text);border-radius:6px;font:inherit}
@@ -904,7 +1144,7 @@ const editPage = `<!doctype html><html><head><meta charset="utf-8"><title>MARCO<
 <nav id="drawer">
   <a data-view="edit" class="active" onclick="nav('edit')">◆ Edit</a>
   <a data-view="learn" onclick="nav('learn')">✦ Learn</a>
-  <a data-view="routes" onclick="nav('routes')">▤ Routes</a>
+  <a data-view="routes" onclick="nav('routes')">▤ Plays</a>
   <a data-view="bindings" onclick="nav('bindings')">⌨ Bindings</a>
   <a data-view="config" onclick="nav('config')">⚙ Config</a>
   <a data-view="help" onclick="nav('help')">? Help</a>
@@ -912,7 +1152,7 @@ const editPage = `<!doctype html><html><head><meta charset="utf-8"><title>MARCO<
 <div id="scrim" onclick="closeNav()"></div>
 <main>
  <section id="view-edit">
-  <h2>Edit route</h2>
+  <h2>Edit play</h2>
   <p class="hint">Every step is editable in place — wait (ms), coordinates (x, y), the key a
     <b>Press/Hold/Release</b> sends, <b>Type</b> text, a <b>Focus/Launch</b> app, a <b>Secret</b> name,
     or a <b>Repeat</b> count. <b>+</b> inserts after; <b>✕</b> deletes; <b>drag</b> turns a click
@@ -921,7 +1161,7 @@ const editPage = `<!doctype html><html><head><meta charset="utf-8"><title>MARCO<
   <div class="bar"><button class="go" onclick="save()">Save</button>
     <button type="button" class="mini" onclick="document.getElementById('steps').appendChild(addRow(-1))">+ add step</button>
     <span id="saved2"></span></div>
-  <details><summary>Full route source</summary><pre id="src"></pre></details>
+  <details><summary>Full play source</summary><pre id="src"></pre></details>
  </section>
  <section id="view-learn" hidden>
   <h2>Learn</h2>
@@ -981,14 +1221,18 @@ const editPage = `<!doctype html><html><head><meta charset="utf-8"><title>MARCO<
   <div id="lplaces"></div>
   <details id="ldebug" hidden><summary>Debug</summary><pre id="ldebugbody"></pre></details>
  </section>
- <section id="view-routes" hidden><h2>Routes</h2><div id="routes"></div></section>
+ <section id="view-routes" hidden><h2>Plays</h2>
+  <p class="hint">A <b>play</b> is one thing Marco can do, written down as a small program you can
+    read, edit and run. A play that was only <b>saved</b> is a file — nothing can ask for it by
+    name until you <b>register</b> it.</p>
+  <div id="routes"></div></section>
  <section id="view-bindings" hidden>
   <h2>Bindings — leader hotkeys</h2>
-  <p class="hint">Press the leader (<kbd>` + "`" + `</kbd>) then a key to fire a route. A binding <b>scopes to its
-    route's app</b>, so <kbd>` + "`" + `</kbd><kbd>e</kbd> can run one macro in Rocket League and another
-    elsewhere. Global routes bind everywhere.</p>
+  <p class="hint">Press the leader (<kbd>` + "`" + `</kbd>) then a key to fire a play. A binding <b>scopes to its
+    play's app</b>, so <kbd>` + "`" + `</kbd><kbd>e</kbd> can run one macro in Rocket League and another
+    elsewhere. Global plays bind everywhere. A binding is a way in — it is not itself a play.</p>
   <div class="bar"><input class="field" id="bkey" placeholder="key (e.g. e)" style="width:110px">
-    <input class="field" id="bcmd" placeholder="route (e.g. enter freeplay)" style="flex:1;min-width:160px">
+    <input class="field" id="bcmd" placeholder="play (e.g. enter freeplay)" style="flex:1;min-width:160px">
     <button class="go" onclick="bindAdd()">Bind</button></div>
   <div id="bindings" style="margin-top:14px"></div>
  </section>
@@ -1004,38 +1248,52 @@ const editPage = `<!doctype html><html><head><meta charset="utf-8"><title>MARCO<
  </section>
  <section id="view-help" hidden class="help"><h2>Help</h2>
   <p class="hint">Marco turns things you demonstrate once into small, editable programs that drive
-    real mouse + keyboard. Teach a command in the overlay, tune it here, fire it by name or a hotkey.</p>
+    real mouse + keyboard. Each one is a <b>play</b>. Teach a command in the overlay, tune it here,
+    fire it by name or a hotkey.</p>
+
+  <h3>Where a play comes from</h3>
+  <ul>
+   <li><b>Authored</b> — you wrote it.</li>
+   <li><b>Recorded</b> — you demonstrated it once with <b>teach</b> and Marco kept the recording.</li>
+   <li><b>Learned</b> — Marco watched, worked out how to do it, and wrote it down.</li>
+  </ul>
 
   <h3>The leader key</h3>
   <p>Everything in the overlay starts with the <b>leader</b> — the <kbd>` + "`" + `</kbd> key (change it in Config). Tap it, then:</p>
   <ul>
-   <li><kbd>` + "`" + `</kbd><kbd>m</kbd> — open the command line; type a route name (or a command) and press <kbd>Enter</kbd>.</li>
-   <li><kbd>` + "`" + `</kbd><kbd>&lt;key&gt;</kbd> — run the route bound to that key (see Hotkeys).</li>
-   <li><kbd>` + "`" + `</kbd> while a route is running — stop / cancel it.</li>
+   <li><kbd>` + "`" + `</kbd><kbd>m</kbd> — open the command line; type a play name (or a command) and press <kbd>Enter</kbd>.</li>
+   <li><kbd>` + "`" + `</kbd><kbd>&lt;key&gt;</kbd> — run the play bound to that key (see Hotkeys).</li>
+   <li><kbd>` + "`" + `</kbd> while a play is running — stop / cancel it.</li>
   </ul>
 
-  <h3>Teach a new route</h3>
+  <h3>Teach a new play</h3>
   <ol>
    <li>Focus the app or game you want to automate.</li>
    <li><kbd>` + "`" + `</kbd><kbd>m</kbd>, type <b>teach &lt;name&gt;</b>, <kbd>Enter</kbd>.</li>
    <li>Do the actions for real — clicks, keys, typing. Marco records them.</li>
    <li>Press the <b>leader</b> to finish; it saves and asks the scope (context / focus / global).</li>
   </ol>
-  <p>Prefer to talk it through? <b>narrate teach &lt;name&gt;</b> (alias <b>voice teach</b>) builds the route
+  <p>Prefer to talk it through? <b>narrate teach &lt;name&gt;</b> (alias <b>voice teach</b>) builds the play
     from spoken or typed phrases: "click this", "type hello", "press enter", "wait for this screen", "done".</p>
 
-  <h3>Run a route</h3>
+  <h3>Saved, then registered</h3>
+  <p>A play Marco learns is <b>saved</b> first: a real file you can read and edit, which nothing can
+    ask for by name yet. Registering it moves it where Marco looks when you ask — press
+    <b>Register</b> beside it in the <b>Plays</b> tab. A name that is already taken is the usual
+    reason a play is still only saved.</p>
+
+  <h3>Run a play</h3>
   <ul>
    <li>Type its name in the command line, or say it out loud (voice).</li>
    <li>Bind it to a key and press <kbd>` + "`" + `</kbd><kbd>&lt;key&gt;</kbd>.</li>
-   <li>In the <b>Routes</b> tab here: <b>▶ run</b> (performs real input) or <b>edit</b> to tune it.</li>
+   <li>In the <b>Plays</b> tab here: <b>▶ run</b> (performs real input) or <b>edit</b> to tune it.</li>
   </ul>
 
   <h3>Hotkeys — the Bindings tab</h3>
-  <p>Enter a key + a route and press <b>Bind</b>; fire it with <kbd>` + "`" + `</kbd><kbd>&lt;key&gt;</kbd>. A binding
-    <b>scopes to the route's app</b>, so the same key can mean different macros in different games —
-    <kbd>` + "`" + `</kbd><kbd>e</kbd> = "enter freeplay" in Rocket League, something else elsewhere. Global routes bind
-    everywhere. From the overlay: <b>bind &lt;key&gt; &lt;route&gt;</b> / <b>unbind &lt;key&gt;</b>.</p>
+  <p>Enter a key + a play and press <b>Bind</b>; fire it with <kbd>` + "`" + `</kbd><kbd>&lt;key&gt;</kbd>. A binding
+    <b>scopes to the play's app</b>, so the same key can mean different macros in different games —
+    <kbd>` + "`" + `</kbd><kbd>e</kbd> = "enter freeplay" in Rocket League, something else elsewhere. Global plays bind
+    everywhere. From the overlay: <b>bind &lt;key&gt; &lt;play&gt;</b> / <b>unbind &lt;key&gt;</b>.</p>
 
   <h3>Voice + the activation phrase</h3>
   <p>Voice is two-phase: say the <b>activation phrase</b> (the wake word, default <b>"marco"</b>) to arm
@@ -1048,35 +1306,35 @@ const editPage = `<!doctype html><html><head><meta charset="utf-8"><title>MARCO<
     and more. It writes the same overlay.json the overlay reads, so changes apply next launch. (The
     overlay's own in-HUD panel — leader → <b>config</b> — applies the non-text settings live.)</p>
 
-  <h3>Edit a route — this tab</h3>
+  <h3>Edit a play — this tab</h3>
   <p>Every step is editable in place; <b>+</b> inserts a step after it, <b>✕</b> deletes, <b>Save</b> writes it back.</p>
   <ul>
    <li><b>Waits</b> — the ms between steps (the pacing that matters most).</li>
    <li><b>Click / move</b> — the x, y coordinates; <b>drag</b> turns a click into a click-and-drag.</li>
    <li><b>Press / Hold / Release</b> a key · <b>Type</b> text · <b>Focus / Launch</b> an app · <b>Secret</b> — the credential name.</li>
    <li><b>Repeat</b> — the loop count; its steps sit indented beneath it. Add one via <b>+ → repeat…</b>.</li>
-   <li>The last <b>settle · keep</b> wait lets the final action land before the route ends — deleting it can make the last step flaky.</li>
+   <li>The last <b>settle · keep</b> wait lets the final action land before the play ends — deleting it can make the last step flaky.</li>
   </ul>
 
-  <h3>Route scopes</h3>
+  <h3>Play scopes</h3>
   <ul>
    <li><b>context</b> — runs only while its app is in front (menus, in-game actions).</li>
-   <li><b>focus</b> — runs from anywhere and switches to the app first.</li>
-   <li><b>global</b> — app-less, runs anywhere (copy, paste, alt-tab…).</li>
+   <li><b>focus</b> — runs from anywhere and brings its app forward first.</li>
+   <li><b>global</b> — app-less, runs anywhere and switches nothing (copy, paste, alt-tab…).</li>
   </ul>
-  <p>Change a route's scope with the dropdown in the <b>Routes</b> tab — it moves the file to the new scope.</p>
+  <p>Change a play's scope with the dropdown in the <b>Plays</b> tab — it moves the file to the new scope.</p>
 
   <h3>The OS harness — what a step can be</h3>
   <ul>
    <li><b>Click / Move / Drag</b> — the mouse at x, y (drag = press, glide, release).</li>
    <li><b>Press / Hold / Release</b> a key — a tap, a key-down held, a key-up.</li>
-   <li><b>Type</b> text · <b>Secret</b> — types a stored credential (never written into the route).</li>
+   <li><b>Type</b> text · <b>Secret</b> — types a stored credential (never written into the play).</li>
    <li><b>Focus</b> / <b>Launch</b> an app · <b>Wait</b> (ms) · <b>Repeat</b> N times.</li>
   </ul>
 
   <h3>Good to know (alpha)</h3>
   <ul>
-   <li>Routes are pure <b>coordinates + recorded timings</b>. Record and replay at the same resolution / DPI.</li>
+   <li>A <b>recorded</b> play is pure <b>coordinates + recorded timings</b>. Record and replay it at the same resolution / DPI.</li>
    <li>If a screen loads slowly, bump the wait before that click here in the editor.</li>
    <li>Games that hide or lock the cursor (raw input — the pointer stays at screen-center) can't be driven by coordinates yet.</li>
   </ul>
@@ -1391,6 +1649,26 @@ const LSTAGE={
   ready_to_try:'READY TO TRY', waiting_to_try:'WAITING TO TRY', trying:'TRYING',
   naming:'NAMING A SCREEN', understood:'UNDERSTOOD', refused:'REFUSED', stopped:'STOPPED',
 };
+// refusalWords is a refusal code as words, the way LSTAGE is a stage as words.
+//
+// The panel used to print the raw enum at the person: "Refused: several_routes". Two of those
+// codes spell ROUTE — the retired product noun — at a normal user, and every one of them is a
+// machine word where a sentence belongs. Marco's own account of the refusal is already on screen
+// above this line (#lsaying, from teach/say.go); this is the label beside it, and a label may be
+// short without being a symbol.
+//
+// The fallback un-underscores anything not named here, so a refusal added later reads as English
+// rather than as an identifier — and the two named entries exist because their words are wrong,
+// not merely ugly.
+//
+// Deleting this and rendering v.refused raw must fail TestTheLearnPanelDoesNotPrintRawRefusalCodes.
+const LREFUSED={
+  several_routes:'several ways there',
+  route_not_remembered:'the way there was not remembered',
+};
+function refusalWords(code){
+  return LREFUSED[code] || String(code||'').replace(/_/g,' ');
+}
 function learnRender(v){
   const stage=v.stage||'idle';
   document.getElementById('lstage').textContent=LSTAGE[stage]||stage;
@@ -1426,7 +1704,10 @@ function learnRender(v){
     const ok=t=>'<span style="color:var(--run)">'+t+'</span>';
     const part=t=>'<span style="color:var(--amber)">'+t+'</span>';
     const count=done===total?ok(done+' / '+total):part(done+' / '+total);
-    let out='<div>Route: '+esc(v.route||'')+'</div>'+
+    // TRANSITION, the same word the facts table below uses for the same value. It is a
+    // Director graph edge — where this goes from and to — and calling it a route here while
+    // calling it a Transition there made one value look like two things.
+    let out='<div>Transition: '+esc(v.route||'')+'</div>'+
             '<div>Verified: '+count+'</div>';
       // 'trying' read as Marco ATTEMPTING the step. It means Marco has asked and is waiting
       // for an answer — and an open question sitting under the word 'trying' reads as stuck.
@@ -1555,15 +1836,27 @@ function learnRender(v){
     '<div class="crow"><label>'+esc(k)+'</label><span style="color:var(--accent)">'+esc(x)+'</span></div>').join('');
 
   const out=[];
-  // "In the Routes tab" is a claim about DISCOVERY, and v.learned is now saved AND
-  // registered — see learnview.go. A play that was written down and could not be made
-  // askable says so instead of borrowing the happy sentence.
-  if(v.learned) out.push('<p style="color:var(--run)">Saved'+(v.play?' as '+esc(v.play):'')+
-    '. It is in the Routes tab.</p>');
-  else if(v.saved) out.push('<p style="color:var(--run)">Saved'+(v.play?' as '+esc(v.play):'')+
-    '. It is a file you can read and edit — but nothing can ask for it yet, '+
-    'so it is not in the Routes tab.</p>');
-  if(v.refused) out.push('<p style="color:var(--err)">Refused: '+esc(v.refused)+'</p>');
+  // THE SAME LIFECYCLE WORDS A PLAYS ROW CARRIES, out of the same function.
+  //
+  // life / life_word / life_says come from learnui.go's addLifecycle, which reads
+  // plays.AfterLearn — the same plays.Life a row in the Plays list renders. This panel used to
+  // compose its own sentence and finish it by naming the tab the play could be found in: a
+  // claim about DISCOVERY made from a fact about STORAGE, and false for a saved play that tab
+  // could not contain. Nothing here may compose a standing sentence again.
+  //
+  // Deleting the life_word / life_says render must fail TestTheLearnPanelRendersTheLifecycleWords.
+  if(v.life){
+    const name=v.play?esc(v.play):'It';
+    out.push('<p style="color:'+(v.life==='ready'?'var(--run)':'var(--amber)')+'">'+
+      name+' — '+esc(v.life_word||'')+'. '+esc(v.life_says||'')+'</p>');
+    // AND WHERE TO GO NEXT. A play that is only saved genuinely appears in the Plays tab now,
+    // under the saved ones, with the button that finishes the job — so pointing there is a
+    // claim the tab can keep.
+    if(v.life!=='ready') out.push('<p class="hint">Find it in the '+
+      '<a class="plain" onclick="nav(\'routes\')">Plays</a> tab, under the saved ones, '+
+      'with a <b>Register</b> button beside it.</p>');
+  }
+  if(v.refused) out.push('<p style="color:var(--err)">Refused: '+esc(refusalWords(v.refused))+'</p>');
   document.getElementById('lresult').innerHTML=out.join('');
 
   const dbg=document.getElementById('ldebug');
@@ -1617,7 +1910,7 @@ async function saveConfigView(){
   banner(resp.ok ? '✓ Settings saved — relaunch the overlay to apply' : '✗ Save failed', !resp.ok);
 }
 // ---- edit view ----
-const FINAL_WAIT_WARN='This is the final settle wait. Deleting it can make the last step (e.g. a click) fire and the route end before the app processes it, so it may not register. Delete anyway?';
+const FINAL_WAIT_WARN='This is the final settle wait. Deleting it can make the last step (e.g. a click) fire and the play end before the app processes it, so it may not register. Delete anyway?';
 function delBtn(rec,row,warn){
   const b=document.createElement('button'); b.type='button'; b.className='del'; b.textContent='✕';
   b.title = warn ? 'delete the final settle wait (not recommended)' : 'delete this step';
@@ -1678,11 +1971,13 @@ async function loadEdit(){
   if(!r.loaded){
     document.getElementById('rt').textContent='';
     document.getElementById('src').textContent='';
-    box.innerHTML='<p class="hint">Pick a route to edit:</p>';
+    box.innerHTML='<p class="hint">Pick a play to edit:</p>';
+    // /api/routes, not /api/plays: this picker opens a play in the step editor, so it may only
+    // offer plays the editor can actually load — the registered ones.
     const rows = await (await fetch('/api/routes')).json();
     const groups={}; (rows||[]).forEach(x=>{ const k=x.App||''; (groups[k]=groups[k]||[]).push(x); });
     const apps=Object.keys(groups).sort((a,b)=> a===''?1 : b===''?-1 : a.localeCompare(b));
-    if(!apps.length){ box.innerHTML+='<p class="hint">No routes yet.</p>'; return; }
+    if(!apps.length){ box.innerHTML+='<p class="hint">No plays yet.</p>'; return; }
     for(const app of apps){
       const h=document.createElement('div'); h.className='grouphead'; h.textContent=app||'Global'; box.appendChild(h);
       groups[app].forEach(x=>{
@@ -1768,55 +2063,132 @@ function banner(msg, err){
   b.textContent=msg; b.className='banner show' + (err?' err':'');
   clearTimeout(b._t); b._t=setTimeout(()=>{ b.className='banner' + (err?' err':''); }, 2200);
 }
-// ---- routes view (grouped by app) ----
+// ---- plays view (grouped by app) ----
+//
+// THE PRODUCT LISTING, and it decides nothing. Every word on a row — where the play came from,
+// where it applies, whether anything can ask for it — arrives already worded from internal/plays
+// via /api/plays. A page that computed its own standing would be a second account of the same
+// file, which is how a play was once announced as living in a tab that structurally could not
+// contain it.
+//
+// The view id stays 'routes' throughout (nav key, section id, container id): it is an identifier,
+// not a word anybody reads.
+let PLAYS={plays:[], bindings:[]};
 async function loadRoutes(){
-  const rows = await (await fetch('/api/routes')).json();
+  const r = await (await fetch('/api/plays')).json();
+  PLAYS = {plays: r.plays||[], bindings: r.bindings||[]};
   const box=document.getElementById('routes'); box.innerHTML='';
-  // group: app name → its routes; "" (global) sorts last under "Global".
+  const rows = PLAYS.plays;
+  if(!rows.length){ box.innerHTML='<p class="hint">No plays yet — teach one from the overlay: <kbd>` + "`" + `</kbd> then type <b>teach &lt;name&gt;</b>.</p>'; return; }
+  // group: app name → its plays; "" (global) sorts last under "Global".
   const groups={};
-  (rows||[]).forEach(r=>{ const k=r.App||''; (groups[k]=groups[k]||[]).push(r); });
+  rows.forEach(p=>{ const k=p.app||''; (groups[k]=groups[k]||[]).push(p); });
   const apps=Object.keys(groups).sort((a,b)=> a===''?1 : b===''?-1 : a.localeCompare(b));
-  if(!apps.length){ box.innerHTML='<p class="hint">No routes yet — teach one from the overlay: <kbd>` + "`" + `</kbd> then type <b>teach &lt;name&gt;</b>.</p>'; return; }
   for(const app of apps){
     const h=document.createElement('div'); h.className='grouphead'; h.textContent = app || 'Global';
     box.appendChild(h);
-    groups[app].forEach(r=> box.appendChild(routeRow(r)));
+    // ASKABLE FIRST, and the rest under their own sub-heading. A list that mixed them would be
+    // telling somebody a play is available when asking for it by name will not find it.
+    const askable=groups[app].filter(p=>p.askable), staged=groups[app].filter(p=>!p.askable);
+    askable.forEach(p=> box.appendChild(playRow(p)));
+    if(staged.length){
+      const s=document.createElement('div'); s.className='subhead';
+      s.textContent='Saved — nothing can ask for these yet';
+      box.appendChild(s);
+      staged.forEach(p=> box.appendChild(playRow(p)));
+    }
   }
 }
-function routeRow(r){
+// hotkeyFor is the leader key that REACHES this play, or ''.
+//
+// A binding is a way in and never a row of its own: forgetting a play and unbinding a key are
+// different acts, and a list that showed a hotkey as a play would invite doing one meaning the
+// other. A chained command (` + "`" + `a then b` + "`" + `) reaches every play it names.
+function hotkeyFor(p){
+  for(const b of PLAYS.bindings){
+    if(b.app && p.app && b.app!==p.app) continue;
+    for(const c of (b.cmd||'').toLowerCase().split(' then ')){
+      const t=c.trim();
+      if(t && (t===p.name.toLowerCase() || t===p.slug.toLowerCase())) return b.key;
+    }
+  }
+  return '';
+}
+function tag(cls, text, title){
+  const s=document.createElement('span'); s.className='tag '+cls; s.textContent=text;
+  if(title) s.title=title;
+  return s;
+}
+function playRow(p){
   const d=document.createElement('div'); d.className='rowcard';
-  const nm=document.createElement('span'); nm.className='nm'; nm.textContent=r.Name;
+  const nm=document.createElement('span'); nm.className='nm'; nm.textContent=p.name;
   d.appendChild(nm);
-  if(r.Current){ const c=document.createElement('span'); c.className='tag cur'; c.textContent='open'; d.appendChild(c); }
+  if(p.current) d.appendChild(tag('cur','open'));
+  d.appendChild(tag(p.kind, p.kindWord, p.kindSays));
+  d.appendChild(tag(p.life, p.lifeWord, p.lifeSays));
+  d.appendChild(tag(p.scope, p.scopeWord, p.scopeSays));
+  const hk=hotkeyFor(p);
+  if(hk) d.appendChild(tag('hot','⌨ '+hk, 'a hotkey that runs this play — the key is the way in, not the play'));
   const sp=document.createElement('span'); sp.className='spacer'; d.appendChild(sp);
-  // scope switcher
-  const sc=document.createElement('select'); sc.className='mini'; sc.title='scope';
-  for(const s of ['context','focus','global']){ const o=document.createElement('option'); o.value=s; o.textContent=s; if(s===r.Scope) o.selected=true; sc.appendChild(o); }
-  sc.onchange=()=>changeScope(r, sc.value, sc);
-  const e=document.createElement('button'); e.className='mini'; e.textContent='edit'; e.onclick=()=>openRoute(r.Name);
-  const run=document.createElement('button'); run.className='mini'; run.textContent='▶ run'; run.title='runs for real (types/clicks)'; run.onclick=()=>doRoute(r.Name);
-  const del=document.createElement('button'); del.className='del trash'; del.style.marginLeft='0'; del.textContent='🗑 delete'; del.title='delete route'; del.onclick=()=>delRoute(r);
-  d.append(sc, e, run, del);
+  if(p.askable){
+    const sc=document.createElement('select'); sc.className='mini'; sc.title=p.scopeSays;
+    for(const s of ['context','focus','global']){ const o=document.createElement('option'); o.value=s; o.textContent=s; if(s===p.scope) o.selected=true; sc.appendChild(o); }
+    sc.onchange=()=>changeScope(p, sc.value, sc);
+    const e=document.createElement('button'); e.className='mini'; e.textContent='edit'; e.onclick=()=>openRoute(p.name);
+    const run=document.createElement('button'); run.className='mini'; run.textContent='▶ run'; run.title='runs for real (types/clicks)'; run.onclick=()=>doRoute(p.name);
+    d.append(sc, e, run);
+  } else if(p.registerable){
+    // NO run and NO scope switcher on a staged row. Asking for a staged play cannot work, and
+    // offering the button would be a lie; its scope is decided by registering it.
+    const rg=document.createElement('button'); rg.className='mini'; rg.textContent='Register'; rg.title=p.lifeSays;
+    rg.onclick=()=>registerPlay(p);
+    d.append(rg);
+  } else {
+    // NOT registerable, so there is no button — an offer Marco cannot keep is worse than none.
+    // The sentence from internal/plays says why.
+    const s=document.createElement('span'); s.className='lifesays'; s.textContent=p.lifeSays;
+    d.append(s);
+  }
+  const del=document.createElement('button'); del.className='del trash'; del.style.marginLeft='0';
+  del.textContent='🗑 forget'; del.title='forget this play'; del.onclick=()=>forgetPlay(p);
+  d.append(del);
   return d;
 }
-async function delRoute(r){
-  if(!confirm('Delete route "'+r.Name+'"? This removes its .marco and its recording.')) return;
-  const resp=await fetch('/api/delete',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({name:r.Name, app:r.App, scope:r.Scope})});
-  if(!resp.ok){ flash('delete failed'); return; }
-  flash('deleted '+r.Name); loadRoutes();
+// registerPlay moves a saved play where Marco looks when you ask for it.
+//
+// It posts the SLUG the listing carried, never the shown name — the slug came from the phrase used
+// when the play was saved, and re-deriving one from a display name can land on a different play.
+async function registerPlay(p){
+  const resp=await fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({slug:p.slug, app:p.app})});
+  if(!resp.ok){
+    // REFUSED. The play is still exactly where it was — saved, not askable — and the list is
+    // reloaded so it says so. A green banner here would be the one lie staging exists to prevent.
+    banner((await resp.text()).trim()||('could not register '+p.name), true);
+    loadRoutes();
+    return;
+  }
+  banner('✓ '+p.name+' is ready — you can ask for it now');
+  loadRoutes();
 }
-async function changeScope(r, scope, sel){
-  if(scope===r.Scope){ return; }
-  let app = r.App;
+async function forgetPlay(p){
+  if(!confirm('Forget the play "'+p.name+'"? This removes its file, its recording, and where it came from.')) return;
+  const resp=await fetch('/api/delete',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({name:p.name, slug:p.slug, app:p.app, scope:p.scope, staged:!p.registered})});
+  if(!resp.ok){ banner((await resp.text()).trim()||('could not forget '+p.name), true); return; }
+  flash('forgot '+p.name); loadRoutes();
+}
+async function changeScope(p, scope, sel){
+  if(scope===p.scope){ return; }
+  let app = p.app;
   if((scope==='context'||scope==='focus') && !app){
-    app = prompt('Which app should this route be scoped to? (its exe/window name, e.g. rocketleague)');
-    if(!app){ sel.value=r.Scope; return; }
+    app = prompt('Which app should this play be scoped to? (its exe/window name, e.g. rocketleague)');
+    if(!app){ sel.value=p.scope; return; }
   }
   const resp = await fetch('/api/scope',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({name:r.Name, curApp:r.App, curScope:r.Scope, scope, app})});
-  if(!resp.ok){ sel.value=r.Scope; flash((await resp.text()).trim()||'scope change failed'); return; }
-  flash(r.Name+' → '+scope); loadRoutes();
+    body:JSON.stringify({name:p.name, slug:p.slug, curApp:p.app, curScope:p.scope, scope, app})});
+  if(!resp.ok){ sel.value=p.scope; flash((await resp.text()).trim()||'scope change failed'); return; }
+  flash(p.name+' → '+scope); loadRoutes();
 }
 async function openRoute(name){
   const resp = await fetch('/api/load',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
@@ -1833,7 +2205,8 @@ async function loadBindings(){
   const box=document.getElementById('bindings'); box.innerHTML='';
   const rows = r.bindings||[];
   if(!rows.length){ box.innerHTML='<p class="hint">No bindings yet.</p>'; return; }
-  // group by app so overloaded keys read clearly (` + "`" + `e in one game vs another)
+  // group by app so overloaded keys read clearly (` + "`" + `e in one game vs another). These are
+  // TRIGGERS, listed under their own tab; the plays they reach live in the Plays tab.
   const groups={}; rows.forEach(b=>{ const k=b.App||''; (groups[k]=groups[k]||[]).push(b); });
   const apps=Object.keys(groups).sort((a,b)=> a===''?1 : b===''?-1 : a.localeCompare(b));
   for(const app of apps){
@@ -1850,8 +2223,8 @@ async function loadBindings(){
 }
 async function bindAdd(){
   const key=document.getElementById('bkey').value.trim(), cmd=document.getElementById('bcmd').value.trim();
-  if(!key||!cmd){ flash('key + route'); return; }
-  const resp=await fetch('/api/bind',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({app:'', key, cmd})}); // app:'' → server scopes to the route's app
+  if(!key||!cmd){ flash('key + play'); return; }
+  const resp=await fetch('/api/bind',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({app:'', key, cmd})}); // app:'' → server scopes to the play's app
   if(!resp.ok){ flash('bind failed'); return; }
   const res=await resp.json();
   document.getElementById('bkey').value=''; document.getElementById('bcmd').value='';
@@ -1861,10 +2234,17 @@ async function unbind(app,key){
   const res=await (await fetch('/api/unbind',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({app,key})})).json();
   if(res.ok) loadBindings();
 }
-// ---- startup: land on the open route's editor, or the all-routes browser (marco ui) ----
+// ---- startup ----
+//
+// THE FRONT DOOR IS PLAYS, not the step editor. ` + "`" + `marco edit "<name>"` + "`" + ` opens that play for
+// editing because a play was named; ` + "`" + `marco ui` + "`" + ` with nothing named lands on the list of what
+// Marco can do, because a step editor with nothing loaded answers no question a person arrived
+// with. The server can still pin a view (` + "`" + `marco ui help` + "`" + `, ` + "`" + `marco ui plays` + "`" + `).
+//
+// Changing the no-play fallback to 'edit' must fail TestTheControlCentreLandsOnPlaysWithNoPlayNamed.
 async function init(){
   const r = await (await fetch('/api/route')).json();
-  nav(r.view || (r.loaded ? 'edit' : 'routes')); // server can pin the opening view (e.g. help)
+  nav(r.view || (r.loaded ? 'edit' : 'routes'));
 }
 init();
 </script></body></html>`

@@ -14,6 +14,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/nlu"
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
 	"github.com/chaynes-simpleclouds/marco/internal/oshost"
+	"github.com/chaynes-simpleclouds/marco/internal/plays"
 	"github.com/chaynes-simpleclouds/marco/internal/recorder"
 	"github.com/chaynes-simpleclouds/marco/internal/resolver"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
@@ -22,7 +23,8 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/winctx"
 )
 
-// routesDir is where named routes live (override with $MARCO_ROUTES).
+// routesDir is where plays live on disk (override with $MARCO_ROUTES). The directory keeps its
+// old name deliberately: renaming it would move every play a person already has.
 func routesDir() string {
 	if d := os.Getenv("MARCO_ROUTES"); d != "" {
 		return d
@@ -30,27 +32,27 @@ func routesDir() string {
 	return "routes"
 }
 
-// stopKeySpec is the gesture that ends a recording and aborts a running route
+// stopKeySpec is the gesture that ends a recording and aborts a running play
 // (override with $MARCO_STOP_KEY, e.g. "esc", "home", "ctrl+f12"). Empty uses
 // recorder.DefaultStopKey (F12), which keeps Esc free to record as a key.
 func stopKeySpec() string { return os.Getenv("MARCO_STOP_KEY") }
 
 // newDeps builds the orchestrator with the real recorder and the native OS host
-// (routes drive and demonstrations capture real input).
+// (plays drive and demonstrations capture real input).
 func newDeps() orchestrator.Deps {
 	hosts := map[string]runtime.Host{"*": oshost.New()}
 	// The Screen act, so a play can say where it begins. Read-only: it looks and compares,
 	// and cannot press anything. A play that asks and gets no answer refuses.
 	hosts["Screen"] = newScreenHost()
 	// Wire the OCR text resolver when $MARCO_OCR points at the plugin binary, so a
-	// route's text anchor (do Text's Find) resolves by OCR. Launched lazily on first
-	// use, so it costs nothing when no route needs it. Absent → text anchors fall
+	// play's text anchor (do Text's Find) resolves by OCR. Launched lazily on first
+	// use, so it costs nothing when no play needs it. Absent → text anchors fall
 	// through to the OS host, which declines, and the click uses its recorded point.
 	if ocr := strings.TrimSpace(os.Getenv("MARCO_OCR")); ocr != "" {
 		hosts["Text"] = bridgehost.New(ocr)
 	}
 	// Wire the semantic vision resolver when $MARCO_VISION points at the plugin binary, so
-	// a route's `do Vision's Locate/Detect` resolves UI elements by a learned detector.
+	// a play's `do Vision's Locate/Detect` resolves UI elements by a learned detector.
 	// Lazy like the OCR host; absent → Vision calls fall through and decline, and the click
 	// uses its recorded point or another resolver.
 	if vis := strings.TrimSpace(os.Getenv("MARCO_VISION")); vis != "" {
@@ -113,7 +115,7 @@ func runAssistantDo(args []string) {
 }
 
 // resolveTarget peels a single command's args ("name:value" / "… with a, b") and
-// resolves its phrase to an existing route slug, preferring a confident nlu match,
+// resolves its phrase to an existing play slug, preferring a confident nlu match,
 // then the optional model resolver, else the phrase as-is (Do teaches if unknown).
 func resolveTarget(d orchestrator.Deps, command string) (target string, named map[string]string, positional []string) {
 	base, named, positional := routes.ParseInvocation(command)
@@ -129,61 +131,219 @@ func resolveTarget(d orchestrator.Deps, command string) (target string, named ma
 	return target, named, positional
 }
 
+// playJSON is the wire shape BOTH `marco routes --json` and `marco plays --json` emit.
+//
+// One struct, so the two commands can never drift into two spellings of the same fact.
+//
+// # The first four keys are a published contract
+//
+// name/slug/app/scope are parsed by consumers outside this module, which is why they survive a
+// vocabulary change that renamed everything a person reads. Keys may be ADDED — a JSON decoder
+// ignores what it does not know — and may never be renamed or removed.
+//
+// Renaming any of the first four must fail TestMarcoRoutesJSONKeepsItsPublishedKeys.
+type playJSON struct {
+	Name  string `json:"name"`
+	Slug  string `json:"slug"`
+	App   string `json:"app"`
+	Scope string `json:"scope"` // "context" | "focus" | "global"
+
+	// Added with the product vocabulary. Every one of them is a rendering of something
+	// internal/plays already decided — nothing here re-derives a kind, a scope or a standing.
+	Kind       string `json:"kind"`                // "Authored" | "Recorded" | "Learned"
+	Life       string `json:"life"`                // "ready"|"edited"|"unverified"|"saved"|"stuck"
+	Registered bool   `json:"registered"`          // false ⇒ saved, and nothing can ask for it
+	Activates  string `json:"activates,omitempty"` // brought forward before the play runs
+}
+
+// jsonOf renders a listing for a machine. No decisions of its own.
+func jsonOf(list []plays.Play) []playJSON {
+	out := make([]playJSON, 0, len(list))
+	for _, p := range list {
+		out = append(out, playJSON{
+			Name: p.Name, Slug: p.Slug, App: p.Application, Scope: scopeName(p.Route),
+			Kind: plays.KindWord(p.Kind), Life: string(p.Life),
+			Registered: p.Registered, Activates: p.Activates,
+		})
+	}
+	return out
+}
+
+func emitJSON(v any) {
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	_ = enc.Encode(v)
+}
+
+// runRoutes lists ONLY the plays anything can ask for — plays.Registered, never plays.List.
+//
+// # Why this is not `marco plays`
+//
+// Because its consumers are front ends, and a name a front end offers has to answer. The overlay
+// and the resolver plugins read this list to decide what a phrase may resolve to; a staged play
+// printed here would be Marco advertising a capability that `marco do` cannot find. `marco plays`
+// is the product view and shows both groups, each labelled with where it stands.
+//
+// The verb keeps its name for the same reason its JSON keeps its keys: out-of-module callers say
+// `marco routes` and nothing tells them not to.
+//
+// Widening this to plays.List must fail TestMarcoRoutesOffersOnlyPlaysThatCanAnswer.
 func runRoutes(args []string) {
-	list := newDeps().Reg.List()
+	list := plays.Registered(newDeps().Reg)
 	if len(args) > 0 && args[0] == "--json" {
-		// Machine-readable, for a UI plugin: [{ "name", "slug", "app", "scope" }]
-		type jr struct {
-			Name  string `json:"name"`
-			Slug  string `json:"slug"`
-			App   string `json:"app"`
-			Scope string `json:"scope"` // "context" | "focus" | "global"
-		}
-		out := make([]jr, 0, len(list))
-		for _, rt := range list {
-			out = append(out, jr{Name: prettyRoute(rt.Slug), Slug: rt.Slug, App: rt.App, Scope: scopeName(rt)})
-		}
-		enc := json.NewEncoder(os.Stdout)
-		enc.SetIndent("", "  ")
-		_ = enc.Encode(out)
+		emitJSON(jsonOf(list))
 		return
 	}
 	if len(list) == 0 {
-		fmt.Println("No routes yet. Teach one with: marco teach \"<name>\"")
+		fmt.Println("No plays yet. Teach one with: marco teach \"<name>\"")
 		return
 	}
-	fmt.Println("Known routes:")
-	for _, rt := range list {
-		fmt.Printf("  %-28s (%s)\n", prettyRoute(rt.Slug), scopeDesc(rt))
+	fmt.Println("Known plays:")
+	for _, p := range list {
+		fmt.Printf("  %-28s (%s)\n", p.Name, scopeDesc(p.Route))
 	}
 }
 
-// scopeName is a route's bare scope: context | focus | global.
-func scopeName(rt routes.Route) string {
-	switch {
-	case rt.App == "":
-		return "global"
-	case rt.Focus:
-		return "focus"
+// runPlays is the product listing: everything Marco has, in the two groups the product shows.
+//
+// # Why it is not `marco routes` with a flag
+//
+// Because the two answer different questions and both answers are wanted. `marco routes` is what
+// may be OFFERED; this is what a person HAS. A play that is saved and not yet askable is a real
+// thing on disk that somebody can read, edit and register — and a listing that hid it would leave
+// them with a file no command they know about mentions.
+//
+// The two groups are printed apart rather than mixed with a badge, because the difference is not a
+// nuance: one of them answers when you ask for it and the other does not.
+//
+// Dropping the staged group must fail TestMarcoPlaysShowsTheSavedPlayMarcoRoutesMustNotOffer.
+func runPlays(args []string) {
+	list := plays.List(newDeps().Reg)
+	if len(args) > 0 && args[0] == "--json" {
+		emitJSON(jsonOf(list))
+		return
+	}
+	var askable, staged []plays.Play
+	for _, p := range list {
+		if p.Registered {
+			askable = append(askable, p)
+		} else {
+			staged = append(staged, p)
+		}
+	}
+	if len(askable) == 0 && len(staged) == 0 {
+		fmt.Println("No plays yet. Teach one with: marco teach \"<name>\"")
+		return
+	}
+	if len(askable) > 0 {
+		fmt.Println("Known plays:")
+		for _, p := range askable {
+			fmt.Printf("  %-28s %s · %s · %s\n",
+				p.Name, plays.KindWord(p.Kind), p.Life.Word(), reachOf(p))
+		}
+	}
+	if len(staged) == 0 {
+		return
+	}
+	if len(askable) > 0 {
+		fmt.Println()
+	}
+	fmt.Println("Saved, not askable yet:")
+	for _, p := range staged {
+		line := fmt.Sprintf("  %-28s %s · %s", p.Name, plays.KindWord(p.Kind), p.Life.Word())
+		// The offer is made only where Marco can keep it. A stuck play — one edited since
+		// its provenance was written — cannot be registered as learned, and naming the
+		// command beside it would be an instruction that fails when followed.
+		//
+		// Deleting the Registerable guard must fail TestAStuckPlayIsNotOfferedRegistration.
+		if p.Life.Registerable() {
+			line += fmt.Sprintf("   (marco register %q)", p.Name)
+		}
+		fmt.Println(line)
+	}
+}
+
+// runRegister makes a saved play askable: `marco register "<name>"`.
+//
+// It exists because `marco plays` names it. A listing that pointed at a command Marco does not
+// have would be worse than no offer at all.
+//
+// # It acts on the slug, and takes the application from the row
+//
+// The slug is the only handle that identifies a play; the display name is that slug with its
+// dashes back as spaces, so re-slugging what a person typed is how it becomes a handle again. The
+// application comes from the staged listing rather than from the foreground window, because
+// registering is not something you do WHILE the application is in front — and the foreground when
+// you type this is a terminal.
+//
+// Deleting the staged lookup and building the Route from winctx.Active must fail
+// TestRegisteringASavedPlayDoesNotDependOnWhatIsInFront.
+func runRegister(args []string) {
+	name := strings.TrimSpace(strings.Join(args, " "))
+	if name == "" {
+		fmt.Fprintln(os.Stderr, `usage: marco register "<name>"`)
+		os.Exit(2)
+	}
+	reg := newDeps().Reg
+	slug := routes.Slug(name)
+	for _, p := range plays.Staged(reg) {
+		if p.Slug != slug {
+			continue
+		}
+		// routes.LearnedFocus, not p.Route.Focus: the scope a staged play registers into is
+		// one decision taken in one place, and this is the caller that acts on it.
+		rt := routes.Route{App: p.Application, Focus: routes.LearnedFocus, Slug: p.Slug}
+		if err := reg.Register(rt); err != nil {
+			// unprefixRoutes, the same strip the control centre applies to the same
+			// call: "routes: " is a Go package name, and a person reading a refusal
+			// about their own play has no use for it.
+			fmt.Fprintln(os.Stderr, unprefixRoutes(err.Error()))
+			os.Exit(1)
+		}
+		fmt.Printf("Registered %q. You can ask for it now.\n", p.Name)
+		return
+	}
+	fmt.Fprintf(os.Stderr, "No saved play named %q. `marco plays` lists what is waiting.\n", name)
+	os.Exit(1)
+}
+
+// scopeName is a play's bare scope: context | focus | global. One definition, in internal/plays.
+func scopeName(rt routes.Route) string { return string(plays.ScopeOf(rt)) }
+
+// reachOf is where a play answers from, as a listing row says it.
+//
+// FOCUS SAYS WHAT IT DOES. "From anywhere" is also true of a global play, and the difference —
+// Marco brings the application forward first — is the capability worth having, so the row names
+// it. See plays.Scope.Says, which makes the same point at sentence length.
+//
+// Collapsing the focus arm into the global one must fail TestFocusReadsDifferentlyFromContext.
+func reachOf(p plays.Play) string {
+	switch p.Scope {
+	case plays.ScopeFocus:
+		return "from anywhere (brings " + p.Application + " forward)"
+	case plays.ScopeContext:
+		return "only in " + p.Application
 	default:
-		return "context"
+		return "anywhere"
 	}
 }
 
-// scopeDesc is a human description of a route's reach, for listings.
+// scopeDesc is a human description of a play's reach, for listings.
 func scopeDesc(rt routes.Route) string {
 	switch {
 	case rt.App == "":
 		return "global — anywhere"
 	case rt.Focus:
-		return "focus — " + rt.App + " from anywhere"
+		// Naming the activation, not just the application: a focus play is the one that
+		// brings its own application forward, and "chrome from anywhere" never said so.
+		return "focus — from anywhere; brings " + rt.App + " forward"
 	default:
 		return "context — only in " + rt.App
 	}
 }
 
 // runActive prints the current foreground app — the context a UI plugin shows
-// and that scoped routes resolve against.
+// and that scoped plays resolve against.
 func runActive() {
 	if a := winctx.Active(); a != "" {
 		fmt.Println(a)
@@ -197,15 +357,15 @@ func runForget(args []string) {
 		os.Exit(2)
 	}
 	d := newDeps()
-	// "forget all" / "delete all" wipes every route, after a confirm — so it's not
-	// mistaken for a route literally named "all".
+	// "forget all" / "delete all" wipes every play, after a confirm — so it's not
+	// mistaken for a play literally named "all".
 	if strings.EqualFold(name, "all") {
 		all := d.Reg.List()
 		if len(all) == 0 {
-			fmt.Println("No routes to forget.")
+			fmt.Println("No plays to forget.")
 			return
 		}
-		if !askYes(fmt.Sprintf("Forget ALL %d routes? This can't be undone. [y]es / [n]o: ", len(all))) {
+		if !askYes(fmt.Sprintf("Forget ALL %d plays? This can't be undone. [y]es / [n]o: ", len(all))) {
 			fmt.Println("Kept them.")
 			return
 		}
@@ -215,12 +375,12 @@ func runForget(args []string) {
 				n++
 			}
 		}
-		fmt.Printf("Forgot %d routes.\n", n)
+		fmt.Printf("Forgot %d plays.\n", n)
 		return
 	}
 	rt, ok := d.Reg.Resolve(appOf(d), name)
 	if !ok {
-		fmt.Fprintf(os.Stderr, "No route named %q.\n", name)
+		fmt.Fprintf(os.Stderr, "No play named %q.\n", name)
 		os.Exit(1)
 	}
 	// Confirm a destructive delete. On a non-interactive stdin (EOF) askYes returns
@@ -230,11 +390,36 @@ func runForget(args []string) {
 		fmt.Printf("Kept %q.\n", prettyRoute(rt.Slug))
 		return
 	}
-	if err := d.Reg.Delete(rt); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+	if err := forgetPlay(d.Reg, rt); err != nil {
+		fmt.Fprintln(os.Stderr, unprefixRoutes(err.Error()))
 		os.Exit(1)
 	}
 	fmt.Printf("Forgot %q.\n", prettyRoute(rt.Slug))
+}
+
+// forgetPlay removes one registered play: its source, its recording, its anchors and its past.
+//
+// # Why the sidecar goes too
+//
+// `Delete` alone leaves the `.origin.json` behind — a record describing a play that is no longer
+// there. Nothing a person has could then remove it, and `Origin` has to refuse it separately so
+// the next play saved under that slug does not inherit a past it never had. The Plays surface
+// removes the pair; two doors onto one act had better take the same things.
+//
+// # And why it stops there
+//
+// It does NOT reach `<app>/learned/`. A staged play of the same name is a different file with its
+// own standing — and being unregisterable because of a collision with THIS play is the ordinary
+// reason one exists. Forgetting this play is what clears that collision; it is not an instruction
+// to destroy what was waiting.
+//
+// Split out of runForget so it can be proved rather than read: runForget itself reads stdin and
+// calls os.Exit. Deleting the DeleteOrigin call must fail TestForgettingAPlayTakesItsPastWithIt.
+func forgetPlay(reg routes.Registry, rt routes.Route) error {
+	if err := reg.DeleteOrigin(rt); err != nil {
+		return err
+	}
+	return reg.Delete(rt)
 }
 
 func runRename(args []string) {
@@ -248,12 +433,12 @@ func runRename(args []string) {
 	d := newDeps()
 	rt, ok := d.Reg.Resolve(appOf(d), oldName)
 	if !ok {
-		fmt.Fprintf(os.Stderr, "No route named %q.\n", oldName)
+		fmt.Fprintf(os.Stderr, "No play named %q.\n", oldName)
 		os.Exit(1)
 	}
 	newRt := routes.Route{App: rt.App, Focus: rt.Focus, Slug: routes.Slug(newName)}
 	if d.Reg.Has(newRt) {
-		fmt.Fprintf(os.Stderr, "A route named %q already exists.\n", newName)
+		fmt.Fprintf(os.Stderr, "A play named %q already exists.\n", newName)
 		os.Exit(1)
 	}
 	if err := d.Reg.Rename(rt, newRt); err != nil {
@@ -310,7 +495,7 @@ func runAssistantTeach(args []string) {
 	}
 }
 
-// runArgs prints the full, ordered argument labels of the route a phrase resolves
+// runArgs prints the full, ordered argument labels of the play a phrase resolves
 // to, one per line — the overlay weaves them into the "with" clause as colored
 // hints in front of each value (so "say hello with chris" reads "with name: chris").
 // Prints nothing (and exits 0) when there's no confident match or no args, so a
@@ -339,7 +524,7 @@ func runArgs(cliArgs []string) {
 	}
 }
 
-// runNarrateTeach drives a narration-built route: each line on stdin is one phrase
+// runNarrateTeach drives a narration-built play: each line on stdin is one phrase
 // ("click this", "type hello", "wait for this screen", "done") — TYPED at a console
 // or piped from the voice plugin's Final transcripts, same path either way.
 func runNarrateTeach(name string) error {
@@ -364,7 +549,7 @@ func runAssistantSimplify(args []string) {
 		os.Exit(2)
 	}
 	d := newDeps()
-	// Reuse an existing route for a close phrasing instead of failing on the
+	// Reuse an existing play for a close phrasing instead of failing on the
 	// exact words (same confident-match rule as `do`).
 	target := name
 	if m := nlu.Resolve(name, d.Reg.Slugs()); m.Route != "" && (m.Exact || m.Score >= 0.75) {
@@ -377,9 +562,9 @@ func runAssistantSimplify(args []string) {
 }
 
 // runAssistant is the interactive loop: each line is interpreted as a command.
-// The nlu resolver fuzzily maps what you type to one of your saved routes (or
+// The nlu resolver fuzzily maps what you type to one of your saved plays (or
 // teaches a new one). This is the seam where a future model-backed resolver
-// plugs in — it only has to turn a line into a route name.
+// plugs in — it only has to turn a line into a play name.
 func runAssistant(_ []string) {
 	d := newDeps()
 	fmt.Fprintln(os.Stdout, "marco assistant — say what you want (e.g. \"open chest\"). 'list', 'help', 'quit'.")
@@ -397,19 +582,21 @@ func runAssistant(_ []string) {
 			return
 		case "help":
 			fmt.Fprintln(os.Stdout, "  type a command to run it; unknown commands are taught by demonstration.")
-			fmt.Fprintln(os.Stdout, "  'list' shows known routes. For a password in a route, type {{name}} while teaching")
+			fmt.Fprintln(os.Stdout, "  'list' shows known plays. For a password in a play, type {{name}} while teaching")
 			fmt.Fprintln(os.Stdout, "  and set it with: marco secret set <name>")
 			continue
 		case "list":
-			for _, rt := range d.Reg.List() {
-				fmt.Fprintf(os.Stdout, "  %-28s (%s)\n", prettyRoute(rt.Slug), scopeDesc(rt))
+			// The same projection `marco routes` prints, so the loop and the command
+			// cannot come to different conclusions about the same play.
+			for _, p := range plays.Registered(d.Reg) {
+				fmt.Fprintf(os.Stdout, "  %-28s (%s)\n", p.Name, scopeDesc(p.Route))
 			}
 			continue
 		}
 
 		m := nlu.Resolve(line, d.Reg.Slugs())
 		if m.Exact {
-			runDo(d, m.Route) // exact route name — free offline fast path, no model call
+			runDo(d, m.Route) // exact play name — free offline fast path, no model call
 			continue
 		}
 		// Conversational brain: the director's local-LLM Advisor turns a loose line
@@ -475,7 +662,7 @@ func readStdinLine() (line string, ok bool) {
 	}
 }
 
-func prettyRoute(slug string) string { return strings.ReplaceAll(slug, "-", " ") }
+func prettyRoute(slug string) string { return plays.Pretty(slug) }
 
 // accessibilityBridge is the accessibility plugin this machine can cast, or nothing.
 //

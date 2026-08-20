@@ -576,7 +576,7 @@ func (a *Attempt) LowerStep(ctx context.Context, position int,
 // The last line is the one that matters. Whatever else this says, nothing happened.
 func (s StepEmission) Describe() []string {
 	out := []string{"rehearsal dry run"}
-	out = append(out, "  route: "+s.Relationship.From+" → "+s.Relationship.To)
+	out = append(out, "  path: "+s.Relationship.From+" → "+s.Relationship.To)
 	out = append(out, fmt.Sprintf("  step: %d", s.Position))
 	if len(s.Intents) > 0 {
 		words := make([]string, 0, len(s.Intents))
