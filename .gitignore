@@ -41,8 +41,11 @@ plugins/voice/model/
 _dl/
 plugins/vision/models/
 
-# User routes ignored
-routes/
+# User routes ignored — ANCHORED.
+# Unanchored `routes/` matches a directory of that name at ANY depth, so it also
+# excluded internal/routes/ — and internal/routes/origin.go, a source file the build needs,
+# was silently left out of a commit. A pattern meant for one directory must say which one.
+/routes/
 
 # Bundled Windows build (pack.ps1): staged embed assets + the packed exe
 plugins/marco-app/assets/marco.exe
