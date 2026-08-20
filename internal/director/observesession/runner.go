@@ -927,7 +927,7 @@ func (r *Runner) Run(ctx context.Context, cfg Config) (Result, error) {
 	// transition frame the user walked through — which is the unbounded persistence this
 	// mechanism is careful not to be.
 	//
-	// Deleting this call must fail TestTeachingEstablishesTheStartThroughTheProductionPath;
+	// Deleting this call must fail TestLearningEstablishesTheStartThroughTheProductionPath;
 	// deleting the licence check inside it must fail TestAnOrdinarySessionEstablishesNoPlace.
 	places := r.establishPlace(session.Application, stats, cfg)
 
@@ -1158,7 +1158,8 @@ func (r *Runner) rememberRelationships(application string, stats Stats,
 	// than inside the store, because whether two sessions are one episode is a fact about
 	// WHY they were run, and the store has no way to know it.
 	//
-	// Deleting this loop must fail TestATeachingEpisodeCorroboratesOnce.
+	// Deleting this loop must fail TestASessionInAnEpisodeClaimsNoFurtherCorroboration,
+	// which drives Run with Config.SameEpisode set and reads the durable sighting count.
 	for i := range obs {
 		obs[i].SameEpisode = sameEpisode
 	}
@@ -1862,7 +1863,8 @@ func AssessStored(application string, memory observe.Memory, store observe.Candi
 // own — a second comparison would be a second answer to "are these the same procedure", and the
 // two would drift.
 //
-// Deleting this call must fail TestASecondDemonstrationIsComparedWithTheFirst.
+// Deleting this call must fail TestASecondDemonstrationIsRequestedCapturedAndCompared,
+// which loses the corroboration and reads the judgement back as resting on one example.
 func (r *Runner) corroborationFor(application string,
 	c *observe.ProcedureCandidate) observe.Corroboration {
 
@@ -1901,7 +1903,8 @@ func (r *Runner) corroborationFor(application string,
 // through it, and a session with an open question says `another_question_open` rather than
 // asking twice.
 //
-// Deleting this call must fail TestAFollowUpIsRequestedWhenAnotherExampleWouldHelp.
+// Deleting this call must fail TestASecondDemonstrationIsRequestedCapturedAndCompared,
+// which asks for the second demonstration through the production review.
 func (r *Runner) reviewFollowUp(application string) []observe.FollowUpReport {
 	r.mu.RLock()
 	memory, store, bounds, policy := r.memory, r.candidates, r.captureBounds, r.policy
@@ -2127,7 +2130,8 @@ func firstAndCorroboration(candidates []observe.ProcedureCandidate) (
 // against evidence Director no longer believes would be authorising something the user never saw.
 // The digest comparison is what catches it.
 //
-// Deleting this must fail TestSayingYesToARehearsalCreatesExactlyOneGrant.
+// Deleting this must fail TestARehearsalIsProposedOnlyWhenTheEvidenceAllows, which answers
+// the real question through Respond and then reads Runner.Grant.
 func (r *Runner) authorizeRehearsal(application string, p observe.Proposal,
 	resp observe.UserResponse) {
 

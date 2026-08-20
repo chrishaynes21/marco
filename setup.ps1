@@ -31,6 +31,11 @@
                no cost, nothing leaves the computer. If Ollama can't be installed the
                plugin is still wired and degrades to "no match" until it's running.
                Overrides -Resolver (both set MARCO_RESOLVER; local wins).
+               SCOPE: `marco assistant` and `marco dispatch` ONLY. Since the
+               one-intake work no model is consulted on the way to running a play
+               - typing, speaking, a hotkey and a clicked Run all match your plays
+               EXACTLY and hand anything else to the Director. This changes
+               nothing about the overlay.
     -OCR       the text/OCR anchor resolver (plugins/ocr). Builds ocr.exe AND
                installs the tesseract OCR engine it needs (via winget, or a
                -TesseractUrl silent installer), then pins MARCO_TESSERACT.
@@ -495,6 +500,16 @@ if ($CV) {
     [void]$lines.Add('set "MARCO_CV=off"')
 }
 if ($llamaReady) {
+    # DEVELOPER SURFACES ONLY, since Phase 2. Both variables below are read by
+    # `marco assistant` and `marco dispatch` and by NOTHING on the product path:
+    # typing, speaking, a hotkey and a clicked Run all go through one intake that
+    # matches a play EXACTLY and hands everything else to the Director. A model
+    # never decides which of your plays runs.
+    #
+    # They are still written here so the two developer verbs keep working out of a
+    # shell this launcher set up. Installing with -Llama therefore gets you a local
+    # model for those two verbs, and changes nothing about the overlay.
+    #
     # A LOCAL model resolves loose phrasing the offline matcher misses — no key, no
     # cost, private. Wins over the Claude resolver when both were built (both set
     # MARCO_RESOLVER). The plugin defaults to Ollama at localhost:11434.

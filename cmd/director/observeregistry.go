@@ -161,7 +161,7 @@ func (g *observationRegistry) start(target observesession.Target, sampler observ
 	// interface that has no SemanticKnowledge in it at all — so the thing a learn session uses
 	// to remember where you were standing structurally cannot claim you said anything about it.
 	//
-	// Deleting this must fail TestTeachingEstablishesTheStartThroughTheProductionRegistry.
+	// Deleting this must fail TestLearningEstablishesTheStartThroughTheProductionRegistry.
 	if store, ok := g.memory.(observe.PlaceStore); ok {
 		runner = runner.WithPlaces(store)
 	}
@@ -753,6 +753,19 @@ func (r *Runtime) Observation(q service.ObserveQuery) (any, error) {
 		// THE goal-planning call site, and the only one. A read over remembered goals and
 		// the durable topology; it grants nothing and can reach nothing that acts.
 		return r.Reach(*q.Reach)
+	case q.Showing != nil:
+		// THE "where am I standing" call site for anything outside this process, and the only
+		// one. It takes a fresh look and resolves it with the canonical resolver — the same
+		// body PerformGoal plans from — and it grants nothing: the answer is a durable subject
+		// id or a named refusal, and neither is a licence to do anything.
+		//
+		// The parent is the SERVICE's lifetime, for the reason Rehearse's is: `Observation`
+		// has no context of its own, a look can take eight seconds, and a shutdown must end it
+		// rather than wait it out. See commandslot.go on why serviceContext is the single
+		// named place in this package that may fall back to a fresh context.
+		//
+		// Deleting this case must fail TestTheDirectorAnswersWhichPlaceIsShowing.
+		return r.ShowingNow(r.serviceContext(), *q.Showing)
 	case q.Perform != nil:
 		// NOT HERE ANY MORE, and loudly rather than quietly.
 		//
@@ -784,7 +797,13 @@ func (r *Runtime) Observation(q service.ObserveQuery) (any, error) {
 	case q.Rehearse != nil:
 		// THE rehearsal trigger, and the only one. Not a session, not a review, not a
 		// timer: a grant is spent because somebody asked for it to be, in this request.
-		return r.Rehearse(*q.Rehearse)
+		//
+		// The parent is the SERVICE's lifetime, so a rehearsal begun through this door is
+		// ended by a shutdown as well as by a stop. `Observation` has no context of its own
+		// — the service.Runtime interface has never given it one — and serviceContext is the
+		// single named place in this package that answers that, rather than a
+		// `context.Background()` written here where nobody would see it. See commandslot.go.
+		return r.Rehearse(r.serviceContext(), *q.Rehearse)
 	case q.Name != nil:
 		// THE conversion point, and the only one on this path: raw human text becomes a
 		// ScreenName here, at the boundary where a person's typing arrives, and nowhere
@@ -1263,7 +1282,11 @@ func (g *observationRegistry) Known() []observe.KnownJudgement {
 // writes through. Nothing here touches perception: the subject, its structure, its visits, its
 // name and its other interpretations are untouched.
 //
-// Deleting either call must fail TestTheExplorerJudgementIsCorrectableWithoutATerminal.
+// Each call has its own holder, and they are not interchangeable: deleting the RetractKnown
+// call must fail TestAJudgementNothingRecognisesIsStillCorrectableInTheProduct, which takes an
+// answer back after a restart, and deleting the ReviseKnown call must fail
+// TestChangingAnAnswerInTheProductSurvivesARestart, which changes one. Measured by running both
+// mutations: neither test notices the other call going away.
 func (g *observationRegistry) ReviseKnown(subject string, kind observe.HypothesisKind,
 	resp observe.UserResponse) error {
 

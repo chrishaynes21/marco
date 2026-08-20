@@ -184,9 +184,25 @@ type learnView struct {
 	Saved bool `json:"saved,omitempty"`
 	// Play is what the artifact was written as, present in both of those states.
 	Play string `json:"play,omitempty"`
-	// Refused is the closed reason, and Detail the diagnostics behind it.
+	// Refused is the closed reason, and Detail the account behind it — one SENTENCE per
+	// line, and nothing backstage in any of them.
+	//
+	// A surface renders Detail beside the refusal, in the block a person actually reads. It
+	// used to be the coordinator's Diagnostics verbatim, which mixed the two: "start
+	// established as subj_7f3a" is a sentence with a durable subject id welded to the end of
+	// it, and no surface could separate them after the fact. The coordinator now keeps the
+	// sentence and the particulars apart at the point it composes them, and this is the
+	// sentence half. See learn.Session.Account.
 	Refused learn.Refusal `json:"refused,omitempty"`
 	Detail  []string      `json:"detail,omitempty"`
+	// Facts is the particulars half: the backstage values behind those same sentences.
+	//
+	// FOR AN ADVANCED SURFACE ONLY. Every value in here is a Director word — a durable
+	// subject id, a verdict, a licence flag — and every one of them is worth having when
+	// something has gone wrong and worth nothing to somebody who just wanted to save a play.
+	// Carried separately so a surface chooses, rather than being handed one string and left
+	// to guess which half of it is safe to show.
+	Facts []LearnFact `json:"facts,omitempty"`
 	// CanStop, CanTry and CanCancel say which controls apply right now, so a surface does
 	// not have to re-derive the lifecycle from the stage.
 	CanStop bool `json:"can_stop"`
@@ -224,6 +240,20 @@ type learnView struct {
 	// screen it means rather than asking about an unidentifiable one.
 	Naming    *KnownPlace       `json:"naming,omitempty"`
 	SessionID observe.SessionID `json:"session_id,omitempty"`
+}
+
+// LearnFact is one backstage particular out of the coordinator's account, with the sentence it
+// belongs to.
+//
+// Say is carried alongside Name and Value on purpose. An Advanced surface wants to show the
+// particulars UNDER the line they explain — "I didn't recognise where this started" with placed,
+// verdict, licensed, established and reason beneath it — and a flat list of name/value pairs with
+// no owner would leave the surface guessing which sentence each belonged to, or would push the
+// grouping back into the projection where it would harden into a layout decision.
+type LearnFact struct {
+	Say   string `json:"say"`
+	Name  string `json:"name"`
+	Value string `json:"value"`
 }
 
 // learnViewOf projects one session.
@@ -326,7 +356,20 @@ func learnViewOf(s learn.Session, running, finishing bool) learnView {
 		// unconditionally — `stopped_at_step` is true and useless without the step lines,
 		// and which stage the session happens to be in has nothing to do with whether they
 		// are worth reading.
-		v.Detail = append(v.Detail, s.Diagnostics...)
+		//
+		// READ THROUGH Notes, never off Diagnostics. Diagnostics is the rendered line, with
+		// the particulars glued onto the sentence, and gluing them is precisely what put a
+		// durable subject id in front of a person. Notes hands over the two halves already
+		// separated, and this projection passes both on without re-joining them.
+		//
+		// Deleting the split must fail TestTheStuckAccountShowsSentencesAndKeepsFactsApart.
+		for _, n := range s.Notes() {
+			v.Detail = append(v.Detail, n.Say)
+			for _, f := range n.Facts {
+				v.Facts = append(v.Facts, LearnFact{
+					Say: n.Say, Name: f.Name, Value: f.Value})
+			}
+		}
 	}
 	applyControls(&v, s)
 	return v
@@ -572,7 +615,9 @@ func (r *Runtime) Learn(ctx context.Context, q service.ObserveLearn) (learnView,
 		// Watching is an instrument; a demonstration is the work. Somebody pressing Start
 		// has said which they want. Only a session Light Mode itself started is yielded.
 		//
-		// Deleting this must fail TestTeachingTakesTheSlotBackFromLightMode.
+		// Deleting this call must fail TestPressingStartTakesTheSlotBackFromLightMode,
+		// which enters at Learn rather than at yieldWatching: the direct test proves the
+		// function works and says nothing about whether Start calls it.
 		r.yieldWatching()
 		// Surface: true is the whole difference between this and `director learn`. It
 		// says the request came from Marco's own UI, so the window it came from is
@@ -1190,7 +1235,9 @@ func (r *Runtime) placeWords(application, subject string) string {
 		// correctly inferred a name for was still presented as "about back, settings, 96
 		// things on it" everywhere this route line appears.
 		//
-		// Deleting the Words branch must fail TestTheRouteLineUsesTheCanonicalName.
+		// Deleting the Words branch must fail TestEverySurfaceNamesAPlaceTheSameWay,
+		// which reads this route line and the screens list through the one naming
+		// function and asserts they say the same thing.
 		if p.Words != "" {
 			return p.Words
 		}

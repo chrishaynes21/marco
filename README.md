@@ -11,16 +11,23 @@ runtime drives the real machine (keystrokes, mouse, screen) through a
 host-FFI boundary that plays nicely with other languages.
 
 ```
-$ marco assistant
-> log into facebook
-I don't know "log into facebook" yet.
-Teach it now? [y]es / [n]o: y
-Show me how to "log into facebook". Do it now, then press Esc when finished.
-(For a password, type {{name}} instead of the real value, then set it with: marco secret set <name>)
-…you click through the login, typing {{fb-password}} for the password, press Esc…
-Learned "log into facebook" → routes/log-into-facebook.marco (7 steps)
-Run it now? [y]es / [n]o: y
+$ marco learn "log into facebook"
+Show me how to "log into facebook". Do it now, then press F12 when finished.
+(For a password, type {{name}} and set it with: marco secret set <name>.)
+…you click through the login, typing {{fb-password}} for the password, press F12…
+Learned "log into facebook" (anywhere) → routes/global/log-into-facebook.marco
+
+$ marco plays
+Known plays:
+  log into facebook            Recorded · Ready · anywhere
+
+$ marco do "log into facebook"
+[route] log into facebook
+[result] performed
 ```
+
+Or say it: the overlay (`.\overlay.cmd`) takes the same words typed or spoken,
+and one **stop** — said, typed, or the leader key — ends whatever is running.
 
 ---
 
@@ -35,7 +42,7 @@ go build -o marco ./cmd/marco
 Show Marco a **play** once, then run it by name:
 
 ```sh
-marco learn "open inventory"     # record clicks/keys; press Esc to finish
+marco learn "open inventory"     # record clicks/keys; press F12 to finish
 marco do   "open inventory"      # replay it (real input on Windows)
 marco plays                      # list every play you have
 marco routes                     # list the plays you can ask for (unchanged)
@@ -46,7 +53,9 @@ a record of where it came from. It's the noun the product uses everywhere — th
 `marco routes` command, the `routes/` directory and `$MARCO_ROUTES` keep their
 old names, and nothing you already type stops working.
 
-Press **Esc** at any time to abort a running play.
+Press the **stop key** at any time to abort a running play — **F12** by default, so
+Esc stays free to record as an ordinary key (`$MARCO_STOP_KEY` changes it). From
+anywhere else, including another window, `marco stop` does the same thing.
 
 ### One way in
 

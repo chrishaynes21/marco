@@ -279,7 +279,14 @@ func unsupportedReason(res Result, key string) (string, bool) {
 // retrying that under a different pattern would be Marco pressing a control repeatedly until
 // something happened.
 //
-// Deleting this must fail TestAPressFallsBackToThePatternTheControlImplements.
+// NOTHING CURRENTLY CATCHES THIS, and the reason is worth saying: `Unsupported` has no
+// production caller yet. The press path that exists today recognises a capability refusal
+// through `activate.Unsupported` inside internal/platform/theaterhost, so deleting this
+// function breaks no build and fails no test. A test that could hold the claim would have to
+// drive a press through whichever caller adopts this helper and prove that a control
+// implementing no InvokePattern is tried another way rather than reported as an outage —
+// the shape TestTheActorFallsBackToThePatternTheControlImplements has for the theaterhost
+// path, which does not reach this code.
 func Unsupported(res Result, kind Kind) (string, bool) {
 	key, ok := controlKinds[kind]
 	if !ok {

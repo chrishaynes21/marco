@@ -132,15 +132,35 @@ func askingWorld(t *testing.T, input string) (orchestrator.Deps, *recordHost) {
 	return d, host
 }
 
-// CONTROL: the door works WHEN REACHED. d.Do declines and sends nothing. Proves the gate is
-// correct, so the bypass below is a wiring gap and not a broken gate.
+// CONTROL: the door works WHEN REACHED. Proves the gate is correct, so the failure the next test
+// guards against is a WIRING gap and not a broken gate. The two together are the whole claim, and
+// neither is worth anything alone.
+//
+// # Why this no longer runs a play
+//
+// It used to call `orchestrator.Deps.Do` — resolve, authorize, run — and assert nothing was
+// pressed. Phase 3 retired `Deps.Do`: it was a complete second invocation spine with no production
+// callers, and it was where most of this repository's authority coverage entered. Testing a door
+// by walking through a corridor nobody uses is exactly the mistake the regression below exists to
+// record, so the control now calls the door itself.
+//
+// `Classify` and `Authorize` ARE the production units — `performOnePlay` in intake.go calls
+// precisely these two, with precisely this gate. Asserting on the Decision is therefore a stronger
+// claim than asserting on an absence of keypresses, because a play that pressed nothing for some
+// unrelated reason used to pass this test.
 func TestDoorDeclinesWhenReached(t *testing.T) {
-	d, host := registerGuardedLearnedPlay(t)
-	if err := d.Do("volume"); err != nil {
-		t.Fatalf("do: %v", err)
+	d, _ := registerGuardedLearnedPlay(t)
+	rt, ok := d.Reg.Resolve(d.App(), "volume")
+	if !ok {
+		t.Fatal("the fixture did not save a play called volume")
 	}
-	if got := host.pressed(); len(got) != 0 {
-		t.Fatalf("the door was reached and declined, yet keys were pressed: %v", got)
+	got := orchestrator.Authorize(orchestrator.Classify(d.Reg, rt, "volume"), d.Authority)
+	if got.Allow() {
+		t.Fatalf("the door allowed a learned play the user declined: %+v", got)
+	}
+	if got.Verdict != orchestrator.Declined {
+		t.Fatalf("a declined learned play must read as declined, not %q — the reason a person is "+
+			"shown is part of the door, not decoration", got.Verdict)
 	}
 }
 

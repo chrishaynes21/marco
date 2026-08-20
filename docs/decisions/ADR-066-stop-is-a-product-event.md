@@ -56,6 +56,30 @@ given — and it would look like it worked.
 The person does not have to end where they started, walk a circular route, or sit still for an
 arbitrary time before pressing Stop. The clock survives only as a backstop.
 
+### Amendment, 2026-08-20 — which of the two the WORD "stop" means
+
+> This decision is unchanged. What follows settles a question it left open, and which two of Marco's
+> own surfaces had answered oppositely: `director learn --stop` meant Cancel, while the control
+> centre's Stop button meant Finish. One word, two products, opposite outcomes.
+>
+> **The word "stop" is bound to `Cancel`, everywhere.** It is the abort word — what a person says
+> when something is going wrong — and a stop that Finished would durably save the half-demonstration
+> of somebody who was trying to abandon it. Finishing keeps its own affordance and its own honest
+> name; the CLI now spells the two operations `--cancel` and `--finish`, with `--stop` surviving as
+> an alias for `--cancel` so no script breaks.
+>
+> This is also what a global stop reaches. `CANCEL_ACTIVE` gained an arm that finds an active Learn
+> episode — before it did not, so saying "stop" during a demonstration answered *"nothing is
+> running"* while the demonstration continued. That arm routes through the **same surface operation
+> the cancel verb already calls**, so `Cancel` still has exactly one implementation and the
+> separation above is untouched. See
+> [[ADR-087-one-stop-and-it-crosses-a-process-boundary]].
+>
+> Note the distinction it draws, because it is easy to lose: a Learn **episode** is a session and is
+> ended by this decision's `Cancel`. A Learn **rehearsal** is a performance, and belongs in the
+> command registry beside `PERFORM` ([[ADR-085-a-performance-is-a-registry-command]]). They are not
+> the same kind of thing and deliberately do not share a mechanism.
+
 ## Enforced by
 
 - `cmd/director/learnwiring_test.go` — `TestStopFinishesTheDemonstrationAndCancelDiscardsIt`

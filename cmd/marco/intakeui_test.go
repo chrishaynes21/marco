@@ -2,8 +2,10 @@ package main
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"os/exec"
 	"strings"
 	"testing"
 
@@ -27,9 +29,12 @@ func captureRun(t *testing.T) *[]string {
 	t.Helper()
 	var got []string
 	prev := runSpawn
-	runSpawn = func(args []string) error {
+	// Records the argv and starts NOTHING. A nil process is a real answer to the run account:
+	// there is nothing to watch, so the run is recorded as unavailable rather than left pending
+	// for ever. These tests are about what WOULD be launched, never about running it.
+	runSpawn = func(args []string) (*exec.Cmd, io.Reader, error) {
 		got = append([]string(nil), args...)
-		return nil
+		return nil, nil, nil
 	}
 	t.Cleanup(func() { runSpawn = prev })
 	return &got

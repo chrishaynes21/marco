@@ -123,6 +123,24 @@ says the Audience is where they asked to be.
 
 Neither invalidates the acceptance. Both are efficiency and selection, not correctness of the walk.
 
+> **Clarification, 2026-08-20 — delegation is for a play whose provenance is still intact.**
+>
+> "A learned play is performed by the Director" is about the artifact Director verified. The moment a
+> person EDITS one, it stops being that artifact: `orchestrator.Resolved.Learned()` is
+> `Kind == learned && Provenance.Verified()`, the authority seam gives it
+> `edited_since_learned`/`Allowed`, and it runs locally like anything else they have written.
+>
+> **It must not be delegated instead, and the reason is worth stating so nobody "fixes" it.**
+> `performLearned` sends only `Name`, `Application` and `Subject` — the Director re-plans from the
+> goal and never reads the file. Routing an edited play to it would run the ORIGINAL behaviour while
+> the person watched, believing they were running their edit. Failing is bad; silently doing
+> something else is worse.
+>
+> What was actually wrong was the other end: the local runner could not see, so an edited play
+> refused at its own first line. That is now fixed — marco's Screen host asks the Director which
+> place is showing, and still refuses when nothing can answer. See
+> [[ADR-031-the-user-names-the-stage]], Decision 4's amendment.
+
 ## Enforced by
 
 - `internal/director/rehearse/rehearse_test.go` — `TestRehearsalAndExecutionShareOneWalker`

@@ -93,6 +93,14 @@ func guardedWorld(t *testing.T, sc *stage, answer string) (
 // running it, and Marco still does not press anything, because the play itself says where it
 // begins and it does not begin here.
 //
+// The "said yes" half is spelled out rather than implied. This test used to enter through
+// `Deps.Do`, which asked the door on the way past; `Deps.Do` was retired in Phase 3 (see
+// runsaved_test.go), so the yes is now taken EXPLICITLY, from the same two calls production makes
+// in `cmd/marco/intake.go`'s `performOnePlay`: `Classify`, then `Authorize`. That ordering is the
+// whole claim of this file — a yes to "may I run this play?" is not an answer to "does it belong
+// on this screen?", and losing the first call would quietly turn this into a test of the guard
+// alone.
+//
 // Deleting the Screen host from the composition, or the guard from lowering, must fail this.
 func TestTheWrongScreenSendsNothing(t *testing.T) {
 	d, host := guardedWorld(t, &stage{
@@ -100,9 +108,18 @@ func TestTheWrongScreenSendsNothing(t *testing.T) {
 		current: "subj_b", outcome: screenhost.Recognised, // a DIFFERENT screen
 	}, "y")
 
-	if err := d.Do("volume"); err != nil {
-		t.Fatalf("do: %v", err)
+	// GATE ONE: the person is asked, and says yes.
+	rt, ok := d.Reg.Resolve(d.App(), "volume")
+	if !ok {
+		t.Fatal("the play did not resolve")
 	}
+	decision := orchestrator.Authorize(orchestrator.Classify(d.Reg, rt, "volume"), d.Authority)
+	if !decision.Allow() {
+		t.Fatalf("the door refused before the screen guard could be tested: %+v", decision)
+	}
+
+	// GATE TWO: and the play still refuses to begin.
+	runSavedPlay(t, d, "volume")
 	for _, c := range host.calls {
 		if strings.HasPrefix(c, "OS's") {
 			t.Fatalf("a key was pressed on the wrong screen: %v", host.calls)
@@ -118,9 +135,7 @@ func TestTheRightScreenRunsThePlayFromItsOwnSource(t *testing.T) {
 		current: "subj_a", outcome: screenhost.Recognised,
 	}, "y")
 
-	if err := d.Do("volume"); err != nil {
-		t.Fatalf("do: %v", err)
-	}
+	runSavedPlay(t, d, "volume")
 	var pressed []string
 	for _, c := range host.calls {
 		if strings.HasPrefix(c, "OS's") {
@@ -164,9 +179,7 @@ func TestOnlyAPositiveMatchLetsThePlayBegin(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			d, host := guardedWorld(t, tc.stage, "y")
-			if err := d.Do("volume"); err != nil {
-				t.Fatalf("do: %v", err)
-			}
+			runSavedPlay(t, d, "volume")
 			for _, c := range host.calls {
 				if strings.HasPrefix(c, "OS's") {
 					t.Fatalf("%s let the play begin: %v", tc.name, host.calls)
@@ -203,9 +216,7 @@ func TestRemovingTheGuardFromTheSourceRemovesTheGuard(t *testing.T) {
 		t.Fatalf("saving: %v", err)
 	}
 
-	if err := d.Do("volume"); err != nil {
-		t.Fatalf("do: %v", err)
-	}
+	runSavedPlay(t, d, "volume")
 	// It runs, on the wrong screen, because the play no longer says otherwise. The sidecar
 	// still exists and still remembers where it came from — and enforces nothing.
 	var pressed int

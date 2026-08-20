@@ -85,6 +85,13 @@ type Runtime struct {
 	// Close is asked for rather than assumed; see Close below.
 	bridge runtime.Host
 
+	// bridgePath is WHERE that implementation lives, kept only so the Cast roster can say so.
+	//
+	// It decides nothing. "No provider" and "a provider at a path you did not expect" are
+	// different problems that look identical from a play that did nothing, and this is the
+	// only place the second one can be told apart from the first.
+	bridgePath string
+
 	// watchArming, watchCancel and watchMu are LIGHT MODE waiting for somewhere to watch.
 	//
 	// Pressing Watch cannot resolve a window: the button is in Marco, so the foreground at
@@ -286,6 +293,27 @@ type Runtime struct {
 	// but the pipeline holds a stateful world Builder whose element identity depends
 	// on snapshots arriving in order, so concurrent use would corrupt it.
 	mu sync.Mutex
+
+	// commands is the SERVICE's command registry, and serviceCtx the service's own lifetime.
+	//
+	// Installed by the server through UseCommands, nil in a Runtime nobody published. Held so
+	// the one thing this Runtime does to the desktop without the server routing a request —
+	// a live rehearsal, reached from inside a Learn episode — can enter the same registry an
+	// executed phrase and a performance do, and therefore be reached by CANCEL_ACTIVE. See
+	// commandslot.go for why the alternative (Begin/Finish in the server) covers only one of
+	// the two entrances.
+	commands   *service.Registry
+	serviceCtx context.Context
+
+	// accessibilityUnavailable is why the Accessibility Actor cannot act, empty when it can.
+	//
+	// The same shape as ocrUnavailable and visionUnavailable, and here for the same reason:
+	// the Director used to REFUSE TO BOOT when `uia.exe` was missing, so a machine with
+	// sight, text and OS input but no accessibility bridge could not observe at all. One
+	// missing provider costs you that Actor; it must not cost you the Director. Held so the
+	// service can say which Actor is missing and why rather than failing at the first call
+	// that needed it.
+	accessibilityUnavailable string
 }
 
 var _ service.Runtime = (*Runtime)(nil)
@@ -332,7 +360,15 @@ func NewRuntime(bridgePath string, maxNodes int, dryRun bool, g *actiongraph.Fil
 	// changes nothing. The provider enforces that itself rather than trusting callers.
 	textEngine, textHost, textReason := newOCREngine(defaultOCRBridge())
 	rt := &Runtime{graph: g, tracker: tracker, bridge: bridge, ocrBridge: textHost,
-		ocrUnavailable: textReason, liveMarco: marco, uia: accessibility}
+		ocrUnavailable: textReason, liveMarco: marco, uia: accessibility,
+		// WHY the Accessibility Actor cannot act, when it cannot — on the same terms as
+		// OCR and vision, one line above and one below. The bridge is spawned lazily, so
+		// a missing binary used to surface as an unexplained failure at whichever call
+		// first needed it; worse, `director serve` refused to start at all, which cost a
+		// machine with sight, text and OS input its entire ability to observe.
+		//
+		// Deleting this must fail TestADirectorWithNoAccessibilityBridgeSaysWhy.
+		accessibilityUnavailable: bridgeUnavailable(bridgePath), bridgePath: bridgePath}
 	rt.winTracker = windowref.NewTracker(windows)
 	rt.winDirectory = windowref.NewDirectory()
 	// Durable semantic memory, opened once for the life of the service.

@@ -56,6 +56,25 @@ It does not skip the guard, assume ok, fall back to OCR text matching, or degrad
 replay. **Director figures out the play; Marco performs it; Director still provides the eyes while
 it does.** That is stated plainly rather than contorted around.
 
+> **Amendment, 2026-08-20 — the last sentence is now wired.** `CurrentSubject` used to return
+> `unavailable` *unconditionally*: the eyes were promised and never connected. It now ASKS the
+> Director which place is showing, when one is reachable, and still answers `unavailable` when none
+> is. The recogniser is still the Director's and there is still only one of it — this is that
+> sentence implemented, not a second recogniser and not a relaxation.
+>
+> **The refusal is unchanged and may not be weakened.** No Director, a Director that cannot see, a
+> place it does not recognise, an outcome word this build has never heard of, or a `recognised` with
+> nothing named in it — every one of them refuses. Silence is still never yes.
+>
+> *Why it mattered now.* A learned Play with intact provenance is delegated to the Director and never
+> met the stub. An **edited** one is not delegated — editing makes it an ordinary play — so it took
+> the local runner and refused at its own first line with "Marco could not check", immediately after
+> the authority seam had told the person *"it runs like anything else you have written"*. Routing
+> edited plays to the Director instead would have been worse, not better: the Director re-plans from
+> the goal and never reads the file, so the person's edits would have been silently discarded. The
+> honest fix was to let the local runner see. See
+> [[ADR-078-a-learned-play-is-performed-by-the-director]].
+
 ---
 ## Decision 5 — the source carries the requirement, and the sidecar carries none of it
 

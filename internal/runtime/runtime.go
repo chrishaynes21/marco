@@ -703,8 +703,18 @@ func (r *runner) runBlock(f *Frame, block *graph.Block) error {
 		default:
 			// Cooperative cancellation: if an external `cancel` flipped this
 			// frame's status, bail out of the body and let `finally` run.
-			if f.Status() == StatusCanceled {
+			//
+			// Except while a `finally` is running on this same frame: it is
+			// re-entered here through runFinallies with the frame still
+			// StatusCanceled, and bailing again would return before the
+			// cleanup's first ordinary edge — which is exactly how `finally`
+			// used to be silently skipped on every cancellation. nextStep also
+			// stops a cleanup that has spent its budget. See frame.go.
+			switch f.nextStep() {
+			case stepBailToCleanup:
 				return r.runFinallies(f, finallies)
+			case stepAbandonCleanup:
+				return nil
 			}
 			done, err := r.dispatch(f, e)
 			if err != nil {
@@ -726,6 +736,14 @@ func (r *runner) runBlock(f *Frame, block *graph.Block) error {
 func (r *runner) runFinallies(f *Frame, blocks []*graph.Block) error {
 	if len(blocks) == 0 {
 		return nil
+	}
+	// If this frame's cleanup would otherwise be stranded — canceled, or holding
+	// a context its canceled ancestor already killed — rescue it: suppress the
+	// cancellation bail-out in runBlock and give its host calls a live, bounded
+	// context to work with. An ordinary success or failure enters nothing here
+	// and behaves exactly as it always has.
+	if f.enterCleanup() {
+		defer f.exitCleanup()
 	}
 	for _, b := range blocks {
 		if err := r.runBlock(f, b); err != nil {

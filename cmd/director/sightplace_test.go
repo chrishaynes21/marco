@@ -881,3 +881,51 @@ func TestPressingStartTakesTheSlotBackFromLightMode(t *testing.T) {
 			"a conflict between two of Marco's own features, blamed on the person.")
 	}
 }
+
+// HERE calls the place what every other surface calls it.
+//
+// # The live failure, at this surface
+//
+// The durable store held `semantic: "Bluetooth & devices"` — inferred correctly, written
+// correctly — and the panel's HERE row still read "about back, settings, 96 things on it", because
+// HERE carried only Called and Describes. Called is the AUDIENCE's word and is empty until
+// somebody types one, so a screen Marco had worked out the name of read as unnamed on the one row
+// a person looks at to answer "where does Marco think I am".
+//
+// The projection is `observe.PlaceWords` and it already existed. What was missing was HERE asking
+// for it, so this asserts the rung between Called and Describes rather than the projection, which
+// TestEverySurfaceNamesAPlaceTheSameWay owns.
+//
+// Deleting `out.Words = p.Words` from hereFrom must fail this.
+func TestHereUsesTheCanonicalName(t *testing.T) {
+	rt, store, a, b := namingRuntime(t)
+
+	// A place Marco NAMED ITSELF. Nobody typed anything, so Called stays empty.
+	if err := store.ObserveSemanticName("settings", a, "Bluetooth & devices",
+		observe.FromStructure); err != nil {
+		t.Fatalf("recording the inference: %v", err)
+	}
+	standingOn(rt, observe.TermAudio)
+	inferred := rt.hereFrom(playbill.Current{
+		Watching: true, Application: "settings", Recognition: playbill.Recognised,
+	})
+	if inferred.Called != "" {
+		t.Fatalf("the fixture typed a name (%q), so this would prove nothing about the rung "+
+			"between Called and Describes", inferred.Called)
+	}
+	if inferred.Words != "Bluetooth & devices" {
+		t.Fatalf("HERE calls this place %q.\nMarco worked the name out and wrote it down, and "+
+			"the one row a person reads to find out where they are still says \"not named\" "+
+			"— which is the failure that made the identity defect invisible.", inferred.Words)
+	}
+
+	// And the AUDIENCE's own word still wins, which is the other half of what canonical means.
+	named(t, store, b, "Mouse")
+	standingOn(rt, observe.TermDisplay)
+	authored := rt.hereFrom(playbill.Current{
+		Watching: true, Application: "settings", Recognition: playbill.Recognised,
+	})
+	if authored.Words != "Mouse" {
+		t.Errorf("HERE calls the place the person named %q, want their own word", authored.Words)
+	}
+}

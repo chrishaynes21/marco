@@ -200,3 +200,38 @@ func itoa(n int) string {
 	}
 	return string(buf[i:])
 }
+
+// AccessibilityReporter is a Runtime that can say why its Accessibility Actor cannot act.
+//
+// # Why an optional interface rather than a widening of Runtime
+//
+// The same reason Performer is one, and it is not a stylistic preference. A Director that cannot
+// answer this is a legitimate Director — `cmd/marco` has a stub Runtime whose whole purpose is to
+// answer the Director protocol without being one — and putting the method on `Runtime` would make
+// every implementer, present and future, write a line claiming to know something about a bridge it
+// has never heard of, purely in order to keep compiling.
+//
+// Asked for by name, a Director either offers the answer or honestly does not.
+type AccessibilityReporter interface {
+	// AccessibilityUnavailable is why the Accessibility Actor cannot act, empty when it can.
+	AccessibilityUnavailable() string
+}
+
+// accessibilityReason is what to tell a client about a missing Accessibility Actor.
+//
+// Empty from a Runtime that does not report on itself, which reads as "nothing to say" — the same
+// thing it means from one that reports and finds nothing wrong. That collapse is deliberate: this
+// is a diagnostic, and a diagnostic that distinguished "fine" from "cannot tell" would put a
+// sentence about Marco's own plumbing in front of somebody asking about their computer.
+//
+// It exists because the Director now BOOTS without an accessibility bridge instead of refusing to
+// start over one. Degrading is only honest if the degradation can be reported: "Accessibility
+// clients: 0" reads identically for "nothing observed yet" and "there is nothing to observe
+// through", and only one of those is something the person can fix.
+func accessibilityReason(rt Runtime) string {
+	r, ok := rt.(AccessibilityReporter)
+	if !ok {
+		return ""
+	}
+	return r.AccessibilityUnavailable()
+}

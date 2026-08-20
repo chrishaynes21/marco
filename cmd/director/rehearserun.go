@@ -33,14 +33,25 @@ import (
 // THE rehearsal entry point. It finds the outstanding grant, recomputes the evidence the
 // authorization was given against, chooses the host, and hands the whole thing to the live runner
 // — which then establishes where Marco actually is before anything can be sent.
-func (r *Runtime) Rehearse(q service.ObserveRehearse) (service.RehearsalView, error) {
+//
+// # The context is the whole of "stop", and this parameter used to not exist
+//
+// A live rehearsal is "want me to try it once?" answered yes: it types and clicks on the real
+// desktop. `rehearse.Live.Rehearse` checks ctx.Err() before every step and has a CancelledAttempt
+// terminal and a RefusalCancelled refusal waiting — and every bit of that was dead code, because
+// the only context this function ever handed down was `context.Background()`. The Audience could
+// not stop it. It is the identical defect perform.go fixed for itself in Phase 2, one file over,
+// and it survived because the test that held that fix was hard-coded to `perform.go`.
+//
+// Deleting the ctx parameter, or handing Background down again, must fail
+// TestNothingThatCanReachTheWalkerInventsItsOwnContext.
+func (r *Runtime) Rehearse(ctx context.Context, q service.ObserveRehearse) (service.RehearsalView, error) {
 	if r.observations == nil {
 		return service.RehearsalView{}, fmt.Errorf("this Director has no observation registry")
 	}
 	g := r.observations
 	g.mu.RLock()
 	last, memory := g.last, g.memory
-	tgt, smp := g.lastTarget, g.lastSampler
 	var application string
 	var selector windowref.Selector
 	for i := len(g.finished) - 1; i >= 0; i-- {
@@ -71,6 +82,95 @@ func (r *Runtime) Rehearse(q service.ObserveRehearse) (service.RehearsalView, er
 			"the demonstration this was authorized against is no longer there")
 	}
 
+	live, err := r.walker(q.Live)
+	if err != nil {
+		return service.RehearsalView{}, err
+	}
+
+	position := q.Step
+	if position <= 0 {
+		position = 1
+	}
+
+	// ── INTO THE COMMAND REGISTRY, because this is a PERFORMANCE. ──
+	//
+	// A rehearsal is Marco doing something to the desktop, so it belongs beside PERFORM in the
+	// one place the service keeps what is running: visible to `director status`, refusing a
+	// second mutating request, and — the reason this matters — reachable by CANCEL_ACTIVE.
+	// Before it was here, a leader key, a spoken "stop" and `marco director stop` all answered
+	// "nothing is running" while a live rehearsal typed on somebody's real desktop.
+	//
+	// A Learn EPISODE deliberately does NOT enter this registry. An episode is a SESSION —
+	// somebody demonstrating, with Marco watching and touching nothing — and it is abandoned
+	// through ADR-066's Cancel, which is the one implementation of throwing an attempt away. A
+	// rehearsal is a PERFORMANCE. They are different kinds of thing and they get different
+	// mechanisms on purpose; see cancelActive in internal/director/service.
+	//
+	// Deleting this must fail TestStoppingReachesALiveRehearsal.
+	ctx, done, err := r.beginPerformance(ctx, rehearsalPhrase(q, grant.Relationship.To))
+	if err != nil {
+		return service.RehearsalView{}, err
+	}
+
+	result, err := live.Rehearse(ctx, grant, judgement, selector, position)
+	// A COMPLETED route is the only thing worth keeping, and what is kept is evidence rather
+	// than a procedure: which candidate, where it ran, how each step came out. Reproducing any
+	// of it means lowering the candidate again under a fresh authorization.
+	if err == nil && result.Completed() {
+		g.rememberRehearsal(application, judgement, result)
+	}
+	if err != nil {
+		// A refusal BEFORE input. Deliberately not a result: "Marco declined to try" and
+		// "Marco tried and it went wrong" are different facts, and a reader who cannot tell
+		// them apart cannot audit anything.
+		reason, _ := rehearse.RefusalOf(err)
+		view := service.RehearsalView{Attempted: false, Refusal: string(reason),
+			Live: q.Live, Detail: err.Error()}
+		done(view.Refusal, 0)
+		return view, nil
+	}
+	view := rehearsalViewOf(result, q.Live)
+	done(view.Refusal, view.StepsTaken)
+	return view, nil
+}
+
+// rehearsalPhrase is what `director status` calls a rehearsal that is in flight.
+//
+// The Audience's own frame of reference rather than the machinery's: they said yes to "want me to
+// try it once?", so what is running is Marco trying it. A grant id in a status line would be
+// unreadable, and the destination screen is the closest thing to a place name this path holds.
+func rehearsalPhrase(q service.ObserveRehearse, destination string) string {
+	if !q.Live {
+		return "rehearsing (dry)"
+	}
+	if destination == "" {
+		return "trying it once"
+	}
+	return "trying it once — " + destination
+}
+
+// walker is THE composition root for the live walker: a rehearsal and a performance alike.
+//
+// # Why one, and not two
+//
+// There were two. `performer` in perform.go built the same object for a play the Audience asked
+// for by name, and the two drifted the way two copies of a safety-critical assembly drift: this
+// one installed `WithForeground` and that one did not. `Live.behind` returns false when `inFront`
+// is nil, so the "input would land somewhere else" refusal — live.go:499 and live.go:555, the one
+// guard between a real keystroke and somebody else's window — could never fire on the path the
+// Audience actually uses.
+//
+// The difference between the two callers was never the assembly. It is the AUTHORITY above it: a
+// rehearsal spends a grant Marco asked permission for, a performance spends an explicit request.
+// That difference stays in the callers, where it belongs.
+//
+// Deleting WithForeground must fail TestEveryLiveWalkerChecksTheForeground.
+func (r *Runtime) walker(live bool) (*rehearse.Live, error) {
+	g := r.observations
+	g.mu.RLock()
+	memory, tgt, smp := g.memory, g.lastTarget, g.lastSampler
+	g.mu.RUnlock()
+
 	// ── THE host decision. `--live` is the whole of it. ──
 	//
 	// The recorder answers for the Accessibility act as well as for OS, because a press is a
@@ -80,16 +180,15 @@ func (r *Runtime) Rehearse(q service.ObserveRehearse) (service.RehearsalView, er
 	// `marcorunner` installs the OS host as the default for any act with no specific
 	// entry, and here that is the same recorder. It is written out because an Accessibility
 	// call being served by the OS host is an accident of the fallback rather than the
-	// wiring anyone means — and the live runner above maps both explicitly, so leaving this
+	// wiring anyone means — and the live runner maps both explicitly, so leaving this
 	// implicit would make the dry and live maps differ for no reason.
 	recorder := recordhost.New()
-	actuator := marcorunner.New(map[string]runtime.Host{
+	var marco directorapi.MarcoRunner = marcorunner.New(map[string]runtime.Host{
 		"OS": recorder, "Accessibility": recorder,
 	})
-	var marco directorapi.MarcoRunner = actuator
-	if q.Live {
+	if live {
 		if r.liveMarco == nil {
-			return service.RehearsalView{}, fmt.Errorf(
+			return nil, fmt.Errorf(
 				"this Director has no real host wired, so it cannot rehearse for real")
 		}
 		marco = r.liveMarco
@@ -101,8 +200,8 @@ func (r *Runtime) Rehearse(q service.ObserveRehearse) (service.RehearsalView, er
 	if smp == nil {
 		smp = r.newObservationSampler(sessionClock)
 	}
-	live := rehearse.NewLive(sessionClock, tgt, smp, memory).
-		WithActuator(marco, recorder, q.Live).
+	out := rehearse.NewLive(sessionClock, tgt, smp, memory).
+		WithActuator(marco, recorder, live).
 		// The platform's answer to "would input land in this window". Real attempts only —
 		// the runner checks it before the grant is claimed, so a window that is not in front
 		// is a patient wait rather than a spent permission.
@@ -120,31 +219,11 @@ func (r *Runtime) Rehearse(q service.ObserveRehearse) (service.RehearsalView, er
 		// because finding a control is a read and a dry run may look all it likes.
 		//
 		// Deleting this must fail TestARehearsalPressGoesThroughTheTheater.
-		live = live.WithTheater(
-			theaterhost.New(theaterhost.NewAccessibilityActor(r.bridge)).
+		out = out.WithTheater(
+			theaterhost.New(theaterhost.NewAccessibilityActor(r.bridge, r.bridgePath)).
 				WithRunner(marco))
 	}
-
-	position := q.Step
-	if position <= 0 {
-		position = 1
-	}
-	result, err := live.Rehearse(context.Background(), grant, judgement, selector, position)
-	// A COMPLETED route is the only thing worth keeping, and what is kept is evidence rather
-	// than a procedure: which candidate, where it ran, how each step came out. Reproducing any
-	// of it means lowering the candidate again under a fresh authorization.
-	if err == nil && result.Completed() {
-		g.rememberRehearsal(application, judgement, result)
-	}
-	if err != nil {
-		// A refusal BEFORE input. Deliberately not a result: "Marco declined to try" and
-		// "Marco tried and it went wrong" are different facts, and a reader who cannot tell
-		// them apart cannot audit anything.
-		reason, _ := rehearse.RefusalOf(err)
-		return service.RehearsalView{Attempted: false, Refusal: string(reason),
-			Live: q.Live, Detail: err.Error()}, nil
-	}
-	return rehearsalViewOf(result, q.Live), nil
+	return out, nil
 }
 
 // rehearsalViewOf is the safe outward shape of one whole attempt.

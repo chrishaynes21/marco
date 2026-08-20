@@ -11,12 +11,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/windowref"
 	"github.com/chaynes-simpleclouds/marco/internal/director/rehearse"
 	"github.com/chaynes-simpleclouds/marco/internal/director/service"
-	"github.com/chaynes-simpleclouds/marco/internal/platform/marcorunner"
-	"github.com/chaynes-simpleclouds/marco/internal/platform/recordhost"
-	"github.com/chaynes-simpleclouds/marco/internal/platform/theaterhost"
-	"github.com/chaynes-simpleclouds/marco/internal/runtime"
 	"github.com/chaynes-simpleclouds/marco/internal/winctx"
-	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 )
 
 // Performing something Marco has learned, because the Audience asked for it by name.
@@ -62,7 +57,7 @@ import (
 //
 // Nothing in this file makes a context of its own — a `context.Background()` anywhere below is a
 // branch of the walk that cannot be stopped, which is exactly the defect this fixed. Enforced by
-// TestNothingInAPerformanceInventsItsOwnContext.
+// TestNothingThatCanReachTheWalkerInventsItsOwnContext.
 func (r *Runtime) PerformGoal(ctx context.Context, q service.PerformQuery) (service.PerformView, error) {
 	if r == nil || r.observations == nil {
 		return service.PerformView{}, fmt.Errorf("this Director has no observation registry")
@@ -643,30 +638,28 @@ func (r *Runtime) releaseLook() {
 	}
 }
 
-// performer builds the live walker, the same way a rehearsal does.
+// performer is the live walker for a play the Audience asked for by name.
+//
+// # It used to build one of its own, and that is how a safety gate went missing
+//
+// This function assembled the same object `Rehearse` assembles — clock, target, sampler, memory,
+// actuator, Theater — and differed from it in one line: it never called `WithForeground`.
+// `Live.behind` returns false when `inFront` is nil, so live.go:499 and live.go:555, the refusal
+// that says "input would land somewhere else", could not fire on this path at all. The gate was on
+// for the rehearsal Marco asks permission for and off for the play the Audience asks for, which is
+// exactly backwards from how anybody would choose it.
+//
+// There is one composition root now — `walker` in rehearserun.go — and the only thing that differs
+// between a rehearsal and a performance stays where it always belonged: the AUTHORITY above the
+// walk, not the walk.
+//
+// Deleting the shared root, or its WithForeground, must fail TestEveryLiveWalkerChecksTheForeground.
 func (r *Runtime) performer() (*rehearse.Live, error) {
-	g := r.observations
-	g.mu.RLock()
-	memory, tgt, smp := g.memory, g.lastTarget, g.lastSampler
-	g.mu.RUnlock()
-	if r.liveMarco == nil {
+	live, err := r.walker(true)
+	if err != nil {
+		// Reworded for this caller. "It cannot rehearse for real" is not what a person who
+		// asked for a play by name is being told about.
 		return nil, fmt.Errorf("this Director has no real host wired, so it cannot act")
-	}
-	if tgt == nil {
-		tgt = r.newObservationTarget()
-	}
-	if smp == nil {
-		smp = r.newObservationSampler(sessionClock)
-	}
-	recorder := recordhost.New()
-	_ = marcorunner.New(map[string]runtime.Host{"OS": recorder, "Accessibility": recorder})
-	var marco directorapi.MarcoRunner = r.liveMarco
-
-	live := rehearse.NewLive(sessionClock, tgt, smp, memory).
-		WithActuator(marco, recorder, true)
-	if r.bridge != nil {
-		live = live.WithTheater(
-			theaterhost.New(theaterhost.NewAccessibilityActor(r.bridge)).WithRunner(marco))
 	}
 	return live, nil
 }

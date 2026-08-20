@@ -49,8 +49,16 @@ type says struct {
 	findErr   error
 }
 
-func (s *says) Name() string                   { return "test" }
-func (s *says) Available(context.Context) bool { return s.available }
+func (s *says) Name() string { return "test" }
+
+// Availability answers with a SENTENCE when it cannot act, because that is what every surface
+// above an Actor can repeat to somebody who has to fix it.
+func (s *says) Availability(context.Context) theaterhost.Availability {
+	if s.available {
+		return theaterhost.Ready("test", "")
+	}
+	return theaterhost.Unavailable("test", "", "the test actor was told to be unavailable")
+}
 func (s *says) Find(context.Context, theaterhost.Target) ([]theaterhost.Candidate, error) {
 	return s.found, s.findErr
 }
@@ -328,8 +336,10 @@ type notes struct {
 	cast []theaterhost.Candidate
 }
 
-func (n *notes) Name() string                   { return "notes" }
-func (n *notes) Available(context.Context) bool { return true }
+func (n *notes) Name() string { return "notes" }
+func (n *notes) Availability(context.Context) theaterhost.Availability {
+	return theaterhost.Ready("test", "")
+}
 func (n *notes) Find(_ context.Context, t theaterhost.Target) ([]theaterhost.Candidate, error) {
 	// A candidate with NO window, as an Actor that forgot the scope would return.
 	return []theaterhost.Candidate{{Handle: t.Name, Describes: t.Name}}, nil

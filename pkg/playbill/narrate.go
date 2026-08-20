@@ -256,13 +256,29 @@ func momentLines(moments []Moment) []Line {
 	return out
 }
 
+// offline is what Watch says when there is nothing behind it to ask.
+//
+// # Why no command appears here
+//
+// The Absent arm used to end "start it with:  director serve", which is a developer typing a
+// developer's binary name. A person using Marco has no reason to know the Director exists, let
+// alone that the way to make Marco see again is a subcommand of it — and the HUD is a
+// click-through overlay, so the instruction was not even actionable where it was printed: there
+// is no prompt under it to type into.
+//
+// The register to match is three lines away in currentLines: "I'm not watching anything right
+// now." Marco says what is true about itself and offers the thing a person can actually reach.
+// The control that starts watching belongs on a surface with controls; this sentence's whole job
+// is to stop naming a command.
+//
+// Deleting the naming rule must fail TestWatchNeverTellsAPersonToRunADeveloperCommand.
 func (v View) offline() []Line {
 	switch v.Reach {
 	case Absent:
 		return []Line{
-			line("Marco isn't watching anything.", Muted),
+			line("I'm not watching anything right now.", Muted),
 			blank(),
-			sub("start it with:  director serve", Muted),
+			sub("Turn watching on when you want me to follow what you're doing.", Muted),
 		}
 	default:
 		return []Line{
@@ -395,12 +411,28 @@ func (v View) seeingLines() []Line {
 		// A snapshot count, not a stability claim. Marco has looked once; it has not
 		// watched anything hold still, and saying so would be the difference between a
 		// count and a conclusion.
+		//
+		// AND IT IS SAID IN THE PAST TENSE, which is the other half and was missing.
+		//
+		// The gate was here and the wording was not: "I can make out 12 things in front of
+		// me" reads as a live report, and this branch runs in exactly the two situations
+		// where nothing is live. Either a session ENDED and these counts are its leftovers,
+		// or nothing has ever been watched and the counts came from one world read that has
+		// already finished. Both are things that happened; neither is happening.
+		//
+		// currentLines two functions up gets this right and says why — "I watched X" is a
+		// report, "I'm watching X" is a claim about right now — and a count is no more
+		// entitled to the present tense than a place name is. Past tense is true of a
+		// finished session and true of a single look, so one wording covers both without
+		// the section having to know which one it got.
+		//
+		// Deleting the past tense must fail TestAFinishedSessionCountsInThePastTense.
 		if s.Structure > 0 {
-			out = append(out, line(fmt.Sprintf("I can make out %d %s in front of me.",
+			out = append(out, line(fmt.Sprintf("I could make out %d %s last time I looked.",
 				s.Structure, plural(s.Structure, "thing", "things")), Plain))
 		}
 		if s.Quiet {
-			out = append(out, sub("nothing usable in what I can see", Doubt))
+			out = append(out, sub("nothing usable in what I could see", Doubt))
 		}
 		return out
 	}

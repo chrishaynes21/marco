@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/chaynes-simpleclouds/marco/internal/outcome"
 	"os"
 	"os/exec"
 	"strings"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/intent"
 	"github.com/chaynes-simpleclouds/marco/internal/invoke"
+	"github.com/chaynes-simpleclouds/marco/internal/stopsignal"
 )
 
 // What must stay true of the overlay's one door.
@@ -154,24 +156,33 @@ func readOverlaySources(t *testing.T) string {
 	return b.String()
 }
 
-// TestASpokenStopKillsTheChildImmediately proves the local half of cancellation.
+// TestASpokenStopReachesTheRunningPlayImmediately proves the local half of cancellation.
 //
 // The point is IMMEDIACY, and it is why local recognition is allowed at all: a spoken
-// "stop" must stop the running child at the moment the word lands, not after a process
+// "stop" must reach the running play at the moment the word lands, not after a process
 // spawn and a socket dial. The phrase must STILL go through the intake — the local
 // recognition decides nothing, it only acts early.
-func TestASpokenStopKillsTheChildImmediately(t *testing.T) {
+//
+// # What changed, and why the name did
+//
+// This test used to be called ...KillsTheChildImmediately, and it asserted a kill. That was
+// the defect: TerminateProcess runs no deferred function, so the child's ReleaseHeld never
+// ran and a key held down by a play stayed down after the play was gone. The immediate act
+// is now raising the stop generation, which is a CANCELLATION — the child unwinds through
+// `finally` and lets go of what it was holding.
+//
+// The child here is deaf on purpose: a sleeper watching nothing, standing in for an older
+// marco.exe or one wedged in a blocking call. So this holds both halves at once — the ask
+// happens instantly, and the fallback still ends a child that cannot hear it.
+func TestASpokenStopReachesTheRunningPlayImmediately(t *testing.T) {
+	home := stopStore(t)
+	shortenStopGrace(t, 50*time.Millisecond)
+	before := stopsignal.Generation(home)
+
 	child := startSleeper(t)
-	runMu.Lock()
-	runCmd, runCanceled = child, false
-	runMu.Unlock()
-	t.Cleanup(func() {
-		runMu.Lock()
-		runCmd = nil
-		runMu.Unlock()
-		_ = child.Process.Kill()
-		_ = child.Wait()
-	})
+	trackRun(child)
+	t.Cleanup(func() { untrackRun(child) })
+	exited := reap(t, child)
 
 	var mu sync.Mutex
 	var sawArgs []string
@@ -181,7 +192,7 @@ func TestASpokenStopKillsTheChildImmediately(t *testing.T) {
 		sawArgs = args
 		mu.Unlock()
 		close(done)
-		return childRun{result: string(outcomeCancelled)}
+		return childRun{result: string(outcome.Cancelled)}
 	})
 	defer restore()
 
@@ -190,15 +201,27 @@ func TestASpokenStopKillsTheChildImmediately(t *testing.T) {
 		t.Fatalf("a control phrase must be accepted, got %+v", got)
 	}
 
-	// The kill happened before dispatch returned — that is what "immediate" means here.
-	if err := child.Wait(); err == nil {
-		t.Error("the running child was not killed by the local control-word recognition")
+	// The ASK happened before dispatch returned — that is what "immediate" means now. Any
+	// play running against this store, including ones the overlay never spawned, has been
+	// told to unwind.
+	if got := stopsignal.Generation(home); got <= before {
+		t.Errorf("the stop generation did not rise (%d -> %d): nothing told the running "+
+			"play to stop, and a killed play never releases what it holds", before, got)
+	}
+	// And a child that ignores it is still ended, or "stop" would mean "nothing happened".
+	select {
+	case err := <-exited:
+		if err == nil {
+			t.Error("the child ended by itself; nothing here stopped it")
+		}
+	case <-time.After(3 * time.Second):
+		t.Error("a child that never heard the signal was not terminated by the fallback")
 	}
 	runMu.Lock()
-	killed := runCanceled
+	asked := runs[child]
 	runMu.Unlock()
-	if !killed {
-		t.Error("the killed child must be marked cancelled, not failed")
+	if !asked {
+		t.Error("the stopped child must be marked cancelled, not failed")
 	}
 
 	// And the phrase still went through the one intake, because that is what reaches the
@@ -270,6 +293,7 @@ func TestOverlaySleeperHelper(t *testing.T) {
 // continues", so that a crashed front end cannot abort a replay. The observable symptom
 // was the HUD going quiet while the desktop carried on being driven.
 func TestCancelAlsoStopsTheDirector(t *testing.T) {
+	stopStore(t) // cancelRun raises a stop generation; it must land in a temp store
 	called := make(chan struct{}, 1)
 	prev := stopTheDirector
 	stopTheDirector = func() { called <- struct{}{} }
@@ -330,11 +354,11 @@ func TestStreamChildReadsTheAnnouncedLines(t *testing.T) {
 	if r.result != "refused" {
 		t.Errorf("result = %q, want the announced outcome", r.result)
 	}
-	if got := r.outcome(); got != outcomeRefused {
+	if got := r.outcome(); got != outcome.Refused {
 		t.Errorf("outcome = %q; a refusal that exits 0 used to render as a success", got)
 	}
 	logs := strings.Join(h.snapshot().logs, "\n")
-	if strings.Contains(logs, resultPrefix) || strings.Contains(logs, routePrefix) {
+	if strings.Contains(logs, outcome.ResultPrefix) || strings.Contains(logs, routePrefix) {
 		t.Errorf("a wire line was echoed into the HUD:\n%s", logs)
 	}
 	if !strings.Contains(logs, "thinking about it") {
@@ -369,7 +393,7 @@ func TestATypedPhraseReachesTheIntake(t *testing.T) {
 	got := make(chan []string, 1)
 	restore := stubIntakeChild(t, func(h *model, name string, track bool, args ...string) childRun {
 		got <- args
-		return childRun{result: string(outcomePerformed), route: "open settings"}
+		return childRun{result: string(outcome.Performed), route: "open settings"}
 	})
 	defer restore()
 
@@ -386,22 +410,22 @@ func TestATypedPhraseReachesTheIntake(t *testing.T) {
 	}
 }
 
-// TestTheTeachOfferFiresOnlyWhenNothingTookIt is the wiring half of
-// TestTheTeachOfferNeedsBothHalves: the condition is correct AND it is consulted.
-func TestTheTeachOfferFiresOnlyWhenNothingTookIt(t *testing.T) {
+// TestTheLearnOfferFiresOnlyWhenNothingTookIt is the wiring half of
+// TestTheLearnOfferNeedsBothHalves: the condition is correct AND it is consulted.
+func TestTheLearnOfferFiresOnlyWhenNothingTookIt(t *testing.T) {
 	cases := []struct {
 		name  string
 		child childRun
 		want  string // the phrase the offer should hold, "" for no offer
 	}{
-		{"nothing took it", childRun{result: string(outcomeUnavailable)}, "polish the silver"},
-		{"Director ran it and failed", childRun{result: string(outcomeFailed)}, ""},
+		{"nothing took it", childRun{result: string(outcome.Unavailable)}, "polish the silver"},
+		{"Director ran it and failed", childRun{result: string(outcome.Failed)}, ""},
 		{"a resolved play was unavailable",
-			childRun{result: string(outcomeUnavailable), route: "polish the silver"}, ""},
+			childRun{result: string(outcome.Unavailable), route: "polish the silver"}, ""},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			takePendingTeach() // start clean
+			takePendingLearn() // start clean
 			done := make(chan struct{})
 			restore := stubIntakeChild(t, func(h *model, name string, track bool, args ...string) childRun {
 				defer close(done)
@@ -415,7 +439,7 @@ func TestTheTeachOfferFiresOnlyWhenNothingTookIt(t *testing.T) {
 			// dispatchIntake decides after the child returns, on the same goroutine.
 			deadline := time.Now().Add(2 * time.Second)
 			for time.Now().Before(deadline) {
-				if got := takePendingTeach(); got != "" || c.want == "" {
+				if got := takePendingLearn(); got != "" || c.want == "" {
 					if got != c.want {
 						t.Fatalf("pending learn = %q, want %q", got, c.want)
 					}
@@ -450,35 +474,56 @@ func TestOverlayEchoHelper(t *testing.T) {
 	os.Exit(0)
 }
 
-// TestAFinishedChildDoesNotDeregisterALaterOne is the cost of making dispatch asynchronous
-// for both sources: two invocations can overlap, and the run slot holds one.
+// TestASecondRunDoesNotStrandTheFirst is the cost of making dispatch asynchronous for both
+// sources: two invocations really do overlap, and the registration used to hold ONE.
 //
-// The symptom of getting it wrong is the same one this phase fixed elsewhere — the leader
-// key opening the command line while something is plainly still running.
-func TestAFinishedChildDoesNotDeregisterALaterOne(t *testing.T) {
+// # What the single slot did
+//
+// It was overwritten unconditionally, so a second invocation erased the first child's
+// handle. That child then ran with its handle in nobody's hand: nothing could terminate it,
+// and its own completion reported a cancellation that had been asked of the other one.
+//
+// The symptom of getting the second half wrong is the one this phase fixed elsewhere — the
+// leader key opening the command line while something is plainly still running.
+//
+// Mutation: make runs hold one child again (or drop the delete). This fails.
+func TestASecondRunDoesNotStrandTheFirst(t *testing.T) {
 	first, second := &exec.Cmd{}, &exec.Cmd{}
 	t.Cleanup(func() {
-		runMu.Lock()
-		runCmd, runCanceled = nil, false
-		runMu.Unlock()
+		untrackRun(first)
+		untrackRun(second)
 	})
 
-	claimRunSlot(first)
-	claimRunSlot(second) // a second phrase arrives while the first is still going
+	trackRun(first)
+	trackRun(second) // a second phrase arrives while the first is still going
 
-	if killed := releaseRunSlot(first); killed {
+	// BOTH are reachable. Under the single slot, the first was not: the fallback that
+	// terminates a child which ignored the stop signal had nothing to terminate.
+	runMu.Lock()
+	_, firstTracked := runs[first]
+	_, secondTracked := runs[second]
+	runMu.Unlock()
+	if !firstTracked {
+		t.Error("the first child was forgotten when the second started — nothing can " +
+			"reach it any more")
+	}
+	if !secondTracked {
+		t.Error("the second child was never registered")
+	}
+
+	if stopped := untrackRun(first); stopped {
 		t.Error("the first child reported a cancellation that belonged to the second")
 	}
 	if !isRunning() {
 		t.Fatal("the later child was deregistered by an earlier one finishing — the " +
-			"leader key would now open the command line instead of cancelling")
+			"leader key would now open the command line instead of stopping the desktop")
 	}
-	if releaseRunSlot(second); isRunning() {
-		t.Error("the slot was not given back by the child that owned it")
+	if untrackRun(second); isRunning() {
+		t.Error("the registration was not given back by the child that owned it")
 	}
 }
 
-// Every word the shared definition calls a control phrase kills the running child.
+// Every word the shared definition calls a control phrase stops the running play.
 //
 // # Why enumerating matters
 //
@@ -486,16 +531,20 @@ func TestAFinishedChildDoesNotDeregisterALaterOne(t *testing.T) {
 // behavioural half calls intent.IsControlPhrase directly — so it tests the shared function, never
 // the overlay's USE of it. A local list spelling only "stop" and "cancel" — the plausible drift,
 // and the one somebody actually writes when they want to avoid an import — trips neither, and the
-// overlay silently stops killing the child on "abort", "halt" and "stop that". The phrase still
-// reaches the engine's intake, which does use the shared definition, so cancellation still
-// eventually works; what is lost is the IMMEDIACY that is the entire justification for recognising
-// it locally. No exit code will ever show that.
+// overlay silently stops acting on "abort", "halt" and "stop that". The phrase still reaches the
+// engine's intake, which does use the shared definition, so cancellation still eventually works;
+// what is lost is the IMMEDIACY that is the entire justification for recognising it locally. No
+// exit code will ever show that.
 //
 // So: take the words from the shared definition and drive the overlay with each one.
 //
+// The observable is the raised generation rather than a dead process, because that is what the
+// overlay now does with the word — and because it is the half that reaches a play the overlay
+// has no handle on at all.
+//
 // Mutation: replace intent.IsControlPhrase in the overlay with any narrower list. This fails on
 // the first word that list forgot.
-func TestEveryControlWordTheEngineKnowsKillsTheChild(t *testing.T) {
+func TestEveryControlWordTheEngineKnowsStopsTheRunningPlay(t *testing.T) {
 	// A superset. The shared definition decides which of these are control phrases; this test
 	// only guarantees the overlay agrees with it about every one that is.
 	for _, word := range []string{
@@ -506,19 +555,16 @@ func TestEveryControlWordTheEngineKnowsKillsTheChild(t *testing.T) {
 			continue // not a control phrase; nothing is claimed about it here
 		}
 		t.Run(word, func(t *testing.T) {
-			child := startSleeper(t)
-			runMu.Lock()
-			runCmd, runCanceled = child, false
-			runMu.Unlock()
-			t.Cleanup(func() {
-				runMu.Lock()
-				runCmd = nil
-				runMu.Unlock()
-				_ = child.Process.Kill()
-				_ = child.Wait()
-			})
+			home := stopStore(t)
+			before := stopsignal.Generation(home)
+			// The stub is restored when this subtest returns, so the subtest may not
+			// return until the asynchronous dispatch has finished reading it. Waiting is
+			// also the second half of the claim: acting locally must not consume the
+			// phrase, which still has to reach the Director.
+			reached := make(chan struct{})
 			restore := stubIntakeChild(t, func(h *model, name string, track bool, args ...string) childRun {
-				return childRun{result: string(outcomeCancelled)}
+				close(reached)
+				return childRun{result: string(outcome.Cancelled)}
 			})
 			defer restore()
 
@@ -526,9 +572,17 @@ func TestEveryControlWordTheEngineKnowsKillsTheChild(t *testing.T) {
 			if got := dispatch(h, request{Action: "RunVoice", Input: word}); got.Status != "ok" {
 				t.Fatalf("%q was not accepted: %+v", word, got)
 			}
-			if err := child.Wait(); err == nil {
-				t.Fatalf("%q is a control phrase to the engine, and the overlay did not kill "+
-					"the running child for it — the local recognition has drifted from the "+
+			defer func() {
+				select {
+				case <-reached:
+				case <-time.After(5 * time.Second):
+					t.Errorf("%q never reached the intake: the local recognition consumed "+
+						"the phrase instead of only acting early on it", word)
+				}
+			}()
+			if got := stopsignal.Generation(home); got <= before {
+				t.Fatalf("%q is a control phrase to the engine, and the overlay did not stop "+
+					"the running play for it — the local recognition has drifted from the "+
 					"shared definition", word)
 			}
 		})

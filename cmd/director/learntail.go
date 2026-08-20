@@ -138,8 +138,24 @@ func (t *learnTail) GrantRefusal(route observe.RelationshipRef) string {
 }
 
 // Rehearse spends the grant through the ordinary entry point.
-func (t *learnTail) Rehearse(context.Context) (learn.Attempt, error) {
-	v, err := t.rt.Rehearse(service.ObserveRehearse{Live: t.live})
+//
+// # The context is not decoration, and this parameter used to be discarded
+//
+// It was spelled `Rehearse(context.Context)` — the type without a name, which is Go's way of
+// saying "I am obliged to accept this and I intend to ignore it" — and `Runtime.Rehearse` then
+// handed the walker a `context.Background()`. So the whole of the walker's cancellation machinery
+// was dead on the one path that types on somebody's real desktop in answer to "want me to try it
+// once?". The Audience said stop and Marco carried on.
+//
+// Named and passed, the episode's own context reaches the walk: cancelling the Learn session ends
+// the rehearsal it authorised, at the next step boundary, with the input it was holding released.
+// `director stop` reaches the same walk from the other side, through the command registry the
+// entry point now claims — see commandslot.go.
+//
+// Discarding it again must fail TestAContextThisDirectorAcceptsIsAContextItNames, which catches
+// the unnamed-parameter idiom itself — the half of this defect that leaves no call site to find.
+func (t *learnTail) Rehearse(ctx context.Context) (learn.Attempt, error) {
+	v, err := t.rt.Rehearse(ctx, service.ObserveRehearse{Live: t.live})
 	if err != nil {
 		return learn.Attempt{}, err
 	}

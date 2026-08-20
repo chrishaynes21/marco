@@ -283,9 +283,7 @@ func TestALearnedPlayRunsFromThePlaceItWasLearnedOn(t *testing.T) {
 	sc := &placeStage{store: store, current: editor, arrived: &arrived, looks: &looks}
 	d, host, out := placePlay(t, sc, "editor", "editor")
 
-	if err := d.Do("shortcut"); err != nil {
-		t.Fatalf("do: %v", err)
-	}
+	runSavedPlay(t, d, "shortcut")
 	if len(host.pressed()) == 0 {
 		t.Fatalf("a play invoked on the place it was learned on sent nothing: %q", out.String())
 	}
@@ -305,9 +303,7 @@ func TestALearnedPlayRefusesFromAnotherPlaceInTheSameSurface(t *testing.T) {
 	sc := &placeStage{store: store, current: settings, arrived: &arrived, looks: &looks}
 	d, host, out := placePlay(t, sc, "editor", "editor")
 
-	if err := d.Do("shortcut"); err != nil {
-		t.Fatalf("do: %v", err)
-	}
+	runSavedPlay(t, d, "shortcut")
 	if n := len(host.pressed()); n != 0 {
 		t.Fatalf("a play guarded on \"editor\" sent %d input(s) while \"settings\" was in "+
 			"front of it — the same surface was enough to satisfy the guard, which is the "+
@@ -332,9 +328,7 @@ func TestAPlayArrivingAtAnotherPlaceInTheSameSurfaceSucceeds(t *testing.T) {
 	}
 	d, _, out := placePlay(t, sc, "editor", "settings")
 
-	if err := d.Do("shortcut"); err != nil {
-		t.Fatalf("do: %v", err)
-	}
+	runSavedPlay(t, d, "shortcut")
 	if !strings.Contains(out.String(), "done") {
 		t.Fatalf("a play that reached its destination reported %q", out.String())
 	}
@@ -358,9 +352,7 @@ func TestAPlayThatNeverLeftItsPlaceFails(t *testing.T) {
 	}
 	d, host, out := placePlay(t, sc, "editor", "settings")
 
-	if err := d.Do("shortcut"); err != nil {
-		t.Fatalf("do: %v", err)
-	}
+	runSavedPlay(t, d, "shortcut")
 	// The effects DID happen. This is a wrong-destination case, not a wrong-start one.
 	if len(host.pressed()) == 0 {
 		t.Fatal("nothing was sent, so this is testing the start guard rather than the " +

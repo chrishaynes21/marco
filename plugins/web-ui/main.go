@@ -3,13 +3,22 @@
 // marco — a separate program (its own module, stdlib only) that shells out to
 // the marco CLI:
 //
-//	GET  /api/routes  → `marco routes --json`     (all routes + scope)
-//	GET  /api/status  → `marco active` + running   (foreground app + in-flight routes)
-//	POST /api/do      → `marco do "<name>"`         (run a route)
+//	GET  /api/routes  → `marco plays --json`       (every Play, with slug + scope)
+//	GET  /api/status  → `marco active` + running   (foreground app + in-flight Plays)
+//	POST /api/do      → `marco do --source=web …`  (run a Play, by identity or by phrase)
 //
-// The page lists every route, highlights the one currently running, and takes
-// commands by typing or by voice (browser Web Speech API). marco core stays
-// headless and zero-dependency.
+// marco core stays headless and zero-dependency.
+//
+// # Status: DEVELOPER SURFACE, not the product (Phase 3, 2026-08-20)
+//
+// Nothing launches this. `setup.ps1 -WebUI` still builds it because the Director panels it
+// carries — Knows, Correct, Show-me, Sight, Answer — are real work that the control centre has
+// not yet harvested. It is kept for that, and it is not a front door: it drives the DEVELOPER
+// `director` CLI directly rather than the product's own service client, so it can and does show
+// things the normal product does not.
+//
+// Do not treat it as a template for a new surface. `cmd/marco/learnui.go` is the model: it holds
+// no state and renders what the coordinator returns.
 //
 //	build: go -C plugins/web-ui build -o web-ui .
 //	use:   set MARCO_BIN to the marco binary (or have `marco` on PATH), then run
@@ -105,17 +114,48 @@ func main() {
 			"running": runningList(),
 		})
 	})
+	// POST /api/do — one invocation, and it says WHICH KIND it is.
+	//
+	// This surface has two ways in and they are not the same thing, which is the distinction the
+	// one intake was built on (internal/invoke). Pressing **run** beside a listed Play is an
+	// EXPLICIT IDENTITY: this page was handed a slug by `marco plays --json` and must hand that
+	// same slug back, because a display name is derived from a slug and turning it back into words
+	// for something else to guess at can land on a different Play entirely. Typing or speaking into
+	// the box is a PHRASE, and a phrase Marco has no exact answer for belongs to Director.
+	//
+	// Until Phase 3 this handler sent `marco do <display name>` for both, with no --source and no
+	// --play — the last legacy-shaped invocation in the repository, and the reason a Run button
+	// here could reach Director while the same button in the control centre could not.
 	http.HandleFunc("/api/do", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
-			Name string `json:"name"`
+			Name string `json:"name"` // what to show the person while it runs
+			Slug string `json:"slug"` // set by the run button: the identity this page already holds
+			App  string `json:"app"`  // the scope that slug lives in, if any
 		}
-		if json.NewDecoder(r.Body).Decode(&req) != nil || strings.TrimSpace(req.Name) == "" {
+		if json.NewDecoder(r.Body).Decode(&req) != nil {
+			http.Error(w, "unreadable request", 400)
+			return
+		}
+		label := strings.TrimSpace(req.Name)
+		args := []string{"do", "--source=web"}
+		switch {
+		case strings.TrimSpace(req.Slug) != "":
+			args = append(args, "--play="+strings.TrimSpace(req.Slug))
+			if a := strings.TrimSpace(req.App); a != "" {
+				args = append(args, "--app="+a)
+			}
+			if label == "" {
+				label = strings.TrimSpace(req.Slug)
+			}
+		case label != "":
+			args = append(args, label)
+		default:
 			http.Error(w, "missing name", 400)
 			return
 		}
-		mark(req.Name, 1)
-		out, err := exec.Command(marcoBin(), "do", req.Name).CombinedOutput()
-		mark(req.Name, -1)
+		mark(label, 1)
+		out, err := exec.Command(marcoBin(), args...).CombinedOutput()
+		mark(label, -1)
 		writeJSON(w, map[string]any{"ok": err == nil, "output": string(out)})
 	})
 
@@ -131,70 +171,14 @@ func writeJSON(w http.ResponseWriter, v any) {
 	json.NewEncoder(w).Encode(v)
 }
 
-const page = `<!doctype html><html><head><meta charset="utf-8"><title>marco</title>
-<style>
- body{font:15px system-ui;margin:0;background:#1e1e22;color:#e6e6e6}
- header{padding:14px 18px;background:#26262c;border-bottom:1px solid #34343c;display:flex;justify-content:space-between;align-items:center}
- #app{color:#9ad}
- #busy{color:#e0b050;font-size:13px}
- main{padding:18px;max-width:680px}
- .row{display:flex;gap:8px;margin-bottom:14px}
- input{flex:1;padding:9px 12px;background:#26262c;border:1px solid #3a3a44;color:#e6e6e6;border-radius:6px}
- button{padding:9px 14px;background:#3a6ea5;color:#fff;border:0;border-radius:6px;cursor:pointer}
- button:hover{background:#4a7eb5}
- #mic.live{background:#a53a3a}
- .route{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border:1px solid #34343c;border-radius:6px;margin-bottom:6px}
- .route.running{border-color:#e0b050;background:#2c2922}
- .scope{color:#888;font-size:13px}
- .tag{color:#e0b050;font-size:12px;margin-left:8px}
- pre{background:#141417;padding:12px;border-radius:6px;white-space:pre-wrap;min-height:40px}
-</style></head><body>
-<header><span>marco — <span id="app">…</span></span><span id="busy"></span></header>
-<main>
- <div class="row">
-   <input id="cmd" placeholder='say a command, e.g. "open chest"' autofocus>
-   <button id="mic" title="speak a command">🎤</button>
-   <button onclick="run(cmd.value)">Run</button>
- </div>
- <div id="routes"></div>
- <pre id="out"></pre>
-</main>
-<script>
-let runningNow = [];
-async function refresh(){
-  const rs = await (await fetch('/api/routes')).json();
-  const st = await (await fetch('/api/status')).json();
-  runningNow = st.running || [];
-  document.getElementById('app').textContent = st.app || '(no foreground app)';
-  document.getElementById('busy').textContent = runningNow.length ? ('running: ' + runningNow.join(', ')) : '';
-  document.getElementById('routes').innerHTML = rs.map(r => {
-    const on = runningNow.includes(r.name);
-    return '<div class="route'+(on?' running':'')+'"><span>'+r.name+
-      ' <span class="scope">'+(r.app?('· '+r.app):'· everywhere')+'</span>'+
-      (on?'<span class="tag">▶ running</span>':'')+'</span>'+
-      '<button onclick="run(\''+r.name.replace(/'/g,"\\'")+'\')">run</button></div>';
-  }).join('') || '<div class="scope">No routes yet — learn one: marco learn "name"</div>';
-}
-async function run(name){
-  if(!name) return;
-  document.getElementById('out').textContent = 'running "'+name+'"…';
-  refresh();
-  const res = await (await fetch('/api/do',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({name})})).json();
-  document.getElementById('out').textContent = res.output || (res.ok?'(done)':'(failed)');
-  refresh();
-}
-cmd.addEventListener('keydown', e => { if(e.key==='Enter') run(cmd.value); });
-
-// Voice: browser Web Speech API (Chrome/Edge). Hidden if unsupported.
-const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-const mic = document.getElementById('mic');
-if(SR){
-  const rec = new SR(); rec.lang='en-US'; rec.interimResults=false;
-  mic.onclick = ()=>{ try{ rec.start(); mic.classList.add('live'); }catch(_){} };
-  rec.onend = ()=> mic.classList.remove('live');
-  rec.onresult = e => { const t=e.results[0][0].transcript; cmd.value=t; run(t); };
-} else { mic.style.display='none'; }
-
-refresh(); setInterval(refresh, 2000);
-</script></body></html>`
+// The old single-page UI that used to be compiled in beside this one was deleted in Phase 3.
+//
+// It was a complete second front end — its own route list, its own run button, its own voice
+// handler — held in a `const page` that nothing served: `/` has rendered `accountPage` (page.go)
+// since the Director panels landed. Two separate audits read its `marco do "<display name>"` as
+// the last legacy-shaped invocation in the repository and recommended fixing it. It could not be
+// reached from a browser at all.
+//
+// That is the more expensive kind of dead code: not a function nobody calls, but a whole surface
+// that reads as the product and is not it. Deleting it is what makes the remaining answer to
+// "how does this page run a play" a single one.

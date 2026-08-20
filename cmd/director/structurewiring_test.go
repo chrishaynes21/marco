@@ -363,3 +363,84 @@ func seenInto() directorapi.WorldConfidence {
 		IdentityDurability: 0.60, Freshness: 1,
 	}
 }
+
+// A scroll bar's arrows are not part of the place.
+//
+// # Why this is asserted at buildSample and not at the classifier
+//
+// Because this is the seam where the hierarchy dies. `observation.Chrome` is proved where it
+// lives, and `NewScreenSignature` is proved to skip what is marked; between them sits the one
+// question neither can answer for itself — does the sample a live session produces still carry
+// the answer. An `EntitySnapshot` has a role and a rectangle and no parent, so nothing
+// downstream could ever work out for itself that a button is one of a scroll bar's arrows.
+//
+// The measured symptom of losing it: Windows Settings minted a fresh durable subject for the
+// same page on nearly every visit, and three families of twins each differed from their named
+// original by exactly the frame's own buttons. See [[ADR-062-a-scroll-bar-is-not-a-screen]].
+//
+// Deleting the Chrome classification in buildSample must fail this.
+func TestAScrollBarsArrowsAreNotPartOfThePlace(t *testing.T) {
+	const win = directorapi.WindowID("win_1")
+	frame := directorapi.Rect{Width: 1920, Height: 1080}
+	el := func(id, parent string, role directorapi.ElementRole, label string,
+		x, y int) *directorapi.Element {
+
+		e := &directorapi.Element{
+			ID: directorapi.ElementID(id), WindowID: win, Role: role, Label: label,
+			Bounds:  directorapi.Rect{X: x, Y: y, Width: 40, Height: 20},
+			Enabled: true, Visible: true, Confidence: 0.9,
+		}
+		if parent != "" {
+			p := directorapi.ElementID(parent)
+			e.ParentID = &p
+		}
+		return e
+	}
+	world := directorapi.WorldState{Elements: map[directorapi.ElementID]*directorapi.Element{
+		"pane": el("pane", "", directorapi.RolePane, "", 0, 0),
+		// THE PAGE.
+		"save":   el("save", "pane", directorapi.RoleButton, "Save", 100, 100),
+		"cancel": el("cancel", "pane", directorapi.RoleButton, "Cancel", 160, 100),
+		// THE WINDOW'S OWN MACHINERY: a scroll bar, and the two buttons inside it. Roles
+		// and hierarchy only — never the words "Line up", which are one operating system's
+		// in one language.
+		"bar":  el("bar", "pane", directorapi.RoleScrollBar, "", 1900, 0),
+		"up":   el("up", "bar", directorapi.RoleButton, "Line up", 1900, 0),
+		"down": el("down", "bar", directorapi.RoleButton, "Line down", 1900, 1060),
+	}}
+
+	sample := buildSample(world, observation.Cycle{},
+		directorapi.Window{ID: win, Bounds: frame}, sampleRequest())
+
+	want := map[string]bool{"Save": false, "Cancel": false, "Line up": true, "Line down": true}
+	seen := map[string]bool{}
+	for _, e := range sample.Entities {
+		if e.Role != directorapi.RoleButton {
+			continue
+		}
+		label := e.Label.Text
+		w, known := want[label]
+		if !known {
+			continue
+		}
+		seen[label] = true
+		if e.Chrome != w {
+			t.Errorf("%q is carried as chrome=%v, want %v", label, e.Chrome, w)
+		}
+	}
+	for label := range want {
+		if !seen[label] {
+			t.Fatalf("%q never reached the sample, so this proves nothing", label)
+		}
+	}
+
+	// AND THE CONSEQUENCE, which is the only reason the flag exists. The page's identity
+	// counts two buttons, not four; without the classification the same page looks like a
+	// different place every time the scroll bar comes and goes.
+	sig := observe.NewScreenSignature(observe.StructureOf(sample).Regions)
+	if got := sig.Roles[string(directorapi.RoleButton)]; got != 2 {
+		t.Fatalf("the place's identity counts %d button(s), want 2.\nThe scroll bar's own "+
+			"arrows are being counted into what makes this screen this screen, so the same "+
+			"page mints a new durable subject whenever the frame changes.", got)
+	}
+}

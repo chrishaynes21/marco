@@ -18,6 +18,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/chaynes-simpleclouds/marco/internal/outcome"
+
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
@@ -706,20 +708,20 @@ func drawArgSuggestion(dst *ebiten.Image, names []string, x, y float64) {
 func drawResultIcon(dst *ebiten.Image, cx, cy float64, out string, col color.RGBA) {
 	c := aText(col)
 	x, y := float32(cx), float32(cy)
-	switch outcome(out) {
-	case outcomePerformed: // check — it ran and arrival was verified
+	switch outcome.Outcome(out) {
+	case outcome.Performed: // check — it ran and arrival was verified
 		vector.StrokeLine(dst, x-4, y, x-1, y+3, 1.6, c, true)
 		vector.StrokeLine(dst, x-1, y+3, x+4, y-4, 1.6, c, true)
-	case outcomeClarify: // pause bars — it is waiting on YOU
+	case outcome.Clarify: // pause bars — it is waiting on YOU
 		vector.FillRect(dst, x-3, y-3, 2, 6, c, true)
 		vector.FillRect(dst, x+1, y-3, 2, 6, c, true)
-	case outcomeRefused: // a single "no" stroke — declined, not broken
+	case outcome.Refused: // a single "no" stroke — declined, not broken
 		vector.StrokeLine(dst, x-3, y+3, x+3, y-3, 1.6, c, true)
-	case outcomeUnavailable: // a dash — nothing took it, so nothing happened
+	case outcome.Unavailable: // a dash — nothing took it, so nothing happened
 		vector.StrokeLine(dst, x-4, y, x+4, y, 1.6, c, true)
-	case outcomeCancelled: // filled square — somebody stopped it
+	case outcome.Cancelled: // filled square — somebody stopped it
 		vector.FillRect(dst, x-3, y-3, 6, 6, c, true)
-	case outcomeFailed: // cross — it was tried and it went wrong
+	case outcome.Failed: // cross — it was tried and it went wrong
 		vector.StrokeLine(dst, x-3, y-3, x+3, y+3, 1.6, c, true)
 		vector.StrokeLine(dst, x-3, y+3, x+3, y-3, 1.6, c, true)
 	}
@@ -729,14 +731,14 @@ func drawResultIcon(dst *ebiten.Image, cx, cy float64, out string, col color.RGB
 // not happen and that is fine, it went wrong. A refusal is deliberately NOT the error
 // colour — Marco declining is a correct answer, not a fault.
 func resultColor(out string) color.RGBA {
-	switch outcome(out) {
-	case outcomePerformed:
+	switch outcome.Outcome(out) {
+	case outcome.Performed:
 		return th.run
-	case outcomeClarify:
+	case outcome.Clarify:
 		return th.listen // the same colour as "Marco is waiting to hear from you"
-	case outcomeCancelled, outcomeRefused, outcomeUnavailable:
+	case outcome.Cancelled, outcome.Refused, outcome.Unavailable:
 		return th.idle
-	case outcomeFailed:
+	case outcome.Failed:
 		return th.errc
 	}
 	return th.lastCmd
@@ -919,7 +921,7 @@ func promptRows(s snapshot, innerW float64) []string {
 	}
 	if s.prompt != "" {
 		rows = append(rows, wrapText(s.prompt, faceSmall, innerW)...)
-		rows = append(rows, "› "+s.teachPending+"_") // what you've typed; press Enter to send
+		rows = append(rows, "› "+s.promptPending+"_") // what you've typed; press Enter to send
 	}
 	return rows
 }

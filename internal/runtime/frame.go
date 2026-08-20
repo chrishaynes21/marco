@@ -123,15 +123,146 @@ type Frame struct {
 	// receive it via HostCall.Ctx so a long-running host can abort on cancel.
 	goctx     context.Context
 	cancelCtx context.CancelFunc
+
+	// cleanupDepth counts the `finally` bodies currently running on this frame,
+	// and cleanupCtx is the context their host calls run under. Both are guarded
+	// by mu like every other cross-goroutine field here.
+	//
+	// They exist because of one awkward fact. spec/Core.md says of `finally`:
+	// "Runs however the surrounding work ended, including cancellation" — and
+	// the spec's worked example is `do Keyboard's KeyUp with "shift"`, i.e.
+	// releasing a key the program is holding down. That is precisely the work
+	// that must still happen when somebody hits stop. But by then the frame is
+	// StatusCanceled and goctx is dead, so without a rescue the cleanup would be
+	// stopped by the very cancellation it exists to clean up after: runBlock
+	// would bail on its first ordinary edge, and any host call it did make would
+	// be handed an already-canceled context and refuse to do anything.
+	//
+	// Depth rather than a bool because a `finally` may contain a `finally`, and
+	// the inner one must share the outer one's budget — minting a fresh context
+	// per nesting level would let an expired cleanup buy more time, which is a
+	// retry, and a person who pressed stop did not ask for a retry.
+	cleanupDepth  int
+	cleanupCtx    context.Context
+	cleanupCancel context.CancelFunc
 }
+
+// cleanupBudget bounds how long a stranded frame's `finally` bodies may run
+// before they are abandoned where they stand.
+//
+// The number is a judgement about a person, not about machines: they pressed
+// stop, so stop must not silently become hang. Five seconds is far longer than
+// any honest cleanup — releasing a key, letting go of a mouse button, closing a
+// handle — and still short enough that a wedged one reads as a hiccup rather
+// than a freeze. It is a var only so this package's own tests can shorten it
+// (see shortenCleanupBudget in cleanup_test.go); nothing outside sets it.
+var cleanupBudget = 5 * time.Second
 
 // ctx returns the frame's cancellation context (never nil). Handed to foreign
 // hosts so they can abort blocking work when the frame's tree is canceled.
+//
+// While a rescued `finally` is running, this is the cleanup context instead:
+// child frames chain from it (newFrame) and host calls receive it (HostCall.Ctx),
+// so the cleanup's own effects are not born canceled. Held by
+// TestFinallyHostCallGetsLiveContextAfterStop.
 func (f *Frame) ctx() context.Context {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.cleanupCtx != nil {
+		return f.cleanupCtx
+	}
 	if f.goctx == nil {
 		return context.Background()
 	}
 	return f.goctx
+}
+
+// enterCleanup puts the frame into cleanup mode if — and only if — its `finally`
+// bodies would otherwise be stranded: the frame was canceled, or the context
+// they would inherit is already dead. Returns true when the caller must pair the
+// call with exitCleanup.
+//
+// The second condition is not redundant. cancelTree flips a frame's status and
+// cancels its context in the same breath, but context cancellation propagates
+// down the whole chain immediately while the status walk is still descending —
+// so a deep child can finish its body and reach its `finally` as StatusOK with a
+// context its canceled ancestor already killed. Keying off the context catches
+// that child too; keying off the status alone does not.
+//
+// Returning false is the ordinary path — a frame that ended normally with a live
+// context keeps exactly the behaviour it had before cleanup mode existed, which
+// is what TestFinallyOnSuccessPathIsUnchanged and
+// TestFinallyOnFailurePathIsUnchanged assert.
+func (f *Frame) enterCleanup() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.cleanupDepth > 0 {
+		// A `finally` inside a `finally`: share the outer budget, never mint a
+		// second one. See the cleanupDepth comment above.
+		f.cleanupDepth++
+		return true
+	}
+	base := f.goctx
+	if base == nil {
+		base = context.Background()
+	}
+	if f.status != StatusCanceled && base.Err() == nil {
+		return false
+	}
+	// Detached from goctx on purpose — goctx is the thing that died. Bounded by
+	// cleanupBudget so stop cannot become hang.
+	f.cleanupCtx, f.cleanupCancel = context.WithTimeout(context.Background(), cleanupBudget)
+	f.cleanupDepth = 1
+	return true
+}
+
+// exitCleanup leaves cleanup mode, tearing the cleanup context down once the
+// outermost `finally` on this frame is finished. Anything the cleanup started
+// and left running is cut loose at that point rather than outliving the run.
+func (f *Frame) exitCleanup() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.cleanupDepth--
+	if f.cleanupDepth > 0 {
+		return
+	}
+	f.cleanupDepth = 0
+	if f.cleanupCancel != nil {
+		f.cleanupCancel()
+	}
+	f.cleanupCtx, f.cleanupCancel = nil, nil
+}
+
+// stepDecision is what runBlock should do with the next ordinary edge.
+type stepDecision int
+
+const (
+	stepRun            stepDecision = iota // dispatch it
+	stepBailToCleanup                      // frame was canceled — stop the body, run `finally`
+	stepAbandonCleanup                     // cleanup outlived its budget — stop where we stand
+)
+
+// nextStep answers both of runBlock's pre-dispatch questions under a single
+// lock, because it is asked once per edge on every run anybody ever does.
+//
+// A frame in cleanup mode is deliberately immune to the cancellation bail-out:
+// the cleanup IS what the cancellation asked for. Note that the frame's status
+// is untouched by any of this — it stays StatusCanceled the whole way through,
+// which is what runFinallies' doc comment promises and what
+// TestCanceledStatusVisibleInsideFinally holds.
+func (f *Frame) nextStep() stepDecision {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.cleanupDepth > 0 {
+		if f.cleanupCtx != nil && f.cleanupCtx.Err() != nil {
+			return stepAbandonCleanup
+		}
+		return stepRun
+	}
+	if f.status == StatusCanceled {
+		return stepBailToCleanup
+	}
+	return stepRun
 }
 
 // StatusListener is a reactive listener for a Frame's status transition. It

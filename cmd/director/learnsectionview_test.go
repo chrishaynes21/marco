@@ -278,3 +278,69 @@ func TestAReviewCanAlwaysBeEndedByThePerson(t *testing.T) {
 		}
 	}
 }
+
+// ── the stuck account: sentences one way, particulars the other ───────────────
+
+// The projection reads the account through Notes, never off Diagnostics.
+//
+// This is the far end of the split the coordinator makes. Diagnostics is the RENDERED line, with
+// the particulars glued onto the sentence — and gluing them is exactly what put a durable subject
+// id in front of a person, in the red block of the Learn panel, in a sentence every surface was
+// rendering faithfully. Notes hands over the two halves already separated, and the projection's
+// job is to pass both on without re-joining them.
+//
+// The fixture carries BOTH lists, the way a real session does, so that a projection reading the
+// wrong one still produces detail — and fails on what that detail contains rather than on there
+// being none.
+func TestTheStuckAccountShowsSentencesAndKeepsFactsApart(t *testing.T) {
+	const (
+		say = "I didn't recognise where this started, so I can't write down a way back to it"
+		id  = "subj_a1b2c3"
+	)
+	note := learn.Note{Say: say, Facts: []learn.Fact{
+		{Name: "verdict", Value: "different"},
+		{Name: "established", Value: id},
+	}}
+	s := learn.Session{
+		Phase:       learn.Refused,
+		Refusal:     learn.DestinationNotRecognised,
+		Account:     []learn.Note{note},
+		Diagnostics: []string{note.Line()},
+	}
+
+	v := learnViewOf(s, true, false)
+
+	if len(v.Detail) == 0 {
+		t.Fatal("a refused session shows nothing about why it is stuck")
+	}
+	for _, d := range v.Detail {
+		if strings.Contains(d, id) || strings.Contains(d, "established=") {
+			t.Errorf("the detail a person reads carries a durable subject id: %q.\n"+
+				"That is Diagnostics — the rendered line — being passed through instead "+
+				"of the sentence half of the account.", d)
+		}
+	}
+	if v.Detail[0] != say {
+		t.Errorf("the sentence reached the panel as %q, want %q", v.Detail[0], say)
+	}
+
+	// THE FACTS ARE NOT DROPPED. They are how this failure is told apart from the others that
+	// look like it, and an Advanced surface shows them under the line they explain — which is
+	// why each one travels with the sentence it belongs to.
+	want := map[string]string{"verdict": "different", "established": id}
+	got := map[string]string{}
+	for _, f := range v.Facts {
+		got[f.Name] = f.Value
+		if f.Say != say {
+			t.Errorf("the fact %s=%s does not say which sentence it belongs to (%q); a "+
+				"flat list with no owner leaves the surface guessing, or pushes the "+
+				"grouping back into the projection", f.Name, f.Value, f.Say)
+		}
+	}
+	for name, value := range want {
+		if got[name] != value {
+			t.Errorf("the particular %s=%s never reached an Advanced surface: %+v",
+				name, value, v.Facts)
+		}
+	}
+}

@@ -699,3 +699,67 @@ func TestAPlayIsNotCalledAskableUntilItIsRegistered(t *testing.T) {
 			s.Say())
 	}
 }
+
+// A registration failure names no Go package.
+//
+// `internal/routes` prefixes every error it returns with "routes: ", which is right for a log line
+// and wrong the moment the same string is carried into something a person reads. This is the one
+// path where it matters most: a name already taken is the DOCUMENTED usual way registration fails,
+// and the sentence composed here is carried through the projection into the red block of the Learn
+// panel, where somebody read
+//
+//	play_not_registered: I saved it as mousesettings, but nothing can ask for it yet —
+//	routes: mousesettings already exists; rename the learned play or remove the other one first
+//
+// "routes:" is a Go package they have no word for, and the reader's next move is to go looking for
+// it. The RULE is what is asserted — no internal package prefix survives into what a person reads
+// — rather than today's wording, and the useful half has to survive with it: a dead end somebody
+// can act on is a different thing from one they cannot.
+func TestARegistrationFailureNamesNoGoPackage(t *testing.T) {
+	inner := newTail()
+	inner.granted = true
+	tail := &unregisteringTail{stubTail: inner}
+	c, _, _ := learnToDemonstration(t, goodCandidate(),
+		&observe.CandidateAssessment{Verdict: observe.CandidateConsistent})
+	c.WithTail(tail).WithPlayName("Mouse", "Open")
+
+	s := c.Advance(context.Background())
+	for i := 0; i < 30 && !s.Phase.Settled(); i++ {
+		if s.Phase == learn.Naming {
+			inner.name()
+		}
+		s = c.Advance(context.Background())
+	}
+	if s.Refusal != learn.PlayNotRegistered {
+		t.Fatalf("the outcome is %q, want %q; this test is about what THAT refusal says",
+			s.Refusal, learn.PlayNotRegistered)
+	}
+
+	// Every sentence the session offers a person, from every surface that asks for one.
+	said := []string{s.Say()}
+	for _, n := range s.Notes() {
+		said = append(said, n.Say)
+	}
+	said = append(said, s.Diagnostics...)
+	// The engine's own package names. A prefix like this arrives with the authority of a
+	// diagnosis and names an implementation detail.
+	packages := []string{"routes:", "observe:", "learn:", "plays:", "director:", "secrets:",
+		"observesession:", "oshost:"}
+	for _, line := range said {
+		for _, pkg := range packages {
+			if strings.Contains(line, pkg) {
+				t.Errorf("a line a person reads names the Go package %q:\n  %s", pkg, line)
+			}
+		}
+	}
+
+	// AND THE REASON SURVIVES. Stripping the prefix must not strip the sentence: "I couldn't
+	// make it askable" alone leaves somebody with nothing to try.
+	joined := strings.Join(said, "\n")
+	for _, want := range []string{"already exists", "rename"} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("nothing tells the person %q — the dead end became one they cannot "+
+				"act on:\n%s", want, joined)
+		}
+	}
+}

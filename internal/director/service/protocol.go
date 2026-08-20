@@ -90,7 +90,30 @@ import (
 // `Evidence`, because `Watch` on the surviving type is Light Mode and merging them under one name
 // would have made `director learn --watch` silently start it. See
 // [[ADR-086-one-acquisition-one-word-one-request]].
-const ProtocolVersion = 8
+//
+// Version 9 adds SHOWING to the observation query: which remembered place is in front RIGHT NOW,
+// in one named application. It exists because the process that runs a play is `marco`, and `marco`
+// has no eyes — the Director owns the only fresh-look machinery in this tree. Until this verb, an
+// EDITED learned play, which the authority seam has just told the person "runs like anything else
+// you have written", refused at its own first line with "Marco could not check". The Plays view
+// offers an edit button on every row, so that was an ordinary path: edit a play, lose the play.
+//
+// A bump for one optional field on a query that already has a dozen is arguable, so here is the
+// argument, in the terms the paragraph above sets — does a build disagreement raise an error, or
+// make the wrong thing happen on the desktop?
+//
+// TODAY it raises no error and does no harm either. A version-8 Director receiving a SHOWING query
+// does not reject it: the field is one it has never heard of, so the query falls through to the
+// session branches and answers with an observation snapshot, or with an error about there being no
+// session at all. Decoded as a `ShowingView` that is an empty `Outcome`, which is not in
+// `screenhost`'s vocabulary, which the client turns into a refusal. Safe — and safe only because
+// two unrelated JSON shapes happen not to share a field name. Give an observation snapshot an
+// `outcome` field one day, or rename `ShowingView`'s, and the same build mismatch becomes a play
+// that believes it is standing on a screen nobody looked at: the wrong thing happening on the
+// desktop, arrived at in silence, with the refusal that should have stopped it decoded away. That
+// is precisely the hazard this check exists for, and it is the same reasoning Version 7 was bumped
+// on for a field that was also optional.
+const ProtocolVersion = 9
 
 // RequestType names what a client is asking for.
 type RequestType string
@@ -494,6 +517,14 @@ type StatusPayload struct {
 
 	// Providers reports accessibility lifecycle, per application.
 	Providers []ProviderStatus `json:"providers,omitempty"`
+
+	// AccessibilityUnavailable is why the Accessibility Actor cannot act, empty when it can.
+	//
+	// An EMPTY Providers list has two causes that look identical — nothing has been observed
+	// yet, or there is no bridge to observe through — and only one of them is something the
+	// person can fix. This is the one that says which. The Director boots without the bridge
+	// now rather than refusing to start, so it has to be able to say what it lost.
+	AccessibilityUnavailable string `json:"accessibility_unavailable,omitempty"`
 
 	// Clarification is the question awaiting an answer, if any. A front-end reads
 	// this to know that the next phrase is an ANSWER rather than a new request.
@@ -1026,6 +1057,15 @@ type ObserveQuery struct {
 	// acting: the answer is a plan or an honest refusal, and execution still goes through a
 	// saved play's own resolve → authorize → run. A known goal implies no action authority.
 	Reach *ObserveReach `json:"reach,omitempty"`
+	// Showing asks which remembered place is in front RIGHT NOW. See ObserveShowing.
+	//
+	// Carried on the observation query for the reason Point and Reach are: it is a read over
+	// what the observation path already sees and already remembers, it travels through the one
+	// observation registry, and a separate protocol verb would be a second door onto the same
+	// records to keep in agreement with this one forever. It WRITES nothing and grants nothing
+	// — recognising a screen is perception, and asking where you are must never be a way of
+	// doing something.
+	Showing *ObserveShowing `json:"showing,omitempty"`
 	// Perform CARRIES OUT a learned outcome, and is the only field here that can.
 	//
 	// Separated from Reach on purpose: planning and doing are different requests, and a
@@ -1033,6 +1073,77 @@ type ObserveQuery struct {
 	// exists to prevent. The Audience naming a behaviour is the authority event; the bounds
 	// on real input are the same ones a rehearsal spends.
 	Perform *PerformQuery `json:"perform,omitempty"`
+}
+
+// ObserveShowing asks which remembered place is showing RIGHT NOW.
+//
+// # Why a client may ask this at all
+//
+// Because every learned play's generated Marco opens with `do Screen's Showing with "<place>"`,
+// and the process that runs a play is `marco`, which cannot see. A learned play with intact
+// provenance is delegated to the Director and never meets that problem; an EDITED one is not
+// delegated — editing it makes it an ordinary play, which is the whole of the authority policy —
+// so it takes the local runner and refused at its own first line.
+//
+// # Why it is a fresh LOOK and not a lookup
+//
+// The Director answers it out of `freshPlace`, the same body `PerformGoal` plans from, for the
+// reason that body exists: answering from the newest FINISHED session tells somebody "you're
+// already there" about a screen they have left. A guard answered from history is a guard that
+// passes on the wrong screen, which is worse than no guard at all.
+//
+// # What it may never become
+//
+// A guess. The reply is a positive identification or a named refusal, and there is no field on it
+// a caller can fall back to when it wanted a yes. See [[ADR-031-the-user-names-the-stage]],
+// Decision 4: a Marco that cannot establish where it is "does not skip the guard, assume ok, fall
+// back to OCR text matching, or degrade into blind replay."
+type ObserveShowing struct {
+	// Application scopes the look — the same normalised executable key everything else on this
+	// query uses.
+	//
+	// Empty is a REFUSAL rather than "whatever happens to be in front". A play's entry
+	// condition is about the application the play is in; answering it about a different one
+	// would be answering a question nobody asked, and a screen guard that can be satisfied by
+	// the wrong application is worse than no screen guard.
+	Application string `json:"application,omitempty"`
+}
+
+// ShowingView is the answer: one durable subject, or one honest reason there is none.
+type ShowingView struct {
+	// Application is what was looked in, echoed back so a caller can tell an answer to its own
+	// question from an answer to somebody else's.
+	Application string `json:"application,omitempty"`
+	// Outcome is `screenhost.Outcome`'s closed vocabulary — recognised, ambiguous,
+	// unobservable, unavailable, unrecognised — as the bare string it already is.
+	//
+	// # Why the type is not imported here, and why that costs nothing
+	//
+	// The Director may not depend on platform or engine code: platform implementations are
+	// wired in at a composition root, never imported by `internal/director`. That rule has a
+	// test, and it is right — a wire protocol that pulled in a host package would make the
+	// Director's own layering depend on what the client happens to be made of.
+	//
+	// So the string crosses, and BOTH ENDS are composition roots that legitimately hold the
+	// type: `cmd/director` writes `string(screenhost.Unobservable)` and `cmd/marco` reads
+	// `screenhost.Outcome(view.Outcome)`. Those are type conversions on a named string type,
+	// not a translation table — no constant is declared twice, so there is still exactly one
+	// vocabulary, and the way two vocabularies fail ("I could not look" arriving as "I looked
+	// and it matched") has no place to occur.
+	//
+	// The residual risk is a word that is not in the vocabulary at all, from an older or newer
+	// build. That is the client's to handle, and it handles it as a refusal — see
+	// `liveScreens.CurrentSubject`.
+	Outcome string `json:"outcome"`
+	// Subject is the durable subject id, and is set ONLY when Outcome is `recognised`.
+	//
+	// A reader must still check the outcome rather than the emptiness of this field: an id
+	// beside any other outcome is a bug, and the client treats it as one rather than as a
+	// match.
+	Subject string `json:"subject,omitempty"`
+	// Why is the reason a look identified nothing, for diagnostics. It never changes what a
+	// play is told — a play gets ok or failed, and nothing else.
+	Why string `json:"why,omitempty"`
 }
 
 // ObserveReach asks for the plan toward one learned outcome, or the list of them.

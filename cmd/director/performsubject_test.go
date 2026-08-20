@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -278,7 +279,7 @@ func TestTheCancelledWordIsTheWalkersWord(t *testing.T) {
 	}
 }
 
-// NOTHING IN A PERFORMANCE INVENTS ITS OWN CONTEXT.
+// NOTHING THAT CAN REACH THE WALKER INVENTS ITS OWN CONTEXT.
 //
 // # Why the source, and not a behaviour
 //
@@ -287,17 +288,127 @@ func TestTheCancelledWordIsTheWalkersWord(t *testing.T) {
 // written at the boundary, which silently detaches everything below it. That is a property of the
 // TEXT, and it came back once already by being easy to type.
 //
-// Every branch of a performance must descend from the registry's context, so this refuses any
-// freshly-minted one anywhere in perform.go. The precedent is
-// internal/platform/navsource/pump_test.go, which walks the tree rather than naming call sites.
-func TestNothingInAPerformanceInventsItsOwnContext(t *testing.T) {
-	const file = "perform.go"
-	fset := token.NewFileSet()
-	parsed, err := parser.ParseFile(fset, file, nil, parser.ParseComments)
-	if err != nil {
-		t.Fatalf("parsing %s: %v", file, err)
+// # Why this walks the directory instead of naming a file
+//
+// It used to say `const file = "perform.go"`, and that is exactly how the same defect survived one
+// file over: `rehearserun.go` handed `context.Background()` to the identical walker for a LIVE
+// rehearsal — "want me to try it once?" — so the Audience could not stop something typing on their
+// real desktop, and `director stop` answered "nothing is running" while it did.
+//
+// So the subject is every production file in this directory that imports
+// internal/director/rehearse. A new composition root for the walker is caught the day it is
+// written rather than the day somebody happens to widen a test. The precedent is
+// internal/platform/navsource/pump_test.go, which walks the tree rather than naming call sites —
+// the house pattern for a defect whose shape repeats across sites.
+func TestNothingThatCanReachTheWalkerInventsItsOwnContext(t *testing.T) {
+	for _, file := range filesImporting(t, "internal/director/rehearse") {
+		fset := token.NewFileSet()
+		parsed, err := parser.ParseFile(fset, file, nil, parser.ParseComments)
+		if err != nil {
+			t.Fatalf("parsing %s: %v", file, err)
+		}
+		ast.Inspect(parsed, func(n ast.Node) bool {
+			call, ok := n.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			sel, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok {
+				return true
+			}
+			pkg, ok := sel.X.(*ast.Ident)
+			if !ok || pkg.Name != "context" {
+				return true
+			}
+			if sel.Sel.Name == "Background" || sel.Sel.Name == "TODO" {
+				t.Errorf("%s:%d makes a context.%s(). Everything that can reach the "+
+					"walker must descend from the caller's context, or that branch "+
+					"cannot be stopped — which is how `director stop` came to answer "+
+					"\"nothing is running\" while a play was typing.",
+					file, fset.Position(call.Pos()).Line, sel.Sel.Name)
+			}
+			return true
+		})
 	}
-	ast.Inspect(parsed, func(n ast.Node) bool {
+}
+
+// EVERY LIVE WALKER CHECKS THE FOREGROUND.
+//
+// `rehearse.Live.behind` returns false when `inFront` is nil, so the "input would land somewhere
+// else" refusal — the one guard between a real keystroke and somebody else's window — is not
+// merely weakened by a missing `WithForeground`, it is switched off entirely and silently.
+//
+// There were two composition roots for one walker and only one of them installed it, so the gate
+// was live for a rehearsal Marco asked permission for and dead for a play the Audience asked for
+// by name. This holds the property at the source, for whatever roots exist: any function that
+// builds a `rehearse.NewLive` must also install the foreground answer.
+func TestEveryLiveWalkerChecksTheForeground(t *testing.T) {
+	for _, file := range filesImporting(t, "internal/director/rehearse") {
+		fset := token.NewFileSet()
+		parsed, err := parser.ParseFile(fset, file, nil, parser.ParseComments)
+		if err != nil {
+			t.Fatalf("parsing %s: %v", file, err)
+		}
+		for _, decl := range parsed.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Body == nil {
+				continue
+			}
+			if !callsMethod(fn.Body, "rehearse", "NewLive") {
+				continue
+			}
+			if !callsAnyMethodNamed(fn.Body, "WithForeground") {
+				t.Errorf("%s: %s builds a rehearse.Live and never calls WithForeground. "+
+					"Live.behind reports false when inFront is nil, so the "+
+					"window_not_in_front refusal can never fire and real input goes "+
+					"to whatever the person happens to be looking at.",
+					file, fn.Name.Name)
+			}
+		}
+	}
+}
+
+// filesImporting lists this directory's PRODUCTION files that import one package.
+//
+// Tests are excluded deliberately: a test may legitimately mint a context to prove what a
+// cancelled one does, and a fixture that builds a walker without a foreground answer is
+// describing a dry run.
+func filesImporting(t *testing.T, importPath string) []string {
+	t.Helper()
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatalf("reading this package: %v", err)
+	}
+	var out []string
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		fset := token.NewFileSet()
+		parsed, err := parser.ParseFile(fset, name, nil, parser.ImportsOnly)
+		if err != nil {
+			t.Fatalf("parsing %s: %v", name, err)
+		}
+		for _, imp := range parsed.Imports {
+			if strings.Trim(imp.Path.Value, `"`) == "github.com/chaynes-simpleclouds/marco/"+importPath {
+				out = append(out, name)
+				break
+			}
+		}
+	}
+	if len(out) == 0 {
+		// A guard that silently examines nothing is worse than no guard: it passes
+		// forever. If the import moves, this must be rewritten, not quietly retired.
+		t.Fatalf("no production file in this package imports %s any more", importPath)
+	}
+	return out
+}
+
+// callsMethod reports whether the body contains pkg.name(...).
+func callsMethod(body *ast.BlockStmt, pkg, name string) bool {
+	found := false
+	ast.Inspect(body, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
 		if !ok {
 			return true
@@ -306,17 +417,103 @@ func TestNothingInAPerformanceInventsItsOwnContext(t *testing.T) {
 		if !ok {
 			return true
 		}
-		pkg, ok := sel.X.(*ast.Ident)
-		if !ok || pkg.Name != "context" {
-			return true
-		}
-		if sel.Sel.Name == "Background" || sel.Sel.Name == "TODO" {
-			t.Errorf("%s:%d makes a context.%s(). Everything a performance does must "+
-				"descend from the registry command's context, or that branch of the "+
-				"walk cannot be stopped — which is how `director stop` came to answer "+
-				"\"nothing is running\" while a play was typing.",
-				file, fset.Position(call.Pos()).Line, sel.Sel.Name)
+		ident, ok := sel.X.(*ast.Ident)
+		if ok && ident.Name == pkg && sel.Sel.Name == name {
+			found = true
 		}
 		return true
 	})
+	return found
+}
+
+// callsAnyMethodNamed reports whether the body calls a method of this name on anything.
+func callsAnyMethodNamed(body *ast.BlockStmt, name string) bool {
+	found := false
+	ast.Inspect(body, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		if sel, ok := call.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == name {
+			found = true
+		}
+		return true
+	})
+	return found
+}
+
+// A CONTEXT THIS DIRECTOR ACCEPTS IS A CONTEXT IT NAMES.
+//
+// # The defect had no call site to point at
+//
+// `learnTail.Rehearse` was spelled `func (t *learnTail) Rehearse(context.Context)` — the type
+// without a name, which in Go is the way to say "I am obliged to accept this and I intend to
+// ignore it". The Learn coordinator handed it the episode's context on the one path that types on
+// somebody's real desktop, and it went into the bin one line before `Runtime.Rehearse` minted a
+// `context.Background()` of its own.
+//
+// The Background half is caught by TestNothingThatCanReachTheWalkerInventsItsOwnContext. This
+// catches the half that leaves no trace: a parameter that was never named cannot be found by
+// searching for what it was used for, because it was used for nothing.
+//
+// A discarded context is always a decision worth writing down. If a method genuinely has no use
+// for one, naming it `ctx` and leaving it unused costs nothing — Go permits an unused parameter —
+// and the next reader can see that the choice was made rather than defaulted into.
+func TestAContextThisDirectorAcceptsIsAContextItNames(t *testing.T) {
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatalf("reading this package: %v", err)
+	}
+	checked := 0
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		fset := token.NewFileSet()
+		parsed, err := parser.ParseFile(fset, name, nil, parser.ParseComments)
+		if err != nil {
+			t.Fatalf("parsing %s: %v", name, err)
+		}
+		for _, decl := range parsed.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Type.Params == nil {
+				continue
+			}
+			for _, field := range fn.Type.Params.List {
+				if !isContextType(field.Type) {
+					continue
+				}
+				checked++
+				if len(field.Names) == 0 {
+					t.Errorf("%s:%d — %s accepts a context.Context and does not name it, "+
+						"which throws away everything the caller was holding. Name it.",
+						name, fset.Position(field.Pos()).Line, fn.Name.Name)
+					continue
+				}
+				for _, id := range field.Names {
+					if id.Name == "_" {
+						t.Errorf("%s:%d — %s discards its context.Context into `_`. "+
+							"Cancellation reaches this Director through that value "+
+							"and nowhere else.",
+							name, fset.Position(id.Pos()).Line, fn.Name.Name)
+					}
+				}
+			}
+		}
+	}
+	if checked == 0 {
+		t.Fatal("no production function in this package takes a context.Context. That cannot " +
+			"be right, so this guard is examining nothing and would pass forever.")
+	}
+}
+
+// isContextType reports whether an expression is `context.Context`.
+func isContextType(e ast.Expr) bool {
+	sel, ok := e.(*ast.SelectorExpr)
+	if !ok || sel.Sel.Name != "Context" {
+		return false
+	}
+	pkg, ok := sel.X.(*ast.Ident)
+	return ok && pkg.Name == "context"
 }

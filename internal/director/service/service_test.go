@@ -1175,3 +1175,7 @@ func (f *fakeRuntime) Observation(ObserveQuery) (any, error) {
 func (f *fakeRuntime) LearnedPlay(LearnedQuery) (LearnedView, error) {
 	return LearnedView{}, nil
 }
+
+// The fake reports a working Accessibility Actor: these tests are about the service's routing,
+// not about a machine with a missing binary. The degraded case has its own test in cmd/director.
+func (f *fakeRuntime) AccessibilityUnavailable() string { return "" }

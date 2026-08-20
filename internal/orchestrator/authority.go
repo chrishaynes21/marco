@@ -11,9 +11,10 @@ import (
 //
 // # Why this file exists
 //
-// Because until now there was no door. `Do` resolved a phrase to a route and called `Run` in the
-// same breath — one function, no seam, nothing that could hold "I believe this is the play you
-// mean" without also performing it.
+// Because until ADR-029 there was no door. `Deps.Do` resolved a phrase to a route and called
+// `Deps.Run` in the same breath — one function, no seam, nothing that could hold "I believe this
+// is the play you mean" without also performing it. (Both of those were retired in Phase 3, dead:
+// see the package comment. The door outlived them because the door is the part that was real.)
 //
 // That was fine while every play was one a person had written or recorded by demonstration: they
 // asked for it, so they authorized it. It stops being fine the moment a play exists that MARCO
@@ -28,8 +29,9 @@ import (
 // Resolved is a play the system believes the user meant, held WITHOUT performing it.
 //
 // The type that makes "resolution is not authority" structural: it can be constructed, inspected,
-// logged and refused, and there is nothing on it that runs anything. `Deps.Run` takes a Route, and
-// getting one out of here means going through a decision.
+// logged and refused, and there is nothing on it that runs anything. The local runner
+// (`cmd/marco/panicstop.go`'s `runRoute`) takes a Route, and getting one out of here means going
+// through a decision — `performOnePlay` calls `Classify` then `Authorize` before it calls anything.
 type Resolved struct {
 	// Route is which play, in which scope.
 	Route routes.Route

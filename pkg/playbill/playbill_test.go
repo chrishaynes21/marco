@@ -3,6 +3,7 @@ package playbill_test
 import (
 	"encoding/json"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -522,4 +523,137 @@ func mustJSON(t *testing.T, v any) []byte {
 		t.Fatalf("encoding: %v", err)
 	}
 	return b
+}
+
+// ── the register: what Watch may say, and in which tense ──────────────────────
+
+// Watch never tells a person to run a developer command.
+//
+// The Absent arm used to end "start it with:  director serve": a developer typing a developer's
+// binary name, printed on a CLICK-THROUGH overlay where there is no prompt underneath it to type
+// into. It was not actionable where it appeared, and a person using Marco has no reason to know
+// the Director exists.
+//
+// THE RULE IS ASSERTED, NOT THE REPLACEMENT SENTENCE. A test that pins today's prose stops the
+// prose improving — internal/director/service/playbill_test.go had to be loosened for exactly
+// that reason — so what is checked is that no line names a binary and a subcommand to type.
+func TestWatchNeverTellsAPersonToRunADeveloperCommand(t *testing.T) {
+	// A binary somebody would type, followed by one of the engine's own subcommands.
+	command := regexp.MustCompile(`(?i)\b(marco|director|overlay)(\.exe|\.cmd)?\s+` +
+		`(serve|stop|start|run|do|learn|teach|watch|routes|bind|forget|rename|simplify|` +
+		`shutdown|observe|reach|rehearse|perform|status|check)\b`)
+	// And the shapes a command takes even when the binary is not named.
+	shell := []string{"go run", "go build", "go test", "$env:", "--host", "powershell", "cmd/marco"}
+
+	views := map[string]playbill.View{
+		"absent":      playbill.Unavailable(playbill.Absent, ""),
+		"unreachable": playbill.Unavailable(playbill.Unreachable, "the engine did not answer"),
+		"present":     present(),
+	}
+	// Every place a live view can be, so the rule is not only about the offline arm.
+	live := present()
+	live.Current.Watching = false
+	live.Current.Recognition = playbill.Unknown
+	live.Learning.Stage = playbill.AwaitingEvidence
+	live.Doing.Phase = playbill.Failed
+	live.Why = "the play stopped at its first step"
+	views["stuck"] = live
+
+	for name, v := range views {
+		for _, l := range v.Watch() {
+			if m := command.FindString(l.Text); m != "" {
+				t.Errorf("%s: Watch tells a person to run %q:\n  %s\n"+
+					"The HUD is click-through — there is no prompt under this line — and "+
+					"a person using Marco has no word for a developer binary.", name, m,
+					l.Text)
+			}
+			for _, bad := range shell {
+				if strings.Contains(strings.ToLower(l.Text), bad) {
+					t.Errorf("%s: Watch renders the command fragment %q:\n  %s",
+						name, bad, l.Text)
+				}
+			}
+		}
+	}
+
+	// And the offline arm still says something: the rule is "name no command", not "say
+	// nothing", and an empty panel is the failure this sentence exists to prevent.
+	if got := renderText(playbill.Unavailable(playbill.Absent, "").Watch()); strings.TrimSpace(got) == "" {
+		t.Error("an absent Director renders an empty panel")
+	}
+}
+
+// A finished session counts in the PAST TENSE.
+//
+// This branch runs in exactly two situations and NOTHING is live in either: a session ended and
+// these counts are its leftovers, or nothing was ever watched and the counts came from one world
+// read that has already finished. "I can make out 12 things in front of me" reads as a live
+// report of neither.
+//
+// Asserted as a register rule rather than as a sentence: the count must carry a past-tense marker
+// and must not make a present-tense claim. currentLines makes the same distinction two functions
+// up — "I watched X" is a report, "I'm watching X" is a claim about right now.
+func TestAFinishedSessionCountsInThePastTense(t *testing.T) {
+	v := present()
+	v.Current.Watching = false
+	v.Seeing = playbill.Seeing{Structure: 12}
+
+	seeing := section(v.Watch(), "SEEING")
+	if len(seeing) == 0 {
+		t.Fatalf("a finished session reports no counts at all:\n%s", renderText(v.Watch()))
+	}
+	text := strings.ToLower(renderText(seeing))
+	if !strings.Contains(text, "12") {
+		t.Errorf("the count itself is gone; the leftovers of a finished session are still "+
+			"worth reporting:\n%s", text)
+	}
+	for _, live := range []string{"i can make out", "in front of me", "i can see",
+		"holding still here", "right now", "there are"} {
+		if strings.Contains(text, live) {
+			t.Errorf("a session that has ENDED reports its counts as if they were live "+
+				"(%q):\n%s\nNothing is happening: either the session finished or one "+
+				"world read did.", live, text)
+		}
+	}
+	past := []string{"could", "was", "were", "last time", "when i looked", "i looked",
+		"had", "used to"}
+	marked := false
+	for _, p := range past {
+		if strings.Contains(text, p) {
+			marked = true
+			break
+		}
+	}
+	if !marked {
+		t.Errorf("nothing in the count says it is over:\n%s\nA count is no more entitled "+
+			"to the present tense than a place name is.", text)
+	}
+
+	// And a session that IS watching keeps the present tense — the rule is about the
+	// finished branch, not about draining the tense out of everything.
+	now := present()
+	now.Seeing = playbill.Seeing{Structure: 12}
+	if got := strings.ToLower(renderText(section(now.Watch(), "SEEING"))); !strings.Contains(
+		got, "holding still here") {
+		t.Errorf("a live session no longer reports what it is seeing now:\n%s", got)
+	}
+}
+
+// section returns the lines under one Watch heading, up to the next heading.
+func section(lines []playbill.Line, head string) []playbill.Line {
+	var out []playbill.Line
+	in := false
+	for _, l := range lines {
+		if l.Head {
+			if in {
+				break
+			}
+			in = l.Text == head
+			continue
+		}
+		if in && strings.TrimSpace(l.Text) != "" {
+			out = append(out, l)
+		}
+	}
+	return out
 }

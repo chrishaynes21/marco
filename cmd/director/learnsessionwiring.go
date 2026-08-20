@@ -108,7 +108,7 @@ func (p *learnPasses) Observe(ctx context.Context, d time.Duration) (
 	// durable edge in the store — and every pass after it declares itself part of the same
 	// episode.
 	//
-	// Deleting this must fail TestATeachEpisodeClaimsOneCorroborationThroughTheProductionPass.
+	// Deleting this must fail TestALearnEpisodeClaimsOneCorroborationThroughTheProductionPass.
 	if res.Relationships.Created+res.Relationships.Corroborated > 0 {
 		p.counted = true
 	}
@@ -490,7 +490,7 @@ func viewLearn(s learn.Session, active, watch bool) learnSessionView {
 // question it reaches — another example, permission to rehearse, a name for a screen — is put and
 // answered through the proposal machinery that existed before it.
 //
-// Deleting this must fail TestTeachIsReachableThroughTheProductionRequestPath.
+// Deleting this must fail TestLearnIsReachableThroughTheProductionRequestPath.
 func (r *Runtime) LearnSession(ctx context.Context, q service.ObserveLearn) (learnSessionView, error) {
 	if r.learn == nil {
 		return learnSessionView{}, fmt.Errorf("this Director cannot learn")
@@ -528,7 +528,7 @@ func (r *Runtime) LearnSession(ctx context.Context, q service.ObserveLearn) (lea
 		//
 		// An explicitly named window still wins, and is still validated exactly as before.
 		//
-		// Deleting this must fail TestTeachingWithNoWindowNamedTeachesTheForegroundWindow.
+		// Deleting this must fail TestLearningWithNoWindowNamedLearnsTheForegroundWindow.
 		// WHO IS ASKING decides whether the window can be chosen yet.
 		//
 		// A request from Marco's own control surface cannot resolve one now: pressing the
@@ -642,4 +642,23 @@ func (r *Runtime) learnPhrase() string {
 	}
 	s, _ := r.learn.read()
 	return s.Name
+}
+
+// LearningNow reports whether somebody is demonstrating right now.
+//
+// The one question the SERVICE asks about a Learn episode, and deliberately the only one: it is
+// what "stop" needs in order to know whether there is anything to abandon. Ending the episode goes
+// back through the ordinary acquisition request — see internal/director/service/stop.go — so this
+// cannot grow into a second door onto the lifecycle.
+//
+// It answers the coordinator, not a flag of its own. A session that has settled is not running,
+// and a stop that cancelled a settled session would report success for doing nothing.
+//
+// Deleting this must fail TestTheDirectorReportsWhetherSomebodyIsDemonstrating, which also
+// holds the service.Acquirer assertion the stop arm asks for by name.
+func (r *Runtime) LearningNow() bool {
+	if r == nil || r.learn == nil {
+		return false
+	}
+	return r.learn.running()
 }

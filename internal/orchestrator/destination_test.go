@@ -122,9 +122,9 @@ func journey(t *testing.T, sc *travellingStage) (orchestrator.Deps, *movingHost,
 	}
 
 	host := &movingHost{arrived: sc.arrived, final: "confirm"}
-	// THE outcome surface. `d.Do` returns nil for a play that ran and failed — "you said no"
-	// and "something went wrong" are different things and only one of them is an exit code.
-	// What a PERSON sees is the play's own sentence, so that is what these tests read.
+	// THE outcome surface. The runner returns nil for a play that ran and REPORTED failure —
+	// the play catches its own destination miss and logs it, exactly as the generated source
+	// says to. What a PERSON sees is the play's own sentence, so that is what these tests read.
 	out := &strings.Builder{}
 	d := orchestrator.Deps{
 		Reg:   reg,
@@ -164,9 +164,7 @@ func TestAPlayThatArrivesWhereItSaidSucceeds(t *testing.T) {
 	sc, _, looks := stageWith("subj_b", screenhost.Recognised)
 	d, host, out := journey(t, sc)
 
-	if err := d.Do("volume"); err != nil {
-		t.Fatalf("do: %v", err)
-	}
+	runSavedPlay(t, d, "volume")
 	if !succeeded(out) {
 		t.Fatalf("the play did not report success: %q", out.String())
 	}
@@ -191,9 +189,7 @@ func TestAPlayThatDoesNotArriveFails(t *testing.T) {
 	sc, _, _ := stageWith("subj_x", screenhost.Recognised) // somewhere else entirely
 	d, host, out := journey(t, sc)
 
-	if err := d.Do("volume"); err != nil {
-		t.Fatalf("do: %v", err)
-	}
+	runSavedPlay(t, d, "volume")
 
 	// The effects DID happen. This is not a wrong-start case.
 	want := []string{`OS's Navigate with down`, `OS's Navigate with confirm`}
@@ -240,9 +236,7 @@ func TestOnlyAPositiveArrivalIsSuccess(t *testing.T) {
 			sc, _, _ := stageWith(tc.after, tc.outcome)
 			d, host, out := journey(t, sc)
 
-			if err := d.Do("volume"); err != nil {
-				t.Fatalf("do: %v", err)
-			}
+			runSavedPlay(t, d, "volume")
 			if len(host.pressed()) != 2 {
 				t.Fatalf("the route did not run: %v", host.pressed())
 			}
@@ -261,9 +255,7 @@ func TestADestinationNamedInAnotherApplicationDoesNotCount(t *testing.T) {
 	delete(sc.names, "controller settings")
 	d, host, out := journey(t, sc)
 
-	if err := d.Do("volume"); err != nil {
-		t.Fatalf("do: %v", err)
-	}
+	runSavedPlay(t, d, "volume")
 	if succeeded(out) {
 		t.Fatal("a play succeeded on a destination this application has no name for")
 	}
@@ -283,9 +275,7 @@ func TestAWrongStartNeverReachesTheDestinationCheck(t *testing.T) {
 	sc.before = "subj_x" // the wrong screen
 	d, host, out := journey(t, sc)
 
-	if err := d.Do("volume"); err != nil {
-		t.Fatalf("do: %v", err)
-	}
+	runSavedPlay(t, d, "volume")
 	if succeeded(out) {
 		t.Fatal("a play on the wrong screen reported success")
 	}
@@ -327,9 +317,7 @@ func TestRemovingTheDestinationCheckRemovesIt(t *testing.T) {
 		t.Fatalf("saving: %v", err)
 	}
 
-	if err := d.Do("volume"); err != nil {
-		t.Fatalf("do: %v", err)
-	}
+	runSavedPlay(t, d, "volume")
 	if !succeeded(out) {
 		t.Fatalf("the sidecar went on enforcing a condition the source no longer states: %q",
 			out.String())

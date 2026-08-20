@@ -46,6 +46,17 @@ func (h *remembers) Invoke(c runtime.HostCall) (string, runtime.Value, error) {
 	h.mu.Lock()
 	h.calls = append(h.calls, c)
 	h.mu.Unlock()
+	// The provider's availability question, answered as plugins/uia answers it.
+	//
+	// An Actor now ASKS whether its provider can act before casting, rather than inferring it
+	// from a host pointer being non-nil. A fake standing in for a provider that stayed silent
+	// would report itself unable to act, and every test using it would be measuring a Marco
+	// with an empty cast rather than the wiring it is about.
+	if c.Action == "Available" {
+		s := runtime.NewSet()
+		s.Put("Available", runtime.Bool(true))
+		return "ok", runtime.SetVal(s), nil
+	}
 	return "ok", runtime.Absent(), nil
 }
 
@@ -143,7 +154,7 @@ func TestTheCastRunnerDoesNotShareTheLiveActMap(t *testing.T) {
 func TestTheAssembledTheaterRunsItsCastProgram(t *testing.T) {
 	accessibility := &remembers{}
 	hosts := map[string]runtime.Host{"Accessibility": accessibility}
-	hosts["Theater"] = newTheaterHost(hosts, accessibility)
+	hosts["Theater"] = newTheaterHost(hosts, accessibility, "")
 
 	target := runtime.NewSet()
 	target.Put("Name", runtime.Text("Mouse"))

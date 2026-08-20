@@ -59,7 +59,7 @@ type model struct {
 	config        []string    // rendered config rows
 	learnLog      []string    // answered prompts + their selections (terminal transcript)
 	prompt        string      // the active y/n/s prompt ("" = none), shown verbatim with its options
-	teachPending  string      // the answer typed but not yet submitted (type y/n/s, then Enter)
+	promptPending string      // the answer typed but not yet submitted (type y/n/s, then Enter)
 	insightOn     bool        // the frozen perception snapshot panel is open (`explain`)
 	inspectorOn   bool        // mouse passthrough OFF, full detail
 	insightFrozen bool        // showing a deep snapshot; the live poll is paused
@@ -463,7 +463,7 @@ func (h *model) setLearnSession(v bool) {
 	h.learnSession = v
 	if v {
 		h.learnStart = time.Now()
-		h.learnLog, h.prompt, h.teachPending = nil, "", "" // fresh session
+		h.learnLog, h.prompt, h.promptPending = nil, "", "" // fresh session
 	}
 	h.lastActive = time.Now()
 	h.mu.Unlock()
@@ -475,46 +475,46 @@ func (h *model) setLearnSession(v bool) {
 // It clears any pending keystrokes so the new question starts empty.
 func (h *model) setPrompt(s string) {
 	h.mu.Lock()
-	h.prompt, h.teachPending = s, ""
+	h.prompt, h.promptPending = s, ""
 	h.lastActive = time.Now()
 	h.mu.Unlock()
 }
 
-// setTeachPending shows the answer typed so far (you type y/n/s, see it, then press
+// setPromptPending shows the answer typed so far (you type y/n/s, see it, then press
 // Enter to submit). "" clears it (backspace). Ignored if no prompt is up.
-func (h *model) setTeachPending(s string) {
+func (h *model) setPromptPending(s string) {
 	h.mu.Lock()
 	if h.prompt != "" {
-		h.teachPending = s
+		h.promptPending = s
 		h.lastActive = time.Now()
 	}
 	h.mu.Unlock()
 }
 
-// submitTeachPending commits the pending answer: it appends the question and the
+// submitPromptPending commits the pending answer: it appends the question and the
 // chosen answer to the transcript and clears the active prompt. Returns the answer
 // to send to the child ("" means the default — bare Enter). No-op (returns
 // "" with ok=false) if no prompt is up.
-func (h *model) submitTeachPending() (answer string, ok bool) {
+func (h *model) submitPromptPending() (answer string, ok bool) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if h.prompt == "" {
 		return "", false
 	}
-	answer = h.teachPending
+	answer = h.promptPending
 	shown := answer
 	if shown == "" {
 		shown = "↵" // bare Enter = the default
 	}
 	h.learnLog = append(h.learnLog, h.prompt, "› "+shown)
-	h.prompt, h.teachPending = "", ""
+	h.prompt, h.promptPending = "", ""
 	h.lastActive = time.Now()
 	return answer, true
 }
 
 func (h *model) clearPrompt() {
 	h.mu.Lock()
-	h.learnLog, h.prompt, h.teachPending = nil, "", ""
+	h.learnLog, h.prompt, h.promptPending = nil, "", ""
 	h.mu.Unlock()
 }
 
@@ -599,7 +599,7 @@ type snapshot struct {
 	learnSession                       bool
 	learnStart                         time.Time
 	configSel                          int
-	prompt, teachPending               string
+	prompt, promptPending              string
 	learnLog                           []string
 	argHints                           []string
 	logs, help, config                 []string
@@ -633,7 +633,7 @@ func (h *model) snapshot() snapshot {
 		leaderEcho: h.leaderEcho, heard: h.heard, cpu: h.cpu, ram: h.ram,
 		curX: h.curX, curY: h.curY, curHasPos: h.curHasPos, learnSession: h.learnSession,
 		learnStart: h.learnStart, configSel: h.configSel,
-		prompt: h.prompt, teachPending: h.teachPending, learnLog: tlog,
+		prompt: h.prompt, promptPending: h.promptPending, learnLog: tlog,
 		argHints:  hints,
 		insightOn: h.insightOn, inspectorOn: h.inspectorOn, insight: ins,
 		wmode: h.wmode, watch: h.watch, headline: h.headline,

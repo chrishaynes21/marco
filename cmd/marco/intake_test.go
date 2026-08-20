@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -380,7 +381,11 @@ func TestExactPlayMatchDoesNotBypassAuthority(t *testing.T) {
 //
 // Mutation: route a surface's words anywhere else. This fails.
 func TestEveryEntranceRoutesThroughTheOneIntake(t *testing.T) {
-	for _, rel := range []string{"cmd/marco/assistant.go", "cmd/marco/bind.go"} {
+	// stop.go is here for the same reason the other two are: `marco stop` is an ENTRANCE, and a
+	// stop verb that reached the stop machinery directly would be the fourth intake this phase
+	// exists to remove.
+	for _, rel := range []string{"cmd/marco/assistant.go", "cmd/marco/bind.go",
+		"cmd/marco/stop.go"} {
 		src := readRepoFile(t, rel)
 		if !strings.Contains(src, "runInvocation(") {
 			t.Errorf("%s no longer enters the one intake", rel)
@@ -1065,8 +1070,8 @@ func TestTheLearnVerbAnswersToItsOldName(t *testing.T) {
 //	DO      Marco acts
 //
 // The word Teach is kept clear so that when the feature that means it arrives, it does not have to
-// be disentangled from the one that does not. This walks the acquisition packages and the product
-// surfaces and refuses any identifier that spells it.
+// be disentangled from the one that does not. This walks EVERY non-test Go file in the repository,
+// plugins included, and refuses any identifier that spells it.
 //
 // It does NOT police prose: a comment may say "teaches the reader", and a dated ADR may describe
 // what the word used to mean — that is history, and rewriting it would destroy the record this
@@ -1074,7 +1079,8 @@ func TestTheLearnVerbAnswersToItsOldName(t *testing.T) {
 //
 // Mutation: reintroduce any Teach-spelled acquisition identifier. This fails.
 func TestNoLiveAcquisitionCodeIsNamedTeach(t *testing.T) {
-	// The three things allowed to spell it, named individually so none can grow silently.
+	// The things allowed to spell it, named individually so none can grow silently — and so that
+	// an excuse which has stopped matching anything can be seen to have stopped matching.
 	allowed := []string{
 		// 1. THE COMPATIBILITY ALIASES. The verb and the command word still answer to the
 		// word the product shipped with, undocumented, until the legacy verbs retire.
@@ -1092,6 +1098,32 @@ func TestNoLiveAcquisitionCodeIsNamedTeach(t *testing.T) {
 
 		// 3. DOCUMENTING THE ALIAS, once, where a person would go looking for it.
 		`aliases <b>narrate teach</b>`,
+
+		// 4. THE SAME FROZEN WIRE VALUE, seen from the plugin side. plugins/llama asks a
+		// local model to answer with one of `run|teach|chat|clarify` and parses what comes
+		// back, which is `dispatch.IntentLearn`'s marshalled bytes and nothing else. The
+		// spelling is fixed by the protocol in category 2, not chosen here; changing it here
+		// alone would simply stop the plugin understanding its own model.
+		`"intent":"run|teach|chat|clarify"`,
+		`- teach: they want to CREATE a new command`,
+		`case "teach", "chat", "clarify":`,
+
+		// 5. HANDOFF — genuinely wrong, in a module this test's author could not edit.
+		//
+		// plugins/web-ui embeds its browser front end as Go string literals, and the LEARN
+		// session's card is still spelled with the reserved word: a CSS class `.card.teach`,
+		// the JS function `teachingCard`, and the `classList.add("teach")` that joins them.
+		// They are identifiers, not prose, and they are exactly what this rule forbids.
+		//
+		// They are excused HERE, named one at a time and labelled as debt, for one reason:
+		// the alternative was to leave the widened walk red for everybody. Renaming them is
+		// three edits in one file and no protocol depends on them — a CSS class and a JS
+		// function are private to that page. **Delete these three entries with the rename.**
+		// If they are still here in a year, the rule has taught somebody the wrong lesson.
+		`.card.teach{`,
+		`function teachingCard(`,
+		`c.classList.add("teach")`,
+		`teachingCard(a.learnSession)`,
 	}
 	// EVERY live acquisition file, found rather than listed. A hand-written list is a list
 	// somebody forgets to extend — `internal/orchestrator` was live acquisition code named
@@ -1122,35 +1154,127 @@ func TestNoLiveAcquisitionCodeIsNamedTeach(t *testing.T) {
 	}
 }
 
-// acquisitionFiles is every non-test Go file that implements acquisition.
+// acquisitionFiles is every non-test Go file in the repository.
 //
-// Found by walking, not by listing: the first version of the governance test named ten files by
-// hand, and `internal/orchestrator` — which `marco learn` calls directly — was not among them, so
-// three exported entry points kept the reserved word through an entire sweep that reported itself
-// complete.
+// # It used to walk eight named directories, and the list was the bug
+//
+// The comment above this function already said the right thing — "found by walking, not by
+// listing" — and the function underneath it did not do that. It read eight hand-written
+// directories, top-level entries only, and `plugins/` was not among them. So roughly ten live
+// acquisition identifiers in the overlay spelled the reserved word for the whole life of the
+// rule, in the one place the AUDIENCE actually reads them.
+//
+// The proof that this was an oversight rather than a decision is in the allow-list itself: three
+// of its seven entries only ever matched files this walk could not open. Somebody had already
+// seen the overlay spelling it, written down that it was excused, and never noticed that the
+// excuse was doing nothing because the file was never read.
+//
+// # So it walks, the way the pump test walks
+//
+// `internal/platform/navsource/pump_test.go` is the house pattern for exactly this shape of rule:
+// a structural invariant that must hold everywhere, discovered rather than listed, because the
+// version that names the files it knows about is written against precisely the files that were
+// already correct.
+//
+// **plugins/ is walked although those are separate Go modules.** Reading a file needs no module,
+// and the rule is about the vocabulary the product uses, which has no opinion about where the
+// go.mod boundaries fall. The overlay is the surface a person types into; if anywhere had to be
+// covered it was there.
+//
+// Walking everything rather than the acquisition packages is deliberate too. "Which packages
+// count as acquisition" is the judgement that produced the eight-directory list, and it is the
+// judgement that was wrong. There is no cost to reading 500 small files, and the rule reads
+// better as what it actually is: nothing in Marco spells Teach in code.
 func acquisitionFiles(t *testing.T) []string {
 	t.Helper()
+	const repoRoot = "../.."
 	var out []string
-	for _, dir := range []string{
-		"internal/director/learn", "internal/voicelearn", "internal/orchestrator",
-		"internal/dispatch", "internal/director/observe", "cmd/director", "cmd/marco",
-		"pkg/playbill",
-	} {
-		root := filepath.Join("..", "..", filepath.FromSlash(dir))
-		entries, err := os.ReadDir(root)
-		if err != nil {
-			t.Fatalf("read %s: %v", dir, err)
+	err := filepath.WalkDir(repoRoot, func(path string, d fs.DirEntry, err error) error {
+		switch {
+		case err != nil:
+			return nil // an unreadable corner of the tree is not this test's business
+		case d.IsDir() && (d.Name() == ".git" || d.Name() == "node_modules"):
+			return fs.SkipDir
+		case d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go"):
+			return nil
 		}
-		for _, e := range entries {
-			n := e.Name()
-			if e.IsDir() || !strings.HasSuffix(n, ".go") || strings.HasSuffix(n, "_test.go") {
-				continue
-			}
-			out = append(out, dir+"/"+n)
+		rel, relErr := filepath.Rel(repoRoot, path)
+		if relErr != nil {
+			return nil
 		}
+		out = append(out, filepath.ToSlash(rel))
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walking the tree: %v", err)
 	}
-	if len(out) < 20 {
+	// A floor, so a walk that silently stopped finding anything cannot pass by finding nothing.
+	// Set well below the real count (~500) so ordinary growth and deletion never touch it, and
+	// well above what the eight-directory version found, so a reversion to a listing fails here.
+	if len(out) < 300 {
 		t.Fatalf("the walk found only %d files; it is not looking where it thinks it is", len(out))
 	}
+	var sawPlugins bool
+	for _, f := range out {
+		if strings.HasPrefix(f, "plugins/") {
+			sawPlugins = true
+		}
+	}
+	if !sawPlugins {
+		t.Fatal("the walk did not reach plugins/, which is the surface the Audience types " +
+			"into and the one place the previous version of this rule could not see")
+	}
 	return out
+}
+
+// An ANSWER is not claimed by a play of the same name.
+//
+// # The opposite arm from the stale-question one
+//
+// TestAStalePendingQuestionDoesNotHijackAKnownPlay holds that a play Marco has still runs while
+// some forgotten question is outstanding. This holds the direction that arm is in tension with:
+// a phrase Director is genuinely waiting to hear must reach the question even when a registered
+// play answers to those exact words. Otherwise naming a play "the first" makes one of Director's
+// own questions permanently unanswerable, and the person is offered a choice they cannot take.
+//
+// Both directions matter because only one line decides between them, and it lives here rather
+// than in `invoke`: the registry knows the play, `intent.ParseClarification` knows an answer, and
+// neither knows whether anything is actually asking.
+//
+// Mutation: drop `req.Pending = pendingQuestion()` from runInvocation. This fails.
+func TestAnAnswerIsNotClaimedByAPlayOfTheSameName(t *testing.T) {
+	d := intakeWorld(t)
+	noDirector(t)
+
+	// A play registered under the exact words of an answer. It RUNS, so a decision that went
+	// the other way would announce itself rather than silently doing nothing.
+	if err := d.Reg.Save(routes.Route{Slug: "the-second-one"}, runnableSrc); err != nil {
+		t.Fatal(err)
+	}
+	prev := pendingQuestion
+	pendingQuestion = func() bool { return true }
+	t.Cleanup(func() { pendingQuestion = prev })
+
+	var submitted string
+	prevSubmit := submitPhrase
+	submitPhrase = func(p string, _ bool) int { submitted = p; return exitOK }
+	t.Cleanup(func() { submitPhrase = prevSubmit })
+
+	said, err := captureStdout(t, func() error {
+		_, e := runInvocation(d, invoke.Request{
+			Text: "the second one", Source: invoke.SourceSpoken,
+		})
+		return e
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if submitted != "the second one" {
+		t.Fatalf("the answer never reached the question (submitted %q).\nDirector is holding "+
+			"an unanswered question and the words that answer it were spent starting a play "+
+			"of the same name, so the question can never be answered at all.", submitted)
+	}
+	if strings.Contains(said, "[route] ") {
+		t.Errorf("a play was performed instead of the question being answered:\n%s", said)
+	}
 }

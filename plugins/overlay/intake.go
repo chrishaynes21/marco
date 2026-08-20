@@ -61,9 +61,9 @@ func dispatchIntake(h *model, phrase string, source invoke.Source) {
 	mlogI("overlay: intake", "source", string(source), "phrase", phrase, "args", args)
 	go func() {
 		r := spawnIntakeChild(h, phrase, track, args...)
-		if r.offersTeach() {
+		if r.offersLearn() {
 			mlogI("overlay: nothing took it — offering learn", "phrase", phrase)
-			offerTeach(h, phrase)
+			offerLearn(h, phrase)
 		}
 	}()
 }

@@ -3,6 +3,8 @@ package main
 import (
 	"strings"
 	"time"
+
+	"github.com/chaynes-simpleclouds/marco/internal/outcome"
 )
 
 // What became of one invocation, in the six words the engine announces.
@@ -18,63 +20,34 @@ import (
 //
 // The engine now says what happened on its own line and the overlay reads it. Deriving
 // it here again would be a second result vocabulary, and the two would disagree.
-
-// resultPrefix is the wire line the engine writes to say what became of an invocation.
 //
-// PRODUCED in the ROOT module by cmd/marco/intake.go (const resultPrefix, func announce).
-// The overlay is a separate Go module, so nothing links the two literals at compile time
-// and nothing fails to build when one side is reworded — the HUD would simply fall back
-// to guessing from the exit code and start lying again, quietly.
+// # Why the six words are no longer written down in this file
 //
-// Changing it must fail TestResultPrefixAndVocabularyArePinned.
-const resultPrefix = "[result] "
+// They used to be. This file held its own `outcome` type, its own six constants and its own
+// copy of the literal `"[result] "`, matched by hand against cmd/marco's — across a module
+// boundary, where no compiler can look. The comment beside them said it out loud: nothing
+// would fail to compile if either drifted. That is an accurate description of a duplicate,
+// written next to the duplicate, in place of removing it. And it was not two copies but
+// three, because the control centre had neither and simply reported `{"ok":true}` before
+// anything had run.
+//
+// [outcome] is now the one vocabulary, imported by all three. The overlay is a separate Go
+// module but it may import the engine's internal packages, so this costs nothing.
+//
+// WHAT STAYED HERE IS THE PHRASING. "ran: X", "asked about: X — answer it", "refused: X"
+// are the HUD's own sentences and belong to the HUD; the control centre says the same six
+// things in its own words. What moved is the vocabulary and the wire literal — the parts
+// that have to be identical — and not the presentation, which must not be.
 
-// routePrefix says WHICH play resolved. Deliberately unchanged and deliberately separate:
+// routePrefix says WHICH play resolved. Deliberately separate from [outcome.ResultPrefix]:
 // `[route] ` answers "what did these words become", `[result] ` answers "what happened to
 // it". The learn offer needs both facts and cannot be derived from either alone.
-const routePrefix = "[route] "
-
-// outcome is the engine's vocabulary, not a translation of it.
-type outcome string
-
-const (
-	// outcomePerformed means it ran AND arrival was verified. Nothing else may claim it.
-	outcomePerformed outcome = "performed"
-	// outcomeClarify means Director asked something and is waiting to be told.
-	outcomeClarify outcome = "clarify"
-	// outcomeRefused means Marco declined or was not permitted — a door, a guard, an
-	// edge that would not verify. Not an error, and not a success.
-	outcomeRefused outcome = "refused"
-	// outcomeUnavailable means nothing took the request. No play answered to it and
-	// Director was never reached — the ONLY state in which "shall I learn this?" is an
-	// honest thing to say.
-	outcomeUnavailable outcome = "unavailable"
-	// outcomeCancelled means somebody stopped it.
-	outcomeCancelled outcome = "cancelled"
-	// outcomeFailed means it was tried and it went wrong.
-	outcomeFailed outcome = "failed"
-)
-
-// knownOutcome accepts only the six. An unrecognised word is NOT rendered as itself:
-// a front end that invented a seventh state from a drifted engine would be describing
-// something nobody defined.
-func knownOutcome(s string) (outcome, bool) {
-	switch outcome(strings.TrimSpace(s)) {
-	case outcomePerformed:
-		return outcomePerformed, true
-	case outcomeClarify:
-		return outcomeClarify, true
-	case outcomeRefused:
-		return outcomeRefused, true
-	case outcomeUnavailable:
-		return outcomeUnavailable, true
-	case outcomeCancelled:
-		return outcomeCancelled, true
-	case outcomeFailed:
-		return outcomeFailed, true
-	}
-	return "", false
-}
+//
+// This one is still a hand-matched literal, and it is the last of them. Its producer is
+// cmd/marco/intake.go in the ROOT module, so nothing links the two at compile time.
+// Changing it must fail TestTheRoutePrefixIsStillPinnedByHand.
+// routePrefix is the engine's other wire line, from the ONE place it is written down.
+const routePrefix = outcome.RoutePrefix
 
 // childRun is everything one spawned marco child reported about one invocation.
 type childRun struct {
@@ -100,21 +73,25 @@ type childRun struct {
 // intake always announces, so a missing result there means the child died before it could
 // speak, and "failed" is then the truthful reading of a non-zero exit.
 //
+// An unrecognised word is NOT rendered as itself: [outcome.Parse] refuses it, and a front
+// end that invented a seventh state from a drifted engine would be describing something
+// nobody defined.
+//
 // Deleting the `[result] ` read must fail TestTheSixOutcomesComeFromTheWire.
-func (r childRun) outcome() outcome {
-	if o, ok := knownOutcome(r.result); ok {
+func (r childRun) outcome() outcome.Outcome {
+	if o, ok := outcome.Parse(strings.TrimSpace(r.result)); ok {
 		return o
 	}
 	switch {
 	case r.killed:
-		return outcomeCancelled
+		return outcome.Cancelled
 	case r.err != nil:
-		return outcomeFailed
+		return outcome.Failed
 	}
-	return outcomePerformed
+	return outcome.Performed
 }
 
-// offersTeach is the ONE condition under which an unknown command becomes an offer to
+// offersLearn is the ONE condition under which an unknown command becomes an offer to
 // record a demonstration: nothing took the request at all.
 //
 // Both halves are load-bearing. `unavailable` alone is not enough — a resolved play whose
@@ -123,24 +100,32 @@ func (r childRun) outcome() outcome {
 // failed is not an unknown command: answering "I could not do that" with "shall I learn
 // it?" is a non-sequitur about something the person just watched go wrong.
 //
-// Deleting either half must fail TestTheTeachOfferNeedsBothHalves.
-func (r childRun) offersTeach() bool {
-	return r.outcome() == outcomeUnavailable && r.route == ""
+// Deleting either half must fail TestTheLearnOfferNeedsBothHalves.
+func (r childRun) offersLearn() bool {
+	return r.outcome() == outcome.Unavailable && r.route == ""
 }
 
-// status is the one-line HUD status for an outcome, in the engine's own words wherever
-// they read as a sentence.
-func (o outcome) status(disp string) string {
+// statusLine is the one-line HUD status for an outcome.
+//
+// This is PRESENTATION, and it is the HUD's alone. The six words are protocol; these six
+// sentences are the ambient surface's voice, sitting on the same line that says "running:
+// X" a moment earlier, which is why they read as a continuation of it rather than as six
+// nouns. Another surface rendering the same six words says something else, and should.
+//
+// Every one of the six must produce its own sentence — a missing arm would collapse two
+// genuinely different endings onto one line, which is the whole defect this vocabulary
+// removed. Enforced by TestTheHudRendersEveryOutcomeInTheSet.
+func statusLine(o outcome.Outcome, disp string) string {
 	switch o {
-	case outcomePerformed:
+	case outcome.Performed:
 		return "ran: " + disp
-	case outcomeClarify:
+	case outcome.Clarify:
 		return "asked about: " + disp + " — answer it"
-	case outcomeRefused:
+	case outcome.Refused:
 		return "refused: " + disp
-	case outcomeUnavailable:
+	case outcome.Unavailable:
 		return "unavailable: " + disp
-	case outcomeCancelled:
+	case outcome.Cancelled:
 		return "cancelled: " + disp
 	default:
 		return "failed: " + disp

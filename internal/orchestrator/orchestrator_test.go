@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"image"
 	"image/png"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/chaynes-simpleclouds/marco/internal/driver"
 	"github.com/chaynes-simpleclouds/marco/internal/recorder"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
 	"github.com/chaynes-simpleclouds/marco/internal/runtime"
@@ -45,6 +47,20 @@ func at(ms int) time.Time {
 	return time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC).Add(time.Duration(ms) * time.Millisecond)
 }
 
+// runSaved runs a saved play through the ordinary driver, the way the local runner does.
+//
+// The package's own tests used to reach a run through `Deps.Do`, which learned on an unknown name
+// and then ran the result. `Deps.Do` had no production callers and was retired in Phase 3 (see the
+// package comment); what it did for THESE tests was one line of driver, so that is what is here.
+// The claim they hold — record → simplify → codegen → save → and the saved file is runnable — does
+// not involve an invocation spine, and pretending otherwise is what made the old one look alive.
+func runSaved(t *testing.T, d Deps, rt routes.Route, out io.Writer) {
+	t.Helper()
+	if err := driver.RunFileWithHosts(d.Reg.Path(rt), out, d.Hosts); err != nil {
+		t.Fatalf("running %s: %v", rt.Slug, err)
+	}
+}
+
 func TestLearnThenRun(t *testing.T) {
 	dir := t.TempDir()
 	reg := routes.Registry{Dir: dir}
@@ -61,15 +77,15 @@ func TestLearnThenRun(t *testing.T) {
 	var out bytes.Buffer
 	d := Deps{
 		Reg: reg, Rec: &fakeRecorder{events: events},
-		In:      strings.NewReader("y\ny\nc\n"), // learn? yes; save? yes; scope? c (context: only here)
+		In:      strings.NewReader("y\nc\n"), // save? yes; scope? c (context: only here)
 		Out:     &out,
 		App:     func() string { return "sea-of-thieves" }, // context captured at learn time
 		StopKey: "esc",                                     // these fixtures end with an Esc press
 	}
 
-	// First Do: unknown → learns, saves (scoped), and runs under dryrun.
-	if err := d.Do("open chest"); err != nil {
-		t.Fatalf("Do(learn): %v\n%s", err, out.String())
+	// Learn: record, simplify, save (scoped).
+	if err := d.Learn("open chest"); err != nil {
+		t.Fatalf("Learn: %v\n%s", err, out.String())
 	}
 	scoped := routes.Route{App: "sea-of-thieves", Slug: "open-chest"}
 	if !reg.Has(scoped) {
@@ -88,24 +104,28 @@ func TestLearnThenRun(t *testing.T) {
 	if strings.Contains(string(saved), "Activate") {
 		t.Fatalf("context route should not activate:\n%s", saved)
 	}
-	// It also ran (dryrun host logs the calls + the done line).
+	// And what was saved RUNS (dryrun host logs the calls + the done line). Generating source
+	// that will not compile is the failure this half exists to catch.
+	runSaved(t, d, scoped, &out)
 	if !strings.Contains(out.String(), "[dryrun] OS's Click") ||
 		!strings.Contains(out.String(), "open chest: done") {
 		t.Fatalf("route did not run; output:\n%s", out.String())
 	}
 
-	// Second Do: now known → runs directly without learning. A context route is
-	// foreground-only, so the app must be in front for it to resolve.
+	// And it is findable by the phrase a person says. A context route is foreground-only, so
+	// the app must be in front for it to resolve.
 	var out2 bytes.Buffer
 	d2 := Deps{Reg: reg, Rec: &fakeRecorder{}, Out: &out2, App: func() string { return "sea-of-thieves" }}
-	if err := d2.Do("open chest"); err != nil {
-		t.Fatalf("Do(run): %v", err)
+	found, ok := reg.Resolve(d2.App(), "open chest")
+	if !ok {
+		t.Fatal("the learned route does not answer to the phrase it was learned under")
 	}
-	if strings.Contains(out2.String(), "I don't know") {
-		t.Fatalf("second Do learned again instead of running:\n%s", out2.String())
+	if found != scoped {
+		t.Fatalf("the phrase resolved to %+v, want %+v", found, scoped)
 	}
+	runSaved(t, d2, found, &out2)
 	if !strings.Contains(out2.String(), "open chest: done") {
-		t.Fatalf("second Do did not run:\n%s", out2.String())
+		t.Fatalf("the saved route did not run a second time:\n%s", out2.String())
 	}
 }
 
@@ -128,13 +148,13 @@ func TestLearnSimplifyOption(t *testing.T) {
 	var out bytes.Buffer
 	d := Deps{
 		Reg: reg, Rec: &fakeRecorder{events: events},
-		In:      strings.NewReader("y\ns\ny\nc\n"), // learn? yes; simplify further; save; scope c (context)
+		In:      strings.NewReader("s\ny\nc\n"), // simplify further; save; scope c (context)
 		Out:     &out,
 		App:     func() string { return "editor" },
 		StopKey: "esc",
 	}
-	if err := d.Do("type hello"); err != nil {
-		t.Fatalf("Do: %v\n%s", err, out.String())
+	if err := d.Learn("type hello"); err != nil {
+		t.Fatalf("Learn: %v\n%s", err, out.String())
 	}
 	rt := routes.Route{App: "editor", Slug: "type-hello"}
 	if !reg.Has(rt) {
@@ -177,7 +197,7 @@ func TestLearnSimplifySaves(t *testing.T) {
 		SimplifySaves: true,
 	}
 	if err := d.Learn("type hello"); err != nil {
-		t.Fatalf("Teach: %v\n%s", err, out.String())
+		t.Fatalf("Learn: %v\n%s", err, out.String())
 	}
 	rt := routes.Route{App: "editor", Slug: "type-hello"}
 	if !reg.Has(rt) {
@@ -210,7 +230,7 @@ func TestSimplifyRoute(t *testing.T) {
 		{Kind: recorder.EvKey, KeyName: "esc", Down: true, T: at(900)},
 	}
 
-	// Teach and save faithfully (no simplify at learn time): keys stay per-letter.
+	// Learn and save faithfully (no simplify at learn time): keys stay per-letter.
 	var out bytes.Buffer
 	d := Deps{
 		Reg: reg, Rec: &fakeRecorder{events: events},
@@ -220,7 +240,7 @@ func TestSimplifyRoute(t *testing.T) {
 		StopKey: "esc",
 	}
 	if err := d.Learn("type hello"); err != nil {
-		t.Fatalf("Teach: %v\n%s", err, out.String())
+		t.Fatalf("Learn: %v\n%s", err, out.String())
 	}
 	rt := routes.Route{App: "editor", Slug: "type-hello"}
 	if saved, _ := os.ReadFile(reg.Path(rt)); !strings.Contains(string(saved), `do OS's Key with "h".`) {
@@ -285,7 +305,7 @@ func TestLearnImageClick(t *testing.T) {
 		StopKey: "esc",
 	}
 	if err := d.Learn("grab loot"); err != nil {
-		t.Fatalf("Teach: %v\n%s", err, out.String())
+		t.Fatalf("Learn: %v\n%s", err, out.String())
 	}
 	rt := routes.Route{App: "game", Slug: "grab-loot"}
 	saved, _ := os.ReadFile(reg.Path(rt))
@@ -384,7 +404,7 @@ func TestLearnVisionRecropsTemplate(t *testing.T) {
 		StopKey: "esc",
 	}
 	if err := d.Learn("dodge"); err != nil {
-		t.Fatalf("Teach: %v\n%s", err, out.String())
+		t.Fatalf("Learn: %v\n%s", err, out.String())
 	}
 	rt := routes.Route{App: "game", Slug: "dodge"}
 	asset := filepath.Join(reg.ScopeDir(rt), "dodge-anchor-1.png")
@@ -424,7 +444,7 @@ func TestLearnVisionAnchorFromDetector(t *testing.T) {
 		StopKey: "esc",
 	}
 	if err := d.Learn("use ability"); err != nil {
-		t.Fatalf("Teach: %v\n%s", err, out.String())
+		t.Fatalf("Learn: %v\n%s", err, out.String())
 	}
 	if vis.calls == 0 {
 		t.Fatal("Vision's Identify was never called to label the anchor")
@@ -461,7 +481,7 @@ func TestLearnTextAnchorFromOCR(t *testing.T) {
 		StopKey: "esc",
 	}
 	if err := d.Learn("grab loot"); err != nil {
-		t.Fatalf("Teach: %v\n%s", err, out.String())
+		t.Fatalf("Learn: %v\n%s", err, out.String())
 	}
 	if host.calls == 0 {
 		t.Fatal("Text's Read was never called to label the anchor")
@@ -499,7 +519,7 @@ func TestLearnTextAnchorNoHost(t *testing.T) {
 		StopKey: "esc",
 	}
 	if err := d.Learn("grab loot"); err != nil {
-		t.Fatalf("Teach: %v\n%s", err, out.String())
+		t.Fatalf("Learn: %v\n%s", err, out.String())
 	}
 	rt := routes.Route{App: "game", Slug: "grab-loot"}
 	saved, _ := os.ReadFile(reg.Path(rt))

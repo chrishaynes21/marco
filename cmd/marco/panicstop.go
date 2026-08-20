@@ -12,31 +12,58 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/oshost"
 	"github.com/chaynes-simpleclouds/marco/internal/recorder"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
+	"github.com/chaynes-simpleclouds/marco/internal/stopsignal"
 )
 
-// withPanicStop runs fn with a kill-switch when realInput is true: a global
-// press of the stop key (see stopKeySpec) cancels the context, aborting the
-// play mid-run (in-flight host calls stop and `finally` blocks run). It returns
-// to the caller rather than killing the process, so an `assistant` session
-// survives an abort.
+// withPanicStop runs fn under everything that is allowed to abort it.
 //
-// realInput should be false for the dryrun host (no need to grab global hooks).
-// If global hooks aren't available (non-Windows, or install fails), it runs
-// without a panic-stop.
+// # It used to ask one question and answer two
+//
+// There was a single `if` here, and `MARCO_NO_PANIC_STOP` decided both halves of it: whether this
+// process installs global keyboard hooks, and whether the run it wraps can be cancelled at all.
+//
+// The variable exists for the FIRST half only. A front end that already owns a low-level keyboard
+// hook — the overlay does — must not have a second, competing WH_KEYBOARD_LL installed in the
+// child it spawns; duelling low-level hooks, plus the play's own injected input, is a
+// deadlock/zombie risk, and the hook invariants in CLAUDE.md are about exactly that thread. The
+// front end owns the abort GESTURE. That is all it was ever saying.
+//
+// It was never meant to say "and this play may not be stopped". But that is what it said: the
+// early return handed `fn` a `context.Background()`, and nothing can cancel one. So every play the
+// overlay spawned — which is most plays a person runs — was uncancellable from the instant it
+// started, and the only lever the overlay had left was to KILL the child. `TerminateProcess` runs
+// no deferred function, so `finally` never ran: a held key stayed held and the cursor stayed
+// wherever the play had dragged it.
+//
+// # So the two decisions are now two decisions
+//
+// Hook ownership is still `MARCO_NO_PANIC_STOP`'s, and the stop-key behaviour when hooks ARE
+// installed is unchanged, down to the message it prints. Cancellability belongs to nobody's
+// environment variable: EVERY run — hooks or not, real input or not, dryrun or SendInput — is
+// watched by [[internal/stopsignal]], so one "stop" from any entrance and any process reaches it
+// as a CANCELLATION and the runtime unwinds through `finally` on the way out.
+//
+// A dryrun run is watched too, deliberately. It costs one stat of a twenty-byte file every 100ms,
+// and it means "stop" behaves the same way while somebody is trying a play out as it will when
+// they run it for real — which is the only way a person ever comes to trust the word.
+//
+// Deleting the stopsignal.Watch must fail TestASpawnedPlayIsCancellableWithoutHooks.
 func withPanicStop(realInput bool, fn func(context.Context) error) error {
-	// A front-end that already owns global hotkeys (e.g. the AHK overlay) sets
-	// MARCO_NO_PANIC_STOP so this child doesn't install its own competing
-	// WH_KEYBOARD_LL/WH_MOUSE_LL hooks — dueling low-level hooks plus the play's
-	// own injected input is a deadlock/zombie risk. The front-end owns aborting.
+	// THE ONE STOP, arm (a), RECEIVED here. Taken before anything else, because Watch reads its
+	// baseline generation synchronously: a stop raised a millisecond after this process started
+	// is a stop somebody meant for this play, and it must not be adopted as the baseline.
+	ctx, release := stopsignal.Watch(context.Background(), stopsignal.Home())
+	defer release()
+
 	if !realInput || os.Getenv("MARCO_NO_PANIC_STOP") != "" {
-		return fn(context.Background())
+		return fn(ctx)
 	}
 	rec := recorder.New()
 	if err := rec.Start(); err != nil {
-		return fn(context.Background())
+		return fn(ctx)
 	}
 	stop := recorder.ParseStopKey(stopKeySpec())
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(ctx)
 	go func() {
 		for ev := range rec.Events() {
 			if stop.Triggered(ev) {

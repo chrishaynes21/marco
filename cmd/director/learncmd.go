@@ -23,7 +23,19 @@ import (
 //	director learn "open downloads" --window-id window_37
 //	director learn                                          # what is happening now
 //	director learn --watch                                  # the evidence underneath
-//	director learn --stop                                   # end it; nothing is kept
+//	director learn --finish                                 # that was the demonstration; keep it
+//	director learn --cancel                                 # abandon it; nothing is kept
+//
+// # Two endings, and they used to share a word
+//
+// `--stop` meant abandon here, and the Stop button on Marco's own control centre meant FINISH —
+// one word, two of Marco's surfaces, opposite consequences. Somebody who learned the word in one
+// place lost their demonstration in the other, and it would have looked like it worked.
+//
+// The word "stop" is the ABORT word, globally and everywhere: a bare "stop" during a Learn episode
+// means cancel, never finish. So the two operations ADR-066 keeps separate now have names that
+// say which is which, and `--stop` survives only as an alias for `--cancel` — the meaning it
+// already had here, so no script changes. `--finish` is the one you want after a demonstration.
 //
 // The quoted phrase is what the USER wants the behaviour called. It is not a claim about what
 // happened — Director still has to establish where you started, observe what you did, recognise
@@ -53,7 +65,16 @@ func runLearn(args []string) int {
 	verb := fs.String("verb", "", "what it does, e.g. Open")
 	dry := fs.Bool("dry", false, "rehearse against a recording host; nothing reaches the computer")
 	watch := fs.Bool("watch", false, "show the evidence underneath, not only the plain reading")
-	stop := fs.Bool("stop", false, "end the learn session; nothing partial is kept")
+	// THE TWO ENDINGS, under names that say which is which. See the note at the top of this
+	// file for what one shared word cost.
+	cancel := fs.Bool("cancel", false,
+		"abandon the learn session; nothing from the demonstration is kept")
+	finish := fs.Bool("finish", false,
+		"that was the whole demonstration — keep it and carry on from what was seen")
+	// The muscle memory the product shipped with, kept working and kept honest. It means what
+	// it has always meant HERE, which is cancel; the help says so rather than leaving somebody
+	// to find out. Deleting the alias must fail TestStopOnTheCommandLineStillMeansCancel.
+	stop := fs.Bool("stop", false, "alias for --cancel (\"stop\" is the abort word)")
 	jsonOut := fs.Bool("json", false, "print as JSON")
 	follow := fs.Bool("follow", true, "keep printing until the session ends")
 	hold := fs.Duration("hold", 6*time.Second,
@@ -69,10 +90,15 @@ func runLearn(args []string) int {
 	}
 	defer client.Close()
 
+	// `--stop` IS `--cancel`, resolved once, here, so nothing below this line has to know
+	// there are two spellings. See learnEnding.
+	abandon, keep := learnEnding(*cancel, *finish, *stop)
+	ending := abandon || keep
+
 	// ONE acquisition request, configured for a person at a terminal: no Surface, so the
 	// session.s own account comes back rather than the control surface's.
-	q := service.ObserveLearn{Evidence: *watch, Cancel: *stop}
-	if name != "" && !*stop {
+	q := service.ObserveLearn{Evidence: *watch, Cancel: abandon, Finish: keep}
+	if name != "" && !ending {
 		q.Name, q.Actor, q.Verb, q.Dry = name, *actor, *verb, *dry
 		q.Target = windowref.Selector{
 			EphemeralID: *windowID, Title: *title,
@@ -107,7 +133,7 @@ func runLearn(args []string) int {
 	// stays the outcome's name in the person's own words; this is the sentence a saved play
 	// would become, derived from it — visible so it can be corrected rather than discovered
 	// at the end.
-	if name != "" && !*stop && view.WillBeCalled != "" {
+	if name != "" && !ending && view.WillBeCalled != "" {
 		fmt.Printf("If this works out I'll write it down as `do %s`.\n"+
 			"  (say it your way with --actor and --verb)\n\n", view.WillBeCalled)
 	}
@@ -116,7 +142,12 @@ func runLearn(args []string) int {
 	defer shown.close()
 	shown.print(view)
 	asked := ""
-	if !*follow || *stop || view.Settled {
+	// An ABANDONED session has nothing left to say, so there is nothing to follow. A FINISHED
+	// one has everything left to say — establishing the destination, building the
+	// demonstration, assessing the candidate all still run on what was seen — so following
+	// continues and the person watches their demonstration become a play. That asymmetry is
+	// ADR-066's whole point and it would be lost by treating the two endings alike.
+	if !*follow || abandon || view.Settled {
 		printLearnFooter(view, &asked)
 		return 0
 	}
@@ -348,4 +379,29 @@ func printLearnFooter(v learnSessionView, asked *string) {
 				"able to:\n  director learned --register --name <name>")
 		}
 	}
+}
+
+// learnEnding turns the three flags into the two operations there actually are.
+//
+// # Why a function, and why it takes the alias explicitly
+//
+// ADR-066 keeps Cancel and Finish apart on purpose: "routing one to the other silently destroys a
+// demonstration a person has just given — and it would look like it worked". Two operations, three
+// spellings, and one of the spellings is the word the product reserves for aborting — so the map
+// between them is worth being able to read in one place and worth being able to test without a
+// service, a session or a person demonstrating anything.
+//
+// `--stop` folds into cancel. It is the meaning it always had on this command line, so nothing a
+// script does changes; what changes is that a person reading `--help` is told which of the two
+// things they are about to do.
+//
+// CANCEL WINS a request for both. Somebody who typed the abort word and the keep word together has
+// contradicted themselves, and the safe reading of a contradiction is the one that does not act:
+// nothing is kept, and they can demonstrate again. Keeping a demonstration somebody may have meant
+// to abandon is the failure that cannot be undone.
+//
+// Deleting the alias must fail TestStopOnTheCommandLineStillMeansCancel.
+func learnEnding(cancel, finish, stop bool) (abandon, keep bool) {
+	abandon = cancel || stop
+	return abandon, finish && !abandon
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
 	"github.com/chaynes-simpleclouds/marco/internal/plays"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
+	"github.com/chaynes-simpleclouds/marco/internal/stopsignal"
 )
 
 // The one intake. Every entrance arrives here, and nothing decides meaning anywhere else.
@@ -174,20 +175,69 @@ func directorPending() bool {
 	return st.Clarification != nil
 }
 
-// runControl stops whatever is running.
+// runControl is THE ONE STOP, and it has two arms because Marco drives the desktop from two
+// processes.
 //
-// It reaches the ACTIVE EXECUTION AUTHORITY — the Director's running command — rather than
-// interpreting anything. A front-end may also have killed a child it spawned for immediacy; that
-// is a local courtesy and this is the part that is authoritative.
+// # Why one arm was not enough
+//
+//	(a) stopsignal.Raise   every marco Play running against this store, wherever it was started
+//	(b) directorStop       the Director's own active command, and whatever it is holding open
+//
+// It used to be (b) alone. That reached a LEARNED play, because a learned play is performed inside
+// the Director service — and reached nothing at all for every other kind, because those run in a
+// short-lived `marco` child that nothing in the engine could name. A play typing into a text box
+// could not be stopped by saying "stop": the word arrived, the Director said "nothing to stop, I
+// am not running", and the typing carried on. The overlay papered over it by KILLING the child it
+// had spawned, which stops the process without unwinding it — no `finally`, so a held key stays
+// held — and did nothing whatsoever for a play started from a terminal or a hotkey.
+//
+// # Both arms run, always, and neither may skip the other
+//
+// There is no early return in this function on purpose. The two arms reach two different
+// populations and a failure of one says nothing about the other: a disk that refused the write
+// must not stop the Director being told, and a Director that is not running must not stop the
+// local broadcast going out. Deliberately sequential and deliberately unconditional.
+//
+// Arm (a) goes first because it is the one holding the keyboard down.
+//
+// # What it reports, and why "unavailable" is nearly never right
+//
+// `unavailable` means NOBODY TOOK IT — the request was never delivered and a caller may sensibly
+// try something else. A raised generation IS a delivery: it is published where every running Play
+// is already looking, and whether one happened to be running is not knowable and not the point.
+// Stop is a broadcast and broadcasts do not get receipts, so the ordinary case — Director off, a
+// local Play stopped — is `cancelled`. Reporting `unavailable` there would tell the overlay that
+// nothing had heard the word at the exact moment something had.
+//
+// So `unavailable` is reserved for the one honest case: the broadcast could not even be published
+// AND the Director could not be reached either. Then, and only then, was the word not delivered
+// anywhere.
+//
+// Deleting the stopsignal.Raise arm must fail TestOneStopReachesALocalPlayAndTheDirector.
 func runControl() Outcome {
-	switch stopWhatIsRunning(false) {
-	case exitOK:
+	// ARM (a) — every Play running against this store, in whatever process started it.
+	home := stopsignal.Home()
+	raiseErr := stopsignal.Raise(home)
+	if raiseErr != nil {
+		// Logged and carried, never returned early: arm (b) is still owed its turn.
+		mlog.Error("intake: the stop could not be published to local plays",
+			"home", home, "err", raiseErr)
+	}
+
+	// ARM (b) — the ACTIVE EXECUTION AUTHORITY. A front end may also have killed a child it
+	// spawned for immediacy; that is a local courtesy and this is the part that is authoritative.
+	code := stopWhatIsRunning(false)
+
+	switch {
+	case raiseErr == nil:
+		// The word went out where every running Play is looking. That is a delivery.
 		return OutcomeCancelled
-	case exitUnavailable:
+	case code == exitUnavailable:
+		// Neither arm delivered anything. Nothing heard it, and saying so is the only honest
+		// answer left.
 		return OutcomeUnavailable
 	default:
-		// Nothing was running to stop. Saying so honestly is better than reporting a
-		// cancellation that cancelled nothing.
+		// The broadcast failed but the Director was reached, so the word did land somewhere.
 		return OutcomeCancelled
 	}
 }

@@ -11,6 +11,7 @@ import (
 
 	"github.com/chaynes-simpleclouds/marco/internal/bridgehost"
 	"github.com/chaynes-simpleclouds/marco/internal/invoke"
+	"github.com/chaynes-simpleclouds/marco/internal/mlog"
 	"github.com/chaynes-simpleclouds/marco/internal/nlu"
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
 	"github.com/chaynes-simpleclouds/marco/internal/oshost"
@@ -69,11 +70,12 @@ func newDeps() orchestrator.Deps {
 	// honest answer for a machine that cannot act on a target; leaving the act unfulfilled
 	// would make the same situation look like a broken program.
 	var accessibility runtime.Host
-	if uia := accessibilityBridge(); uia != "" {
+	uia := accessibilityBridge()
+	if uia != "" {
 		accessibility = bridgehost.New(uia)
 		hosts["Accessibility"] = accessibility
 	}
-	hosts["Theater"] = newTheaterHost(hosts, accessibility)
+	hosts["Theater"] = newTheaterHost(hosts, accessibility, uia)
 	d := orchestrator.Deps{
 		Reg:     routes.Registry{Dir: routesDir()},
 		Rec:     recorder.New(),
@@ -516,11 +518,28 @@ func runAssistantLearn(args []string) {
 	}
 }
 
-// runArgs prints the full, ordered argument labels of the play a phrase resolves
-// to, one per line — the overlay weaves them into the "with" clause as colored
-// hints in front of each value (so "say hello with chris" reads "with name: chris").
-// Prints nothing (and exits 0) when there's no confident match or no args, so a
-// front-end treats empty as "no hint".
+// runArgs prints the full, ordered argument labels of the play a phrase names, one per line.
+//
+// The overlay weaves them into the "with" clause as coloured hints in front of each value, so
+// "say hello with chris" reads "with name: chris". Printing nothing is a legitimate answer and
+// means "no hint" — a front end reading an empty stdout simply offers none.
+//
+// # The hint has to agree with the door
+//
+// This used to run `nlu.Resolve` at 0.75 and read the arguments of whatever came back, so the HUD
+// would offer argument hints for a play the intake would then refuse to run: the person was shown
+// "with name:" while typing, filled it in, pressed Enter, and got "no play matches". A hint that
+// describes a different play from the one that will run is worse than no hint, because it reads
+// as confirmation that Marco understood.
+//
+// So it resolves exactly, which is what `invoke.Decide` arm four does with the same words. If the
+// two ever disagree again the HUD starts lying, quietly, while typing.
+//
+// The miss goes to the log rather than to stdout, because stdout here is a LIST OF LABELS and a
+// sentence in it would be read as an argument called "I don't know". The overlay captures stdout
+// only (`exec.Command(...).Output()`), so there is nowhere else for a word to a person to go.
+//
+// Deleting the exact resolve must fail TestArgumentHintsDescribeThePlayThatWouldRun.
 func runArgs(cliArgs []string) {
 	phrase := strings.TrimSpace(strings.Join(cliArgs, " "))
 	if phrase == "" {
@@ -528,12 +547,10 @@ func runArgs(cliArgs []string) {
 	}
 	d := newDeps()
 	base, _, _ := routes.ParseInvocation(phrase)
-	target := base
-	if m := nlu.Resolve(base, d.Reg.Slugs()); m.Route != "" && (m.Exact || m.Score >= 0.75) {
-		target = m.Route
-	}
-	rt, ok := d.Reg.Resolve(appOf(d), target)
+	rt, ok, suggestion := resolveExactly(d, base)
 	if !ok {
+		mlog.Info("args: no play answers to those words", "phrase", base,
+			"nearest", suggestion)
 		return
 	}
 	src, err := os.ReadFile(d.Reg.Path(rt))
@@ -563,6 +580,35 @@ func runNarrateLearn(name string) error {
 	return newDeps().LearnVoice(name, voicelearn.NewOSEnv(), phrases, nil)
 }
 
+// runAssistantSimplify re-simplifies ONE named play, and it is the play the person named.
+//
+// # The fuzzy match this used to do, and what it cost
+//
+// It ran `nlu.Resolve` at a 0.75 score and simplified whatever came back, with a comment claiming
+// the "same confident-match rule as `do`". That rule stopped existing when Phase 2 took the
+// matcher out of the intake — so the comment was describing a sibling that had already been
+// removed, which is exactly how a guess survives an audit.
+//
+// And this is the worst possible place for one, because simplify does not merely PERFORM the play
+// it picked: it rewrites the play's source in place. With "open settings" and "open the settings"
+// both registered, `marco simplify "open settings"` could overwrite the other one, silently, and
+// the only record of what had been there was the file it had just replaced. `marco do` guessing
+// wrong wastes a few seconds; this guessing wrong destroys somebody's work. The overlay offers
+// `simplify` as a command word (plugins/overlay/acts.go), so it was one typed phrase away.
+//
+// So it resolves EXACTLY, the way the intake does. `routes.Slug` already folds case, punctuation
+// and runs of whitespace onto one durable identity, which is all the generosity a lookup that
+// rewrites a file may have.
+//
+// # A near miss may SUGGEST and may not decide
+//
+// The matcher is still here and still useful — for the one job a guess is allowed to do, which is
+// to say "did you mean". It names a possibility to a person who can accept or ignore it; it never
+// picks the file. That line is the whole of the difference between a helpful assistant and one
+// that quietly edits the wrong thing.
+//
+// Deleting the exact resolve, or letting the suggestion decide, must fail
+// TestSimplifyRewritesOnlyThePlayItWasAskedFor.
 func runAssistantSimplify(args []string) {
 	name := strings.TrimSpace(strings.Join(args, " "))
 	if name == "" {
@@ -570,16 +616,51 @@ func runAssistantSimplify(args []string) {
 		os.Exit(2)
 	}
 	d := newDeps()
-	// Reuse an existing play for a close phrasing instead of failing on the
-	// exact words (same confident-match rule as `do`).
-	target := name
-	if m := nlu.Resolve(name, d.Reg.Slugs()); m.Route != "" && (m.Exact || m.Score >= 0.75) {
-		target = m.Route
+	if _, ok, suggestion := resolveExactly(d, name); !ok {
+		fmt.Fprintln(os.Stderr, unknownPlay(name, suggestion))
+		os.Exit(1)
 	}
-	if err := d.SimplifyRoute(target); err != nil {
+	if err := d.SimplifyRoute(name); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+// resolveExactly is the lookup the intake makes, for the commands that are not the intake.
+//
+// Two of them used to guess — `marco simplify`, which rewrites a play, and `marco args`, which
+// tells the HUD what a play takes — and each carried its own copy of a 0.75-score threshold. Two
+// copies of a rule the door itself no longer had is how the product came to have a matcher in
+// front of a lookup that had been made exact precisely so it would not need one.
+//
+// It returns three things, and the third is deliberately not the second: the play, whether there
+// IS one, and — only on a miss — the near neighbour worth SUGGESTING. A caller may show the
+// suggestion to a person. No caller may use it as the answer.
+func resolveExactly(d orchestrator.Deps, name string) (routes.Route, bool, string) {
+	rt, ok := d.Reg.Resolve(appOf(d), name)
+	if ok {
+		return rt, true, ""
+	}
+	// Only now, and only to say it out loud. `Exact` cannot be true here — an exact match is
+	// what just failed — so this is a genuine near miss or nothing.
+	if m := nlu.Resolve(name, d.Reg.Slugs()); m.Route != "" && m.Score >= 0.75 {
+		return routes.Route{}, false, plays.Pretty(m.Route)
+	}
+	return routes.Route{}, false, ""
+}
+
+// unknownPlay is what a person is told when the name they gave matches nothing.
+//
+// It deliberately does NOT use the intake's `no play matches ` prefix. That spelling is protocol:
+// plugins/overlay prefix-matches it to decide that a request nobody could take should become an
+// offer to LEARN a new play. Offering to record a demonstration to somebody who asked to simplify
+// a play they already have would be an answer to a question they did not ask.
+func unknownPlay(name, suggestion string) string {
+	if suggestion != "" {
+		return fmt.Sprintf("I don't know %q — did you mean %q? (`marco plays` lists them)",
+			name, suggestion)
+	}
+	return fmt.Sprintf("I don't know %q (`marco plays` lists them)", name)
 }
 
 // runAssistant is the interactive loop: each line is interpreted as a command.

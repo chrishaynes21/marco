@@ -17,6 +17,8 @@ import (
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/intent"
 	"github.com/chaynes-simpleclouds/marco/internal/invoke"
+	"github.com/chaynes-simpleclouds/marco/internal/outcome"
+	"github.com/chaynes-simpleclouds/marco/internal/stopsignal"
 )
 
 // The overlay is a bidirectional bridge host (see ../../spec/Hosts.md): it reads
@@ -180,7 +182,7 @@ func dispatch(h *model, req request) response {
 		// "learn <name>" records a new route IN-PLACE (no console window): the SAME
 		// interactive learn as the CLI. Demonstrate, press the leader to finish; the engine
 		// streams its save / scope / simplify prompts into the HUD and the controller
-		// answers them with a single y/n/s keypress (see runTeachInteractive).
+		// answers them with a single y/n/s keypress (see runLearnInteractive).
 		// LEARN is the word a person types; `teach` still answers, undocumented, because it is
 		// what they have been typing. TEACH is reserved for Marco guiding a person.
 		//
@@ -234,17 +236,21 @@ func dispatch(h *model, req request) response {
 		// would be a second answer to "did they say stop", and the two would drift the
 		// first time a word was added to either.
 		//
-		// Recognising it locally kills the child NOW, so a long play stops the moment the
-		// word lands instead of after a process spawn and a socket dial. The phrase still
-		// goes through the intake, because that is what reaches the Director — the thing
-		// actually driving a learned play, which treats a dropped client as "the work
-		// continues". This local half decides nothing: it cannot route, refuse or consume
-		// the phrase.
+		// Recognising it locally stops the running play NOW, so a long play stops the
+		// moment the word lands instead of after a process spawn and a socket dial. The
+		// phrase still goes through the intake, because that is what reaches the Director
+		// — the thing actually driving a learned play, which treats a dropped client as
+		// "the work continues". This local half decides nothing: it cannot route, refuse
+		// or consume the phrase.
 		//
-		// Deleting this must fail TestASpokenStopKillsTheChildImmediately.
+		// It ASKS before it insists. See stopRunningPlays: the difference between asking
+		// and killing is the difference between a released key and one still held down on
+		// the desktop after the thing holding it has gone.
+		//
+		// Deleting this must fail TestASpokenStopReachesTheRunningPlayImmediately.
 		if intent.IsControlPhrase(name) {
-			mlogI("overlay: control phrase — cancelling locally too", "phrase", name)
-			killChildRun()
+			mlogI("overlay: control phrase — stopping locally too", "phrase", name)
+			stopRunningPlays()
 		}
 
 		h.setStatus("running: " + name)
@@ -364,12 +370,29 @@ func startUI(h *model, view string) {
 }
 
 // launchUI spawns the control center detached, replacing any prior instance so ports don't stack.
+//
+// # Why a browser server needs the hook guard
+//
+// This was the ONE overlay spawn that did not set MARCO_NO_PANIC_STOP, and the gap was not
+// harmless because the control centre is not a leaf. It serves a page with a Run button, and a
+// clicked Run makes `cmd/marco/edit.go` spawn a play — inheriting this environment. So the
+// GRANDCHILD installed its own WH_KEYBOARD_LL and WH_MOUSE_LL underneath the overlay's live hook,
+// while the play it was running injected input through them. Dueling low-level hooks are a
+// load-bearing invariant in CLAUDE.md: Windows drops a hook whose thread is slow to answer, and
+// the symptom is the leader key quietly ceasing to work rather than anything that looks like a
+// crash.
+//
+// The overlay owns the global hook for the whole desktop. Every child it starts is told so, and
+// this one had been missed because it is spawned by a different function from the other three.
+//
+// Deleting the environment must fail TestTheControlCentreIsSpawnedUnderTheHookGuard.
 func launchUI(h *model, args []string, note string) {
 	editMu.Lock()
 	if editCmd != nil && editCmd.Process != nil {
 		_ = editCmd.Process.Kill()
 	}
 	cmd := exec.Command(marcoBin(), args...)
+	cmd.Env = append(os.Environ(), "MARCO_NO_PANIC_STOP=1")
 	if err := cmd.Start(); err != nil {
 		editMu.Unlock()
 		mlogE("overlay: ui failed to start", "err", err)
@@ -383,12 +406,38 @@ func launchUI(h *model, args []string, note string) {
 	go func() { _ = cmd.Wait() }() // reap when the user closes it
 }
 
-// runState tracks the in-flight CLI child so a stop key can cancel it.
+// runs is every marco child the overlay currently has in flight, and whether a stop has
+// already been asked of it. See trackRun for why it is all of them and not one.
 var (
-	runMu       sync.Mutex
-	runCmd      *exec.Cmd
-	runCanceled bool
+	runMu sync.Mutex
+	runs  = map[*exec.Cmd]bool{}
 )
+
+// stopGrace is how long a child gets to stop ITSELF before the overlay stops being polite.
+//
+// # What the number has to cover
+//
+// Up to one `stopsignal.PollInterval` (100ms) for the child to notice the raised
+// generation, and then an honest unwind: cancel the frame tree, run `finally`, release a
+// held key, put a held mouse button down. Those are single FFI calls costing milliseconds
+// each. Two seconds is more than an order of magnitude of headroom on a loaded machine.
+//
+// # Why not the runtime's own five seconds
+//
+// `internal/runtime`'s cleanupBudget is 5s, and this being shorter is deliberate rather
+// than an oversight. That budget bounds a WEDGED `finally` before abandoning it where it
+// stands; a wedged cleanup is exactly the case where somebody who pressed stop wants the
+// process gone rather than politely waited for. Waiting out another program's worst case
+// is how "stop" turns into "hang".
+//
+// Both directions of the error are real and neither is subtle. Too short and this is the
+// old kill wearing a delay: the child is terminated mid-unwind and the key stays down,
+// which is the whole defect. Too long and a child that cannot hear us carries on typing
+// while the person watches it. Somebody who does not want to wait says stop again — the
+// second one does not wait (see stopRunningPlays).
+//
+// A var only so a test does not have to wait in real time; production never sets it.
+var stopGrace = 2 * time.Second
 
 // Interactive-prompt plumbing (no longer named for one subcommand: it now
 // serves ANY subcommand's prompts — learn save/scope/simplify, a `forget` delete
@@ -413,7 +462,7 @@ func writePromptAnswer(s string) {
 }
 
 // Voice-learn plumbing: while voiceActive, the dispatcher pipes each phrase to the
-// `marco teach --voice` child's stdin (one phrase per line) instead of running it.
+// `marco learn --narrate` child's stdin (one phrase per line) instead of running it.
 var (
 	voiceMu     sync.Mutex
 	voicePipe   io.WriteCloser
@@ -453,7 +502,7 @@ func writeVoicePhrase(phrase string) {
 	}
 }
 
-// runNarrateLearn runs `marco teach --narrate <name>`, feeding it the phrases the
+// runNarrateLearn runs `marco learn --narrate <name>`, feeding it the phrases the
 // dispatcher forwards (writeVoicePhrase) — typed or spoken — and streaming its
 // per-step status into the HUD. The child saves on "done" / discards on "cancel"
 // and exits, which ends the session here. Mirrors streamChild but with the
@@ -529,23 +578,26 @@ const noPlayMatches = "no play matches "
 // whether the process errored or was killed here. The two announced lines are the whole
 // reason this returns a struct — the outcome is read, not guessed from an exit code.
 //
-// trackCancel registers the child so the leader key can kill it — on for runMarco's
-// commands, off for learn (the recorder owns F12 instead) and off for a control phrase,
-// which is the thing doing the cancelling.
+// trackCancel registers the child so a stop can reach it — on for runMarco's commands, off
+// for learn (the recorder owns F12 instead) and off for a control phrase, which is the
+// thing doing the cancelling.
 func streamChild(h *model, trackCancel bool, args ...string) childRun {
 	cmd := exec.Command(marcoBin(), args...)
 	// NO_PANIC_STOP: the overlay owns the global hook (dueling LL hooks + a route's
-	// injected input deadlock). NO_TEACH: an unknown `do` errors instead of dropping
-	// into learn-on-unknown. SIMPLIFY_SAVES: learn's [s] simplifies AND saves (the
-	// HUD can't show the preview to re-confirm). All harmless to non-learn commands.
-	cmd.Env = append(os.Environ(), "MARCO_NO_PANIC_STOP=1", "MARCO_NO_TEACH=1", "MARCO_SIMPLIFY_SAVES=1")
-	// BOTH SPELLINGS, because this guard is about what the CHILD is doing, not about which
-	// word reached the overlay. The verb the overlay spawns became `learn`, and a guard still
-	// testing for `teach` silently stopped setting the stop key — so the leader key would have
-	// stopped ending a demonstration, with nothing failing to say so.
+	// injected input deadlock). SIMPLIFY_SAVES: learn's [s] simplifies AND saves (the
+	// HUD can't show the preview to re-confirm). Both harmless to the other subcommands.
+	cmd.Env = append(os.Environ(), "MARCO_NO_PANIC_STOP=1", "MARCO_SIMPLIFY_SAVES=1")
+	// THE GUARD NAMES THE VERB THE OVERLAY SPAWNS, and nothing else. It is about what the
+	// CHILD is doing, not about which word a person typed into the HUD: `teach` is still
+	// accepted up there as an alias, and it becomes `learn` before it ever reaches here.
 	//
-	// Deleting the "learn" arm must fail TestALearnChildIsGivenTheStopKey.
-	if len(args) > 0 && (args[0] == "learn" || args[0] == "teach") {
+	// It once tested `args[0] == "teach"` alone. When the spawned verb became `learn` the
+	// guard silently stopped matching, the child no longer got the stop key, and the leader
+	// key would have stopped ending a demonstration — with nothing failing to say so,
+	// because the variable is read by a different process in a different module.
+	//
+	// Deleting this must fail TestALearnChildIsGivenTheStopKey.
+	if len(args) > 0 && args[0] == "learn" {
 		// The leader key stops the demo. The overlay passes it through while recording so
 		// it reaches the recorder's stop detection (see handleKey's recording gate).
 		cmd.Env = append(cmd.Env, "MARCO_STOP_KEY="+cfgLeader())
@@ -596,16 +648,16 @@ func streamChild(h *model, trackCancel bool, args ...string) childRun {
 			// "[result] " is the same kind of line and says what BECAME of it. Both are
 			// consumed rather than logged: they are for this program, not for a person
 			// reading the HUD, which renders the outcome as its own row.
-			if v, ok := strings.CutPrefix(s, resultPrefix); ok {
+			if v, ok := strings.CutPrefix(s, outcome.ResultPrefix); ok {
 				result = strings.TrimSpace(v)
 				return
 			}
 			// Unknown-`do` error: the overlay offers to learn instead (see the `do`
 			// dispatch branch), so don't also log the raw engine error. Matched on the
-			// do-specific hint so a failed `bind`/etc. still surfaces its own error. Both
-			// spellings are accepted: the engine says `marco learn`, older builds said `marco teach`.
-			if strings.HasPrefix(s, noPlayMatches) &&
-				(strings.Contains(s, "marco learn") || strings.Contains(s, "marco teach")) {
+			// do-specific hint so a failed `bind`/etc. still surfaces its own error. The
+			// hint is the engine's own wording — `marco learn` — and the two modules ship
+			// together, so there is one spelling to match rather than a history of them.
+			if strings.HasPrefix(s, noPlayMatches) && strings.Contains(s, "marco learn") {
 				return
 			}
 			// A LONG COMMAND HAS TO BE LEGIBLE WHILE IT RUNS. The Director's rendered
@@ -643,79 +695,191 @@ func streamChild(h *model, trackCancel bool, args ...string) childRun {
 		}
 	}()
 
+	// START, THEN REGISTER, THEN WAIT — rather than `cmd.Run()` with the registration
+	// before it. Two reasons, and the second one is a real bug the first was hiding.
+	//
+	// `Run` is Start followed by Wait, so registering before it published a *exec.Cmd whose
+	// .Process field was still nil and was about to be written by this goroutine while the
+	// action loop read it. That is a data race on the one field the stop path dereferences.
+	//
+	// And it was a race with a consequence, not only a theoretical one: a stop that landed
+	// in that window found a nil Process and did nothing at all, so the very first instant
+	// of a play — the instant somebody who mis-spoke wants back — was the instant a stop
+	// was silently dropped. Registering after Start closes both.
+	if err := cmd.Start(); err != nil {
+		pw.Close()
+		<-done
+		return childRun{err: err}
+	}
 	if trackCancel {
-		claimRunSlot(cmd)
+		trackRun(cmd)
 	}
 
-	err = cmd.Run()
+	err = cmd.Wait()
 	pw.Close()
 	<-done
 
-	killed := false
+	stopped := false
 	if trackCancel {
-		killed = releaseRunSlot(cmd)
+		stopped = untrackRun(cmd)
 	}
-	return childRun{err: err, killed: killed, route: route, result: result}
+	return childRun{err: err, killed: stopped, route: route, result: result}
 }
 
-// claimRunSlot and releaseRunSlot are the cancellable-run registration.
+// trackRun and untrackRun are the in-flight-child registration.
 //
-// There is ONE slot, and that is deliberate: the leader key cancels "the thing that is
-// running", and a person who presses it means the most recent thing they started.
+// # Why every child, and not one slot
 //
-// # Why release checks that the slot is still ours
+// This used to be a single slot, overwritten unconditionally. The reasoning was that the
+// leader key cancels "the thing that is running" and a person means the most recent thing
+// they started — but dispatch is asynchronous for typed AND spoken input by design (see
+// intake.go), so two invocations a second apart are both really running, and the second
+// one's claim erased the first one's handle. That child then existed with its handle in
+// nobody's hand: nothing could reach it, and `isRunning` reported the truth about only one
+// of the two things driving the desktop.
 //
-// Because dispatch is asynchronous for BOTH sources now, a second invocation can start
-// while the first is still going — which is the whole reason it is asynchronous. Without
-// the check, the child that finished FIRST would clear a LATER child's registration, and
-// the leader key would then find nothing to cancel while something was plainly still
-// running: it would open the command line instead of stopping the desktop.
+// The other honest option was to REFUSE a second invocation while one is running. That is
+// the wrong place for a refusal. What happens to a request is the door's decision
+// (internal/invoke), and a front end quietly dropping one would be a second router — the
+// exact defect this phase removed from the spoken path. It also refuses things a person
+// legitimately wants: start a long play, then ask Director something while it runs.
 //
-// Deleting the identity check must fail TestAFinishedChildDoesNotDeregisterALaterOne.
-func claimRunSlot(cmd *exec.Cmd) {
+// So: track them all. That is also what the word now MEANS. The graceful half of a stop is
+// a broadcast (see stopRunningPlays), so one stop already ends every play running against
+// this store whether the overlay holds its handle or not; a registration naming only the
+// newest child would describe something narrower than the word does.
+//
+// # What the registration is still for, now that the broadcast does the main job
+//
+//   - the timeout fallback needs a handle to terminate a child that did not hear us;
+//   - `isRunning` makes the leader key the panic key, and it must be true while ANY child
+//     is in flight, not only the newest — otherwise the key opens the command line while
+//     something is plainly still running;
+//   - the value remembers that a stop was asked of THIS child, so a death without an
+//     announced `[result] ` renders as cancelled rather than failed.
+//
+// Deleting the map (going back to one slot) must fail TestASecondRunDoesNotStrandTheFirst.
+func trackRun(cmd *exec.Cmd) {
 	runMu.Lock()
 	defer runMu.Unlock()
-	runCmd, runCanceled = cmd, false
+	runs[cmd] = false
 }
 
-// releaseRunSlot gives the slot back and reports whether THIS child was the one killed.
-func releaseRunSlot(cmd *exec.Cmd) bool {
+// untrackRun deregisters a finished child and reports whether a stop had been asked of it.
+func untrackRun(cmd *exec.Cmd) bool {
 	runMu.Lock()
 	defer runMu.Unlock()
-	if runCmd != cmd {
-		return false
-	}
-	killed := runCanceled
-	runCmd = nil
-	return killed
+	stopped := runs[cmd]
+	delete(runs, cmd)
+	return stopped
 }
 
-// runTeachInteractive runs `marco teach <name>` interactively (the recorder owns
+// runLearnInteractive runs `marco learn <name>` interactively (the recorder owns
 // F12, so no Esc-cancel); its save/scope/simplify prompts are answered in the HUD.
-func runTeachInteractive(h *model, name string) error {
+func runLearnInteractive(h *model, name string) error {
 	return streamChild(h, false, "learn", name).err
 }
 
-// killChildRun kills the in-flight child, if any, marking it cancelled (vs failed).
+// stopRunningPlays is the LOCAL half of one stop: it asks, and only then insists.
 //
-// This is HALF a cancellation: it is the immediate, local half. It stops the process the
-// overlay spawned, which for an ordinary play IS the thing performing — and for a learned
-// play is only a client holding a socket.
-func killChildRun() {
-	runMu.Lock()
-	defer runMu.Unlock()
-	if runCmd != nil && runCmd.Process != nil {
-		runCanceled = true
-		_ = runCmd.Process.Kill()
+// # This used to be a kill, and that is why a key stayed down
+//
+// It was `Process.Kill`. TerminateProcess runs no deferred function, so the child's
+// ReleaseHeld and its cursor restore never ran: stop a play mid-keystroke and the key
+// stayed down on the desktop after the thing holding it had gone. Every other cancellation
+// route in the product had been given a graceful path; this one — the one an Audience
+// actually uses — still killed.
+//
+// # The two halves, in this order
+//
+//  1. RAISE THE STOP GENERATION. This is a cancellation rather than a kill: a play watching
+//     the generation cancels its frame tree, stops driving the desktop, unwinds through
+//     `finally`, and the host releases what it was holding. It is also the ONLY half that
+//     reaches a child the overlay has no handle on — a `marco do` somebody started in a
+//     terminal, or the grandchild a clicked Run spawns out of the control centre.
+//  2. ARM THE FALLBACK. A child that cannot hear the signal — an older marco.exe with no
+//     watcher, or one wedged in a blocking host call — must still die, or "stop" becomes
+//     "nothing happened". So each tracked child gets stopGrace and is terminated if it is
+//     still there afterwards.
+//
+// A SECOND STOP DOES NOT WAIT. If a child has already been asked once and the person says
+// stop again, they have watched the polite path not work and they mean it; waiting out a
+// second grace period would be the overlay insisting it knows better.
+//
+// Deleting the raise must fail TestAStopAsksTheStoreBeforeItKillsAnything.
+func stopRunningPlays() {
+	// The broadcast first, and synchronously. It is one small file write, it is off the
+	// hook thread (the hook pushes an action; see intake.go), and it has to be ordered
+	// BEFORE the grace period starts or the grace is being counted from before anybody was
+	// asked anything.
+	if err := stopsignal.Raise(stopsignal.Home()); err != nil {
+		// A store we cannot write to means the graceful half will not arrive at all. Say so
+		// in the log, and carry on to the fallback, which is now the only thing that will
+		// stop anything.
+		mlogW2("overlay: could not raise the stop signal", "err", err)
 	}
+
+	runMu.Lock()
+	var impatient, asked []*exec.Cmd
+	for cmd, alreadyAsked := range runs {
+		if alreadyAsked {
+			impatient = append(impatient, cmd)
+			continue
+		}
+		runs[cmd] = true
+		asked = append(asked, cmd)
+	}
+	runMu.Unlock()
+
+	for _, cmd := range impatient {
+		terminate(cmd, "asked twice")
+	}
+	if len(asked) == 0 {
+		return
+	}
+	// The grace is read HERE, at the moment of asking, not inside the goroutine. A child is
+	// owed the grace period that was in force when somebody asked it to stop; going back to
+	// the variable later would mean a value changed in between silently retimed a countdown
+	// already running.
+	grace := stopGrace
+	// The waiting happens on its own goroutine because the caller may be the action loop
+	// the HUD draws from, and freezing the window for two seconds is not what stop should
+	// feel like. Nothing waits on this goroutine: a child that stops by itself simply
+	// deregisters and the sweep finds nothing to do.
+	go func() {
+		time.Sleep(grace)
+		runMu.Lock()
+		var deaf []*exec.Cmd
+		for _, cmd := range asked {
+			if _, still := runs[cmd]; still {
+				deaf = append(deaf, cmd)
+			}
+		}
+		runMu.Unlock()
+		for _, cmd := range deaf {
+			terminate(cmd, "did not stop when asked")
+		}
+	}()
 }
 
-// cancelRun is the WHOLE cancellation: kill the child for immediacy, and tell the
-// Director to stop because it is the one that may still be driving the desktop.
+// terminate is the fallback, and it is a named function rather than an inline Kill so that
+// it reads as what it is: the thing this file exists to stop doing by default. Every call
+// says in the log why politeness was abandoned, because a killed child is a child whose
+// `finally` did not run, and somebody debugging a key left held down needs to see that.
+func terminate(cmd *exec.Cmd, why string) {
+	if cmd.Process == nil {
+		return
+	}
+	mlogW2("overlay: terminating a child", "why", why, "pid", cmd.Process.Pid)
+	_ = cmd.Process.Kill()
+}
+
+// cancelRun is the WHOLE cancellation: stop the local plays, and tell the Director to stop
+// because it is the one that may still be driving the desktop.
 //
 // # Why the second half was missing and why it mattered
 //
-// Killing the child looks like it stops everything, and for a recorded play it does. For a
+// Stopping the child looks like it stops everything, and for a recorded play it does. For a
 // learned play the child is a client and the Director is the performer — and the Director
 // deliberately treats a dropped client as "not a cancellation: the work continues", so
 // that a front end which crashed cannot abort a replay. The consequence was that pressing
@@ -724,16 +888,16 @@ func killChildRun() {
 //
 // Deleting the stopTheDirector call must fail TestCancelAlsoStopsTheDirector.
 func cancelRun() {
-	killChildRun()
+	stopRunningPlays()
 	stopTheDirector()
 }
 
-// isRunning reports whether a cancelable route is currently executing, so the
+// isRunning reports whether any cancelable route is currently executing, so the
 // controller can make the leader key the panic/stop key while a route runs.
 func isRunning() bool {
 	runMu.Lock()
 	defer runMu.Unlock()
-	return runCmd != nil
+	return len(runs) > 0
 }
 
 // runRecord runs the command, sets the status, and appends it to the command history with
@@ -758,7 +922,7 @@ func runRecordTracked(h *model, name string, track bool, args ...string) childRu
 		disp = r.route // show the canonical play a loose phrase resolved to
 	}
 	out := r.outcome()
-	h.setStatus(out.status(disp))
+	h.setStatus(statusLine(out, disp))
 	h.log(fmt.Sprintf("%s  %s  %s", out, disp, fmtDur(r.dur)))
 	h.addHistory(disp, string(out), r.dur)
 	return r
@@ -779,7 +943,7 @@ func startLearn(h *model, name string) {
 	recording.Store(true)
 	h.log("recording \"" + name + "\" — demonstrate now, press " + strings.ToUpper(cfgLeader()) + " to save")
 	go func() {
-		err := runTeachInteractive(h, name) // streams prompts; answered in-HUD
+		err := runLearnInteractive(h, name) // streams prompts; answered in-HUD
 		recording.Store(false)
 		h.setLearnSession(false)
 		if err != nil {
@@ -799,10 +963,10 @@ var (
 	pendingPrompt   string
 )
 
-// offerTeach shows an in-HUD "Learn \"name\"? [y]es / [n]o" prompt for an unknown
+// offerLearn shows an in-HUD "Learn \"name\"? [y]es / [n]o" prompt for an unknown
 // command, reusing the prompt answering path (promptAsk). The controller starts
-// a demonstration on yes (see actTeachSubmit) and clears it on no.
-func offerTeach(h *model, name string) {
+// a demonstration on yes (see actPromptSubmit) and clears it on no.
+func offerLearn(h *model, name string) {
 	pendingPromptMu.Lock()
 	pendingPrompt = name
 	pendingPromptMu.Unlock()
@@ -811,8 +975,8 @@ func offerTeach(h *model, name string) {
 	promptAsk.Store(true)
 }
 
-// takePendingTeach returns and clears the pending learn-offer name.
-func takePendingTeach() string {
+// takePendingLearn returns and clears the pending learn-offer name.
+func takePendingLearn() string {
 	pendingPromptMu.Lock()
 	defer pendingPromptMu.Unlock()
 	n := pendingPrompt

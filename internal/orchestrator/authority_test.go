@@ -14,8 +14,21 @@ import (
 
 // Knowing which play the user means, and being allowed to perform it.
 //
-// Until this milestone there was no seam between those two: `Do` resolved a phrase and called
-// `Run` in the same breath. These tests hold the door open and look through it.
+// Until ADR-029 there was no seam between those two: `Deps.Do` resolved a phrase and called
+// `Deps.Run` in the same breath. These tests hold the door open and look through it.
+//
+// # How they enter, and why it changed in Phase 3
+//
+// They used to enter through `Deps.Do`. It had ZERO production callers — and that is the sharp
+// end of it, because this was the densest authority coverage in the repository and it was proving
+// that a dead function honoured the door. `cmd/marco/authoritybypass_test.go` is the standing
+// record of what that costs: a real bypass lived on the shipped `marco do` path while every test
+// here passed, because every test here entered somewhere else.
+//
+// So they now call the PRODUCTION units — `Classify`, then `Authorize`, in that order — which is
+// literally what `cmd/marco/intake.go`'s `performOnePlay` does before anything happens. The `door`
+// helper below is those two calls and nothing else; it deliberately performs nothing, so no test
+// in this file can quietly start depending on a wrapper again.
 
 // ── a world of plays ──────────────────────────────────────────────────────────
 
@@ -95,6 +108,23 @@ func deps(t *testing.T, reg routes.Registry, answer string, gated bool) (
 	return d, host, out
 }
 
+// door is the production sequence, spelled out: which play, then may it run.
+//
+// The same two calls in the same order as `performOnePlay`. It performs NOTHING — which is the
+// property this whole milestone is about, and the reason the helper stops here instead of running
+// the play the way the retired `Deps.Do` did.
+func door(t *testing.T, d orchestrator.Deps, phrase string) (
+	orchestrator.Resolved, orchestrator.Decision) {
+
+	t.Helper()
+	rt, ok := d.Reg.Resolve(d.App(), phrase)
+	if !ok {
+		t.Fatalf("no play answers to %q in %q", phrase, d.App())
+	}
+	r := orchestrator.Classify(d.Reg, rt, phrase)
+	return r, orchestrator.Authorize(r, d.Authority)
+}
+
 // ── THE headline: the Marco Moment, dry ───────────────────────────────────────
 
 // A learned play is resolved, authorized, compiled by the ordinary compiler, and would emit
@@ -102,9 +132,16 @@ func deps(t *testing.T, reg routes.Registry, answer string, gated bool) (
 //
 // # What this proves and what it does not
 //
-// It proves the whole chain from a natural request to the last thing before a computer, with the
-// ONE substitution being which Host was installed. It does not prove anything happened: the host
-// is a notebook, so the honest name for this is a dry path, not a performance.
+// It proves the chain from a phrase to the last thing before a computer, with the ONE substitution
+// being which Host was installed. It does not prove anything happened: the host is a notebook, so
+// the honest name for this is a dry path, not a performance.
+//
+// It also does not prove this is how a learned play reaches a keyboard TODAY. Since Phase 0
+// `performOnePlay` forks: a play with intact learned provenance is performed by the Director,
+// which can see, and everything else runs through the local runner. What survives here is the pair
+// of claims still true of the FILE — the question asked before it, and the operations it would
+// emit — and the wiring claim lives beside `runInvocation`, in `cmd/marco/authoritybypass_test.go`,
+// which drives the real fork.
 //
 // The operations come from the FILE. Nothing here reads a ProcedureCandidate, a rehearsal record
 // or any Director evidence — the play is the only input, which is the whole point of having
@@ -115,8 +152,12 @@ func TestTheMarcoMomentDryPath(t *testing.T) {
 
 	// A fresh orchestrator over a directory path: no session, no proposal, no screen state,
 	// no window generation, no process id. Just the tree.
-	if err := d.Do("volume"); err != nil {
-		t.Fatalf("do: %v", err)
+	r, decision := door(t, d, "volume")
+	if !r.Learned() {
+		t.Fatalf("the fixture resolved as %s/%s", r.Kind, r.Provenance)
+	}
+	if !decision.Allow() {
+		t.Fatalf("an explicit yes was not honoured: %+v", decision)
 	}
 
 	// It asked, in the user's words, without a single backstage term.
@@ -130,8 +171,13 @@ func TestTheMarcoMomentDryPath(t *testing.T) {
 			t.Errorf("the question mentions %q:\n%s", backstage, asked)
 		}
 	}
+	// Asking performed nothing. The notebook is still blank here.
+	if len(host.calls) != 0 {
+		t.Fatalf("putting the question performed %v", host.calls)
+	}
 
 	// And then the ORDINARY runtime performed the play into a notebook.
+	runSavedPlay(t, d, "volume")
 	want := []string{`OS's Navigate with down`, `OS's Navigate with confirm`}
 	if len(host.calls) != len(want) {
 		t.Fatalf("the host was asked for %v, want %v", host.calls, want)
@@ -147,16 +193,19 @@ func TestTheMarcoMomentDryPath(t *testing.T) {
 
 // Resolving a play performs nothing.
 //
-// The seam, held open. `Resolve` answers WHICH play and can be inspected, logged and refused
-// without a host being asked for anything.
+// The seam, held open. `Classify` answers WHICH play and can be inspected, logged and refused
+// without a host being asked for anything. (It answered through `Deps.Resolve` until Phase 3;
+// `Classify` is the function `performOnePlay` actually calls, and `Deps.Resolve` was a wrapper
+// nothing called.)
 func TestResolvingAPlayPerformsNothing(t *testing.T) {
-	reg, _ := world(t, routes.KindLearned, aPlay)
+	reg, rt := world(t, routes.KindLearned, aPlay)
 	d, host, _ := deps(t, reg, "y", true)
 
-	r, ok := d.Resolve("volume")
+	found, ok := d.Reg.Resolve(d.App(), "volume")
 	if !ok {
 		t.Fatal("the play was not resolved")
 	}
+	r := orchestrator.Classify(d.Reg, found, "volume")
 	if !r.Learned() {
 		t.Fatalf("resolved as %s/%s", r.Kind, r.Provenance)
 	}
@@ -164,7 +213,7 @@ func TestResolvingAPlayPerformsNothing(t *testing.T) {
 		t.Fatalf("resolving performed %v", host.calls)
 	}
 	// And there is nothing on the answer that could perform it.
-	if r.Route.Slug != "volume" {
+	if r.Route.Slug != rt.Slug {
 		t.Errorf("resolved to %+v", r.Route)
 	}
 }
@@ -174,21 +223,23 @@ func TestDecliningIsNotTheSameAsNotFinding(t *testing.T) {
 	reg, _ := world(t, routes.KindLearned, aPlay)
 	d, host, out := deps(t, reg, "n", true)
 
-	if err := d.Do("volume"); err != nil {
-		t.Fatalf("declining is not an error: %v", err)
+	r, decision := door(t, d, "volume")
+	if decision.Allow() {
+		t.Fatal("a no was read as a yes")
 	}
 	if len(host.calls) != 0 {
 		t.Fatalf("a declined play performed %v", host.calls)
 	}
-	// The user is not told the play is missing, and not told it is dangerous.
-	said := strings.ToLower(out.String())
+	// The user is not told the play is missing, and not told it is dangerous. Both halves of
+	// what they read are checked — the question, and the sentence `performOnePlay` prints from
+	// the decision — because the refusal wording lives on the decision, not in the prompt.
+	said := strings.ToLower(out.String() + "\n" + decision.Sentence)
 	for _, wrong := range []string{"don't know", "do not know", "unsafe", "refus"} {
 		if strings.Contains(said, wrong) {
-			t.Errorf("declining was reported as %q:\n%s", wrong, out.String())
+			t.Errorf("declining was reported as %q:\n%s", wrong, said)
 		}
 	}
 	// The decision itself keeps the two apart.
-	r, _ := d.Resolve("volume")
 	dec := orchestrator.Authorize(r, declining{})
 	if dec.Verdict != orchestrator.Declined {
 		t.Errorf("verdict = %q", dec.Verdict)
@@ -210,8 +261,14 @@ func TestALearnedPlayIsRefusedWhenThereIsNoWayToAsk(t *testing.T) {
 	reg, _ := world(t, routes.KindLearned, aPlay)
 	d, host, _ := deps(t, reg, "", false) // no Authority wired
 
-	if err := d.Do("volume"); err != nil {
-		t.Fatalf("do: %v", err)
+	_, decision := door(t, d, "volume")
+	if decision.Allow() {
+		t.Fatal("a learned play was allowed with nothing able to ask")
+	}
+	// Refused, not Declined. Marco declining on its own account is not a claim the person
+	// said no, and the two send a front end to different places.
+	if decision.Verdict != orchestrator.Refused {
+		t.Errorf("verdict = %q, want %q", decision.Verdict, orchestrator.Refused)
 	}
 	if len(host.calls) != 0 {
 		t.Fatalf("a learned play ran with nothing able to ask: %v", host.calls)
@@ -230,11 +287,13 @@ func TestEveryKindOfPlayConvergesOnTheOrdinaryRuntime(t *testing.T) {
 		kind      routes.Kind
 		edit      bool
 		expectAsk bool
+		reason    string
 	}{
-		{"authored", routes.KindAuthored, false, false},
-		{"taught", routes.KindTaught, false, false},
-		{"learned", routes.KindLearned, false, true},
-		{"learned then edited", routes.KindLearned, true, false},
+		{"authored", routes.KindAuthored, false, false, orchestrator.ReasonOrdinary},
+		{"taught", routes.KindTaught, false, false, orchestrator.ReasonOrdinary},
+		{"learned", routes.KindLearned, false, true, orchestrator.ReasonLearnedFirstUse},
+		{"learned then edited", routes.KindLearned, true, false,
+			orchestrator.ReasonEditedSinceLearned},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			reg, rt := world(t, tc.kind, aPlay)
@@ -245,9 +304,17 @@ func TestEveryKindOfPlayConvergesOnTheOrdinaryRuntime(t *testing.T) {
 				}
 			}
 			d, host, out := deps(t, reg, "y", true)
-			if err := d.Do("volume"); err != nil {
-				t.Fatalf("do: %v", err)
+			_, decision := door(t, d, "volume")
+			if !decision.Allow() {
+				t.Fatalf("a %s play was not allowed: %+v", tc.name, decision)
 			}
+			// The REASON is checked, not only the verdict. All four are allowed, and a
+			// policy that allowed them for the wrong reason would pass a verdict-only
+			// test while having stopped telling the four kinds apart.
+			if decision.Reason != tc.reason {
+				t.Errorf("reason = %q, want %q", decision.Reason, tc.reason)
+			}
+			runSavedPlay(t, d, "volume")
 
 			// The same two calls, whatever the play's history.
 			want := []string{`OS's Navigate with down`, `OS's Navigate with confirm`}
@@ -307,8 +374,6 @@ func TestACopiedOriginRecordManufacturesNoTrust(t *testing.T) {
 // Nothing in the authority path can perform anything by itself.
 func TestTheAuthoritySeamPerformsNothing(t *testing.T) {
 	reg, rt := world(t, routes.KindLearned, aPlay)
-	host := &recordingHost{}
-	_ = host
 
 	// Classify, authorize, and refuse — all without a host anywhere in sight.
 	r := orchestrator.Classify(reg, rt, "volume")
@@ -335,11 +400,12 @@ func (allowing) Allow(orchestrator.Resolved) orchestrator.Decision {
 func TestPermissionIsNotRemembered(t *testing.T) {
 	reg, _ := world(t, routes.KindLearned, aPlay)
 
-	// Yes once.
+	// Yes once, and it ran.
 	d, host, _ := deps(t, reg, "y", true)
-	if err := d.Do("volume"); err != nil {
-		t.Fatalf("do: %v", err)
+	if _, decision := door(t, d, "volume"); !decision.Allow() {
+		t.Fatalf("the first invocation was not allowed: %+v", decision)
 	}
+	runSavedPlay(t, d, "volume")
 	if len(host.calls) == 0 {
 		t.Fatal("the first invocation did not run")
 	}
@@ -347,11 +413,11 @@ func TestPermissionIsNotRemembered(t *testing.T) {
 	// A fresh orchestrator over the SAME tree, and a no this time. Nothing on disk
 	// remembers the earlier yes.
 	again, host2, out := deps(t, reg, "n", true)
-	if err := again.Do("volume"); err != nil {
-		t.Fatalf("do: %v", err)
+	if _, decision := door(t, again, "volume"); decision.Allow() {
+		t.Fatal("a previous yes authorised a later invocation")
 	}
 	if len(host2.calls) != 0 {
-		t.Fatalf("a previous yes authorised a later invocation: %v", host2.calls)
+		t.Fatalf("a declined invocation performed %v", host2.calls)
 	}
 	if !strings.Contains(out.String(), "Run it now?") {
 		t.Errorf("the second invocation was not asked about:\n%s", out.String())

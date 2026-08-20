@@ -152,11 +152,11 @@ const (
 	actCfgDown   // config editor: move selection down
 	actCfgLeft   // config editor: change selected setting down
 	actCfgRight
-	actCfgSave     // config editor: persist to disk
-	actCfgClose    // config editor: close
-	actTeachType   // interactive prompt: a typed y/n/s (or "" to clear) — shown, not yet sent
-	actTeachSubmit // interactive prompt: Enter — send the pending answer to the child
-	actAcceptHint  // Tab — append the next auto-popped "name:" arg label to the command
+	actCfgSave      // config editor: persist to disk
+	actCfgClose     // config editor: close
+	actPromptType   // interactive prompt: a typed y/n/s (or "" to clear) — shown, not yet sent
+	actPromptSubmit // interactive prompt: Enter — send the pending answer to the child
+	actAcceptHint   // Tab — append the next auto-popped "name:" arg label to the command
 )
 
 // leaderTimeout disarms the leader if no key follows the backtick.
@@ -288,17 +288,17 @@ func processActions(h *model, emit func(event)) {
 			}
 		case actCfgClose:
 			h.closeConfig()
-		case actTeachType:
+		case actPromptType:
 			// Show the answer as you type it (y/n/s), not yet submitted.
-			h.setTeachPending(a.hot)
-		case actTeachSubmit:
+			h.setPromptPending(a.hot)
+		case actPromptSubmit:
 			// Enter: commit the pending answer to the transcript. If this is the
 			// unknown-command learn OFFER (not a child prompt), y/Enter starts a
 			// demonstration learn and anything else declines; otherwise send the
 			// answer to the live child. Off the hook thread, so the write is safe.
-			if ans, ok := h.submitTeachPending(); ok {
+			if ans, ok := h.submitPromptPending(); ok {
 				promptAsk.Store(false)
-				if name := takePendingTeach(); name != "" {
+				if name := takePendingLearn(); name != "" {
 					// Unknown-command learn OFFER (no child runs on decline), so wipe the
 					// prompt/transcript ourselves — otherwise it lingers in the HUD.
 					h.clearPrompt()
@@ -390,13 +390,13 @@ func handleKey(vk uint16, down bool) bool {
 		if down {
 			switch {
 			case vk == vkReturn:
-				push(action{kind: actTeachSubmit}) // Enter = the default answer
+				push(action{kind: actPromptSubmit}) // Enter = the default answer
 			default:
 				// Single keypress answers and submits: y/n/s (save) and c/f/g (scope:
 				// context / focus / global). No Enter needed — leader-then-n discards.
 				if r, ok := vkToRune(vk, false); ok && isPromptAnswer(r) {
-					push(action{kind: actTeachType, hot: string(r)})
-					push(action{kind: actTeachSubmit})
+					push(action{kind: actPromptType, hot: string(r)})
+					push(action{kind: actPromptSubmit})
 				}
 			}
 		}

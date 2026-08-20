@@ -54,17 +54,46 @@ func TestDiagnoseSaysWhetherAnythingCanAct(t *testing.T) {
 	if got.Bridge != bridge {
 		t.Errorf("diagnose reported the bridge as %q, want %q", got.Bridge, bridge)
 	}
-	if len(got.Roster) != 1 || got.Roster[0].Name != "accessibility" || !got.Roster[0].Available {
-		t.Fatalf("with a provider wired, the roster is %+v; want one ready accessibility "+
-			"actor. The roster reads the same Available() predicate casting reads, so a "+
-			"roster that disagrees here is a Theater that will refuse a play.", got.Roster)
+	if len(got.Roster) != 1 || got.Roster[0].Name != "accessibility" {
+		t.Fatalf("with a provider wired, the roster is %+v; want one accessibility actor "+
+			"named. An Actor whose provider cannot run is still an Actor Marco HAS, and "+
+			"hiding it makes 'cannot act' indistinguishable from 'no such capability'.",
+			got.Roster)
 	}
+
+	// THIS FILE IS NOT A PROGRAM. It is zero bytes with an .exe name, and until Phase 4 the
+	// roster called it READY — because the predicate was `host != nil`, and a host is built
+	// from a path without ever trying it. That is the defect, stated as a test: the report
+	// said the machine could act, casting agreed, and the failure arrived several steps later
+	// inside a play as `perform_failed`. A person was told their play was broken when what was
+	// true is that their provider would not start.
+	//
+	// So the claim here is the opposite of the one this test used to make. An Actor must ASK,
+	// and a provider that cannot be launched must come back unavailable WITH THE REASON — and
+	// the reason has to be the operating system's own sentence, because that is the one that
+	// names what to fix.
+	if got.Roster[0].Available {
+		t.Error("a zero-byte file named uia.exe reported itself ready to act. " +
+			"Availability that never asks the provider is not a check.")
+	}
+	if got.Roster[0].Reason == "" {
+		t.Error("the roster says the actor cannot act and does not say why, which is the " +
+			"one thing the Cast report exists to carry")
+	}
+	if got.Roster[0].Path != bridge {
+		t.Errorf("the roster reports the provider at %q, want %q — 'no provider' and "+
+			"'a provider somewhere you did not expect' are different problems",
+			got.Roster[0].Path, bridge)
+	}
+
+	// And the REPORT must still change: it names the provider it found rather than saying
+	// nothing was there. A diagnostic that reads the same either way answers nothing.
 	out = render(printTheater, got)
 	if strings.Contains(out, "NOT FOUND") || !strings.Contains(out, bridge) {
 		t.Errorf("diagnose does not name the provider it found:\n%s", out)
 	}
-	if !strings.Contains(out, "ready") {
-		t.Errorf("diagnose does not say the actor can act:\n%s", out)
+	if !strings.Contains(out, got.Roster[0].Reason) {
+		t.Errorf("diagnose knows why the actor cannot act and does not print it:\n%s", out)
 	}
 }
 

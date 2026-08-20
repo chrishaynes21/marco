@@ -22,10 +22,26 @@ func runServe(args []string) int {
 	quiet := fs.Bool("quiet", false, "suppress the startup banner")
 	_ = fs.Parse(args)
 
-	if _, err := os.Stat(*bridgeFlag); err != nil {
-		fmt.Fprintf(os.Stderr, "director: accessibility bridge not found at %s\n", *bridgeFlag)
-		fmt.Fprintf(os.Stderr, "         build it with: powershell -File plugins/uia/build.ps1\n")
-		return 1
+	// A MISSING BRIDGE COSTS YOU AN ACTOR, NOT THE DIRECTOR.
+	//
+	// This used to be `os.Stat` and `return 1`. A machine with sight, with text, with OS input
+	// and with everything else in working order could not observe AT ALL, because one Actor's
+	// provider binary had not been built — and it found out by the service refusing to start,
+	// which is the moment least useful to the person and tells them nothing about what Marco
+	// could still have done for them.
+	//
+	// So it boots, and it says what it lost. The bridge is spawned lazily, every accessibility
+	// call fails honestly, `Provider.Available` answers false, and `director status` carries
+	// the reason — see AccessibilityUnavailable. Nothing here has to defend against the
+	// absence; it was always tolerated below this line, and the gate was the only thing that
+	// was not.
+	//
+	// Turning this back into a gate must fail TestServingDoesNotRefuseToStartOverAMissingBridge;
+	// the sentence it prints is held by TestADirectorWithNoAccessibilityBridgeSaysWhy.
+	if why := bridgeUnavailable(*bridgeFlag); why != "" && !*quiet {
+		fmt.Fprintf(os.Stderr, "director: the Accessibility Actor is unavailable — %s\n", why)
+		fmt.Fprintf(os.Stderr,
+			"         starting anyway: sight, text and OS input are unaffected\n")
 	}
 
 	rt, err := NewRuntime(*bridgeFlag, *maxNodes, *dryRun, graph)
@@ -151,6 +167,15 @@ func printStatus(st service.StatusPayload) {
 		fmt.Printf("Active command: none\n")
 	}
 
+	// WHY THERE ARE NONE, when there are none for a reason.
+	//
+	// "Accessibility clients: 0" has two causes that read identically — nothing has been
+	// observed yet, or there is nothing to observe through — and the Director boots without a
+	// bridge now rather than refusing to start, so the second is a state somebody can actually
+	// be in. Printed before the count, because it explains it.
+	if st.AccessibilityUnavailable != "" {
+		fmt.Printf("Accessibility Actor: unavailable — %s\n", st.AccessibilityUnavailable)
+	}
 	fmt.Printf("Accessibility clients: %d\n", len(st.Providers))
 	for _, p := range st.Providers {
 		switch p.Status {

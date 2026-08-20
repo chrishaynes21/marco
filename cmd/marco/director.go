@@ -21,26 +21,63 @@ import (
 
 // runDirector is Marco's thin client for the Director service.
 //
-// This is the stable entry point a front-end calls — the overlay, and through it
-// voice. It builds no Director: construction lives in one place (cmd/director), and
-// this process only submits a phrase and renders what comes back.
+// It builds no Director: construction lives in one place (cmd/director), and this process only
+// submits a phrase or a query and renders what comes back.
 //
-//	marco director "click File"     run a phrase
-//	marco director stop             cancel whatever is running
+//	marco director "click File"     run a phrase, WITHOUT consulting the Play registry
+//	marco director stop             cancel whatever the service is running
 //	marco director status           what the service is doing
 //	marco director history          recent actions
 //	marco director last             the most recent action
 //
-// # Wiring voice to this
+// # How voice is actually wired, which is not here
 //
-// The overlay already dispatches by spawning marco.exe. Routing final voice phrases
-// here is one call in plugins/overlay: where a recognised phrase currently becomes
-// a route lookup, run `marco director "<phrase>"` instead (or as a fallback when no
-// route matches). Nothing about Vosk recognition changes.
+// This comment used to say: "routing final voice phrases here is one call in plugins/overlay —
+// where a recognised phrase currently becomes a route lookup, run `marco director "<phrase>"`
+// instead". That is what was done, and it is the defect Phase 2 removed. A spoken phrase went to
+// Director and a typed one went to Play lookup, so the same words meant different things
+// depending on whether the person had a microphone, and a Play they had learned could not be run
+// by saying its name. Voice now goes through `marco do --source=spoken`, the same argv typing
+// builds (`intakeArgs`), and the decision is made once in [[internal/invoke]].
 //
-// The important property for that path: this client may be spawned fresh for every
-// spoken phrase, and none of the Director's state lives here. A phrase spoken while
-// a replay is running reaches the SAME service, which is what makes "stop" work.
+// The property that made this attractive is still true and still worth having: this client may be
+// spawned fresh for every phrase, none of the Director's state lives here, and a phrase submitted
+// while a replay is running reaches the SAME service — which is what makes "stop" work.
+//
+// # This is a CLIENT, and it is deliberately not the product's way in
+//
+// `marco director "<phrase>"` sends words straight to Director without consulting the Play
+// registry at all. That is the pre-Phase-2 spoken path, and if a product surface still reached it
+// with a PHRASE it would be a second intake: a play the person had learned and could run by
+// typing would not be found by saying its name, which is the exact defect [[internal/invoke]]
+// exists to have removed.
+//
+// It was checked rather than assumed. Every caller of this verb outside a terminal passes a
+// SUB-COMMAND, never a phrase:
+//
+//	plugins/overlay/intake.go:131     director stop            (the cancellation courtesy)
+//	plugins/overlay/insight.go:140    director <sub> --json    (the insight panel)
+//	plugins/overlay/watch.go:64       director <sub> --json    (the watch/playbill panel)
+//	plugins/web-ui/playbill.go:111    director <verb> --json   (the browser playbill)
+//	watch.ps1:29                      director <sub>           (a developer's polling loop)
+//
+// and plugins/overlay/controller_windows.go:235 goes further: typing the word "director" into the
+// HUD opens a panel rather than submitting anything, precisely so it cannot be read as a request
+// to find something on screen called "director". The overlay's own phrases go to `marco do`
+// (`intakeArgs`), which is the intake.
+//
+// So the phrase arm is a CLI and developer surface — the low-level client you reach for when you
+// want to address the Director itself and bypass the catalogue on purpose, the way `marco run
+// <file>` bypasses it. It keeps that behaviour, and this paragraph is here so that the next
+// person to wire a front end can see that pointing it here is the mistake, not the shortcut.
+//
+// The sub-commands are a different thing entirely and are not invocations: `status`, `watch`,
+// `history` and the rest ask the service what it is doing. `stop` is the one that acts, and the
+// product no longer reaches it directly — `marco stop` and a spoken "stop" both go through
+// `runInvocation`, whose control arm raises the local stop signal as well as calling this one.
+//
+// Deleting the boundary is not something a compiler can notice, so it is pinned:
+// TestNoProductSurfaceSendsAPhraseToTheDirectorClient.
 func runDirector(args []string) {
 	if len(args) == 0 {
 		fmt.Fprintln(os.Stderr, `usage: marco director "<phrase>" | stop | status | history | last | shutdown
@@ -908,7 +945,7 @@ func theaterDiagnostics() theaterReport {
 	// Built exactly as newDeps builds it, over an empty act map: the roster asks each Actor
 	// whether it could act, which no Actor answers by touching the desktop. Nothing here
 	// launches the bridge, presses anything, or observes anything.
-	h := newTheaterHost(map[string]runtime.Host{}, accessibility)
+	h := newTheaterHost(map[string]runtime.Host{}, accessibility, bridge)
 	return theaterReport{Bridge: bridge, Roster: h.Roster(context.Background()), Last: h.Last()}
 }
 
@@ -925,12 +962,30 @@ func printTheater(r theaterReport) {
 	if len(r.Roster) == 0 {
 		fmt.Println("  cast: nobody — every learned play refuses no_actor_available")
 	}
+	// THE CAST, one line per Actor, and the reason is the whole point of the second line.
+	//
+	// "accessibility: cannot act" tells somebody their machine is broken and nothing about what
+	// to do. The Actor now ASKS its provider and keeps the sentence that came back — usually the
+	// operating system's own refusal, which names the binary it could not run — and this is the
+	// last place that sentence could be dropped before it reaches the person who has to fix it.
+	//
+	// Deleting the reason line must fail TestDiagnoseSaysWhetherAnythingCanAct.
 	for _, p := range r.Roster {
 		state := "cannot act"
 		if p.Available {
 			state = "ready"
 		}
 		fmt.Printf("  %s: %s\n", p.Name, state)
+		if p.Provider != "" || p.Path != "" {
+			where := p.Provider
+			if p.Path != "" {
+				where += " at " + p.Path
+			}
+			fmt.Println("    provided by " + strings.TrimSpace(where))
+		}
+		if p.Reason != "" {
+			fmt.Println("    " + p.Reason)
+		}
 	}
 	if r.Last != "" {
 		fmt.Println("  last refusal: " + r.Last)

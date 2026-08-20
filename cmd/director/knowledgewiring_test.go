@@ -62,7 +62,9 @@ func only(t *testing.T, known []observe.KnownJudgement) observe.KnownJudgement {
 // THE acceptance test for the milestone. A judgement nothing can recall any more is still
 // inspectable, still correctable, and stays corrected across a restart.
 //
-// Deleting the registry's ReviseKnown or RetractKnown call must fail this.
+// Deleting the registry.s RetractKnown call must fail this. (ReviseKnown has its own holder,
+// TestChangingAnAnswerInTheProductSurvivesARestart — this one never changes an answer, only
+// takes it back, so neutering Revise leaves it green.)
 func TestAJudgementNothingRecognisesIsStillCorrectableInTheProduct(t *testing.T) {
 	g, store, q := reviseFixture(t)
 	ask(t, g, service.ObserveQuery{Answer: &service.ObserveAnswer{

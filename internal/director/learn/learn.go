@@ -396,10 +396,86 @@ type Session struct {
 	Saved *Saved
 	// Named counts how many screens the user has named for this play.
 	Named int
-	// Diagnostics is the developer-facing account. Never shown in Normal mode: it names
-	// durable subject ids, and a subject id on a user's screen is a leak of Director's
-	// backstage into the play.
+	// Diagnostics is the developer-facing account, one rendered line per note.
+	//
+	// It is the RENDERING of Account and nothing else — note and noteWith are the only two
+	// writers of either, and every line here is the Line() of the note at the same index.
+	// Kept as plain strings because that is what every existing reader wants and because a
+	// hand-built Session in a test is allowed to say "here are some lines" without composing
+	// a structure. Read it through Notes rather than directly if you care about the split.
 	Diagnostics []string
+	// Account is the same account, with the sentence and the particulars kept apart.
+	//
+	// # Why the split had to happen down here
+	//
+	// Because a line like "start established as subj_7f3a" was composed in this package,
+	// travelled through the projection untouched, and was rendered to a person in the red
+	// block of the Learn panel — a durable subject id on the Audience's screen, which the
+	// comment above Diagnostics has always said must not happen. Every surface that showed
+	// it was rendering it faithfully; there was nothing in the value to tell them the id was
+	// backstage and the sentence was not.
+	//
+	// A surface cannot un-mix a mixed string, and three surfaces trying would be three
+	// different regexes over Marco's own prose. So the mixing stops here: a note carries a
+	// sentence a normal surface may show, and Facts carry the particulars an Advanced one
+	// may show. The facts are not dropped — placed, verdict, licensed, subject and reason
+	// are how a start that failed to become durable is actually diagnosed, and losing them
+	// to make a sentence tidy would cost more than the leak did.
+	Account []Note
+}
+
+// A Fact is one backstage particular behind a note: a name and its value.
+//
+// Deliberately a pair of strings rather than a typed union. The values are already
+// heterogeneous — counts, verdicts, booleans, durable ids — and the only thing any reader does
+// with them is show them beside their name. A richer type would buy a formatting decision that
+// belongs to whichever surface is rendering, not to the coordinator that observed the fact.
+type Fact struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+// A Note is one line of the coordinator's account of itself.
+//
+// Say is the sentence. It must be renderable to a normal person as it stands: no durable subject
+// id, no internal key, nothing a reader would have to know Director's vocabulary to parse.
+//
+// Facts are the particulars behind that sentence, for an Advanced surface and for a log. A normal
+// surface shows Say and stops.
+type Note struct {
+	Say   string `json:"say"`
+	Facts []Fact `json:"facts,omitempty"`
+}
+
+// Line renders a note the way the developer-facing account has always read: the sentence, then
+// its particulars in parentheses. This is what lands in Session.Diagnostics.
+func (n Note) Line() string {
+	if len(n.Facts) == 0 {
+		return n.Say
+	}
+	parts := make([]string, 0, len(n.Facts))
+	for _, f := range n.Facts {
+		parts = append(parts, f.Name+"="+f.Value)
+	}
+	return n.Say + " (" + strings.Join(parts, " ") + ")"
+}
+
+// Notes is the canonical way to read the account, and the ONE thing a projection should call.
+//
+// It returns Account when the session was produced by a coordinator. A Session built by hand —
+// a test fixture, a decoded older payload — may carry only Diagnostics, and those lines are
+// lifted into bare notes rather than being reported as no account at all. A plain line IS a note
+// with no particulars; treating it as one keeps every reader on a single path instead of making
+// each of them remember the fallback.
+func (s Session) Notes() []Note {
+	if len(s.Account) > 0 {
+		return s.Account
+	}
+	out := make([]Note, 0, len(s.Diagnostics))
+	for _, d := range s.Diagnostics {
+		out = append(out, Note{Say: d})
+	}
+	return out
 }
 
 // Learned reports whether a durable play exists. The ONLY basis for saying so.
@@ -655,10 +731,20 @@ func (c *Coordinator) establishStart(ctx context.Context) {
 		// route to it yet — and the account below is what lets a reader see exactly that,
 		// rather than a refusal that used to discard the whole attempt.
 		c.s.Start = ""
-		c.note(fmt.Sprintf(
-			"the starting place did not become durable (placed=%v verdict=%q licensed=%v "+
-				"established=%q reason=%q); watching anyway — the destination is the goal",
-			p.Placed, p.Verdict, res.Places.Licensed, res.Places.Subject, res.Places.Reason))
+		// THE SENTENCE AND THE PARTICULARS, kept apart. What a person needs to read is that
+		// the start was not recognised and that it does not stop the attempt. What a
+		// developer needs is placed / verdict / licensed / established / reason, which is
+		// how this failure is actually told apart from the four other things that look like
+		// it — and `established=` is a durable subject id, which is exactly what must not
+		// travel inside a sentence. See Session.Account.
+		c.noteWith(
+			"I didn't recognise where this started, so I can't write down a way back to it "+
+				"— I'm watching anyway, because what you're heading for is the goal",
+			Fact{"placed", fmt.Sprintf("%v", p.Placed)},
+			Fact{"verdict", string(p.Verdict)},
+			Fact{"licensed", fmt.Sprintf("%v", res.Places.Licensed)},
+			Fact{"established", string(res.Places.Subject)},
+			Fact{"reason", string(res.Places.Reason)})
 		return
 	}
 	c.s.Start = p.Subject
@@ -666,7 +752,12 @@ func (c *Coordinator) establishStart(ctx context.Context) {
 	// against wherever the user had wandered to, and the highlight would then confirm whatever
 	// they were looking at rather than what Marco decided.
 	c.s.StartState = res.Stats.Shadow.CurrentState
-	c.note("start established as " + p.Subject)
+	// "start established as subj_7f3a" was one string, and half of it was a durable subject
+	// id being shown to a person. The half that is a sentence stays a sentence; the id
+	// becomes a fact, where an Advanced surface can show it and a normal one will not.
+	//
+	// Deleting the split must fail TestASubjectIdIsAFactAndNeverPartOfASentence.
+	c.noteWith("I recognise where this started", Fact{"subject", string(p.Subject)})
 	// LAST, and deliberately after the phase has already moved. Grounding is a PICTURE of a
 	// decision that has already been made: it cannot establish the identity, cannot refuse the
 	// session, and cannot advance it. Nothing below this line is allowed to read its result.
@@ -754,7 +845,9 @@ func (c *Coordinator) discover(ctx context.Context) {
 	// watching somebody who was never asked again — which is the failure `FulfilLearning`
 	// exists to prevent, reached from the other side.
 	//
-	// Deleting this call must fail TestTeachArmsTheExistingCaptureForTheDiscoveredRoute.
+	// Deleting this call must fail TestOneCompleteDemonstrationReachesTheRehearsalQuestion,
+	// which reads the requests the fake memory received after the discovery pass and wants
+	// exactly one pending learning request, written for the discovered route.
 	if res.Demonstration == nil {
 		if err := c.memory.RememberLearning(c.s.Application, c.s.Route,
 			observe.LearningRequest{Status: observe.LearningPending}); err != nil {
@@ -1234,6 +1327,24 @@ func (c *Coordinator) awaitName() {
 	c.lower()
 }
 
+// unprefixRoutes strips the Go package name out of a registry error before it becomes a sentence.
+//
+// `internal/routes` prefixes every error it returns with "routes: ". That is correct for a log
+// line, where knowing which package refused is the whole point, and wrong the moment the same
+// string is carried into something a person reads: it names an implementation detail with the
+// authority of a diagnosis, and the reader's next move is to go looking for "routes".
+//
+// The same three-line strip exists in the control centre for the same reason. It lives here as
+// well rather than only there because the two are guarding different things: that one protects a
+// registry error a surface fetched itself, this one protects a sentence Learn composes and every
+// surface then shows. Fixing it at the surfaces would be fixing it three times.
+func unprefixRoutes(s string) string {
+	if rest, ok := strings.CutPrefix(s, "routes: "); ok {
+		return rest
+	}
+	return s
+}
+
 // save writes the play, and ONLY then may anything say it was learned.
 func (c *Coordinator) save() {
 	// THE WHOLE ROUTE the Audience demonstrated, not the leg the episode happens to be
@@ -1261,12 +1372,29 @@ func (c *Coordinator) save() {
 	// Deleting this must fail TestAPlayIsNotCalledAskableUntilItIsRegistered.
 	if !s.Registered {
 		c.s.Saved = &s
-		why := "the play was written down as " + s.Name + " and nothing can ask for it yet"
+		why := "I saved it as " + s.Name + ", but nothing can ask for it yet"
 		// WHY, when the persistence path said why. A dead end a person can act on — "that
 		// name is already taken; rename it or remove the other one" — is a different thing
 		// from one they cannot.
-		if s.Reason != "" {
-			why += ": " + s.Reason
+		//
+		// STRIPPED OF THE PACKAGE NAME, and this is the one path where that matters most.
+		// `internal/routes` prefixes its errors "routes: ", which is right for a log and
+		// wrong here: this sentence is composed, carried through the projection and printed
+		// in the red block of the Learn panel, where a person read
+		//
+		//     play_not_registered: the play was written down as X and nothing can ask for
+		//     it yet: routes: X already exists; rename the learned play or remove the other
+		//     one first
+		//
+		// and "routes:" is a Go package they have no word for. The control centre already
+		// strips it at six call sites; the one path it never guarded is this one — a name
+		// collision, which is the DOCUMENTED usual way registration fails. Stripped where
+		// the sentence is made, so the three surfaces that show it do not each need their
+		// own copy of the same strip.
+		//
+		// Deleting the strip must fail TestARegistrationFailureNamesNoGoPackage.
+		if reason := unprefixRoutes(s.Reason); reason != "" {
+			why += " — " + reason
 		}
 		c.refuse(PlayNotRegistered, why)
 		return
@@ -1393,7 +1521,22 @@ func (c *Coordinator) refuse(r Refusal, why string) {
 	c.withdraw()
 }
 
-func (c *Coordinator) note(s string) { c.s.Diagnostics = append(c.s.Diagnostics, s) }
+// note records one plain line of the account: a sentence, with nothing backstage in it.
+func (c *Coordinator) note(s string) { c.noteWith(s) }
+
+// noteWith records a sentence together with the particulars behind it.
+//
+// THE ONLY WRITER of either list, along with note, which is why Session.Diagnostics can be
+// documented as the rendering of Session.Account rather than a second account of the same run.
+// Two lists that are appended to in different places drift; two lists appended to here, in one
+// statement, from one value, cannot.
+//
+// Deleting either append must fail TestTheDiagnosticLinesAreExactlyTheAccountRendered.
+func (c *Coordinator) noteWith(say string, facts ...Fact) {
+	n := Note{Say: say, Facts: facts}
+	c.s.Account = append(c.s.Account, n)
+	c.s.Diagnostics = append(c.s.Diagnostics, n.Line())
+}
 
 func hasReason(a *observe.CandidateAssessment, want observe.AssessmentReason) bool {
 	for _, r := range a.Reasons {

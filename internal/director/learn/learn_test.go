@@ -843,3 +843,133 @@ func (p *scriptedPasses) Finish() { p.finished++ }
 
 // AwaitSubject returns at once: a scripted pass has a window by construction.
 func (p *scriptedPasses) AwaitSubject(context.Context) error { return nil }
+
+// ── the account: sentences a person reads, particulars kept beside them ───────
+
+// A durable subject id is a FACT, and never a part of a sentence.
+//
+// "start established as subj_7f3a" was one string. It was composed here, travelled through the
+// projection untouched, and was rendered to a person in the red block of the Learn panel — a
+// durable subject id on the Audience's screen. Every surface showing it was rendering it
+// faithfully; there was nothing in the value to tell them which half was backstage.
+//
+// The facts were KEPT. `subject`, and on the unrecognised-start path `placed`, `verdict`,
+// `licensed`, `established` and `reason`, are how that failure is told apart from the four other
+// things that look like it. What is asserted here is the SEPARATION: the id is reachable as a
+// particular and absent from the sentence.
+func TestASubjectIdIsAFactAndNeverPartOfASentence(t *testing.T) {
+	establish := func(t *testing.T, m *fakeMemory, res observesession.Result) learn.Session {
+		t.Helper()
+		p := &scriptedPasses{results: []observesession.Result{res}}
+		c := learn.New("open downloads", p, m,
+			learn.Bounds{Dwell: time.Second, Watch: time.Second})
+		return c.Advance(context.Background())
+	}
+	recognised := placedResult("observe_1")
+	// A pass that DID make a place durable, over a recall that does not match it: the
+	// unrecognised-start account reports both, and `established` is an id.
+	unrecognised := placedResult("observe_1")
+	unrecognised.Places = observe.PlaceEstablishment{Licensed: true, Subject: elsewhere}
+
+	// Both paths through establishStart put an id in the account: the start that WAS
+	// recognised carries `subject`, and the one that was not carries `established`.
+	for _, tc := range []struct {
+		name   string
+		memory func() *fakeMemory
+		result observesession.Result
+		fact   string
+	}{
+		{"recognised", newMemory, recognised, "subject"},
+		{"unrecognised", func() *fakeMemory {
+			m := newMemory()
+			// Placed somewhere durable, and not matched to it: the account says so, and
+			// says which subject it was measured against.
+			m.here = observe.Recollection{
+				Verdict: observe.MatchDifferent,
+				Subject: observe.RememberedSubject{ID: startSubject},
+			}
+			return m
+		}, unrecognised, "established"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := establish(t, tc.memory(), tc.result)
+			notes := s.Notes()
+			if len(notes) == 0 {
+				t.Fatal("the coordinator gave no account of establishing a start")
+			}
+			for _, n := range notes {
+				if strings.Contains(n.Say, "subj_") {
+					t.Errorf("a sentence carries a durable subject id: %q.\nA surface "+
+						"cannot un-mix a mixed string, and three surfaces trying would "+
+						"be three regexes over Marco's own prose.", n.Say)
+				}
+			}
+			// And the id is still there for whoever is allowed to see it.
+			found := ""
+			for _, n := range notes {
+				for _, f := range n.Facts {
+					if f.Name == tc.fact {
+						found = f.Value
+					}
+				}
+			}
+			if found == "" {
+				t.Errorf("no note carries a %q fact. The particulars are how this is told "+
+					"apart from the other things that look like it, and losing them to "+
+					"make a sentence tidy costs more than the leak did:\n%+v",
+					tc.fact, notes)
+			}
+		})
+	}
+}
+
+// The developer-facing lines are exactly the account, rendered.
+//
+// Two lists appended to in different places drift. These two are appended to in one statement,
+// from one value, which is the only reason Session.Diagnostics can be documented as the RENDERING
+// of Session.Account rather than as a second account of the same run — and the reason a reader of
+// either can trust the other.
+func TestTheDiagnosticLinesAreExactlyTheAccountRendered(t *testing.T) {
+	m := newMemory()
+	m.here = observe.Recollection{
+		Verdict: observe.MatchDifferent,
+		Subject: observe.RememberedSubject{ID: startSubject},
+	}
+	p := &scriptedPasses{results: []observesession.Result{placedResult("observe_1")}}
+	c := learn.New("open downloads", p, m, learn.Bounds{Dwell: time.Second, Watch: time.Second})
+	s := c.Advance(context.Background())
+
+	if len(s.Account) == 0 {
+		t.Fatal("the session carries no account at all")
+	}
+	if len(s.Diagnostics) != len(s.Account) {
+		t.Fatalf("%d diagnostic line(s) against %d note(s). One list is being written "+
+			"somewhere the other is not, and a reader of either can no longer trust it:\n"+
+			"%v\n%+v", len(s.Diagnostics), len(s.Account), s.Diagnostics, s.Account)
+	}
+	for i, n := range s.Account {
+		if s.Diagnostics[i] != n.Line() {
+			t.Errorf("diagnostic %d is %q, and the note at the same index renders as %q",
+				i, s.Diagnostics[i], n.Line())
+		}
+	}
+	// The rendering is not empty of the particulars: a note WITH facts must show them, or
+	// "Diagnostics is the rendering of Account" is true only because both lost the same half.
+	carried := false
+	for i, n := range s.Account {
+		if len(n.Facts) == 0 {
+			continue
+		}
+		carried = true
+		for _, f := range n.Facts {
+			if !strings.Contains(s.Diagnostics[i], f.Name+"="+f.Value) {
+				t.Errorf("the developer line %q dropped the particular %s=%s",
+					s.Diagnostics[i], f.Name, f.Value)
+			}
+		}
+	}
+	if !carried {
+		t.Error("no note in this account carries particulars, so this test proved nothing " +
+			"about the rendering; the unrecognised-start path is supposed to record five")
+	}
+}

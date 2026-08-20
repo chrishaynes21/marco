@@ -15,12 +15,17 @@ The Director builds a world model of the desktop and plans, executes and **verif
 arbitrary semantic actions against it — "click Save", "focus the search box then type
 Director and press enter", "close every Notepad window".
 
-It is distinct from `internal/dispatch`, which picks a **saved macro** from a phrase. The
-Director decides what to do to the **screen**. Neither imports the other.
+It is distinct from the durable half, which answers a phrase Marco **already knows exactly** with
+the Play it names. The Director decides what to do to the **screen**. Neither imports the other.
 
 Which of the two a request reaches is neither the Director's decision nor a front end's:
 [[Invocation]] is the one intake, and it hands Director everything Marco does not already know
-exactly.
+exactly. The durable half is `routes.Registry.Resolve`, consulted by `internal/invoke`.
+
+> **`internal/dispatch` is not that half and has not been since Phase 2** (2026-08-20). It was the
+> pre-Director answer to "what does this sentence mean" — a second, LLM-shaped decider — and this
+> page named it here long after no product surface could reach it. It survives as a developer verb;
+> see [[Invocation]] for the one that ships.
 
 Start here, then read the subsystem note you need, then its ADRs. See [[AI-CONTEXT]] for
 the retrieval protocol.

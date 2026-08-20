@@ -31,6 +31,20 @@ type recordingHost struct {
 
 func (h *recordingHost) Invoke(c runtime.HostCall) (string, runtime.Value, error) {
 	h.calls = append(h.calls, c)
+	// The provider's own availability question, answered the way plugins/uia answers it.
+	//
+	// A fake standing in for a provider has to answer what the provider answers, or every test
+	// using it measures a Marco whose one Actor reports itself unable to act — which is a real
+	// state, and not the one any of these tests is about.
+	if c.Action == "Available" {
+		s := runtime.NewSet()
+		ok := h.reply == "" || h.reply == "ok"
+		s.Fields["Available"] = runtime.Bool(ok)
+		if !ok {
+			s.Fields["Reason"] = runtime.Text(h.reply)
+		}
+		return "ok", runtime.SetVal(s), nil
+	}
 	got := map[string]string{}
 	if set := c.Input.AsSet(); set != nil {
 		for _, k := range []string{"Name", "Element", "Window"} {
@@ -55,7 +69,7 @@ func (h *recordingHost) Invoke(c runtime.HostCall) (string, runtime.Value, error
 // one that would look like flakiness rather than like a bug.
 func TestTheAccessibilityActorSendsANameAndNeverAHandle(t *testing.T) {
 	host := &recordingHost{}
-	actor := theaterhost.NewAccessibilityActor(host)
+	actor := theaterhost.NewAccessibilityActor(host, "uia.exe")
 
 	found, err := actor.Find(context.Background(), theaterhost.Target{Name: "Mouse"})
 	if err != nil || len(found) != 1 {
@@ -99,7 +113,7 @@ func TestTheAccessibilityActorSendsANameAndNeverAHandle(t *testing.T) {
 // becomes silence, and the person is told their screen is wrong when it is Marco that cannot tell.
 func TestAnAmbiguousNameBecomesSeveralCandidates(t *testing.T) {
 	host := &recordingHost{reply: string(theaterhost.TargetAmbiguous) + ": two of them"}
-	actor := theaterhost.NewAccessibilityActor(host)
+	actor := theaterhost.NewAccessibilityActor(host, "uia.exe")
 
 	found, err := actor.Find(context.Background(), theaterhost.Target{Name: "Mouse"})
 	if err != nil {
@@ -114,7 +128,7 @@ func TestAnAmbiguousNameBecomesSeveralCandidates(t *testing.T) {
 // A name nothing matches is no candidates, not an error.
 func TestANameNothingMatchesIsNoCandidates(t *testing.T) {
 	host := &recordingHost{reply: string(theaterhost.TargetNotFound) + ": nothing here"}
-	found, err := theaterhost.NewAccessibilityActor(host).
+	found, err := theaterhost.NewAccessibilityActor(host, "uia.exe").
 		Find(context.Background(), theaterhost.Target{Name: "Mouse"})
 	if err != nil {
 		t.Fatalf("Find: %v", err)
@@ -126,9 +140,19 @@ func TestANameNothingMatchesIsNoCandidates(t *testing.T) {
 
 // With no bridge, the actor is simply not available tonight.
 func TestWithNoBridgeTheActorIsUnavailable(t *testing.T) {
-	actor := theaterhost.NewAccessibilityActor(nil)
-	if actor.Available(context.Background()) {
+	actor := theaterhost.NewAccessibilityActor(nil, "uia.exe")
+	av := actor.Availability(context.Background())
+	if av.Ready {
 		t.Error("an actor with no bridge reported itself available")
+	}
+	// And it must SAY WHY. An unavailable Actor with no reason is the case this whole change
+	// exists to remove: a person told their play is broken when what is true is that their
+	// machine cannot act, and nothing on any surface can tell them which.
+	if av.Reason == "" {
+		t.Error("an unavailable actor gave no reason, so no surface above it can say one")
+	}
+	if !strings.Contains(av.Reason, "uia.exe") {
+		t.Errorf("the reason does not name the provider it could not reach: %q", av.Reason)
 	}
 	if _, err := actor.Find(context.Background(), theaterhost.Target{Name: "Mouse"}); err == nil {
 		t.Error("an actor with no bridge searched anyway")
@@ -148,7 +172,7 @@ func TestWithNoBridgeTheActorIsUnavailable(t *testing.T) {
 // Deleting either half — the Window in the look, or the Window in the cast — must fail this.
 func TestAScopedProductionLooksAndActsInThatWindow(t *testing.T) {
 	host := &recordingHost{}
-	actor := theaterhost.NewAccessibilityActor(host)
+	actor := theaterhost.NewAccessibilityActor(host, "uia.exe")
 
 	found, err := actor.Find(context.Background(),
 		theaterhost.Target{Name: "Mouse", Window: "hwnd:100"})
@@ -173,7 +197,7 @@ func TestAScopedProductionLooksAndActsInThatWindow(t *testing.T) {
 // Empty means "whatever is in front", and writing `Window ""` would say something different and
 // wrong — the same rule the Control set follows for an omitted Kind.
 func TestAnUnscopedProductionOmitsTheWindow(t *testing.T) {
-	actor := theaterhost.NewAccessibilityActor(&recordingHost{})
+	actor := theaterhost.NewAccessibilityActor(&recordingHost{}, "uia.exe")
 	program, ok := actor.Cast(theaterhost.Candidate{Handle: "Mouse"}, activate.Invoke)
 	if !ok {
 		t.Fatal("the actor could not express an activation")

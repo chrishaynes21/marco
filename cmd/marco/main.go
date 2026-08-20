@@ -25,6 +25,12 @@ func main() {
 	case "do":
 		runAssistantDo(os.Args[2:])
 		return
+	case "stop":
+		// THE ONE STOP, as a shell verb. It builds an invoke.Request and goes through
+		// runInvocation like every other entrance — see stop.go for why it must not reach
+		// the stop machinery directly.
+		runStop(os.Args[2:])
+		return
 	case "press":
 		runPress(os.Args[2:])
 		return
@@ -288,13 +294,12 @@ func usage(w io.Writer) {
 
 Assistant (learn by demonstration, then run by name):
   marco do "<name>"        run a play; if unknown, record it once and remember
+  marco stop               stop whatever is running — a play, a Director command, both
   marco press <key>        press a key or chord (e.g. enter, ctrl+c, control shift esc)
   marco learn "<name>"     record/overwrite a play by demonstration
   marco simplify "<name>"  re-simplify a saved play as far as it goes
   marco ui                 open the control center (all plays, bindings, help) in a browser
   marco edit "<name>"      open the control center on one play's visual editor
-  marco assistant          interactive loop — say what you want, in plain words
-  marco dispatch "<phrase>" [--json]  classify a phrase (run/teach/chat/clarify)
   marco plays [--json]     list every play, the saved-not-yet-askable ones included
   marco routes [--json]    list the plays you can ask for (--json for a UI plugin)
   marco register "<name>"  make a saved play askable
@@ -323,14 +328,14 @@ directory keeps its old name (override with $MARCO_ROUTES). While learning, type
 {{name}} for a password.
 The stop key ends a recording and aborts a running play — default F12, so Esc
 is free to record as an ordinary key; change it with $MARCO_STOP_KEY (e.g. "esc",
-"home", "ctrl+f12"). Set $MARCO_RESOLVER to a resolver-plugin
-executable to let the assistant fall back to it (e.g. the Claude one in
-plugins/claude-resolver) for loosely-phrased commands. The engine is headless;
-UIs are plugins that drive it (see plugins/web-ui). Marco itself has no deps.
+"home", "ctrl+f12"). "marco stop" does the same from anywhere, including to a
+play another window started. The engine is headless and has no dependencies.
 
-Conversation: dispatch decides run/teach/chat/clarify from a plain phrase. It
-works offline (deterministic matcher) and gets smarter when a brain plugin is set
-via $MARCO_ASSISTANT (falls back to $MARCO_RESOLVER) — e.g. the local model in
-plugins/llama. A front-end uses "marco dispatch --json" to converse.
+Developer surfaces, kept working and not part of the normal product:
+  marco assistant          the pre-Director interactive loop
+  marco dispatch "<phrase>"  the pre-Director phrase classifier
+  marco director <cmd>     talk to the Director service directly
+  marco diag | games | args | bind | unbind | hotkey | wake
+Run "marco <verb>" with no arguments for each one's own usage.
 `)
 }

@@ -335,7 +335,7 @@ func describeSignature(sig observe.StructureSignature) string {
 // writes no memory; and the crossings it walks are already in the session's own account. Polling
 // this changes nothing about what Marco believes.
 //
-// Deleting this must fail TestHereIsPresentWithoutATeachingSession.
+// Deleting this must fail TestHereIsPresentWithoutALearningSession.
 func (r *Runtime) withPlace(v learnView) learnView {
 	if r == nil || r.observations == nil {
 		return v
@@ -452,7 +452,7 @@ func (r *Runtime) watchHere() error {
 // It yields ONLY a session Light Mode itself started. A passive `observe-game` somebody set up
 // deliberately is not Marco's to cancel, and the refusal is right for that.
 //
-// Deleting this must fail TestTeachingTakesTheSlotBackFromLightMode.
+// Deleting this must fail TestLearningTakesTheSlotBackFromLightMode.
 func (r *Runtime) yieldWatching() {
 	if r == nil || r.observations == nil {
 		return

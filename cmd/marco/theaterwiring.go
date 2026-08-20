@@ -26,10 +26,13 @@ import (
 // A nil accessibility host is a real answer: the Theater is built anyway, has no actor to cast,
 // and refuses `no_actor_available` — which tells a person their machine cannot do this, rather
 // than telling them their play is broken.
-func newTheaterHost(hosts map[string]runtime.Host, accessibility runtime.Host) *theaterhost.Host {
+func newTheaterHost(hosts map[string]runtime.Host, accessibility runtime.Host, providerPath string) *theaterhost.Host {
 	var actors []theaterhost.Actor
 	if accessibility != nil {
-		actors = append(actors, theaterhost.NewAccessibilityActor(accessibility))
+		// The PATH travels with the Actor so the roster can say WHERE its provider is.
+		// "no provider" and "a provider somewhere you did not expect" are different
+		// problems, and from a play that did nothing they look identical.
+		actors = append(actors, theaterhost.NewAccessibilityActor(accessibility, providerPath))
 	}
 	// No verifier in the standalone runtime. It has no observation stack — no sampler, no
 	// screen state, no durable memory — so there is nothing here that could check a result.

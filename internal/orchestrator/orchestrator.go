@@ -1,8 +1,39 @@
-// Package orchestrator implements the named-route learn loop: run a route by
-// name if it exists, otherwise ask the user to demonstrate it, record the
-// demonstration, simplify it, generate a Marco route, save it, and run it — so
-// next time the same name just runs. OS-agnostic; the OS-specific work is the
+// Package orchestrator is ACQUISITION and the AUTHORITY DOOR — how a play comes to exist, and
+// whether a play that exists may be performed now. OS-agnostic; the OS-specific work is the
 // injected recorder and host.
+//
+// # The invocation half of this package was retired in Phase 3
+//
+// This package used to own a second, complete way to invoke a play: `Deps.Resolve` answered which
+// play, `Deps.Do` put it through the door and called `Deps.Run`, and `Deps.Run` executed it. By
+// the time it was removed it had ZERO production callers — every entrance (the leader key, spoken
+// words, typed words, `marco do`, a clicked Run) goes through `invoke.Decide` and then
+// `cmd/marco/intake.go`'s `runInvocation` → `performOnePlay`, which calls `Classify` and
+// `Authorize` from this package and then runs the play through `cmd/marco/panicstop.go`'s
+// `runRoute`.
+//
+// It was not a harmless duplicate, and that is the part worth writing down. `Deps.Run` used
+// `driver.RunFileWithHosts`: no context, so nothing could cancel a play once it started; no
+// `routes.ApplyArgs`, so every argument was silently dropped; and no secret-arg plumbing, so a
+// `{{password}}` never reached the credential store. A caller who found it would have got a
+// quietly worse Marco than the one that ships. `docs/subsystems/Invocation.md` has said "one
+// door, one local runner" for two milestones; this package is now consistent with that.
+//
+// The hazard it left behind is subtler and is why this note is long. The densest authority-seam
+// coverage in the repository entered through `Deps.Do` — which meant the tests were proving that
+// a function nothing calls honours the door. `cmd/marco/authoritybypass_test.go` records what that
+// costs: entering through a non-production path is exactly what hid the last authority bypass. So
+// the tests here now exercise the surviving PRODUCTION units directly (`Classify`, `Authorize`,
+// `AskFirst`), and the claims that only mean something end-to-end live beside `runInvocation` in
+// `cmd/marco`, where the product actually goes.
+//
+// If you are about to add an invocation entry point here: don't. Add it to `invoke.Decide`.
+//
+// # What is left
+//
+//   - Acquisition: `Learn` (demonstrate, interactive), `LearnAuto` (demonstrate, no prompts —
+//     the overlay), `LearnVoice` (narrate), and `SimplifyRoute`.
+//   - The door: `Classify`, `Authorize`, `AskFirst` and friends, in authority.go.
 package orchestrator
 
 import (
@@ -19,7 +50,6 @@ import (
 	"strings"
 
 	"github.com/chaynes-simpleclouds/marco/internal/codegen"
-	"github.com/chaynes-simpleclouds/marco/internal/driver"
 	"github.com/chaynes-simpleclouds/marco/internal/macroir"
 	"github.com/chaynes-simpleclouds/marco/internal/mlog"
 	"github.com/chaynes-simpleclouds/marco/internal/recorder"
@@ -78,6 +108,19 @@ func (d Deps) learnOptions() simplify.Options {
 // isn't reliable yet, so CV is a feature flag). Off unless explicitly enabled with $MARCO_CV=
 // on/max (or $MARCO_ANCHORS=1/on); when off, learn preserves the recorded timings faithfully.
 // Kept consistent with recorder.anchorsEnabled and oshost.cvOff.
+//
+// # OPEN QUESTION: this default is an engineering flag, not a product decision
+//
+// Nobody has decided what Marco SHOULD do here. The default is off because the anchor stack was
+// not reliable enough on the day somebody needed it out of the way, and it has stayed off since by
+// inertia. Written down deliberately in Phase 3, because the difference is large and invisible:
+// with CV off a learned play carries the exact recorded gaps and re-clicks the exact recorded
+// pixels, so a moved menu misses; with CV on it waits on an image and finds a control that moved,
+// at the cost of a screen capture and a match per anchored click.
+//
+// Answering it needs an EXPERIMENT — a real demonstration, replayed both ways, on a UI that
+// actually moves — and that experiment is not this. Do not flip this default because the code
+// looks tidier one way; flip it when there is evidence, and record the evidence in a decision.
 func cvOff() bool {
 	switch strings.ToLower(strings.TrimSpace(os.Getenv("MARCO_CV"))) {
 	case "max", "1", "on", "all", "true", "yes":
@@ -123,62 +166,15 @@ func (d Deps) activeApp() string {
 	return d.App()
 }
 
-// Do runs the route best matching name in the current app context; if there
-// isn't one, it learns it, then offers to run.
-// Resolve answers WHICH play, and nothing else.
+// Learn records a demonstration of name, simplifies it into a route, saves it, and prompts at
+// every step: what was recorded, whether to simplify further, and where the play should work.
 //
-// THE seam. It can be called, its answer inspected, logged and refused, and nothing has happened:
-// no host built, no input sent, no grant spent, no window focused, no application launched. Getting
-// from here to `Run` means going through `Authorize`.
-func (d Deps) Resolve(name string) (Resolved, bool) {
-	app := d.activeApp()
-	mlog.Debug("do: resolving", "name", name, "app", app)
-	rt, ok := d.Reg.Resolve(app, name)
-	if !ok {
-		return Resolved{Phrase: name}, false
-	}
-	return Classify(d.Reg, rt, name), true
-}
-
-func (d Deps) Do(name string) error {
-	if r, ok := d.Resolve(name); ok {
-		// THE door. Knowing which play the user means is not permission to perform it —
-		// see [[ADR-029-resolution-is-not-permission]].
-		decision := Authorize(r, d.Authority)
-		mlog.Info("do: authority", "route", r.Route.Slug, "verdict", string(decision.Verdict),
-			"reason", decision.Reason)
-		if !decision.Allow() {
-			if decision.Sentence != "" {
-				fmt.Fprintln(d.Out, decision.Sentence)
-			}
-			// Not an error. "You said no" and "something went wrong" are different
-			// things, and only one of them deserves a non-zero exit.
-			return nil
-		}
-		mlog.Info("do: running", "route", r.Route.Slug, "scope", r.Route.App)
-		return d.Run(r.Route)
-	}
-	mlog.Info("do: unknown — offering learn", "name", name)
-	fmt.Fprintf(d.Out, "I don't know %q yet.\n", name)
-	// Confirm before recording — a typo or misheard phrase shouldn't drop straight
-	// into a demonstration. [n] (or no stdin) just stops here.
-	if !d.confirm("Learn it now? [y]es / [n]o: ") {
-		mlog.Info("do: learn declined", "name", name)
-		return nil
-	}
-	if err := d.Learn(name); err != nil {
-		return err
-	}
-	// A play the user has just demonstrated themselves. They wrote it; the ordinary policy
-	// applies, and the question here is about running it NOW rather than about trusting it.
-	if rt, ok := d.Reg.Resolve(d.activeApp(), name); ok && d.confirm("Run it now? [y]es / [n]o: ") {
-		return d.Run(rt)
-	}
-	return nil
-}
-
-// Teach records a demonstration of name, simplifies it into a route, and saves
-// it. The user performs the actions and presses Esc to finish.
+// LEARN is the person acting while Marco watches — see the LEARN/TEACH/DO invariant in CLAUDE.md.
+// This doc comment said "Teach records…" until Phase 3, left behind by the acquisition rename;
+// TEACH is reserved for the mirror image (Marco guiding a person) and must not name this.
+//
+// The user performs the actions and presses the stop gesture (F12 by default, `StopKey`) to
+// finish. Esc is deliberately NOT the default, so a play can record Esc as an ordinary key.
 func (d Deps) Learn(name string) error {
 	// "say hello with name, count" declares named args; the route is the part before
 	// "with". Reassign name to the route so the rest of the flow (slug, codegen, save)
@@ -465,11 +461,6 @@ func (d Deps) LearnVoice(name string, env voicelearn.Env, phrases <-chan string,
 		return nil
 	}
 	return d.saveTaught(name, argNames, steps, app, nil)
-}
-
-// Run executes a specific route.
-func (d Deps) Run(rt routes.Route) error {
-	return driver.RunFileWithHosts(d.Reg.Path(rt), d.Out, d.Hosts)
 }
 
 // SimplifyRoute re-simplifies an already-saved route from its stored

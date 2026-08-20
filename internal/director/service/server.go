@@ -224,7 +224,7 @@ type Config struct {
 // NewServer builds a server. It does not listen yet.
 func NewServer(cfg Config) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Server{
+	s := &Server{
 		runtime:  cfg.Runtime,
 		registry: NewRegistry(),
 		convo:    NewConversation(),
@@ -232,6 +232,19 @@ func NewServer(cfg Config) *Server {
 		ctx:      ctx,
 		cancel:   cancel,
 	}
+	// A Director with work of its own to publish gets the registry, once, here.
+	//
+	// Nearly everything that drives the desktop arrives as a request this server routes, and
+	// those enter the registry where they are routed. One thing does not: a live rehearsal
+	// reached from inside a Learn episode, several layers below any handler, in answer to
+	// "want me to try it once?". It types for real, and it was invisible to `director status`,
+	// unrefusable by a concurrent request and unreachable by CANCEL_ACTIVE.
+	//
+	// Deleting this must fail TestTheServerHandsItsRuntimeTheCommandRegistry.
+	if reg, ok := cfg.Runtime.(CommandRegistrar); ok {
+		reg.UseCommands(ctx, s.registry)
+	}
+	return s
 }
 
 // Listen binds the service and publishes its endpoint.
@@ -773,6 +786,19 @@ func (s *Server) complete(requestID string, cmd *ActiveCommand, phrase string,
 }
 
 // cancelActive stops whatever is running.
+//
+// THREE ARMS, in the order a person would expect them. Whatever is DRIVING THE DESKTOP wins the
+// first stop, because that is the thing they are looking at when they say it: a command, or a
+// performance, or a live rehearsal — all of which are one registry entry. Then a question they are
+// being held at. Then, only when nothing is being done to their computer, the Learn episode they
+// are in the middle of.
+//
+// The ordering is a decision and not an accident. A "stop" during a live rehearsal inside a Learn
+// episode ends the TYPING and leaves the episode standing, so the person can say what they want
+// to happen next; saying stop again abandons the episode. Collapsing the two would throw away a
+// demonstration somebody had just given because they wanted the keyboard to stop moving.
+//
+// Deleting the learning arm must fail TestStoppingDuringADemonstrationCancelsTheEpisode.
 func (s *Server) cancelActive() CancelPayload {
 	active, ok := s.registry.Cancel()
 	if !ok {
@@ -789,6 +815,17 @@ func (s *Server) cancelActive() CancelPayload {
 					ask.Phrase, ask.StepIndex, ask.StepCount, ask.CompletedSteps)
 			}
 			return CancelPayload{Accepted: true, CommandID: ask.CommandID, Phrase: ask.Phrase, Message: msg}
+		}
+		// A LEARN EPISODE IS NOT A COMMAND, and this is the arm that used to be missing.
+		//
+		// Nothing is being done to the desktop during a demonstration — the person is
+		// driving and Marco is watching — so no registry slot is claimed and neither of the
+		// two arms above can see it. Saying "stop" answered "nothing is running" while the
+		// demonstration went on capturing. See stop.go for why an episode is cancelled
+		// through the ordinary acquisition request rather than by a second implementation
+		// of ADR-066's Cancel.
+		if out, learning := s.cancelLearning(); learning {
+			return out
 		}
 		return CancelPayload{Accepted: false, Message: "nothing is running"}
 	}
@@ -811,6 +848,9 @@ func (s *Server) status() StatusPayload {
 		Collections:  activeCollectionsOf(s.runtime),
 		Recent:       s.registry.Recent(5),
 		Windows:      s.runtime.Windows(),
+		// Said even when nothing else is wrong, because the alternative is a status
+		// report that looks healthy on a Director that cannot see a single control.
+		AccessibilityUnavailable: accessibilityReason(s.runtime),
 	}
 	if ask, ok := s.pending.Get(); ok {
 		out.Clarification = &ask

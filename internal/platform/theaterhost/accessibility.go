@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/chaynes-simpleclouds/marco/internal/activate"
+	"github.com/chaynes-simpleclouds/marco/internal/platform/uiaclient"
 	"github.com/chaynes-simpleclouds/marco/internal/runtime"
 )
 
@@ -32,6 +33,13 @@ import (
 type AccessibilityActor struct {
 	// host is the Accessibility act's implementation, or nil when this machine has none.
 	host runtime.Host
+	// path is where the provider that backs this Actor lives, empty when none was found.
+	//
+	// Carried for DIAGNOSTICS only — nothing casts on it and nothing looks it up. It is here
+	// because "there is no bridge" and "there is a bridge at a path you did not expect" are
+	// different problems that look identical from a play that did nothing, and the Actor is
+	// the only thing that knows which one this machine has.
+	path string
 }
 
 // NewAccessibilityActor casts the accessibility bridge as an Actor, or returns one that cannot
@@ -39,8 +47,12 @@ type AccessibilityActor struct {
 //
 // A nil host is a real answer, not an error: a machine without an accessibility bridge simply has
 // one fewer actor available tonight, and the Theater says so rather than failing obscurely.
-func NewAccessibilityActor(host runtime.Host) *AccessibilityActor {
-	return &AccessibilityActor{host: host}
+//
+// The PATH is what the caller looked for, whether or not it found it. Passing it in rather than
+// discovering it here keeps discovery in one place per process — the Actor reports where its
+// provider was sought, it does not decide where to seek it.
+func NewAccessibilityActor(host runtime.Host, path string) *AccessibilityActor {
+	return &AccessibilityActor{host: host, path: path}
 }
 
 // The window an actor searches in TRAVELS with the request, never on the actor.
@@ -52,8 +64,46 @@ func NewAccessibilityActor(host runtime.Host) *AccessibilityActor {
 
 func (a *AccessibilityActor) Name() string { return "accessibility" }
 
-// Available reports whether there is a bridge to ask at all.
-func (a *AccessibilityActor) Available(context.Context) bool { return a.host != nil }
+// accessibilityProvider is the installation that backs this Actor.
+//
+// One word, and it is deliberately not "plugin". A plugin directory is an INSTALLATION that may
+// ship zero, one or many Actors plus support that is not an Actor at all; this names the thing
+// that supplies this one capability. See Availability for the rule.
+const accessibilityProvider = "uia"
+
+// Availability ASKS THE PROVIDER whether it can act, and keeps the reason when it cannot.
+//
+// # What this used to be, and what it cost
+//
+// `return a.host != nil`. On the Director's path a host is constructed unconditionally —
+// `bridgehost.New(path)` never returns nil, because it launches lazily — so this Actor reported
+// itself ready on a machine with no provider binary anywhere. The roster then said "accessibility:
+// ready", the Theater cast it, and the failure arrived several steps later as `perform_failed`
+// inside a play: a person told their play is broken when what is true is that their machine
+// cannot act at all.
+//
+// # What it costs to ask properly
+//
+// One round trip to the provider, and the process start that round trip may cause. That is paid
+// per production, and it is worth paying: the alternative is a check that cannot fail, and a
+// check that cannot fail is not a check. Every other answer here — a binary that will not launch,
+// a provider that says there is no foreground automation element — is one only the provider can
+// give.
+func (a *AccessibilityActor) Availability(ctx context.Context) Availability {
+	if a.host == nil {
+		if a.path == "" {
+			return Unavailable(accessibilityProvider, "",
+				"no accessibility provider is installed — build it with: "+
+					"powershell -File plugins/uia/build.ps1")
+		}
+		return Unavailable(accessibilityProvider, a.path,
+			"the accessibility provider at "+a.path+" is not wired into this process")
+	}
+	if av := uiaclient.AskAvailability(ctx, a.host); !av.Available {
+		return Unavailable(accessibilityProvider, a.path, av.Reason)
+	}
+	return Ready(accessibilityProvider, a.path)
+}
 
 // Find asks the accessibility source what it has by this name.
 //

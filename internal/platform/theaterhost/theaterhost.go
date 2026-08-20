@@ -89,11 +89,25 @@ type Candidate struct {
 type Actor interface {
 	// Name is what this Actor is called, for diagnostics and for casting notes.
 	Name() string
-	// Available reports whether this Actor can do anything at all right now.
+	// Availability is whether this Actor can do anything at all right now, and why not when
+	// it cannot.
 	//
-	// Asked before casting, so a missing bridge is "not available tonight" rather than an
+	// Asked before casting, so a missing provider is "not available tonight" rather than an
 	// error in the middle of a production.
-	Available(ctx context.Context) bool
+	//
+	// # Why it is not a bool any more
+	//
+	// Because the bool was answerable without asking anything. The accessibility Actor
+	// returned `a.host != nil`, and on the Director's path a host is always constructed —
+	// so the one Actor in the product reported itself ready on a machine with no provider
+	// binary at all, and the honest refusal `no_actor_available` degraded into a
+	// mid-production `perform_failed`. A person was told their play was broken when their
+	// machine could not act.
+	//
+	// An Actor must therefore ASK whatever backs it, and what comes back is a sentence, not
+	// a flag. Every surface above this — the roster, the diagnostic, the Cast page — can
+	// only ever say what this returns.
+	Availability(ctx context.Context) Availability
 	// Find is every live candidate this Actor believes is the target.
 	//
 	// Zero, one or several. It must NOT choose among several — see Activate for why that
@@ -197,12 +211,78 @@ func New(actors ...Actor) *Theater {
 	return &Theater{actors: actors}
 }
 
+// Availability is what an Actor answers when it is asked whether it can act, and why not.
+//
+// # The four fields are four different questions a person actually asks
+//
+//	Ready     can this act right now
+//	Provider  what is behind it — the installation that supplies the capability
+//	Path      where that installation lives, when it is a thing on disk
+//	Reason    why not, in a sentence somebody can act on
+//
+// # An Actor is a capability; a provider is an installation
+//
+// These are two different things and the code has been welding them together because, today,
+// there is exactly one of each: one Actor in the whole product (accessibility) and one plugin
+// directory that supplies it. That 1:1 is an accident of there being one Actor, not a design.
+//
+// The rule, written down here because this is the type that carries it: an ACTOR is a capability
+// the Theater may cast. A PLUGIN, or integration, is an installation that may provide zero, one or
+// many Actors, plus support that is not an Actor at all — nine of the eleven directories under
+// plugins/ provide no Actor whatsoever. So `Provider` names the installation and `Name` names the
+// capability, and nothing should collapse them again.
+type Availability struct {
+	// Ready is whether this Actor can act at the moment it was asked.
+	Ready bool
+	// Provider is the installation behind this Actor, empty when it has none.
+	Provider string
+	// Path is where that installation lives, empty when it is not a thing on disk.
+	//
+	// The path is the point of the whole diagnostic. "No provider" and "a provider at a path
+	// you did not expect" are different problems, and from a play that did nothing they look
+	// exactly alike.
+	Path string
+	// Reason is why this Actor cannot act, EMPTY when it can.
+	//
+	// See Ready(): a reason beside a ready Actor is a contradiction, and a surface rendering
+	// "ready — the bridge is missing" teaches a person not to trust the word ready.
+	Reason string
+}
+
+// Ready is an Actor that can act, with no explanation attached.
+//
+// A constructor rather than a struct literal at each site, so "a reason present alongside
+// available:true" has one place it could come from instead of one per Actor.
+func Ready(provider, path string) Availability {
+	return Availability{Ready: true, Provider: provider, Path: path}
+}
+
+// Unavailable is an Actor that cannot act, and why.
+//
+// An empty why becomes a sentence rather than a blank: "unavailable, no reason given" is at least
+// a report that something is wrong, where "" renders as nothing at all and reads as fine.
+func Unavailable(provider, path, why string) Availability {
+	if strings.TrimSpace(why) == "" {
+		why = "unavailable, and no reason was given"
+	}
+	return Availability{Provider: provider, Path: path, Reason: why}
+}
+
 // Player is one Actor's readiness tonight. Diagnostics only — nothing decides anything on it.
+//
+// The JSON shape is a contract: a control surface renders these fields as the Cast page, which is
+// the answer to "what can Marco do" for somebody who never learns the word Theater.
 type Player struct {
-	// Name is what the Actor calls itself.
+	// Name is what the Actor calls itself — the CAPABILITY, e.g. "accessibility".
 	Name string `json:"name"`
+	// Provider is the installation behind it, empty when it has none.
+	Provider string `json:"provider,omitempty"`
+	// Path is where that installation lives, empty when it is not a thing on disk.
+	Path string `json:"path,omitempty"`
 	// Available is the answer to the SAME question casting asks, at the moment it was asked.
 	Available bool `json:"available"`
+	// Reason is why it cannot act, empty when it can — and empty ALWAYS when it can.
+	Reason string `json:"reason,omitempty"`
 }
 
 // Roster is who is in the Theater and who can act, in casting order.
@@ -216,8 +296,8 @@ type Player struct {
 //
 // # Why it must not be a second opinion
 //
-// It calls a.Available(ctx) on t.actors in order — the same predicate, on the same actors, in the
-// same sequence Activate walks. A roster that computed readiness its own way would be a
+// It calls a.Availability(ctx) on t.actors in order — the same predicate, on the same actors, in
+// the same sequence Activate walks. A roster that computed readiness its own way would be a
 // diagnostic that agrees with the product right up until the moment somebody needs it to
 // disagree, which is the one moment it is consulted.
 //
@@ -230,7 +310,20 @@ func (t *Theater) Roster(ctx context.Context) []Player {
 	}
 	out := make([]Player, 0, len(t.actors))
 	for _, a := range t.actors {
-		out = append(out, Player{Name: a.Name(), Available: a.Available(ctx)})
+		av := a.Availability(ctx)
+		p := Player{
+			Name: a.Name(), Provider: av.Provider, Path: av.Path, Available: av.Ready,
+		}
+		// The reason is carried ONLY when there is something to explain. An Actor that
+		// answers ready and hands over a reason anyway has contradicted itself, and the
+		// roster is the last place that contradiction could be stopped before it reaches
+		// a person as "accessibility: ready — the bridge is not installed".
+		//
+		// Dropping this must fail TestAReadyPlayerNeverCarriesAReason.
+		if !av.Ready {
+			p.Reason = av.Reason
+		}
+		out = append(out, p)
 	}
 	return out
 }
@@ -247,8 +340,13 @@ func (t *Theater) Activate(ctx context.Context, target Target) Production {
 		return Production{Refused: TargetNotFound, Detail: "a target needs a name"}
 	}
 	available := 0
+	// WHY each silent Actor was silent, kept for the refusal below. A machine that cannot act
+	// used to say only that it could not act; the sentence a person can do something about was
+	// known here and discarded one line later.
+	var quiet []string
 	for _, a := range t.actors {
-		if !a.Available(ctx) {
+		if av := a.Availability(ctx); !av.Ready {
+			quiet = append(quiet, a.Name()+": "+av.Reason)
 			continue
 		}
 		available++
@@ -289,11 +387,17 @@ func (t *Theater) Activate(ctx context.Context, target Target) Production {
 		}
 	}
 	if available == 0 {
-		return Production{
-			Refused: NoActorAvailable,
-			Detail: "nothing on this machine can act on a target right now, so this play " +
-				"cannot go on here",
+		// The reasons travel with the refusal. "Nothing here can act" is true and useless;
+		// "nothing here can act — accessibility: the bridge is not at plugins\uia\uia.exe" is
+		// the same refusal with the fix in it.
+		//
+		// Dropping the reasons must fail TestAnEmptyStageSaysWhyItIsEmpty.
+		detail := "nothing on this machine can act on a target right now, so this play " +
+			"cannot go on here"
+		if len(quiet) > 0 {
+			detail += " — " + strings.Join(quiet, "; ")
 		}
+		return Production{Refused: NoActorAvailable, Detail: detail}
 	}
 	return Production{
 		Refused: TargetNotFound,

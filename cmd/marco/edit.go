@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -104,6 +105,7 @@ func runEdit(name, view string) {
 	mux.HandleFunc("/api/register", ed.handleRegister) // stage → askable
 	mux.HandleFunc("/api/load", ed.handleLoad)         // switch which play is being edited
 	mux.HandleFunc("/api/do", ed.handleDo)             // run a play for real
+	mux.HandleFunc("/api/run", ed.handleRun)           // what became of a clicked Run
 	mux.HandleFunc("/api/bindings", ed.handleBindings)
 	mux.HandleFunc("/api/bind", ed.handleBind)
 	mux.HandleFunc("/api/unbind", ed.handleUnbind)
@@ -135,6 +137,10 @@ type editor struct {
 	rt   routes.Route
 	path string
 	src  string
+
+	// runs is what became of each clicked Run. See runaccount.go — the control centre used to
+	// report every run as a success the instant the process started.
+	runs runAccount
 }
 
 // loadSrc reads the active play's source into e.src.
@@ -356,14 +362,28 @@ func doArgv(rt routes.Route) []string {
 // A package variable for the same reason `submitPhrase` in intake.go is one: a test has to be able
 // to prove WHAT a clicked Run would launch without launching it. `marco do` performs real input.
 // Production never reassigns it.
+// It now hands back the process AND its combined output, because the caller has to read the
+// engine's `[result] ` line to know what actually happened — see runaccount.go. Starting a child
+// and walking away was how this surface came to report every run as a success.
 var runSpawn = spawnMarco
 
-func spawnMarco(args []string) error {
+func spawnMarco(args []string) (*exec.Cmd, io.Reader, error) {
 	self, err := os.Executable()
 	if err != nil {
 		self = os.Args[0]
 	}
-	return exec.Command(self, args...).Start()
+	cmd := exec.Command(self, args...)
+	// Both streams, into one reader. The result line goes to stdout and a play's own complaints
+	// often go to stderr, and a person reading "failed" deserves whichever of them said why.
+	pipe, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, nil, err
+	}
+	cmd.Stderr = cmd.Stdout
+	if err := cmd.Start(); err != nil {
+		return nil, nil, err
+	}
+	return cmd, pipe, nil
 }
 
 // doTarget picks the registered play a Run names, out of the handle the row already carried.
@@ -430,11 +450,39 @@ func (e *editor) handleDo(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "no play Marco can run answers to that", 404)
 		return
 	}
-	if err := runSpawn(doArgv(rt)); err != nil {
+	// THE ANSWER IS AN ID, NOT A VERDICT.
+	//
+	// This used to answer `{"ok":true}` the instant the process was started, and the page said
+	// "running: X" for ever. A declined play, a stopped play, a play that refused because it
+	// could not recognise the screen, and a play that worked all rendered the same. See
+	// runaccount.go for why the id, and why not a blocking handler.
+	//
+	// Deleting the run id — answering ok again — must fail TestAClickedRunReportsWhatTheEngineSaid.
+	id, err := e.runs.start(rt)
+	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	writeJSON(w, map[string]any{"ok": true, "name": prettyRoute(rt.Slug)})
+	writeJSON(w, map[string]any{"ok": true, "run": id, "name": prettyRoute(rt.Slug)})
+}
+
+// handleRun answers "what became of the run I started".
+//
+// A read, and a cheap one: the page asks about one id until it is finished. It reports the
+// ENGINE'S OWN WORD, from internal/outcome, which is the same vocabulary the HUD renders — so the
+// two surfaces cannot describe one run differently without failing to compile.
+func (e *editor) handleRun(w http.ResponseWriter, r *http.Request) {
+	rec, ok := e.runs.get(strings.TrimSpace(r.URL.Query().Get("id")))
+	if !ok {
+		http.Error(w, "no such run", 404)
+		return
+	}
+	writeJSON(w, map[string]any{
+		"done":    rec.Done,
+		"outcome": string(rec.Outcome),
+		"play":    prettyRun(rec),
+		"detail":  rec.Detail,
+	})
 }
 
 // handleBindings lists every leader-hotkey binding (key → command, scoped to an app).
@@ -2315,11 +2363,45 @@ async function openRoute(name){
 // shown name. The name is derived from the slug and that derivation is not reversible (a name with
 // an apostrophe does not round-trip), so posting the name would ask the engine to guess back
 // something this page already knows. See doArgv.
+// doPlay presses Run and then WAITS TO BE TOLD WHAT HAPPENED.
+//
+// It used to flash "running: X" and stop there, because the server answered ok the moment the
+// process existed. A play the door declined, a play somebody stopped and a play that worked all
+// looked identical. The words below are the engine's own six outcomes, the same ones the HUD
+// renders — see internal/outcome.
 async function doPlay(p){
   const resp = await fetch('/api/do',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({slug:p.slug, app:p.app, scope:p.scope})});
   if(!resp.ok){ flash((await resp.text()).trim()||('could not run '+p.name)); return; }
+  const started = await resp.json();
   flash('running: '+p.name);
+  if(!started.run){ return; }
+  await followRun(started.run, p.name);
+}
+// SAID is how each outcome reads to a person. Six words in, six sentences out — and every one of
+// them says something different, which is the whole reason the vocabulary is six words and not
+// "ok" and "not ok".
+const SAID = {
+  performed:   n => 'ran: '+n,
+  clarify:     n => 'Marco asked about '+n+' — answer it',
+  refused:     n => 'refused: '+n,
+  unavailable: n => 'nothing could take '+n,
+  cancelled:   n => 'stopped: '+n,
+  failed:      n => 'failed: '+n,
+};
+async function followRun(id, name){
+  // Polled rather than streamed: a play may run for a minute, and an HTTP handler held open for
+  // its length is one a browser gives up on for a run that is going perfectly well.
+  for(let i=0;i<600;i++){
+    await new Promise(r=>setTimeout(r,300));
+    let s;
+    try { const r = await fetch('/api/run?id='+encodeURIComponent(id)); if(!r.ok) return; s = await r.json(); }
+    catch(_) { return; }
+    if(!s.done) continue;
+    const say = SAID[s.outcome] || (n => n+': '+(s.outcome||'finished'));
+    flash(say(s.play||name) + (s.detail ? ' — '+s.detail : ''));
+    return;
+  }
 }
 // doOpenPlay runs the play the Edit view has open. Also an identity: /api/route carries its slug.
 function doOpenPlay(){ if(OPEN) doPlay(OPEN); }

@@ -71,7 +71,7 @@ func capabilityIn(program string) string {
 
 // laddering stages a production over a control that behaves as the runner describes.
 func laddering(r *laddered) *theaterhost.Theater {
-	return staged(r, theaterhost.NewAccessibilityActor(&recordingHost{}))
+	return staged(r, theaterhost.NewAccessibilityActor(&recordingHost{}, "uia.exe"))
 }
 
 // The production falls back to the pattern the control implements.
@@ -144,7 +144,7 @@ func TestBothPathsShareOneLadder(t *testing.T) {
 func TestAnActorNeverReachesAHostDirectly(t *testing.T) {
 	host := &recordingHost{}
 	r := &laddered{}
-	th := staged(r, theaterhost.NewAccessibilityActor(host))
+	th := staged(r, theaterhost.NewAccessibilityActor(host, "uia.exe"))
 
 	if got := th.Activate(context.Background(), mouse()); got.Refused != "" {
 		t.Fatalf("activation refused: %+v", got)
@@ -154,7 +154,7 @@ func TestAnActorNeverReachesAHostDirectly(t *testing.T) {
 			len(r.tried))
 	}
 	for i, c := range host.calls {
-		if c.Action != "Snapshot" {
+		if !isRead(c.Action) {
 			t.Errorf("bridge call %d was %q. An Actor calling a host to ACT is a second "+
 				"route to an effect: no compile gate, and nothing a dry run records.",
 				i+1, c.Action)
@@ -169,13 +169,13 @@ func TestAnActorNeverReachesAHostDirectly(t *testing.T) {
 func TestAProductionWithoutARunnerPerformsNothing(t *testing.T) {
 	host := &recordingHost{}
 	got := theaterhost.New(
-		theaterhost.NewAccessibilityActor(host)).Activate(context.Background(), mouse())
+		theaterhost.NewAccessibilityActor(host, "uia.exe")).Activate(context.Background(), mouse())
 
 	if got.Performed {
 		t.Fatal("a Theater with no Marco runner performed a production")
 	}
 	for i, c := range host.calls {
-		if c.Action != "Snapshot" {
+		if !isRead(c.Action) {
 			t.Errorf("bridge call %d was %q with no runner wired", i+1, c.Action)
 		}
 	}
@@ -188,7 +188,7 @@ func TestAProductionWithoutARunnerPerformsNothing(t *testing.T) {
 // other half is structural: the runner a Theater is given excludes the Theater act, which
 // cmd/marco holds.
 func TestACastProgramNamesOnlyTheConcreteAct(t *testing.T) {
-	actor := theaterhost.NewAccessibilityActor(&recordingHost{})
+	actor := theaterhost.NewAccessibilityActor(&recordingHost{}, "uia.exe")
 	for _, w := range activate.Ladder {
 		program, ok := actor.Cast(theaterhost.Candidate{Handle: "Mouse"}, w)
 		if !ok {
@@ -212,7 +212,7 @@ func TestACastProgramNamesOnlyTheConcreteAct(t *testing.T) {
 // The one place user text becomes program text in this Actor. A quote or a backslash must not be
 // able to change what the program says.
 func TestANameThatCannotBeWrittenIsRefused(t *testing.T) {
-	actor := theaterhost.NewAccessibilityActor(&recordingHost{})
+	actor := theaterhost.NewAccessibilityActor(&recordingHost{}, "uia.exe")
 	bad := []string{"Mouse\"", "Mouse\\", "Mouse\nSettings", ""}
 	for _, name := range bad {
 		if _, ok := actor.Cast(theaterhost.Candidate{Handle: name}, activate.Invoke); ok {
@@ -235,7 +235,7 @@ func TestANameThatCannotBeWrittenIsRefused(t *testing.T) {
 // something happened.
 func TestACompileFailureStopsTheProductionAtOnce(t *testing.T) {
 	r := &rejects{}
-	got := staged(r, theaterhost.NewAccessibilityActor(&recordingHost{})).
+	got := staged(r, theaterhost.NewAccessibilityActor(&recordingHost{}, "uia.exe")).
 		Activate(context.Background(), mouse())
 
 	if got.Performed {
@@ -258,4 +258,24 @@ type rejects struct{ runs int }
 func (r *rejects) Run(context.Context, string, string) (directorapi.MarcoResult, error) {
 	r.runs++
 	return directorapi.MarcoResult{}, errors.New(`Accessibility has no capability "Invoke"`)
+}
+
+// isRead names the bridge calls that ASK the provider something and change nothing.
+//
+// The invariant these tests hold is "an Actor never reaches a host to ACT" — because acting
+// outside the cast program would be a second route to an effect, with no compile gate and nothing
+// for a dry run to record. It is NOT "an Actor only ever calls Snapshot", which is what they
+// happened to say while Snapshot was the only read there was.
+//
+// `Available` is the second. It asks the provider whether it can act at all, which is the question
+// the roster and the refusal `no_actor_available` are both built on, and it changes nothing.
+//
+// Keeping this an ALLOW-LIST rather than a deny-list is the point: a new action added to the Actor
+// fails these tests until somebody says out loud which kind it is.
+func isRead(action string) bool {
+	switch action {
+	case "Snapshot", "Available":
+		return true
+	}
+	return false
 }

@@ -35,6 +35,14 @@ func (b *bridgeSpy) Invoke(c runtime.HostCall) (string, runtime.Value, error) {
 	b.mu.Lock()
 	b.calls = append(b.calls, c.Act+"'s "+c.Action)
 	b.mu.Unlock()
+	// The provider's availability question, answered as plugins/uia answers it. An Actor asks
+	// before casting now; a spy that stayed silent would report a Theater with nobody in it,
+	// and this test is about the Theater being REACHED.
+	if c.Action == "Available" {
+		s := runtime.NewSet()
+		s.Put("Available", runtime.Bool(true))
+		return "ok", runtime.SetVal(s), nil
+	}
 	return "ok", runtime.Absent(), nil
 }
 

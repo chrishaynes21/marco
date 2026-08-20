@@ -299,11 +299,23 @@ func TestAnUnreachableDirectorIsReportedRatherThanRemembered(t *testing.T) {
 		t.Fatalf("the unavailable account failed its own check: %v", err)
 	}
 	text := watchText(v)
-	if !strings.Contains(text, "isn't watching anything") {
-		t.Errorf("an absent Director did not read as absent:\n%s", text)
+	// The MEANING, not the sentence. The exact wording moved once already — this asserted
+	// "isn't watching anything" and went red when the words changed for an unrelated and
+	// correct reason — and a test that pins prose stops the prose from improving without ever
+	// protecting the thing it was written for.
+	if !strings.Contains(strings.ToLower(text), "watching") {
+		t.Errorf("an absent Director did not say it is not watching:\n%s", text)
 	}
 	if strings.Contains(text, "I recognise") {
 		t.Errorf("an absent Director claimed to recognise something:\n%s", text)
+	}
+	// And it must not answer by naming a developer command. This surface is a click-through
+	// HUD: there is nothing under it to type into, and a person using Marco has no reason to
+	// know the Director exists.
+	for _, backstage := range []string{"director serve", "director ", "Director"} {
+		if strings.Contains(text, backstage) {
+			t.Errorf("an absent Director told the Audience about %q:\n%s", backstage, text)
+		}
 	}
 }
 

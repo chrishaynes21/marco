@@ -35,8 +35,16 @@ type scriptedActor struct {
 	performed []string
 }
 
-func (a *scriptedActor) Name() string                   { return a.name }
-func (a *scriptedActor) Available(context.Context) bool { return a.available }
+func (a *scriptedActor) Name() string { return a.name }
+
+// Availability answers with a reason when it cannot act — the field every surface above an Actor
+// renders, and the one a bool could not carry.
+func (a *scriptedActor) Availability(context.Context) theaterhost.Availability {
+	if a.available {
+		return theaterhost.Ready("test", "")
+	}
+	return theaterhost.Unavailable("test", "", "this scripted actor was told to be unavailable")
+}
 func (a *scriptedActor) Find(_ context.Context, _ theaterhost.Target) (
 	[]theaterhost.Candidate, error) {
 	return a.finds, a.findErr

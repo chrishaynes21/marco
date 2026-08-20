@@ -188,25 +188,12 @@ func (p *Provider) Snapshot(ctx context.Context, scope directorapi.WindowID) (di
 // is "can I rely on this source?", and every negative answer — bridge missing,
 // process dead, no automation element — means the same thing to the Director: build
 // a degraded world and say so.
+//
+// The REASON the provider gave is not lost any more, it is just not what this caller asked for.
+// See AskAvailability, which both this and the Theater's accessibility Actor go through, so one
+// machine cannot hold two answers about whether it can act.
 func (p *Provider) Available(ctx context.Context) bool {
-	status, data, err := p.host.Invoke(runtime.HostCall{
-		Act:    accessibilityAct,
-		Action: "Available",
-		Input:  runtime.Absent(),
-		Out:    io.Discard,
-		Ctx:    ctx,
-	})
-	if err != nil || status == "failed" {
-		return false
-	}
-	var reply struct {
-		Available bool   `json:"Available"`
-		Reason    string `json:"Reason"`
-	}
-	if decode(data, &reply) != nil {
-		return false
-	}
-	return reply.Available
+	return AskAvailability(ctx, p.host).Available
 }
 
 // Focus moves keyboard focus to an element, without activating it.
