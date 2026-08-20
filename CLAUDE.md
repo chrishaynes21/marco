@@ -1,8 +1,8 @@
 # CLAUDE.md — start here
 
-**Marco** is a sentence-driven automation language + self-teaching assistant: you
-name a command in plain words, demonstrate (or narrate) it once, and it's saved as a
-small editable Marco program that drives real input via a host-FFI boundary.
+**Marco** is a sentence-driven automation language + an assistant that learns what you
+show it: you name a command in plain words, demonstrate (or narrate) it once, and it's
+saved as a small editable Marco program that drives real input via a host-FFI boundary.
 
 ## Read first (in order)
 1. **`docs/AI-CONTEXT.md`** — how to navigate the knowledge base. Then `docs/Director.md`
@@ -77,6 +77,17 @@ and generated routes are checked against Core's vocabulary.
 - **Secrets never land in a route or a recording.** Passwords resolve via
   `do OS's Secret …` at run time from the credential store. Don't text-substitute a
   secret value into route source.
+- **LEARN, TEACH and DO are three different words, vertically.** LEARN is the person
+  acting while Marco watches and acquires — the whole demonstrate/narrate flow, and the
+  only one of the three that is built. TEACH is RESERVED for the mirror image: Marco
+  guiding a person through a thing they do themselves. DO is Marco acting on the
+  person's behalf. So live acquisition code is spelled Learn everywhere
+  (`internal/director/learn`, `internal/voicelearn`, `Runtime.LearnSession`,
+  `IntentLearn`, `marco learn`, `director learn`, the overlay's `learn <name>`), and
+  `teach` survives only as an undocumented CLI/overlay alias for the muscle memory the
+  product shipped with. Enforced by `cmd/marco` `TestNoLiveAcquisitionCodeIsNamedTeach`,
+  which names the alias explicitly so it cannot grow. Dated ADR bodies and quoted
+  transcripts keep the old word on purpose — they are the record of what it meant then.
 - **Cross-platform by construction.** OS surfaces (`winctx`, `screen`, `recorder`,
   `secrets`, `oshost` backend) sit behind interfaces with Windows backends + stubs;
   keep the stub side compiling.
@@ -99,4 +110,4 @@ go -C plugins/overlay build -o overlay.exe .
 - Branch is `feat/host-ffi` (unmerged). **Commit/push only when the user asks.**
 - After edits, run `go build ./... && go test ./...` and `gofmt -w` touched files.
 - Prefer extending the existing patterns (`internal/routes/args.go`,
-  `internal/voiceteach`, `plugins/overlay` MVC) over new abstractions.
+  `internal/voicelearn`, `plugins/overlay` MVC) over new abstractions.

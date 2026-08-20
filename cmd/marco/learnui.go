@@ -14,7 +14,7 @@ import (
 //
 // It holds no state. It does not know what a phase is, when a demonstration is finished, whether
 // a candidate is ready or whether a rehearsal may run. Every one of those questions is answered
-// by the Director's teaching coordinator, and this forwards the person's intent to it and hands
+// by the Director's Learn coordinator, and this forwards the person's intent to it and hands
 // back what it says.
 //
 // That is the whole architectural rule for this surface: the UI is a window onto the lifecycle,
@@ -60,7 +60,7 @@ func learnAPI(mux *http.ServeMux) {
 	// ANSWERING one of Marco.s own questions -- the ones it raises itself, counts at
 	// the person, and used to offer no way to settle.
 	mux.HandleFunc("/api/learn/answer", handleAnswer)
-	// LIGHT MODE: watch where you are without teaching anything. Place recognition only
+	// LIGHT MODE: watch where you are without learning anything. Place recognition only
 	// happens while something is observing, and starting a demonstration to see it made the
 	// instrument require the experiment.
 	mux.HandleFunc("/api/learn/remember", learnVerb(func(called string) service.ObserveLearn {
@@ -104,6 +104,17 @@ func learnVerb(build func(name string) service.ObserveLearn) http.HandlerFunc {
 // error and left its old state on screen would be showing two answers at once, and the person
 // would have no way to tell which one Marco believes.
 func writeLearn(w http.ResponseWriter, q service.ObserveLearn) {
+	// THIS PANEL IS ONE OF MARCO'S OWN SURFACES, and it says so once, here, rather than in
+	// each of the twelve places a verb is built — one missed construction would ask for the
+	// wrong account of the session, and it would look like a rendering bug.
+	//
+	// Two things follow from it, and they are the same fact: the window this request arrives
+	// from is Marco's, so the buttons the person presses here are not mistaken for the task
+	// they are demonstrating; and the reply is the surface's reading of the session rather
+	// than the session's own, which is what this page knows how to render.
+	//
+	// Deleting it must fail TestOneAcquisitionRequestServesBothSurfaces.
+	q.Surface = true
 	w.Header().Set("Content-Type", "application/json")
 	c, err := directorConnect(false)
 	if err != nil {
@@ -213,7 +224,7 @@ func renameRequest(place, called string) service.ObserveLearn {
 //
 // # Why this endpoint exists
 //
-// Because Marco raises questions during a teach pass, blocks the rehearsal question behind them,
+// Because Marco raises questions during a learn pass, blocks the rehearsal question behind them,
 // and reports "Questions open: 3" at somebody who had no control that could answer any of them.
 // Live, three runs in a row ended at a rehearsal that could not be offered because of questions
 // the person could see and could not touch.

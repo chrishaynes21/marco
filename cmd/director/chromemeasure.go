@@ -16,7 +16,7 @@ import (
 // Windows Settings minted THREE durable subjects for one page. Thirteen of fourteen role counts
 // were byte-identical and the read terms agreed; only `button` moved (15 / 17 / 19) and
 // `scroll_bar` appeared. Screen identity rejects both — a role appearing at all fails
-// `sameRoleSet`, and a delta of two exceeds `RoleCountTolerance` — so every teach pass established
+// `sameRoleSet`, and a delta of two exceeds `RoleCountTolerance` — so every learn pass established
 // a different start, and the pass after it reported that the user had left it.
 //
 // The obvious explanation is that a scroll bar and its arrow buttons are viewport machinery rather

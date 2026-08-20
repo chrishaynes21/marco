@@ -10,10 +10,16 @@ source_paths:
   - internal/director/observe/relationship.go
   - internal/director/observesession/runner.go
   - internal/director/semanticmemory/store.go
-  - cmd/director/teachwiring.go
+  - cmd/director/learnsessionwiring.go
 ---
 
 # ADR-044 — a teach attempt is one episode, not three sightings
+
+> *Editorial note, added 2026-08-20.* Written before
+> [[ADR-048-learn-teach-and-do-are-three-different-sentences]]. **A "teach attempt" here is a Learn
+> episode** — the person demonstrates and Marco acquires — not the reserved **Teach** feature, in
+> which Marco guides a person through something it already knows. The record is left in the
+> vocabulary of its date; the rename is [[ADR-086-one-acquisition-one-word-one-request]].
 
 [[ADR-043-teaching-is-two-passes-not-a-new-capture]] left an open concern, recorded rather than
 resolved: teaching runs several bounded observation passes back to back, and every session that
@@ -74,7 +80,7 @@ was touched, because the counters showed no mismatch to fix.
   own. Both the rule and its default survived deliberate deletion and inversion.
 - `internal/director/observesession/relationshipwiring_test.go` —
   `TestASessionInAnEpisodeClaimsNoFurtherCorroboration`, through the production `Run` path.
-- `cmd/director/teachepisode_test.go` —
+- `cmd/director/learnepisode_test.go` —
   `TestATeachEpisodeClaimsOneCorroborationThroughTheProductionPass` drives `teachPasses.Observe`
   and asserts the flag it hands the runner, so deleting the production line fails.
 

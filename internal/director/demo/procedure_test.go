@@ -320,7 +320,7 @@ func TestALearnedProcedureSurvivesARestart(t *testing.T) {
 
 // TestAnUnreadableLearnedProcedureIsReportedRatherThanSkipped.
 //
-// A procedure the user believes they taught the Director, silently absent, is worse than a
+// A procedure the user believes Marco learned, silently absent, is worse than a
 // service that will not start.
 func TestAnUnreadableLearnedProcedureIsReportedRatherThanSkipped(t *testing.T) {
 	dir := t.TempDir()

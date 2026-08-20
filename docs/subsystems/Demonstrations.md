@@ -46,9 +46,9 @@ a person demonstrated it.
 ## Goal-centric since 2026-08-17
 
 A demonstration is EVIDENCE, never the capability. `A → B → C` decomposes into one
-candidate per grown edge; the leg arriving where the person stopped is the one the teaching
-tail carries forward, and the destination becomes a durable goal in the person's own words
-([[ADR-056-a-goal-is-a-destination-not-a-route]]). Attributed input survives every failure
+candidate per grown edge; the leg arriving where the person stopped is the one the Learn tail
+(`learnTail`) carries forward, and the destination becomes a durable goal in the person's own
+words ([[ADR-056-a-goal-is-a-destination-not-a-route]]). Attributed input survives every failure
 of interpretation ([[ADR-057-attributed-input-survives-interpretation]]), and a click that
 resolved to a named control is as learnable as a keypress
 ([[ADR-058-a-demonstrated-target-may-keep-its-name]]) — it rehearses as an invocation of

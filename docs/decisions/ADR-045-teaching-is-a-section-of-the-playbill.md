@@ -15,6 +15,14 @@ source_paths:
 
 # ADR-045 — teaching is a section of the playbill, not a second UI
 
+> *Editorial note, added 2026-08-20.* Written before
+> [[ADR-048-learn-teach-and-do-are-three-different-sentences]]. **"Teaching" here is the Learn
+> session** — the person demonstrates and Marco acquires — not the reserved **Teach** feature, in
+> which Marco guides a person through something it already knows. The section it decides on is the
+> type `playbill.LearnSession` today and renders under the header `LEARN SESSION`, kept distinct
+> from the passive `playbill.Learning` section directly below it (`LEARNING`). The rename is
+> [[ADR-086-one-acquisition-one-word-one-request]].
+
 Roadmap 32 finished the Teach lifecycle and Roadmap 33 asked for a visible face for it. The
 audit found the application shell already existed and was already right: `pkg/playbill` is ONE
 read-only account, `Normal()`, `Watch()` and `Deep()` are three readings of it, and the overlay
@@ -60,10 +68,10 @@ rendering under `-v`. Reading the output is the point.
 
 ## Enforced by
 
-- `pkg/playbill/teaching_test.go` — the cue is unmistakable, the two silences are kept apart,
+- `pkg/playbill/learnsession_test.go` — the cue is unmistakable, the two silences are kept apart,
   only navigation meanings may be shown, completion comes from the artifact, a path is refused
   where a play name is allowed, and the cue moves the digest so no surface sleeps through it.
-- `cmd/director/teachingview_test.go` — the wire, `Armed` and `Waiting` read from the
+- `cmd/director/learnsectionview_test.go` — the wire, `Armed` and `Waiting` read from the
   coordinator for every phase, and `TestReadingTheAccountChangesNoDirectorState`.
 - Seventeen mutations, all caught. Two survived first: completion invented from the phase, and
   `Waiting` never published at all — the field existed, the narration used it, every view test

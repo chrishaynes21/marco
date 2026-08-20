@@ -88,7 +88,7 @@ func (v View) Admit() error {
 	if err := v.admitLearning(); err != nil {
 		return err
 	}
-	if err := v.admitTeaching(); err != nil {
+	if err := v.admitLearnSession(); err != nil {
 		return err
 	}
 	if err := v.admitDoing(); err != nil {
@@ -506,7 +506,7 @@ func opaque(field, s string) error {
 	return nil
 }
 
-// admitTeaching holds the boundary on the explicit-teaching section.
+// admitLearnSession holds the boundary on the explicit Learn section.
 //
 // Three things are checked, and each of them is a way this section could become the leak
 // every other section was built to avoid:
@@ -518,19 +518,19 @@ func opaque(field, s string) error {
 //     identity assigned to the right field would otherwise reach a screen.
 //   - `Learned` is a play NAME, not a path. A file path on a status panel is somebody's
 //     home directory on a status panel.
-func (v View) admitTeaching() error {
-	t := v.Teaching
-	if err := sentence("teaching.asked", t.Asked); err != nil {
+func (v View) admitLearnSession() error {
+	t := v.LearnSession
+	if err := sentence("learnSession.asked", t.Asked); err != nil {
 		return err
 	}
-	if err := sentence("teaching.because", t.Because); err != nil {
+	if err := sentence("learnSession.because", t.Because); err != nil {
 		return err
 	}
-	if err := screenRef("teaching.learned", t.Learned); err != nil {
+	if err := screenRef("learnSession.learned", t.Learned); err != nil {
 		return err
 	}
 	if strings.ContainsAny(t.Learned, `/\`) {
-		return fmt.Errorf("playbill: teaching.learned looks like a path, not a play name")
+		return fmt.Errorf("playbill: learnSession.learned looks like a path, not a play name")
 	}
 	if len(t.Did) > MaxDidIntents {
 		return fmt.Errorf("playbill: %d attributed actions exceeds the bound of %d",
@@ -539,15 +539,15 @@ func (v View) admitTeaching() error {
 	for i, d := range t.Did {
 		if !KnownIntent(d) {
 			return fmt.Errorf(
-				"playbill: teaching.did[%d] is %q, which is not a navigation meaning", i, d)
+				"playbill: learnSession.did[%d] is %q, which is not a navigation meaning", i, d)
 		}
 	}
-	if len(t.Progress) > MaxTeachSteps {
-		return fmt.Errorf("playbill: %d teaching steps exceeds the bound of %d",
-			len(t.Progress), MaxTeachSteps)
+	if len(t.Progress) > MaxLearnSteps {
+		return fmt.Errorf("playbill: %d learnSession steps exceeds the bound of %d",
+			len(t.Progress), MaxLearnSteps)
 	}
 	for i, s := range t.Progress {
-		if err := sentence(fmt.Sprintf("teaching.progress[%d].name", i), s.Name); err != nil {
+		if err := sentence(fmt.Sprintf("learnSession.progress[%d].name", i), s.Name); err != nil {
 			return err
 		}
 		switch s.State {
@@ -560,16 +560,16 @@ func (v View) admitTeaching() error {
 	// a lie about it. A section that says a play was learned and cannot name it is a
 	// section that got its answer from a phase.
 	if t.Stage() == Saved && t.Learned == "" {
-		return fmt.Errorf("playbill: teaching says a play was saved and does not name one")
+		return fmt.Errorf("playbill: learnSession says a play was saved and does not name one")
 	}
 	return nil
 }
 
-// Stage is the teaching section's own reading of where it has got to.
+// Stage is the Learn section's own reading of where it has got to.
 //
 // Derived from the facts rather than carried beside them, so there is no second field to
 // fall out of step with `Learned`, `Armed` and `Stopped`.
-func (t Teaching) Stage() Stage {
+func (t LearnSession) Stage() Stage {
 	switch {
 	case t.Learned != "":
 		return Saved

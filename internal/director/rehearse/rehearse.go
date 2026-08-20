@@ -637,7 +637,7 @@ const (
 	// Emitted input has no address — whatever is in front receives it — so acting now would
 	// act on the wrong application and then honestly report that the right one never moved.
 	// Raised before the grant is claimed, so waiting for the person to bring the window
-	// forward costs nothing; the teach coordinator treats it as the patient case.
+	// forward costs nothing; the Learn coordinator treats it as the patient case.
 	RefusalWindowBehind Refusal = "window_not_in_front"
 	// RefusalTargetMoved is the window changing between checking the screen and acting on
 	// it — the race the final guard exists to close.

@@ -28,8 +28,13 @@ func main() {
 	case "press":
 		runPress(os.Args[2:])
 		return
-	case "teach":
-		runAssistantTeach(os.Args[2:])
+	// LEARN is the word. `teach` still answers because scripts, E2E.md and muscle memory
+	// have it — an undocumented compatibility alias, retired with the other legacy verbs.
+	// TEACH is reserved for Marco guiding a person; nothing here may mean that.
+	//
+	// Deleting the alias must fail TestTheLearnVerbAnswersToItsOldName.
+	case "learn", "teach":
+		runAssistantLearn(os.Args[2:])
 		return
 	case "simplify":
 		runAssistantSimplify(os.Args[2:])
@@ -279,12 +284,12 @@ func isActName(s string) bool {
 }
 
 func usage(w io.Writer) {
-	fmt.Fprint(w, `marco — a sentence-driven automation language and self-teaching assistant.
+	fmt.Fprint(w, `marco — a sentence-driven automation language and an assistant that learns.
 
-Assistant (teach by demonstration, then run by name):
+Assistant (learn by demonstration, then run by name):
   marco do "<name>"        run a play; if unknown, record it once and remember
   marco press <key>        press a key or chord (e.g. enter, ctrl+c, control shift esc)
-  marco teach "<name>"     record/overwrite a play by demonstration
+  marco learn "<name>"     record/overwrite a play by demonstration
   marco simplify "<name>"  re-simplify a saved play as far as it goes
   marco ui                 open the control center (all plays, bindings, help) in a browser
   marco edit "<name>"      open the control center on one play's visual editor
@@ -314,7 +319,7 @@ Hosts: dryrun logs calls (default); windows performs real input; bridge:<exe>
 delegates to an external program (e.g. AutoHotkey). Prefix a spec with Act= to
 give one act its own layer (e.g. OS=bridge:marco-macros Overlay=bridge:overlay);
 a bridge may also push events back to drive serve. Plays live in ./routes — the
-directory keeps its old name (override with $MARCO_ROUTES). While teaching, type
+directory keeps its old name (override with $MARCO_ROUTES). While learning, type
 {{name}} for a password.
 The stop key ends a recording and aborts a running play — default F12, so Esc
 is free to record as an ordinary key; change it with $MARCO_STOP_KEY (e.g. "esc",

@@ -12,7 +12,7 @@ source_paths:
   - internal/director/observesession/runner.go
   - internal/director/semanticmemory/store.go
   - cmd/director/observeregistry.go
-  - cmd/director/teachwiring.go
+  - cmd/director/learnsessionwiring.go
 ---
 
 # ADR-047 — a place is remembered, a meaning is answered

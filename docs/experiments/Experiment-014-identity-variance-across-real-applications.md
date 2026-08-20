@@ -35,7 +35,7 @@ relationship layer use — and `observe.CompareStructure`, the one matcher. It c
 tolerance of its own, so a verdict here is the verdict the Director would reach.
 
 Sessions were ordinary `director observe-game` runs against live software; each session is
-one independent identity opportunity, which is what every teach pass is. Vision and OCR off
+one independent identity opportunity, which is what every Learn pass is. Vision and OCR off
 throughout.
 
 ## What the identity of a screen state is actually made of

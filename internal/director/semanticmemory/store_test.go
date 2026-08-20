@@ -546,17 +546,17 @@ func rememberOne(t *testing.T, s *semanticmemory.Store, app string,
 	return ""
 }
 
-// A teaching EPISODE folds its evidence and claims one independent sighting, not three.
+// A learn EPISODE folds its evidence and claims one independent sighting, not three.
 //
 // `Sessions` is what the invitation policy reads as "this keeps happening" — separate sittings,
-// separate window generations, separate days. An explicit teach runs several bounded passes back
+// separate window generations, separate days. An explicit learn runs several bounded passes back
 // to back at one keyboard, and counting each of them would let Marco manufacture the corroboration
 // that the threshold exists to require.
 //
 // The other half is here too, and matters as much: an ordinary session that says nothing still
 // corroborates. The zero value counts, so a caller that forgets the field cannot silently stop
 // passive observation from accumulating evidence.
-func TestATeachingEpisodeClaimsOneSessionAndAnOrdinaryOneStillClaimsItsOwn(t *testing.T) {
+func TestALearningEpisodeClaimsOneSessionAndAnOrdinaryOneStillClaimsItsOwn(t *testing.T) {
 	s := open(t, filepath.Join(t.TempDir(), "memory.json"))
 	if err := s.Remember("unknown-game", settingsSignature(),
 		confirmed(observe.PossibleSettingsLikeState)); err != nil {
@@ -580,14 +580,14 @@ func TestATeachingEpisodeClaimsOneSessionAndAnOrdinaryOneStillClaimsItsOwn(t *te
 		}
 	}
 
-	// One teach attempt: the pass that created the edge, then two more of the same episode.
+	// One learn attempt: the pass that created the edge, then two more of the same episode.
 	fold(false)
 	fold(true)
 	fold(true)
 
 	edge := s.Relationships()[0]
 	if edge.Sessions != 1 {
-		t.Fatalf("one teaching episode claimed %d independent sessions, want 1", edge.Sessions)
+		t.Fatalf("one learn episode claimed %d independent sessions, want 1", edge.Sessions)
 	}
 	if edge.Observations != 6 {
 		t.Errorf("the episode folded %d observations, want 6 — the evidence is real and must "+

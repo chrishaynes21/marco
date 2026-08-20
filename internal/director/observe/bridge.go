@@ -4,7 +4,7 @@ package observe
 //
 // # The problem, measured
 //
-// A live teach attempt on Windows Settings pressed `confirm` once and moved between two screens
+// A live learn attempt on Windows Settings pressed `confirm` once and moved between two screens
 // Marco recognises. What the segmenter recorded was not one change but two:
 //
 //	state_1        → state_unknown   count 1, preceded {confirm: 1}

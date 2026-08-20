@@ -4,14 +4,14 @@ status: accepted
 date: 2026-08-19
 supersedes: []
 affects:
-  - teaching
+  - demonstrations
   - proposals
   - passive-observation
 source_paths:
   - internal/director/observesession/runner.go
-  - internal/director/teach/teach.go
+  - internal/director/learn/learn.go
   - cmd/director/observeregistry.go
-  - cmd/director/teachtail.go
+  - cmd/director/learntail.go
 ---
 
 # ADR-075 — a Learn episode outlives its sessions
@@ -32,8 +32,8 @@ Audience interaction.
 observations, capture, shadows, settle samples, provider handles, one attempt's execution detail,
 the session's proposal ledger. These are *supposed* to die with the session.
 
-**Episode** — one explicit Audience Learn interaction, owned by `Runtime.teach` (a `teaching`
-holding a `teach.Coordinator` and its `teach.Session`). The goal, the demonstrated `RouteWalk`, the
+**Episode** — one explicit Audience Learn interaction, owned by `Runtime.learn` (a `learnSession`
+holding a `learn.Coordinator` and its `learn.Session`). The goal, the demonstrated `RouteWalk`, the
 required edges and their order, `ReviewingEdges` progress, the edge under review, per-edge status,
 `Verified n/m`, the naming workflow, route completion. **In-process only, and deliberately so.**
 
@@ -41,7 +41,7 @@ required edges and their order, `ReviewingEdges` progress, the edge under review
 verified relationships, goals, the generated Play. Independent of any episode.
 
 The audit's central finding is that **the episode owner already exists and is already correct**:
-`teaching` hangs off `Runtime`, not off a Runner, so the Learn lifecycle survives session
+`learnSession` hangs off `Runtime`, not off a Runner, so the Learn lifecycle survives session
 replacement by construction. No new Episode subsystem was needed. Every defect was in the
 *question / answer / authority* plumbing, which lives in the session domain and was reached through
 `g.last` — the newest Runner.
@@ -87,10 +87,10 @@ impossible.
 
 Not everything needed changing, and saying which is part of the audit:
 
-- `teach.Session` — episode-owned already; no Runner reference exists to break.
+- `learn.Session` — episode-owned already; no Runner reference exists to break.
 - Naming — `AnswerName` finds the question by identity across every session and writes to
   `q.Screen`, never to what is in front. Already gated; now also gated across a session boundary.
-- `teachTail.Granted(route)` — already route-scoped.
+- `learnTail.Granted(route)` — already route-scoped.
 - The passive interruption budget — untouched. Passive observation questions keep session-local
   semantics, which is right for them; only the identity and answerability of a question crossing a
   session boundary changed.
@@ -120,12 +120,12 @@ restart is of course unaffected.
   `TestAYesWithNoStoreStillRecordsWhyItCreatedNothing`;
   `TestAGrantForOneRouteDoesNotSilenceTheQuestionAboutAnother`;
   `TestAYesAboutAnotherRouteSupersedesAnUnspendableGrant`
-- `internal/director/teach/multiedge_test.go` — `TestTheEdgeReviewSurvivesASessionReplacement`
+- `internal/director/learn/multiedge_test.go` — `TestTheEdgeReviewSurvivesASessionReplacement`
 - `cmd/director/proposalwiring_test.go` — `TestAYesReachesTheRunnerEvenWhenANewerSessionHasStarted`;
   `TestNamingSurvivesANewerSessionBecomingCurrent`;
   `TestOneQuestionIsShownOnceHoweverManySessionsRaisedIt`;
   `TestAnAnswerSettlesEveryCopyOfTheQuestion`
-- `cmd/director/teachtail_test.go` — `TestTheTailsGrantRefusalIsScopedToItsRoute`;
+- `cmd/director/learntail_test.go` — `TestTheTailsGrantRefusalIsScopedToItsRoute`;
   `TestTheTailsGrantIsScopedToItsRoute`
 
 ## Related

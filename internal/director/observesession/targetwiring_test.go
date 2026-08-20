@@ -275,7 +275,7 @@ func TestADemonstratedTargetBecomesDurable(t *testing.T) {
 // An UNLICENSED session establishes no target, however much it watches.
 //
 // The control, and the privacy boundary in one line: a target becomes durable only because a
-// person explicitly asked to be taught and then acted. Passive observation persists nothing.
+// person explicitly asked Marco to learn and then acted. Passive observation persists nothing.
 func TestAnUnlicensedSessionEstablishesNoTarget(t *testing.T) {
 	dir := t.TempDir()
 	store := memoryAt(t, dir)

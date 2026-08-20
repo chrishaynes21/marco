@@ -492,7 +492,7 @@ type RehearsalGrant struct {
 // `source_mismatch` checks and then expired with the person still on their way.
 //
 // Ten minutes is the answer this system already gives to that exact question — `Bounds.Answer`,
-// which bounds how long a teach session waits for somebody to answer, and is justified there as
+// which bounds how long a learn session waits for somebody to answer, and is justified there as
 // "a session left open overnight waiting for somebody to type a screen name is a session nobody
 // meant to leave running". Waiting for a person to arrive somewhere is the same kind of wait.
 //

@@ -39,8 +39,8 @@ const dpiPerMonitorAwareV2 = ^uintptr(3)
 // with different scaling. Without it Windows hands back DPI-virtualized
 // coordinates and downscaled captures, which breaks clicks and image matching on
 // scaled or secondary (e.g. left) monitors. oshost imports this package, so every
-// macro process (do/teach/marco-macros) gets it. Must run before any GetDC; an
-// init does (before main). Re-teach image templates after this change if older
+// macro process (do/learn/marco-macros) gets it. Must run before any GetDC; an
+// init does (before main). Re-record image templates after this change if older
 // ones were captured while DPI-unaware.
 func init() {
 	if r, _, _ := procSetProcessDpiAwarenessContext.Call(dpiPerMonitorAwareV2); r == 0 {

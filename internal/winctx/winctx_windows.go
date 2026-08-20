@@ -56,7 +56,7 @@ type point struct{ x, y int32 }
 
 // CursorPos returns the cursor's position in virtual-desktop pixels (the process
 // is per-monitor DPI aware, so these are physical and match SetCursorPos). Used by
-// voice-teach to record a click "where the cursor is" when you say "click this".
+// voice-learn to record a click "where the cursor is" when you say "click this".
 func CursorPos() (x, y int) {
 	var p point
 	procGetCursorPos.Call(uintptr(unsafe.Pointer(&p)))

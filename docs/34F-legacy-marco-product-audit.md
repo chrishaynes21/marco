@@ -11,7 +11,7 @@ source_paths:
   - internal/codegen
   - internal/recorder
   - internal/macroir
-  - internal/voiceteach
+  - internal/voicelearn
   - cmd/marco
   - cmd/director/learnedplay.go
   - plugins/overlay
@@ -71,7 +71,7 @@ And then:
 
 | # | break | evidence |
 |---|---|---|
-| **1** | **Nothing in any UI ever registers a play.** `teachTail.Save` (`cmd/director/teachtail.go:176`) sets `Save: true` and deliberately not `Register`. The Learn panel has six verbs and none of them is register (`cmd/marco/learnui.go`; `cmd/marco/edit.go:934-975`). The only register in the repository is the CLI flag `director learned --register` (`cmd/director/observecmd.go:1182`). | `Teaching.Registered` (`pkg/playbill/playbill.go:244`) is plumbed to the top of the product and is **structurally always false** on the Learn path. |
+| **1** | **Nothing in any UI ever registers a play.** `teachTail.Save` (`cmd/director/learntail.go:176`) sets `Save: true` and deliberately not `Register`. The Learn panel has six verbs and none of them is register (`cmd/marco/learnui.go`; `cmd/marco/edit.go:934-975`). The only register in the repository is the CLI flag `director learned --register` (`cmd/director/observecmd.go:1182`). | `Teaching.Registered` (`pkg/playbill/playbill.go:244`) is plumbed to the top of the product and is **structurally always false** on the Learn path. |
 | **2** | **A registered play's first line always refuses.** Every learned play opens with `do Screen's Showing with "<place>"` (`marcoexec/play.go:77`, ADR-030). There is exactly **one** production implementation of `screenhost.Recognition.CurrentSubject` in the repository, at `cmd/marco/screenwiring.go:70`, and it returns `Unavailable` unconditionally, which `screenhost.go:134` turns into a refusal. | `grep -rn "func.*CurrentSubject"` returns one non-test hit. |
 | **3** | **The two halves read different memory.** Director writes `%AppData%\marco\semantic-memory.json` (`cmd/director/graph.go:52`). `marco`'s Screen host reads `routes/memory.json` (`cmd/marco/screenwiring.go:43`). Different name, different directory. Even if break 2 were fixed, `SubjectNamed` would query an empty store. | two literals, two paths. |
 | **4** | **The Theater has no actor in the shipped stack.** `hosts["Accessibility"]` is wired only when `$MARCO_UIA_BRIDGE` is set (`cmd/marco/assistant.go:69`). Neither `overlay.cmd` nor `setup.ps1` sets it, though `cmd/director/main.go:664` defaults the same path for itself. A play that presses a control by name would refuse `no_actor_available`. | `grep MARCO_UIA_BRIDGE setup.ps1 overlay.cmd` → nothing. |
@@ -203,7 +203,7 @@ read passes `autoStart=false` and renders "the Director service is not running".
 | **staging** | `routes/origin.go` `LearnedDir` | `<app>/learned/` — saved and structurally undiscoverable |
 | **authority** | `internal/orchestrator/authority.go` | `Resolved` → `Authorize` → `Decision`; learned plays need confirmation |
 | **teach (record)** | `orchestrator.Teach` | recorder → `simplify` → `macroir.Step[]` → `codegen` → `.marco` + `.rec.json` |
-| **teach (narrate)** | `internal/voiceteach` | spoken/typed phrases → the same `macroir` pipeline |
+| **teach (narrate)** | `internal/voicelearn` | spoken/typed phrases → the same `macroir` pipeline |
 | **simplify** | `internal/simplify` | event stream → clean steps: waits, key coalescing, loop folding, drag detection, arg keys |
 | **codegen** | `internal/codegen` | `macroir.Step[]` → Marco on the `OS` act, with anchors/find gates |
 | **anchors / CV** | `internal/screen`, `plugins/ocr`, `plugins/vision` | image · colour · edge · OCR · learned-detector resolvers for a moved click. **Off by default** |
@@ -321,7 +321,7 @@ Migration cost: **L/M/H**.
 | `internal/simplify` | A | yes | no | Learn (record mode) | waits, loops, drags, arg keys — hard-won | — | **HIGH VALUE / KEEP** |
 | `internal/codegen` | A | yes | partial | Learn (record mode) | the taught-route lowerer | — | **KEEP** |
 | `internal/macroir` | A | yes | no | infrastructure | the recorded-demo IR | — | **KEEP AS INFRASTRUCTURE** |
-| `internal/voiceteach` | B | yes (overlay `narrate teach`) | **yes** (vs Learn) | Learn, mode "narrate" | narration is a real third mode | M | **ADAPT / KEEP BUT HIDE** until Learn absorbs it |
+| `internal/voicelearn` | B | yes (overlay `narrate teach`) | **yes** (vs Learn) | Learn, mode "narrate" | narration is a real third mode | M | **ADAPT / KEEP BUT HIDE** until Learn absorbs it |
 | `cmd/marco/panicstop.go` + `runtime.cancelTree` | A | yes | **yes** (three stop intakes) | one cancellation chain | mature, `finally`-correct | M | **ADAPT** — keep the mechanism, unify the intake |
 | `internal/secrets` + `do OS's Secret` | A | yes | no | infrastructure | a load-bearing invariant | — | **HIGH VALUE / KEEP** |
 | `internal/winctx` | A | yes | no | Stage (weak form) | foreground app identity | — | **KEEP AS INFRASTRUCTURE** |
@@ -443,8 +443,14 @@ until then "Play" would name something that does not run.
 
 `internal/routes` may keep its name indefinitely. The cost of the rename is a large diff across
 `cmd/marco`, `cmd/director` and every test; the benefit is zero for a user who never sees a package
-name. **Product vocabulary and code vocabulary are allowed to differ**, and this repository already
-does it deliberately for Learn/`teach` (Glossary, ADR-048).
+name. **Product vocabulary and code vocabulary are allowed to differ** where the difference costs a
+reader nothing, and a package name is that case exactly.
+
+> **Amended 2026-08-20.** The audit cited Learn/`teach` as this repository's standing example of a
+> deliberate divergence. It is no longer one: the acquisition flow was renamed to `learn` all the
+> way down, because *Teach* is a word the product needs back
+> ([[ADR-086-one-acquisition-one-word-one-request]]). The argument for `internal/routes` is
+> unchanged and now stands on its own — nothing else needs the word *routes*.
 
 ---
 
@@ -567,8 +573,8 @@ Director and a *spoken* phrase never reaches bindings. One intake, two tiers, is
 
 ```
 Learn (director teach / the Learn panel)
-  +- teach.Coordinator.save()                     internal/director/teach/teach.go:1232
-      +- teachTail.Save(route, actor, verb)       cmd/director/teachtail.go:176
+  +- teach.Coordinator.save()                     internal/director/learn/learn.go:1232
+      +- teachTail.Save(route, actor, verb)       cmd/director/learntail.go:176
           +- LearnedQuery{Save:true}              <- Register is deliberately NOT set
               +- Runtime.lifecycle()              cmd/director/learnedplay.go:247
                   +- marcoexec.LowerActionsBetween(...)   regenerate, never string-replace
@@ -799,7 +805,7 @@ Host:      atomic calls complete; no later step runs
 | `internal/codegen` | steps → Marco on the OS act, with anchor/find gates | **yes**, for taught routes |
 | `.rec.json` sidecar | the raw demonstration, kept so a route can be **re-simplified later** — folded steps have lost per-keystroke detail | **yes — a genuinely good design** |
 | `marco simplify "<name>"` | re-run simplification as far as it goes | yes |
-| `internal/voiceteach` | narration → the same IR | yes, as a Learn mode |
+| `internal/voicelearn` | narration → the same IR | yes, as a Learn mode |
 
 ### Against the Director side
 
@@ -918,7 +924,7 @@ Every user-visible use, counted across `cmd/marco/edit.go`, `cmd/marco/main.go` 
 | **Play** | 1 | the durable behaviour | **NORMAL UI — promote to the primary noun** |
 | **Actor** | 0 user-facing (a Marco keyword, and a Theater role) | two senses | **ADVANCED UI** for the Theater sense; the language sense stays in `spec/` |
 | **Learn** | present in the Learn tab | acquisition — the person demonstrates | **NORMAL UI** (Glossary + ADR-048 already fix this) |
-| **Teach** | overlay `teach <name>`, `marco teach` | *acquisition* here — **which contradicts ADR-048**, where Teach means Marco guiding the person | **RESERVED.** Rename the overlay/CLI verb's *label* to Learn; keep the code |
+| **Teach** | none, since 2026-08-20 | *was* acquisition here, contradicting ADR-048 | **RESERVED, and now free.** DONE — the label *and* the code became Learn, `teach` survives only as an undocumented alias ([[ADR-086-one-acquisition-one-word-one-request]]). The audit's "keep the code" recommendation was overruled |
 | **Rehearse** | ~5, in Director output | one controlled attempt | **ADVANCED UI** — a normal user sees "Try it" |
 | **Director** | ~23 | the whole brain | **ADVANCED UI.** Roadmap 35 says a normal user must not need to know it exists |
 | **Theater** | 0 user-facing | the performing half | **INTERNAL / ADVANCED** |
@@ -1041,8 +1047,8 @@ FULL -- the control centre (marco ui)
   Learn      start · what Marco is watching · what it saw · questions ·
              name a place · Try it · SAVE · REGISTER.
              Two modes, chosen by situation: Record (exact) and Learn (semantic).
-             <- the Learn tab + the overlay's `teach`, plus the two missing verbs
-             data: service.ObserveLearn (unchanged) / orchestrator.Teach
+             <- the Learn tab + the overlay's `learn`, plus the two missing verbs
+             data: service.ObserveLearn (now the ONE acquisition request) / orchestrator.Teach
   Plays      everything Marco can do, with kind, provenance, scope, trigger,
              which app it needs in front, and staged-but-unregistered plays shown as such.
              actions: Run · Register · Rename · Rebind · Change scope · Forget · View source
@@ -1161,6 +1167,45 @@ reduction in "weird UX".
 matches a Play does **not**; the same two assertions hold for a spoken phrase. Mutation: swapping
 the tiers must fail both.
 
+> **LANDED (2026-08-20).** The acceptance is `cmd/marco` `TestEveryEntranceReachesTheSamePlay` and
+> `TestEveryEntranceReachesDirectorOnAMiss`, run across six sources rather than two; the mutation
+> gate is `TestEveryEntranceRoutesThroughTheOneIntake`, which names the two deleted functions so
+> neither can return quietly. `internal/invoke` holds the decision, pure, with one test per arm;
+> `cmd/marco/intake.go` holds the process around it. `marco dispatch` and `marco assistant` still
+> work and were **not** reduced to `usage` — they are no longer on the product path, so retiring
+> them belongs with the rest of Phase 6 rather than here. See [[Invocation]] and
+> [[ADR-083-one-invocation-intake]].
+>
+> **What this phase found that the audit had not.** Four things, each invisible from the outside
+> the audit was taken from:
+>
+> 1. **The learned-play performance was uncancellable.** `PERFORM` rode in on `ObserveQuery` beside
+>    the reads and was handed `context.Background()`, so `rehearse.Live.Perform`'s per-step
+>    `ctx.Err()` check, its `CancelledAttempt` terminal and its `RefusalCancelled` refusal were all
+>    dead code. §14's table lists the Director service as cancelling "the in-flight Director
+>    command" — true for an executed phrase, and false for the one request that walks a play.
+> 2. **PERFORM acted outside the command registry entirely.** `director status` said nothing was
+>    running while a play typed and clicked; `director stop` answered "nothing is running"; and a
+>    second mutating request was accepted concurrently, so two things could drive one desktop. §7
+>    counted new systems lacking product representation and this was a new system lacking
+>    *service* representation. [[ADR-085-a-performance-is-a-registry-command]].
+> 3. **A typed "stop" offered to record a demonstration called "stop".** It missed Play lookup,
+>    fell through the unknown-command path, and became the Learn offer. §14 counted three intakes
+>    for stop and correctly said a user has one word and no way to know which system will hear it;
+>    what it did not catch is that on one of those three the word was not heard as *stop* at all.
+> 4. **The typed path already had TWO semantic layers in front of the door.** §13's table treats
+>    `Registry.Resolve` as the deterministic tier and `marco do` as reaching it, but `resolveTarget`
+>    ran `nlu.Resolve` at a 0.75 score AND an optional `$MARCO_RESOLVER` external model *before* the
+>    registry was consulted. So `marco do` was never the exact-match intake this audit assumed:
+>    with both "open settings" and "open the settings" registered, asking for the second ran the
+>    first — silently, in front of the authority door. §13's "keep `nlu.Resolve`" recommendation
+>    stands for *"did you mean"* and hotkey argument hints; what could not stand was it deciding
+>    unasked.
+>
+> One thing the audit predicted exactly: §23's risk that *"unifying the intake accidentally sends
+> everything to an LLM"*. It did not, and the mitigation named there — bindings are tier one,
+> always, and a matching phrase never reaches Director — is the arm-four test.
+
 ### Phase 3 — One stop
 
 The chain in §14. Every intake calls one function.
@@ -1208,7 +1253,7 @@ duplicated accounts. Phases 5–6 are safe only once nothing depends on them.
 | **Stage becoming a second WorldState** | 34E's own god-object warning; still open | Stage is a projection with no storage and no sampling |
 | **A second authority or foreground gate inside Theater** | Moving production into Theater tempts it; `rehearse` already has `window_not_in_front` | Authority is minted by Director/Audience and consumed by Theater. 34E's "what must not move" list stands |
 | **Unifying the intake accidentally sends everything to an LLM** | The deterministic tier is what makes Marco work offline | Bindings are tier one, always, and the test asserts a matching phrase never reaches Director |
-| **Renaming code to chase the metaphor** | ADR-068 explicitly refuses to create a `theater/` package; the same discipline must apply to `routes` | Product vocabulary and code vocabulary may differ. Precedent: Learn/`teach` |
+| **Renaming code to chase the metaphor** | ADR-068 explicitly refuses to create a `theater/` package; the same discipline must apply to `routes` | Product vocabulary and code vocabulary may differ where a reader never sees the code word. Learn/`teach` is **not** a precedent for this — it was renamed, because the product needed the word back ([[ADR-086-one-acquisition-one-word-one-request]]) |
 | **Designing product on the dormant CV stack** | It is fully built, fully tested and switched off. It *looks* live — and its absence is already a complaint | Make the default a decision with an experiment behind it, not a flag. Until then, do not promise visual recognition |
 | **Losing the FOCUS scope in a simplification** | It is a resolver detail in the code and the most-liked behaviour in use (§1.5) | Name it in the model (§19), list it in Plays (Phase 1), and test it |
 | **Merging Record and Learn into one flow that loses parameterisation or the single-key UX** | `{{name}}`, the arg key and `then`-chaining exist only on the old side; a learned Play cannot take an argument. The record flow's y/n/s + c/f/g keypresses are why training felt easy | Keep both modes' full capability and interaction cost; the merge is presentational |
@@ -1224,8 +1269,10 @@ duplicated accounts. Phases 5–6 are safe only once nothing depends on them.
   word. `Theater's Activate` is the semantic action surface and it is complete.
 - **`scene` is not a Place.** ADR-068 refuses the mapping deliberately.
 - **`this's` / `that's`** — settled.
-- **No Go package renames.** Not `internal/routes`, not `internal/orchestrator`, not
-  `internal/director/teach`.
+- **No Go package renames.** Not `internal/routes`, not `internal/orchestrator`.
+  (`internal/director/teach` was on this list and came off it: Roadmap 35 renamed it to
+  `internal/director/learn` for the one reason that applies — the product needs the word *Teach*
+  back. [[ADR-086-one-acquisition-one-word-one-request]].)
 - **No file moves in a user's routes tree.** Registration already moves files; nothing else may.
 - **`internal/routes/origin.go`** — do not restructure. It is the best-designed file in the legacy
   half and the entire saved≠registered guarantee rests on its directory layout.

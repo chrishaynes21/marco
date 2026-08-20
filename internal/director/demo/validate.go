@@ -142,7 +142,7 @@ func notPartial(d *Demonstration) (string, bool) {
 	if len(d.Steps) < 2 {
 		return fmt.Sprintf(
 			"only %d step was recorded. A single action is a request, not a procedure — "+
-				"ask for it directly rather than teaching it.", len(d.Steps)), false
+				"ask for it directly rather than learning it.", len(d.Steps)), false
 	}
 	return "", true
 }

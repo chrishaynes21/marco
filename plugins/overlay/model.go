@@ -52,13 +52,13 @@ type model struct {
 	cpu, ram      float64     // system metrics (%), for the optional widget
 	curX, curY    int         // live cursor position (virtual-desktop coords)
 	curHasPos     bool        // whether curX/curY have been sampled yet
-	teaching      bool        // a teach recording is in progress (keeps the HUD awake)
-	teachStart    time.Time   // when the current teach recording began (for the live timer)
+	learnSession  bool        // a learn recording is in progress (keeps the HUD awake)
+	learnStart    time.Time   // when the current learn recording began (for the live timer)
 	configOn      bool        // the config editor is open
 	configSel     int         // selected config row
 	config        []string    // rendered config rows
-	teachLog      []string    // answered teach prompts + their selections (terminal transcript)
-	teachPrompt   string      // the active teach y/n/s prompt ("" = none), shown verbatim with its options
+	learnLog      []string    // answered prompts + their selections (terminal transcript)
+	prompt        string      // the active y/n/s prompt ("" = none), shown verbatim with its options
 	teachPending  string      // the answer typed but not yet submitted (type y/n/s, then Enter)
 	insightOn     bool        // the frozen perception snapshot panel is open (`explain`)
 	inspectorOn   bool        // mouse passthrough OFF, full detail
@@ -194,6 +194,10 @@ func (h *model) setStatus(s string) {
 		h.state = "ok"
 	case strings.HasPrefix(s, "failed"):
 		h.state = "error"
+	// A question is Marco waiting on the person, which is the same state the panel
+	// already has a colour for. It is emphatically not an error: nothing went wrong.
+	case strings.HasPrefix(s, "asked about"), strings.HasPrefix(s, "director asked"):
+		h.state = "listen"
 	case strings.HasPrefix(s, "command"):
 		h.state = "listen"
 	default:
@@ -414,8 +418,11 @@ func (h *model) setLeaderEcho(s string) {
 // histEntry is one finished command in the history: what ran, how it ended, and
 // how long it took.
 type histEntry struct {
-	cmd     string
-	outcome string // ok | canceled | failed
+	cmd string
+	// outcome is one of the engine's six words (see outcome.go), stored as a string
+	// because this row is only rendered. It used to be one of three, two of which said
+	// "ok" about something that had not happened.
+	outcome string
 	dur     time.Duration
 }
 
@@ -449,26 +456,26 @@ func (h *model) setCursor(x, y int, ok bool) {
 	h.mu.Unlock()
 }
 
-// setTeaching marks a teach recording active, keeping the HUD awake (like editing)
+// setLearnSession marks a learn recording active, keeping the HUD awake (like editing)
 // for the whole demonstration so the "recording — F12 to save" guidance stays up.
-func (h *model) setTeaching(v bool) {
+func (h *model) setLearnSession(v bool) {
 	h.mu.Lock()
-	h.teaching = v
+	h.learnSession = v
 	if v {
-		h.teachStart = time.Now()
-		h.teachLog, h.teachPrompt, h.teachPending = nil, "", "" // fresh session
+		h.learnStart = time.Now()
+		h.learnLog, h.prompt, h.teachPending = nil, "", "" // fresh session
 	}
 	h.lastActive = time.Now()
 	h.mu.Unlock()
 }
 
-// ---- teach prompts (the interactive save / scope / simplify questions) ----
+// ---- interactive prompts (the save / scope / simplify questions) ----
 
-// setTeachPrompt shows a y/n/s prompt verbatim (with its [y]es/[n]o/[s] options).
+// setPrompt shows a y/n/s prompt verbatim (with its [y]es/[n]o/[s] options).
 // It clears any pending keystrokes so the new question starts empty.
-func (h *model) setTeachPrompt(s string) {
+func (h *model) setPrompt(s string) {
 	h.mu.Lock()
-	h.teachPrompt, h.teachPending = s, ""
+	h.prompt, h.teachPending = s, ""
 	h.lastActive = time.Now()
 	h.mu.Unlock()
 }
@@ -477,7 +484,7 @@ func (h *model) setTeachPrompt(s string) {
 // Enter to submit). "" clears it (backspace). Ignored if no prompt is up.
 func (h *model) setTeachPending(s string) {
 	h.mu.Lock()
-	if h.teachPrompt != "" {
+	if h.prompt != "" {
 		h.teachPending = s
 		h.lastActive = time.Now()
 	}
@@ -486,12 +493,12 @@ func (h *model) setTeachPending(s string) {
 
 // submitTeachPending commits the pending answer: it appends the question and the
 // chosen answer to the transcript and clears the active prompt. Returns the answer
-// to send to the teach child ("" means the default — bare Enter). No-op (returns
+// to send to the child ("" means the default — bare Enter). No-op (returns
 // "" with ok=false) if no prompt is up.
 func (h *model) submitTeachPending() (answer string, ok bool) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if h.teachPrompt == "" {
+	if h.prompt == "" {
 		return "", false
 	}
 	answer = h.teachPending
@@ -499,15 +506,15 @@ func (h *model) submitTeachPending() (answer string, ok bool) {
 	if shown == "" {
 		shown = "↵" // bare Enter = the default
 	}
-	h.teachLog = append(h.teachLog, h.teachPrompt, "› "+shown)
-	h.teachPrompt, h.teachPending = "", ""
+	h.learnLog = append(h.learnLog, h.prompt, "› "+shown)
+	h.prompt, h.teachPending = "", ""
 	h.lastActive = time.Now()
 	return answer, true
 }
 
-func (h *model) clearTeachPrompt() {
+func (h *model) clearPrompt() {
 	h.mu.Lock()
-	h.teachLog, h.teachPrompt, h.teachPending = nil, "", ""
+	h.learnLog, h.prompt, h.teachPending = nil, "", ""
 	h.mu.Unlock()
 }
 
@@ -589,11 +596,11 @@ type snapshot struct {
 	cpu, ram                           float64
 	curX, curY                         int
 	curHasPos                          bool
-	teaching                           bool
-	teachStart                         time.Time
+	learnSession                       bool
+	learnStart                         time.Time
 	configSel                          int
-	teachPrompt, teachPending          string
-	teachLog                           []string
+	prompt, teachPending               string
+	learnLog                           []string
 	argHints                           []string
 	logs, help, config                 []string
 	history                            []histEntry
@@ -614,8 +621,8 @@ func (h *model) snapshot() snapshot {
 	copy(conf, h.config)
 	hist := make([]histEntry, len(h.history))
 	copy(hist, h.history)
-	tlog := make([]string, len(h.teachLog))
-	copy(tlog, h.teachLog)
+	tlog := make([]string, len(h.learnLog))
+	copy(tlog, h.learnLog)
 	hints := make([]string, len(h.argHints))
 	copy(hints, h.argHints)
 	ins := make([]string, len(h.insight))
@@ -624,9 +631,9 @@ func (h *model) snapshot() snapshot {
 		visible: h.visible, editing: h.editing, helpOn: h.helpOn, configOn: h.configOn,
 		status: h.status, state: h.state, input: h.input, lastRun: h.lastRun, app: h.app,
 		leaderEcho: h.leaderEcho, heard: h.heard, cpu: h.cpu, ram: h.ram,
-		curX: h.curX, curY: h.curY, curHasPos: h.curHasPos, teaching: h.teaching,
-		teachStart: h.teachStart, configSel: h.configSel,
-		teachPrompt: h.teachPrompt, teachPending: h.teachPending, teachLog: tlog,
+		curX: h.curX, curY: h.curY, curHasPos: h.curHasPos, learnSession: h.learnSession,
+		learnStart: h.learnStart, configSel: h.configSel,
+		prompt: h.prompt, teachPending: h.teachPending, learnLog: tlog,
 		argHints:  hints,
 		insightOn: h.insightOn, inspectorOn: h.inspectorOn, insight: ins,
 		wmode: h.wmode, watch: h.watch, headline: h.headline,

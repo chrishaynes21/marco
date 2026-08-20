@@ -14,7 +14,7 @@ import (
 //
 // Windows Settings home reported a byte-identical accessibility tree across eight consecutive
 // settled snapshots — `button=21`, fourteen roles, no variance at all — and still minted THREE
-// durable subjects across three teach passes:
+// durable subjects across three learn passes:
 //
 //	button=15                 button=17 + scroll_bar    button=19 + scroll_bar
 //

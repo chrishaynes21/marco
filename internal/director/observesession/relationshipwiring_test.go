@@ -54,7 +54,7 @@ type topologySampler struct {
 	reversed bool
 	// offset shifts where in the cycle the session begins, and therefore where it ENDS.
 	//
-	// Zero for every fixture that predates it. It exists because a teach pass ends where the
+	// Zero for every fixture that predates it. It exists because a learn pass ends where the
 	// user is STANDING, so a fixture for "the user walked to the second screen" has to stop
 	// with that screen up rather than wherever 51 samples happened to land.
 	offset int
@@ -871,7 +871,7 @@ func seedThirdScreen(t *testing.T, dir string) {
 // the store. Everything else — what the flag means, and what the store does with it — is tested
 // where it lives. This holds the stamp, through the production Run path.
 //
-// Only teaching sets it. See internal/director/teach and the note on Config.SameEpisode.
+// Only Learn sets it. See internal/director/learn and the note on Config.SameEpisode.
 func TestASessionInAnEpisodeClaimsNoFurtherCorroboration(t *testing.T) {
 	dir := t.TempDir()
 
@@ -902,7 +902,7 @@ func TestASessionInAnEpisodeClaimsNoFurtherCorroboration(t *testing.T) {
 	if after[0].Sessions != sessionsBefore {
 		t.Fatalf("a session inside an episode raised the independent-sighting count from "+
 			"%d to %d.\nThat count is what the invitation policy reads as real-world "+
-			"recurrence; a teaching attempt's own passes must not manufacture it.",
+			"recurrence; a learn attempt's own passes must not manufacture it.",
 			sessionsBefore, after[0].Sessions)
 	}
 	if after[0].Observations <= observationsBefore {

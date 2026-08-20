@@ -6,11 +6,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/chaynes-simpleclouds/marco/internal/director/learn"
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
 	"github.com/chaynes-simpleclouds/marco/internal/director/observesession"
 	"github.com/chaynes-simpleclouds/marco/internal/director/semanticmemory"
 	"github.com/chaynes-simpleclouds/marco/internal/director/service"
-	"github.com/chaynes-simpleclouds/marco/internal/director/teach"
 )
 
 // The Audience-authoring contract, through the surface a person actually uses.
@@ -40,7 +40,7 @@ func namingRuntime(t *testing.T) (*Runtime, *semanticmemory.Store, string, strin
 		t.Fatalf("establishing B: %v", err)
 	}
 	g := newObservationRegistry().withMemory(store)
-	rt := &Runtime{observations: g, teach: &teaching{}}
+	rt := &Runtime{observations: g, learn: &learnSession{}}
 	return rt, store, a, b
 }
 
@@ -229,7 +229,7 @@ func TestTheNamingAcceptanceSequence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("establishing B: %v", err)
 	}
-	rt := &Runtime{observations: newObservationRegistry().withMemory(store), teach: &teaching{}}
+	rt := &Runtime{observations: newObservationRegistry().withMemory(store), learn: &learnSession{}}
 	ctx := context.Background()
 
 	// A and B are distinct, and both describable without an identifier.
@@ -303,10 +303,10 @@ func TestANamingQuestionSaysWhichPlaceItMeans(t *testing.T) {
 	// A session with an open naming question about A.
 	// A coordinator has to exist for the session to be readable at all; what it holds is
 	// what the surface projects.
-	rt.teach.coord = teach.New("open mouse settings", &idlePasses{},
-		rt.observations.memory, teach.DefaultBounds())
-	rt.teach.session = teachSessionNaming("settings", a)
-	rt.teach.active = true
+	rt.learn.coord = learn.New("open mouse settings", &idlePasses{},
+		rt.observations.memory, learn.DefaultBounds())
+	rt.learn.session = teachSessionNaming("settings", a)
+	rt.learn.active = true
 
 	v := rt.Learning()
 	if v.Naming == nil {
@@ -328,12 +328,12 @@ func TestANamingQuestionSaysWhichPlaceItMeans(t *testing.T) {
 }
 
 // teachSessionNaming is a session waiting for a name for one particular place.
-func teachSessionNaming(application, subject string) teach.Session {
-	return teach.Session{
+func teachSessionNaming(application, subject string) learn.Session {
+	return learn.Session{
 		Name:        "open mouse settings",
 		Application: application,
-		Phase:       teach.Naming,
-		Question: &teach.Question{
+		Phase:       learn.Naming,
+		Question: &learn.Question{
 			ID:     observe.ScreenNameProposalIdentity(application, subject),
 			Screen: subject,
 		},
@@ -358,16 +358,16 @@ func teachSessionNaming(application, subject string) teach.Session {
 func TestAPatientRehearsalSaysWhichPlaceItIsWaitingFor(t *testing.T) {
 	rt, _, a, b := namingRuntime(t)
 
-	rt.teach.coord = teach.New("open mouse settings", &idlePasses{},
-		rt.observations.memory, teach.DefaultBounds())
-	rt.teach.session = teach.Session{
+	rt.learn.coord = learn.New("open mouse settings", &idlePasses{},
+		rt.observations.memory, learn.DefaultBounds())
+	rt.learn.session = learn.Session{
 		Name: "open mouse settings", Application: "settings",
-		Phase: teach.WaitingForStart,
+		Phase: learn.WaitingForStart,
 		// The route begins on A. The person is actually standing on B — the twin.
 		Route: observe.RelationshipRef{From: a, To: b},
 		Start: a,
 	}
-	rt.teach.active = true
+	rt.learn.active = true
 	standingOn(rt, observe.TermDisplay) // B
 
 	v := rt.Learning()
@@ -407,15 +407,15 @@ func TestAPatientRehearsalSaysWhichPlaceItIsWaitingFor(t *testing.T) {
 func TestAPatientRehearsalDoesNotClaimYouAreElsewhereWhenYouAreNot(t *testing.T) {
 	rt, _, a, b := namingRuntime(t)
 
-	rt.teach.coord = teach.New("open mouse settings", &idlePasses{},
-		rt.observations.memory, teach.DefaultBounds())
-	rt.teach.session = teach.Session{
+	rt.learn.coord = learn.New("open mouse settings", &idlePasses{},
+		rt.observations.memory, learn.DefaultBounds())
+	rt.learn.session = learn.Session{
 		Name: "open mouse settings", Application: "settings",
-		Phase: teach.WaitingForStart,
+		Phase: learn.WaitingForStart,
 		Route: observe.RelationshipRef{From: a, To: b},
 		Start: a,
 	}
-	rt.teach.active = true
+	rt.learn.active = true
 	standingOn(rt, observe.TermAudio) // A — the place the route begins on
 
 	v := rt.Learning()
@@ -433,14 +433,14 @@ func TestAPatientRehearsalDoesNotClaimYouAreElsewhereWhenYouAreNot(t *testing.T)
 // A "waiting for" panel under a running demonstration would describe a state Marco is not in.
 func TestNothingSaysItIsWaitingWhenItIsNot(t *testing.T) {
 	rt, _, a, b := namingRuntime(t)
-	rt.teach.coord = teach.New("open mouse settings", &idlePasses{},
-		rt.observations.memory, teach.DefaultBounds())
-	rt.teach.session = teach.Session{
+	rt.learn.coord = learn.New("open mouse settings", &idlePasses{},
+		rt.observations.memory, learn.DefaultBounds())
+	rt.learn.session = learn.Session{
 		Name: "open mouse settings", Application: "settings",
-		Phase: teach.Capturing,
+		Phase: learn.Capturing,
 		Route: observe.RelationshipRef{From: a, To: b}, Start: b,
 	}
-	rt.teach.active = true
+	rt.learn.active = true
 
 	v := rt.Learning()
 	if v.Waiting != nil || v.Elsewhere != nil {
@@ -453,7 +453,7 @@ func TestNothingSaysItIsWaitingWhenItIsNot(t *testing.T) {
 // # The live failure
 //
 // The panel marked one screen "here" and never moved the marker as the person walked around
-// Settings. It was reading teach.Session.Start — the place the demonstration BEGAN on, pinned at
+// Settings. It was reading learn.Session.Start — the place the demonstration BEGAN on, pinned at
 // capture time and correct for that purpose — and answering "where are you standing" with it.
 //
 // The same mistake made the Elsewhere warning structurally unreachable: a demonstration
@@ -463,15 +463,15 @@ func TestNothingSaysItIsWaitingWhenItIsNot(t *testing.T) {
 // Deleting the placeNowSubject call must fail this.
 func TestHereMeansWhereYouAreNowNotWhereTheDemonstrationBegan(t *testing.T) {
 	rt, _, a, b := namingRuntime(t)
-	rt.teach.coord = teach.New("open mouse settings", &idlePasses{},
-		rt.observations.memory, teach.DefaultBounds())
-	rt.teach.session = teach.Session{
+	rt.learn.coord = learn.New("open mouse settings", &idlePasses{},
+		rt.observations.memory, learn.DefaultBounds())
+	rt.learn.session = learn.Session{
 		Name: "open mouse settings", Application: "settings",
-		Phase: teach.WaitingForStart,
+		Phase: learn.WaitingForStart,
 		Route: observe.RelationshipRef{From: a, To: b},
 		Start: a, // the demonstration began on A, and always will have
 	}
-	rt.teach.active = true
+	rt.learn.active = true
 
 	// Nothing is settled, so nothing may claim to be where the person is. Marking the
 	// pinned start "here" would be a confident answer to a question nothing can answer.
@@ -501,9 +501,9 @@ func TestHereMeansWhereYouAreNowNotWhereTheDemonstrationBegan(t *testing.T) {
 // once here. The rule is the state, not the phase — if the person cannot act and Marco is not
 // progressing, the reason is theirs.
 func TestAPatientWaitSaysWhatItIsRefusing(t *testing.T) {
-	waiting := teach.Session{
+	waiting := learn.Session{
 		Name: "open mouse settings", Application: "settings",
-		Phase:       teach.WaitingForStart,
+		Phase:       learn.WaitingForStart,
 		Route:       observe.RelationshipRef{From: "subj_a", To: "subj_b"},
 		Diagnostics: []string{"waiting for the start: source_unobservable"},
 	}
@@ -527,9 +527,9 @@ func TestAPatientWaitSaysWhatItIsRefusing(t *testing.T) {
 // The other half. Showing the working-out during normal capture would read as a problem, and
 // there is nothing wrong with a session that is simply running.
 func TestALearningSessionIsNotDecoratedWithDiagnostics(t *testing.T) {
-	running := teach.Session{
+	running := learn.Session{
 		Name: "open mouse settings", Application: "settings",
-		Phase:       teach.Capturing,
+		Phase:       learn.Capturing,
 		Diagnostics: []string{"start established as subj_a"},
 	}
 	if v := learnViewOf(running, true, false); len(v.Detail) != 0 {
@@ -544,7 +544,7 @@ func TestALearningSessionIsNotDecoratedWithDiagnostics(t *testing.T) {
 // PlaceNow settles on it through the ordinary path. Nothing is stubbed: the registry, the memory
 // and the recogniser are the production ones, and the only thing arranged is what was seen.
 //
-// It exists because "where are you" is a live question. A fixture that set teach.Session.Start
+// It exists because "where are you" is a live question. A fixture that set learn.Session.Start
 // would be asserting the bug this replaced — Start is where the demonstration BEGAN, and it never
 // moves.
 func standingOn(rt *Runtime, term observe.InterfaceTerm) {
@@ -571,16 +571,16 @@ func standingOn(rt *Runtime, term observe.InterfaceTerm) {
 // answer is to press Watch, walk the application, and name each place while looking at it. The
 // panel supports exactly that: the screens list marks the row you are standing on.
 //
-// It marked it while a teach session existed and never otherwise — and "otherwise" is when people
+// It marked it while a learn session existed and never otherwise — and "otherwise" is when people
 // name screens. The idle branch passed no current place at all, so however far somebody walked,
 // no row was ever "here". Reported live: "the here on the UI for Screens Marco Knows is not
 // updating the here for easy naming".
 //
-// Same source as the teaching branch: where the person is now.
+// Same source as the Learn branch: where the person is now.
 func TestHereIsMarkedWhileNothingIsBeingTaught(t *testing.T) {
 	rt, _, _, _ := namingRuntime(t)
-	// Nothing is being taught. This is the ordinary state of the panel.
-	rt.teach = &teaching{}
+	// Nothing is being learned. This is the ordinary state of the panel.
+	rt.learn = &learnSession{}
 	standingOn(rt, observe.TermAudio)
 
 	v := rt.Learning()
@@ -594,7 +594,7 @@ func TestHereIsMarkedWhileNothingIsBeingTaught(t *testing.T) {
 		}
 	}
 	if marked != 1 {
-		t.Fatalf("%d row(s) marked \"here\" with nothing being taught, want exactly 1: %+v.\n"+
+		t.Fatalf("%d row(s) marked \"here\" with nothing being learned, want exactly 1: %+v.\n"+
 			"Naming a screen while looking at it is the only grounded way to answer a "+
 			"naming question, and this is the affordance that makes it possible.",
 			marked, v.Places)
@@ -644,7 +644,7 @@ func TestEverySurfaceNamesAPlaceTheSameWay(t *testing.T) {
 	if err := store.NameSubject("settings", authored, name); err != nil {
 		t.Fatalf("naming: %v", err)
 	}
-	rt := &Runtime{observations: newObservationRegistry().withMemory(store), teach: &teaching{}}
+	rt := &Runtime{observations: newObservationRegistry().withMemory(store), learn: &learnSession{}}
 
 	// THE SCREENS LIST — what a person reads to pick a screen out.
 	for _, p := range rt.placesKnown("settings", "") {

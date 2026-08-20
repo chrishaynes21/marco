@@ -43,10 +43,10 @@ func TestNearMatchClarifies(t *testing.T) {
 	}
 }
 
-func TestUnknownTeaches(t *testing.T) {
+func TestUnknownLearns(t *testing.T) {
 	got := decide(t, Dispatcher{}, "order a pizza")
-	if got.Intent != IntentTeach || got.Name != "order a pizza" {
-		t.Fatalf("got %+v, want teach 'order a pizza'", got)
+	if got.Intent != IntentLearn || got.Name != "order a pizza" {
+		t.Fatalf("got %+v, want learn 'order a pizza'", got)
 	}
 }
 
@@ -58,13 +58,13 @@ func TestEmptyIsNone(t *testing.T) {
 
 // --- with an Advisor --------------------------------------------------------
 
-func TestAdvisorTeachPassesThrough(t *testing.T) {
+func TestAdvisorLearnPassesThrough(t *testing.T) {
 	adv := funcAdvisor(func(string) (Decision, bool) {
-		return Decision{Intent: IntentTeach, Name: "do laundry", Reply: "Show me how."}, true
+		return Decision{Intent: IntentLearn, Name: "do laundry", Reply: "Show me how."}, true
 	})
 	got := decide(t, New(adv), "some novel request")
-	if got.Intent != IntentTeach || got.Name != "do laundry" || got.Reply != "Show me how." {
-		t.Fatalf("got %+v, want advisor's teach", got)
+	if got.Intent != IntentLearn || got.Name != "do laundry" || got.Reply != "Show me how." {
+		t.Fatalf("got %+v, want advisor's learn", got)
 	}
 }
 
@@ -80,13 +80,13 @@ func TestAdvisorRunValidated(t *testing.T) {
 
 func TestAdvisorHallucinatedRouteRejected(t *testing.T) {
 	// Advisor names a route the user doesn't have → discard it, fall back to
-	// deterministic (this input is unknown → teach).
+	// deterministic (this input is unknown → learn).
 	adv := funcAdvisor(func(string) (Decision, bool) {
 		return Decision{Intent: IntentRun, Route: "launch-rockets"}, true
 	})
 	got := decide(t, New(adv), "zzz nonsense")
-	if got.Intent != IntentTeach {
-		t.Fatalf("got %+v, want teach (rejected hallucinated route)", got)
+	if got.Intent != IntentLearn {
+		t.Fatalf("got %+v, want learn (rejected hallucinated route)", got)
 	}
 }
 

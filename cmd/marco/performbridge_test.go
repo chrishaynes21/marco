@@ -148,8 +148,8 @@ func TestALearnedPlayIsPerformedByTheDirector(t *testing.T) {
 	d, host, _ := learnedWorld(t)
 	fake := useFakeDirector(t, &fakeDirector{view: arrived(1)})
 
-	if err := dispatchDo(d, "mute-volume", nil, nil); err != nil {
-		t.Fatalf("dispatchDo: %v", err)
+	if _, err := doAsProduct(t, d, "mute-volume", nil, nil); err != nil {
+		t.Fatalf("marco do: %v", err)
 	}
 
 	if len(fake.asked) != 1 {
@@ -184,8 +184,8 @@ func TestAnOrdinaryPlayIsNotDelegated(t *testing.T) {
 	d, host, _ := ordinaryWorld(t)
 	fake := useFakeDirector(t, &fakeDirector{view: arrived(1)})
 
-	if err := dispatchDo(d, "mute-volume", nil, nil); err != nil {
-		t.Fatalf("dispatchDo: %v", err)
+	if _, err := doAsProduct(t, d, "mute-volume", nil, nil); err != nil {
+		t.Fatalf("marco do: %v", err)
 	}
 	if len(fake.asked) != 0 {
 		t.Fatalf("an authored play was sent to the Director (%d request(s)); the Director has "+
@@ -220,8 +220,8 @@ func TestAnEditedLearnedPlayRunsLocallyAsBefore(t *testing.T) {
 	}
 	fake := useFakeDirector(t, &fakeDirector{view: arrived(1)})
 
-	if err := dispatchDo(d, "mute-volume", nil, nil); err != nil {
-		t.Fatalf("dispatchDo: %v", err)
+	if _, err := doAsProduct(t, d, "mute-volume", nil, nil); err != nil {
+		t.Fatalf("marco do: %v", err)
 	}
 	if len(fake.asked) != 0 {
 		t.Fatalf("an EDITED learned play was sent to the Director; the file is the user's "+
@@ -251,8 +251,8 @@ func TestPlanOnlyIsNotReportedAsAPerformedPlay(t *testing.T) {
 		Arrived: true, Say: "You're already there.",
 	}})
 
-	if err := dispatchDo(d, "mute-volume", nil, nil); err != nil {
-		t.Fatalf("dispatchDo: %v", err)
+	if _, err := doAsProduct(t, d, "mute-volume", nil, nil); err != nil {
+		t.Fatalf("marco do: %v", err)
 	}
 	said := out.String()
 	if !strings.Contains(said, "performed no steps") {
@@ -286,7 +286,7 @@ func TestAPartlyWalkedRouteIsNotASuccess(t *testing.T) {
 		Say:     "I got as far as the settings list and stopped.",
 	}})
 
-	err := dispatchDo(d, "mute-volume", nil, nil)
+	_, err := doAsProduct(t, d, "mute-volume", nil, nil)
 	if err == nil {
 		t.Fatalf("a route that stopped half way reported SUCCESS.\n"+
 			"`marco do` exits 0 on a nil error and the overlay reads the exit code, so the "+
@@ -331,7 +331,7 @@ func TestEveryRefusalIsReportedAsAFailure(t *testing.T) {
 				Application: "testgame", Goal: "mute volume",
 				Refusal: tc.refusal, Say: tc.say,
 			}})
-			err := dispatchDo(d, "mute-volume", nil, nil)
+			_, err := doAsProduct(t, d, "mute-volume", nil, nil)
 			if err == nil {
 				t.Fatalf("refusal %q exited 0 — the overlay reads that as success", tc.refusal)
 			}
@@ -358,7 +358,7 @@ func TestAnUnavailableDirectorFailsHonestlyAndRunsNothingLocally(t *testing.T) {
 	d, host, _ := learnedWorld(t)
 	refuseToDial(t, errStartupRefusal)
 
-	err := dispatchDo(d, "mute-volume", nil, nil)
+	_, err := doAsProduct(t, d, "mute-volume", nil, nil)
 	if err == nil {
 		t.Fatal("an unreachable Director reported success")
 	}
@@ -405,7 +405,7 @@ func TestALearnedPlayRefusesArgumentsRatherThanDroppingThem(t *testing.T) {
 			d, _, _ := learnedWorld(t)
 			fake := useFakeDirector(t, &fakeDirector{view: arrived(1)})
 
-			err := dispatchDo(d, "mute-volume", tc.named, tc.positional)
+			_, err := doAsProduct(t, d, "mute-volume", tc.named, tc.positional)
 			if err == nil {
 				t.Fatal("arguments to a learned play were accepted and silently dropped")
 			}
@@ -426,7 +426,7 @@ func TestALearnedPlayRefusesArgumentsRatherThanDroppingThem(t *testing.T) {
 // # Why this is load-bearing
 //
 // `PerformQuery` carries a NAME, and the Director matches it case-insensitively against
-// `Goal.Name` — the words the person used when they taught the behaviour. The play's slug came
+// `Goal.Name` — the words the person used when the behaviour was learned. The play's slug came
 // from `routes.Slug` of those same words. So the bridge recovers the name by turning the slug
 // back into words, and if that inverse ever stops holding, a learned play resolves locally and
 // then cannot be performed at all: the Director answers `not_learned` about a behaviour it
@@ -436,11 +436,15 @@ func TestALearnedPlayRefusesArgumentsRatherThanDroppingThem(t *testing.T) {
 // "open mouse settings", routes.Slug of it is "open-mouse-settings", and the bridge derives
 // "open mouse settings" — an exact match.
 //
-// The `want: false` rows are the KNOWN limit, recorded rather than hidden: `routes.Slug` discards
-// punctuation and collapses runs, so those names cannot be recovered from a slug. They refuse
-// honestly with `not_learned` rather than performing the wrong thing. If one of them starts
-// passing, the join got better — update the table deliberately, and reconsider whether the
-// durable Origin.To → Goal.Subject follow-on is still needed.
+// The `want: false` rows are the LIMIT OF THE NAME, and they are still recorded here because the
+// name is still what a log and a refusal say. They no longer decide anything: the play.s IDENTITY
+// is now `Origin.To`, the durable remembered subject, carried on `PerformQuery.Subject` and matched
+// against `Goal.Subject` before any words are compared. A behaviour learned as "open Steve.s
+// downloads" is found by its subject and reported by its own name.
+//
+// So this table proves the property the FALLBACK rests on — a goal with no sidecar is still
+// reachable by name — and TestTheSubjectIsSentSoAnAwkwardNameStillReachesItsGoal proves that the
+// awkward rows no longer depend on it.
 func TestTheLearnedPlayNameJoinRoundTrips(t *testing.T) {
 	for _, tc := range []struct {
 		taught string
@@ -465,7 +469,7 @@ func TestTheLearnedPlayNameJoinRoundTrips(t *testing.T) {
 			r := orchestrator.Resolved{Route: rt, Phrase: tc.taught,
 				Kind: routes.KindLearned, Provenance: routes.OriginIntact}
 
-			name, _ := performIdentity(d, r)
+			name, _, _ := performIdentity(d, r)
 			got := strings.EqualFold(name, tc.taught)
 			if got != tc.want {
 				if tc.want {
@@ -496,7 +500,7 @@ func TestTheRequestIsScopedByTheSidecarsApplication(t *testing.T) {
 		t.Fatalf("saving: %v", err)
 	}
 	d := orchestrator.Deps{Reg: reg}
-	_, app := performIdentity(d, orchestrator.Classify(reg, rt, "mute volume"))
+	_, app, _ := performIdentity(d, orchestrator.Classify(reg, rt, "mute volume"))
 	if app != "testgame" {
 		t.Fatalf("the request is scoped to %q, want the sidecar's %q — a folder is where "+
 			"somebody moved the file, not what it was learned against", app, "testgame")
@@ -545,9 +549,9 @@ func TestTheRunConfirmationIsAPromptTheOverlayCanAnswer(t *testing.T) {
 //
 // The overlay decides an unknown command by ELIMINATION: `runRecord` returns the route announced
 // on the "[route] " line, and both dispatch sites treat `failed` with no route as "nothing
-// resolved — offer to teach it" (plugins/overlay/acts.go and director.go). So if the bridge
+// resolved — offer to learn it" (plugins/overlay/acts.go and director.go). So if the bridge
 // failed before the announce, a learned play that refused would be reported to the Audience as
-// a command Marco has never heard of, and they would be invited to teach it again.
+// a command Marco has never heard of, and they would be invited to learn it again.
 //
 // Mutation this kills: moving the `[route]` announce in dispatchDo after the learned fork.
 func TestABridgeFailureStillAnnouncesTheResolvedRoute(t *testing.T) {
@@ -558,14 +562,17 @@ func TestABridgeFailureStillAnnouncesTheResolvedRoute(t *testing.T) {
 		Refusal: "place_unknown", Say: "I can't tell which screen is in front right now",
 	}})
 
-	said, err := captureStdout(t, func() error { return dispatchDo(d, "mute-volume", nil, nil) })
+	said, err := captureStdout(t, func() error {
+		_, e := doAsProduct(t, d, "mute-volume", nil, nil)
+		return e
+	})
 	if err == nil {
 		t.Fatal("a refused bridge run reported success")
 	}
 	if !strings.Contains(said, "[route] mute volume") {
 		t.Fatalf("the resolved route was never announced:\n%s\n"+
 			"The overlay reads a failure with no [route] as an unknown command and offers "+
-			"to teach it — so a learned play that refused would be presented as one Marco "+
+			"to learn it — so a learned play that refused would be presented as one Marco "+
 			"has never heard of.", said)
 	}
 }
@@ -591,4 +598,82 @@ func captureStdout(t *testing.T, fn func() error) (string, error) {
 	said := <-done
 	_ = r.Close()
 	return said, err
+}
+
+// A play whose name does not survive its own slug still reaches its goal, by subject.
+//
+// # Why this is the test that matters
+//
+// The row above says the NAME cannot be recovered for these. That used to mean the play could not
+// be performed at all: it resolved locally, was announced, delegated — and the Director answered
+// `not_learned` about a behaviour it had itself watched, verified and written down. The durable
+// key was on disk on both sides the whole time, written in the same breath by the same learn pass,
+// and simply never carried.
+//
+// Mutation: drop Subject from the PerformQuery, or stop reading Origin.To in performIdentity.
+// This fails.
+func TestTheSubjectIsSentSoAnAwkwardNameStillReachesItsGoal(t *testing.T) {
+	for _, taught := range []string{
+		"open Steve's downloads", "Open Mouse Settings!", "e-mail steve",
+		"open mouse  settings", "open mouse settings (win11)",
+	} {
+		t.Run(taught, func(t *testing.T) {
+			reg := routes.Registry{Dir: t.TempDir()}
+			rt := routes.Route{App: "testgame", Focus: true, Slug: routes.Slug(taught)}
+			const subject = "subj_0000f699ea69"
+			err := reg.SaveWithOrigin(rt, "script main...\n  do nothing.\n", routes.Origin{
+				Kind: routes.KindLearned, Application: "testgame", From: "subj_start", To: subject,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			d := orchestrator.Deps{Reg: reg}
+			r := orchestrator.Classify(reg, rt, taught)
+
+			// THE REQUEST THAT ACTUALLY GOES OUT, not just the value a helper computed.
+			// Reading Origin.To and then not putting it on the wire is the same defect
+			// with an extra step.
+			fake := useFakeDirector(t, &fakeDirector{view: service.PerformView{
+				Arrived: true, Steps: []service.PerformStep{{Verified: true}},
+			}})
+			if err := performLearned(d, r, nil, nil); err != nil {
+				t.Fatalf("performLearned: %v", err)
+			}
+			if len(fake.asked) != 1 {
+				t.Fatalf("the Director was asked %d times", len(fake.asked))
+			}
+			q := fake.asked[0]
+			if q.Subject != subject {
+				t.Fatalf("the request carries subject %q; the durable subject beside "+
+					"the play is %q. Without it the Director has only a name that "+
+					"cannot be recovered from this slug, and answers not_learned "+
+					"about a play it learned.", q.Subject, subject)
+			}
+			if q.Application != "testgame" {
+				t.Errorf("application %q", q.Application)
+			}
+			// The name still travels, because a refusal with only a subject id in it is
+			// unreadable, and because a goal with no sidecar is found by name.
+			if strings.TrimSpace(q.Name) == "" {
+				t.Error("the request carries no name at all")
+			}
+		})
+	}
+}
+
+// A play with no sidecar carries no subject, and the name join is what is left.
+func TestAPlayWithNoPastCarriesNoSubject(t *testing.T) {
+	reg := routes.Registry{Dir: t.TempDir()}
+	rt := routes.Route{App: "testgame", Slug: "hand-written"}
+	if err := reg.Save(rt, "script main...\n  do nothing.\n"); err != nil {
+		t.Fatal(err)
+	}
+	d := orchestrator.Deps{Reg: reg}
+	name, _, subject := performIdentity(d, orchestrator.Classify(reg, rt, "hand written"))
+	if subject != "" {
+		t.Errorf("a play with no provenance produced a subject %q out of nowhere", subject)
+	}
+	if name != "hand written" {
+		t.Errorf("name %q", name)
+	}
 }

@@ -25,7 +25,7 @@ import (
 // allowed to know WHY it chose an action. Marco says WHAT it intends to do.
 //
 // The corpus is the routes and modules in the tree — every one of which was written by
-// `marco teach` or is a host surface a route depends on. If a future Director starts emitting
+// `marco learn` or is a host surface a route depends on. If a future Director starts emitting
 // a construct outside Core, this fails on the next generated route somebody checks in.
 
 // coreVocabulary is the words a generated program may open a sentence with.

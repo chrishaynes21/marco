@@ -123,7 +123,7 @@ func TestPollingTheLearnPanelAsksForNothing(t *testing.T) {
 
 // The answer endpoint is reachable and says WHICH question.
 //
-// Marco raises questions during a teach pass, blocks the rehearsal behind them, and reported
+// Marco raises questions during a learn pass, blocks the rehearsal behind them, and reported
 // "Questions open: 3" at somebody with no control that could settle any of them. This is the
 // control.
 func TestTheAnswerEndpointSaysWhichQuestion(t *testing.T) {

@@ -6,9 +6,9 @@ supersedes: []
 affects:
   - visibility
 source_paths:
-  - internal/director/teach/say.go
-  - cmd/director/teachgrounding.go
-  - cmd/director/teachcmd.go
+  - internal/director/learn/say.go
+  - cmd/director/learngrounding.go
+  - cmd/director/learncmd.go
   - plugins/overlay/cmd/marco-show/main.go
 ---
 

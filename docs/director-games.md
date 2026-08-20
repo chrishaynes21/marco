@@ -205,7 +205,7 @@ marco games                 the same, from the engine's own CLI
   on Windows is untested.
 - **The incubator procedure was dropped.** "Start another incubator" had no goal in the
   vocabulary that fits, and inventing one to hold a single pack's step would have been the
-  game-specific hack this milestone forbids. It is a good candidate for Teach Mode:
+  game-specific hack this milestone forbids. It is a good candidate for Learn:
   demonstrate it once and the learned procedure joins the same registry.
 - **`Interpreter` reads a control's parent label from an attribute.** Which container a
   slot belongs to comes from `parent_label`, which the accessibility bridge may or may not

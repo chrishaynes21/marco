@@ -29,7 +29,7 @@ var clickTemplateRadius = clickRadiusFromEnv()
 
 // captureAnchors gates per-click anchor capture. Default OFF — the CV anchor stack (match a
 // moving control by image/colour/edge) isn't reliable enough yet, so it's behind a feature
-// flag: teaching records plain coordinates + timings unless CV is explicitly turned on
+// flag: learning records plain coordinates + timings unless CV is explicitly turned on
 // ($MARCO_CV=on/max, or $MARCO_ANCHORS=1/on). See anchorsEnabled.
 var captureAnchors = anchorsEnabled()
 

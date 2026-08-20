@@ -1068,7 +1068,7 @@ play.
 - blocked by: 28
 - affects: [[Semantic-Memory]], [[Programs]]
 
-## 31. A path to teach something on purpose — NEXT after 30
+## 31. A path to Learn something on purpose — NEXT after 30
 
 Everything Marco can learn today, it learns because it **noticed** something and asked. There is
 no way to say *"I am about to do a thing; pay attention."*
@@ -1247,9 +1247,11 @@ cold → Learn requested → START established → START visually grounded
      → Do from the correct START → refusal from the wrong one
 ```
 
-Called **Learn** in anything a person reads, per
-[[ADR-048-learn-teach-and-do-are-three-different-sentences]]; still invoked as `director teach`
-internally for the duration of this milestone, and deliberately not renamed while it is open.
+Called **Learn** everywhere — `marco learn`, `director learn`, `internal/director/learn` — per
+[[ADR-048-learn-teach-and-do-are-three-different-sentences]] and
+[[ADR-086-one-acquisition-one-word-one-request]]. `teach` still answers on both CLIs and in the
+overlay as an undocumented compatibility alias, so scripts written during this milestone keep
+working.
 
 **Why it is human-in-the-loop, and why that is not a gap to engineer around.** The person owns the
 foreground, and injected input is unlearnable by design — a machine-driven demonstration would
@@ -1356,9 +1358,11 @@ another example · when it wants permission to try · whether the rehearsal work
 learned. Visual grounding is central, not ornamental.
 
 **Teach.** Design the experience of Marco guiding a person through a learned behaviour against
-their live UI. This may land as a UX/prototype milestone rather than full capability if the route
-representation cannot yet supply every intermediate target honestly — **do not fabricate an
-intermediate referent to complete a screen**. Establish first what the learned evidence can
+their live UI. The word is free: nothing live is called Teach any more
+([[ADR-086-one-acquisition-one-word-one-request]]), so this feature can take its own name without
+disentangling it from anything. This may land as a UX/prototype milestone rather than full
+capability if the route representation cannot yet supply every intermediate target honestly —
+**do not fabricate an intermediate referent to complete a screen**. Establish first what the learned evidence can
 actually support.
 
 **Do.** A clear user-facing execution action for a learned behaviour, over the existing authority

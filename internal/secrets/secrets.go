@@ -4,7 +4,7 @@
 // Credential Manager, macOS Keychain, Linux secret-service, Windows first.
 //
 // The route/recording never holds the secret — the user types a {{name}}
-// placeholder while teaching; codegen turns it into `do OS's Secret with
+// placeholder while learning; codegen turns it into `do OS's Secret with
 // "name"`, and the value is resolved from here at run time.
 package secrets
 

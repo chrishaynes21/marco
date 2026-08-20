@@ -44,7 +44,8 @@ testing it could not see any of that happening.
 | CURRENT  | what application and screen does Marco think it is looking at, and how sure is it |
 | SEEING   | what usable evidence is reaching it |
 | THINKING | what interpretations and relationships are live |
-| LEARNING | where the teaching lifecycle has got to |
+| LEARN SESSION | where an explicit **Learn** session has got to — `playbill.LearnSession`, sourced from the coordinator |
+| LEARNING | where PASSIVE learning has got to — what a watcher can tell without being asked. A different owner, deliberately kept apart from the row above |
 | DOING    | where execution has got to |
 | MARCO ASKS | the one question waiting on a person |
 | WHY      | the most recent meaningful refusal or absence |
@@ -185,7 +186,13 @@ Surfaces onto the same one referent:
 | `director sight --show` | the same, with the perception account above it | — |
 | What Marco Knows → "Show me what this refers to" | a durable judgement, **through recognition** | `knowledge_judgement` |
 | Marco asks → "Show me what this refers to" | the question's own subject | `semantic_question` |
-| `director teach` | START and DESTINATION, as they are established | `teach_start`, `teach_destination` |
+| `director learn` | START and DESTINATION, as they are established | `teach_start`, `teach_destination` |
+
+The last row's two role values are **wire protocol**, not user text. They kept their spelling when
+the flow was renamed to Learn ([[ADR-086-one-acquisition-one-word-one-request]]) — an out-of-tree
+surface reads them, and a rename would have been a protocol change for a string nobody sees. This
+table is the only place they are written down; it must match `observe.ReferentLearnStart` and
+`ReferentLearnDestination` exactly.
 
 Three rules hold across all of them:
 

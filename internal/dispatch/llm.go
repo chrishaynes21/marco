@@ -21,6 +21,10 @@ import (
 //	   "routes":["open-chest"],"app":"Discord"}
 //	← {"intent":"teach","name":"mute discord","reply":"Show me how and I'll remember."}
 //
+// `"teach"` is the frozen WIRE VALUE of [dispatch.IntentLearn], not the product word. Learn is
+// the word everywhere a person can see; out-of-tree resolvers already send this spelling, so the
+// JSON keeps it.
+//
 // The `mode:"converse"` field lets ONE binary also serve the legacy resolver
 // protocol; a resolver that doesn't understand converse just answers something the
 // dispatch discards (Advise reports not-ok, and the deterministic fallback runs).

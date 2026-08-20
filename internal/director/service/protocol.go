@@ -75,7 +75,22 @@ import (
 // diagnostic surfaces above each answer a specialist's question and a front-end wanting
 // to say "I recognise this as the pause menu" had to poll four of them and join the
 // results itself — which put the joining, and therefore the disagreement, in the client.
-const ProtocolVersion = 6
+//
+// Version 7 adds SUBJECT to PERFORM: the durable id of the outcome a learned play ends on,
+// so a play and its goal are joined by identity instead of by the words of their names.
+// Bumped even though the field is optional, because a client that omits it degrades to the
+// lossy name join SILENTLY — a punctuated phrase answers not_learned rather than failing —
+// and this check exists precisely so a build disagreement is loud instead of quiet.
+//
+// Version 8 merged the two acquisition requests. `ObserveTeach` and `ObserveLearn` described one
+// event — the person demonstrates and Marco acquires — in two vocabularies, and they were not
+// peers: the control surface's type was a facade translating its own verbs into the other's. There
+// is one `ObserveLearn` now, carrying both the surface's verbs and the session's configuration,
+// and `Surface` says which account of the session to answer with. `ObserveTeach.Watch` became
+// `Evidence`, because `Watch` on the surviving type is Light Mode and merging them under one name
+// would have made `director learn --watch` silently start it. See
+// [[ADR-086-one-acquisition-one-word-one-request]].
+const ProtocolVersion = 8
 
 // RequestType names what a client is asking for.
 type RequestType string
@@ -972,20 +987,20 @@ type ObserveQuery struct {
 	// the proposal system a general place to persist arbitrary strings, and the point of
 	// this one exception is that it is an exception.
 	Name *ObserveScreenName `json:"name,omitempty"`
-	// Teach starts, reads or cancels a teaching session. See ObserveTeach.
+	// Learn starts, reads, finishes or cancels one acquisition session: the person
+	// demonstrates and Marco acquires. See ObserveLearn.
 	//
-	// Carried here for the same reason Answer and Name are: teaching is bounded observation
-	// with a conversation around it, it runs through the one observation registry, and a
-	// separate protocol verb would be a second path to keep in agreement with this one
-	// forever. Teaching adds no authority — see internal/director/teach.
-	Teach *ObserveTeach `json:"teach,omitempty"`
-	// Learn is a CONTROL SURFACE driving the same teaching lifecycle.
+	// THE ONE ACQUISITION REQUEST. There used to be two — this one and `Teach` — and they
+	// were not peers: the control surface's type was a facade that translated its own verbs
+	// into the other's, so a single act was described twice, in two vocabularies, one of them
+	// spending the word the product reserves for the opposite direction of travel (Marco
+	// guiding a person). Several entrances send this one and differ only in how they
+	// configure it.
 	//
-	// Not a second mechanism. Every verb on it turns into exactly the request the command
-	// line already makes — start a teach, finish the demonstration, answer the rehearsal
-	// question, cancel — and it exists because a surface needs two things the command line
-	// does not: state it can render without parsing prose, and a vocabulary in which the
-	// person's own words are the whole input. See cmd/director/learnview.go.
+	// Carried on the observation query for the same reason Answer and Name are: acquisition
+	// is bounded observation with a conversation around it, it runs through the one
+	// observation registry, and a separate protocol verb would be a second path to keep in
+	// agreement with this one forever. It adds no authority — see internal/director/learn.
 	Learn *ObserveLearn `json:"learn,omitempty"`
 	// Revise changes or withdraws an answer the user has already given.
 	//
@@ -1022,7 +1037,7 @@ type ObserveQuery struct {
 
 // ObserveReach asks for the plan toward one learned outcome, or the list of them.
 type ObserveReach struct {
-	// Name is the outcome, in the words it was taught under. Empty lists every learned
+	// Name is the outcome, in the words it was learned under. Empty lists every learned
 	// outcome for the application.
 	Name string `json:"name,omitempty"`
 	// Application scopes the answer. Empty means the most recently observed one.
@@ -1128,53 +1143,6 @@ type ObserveRevise struct {
 	// Withdraw leaves no active judgement, durably — so a restart does not resurrect the
 	// answer that was withdrawn.
 	Withdraw bool `json:"withdraw,omitempty"`
-}
-
-// ObserveTeach starts, reads or cancels one teaching session.
-//
-// Three requests on one shape because they are one lifecycle: a name and a window start it, a
-// bare request reads it, and Cancel ends it. There is at most one at a time, for the same reason
-// there is at most one observation session — two would contend for the screen.
-type ObserveTeach struct {
-	// Name is what the user wants the behaviour called. RAW user text, and the only string
-	// on this path that came from a person. It is their word for what they are about to
-	// show; it is not a claim about what happened, and Director still has to discover that.
-	Name string `json:"name,omitempty"`
-	// Target names the window to teach against, for a start request.
-	Target windowref.Selector `json:"target,omitzero"`
-	// Actor and Verb are the two halves of the sentence a saved play becomes — `do
-	// Downloads's Open …`. Both optional: Name is divided into them when it reads as a
-	// two-word request, and these say so explicitly when it does not.
-	//
-	// They are the user's words in both cases. Director never invents either from a screen's
-	// text or an application's.
-	Actor string `json:"actor,omitempty"`
-	Verb  string `json:"verb,omitempty"`
-	// Cancel ends the running teach session. Nothing partial survives it.
-	Cancel bool `json:"cancel,omitempty"`
-	// Finish is the person saying their demonstration is OVER.
-	//
-	// Not Cancel, and the difference is everything: Cancel throws the attempt away, and this
-	// is the reason the attempt exists. It ends admission of new task input, keeps every
-	// single thing already captured, and lets the ordinary pipeline finish — see
-	// teach.Coordinator.Finish.
-	Finish bool `json:"finish,omitempty"`
-	// Surface says this request came from MARCO'S OWN control surface.
-	//
-	// It changes nothing about what is taught. It says that the window this request arrived
-	// from is Marco's, so the buttons the person presses there are not mistaken for the task
-	// they are demonstrating — see surfaceowner.go. A caller that is not a Marco surface
-	// must not set it, and nothing is inferred if it is absent.
-	Surface bool `json:"surface,omitempty"`
-	// Watch asks for the evidence underneath, rather than the plain reading.
-	Watch bool `json:"watch,omitempty"`
-	// Dry runs the authorised rehearsal against a recording host, so nothing reaches the
-	// computer.
-	//
-	// A DEVELOPER switch. "Want me to try it once?" means trying it, and an attempt that
-	// changes nothing on screen cannot verify a destination — so a dry teach ends honestly at
-	// the rehearsal rather than producing a play.
-	Dry bool `json:"dry,omitempty"`
 }
 
 // ObserveScreenName is what the user calls one screen, in reply to one naming question.
@@ -1310,7 +1278,7 @@ type LearnedQuery struct {
 	// Phrase is what the AUDIENCE called this behaviour, and what they will ask for.
 	//
 	// Name and Verb are the play.s Marco identity — `do MouseSettings.s Open` — and the slug
-	// was taken from Name, so a person who taught "Open Mouse Settings" got a route called
+	// was taken from Name, so a person who asked for "Open Mouse Settings" got a route called
 	// `mousesettings` and their own words resolved to nothing but a did-you-mean.
 	//
 	// Empty falls back to Name, which is every other caller.
@@ -1389,7 +1357,7 @@ type LearnedSaved struct {
 	Lines []string `json:"lines,omitempty"`
 }
 
-// ObserveLearn is what a control surface can ask of the teaching lifecycle.
+// ObserveLearn is what a control surface can ask of the Learn lifecycle.
 //
 // # The whole vocabulary a person needs
 //
@@ -1405,7 +1373,7 @@ type ObserveLearn struct {
 	// Stop is the person saying their demonstration is over.
 	//
 	// It KEEPS everything captured and lets the ordinary pipeline finish — see
-	// teach.Coordinator.Finish. It is not Cancel and must never be routed to it.
+	// learn.Coordinator.Finish. It is not Cancel and must never be routed to it.
 	Stop bool `json:"stop,omitempty"`
 	// Try answers the rehearsal question with a yes.
 	//
@@ -1443,7 +1411,7 @@ type ObserveLearn struct {
 	// sees it: it is how the request says WHICH place, not something they choose.
 	Place string `json:"place,omitempty"`
 	// Watch and Unwatch turn LIGHT MODE on and off: an ordinary passive session, started
-	// so place recognition can be watched without teaching anything.
+	// so place recognition can be watched without learning anything.
 	//
 	// Recognition only happens while something is observing, and until now the only way to
 	// get something observing was to start a demonstration -- which made the instrument
@@ -1451,7 +1419,7 @@ type ObserveLearn struct {
 	// Remember makes the screen in front durable under the name given with it.
 	//
 	// The licence is the NAME, not the request: somebody looking at a screen and saying
-	// what it is called is the human semantic event, the same one that lets a teach session
+	// what it is called is the human semantic event, the same one that lets a learn session
 	// establish a place. A Remember with nothing typed establishes nothing.
 	Remember bool `json:"remember,omitempty"`
 	Watch    bool `json:"watch,omitempty"`
@@ -1468,6 +1436,64 @@ type ObserveLearn struct {
 	Question string `json:"question,omitempty"`
 	Session  string `json:"session,omitempty"`
 	Answer   string `json:"answer,omitempty"`
+
+	// ── The session's own configuration ────────────────────────────────────────────────
+	//
+	// These arrived here from `ObserveTeach`, which was a SECOND request type for the same
+	// event: the person demonstrates and Marco acquires. It was not a peer — this type was a
+	// facade over it, translating Start into one of its verbs and Stop into another — so the
+	// two were one act described twice, in two vocabularies, one of them using the word the
+	// product reserves for Marco guiding a PERSON. There is one acquisition request now.
+	//
+	// Several entrances send it and they differ only in how they configure it: the control
+	// surface presses buttons, `director learn` names a window and a sentence.
+
+	// Target names the window to learn against, for a start request.
+	Target windowref.Selector `json:"target,omitzero"`
+	// Actor and Verb are the two halves of the sentence a saved play becomes — `do
+	// Downloads's Open …`. Both optional: Name is divided into them when it reads as a
+	// two-word request, and these say so explicitly when it does not.
+	//
+	// They are the user's words in both cases. Director never invents either from a screen's
+	// text or an application's.
+	Actor string `json:"actor,omitempty"`
+	Verb  string `json:"verb,omitempty"`
+	// Finish is the person saying their demonstration is OVER.
+	//
+	// Not Cancel, and the difference is everything: Cancel throws the attempt away, and this
+	// is the reason the attempt exists. It ends admission of new task input, keeps every
+	// single thing already captured, and lets the ordinary pipeline finish — see
+	// learn.Coordinator.Finish.
+	//
+	// `Stop` is the CONTROL SURFACE's word for the same intent, and it is not a synonym: a
+	// Stop pressed before anything was demonstrated is abandonment, not completion, and the
+	// surface decides which of the two it means from the phase it can see.
+	Finish bool `json:"finish,omitempty"`
+	// Surface says this request came from MARCO'S OWN control surface.
+	//
+	// Two jobs, and they are the same fact seen twice. It says the window this request
+	// arrived from is Marco's, so the buttons the person presses there are not mistaken for
+	// the task they are demonstrating (see surfaceowner.go) — and it says which account of
+	// the session to answer with, because a control surface and a person at a terminal want
+	// different readings of the same thing.
+	//
+	// A caller that is not a Marco surface must not set it, and nothing is inferred if it is
+	// absent.
+	Surface bool `json:"surface,omitempty"`
+	// Evidence asks for what is underneath, rather than the plain reading.
+	//
+	// Named apart from `Watch` on purpose: Watch on this type is LIGHT MODE — watching where
+	// you are without acquiring anything — and the two were separate fields on the two types
+	// this one replaces. Merging them under one name would have made `director learn --watch`
+	// silently start Light Mode.
+	Evidence bool `json:"evidence,omitempty"`
+	// Dry runs the authorised rehearsal against a recording host, so nothing reaches the
+	// computer.
+	//
+	// A DEVELOPER switch. "Want me to try it once?" means trying it, and an attempt that
+	// changes nothing on screen cannot verify a destination — so a dry run ends honestly at
+	// the rehearsal rather than producing a play.
+	Dry bool `json:"dry,omitempty"`
 }
 
 // PerformQuery asks Marco to carry out something it has learned.
@@ -1479,7 +1505,25 @@ type PerformQuery struct {
 	// Application scopes the outcome. Empty means the one most recently observed.
 	Application string `json:"application,omitempty"`
 	// Name is the learned outcome, in the Audience's own words.
+	//
+	// A LABEL, not an identity. It is what a log and a refusal say out loud, and it is the
+	// join of last resort — for a goal remembered before subjects were written beside plays,
+	// and for a client that has not been rebuilt.
 	Name string `json:"name"`
+	// Subject is the DURABLE remembered subject the outcome ends on. THE identity.
+	//
+	// A play's `routes.Origin.To` and its goal's `observe.Goal.Subject` are the same id,
+	// written in the same breath by the same learn pass — cmd/director/learnedplay.go and
+	// internal/director/learn. Joining on it is exact for every phrase, survives a rename of
+	// either side, and matches no words at all.
+	//
+	// The join used to be Slug(phrase) -> prettyRoute -> EqualFold(Goal.Name), which holds
+	// only for plain alphanumeric words: a play learned as "open dad's settings" registered as
+	// open-dad-s-settings, was asked for as "open dad s settings", and answered not_learned.
+	//
+	// Empty is legitimate and means "no sidecar"; Runtime.PerformGoal then falls back to the
+	// name join. See TestTheSubjectIdentifiesTheOutcomeAndTheNameIsOnlyALabel.
+	Subject string `json:"subject,omitempty"`
 }
 
 // PerformStep is what one edge of a performed route did.
@@ -1503,7 +1547,21 @@ type PerformView struct {
 	Steps       []PerformStep `json:"steps,omitempty"`
 	// Arrived says a FRESH look confirms the Audience is where they asked to be. A plan that
 	// ran to the end is not the same fact.
-	Arrived bool   `json:"arrived,omitempty"`
+	Arrived bool `json:"arrived,omitempty"`
+	// Refusal is why it did not happen, from a closed vocabulary.
+	//
+	// STOPPING IS ONE OF THE WORDS, not a field of its own. `cancelled` is already how the
+	// walker names an attempt the Audience ended — rehearse.CancelledAttempt and
+	// rehearse.RefusalCancelled both render as it — and this view could not tell "you stopped
+	// it" from "it failed" only because nothing ever set it: the sole context reaching the
+	// walker was context.Background(). A second boolean beside this would be a second answer
+	// to one question. `busy` is the other word this layer adds, for a request that arrived
+	// while something else was already being carried out.
+	//
+	// Deleting the cancelled wording must fail TestStoppingAPerformanceReportsItAsCancelled.
 	Refusal string `json:"refusal,omitempty"`
 	Say     string `json:"say,omitempty"`
+	// Command is the registry id this performance ran under, so `director status`, a
+	// CANCEL_ACTIVE and this view all name the same thing. Empty when nothing was begun.
+	Command CommandID `json:"command,omitempty"`
 }

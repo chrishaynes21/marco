@@ -8,29 +8,29 @@ import (
 	"testing"
 	"time"
 
+	"github.com/chaynes-simpleclouds/marco/internal/director/learn"
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
 	"github.com/chaynes-simpleclouds/marco/internal/director/observesession"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/windowref"
 	"github.com/chaynes-simpleclouds/marco/internal/director/semanticmemory"
 	"github.com/chaynes-simpleclouds/marco/internal/director/service"
-	"github.com/chaynes-simpleclouds/marco/internal/director/teach"
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 )
 
-// The control surface drives the PRODUCTION teaching lifecycle.
+// The control surface drives the PRODUCTION Learn lifecycle.
 //
 // # What these hold, and why it is worth holding
 //
 // A Learn panel is four buttons. Four buttons are trivial to make convincing and trivial to make
 // fake: a surface that tracked its own "learning" flag, showed its own captured count and lit its
-// own Try It would look right in every screenshot and teach Marco nothing. Worse, it would be the
-// version the person believed.
+// own Try It would look right in every screenshot and Marco would learn nothing. Worse, it
+// would be the version the person believed.
 //
 // So each test below enters through the request path a browser actually uses —
 // `Runtime.Learn` — and asserts against the coordinator's own state, never against the panel's
 // rendering of it. Where a mutation could make the surface lie rather than break, it is named.
 
-// learnRuntime is a Director wired for teaching with the desktop substituted.
+// learnRuntime is a Director wired for Learn with the desktop substituted.
 //
 // The registry, the runner, the coordinator, the licence and the store are all the production
 // ones. What is replaced is the window and the samples — which is what a test is entitled to
@@ -39,13 +39,13 @@ func learnRuntime(t *testing.T) *Runtime {
 	t.Helper()
 	store, _ := semanticmemory.Open(filepath.Join(t.TempDir(), "memory.json"))
 	g := newObservationRegistry().withMemory(store)
-	rt := &Runtime{observations: g, teach: &teaching{}}
+	rt := &Runtime{observations: g, learn: &learnSession{}}
 	// The pass seam substitutes the DESKTOP and nothing else. A pass that observes nothing
 	// is enough for every question on this page: these are about which lifecycle the panel
 	// drives, not about what a session concludes — that is held elsewhere, against real
 	// evidence, by the establishment and walk tests.
-	rt.passesFor = func(sel windowref.Selector) teach.Passes {
-		p := &teachPasses{rt: rt, selector: sel}
+	rt.passesFor = func(sel windowref.Selector) learn.Passes {
+		p := &learnPasses{rt: rt, selector: sel}
 		p.run = func(ctx context.Context, _ observe.Bounds, _ observesession.Episode) (
 			observesession.Result, error) {
 
@@ -90,12 +90,12 @@ func TestTheLearnPanelStartsTheProductionLifecycle(t *testing.T) {
 	}
 	// THE coordinator, not the view. A surface that invented its own state would satisfy
 	// every assertion about the view and none about this.
-	s, ok := rt.teach.read()
+	s, ok := rt.learn.read()
 	if !ok {
-		t.Fatal("no teaching session exists, so the panel started something else")
+		t.Fatal("no learn session exists, so the panel started something else")
 	}
 	if s.Name != "open mouse settings" {
-		t.Errorf("the coordinator is teaching %q, want the person's own words", s.Name)
+		t.Errorf("the coordinator is learning %q, want the person's own words", s.Name)
 	}
 	if got.Name != s.Name || got.Stage == "" {
 		t.Errorf("the view (%+v) does not describe the session (%q)", got, s.Name)
@@ -103,14 +103,14 @@ func TestTheLearnPanelStartsTheProductionLifecycle(t *testing.T) {
 }
 
 // A Start with nothing typed is refused, and nothing is armed.
-func TestStartingWithNoNameTeachesNothing(t *testing.T) {
+func TestStartingWithNoNameLearnsNothing(t *testing.T) {
 	rt := learnRuntime(t)
 
 	if _, err := rt.Learn(context.Background(),
 		service.ObserveLearn{Start: true, Name: "   "}); err == nil {
 		t.Fatal("an empty name was accepted")
 	}
-	if _, ok := rt.teach.read(); ok {
+	if _, ok := rt.learn.read(); ok {
 		t.Error("a session was created for a behaviour with no name")
 	}
 }
@@ -126,7 +126,7 @@ func TestStartingWithNoNameTeachesNothing(t *testing.T) {
 // then watched a window the person was walking away from. "Put the application in front first"
 // does not fix it: the button is in Marco.
 //
-// Mutation: resolve the foreground in the Start branch, as `director teach` does. The phase below
+// Mutation: resolve the foreground in the Start branch, as `director learn` does. The phase below
 // becomes establishing_start immediately and this fails.
 func TestStartingFromMarcosOwnSurfaceWaitsForSomethingElse(t *testing.T) {
 	rt := learnRuntime(t)
@@ -137,14 +137,14 @@ func TestStartingFromMarcosOwnSurfaceWaitsForSomethingElse(t *testing.T) {
 	rt.winDirectory = windowref.NewDirectory()
 
 	// WHAT WINDOW THE SESSION WAS HANDED. Asserted directly rather than through the phase,
-	// because the teaching owner publishes a session only when a step RETURNS: a pass in
+	// because the learn session owner publishes a session only when a step RETURNS: a pass in
 	// flight leaves the last phase on display, so a mutation that pinned Marco's window and
 	// then blocked inside a six-second pass would still read as "waiting" for as long as any
 	// unit test is willing to sleep. The selector cannot lag.
 	var handed windowref.Selector
-	rt.passesFor = func(sel windowref.Selector) teach.Passes {
+	rt.passesFor = func(sel windowref.Selector) learn.Passes {
 		handed = sel
-		return &teachPasses{rt: rt, selector: sel}
+		return &learnPasses{rt: rt, selector: sel}
 	}
 
 	got, err := rt.Learn(context.Background(),
@@ -161,9 +161,9 @@ func TestStartingFromMarcosOwnSurfaceWaitsForSomethingElse(t *testing.T) {
 	if got.Stage != LearnWaitingToStart {
 		t.Fatalf("stage is %q, want %q", got.Stage, LearnWaitingToStart)
 	}
-	s, _ := rt.teach.read()
-	if s.Phase != teach.WaitingForDemonstration {
-		t.Errorf("the coordinator is in %q, want %q", s.Phase, teach.WaitingForDemonstration)
+	s, _ := rt.learn.read()
+	if s.Phase != learn.WaitingForDemonstration {
+		t.Errorf("the coordinator is in %q, want %q", s.Phase, learn.WaitingForDemonstration)
 	}
 	if s.Start != "" {
 		t.Errorf("a start place (%q) was established before there was anything to watch",
@@ -174,23 +174,23 @@ func TestStartingFromMarcosOwnSurfaceWaitsForSomethingElse(t *testing.T) {
 // A session started with a window NAMED is handed that window and does not wait.
 //
 // The control. Without it the rule above could be satisfied by never resolving anything, which
-// would make `director teach --window-id …` wait forever for a window it had already been given.
+// would make `director learn --window-id …` wait forever for a window it had already been given.
 func TestANamedWindowIsNotWaitedFor(t *testing.T) {
 	rt := learnRuntime(t)
 	rt.winPlatform = browserInFront()
 	rt.winDirectory = windowref.NewDirectory()
 
 	var handed windowref.Selector
-	rt.passesFor = func(sel windowref.Selector) teach.Passes {
+	rt.passesFor = func(sel windowref.Selector) learn.Passes {
 		handed = sel
-		return &teachPasses{rt: rt, selector: sel}
+		return &learnPasses{rt: rt, selector: sel}
 	}
 
-	if _, err := rt.Teaching(context.Background(), service.ObserveTeach{
+	if _, err := rt.LearnSession(context.Background(), service.ObserveLearn{
 		Name: "open mouse settings", Surface: true,
 		Target: windowref.Selector{EphemeralID: "window_1"},
 	}); err != nil {
-		t.Fatalf("teach: %v", err)
+		t.Fatalf("learn: %v", err)
 	}
 	if handed.Zero() {
 		t.Fatal("a session started against a named window was handed nothing to watch")
@@ -201,7 +201,7 @@ func TestANamedWindowIsNotWaitedFor(t *testing.T) {
 
 // Stop finishes the demonstration; Cancel throws it away. They must never be the same call.
 //
-// Mutation: route Stop to r.teach.stop(). The session settles as Cancelled and this fails.
+// Mutation: route Stop to r.learn.stop(). The session settles as Cancelled and this fails.
 func TestStopFinishesTheDemonstrationAndCancelDiscardsIt(t *testing.T) {
 	t.Run("stop keeps the session going", func(t *testing.T) {
 		rt := learnRuntime(t)
@@ -216,16 +216,16 @@ func TestStopFinishesTheDemonstrationAndCancelDiscardsIt(t *testing.T) {
 		//
 		// See TestStopBeforeAnythingWasShownActuallyStops for that case, which is a
 		// different question with a different right answer.
-		rt.teach.session = teach.Session{
-			Name: "open mouse settings", Application: "settings", Phase: teach.Capturing,
+		rt.learn.session = learn.Session{
+			Name: "open mouse settings", Application: "settings", Phase: learn.Capturing,
 		}
 
 		got, err := rt.Learn(context.Background(), service.ObserveLearn{Stop: true})
 		if err != nil {
 			t.Fatalf("Stop: %v", err)
 		}
-		s, _ := rt.teach.read()
-		if s.Phase == teach.Cancelled {
+		s, _ := rt.learn.read()
+		if s.Phase == learn.Cancelled {
 			t.Fatalf("Stop cancelled the attempt.\nStop is the person saying they have "+
 				"FINISHED showing Marco something — it is the reason the evidence "+
 				"exists, and routing it to cancel throws that evidence away.\nview: %+v",
@@ -256,7 +256,7 @@ func TestStopFinishesTheDemonstrationAndCancelDiscardsIt(t *testing.T) {
 // then runs to its full length and Stop becomes a label rather than an event.
 func TestStopReachesThePassThatIsRunning(t *testing.T) {
 	p := &countingPasses{}
-	c := teach.New("open mouse settings", p, newLearnMemory(), teach.DefaultBounds())
+	c := learn.New("open mouse settings", p, newLearnMemory(), learn.DefaultBounds())
 
 	c.Finish()
 
@@ -268,7 +268,7 @@ func TestStopReachesThePassThatIsRunning(t *testing.T) {
 	if !c.Finished() {
 		t.Error("the coordinator does not report that the demonstration was finished")
 	}
-	if c.Session().Phase == teach.Cancelled {
+	if c.Session().Phase == learn.Cancelled {
 		t.Error("Finish cancelled the session")
 	}
 }
@@ -307,16 +307,16 @@ func TestTryItGoesThroughTheRealAuthorityPath(t *testing.T) {
 //
 // The surface half of the same guarantee: a person cannot press what is not there.
 func TestTryItIsOnlyOfferedWhenPermissionIsWhatIsMissing(t *testing.T) {
-	for _, phase := range []teach.Phase{
-		teach.WaitingForDemonstration, teach.EstablishingStart, teach.ReadyForDemo,
-		teach.Capturing, teach.EstablishingDestination, teach.Evaluating,
-		teach.NeedsAnotherExample, teach.Rehearsing, teach.WaitingForStart,
-		teach.Naming, teach.Lowering, teach.Complete, teach.Refused, teach.Cancelled,
+	for _, phase := range []learn.Phase{
+		learn.WaitingForDemonstration, learn.EstablishingStart, learn.ReadyForDemo,
+		learn.Capturing, learn.EstablishingDestination, learn.Evaluating,
+		learn.NeedsAnotherExample, learn.Rehearsing, learn.WaitingForStart,
+		learn.Naming, learn.Lowering, learn.Complete, learn.Refused, learn.Cancelled,
 	} {
-		v := learnViewOf(teach.Session{Phase: phase}, true, false)
+		v := learnViewOf(learn.Session{Phase: phase}, true, false)
 		if v.CanTry {
 			t.Errorf("Try It is offered in %q; it may only be offered when the coordinator "+
-				"is waiting for permission (%q)", phase, teach.ReadyToRehearse)
+				"is waiting for permission (%q)", phase, learn.ReadyToRehearse)
 		}
 	}
 	// The permission moment, WITH something able to take the answer.
@@ -326,16 +326,16 @@ func TestTryItIsOnlyOfferedWhenPermissionIsWhatIsMissing(t *testing.T) {
 	// button appears and every press comes back "Marco has not offered to try anything yet".
 	// The test asserted that behaviour, which is why nothing caught it. See
 	// TestADeadEndSaysWhyInsteadOfOfferingAButton.
-	ready := teach.Session{
-		Phase:    teach.ReadyToRehearse,
-		Question: &teach.Question{ID: "q_1", SessionID: "observe_1"},
+	ready := learn.Session{
+		Phase:    learn.ReadyToRehearse,
+		Question: &learn.Question{ID: "q_1", SessionID: "observe_1"},
 	}
 	if v := learnViewOf(ready, true, false); !v.CanTry {
 		t.Error("Try It is NOT offered when Marco is waiting for permission, which is the " +
 			"one moment it applies")
 	}
 	// And the phase ALONE is not enough.
-	if v := learnViewOf(teach.Session{Phase: teach.ReadyToRehearse}, true, false); v.CanTry {
+	if v := learnViewOf(learn.Session{Phase: learn.ReadyToRehearse}, true, false); v.CanTry {
 		t.Error("Try It is offered with no question to answer. The press can only be " +
 			"refused, and a refusal repainted away by the next poll reads as being stuck.")
 	}
@@ -348,7 +348,7 @@ func TestTryItIsOnlyOfferedWhenPermissionIsWhatIsMissing(t *testing.T) {
 // Mutation: set Learned from the stage, or from a completed phase. A session that finished
 // without saving anything would then tell the person it had learned something.
 func TestThePanelClaimsSomethingWasLearnedOnlyWhenItWas(t *testing.T) {
-	done := teach.Session{Phase: teach.Complete, Name: "open mouse settings"}
+	done := learn.Session{Phase: learn.Complete, Name: "open mouse settings"}
 	if v := learnViewOf(done, false, false); v.Learned {
 		t.Error("a completed session with nothing saved reports that something was learned")
 	}
@@ -359,8 +359,8 @@ func TestThePanelClaimsSomethingWasLearnedOnlyWhenItWas(t *testing.T) {
 // Mutation: count something the surface increments itself. The number below stops tracking what
 // was actually admitted, and the person's answer to "did it get my click?" becomes a guess.
 func TestTheCapturedCountComesFromTheInputProducer(t *testing.T) {
-	s := teach.Session{
-		Phase: teach.Capturing,
+	s := learn.Session{
+		Phase: learn.Capturing,
 		Input: observe.InputStats{
 			Classified: 3, PointerResolved: 2, PointerUnnamed: 1, ControlsOffered: 41,
 		},
@@ -454,9 +454,9 @@ func browserInFront() *fakeDesktop {
 // authority: …" — and the view withheld diagnostics unless the phase was Refused, which is
 // exactly the state this is not.
 func TestADeadEndSaysWhyInsteadOfOfferingAButton(t *testing.T) {
-	stuck := teach.Session{
+	stuck := learn.Session{
 		Name: "open mouse settings", Application: "settings",
-		Phase:       teach.ReadyToRehearse,
+		Phase:       learn.ReadyToRehearse,
 		Question:    nil, // nothing can take an answer
 		Diagnostics: []string{"a yes created no authority: the grant was for another route"},
 	}
@@ -489,10 +489,10 @@ func TestADeadEndSaysWhyInsteadOfOfferingAButton(t *testing.T) {
 // The other half. Withholding Try whenever anything looks uncertain would break the ordinary
 // path, which is the one that matters.
 func TestARealOfferIsStillOffered(t *testing.T) {
-	ready := teach.Session{
+	ready := learn.Session{
 		Name: "open mouse settings", Application: "settings",
-		Phase:    teach.ReadyToRehearse,
-		Question: &teach.Question{ID: "q_1", SessionID: "observe_1"},
+		Phase:    learn.ReadyToRehearse,
+		Question: &learn.Question{ID: "q_1", SessionID: "observe_1"},
 	}
 	v := learnViewOf(ready, true, false)
 	if !v.CanTry {
@@ -514,17 +514,17 @@ func TestARealOfferIsStillOffered(t *testing.T) {
 // being unable to tell is a completely different problem from failing, and the closed reason
 // renders them identically. There was nothing on the surface to separate them.
 //
-// teach.Attempt has carried Expected and Observed per step since it was written, with a comment
+// learn.Attempt has carried Expected and Observed per step since it was written, with a comment
 // saying why: "without it a failed rehearsal reports stopped_at_step and nothing else — true, and
 // useless". Nothing read them.
 func TestAFailedAttemptSaysWhatItExpectedAndWhatItSaw(t *testing.T) {
-	failed := teach.Session{
-		Name: "open mouse settings", Phase: teach.Refused,
+	failed := learn.Session{
+		Name: "open mouse settings", Phase: learn.Refused,
 		Refusal:     "rehearsal_failed",
 		Diagnostics: []string{"rehearsal_failed: the attempt ended: stopped_at_step"},
-		Attempt: &teach.Attempt{
+		Attempt: &learn.Attempt{
 			Attempted: true, Live: true, Terminal: "stopped_at_step",
-			Steps: []teach.AttemptStep{
+			Steps: []learn.AttemptStep{
 				{Step: 1, Outcome: "verified", Expected: "subj_892a4cc30f41",
 					Observed: "subj_892a4cc30f41"},
 				{Step: 2, Outcome: "stopped_at_step", Expected: "subj_61ffd6bc8602",
@@ -558,7 +558,7 @@ func TestNoAttemptMeansNoStepReading(t *testing.T) {
 	if got := attemptDetail(nil); len(got) != 0 {
 		t.Errorf("a session with no attempt reports %v", got)
 	}
-	quiet := teach.Session{Phase: teach.Refused, Diagnostics: []string{"nothing was watching"}}
+	quiet := learn.Session{Phase: learn.Refused, Diagnostics: []string{"nothing was watching"}}
 	v := learnViewOf(quiet, false, false)
 	if len(v.Detail) != 1 {
 		t.Errorf("a refusal with no attempt carries %d line(s), want only its own reason: %v",
@@ -570,11 +570,11 @@ func TestNoAttemptMeansNoStepReading(t *testing.T) {
 //
 // A reading, not a trace. Deleting the bound would let one long route fill the panel.
 func TestTheStepReadingIsBounded(t *testing.T) {
-	var steps []teach.AttemptStep
+	var steps []learn.AttemptStep
 	for i := range 40 {
-		steps = append(steps, teach.AttemptStep{Step: i + 1, Outcome: "verified"})
+		steps = append(steps, learn.AttemptStep{Step: i + 1, Outcome: "verified"})
 	}
-	got := attemptDetail(&teach.Attempt{Attempted: true, Steps: steps})
+	got := attemptDetail(&learn.Attempt{Attempted: true, Steps: steps})
 	if len(got) > MaxStepsShown+1 {
 		t.Errorf("%d line(s) for a 40-step attempt, want at most %d plus a summary",
 			len(got), MaxStepsShown)
@@ -595,8 +595,8 @@ func TestTheStepReadingIsBounded(t *testing.T) {
 //
 // A question is an offer. Marco may not make one it cannot honour.
 func TestADeadEndDoesNotAskAQuestionItCannotTake(t *testing.T) {
-	stuck := teach.Session{
-		Name: "open mouse settings", Phase: teach.ReadyToRehearse, Question: nil,
+	stuck := learn.Session{
+		Name: "open mouse settings", Phase: learn.ReadyToRehearse, Question: nil,
 		Diagnostics: []string{"no rehearsal question: another_question_open"},
 	}
 	v := learnViewOf(stuck, true, false)
@@ -623,17 +623,17 @@ func TestADeadEndDoesNotAskAQuestionItCannotTake(t *testing.T) {
 // The control. Suppressing the question whenever anything looks off would break the one path
 // that matters.
 func TestARealOfferStillAsks(t *testing.T) {
-	ready := teach.Session{
-		Name: "open mouse settings", Phase: teach.ReadyToRehearse,
-		Question: &teach.Question{ID: "q_1", SessionID: "observe_1"},
+	ready := learn.Session{
+		Name: "open mouse settings", Phase: learn.ReadyToRehearse,
+		Question: &learn.Question{ID: "q_1", SessionID: "observe_1"},
 	}
 	v := learnViewOf(ready, true, false)
 	if !v.CanTry {
 		t.Fatal("a real offer is not offered")
 	}
-	if v.Saying != (teach.Session{
-		Name: "open mouse settings", Phase: teach.ReadyToRehearse,
-		Question: &teach.Question{ID: "q_1", SessionID: "observe_1"},
+	if v.Saying != (learn.Session{
+		Name: "open mouse settings", Phase: learn.ReadyToRehearse,
+		Question: &learn.Question{ID: "q_1", SessionID: "observe_1"},
 	}).Say() {
 		t.Errorf("an ordinary offer's sentence was rewritten to %q; the coordinator owns "+
 			"its own wording", v.Saying)
@@ -659,7 +659,7 @@ func TestTheTailSaysWhyThereIsNoQuestion(t *testing.T) {
 			Refusals:     []observe.RehearsalRefusal{observe.RefusalQuestionOpen},
 		}},
 	}}
-	tail := &teachTail{rt: &Runtime{observations: g}}
+	tail := &learnTail{rt: &Runtime{observations: g}}
 
 	why := tail.QuestionRefusal(route, observe.AskRehearse)
 	if why == "" {
@@ -691,7 +691,7 @@ func TestAnAnsweredQuestionSaysSo(t *testing.T) {
 			Status: observe.ProposalAnswered, Response: observe.ResponseConfirmed,
 		}}},
 	}}
-	tail := &teachTail{rt: &Runtime{observations: g}}
+	tail := &learnTail{rt: &Runtime{observations: g}}
 
 	why := tail.QuestionRefusal(route, observe.AskRehearse)
 	if !strings.Contains(why, "already") {
@@ -712,11 +712,11 @@ func TestAnAnsweredQuestionSaysSo(t *testing.T) {
 // moment it classifies the step — and was dropped. Every reporting gap found in this session has
 // had that shape: the reason exists one layer down and nothing carries it.
 func TestAFailedInputSaysWhatTheHostSaid(t *testing.T) {
-	failed := teach.Session{
-		Name: "open mouse settings", Phase: teach.Refused, Refusal: "rehearsal_failed",
-		Attempt: &teach.Attempt{
+	failed := learn.Session{
+		Name: "open mouse settings", Phase: learn.Refused, Refusal: "rehearsal_failed",
+		Attempt: &learn.Attempt{
 			Attempted: true, Live: true, Terminal: "stopped_at_step",
-			Steps: []teach.AttemptStep{{
+			Steps: []learn.AttemptStep{{
 				Step: 1, Outcome: "input_failed",
 				Expected: "subj_543793ccc326", Observed: "",
 				Detail: `theater: target_not_found: no control called "Mouse"`,
@@ -742,9 +742,9 @@ func TestAFailedInputSaysWhatTheHostSaid(t *testing.T) {
 // Otherwise every successful step would trail an empty parenthesis, and a reading full of "()"
 // is a reading people stop looking at.
 func TestASuccessfulStepCarriesNoHostDetail(t *testing.T) {
-	ok := teach.Session{
-		Phase: teach.Refused,
-		Attempt: &teach.Attempt{Attempted: true, Steps: []teach.AttemptStep{
+	ok := learn.Session{
+		Phase: learn.Refused,
+		Attempt: &learn.Attempt{Attempted: true, Steps: []learn.AttemptStep{
 			{Step: 1, Outcome: "verified", Expected: "subj_a", Observed: "subj_a"},
 		}},
 	}
@@ -767,7 +767,7 @@ func TestASuccessfulStepCarriesNoHostDetail(t *testing.T) {
 // The phase knows: WaitingForDemonstration means AwaitSubject has not returned, and every phase
 // after it runs against a window that will not change.
 func TestThePanelSaysWhetherTheTargetIsLocked(t *testing.T) {
-	waiting := learnViewOf(teach.Session{Phase: teach.WaitingForDemonstration}, true, false)
+	waiting := learnViewOf(learn.Session{Phase: learn.WaitingForDemonstration}, true, false)
 	if waiting.TargetLocked {
 		t.Error("the panel says the target is locked while Marco is still waiting for one. " +
 			"Somebody reads that and starts clicking into a window Marco has not " +
@@ -776,10 +776,10 @@ func TestThePanelSaysWhetherTheTargetIsLocked(t *testing.T) {
 	if idleLearnView().TargetLocked {
 		t.Error("an idle panel claims a locked target")
 	}
-	for _, phase := range []teach.Phase{
-		teach.EstablishingStart, teach.ReadyForDemo, teach.Capturing, teach.Evaluating,
+	for _, phase := range []learn.Phase{
+		learn.EstablishingStart, learn.ReadyForDemo, learn.Capturing, learn.Evaluating,
 	} {
-		if !learnViewOf(teach.Session{Phase: phase}, true, false).TargetLocked {
+		if !learnViewOf(learn.Session{Phase: phase}, true, false).TargetLocked {
 			t.Errorf("the target is not reported locked in %q, which runs against a "+
 				"window that was settled on and will not change", phase)
 		}
@@ -849,12 +849,12 @@ func TestStopBeforeAnythingWasShownActuallyStops(t *testing.T) {
 	rt := learnRuntime(t)
 	// A session that is still waiting for a window, which is where Start leaves it when the
 	// person is looking at Marco's own panel.
-	rt.teach.coord = teach.New("open mouse settings", &waitingPasses{},
-		rt.observations.memory, teach.DefaultBounds())
-	rt.teach.session = teach.Session{
-		Name: "open mouse settings", Phase: teach.WaitingForDemonstration,
+	rt.learn.coord = learn.New("open mouse settings", &waitingPasses{},
+		rt.observations.memory, learn.DefaultBounds())
+	rt.learn.session = learn.Session{
+		Name: "open mouse settings", Phase: learn.WaitingForDemonstration,
 	}
-	rt.teach.active = true
+	rt.learn.active = true
 
 	v, err := rt.Learn(context.Background(), service.ObserveLearn{Stop: true})
 	if err != nil {
@@ -880,21 +880,21 @@ func TestStopDuringADemonstrationStillFinishes(t *testing.T) {
 	// CAPTURING: the person has shown Marco something and is telling it they are done. Set
 	// directly rather than driven through Start, because what is under test is which verb
 	// Stop sends, not how a session reaches this phase.
-	rt.teach.coord = teach.New("open mouse settings", &waitingPasses{},
-		rt.observations.memory, teach.DefaultBounds())
-	rt.teach.session = teach.Session{
-		Name: "open mouse settings", Application: "settings", Phase: teach.Capturing,
+	rt.learn.coord = learn.New("open mouse settings", &waitingPasses{},
+		rt.observations.memory, learn.DefaultBounds())
+	rt.learn.session = learn.Session{
+		Name: "open mouse settings", Application: "settings", Phase: learn.Capturing,
 	}
-	rt.teach.active = true
+	rt.learn.active = true
 
 	if _, err := rt.Learn(context.Background(), service.ObserveLearn{Stop: true}); err != nil {
 		t.Fatalf("Stop: %v", err)
 	}
-	s, ok := rt.teach.read()
+	s, ok := rt.learn.read()
 	if !ok {
 		t.Fatal("the session vanished")
 	}
-	if s.Phase == teach.Cancelled {
+	if s.Phase == learn.Cancelled {
 		t.Error("Stop during a demonstration CANCELLED it, throwing the evidence away. " +
 			"Stop means \"that was the whole thing\"; the person has just shown Marco " +
 			"something and is telling it they are done.")
@@ -923,7 +923,7 @@ func (waitingPasses) AwaitSubject(ctx context.Context) error {
 //
 // "I'm still getting errors for questions that are unanswered, why can't I answer them?"
 //
-// Marco raises semantic questions of its own during a teach pass — "are these one set?" — and
+// Marco raises semantic questions of its own during a learn pass — "are these one set?" — and
 // those questions hold the single interruption budget, which blocks the rehearsal question behind
 // them. The panel counted them at the person and offered no control that could settle any of
 // them. They could see the obstacle and could not touch it.
@@ -1055,7 +1055,7 @@ func TestAStaleRefusalIsNotReportedAsCurrent(t *testing.T) {
 			}},
 		},
 	}
-	tail := &teachTail{rt: &Runtime{observations: g}}
+	tail := &learnTail{rt: &Runtime{observations: g}}
 
 	why := tail.QuestionRefusal(route, observe.AskRehearse)
 	if strings.Contains(why, string(observe.RefusalQuestionOpen)) {
@@ -1087,7 +1087,7 @@ func TestACurrentRefusalIsStillReported(t *testing.T) {
 			Refusals:     []observe.RehearsalRefusal{observe.RefusalQuestionOpen},
 		}},
 	}}
-	tail := &teachTail{rt: &Runtime{observations: g}}
+	tail := &learnTail{rt: &Runtime{observations: g}}
 
 	if why := tail.QuestionRefusal(route, observe.AskRehearse); !strings.Contains(
 		why, string(observe.RefusalQuestionOpen)) {
@@ -1110,19 +1110,19 @@ func TestACurrentRefusalIsStillReported(t *testing.T) {
 // An attempt that ran is a fact. Enumerating the states in which it may be reported has been
 // wrong every single time it has been tried.
 func TestAnAttemptIsReadableWhateverTheStage(t *testing.T) {
-	attempt := &teach.Attempt{
+	attempt := &learn.Attempt{
 		Attempted: true, Live: true, Terminal: "stopped_at_step",
-		Steps: []teach.AttemptStep{{
+		Steps: []learn.AttemptStep{{
 			Step: 1, Outcome: "unobservable",
 			Expected: "subj_bluetooth", Observed: "subj_something_else",
 		}},
 	}
 	// Every stage a session can be in AFTER an attempt has run.
-	for _, phase := range []teach.Phase{
-		teach.Naming, teach.Lowering, teach.Complete, teach.Refused,
-		teach.WaitingForStart, teach.ReadyToRehearse, teach.Evaluating,
+	for _, phase := range []learn.Phase{
+		learn.Naming, learn.Lowering, learn.Complete, learn.Refused,
+		learn.WaitingForStart, learn.ReadyToRehearse, learn.Evaluating,
 	} {
-		v := learnViewOf(teach.Session{Phase: phase, Attempt: attempt}, true, false)
+		v := learnViewOf(learn.Session{Phase: phase, Attempt: attempt}, true, false)
 		joined := strings.Join(v.Detail, "\n")
 		if !strings.Contains(joined, "step 1") {
 			t.Errorf("in %q the attempt is not readable.\nA rehearsal ran and stopped; "+
@@ -1137,8 +1137,8 @@ func TestAnAttemptIsReadableWhateverTheStage(t *testing.T) {
 // The control: reporting an empty attempt everywhere would put a meaningless line under every
 // ordinary session, which is how a diagnostic stops being read.
 func TestNoAttemptStillReportsNoSteps(t *testing.T) {
-	for _, phase := range []teach.Phase{teach.Naming, teach.Capturing, teach.Complete} {
-		v := learnViewOf(teach.Session{Phase: phase}, true, false)
+	for _, phase := range []learn.Phase{learn.Naming, learn.Capturing, learn.Complete} {
+		v := learnViewOf(learn.Session{Phase: phase}, true, false)
 		for _, d := range v.Detail {
 			if strings.Contains(d, "step ") {
 				t.Errorf("in %q a session with no attempt reports %q", phase, d)
@@ -1167,7 +1167,7 @@ func TestTheTailReportsWhatWasAnsweredAboutARehearsal(t *testing.T) {
 			Status: observe.ProposalAnswered, Response: observe.ResponseDeclined,
 		}}},
 	}}
-	tail := &teachTail{rt: &Runtime{observations: g}}
+	tail := &learnTail{rt: &Runtime{observations: g}}
 
 	if got, ok := tail.AnswerToRehearsal(answered); !ok {
 		t.Error("a declined question reads as unanswered, so the review waits forever for an " +
@@ -1207,4 +1207,95 @@ func TestTheTailReportsWhatWasAnsweredAboutARehearsal(t *testing.T) {
 		t.Errorf("a retraction reports the response %q; nobody answered, an answer was "+
 			"withdrawn", said)
 	}
+}
+
+// One acquisition request serves both surfaces, and `Surface` says which account to answer with.
+//
+// # What this replaced
+//
+// Two request types for one event. `ObserveTeach` was the session lifecycle and `ObserveLearn` was
+// the control surface's vocabulary — but they were not peers: the surface type was a FACADE that
+// translated its own Start into the other's start, its Stop into the other's Finish, its Cancel
+// into the other's Cancel. One act, described twice, in two vocabularies, one of them spending the
+// word the product reserves for Marco guiding a PERSON.
+//
+// They are one request now. The entrances differ only in how they configure it: a control surface
+// presses buttons and says so; `director learn` names a window and a sentence and does not.
+//
+// Mutation: delete the Surface test in the router, or stop the panel setting it. This fails.
+func TestOneAcquisitionRequestServesBothSurfaces(t *testing.T) {
+	// THE ROUTER CHOOSES BY Surface, and both roads lead to the same lifecycle.
+	src := readDirectorFile(t, "cmd/director/observeregistry.go")
+	i := strings.Index(src, "case q.Learn != nil:")
+	if i < 0 {
+		t.Fatal("the acquisition case is gone from the observation router")
+	}
+	arm := src[i:]
+	if end := strings.Index(arm, "\n\tcase "); end > 0 {
+		arm = arm[:end]
+	}
+	if !strings.Contains(arm, "q.Learn.Surface") {
+		t.Error("the router no longer chooses the account by which surface is asking")
+	}
+	for _, want := range []string{"r.Learn(", "r.LearnSession("} {
+		if !strings.Contains(arm, want) {
+			t.Errorf("the acquisition case no longer reaches %s", want)
+		}
+	}
+
+	// AND THERE IS NO SECOND REQUEST TYPE. This is the property the whole change exists for.
+	proto := readDirectorFile(t, "internal/director/service/protocol.go")
+	if strings.Contains(proto, "type ObserveTeach struct") {
+		t.Error("ObserveTeach is back — two request types for one acquisition event")
+	}
+	if strings.Contains(proto, "Teach *Observe") {
+		t.Error("the observation query carries a second acquisition field again")
+	}
+
+	// THE PANEL IDENTIFIES ITSELF, once, where it sends. Twelve verbs are built in
+	// cmd/marco/learnui.go and one of them missing Surface would ask for the wrong account
+	// and look like a rendering bug.
+	panel := readDirectorFile(t, "cmd/marco/learnui.go")
+	j := strings.Index(panel, "func writeLearn(")
+	if j < 0 {
+		t.Fatal("the panel's one sender is gone")
+	}
+	body := panel[j:]
+	if end := strings.Index(body, "\n// "); end > 0 {
+		body = body[:end]
+	}
+	if !strings.Contains(body, "q.Surface = true") {
+		t.Error("the control surface no longer says it is one, so it gets the session's own " +
+			"account instead of its own")
+	}
+
+	// AND THE LIFECYCLE STILL RUNS. A session started the way the panel starts one reaches
+	// the same handler the command line reaches.
+	rt := learnRuntime(t)
+	rt.winPlatform = browserInFront()
+	rt.winDirectory = windowref.NewDirectory()
+	var handed windowref.Selector
+	rt.passesFor = func(sel windowref.Selector) learn.Passes {
+		handed = sel
+		return &learnPasses{rt: rt, selector: sel}
+	}
+	if _, err := rt.LearnSession(context.Background(), service.ObserveLearn{
+		Name: "open mouse settings", Surface: true,
+		Target: windowref.Selector{EphemeralID: "window_1"},
+	}); err != nil {
+		t.Fatalf("starting a session through the merged request: %v", err)
+	}
+	if handed.Zero() {
+		t.Fatal("the merged request started no session")
+	}
+}
+
+// readDirectorFile reads a repo file relative to the module root.
+func readDirectorFile(t *testing.T, rel string) string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join("..", "..", filepath.FromSlash(rel)))
+	if err != nil {
+		t.Fatalf("read %s: %v", rel, err)
+	}
+	return string(b)
 }

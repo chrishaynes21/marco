@@ -18,6 +18,10 @@ Director and press enter", "close every Notepad window".
 It is distinct from `internal/dispatch`, which picks a **saved macro** from a phrase. The
 Director decides what to do to the **screen**. Neither imports the other.
 
+Which of the two a request reaches is neither the Director's decision nor a front end's:
+[[Invocation]] is the one intake, and it hands Director everything Marco does not already know
+exactly.
+
 Start here, then read the subsystem note you need, then its ADRs. See [[AI-CONTEXT]] for
 the retrieval protocol.
 
@@ -66,6 +70,9 @@ succeeding. [[Learned-Plays]] is the note; ADRs 023–032 are the constraints.
 - [[Collections]] — bounded semantic queries, re-run every iteration
 - [[Control-Flow]] — waits, conditions, cancellation
 - [[Editing]] — semantic text entry
+
+**Being asked**
+- [[Invocation]] — the one intake: what a request means, whichever entrance it arrived by
 
 **Acting**
 - [[Marco-Boundary]] — every desktop effect lowers to legal Marco source

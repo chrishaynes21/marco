@@ -9,7 +9,7 @@ import (
 
 // The pass that watched the demonstration IS the demonstration.
 //
-// Teaching used to run the route twice: once to discover where it goes, once for an armed capture
+// Learn used to run the route twice: once to discover where it goes, once for an armed capture
 // to watch it properly. The second performance is the one that kept failing live, because it is
 // the one that has to independently re-confirm where the person is standing before it will record
 // anything — and it failed with the correct route already in the store.

@@ -11,7 +11,7 @@ source_paths:
   - internal/platform/navsource/navsource.go
   - internal/director/observe/input.go
   - cmd/director/surfaceowner.go
-  - cmd/director/teachwiring.go
+  - cmd/director/learnsessionwiring.go
   - cmd/director/observewiring.go
 ---
 

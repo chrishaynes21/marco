@@ -49,7 +49,7 @@ func newScreenRecognition() screenhost.Recognition {
 
 // memoryPath is where durable semantic memory lives: the Director's store, under `$MARCO_HOME`.
 //
-// ONE store, not one per process. Screen names are written by the Director while it teaches, and
+// ONE store, not one per process. Screen names are written by the Director while it learns, and
 // read here while a play runs; a second file beside the routes could only ever be empty, and an
 // empty store made `Screen's Showing` refuse with "nothing in <app> is called <name>" — a sentence
 // about a name that was in fact recorded, just somewhere else.

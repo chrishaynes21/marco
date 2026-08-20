@@ -13,7 +13,7 @@ import (
 //
 // `no_actor_available` is the honest refusal for a machine with nothing that can act, and it is
 // only reachable by RUNNING a play. So the first time anybody discovered the Theater was empty
-// was when a play they had just taught, verified and saved did nothing at all — and the refusal
+// was when a play they had just learned, verified and saved did nothing at all — and the refusal
 // arrived as a `failed` status inside a play, which reads as a broken play rather than as a
 // machine that cannot act.
 //

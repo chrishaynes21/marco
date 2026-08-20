@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/chaynes-simpleclouds/marco/internal/bridgehost"
-	"github.com/chaynes-simpleclouds/marco/internal/mlog"
+	"github.com/chaynes-simpleclouds/marco/internal/invoke"
 	"github.com/chaynes-simpleclouds/marco/internal/nlu"
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
 	"github.com/chaynes-simpleclouds/marco/internal/oshost"
@@ -19,7 +19,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/resolver"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
 	"github.com/chaynes-simpleclouds/marco/internal/runtime"
-	"github.com/chaynes-simpleclouds/marco/internal/voiceteach"
+	"github.com/chaynes-simpleclouds/marco/internal/voicelearn"
 	"github.com/chaynes-simpleclouds/marco/internal/winctx"
 )
 
@@ -82,7 +82,7 @@ func newDeps() orchestrator.Deps {
 		Out:     os.Stdout,
 		App:     winctx.Active,
 		StopKey: stopKeySpec(),
-		// The overlay sets this: it can't show the simplified preview, so teach's
+		// The overlay sets this: it can't show the simplified preview, so learn's
 		// "[s]implify" simplifies AND saves in one step instead of re-confirming.
 		SimplifySaves: os.Getenv("MARCO_SIMPLIFY_SAVES") != "",
 		// Reserved demonstration key for "an argument goes here" → {{N}} (default F9).
@@ -95,40 +95,61 @@ func newDeps() orchestrator.Deps {
 	return d
 }
 
+// runAssistantDo is the product's entrance, and every other entrance comes through it.
+//
+// # Why the flags exist
+//
+//	--source  says HOW intent arrived, so an acceptance run can prove that typing and speaking
+//	          take the same path. Recorded, never consulted: see [[internal/invoke]].
+//	--play    is an identity the caller ALREADY holds — a clicked Run, a resolved binding. The
+//	          words are then not read at all, because a display name is derived from a slug and
+//	          the slug is not a general inverse of the name, so a second lookup can land
+//	          somewhere else entirely.
+//
+// # What it stopped doing
+//
+// It no longer fuzzes the phrase to a slug before anything consults the registry. `resolveTarget`
+// ran a 0.75-score matcher and then an optional external model IN FRONT OF the door, so an exact
+// durable identity could lose to a fuzzy neighbour silently — measured: with both "open settings"
+// and "open the settings" registered, asking for the second ran the first. A near miss is now a
+// miss, and a miss belongs to Director, which can see and can ask.
+//
+// Deleting the runInvocation call must fail TestEveryEntranceRoutesThroughTheOneIntake.
 func runAssistantDo(args []string) {
-	name := strings.TrimSpace(strings.Join(args, " "))
-	if name == "" {
+	req := invoke.Request{Source: invoke.SourceCLI}
+	var explicit routes.Route
+	var haveExplicit bool
+	var words []string
+	for i := 0; i < len(args); i++ {
+		switch a := args[i]; {
+		case strings.HasPrefix(a, "--source="):
+			req.Source = invoke.Source(strings.TrimPrefix(a, "--source="))
+		case strings.HasPrefix(a, "--play="):
+			explicit.Slug = routes.Slug(strings.TrimPrefix(a, "--play="))
+			haveExplicit = true
+		case strings.HasPrefix(a, "--app="):
+			explicit.App = strings.TrimPrefix(a, "--app=")
+			req.App = explicit.App
+		case a == "--focus":
+			explicit.Focus = true
+		default:
+			words = append(words, a)
+		}
+	}
+	req.Text = strings.TrimSpace(strings.Join(words, " "))
+	if haveExplicit {
+		req.Play = &explicit
+	}
+	if req.Text == "" && req.Play == nil {
 		fmt.Fprintln(os.Stderr, `usage: marco do "<name>"`)
 		os.Exit(2)
 	}
-	d := newDeps()
-	// A command may chain several steps with " then " — run them in order, stopping
-	// at the first failure. Each step keeps its own "… with a, b"/"name:" args.
-	for _, step := range routes.SplitChain(name) {
-		target, named, positional := resolveTarget(d, step)
-		mlog.Info("do: dispatching", "target", target, "app", appOf(d))
-		if err := dispatchDo(d, target, named, positional); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
+	out, err := runInvocation(newDeps(), req)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
 	}
-}
-
-// resolveTarget peels a single command's args ("name:value" / "… with a, b") and
-// resolves its phrase to an existing play slug, preferring a confident nlu match,
-// then the optional model resolver, else the phrase as-is (Do teaches if unknown).
-func resolveTarget(d orchestrator.Deps, command string) (target string, named map[string]string, positional []string) {
-	base, named, positional := routes.ParseInvocation(command)
-	mlog.Debug("do: parsed invocation", "input", command, "base", base, "named_count", len(named), "positional_count", len(positional))
-	target = base
-	if m := nlu.Resolve(base, d.Reg.Slugs()); m.Route != "" && (m.Exact || m.Score >= 0.75) {
-		mlog.Debug("do: nlu match", "input", base, "route", m.Route, "exact", m.Exact, "score", m.Score)
-		target = m.Route
-	} else if r := resolver.Resolve(context.Background(), base, d.Reg.Slugs()); r != "" {
-		mlog.Debug("do: resolver match", "input", base, "route", r)
-		target = r // optional model fallback for loose phrasing
-	}
-	return target, named, positional
+	announce(out)
+	os.Exit(out.Exit())
 }
 
 // playJSON is the wire shape BOTH `marco routes --json` and `marco plays --json` emit.
@@ -195,7 +216,7 @@ func runRoutes(args []string) {
 		return
 	}
 	if len(list) == 0 {
-		fmt.Println("No plays yet. Teach one with: marco teach \"<name>\"")
+		fmt.Println("No plays yet. Learn one with: marco learn \"<name>\"")
 		return
 	}
 	fmt.Println("Known plays:")
@@ -232,7 +253,7 @@ func runPlays(args []string) {
 		}
 	}
 	if len(askable) == 0 && len(staged) == 0 {
-		fmt.Println("No plays yet. Teach one with: marco teach \"<name>\"")
+		fmt.Println("No plays yet. Learn one with: marco learn \"<name>\"")
 		return
 	}
 	if len(askable) > 0 {
@@ -448,9 +469,9 @@ func runRename(args []string) {
 	fmt.Printf("Renamed %q to %q.\n", prettyRoute(rt.Slug), prettyRoute(newRt.Slug))
 }
 
-func runAssistantTeach(args []string) {
-	// --auto: non-interactive teach (record → simplify → save scoped to the
-	// foreground app), so a front-end like the overlay can drive teaching with no
+func runAssistantLearn(args []string) {
+	// --auto: non-interactive learn (record → simplify → save scoped to the
+	// foreground app), so a front-end like the overlay can drive learning with no
 	// prompts and no console window.
 	auto, narrate := false, false
 	var rest []string
@@ -466,30 +487,30 @@ func runAssistantTeach(args []string) {
 	}
 	name := strings.TrimSpace(strings.Join(rest, " "))
 	if name == "" && !auto {
-		// No name given (e.g. bare "teach" from a console) — ask for one.
+		// No name given (e.g. bare "learn" from a console) — ask for one.
 		fmt.Print("Name this command: ")
 		line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
 		name = strings.TrimSpace(line)
 	}
 	if name == "" {
-		fmt.Fprintln(os.Stderr, `usage: marco teach "<name>"`)
+		fmt.Fprintln(os.Stderr, `usage: marco learn "<name>"`)
 		os.Exit(2)
 	}
 	if auto {
-		if err := newDeps().TeachAuto(name); err != nil {
+		if err := newDeps().LearnAuto(name); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
 		return
 	}
 	if narrate {
-		if err := runNarrateTeach(name); err != nil {
+		if err := runNarrateLearn(name); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
 		return
 	}
-	if err := newDeps().Teach(name); err != nil {
+	if err := newDeps().Learn(name); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
@@ -524,10 +545,10 @@ func runArgs(cliArgs []string) {
 	}
 }
 
-// runNarrateTeach drives a narration-built play: each line on stdin is one phrase
+// runNarrateLearn drives a narration-built play: each line on stdin is one phrase
 // ("click this", "type hello", "wait for this screen", "done") — TYPED at a console
 // or piped from the voice plugin's Final transcripts, same path either way.
-func runNarrateTeach(name string) error {
+func runNarrateLearn(name string) error {
 	phrases := make(chan string)
 	go func() {
 		defer close(phrases)
@@ -539,7 +560,7 @@ func runNarrateTeach(name string) error {
 			}
 		}
 	}()
-	return newDeps().TeachVoice(name, voiceteach.NewOSEnv(), phrases, nil)
+	return newDeps().LearnVoice(name, voicelearn.NewOSEnv(), phrases, nil)
 }
 
 func runAssistantSimplify(args []string) {
@@ -563,7 +584,7 @@ func runAssistantSimplify(args []string) {
 
 // runAssistant is the interactive loop: each line is interpreted as a command.
 // The nlu resolver fuzzily maps what you type to one of your saved plays (or
-// teaches a new one). This is the seam where a future model-backed resolver
+// learns a new one). This is the seam where a future model-backed resolver
 // plugs in — it only has to turn a line into a play name.
 func runAssistant(_ []string) {
 	d := newDeps()
@@ -581,8 +602,8 @@ func runAssistant(_ []string) {
 		case "quit", "exit":
 			return
 		case "help":
-			fmt.Fprintln(os.Stdout, "  type a command to run it; unknown commands are taught by demonstration.")
-			fmt.Fprintln(os.Stdout, "  'list' shows known plays. For a password in a play, type {{name}} while teaching")
+			fmt.Fprintln(os.Stdout, "  type a command to run it; unknown commands are learned by demonstration.")
+			fmt.Fprintln(os.Stdout, "  'list' shows known plays. For a password in a play, type {{name}} while learning")
 			fmt.Fprintln(os.Stdout, "  and set it with: marco secret set <name>")
 			continue
 		case "list":
@@ -611,7 +632,7 @@ func runAssistant(_ []string) {
 			if askYes(fmt.Sprintf("Did you mean %q? [y]es / [n]o: ", prettyRoute(m.Route))) {
 				runDo(d, m.Route)
 			} else {
-				runDo(d, line) // teach as a new command under the typed name
+				runDo(d, line) // learn as a new command under the typed name
 			}
 		default:
 			// Deterministic matcher unsure → optional external resolver plugin
@@ -620,18 +641,25 @@ func runAssistant(_ []string) {
 				askYes(fmt.Sprintf("Did you mean %q? [y]es / [n]o: ", prettyRoute(r))) {
 				runDo(d, r)
 			} else {
-				runDo(d, line) // unknown → teach
+				runDo(d, line) // unknown → learn
 			}
 		}
 	}
 }
 
+// runDo performs one command from the interactive loop, through the one intake.
+//
+// The REPL is a DEVELOPER SURFACE — nothing launches it, and `marco help` still lists it — but it
+// does not get its own idea of what a phrase means. Its own matcher above ASKS before it
+// substitutes anything ("Did you mean …?"), which is a confirmation rather than a silent guess,
+// and whatever the person confirms arrives here and takes exactly the path every other entrance
+// takes.
 func runDo(d orchestrator.Deps, name string) {
-	base, named, positional := routes.ParseInvocation(name)
-	mlog.Debug("assistant: parsed invocation", "input", name, "base", base, "named_count", len(named), "positional_count", len(positional))
-	if err := dispatchDo(d, base, named, positional); err != nil {
+	out, err := runInvocation(d, invoke.Request{Text: name, Source: invoke.SourceCLI})
+	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 	}
+	announce(out)
 }
 
 // askYes prompts and reads one line; empty/"y"/"yes" is affirmative.

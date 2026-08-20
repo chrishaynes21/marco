@@ -53,7 +53,7 @@ func appSwitch(app string, ms int) recorder.RecordedEvent {
 	return recorder.RecordedEvent{Kind: recorder.EvAppSwitch, KeyName: app, T: at(ms)}
 }
 
-// TestAppSwitchDropsNavClicks is the taskbar-click scenario: you start teaching
+// TestAppSwitchDropsNavClicks is the taskbar-click scenario: you start learning
 // in one app, click the taskbar to switch to another (a brittle fixed-coordinate
 // click — and on a left/upper monitor, negative coords), then type. The recorded
 // route should focus the destination app robustly and NOT replay the navigation

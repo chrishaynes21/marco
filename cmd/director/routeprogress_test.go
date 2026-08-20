@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/chaynes-simpleclouds/marco/internal/director/learn"
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
-	"github.com/chaynes-simpleclouds/marco/internal/director/teach"
 )
 
 // The panel says how much of the demonstrated route is verified.
@@ -22,13 +22,13 @@ import (
 // Deleting routeProgress must fail this.
 func TestThePanelSaysHowMuchOfTheRouteIsVerified(t *testing.T) {
 	rt := &Runtime{}
-	s := teach.Session{
+	s := learn.Session{
 		Application: "settings",
-		Edges: []teach.EdgeReview{
+		Edges: []learn.EdgeReview{
 			{Route: observe.RelationshipRef{From: "subj_home", To: "subj_bt"},
-				Status: teach.EdgeVerified},
+				Status: learn.EdgeVerified},
 			{Route: observe.RelationshipRef{From: "subj_bt", To: "subj_mouse"},
-				Status: teach.EdgeOffered},
+				Status: learn.EdgeOffered},
 		},
 	}
 	var v learnView
@@ -37,13 +37,13 @@ func TestThePanelSaysHowMuchOfTheRouteIsVerified(t *testing.T) {
 	if v.Verified != 1 || v.Required != 2 {
 		t.Errorf("verified %d/%d, want 1/2", v.Verified, v.Required)
 	}
-	if v.RouteStatus != string(teach.RouteUnreviewed) {
+	if v.RouteStatus != string(learn.RouteUnreviewed) {
 		t.Errorf("route status %q with a leg still under review", v.RouteStatus)
 	}
 	if len(v.Steps) != 2 {
 		t.Fatalf("%d step(s) shown for a two-leg route", len(v.Steps))
 	}
-	if v.Steps[0].Status != string(teach.EdgeVerified) {
+	if v.Steps[0].Status != string(learn.EdgeVerified) {
 		t.Errorf("step 1 shows %q", v.Steps[0].Status)
 	}
 	// THE WHOLE walk, not whichever leg is under review.
@@ -57,11 +57,11 @@ func TestThePanelSaysHowMuchOfTheRouteIsVerified(t *testing.T) {
 // An id is an internal handle. Showing one is asking somebody to debug Marco rather than read it.
 func TestTheRoutePanelShowsNoSubjectIds(t *testing.T) {
 	rt := &Runtime{}
-	s := teach.Session{
+	s := learn.Session{
 		Application: "settings",
-		Edges: []teach.EdgeReview{
+		Edges: []learn.EdgeReview{
 			{Route: observe.RelationshipRef{From: "subj_home", To: "subj_bt"},
-				Status: teach.EdgeVerified},
+				Status: learn.EdgeVerified},
 		},
 	}
 	var v learnView
@@ -80,7 +80,7 @@ func TestTheRoutePanelShowsNoSubjectIds(t *testing.T) {
 func TestNoRouteMeansNoProgressLine(t *testing.T) {
 	rt := &Runtime{}
 	var v learnView
-	rt.routeProgress(teach.Session{Application: "settings"}, &v)
+	rt.routeProgress(learn.Session{Application: "settings"}, &v)
 	if v.Required != 0 || len(v.Steps) != 0 || v.RouteStatus != "" {
 		t.Errorf("a session with no route produced progress: %+v", v.Steps)
 	}

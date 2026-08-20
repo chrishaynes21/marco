@@ -1,5 +1,5 @@
 // Package dispatch is Marco's ROUTE-LEVEL decision-maker. Given a line of natural
-// language it decides WHAT the user wants — run a saved route, teach a new command,
+// language it decides WHAT the user wants — run a saved route, learn a new command,
 // answer a question, or ask for clarification — and hands a front-end (the
 // interactive assistant, the overlay) a single, verified Decision to act on.
 //
@@ -11,7 +11,7 @@
 //
 // Dispatch is deliberately INDEPENDENT OF ANY LANGUAGE MODEL. Its baseline is the
 // deterministic, offline matcher (internal/nlu): an exact route name runs, a near
-// match asks to confirm, anything else is a new command to teach. That alone makes
+// match asks to confirm, anything else is a new command to learn. That alone makes
 // Marco usable with no model at all.
 //
 // Smarter understanding is layered in through the Advisor interface — an optional
@@ -34,7 +34,7 @@ import (
 // Intent is dispatch's verdict for one line of input.
 const (
 	IntentRun     = "run"     // run an existing route (Route is a verified slug)
-	IntentTeach   = "teach"   // create a new command (Name is its suggested name)
+	IntentLearn   = "teach"   // create a new command (Name is its suggested name)
 	IntentChat    = "chat"    // conversational answer (Reply)
 	IntentClarify = "clarify" // ambiguous — confirm/ask a follow-up (Reply; Route may hint)
 	IntentNone    = "none"    // nothing to do (only when input is empty)
@@ -45,7 +45,7 @@ const (
 type Decision struct {
 	Intent string
 	Route  string // IntentRun: a slug guaranteed to be in the offered routes
-	Name   string // IntentTeach: the new command's name
+	Name   string // IntentLearn: the new command's name
 	Reply  string // IntentChat/IntentClarify: something to say to the user
 }
 
@@ -97,7 +97,7 @@ func (d Dispatcher) Decide(ctx context.Context, input string, routes []string, a
 	}
 
 	// 3. Deterministic fallback: a near match asks to confirm; anything else is a new
-	//    command to teach (Marco is self-teaching).
+	//    command to learn (Marco learns what it is shown).
 	thr := d.ClarifyMin
 	if thr == 0 {
 		thr = defaultClarify
@@ -106,7 +106,7 @@ func (d Dispatcher) Decide(ctx context.Context, input string, routes []string, a
 		return Decision{Intent: IntentClarify, Route: m.Route,
 			Reply: "Did you mean " + prettify(m.Route) + "?"}
 	}
-	return Decision{Intent: IntentTeach, Name: input}
+	return Decision{Intent: IntentLearn, Name: input}
 }
 
 // Propose returns ONLY the Advisor's validated suggestion — no deterministic
@@ -140,7 +140,7 @@ func validate(dec Decision, routes []string) (Decision, bool) {
 			return dec, true
 		}
 		return Decision{}, false
-	case IntentTeach:
+	case IntentLearn:
 		if dec.Name == "" {
 			return Decision{}, false
 		}

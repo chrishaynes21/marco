@@ -156,7 +156,7 @@ func renderNamed(raw json.RawMessage) string {
 		return "Noted.\n"
 	}
 	return fmt.Sprintf("Noted — Marco will call that screen %q.\n\n"+
-		"That is a name for a screen and nothing else. It does not teach Marco to do "+
+		"That is a name for a screen and nothing else. It does not show Marco how to do "+
 		"anything\nthere, and it does not give it permission to.\n", v.Answered.Named)
 }
 
@@ -1051,7 +1051,7 @@ func renderAssessment(b *strings.Builder, v observationView) {
 
 // renderFollowUps reports whether another demonstration would help, and why Marco did not ask.
 //
-// Printed even when nothing was asked — especially then. A user who agreed to teach Marco
+// Printed even when nothing was asked — especially then. A user who agreed to show Marco
 // something and then heard nothing has no way to tell whether Marco is satisfied, stuck or
 // broken, and "another demonstration would not help with: requires_text_entry" is the sentence
 // that answers it.

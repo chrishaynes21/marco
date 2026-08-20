@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-// fakeDetector returns canned elements regardless of the image, so the teach-time
+// fakeDetector returns canned elements regardless of the image, so the learn-time
 // Identify path is testable without a model.
 type fakeDetector struct{ els []Element }
 

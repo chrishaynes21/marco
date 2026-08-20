@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/chaynes-simpleclouds/marco/internal/invoke"
 	"github.com/chaynes-simpleclouds/marco/internal/plays"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
 )
@@ -316,23 +317,124 @@ func (e *editor) handleLoad(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"ok": true, "name": prettyRoute(rt.Slug)})
 }
 
-// handleDo runs a play for real (types/clicks) by spawning a fresh marco process, like the
-// overlay and web-ui do — the engine stays out of this server's process.
-func (e *editor) handleDo(w http.ResponseWriter, r *http.Request) {
-	var req struct{ Name string }
-	if json.NewDecoder(r.Body).Decode(&req) != nil || strings.TrimSpace(req.Name) == "" {
-		http.Error(w, "bad request", 400)
-		return
+// doArgv is the command line a clicked Run launches, and it carries an IDENTITY.
+//
+// # Why not the shown name
+//
+// Two reasons, and the second one is not hypothetical.
+//
+// The shown name is derived from the slug by `plays.Pretty`, which undoes exactly one half of the
+// fold `routes.Slug` applied — dashes back to spaces, and nothing else. A slug carrying anything
+// else renders to a name that slugs to a DIFFERENT slug, so posting the name and letting the
+// intake match it again can land on a neighbouring play or on none.
+//
+// And the name carries no SCOPE. `marco do "<phrase>"` resolves against the foreground
+// application, which for this surface is the person's BROWSER — the control centre is a local web
+// page. A play scoped to the app it drives is not reachable from there by name at all. The row
+// already holds slug, app and scope; handing all three over is the surface saying which play it
+// means instead of describing it in words that have to be guessed back.
+//
+// `--source` records that this arrived from the control centre. It is recorded and never
+// consulted: see [[internal/invoke]].
+//
+// Deleting the `--play=` argument — spelling the play as a phrase again — must fail
+// TestAClickedRunSpawnsAnExplicitIdentity.
+func doArgv(rt routes.Route) []string {
+	args := []string{"do", "--source=" + string(invoke.SourceControlCentre), "--play=" + rt.Slug}
+	if rt.App != "" {
+		args = append(args, "--app="+rt.App)
 	}
+	if rt.Focus {
+		args = append(args, "--focus")
+	}
+	return args
+}
+
+// runSpawn starts a fresh marco process, like the overlay does — the engine stays out of this
+// server's process.
+//
+// A package variable for the same reason `submitPhrase` in intake.go is one: a test has to be able
+// to prove WHAT a clicked Run would launch without launching it. `marco do` performs real input.
+// Production never reassigns it.
+var runSpawn = spawnMarco
+
+func spawnMarco(args []string) error {
 	self, err := os.Executable()
 	if err != nil {
 		self = os.Args[0]
 	}
-	if err := exec.Command(self, "do", req.Name).Start(); err != nil {
+	return exec.Command(self, args...).Start()
+}
+
+// doTarget picks the registered play a Run names, out of the handle the row already carried.
+//
+// # A staged play is refused HERE, not by the absence of a button
+//
+// The Plays view offers no run button on a staged row, and that is a rendering decision — a
+// rendering decision is not enforcement, because anything can post to this URL. `plays.Registered`
+// is the enumeration of the plays anything can ASK FOR (every standing it can produce is
+// `Life.Askable`), so a staged play is structurally unable to be found here rather than filtered
+// out of a mixed list. See [[ADR-028-a-learned-play-is-a-file-with-a-past]].
+//
+// A second askability check over the same list would be belt and braces that can never fire — and
+// would make the mutation that matters survive, which is how this was actually settled: swapping
+// `Registered` for `List` left every test green while the redundant filter was here.
+//
+// The SCOPE disambiguates: the same slug can be registered under one app both in-context and as a
+// focus play, and the row knows which one it is showing. Without one, the first match stands.
+//
+// Widening this to `plays.List` must fail TestAStagedPlayCannotBeRunThroughTheEndpoint.
+func (e *editor) doTarget(slug, app, scope string) (routes.Route, bool) {
+	if slug == "" {
+		return routes.Route{}, false
+	}
+	var first routes.Route
+	found := false
+	for _, p := range plays.Registered(e.reg) {
+		if p.Slug != slug || p.Application != app {
+			continue
+		}
+		if scope != "" && string(p.Scope) == scope {
+			return p.Route, true
+		}
+		if !found {
+			first, found = p.Route, true
+		}
+	}
+	return first, found
+}
+
+// handleDo runs a play for real (types/clicks). The row's own handle decides which one.
+func (e *editor) handleDo(w http.ResponseWriter, r *http.Request) {
+	var req struct{ Name, Slug, App, Scope string }
+	if json.NewDecoder(r.Body).Decode(&req) != nil {
+		http.Error(w, "bad request", 400)
+		return
+	}
+	var (
+		rt routes.Route
+		ok bool
+	)
+	if slug := strings.TrimSpace(req.Slug); slug != "" {
+		rt, ok = e.doTarget(slug, strings.TrimSpace(req.App), strings.TrimSpace(req.Scope))
+	} else if name := strings.TrimSpace(req.Name); name != "" {
+		// COMPATIBILITY with a name-only payload, which is what this endpoint used to take and
+		// what anything outside this page may still post. It resolves the name to a real Route
+		// here — so even the old shape leaves this handler as an identity rather than as words
+		// that would be matched a second time downstream.
+		if rt, ok = e.reg.Resolve(e.app, name); !ok {
+			rt, ok = findRouteByName(e.reg, name)
+		}
+	}
+	if !ok {
+		http.Error(w, "no play Marco can run answers to that", 404)
+		return
+	}
+	if err := runSpawn(doArgv(rt)); err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	writeJSON(w, map[string]any{"ok": true})
+	writeJSON(w, map[string]any{"ok": true, "name": prettyRoute(rt.Slug)})
 }
 
 // handleBindings lists every leader-hotkey binding (key → command, scoped to an app).
@@ -767,6 +869,12 @@ func (e *editor) handleRoute(w http.ResponseWriter, _ *http.Request) {
 		"loaded": e.rt.Slug != "",
 		"view":   e.view,
 		"name":   prettyRoute(e.rt.Slug),
+		// The SLUG, beside the shown name, so the Edit view's Run can name the play it has open
+		// instead of describing it — the identity the server already holds, handed to the page
+		// that will hand it straight back. See doArgv.
+		//
+		// Deleting it must fail TestTheEditViewRunsThePlayItHasOpenByIdentity.
+		"slug":   e.rt.Slug,
 		"app":    e.rt.App,
 		"scope":  scopeOf(e.rt),
 		"path":   e.path,
@@ -1160,6 +1268,8 @@ const editPage = `<!doctype html><html><head><meta charset="utf-8"><title>MARCO<
   <div id="steps"></div>
   <div class="bar"><button class="go" onclick="save()">Save</button>
     <button type="button" class="mini" onclick="document.getElementById('steps').appendChild(addRow(-1))">+ add step</button>
+    <button type="button" class="mini" id="editrun" hidden onclick="doOpenPlay()"
+      title="runs for real (types/clicks)">▶ run</button>
     <span id="saved2"></span></div>
   <details><summary>Full play source</summary><pre id="src"></pre></details>
  </section>
@@ -1248,13 +1358,13 @@ const editPage = `<!doctype html><html><head><meta charset="utf-8"><title>MARCO<
  </section>
  <section id="view-help" hidden class="help"><h2>Help</h2>
   <p class="hint">Marco turns things you demonstrate once into small, editable programs that drive
-    real mouse + keyboard. Each one is a <b>play</b>. Teach a command in the overlay, tune it here,
+    real mouse + keyboard. Each one is a <b>play</b>. Learn a command in the overlay, tune it here,
     fire it by name or a hotkey.</p>
 
   <h3>Where a play comes from</h3>
   <ul>
    <li><b>Authored</b> — you wrote it.</li>
-   <li><b>Recorded</b> — you demonstrated it once with <b>teach</b> and Marco kept the recording.</li>
+   <li><b>Recorded</b> — you demonstrated it once with <b>learn</b> and Marco kept the recording.</li>
    <li><b>Learned</b> — Marco watched, worked out how to do it, and wrote it down.</li>
   </ul>
 
@@ -1266,14 +1376,14 @@ const editPage = `<!doctype html><html><head><meta charset="utf-8"><title>MARCO<
    <li><kbd>` + "`" + `</kbd> while a play is running — stop / cancel it.</li>
   </ul>
 
-  <h3>Teach a new play</h3>
+  <h3>Learn a new play</h3>
   <ol>
    <li>Focus the app or game you want to automate.</li>
-   <li><kbd>` + "`" + `</kbd><kbd>m</kbd>, type <b>teach &lt;name&gt;</b>, <kbd>Enter</kbd>.</li>
+   <li><kbd>` + "`" + `</kbd><kbd>m</kbd>, type <b>learn &lt;name&gt;</b>, <kbd>Enter</kbd>.</li>
    <li>Do the actions for real — clicks, keys, typing. Marco records them.</li>
    <li>Press the <b>leader</b> to finish; it saves and asks the scope (context / focus / global).</li>
   </ol>
-  <p>Prefer to talk it through? <b>narrate teach &lt;name&gt;</b> (alias <b>voice teach</b>) builds the play
+  <p>Prefer to talk it through? <b>narrate learn &lt;name&gt;</b> (aliases <b>narrate teach</b>, <b>voice teach</b>) builds the play
     from spoken or typed phrases: "click this", "type hello", "press enter", "wait for this screen", "done".</p>
 
   <h3>Saved, then registered</h3>
@@ -1361,7 +1471,7 @@ function nav(v){
 }
 // ---- Learn ----
 //
-// A WINDOW onto the Director's teaching lifecycle. Every button posts one verb and renders
+// A WINDOW onto the Director's Learn lifecycle. Every button posts one verb and renders
 // whatever comes back; nothing here decides when learning has finished, whether a candidate is
 // ready, or whether a rehearsal may run. The server answers all of that.
 //
@@ -1508,7 +1618,7 @@ async function unnameHere(){
 // rememberHere makes a screen Marco does not know durable, under the name just typed.
 //
 // The name is the licence. A person looking at a screen and saying what it is called is the
-// human semantic event that permits persisting it — the same one a teach session relies on —
+// human semantic event that permits persisting it — the same one a learn session relies on —
 // and pressing this with nothing typed establishes nothing.
 async function rememberHere(){
   const el=document.getElementById('lherecall');
@@ -1654,7 +1764,7 @@ const LSTAGE={
 // The panel used to print the raw enum at the person: "Refused: several_routes". Two of those
 // codes spell ROUTE — the retired product noun — at a normal user, and every one of them is a
 // machine word where a sentence belongs. Marco's own account of the refusal is already on screen
-// above this line (#lsaying, from teach/say.go); this is the label beside it, and a label may be
+// above this line (#lsaying, from learn/say.go); this is the label beside it, and a label may be
 // short without being a symbol.
 //
 // The fallback un-underscores anything not named here, so a refusal added later reads as English
@@ -1750,7 +1860,7 @@ function learnRender(v){
 
   // EVERY QUESTION MARCO IS WAITING ON, with a way to answer it.
   //
-  // These are Marco's own — "are these one set?" — raised during a teach pass. They hold the
+  // These are Marco's own — "are these one set?" — raised during a learn pass. They hold the
   // interruption budget, they block the rehearsal question behind them, and the panel used
   // to count them at you and offer nothing. A question nobody can answer is worse than a
   // question nobody is asked.
@@ -1965,9 +2075,15 @@ function addRow(after){
   rec.node=row; adds.push(rec);
   return row;
 }
+// OPEN is the IDENTITY of the play the Edit view has loaded — slug, app and scope, exactly as a
+// Plays row carries them — so this view's Run says which play it means. Null when nothing is open,
+// and the Run button is hidden then: there is nothing to run.
+let OPEN=null;
 async function loadEdit(){
   const r = await (await fetch('/api/route')).json();
   const box=document.getElementById('steps'); box.innerHTML=''; steps=[]; adds=[];
+  OPEN = r.loaded ? {name:r.name, slug:r.slug, app:r.app, scope:r.scope} : null;
+  document.getElementById('editrun').hidden = !r.loaded;
   if(!r.loaded){
     document.getElementById('rt').textContent='';
     document.getElementById('src').textContent='';
@@ -2079,7 +2195,7 @@ async function loadRoutes(){
   PLAYS = {plays: r.plays||[], bindings: r.bindings||[]};
   const box=document.getElementById('routes'); box.innerHTML='';
   const rows = PLAYS.plays;
-  if(!rows.length){ box.innerHTML='<p class="hint">No plays yet — teach one from the overlay: <kbd>` + "`" + `</kbd> then type <b>teach &lt;name&gt;</b>.</p>'; return; }
+  if(!rows.length){ box.innerHTML='<p class="hint">No plays yet — learn one from the overlay: <kbd>` + "`" + `</kbd> then type <b>learn &lt;name&gt;</b>.</p>'; return; }
   // group: app name → its plays; "" (global) sorts last under "Global".
   const groups={};
   rows.forEach(p=>{ const k=p.app||''; (groups[k]=groups[k]||[]).push(p); });
@@ -2135,7 +2251,7 @@ function playRow(p){
     for(const s of ['context','focus','global']){ const o=document.createElement('option'); o.value=s; o.textContent=s; if(s===p.scope) o.selected=true; sc.appendChild(o); }
     sc.onchange=()=>changeScope(p, sc.value, sc);
     const e=document.createElement('button'); e.className='mini'; e.textContent='edit'; e.onclick=()=>openRoute(p.name);
-    const run=document.createElement('button'); run.className='mini'; run.textContent='▶ run'; run.title='runs for real (types/clicks)'; run.onclick=()=>doRoute(p.name);
+    const run=document.createElement('button'); run.className='mini'; run.textContent='▶ run'; run.title='runs for real (types/clicks)'; run.onclick=()=>doPlay(p);
     d.append(sc, e, run);
   } else if(p.registerable){
     // NO run and NO scope switcher on a staged row. Asking for a staged play cannot work, and
@@ -2195,10 +2311,18 @@ async function openRoute(name){
   if(!resp.ok){ flash('could not open '+name); return; }
   nav('edit'); // switch to the editor (loadEdit runs from nav)
 }
-async function doRoute(name){
-  const res = await (await fetch('/api/do',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})})).json();
-  flash(res.ok ? ('running: '+name) : 'run failed');
+// doPlay runs a play BY THE IDENTITY THE ROW ALREADY HOLDS — slug, app and scope — never by its
+// shown name. The name is derived from the slug and that derivation is not reversible (a name with
+// an apostrophe does not round-trip), so posting the name would ask the engine to guess back
+// something this page already knows. See doArgv.
+async function doPlay(p){
+  const resp = await fetch('/api/do',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({slug:p.slug, app:p.app, scope:p.scope})});
+  if(!resp.ok){ flash((await resp.text()).trim()||('could not run '+p.name)); return; }
+  flash('running: '+p.name);
 }
+// doOpenPlay runs the play the Edit view has open. Also an identity: /api/route carries its slug.
+function doOpenPlay(){ if(OPEN) doPlay(OPEN); }
 // ---- bindings view ----
 async function loadBindings(){
   const r = await (await fetch('/api/bindings')).json();

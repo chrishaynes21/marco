@@ -10,8 +10,8 @@ affects:
 source_paths:
   - internal/director/observe/placereferent.go
   - internal/director/observe/referent.go
-  - internal/director/teach/teach.go
-  - cmd/director/teachgrounding.go
+  - internal/director/learn/learn.go
+  - cmd/director/learngrounding.go
 ---
 
 # ADR-046 — grounding a screen points at its structure, not at the screen
@@ -87,7 +87,7 @@ desktop rectangle by design, so the frame is kept beside it in live process stat
 - `TestGroundingAPlaceStillRefusesTheWholeWindow` — the container rule survives delegation.
 - `TestAGroundedScreenSaysItIsWhatTheScreenIsRecognisedBy` — the smaller claim.
 
-`internal/director/teach/grounding_test.go`:
+`internal/director/learn/grounding_test.go`:
 
 - `TestGroundingFailureDoesNotChangeAnythingAboutTheTeachSession` — every unavailable reason, and
   the successful case, produce an identical session.
@@ -102,7 +102,7 @@ desktop rectangle by design, so the frame is kept beside it in live process stat
 - `TestTheMemberFunnelAccountsForEveryMember` — the counts reconcile at every step, so the step
   that lost the regions is the one where they stop matching.
 
-`internal/director/teach/grounddiagnosis_test.go`:
+`internal/director/learn/grounddiagnosis_test.go`:
 
 - `TestTheWatchPanelDistinguishesTheTwoUnreliableCauses` — the Watch panel is the surface that has
   to separate them; deleting the line makes both causes print identically.
@@ -112,7 +112,7 @@ desktop rectangle by design, so the frame is kept beside it in live process stat
 - `TestEachEndpointIsGroundedOnTheScreenItWasEstablishedOn` — START and DESTINATION are pinned to
   different screens and grounded on their own.
 
-`cmd/director/teachgroundingwiring_test.go`:
+`cmd/director/learngroundingwiring_test.go`:
 
 - `TestTeachingInstallsGroundingThroughTheProductionStart` — the coordinator tests all inject their
   own grounding, so this is the only place that notices when production stops installing one.

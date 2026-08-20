@@ -15,7 +15,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/runtime"
 )
 
-// TestMain enables CV for the package — these teach tests were written for the CV-on default
+// TestMain enables CV for the package — these learn tests were written for the CV-on default
 // (anchors captured, waits capped to 50ms). CV is a feature flag that's OFF by default now, so
 // without this the faithful-timing path would change the expected Sleep values.
 func TestMain(m *testing.M) {
@@ -23,7 +23,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// fakeRecorder replays a canned event stream, so the whole teach pipeline
+// fakeRecorder replays a canned event stream, so the whole record pipeline
 // (record → simplify → codegen → save → run) is testable with no OS hooks.
 type fakeRecorder struct {
 	events []recorder.RecordedEvent
@@ -45,7 +45,7 @@ func at(ms int) time.Time {
 	return time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC).Add(time.Duration(ms) * time.Millisecond)
 }
 
-func TestTeachThenRun(t *testing.T) {
+func TestLearnThenRun(t *testing.T) {
 	dir := t.TempDir()
 	reg := routes.Registry{Dir: dir}
 
@@ -61,15 +61,15 @@ func TestTeachThenRun(t *testing.T) {
 	var out bytes.Buffer
 	d := Deps{
 		Reg: reg, Rec: &fakeRecorder{events: events},
-		In:      strings.NewReader("y\ny\nc\n"), // teach? yes; save? yes; scope? c (context: only here)
+		In:      strings.NewReader("y\ny\nc\n"), // learn? yes; save? yes; scope? c (context: only here)
 		Out:     &out,
-		App:     func() string { return "sea-of-thieves" }, // context captured at teach time
+		App:     func() string { return "sea-of-thieves" }, // context captured at learn time
 		StopKey: "esc",                                     // these fixtures end with an Esc press
 	}
 
-	// First Do: unknown → teaches, saves (scoped), and runs under dryrun.
+	// First Do: unknown → learns, saves (scoped), and runs under dryrun.
 	if err := d.Do("open chest"); err != nil {
-		t.Fatalf("Do(teach): %v\n%s", err, out.String())
+		t.Fatalf("Do(learn): %v\n%s", err, out.String())
 	}
 	scoped := routes.Route{App: "sea-of-thieves", Slug: "open-chest"}
 	if !reg.Has(scoped) {
@@ -94,7 +94,7 @@ func TestTeachThenRun(t *testing.T) {
 		t.Fatalf("route did not run; output:\n%s", out.String())
 	}
 
-	// Second Do: now known → runs directly without teaching. A context route is
+	// Second Do: now known → runs directly without learning. A context route is
 	// foreground-only, so the app must be in front for it to resolve.
 	var out2 bytes.Buffer
 	d2 := Deps{Reg: reg, Rec: &fakeRecorder{}, Out: &out2, App: func() string { return "sea-of-thieves" }}
@@ -102,17 +102,17 @@ func TestTeachThenRun(t *testing.T) {
 		t.Fatalf("Do(run): %v", err)
 	}
 	if strings.Contains(out2.String(), "I don't know") {
-		t.Fatalf("second Do re-taught instead of running:\n%s", out2.String())
+		t.Fatalf("second Do learned again instead of running:\n%s", out2.String())
 	}
 	if !strings.Contains(out2.String(), "open chest: done") {
 		t.Fatalf("second Do did not run:\n%s", out2.String())
 	}
 }
 
-// TestTeachSimplifyOption exercises the third save-menu option: the user types
+// TestLearnSimplifyOption exercises the third save-menu option: the user types
 // at human speed (per-letter keys by default), chooses "s" to simplify, and the
 // saved route has a single clean Type step instead of letter-by-letter presses.
-func TestTeachSimplifyOption(t *testing.T) {
+func TestLearnSimplifyOption(t *testing.T) {
 	dir := t.TempDir()
 	reg := routes.Registry{Dir: dir}
 
@@ -128,7 +128,7 @@ func TestTeachSimplifyOption(t *testing.T) {
 	var out bytes.Buffer
 	d := Deps{
 		Reg: reg, Rec: &fakeRecorder{events: events},
-		In:      strings.NewReader("y\ns\ny\nc\n"), // teach? yes; simplify further; save; scope c (context)
+		In:      strings.NewReader("y\ns\ny\nc\n"), // learn? yes; simplify further; save; scope c (context)
 		Out:     &out,
 		App:     func() string { return "editor" },
 		StopKey: "esc",
@@ -149,12 +149,12 @@ func TestTeachSimplifyOption(t *testing.T) {
 	}
 }
 
-// TestTeachSimplifySaves: with SimplifySaves set (the overlay, which can't show
+// TestLearnSimplifySaves: with SimplifySaves set (the overlay, which can't show
 // the preview), choosing "s" simplifies AND saves in one step — no re-confirm. The
 // input is "s" then the scope answer "y" (only-in-app); the "exactly one save
 // prompt" check below is the real guard — if SimplifySaves were broken, a second
 // "Save this as" re-prompt would appear and consume the "y".
-func TestTeachSimplifySaves(t *testing.T) {
+func TestLearnSimplifySaves(t *testing.T) {
 	dir := t.TempDir()
 	reg := routes.Registry{Dir: dir}
 
@@ -176,7 +176,7 @@ func TestTeachSimplifySaves(t *testing.T) {
 		StopKey:       "esc",
 		SimplifySaves: true,
 	}
-	if err := d.Teach("type hello"); err != nil {
+	if err := d.Learn("type hello"); err != nil {
 		t.Fatalf("Teach: %v\n%s", err, out.String())
 	}
 	rt := routes.Route{App: "editor", Slug: "type-hello"}
@@ -193,7 +193,7 @@ func TestTeachSimplifySaves(t *testing.T) {
 	}
 }
 
-// TestSimplifyRoute teaches a verbose route (per-letter typing kept faithful),
+// TestSimplifyRoute records a verbose route (per-letter typing kept faithful),
 // then re-simplifies the SAVED route from its stored recording — proving the
 // demonstration is persisted beside the route and that `marco simplify` folds
 // the typing into a clean Type step in place.
@@ -210,7 +210,7 @@ func TestSimplifyRoute(t *testing.T) {
 		{Kind: recorder.EvKey, KeyName: "esc", Down: true, T: at(900)},
 	}
 
-	// Teach and save faithfully (no simplify at teach time): keys stay per-letter.
+	// Teach and save faithfully (no simplify at learn time): keys stay per-letter.
 	var out bytes.Buffer
 	d := Deps{
 		Reg: reg, Rec: &fakeRecorder{events: events},
@@ -219,7 +219,7 @@ func TestSimplifyRoute(t *testing.T) {
 		App:     func() string { return "editor" },
 		StopKey: "esc",
 	}
-	if err := d.Teach("type hello"); err != nil {
+	if err := d.Learn("type hello"); err != nil {
 		t.Fatalf("Teach: %v\n%s", err, out.String())
 	}
 	rt := routes.Route{App: "editor", Slug: "type-hello"}
@@ -227,7 +227,7 @@ func TestSimplifyRoute(t *testing.T) {
 		t.Fatalf("expected faithful per-letter route before simplify:\n%s", saved)
 	}
 	if _, ok := reg.LoadRecording(rt); !ok {
-		t.Fatal("teach did not persist the recording beside the route")
+		t.Fatal("the recording was not persisted beside the route")
 	}
 
 	// Now re-simplify the saved route from its recording.
@@ -264,9 +264,9 @@ func TestSimplifyRouteNoRecording(t *testing.T) {
 	}
 }
 
-// TestTeachImageClick: teaching a click that carries a captured template saves
+// TestLearnImageClick: learning a click that carries a captured template saves
 // an image-find route and writes the template PNG beside the route.
-func TestTeachImageClick(t *testing.T) {
+func TestLearnImageClick(t *testing.T) {
 	dir := t.TempDir()
 	reg := routes.Registry{Dir: dir}
 
@@ -284,7 +284,7 @@ func TestTeachImageClick(t *testing.T) {
 		App:     func() string { return "game" },
 		StopKey: "esc",
 	}
-	if err := d.Teach("grab loot"); err != nil {
+	if err := d.Learn("grab loot"); err != nil {
 		t.Fatalf("Teach: %v\n%s", err, out.String())
 	}
 	rt := routes.Route{App: "game", Slug: "grab-loot"}
@@ -309,7 +309,7 @@ func TestTeachImageClick(t *testing.T) {
 }
 
 // fakeTextHost stands in for the OCR bridge: any Text's Read returns a fixed label,
-// so the teach-time anchor-labelling path is testable without tesseract. A nil reply
+// so the learn-time anchor-labelling path is testable without tesseract. A nil reply
 // (replyText == "") models "nothing readable" — the anchor should stay gate-only.
 type fakeTextHost struct {
 	replyText string
@@ -330,7 +330,7 @@ func (h *fakeTextHost) Invoke(c runtime.HostCall) (string, runtime.Value, error)
 }
 
 // fakeVisionHost stands in for the vision bridge: any Vision's Identify returns a fixed
-// class label and (optionally) a detected box, so the teach-time vision-labelling and
+// class label and (optionally) a detected box, so the learn-time vision-labelling and
 // re-cropping paths are testable without a model.
 type fakeVisionHost struct {
 	label string
@@ -357,9 +357,9 @@ func (h *fakeVisionHost) Invoke(c runtime.HostCall) (string, runtime.Value, erro
 	return "ok", runtime.SetVal(s), nil
 }
 
-// TestTeachVisionRecropsTemplate: with a Vision host that returns a box, the demonstrated
+// TestLearnVisionRecropsTemplate: with a Vision host that returns a box, the demonstrated
 // anchor's template is re-cropped to the detected control — the saved PNG is the box size.
-func TestTeachVisionRecropsTemplate(t *testing.T) {
+func TestLearnVisionRecropsTemplate(t *testing.T) {
 	dir := t.TempDir()
 	reg := routes.Registry{Dir: dir}
 
@@ -383,7 +383,7 @@ func TestTeachVisionRecropsTemplate(t *testing.T) {
 		App:     func() string { return "game" },
 		StopKey: "esc",
 	}
-	if err := d.Teach("dodge"); err != nil {
+	if err := d.Learn("dodge"); err != nil {
 		t.Fatalf("Teach: %v\n%s", err, out.String())
 	}
 	rt := routes.Route{App: "game", Slug: "dodge"}
@@ -401,9 +401,9 @@ func TestTeachVisionRecropsTemplate(t *testing.T) {
 	}
 }
 
-// TestTeachVisionAnchorFromDetector: with a Vision host wired, a demonstrated anchor is
+// TestLearnVisionAnchorFromDetector: with a Vision host wired, a demonstrated anchor is
 // labelled with the clicked control's CLASS, and the saved route locates it via Vision.
-func TestTeachVisionAnchorFromDetector(t *testing.T) {
+func TestLearnVisionAnchorFromDetector(t *testing.T) {
 	dir := t.TempDir()
 	reg := routes.Registry{Dir: dir}
 
@@ -423,7 +423,7 @@ func TestTeachVisionAnchorFromDetector(t *testing.T) {
 		App:     func() string { return "game" },
 		StopKey: "esc",
 	}
-	if err := d.Teach("use ability"); err != nil {
+	if err := d.Learn("use ability"); err != nil {
 		t.Fatalf("Teach: %v\n%s", err, out.String())
 	}
 	if vis.calls == 0 {
@@ -438,9 +438,9 @@ func TestTeachVisionAnchorFromDetector(t *testing.T) {
 	}
 }
 
-// TestTeachTextAnchorFromOCR: a demonstrated anchor (a click carrying a template) gets
-// OCR-labelled at teach time, so the saved route also locates the target by text.
-func TestTeachTextAnchorFromOCR(t *testing.T) {
+// TestLearnTextAnchorFromOCR: a demonstrated anchor (a click carrying a template) gets
+// OCR-labelled at learn time, so the saved route also locates the target by text.
+func TestLearnTextAnchorFromOCR(t *testing.T) {
 	dir := t.TempDir()
 	reg := routes.Registry{Dir: dir}
 
@@ -460,7 +460,7 @@ func TestTeachTextAnchorFromOCR(t *testing.T) {
 		App:     func() string { return "game" },
 		StopKey: "esc",
 	}
-	if err := d.Teach("grab loot"); err != nil {
+	if err := d.Learn("grab loot"); err != nil {
 		t.Fatalf("Teach: %v\n%s", err, out.String())
 	}
 	if host.calls == 0 {
@@ -478,9 +478,9 @@ func TestTeachTextAnchorFromOCR(t *testing.T) {
 	}
 }
 
-// TestTeachTextAnchorNoHost: with no Text host wired, teaching the same anchor stays
+// TestLearnTextAnchorNoHost: with no Text host wired, learning the same anchor stays
 // image-only — text labelling is purely additive and must not require OCR.
-func TestTeachTextAnchorNoHost(t *testing.T) {
+func TestLearnTextAnchorNoHost(t *testing.T) {
 	dir := t.TempDir()
 	reg := routes.Registry{Dir: dir}
 
@@ -498,7 +498,7 @@ func TestTeachTextAnchorNoHost(t *testing.T) {
 		App:     func() string { return "game" },
 		StopKey: "esc",
 	}
-	if err := d.Teach("grab loot"); err != nil {
+	if err := d.Learn("grab loot"); err != nil {
 		t.Fatalf("Teach: %v\n%s", err, out.String())
 	}
 	rt := routes.Route{App: "game", Slug: "grab-loot"}

@@ -20,7 +20,7 @@
 //	← {"route":"start-sea-of-thieves"}      (empty route = no match)
 //
 // Every failure mode (model down, missing, slow, garbled reply) degrades to an
-// empty route, so the assistant simply falls back to its offline matcher / teach.
+// empty route, so the assistant simply falls back to its offline matcher / learn.
 package main
 
 import (

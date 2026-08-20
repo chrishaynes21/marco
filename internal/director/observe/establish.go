@@ -18,7 +18,7 @@ import "sort"
 //
 // # Why this is not "remember every screen"
 //
-// It is licensed per SESSION and by one caller. `teach "…"` is itself an explicit human semantic
+// It is licensed per SESSION and by one caller. `learn "…"` is itself an explicit human semantic
 // event: a person has named a behaviour and asked to be watched doing it. That licenses persisting
 // the IDENTITY of where they are standing — and persists no judgement about it, because they were
 // not asked one and Marco has no business inventing one.
@@ -83,7 +83,7 @@ type PlaceStore interface {
 
 // PlaceEstablishment is what one session did about making where the user is standing recognisable.
 //
-// Carried on the terminal Result rather than logged, so a teach attempt that could not establish a
+// Carried on the terminal Result rather than logged, so a learn attempt that could not establish a
 // start can say WHY in the same breath as it refuses.
 type PlaceEstablishment struct {
 	// Licensed says this session was allowed to establish a place at all.
@@ -148,7 +148,7 @@ type PlaceCandidate struct {
 // screen with nothing distinctive is not discriminating. Each candidate here passes exactly
 // the checks the single one always had to pass, independently.
 //
-// What remains bounded: the licence itself (teach passes only), the per-place gates, the
+// What remains bounded: the licence itself (learn passes only), the per-place gates, the
 // store's own MaxSubjects, and MaxCheckpoints — a pass that settled on more places than a
 // demonstration may have checkpoints is not a route, it is a tour, and the same number that
 // says so for the capture says so here (DefaultCaptureBounds().MaxCheckpoints).
@@ -229,7 +229,7 @@ func placeToEstablishAt(t ShadowTotals, application string, id ScreenStateID, m 
 // screen is this", and this repository has already paid for one of those.
 //
 // A refusal is returned rather than a bare false, because every one of them means something
-// different to a person trying to teach Marco something.
+// different to a person trying to show Marco something.
 func PlaceToEstablish(t ShadowTotals, application string, m Memory,
 	th HypothesisThresholds) (StructureSignature, PlaceRefusal) {
 
@@ -243,7 +243,7 @@ func PlaceToEstablish(t ShadowTotals, application string, m Memory,
 	// SETTLED, before anything durable rests on it.
 	//
 	// Marco may SEE a place long before it knows enough to remember one. Windows Settings
-	// renders in stages, and the start of a teach was being fingerprinted while the page was
+	// renders in stages, and the start of a learn was being fingerprinted while the page was
 	// still arriving — a composition of ten members that held twenty-two by the end of the
 	// same pass. The destination, established from a long pass, reproduced the same durable
 	// subject across four independent cold stores; the start minted a new one nearly every

@@ -58,13 +58,13 @@ func TestAGoalIsRememberedAndFoldsRepeatDemonstrations(t *testing.T) {
 	}
 }
 
-// Teaching the same name again REBINDS it, and the name still means exactly one outcome.
+// Learning the same name again REBINDS it, and the name still means exactly one outcome.
 //
-// Refusing was tried first. Live, a goal left behind by a failed teach made its own name
+// Refusing was tried first. Live, a goal left behind by a failed learn made its own name
 // unusable: the person was told their words already meant somewhere else, because of an
-// attempt of Marco's that had not worked. A person teaching a name again is saying what they
+// attempt of Marco's that had not worked. A person asking for a name again is saying what they
 // mean by it now — the same rule NameSubject follows for screens.
-func TestTeachingTheSameNameAgainRebindsIt(t *testing.T) {
+func TestLearningTheSameNameAgainRebindsIt(t *testing.T) {
 	s, _ := goalStore(t)
 	first := establishSubject(t, s, observe.TermSettings)
 	second := establishSubject(t, s, observe.TermAudio)
@@ -77,7 +77,7 @@ func TestTeachingTheSameNameAgainRebindsIt(t *testing.T) {
 	}
 	if err := s.RememberGoal("app", observe.Goal{Name: "open settings",
 		Subject: second}); err != nil {
-		t.Fatalf("re-teaching the same name was refused: %v", err)
+		t.Fatalf("re-learning the same name was refused: %v", err)
 	}
 	goals := s.Goals("app")
 	if len(goals) != 1 {
@@ -85,7 +85,7 @@ func TestTeachingTheSameNameAgainRebindsIt(t *testing.T) {
 			len(goals))
 	}
 	if goals[0].Subject != second {
-		t.Errorf("the name still reaches %q, want the newly taught %q",
+		t.Errorf("the name still reaches %q, want the newly learned %q",
 			goals[0].Subject, second)
 	}
 	// The old binding's lineage does not carry over: it was about somewhere else.

@@ -13,7 +13,7 @@ import "fmt"
 //
 // # One referent, not one per feature
 //
-// A semantic question, a remembered judgement, the current place, a teaching start and a teaching
+// A semantic question, a remembered judgement, the current place, a Learn start and a Learn
 // destination are all the same sentence: "this one". They differ in what is being pointed at and
 // in nothing else, so they share this type. Building a highlight model per feature would be
 // building the coordinate conversion, the freshness rule and the privacy boundary several times,
@@ -46,8 +46,8 @@ const (
 	ReferentQuestion         ReferentRole = "semantic_question"
 	ReferentJudgement        ReferentRole = "knowledge_judgement"
 	ReferentPlace            ReferentRole = "current_place"
-	ReferentTeachStart       ReferentRole = "teach_start"
-	ReferentTeachDestination ReferentRole = "teach_destination"
+	ReferentLearnStart       ReferentRole = "learn_start"
+	ReferentLearnDestination ReferentRole = "learn_destination"
 	ReferentChangedRegion    ReferentRole = "changed_region"
 	ReferentActionTarget     ReferentRole = "action_target"
 )
@@ -148,7 +148,7 @@ type VisualReferent struct {
 // `!live.Reliable`, which says there is no trustworthy frame to convert against and is a fact
 // about the SESSION; and `unplaceable > 0` in [regionsOf], which says the group resolved perfectly
 // well and every one of its members sits outside the window it was measured in — a fact about the
-// PROVIDER. A live Explorer teach attempt hit one of them and no surface could say which.
+// PROVIDER. A live Explorer learn attempt hit one of them and no surface could say which.
 //
 // # What it may hold
 //
@@ -250,7 +250,7 @@ func ReferentFor(p Proposal, role ReferentRole, live LiveGeometry) VisualReferen
 
 // ReferentForSubject is the same resolution, for the things that have a subject and no question.
 //
-// A remembered judgement, the current place, a teaching start and a teaching destination all name
+// A remembered judgement, the current place, a Learn start and a Learn destination all name
 // a subject directly; only a proposal wraps one in a sentence. THE core, with [ReferentFor]
 // delegating to it, so there is exactly one implementation of "where is that subject now" and a
 // later surface adds a role rather than a second resolver.

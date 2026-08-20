@@ -4,11 +4,11 @@ status: accepted
 date: 2026-08-19
 supersedes: []
 affects:
-  - teaching
+  - demonstrations
   - proposals
 source_paths:
-  - internal/director/teach/teach.go
-  - internal/director/teach/say.go
+  - internal/director/learn/learn.go
+  - internal/director/learn/say.go
   - internal/director/observesession/runner.go
   - cmd/director/observeregistry.go
 ---
@@ -69,9 +69,9 @@ to the question, never to whichever Runner is newest.
 
 ## Enforced by
 
-- `internal/director/teach/multiedge_test.go` — `TestAYesIsNeverReportedAsADecline` (turning
+- `internal/director/learn/multiedge_test.go` — `TestAYesIsNeverReportedAsADecline` (turning
   `rehearsal_not_started` back into `rehearsal_declined` kills it)
-- `internal/director/teach/tail_test.go` — `TestSilenceNeverAuthorisesARehearsal` (silence is
+- `internal/director/learn/tail_test.go` — `TestSilenceNeverAuthorisesARehearsal` (silence is
   `answer_timed_out`, not a decline); `TestAYesThatCreatedNoAuthorityIsSaidOutLoud`
 - `internal/director/observesession/questionorder_test.go` —
   `TestAYesIsJudgedAgainstItsOwnApplication`

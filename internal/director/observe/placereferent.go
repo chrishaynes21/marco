@@ -7,9 +7,9 @@ import "fmt"
 // # The tension, stated honestly
 //
 // [ReferentForSubject] refuses a screen-shaped subject with [ReferentNotAPart], and that rule is
-// right: outlining the window says nothing a person did not already know. But teaching establishes
+// right: outlining the window says nothing a person did not already know. But Learn establishes
 // a START and a DESTINATION, and both of them ARE screens. "Marco has decided where you are
-// starting" is the single most consequential thing a teach session does before it asks anybody to
+// starting" is the single most consequential thing a learn session does before it asks anybody to
 // demonstrate anything, and it is currently invisible.
 //
 // # What is shown instead, and why it is not a fudge
@@ -32,7 +32,7 @@ import "fmt"
 
 // ReferentForPlace resolves the structure that stands for one screen.
 //
-// The state is PINNED by the caller and is not re-read from what is current. A teaching start
+// The state is PINNED by the caller and is not re-read from what is current. A Learn start
 // established two minutes ago must resolve against the screen it was established on; grounding
 // that drifted to wherever the user is standing now would confirm whatever they happened to be
 // looking at, which is the one thing this must never do.

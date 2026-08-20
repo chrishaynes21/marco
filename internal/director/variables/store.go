@@ -13,7 +13,7 @@ import (
 // Store is the Director's durable semantic memory.
 //
 // Variables are USER KNOWLEDGE, not command history. The action graph records what the
-// Director did; this records what the user taught it. They have different lifetimes and
+// Director did; this records what the user told it. They have different lifetimes and
 // different owners, which is why they are separate files — clearing history should not
 // forget what "Save" means.
 type Store struct {
@@ -43,7 +43,7 @@ type document struct {
 
 // Open loads the store from a directory, creating an empty one if none exists.
 //
-// A missing file is not an error — a Director that has never been taught anything has
+// A missing file is not an error — a Director that nobody has told anything has
 // no variables, which is a normal state rather than a fault.
 func Open(dir string) (*Store, error) {
 	s := &Store{path: filepath.Join(dir, fileName), vars: map[string]Variable{}}

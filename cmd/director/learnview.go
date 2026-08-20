@@ -6,10 +6,10 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/chaynes-simpleclouds/marco/internal/director/learn"
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
 	"github.com/chaynes-simpleclouds/marco/internal/director/observesession"
 	"github.com/chaynes-simpleclouds/marco/internal/director/service"
-	"github.com/chaynes-simpleclouds/marco/internal/director/teach"
 )
 
 // What a control surface needs to show a person while Marco is learning.
@@ -33,7 +33,7 @@ import (
 
 // LearnStage is the human-facing lifecycle a surface renders.
 //
-// Deliberately COARSER than teach.Phase and deliberately separate from it. The phases are
+// Deliberately COARSER than learn.Phase and deliberately separate from it. The phases are
 // orchestration states — which internal thing the coordinator is blocked on — and several of them
 // mean one thing to a person. `establishing_start`, `ready_for_demo` and `capturing` are all "go
 // ahead and do it"; `evaluating` and `establishing_destination` are both "hold on".
@@ -71,32 +71,32 @@ const (
 //
 // A total function over the phase vocabulary: an unmapped phase would leave a surface showing
 // nothing, so the default is the honest "working" rather than a blank.
-func stageOf(s teach.Session, finishing bool) LearnStage {
+func stageOf(s learn.Session, finishing bool) LearnStage {
 	switch s.Phase {
-	case teach.WaitingForDemonstration:
+	case learn.WaitingForDemonstration:
 		return LearnWaitingToStart
-	case teach.EstablishingStart, teach.ReadyForDemo, teach.Capturing:
+	case learn.EstablishingStart, learn.ReadyForDemo, learn.Capturing:
 		if finishing {
 			return LearnFinishing
 		}
 		return LearnLearning
-	case teach.EstablishingDestination, teach.Evaluating, teach.Lowering:
+	case learn.EstablishingDestination, learn.Evaluating, learn.Lowering:
 		return LearnFinishing
-	case teach.NeedsAnotherExample:
+	case learn.NeedsAnotherExample:
 		return LearnNeedsAnother
-	case teach.ReadyToRehearse:
+	case learn.ReadyToRehearse:
 		return LearnReadyToTry
-	case teach.WaitingForStart:
+	case learn.WaitingForStart:
 		return LearnWaitingToTry
-	case teach.Rehearsing:
+	case learn.Rehearsing:
 		return LearnTrying
-	case teach.Naming:
+	case learn.Naming:
 		return LearnNaming
-	case teach.Complete:
+	case learn.Complete:
 		return LearnUnderstood
-	case teach.Refused:
+	case learn.Refused:
 		return LearnRefused
-	case teach.Cancelled:
+	case learn.Cancelled:
 		return LearnStopped
 	}
 	return LearnFinishing
@@ -125,13 +125,13 @@ type learnView struct {
 	//
 	// Distinct from Watching being non-empty on purpose: an application name can be known
 	// while the settle rule is still counting, and "nearly" is exactly when somebody must not
-	// start clicking. See teachSubjectSettle.
+	// start clicking. See learnSubjectSettle.
 	TargetLocked bool `json:"target_locked"`
 	// Here is where Marco thinks you are RIGHT NOW, and whether it recognises it.
 	//
-	// Present whether or not anything is being taught: hardening place identity means
+	// Present whether or not anything is being learned: hardening place identity means
 	// walking an application and watching this change, which is a different activity from
-	// teaching and must not require starting a demonstration to see.
+	// Learn and must not require starting a demonstration to see.
 	Here *HerePlace `json:"here,omitempty"`
 	// Trail is the ordered walk of places this session has passed through, bounded.
 	//
@@ -185,7 +185,7 @@ type learnView struct {
 	// Play is what the artifact was written as, present in both of those states.
 	Play string `json:"play,omitempty"`
 	// Refused is the closed reason, and Detail the diagnostics behind it.
-	Refused teach.Refusal `json:"refused,omitempty"`
+	Refused learn.Refusal `json:"refused,omitempty"`
 	Detail  []string      `json:"detail,omitempty"`
 	// CanStop, CanTry and CanCancel say which controls apply right now, so a surface does
 	// not have to re-derive the lifecycle from the stage.
@@ -227,7 +227,7 @@ type learnView struct {
 }
 
 // learnViewOf projects one session.
-func learnViewOf(s teach.Session, running, finishing bool) learnView {
+func learnViewOf(s learn.Session, running, finishing bool) learnView {
 	v := learnView{
 		Running:   running,
 		Stage:     stageOf(s, finishing),
@@ -321,7 +321,7 @@ func learnViewOf(s teach.Session, running, finishing bool) learnView {
 	if s.Attempt != nil {
 		v.Detail = append(v.Detail, attemptDetail(s.Attempt)...)
 	}
-	if s.Phase == teach.Refused || blocked(s, v.Stage) {
+	if s.Phase == learn.Refused || blocked(s, v.Stage) {
 		// The coordinator's own account of why it is stuck. The ATTEMPT is reported above,
 		// unconditionally — `stopped_at_step` is true and useless without the step lines,
 		// and which stage the session happens to be in has nothing to do with whether they
@@ -337,7 +337,7 @@ func learnViewOf(s teach.Session, running, finishing bool) learnView {
 // Stop is offered while there is anything the person can end. Try is offered only when the
 // coordinator is actually waiting for permission — an authority decision is never inferred from a
 // stage that merely looks ready.
-func applyControls(v *learnView, s teach.Session) {
+func applyControls(v *learnView, s learn.Session) {
 	switch v.Stage {
 	case LearnWaitingToStart, LearnLearning, LearnNeedsAnother:
 		v.CanStop, v.CanCancel = true, true
@@ -386,7 +386,7 @@ func applyControls(v *learnView, s teach.Session) {
 // Deliberately narrow. It does not guess at other stages and it does not decide anything — it
 // only says that a specific offer cannot be taken up, so the surface can withhold the button and
 // show the reason instead.
-func deadEnd(s teach.Session, stage LearnStage) bool {
+func deadEnd(s learn.Session, stage LearnStage) bool {
 	return stage == LearnReadyToTry && s.Question == nil
 }
 
@@ -405,11 +405,11 @@ func deadEnd(s teach.Session, stage LearnStage) bool {
 // from them, twice, in two different states, on two consecutive live runs.
 //
 // Deleting the patient-wait clause must fail TestAPatientWaitSaysWhatItIsRefusing.
-func blocked(s teach.Session, stage LearnStage) bool {
+func blocked(s learn.Session, stage LearnStage) bool {
 	return deadEnd(s, stage) || stage == LearnWaitingToTry
 }
 
-// idleLearnView is what a surface shows when nothing is being taught.
+// idleLearnView is what a surface shows when nothing is being learned.
 func idleLearnView() learnView { return learnView{Stage: LearnIdle} }
 
 // Learning is the request handler behind a control surface's Learn panel.
@@ -418,23 +418,23 @@ func idleLearnView() learnView { return learnView{Stage: LearnIdle} }
 // surface that could learn something the command line could not would be a second implementation
 // of the thing this whole subsystem is careful to have exactly one of.
 func (r *Runtime) Learning() learnView {
-	if r == nil || r.teach == nil {
+	if r == nil || r.learn == nil {
 		return idleLearnView()
 	}
-	s, ok := r.teach.read()
+	s, ok := r.learn.read()
 	if !ok {
-		// Nothing is being taught, and a person may still want to correct a name.
+		// Nothing is being learned, and a person may still want to correct a name.
 		v := idleLearnView()
 		// WHERE THEY ARE STANDING COUNTS HERE TOO.
 		//
-		// This branch used to pass no current place at all, so while nothing was being taught
+		// This branch used to pass no current place at all, so while nothing was being learned
 		// the list marked no row as "here" however far somebody walked. That is the branch
 		// people actually name screens in — Marco asks for a word mid-episode and there is no
 		// way to tell which screen it means, so the sane move is to press Watch, walk the
 		// application, and name each place while looking at it. The one affordance that makes
-		// that work was live during teaching and dead the rest of the time.
+		// that work was live during Learn and dead the rest of the time.
 		//
-		// Same source as the teaching branch below, and for the same reason: `here` is where
+		// Same source as the Learn branch below, and for the same reason: `here` is where
 		// the person is now.
 		//
 		// Deleting the lookup must fail TestHereIsMarkedWhileNothingIsBeingTaught.
@@ -445,7 +445,7 @@ func (r *Runtime) Learning() learnView {
 		v.Asking = r.asking()
 		return r.withPlace(v)
 	}
-	v := learnViewOf(s, r.teach.running(), r.teach.finishing())
+	v := learnViewOf(s, r.learn.running(), r.learn.finishing())
 	v.QuestionsOpen = r.openQuestions()
 	v.Asking = r.asking()
 	// THE WHOLE demonstrated route, named, with how much of it is verified. Enriched here
@@ -537,12 +537,12 @@ func trimName(s string) string {
 // MaxLearnNameLength bounds what a surface may submit as a name.
 const MaxLearnNameLength = 120
 
-// Learn is the control surface's whole interface to the teaching lifecycle.
+// Learn is the control surface's whole interface to the Learn lifecycle.
 //
 // # One rule governs this function
 //
 // Every verb turns into a request the Director already serves, made in the ordinary way. Start is
-// a teach. Stop is a finish. Try is an ANSWER to the rehearsal question — the same answer the
+// a learn. Stop is a finish. Try is an ANSWER to the rehearsal question — the same answer the
 // command line gives, through the same ledger, producing the same one-attempt grant. Cancel is a
 // cancel.
 //
@@ -553,8 +553,8 @@ const MaxLearnNameLength = 120
 // Deleting the answer in the Try branch and calling the rehearsal directly must fail
 // TestTryItGoesThroughTheRealAuthorityPath.
 func (r *Runtime) Learn(ctx context.Context, q service.ObserveLearn) (learnView, error) {
-	if r == nil || r.teach == nil {
-		return idleLearnView(), fmt.Errorf("this Director cannot be taught")
+	if r == nil || r.learn == nil {
+		return idleLearnView(), fmt.Errorf("this Director cannot learn")
 	}
 	switch {
 	case q.Start:
@@ -562,10 +562,10 @@ func (r *Runtime) Learn(ctx context.Context, q service.ObserveLearn) (learnView,
 		if name == "" {
 			return r.Learning(), fmt.Errorf("say what you want Marco to learn first")
 		}
-		// TEACHING TAKES THE OBSERVATION SLOT BACK FROM LIGHT MODE.
+		// LEARNING TAKES THE OBSERVATION SLOT BACK FROM LIGHT MODE.
 		//
 		// One session runs at a time. Adding Watch broke Start outright: the Light Mode
-		// session held the slot and teaching came back "observation session observe_2 is
+		// session held the slot and Learn came back "observation session observe_2 is
 		// already running; cancel it before starting another" — true, unhelpful, and
 		// blaming the person for a conflict Marco created between two of its own features.
 		//
@@ -574,11 +574,11 @@ func (r *Runtime) Learn(ctx context.Context, q service.ObserveLearn) (learnView,
 		//
 		// Deleting this must fail TestTeachingTakesTheSlotBackFromLightMode.
 		r.yieldWatching()
-		// Surface: true is the whole difference between this and `director teach`. It
+		// Surface: true is the whole difference between this and `director learn`. It
 		// says the request came from Marco's own UI, so the window it came from is
 		// Marco's and the session waits for a real subject rather than pinning the
-		// control panel the person just clicked. See ObserveTeach.Surface.
-		if _, err := r.Teaching(ctx, service.ObserveTeach{Name: name, Surface: true}); err != nil {
+		// control panel the person just clicked. See ObserveLearn.Surface.
+		if _, err := r.LearnSession(ctx, service.ObserveLearn{Name: name, Surface: true}); err != nil {
 			return r.Learning(), err
 		}
 	case q.Stop:
@@ -596,15 +596,15 @@ func (r *Runtime) Learn(ctx context.Context, q service.ObserveLearn) (learnView,
 		// is the one that gets them out.
 		//
 		// Deleting this must fail TestStopBeforeAnythingWasShownActuallyStops.
-		verb := service.ObserveTeach{Finish: true}
-		if s, ok := r.teach.read(); ok && s.Phase == teach.WaitingForDemonstration {
-			verb = service.ObserveTeach{Cancel: true}
+		verb := service.ObserveLearn{Finish: true}
+		if s, ok := r.learn.read(); ok && s.Phase == learn.WaitingForDemonstration {
+			verb = service.ObserveLearn{Cancel: true}
 		}
-		if _, err := r.Teaching(ctx, verb); err != nil {
+		if _, err := r.LearnSession(ctx, verb); err != nil {
 			return r.Learning(), err
 		}
 	case q.Cancel:
-		if _, err := r.Teaching(ctx, service.ObserveTeach{Cancel: true}); err != nil {
+		if _, err := r.LearnSession(ctx, service.ObserveLearn{Cancel: true}); err != nil {
 			return r.Learning(), err
 		}
 	case q.Try:
@@ -662,9 +662,9 @@ func (r *Runtime) Learn(ctx context.Context, q service.ObserveLearn) (learnView,
 // in front costs nothing: the permission is not spent, and the attempt happens when the person
 // goes back to their application.
 func (r *Runtime) tryIt() error {
-	s, ok := r.teach.read()
+	s, ok := r.learn.read()
 	if !ok {
-		return fmt.Errorf("nothing is being taught")
+		return fmt.Errorf("nothing is being learned")
 	}
 	q := s.Question
 	if q == nil {
@@ -718,10 +718,10 @@ func (r *Runtime) skipIt() error {
 }
 
 // openQuestion is the question the session is currently waiting on.
-func (r *Runtime) openQuestion() (*teach.Question, error) {
-	s, ok := r.teach.read()
+func (r *Runtime) openQuestion() (*learn.Question, error) {
+	s, ok := r.learn.read()
 	if !ok {
-		return nil, fmt.Errorf("nothing is being taught")
+		return nil, fmt.Errorf("nothing is being learned")
 	}
 	if s.Question == nil {
 		return nil, fmt.Errorf("Marco is not waiting on an answer")
@@ -937,11 +937,11 @@ const MaxStepsShown = 8
 // Empty when nothing ran or nothing went wrong: a successful attempt needs no explanation, and
 // printing one under a working rehearsal would read as a fault.
 //
-// Closed vocabulary and counts only — the same rule teach.AttemptStep already follows. No keys,
+// Closed vocabulary and counts only — the same rule learn.AttemptStep already follows. No keys,
 // no labels, no coordinates. What travels is what a step EXPECTED, what it OBSERVED, and how it
 // came out, which is the difference between "Marco did the wrong thing" and "Marco did the right
 // thing and could not tell".
-func attemptDetail(a *teach.Attempt) []string {
+func attemptDetail(a *learn.Attempt) []string {
 	if a == nil {
 		return nil
 	}
@@ -1031,7 +1031,7 @@ func (r *Runtime) openQuestions() int {
 // # Why the panel has to show these
 //
 // Because Marco raises them, blocks on them, and counts them at the person — and until now
-// offered no way to answer any of them. A teach pass asks semantic questions of its own ("are
+// offered no way to answer any of them. A learn pass asks semantic questions of its own ("are
 // these one set?"), those questions hold the interruption budget, and the panel reported
 // "Questions open: 3" beside a rehearsal that could not be offered. The person could see the
 // obstacle and could not touch it.
@@ -1167,7 +1167,7 @@ type RouteStepView struct {
 	// when nobody has named them yet.
 	From string `json:"from"`
 	To   string `json:"to"`
-	// Status is how far this leg's review has got, in Teach's own vocabulary.
+	// Status is how far this leg's review has got, in Learn's own vocabulary.
 	Status string `json:"status"`
 	// Why is the reason behind a leg that ended without being verified.
 	Why string `json:"why,omitempty"`
@@ -1209,7 +1209,7 @@ func (r *Runtime) placeWords(application, subject string) string {
 // never been tried. "Verified 1 / 2" is the difference between that and the truth.
 //
 // Deleting this must fail TestThePanelSaysHowMuchOfTheRouteIsVerified.
-func (r *Runtime) routeProgress(s teach.Session, v *learnView) {
+func (r *Runtime) routeProgress(s learn.Session, v *learnView) {
 	if len(s.Edges) == 0 {
 		return
 	}

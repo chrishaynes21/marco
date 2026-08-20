@@ -171,36 +171,48 @@ func TestMarcoRoutesJSONKeepsItsPublishedKeys(t *testing.T) {
 // THE UNKNOWN-COMMAND ERROR IS ONE PREFIX, AND IT IS "no play matches ".
 //
 // plugins/overlay/acts.go matches it with strings.HasPrefix (const noPlayMatches) to decide that
-// this particular failure gets an offer to teach instead of a log line. The overlay is a separate
+// this particular failure gets an offer to learn instead of a log line. The overlay is a separate
 // Go module, so a reworded error here breaks nothing at compile time and everything at run time:
 // the overlay simply stops recognising an unknown command.
 //
-// The `marco teach` mention is part of the match and is pinned with it.
+// The `marco learn` mention is part of the match and is pinned with it.
 func TestTheUnknownCommandErrorIsOnePrefix(t *testing.T) {
 	const want = "no play matches "
 
 	// The producer, entered through the function `marco do` actually calls.
 	twoPlays(t)
-	t.Setenv("MARCO_NO_TEACH", "1") // the overlay's setting; without it this teaches instead
+	t.Setenv("MARCO_NO_TEACH", "1") // the overlay's setting; without it this learns instead
 	d := newDeps()
+	// The Director is unreachable here (a temp $MARCO_HOME with no service), which is the
+	// one case that still produces this error: nothing could take the request at all.
+	t.Setenv("MARCO_HOME", t.TempDir())
+	var out Outcome
 	_, err := captureStdout(t, func() error {
-		return dispatchDo(d, "nothing-called-this", nil, nil)
+		var e error
+		out, e = doAsProduct(t, d, "nothing-called-this", nil, nil)
+		return e
 	})
-	if err == nil {
+	if out == OutcomePerformed {
 		t.Fatal("an unknown command succeeded")
+	}
+	if out != OutcomeUnavailable {
+		t.Fatalf("an undeliverable request reported %q", out)
+	}
+	if err == nil {
+		t.Fatal("an unknown command that reached nobody reported no error")
 	}
 	if !strings.HasPrefix(err.Error(), want) {
 		t.Fatalf("the unknown-command error is %q; the overlay matches on %q", err.Error(), want)
 	}
-	if !strings.Contains(err.Error(), "marco teach") {
-		t.Errorf("the error no longer names the teach verb, which the overlay also matches on: %q",
+	if !strings.Contains(err.Error(), "marco learn") {
+		t.Errorf("the error no longer names the learn verb, which the overlay also matches on: %q",
 			err.Error())
 	}
 
 	// The SECOND producer. `marco bind` exits the process on this path, so it is pinned by
 	// reading its source — the alternative is no guard at all, and the two errors drifting
 	// apart is exactly how one of them would stop being recognised.
-	for _, rel := range []string{"cmd/marco/bind.go", "cmd/marco/panicstop.go"} {
+	for _, rel := range []string{"cmd/marco/bind.go", "cmd/marco/intake.go"} {
 		src := readRepoFile(t, rel)
 		if !strings.Contains(src, `"`+want) {
 			t.Errorf("%s no longer emits the %q prefix", rel, want)

@@ -7,10 +7,10 @@ affects:
   - learned-plays
   - semantic-memory
 source_paths:
-  - cmd/director/teachtail.go
-  - cmd/director/teachwiring.go
-  - cmd/director/teachcmd.go
-  - internal/director/teach/teach.go
+  - cmd/director/learntail.go
+  - cmd/director/learnsessionwiring.go
+  - cmd/director/learncmd.go
+  - internal/director/learn/learn.go
 ---
 
 # ADR-061 — a derived name is said out loud
@@ -74,13 +74,13 @@ an identifier for a file, derived from words the person typed for that purpose.
 
 ## Enforced by
 
-- `TestThePlayNameIsDerivedOrRefusedButNeverMangled` (`cmd/director/teachtail_test.go`) —
+- `TestThePlayNameIsDerivedOrRefusedButNeverMangled` (`cmd/director/learntail_test.go`) —
   the derivation table, including the acceptance criterion's own phrase, and the one-word
   refusal
 - `TestAPhraseThatCannotBecomeAPlayIsRefusedBeforeAnybodyDemonstratesAnything`
-  (`cmd/director/teachwiring_test.go`) — refused at the request boundary, not at save time
+  (`cmd/director/learnsessionwiring_test.go`) — refused at the request boundary, not at save time
 - `TestTheViewSaysWhatThePlayWillBeCalledBeforeAnythingIsDemonstrated`
-  (`cmd/director/teachwiring_test.go`) — said out loud, from the first read
+  (`cmd/director/learnsessionwiring_test.go`) — said out loud, from the first read
 
 ## Related
 

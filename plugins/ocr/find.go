@@ -41,8 +41,8 @@ func doFind(eng ocrEngine, in map[string]any) (string, any, error) {
 }
 
 // locate captures the region, OCRs it, and returns the absolute-screen centre of the
-// best match for text. It runs the SAME preprocessing as teach-time Read (upscale +
-// binarize), so a label captured at teach time — including any OCR quirk like an O read
+// best match for text. It runs the SAME preprocessing as learn-time Read (upscale +
+// binarize), so a label captured at learn time — including any OCR quirk like an O read
 // as a Q — is read back identically and therefore matches.
 func locate(eng ocrEngine, text string, region screen.Region) (pt [2]int, found bool, err error) {
 	img, err := capture(region)

@@ -13,13 +13,13 @@ import (
 //
 // # The blocker this exists to close
 //
-// `teach "…"` refused at its first step. Establishing a START goes PlaceNow → SignatureOfState →
+// `learn "…"` refused at its first step. Establishing a START goes PlaceNow → SignatureOfState →
 // Recall, and Recall could only ever succeed against a durable subject — which was written ONLY
 // when a person answered a semantic proposal. Passive observation formed hypotheses and persisted
-// nothing, so a user could not teach Marco anything until they had happened to answer an
+// nothing, so Marco could not learn anything until they had happened to answer an
 // incidental "is this a menu?" about the right screen. Which question Marco raised was not theirs
 // to choose: observed live, the same application asked about the screen in one session and about
-// a group inside it in another, and only the first would have unblocked teaching.
+// a group inside it in another, and only the first would have unblocked Learn.
 //
 // # What is being proved, and what must NOT be
 //
@@ -81,13 +81,13 @@ func screenSubjects(s *semanticmemory.Store) []observe.RememberedSubject {
 	return out
 }
 
-// ── the positive: teaching establishes a place nobody was asked about ─────────
+// ── the positive: Learn establishes a place nobody was asked about ────────────
 
 // THE bootstrap test. A licensed pass makes where the user is standing durably recognisable.
 //
 // Deleting the establishPlace call from Runner.Run must fail this, and so must deleting the
 // WithPlaces wiring.
-func TestTeachingEstablishesTheStartThroughTheProductionPath(t *testing.T) {
+func TestLearningEstablishesTheStartThroughTheProductionPath(t *testing.T) {
 	dir := t.TempDir()
 	store := memoryAt(t, dir)
 
@@ -97,8 +97,8 @@ func TestTeachingEstablishesTheStartThroughTheProductionPath(t *testing.T) {
 		t.Fatal("a pass configured to establish places reported itself unlicensed")
 	}
 	if !got.Places.Established() {
-		t.Fatalf("no place was established (reason=%q). The user has explicitly asked to be "+
-			"taught something and Marco still cannot remember where they are standing, which "+
+		t.Fatalf("no place was established (reason=%q). The user has explicitly asked Marco to "+
+			"learn something and Marco still cannot remember where they are standing, which "+
 			"is the whole blocker", got.Places.Reason)
 	}
 
@@ -163,9 +163,9 @@ func TestTeachingEstablishesTheStartThroughTheProductionPath(t *testing.T) {
 
 // A start established with no semantic answer is not mistaken for one somebody confirmed.
 //
-// The failure this guards is the worst available: a place remembered because the user asked to be
-// taught, later read as a place the user agreed was a settings screen. Every consumer already
-// handles an empty interpretation list; this holds them to it.
+// The failure this guards is the worst available: a place remembered because the user asked
+// Marco to learn, later read as a place the user agreed was a settings screen. Every consumer
+// already handles an empty interpretation list; this holds them to it.
 func TestAnEstablishedPlaceCarriesNoUserJudgement(t *testing.T) {
 	dir := t.TempDir()
 	store := memoryAt(t, dir)
@@ -207,7 +207,7 @@ func TestAnOrdinarySessionEstablishesNoPlace(t *testing.T) {
 
 	if got.Places.Licensed || got.Places.Established() {
 		t.Fatalf("an ordinary observation session established %q. Watching somebody play is "+
-			"not them asking to be taught", got.Places.Subject)
+			"not them asking Marco to learn", got.Places.Subject)
 	}
 	if got.Places.Reason != observe.PlaceNotLicensed {
 		t.Errorf("reason %q, want %q — a reader has to be able to tell a missing licence "+
@@ -241,7 +241,7 @@ func TestALicensedPassWithNowhereToWriteSaysSo(t *testing.T) {
 
 // endOnTheDestination shifts the topology fixture so a pass STOPS on its second screen.
 //
-// A teach pass ends where the user is standing, and the destination is established from that.
+// A learn pass ends where the user is standing, and the destination is established from that.
 // The fixture's cycle is 8 phases and a pass takes 51 samples, so the shift that leaves the
 // second screen up on the last sample has to be stated rather than hoped for — a fixture that
 // happened to end on the FIRST screen would establish nothing new and the route test below would
@@ -250,7 +250,7 @@ const endOnTheDestination = 6
 
 // THE requirement, end to end: two places and a durable route between them, with no answers.
 //
-// This is the shape of a real teach attempt — a pass to establish the start, then a pass in which
+// This is the shape of a real learn attempt — a pass to establish the start, then a pass in which
 // the user navigates — and it is the one that shows WHY the establishment happens where it does.
 // A durable edge needs both endpoints resolvable at the moment the topology is folded, so a
 // destination established after that fold would be in the store and still rejected, and the user
@@ -296,7 +296,7 @@ func TestATaughtRouteBecomesDurableWithoutASemanticAnswer(t *testing.T) {
 	rels := reopened.Relationships()
 	if len(rels) == 0 {
 		t.Fatalf("no durable route was written although both of its endpoints are "+
-			"recognisable (%d transitions were seen, %d stayed session-local). Teaching "+
+			"recognisable (%d transitions were seen, %d stayed session-local). LearnSession "+
 			"would refuse with destination_not_recognised",
 			dest.Relationships.Durable+dest.Relationships.SessionLocal,
 			dest.Relationships.SessionLocal)

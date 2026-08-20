@@ -23,7 +23,7 @@ source_paths:
 
 The single point where the Director affects the desktop. Each planned step is **lowered to
 legal Marco source**, which then goes through lexer → parser → graph → compile → runtime like
-any taught route.
+any route a person demonstrated.
 
 There is no second path. The former `internal/platform/marcohost` adapter was deleted rather
 than kept as a fallback, and a boundary test asserts no duplicate implementation exists.

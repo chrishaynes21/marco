@@ -500,7 +500,9 @@ if ($llamaReady) {
     # MARCO_RESOLVER). The plugin defaults to Ollama at localhost:11434.
     [void]$lines.Add('set "MARCO_RESOLVER=%CD%\plugins\llama\llama.exe"')
     # MARCO_ASSISTANT points the conversational director at the SAME binary (it also
-    # speaks the richer converse protocol), enabling run/teach/chat/clarify.
+    # speaks the richer converse protocol), enabling the four dispatch intents
+    # run/teach/chat/clarify. Those are WIRE VALUES: "teach" is what IntentLearn
+    # marshals to, and plugins/llama accepts only that spelling. Do not rename it.
     [void]$lines.Add('set "MARCO_ASSISTANT=%CD%\plugins\llama\llama.exe"')
     [void]$lines.Add("set `"MARCO_LLM_MODEL=$LlamaModel`"")
 } elseif ($resolverReady) {

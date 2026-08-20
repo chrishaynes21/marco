@@ -4,25 +4,25 @@ status: accepted
 date: 2026-08-19
 supersedes: []
 affects:
-  - teaching
+  - demonstrations
   - proposals
   - semantic-memory
 source_paths:
-  - internal/director/teach/teach.go
-  - internal/director/teach/tail.go
+  - internal/director/learn/learn.go
+  - internal/director/learn/tail.go
   - internal/director/observe/walk.go
-  - cmd/director/teachtail.go
+  - cmd/director/learntail.go
 ---
 
 # ADR-074 — one demonstration, every leg reviewed
 
 Settings Home → Bluetooth & devices → Mouse. Marco captured **both** edges — the decomposition
 into separately reusable route knowledge is the design working — and then rehearsed exactly one of
-them. Teaching gets a single exempt rehearsal question, the terminal leg claimed it, and when that
+them. Learn gets a single exempt rehearsal question, the terminal leg claimed it, and when that
 rehearsal finished the lifecycle advanced to `Naming`. The first leg was never offered, the episode
 ended, and the goal was unreachable from where the person had actually started.
 
-Teaching a two-hop task must not require demonstrating it twice.
+Learning a two-hop task must not require demonstrating it twice.
 
 ## Decision
 
@@ -98,7 +98,7 @@ The fail-closed direction is deliberate: waiting costs a cycle, writing off a st
 
 ## Enforced by
 
-- `internal/director/teach/multiedge_test.go` — `TestBothDemonstratedEdgesAreOffered` (deleting the
+- `internal/director/learn/multiedge_test.go` — `TestBothDemonstratedEdgesAreOffered` (deleting the
   re-entry fails it); `TestEdgesAreReviewedInDemonstratedOrder`;
   `TestAThreeEdgeDemonstrationReviewsAllThree` (nothing counts to two);
   `TestASingleEdgeDemonstrationStillWorks`; `TestOneUnverifiedEdgeLeavesTheRoutePartial`;
@@ -222,8 +222,8 @@ through `g.last`, the newest runner, and `Runner.Respond` could only act on a pr
 own** ledger.
 
 The comment justifying that said every question is asked at the END of a session, so by the time
-anybody can answer, no session is running and the newest runner is the one that asked. **Teaching
-breaks that assumption completely**: a teach episode runs bounded passes back to back, so the
+anybody can answer, no session is running and the newest runner is the one that asked. **Learn
+breaks that assumption completely**: a Learn episode runs bounded passes back to back, so the
 newest runner is routinely a session that started after the question was raised and whose ledger
 has never held it.
 

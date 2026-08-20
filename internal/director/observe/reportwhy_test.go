@@ -10,7 +10,7 @@ import (
 // A session that produced no durable edge says WHY, and says it the same way twice.
 //
 // The counts were computed and tallied in closed vocabulary from the moment the causes existed.
-// What was missing was any surface that read them out: a live teach refused with "4 transition(s)
+// What was missing was any surface that read them out: a live learn refused with "4 transition(s)
 // were seen and none had two recognisable endpoints", which is a count of a silence with four
 // different explanations behind it — and the four call for four different responses.
 

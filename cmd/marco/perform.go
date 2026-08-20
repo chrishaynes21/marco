@@ -116,9 +116,9 @@ func performLearned(d orchestrator.Deps, r orchestrator.Resolved,
 			"drop the %s and ask for it by name", r.Phrase, argWords(named, positional))
 	}
 
-	name, application := performIdentity(d, r)
+	name, application, subject := performIdentity(d, r)
 	mlog.Info("perform: delegating to the Director",
-		"route", r.Route.Slug, "goal", name, "application", application)
+		"route", r.Route.Slug, "goal", name, "application", application, "subject", subject)
 
 	client, err := dialPerformer()
 	if err != nil {
@@ -131,7 +131,9 @@ func performLearned(d orchestrator.Deps, r orchestrator.Resolved,
 	}
 	defer client.Close()
 
-	view, err := client.Perform(service.PerformQuery{Name: name, Application: application})
+	view, err := client.Perform(service.PerformQuery{
+		Name: name, Application: application, Subject: subject,
+	})
 	if err != nil {
 		return fmt.Errorf("the Director could not perform %q: %w", r.Phrase, err)
 	}
@@ -222,36 +224,39 @@ func refusalWords(refusal string) string {
 // # The join, and why it is by name today
 //
 // `PerformQuery` carries a name, and `PerformGoal` matches it case-insensitively against
-// `Goal.Name` — the words the person used when they taught the behaviour. The play's slug came
+// `Goal.Name` — the words the person used when the behaviour was learned. The play's slug came
 // from `routes.Slug` of those same words (see cmd/director/learnedplay.go's Phrase branch, fed by
-// the teach session's Name — the same string the goal was written under), so turning the slug
+// the learn session's Name — the same string the goal was written under), so turning the slug
 // back into words with `prettyRoute` recovers the name for every phrase made of plain words.
 //
 // It is NOT a general inverse: `routes.Slug` discards punctuation and collapses runs, so a
-// behaviour taught as "open mouse settings (win11)" or "e-mail steve" slugs to something whose
+// behaviour learned as "open mouse settings (win11)" or "e-mail steve" slugs to something whose
 // words no longer equal the goal's. Those cases refuse honestly with `not_learned` rather than
 // performing the wrong thing, which is the right way for an imperfect join to fail.
 //
-// FOLLOW-ON, and it is better: the origin sidecar already holds `Origin.To`, the DURABLE
-// remembered subject this play ends on, and a goal is a name bound to exactly such a subject
-// (`Goal.Subject`). Joining on that identity would be exact for every phrase, would survive a
-// rename of either side, and needs no fuzzy matching — the read exists today as `ObserveReach`
-// with an empty name, which lists every outcome with its subject. It is left for a follow-on
-// because the protocol is frozen this round and the name join is provably exact for the phrases
-// the product actually produces. See TestTheLearnedPlayNameJoinRoundTrips for the property this
-// depends on, and the awkward names it does not hold for.
+// # The subject is the identity, and the name is only a label
+//
+// So the join is now on `Origin.To` — the DURABLE remembered subject this play ends on — which is
+// the same id the goal was written under as `Goal.Subject`, in the same breath, by the same learn
+// pass. It is exact for every phrase, survives a rename of either side, and needs no matching of
+// words at all. The name still travels, because `PerformGoal` falls back to it for a goal with no
+// sidecar and because a log with a subject id in it and no words is unreadable.
 //
 // The application comes from the sidecar rather than from the route's folder, because the
 // sidecar is what Director wrote and the folder is where somebody could later move the file.
-func performIdentity(d orchestrator.Deps, r orchestrator.Resolved) (name, application string) {
+//
+// Deleting the subject must fail TestTheLearnedPlayNameJoinRoundTrips, which now expects the
+// awkward names to reach their goal instead of refusing.
+func performIdentity(d orchestrator.Deps, r orchestrator.Resolved) (name, application, subject string) {
 	name = prettyRoute(r.Route.Slug)
 	application = r.Route.App
 	if o, state := d.Reg.Origin(r.Route); state.Verified() {
 		if a := strings.TrimSpace(o.Application); a != "" {
 			application = a
 		}
+		subject = strings.TrimSpace(o.To)
 	}
-	return name, application
+	return name, application, subject
 }
 
 // argWords names the arguments somebody supplied, so the refusal says what to drop.

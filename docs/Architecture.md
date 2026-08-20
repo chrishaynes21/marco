@@ -54,7 +54,8 @@ All in `internal/director/boundary_test.go` and `internal/director/perception_bo
 ## The engine
 
 `lexer → parser → graph → compile → runtime`. `driver` is the run/serve/check entry;
-`routes` is the registry and argument parsing; `orchestrator` is the teach/run loop;
+`routes` is the registry and argument parsing; `orchestrator` is the record-and-simplify Learn loop
+(its exported methods are still spelled `Teach`);
 `oshost` fulfils the `OS` act; `winctx`/`screen`/`recorder` are the OS surfaces, each
 behind an interface with a Windows backend and a cross-platform stub.
 

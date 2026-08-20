@@ -27,7 +27,7 @@ import (
 //
 // # Why it is not a product feature
 //
-// Because deleting what somebody taught Marco is not a convenience. Durable memory is the whole
+// Because deleting what Marco has learned is not a convenience. Durable memory is the whole
 // point of the system, and the ONLY supported way to change it is the naming and correction path
 // — see [[ADR-069-a-name-is-authored-and-can-be-taken-back]]. This is a harness operation for a
 // sandbox that a test created, and the guard below is what keeps it one.

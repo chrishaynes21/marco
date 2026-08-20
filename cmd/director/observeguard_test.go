@@ -132,8 +132,8 @@ func TestTheSamplerNamesThePlaceOnlyUnderTheLicence(t *testing.T) {
 		Elements: map[directorapi.ElementID]*directorapi.Element{nav.ID: nav},
 	}
 
-	teaching := &liveSampler{demonstration: true}
-	if got := teaching.placeName(world); got != "Bluetooth & devices" {
+	learnSession := &liveSampler{demonstration: true}
+	if got := learnSession.placeName(world); got != "Bluetooth & devices" {
 		t.Errorf("a demonstration read the Place as %q", got)
 	}
 	passive := &liveSampler{}

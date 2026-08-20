@@ -267,8 +267,8 @@ type RelationshipObservation struct {
 	// folds but no further independent corroboration is claimed.
 	//
 	// `Sessions` means "how many separate times has this been seen" — separate sittings,
-	// separate window generations, separate days. Teaching runs several bounded passes back
-	// to back in one sitting, and counting each of them would let one explicit teach attempt
+	// separate window generations, separate days. Learn runs several bounded passes back
+	// to back in one sitting, and counting each of them would let one explicit learn attempt
 	// satisfy a threshold that exists to mean real-world recurrence. It would be Marco
 	// manufacturing its own corroboration.
 	//
@@ -299,7 +299,7 @@ type RelationshipReport struct {
 	// SessionLocalCauses is WHY each session-local transition stayed local, by closed cause.
 	//
 	// `SessionLocal` alone is a bare count with four different explanations, and the
-	// difference decides whether anything is wrong. A live teach attempt refused with
+	// difference decides whether anything is wrong. A live learn attempt refused with
 	// "2 transition(s) were seen and none had two recognisable endpoints" and no surface
 	// could say whether the screens were unrecognised, identical, or separated by a frame
 	// that could not be placed at all. Bounded by the vocabulary, not by the session.

@@ -58,7 +58,7 @@ lifecycle (`director learned --save` / `--register`) still crosses the two separ
 And it registers as a **focus** route, not a context one — a learned play is asked for from
 wherever the Audience happens to be, and the Director brings its application forward itself.
 Registered as context it resolved only while that application was already in front, which meant
-Marco offering to teach a play it had just learned. See
+Marco offering to Learn a play it had just learned. See
 [[ADR-080-a-learned-play-is-asked-for-from-anywhere]].
 
 ## The three things that are not each other

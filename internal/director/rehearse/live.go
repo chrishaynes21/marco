@@ -87,7 +87,7 @@ const (
 	// Marco failing to look, the other is Marco looking and finding somewhere new. A live
 	// rehearsal reported "unobservable" while the window was in front and perfectly legible,
 	// which sent the diagnosis chasing perception for an hour when the real answer was that
-	// the keys had landed somewhere nobody had taught it.
+	// the keys had landed somewhere it had never been shown.
 	Unrecognised Outcome = "unrecognised"
 	// WindowBehind is the watched window falling out of the desktop's foreground mid-route.
 	//
@@ -182,7 +182,7 @@ type StepRecord struct {
 	// # Why this one field may carry free text
 	//
 	// The rest of this record is closed vocabulary and subject ids on purpose, and that rule
-	// is not relaxed. This is the same deliberate exception teach.Attempt.Detail already
+	// is not relaxed. This is the same deliberate exception learn.Attempt.Detail already
 	// makes, for the same reason: `input_failed` says a step did not land and says nothing
 	// about WHY, and the difference between "the host could not find the target", "the window
 	// went away" and "the provider errored" is the whole of what a person needs. It is
@@ -495,7 +495,7 @@ func (l *Live) Perform(ctx context.Context, g *observe.RehearsalGrant,
 	// THE foreground gate, and it sits BEFORE the claim on purpose. Nothing has been spent,
 	// so the honest response upstream is to wait — the person answered yes in some other
 	// window, and the watched one comes forward the moment they click back into it. See
-	// notReadyYet in the teach coordinator and [[ADR-055-an-authorised-rehearsal-waits-for-its-start]].
+	// notReadyYet in the Learn coordinator and [[ADR-055-an-authorised-rehearsal-waits-for-its-start]].
 	if l.behind(ref) {
 		return RehearsalResult{}, refuse(RefusalWindowBehind,
 			"the watched window is not in front, so input would land somewhere else")

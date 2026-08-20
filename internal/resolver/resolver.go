@@ -41,7 +41,7 @@ func Configured() bool { return Path() != "" }
 
 // Resolve runs the plugin to pick the route best matching input. It returns the
 // matching route slug, or "" when no plugin is configured, nothing fits, or any
-// error occurs — so the caller always degrades gracefully to teaching.
+// error occurs — so the caller always degrades gracefully to learning.
 func Resolve(ctx context.Context, input string, routes []string) string {
 	path := Path()
 	if path == "" || len(routes) == 0 || input == "" {

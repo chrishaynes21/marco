@@ -5,7 +5,7 @@ package observe
 // # Why this is one function
 //
 // Two callers need the answer: the demonstration capture, which asks it every observation cycle,
-// and the teaching coordinator, which asks it before saying "go ahead". A second derivation would
+// and the Learn coordinator, which asks it before saying "go ahead". A second derivation would
 // be a second answer to "what screen is this", and this repository has already paid for one of
 // those — see the note on SignatureOfState.
 //

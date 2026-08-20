@@ -52,8 +52,8 @@ they were not:
 | "this place is a settings screen" | semantic | a person, by answering |
 
 A durable subject used to be written **only** in `Runner.Respond`, so the first claim could not be
-made without the second. That is what blocked `teach "…"` at its first step against any
-application nobody had happened to answer a question about. A place established under the teaching
+made without the second. That is what blocked `learn "…"` at its first step against any
+application nobody had happened to answer a question about. A place established under the Learn
 licence carries an **empty** interpretation list, which is the same shape a subject has had all
 along — the store's records were always structure plus a list of answers, and the list may be
 empty.
@@ -94,7 +94,7 @@ sources present at the time and the structural digest it was settled on.
 - **Observed-only never becomes validation.** A record existing is not a person agreeing.
 
 A subject may also carry **no** interpretation at all. That is a place established because the
-user asked to be taught something — Marco can find it again and claims nothing whatever about what
+user asked Marco to Learn something — Marco can find it again and claims nothing whatever about what
 it is. `describeSubject` renders it *"recognised, nothing known about what it is"*.
 
 ## Two ways a subject becomes durable
@@ -102,13 +102,13 @@ it is. `describeSubject` renders it *"recognised, nothing known about what it is
 | write | trigger | what it records |
 |---|---|---|
 | `Remember` | a person answered a proposal (`Runner.Respond`) | the subject **and** one interpretation |
-| `EstablishPlace` | an explicit `teach "…"` pass, at session end | the subject, and **nothing else** |
+| `EstablishPlace` | an explicit `learn "…"` pass, at session end | the subject, and **nothing else** |
 
 Both go through `subjectLocked`, the one canonical match-or-append: same identity test, same ids,
 same discriminator rule, same `MaxSubjects` bound. `EstablishPlace` leaves an existing subject
 completely untouched — it is not a route by which observation can edit what somebody settled.
 
-The licence is `observesession.Episode.EstablishPlaces`, set by `teachPasses.episode` and by
+The licence is `observesession.Episode.EstablishPlaces`, set by `learnPasses.episode` and by
 nothing else. Every other session gets the zero value, so **passive observation still persists no
 subjects**. See [[ADR-047-a-place-is-remembered-a-meaning-is-answered]] for the bound and the
 refusal vocabulary (`Result.Places`).
@@ -125,7 +125,7 @@ the pass ended on.
 
 ```
 perception → hypotheses → RECALL → proposal policy → question (or not) → answer → REMEMBER
-                                                        teach pass ends → ESTABLISH PLACE
+                                                        Learn pass ends → ESTABLISH PLACE
 ```
 
 Recall runs after hypotheses and before the policy, so it can suppress a question rather than
@@ -173,7 +173,7 @@ subject removes its edges, deterministically.
 
 ## Goals: the destination is the capability
 
-Since 2026-08-17 memory also holds `goals`: outcomes a person explicitly taught, each a
+Since 2026-08-17 memory also holds `goals`: outcomes a person explicitly Learned, each a
 NAME in their own words bound to one destination subject — and structurally nothing else.
 [[ADR-056-a-goal-is-a-destination-not-a-route]] is the correction this records: the
 demonstrated route is evidence for one way in, held in the topology beside every other

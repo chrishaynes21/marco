@@ -39,7 +39,7 @@ func TestTheLadderHasEveryWayInOrder(t *testing.T) {
 		Invoke: "a button doing its one thing",
 		Select: "a navigation or list item becoming the chosen one — Windows Settings is " +
 			"built almost entirely from these, and a ladder without it fails every " +
-			"navigation step on the most obvious application to teach Marco with",
+			"navigation step on the most obvious application to demonstrate something in",
 		Expand: "a disclosure opening",
 		Toggle: "a checkbox or switch changing state",
 	} {

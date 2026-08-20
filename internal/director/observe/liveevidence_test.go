@@ -13,7 +13,7 @@ import (
 //
 // # Why this is a fixture and not a live run
 //
-// Two `director teach` attempts against Windows Settings, cold store, vision and OCR off, both
+// Two `director learn` attempts against Windows Settings, cold store, vision and OCR off, both
 // refused with "2 transition(s) were seen and none had two recognisable endpoints" — while both
 // endpoints sat in the durable store as recognisable subjects. The sessions existed only in a
 // running Director's memory, so they were captured before the process was restarted.
@@ -43,7 +43,7 @@ func liveSettings(t *testing.T, name string) observe.ShadowTotals {
 // reconstructWalk recovers the ORDER of a session recorded before the segmenter kept it.
 //
 // These captures predate `ShadowTotals.Crossings` and cannot be re-recorded: they are two real
-// teach attempts against Windows Settings, taken out of a running Director's memory before the
+// learn attempts against Windows Settings, taken out of a running Director's memory before the
 // process was restarted, and reproducing them needs a person at the machine.
 //
 // It is a reconstruction and not a fabrication, and the difference is the guard below: a walk is

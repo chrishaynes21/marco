@@ -10,7 +10,7 @@ import (
 //
 // # The measured defect
 //
-// Windows Settings renders in stages. The START of a teach was fingerprinted after a six-second
+// Windows Settings renders in stages. The START of a learn was fingerprinted after a six-second
 // dwell — while the page was still arriving — and the DESTINATION at the end of a forty-five-second
 // pass, from a screen that had long since finished. Same code path, same producer, different
 // maturity of evidence:

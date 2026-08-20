@@ -1,10 +1,10 @@
 # marco
 
-**Marco is a sentence-driven automation language and a self-teaching computer
-assistant.** You name a command in plain words — *"log into Facebook"*, *"start
-Sea of Thieves"* — and Marco runs it. If it doesn't know how, it asks you to
-show it once, records what you do, and remembers it as a clean, editable program
-so next time it just does it.
+**Marco is a sentence-driven automation language and a computer assistant that
+learns what you show it.** You name a command in plain words — *"log into
+Facebook"*, *"start Sea of Thieves"* — and Marco runs it. If it doesn't know
+how, it asks you to show it once, watches what you do, and keeps it as a clean,
+editable program so next time it just does it.
 
 Underneath is a small language where every line reads like English and the
 runtime drives the real machine (keystrokes, mouse, screen) through a
@@ -32,10 +32,10 @@ Build the CLI (Go 1.26+):
 go build -o marco ./cmd/marco
 ```
 
-Teach a **play** by demonstration, then run it by name:
+Show Marco a **play** once, then run it by name:
 
 ```sh
-marco teach "open inventory"     # record clicks/keys; press Esc to finish
+marco learn "open inventory"     # record clicks/keys; press Esc to finish
 marco do   "open inventory"      # replay it (real input on Windows)
 marco plays                      # list every play you have
 marco routes                     # list the plays you can ask for (unchanged)
@@ -46,17 +46,59 @@ a record of where it came from. It's the noun the product uses everywhere — th
 `marco routes` command, the `routes/` directory and `$MARCO_ROUTES` keep their
 old names, and nothing you already type stops working.
 
-Or just talk to it — the assistant fuzzily matches what you type to a saved
-play, or teaches a new one:
+Press **Esc** at any time to abort a running play.
+
+### One way in
+
+Typing, speaking, a hotkey, a button in the control centre and the command line
+are **entrances, not different Marcos**. Whichever you use, one rule decides what
+happens:
+
+> **If Marco already knows exactly what you mean, it does the thing it knows.
+> Otherwise the Director works out what you mean from what's on screen.**
+
+So a play called *"open inventory"* runs when you type it, when you say it, when
+you press the key you bound to it and when you click Run — the same play, every
+time. And *"turn the bluetooth off"*, which you never taught, goes to the
+Director whichever way you asked. Speaking is not a different vocabulary from
+typing; it's a different microphone.
+
+Matching against your saved plays is **exact** and offline: case, punctuation,
+quotes and extra spaces are folded, and nothing else. A near miss is a miss, and
+a miss is a question about the screen — which is the Director's job, because it
+can look, and it can ask you.
+
+**"stop"** always means stop. It reaches whatever is running before anything else
+looks at it, from any entrance.
+
+Every command tells you what became of it, in one of six words:
+
+| | |
+|---|---|
+| **performed** | it ran, and Marco confirmed you ended up where you asked |
+| **clarify** | Marco asked you something and is waiting |
+| **refused** | Marco declined, or wasn't allowed — a question you answered no to, a screen it didn't recognise |
+| **unavailable** | nothing took the request at all. This is the only time Marco offers to learn it |
+| **cancelled** | you stopped it |
+| **failed** | it was tried and it went wrong |
+
+*"Refused" and "failed" are different on purpose, and neither is "performed".* A
+play that finished every step but didn't get you where you asked is not a success.
+
+### The interactive loop
+
+`marco assistant` is a developer surface with one extra habit: it will offer a
+close match rather than requiring the exact words. It **asks first** —
 
 ```sh
 marco assistant
-> open the inventory     # resolves to "open inventory" and runs it
+> open the inventory
+Did you mean "open inventory"? [y]es / [n]o: y
 ```
 
-Matching is deterministic and offline by default. For loosely-phrased requests
-("fire up the pirate game") you can plug in a model-backed resolver: build the
-reference one and point `$MARCO_RESOLVER` at it —
+and whatever you confirm takes the same path everything else does. For loosely
+phrased requests ("fire up the pirate game") you can plug a model-backed resolver
+into that prompt: build the reference one and point `$MARCO_RESOLVER` at it —
 
 ```sh
 go -C plugins/claude-resolver build -o claude-resolver .
@@ -65,10 +107,8 @@ export ANTHROPIC_API_KEY=sk-...
 ```
 
 The resolver is an **external plugin** (a separate Go module), so **Marco itself
-has zero dependencies**. It's consulted only when the local matcher is unsure,
-and the tool works fully without it.
-
-Press **Esc** at any time to abort a running play.
+has zero dependencies**. It is consulted only by that prompt, never on the way to
+running a play, and the tool works fully without it.
 
 ### Where a play works (scope)
 
@@ -93,9 +133,9 @@ focus-scoped row says which app it brings forward.
 
 Saving a play and making it *askable* are two different things, and Marco keeps
 them apart on purpose: a saved play is a file you can read and edit, and until
-it is **registered** nothing can ask for it by name. Teaching does both for you.
-Registration can also legitimately be refused — a name already taken is the
-usual cause — and then you're left with a real file that nothing mentions.
+it is **registered** nothing can ask for it by name. Learning a play does both
+for you. Registration can also legitimately be refused — a name already taken is
+the usual cause — and then you're left with a real file that nothing mentions.
 
 So there are two listings:
 
@@ -129,8 +169,8 @@ already scripted against it keeps working.
 
 ### Passwords never get recorded
 
-While teaching, type a **placeholder** `{{name}}` where a secret goes. The
-recorder only ever sees the placeholder; the play file stores only the *name*.
+While Marco is learning, type a **placeholder** `{{name}}` where a secret goes.
+The recorder only ever sees the placeholder; the play file stores only the *name*.
 The real value lives in your OS credential manager:
 
 ```sh
@@ -195,8 +235,8 @@ do OS's Find with menu...
 Text is a **plugin** (OCR needs a dependency; the engine stays zero-dep). `setup.cmd
 -OCR` builds it **and installs the `tesseract` engine** it uses (via winget), then
 wires it up. Without it, a text anchor falls back to its recorded coordinate. See
-`plugins/ocr/README.md`. (Plays taught before this keep working; re-teach to pick up
-the newer signals and the button-cropped template.)
+`plugins/ocr/README.md`. (Plays learned before this keep working; learn one again
+to pick up the newer signals and the button-cropped template.)
 
 Anchor a click **per click** by **tapping the anchor key, then clicking** that
 target during the demo — the tap starts the anchor, the click ends it. Only that
@@ -223,13 +263,13 @@ tune it with `$MARCO_KEY_HOLD_MS`.)
 
 ### Commands with arguments
 
-A play can take **named arguments**. Declare them with `with` when you teach,
-and a value goes wherever you tap the **arg key (F9)** during the demo (no typing
-`{{…}}` into the app). Pass values two ways — by name, or positionally with the
-same `with` word, where each value fills the declared arg in order:
+A play can take **named arguments**. Declare them with `with` in the name Marco
+learns, and a value goes wherever you tap the **arg key (F9)** during the demo
+(no typing `{{…}}` into the app). Pass values two ways — by name, or positionally
+with the same `with` word, where each value fills the declared arg in order:
 
 ```sh
-marco teach "say hello with name"    # demo: tap F9 where the name goes
+marco learn "say hello with name"    # demo: tap F9 where the name goes
 marco do   "say hello name:chris"    # by name
 marco do   "say hello with chris"    # positional — "chris" fills `name`
 marco do   "dm person:sam message:hi there"   # several; values may have spaces
@@ -246,7 +286,7 @@ resolved from the credential store, **never written into the play**, and
 **remembered** — pass it once, then omit it next time:
 
 ```sh
-marco teach "login to facebook with username, password"
+marco learn "login to facebook with username, password"
 marco do   "login to facebook username:me password:hunter2"   # remembers both
 marco do   "login to facebook"                                 # reuses them
 ```
@@ -267,13 +307,13 @@ marco bind e "say hello with chris then delete all then say hi"   # one key, thr
 `bind <key> <command>` ties a leader hotkey (`` `e ``) to a command — a single play
 or a `then`-chain — scoped to the foreground app; `unbind <key>` removes it.
 
-### Teach by talking
+### Learn by talking
 
 Instead of demonstrating, you can **narrate** a play — typed or spoken — and each
 phrase becomes a step:
 
 ```sh
-marco teach --narrate "open chest"
+marco learn --narrate "open chest"
 # then, one phrase per line (or via the voice plugin's mic):
 #   activate sea of thieves
 #   click this
@@ -282,7 +322,7 @@ marco teach --narrate "open chest"
 #   done
 ```
 
-In the overlay this is hands-free: say (or type) **"narrate teach open chest"**,
+In the overlay this is hands-free: say (or type) **"narrate learn open chest"**,
 then narrate. The vocabulary is forgiving — `click this`, `anchor this`, `wait for
 this screen`, `wait 2 seconds`, `type …`, `press enter`, `activate <app>`, menu
 navigation (`down`, `down arrow`, `tab`, `escape`, `select`), plus `undo` / `done` /
@@ -377,12 +417,12 @@ plugs in over the host boundary:
   `marco active`, `marco do "<name>"`):
   - [`plugins/overlay`](plugins/overlay) — a **native, cross-platform gamer HUD**
     (transparent, click-through, always-on-top). A leader key (`` ` ``) opens a
-    command line (`` `m <command>``); it teaches in-place (record → F12 → save),
+    command line (`` `m <command>``); it learns in-place (record → F12 → save),
     narrates by voice or typing, shows `name:` arg-name hints inline as you fill a
     play's arguments (Tab to step between slots), and answers prompts in the HUD.
     `` `m config `` opens an in-HUD editor (theme, opacity, monitor/corner, width,
     mini mode, the CPU/RAM widget, and a live **screen-coords tooltip** — handy when
-    teaching across monitors). Its behaviour lives
+    a demonstration crosses monitors). Its behaviour lives
     in Marco ([`plugins/overlay/overlay.marco`](plugins/overlay/overlay.marco)); it fulfils a
     clean `Overlay` act and pushes input events back over a bidirectional bridge.
   - [`plugins/web-ui`](plugins/web-ui) — a reference local web control panel.
@@ -400,10 +440,11 @@ marco serve --host OS=bridge:marco-macros --host Overlay=bridge:overlay plugins/
 ## Command reference
 
 ```
-marco do "<name>"          run a play; teach it once if unknown
+marco do "<name>"          ask for something: runs the play of that name, or hands
+                           the words to the Director if there isn't one
                            ("<name> arg:value …" passes named arguments)
-marco teach "<name>"       (re)record a play by demonstration
-marco teach --narrate "<name>"   build a play by narration (typed or voice)
+marco learn "<name>"       (re)record a play by demonstration
+marco learn --narrate "<name>"   build a play by narration (typed or voice)
 marco simplify "<name>"    re-simplify a saved play as far as it goes
 marco assistant            interactive loop — say what you want
 marco ui                   open the control center (all plays, bindings, help)
@@ -428,6 +469,21 @@ marco contracts <file.marco>            print inferred action contracts
 Plays live in `./routes` — the directory keeps its old name (override with
 `$MARCO_ROUTES`).
 
+**One compatibility alias.** Acquisition used to be spelled `teach`, and the old
+spelling still answers everywhere it ever did — `marco teach`, `director teach`,
+and the overlay's `teach <name>` / `narrate teach <name>`. It is undocumented
+elsewhere on purpose and it is retiring, so type `learn`. **Teach** is reserved
+for the other direction: Marco guiding you through something, which is not built
+yet.
+
+`marco do` also takes three flags that exist for the surfaces rather than for you:
+`--source=<typed|spoken|hotkey|control-centre|cli|web>` records how a request
+arrived (it is written to the trace and **never** used to decide anything), and
+`--play=<slug>` with `--app=` / `--focus` names a play directly, so a clicked
+button or a bound hotkey performs the play it already identified instead of
+handing its name back to be looked up a second time. You can use them, but the
+product does not need you to.
+
 ### Environment variables
 
 | Variable | Effect |
@@ -436,9 +492,9 @@ Plays live in `./routes` — the directory keeps its old name (override with
 | `MARCO_HOME` | where the Director keeps its action graph and semantic memory (default `%APPDATA%\marco`) |
 | `MARCO_MEMORY` | the semantic-memory file itself (default `$MARCO_HOME/semantic-memory.json`); `marco` and `director` share one store and both honour this |
 | `MARCO_STOP_KEY` | key that ends a recording / aborts a run (default `f12`) |
-| `MARCO_ARG_KEY` | key that drops an argument placeholder while teaching (default `f9`; `off` disables) |
+| `MARCO_ARG_KEY` | key that drops an argument placeholder while Marco is learning (default `f9`; `off` disables) |
 | `MARCO_ANCHOR_KEY` | key you tap, then click, to anchor that click by image (default `f12`; `off` disables) |
-| `MARCO_ANCHORS` | `1` captures an image anchor for *every* click while teaching |
+| `MARCO_ANCHORS` | `1` captures an image anchor for *every* click while Marco is learning |
 | `MARCO_CLICK_RADIUS` | half-size (px) of the captured anchor patch; default ≈ ¼ screen width, scaled to resolution |
 | `MARCO_LOG` | log level; `debug` shows the full per-click anchor-scoring / coordinate trace (default `info`) |
 | `MARCO_FIND_SCALES` | template scales tried when matching, for DPI/resolution changes (e.g. `0.8,1.0,1.25`) |
@@ -446,7 +502,8 @@ Plays live in `./routes` — the directory keeps its old name (override with
 | `MARCO_FIND_CONFIDENCE` / `MARCO_FIND_TOLERANCE` / `MARCO_FIND_THRESHOLD` | anchor confidence / colour-tolerance / image-match thresholds |
 | `MARCO_ANCHOR_CACHE` | `0` disables the last-known-location cache that follows a drifting target |
 | `MARCO_KEY_HOLD_MS` | linger between a tap's key-down and key-up so fast apps register it (default 25) |
-| `MARCO_RESOLVER` | path to a resolver plugin for loosely-phrased commands |
+| `MARCO_RESOLVER` | path to a resolver plugin for loosely-phrased commands, offered as a confirmation by `marco assistant` (never consulted on the way to running a play) |
+| `MARCO_TRACE_INTAKE` | `1` prints one `[intake] …` line per command saying how the request was routed: its source, the decision, the play or phrase, and which rule fired. Off by default; it keeps no store and writes no file |
 | `MARCO_OCR` | path to the OCR text-resolver plugin (`plugins/ocr/ocr.exe`); fulfils a play's text anchor |
 | `MARCO_TESSERACT` | path to the `tesseract` binary if it isn't on `PATH` (used by the OCR plugin) |
 | `MARCO_BIN` | engine binary the overlay shells out to |

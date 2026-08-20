@@ -12,10 +12,10 @@ import (
 //
 // # The defect this holds closed
 //
-// The one-shot candidate was built in the teaching COORDINATOR, which runs after the session has
+// The one-shot candidate was built in the Learn COORDINATOR, which runs after the session has
 // ended. Everything downstream of a demonstration reads the candidate STORE, and the proposal that
 // grants rehearsal authority is raised from it during the session — so the candidate arrived after
-// the only stage that could have asked about it. Live, teaching reached "I think I got it. Want me
+// the only stage that could have asked about it. Live, Learn reached "I think I got it. Want me
 // to try?" and waited for a grant that could never be created, because no `AskRehearse` proposal
 // existed to answer.
 //
@@ -26,7 +26,7 @@ import (
 // This enters through `Runner.Run`, deliberately. A helper-level test would prove the construction
 // works and say nothing about the thing that was actually broken.
 
-// licensed is a teach pass: the episode that may establish places.
+// licensed is a learn pass: the episode that may establish places.
 func licensed() observesession.Config {
 	cfg := foregroundConfig()
 	cfg.Episode = observesession.Episode{SameEpisode: true, EstablishPlaces: true}
@@ -87,7 +87,7 @@ func TestOneWatchedPassProducesACandidateAndAsksToTry(t *testing.T) {
 
 	// And the question exists, so a person has something to answer.
 	if !asks(res, observe.AskRehearse) {
-		t.Fatalf("no rehearsal question was raised.\nTeaching would reach \"want me to "+
+		t.Fatalf("no rehearsal question was raised.\nLearning would reach \"want me to "+
 			"try?\" and wait for a grant nobody could give, because authority comes from "+
 			"answering this proposal and from nothing else.\nrehearsals: %+v\nproposals: %+v",
 			res.Rehearsals, res.Proposals.Proposals)
@@ -157,7 +157,7 @@ func asks(res observesession.Result, kind observe.AskKind) bool {
 
 // When the runner declines to build a candidate it SAYS SO.
 //
-// Silence here cost a live run. The runner declined, Teach fell back to the armed capture, that
+// Silence here cost a live run. The runner declined, Learn fell back to the armed capture, that
 // failed too, and the person was told "that example didn't finish where I expected" — about an
 // example nobody had ever tried to build. The reason existed and stopped at the function boundary,
 // which is the third time in this subsystem a diagnosis has been lost exactly that way.
@@ -186,7 +186,7 @@ func TestADeclinedWatchedPassSaysWhy(t *testing.T) {
 	}
 	if res.Watched == "" {
 		t.Fatal("the runner declined to build a demonstration and reported no reason.\n" +
-			"Teach then falls back silently, and a person is told the example did not finish " +
+			"Learn then falls back silently, and a person is told the example did not finish " +
 			"when nothing ever tried to build one.")
 	}
 }

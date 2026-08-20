@@ -211,7 +211,7 @@ type Player struct {
 //
 // Because "nothing happened" is the hard silence. `no_actor_available` is the honest refusal for
 // a machine that cannot act, but it is only reachable by RUNNING a play — so the first time
-// anybody discovers that the Theater is empty is when a learned play they just taught does
+// anybody discovers that the Theater is empty is when a learned play they just saved does
 // nothing. A person should be able to ask before that.
 //
 // # Why it must not be a second opinion

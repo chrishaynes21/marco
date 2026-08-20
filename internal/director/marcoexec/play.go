@@ -10,7 +10,7 @@ import (
 // # Why this lives here and not in a new package
 //
 // Because this package already owns the whole lowering: a typed intention in, legal Marco out,
-// one encoder, one set of escaping rules. `internal/codegen` is the TEACH-side generator and is
+// one encoder, one set of escaping rules. `internal/codegen` is the LEARN-side generator and is
 // forbidden to the Director for good reasons; a third generator would be a third set of escaping
 // bugs and a third opinion about what legal Marco looks like.
 //

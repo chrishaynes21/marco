@@ -156,7 +156,7 @@ func TestAFutureSchemaIsRefusedRatherThanGuessedAt(t *testing.T) {
 }
 
 func TestAMissingStoreIsNotAnError(t *testing.T) {
-	// A Director that has never been taught anything has no variables. That is a
+	// A Director that nobody has told anything has no variables. That is a
 	// normal state, not a fault.
 	s, err := variables.Open(t.TempDir())
 	if err != nil {
@@ -179,7 +179,7 @@ func TestAnUnknownVariableIsNamedRatherThanGuessedAt(t *testing.T) {
 }
 
 func TestAStaleVariableSaysTheWorldChangedNotThatItIsUnknown(t *testing.T) {
-	// Two different problems. Unknown means "you never taught me this"; stale means
+	// Two different problems. Unknown means "you never told me this"; stale means
 	// "you did, and it is not here now" — which tells the user to re-capture rather
 	// than to re-type.
 	v, _ := variables.Capture("save", variables.KindTarget, resolved(), world(), "remember this")

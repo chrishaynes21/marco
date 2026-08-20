@@ -14,10 +14,10 @@ updated: 2026-08-12
 source_paths:
   - internal/director/observe
   - internal/director/observesession
-  - internal/director/teach
+  - internal/director/learn
   - cmd/director/observecmd.go
-  - cmd/director/teachcmd.go
-  - cmd/director/teachwiring.go
+  - cmd/director/learncmd.go
+  - cmd/director/learnsessionwiring.go
 ---
 
 # Passive Observation
@@ -370,7 +370,7 @@ Existence is cheap; durability is not, and the requirement chain is worth readin
 structure → track (exclusive to one screen, presence ≥ 0.80)
           → structural group (an even vertical run)
           → hypothesis about the screen
-          → a person answers it            ← OR: an explicit `teach "…"` pass ends here
+          → a person answers it            ← OR: an explicit `learn "…"` pass ends here
           → a DISCRIMINATING signature (read terms, or an envelope)
           → durable subject
           → and only then can it be one end of a relationship
@@ -379,18 +379,19 @@ structure → track (exclusive to one screen, presence ≥ 0.80)
 Every link is a real refusal with a reason, and four of them were invisible until this was
 traced: the track bound (fixed, [[ADR-038-session-bounds-are-sized-for-the-evidence]]), the
 group's vertical-run requirement, the discriminator rule — and *"a person answers it"*, which was
-the only door in and therefore made an application nobody had answered a question about
-unteachable. A licensed teach pass is the second door, and it persists identity only:
+the only door in — so an application nobody had happened to answer a question about was an
+application nobody could Learn anything in. A licensed Learn pass is the second door, and
+it persists identity only:
 [[ADR-047-a-place-is-remembered-a-meaning-is-answered]].
 
-## Teaching: the same machinery, on purpose
+## Learn: the same machinery, on purpose
 
 Until now Marco had to **notice** a habit before it could learn one — a route needed independent
-corroboration across sessions before the invitation policy would let it ask. `director teach
+corroboration across sessions before the invitation policy would let it ask. `director learn
 "open downloads"` reverses the timing without touching the evidence model.
 
 ```
-director teach "open downloads" --window-id window_37
+director learn "open downloads" --window-id window_37
 
   Hold still a moment while I learn where we're starting.
   Okay — go ahead and show me.
@@ -398,17 +399,17 @@ director teach "open downloads" --window-id window_37
   I think I understand. Want me to try it once?
 ```
 
-The coordinator (`internal/director/teach`) owns no evidence, no identity, no judgement and no
+The coordinator (`internal/director/learn`) owns no evidence, no identity, no judgement and no
 authority. Each line above is a phase; each phase waits on an object that already owns the fact —
 `observe.PlaceNow` for where we are, the durable topology for what changed, the ordinary armed
 `Capture` for the demonstration, `AssessCandidate` for whether it holds up.
 
 The demonstration capture is a **confirmation** mechanism and cannot discover a destination, so
-teaching runs two passes and arms the capture between them through the ordinary pending learning
+Learn runs two passes and arms the capture between them through the ordinary pending learning
 request — see [[ADR-043-teaching-is-two-passes-not-a-new-capture]] for why that beats giving the
 capture an open destination.
 
-**Teaching grants nothing.** It cannot press a key, and permission to rehearse is still a separate
+**Learn grants nothing.** It cannot press a key, and permission to rehearse is still a separate
 yes through the ledger. `ready_to_rehearse` and `naming` are *waiting* phases: the coordinator
 polls the question that already exists and prints the command that answers it.
 
@@ -416,14 +417,14 @@ The tail follows the same lifecycle to its end — the authorised rehearsal, the
 the naming questions the judgement demands, the one persistence path — and only a saved file lets
 anything say `I learned "open downloads"`. `Session.Learned` reads the artifact, never the phase.
 
-A teach attempt is **one episode**: its passes fold their evidence but claim one independent
-sighting between them, so explicit teaching cannot manufacture the corroboration the invitation
-policy exists to require. See [[ADR-044-a-teach-attempt-is-one-episode]].
+A Learn attempt is **one episode**: its passes fold their evidence but claim one independent
+sighting between them, so asking for it explicitly cannot manufacture the corroboration the
+invitation policy exists to require. See [[ADR-044-a-teach-attempt-is-one-episode]].
 
-A teach pass may also **establish a place** — make the screen the user is standing on durably
+A Learn pass may also **establish a place** — make the screen the user is standing on durably
 recognisable, persisting no judgement about what it is. That is the other half of the same fact:
-`teach "…"` is an explicit human semantic event, and both consequences travel together on
-`observesession.Episode`. Without it, teaching refused at its first step against any application
+`learn "…"` is an explicit human semantic event, and both consequences travel together on
+`observesession.Episode`. Without it, Learn refused at its first step against any application
 nobody had happened to answer a question about, and *which* question Marco raised was never the
 user's to choose. At most one place per pass, only where it could ever be matched again, and
 `Result.Places` says which of the closed reasons applied when none was.

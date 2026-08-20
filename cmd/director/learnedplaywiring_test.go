@@ -372,7 +372,7 @@ func TestAWholeRouteLowersEveryEdgeInOrder(t *testing.T) {
 // An incomplete route is refused rather than shortened.
 //
 // Half a procedure is a different procedure. An edge missing from the walk means the play cannot
-// represent what was taught, and a shorter play claiming to be it is worse than no play.
+// represent what was learned, and a shorter play claiming to be it is worse than no play.
 func TestARouteMissingAnEdgeIsNotWrittenDown(t *testing.T) {
 	plays := []lowered{{
 		view:     service.LearnedPlayView{From: "subj_a", To: "subj_b", Eligible: true},

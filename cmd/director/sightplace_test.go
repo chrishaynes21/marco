@@ -261,23 +261,23 @@ func TestNoCrossingsIsNoTrail(t *testing.T) {
 
 // ── outside Learn ─────────────────────────────────────────────────────────────
 
-// HERE is present without a teaching session.
+// HERE is present without a learn session.
 //
 // Requirement, not a nicety: hardening place identity means walking an application and watching
 // recognition, and needing to start a demonstration to see it would make the instrument require
 // the experiment. Every identity failure so far was found by a Learn run collapsing afterwards.
 //
 // Deleting the withPlace call on the idle path must fail this.
-func TestHereIsPresentWithoutATeachingSession(t *testing.T) {
+func TestHereIsPresentWithoutALearningSession(t *testing.T) {
 	rt, _, _, _ := namingRuntime(t)
-	if _, teaching := rt.teach.read(); teaching {
-		t.Fatal("the fixture is teaching, so this proves nothing about the idle path")
+	if _, learnSession := rt.learn.read(); learnSession {
+		t.Fatal("the fixture is learning, so this proves nothing about the idle path")
 	}
 
 	v := rt.Learning()
 	if v.Here == nil {
-		t.Fatal("nothing says where Marco thinks you are unless something is being taught.\n" +
-			"Place recognition is not a property of teaching, and needing to start a " +
+		t.Fatal("nothing says where Marco thinks you are unless something is being learned.\n" +
+			"Place recognition is not a property of Learn, and needing to start a " +
 			"demonstration to watch it makes the instrument require the experiment.")
 	}
 	if v.Here.Status == "" {
@@ -352,7 +352,7 @@ func named(t *testing.T, store *semanticmemory.Store, id, word string) {
 // is. Every press watched Chrome.
 //
 // So Watch arms and waits for a window that is not Marco to hold still, through the SAME settle
-// rule a teach session uses. Deleting the await, or the Marco exclusion inside it, must fail this.
+// rule a learn session uses. Deleting the await, or the Marco exclusion inside it, must fail this.
 func TestWatchDoesNotLatchMarcosOwnSurface(t *testing.T) {
 	// Marco's own surface is in front, as it must be for the button to have been pressed.
 	rt := &Runtime{
@@ -451,8 +451,8 @@ func TestStopWatchingEndsTheWaitAsWellAsTheSession(t *testing.T) {
 //
 // # Why this is allowed at all
 //
-// Passive observation may not make places durable — `Episode.EstablishPlaces` is set by teaching
-// and by nothing else, because `teach "…"` IS the human semantic event that permits it. Somebody
+// Passive observation may not make places durable — `Episode.EstablishPlaces` is set by Learn
+// and by nothing else, because `learn "…"` IS the human semantic event that permits it. Somebody
 // looking at a screen and typing what it is called is the same event, given more directly.
 //
 // So the licence is the NAME. A press with nothing typed must establish nothing, or the rule
@@ -540,7 +540,7 @@ func TestAnUnsettledScreenCannotBeRemembered(t *testing.T) {
 //
 // Recognition was read only from the proposal ledger. RecallFrom seeds a recognised subject there,
 // but only when the subject carries a JUDGEMENT about the interpretation in hand — and a place
-// established by teaching or by Remember carries none by design: an identity and no semantic
+// established by Learn or by Remember carries none by design: an identity and no semantic
 // claim. So a perfectly recalled place reported Unknown as soon as its screen state id changed,
 // which is precisely what leaving a window and returning does. Within one visit the stale ledger
 // entry hid it.
@@ -760,9 +760,9 @@ func standingOnRoles(rt *Runtime, roles map[string]int, term observe.InterfaceTe
 	}}
 }
 
-// ── Light Mode must not block teaching ────────────────────────────────────────
+// ── Light Mode must not block Learn ───────────────────────────────────────────
 
-// Teaching takes the observation slot back from Light Mode.
+// Learn takes the observation slot back from Light Mode.
 //
 // # The live failure
 //
@@ -775,7 +775,7 @@ func standingOnRoles(rt *Runtime, roles map[string]int, term observe.InterfaceTe
 // True, unhelpful, and blaming the person for a conflict Marco created between two of its own
 // features. Watching is an instrument. A demonstration is the work. Somebody pressing Start has
 // said which of the two they want.
-func TestTeachingTakesTheSlotBackFromLightMode(t *testing.T) {
+func TestLearningTakesTheSlotBackFromLightMode(t *testing.T) {
 	rt, _, _, _ := namingRuntime(t)
 	// Light Mode holding the slot, recorded as its own. The cancel is what the registry
 	// actually calls; a real session always has one, set by start() under the same lock.
@@ -791,7 +791,7 @@ func TestTeachingTakesTheSlotBackFromLightMode(t *testing.T) {
 
 	if !cancelled {
 		t.Fatal("Light Mode still holds the slot, so Start is refused and nothing can be " +
-			"taught while the instrument is on — which is what adding Watch did to Learn.")
+			"learned while the instrument is on — which is what adding Watch did to Learn.")
 	}
 }
 
@@ -823,7 +823,7 @@ func TestASessionLightModeDidNotStartIsNotCancelled(t *testing.T) {
 // Yielding also ends the WAIT.
 //
 // An armed Light Mode that survived would start observing part-way through the demonstration it
-// just stood aside for, taking the slot back from teaching mid-capture.
+// just stood aside for, taking the slot back from Learn mid-capture.
 func TestYieldingAlsoEndsTheWait(t *testing.T) {
 	rt := &Runtime{
 		observations: newObservationRegistry(),
@@ -847,7 +847,7 @@ func TestYieldingAlsoEndsTheWait(t *testing.T) {
 		}
 		time.Sleep(25 * time.Millisecond)
 	}
-	t.Error("Light Mode is still waiting after teaching took the slot. It will start " +
+	t.Error("Light Mode is still waiting after Learn took the slot. It will start " +
 		"observing part-way through the demonstration and take the slot back.")
 }
 
@@ -877,7 +877,7 @@ func TestPressingStartTakesTheSlotBackFromLightMode(t *testing.T) {
 	}
 	if !cancelled {
 		t.Fatal("pressing Start did not take the observation slot back from Light Mode.\n" +
-			"Teaching is then refused with \"another session is already running\" — " +
+			"Learn is then refused with \"another session is already running\" — " +
 			"a conflict between two of Marco's own features, blamed on the person.")
 	}
 }

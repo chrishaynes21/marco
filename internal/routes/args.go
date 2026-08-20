@@ -15,9 +15,9 @@ var phRe = regexp.MustCompile(`\{\{([A-Za-z0-9_-]+)\}\}`)
 // into following tokens).
 var namedRe = regexp.MustCompile(`^([A-Za-z][\w-]*):(.*)$`)
 
-// SplitArgs splits a TEACH name (or positional invocation) on " with ": "say hello
+// SplitArgs splits a LEARN name (or positional invocation) on " with ": "say hello
 // with name" → ("say hello", ["name"]); "dm with person, message" → ("dm",
-// ["person","message"]). At teach time the list is the declared arg names; in the
+// ["person","message"]). At learn time the list is the declared arg names; in the
 // positional run form it's the values. No " with " → (command, nil).
 func SplitArgs(command string) (route string, args []string) {
 	i := strings.Index(strings.ToLower(command), " with ")

@@ -393,7 +393,7 @@ func (h *Host) doFind(c runtime.HostCall) (string, runtime.Value, error) {
 		}
 	}
 	wantCol, hasCol := parseHexColor(colStr)
-	recWindow := textOf(set, "Window") // context: the window title this anchor was taught in
+	recWindow := textOf(set, "Window") // context: the window title this anchor was recorded in
 	px, py := h.anchorPoint(set)       // recorded click, window-relative when this run activated
 	_, hasX := set.Get("X")
 	_, hasY := set.Get("Y")
@@ -442,7 +442,7 @@ func (h *Host) doFind(c runtime.HostCall) (string, runtime.Value, error) {
 		"recorded", fmt.Sprintf("(%d,%d)", px, py), "tol", tol)
 
 	// Hover settle: many UIs draw a control differently while the pointer is OVER it
-	// (highlight, glow, a fill that fades in). The template was captured at teach time with
+	// (highlight, glow, a fill that fades in). The template was captured at learn time with
 	// the cursor on the target — i.e. hovered — so the live, un-hovered button never matches
 	// it and the anchor falls back to its coordinate. Put the cursor on the recorded point
 	// first so the live UI enters the SAME hover state the template captured, then match.
@@ -481,7 +481,7 @@ func (h *Host) doFind(c runtime.HostCall) (string, runtime.Value, error) {
 			return okPoint(best[0], best[1])
 		}
 		if timeout <= 0 || time.Now().After(deadline) {
-			mlog.Warn("find: low confidence — falling back to the recorded coordinate; re-teach to repair this anchor",
+			mlog.Warn("find: low confidence — falling back to the recorded coordinate; record it again to repair this anchor",
 				"best", fmt.Sprintf("(%d,%d)", best[0], best[1]), "confidence", round2(conf), "threshold", findConfidence())
 			return "failed", runtime.Absent(), nil
 		}
@@ -876,7 +876,7 @@ func (h *Host) doDrag(c runtime.HostCall) (string, runtime.Value, error) {
 // cvOff reports whether computer vision / anchors are OFF — the DEFAULT now. The CV anchor
 // stack isn't reliable yet, so it's behind a feature flag: off unless explicitly enabled with
 // $MARCO_CV=on/max (or $MARCO_ANCHORS=1/on). When off, doFind resolves straight to the recorded
-// coordinate (no hover/matching) and teach preserves the recorded timings. Kept consistent with
+// coordinate (no hover/matching) and learn preserves the recorded timings. Kept consistent with
 // recorder.anchorsEnabled and orchestrator.cvOff.
 func cvOff() bool {
 	switch strings.ToLower(strings.TrimSpace(os.Getenv("MARCO_CV"))) {

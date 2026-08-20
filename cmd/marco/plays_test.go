@@ -646,7 +646,7 @@ func TestTheLearnPanelDoesNotPrintRawRefusalCodes(t *testing.T) {
 	}
 	// And every one of these codes really is produced by the Director, or the mapping is
 	// guarding nothing.
-	src := readRepoFile(t, "internal/director/teach/teach.go")
+	src := readRepoFile(t, "internal/director/learn/learn.go")
 	for _, code := range []string{"several_routes", "route_not_remembered"} {
 		if !strings.Contains(src, `"`+code+`"`) {
 			t.Errorf("%s is not a refusal the Director raises; the mapping is stale", code)

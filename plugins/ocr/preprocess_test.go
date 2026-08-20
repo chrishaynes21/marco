@@ -17,7 +17,7 @@ func solid(w, h int, c color.RGBA) *image.RGBA {
 }
 
 func TestPreprocessUpscalesSmallCrop(t *testing.T) {
-	// A small teach-time crop keeps the full upscale (default 3x).
+	// A small learn-time crop keeps the full upscale (default 3x).
 	in := solid(200, 60, color.RGBA{200, 200, 200, 255})
 	out, scale := preprocess(in)
 	if scale != 3 {

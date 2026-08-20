@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/chaynes-simpleclouds/marco/internal/director/learn"
 	"github.com/chaynes-simpleclouds/marco/internal/director/rehearse"
-	"github.com/chaynes-simpleclouds/marco/internal/director/teach"
 )
 
 // The host's reason survives all the way from the runner to the panel.
@@ -40,17 +40,17 @@ func TestTheHostsReasonSurvivesToTheSurface(t *testing.T) {
 			"not a problem.", view.Steps[0].Detail)
 	}
 
-	// → the teaching attempt, through the production conversion.
+	// → the learn attempt, through the production conversion.
 	steps := attemptSteps(view.Steps)
 	if len(steps) != 1 {
-		t.Fatalf("%d step(s) reached teaching", len(steps))
+		t.Fatalf("%d step(s) reached Learn", len(steps))
 	}
 	if steps[0].Detail != said {
-		t.Fatalf("teaching's step carries %q; the panel reads this one", steps[0].Detail)
+		t.Fatalf("Learn's step carries %q; the panel reads this one", steps[0].Detail)
 	}
 
 	// → and into what a person reads.
-	a := teach.Attempt{Attempted: true, Steps: steps}
+	a := learn.Attempt{Attempted: true, Steps: steps}
 	reading := strings.Join(attemptDetail(&a), "\n")
 	if !strings.Contains(reading, "target_not_found") {
 		t.Errorf("the reading does not say what the host refused:\n%s", reading)

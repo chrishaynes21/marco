@@ -82,7 +82,7 @@ const (
 // A recorder that can watch indefinitely is a recorder nobody can reason about, and "the user
 // said yes" is not a licence to follow them around. Every one of these ends the capture with its
 // own reason rather than truncating: a demonstration cut short at an arbitrary point and then
-// presented as complete is a candidate that would teach the wrong thing.
+// presented as complete is a candidate Marco would learn the wrong thing from.
 type CaptureBounds struct {
 	// MaxEvents is how many semantic navigation events one demonstration may contain.
 	//

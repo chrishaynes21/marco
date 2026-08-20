@@ -51,7 +51,7 @@ func main() {
 }
 
 // pollRoutes refreshes the list of known route names (for Tab autocomplete) every
-// few seconds, so a just-taught route becomes completable without a restart.
+// few seconds, so a just-learned route becomes completable without a restart.
 func pollRoutes(m *model) {
 	for {
 		if names := listRoutes(); names != nil {

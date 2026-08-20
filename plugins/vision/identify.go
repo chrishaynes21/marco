@@ -11,11 +11,11 @@ import (
 	"strings"
 )
 
-// doIdentify is the TEACH-time analog of Locate: instead of capturing the screen, it runs
+// doIdentify is the LEARN-time analog of Locate: instead of capturing the screen, it runs
 // the detector over a CAPTURED IMAGE (a button template, base64-encoded) and returns the
 // LABEL of the element under the click — so a demonstrated anchor can record what KIND of
 // control it is ("button", "icon", "menu item"), which codegen turns into a `Vision's
-// Locate` run-time fallback. It's invoked directly over the bridge during teach (not a
+// Locate` run-time fallback. It's invoked directly over the bridge during learn (not a
 // route capability), the same way the OCR host's Read labels a demonstrated text anchor.
 //
 // Input: Image (required, base64 PNG), ClickX/ClickY (optional, the click WITHIN the image;

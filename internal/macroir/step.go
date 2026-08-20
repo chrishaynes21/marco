@@ -57,14 +57,14 @@ type Step struct {
 	// where the word IS. Empty → no text resolver. Needs a `--host Text=bridge:ocr`.
 	AnchorText string `json:"anchorText,omitempty"`
 	// AnchorVision, on a StepClick, is the CLASS of the clicked control as named by the
-	// learned detector ("button", "icon", "menu item", "prompt"), captured at teach time.
+	// learned detector ("button", "icon", "menu item", "prompt"), captured at learn time.
 	// Like AnchorText it's a LOCATOR, not a gate: codegen emits a `Vision's Locate`
 	// fallback that finds the nearest element of this class — the resolver for a control
 	// with no text and no clean edge (an icon on a gradient). Empty → no vision resolver.
 	// Needs a `--host Vision=bridge:vision` with a model.
 	AnchorVision string `json:"anchorVision,omitempty"`
 	// AnchorClickX, AnchorClickY are the click's position WITHIN the Template image (its
-	// own pixel space, 0-origin), captured at teach time. Teach-time OCR labelling uses
+	// own pixel space, 0-origin), captured at learn time. Learn-time OCR labelling uses
 	// it to read only the button UNDER the click — not every word in the crop — so a
 	// captured menu yields the label you clicked, not a jumble of its neighbours. (0,0)
 	// means unknown (the OCR step falls back to the template centre).

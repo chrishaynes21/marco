@@ -155,7 +155,7 @@ Full list in [[ADR-014-hypotheses-are-evidence-not-identity]]. The three that ma
 - **Vocabulary is English and small.** A foreign-language or heavily stylised interface produces
   structural hypotheses only. That is the intended failure; the remedy is a larger generic
   vocabulary or better accessibility, never a per-application table.
-- **Confirmed live 2026-08-09** against an application Marco had never been taught — one
+- **Confirmed live 2026-08-09** against an application Marco had never learned — one
   supported menu-like hypothesis, four contested, nothing named. See
   [[Experiment-008-unknown-game-discovery]]. Two limits it measured: navigation admission
   refuses nearly everything on a WASD-driven game (7 intents from 1086 events), and the group

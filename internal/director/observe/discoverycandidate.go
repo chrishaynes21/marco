@@ -5,7 +5,7 @@ package observe
 // # The problem this removes
 //
 // The demonstration capture is armed for a NAMED relationship A → B. B is not known until the user
-// has performed the route once, so teaching ran the route twice: a discovery pass to find out
+// has performed the route once, so Learn ran the route twice: a discovery pass to find out
 // where it goes, and then an armed capture to watch it properly. Two performances of the same
 // thing, and the second one is the one that keeps failing — because it is the one that has to
 // independently re-confirm where the person is standing before it will start recording.

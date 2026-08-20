@@ -81,10 +81,10 @@ type accountView struct {
 	// Sections are the cards, in the order the shared package emitted them.
 	Sections []section `json:"sections,omitempty"`
 
-	// Teaching is lifted out of the sections so the page can give it a first-class panel:
+	// LearnSession is lifted out of the sections so the page can give it a first-class panel:
 	// the cue, the checklist and what Marco believes you just did. It is the SAME value the
-	// TEACHING section renders — not a second copy — and the page shows one or the other.
-	Teaching *playbill.Teaching `json:"teaching,omitempty"`
+	// LEARN SESSION section renders — not a second copy — and the page shows one or the other.
+	LearnSession *playbill.LearnSession `json:"learnSession,omitempty"`
 
 	// Question is the open question, carried whole so the page can offer the ordinary
 	// answers. Answering still goes through the existing response path; this is an address,
@@ -136,9 +136,9 @@ func accountFor(r reading) accountView {
 		return out
 	}
 	out.Question = v.Question
-	if t := v.Teaching; t.Active || t.Learned != "" || t.Stopped {
+	if t := v.LearnSession; t.Active || t.Learned != "" || t.Stopped {
 		copyOf := t
-		out.Teaching = &copyOf
+		out.LearnSession = &copyOf
 	}
 
 	// Normal is deliberately the headline and nothing else. Somebody who wanted the

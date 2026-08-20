@@ -96,7 +96,7 @@ func (p *Pipeline) recordVariableOutcome(name string, res *directorapi.Resolutio
 // variableFailure turns a failed variable lookup into an honest outcome.
 //
 // The three cases stay distinct because the user's next move differs for each: an
-// unknown variable needs re-teaching, a missing target needs re-capturing, and an
+// unknown variable needs remembering again, a missing target needs re-capturing, and an
 // unobservable one needs nothing at all — the Director simply could not see.
 func variableFailure(name string, v variables.Variable, res directorapi.Resolution) error {
 	switch res.Status {

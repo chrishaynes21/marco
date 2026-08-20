@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/chaynes-simpleclouds/marco/internal/director/learn"
 	"github.com/chaynes-simpleclouds/marco/internal/director/marcoexec"
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
 	"github.com/chaynes-simpleclouds/marco/internal/director/service"
-	"github.com/chaynes-simpleclouds/marco/internal/director/teach"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
 )
 
@@ -482,10 +482,10 @@ func TestAnEditedStagedPlayCannotBeRegisteredAsLearned(t *testing.T) {
 //
 // # The live failure
 //
-// Teaching the same phrase twice. The second Learn writes a correct play into `<app>/learned/`
+// Learning the same phrase twice. The second Learn writes a correct play into `<app>/learned/`
 // and then hits `Register`'s collision refusal — the slug is taken by the first one. The
 // lifecycle published `v.Saved` only after registering, so the caller got an error and no
-// evidence at all, the teach coordinator refused `save_failed`, and Marco said:
+// evidence at all, the Learn coordinator refused `save_failed`, and Marco said:
 //
 //	I couldn't save it. Nothing was learned.
 //
@@ -535,7 +535,7 @@ func TestASaveThatCannotRegisterStillReportsTheArtifact(t *testing.T) {
 	}
 }
 
-// The teach tail turns that into `play_not_registered`, never `save_failed`.
+// The learn tail turns that into `play_not_registered`, never `save_failed`.
 //
 // Deleting the partial branch in savedFrom must fail this.
 func TestTheTailReportsAnUnregisterablePlayAsWrittenDown(t *testing.T) {
@@ -572,10 +572,10 @@ func TestTheTailReportsAnUnregisterablePlayAsWrittenDown(t *testing.T) {
 // Mutation: drop the Registered clause in learnViewOf. The panel then sends somebody to a tab
 // their play is not in.
 func TestThePanelDoesNotClaimRoutesForAnUnregisteredPlay(t *testing.T) {
-	written := teach.Session{
-		Phase: teach.Refused, Refusal: teach.PlayNotRegistered,
+	written := learn.Session{
+		Phase: learn.Refused, Refusal: learn.PlayNotRegistered,
 		Name:  "open audio",
-		Saved: &teach.Saved{Name: "open-audio", Saved: true, Registered: false},
+		Saved: &learn.Saved{Name: "open-audio", Saved: true, Registered: false},
 	}
 	v := learnViewOf(written, false, false)
 	if v.Learned {
@@ -588,8 +588,8 @@ func TestThePanelDoesNotClaimRoutesForAnUnregisteredPlay(t *testing.T) {
 	}
 
 	registered := written
-	registered.Phase, registered.Refusal = teach.Complete, ""
-	registered.Saved = &teach.Saved{Name: "open-audio", Saved: true, Registered: true}
+	registered.Phase, registered.Refusal = learn.Complete, ""
+	registered.Saved = &learn.Saved{Name: "open-audio", Saved: true, Registered: true}
 	if !learnViewOf(registered, false, false).Learned {
 		t.Error("a saved and registered play is not reported as learned")
 	}

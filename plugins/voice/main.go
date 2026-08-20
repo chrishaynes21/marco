@@ -43,7 +43,7 @@ func main() {
 
 	w := strings.ToLower(strings.TrimSpace(*wake))
 
-	// narrateLock is a file the overlay creates while a narrate-teach session is
+	// narrateLock is a file the overlay creates while a narrate-learn session is
 	// live. When it exists the voice plugin re-arms after each command phrase, so
 	// the user never needs to repeat the wake word mid-narration.
 	narrateLock := envOr("MARCO_NARRATE_LOCK", filepath.Join(os.TempDir(), "marco-narrate.lock"))
@@ -83,7 +83,7 @@ func main() {
 	var armedAt time.Time
 	const armWindow = 8 * time.Second
 
-	// listening() gates whether speech is treated as a command. In narrate-teach it's
+	// listening() gates whether speech is treated as a command. In narrate-learn it's
 	// always on — the session stays live with no wake word and no arm-window timeout,
 	// so you can pause to read/navigate a menu and keep narrating. Otherwise it's the
 	// usual armed-within-the-window check.
@@ -111,7 +111,7 @@ func main() {
 		// Armed: this phrase is the command (a leading wake word is fine too).
 		if listening() {
 			if inNarrateMode() {
-				// Narrate-teach is active: re-arm immediately so the user doesn't
+				// Narrate-learn is active: re-arm immediately so the user doesn't
 				// need to repeat the wake word between phrases. The narrate child
 				// handles "done" / "cancel" and the overlay removes the lock file.
 				mlogD("voice: narrate mode re-arm", "phrase", t)

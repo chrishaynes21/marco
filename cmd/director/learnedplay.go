@@ -226,7 +226,7 @@ func corroborationFor(store observe.CandidateStore, application string,
 
 // learnedRegistry is where saved plays live.
 //
-// The SAME registry ordinary taught and authored routes use, honouring `$MARCO_ROUTES` exactly as
+// The SAME registry ordinary learned and authored routes use, honouring `$MARCO_ROUTES` exactly as
 // `marco` does. A learned play is a `.marco` file in the routes tree; that is the point.
 func learnedRegistry() routes.Registry {
 	dir := os.Getenv("MARCO_ROUTES")
@@ -253,7 +253,7 @@ func (r *Runtime) lifecycle(q service.LearnedQuery, v *service.LearnedView,
 	// THE SLUG IS WHAT THE AUDIENCE SAYS, not the actor the Marco happens to declare.
 	//
 	// `Name`/`Verb` are the play.s identity inside the language; the slug is how a person
-	// asks for it. Taking the slug from Name meant the taught phrase "Open Mouse Settings"
+	// asks for it. Taking the slug from Name meant the learned phrase "Open Mouse Settings"
 	// registered as `mousesettings` and then resolved to a suggestion rather than a route.
 	//
 	// Deleting the Phrase branch must fail TestTheTaughtPhraseIsWhatResolves.
@@ -272,7 +272,7 @@ func (r *Runtime) lifecycle(q service.LearnedQuery, v *service.LearnedView,
 	//
 	// Registered as context, the product could not invoke a learned play at all: asking for
 	// "Open Mouse Settings" with anything else in front missed the resolver and was offered
-	// as something to teach — a play that had just been learned. Measured in the Phase-0 live
+	// as something to learn — a play that had just been learned. Measured in the Phase-0 live
 	// acceptance with Discord in front; see [[ADR-080-a-learned-play-is-asked-for-from-anywhere]].
 	//
 	// Deleting Focus must fail TestALearnedPlayIsRegisteredWhenItIsSaved.
@@ -329,7 +329,7 @@ func (r *Runtime) lifecycle(q service.LearnedQuery, v *service.LearnedView,
 		//
 		// Publishing this only at the end meant a registration failure returned a view with
 		// no Saved at all, and every reader above concluded nothing had been written. The
-		// teach coordinator then refused with `save_failed` — "I couldn't save it. Nothing
+		// Learn coordinator then refused with `save_failed` — "I couldn't save it. Nothing
 		// was learned." — while a correct, readable play sat in `<app>/learned/`. The user
 		// was told their work was gone.
 		//

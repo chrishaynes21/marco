@@ -150,8 +150,8 @@ func TestShippedDispatcherHonoursTheAuthorityDoor(t *testing.T) {
 	t.Setenv("MARCO_NO_PANIC_STOP", "1") // don't install global hooks in a test
 	d, host := registerGuardedLearnedPlay(t)
 
-	if err := dispatchDo(d, "volume", nil, nil); err != nil {
-		t.Fatalf("dispatchDo: %v", err)
+	if _, err := doAsProduct(t, d, "volume", nil, nil); err != nil {
+		t.Fatalf("marco do: %v", err)
 	}
 
 	if got := host.pressed(); len(got) != 0 {
@@ -187,8 +187,8 @@ func TestNoExplicitYesDoesNotAuthoriseALearnedPlay(t *testing.T) {
 			// is that NOTHING performs the play without an explicit yes, and it must not
 			// quietly stop being checked because the performer moved.
 			director := useFakeDirector(t, &fakeDirector{view: arrived(1)})
-			if err := dispatchDo(d, "volume", nil, nil); err != nil {
-				t.Fatalf("dispatchDo: %v", err)
+			if _, err := doAsProduct(t, d, "volume", nil, nil); err != nil {
+				t.Fatalf("marco do: %v", err)
 			}
 			ran := len(host.pressed()) > 0 || len(director.asked) > 0
 			if ran != tc.run {
@@ -230,8 +230,8 @@ func TestShippedDispatcherStillRunsOrdinaryPlays(t *testing.T) {
 		App:   func() string { return "testgame" },
 	}
 	d.Authority = declineGate{} // would decline a LEARNED play; must be irrelevant here
-	if err := dispatchDo(d, "volume", nil, nil); err != nil {
-		t.Fatalf("dispatchDo: %v", err)
+	if _, err := doAsProduct(t, d, "volume", nil, nil); err != nil {
+		t.Fatalf("marco do: %v", err)
 	}
 	if got := host.pressed(); len(got) != 2 {
 		t.Fatalf("an ordinary authored play was gated by the door: pressed %v, want 2 calls", got)

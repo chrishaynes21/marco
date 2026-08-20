@@ -15,10 +15,10 @@
 //	← {"status":"failed"}                        // nothing matched (route falls back)
 //	← {"status":"failed","error":"Vision has no model loaded"}  // detector unavailable
 //
-// It also serves a teach-time Identify action — run the detector on a captured button
+// It also serves a learn-time Identify action — run the detector on a captured button
 // template (base64 PNG) and return the CLASS of the control under the click — so a
 // DEMONSTRATED anchor records what KIND of thing it is. Like the OCR host's Read, it's
-// invoked directly by the engine over the bridge during teach, not a route capability:
+// invoked directly by the engine over the bridge during learn, not a route capability:
 //
 //	→ {"act":"Vision","action":"Identify","input":{"Image":"<base64 png>","ClickX":..,"ClickY":..}}
 //	← {"status":"ok","data":{"Label":"icon"}}    // the control clicked

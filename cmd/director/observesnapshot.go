@@ -138,7 +138,7 @@ func fusedStructure(entities []observe.EntitySnapshot, cycle observation.Cycle,
 	// Discord active reports hundreds of structures; the same window, backgrounded, reports
 	// `pane=7 window=1` with coverage 0.00 and nothing operable. That is not a sparse screen,
 	// it is a window whose contents nobody can see, and Marco was minting durable places from
-	// it — a live teach established a "screen" of five controls in a 44-pixel strip and
+	// it — a live learn established a "screen" of five controls in a 44-pixel strip and
 	// remembered it forever.
 	//
 	// The signal is the world's OWN, not a second opinion: `Shallow` already says "well

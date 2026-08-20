@@ -1,6 +1,6 @@
 // Package winctx is the "which app is in front" platform capability: it reads
 // the foreground application and brings a named application to the front. Routes
-// use it to become context-aware — scoped to the app they were taught in, and
+// use it to become context-aware — scoped to the app they were recorded in, and
 // activating that app before they run. Windows first, with stubs elsewhere.
 package winctx
 

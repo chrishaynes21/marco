@@ -120,9 +120,10 @@ func (v View) Normal() Headline {
 		return Headline{Word: "Stopped", Detail: v.Doing.What, Tone: Muted}
 	}
 
-	// TEACHING outranks passive learning in the one-line reading. Somebody who asked to
-	// teach something is waiting for a cue; somebody being watched is not waiting at all.
-	if h, ok := v.teachingHeadline(); ok {
+	// The Learn session outranks passive learning in the one-line reading. Somebody who
+	// asked Marco to learn something is waiting for a cue; somebody being watched is not
+	// waiting at all.
+	if h, ok := v.learnSessionHeadline(); ok {
 		return h
 	}
 
@@ -187,11 +188,11 @@ func (v View) Watch() []Line {
 		out = append(out, blank(), head("THINKING"))
 		out = append(out, t...)
 	}
-	if t := v.teachingLines(); len(t) > 0 {
-		// TEACHING sits ABOVE learning, and above everything except what is on screen
-		// now. A person who asked to teach something is waiting for a cue from Marco,
+	if t := v.learnSessionLines(); len(t) > 0 {
+		// LEARN SESSION sits ABOVE learning, and above everything except what is on screen
+		// now. A person who asked Marco to learn something is waiting for a cue from Marco,
 		// and the cue must not be below three sections they have to scroll past.
-		out = append(out, blank(), head("TEACHING"))
+		out = append(out, blank(), head("LEARN SESSION"))
 		out = append(out, t...)
 	}
 	if l := v.learningLines(); len(l) > 0 {
@@ -801,14 +802,14 @@ func (v View) WithDigest() View {
 	w(strconv.Itoa(v.Thinking.Changes), strconv.Itoa(v.Thinking.Caused))
 	w(string(v.Learning.Stage), v.Learning.From, v.Learning.To, v.Learning.Because,
 		strings.Join(v.Learning.Silence, "|"))
-	// The teaching section is IN the digest, so a surface that holds still while nothing
+	// The Learn section is IN the digest, so a surface that holds still while nothing
 	// changes still moves the moment the cue appears. A cue nobody is told about is worse
 	// than no cue.
-	w(boolKey(v.Teaching.Active), boolKey(v.Teaching.Armed),
-		boolKey(v.Teaching.Waiting), v.Teaching.Asked,
-		v.Teaching.Because, v.Teaching.Learned, boolKey(v.Teaching.Stopped),
-		strings.Join(v.Teaching.Did, "|"), strconv.Itoa(v.Teaching.Examples))
-	for _, s := range v.Teaching.Progress {
+	w(boolKey(v.LearnSession.Active), boolKey(v.LearnSession.Armed),
+		boolKey(v.LearnSession.Waiting), v.LearnSession.Asked,
+		v.LearnSession.Because, v.LearnSession.Learned, boolKey(v.LearnSession.Stopped),
+		strings.Join(v.LearnSession.Did, "|"), strconv.Itoa(v.LearnSession.Examples))
+	for _, s := range v.LearnSession.Progress {
 		w(s.Name, string(s.State))
 	}
 	w(string(v.Doing.Phase), v.Doing.What, v.Doing.Because,
@@ -931,9 +932,9 @@ func boolKey(b bool) string {
 	return "0"
 }
 
-// ── TEACHING ──────────────────────────────────────────────────────────────────
+// ── LEARN SESSION ─────────────────────────────────────────────────────────────
 
-// teachingLines is the explicit teaching session, for a person watching it happen.
+// learnSessionLines is the explicit learn session, for a person watching it happen.
 //
 // # What this has to make unmistakable
 //
@@ -945,14 +946,14 @@ func boolKey(b bool) string {
 //     having reached the end of the flow.
 //
 // Everything else is progress and can be skimmed.
-func (v View) teachingLines() []Line {
-	t := v.Teaching
+func (v View) learnSessionLines() []Line {
+	t := v.LearnSession
 	if !t.Active && t.Learned == "" && !t.Stopped {
 		return nil
 	}
 	var out []Line
 	if t.Asked != "" {
-		out = append(out, line("Teaching "+quote(t.Asked), Plain))
+		out = append(out, line("Learning "+quote(t.Asked), Plain))
 	}
 
 	// THE cue. Accent is reserved in this package for things waiting on a person, and a
@@ -985,7 +986,7 @@ func (v View) teachingLines() []Line {
 			plural(t.Examples, "example", "examples")), Muted))
 	}
 	if t.Because != "" {
-		out = append(out, sub(t.Because, teachTone(t)))
+		out = append(out, sub(t.Because, learnTone(t)))
 	}
 	for _, s := range t.Progress {
 		out = append(out, sub(stepMark(s.State)+" "+s.Name, stepTone(s.State)))
@@ -1004,7 +1005,7 @@ func (v View) teachingLines() []Line {
 	return out
 }
 
-func teachTone(t Teaching) Tone {
+func learnTone(t LearnSession) Tone {
 	switch {
 	case t.Stopped:
 		return Doubt
@@ -1039,13 +1040,13 @@ func stepTone(s StepState) Tone {
 	return Muted
 }
 
-// teachingHeadline is the one-line reading of an explicit teaching session.
+// learnSessionHeadline is the one-line reading of an explicit learn session.
 //
 // Ordered by what the person has to DO, not by where the flow is: the cue first, the
 // result second, progress last. `Attention` is set only for the cue, because that is the
 // one state where Marco is holding still and cannot continue without them.
-func (v View) teachingHeadline() (Headline, bool) {
-	t := v.Teaching
+func (v View) learnSessionHeadline() (Headline, bool) {
+	t := v.LearnSession
 	switch {
 	case t.Armed:
 		return Headline{Word: "Show me", Detail: "I'm watching this example now.",
@@ -1056,7 +1057,7 @@ func (v View) teachingHeadline() (Headline, bool) {
 		return Headline{Word: "Stopped", Detail: t.Because, Tone: Doubt}, true
 	case t.Waiting:
 		// Their turn. Accent and Attention are reserved for exactly this, and collapsing
-		// it into "Teaching" would leave somebody watching a line that never changes while
+		// it into "Learning from you" would leave somebody watching a line that never changes while
 		// Marco waits for them.
 		return Headline{Word: "Waiting for you", Detail: t.Because,
 			Tone: Accent, Attention: true}, true
@@ -1065,7 +1066,7 @@ func (v View) teachingHeadline() (Headline, bool) {
 		if detail == "" {
 			detail = "Hold still a moment."
 		}
-		return Headline{Word: "Teaching", Detail: detail, Tone: Plain}, true
+		return Headline{Word: "Learning from you", Detail: detail, Tone: Plain}, true
 	}
 	return Headline{}, false
 }

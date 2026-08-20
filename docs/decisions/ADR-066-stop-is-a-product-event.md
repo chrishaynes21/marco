@@ -7,8 +7,8 @@ affects:
   - demonstrations
   - learned-plays
 source_paths:
-  - internal/director/teach/teach.go
-  - cmd/director/teachwiring.go
+  - internal/director/learn/learn.go
+  - cmd/director/learnsessionwiring.go
   - cmd/director/learnview.go
   - internal/director/service/protocol.go
 ---

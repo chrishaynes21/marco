@@ -58,7 +58,7 @@ func TestApplyArgs(t *testing.T) {
 	}
 	// Positional values fill NAMED placeholders by declared order: "say hello with
 	// chris" ≡ "name:chris". This is the bridge between the `with x` run form and a
-	// route taught with named args.
+	// route recorded with named args.
 	if got := ApplyArgs(`"{{name}}"`, nil, []string{"chris"}); got != `"chris"` {
 		t.Errorf("positional→named: got %q", got)
 	}

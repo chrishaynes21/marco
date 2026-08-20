@@ -326,8 +326,8 @@ func describeSignature(sig observe.StructureSignature) string {
 
 // withPlace fills in where Marco thinks you are and how you got there.
 //
-// Called on BOTH the idle and the teaching path, because place recognition is not a property of
-// teaching. Somebody hardening identity walks an application and watches this change without
+// Called on BOTH the idle and the Learn path, because place recognition is not a property of
+// Learn. Somebody hardening identity walks an application and watches this change without
 // starting a demonstration at all — and needing to start one would make the investigation
 // interfere with the thing being investigated.
 //
@@ -360,12 +360,12 @@ const LightDuration = 15 * time.Minute
 
 // LightInterval is how often Light Mode samples.
 //
-// Slower than a teach pass on purpose. This is somebody watching whether recognition is stable
+// Slower than a learn pass on purpose. This is somebody watching whether recognition is stable
 // while they navigate, not a capture trying not to miss a click, and the cost of watching must
 // stay small enough that leaving it on is reasonable.
 const LightInterval = 900 * time.Millisecond
 
-// watchHere begins a passive session so recognition can be watched without teaching anything.
+// watchHere begins a passive session so recognition can be watched without a learn session.
 //
 // # Why this exists
 //
@@ -396,7 +396,7 @@ func (r *Runtime) watchHere() error {
 	// StartObservation directly and therefore watched Chrome on every single press, which is
 	// the same mistake Learn's Start made one screen earlier and for the identical reason.
 	//
-	// So Watch waits for a window that is not Marco to hold still, exactly as a teach session
+	// So Watch waits for a window that is not Marco to hold still, exactly as a learn session
 	// does, and starts observing that. Somebody presses Watch, goes to their application, and
 	// it begins — which is also the shape the person already expects from Start.
 	//
@@ -427,7 +427,7 @@ func (r *Runtime) watchHere() error {
 		if serr != nil {
 			return
 		}
-		// WHOSE SESSION THIS IS. Recorded so teaching can take the slot back from Light
+		// WHOSE SESSION THIS IS. Recorded so Learn can take the slot back from Light
 		// Mode and from nothing else — see yieldWatching.
 		r.watchMu.Lock()
 		r.watchSession = observe.SessionID(started.ID)
@@ -438,7 +438,7 @@ func (r *Runtime) watchHere() error {
 
 // yieldWatching gives up the observation slot if Light Mode is the one holding it.
 //
-// # Why teaching takes the slot rather than being refused
+// # Why Learn takes the slot rather than being refused
 //
 // One observation runs at a time — two would contend for the screen and neither could attribute
 // what it saw. Light Mode is an INSTRUMENT: somebody watching whether recognition is stable. A
@@ -551,7 +551,7 @@ func awaitSettledWindow(ctx context.Context, ask func(context.Context) (windowre
 			candidate, stable = windowref.Candidate{}, 0
 		case c.Handle == candidate.Handle:
 			stable++
-			if stable >= teachSubjectSettle {
+			if stable >= learnSubjectSettle {
 				sel, aerr := adopt(c)
 				if aerr != nil {
 					// Settled and unreferable. Keep waiting rather than failing:
@@ -568,7 +568,7 @@ func awaitSettledWindow(ctx context.Context, ask func(context.Context) (windowre
 		select {
 		case <-ctx.Done():
 			return windowref.Selector{}, ctx.Err()
-		case <-time.After(teachSubjectPoll):
+		case <-time.After(learnSubjectPoll):
 		}
 	}
 }
@@ -596,7 +596,7 @@ func (g *observationRegistry) placeNowSignature() (observe.StructureSignature, s
 // # Why a passive session may do this, when passive observation may not
 //
 // It may not, and this is not passive observation doing it. `Episode.EstablishPlaces` is set by
-// teaching and by nothing else, because `teach "…"` IS the human semantic event that licenses
+// Learn and by nothing else, because `learn "…"` IS the human semantic event that licenses
 // persisting where somebody is standing — see [[ADR-047]] and the Episode comment. Somebody
 // typing a name for the screen in front of them is the same event, given more directly: they have
 // looked at it, decided it is a place, and said what it is called.

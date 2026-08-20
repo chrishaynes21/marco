@@ -8,7 +8,7 @@ affects:
 source_paths:
   - internal/director/rehearse/live.go
   - internal/director/rehearse/rehearse.go
-  - internal/director/teach/teach.go
+  - internal/director/learn/learn.go
   - cmd/director/rehearserun.go
 ---
 
@@ -48,8 +48,8 @@ eventual timeout blames the failed authorization rather than the person.
   `TestAWindowFallingBehindMidRouteSendsNoFurtherInput`,
   `TestALiveStepIsClassifiedAgainstItsOwnApplication`
   (`internal/director/rehearse/route_test.go`)
-- `TestAWindowBehindTheForegroundWaits` (`internal/director/teach/patient_test.go`)
-- `TestAYesThatCreatedNoAuthorityIsSaidOutLoud` (`internal/director/teach/tail_test.go`)
+- `TestAWindowBehindTheForegroundWaits` (`internal/director/learn/patient_test.go`)
+- `TestAYesThatCreatedNoAuthorityIsSaidOutLoud` (`internal/director/learn/tail_test.go`)
 
 ## Related
 

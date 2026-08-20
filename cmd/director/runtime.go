@@ -19,6 +19,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/game"
 	"github.com/chaynes-simpleclouds/marco/internal/director/goal"
 	"github.com/chaynes-simpleclouds/marco/internal/director/intent"
+	"github.com/chaynes-simpleclouds/marco/internal/director/learn"
 	"github.com/chaynes-simpleclouds/marco/internal/director/marcoexec"
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/diagnostics"
@@ -35,7 +36,6 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/semanticmemory"
 	"github.com/chaynes-simpleclouds/marco/internal/director/service"
 	"github.com/chaynes-simpleclouds/marco/internal/director/target"
-	"github.com/chaynes-simpleclouds/marco/internal/director/teach"
 	"github.com/chaynes-simpleclouds/marco/internal/director/trace"
 	"github.com/chaynes-simpleclouds/marco/internal/director/values"
 	"github.com/chaynes-simpleclouds/marco/internal/director/variables"
@@ -96,7 +96,7 @@ type Runtime struct {
 	// otherwise a goroutine outlives the decision and starts observing minutes later.
 	watchMu     sync.Mutex
 	watchArming bool
-	// watchSession is the session Light Mode started, so teaching can take the slot back
+	// watchSession is the session Light Mode started, so Learn can take the slot back
 	// from it and from nothing else. See Runtime.yieldWatching.
 	watchSession observe.SessionID
 	watchCancel  context.CancelFunc
@@ -139,18 +139,18 @@ type Runtime struct {
 	winDirectory *windowref.Directory
 	// observations owns the one active passive session and the recent finished ones.
 	observations *observationRegistry
-	// teach owns the one teaching session, when somebody is teaching.
+	// learn owns the one learn session, when somebody is learning.
 	//
-	// Beside the observation registry rather than inside it, because teaching is a
+	// Beside the observation registry rather than inside it, because Learn is a
 	// conversation ABOUT observation rather than a kind of it — and because a Director that
-	// could not be taught should still observe.
-	teach *teaching
-	// teachGround is what turns a screen the teach session decided about into where it is on
+	// could not learn should still observe.
+	learn *learnSession
+	// learnGround is what turns a screen the learn session decided about into where it is on
 	// the display, and the record of the frames those measurements were taken against.
 	//
-	// Beside the coordinator rather than inside it: `internal/director/teach` must not be able
+	// Beside the coordinator rather than inside it: `internal/director/learn` must not be able
 	// to reach the platform at all, which is what its boundary test holds.
-	teachGround *teachGrounding
+	learnGround *learnGrounding
 	// liveMarco is the Marco runner over the REAL hosts.
 	//
 	// Held so an explicitly-live rehearsal can be handed one. Never installed by default:
@@ -166,9 +166,9 @@ type Runtime struct {
 	// aimed at Marco never becomes evidence of what the person was demonstrating. See
 	// surfaceowner.go.
 	owner surfaceOwner
-	// passesFor substitutes the pass runner a teach attempt uses. Nil in production; see
-	// teachingPasses.
-	passesFor func(windowref.Selector) teach.Passes
+	// passesFor substitutes the pass runner a learn attempt uses. Nil in production; see
+	// learnSessionPasses.
+	passesFor func(windowref.Selector) learn.Passes
 	// visual observes appearance and change in bounded regions. Opt-in like OCR, and
 	// used by the pipeline's retry guard.
 	visual *visualstate.Provider
@@ -344,9 +344,9 @@ func NewRuntime(bridgePath string, maxNodes int, dryRun bool, g *actiongraph.Fil
 	// them is about the screen.
 	rt.semanticMemory, rt.semanticMemoryUnavailable = semanticmemory.Open(semanticMemoryPath())
 	rt.observations = newObservationRegistry().withMemory(rt.semanticMemory)
-	// Somewhere for the one teach session to live. Empty and inert until somebody asks to
-	// teach something; it holds no authority, and a restart begins with nothing.
-	rt.teach = &teaching{}
+	// Somewhere for the one learn session to live. Empty and inert until somebody asks to
+	// learn something; it holds no authority, and a restart begins with nothing.
+	rt.learn = &learnSession{}
 	rt.winPlatform = windows
 
 	// Provenance, wired once, here. Both the tree walk and the pixels have to be able to
@@ -495,10 +495,10 @@ func NewRuntime(bridgePath string, maxNodes int, dryRun bool, g *actiongraph.Fil
 	if gerr != nil {
 		return nil, gerr
 	}
-	// What the user has TAUGHT this Director, loaded before it serves anything and
+	// What this Director has LEARNED from the user, loaded before it serves anything and
 	// registered into the same registry as the built-ins. A malformed learned procedure
 	// stops the service for the reason a malformed built-in does: a procedure the user
-	// believes they taught, silently absent, is discovered when the Director does
+	// believes Marco learned, silently absent, is discovered when the Director does
 	// something else instead.
 	demoStore, derr := demo.Open(configDir())
 	if derr != nil {
@@ -529,7 +529,7 @@ func NewRuntime(bridgePath string, maxNodes int, dryRun bool, g *actiongraph.Fil
 	}
 	// One store, owned by the long-lived service, so separate CLI invocations reach the
 	// same variables. A load failure is surfaced rather than swallowed: silently
-	// starting empty would look like the user never taught the Director anything.
+	// starting empty would look like the Director never learned anything.
 	vars, verr := variables.Open(configDir())
 	if verr != nil {
 		return nil, verr

@@ -9,7 +9,7 @@ import (
 // The conditions under which one adjacency may be recovered across an unplaceable sample.
 //
 // Every test here is a case where bridging would be WRONG, plus the one where it is right. The
-// bridge exists because a real teach attempt lost the route the user had just demonstrated to a
+// bridge exists because a real learn attempt lost the route the user had just demonstrated to a
 // single unreadable frame; it must not become a way to invent routes nobody demonstrated.
 
 // namedMemory resolves any signature whose subject ref is a known state, by NAME.

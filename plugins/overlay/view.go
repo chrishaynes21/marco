@@ -230,7 +230,7 @@ func (g *view) Update() error {
 		// Live-preview the opacity setting while the editor is open (floored so it
 		// stays readable) so the slider visibly does something.
 		tb, tt = clampF(cfgIdle(), 0.6, 1.0), textWake
-	case s.helpOn || s.teaching || g.st.sinceActive() < idleAfter:
+	case s.helpOn || s.learnSession || g.st.sinceActive() < idleAfter:
 		tb, tt = bgWake, textWake
 	}
 	g.alphaBg += (tb - g.alphaBg) * 0.18
@@ -285,7 +285,7 @@ func layoutHeight(s snapshot) int {
 		y += 12                        // separator
 		y += terminalHeight(s, innerW) // terminal line (wraps if long)
 	}
-	y += teachHeight(s, innerW) // teach prompt + selection, below the command line
+	y += promptHeight(s, innerW) // prompt + selection, below the command line
 	switch {
 	case s.configOn:
 		y += 8 + menuLineH*float64(configRowCount(s, innerW)) + 18 // sep + rows + footer
@@ -373,7 +373,7 @@ func (g *view) Draw(screen *ebiten.Image) {
 			y += 15
 		}
 
-		// --- Optional live cursor-coords tooltip (handy for teaching, esp. multi-monitor). ---
+		// --- Optional live cursor-coords tooltip (handy for learning, esp. multi-monitor). ---
 		if c.Coords && s.curHasPos {
 			centerText(screen, fmt.Sprintf("x %d   y %d", s.curX, s.curY), cx, y, faceSmall, th.listen)
 			y += 15
@@ -382,7 +382,7 @@ func (g *view) Draw(screen *ebiten.Image) {
 		sep(screen, pad, y, innerW)
 		y += 12
 
-		// --- Description / idle hint line. Wraps to the panel width so a long teach
+		// --- Description / idle hint line. Wraps to the panel width so a long learn
 		// prompt (e.g. `Save this as "…"? [y]/[n]/[s]`) is shown in full, not cut off. ---
 		isHint := !s.editing && (s.state == "idle" || s.state == "listen")
 		dy := y
@@ -409,10 +409,10 @@ func (g *view) Draw(screen *ebiten.Image) {
 		y += terminalHeight(s, innerW)
 	}
 
-	// --- Teach transcript, terminal-style: directly BELOW the command. The recording
+	// --- Learn transcript, terminal-style: directly BELOW the command. The recording
 	// timer, then each answered question + your selection, then the active prompt and
 	// what you've typed so far (type y/n/s, then Enter). ---
-	if rows := teachRows(s, innerW); len(rows) > 0 {
+	if rows := promptRows(s, innerW); len(rows) > 0 {
 		y += 6
 		for _, ln := range rows {
 			col := th.desc
@@ -520,7 +520,7 @@ func (g *view) Draw(screen *ebiten.Image) {
 // accent as the `m leader badge), so a marco command reads distinctly from a
 // plain route name.
 var marcoVerbs = map[string]bool{
-	"teach": true, "simplify": true, "forget": true, "rename": true,
+	"learn": true, "teach": true, "simplify": true, "forget": true, "rename": true,
 	"bind": true, "unbind": true, "config": true, "help": true,
 	"exit": true, "quit": true,
 }
@@ -694,30 +694,49 @@ func drawArgSuggestion(dst *ebiten.Image, names []string, x, y float64) {
 }
 
 // drawResultIcon draws the outcome glyph as a VECTOR (no font dependency — the
-// ✓/■/✗ glyphs aren't in every mono font and render as tofu): a check, a square,
-// or a cross, centred at (cx, cy).
-func drawResultIcon(dst *ebiten.Image, cx, cy float64, outcome string, col color.RGBA) {
+// ✓/■/✗ glyphs aren't in every mono font and render as tofu), centred at (cx, cy).
+//
+// SIX GLYPHS, because there are six outcomes. The history used to show three, so a play
+// the door REFUSED and a play that worked drew the same green check — the one row a person
+// reads to find out whether the thing happened said it had. Every glyph here is drawn from
+// StrokeLine and FillRect only, which is why there is no circle: those two primitives are
+// the ones this file has always used and the ones proven to render on every backend.
+//
+// Deleting an arm must fail TestEverySixOutcomeHasItsOwnGlyph.
+func drawResultIcon(dst *ebiten.Image, cx, cy float64, out string, col color.RGBA) {
 	c := aText(col)
 	x, y := float32(cx), float32(cy)
-	switch outcome {
-	case "ok": // check
+	switch outcome(out) {
+	case outcomePerformed: // check — it ran and arrival was verified
 		vector.StrokeLine(dst, x-4, y, x-1, y+3, 1.6, c, true)
 		vector.StrokeLine(dst, x-1, y+3, x+4, y-4, 1.6, c, true)
-	case "failed": // cross
+	case outcomeClarify: // pause bars — it is waiting on YOU
+		vector.FillRect(dst, x-3, y-3, 2, 6, c, true)
+		vector.FillRect(dst, x+1, y-3, 2, 6, c, true)
+	case outcomeRefused: // a single "no" stroke — declined, not broken
+		vector.StrokeLine(dst, x-3, y+3, x+3, y-3, 1.6, c, true)
+	case outcomeUnavailable: // a dash — nothing took it, so nothing happened
+		vector.StrokeLine(dst, x-4, y, x+4, y, 1.6, c, true)
+	case outcomeCancelled: // filled square — somebody stopped it
+		vector.FillRect(dst, x-3, y-3, 6, 6, c, true)
+	case outcomeFailed: // cross — it was tried and it went wrong
 		vector.StrokeLine(dst, x-3, y-3, x+3, y+3, 1.6, c, true)
 		vector.StrokeLine(dst, x-3, y+3, x+3, y-3, 1.6, c, true)
-	case "canceled": // square
-		vector.FillRect(dst, x-3, y-3, 6, 6, c, true)
 	}
 }
 
-func resultColor(outcome string) color.RGBA {
-	switch outcome {
-	case "ok":
+// resultColor separates the three things a glance has to tell apart: it happened, it did
+// not happen and that is fine, it went wrong. A refusal is deliberately NOT the error
+// colour — Marco declining is a correct answer, not a fault.
+func resultColor(out string) color.RGBA {
+	switch outcome(out) {
+	case outcomePerformed:
 		return th.run
-	case "canceled":
+	case outcomeClarify:
+		return th.listen // the same colour as "Marco is waiting to hear from you"
+	case outcomeCancelled, outcomeRefused, outcomeUnavailable:
 		return th.idle
-	case "failed":
+	case outcomeFailed:
 		return th.errc
 	}
 	return th.lastCmd
@@ -859,7 +878,7 @@ func historyRowCount(s snapshot, innerW float64) int {
 }
 
 // descRows returns the rows to draw on the description/log line: the idle hint, or
-// the latest log word-wrapped to innerW (so a long teach prompt isn't truncated).
+// the latest log word-wrapped to innerW (so a long prompt isn't truncated).
 func descRows(s snapshot, innerW float64) []string {
 	if !s.editing && (s.state == "idle" || s.state == "listen") {
 		// The NORMAL reading, on the always-visible line. This is the consumer surface:
@@ -881,34 +900,34 @@ func descRows(s snapshot, innerW float64) []string {
 	return nil
 }
 
-// teachRows are the lines of the teach session, rendered BELOW the command line
+// promptRows are the lines of the learn session, rendered BELOW the command line
 // like a terminal: a live recording timer (while demonstrating, before any prompt),
 // then the answered question + selection transcript, then the active prompt and the
-// answer you've typed so far (type y/n/s, then Enter). Empty when not teaching.
-func teachRows(s snapshot, innerW float64) []string {
-	if !s.teaching && len(s.teachLog) == 0 && s.teachPrompt == "" {
+// answer you've typed so far (type y/n/s, then Enter). Empty when not learning.
+func promptRows(s snapshot, innerW float64) []string {
+	if !s.learnSession && len(s.learnLog) == 0 && s.prompt == "" {
 		return nil
 	}
 	var rows []string
 	// While recording (no prompt up yet), show how long you've been demonstrating.
-	if s.teaching && s.teachPrompt == "" && len(s.teachLog) == 0 {
-		el := time.Since(s.teachStart)
+	if s.learnSession && s.prompt == "" && len(s.learnLog) == 0 {
+		el := time.Since(s.learnStart)
 		rows = append(rows, fmt.Sprintf("● rec  %d:%02d", int(el.Minutes()), int(el.Seconds())%60))
 	}
-	for _, line := range s.teachLog { // answered Q + "› answer" pairs
+	for _, line := range s.learnLog { // answered Q + "› answer" pairs
 		rows = append(rows, wrapText(line, faceSmall, innerW)...)
 	}
-	if s.teachPrompt != "" {
-		rows = append(rows, wrapText(s.teachPrompt, faceSmall, innerW)...)
+	if s.prompt != "" {
+		rows = append(rows, wrapText(s.prompt, faceSmall, innerW)...)
 		rows = append(rows, "› "+s.teachPending+"_") // what you've typed; press Enter to send
 	}
 	return rows
 }
 
-// teachHeight is the vertical space the teach prompt block occupies below the
+// promptHeight is the vertical space the prompt block occupies below the
 // command line (a small gap + one menuLineH per row); 0 when no prompt is up.
-func teachHeight(s snapshot, innerW float64) float64 {
-	if n := len(teachRows(s, innerW)); n > 0 {
+func promptHeight(s snapshot, innerW float64) float64 {
+	if n := len(promptRows(s, innerW)); n > 0 {
 		return 6 + float64(n)*menuLineH
 	}
 	return 0

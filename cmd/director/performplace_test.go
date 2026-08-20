@@ -59,7 +59,7 @@ func TestAFinishedSessionIsNotWhereTheAudienceIsNow(t *testing.T) {
 		t.Fatalf("session %s is running; this is about a session that has finished", id)
 	}
 
-	subject, _ := rt.freshPlace("settings")
+	subject, _ := rt.freshPlace(context.Background(), "settings")
 	if subject != "" {
 		t.Fatalf("a performance would plan from %q, which is where a FINISHED session left "+
 			"off. That is history answering a question about now — the defect that told "+
@@ -88,7 +88,7 @@ func TestALiveSessionElsewhereIsNotWhereTheAudienceIsNow(t *testing.T) {
 		t.Fatalf("the live session resolves to %q, want %q", got, elsewhere)
 	}
 
-	subject, why := rt.freshPlace("settings")
+	subject, why := rt.freshPlace(context.Background(), "settings")
 	if subject == elsewhere {
 		t.Fatalf("a play in settings would begin from %q, which is where somebody is "+
 			"standing in testgame. Live evidence, wrong window.", subject)
@@ -111,7 +111,7 @@ func TestExecutionPlansFromAFreshLook(t *testing.T) {
 	rt, _, _, _ := namingRuntime(t)
 	standingOn(rt, observe.TermAudio)
 
-	subject, why := rt.freshPlace("settings")
+	subject, why := rt.freshPlace(context.Background(), "settings")
 	if subject != "" {
 		t.Fatalf("answered %q without looking", subject)
 	}
@@ -146,7 +146,7 @@ func TestPerformingWaitsWhileSomethingElseIsBeingWatched(t *testing.T) {
 	watchNow(t, g, store, "testgame")
 
 	rt := &Runtime{observations: g}
-	v, err := rt.PerformGoal(service.PerformQuery{
+	v, err := rt.PerformGoal(context.Background(), service.PerformQuery{
 		Application: "settings", Name: "Open Mouse Settings"})
 	if err != nil {
 		t.Fatalf("performing: %v", err)
@@ -185,7 +185,7 @@ func TestExecutionStopsAtTheFirstUnverifiedEdge(t *testing.T) {
 	}
 	var out service.PerformView
 
-	if rt.performPlan("settings", observe.Topology{}, steps, &out) {
+	if rt.performPlan(context.Background(), "settings", observe.Topology{}, steps, &out) {
 		t.Fatal("a walk whose first edge could not be verified reported that the whole " +
 			"route worked")
 	}
@@ -214,7 +214,7 @@ func TestArrivalIsConfirmedByLookingNotByFinishing(t *testing.T) {
 		rt := &Runtime{observations: g}
 
 		var arrived service.PerformView
-		rt.confirmArrival("settings", here, &arrived)
+		rt.confirmArrival(context.Background(), "settings", here, &arrived)
 		if !arrived.Arrived || arrived.To != here {
 			t.Fatalf("a walk that ended on the goal reports %+v", arrived)
 		}
@@ -225,7 +225,7 @@ func TestArrivalIsConfirmedByLookingNotByFinishing(t *testing.T) {
 		// AND THE SAME LOOK REFUSES when it lands somewhere else. Without this half the
 		// test above would pass for a function that only ever agrees.
 		var wrong service.PerformView
-		rt.confirmArrival("settings", "subj_somewhere_else", &wrong)
+		rt.confirmArrival(context.Background(), "settings", "subj_somewhere_else", &wrong)
 		if wrong.Arrived {
 			t.Error("a walk that ended on a different screen reported arrival")
 		}
@@ -239,7 +239,7 @@ func TestArrivalIsConfirmedByLookingNotByFinishing(t *testing.T) {
 		standingOn(rt, observe.TermAudio) // history, and nothing watching
 
 		var out service.PerformView
-		rt.confirmArrival("settings", a, &out)
+		rt.confirmArrival(context.Background(), "settings", a, &out)
 		if out.Arrived {
 			t.Fatal("a play reported arrival on the strength of its plan running out, " +
 				"with nothing able to see the screen")
@@ -265,7 +265,7 @@ func TestArrivalIsConfirmedByLookingNotByFinishing(t *testing.T) {
 		standingOn(rt, observe.TermAudio) // history, and nothing watching
 
 		var out service.PerformView
-		rt.confirmArrival("settings", "", &out)
+		rt.confirmArrival(context.Background(), "settings", "", &out)
 		if out.Arrived {
 			t.Fatal("a goal with no subject, confirmed by a look that saw nothing, " +
 				"reported arrival — two absences agreeing is not a place")
@@ -316,7 +316,7 @@ func TestNothingIsReadFromTheStageBeforeTheApplicationIsBroughtForward(t *testin
 	rt := &Runtime{observations: newObservationRegistry().withMemory(store)}
 	rt.winPlatform, rt.winDirectory = desk, windowref.NewDirectory()
 
-	v, err := rt.PerformGoal(service.PerformQuery{Application: app, Name: "Open The Thing"})
+	v, err := rt.PerformGoal(context.Background(), service.PerformQuery{Application: app, Name: "Open The Thing"})
 	if err != nil {
 		t.Fatalf("performing: %v", err)
 	}

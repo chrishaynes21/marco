@@ -9,7 +9,7 @@ import (
 )
 
 // maxUpscaledLong caps the long side (px) of the upscaled image, so a full-screen
-// run-time capture isn't tripled into a huge, slow OCR. A small teach-time crop stays
+// run-time capture isn't tripled into a huge, slow OCR. A small learn-time crop stays
 // under it and keeps the full upscale.
 const maxUpscaledLong = 2600
 
@@ -59,7 +59,7 @@ func grayUpscale(img *image.RGBA) (up []float64, ow, oh, scale int, ok bool) {
 	if w == 0 || h == 0 {
 		return nil, 0, 0, 1, false
 	}
-	// Adaptive cap: upscaling matters for a SMALL crop (a teach-time button), but a
+	// Adaptive cap: upscaling matters for a SMALL crop (a learn-time button), but a
 	// full-screen run-time capture is already legible — tripling it would be slow and
 	// pointless. Shrink the factor so the long side stays under maxUpscaledLong.
 	for scale > 1 && maxInt(w, h)*scale > maxUpscaledLong {

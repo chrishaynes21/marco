@@ -15,7 +15,7 @@ import (
 // A learned outcome is a DESTINATION in the person's own words — never a start, never a
 // route. What connects the person to it is whatever chain of remembered edges currently
 // holds up, planned fresh from wherever they were last seen standing. The demonstration
-// that taught the outcome has no privileged place in the answer: if the person is already
+// the outcome was learned from has no privileged place in the answer: if the person is already
 // there, the answer is "you're there"; if a different chain of verified edges reaches it,
 // that chain is the plan; and if nothing does, the answer is the honest refusal — never a
 // walk back to wherever the original demonstration happened to begin.

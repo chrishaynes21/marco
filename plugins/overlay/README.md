@@ -63,8 +63,13 @@ at the engine (default `marco` on PATH).
 Backtick (`` ` ``) is the **leader**; the next key chooses what happens:
 
 - **`` `m ``** — open the marco command line. Type a route name, **Enter** runs it
-  (output streams into the HUD log). Type **`teach <name>`** to record a new route
-  by demonstration (opens a guided console: demonstrate, press F12, save). Type
+  (output streams into the HUD log). Type **`learn <name>`** to record a new route
+  by demonstration (demonstrate in place, press F12, answer the save prompts in the
+  HUD), or **`narrate learn <name>`** to build one phrase by phrase, typed or
+  spoken, finishing with `done`. (`teach` and `narrate teach` still answer — an
+  undocumented compatibility alias for the word the product shipped with, kept for
+  muscle memory and retiring. **Teach** is reserved for the opposite direction:
+  Marco guiding *you* through something, which is not built yet.) Type
   **`help`** (or **`` `h ``**) shows the help menu — the leader keys plus your
   known routes. Type **`config`** for the
   live **config editor**: **↑/↓** pick a setting, **←/→** change it (applies
@@ -84,20 +89,28 @@ Backtick (`` ` ``) is the **leader**; the next key chooses what happens:
   focus the app, then `` `m `` → `bind s say hello` (binds `` `s `` → "say hello"
   for that app); `unbind s` removes it.
 - **Command history** — each command you run lists in the panel with its outcome
-  + time, right-justified and colour-coded: **✓** success (green), **■** canceled
-  (grey), **✗** failed (red). It fades with the text and sticks ~1 minute, then
-  clears. Capped to the `max lines` config.
+  + time, right-justified, with its own glyph and colour: **✓** performed (green),
+  **❙❙** clarify — waiting on you (listen colour), **╲** refused, **—** unavailable
+  and **■** cancelled (all grey: Marco declining is a correct answer, not a fault),
+  **✗** failed (red). It fades with the text and sticks ~1 minute, then clears.
+  Capped to the `max lines` config.
 - **Voice (optional)** — run the [`voice`](../voice) layer piped into `serve`;
-  speaking shows a live preview, and a finished phrase goes to the **Director**
-  (`marco director "<phrase>"`), which resolves it against what is actually on
-  screen. Route lookup is the fallback when the Director cannot be reached; a
-  recognised phrase is never dropped. The Director streams back what it is doing —
-  `heard: …`, progress, and the outcome — into the HUD log, and it answers a spoken
-  **"stop"** even mid-command, because dispatch does not block the panel. If the
-  Director asks which of several controls you meant, the HUD lists them numbered and
-  your next phrase ("the second one") answers it. Typed commands are unaffected —
-  they still run routes. `MARCO_DIRECTOR=off` restores the old behaviour.
-  See [`docs/director-service.md`](../../docs/director-service.md).
+  speaking shows a live preview, and a finished phrase takes **exactly the same path
+  a typed one does**: the overlay runs `marco do --source=spoken "<phrase>"`, and
+  `--source` is the only thing that differs between the two. The engine's intake
+  decides what it means — a play you already have runs; anything else goes to the
+  Director, which resolves it against what is actually on screen. A recognised
+  phrase is never dropped. The Director streams back what it is doing — `heard: …`,
+  progress, and the outcome — into the HUD log, and a spoken **"stop"** is answered
+  even mid-command, because dispatch does not block the panel. If the Director asks
+  which of several controls you meant, the HUD lists them numbered and your next
+  phrase ("the second one") answers it. `MARCO_DIRECTOR=off` no longer changes any
+  of this: it only turns off the watch panel's polling. See
+  [`docs/subsystems/Invocation.md`](../../docs/subsystems/Invocation.md).
+- **Outcomes** — the engine announces what became of every command on its own line
+  and the HUD renders that word rather than guessing from an exit code:
+  `performed`, `clarify`, `refused`, `unavailable`, `cancelled`, `failed`. An offer
+  to learn the request appears only when *nothing took it at all*.
 - **Esc** — cancel the command while typing; otherwise stop a running route
   (→ canceled) and unfocus the panel. Esc is *not* swallowed when idle, so games
   still get it.

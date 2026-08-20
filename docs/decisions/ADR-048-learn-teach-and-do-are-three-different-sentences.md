@@ -10,12 +10,24 @@ affects:
 source_paths:
   - docs/Roadmap.md
   - docs/Glossary.md
+  - cmd/marco/main.go
+  - cmd/director/main.go
+  - internal/director/learn
+  - internal/plays/plays.go
 ---
 
 # ADR-048 — learn, teach and do are three different sentences
 
-A product-vocabulary decision, recorded during Roadmap 34 and **implemented in Roadmap 35**. It
-changes no code today and licenses no rename.
+A product-vocabulary decision, recorded during Roadmap 34 and implemented in Roadmap 35.
+
+> **Implemented 2026-08-20.** When this was written it changed no code and licensed no rename. The
+> rename it anticipated has since been carried out, vertically: the acquisition flow is spelled
+> `learn` from the CLI verb down to `internal/director/learn`, and nothing on that path is named
+> **Teach** any more, so the word is free for the feature this ADR reserves it for. See
+> [[ADR-086-one-acquisition-one-word-one-request]], which also lists what still spells it and why.
+> Everything below is left as written — in particular 'What was wrong' and 'Considered and rejected' quote the word in
+> its wrong sense **as the evidence for this decision**, and rewriting them would destroy the
+> record.
 
 ## The three sentences
 
@@ -45,7 +57,8 @@ if `teach` is spent.
 ## The decision
 
 **Learn** is the person demonstrating and Marco acquiring. It is the product-facing name for the
-flow currently implemented internally as `teach`.
+flow. (Written while that flow was still spelled `teach` internally; it is spelled `learn` there
+too now — [[ADR-086-one-acquisition-one-word-one-request]].)
 
 ```
 Learn something
@@ -111,6 +124,11 @@ separately, whether the internal names are worth migrating.
 
 Until then a reader should expect the divergence and not treat it as drift.
 
+> **Since decided.** Roadmap 35 decided that they were, and carried the migration out once the
+> milestone had closed rather than mid-flight — [[ADR-086-one-acquisition-one-word-one-request]]. The
+> divergence this section asked a reader to expect is gone; nothing above is amended, because the
+> hold and its reasoning are the record of why the rename waited.
+
 ## Considered and rejected
 
 - **Rename now, while the meaning is fresh.** It is the cheapest moment in one sense and the worst
@@ -124,13 +142,25 @@ Until then a reader should expect the divergence and not treat it as drift.
 
 ## Enforced by
 
-Nothing in code, deliberately — this is a vocabulary decision whose implementation is Roadmap 35.
-The enforcement point arrives with the user-facing surfaces built there, and this ADR is what they
-will be checked against.
+When this was written the answer was "nothing in code, deliberately" — the enforcement point was to
+arrive with the surfaces Roadmap 35 built. It has arrived, and [[Decisions]] is clear that an ADR
+without one is an intention rather than a constraint:
+
+- `cmd/marco` — `TestNoLiveAcquisitionCodeIsNamedTeach`: walks the acquisition packages and the
+  product surfaces and refuses any identifier spelling the reserved word, with the compatibility
+  aliases named one by one so they cannot grow silently. It deliberately does **not** police prose,
+  so the record above stays legible. Mutation: reintroduce any Teach-spelled acquisition identifier.
+- `cmd/marco` — `TestTheLearnVerbAnswersToItsOldName`: `marco learn` and `director learn` are the
+  verbs, and `teach` still reaches the same function on both. Mutation: drop either arm of either
+  case.
+- `internal/plays` — `TestEveryKindIsPresentedAsItself`: a demonstrated play may not present as
+  "Taught", because Teach is spent on the other direction of travel. This is the reservation held
+  against a user-visible word.
 
 ## Related
 
 [[ADR-043-teaching-is-two-passes-not-a-new-capture]] ·
 [[ADR-045-teaching-is-a-section-of-the-playbill]] ·
 [[ADR-046-grounding-a-screen-points-at-its-structure]] ·
+[[ADR-086-one-acquisition-one-word-one-request]] ·
 [[Demonstrations]] · [[Learned-Plays]] · [[Roadmap]] · [[Glossary]]

@@ -42,7 +42,7 @@ if (-not (Test-Path $uia)) { throw "uia build failed: no plugins\uia\uia.exe" }
 Copy-Item $uia (Join-Path $assets "uia.exe") -Force
 
 # No starter routes are shipped — the launcher seeds a single "hello" route on first run
-# (see plugins\marco-app\main.go). Users teach the rest.
+# (see plugins\marco-app\main.go). The user shows Marco the rest.
 
 $sha = (& git -C $root rev-parse --short HEAD 2>$null)
 if (-not $sha) { $sha = "dev" }

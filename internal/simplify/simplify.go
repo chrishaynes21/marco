@@ -26,7 +26,7 @@ type Options struct {
 	// Type step even when separated by waits up to this many ms (the natural
 	// rhythm of human typing), dropping those interior waits. 0 (the default)
 	// keeps recording faithful — only no-gap runs coalesce — so game-timing
-	// macros are preserved. Used by Tighten / the "simplify further" teach option.
+	// macros are preserved. Used by Tighten / the "simplify further" learn option.
 	TypingRhythmMs int
 	// ArgKey is a reserved key (e.g. "f9") you tap during a demonstration to drop an
 	// argument placeholder — the Nth tap becomes a Type "{{name}}" step (named from
@@ -34,7 +34,7 @@ type Options struct {
 	// `<route> name:value`. So you mark "an argument goes here" without typing into
 	// the app. "" / "off" disables it.
 	ArgKey string
-	// ArgNames are the declared argument names (from the teach phrase's "with name,
+	// ArgNames are the declared argument names (from the learn phrase's "with name,
 	// …" clause), used to name the placeholders the ArgKey drops, in order.
 	ArgNames []string
 	// MaxWaitMs caps every wait step to this many milliseconds after all other

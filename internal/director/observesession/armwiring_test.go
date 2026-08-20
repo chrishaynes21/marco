@@ -18,7 +18,7 @@ import (
 // `cfg.Selector.Application` — but a selector names a WINDOW, and only the `--application` form
 // carries an application at all. `windowref.Selector{EphemeralID: …}` carries none, which is what
 // `--window-id` produces and what resolving the foreground produces, and resolving the foreground
-// is how a person actually teaches something.
+// is how a person actually shows Marco something.
 //
 // So `Topology("")` was consulted, held nothing, and no capture was ever created. Live, that
 // surfaced as Marco saying "Something went wrong on my side — I wasn't watching for your example"
@@ -51,7 +51,7 @@ func TestAWindowChosenWithoutNamingItsApplicationStillArms(t *testing.T) {
 	if res.Demonstration == nil {
 		t.Fatalf("the approved demonstration %s → %s was never captured.\nThe session named its "+
 			"window by ephemeral id and carried no application, so the arming looked up the "+
-			"topology of \"\" and found nothing waiting. A person teaching something has always "+
+			"topology of \"\" and found nothing waiting. A person showing Marco something has always "+
 			"reached this path: they do not run `director windows` first.", from, to)
 	}
 	if !res.Demonstration.Complete {

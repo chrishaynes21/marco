@@ -13,7 +13,7 @@ import (
 //
 // A demonstration A → B → C is TWO reusable pieces of route knowledge, never one monolithic
 // macro: each leg becomes its own candidate for its own edge, and the leg that arrived where
-// the person stopped is the one the teaching tail carries forward. Nothing here infers that
+// the person stopped is the one the learn tail carries forward. Nothing here infers that
 // B is required for C — the edges stand alone, and a later X → C coexists with both.
 
 // threeSubjects remembers screens a, b and c, so every leg of the walk can resolve.
@@ -96,7 +96,7 @@ func TestAMultiLegDemonstrationDecomposesIntoReusableEdges(t *testing.T) {
 	}
 
 	// The TERMINAL leg — the one that arrived where the person stopped — is the one the
-	// teaching tail carries forward.
+	// learn tail carries forward.
 	if res.Demonstration == nil {
 		t.Fatalf("no terminal demonstration was reported (refusal %q)", res.Watched)
 	}

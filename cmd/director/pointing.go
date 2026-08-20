@@ -317,7 +317,7 @@ func (r *Runtime) foregroundCandidate(ctx context.Context) (windowref.Candidate,
 	// excludes Marco's registered presentation surfaces, but the control centre is a BROWSER
 	// window that Marco merely asked for — indistinguishable from any other browser except
 	// through the ownership the surface registry records. Pressing Start necessarily leaves
-	// it in front, so without this the panel becomes the window being taught about.
+	// it in front, so without this the panel becomes the window the learn session is about.
 	//
 	// Deleting this must fail TestTheSettleRuleNeverLatchesMarcosOwnSurface.
 	if r.surfaceOwnsForeground() {
@@ -631,7 +631,7 @@ func agoInWords(d time.Duration) string {
 // somebody IS against where a route BEGINS needs the identity, not the prose — and comparing the
 // prose would make two screens described alike look like one place.
 //
-// Live rather than pinned. A teach session carries `Start`, which is the place the demonstration
+// Live rather than pinned. A learn session carries `Start`, which is the place the demonstration
 // began on and is deliberately frozen; using it to answer "where are you now" made a panel report
 // that the person was standing on the start at the very moment they were somewhere else.
 //

@@ -16,10 +16,10 @@ import (
 
 // doRead OCRs a captured image (a button template) and returns the text on it as
 // { Text }. Unlike Find (a LOCATOR that searches the live screen for a word), Read is
-// a TEACH-time helper: the recorder cropped the button the user clicked, we OCR that
+// a LEARN-time helper: the recorder cropped the button the user clicked, we OCR that
 // crop, and the recognised label becomes the route's text anchor — so a DEMONSTRATED
 // anchor gains the same move-following fallback a narrated "click the text X" gets,
-// with no extra gesture. The engine calls it directly over the bridge during teach
+// with no extra gesture. The engine calls it directly over the bridge during learn
 // (it isn't a route-callable Text capability).
 //
 // Input:

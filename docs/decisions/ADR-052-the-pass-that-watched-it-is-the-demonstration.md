@@ -9,7 +9,7 @@ affects:
 source_paths:
   - internal/director/observe/discoverycandidate.go
   - internal/director/observe/bridge.go
-  - internal/director/teach/teach.go
+  - internal/director/learn/learn.go
 ---
 
 # ADR-052 — the pass that watched it is the demonstration
@@ -113,7 +113,7 @@ intents" would eventually give a second answer.
   `TestTheDiscoveryCandidateRefusesRatherThanGuessing` (all three refusals),
   `TestTheOneShotPathDoesNotRelaxRecognisability`,
   `TestAScreenYouTypeOnIsStillMarkedOnTheOneShotPath`.
-- `internal/director/teach/oneshot_test.go` —
+- `internal/director/learn/oneshot_test.go` —
   `TestTheDiscoveryPassBecomesTheDemonstrationWithoutAskingAgain` requires **two** observation
   passes, not three, and deleting the `fromDiscovery` call fails it;
   `TestWhenTheWatchedPassCannotSupportACandidateTheCaptureStillRuns` holds the fallback.

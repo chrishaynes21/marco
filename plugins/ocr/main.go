@@ -13,17 +13,17 @@
 //	← {"status":"failed"}                           // not on screen (route falls back)
 //	← {"status":"failed","error":"tesseract: ..."}  // OCR engine unavailable
 //
-// It also serves a teach-time Read action — OCR a captured button template (sent as a
+// It also serves a learn-time Read action — OCR a captured button template (sent as a
 // base64 PNG) and return the text on it, so a DEMONSTRATED anchor can be labelled and
 // gain the same text locator a narrated "click the text X" gets. Read is invoked
-// directly by the engine over the bridge during teach; it isn't a route capability:
+// directly by the engine over the bridge during learn; it isn't a route capability:
 //
 //	→ {"act":"Text","action":"Read","input":{"Image":"<base64 png>"}}
 //	← {"status":"ok","data":{"Text":"Start Game"}}  // label read off the button
 //	← {"status":"failed"}                           // nothing readable (anchor stays gate-only)
 //
 // Wire it into a run with `--host Text=bridge:ocr` (the engine launches it on first
-// use; teach uses the same $MARCO_OCR wiring). It lives in its own module so its OCR
+// use; learn uses the same $MARCO_OCR wiring). It lives in its own module so its OCR
 // dependency never reaches the zero-dep engine; it reuses the engine's cross-platform
 // screen capture via a local replace.
 //

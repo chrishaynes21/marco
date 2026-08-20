@@ -18,7 +18,7 @@ import (
 //	active        hundreds of structures — button=138 group=182 text=156 …
 //	backgrounded  pane=7 window=1, coverage 0.00, nothing operable
 //
-// Marco was minting durable places from the second one. A live teach established a "screen" of
+// Marco was minting durable places from the second one. A live learn established a "screen" of
 // five controls in a 44-pixel strip — the husk of Settings after the person clicked away — and
 // remembered it. Two junk subjects went into the store that way in one afternoon, and the START
 // they poisoned is what `left_the_start` was complaining about.
@@ -68,7 +68,7 @@ func TestACollapsedShellIsNotAComposition(t *testing.T) {
 	if v.Observed() {
 		t.Fatalf("a backgrounded window's husk was admitted as a composition of %d region(s).\n"+
 			"Everything downstream treats an observed composition as a screen: it segments, it "+
-			"can be promoted, and an explicit teach will make it a durable place. Marco did "+
+			"can be promoted, and an explicit learn will make it a durable place. Marco did "+
 			"exactly that live and remembered a 44-pixel strip forever.", len(v.Regions))
 	}
 	if v.Why == "" {
@@ -117,7 +117,7 @@ func TestASmallApplicationWithRealControlsIsStillAScreen(t *testing.T) {
 	v := fusedStructure(entities, provenCycle(), liveFrame(), sparse)
 	if !v.Observed() {
 		t.Fatalf("a two-button application was refused as a shell: %s.\nBeing small is not the "+
-			"same as being closed, and rejecting it would make simple software unteachable.",
+			"same as being closed, and rejecting it would make simple software impossible to learn in.",
 			v.Why)
 	}
 }

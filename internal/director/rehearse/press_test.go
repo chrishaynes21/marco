@@ -23,7 +23,7 @@ import (
 // Nothing was clicked. Nothing was too fast. The demonstration had been read perfectly and the
 // control had been found — the Director asked for InvokePattern, the control is a SELECTION item,
 // and the attempt ended there. Settings is built almost entirely from selection items, so this
-// was every navigation step on the most obvious application anybody would teach Marco with.
+// was every navigation step on the most obvious application anybody would demonstrate something in.
 //
 // # Why the fix is not in this package any more
 //

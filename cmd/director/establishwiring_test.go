@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/chaynes-simpleclouds/marco/internal/director/learn"
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
 	"github.com/chaynes-simpleclouds/marco/internal/director/observesession"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/windowref"
 	"github.com/chaynes-simpleclouds/marco/internal/director/semanticmemory"
-	"github.com/chaynes-simpleclouds/marco/internal/director/teach"
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 )
 
@@ -24,18 +24,18 @@ import (
 // Both are one line, and both are exactly the kind of line this repository has now shipped several
 // mechanisms without — see [[Wiring-Tests]].
 //
-// So the two tests below enter through `teachPasses.Observe` and through the registry's own
+// So the two tests below enter through `learnPasses.Observe` and through the registry's own
 // `RunPass`, and each names the mutation it exists to catch.
 
-// TestATeachPassDeclaresTheLicenceToEstablishAPlace holds the one place the licence is granted.
+// TestALearnPassDeclaresTheLicenceToEstablishAPlace holds the one place the licence is granted.
 //
-// Deleting `EstablishPlaces: true` from teachPasses.episode must fail this. Without it, teaching
-// is back where it started: `teach "…"` refuses at the first step until the user has happened to
+// Deleting `EstablishPlaces: true` from learnPasses.episode must fail this. Without it, Learn
+// is back where it started: `learn "…"` refuses at the first step until the user has happened to
 // answer an incidental semantic question about the right screen.
-func TestATeachPassDeclaresTheLicenceToEstablishAPlace(t *testing.T) {
+func TestALearnPassDeclaresTheLicenceToEstablishAPlace(t *testing.T) {
 	var declared []observesession.Episode
 
-	p := &teachPasses{}
+	p := &learnPasses{}
 	p.run = func(_ context.Context, _ observe.Bounds, ep observesession.Episode) (
 		observesession.Result, error) {
 
@@ -49,17 +49,17 @@ func TestATeachPassDeclaresTheLicenceToEstablishAPlace(t *testing.T) {
 		t.Fatalf("%d pass(es) ran, want 1", len(declared))
 	}
 	if !declared[0].EstablishPlaces {
-		t.Fatal("a teach pass did not declare the licence to establish a place.\n" +
-			"A person has typed `teach \"…\"`, named a behaviour and asked to be watched " +
+		t.Fatal("a learn pass did not declare the licence to establish a place.\n" +
+			"A person has typed `learn \"…\"`, named a behaviour and asked to be watched " +
 			"doing it — that IS the human semantic event, and without the licence Marco " +
-			"cannot remember where they are standing long enough to teach anything")
+			"cannot remember where they are standing long enough to learn anything")
 	}
 }
 
 // TestAnOrdinarySessionNeverDeclaresTheLicence is the other half.
 //
 // The registry's asynchronous Start is what `observe-game` uses, and it must pass the ZERO value:
-// watching somebody play is not them asking to be taught, and a Director that persisted every
+// watching somebody play is not them asking Marco to learn, and a Director that persisted every
 // screen it was left running in front of would be exactly the unbounded memory this design refuses.
 func TestAnOrdinarySessionNeverDeclaresTheLicence(t *testing.T) {
 	seen := &licenceRecorder{}
@@ -71,18 +71,18 @@ func TestAnOrdinarySessionNeverDeclaresTheLicence(t *testing.T) {
 	waitFor(t, func() bool { return g.ActiveID() == "" })
 	if n := seen.attempts(); n != 0 {
 		t.Fatalf("an ordinary observation session tried to establish %d place(s).\n"+
-			"Watching somebody play is not them asking to be taught, and a Director that "+
+			"Watching somebody play is not them asking Marco to learn, and a Director that "+
 			"persisted every screen it was left running in front of is the unbounded memory "+
 			"this design refuses", n)
 	}
 }
 
-// TestTeachingEstablishesTheStartThroughTheProductionRegistry holds the store wiring.
+// TestLearningEstablishesTheStartThroughTheProductionRegistry holds the store wiring.
 //
 // Deleting the `g.memory.(observe.PlaceStore)` branch from the registry must fail this: the runner
 // would keep its licence, find nowhere to write, and report `no_memory` — a Director that agrees
 // it may remember where you are standing and then does not.
-func TestTeachingEstablishesTheStartThroughTheProductionRegistry(t *testing.T) {
+func TestLearningEstablishesTheStartThroughTheProductionRegistry(t *testing.T) {
 	dir := t.TempDir()
 	store, why := semanticmemory.Open(filepath.Join(dir, "memory.json"))
 	if why != "" {
@@ -120,19 +120,19 @@ func TestTeachingEstablishesTheStartThroughTheProductionRegistry(t *testing.T) {
 
 // ── the blocker itself ────────────────────────────────────────────────────────
 
-// TestTeachEstablishesItsStartWithNoSemanticAnswer is the milestone, stated as the failure it fixes.
+// TestLearnEstablishesItsStartWithNoSemanticAnswer is the milestone, stated as the failure it fixes.
 //
-// Before this, `teach "…"` refused at its FIRST step against a cold application. Establishing a
+// Before this, `learn "…"` refused at its FIRST step against a cold application. Establishing a
 // start runs PlaceNow → SignatureOfState → Recall, and Recall could only succeed against a subject
 // written when a person answered a semantic proposal. So the ceremony was: watch, wait for Marco to
-// invent a question, answer it, and only then teach the thing you actually wanted to teach — with
-// no say in which question got asked.
+// invent a question, answer it, and only then show Marco the thing you
+// actually wanted it to learn — with no say in which question got asked.
 //
 // The whole coordinator is real here: the real observation runner, the real durable store, the
 // real identity path. The only double is the window and the pixels, because a unit test cannot
 // have a desktop. Nobody answers anything, and the assertion is that the session reaches
 // `ready_for_demo` regardless.
-func TestTeachEstablishesItsStartWithNoSemanticAnswer(t *testing.T) {
+func TestLearnEstablishesItsStartWithNoSemanticAnswer(t *testing.T) {
 	dir := t.TempDir()
 	store, why := semanticmemory.Open(filepath.Join(dir, "memory.json"))
 	if why != "" {
@@ -141,9 +141,9 @@ func TestTeachEstablishesItsStartWithNoSemanticAnswer(t *testing.T) {
 	g := newObservationRegistry().withMemory(store)
 
 	// The pass seam, and it substitutes the DESKTOP, not the mechanism: the registry, the
-	// runner, the licence and the store are all the production ones, and the episode a teach
-	// pass declares still comes from teachPasses.episode.
-	p := &teachPasses{}
+	// runner, the licence and the store are all the production ones, and the episode a learn
+	// pass declares still comes from learnPasses.episode.
+	p := &learnPasses{}
 	p.run = func(ctx context.Context, b observe.Bounds, ep observesession.Episode) (
 		observesession.Result, error) {
 
@@ -152,18 +152,18 @@ func TestTeachEstablishesItsStartWithNoSemanticAnswer(t *testing.T) {
 			windowref.Selector{EphemeralID: "window_1"}, b, ep)
 	}
 
-	c := teach.New("open the target folder", p, store, teach.DefaultBounds())
+	c := learn.New("open the target folder", p, store, learn.DefaultBounds())
 	got := c.Advance(t.Context())
 
-	if got.Phase == teach.Refused {
-		t.Fatalf("teaching refused at its first step: %s\n%s\n\nThis is the bootstrap blocker: "+
-			"Marco cannot be taught anything until the user has happened to answer an "+
+	if got.Phase == learn.Refused {
+		t.Fatalf("Learn refused at its first step: %s\n%s\n\nThis is the bootstrap blocker: "+
+			"Marco cannot learn anything until the user has happened to answer an "+
 			"incidental question about the right screen",
 			got.Refusal, strings.Join(got.Diagnostics, "\n"))
 	}
-	if got.Phase != teach.ReadyForDemo {
+	if got.Phase != learn.ReadyForDemo {
 		t.Fatalf("phase %q after the establishing pass, want %q\n%s",
-			got.Phase, teach.ReadyForDemo, strings.Join(got.Diagnostics, "\n"))
+			got.Phase, learn.ReadyForDemo, strings.Join(got.Diagnostics, "\n"))
 	}
 	if got.Start == "" {
 		t.Fatal("the session reached ready_for_demo with no start subject")
@@ -193,7 +193,7 @@ func TestTeachEstablishesItsStartWithNoSemanticAnswer(t *testing.T) {
 // reliability verdict.
 //
 // `LastFrame` collapses two facts into one boolean: a sample recorded a rectangle, and that
-// rectangle is usable. When a live Explorer teach attempt refused with
+// rectangle is usable. When a live Explorer learn attempt refused with
 // `coordinate_mapping_unreliable`, telling those apart was the first thing anybody needed and no
 // surface carried it. Deleting `FrameSequence: frame.Sequence` from liveGeometry must fail this.
 func TestLiveGeometryCarriesTheFrameSequence(t *testing.T) {
@@ -289,7 +289,7 @@ func (r *licenceRecorder) attempts() int {
 	return r.calls
 }
 
-// A teach pass expects to be asked for permission.
+// A learn pass expects to be asked for permission.
 //
 // # The live failure
 //
@@ -298,16 +298,16 @@ func (r *licenceRecorder) attempts() int {
 // interruption slot had gone to an incidental "are these one set?", and rehearsal is reviewed
 // last of all the question kinds.
 //
-// That budget is right for passive observation and inverted under teaching: somebody typed what
+// That budget is right for passive observation and inverted under Learn: somebody typed what
 // they wanted, demonstrated it, and is waiting to be asked. The question is the thing they asked
 // for; the incidental one is the interruption.
 //
-// Deleting `PermissionExpected: true` from teachPasses.episode must fail this, and the panel goes
+// Deleting `PermissionExpected: true` from learnPasses.episode must fail this, and the panel goes
 // back to asking a question nothing can answer.
-func TestATeachPassExpectsToBeAskedForPermission(t *testing.T) {
+func TestALearnPassExpectsToBeAskedForPermission(t *testing.T) {
 	var declared []observesession.Episode
 
-	p := &teachPasses{}
+	p := &learnPasses{}
 	p.run = func(_ context.Context, _ observe.Bounds, ep observesession.Episode) (
 		observesession.Result, error) {
 
@@ -321,10 +321,10 @@ func TestATeachPassExpectsToBeAskedForPermission(t *testing.T) {
 		t.Fatalf("%d pass(es) ran, want 1", len(declared))
 	}
 	if !declared[0].PermissionExpected {
-		t.Fatal("a teach pass does not declare that permission is expected.\nThe rehearsal " +
+		t.Fatal("a learn pass does not declare that permission is expected.\nThe rehearsal " +
 			"question then competes with incidental ones for a single slot, loses — it " +
 			"is reviewed last — and the person is never asked about the thing they " +
-			"explicitly sat down to teach.")
+			"explicitly sat down to learn.")
 	}
 }
 
@@ -443,7 +443,7 @@ func TestAnInferredNameNeverOverwritesTheAudiences(t *testing.T) {
 
 // A PLACE ESTABLISHED THROUGH THE PRODUCTION PASS CARRIES WHAT IT APPEARED TO BE CALLED.
 //
-// The whole chain, driven through the registry the way a teach pass drives it:
+// The whole chain, driven through the registry the way a learn pass drives it:
 //
 //	Actor evidence → sample → shadow totals → screen state tally → establishment candidate
 //	→ the durable store

@@ -6,7 +6,7 @@ supersedes: []
 affects:
   - learned-plays
 source_paths:
-  - internal/director/teach/teach.go
+  - internal/director/learn/learn.go
   - internal/director/rehearse/live.go
 ---
 
@@ -41,7 +41,7 @@ revoked, expired or mismatched grant is the authority saying no.
   `TestVisitingOtherPlacesDoesNotConsumeTheGrant`,
   `TestARefusalWaitingCannotFixStillRefuses`,
   `TestBeingOnAKnownButWrongScreenWaits`, `TestWaitingNeverWatchesAnything`
-  (`internal/director/teach/patient_test.go`)
+  (`internal/director/learn/patient_test.go`)
 
 ## Related
 

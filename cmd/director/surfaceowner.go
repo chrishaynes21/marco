@@ -38,7 +38,7 @@ import (
 //
 // What this deliberately does NOT do is treat "the browser" as Marco. A person may well be
 // demonstrating a task in a browser window, and one of them being Marco's control centre must not
-// make the rest of them un-teachable.
+// make the rest of them impossible to learn in.
 
 // marcoPrograms are the applications that ARE Marco.
 //

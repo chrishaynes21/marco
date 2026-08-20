@@ -140,30 +140,30 @@ type Config struct {
 
 // Episode is what one caller declares about the session it asked for.
 //
-// Both fields are set by TEACHING and by nothing else, and they are together in one type so that
+// Both fields are set by LEARN and by nothing else, and they are together in one type so that
 // stays visible: they are the two consequences of "a person explicitly asked to be watched doing
-// something", and a caller that wanted one without the other would be claiming to be teaching
-// without being a teach.
+// something", and a caller that wanted one without the other would be claiming to be a learn
+// session without being one.
 type Episode struct {
 	// SameEpisode says this session belongs to an episode whose corroboration has already
 	// been counted, so its transitions fold their evidence and claim no further independent
 	// sighting.
 	//
-	// A teach attempt runs several bounded passes back to back in one sitting; counting each
-	// of them as an independent session would let one explicit teach satisfy a threshold that
+	// A learn attempt runs several bounded passes back to back in one sitting; counting each
+	// of them as an independent session would let one explicit learn satisfy a threshold that
 	// exists to mean real-world recurrence.
 	SameEpisode bool
 	// EstablishPlaces licenses this session to make the place the user is standing on durably
 	// recognisable — its IDENTITY, and no judgement about what it means.
 	//
-	// # Why an explicit teach may do this and passive observation may not
+	// # Why an explicit learn may do this and passive observation may not
 	//
-	// Because `teach "…"` IS the human semantic event. Until now a durable subject appeared
-	// only when somebody answered a question Marco had invented, so teaching could not begin
+	// Because `learn "…"` IS the human semantic event. Until now a durable subject appeared
+	// only when somebody answered a question Marco had invented, so Learn could not begin
 	// until the user had happened to settle an incidental "is this a menu?" — and which
 	// question Marco raised was not theirs to choose. Observed live: the same application in
 	// two sessions asked about the screen once and about a group inside it once, and only the
-	// first would have unblocked teaching.
+	// first would have unblocked Learn.
 	//
 	// It persists ZERO semantic judgements. The subject carries an empty interpretation list,
 	// which every reader already handles: `Effective()` is `none`, `RecalledValidation`
@@ -175,7 +175,7 @@ type Episode struct {
 	EstablishPlaces bool
 	// PermissionExpected says the person is WAITING to be asked whether Marco may try it.
 	//
-	// # Why an explicit teach may have this slot and passive observation may not
+	// # Why an explicit learn may have this slot and passive observation may not
 	//
 	// The interruption budget is one open question, and it is right: passive observation is
 	// Marco interrupting somebody who is busy, and a queue of questions is a queue of
@@ -183,7 +183,7 @@ type Episode struct {
 	// an incidental "is this a menu?" takes the slot and the rehearsal question is refused
 	// with `another_question_open`.
 	//
-	// Under teaching that reasoning inverts. Somebody typed what they wanted, pressed Start,
+	// Under Learn that reasoning inverts. Somebody typed what they wanted, pressed Start,
 	// demonstrated it and is sitting in front of the panel waiting to be asked — the question
 	// is not an interruption, it is the thing they asked for. Observed live three runs
 	// running: "I think I got it. Want me to try?" with no question behind it and no way
@@ -221,7 +221,7 @@ type Result struct {
 	// Places is what this session did about making where the user is standing durably
 	// recognisable, and the CLOSED reason when it did nothing.
 	//
-	// Reported on every session, licensed or not. A teach attempt that cannot establish a start
+	// Reported on every session, licensed or not. A learn attempt that cannot establish a start
 	// has to be able to say which of the half-dozen reasons applied, and "not_licensed" on an
 	// ordinary session is the sentence that says passive observation still persists nothing.
 	Places observe.PlaceEstablishment
@@ -250,7 +250,7 @@ type Result struct {
 	// FollowUps is every route with a demonstration, judged for whether another example
 	// would help — and the CLOSED reasons when Marco decided not to ask.
 	//
-	// Silence is the hard case: a user who agreed to teach Marco something and then heard
+	// Silence is the hard case: a user who agreed to show Marco something and then heard
 	// nothing cannot otherwise tell whether Marco is satisfied, stuck, or broken.
 	FollowUps []observe.FollowUpReport
 	// Rehearsals is every demonstrated route judged for whether Marco may ASK to try it —
@@ -269,7 +269,7 @@ type Result struct {
 	// Watched is why the pass that WATCHED a demonstration did not produce one from what it
 	// saw, empty when it did or when the session was never licensed to.
 	//
-	// Carried because the alternative is silence: the runner declines, Teach falls back to the
+	// Carried because the alternative is silence: the runner declines, Learn falls back to the
 	// armed capture, and a person is told "that example did not finish" about an example
 	// nobody ever tried to build. Three separate diagnoses in this subsystem have been lost
 	// exactly this way — the reason existed one layer down and nothing carried it up.
@@ -485,7 +485,7 @@ func (r *Runner) WithMemory(m observe.Memory) *Runner {
 //
 // Optional and nil-safe: a Director without one recognises only what a person has already answered
 // a question about, which is exactly the behaviour that existed before this milestone — and the
-// behaviour that made an explicit `teach "…"` impossible to start from a cold application.
+// behaviour that made an explicit `learn "…"` impossible to start from a cold application.
 //
 // Separate from WithMemory although the composition root passes the same store to both, because a
 // runner that reached the place store through its memory field would be a runner in which the
@@ -632,7 +632,7 @@ func (r *Runner) Respond(id observe.ProposalID, resp observe.UserResponse) (obse
 // that justified that said every question is asked at the end of a session, so by the time anybody
 // can answer, no session is running and the newest runner is the one that asked.
 //
-// Teaching breaks that assumption completely. A teach episode runs bounded passes back to back, so
+// Learn breaks that assumption completely. A learn episode runs bounded passes back to back, so
 // the newest runner is routinely a session that started AFTER the question was raised and whose
 // ledger has never held it. Measured live, on Home → Bluetooth → Mouse:
 //
@@ -915,7 +915,7 @@ func (r *Runner) Run(ctx context.Context, cfg Config) (Result, error) {
 	// # Why immediately before the relationships and not after
 	//
 	// Because an edge is only written when BOTH endpoints resolve to remembered subjects. The
-	// destination of a teaching pass is a place the user has just walked to and Marco has never
+	// destination of a learn pass is a place the user has just walked to and Marco has never
 	// been told anything about; establishing it after the topology was folded would reject the
 	// one edge the whole attempt exists to record, and the user would be told their destination
 	// was not recognised while it sat in the store.
@@ -975,7 +975,7 @@ func (r *Runner) Run(ctx context.Context, cfg Config) (Result, error) {
 	// An invitation raised at session end is still perfectly answerable. That is the ORDINARY
 	// case for every question this system asks — a three-minute session finishes long before
 	// somebody reads what it wanted to know — and it is also the kinder moment to ask
-	// somebody whether they would like to teach you something.
+	// somebody whether they would like to show you something.
 	//
 	// Deleting this call must fail TestACorroboratedRelationshipEarnsALearningQuestion.
 	// THE candidate-consumption call site. An unfinished demonstration ends here with its
@@ -984,7 +984,7 @@ func (r *Runner) Run(ctx context.Context, cfg Config) (Result, error) {
 	// THE one-shot candidate, and it is HERE for one reason: everything downstream of a
 	// demonstration reads the candidate store, and the questions that grant authority are
 	// raised a few lines below. A candidate built after the session ended is invisible to all
-	// of it — which is exactly what happened, live: teaching reached "want me to try?" and
+	// of it — which is exactly what happened, live: Learn reached "want me to try?" and
 	// waited for a grant that could never be created, because no `AskRehearse` proposal
 	// existed to answer. See [[ADR-054-the-one-shot-candidate-belongs-to-the-session]].
 	//
@@ -1060,7 +1060,7 @@ func (r *Runner) Run(ctx context.Context, cfg Config) (Result, error) {
 // treats that as "recognised, nothing known about what it is".
 //
 // Returns the account rather than a bool, because each refusal means something different to
-// somebody trying to teach Marco something.
+// somebody trying to show Marco something.
 func (r *Runner) establishPlace(application string, stats Stats,
 	cfg Config) observe.PlaceEstablishment {
 
@@ -1191,9 +1191,9 @@ func (r *Runner) rememberRelationships(application string, stats Stats,
 // into the question a person answers. Authority comes from answering that question and from
 // nothing else.
 //
-// Built in the teaching COORDINATOR first, and that was wrong in a way only a live run showed:
+// Built in the Learn COORDINATOR first, and that was wrong in a way only a live run showed:
 // the coordinator runs after the session has ended, so the candidate appeared minutes after the
-// only stage that could have raised `AskRehearse`. Teaching reached "want me to try?" and waited
+// only stage that could have raised `AskRehearse`. Learn reached "want me to try?" and waited
 // for a grant nobody could give. See [[ADR-054-the-one-shot-candidate-belongs-to-the-session]].
 //
 // # What it is allowed to do
@@ -1210,7 +1210,7 @@ func (r *Runner) rememberRelationships(application string, stats Stats,
 //
 // It no longer refuses a multi-edge demonstration. A → B → C decomposes into one candidate
 // per grown edge — each a reusable piece of route evidence — and the leg that arrived where
-// the person stopped is the one the teaching tail carries forward. That is the goal-centric
+// the person stopped is the one the learn tail carries forward. That is the goal-centric
 // correction: the demonstration is evidence, the destination is the capability, and no leg
 // of the way there is welded to any other.
 func (r *Runner) watchedDemonstration(application string, stats Stats,
@@ -1272,7 +1272,7 @@ func (r *Runner) watchedDemonstration(application string, stats Stats,
 		r.rememberTargets(application, d.Candidate)
 		built++
 		// The TERMINAL leg — the one arriving where the person stopped — is the candidate
-		// the teaching tail carries forward. A single-edge demonstration is its own
+		// the learn tail carries forward. A single-edge demonstration is its own
 		// terminal, whether or not the session still shows its destination.
 		if d.EndsAtCurrent || (len(grew) == 1 && terminal == nil) {
 			copied := d.Candidate
@@ -1655,7 +1655,7 @@ func (r *Runner) reviewLearning(application string, inference int) []observe.Lea
 // `--application` form happens to carry the name the durable topology is keyed by. Arming from the
 // selector therefore armed nothing at all for a session that chose its window any other way,
 // including `--window-id` and the foreground one a person actually uses. `Topology("")` holds no
-// relationships, so no request was ever pending, no capture was ever created, and teaching told the
+// relationships, so no request was ever pending, no capture was ever created, and Learn told the
 // user "I wasn't watching for your example" after watching them demonstrate it four times.
 //
 // Invisible to the whole suite because every fixture builds `Selector{Application: "testgame"}`.
@@ -1745,7 +1745,7 @@ func (r *Runner) observeCapture(sample observe.Sample, th observe.HypothesisThre
 	}
 	if in.Ran {
 		// THE resolution, and it is `observe.PlaceNow` rather than a chain assembled here.
-		// The teaching coordinator asks the same question before it says "go ahead", and two
+		// The Learn coordinator asks the same question before it says "go ahead", and two
 		// derivations of "what screen is this" would eventually give two answers.
 		p := observe.PlaceNow(r.stats.Shadow, r.session.Application, r.memory, th)
 		in.Placed, in.Structure, in.EditableFields = p.Placed, p.Structure, p.EditableFields
@@ -1784,7 +1784,7 @@ func (r *Runner) finishCapture(application string) *observe.ProcedureCandidate {
 		//
 		// An armed capture runs because the person answered "yes, learn this" to a
 		// question about a route they had already been observed taking — an explicit
-		// licence exactly as a teach pass is. The two paths produce candidates in
+		// licence exactly as a learn pass is. The two paths produce candidates in
 		// different ways and both are demonstrations, so both make the things the person
 		// pressed durable. Establishing on only one would mean a target existed or did
 		// not depending on which door the demonstration came through.
@@ -1992,7 +1992,7 @@ func (r *Runner) reviewRehearsal(application string, ep Episode,
 	// session actually DEMONSTRATED. Every other route still meets the ordinary bound, and
 	// MaxProposals is untouched.
 	//
-	// See Episode.PermissionExpected for why teaching may have this and observation may not.
+	// See Episode.PermissionExpected for why Learn may have this and observation may not.
 	//
 	// Deleting this must fail TestAnInvitedRehearsalQuestionIsNotBlockedByAnotherQuestion.
 	if memory == nil || store == nil {
@@ -2008,7 +2008,7 @@ func (r *Runner) reviewRehearsal(application string, ep Episode,
 	//
 	// # The live failure
 	//
-	// A teach called "Open Mouse Settings" demonstrated `subj_543793ccc326 →
+	// A learn called "Open Mouse Settings" demonstrated `subj_543793ccc326 →
 	// subj_61ffd6bc8602` — one step, one click, and the session's own conclusion names that
 	// candidate. The panel then sat on "I think I got it, but I can't ask you for permission
 	// right now" with ZERO questions open, which is the signature of an exemption that went
@@ -2038,8 +2038,8 @@ func (r *Runner) reviewRehearsal(application string, ep Episode,
 	//
 	// # Why a widened budget was not enough
 	//
-	// The first attempt at this gave teaching ONE extra open question. It was still refused,
-	// live, in a completely clean sandbox: teaching runs several bounded passes and the
+	// The first attempt at this gave Learn ONE extra open question. It was still refused,
+	// live, in a completely clean sandbox: Learn runs several bounded passes and the
 	// incidental semantic questions accumulate — three were open by the time rehearsal was
 	// reviewed, against a budget of two. Rationing the question somebody explicitly asked for
 	// against questions they did not means it loses whenever the screen was interesting.
@@ -2050,7 +2050,7 @@ func (r *Runner) reviewRehearsal(application string, ep Episode,
 	// enforced by identity, and nothing here authorises anything — a rehearsal still happens
 	// only when the person says yes.
 	//
-	// See Episode.PermissionExpected for why teaching may do this and observation may not.
+	// See Episode.PermissionExpected for why Learn may do this and observation may not.
 	//
 	// Deleting the exemption must fail TestAnInvitedRehearsalQuestionIsNotRationed.
 	spent := false
@@ -2217,7 +2217,7 @@ func (r *Runner) authorizeRehearsal(application string, p observe.Proposal,
 //
 // Every one of these used to be a silent return. The consequence was the worst kind of
 // failure this system can produce: the person answers "yes, try it", nothing whatever
-// happens, and ten minutes later teaching gives up with `rehearsal_declined` — a sentence
+// happens, and ten minutes later Learn gives up with `rehearsal_declined` — a sentence
 // that blames the person for the silence. A yes that creates nothing must say why.
 type AuthorizationRefusal string
 
@@ -2393,7 +2393,7 @@ func (r *Runner) settledNow(id observe.ScreenStateID) bool {
 // # Why this is safe to do unconditionally here
 //
 // Because it is only reachable from watchedDemonstration, which has already refused every session
-// without an explicit Learn licence. A target exists because a person asked to be taught and then
+// without an explicit Learn licence. A target exists because a person asked Marco to learn and then
 // pressed something; there is no path to this function from passive observation.
 //
 // # What it may keep, and what it may not

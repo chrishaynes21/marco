@@ -793,7 +793,7 @@ func (u *Subscription) close() {
 //
 // Passive navigation never retains character identity, and nothing above can be configured to.
 // Learning a command like "invite user xyz" needs the typed value, which is a different
-// privilege with a different lifecycle: an explicit Teach/Text mode emitting
+// privilege with a different lifecycle: an explicit Learn/Text mode emitting
 // text_entry_started / text_entry_committed / parameter_candidate, entered by the user on
 // purpose and visible while it runs. Keeping that on its own channel is what lets passive
 // observation stay structurally incapable of reconstructing typed content — a mode flag on

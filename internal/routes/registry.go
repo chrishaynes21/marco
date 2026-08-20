@@ -1,5 +1,5 @@
 // Package routes is the named-route registry. A route is a Marco program stored as a
-// file, in one of three scopes (the same names the teach flow uses):
+// file, in one of three scopes (the same names the learn flow uses):
 //
 //	GLOBAL   routes/global/<slug>.marco          app-less; resolves anywhere, no switch
 //	CONTEXT  routes/<app>/context/<slug>.marco    only while <app> is in front (no switch)

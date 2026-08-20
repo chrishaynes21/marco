@@ -4,7 +4,7 @@ status: accepted
 date: 2026-08-19
 supersedes: []
 affects:
-  - teaching
+  - demonstrations
   - learned-plays
   - execution
 source_paths:
@@ -23,7 +23,7 @@ on session history, planned two verified edges, executed both through the shared
 walker, verified after each edge, and positively confirmed the final Place.
 
 One demonstration produced three durable semantic Places, two reusable edges, 2/2 verified, a
-complete legal Marco Play — saved, registered, and callable by the phrase that taught it.
+complete legal Marco Play — saved, registered, and callable by the phrase it was Learned under.
 
 ## The gap this closes
 

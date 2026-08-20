@@ -20,7 +20,7 @@ package main
 //
 // Normal, Watch and Debug are three renderings of one value. Moving between them re-renders what
 // the page already has and asks for the next poll at a different depth; it starts no observation,
-// resets no teaching, grants nothing, and creates no session.
+// resets no learn session, grants nothing, and creates no session.
 
 const accountPage = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
@@ -162,7 +162,7 @@ el("v-watch").onclick  = () => setView("watch");
 el("v-debug").onclick  = () => setView("debug");
 
 // Keyboard: 1/2/3 switch depth. Deliberately plain digits and no modifiers — a global
-// shortcut with a modifier is one that could reach the application being taught.
+// shortcut with a modifier is one that could reach the application the session is about.
 addEventListener("keydown", e => {
   if (e.target.tagName === "INPUT" || e.metaKey || e.ctrlKey || e.altKey) return;
   if (e.key === "1") setView("normal");
@@ -208,10 +208,10 @@ function lineRows(c, lines){
   }
 }
 
-// The teaching panel. Given its own card, at full width, above everything else — a person
-// who asked to teach something is waiting for a cue, and the cue must not be a line in a list.
+// The Learn panel. Given its own card, at full width, above everything else — a
+// person who asked Marco to learn something is waiting for a cue, and the cue must not
 function teachingCard(t){
-  const c = card("Teaching" + (t.asked ? " — " + t.asked : ""), c => {
+  const c = card("Learning" + (t.asked ? " — " + t.asked : ""), c => {
     if (t.armed){
       const cue = document.createElement("div");
       cue.className = "cue";
@@ -457,7 +457,7 @@ function render(a){
   }
   // Anything that needs a person goes across the top, above both columns. Nobody should have
   // to find a question in a column.
-  if (a.teaching) top.appendChild(teachingCard(a.teaching));
+  if (a.learnSession) top.appendChild(teachingCard(a.learnSession));
   if (a.question) top.appendChild(questionCard(a.question));
 
   let any = top.children.length > 0;
@@ -465,7 +465,7 @@ function render(a){
     // A section is dropped when a panel above is already showing the same facts. One or
     // the other, never the same thing twice in two shapes — a question rendered once as a
     // button and again as a sentence is a person wondering which one is real.
-    if (a.teaching && s.title === "TEACHING") continue;
+    if (a.learnSession && s.title === "LEARN SESSION") continue;
     if (a.question && s.title === "MARCO ASKS") continue;
     const c = card(s.title || "Right now", c => lineRows(c, s.lines));
     (s.title === OWN_COLUMN ? main : side).appendChild(c);

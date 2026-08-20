@@ -17,7 +17,7 @@ const DefaultAnchorKey = "f12"
 
 // AnchorKey returns the configured anchor-key name (lowercase), or "" when
 // disabled via MARCO_ANCHOR_KEY=off. Read once at recorder init and surfaced in the
-// teach prompt so the gesture is discoverable.
+// learn prompt so the gesture is discoverable.
 func AnchorKey() string {
 	switch v := strings.ToLower(strings.TrimSpace(os.Getenv("MARCO_ANCHOR_KEY"))); v {
 	case "":

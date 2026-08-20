@@ -330,7 +330,7 @@ func mustJSON(t *testing.T, v any) string {
 //
 // A rehearsal proposal's identity is its route, and a ledger dedupes on it — so one session asks
 // once. But the ledger belongs to a session and the question belongs to a route, which outlives
-// it, while the panel aggregates every session. A two-edge teach ran pass after pass waiting for
+// it, while the panel aggregates every session. A two-edge learn ran pass after pass waiting for
 // an answer and the person read:
 //
 //	Questions open: 3
@@ -424,7 +424,7 @@ func TestAnAnswerSettlesEveryCopyOfTheQuestion(t *testing.T) {
 // only ever done for a question in the NEWEST runner's own ledger, on the reasoning that questions
 // are asked at the end of a session, so nothing is running by the time anybody answers.
 //
-// A teach episode runs bounded passes back to back. The newest runner is routinely a session that
+// A learn episode runs bounded passes back to back. The newest runner is routinely a session that
 // started after the question was raised, whose ledger never held it. Measured on
 // Home → Bluetooth → Mouse:
 //
@@ -446,7 +446,7 @@ func TestAYesReachesTheRunnerEvenWhenANewerSessionHasStarted(t *testing.T) {
 	}
 	g.memory = store
 
-	// A NEWER session, exactly as a teach pass produces: its own runner, its own empty
+	// A NEWER session, exactly as a learn pass produces: its own runner, its own empty
 	// ledger, and it becomes `last`.
 	newer := observesession.New(sessionClock, dryTarget{}, &sameSampler{script: dryHold("a", 2)},
 		nil).WithMemory(store)
@@ -488,7 +488,7 @@ func TestAYesReachesTheRunnerEvenWhenANewerSessionHasStarted(t *testing.T) {
 //
 // Naming already binds to the subject the QUESTION named rather than to whatever is in front, and
 // this proves the other half of that: the binding does not depend on the session that raised it
-// still being the newest one. By the time somebody types a name, a teach episode has usually begun
+// still being the newest one. By the time somebody types a name, a learn episode has usually begun
 // another pass.
 func TestNamingSurvivesANewerSessionBecomingCurrent(t *testing.T) {
 	store, why := semanticmemory.Open(filepath.Join(t.TempDir(), "memory.json"))

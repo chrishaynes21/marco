@@ -315,9 +315,9 @@ func (s *Store) RememberRelationships(application string,
 		// independent corroborations rather than a second observation counter.
 		//
 		// A session that declares itself part of an EPISODE already counted folds its
-		// evidence and claims no further corroboration. Teaching is the only thing that
+		// evidence and claims no further corroboration. Learn is the only thing that
 		// says so: it runs several bounded passes in one sitting, and three passes of one
-		// teaching attempt are not three independent sightings of a habit.
+		// learn attempt are not three independent sightings of a habit.
 		if !o.SameEpisode {
 			s.relationships[idx].Sessions++
 		}
@@ -591,7 +591,7 @@ func (s *Store) EstablishPlace(application string,
 		s.mu.Unlock()
 		return "", fmt.Errorf("semanticmemory: not writing: %s", reason)
 	}
-	// Held BEFORE the write, so an existing subject costs no disk at all. A teach attempt runs
+	// Held BEFORE the write, so an existing subject costs no disk at all. A learn attempt runs
 	// several passes in a sitting and most of them are standing somewhere already known.
 	for _, r := range s.subjects {
 		if strings.EqualFold(r.Application, application) &&
@@ -819,7 +819,7 @@ func (s *Store) RememberCandidate(application string, c observe.ProcedureCandida
 
 // MaxGoals bounds how many learned goals one store holds.
 //
-// Goals are one per outcome a person deliberately taught, so the realistic count is tens;
+// Goals are one per outcome a person asked Marco to learn, so the realistic count is tens;
 // the bound exists so a runaway caller cannot grow the file without limit.
 const MaxGoals = 256
 
@@ -830,13 +830,13 @@ const MaxGoals = 256
 //   - The subject must be held. A goal naming a place memory cannot find is a promise about
 //     nothing, and would be dropped at the next load anyway.
 //   - One name, one outcome, per application — the invariant `reach` depends on, and it is
-//     kept by REBINDING rather than by refusing. A person teaching the same name again is
+//     kept by REBINDING rather than by refusing. A person asking for the same name again is
 //     not creating a second meaning; they are saying what they mean by it now, usually
 //     because the last attempt did not work. That is the same rule `NameSubject` follows
 //     for screens: "renaming the same screen is ordinary, and drops the old name".
 //     Refusing was tried first and it was wrong in the only way that matters — measured
-//     live on 2026-08-17, a goal left behind by a FAILED teach made the name unusable, so
-//     the person was punished for Marco's earlier failure and could not re-teach at all.
+//     live on 2026-08-17, a goal left behind by a FAILED learn made the name unusable, so
+//     the person was punished for Marco's earlier failure and the name could not be reused at all.
 //   - The same name for the same subject is a repeat demonstration and folds — lineage,
 //     never a second record.
 //

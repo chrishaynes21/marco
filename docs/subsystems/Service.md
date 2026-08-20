@@ -23,7 +23,13 @@ source_paths:
 # Service
 
 `director serve` holds the **warm accessibility client**. `marco director "<phrase>"` is the
-thin client; the overlay and voice go through it.
+thin client.
+
+**The overlay and voice no longer reach it directly.** Both enter the one intake
+([[Invocation]]), which submits a phrase here only when Marco does not already know exactly what
+was meant. `PERFORM` is a registry command like an executed phrase — visible to `director status`,
+refusing a concurrent mutating request, and reachable by `CANCEL_ACTIVE` —
+[[ADR-085-a-performance-is-a-registry-command]].
 
 ## Why it must be a service
 
@@ -91,6 +97,8 @@ worth looking at.
 ## Decisions
 
 - [[ADR-010-passive-observation-cannot-execute]] — the observe guard applies inside the service
+- [[ADR-085-a-performance-is-a-registry-command]] — PERFORM is visible, refusable and stoppable
+- [[ADR-084-a-plays-identity-is-its-subject]] — PERFORM carries a subject id (protocol 7)
 
 ## Validated by
 

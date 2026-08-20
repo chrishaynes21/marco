@@ -81,7 +81,7 @@ func windowAt(x, y int) uintptr {
 // windowTitle names THIS instance's window, uniquely.
 //
 // The base is what a person sees; the pid suffix is what `adopt` finds the window BY. Two
-// surfaces may overlap on purpose — a teach highlight while a `sight --show` runs — and with
+// surfaces may overlap on purpose — a learn highlight while a `sight --show` runs — and with
 // one shared title FindWindowW resolved whichever was created first, so the second instance
 // adopted the first one's window: set its owned-surface property, rewrote its styles, and
 // fought its per-frame position reassert forever. A title only this process uses makes the

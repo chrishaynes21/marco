@@ -178,7 +178,7 @@ func TestTheAssembledTheaterRunsItsCastProgram(t *testing.T) {
 //
 // # The live failure
 //
-// A play was learned, verified 2/2, saved, registered, and the taught phrase resolved. The
+// A play was learned, verified 2/2, saved, registered, and the learned phrase resolved. The
 // Audience stood on Home, asked for it, and nothing happened.
 //
 // The Theater is wired unconditionally and casts whichever actor can play the part. Its only actor

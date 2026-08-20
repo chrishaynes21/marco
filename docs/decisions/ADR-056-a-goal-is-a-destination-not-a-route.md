@@ -11,7 +11,7 @@ source_paths:
   - internal/director/observe/goal.go
   - internal/director/observe/discoverycandidate.go
   - internal/director/observesession/runner.go
-  - internal/director/teach/teach.go
+  - internal/director/learn/learn.go
   - internal/director/semanticmemory/store.go
   - cmd/director/reach.go
 ---
@@ -68,7 +68,7 @@ about what is KNOWN, enacted only through a saved play's resolve â†’ authorize â
 - `TestAMultiLegDemonstrationDecomposesIntoReusableEdges`
   (`internal/director/observesession/goalwiring_test.go`)
 - `TestAnUnrecognisableStartStillWatches`, `TestARouteFromSomewhereElseIsStillLearned`,
-  `TestTeachingRecordsTheDestinationAsAGoal` (`internal/director/teach/teach_test.go`)
+  `TestTeachingRecordsTheDestinationAsAGoal` (`internal/director/learn/learn_test.go`)
 - `TestReachPlansOverTheVerifiedEdgeFromWhereThePersonStands`,
   `TestAKnownGoalWithoutARehearsedRouteRefusesHonestly`
   (`cmd/director/reachwiring_test.go`)

@@ -234,7 +234,7 @@ func (r *Registry) Validate() []ShadowedProcedure {
 				// One was demonstrated here and one was shipped. That pair is decided by
 				// the provenance rule in SelectProcedure rather than being ambiguous, and
 				// reporting it as shadowed would refuse to start the service the moment a
-				// user teaches the Director something it already knew how to do.
+				// user shows the Director something it already knew how to do.
 				continue
 			}
 			if shared := sharedApplications(a, b); len(shared) > 0 {

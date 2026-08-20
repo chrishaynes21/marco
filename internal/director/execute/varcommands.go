@@ -203,7 +203,7 @@ func (p *Pipeline) VariableWriter() VariableWriter {
 // storage layer spends its design avoiding, leaking back out through a diagnostic.
 func renderVariableList(vars []variables.Variable) string {
 	if len(vars) == 0 {
-		return "Nothing is remembered yet. Say \"remember this button as save\" to teach me one."
+		return "Nothing is remembered yet. Say \"remember this button as save\" to tell me one."
 	}
 	sort.Slice(vars, func(i, j int) bool { return vars[i].Name < vars[j].Name })
 

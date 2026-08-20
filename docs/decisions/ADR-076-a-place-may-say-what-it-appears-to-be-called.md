@@ -6,7 +6,7 @@ supersedes: []
 affects:
   - semantic-memory
   - perception
-  - teaching
+  - demonstrations
 source_paths:
   - internal/director/observe/sample.go
   - internal/director/observe/remember.go

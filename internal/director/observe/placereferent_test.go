@@ -19,16 +19,16 @@ import (
 // The mutation this exists for: replacing the state argument with the live account's current
 // state. It passes every "does a box appear" check, and it turns the START highlight into a
 // confirmation of whatever the user happens to be looking at — the failure mode that makes a
-// grounded teach session worse than an ungrounded one, because it looks like agreement.
+// grounded learn session worse than an ungrounded one, because it looks like agreement.
 func TestGroundingAPlaceUsesThePinnedScreenAndNotWhateverIsCurrent(t *testing.T) {
 	live := twoScreens(t)
 
-	got := observe.ReferentForPlace("state_start", observe.ReferentTeachStart, live)
+	got := observe.ReferentForPlace("state_start", observe.ReferentLearnStart, live)
 	if !got.CanPoint() {
 		t.Fatalf("the established screen could not be grounded: %q", got.Unavailable)
 	}
-	if got.Role != observe.ReferentTeachStart {
-		t.Errorf("role %q, want the teaching start", got.Role)
+	if got.Role != observe.ReferentLearnStart {
+		t.Errorf("role %q, want the Learn start", got.Role)
 	}
 	// Every region belongs to the start screen's structure, and none to the other one.
 	allDrawnFrom(t, got.Regions, regionsOfState(t, "state_start", live), "state_start")
@@ -43,8 +43,8 @@ func TestGroundingAPlaceUsesThePinnedScreenAndNotWhateverIsCurrent(t *testing.T)
 func TestTheStartAndTheDestinationAreDifferentScreens(t *testing.T) {
 	live := twoScreens(t)
 
-	start := observe.ReferentForPlace("state_start", observe.ReferentTeachStart, live)
-	dest := observe.ReferentForPlace("state_elsewhere", observe.ReferentTeachDestination, live)
+	start := observe.ReferentForPlace("state_start", observe.ReferentLearnStart, live)
+	dest := observe.ReferentForPlace("state_elsewhere", observe.ReferentLearnDestination, live)
 	if !start.CanPoint() || !dest.CanPoint() {
 		t.Fatalf("one endpoint could not be grounded: start=%q destination=%q",
 			start.Unavailable, dest.Unavailable)
@@ -60,7 +60,7 @@ func TestAnUnsettledScreenIsNotGrounded(t *testing.T) {
 	live := twoScreens(t)
 
 	for _, state := range []observe.ScreenStateID{"", observe.ScreenStateUnknown, "state_none"} {
-		got := observe.ReferentForPlace(state, observe.ReferentTeachStart, live)
+		got := observe.ReferentForPlace(state, observe.ReferentLearnStart, live)
 		if got.CanPoint() {
 			t.Fatalf("state %q produced %d region(s). With no screen settled there is nothing "+
 				"for a highlight to be about", state, len(got.Regions))
@@ -80,7 +80,7 @@ func TestAnUnsettledScreenIsNotGrounded(t *testing.T) {
 func TestAGroundedScreenSaysItIsWhatTheScreenIsRecognisedBy(t *testing.T) {
 	live := twoScreens(t)
 
-	got := observe.ReferentForPlace("state_start", observe.ReferentTeachStart, live)
+	got := observe.ReferentForPlace("state_start", observe.ReferentLearnStart, live)
 	if !got.CanPoint() {
 		t.Fatalf("nothing to describe: %q", got.Unavailable)
 	}
@@ -105,7 +105,7 @@ func TestGroundingAPlaceStillRefusesTheWholeWindow(t *testing.T) {
 		Application: "code.exe", Window: "window_1", AtInference: 9, Reliable: true,
 		Tracks: tracks, States: []observe.ScreenState{{ID: "state_start", Episodes: 3}},
 	}
-	got := observe.ReferentForPlace("state_start", observe.ReferentTeachStart, live)
+	got := observe.ReferentForPlace("state_start", observe.ReferentLearnStart, live)
 	if got.CanPoint() {
 		t.Fatalf("outlined the whole window as the start (%d region(s)). A person shown their "+
 			"entire application concludes Marco means the entire application", len(got.Regions))
@@ -136,7 +136,7 @@ func TestStructureParkedUnderTheUnknownScreenIsNeverGrounded(t *testing.T) {
 		States: []observe.ScreenState{{
 			ID: observe.ScreenStateUnknown, Episodes: 3, Inferences: 8}},
 	}
-	got := observe.ReferentForPlace(observe.ScreenStateUnknown, observe.ReferentTeachStart, live)
+	got := observe.ReferentForPlace(observe.ScreenStateUnknown, observe.ReferentLearnStart, live)
 	if got.CanPoint() {
 		t.Fatalf("grounded %d region(s) on the unknown screen", len(got.Regions))
 	}
@@ -147,7 +147,7 @@ func TestStructureParkedUnderTheUnknownScreenIsNeverGrounded(t *testing.T) {
 
 // Nothing watched is not the same answer as nothing to single out.
 func TestGroundingWithNothingWatchedSaysSo(t *testing.T) {
-	got := observe.ReferentForPlace("state_start", observe.ReferentTeachStart,
+	got := observe.ReferentForPlace("state_start", observe.ReferentLearnStart,
 		observe.LiveGeometry{})
 	if got.Unavailable != observe.ReferentNothingWatched {
 		t.Errorf("refused with %q, want %q", got.Unavailable, observe.ReferentNothingWatched)

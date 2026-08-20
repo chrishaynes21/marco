@@ -154,8 +154,8 @@ const (
 	actCfgRight
 	actCfgSave     // config editor: persist to disk
 	actCfgClose    // config editor: close
-	actTeachType   // teach prompt: a typed y/n/s (or "" to clear) — shown, not yet sent
-	actTeachSubmit // teach prompt: Enter — send the pending answer to the teach child
+	actTeachType   // interactive prompt: a typed y/n/s (or "" to clear) — shown, not yet sent
+	actTeachSubmit // interactive prompt: Enter — send the pending answer to the child
 	actAcceptHint  // Tab — append the next auto-popped "name:" arg label to the command
 )
 
@@ -293,20 +293,20 @@ func processActions(h *model, emit func(event)) {
 			h.setTeachPending(a.hot)
 		case actTeachSubmit:
 			// Enter: commit the pending answer to the transcript. If this is the
-			// unknown-command teach OFFER (not a child prompt), y/Enter starts a
-			// demonstration teach and anything else declines; otherwise send the
-			// answer to the live teach child. Off the hook thread, so the write is safe.
+			// unknown-command learn OFFER (not a child prompt), y/Enter starts a
+			// demonstration learn and anything else declines; otherwise send the
+			// answer to the live child. Off the hook thread, so the write is safe.
 			if ans, ok := h.submitTeachPending(); ok {
-				teachAsk.Store(false)
+				promptAsk.Store(false)
 				if name := takePendingTeach(); name != "" {
-					// Unknown-command teach OFFER (no child runs on decline), so wipe the
+					// Unknown-command learn OFFER (no child runs on decline), so wipe the
 					// prompt/transcript ourselves — otherwise it lingers in the HUD.
-					h.clearTeachPrompt()
+					h.clearPrompt()
 					if ans == "" || ans == "y" || ans == "yes" {
-						startTeach(h, name)
+						startLearn(h, name)
 					}
 				} else {
-					writeTeachAnswer(ans)
+					writePromptAnswer(ans)
 				}
 			}
 		case actCancelRun:
@@ -338,9 +338,9 @@ func arm() {
 
 func disarm() { leaderGen.Add(1); armed.Store(false) }
 
-// isTeachAnswer reports whether r is a single-key answer to a teach prompt: y/n/s
+// isPromptAnswer reports whether r is a single-key answer to an interactive prompt: y/n/s
 // (save / discard / simplify) or c/f/g (scope: context / focus / global).
-func isTeachAnswer(r rune) bool {
+func isPromptAnswer(r rune) bool {
 	switch r {
 	case 'y', 'n', 's', 'c', 'f', 'g':
 		return true
@@ -381,12 +381,12 @@ func handleKey(vk uint16, down bool) bool {
 		return editing.Load() // hide shift from the game only while typing
 	}
 
-	// A teach save/scope prompt is waiting: capture the y/n/s answer (Enter = yes)
+	// A learn save/scope prompt is waiting: capture the y/n/s answer (Enter = yes)
 	// and hand it to the processor goroutine, which echoes it in the HUD and writes
-	// it to the teach child's stdin (off this hook thread). Swallow all keys so the
+	// it to the child's stdin (off this hook thread). Swallow all keys so the
 	// demonstration is over and nothing leaks to the app; disarm immediately so a
 	// stray repeat isn't sent twice before the next prompt arrives.
-	if teachAsk.Load() {
+	if promptAsk.Load() {
 		if down {
 			switch {
 			case vk == vkReturn:
@@ -394,7 +394,7 @@ func handleKey(vk uint16, down bool) bool {
 			default:
 				// Single keypress answers and submits: y/n/s (save) and c/f/g (scope:
 				// context / focus / global). No Enter needed — leader-then-n discards.
-				if r, ok := vkToRune(vk, false); ok && isTeachAnswer(r) {
+				if r, ok := vkToRune(vk, false); ok && isPromptAnswer(r) {
 					push(action{kind: actTeachType, hot: string(r)})
 					push(action{kind: actTeachSubmit})
 				}

@@ -106,9 +106,9 @@ change, not a pointing fix.
 
 ## What it costs, stated plainly
 
-Explorer cannot be the application for a visual teach walkthrough. **Teaching is unaffected** — the
-START was established, the place is durable, the session reached `ready_for_demo`, and only the
-highlight is missing. See [[ADR-047-a-place-is-remembered-a-meaning-is-answered]] and
+Explorer cannot be the application for a walkthrough that has to point at something on screen.
+**Learn itself is unaffected** — the START was established, the place is durable, the session
+reached `ready_for_demo`, and only the highlight is missing. See [[ADR-047-a-place-is-remembered-a-meaning-is-answered]] and
 [[Passive-Observation]].
 
 ## Open

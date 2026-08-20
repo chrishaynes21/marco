@@ -27,7 +27,8 @@ facts — which line of code decides it.
 
 This note is about the PRODUCT MODEL. [[Learned-Plays]] is about how one particular kind of Play
 comes to exist; read that for the chain from watching to arrival, and this for what the person is
-then holding.
+then holding. [[Invocation]] is how a request finds one of these — the exact lookup below is arm
+four of the intake, and everything it misses belongs to Director.
 
 ## A Play is the durable behaviour; a Binding is what reaches it
 
@@ -54,15 +55,20 @@ a key. `internal/plays` `TestABindingReachesAPlayWithoutBecomingOne` is that sep
 
 ## Why the noun is Play and the package is still `internal/routes`
 
-**Product vocabulary and implementation vocabulary are allowed to differ.** This repository
-already does it deliberately, for a bigger word than this one: the flow a person meets as **Learn**
-is called `teach` in the code from end to end, and
-[[ADR-048-learn-teach-and-do-are-three-different-sentences]] plus [[Glossary]] say so out loud
-rather than treating the divergence as drift.
+**Product vocabulary and implementation vocabulary are allowed to differ — where the difference
+costs a reader nothing.** A package name is that case exactly: nobody outside this repository ever
+sees the words `internal/routes`, so renaming it is a large diff across `cmd/marco`, `cmd/director`
+and every test in exchange for nothing a person could notice.
 
-So `internal/routes` keeps its name. The cost of the rename is a large diff across `cmd/marco`,
-`cmd/director` and every test; the benefit to a person who never sees a package name is zero. The
-audit's recommendation was explicit about this ([[34F-legacy-marco-product-audit]] §8, *"do not
+That is a different question from **a word the product needs back**. The acquisition flow was also
+spelled `teach` in the code from end to end, and it was renamed to `learn` all the way down —
+because *Teach* names a feature this project intends to build, and a word cannot be spent twice
+([[ADR-048-learn-teach-and-do-are-three-different-sentences]],
+[[ADR-086-one-acquisition-one-word-one-request]]). So `teach` is not a precedent for keeping an
+internal name; it is the counter-example, and it is the test to apply here: nothing else needs the
+word *routes*, so `internal/routes` keeps it.
+
+The audit's recommendation was explicit about this ([[34F-legacy-marco-product-audit]] §8, *"do not
 rename the Go package"*), and [[ADR-081-a-durable-behaviour-is-a-play]] is where the decision
 lives.
 
@@ -132,7 +138,7 @@ could promise an activation that registration would not perform
 (`TestAStagedPlayListsAsBringingItsApplicationForward`).
 
 Registered as context, a learned Play resolved only while the application it would take you to was
-already in front, and Marco offered to teach a play it had learned four minutes earlier. That is
+already in front, and Marco offered to Learn a play it had learned four minutes earlier. That is
 the live failure in [[ADR-080-a-learned-play-is-asked-for-from-anywhere]]. Focus is the contract
 the performer already had: `Runtime.PerformGoal` brings the application forward itself before it
 reads the Stage.
@@ -279,7 +285,9 @@ The `"[route] "` line `marco do` prints is **wire protocol, not user text**: `pl
 parses it, and it did not change with the vocabulary. What did change is the unknown-command error,
 now the single prefix `"no play matches "` (`cmd/marco/panicstop.go`, `cmd/marco/bind.go`) with the
 overlay's suppression constant `noPlayMatches` moved to match (`TestTheUnknownCommandErrorIsOnePrefix`
-and `plugins/overlay/acts_test.go`).
+and `plugins/overlay/acts_test.go`). It now has a companion, `"[result] "`, which says what BECAME
+of the invocation in one of six words — see [[Invocation]] for both lines and why neither can be
+derived from the other.
 
 The view IDENTIFIERS in the control centre did not move either: the tab a person reads says
 **Plays** while the URL, the `data-view` and `marco ui routes` still say `routes`, and `marco ui
@@ -306,11 +314,14 @@ the foreground when you type that command is a terminal
 
 ## Related
 
+- [[Invocation]] — how a request reaches one of these, and what happens to everything else
 - [[Learned-Plays]] — how a Play that Marco learned comes to exist, and each wall on the way
 - [[Demonstrations]] — where a Recorded play comes from
 - [[Marco-Boundary]] — a Play is legal Marco, and so is everything else that reaches the desktop
 - [[34F-legacy-marco-product-audit]] — the audit that counted the six senses of "route"
 - [[ADR-081-a-durable-behaviour-is-a-play]] · [[ADR-082-a-plays-past-travels-with-the-file]]
-- [[ADR-048-learn-teach-and-do-are-three-different-sentences]] — the Learn/`teach` precedent
+- [[ADR-048-learn-teach-and-do-are-three-different-sentences]] — why Teach is reserved, and why
+  that made `teach` the one internal name worth renaming
+- [[ADR-086-one-acquisition-one-word-one-request]] — the rename that carried it out
 - [[ADR-080-a-learned-play-is-asked-for-from-anywhere]] — why a learned Play is focus-scoped
 - [[Glossary]] — the words, in one place

@@ -457,7 +457,7 @@ func TestAnUnknownIntermediateScreenIsTransientAndNotRemembered(t *testing.T) {
 	// It did NOT become durable semantic memory. Promotion involves a person.
 	if after := len(memoryAt(t, dir).Subjects()); after != before {
 		t.Errorf("memory grew from %d to %d subjects during a demonstration; a screen "+
-			"observed while teaching was promoted without anybody agreeing", before, after)
+			"observed while learning was promoted without anybody agreeing", before, after)
 	}
 }
 

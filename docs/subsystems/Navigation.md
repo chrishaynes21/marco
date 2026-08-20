@@ -190,7 +190,7 @@ The full list is in [[ADR-013-navigation-is-meaning-not-keys]]. The three that m
 
 ## Known gaps
 
-- **Confirmed live 2026-08-09** against an application Marco had never been taught. See
+- **Confirmed live 2026-08-09** against an application Marco had never learned. See
   [[Experiment-008-unknown-game-discovery]].
 - **The gain from state-conditional admission is not measured.** It cannot be, from any trace
   captured before it existed: admission is decided inside the producer at the moment of the

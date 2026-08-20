@@ -74,8 +74,8 @@ func TestAnEstablishedPlaceIsNotRecognisedInAnotherApplication(t *testing.T) {
 
 // Establishing a place a person has already settled leaves their answer exactly as it was.
 //
-// The worst available failure in this mechanism: a teach attempt walking over a judgement because
-// the user happened to start teaching on a screen they had answered a question about last week.
+// The worst available failure in this mechanism: a learn attempt walking over a judgement because
+// the user happened to start learning on a screen they had answered a question about last week.
 func TestEstablishingAPlaceNeverTouchesAnExistingJudgement(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "memory.json")
 
@@ -117,7 +117,7 @@ func TestEstablishingAPlaceNeverTouchesAnExistingJudgement(t *testing.T) {
 
 // A place with nothing to recognise it by is refused, in the same words Remember uses.
 //
-// Not an oversight and not a nicety: a record nothing can ever match is one more entry per teach
+// Not an oversight and not a nicety: a record nothing can ever match is one more entry per learn
 // attempt, forever, buying nothing. Refusing is honest — Marco could not recognise this place, and
 // storing the fact would not change that.
 func TestAPlaceWithNoDiscriminatorIsRefused(t *testing.T) {

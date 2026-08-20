@@ -16,7 +16,7 @@ import (
 // a SCREENSHOT FILE (no live capture), print a table of what it found, and write an
 // annotated copy with a coloured box per element. It's the spike tool — point it at a few
 // real screenshots to see whether a candidate model detects YOUR UIs before wiring it into
-// teaching. Works in any build: the default (null) detector reports "no model", the
+// the learn pipeline. Works in any build: the default (null) detector reports "no model", the
 // `-tags onnxvision` build runs the real one.
 func runDetect(args []string) int {
 	if len(args) < 1 {

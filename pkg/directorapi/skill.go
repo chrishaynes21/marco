@@ -2,7 +2,7 @@ package directorapi
 
 import "context"
 
-// A SKILL is a modular capability that teaches the Director how to understand or
+// A SKILL is a modular capability that gives the Director a way to understand or
 // control a specific domain — a browser, VS Code, Discord, file management, window
 // management. "Skill" is the one technical term; "hat" may be a user-facing name
 // for a bundle of skills later, but it does not appear in the codebase.

@@ -139,8 +139,8 @@ const (
 	// PlayAvailable: a completed rehearsal still supports writing this down as Marco.
 	PlayAvailable Stage = "play_available"
 
-	// The stages an EXPLICIT teaching session can be in that ordinary passive
-	// observation never reaches. A person who asked to teach something is owed a
+	// The stages an EXPLICIT learn session can be in that ordinary passive
+	// observation never reaches. A person who asked Marco to learn something is owed a
 	// different account from somebody being watched: they are waiting on a cue.
 
 	// Establishing: learning where the demonstration starts, before saying "go ahead".
@@ -154,7 +154,7 @@ const (
 	Saved Stage = "saved"
 )
 
-// StepState is where one step of a teaching flow has got to.
+// StepState is where one step of a learn flow has got to.
 //
 // Four values because a checklist that cannot say "skipped" forces every session through
 // a wizard it may legitimately not need, and a UI that hard-coded the sequence would
@@ -168,14 +168,14 @@ const (
 	StepSkipped StepState = "skipped"
 )
 
-// Step is one stage of the teaching checklist, named in ordinary words.
+// Step is one stage of the learn checklist, named in ordinary words.
 type Step struct {
 	Name  string    `json:"name"`
 	State StepState `json:"state"`
 }
 
-// MaxTeachSteps bounds the checklist.
-const MaxTeachSteps = 8
+// MaxLearnSteps bounds the checklist.
+const MaxLearnSteps = 8
 
 // MaxDidIntents bounds how many attributed actions travel at once.
 //
@@ -184,13 +184,13 @@ const MaxTeachSteps = 8
 // record of somebody's keyboard by another route.
 const MaxDidIntents = 8
 
-// Teaching is an EXPLICIT teaching session: what the person asked for, and how far it got.
+// LearnSession is an EXPLICIT learn session: what the person asked for, and how far it got.
 //
 // # Why this is not folded into Learning
 //
 // Because they have different owners, and an account whose sections disagree is worse
 // than one that is missing a section. `Learning` is derived from the observation session
-// — what a passive watcher can tell. This is derived from the teaching coordinator, which
+// — what a passive watcher can tell. This is derived from the Learn coordinator, which
 // is the only thing that knows a person asked for something, what they called it, which
 // cue they are waiting for, and whether a file was written.
 //
@@ -199,8 +199,8 @@ const MaxDidIntents = 8
 // No subject id, no fingerprint, no similarity, no proposal id, no capture internals.
 // `Did` is the closed navigation vocabulary — meanings, never keys — which is the same
 // boundary a durable relationship's evidence already lives inside.
-type Teaching struct {
-	// Active says somebody is teaching right now.
+type LearnSession struct {
+	// Active says a learn session is running right now.
 	Active bool `json:"active,omitempty"`
 	// Asked is what the person called the behaviour. Their words, held and not
 	// interpreted — Marco still has to discover what actually happened.
@@ -455,7 +455,7 @@ type Link struct {
 	Established bool `json:"established,omitempty"`
 }
 
-// Learning is where the teaching lifecycle has got to.
+// Learning is where the learning lifecycle has got to.
 type Learning struct {
 	Stage Stage `json:"stage"`
 	// About is the route this stage concerns, in the user's words where they exist.
@@ -755,14 +755,14 @@ type View struct {
 	// UptimeMS is how long the Director has been up.
 	UptimeMS int64 `json:"uptime_ms,omitempty"`
 
-	Current  Current   `json:"current,omitzero"`
-	Seeing   Seeing    `json:"seeing,omitzero"`
-	Offers   Offers    `json:"offers,omitzero"`
-	Thinking Thinking  `json:"thinking,omitzero"`
-	Learning Learning  `json:"learning,omitzero"`
-	Teaching Teaching  `json:"teaching,omitzero"`
-	Doing    Doing     `json:"doing,omitzero"`
-	Question *Question `json:"question,omitempty"`
+	Current      Current      `json:"current,omitzero"`
+	Seeing       Seeing       `json:"seeing,omitzero"`
+	Offers       Offers       `json:"offers,omitzero"`
+	Thinking     Thinking     `json:"thinking,omitzero"`
+	Learning     Learning     `json:"learning,omitzero"`
+	LearnSession LearnSession `json:"learnSession,omitzero"`
+	Doing        Doing        `json:"doing,omitzero"`
+	Question     *Question    `json:"question,omitempty"`
 
 	// Recent is the bounded timeline, oldest first.
 	Recent []Moment `json:"recent,omitempty"`

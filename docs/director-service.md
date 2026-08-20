@@ -80,6 +80,12 @@ marco director shutdown        stop the service
 service what it is doing, and that answer decides whether the phrase is a
 cancellation, an answer to a pending question, or a new request. See *Voice routing*.
 
+> **Superseded on the entry point.** `marco director "<phrase>"` is no longer where a front
+> end enters — `marco do` is, for every surface. The routing described here (control phrase /
+> pending question / new request) moved up into the one intake and gained two arms above the
+> Director tier. `marco director` remains the thin client the intake itself calls. See
+> [[Invocation]].
+
 `director execute`, `history`, `last`, `graph`, `show` and `analyze` are unchanged
 from a user's point of view; `execute` and `history` now go through the service.
 `graph`, `show` and `analyze` read the action graph directly, so they work with no
@@ -103,6 +109,13 @@ Director (`plugins/overlay/director.go`), with route lookup kept as the fallback
 
 Typed commands are **untouched**. Someone typing `` `m my route `` is naming a route
 they taught; someone speaking is describing what they want to happen.
+
+> **Superseded — this whole section is the defect Phase 2 removed.** Splitting the intake
+> by input device meant a play you could run by typing was not found by saying its name.
+> Typed and spoken now build the same argv and differ only in `--source`, which is recorded
+> and never consulted; the engine's intake decides whether a request is for the Director.
+> `MARCO_DIRECTOR=off` no longer gates dispatch at all — it only gates the watch panel's
+> polling. Read [[Invocation]] and [[ADR-083-one-invocation-intake]] for what is true now.
 
 ### Who decides what
 

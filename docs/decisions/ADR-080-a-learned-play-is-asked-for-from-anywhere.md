@@ -25,7 +25,7 @@ dispatch - no route found  name=open-mouse-settings  app=discord
 I don't know "open-mouse-settings" yet. Teach it now? [y]es / [n]o:
 ```
 
-Marco offered to teach a Play it had just learned.
+Marco offered to Learn a Play it had just learned.
 
 ## Why
 
@@ -35,7 +35,7 @@ route only when that application is *already in front*.
 
 So the Play could be asked for only while the Audience was already looking at the thing it would
 take them to. Every other position — which is every position that matters — missed the resolver
-entirely and fell through to the teach offer.
+entirely and fell through to the Learn offer.
 
 ## The decision
 
@@ -77,7 +77,7 @@ registered, and the collision guard that field revealed.
 
 ## Enforced by
 
-- `cmd/director/teachtail_test.go` — `TestALearnedPlayIsRegisteredWhenItIsSaved` now requires the
+- `cmd/director/learntail_test.go` — `TestALearnedPlayIsRegisteredWhenItIsSaved` now requires the
   Play to resolve from another application AND to resolve as a focus route. Deleting
   `Focus: true` fails it (verified).
 - `cmd/director/lifecyclewiring_test.go` — `TestCollisionsAreRefusedRatherThanResolved`. Deleting

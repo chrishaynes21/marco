@@ -113,7 +113,7 @@ func TestARehearsalWithNothingToSeeStillRefuses(t *testing.T) {
 // They shared one outcome, and the conflation cost real time: a live rehearsal reported
 // `unobservable` while the window was in front and perfectly legible. The diagnosis went looking
 // for a perception failure for an hour, when the truth was that the keys had landed on a screen
-// nobody had ever taught Marco.
+// Marco had never been shown.
 //
 // They also want opposite responses. A failure to look is Marco's problem; an unfamiliar screen is
 // evidence about the route — it means the step went somewhere new.

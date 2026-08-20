@@ -647,7 +647,7 @@ func decisive(in []NavIntent) []NavIntent {
 // FollowUpRefusal is the CLOSED vocabulary of why Marco did NOT ask for another example.
 //
 // Silence is the hard case here more than anywhere else in this system: a user who agreed to
-// teach Marco something and then heard nothing has no way to tell whether Marco is satisfied,
+// show Marco something and then heard nothing has no way to tell whether Marco is satisfied,
 // stuck, or broken.
 type FollowUpRefusal string
 
@@ -712,7 +712,7 @@ func FollowUpFrom(a CandidateAssessment) FollowUpJudgement {
 			//
 			// Live, that was the whole failure: a clean one-shot candidate produced
 			// "want to show me again?", the rehearsal review then refused with
-			// `another_question_open`, and teaching waited for a grant that could not
+			// `another_question_open`, and Learn waited for a grant that could not
 			// exist because the question granting it was never asked.
 			continue
 		case r.ResolvableByDemonstration():

@@ -45,7 +45,7 @@ func TestGoalHasNoRequiredStart(t *testing.T) {
 	}
 }
 
-// Already standing on B: the edge B→C is the whole plan. The demonstration that taught C
+// Already standing on B: the edge B→C is the whole plan. The demonstration C was learned from
 // began at A, and A appears nowhere.
 func TestCurrentBCanUseBToC(t *testing.T) {
 	top := topologyOf(edge("subj_a", "subj_b"), edge("subj_b", "subj_c"))

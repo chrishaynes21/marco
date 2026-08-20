@@ -5203,3 +5203,148 @@ the five standings, and a table of which call decides each fact. [[Learned-Plays
 where it still said a learned play lands in `context/` — it lands in `focus/`, and has since
 [[ADR-080-a-learned-play-is-asked-for-from-anywhere]]. README documents `marco plays` and
 `marco register`; E2E section **G** walks a staged play across the line and back.
+
+# Roadmap 34F Phase 2 — one invocation intake (2026-08-20)
+
+Phase 1 gave the product a noun. Phase 2 gave it one door. **Typing, speaking, a hotkey, a
+clicked Run and the CLI are entrances, not different Marcos** — and which one you used no longer
+decides what your words mean.
+
+The rule, in one sentence: *if Marco already knows exactly what the Audience means, it uses the
+durable thing it knows; otherwise Director works out what they mean from the live world.*
+
+## What landed
+
+- **`internal/invoke`** — the one semantic decision, PURE. `Decide(plays, Request) Decision`,
+  five arms in a fixed order: control phrase → pending question → explicit identity → exact
+  durable match → Director. `Request.Source` is recorded and **never consulted**; lookup is exact
+  and never fuzzy.
+- **`cmd/marco/intake.go`** — `runInvocation`, the one process-side entry, and six outcomes
+  (`performed | clarify | refused | unavailable | cancelled | failed`) with distinct exit codes,
+  announced on `[result] ` beside the unchanged `[route] `. `MARCO_TRACE_INTAKE=1` adds
+  `[intake] source=… decision=… play=… why=…`, which is how the acceptance is *seen*.
+- **Deleted: `dispatchDo` and `resolveTarget`.** The 0.75-score `internal/nlu` match and the
+  `$MARCO_RESOLVER` external model no longer sit in front of the door on the product path. Both
+  packages survive as a developer surface (`marco assistant`'s confirm loop, `args`, `simplify`,
+  `bind`, `dispatch`).
+- **`plugins/overlay`** — the `RunVoice` → `marco director` branch is GONE. Typed and spoken build
+  the same argv and differ in `--source` alone; both are asynchronous; control words are
+  recognised locally for immediacy only, and `cancelRun` also spawns `marco director stop`.
+  Six outcomes are read off the wire instead of guessed from an exit code.
+- **Explicit identity end to end** — a clicked Run posts `{slug, app, scope}` and spawns
+  `--play=`; `marco hotkey` resolves its binding once. A Play a surface already holds is never
+  turned back into words and guessed at again.
+- **Director: PERFORM is a registry command** — visible to `director status`, refusing a
+  concurrent mutating request, reachable by `CANCEL_ACTIVE`, and holding a real cancellable
+  context. `cmd/director/perform.go` has zero `context.Background()` left.
+- **The subject is the identity** — `Origin.To → Goal.Subject`, matched before any name join.
+  `ProtocolVersion` 6 → 7; rebuild everything together or the version check refuses.
+
+## The four defects this made visible
+
+1. **A learned play could not be stopped.** `rehearse.Live.Perform` checks `ctx.Err()` before
+   every step and has a cancelled terminal and a cancelled refusal ready — all dead, because the
+   only context ever handed in was `context.Background()`.
+2. **PERFORM acted outside the command registry.** `director status` said nothing was running
+   while a play typed and clicked, `director stop` answered "nothing is running", and a second
+   mutating request was accepted concurrently.
+3. **A typed "stop" offered to record a demonstration called "stop".** It missed Play lookup,
+   fell through the unknown-command path, and became the teach offer.
+4. **`marco do` was never the exact-match intake the audit assumed.** Two semantic layers ran in
+   front of the registry, so with both "open settings" and "open the settings" registered, asking
+   for the second ran the first — silently, in front of the authority door.
+
+## Decisions
+
+[[ADR-083-one-invocation-intake]] — one intake, transport does not decide meaning, and the three
+alternatives rejected (teach Director about Plays; make Play lookup fuzzy; keep two intakes and
+sync them).
+[[ADR-084-a-plays-identity-is-its-subject]] — the `Origin.To → Goal.Subject` join, and why the
+name is consulted for exactly one legacy case and never first.
+[[ADR-085-a-performance-is-a-registry-command]] — visible, refusable, stoppable; this is what
+makes `stop` work on a running Play.
+
+## Where to read it
+
+[[Invocation]] is the new subsystem note: the canonical rule, source invariance, explicit
+identity, all five arms with the reason each sits where it does, the cancellation exception, the
+six outcomes and the three wire lines, and a table of every entrance. [[34F-legacy-marco-product-audit]]
+§22 records Phase 2 as landed and what it found that the audit had not. README documents the one
+intake in user terms; E2E section **H** proves cross-surface sameness with `MARCO_TRACE_INTAKE=1`,
+and needs a person at a microphone for the spoken half — a Final transcript cannot be scripted.
+
+**Still owed:** Phase 3, one stop. A locally-run play still stops by the panic-stop hook and the
+overlay's child kill rather than through the same authority.
+
+# Roadmap 34F Phase 3 — one vocabulary: Learn, Teach, Do (2026-08-20)
+
+Phase 2 gave the product one door. Phase 3 gave it one **vocabulary**, and the vocabulary is
+vertical — it means the same thing in a package name, a CLI verb, a wire field and a sentence a
+person reads:
+
+> **LEARN** — the person acts, Marco watches and acquires. *(built)*
+> **TEACH** — the person acts, Marco guides them through it. *(reserved, not built)*
+> **DO** — Marco acts, the person delegates. *(built)*
+
+The old spelling had all three collapsed onto `teach`, so the one direction the product does not
+yet do was occupying the name of the one it does.
+
+## What landed
+
+- **Packages** — `internal/director/teach` → **`internal/director/learn`**; `internal/voiceteach`
+  → **`internal/voicelearn`**. Files moved with them: `teachcmd.go` → `learncmd.go`,
+  `teachtail.go` → `learntail.go`, `teachwiring.go` → `learnsessionwiring.go`,
+  `teachgrounding.go` → `learngrounding.go`, and their tests.
+- **The two acquisition request types were MERGED.** `service.ObserveTeach` is gone. There is one
+  `service.ObserveLearn` carrying both the control surface's verbs and the session's own
+  configuration (`Target`, `Actor`, `Verb`, `Surface`, `Dry`, `Finish`, `Evidence`).
+  `ObserveQuery.Teach` is gone; everything goes through `ObserveQuery.Learn`, and `Surface` says
+  which surface is asking and therefore which account of the session comes back. Two shapes of one
+  act at two altitudes had been two types, and the translation between them was a facade.
+- **`ProtocolVersion` 7 → 8.** Rebuild everything together and restart `overlay.cmd`, or the
+  version check refuses — which is the intended failure, not a bug to work around.
+- **Identifiers** — `Runtime.Teaching` → `Runtime.LearnSession`, `teachView` → `learnSessionView`,
+  `teaching` → `learnSession`, `teachTail` → `learnTail`, `IntentTeach` → `IntentLearn`,
+  `ReferentTeachStart/Destination` → `ReferentLearnStart/Destination`.
+- **CLI and command words** — `marco learn` and `director learn` are canonical; the overlay says
+  `learn <name>` and `narrate learn <name>`. `teach` still answers everywhere it ever did
+  (`case "learn", "teach":`) as an **undocumented compatibility alias**, because it is the muscle
+  memory the product shipped with. It is documented exactly once, in README's command reference,
+  and it is retiring.
+- **Not renamed, because it was never acquisition** — the overlay's interactive-prompt plumbing
+  (any subcommand's prompts, not just a demonstration) became `promptPipe` / `promptAsk` /
+  `setPrompt`. The `Learned*` family (`routes.KindLearned`, `director learned`, `LearnedPlay`)
+  is a read over what Director wrote down, and `playbill.Learning` is derived from the passive
+  observation session — both were already the right word.
+- **A governance test** — `cmd/marco` `TestNoLiveAcquisitionCodeIsNamedTeach` refuses any
+  Teach-spelled identifier in live acquisition code, and names the alias explicitly so it cannot
+  grow silently.
+
+## What was deliberately left alone
+
+A mechanical replace would have destroyed the record, so three classes were kept by hand:
+
+1. **Dated ADR bodies.** ADR-048's *What was wrong* and *Considered and rejected* sections quote
+   the word in its wrong sense **as evidence**; rewriting them makes the ADR incoherent.
+2. **Quoted transcripts** of live runs (ADR-079, ADR-080). Editing quoted evidence falsifies it.
+3. **The reservation itself.** Every sentence saying Teach means Marco guiding a person got
+   *more* correct and was left as written — including `plays.KindWord` returning **Recorded**,
+   which is the ADR-048 decision already in force.
+
+Ordinary English also stayed ordinary: a comment that says a thing "teaches the reader" is about
+a human being instructed, not about Marco acquiring.
+
+## Decisions
+
+[[ADR-086-one-acquisition-one-word-one-request]] — one acquisition, one word, one request: why
+Learn wins the name outright, why the alias is undocumented rather than blessed, and why the two
+request types were merged instead of kept in sync. It supersedes nothing in
+[[ADR-048-learn-teach-and-do-are-three-different-sentences]] — it finishes it, because ADR-048
+named the three sentences and the code kept only one of them.
+
+## Where to read it
+
+CLAUDE.md now carries the three-word rule as a load-bearing invariant, with the governance test
+named. README documents the alias once. E2E section **A** gained step **6a**, which exercises the
+`teach` alias in the HUD — the only place the overlay's command-word alias can be proven, because
+the Go suite cannot drive the command line.

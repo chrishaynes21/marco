@@ -105,7 +105,7 @@ func (g *observationRegistry) Start(target observesession.Target, sampler observ
 	bounds observe.Bounds) (observe.SessionID, error) {
 
 	// An ordinary session is its own episode, corroborates on its own, and establishes no
-	// place. Only teaching says otherwise, and it says so through RunPass.
+	// place. Only Learn says otherwise, and it says so through RunPass.
 	//
 	// The ZERO value is what makes that safe: a caller has to name the licence to get it, and
 	// there is exactly one that does.
@@ -158,7 +158,7 @@ func (g *observationRegistry) start(target observesession.Target, sampler observ
 		runner = runner.WithTargets(store)
 	}
 	// Somewhere a place's IDENTITY can be made durable. The same store again, through an
-	// interface that has no SemanticKnowledge in it at all — so the thing a teach session uses
+	// interface that has no SemanticKnowledge in it at all — so the thing a learn session uses
 	// to remember where you were standing structurally cannot claim you said anything about it.
 	//
 	// Deleting this must fail TestTeachingEstablishesTheStartThroughTheProductionRegistry.
@@ -228,7 +228,7 @@ func (g *observationRegistry) finish(result observesession.Result) {
 // RunPass starts one session and returns its Result when it ends.
 //
 // The SYNCHRONOUS face of Start, and it adds no capability: the same registry, the same runner,
-// the same one-at-a-time rule, the same bounds. It exists because a teaching session is a
+// the same one-at-a-time rule, the same bounds. It exists because a learn session is a
 // sequence of bounded passes in which each conclusion decides what the user is asked next, and
 // polling a status view for that would be reading a summary where the evidence is available.
 //
@@ -442,7 +442,7 @@ func (g *observationRegistry) Answer(id observe.SessionID, proposal observe.Prop
 		if g.last != nil {
 			// AND IT REACHES A RUNNER THAT NEVER RAISED IT.
 			//
-			// `g.last` is the newest runner, and a teach episode runs bounded passes back
+			// `g.last` is the newest runner, and a learn episode runs bounded passes back
 			// to back — so the newest runner is routinely a session that STARTED AFTER the
 			// question, with a ledger that has never held it. `Respond` then finds nothing
 			// and returns, and the yes is recorded and inert: no grant, and no refusal
@@ -754,19 +754,33 @@ func (r *Runtime) Observation(q service.ObserveQuery) (any, error) {
 		// the durable topology; it grants nothing and can reach nothing that acts.
 		return r.Reach(*q.Reach)
 	case q.Perform != nil:
-		// THE learned-execution call site, and the only one. Unlike every other branch
-		// here it ACTS — under an authority minted from this explicit request, bounded
-		// exactly as a rehearsal.s is, through the one walker that verifies every step.
-		return r.PerformGoal(*q.Perform)
-	case q.Teach != nil:
-		// THE teach call site, and the only one. It starts bounded observation passes
-		// through this registry and creates no authority of its own — see
-		// internal/director/teach.
-		return r.Teaching(context.Background(), *q.Teach)
+		// NOT HERE ANY MORE, and loudly rather than quietly.
+		//
+		// Performing is the one thing on this query that ACTS, so it is the one thing that
+		// must enter the command registry: visible to `director status`, refusing a
+		// concurrent mutating request, and reachable by CANCEL_ACTIVE. The service routes it
+		// (internal/director/service/perform.go) because the registry is the service's, and
+		// a second claim on the mutating slot at this layer would be a second lifecycle.
+		//
+		// This case stays so a routing regression cannot fall through to the session
+		// branches below and answer a performance with a list of sessions.
+		return nil, fmt.Errorf(
+			"a performance enters through the command registry, not the observation door")
 	case q.Learn != nil:
-		// THE control-surface call site. Every verb on it turns into a request one of the
-		// cases around it already serves; it creates no authority and owns no lifecycle.
-		return r.Learn(context.Background(), *q.Learn)
+		// THE acquisition call site, and the only one. It starts bounded observation passes
+		// through this registry and creates no authority of its own — see
+		// internal/director/learn.
+		//
+		// TWO ACCOUNTS OF ONE SESSION, and `Surface` says which is wanted. A control surface
+		// needs state it can render without parsing prose; a person at a terminal wants the
+		// session itself. Both drive the SAME lifecycle — there is one acquisition request
+		// now, where there used to be two types and a facade translating between them.
+		//
+		// Deleting the Surface test must fail TestOneAcquisitionRequestServesBothSurfaces.
+		if q.Learn.Surface {
+			return r.Learn(context.Background(), *q.Learn)
+		}
+		return r.LearnSession(context.Background(), *q.Learn)
 	case q.Rehearse != nil:
 		// THE rehearsal trigger, and the only one. Not a session, not a review, not a
 		// timer: a grant is spent because somebody asked for it to be, in this request.

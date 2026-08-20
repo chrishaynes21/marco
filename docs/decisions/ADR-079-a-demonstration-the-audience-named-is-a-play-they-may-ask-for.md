@@ -6,11 +6,11 @@ supersedes: []
 affects:
   - learned-plays
 source_paths:
-  - cmd/director/teachtail.go
+  - cmd/director/learntail.go
   - cmd/director/learnedplay.go
   - cmd/director/learnview.go
   - internal/routes/origin.go
-  - internal/director/teach/teach.go
+  - internal/director/learn/learn.go
 ---
 
 # ADR-079 — a demonstration the Audience named is a Play they may ask for
@@ -48,7 +48,7 @@ These are not the same claim. One is about the MECHANISM, the other about WHO CR
 overwriting somebody's authored play, and still refuses when the staged provenance no longer
 describes the source.
 
-**The Learn workflow performs both.** `teachTail.Save` asks for `Save` *and* `Register` in
+**The Learn workflow performs both.** `learnTail.Save` asks for `Save` *and* `Register` in
 one call, because naming a behaviour is the permission to make it askable. Registering moves
 a file. It presses nothing, and it creates no authority to press anything — running a learned
 play still needs the Audience's yes at invocation time
@@ -59,7 +59,7 @@ play still needs the Audience's yes at invocation time
 
 - `lifecycle` publishes `v.Saved` the moment the file lands, *before* attempting to register,
   so the error arrives with the evidence that the save worked.
-- The reason travels with it (`teach.Saved.Reason`), so a taken name says *"already exists;
+- The reason travels with it (`learn.Saved.Reason`), so a taken name says *"already exists;
   rename the learned play or remove the other one first"* instead of dead-ending.
 - Marco's sentence becomes *"I wrote it down and couldn.t make it askable. The play is safe —
   it is a file you can read and edit."* It used to be *"I couldn't save it. Nothing was
@@ -83,9 +83,9 @@ answered.
 ## Enforced by
 
 - `TestALearnedPlayIsRegisteredWhenItIsSaved` — registered, discoverable, and scoped to its
-  own app and no other (`cmd/director/teachtail_test.go`)
+  own app and no other (`cmd/director/learntail_test.go`)
 - `TestTheTeachTailNeverInvokesWhatItJustSaved` — saving and registering emit no input, claim
-  no grant, and hand back nothing that can run (`cmd/director/teachtail_test.go`)
+  no grant, and hand back nothing that can run (`cmd/director/learntail_test.go`)
 - `TestASaveThatCannotRegisterStillReportsTheArtifact`,
   `TestTheTailReportsAnUnregisterablePlayAsWrittenDown`,
   `TestThePanelDoesNotClaimRoutesForAnUnregisteredPlay`
@@ -97,9 +97,9 @@ answered.
   `TestForgettingRemovesAStagedPlayNothingCouldReach` (`internal/routes/registry_test.go`)
 - `TestAPlayIsNotCalledAskableUntilItIsRegistered` — the claim is still refused when
   registration does not happen, and the refusal says why
-  (`internal/director/teach/tail_test.go`)
-- `TestASuccessfulTeachDoesNotRunThePlay` — a completed teach registers and performs nothing
-  (`internal/director/teach/tail_test.go`)
+  (`internal/director/learn/tail_test.go`)
+- `TestASuccessfulTeachDoesNotRunThePlay` — a completed Learn registers and performs nothing
+  (`internal/director/learn/tail_test.go`)
 
 ## Related
 

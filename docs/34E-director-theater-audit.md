@@ -77,7 +77,7 @@ cmd/director/pointing.go:546        placeNowSubject      (HERE's handle)
 cmd/director/pointing.go:650        targetsHere          (what can be acted on)
 cmd/director/reach.go:51            reach                (planning)
 internal/director/observesession/runner.go:1651
-internal/director/teach/teach.go:598
+internal/director/learn/learn.go:598
 ```
 
 Plus `rehearse/live.go:732` calling `memory.Recall` directly for its own answer.
@@ -100,14 +100,14 @@ Traced: `runLight` → `Client.Playbill` → `Runtime.Playbill` → sections.
 | `Seeing` (structure, terms, detections) | what perception produced | **Fusion** |
 | `Offers` (what can be acted on) | what Actors can reach | **Theater** |
 | `Thinking` (hypotheses, proposals) | what Marco is working out | Director |
-| `Learning` / `Teaching` | lifecycle state | Director |
+| `Learning` / `LearnSession` | lifecycle state | Director |
 | `Question` | what is being asked of the Audience | Director |
 | `Doing` | the command in flight | Director |
 | `Recent` (moments) | narration | diagnostics |
 | refresh cadence, rendering | presentation | UI |
 
 `DIRECTOR_LIGHT_IS_MIXED`. The **Stage half** (Current, Seeing, Offers) is Theater's live account.
-The **reasoning half** (Thinking, Learning, Teaching, Question, Doing) is genuinely Director's.
+The **reasoning half** (Thinking, Learning, LearnSession, Question, Doing) is genuinely Director's.
 
 Light is not "Director with fewer sensors". Nothing in `runLight` selects sensors — it is a read of
 one account at a chosen interval. **Light is a perception configuration, not a mode of Theater.**
@@ -145,7 +145,7 @@ belongs where the attempt is bounded.
 
 | responsibility | today | should be |
 |---|---|---|
-| "learn X", interpret as a goal | Director (`teach`) | Director |
+| "learn X", interpret as a goal | Director (`learn`) | Director |
 | decide an episode begins, ask questions, take authority | Director | Director |
 | watch the Stage, record transitions | `observesession` | Theater (Stage) |
 | identify Targets, establish durable places | `observe` + `semanticmemory` | Theater (Repertoire) |
@@ -154,7 +154,7 @@ belongs where the attempt is bounded.
 | verify it | `rehearse.classifyOutcome` | Theater (Verification) |
 | decide what the result means for the goal | Director | Director |
 
-Learn is a Director **workflow** that teaches Theater. Today Director performs the middle six rows
+Learn is a Director **workflow** that drives Theater. Today Director performs the middle six rows
 itself.
 
 ## Responsibility matrix
@@ -162,7 +162,7 @@ itself.
 | | current owner | should own |
 |---|---|---|
 | Audience intent | Director | Director |
-| Goal interpretation | Director (`teach`, `goal`) | Director |
+| Goal interpretation | Director (`learn`, `goal`) | Director |
 | Goal planning / reach | Director (`plan`, `reach.go`) | Director |
 | Current Stage | Director (`playbill.currentFrom`) | **Theater** |
 | Raw observations | providers | providers |
@@ -174,7 +174,7 @@ itself.
 | Live Target resolution | `rehearse` + `theaterhost.Find` (two) | **Theater** |
 | Target ambiguity | both, independently | **Theater** |
 | Repertoire | `semanticmemory` | Theater over semanticmemory |
-| Learn episode coordination | Director (`teach`) | Director |
+| Learn episode coordination | Director (`learn`) | Director |
 | Demonstration observation | `observesession` | **Theater (Stage)** |
 | Capability extraction | `observe` | **Theater (Repertoire)** |
 | Candidate/rehearsal knowledge | `semanticmemory` | Repertoire |
@@ -201,7 +201,7 @@ itself.
 
 ```
 Audience → Learn panel → Director.Learn
-  Director: teach coordinator
+  Director: learn coordinator
   Director: observesession watches, establishes places, stores candidate
   Director: observe judges, raises the rehearsal question
   Audience: yes

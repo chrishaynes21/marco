@@ -11,7 +11,7 @@
 // One of them knew that a Windows Settings navigation item is a SELECTION item and not a button,
 // and would fall back to Select. The other asked for Invoke and gave up. That difference was
 // found by four failed live runs, fixed in the rehearsal path, and left unfixed on the path that
-// runs saved plays — so a route somebody had successfully taught would have failed the first time
+// runs saved plays — so a route somebody had successfully learned would have failed the first time
 // it ran on its own, for a reason already understood and already solved.
 //
 // # What is shared, and what is not
@@ -49,7 +49,7 @@ const (
 	//
 	// THE one that mattered live. Windows Settings is built almost entirely from selection
 	// items, so a ladder without this fails every navigation step on the most obvious
-	// application anybody would teach Marco with.
+	// application anybody would demonstrate something in.
 	Select Way = "Select"
 	// Expand is a disclosure opening.
 	Expand Way = "Expand"

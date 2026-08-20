@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/chaynes-simpleclouds/marco/internal/director/learn"
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
-	"github.com/chaynes-simpleclouds/marco/internal/director/teach"
 	"github.com/chaynes-simpleclouds/marco/pkg/referent"
 )
 
@@ -20,7 +20,7 @@ import (
 
 func groundedFixture(label string, current bool) groundedView {
 	return groundedView{
-		Label: label, Role: string(observe.ReferentTeachStart),
+		Label: label, Role: string(observe.ReferentLearnStart),
 		Say:     label + " — 4 controls I recognise this screen by. This is what I mean.",
 		Current: current,
 		Boxes:   []referent.Box{{X: 10, Y: 10, Width: 100, Height: 40}},
@@ -36,7 +36,7 @@ func TestFailedLearnDismissesOwnedPresentation(t *testing.T) {
 			return &exec.Cmd{}, nil
 		},
 	}
-	g.print(teachView{Phase: teach.ReadyForDemo,
+	g.print(learnSessionView{Phase: learn.ReadyForDemo,
 		Grounding: []groundedView{groundedFixture("START", true)}})
 	if launched != 1 || len(g.live) != 1 {
 		t.Fatalf("launched %d, live %d — the current claim was not presented",
@@ -44,7 +44,7 @@ func TestFailedLearnDismissesOwnedPresentation(t *testing.T) {
 	}
 	// The learn fails. The session is settled, and the presentation it owned ends NOW —
 	// not when a process timer happens to run out.
-	g.print(teachView{Phase: teach.Refused, Settled: true,
+	g.print(learnSessionView{Phase: learn.Refused, Settled: true,
 		Grounding: []groundedView{groundedFixture("START", false)}})
 	if len(g.live) != 0 {
 		t.Fatalf("%d highlight(s) survive a failed learn", len(g.live))
@@ -63,10 +63,10 @@ func TestAStalePresentationIsDismissedWhenItsClaimEnds(t *testing.T) {
 			return &exec.Cmd{}, nil
 		},
 	}
-	g.print(teachView{Phase: teach.ReadyForDemo,
+	g.print(learnSessionView{Phase: learn.ReadyForDemo,
 		Grounding: []groundedView{groundedFixture("START", true)}})
 	// The phase moves on; the START claim is history now.
-	g.print(teachView{Phase: teach.Evaluating,
+	g.print(learnSessionView{Phase: learn.Evaluating,
 		Grounding: []groundedView{groundedFixture("START", false)}})
 	if len(g.live) != 0 {
 		t.Fatalf("%d highlight(s) outlived the phase that raised them", len(g.live))
@@ -77,7 +77,7 @@ func TestAStalePresentationIsDismissedWhenItsClaimEnds(t *testing.T) {
 }
 
 // A reader arriving after the moment gets the sentence and no box — the exact live failure:
-// every bare `director teach` status read relaunched highlights from a phase long past.
+// every bare `director learn` status read relaunched highlights from a phase long past.
 func TestAStatusReadAfterTheMomentDrawsNothing(t *testing.T) {
 	launched := 0
 	g := &groundingShown{
@@ -86,7 +86,7 @@ func TestAStatusReadAfterTheMomentDrawsNothing(t *testing.T) {
 			return &exec.Cmd{}, nil
 		},
 	}
-	g.print(teachView{Phase: teach.Evaluating,
+	g.print(learnSessionView{Phase: learn.Evaluating,
 		Grounding: []groundedView{groundedFixture("START", false)}})
 	if launched != 0 {
 		t.Fatalf("a non-current claim was drawn %d time(s)", launched)
@@ -99,11 +99,11 @@ func TestAStatusReadAfterTheMomentDrawsNothing(t *testing.T) {
 // The coordinator's own account: a settled session marks nothing current, so no surface —
 // this follower or any other — has anything it may draw.
 func TestEndedGroundingCannotLeaveHighlights(t *testing.T) {
-	base := teach.Session{
+	base := learn.Session{
 		Start: "subj_a",
 		Route: observe.RelationshipRef{From: "subj_a", To: "subj_b"},
 	}
-	for _, phase := range []teach.Phase{teach.Complete, teach.Refused, teach.Cancelled} {
+	for _, phase := range []learn.Phase{learn.Complete, learn.Refused, learn.Cancelled} {
 		s := base
 		s.Phase = phase
 		for _, e := range s.Grounded() {
@@ -118,11 +118,11 @@ func TestEndedGroundingCannotLeaveHighlights(t *testing.T) {
 
 // And the positive half: each endpoint is current exactly while its claim is the session's.
 func TestAGroundedEndpointIsCurrentOnlyDuringItsClaim(t *testing.T) {
-	s := teach.Session{
+	s := learn.Session{
 		Start: "subj_a",
 		Route: observe.RelationshipRef{From: "subj_a", To: "subj_b"},
 	}
-	currentOf := func(p teach.Phase, label string) bool {
+	currentOf := func(p learn.Phase, label string) bool {
 		s.Phase = p
 		for _, e := range s.Grounded() {
 			if e.Label == label {
@@ -132,16 +132,16 @@ func TestAGroundedEndpointIsCurrentOnlyDuringItsClaim(t *testing.T) {
 		t.Fatalf("no %s endpoint in phase %q", label, p)
 		return false
 	}
-	if !currentOf(teach.ReadyForDemo, "START") {
+	if !currentOf(learn.ReadyForDemo, "START") {
 		t.Error("START is not current at the moment it was just decided")
 	}
-	if currentOf(teach.ReadyToRehearse, "START") {
+	if currentOf(learn.ReadyToRehearse, "START") {
 		t.Error("START is still current long after the session's attention moved on")
 	}
-	if !currentOf(teach.NeedsAnotherExample, "DESTINATION") {
+	if !currentOf(learn.NeedsAnotherExample, "DESTINATION") {
 		t.Error("DESTINATION is not current at the moment it was just discovered")
 	}
-	if currentOf(teach.Rehearsing, "DESTINATION") {
+	if currentOf(learn.Rehearsing, "DESTINATION") {
 		t.Error("DESTINATION is still current during the rehearsal")
 	}
 }
@@ -150,8 +150,8 @@ func TestAGroundedEndpointIsCurrentOnlyDuringItsClaim(t *testing.T) {
 // without it every reader sees zero values, no highlight is ever drawn, and the lifecycle
 // above silently proves nothing.
 func TestTheViewCarriesWhetherAnEndpointIsCurrent(t *testing.T) {
-	s := teach.Session{
-		Start: "subj_a", Phase: teach.ReadyForDemo,
+	s := learn.Session{
+		Start: "subj_a", Phase: learn.ReadyForDemo,
 		Route: observe.RelationshipRef{From: "subj_a", To: "subj_b"},
 	}
 	rt := &Runtime{}

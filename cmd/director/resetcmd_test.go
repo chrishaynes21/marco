@@ -15,7 +15,7 @@ import (
 //
 // # What this is protecting
 //
-// Durable semantic memory is what Marco IS. Everything a person has taught it, every screen they
+// Durable semantic memory is what Marco IS. Everything Marco has learned, every screen they
 // have named, every route they corrected — one file. A reset that could reach it would be the
 // single most destructive operation in the repository, and it would be one environment variable
 // away from running by accident during a debugging session.
@@ -36,7 +36,7 @@ func TestAResetRefusesTheRealStore(t *testing.T) {
 	// Unset: the default location, which is the real store.
 	if why := resetGuard("", real); why == "" {
 		t.Error("a reset with MARCO_HOME unset was allowed. That is the real store, and " +
-			"the operation would delete everything anybody has ever taught Marco.")
+			"the operation would delete everything Marco has ever learned.")
 	}
 	// Whitespace is unset.
 	if why := resetGuard("   ", real); why == "" {

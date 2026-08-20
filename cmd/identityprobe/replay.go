@@ -4,7 +4,7 @@ package main
 //
 // # Why this is here rather than in a test
 //
-// A live teach refusal reads "4 transition(s) were seen and none had two recognisable
+// A live learn refusal reads "4 transition(s) were seen and none had two recognisable
 // endpoints". That is a statement about durable subjects, and by the time it is printed the
 // session is over and the store is whatever it is. The measurement that answers it — WHICH
 // places would have been established, and WHICH edges would then have resolved — needs the

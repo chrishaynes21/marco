@@ -8,7 +8,7 @@ import (
 
 // The decision about whether a place may be made durable, and the CLOSED reasons it may not.
 //
-// Every branch below is a sentence somebody trying to teach Marco something will read, and they
+// Every branch below is a sentence somebody trying to show Marco something will read, and they
 // mean different things: "you have not asked me to learn anything" is not "hold still somewhere
 // more distinctive" is not "I already know this screen". A single false would collapse all three,
 // and the live failure this milestone came from was invisible for exactly that reason.
@@ -79,7 +79,7 @@ func TestAPlaceMarcoAlreadyRecognisesIsNotEstablishedAgain(t *testing.T) {
 // A CANDIDATE match is not "already known", and must not suppress establishing.
 //
 // The bar the identity layer sets: `candidate` means the structure agrees and nothing distinctive
-// confirms it, which is not recognition. Treating it as such would leave teaching blocked by a
+// confirms it, which is not recognition. Treating it as such would leave Learn blocked by a
 // screen that merely has the same number of buttons.
 func TestAMerelyStructuralResemblanceDoesNotCountAsKnown(t *testing.T) {
 	_, refusal := observe.PlaceToEstablish(

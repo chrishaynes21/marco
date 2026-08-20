@@ -173,7 +173,7 @@ async function refresh(){
       ' <span class="scope">'+(r.app?('· '+r.app):'· everywhere')+'</span>'+
       (on?'<span class="tag">▶ running</span>':'')+'</span>'+
       '<button onclick="run(\''+r.name.replace(/'/g,"\\'")+'\')">run</button></div>';
-  }).join('') || '<div class="scope">No routes yet — teach one: marco teach "name"</div>';
+  }).join('') || '<div class="scope">No routes yet — learn one: marco learn "name"</div>';
 }
 async function run(name){
   if(!name) return;

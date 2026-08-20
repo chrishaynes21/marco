@@ -17,7 +17,7 @@ import (
 //
 // One file per demonstration and one per learned procedure, under the Director's config
 // directory, written atomically. A single index file would be smaller and would also mean
-// one corrupted write loses everything the user has taught — and these are files a person
+// one corrupted write loses everything Marco has learned — and these are files a person
 // may reasonably want to read, diff, copy to another machine, or delete one of.
 //
 // The store holds no lock across a callback and never calls out while holding one.
@@ -34,7 +34,7 @@ type Store struct {
 // Open reads the store at a directory, creating it when absent.
 //
 // A malformed file is REPORTED rather than skipped. A learned procedure that silently
-// failed to load is a procedure the user believes they taught the Director, and the first
+// failed to load is a procedure the user believes Marco learned, and the first
 // they would hear of it is the Director doing something else.
 func Open(dir string) (*Store, error) {
 	s := &Store{dir: dir, learned: map[string]*Learned{}}
@@ -172,7 +172,7 @@ func (s *Store) Forget(name string) error {
 //	Approved procedures enter the procedure registry. Exactly the same registry used by
 //	built-in procedures.
 //
-// Called once at startup and again after an approval, so a procedure the user just taught
+// Called once at startup and again after an approval, so a procedure Marco just learned
 // is usable in the next request rather than after a restart.
 func (s *Store) Register(r *goal.Registry) {
 	for _, l := range s.Learned() {

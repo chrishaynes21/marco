@@ -74,7 +74,7 @@ type Runtime interface {
 	LiveAnalysis(p LiveAnalysisPayload) LiveAnalysisResponse
 	// Playbill is the perception-and-learning half of the ONE account a presentation
 	// renders: what the Director is looking at, what evidence is reaching it, what it
-	// makes of that, and where the teaching lifecycle has got to.
+	// makes of that, and where the Learn lifecycle has got to.
 	//
 	// The command half is the SERVER's, and is folded in by playbillFor — see
 	// playbill.go for why the two halves are not merged here.
@@ -155,7 +155,7 @@ type Runtime interface {
 	ApproveProcedure(id demo.ID, by string) (*demo.Learned, error)
 	// ForgetProcedure removes a learned procedure from the store.
 	ForgetProcedure(name string) error
-	// LearnedProcedures is what has been taught.
+	// LearnedProcedures is what has been learned.
 	LearnedProcedures() []*demo.Learned
 
 	// ── capability packs ──────────────────────────────────────────────────────
@@ -472,6 +472,19 @@ func (s *Server) dispatch(req RequestEnvelope, send func(ResponseEnvelope)) bool
 	case RequestObservation:
 		var p ObserveQuery
 		_ = req.Decode(&p)
+		// PERFORM IS THE ONE FIELD HERE THAT ACTS, so it is the one that gets a command.
+		//
+		// Everything else on ObserveQuery is a read and rightly goes straight through. A
+		// performance drives real input, and until it entered the registry it was invisible
+		// to `director status`, unrefusable by a concurrent request and unreachable by
+		// CANCEL_ACTIVE — `director stop` answered "nothing is running" while a play was
+		// typing. See perform.go.
+		//
+		// Deleting this branch must fail TestStoppingAPerformanceReportsItAsCancelled.
+		if p.Perform != nil {
+			s.performGoal(req.RequestID, *p.Perform, send)
+			break
+		}
 		out, err := s.runtime.Observation(p)
 		if err != nil {
 			send(NewResponse(req.RequestID, ResponseError,

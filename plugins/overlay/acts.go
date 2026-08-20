@@ -14,6 +14,9 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/chaynes-simpleclouds/marco/internal/director/intent"
+	"github.com/chaynes-simpleclouds/marco/internal/invoke"
 )
 
 // The overlay is a bidirectional bridge host (see ../../spec/Hosts.md): it reads
@@ -114,15 +117,17 @@ func dispatch(h *model, req request) response {
 		if req.Action == "RunVoice" && !voiceEnabled.Load() {
 			return okData(nil)
 		}
-		name := asText(req.Input)
+		// Trimmed before the empty test, not after: a phrase of pure whitespace used to
+		// pass it and then index fields[0] on an empty slice.
+		name := strings.TrimSpace(asText(req.Input))
 		if name == "" {
 			return fail("empty command")
 		}
 		fields := strings.Fields(name)
-		// While a voice-teach session is live, every phrase IS narration — forward it
-		// to the teach child (it handles "done"/"cancel" and exits) instead of running.
+		// While a voice-learn session is live, every phrase IS narration — forward it
+		// to the learn child (it handles "done"/"cancel" and exits) instead of running.
 		if voiceActive.Load() {
-			mlogD("overlay: forwarding to voice-teach", "phrase", name)
+			mlogD("overlay: forwarding to voice-learn", "phrase", name)
 			writeVoicePhrase(name)
 			return okData(nil)
 		}
@@ -142,24 +147,25 @@ func dispatch(h *model, req request) response {
 			}
 			return okData(nil)
 		}
-		// "narrate teach <name>" (alias "voice teach") starts narration-driven
-		// teaching: subsequent typed or spoken phrases ("click this", "type …", "wait
+		// "narrate learn <name>" (aliases "narrate teach", "voice teach") starts narration-driven
+		// learning: subsequent typed or spoken phrases ("click this", "type …", "wait
 		// for this screen", "done") build the route. Same path whether you type each
 		// phrase or speak it.
-		if len(fields) >= 3 && (fields[0] == "narrate" || fields[0] == "voice") && fields[1] == "teach" {
+		if len(fields) >= 3 && (fields[0] == "narrate" || fields[0] == "voice") &&
+			(fields[1] == "learn" || fields[1] == "teach") {
 			vname := strings.TrimSpace(strings.Join(fields[2:], " "))
-			mlogI("overlay: narrate-teach starting", "name", vname)
+			mlogI("overlay: narrate-learn starting", "name", vname)
 			voiceActive.Store(true) // set before spawning so no early phrase leaks to Run
-			h.setTeaching(true)
-			h.log("narrate teach \"" + vname + "\" — type or say: click / anchor this / type … / wait for this screen / done")
+			h.setLearnSession(true)
+			h.log("narrate learn \"" + vname + "\" — type or say: click / anchor this / type … / wait for this screen / done")
 			go func() {
-				err := runNarrateTeach(h, vname)
-				h.setTeaching(false)
+				err := runNarrateLearn(h, vname)
+				h.setLearnSession(false)
 				if err != nil {
-					mlogE("overlay: narrate-teach failed", "name", vname, "err", err)
-					h.log("narrate teach failed: " + vname)
+					mlogE("overlay: narrate-learn failed", "name", vname, "err", err)
+					h.log("narrate learn failed: " + vname)
 				} else {
-					mlogI("overlay: narrate-teach done", "name", vname)
+					mlogI("overlay: narrate-learn done", "name", vname)
 				}
 			}()
 			return okData(nil)
@@ -171,17 +177,21 @@ func dispatch(h *model, req request) response {
 			h.requestQuit()
 			return okData(nil)
 		}
-		// "teach <name>" records a new route IN-PLACE (no console window): the SAME
-		// interactive teach as the CLI. Demonstrate, press the leader to finish; the engine
+		// "learn <name>" records a new route IN-PLACE (no console window): the SAME
+		// interactive learn as the CLI. Demonstrate, press the leader to finish; the engine
 		// streams its save / scope / simplify prompts into the HUD and the controller
 		// answers them with a single y/n/s keypress (see runTeachInteractive).
-		if len(fields) >= 1 && fields[0] == "teach" {
+		// LEARN is the word a person types; `teach` still answers, undocumented, because it is
+		// what they have been typing. TEACH is reserved for Marco guiding a person.
+		//
+		// Deleting the alias must fail TestTheLearnWordAnswersToItsOldName.
+		if len(fields) >= 1 && (fields[0] == "learn" || fields[0] == "teach") {
 			tname := strings.TrimSpace(strings.Join(fields[1:], " "))
 			if tname == "" {
-				h.setStatus("teach needs a name — `m teach <name>")
-				return fail("teach needs a name")
+				h.setStatus("learn needs a name — `m learn <name>")
+				return fail("learn needs a name")
 			}
-			startTeach(h, tname)
+			startLearn(h, tname)
 			return okData(nil)
 		}
 		// "ui" (or bare "edit") opens the control center on the all-routes browser; "edit
@@ -192,67 +202,53 @@ func dispatch(h *model, req request) response {
 			startEdit(h, ename)
 			return okData(nil)
 		}
-		// A FINAL SPOKEN PHRASE goes to the Director, not to route lookup.
-		//
-		// This is the one line that connects voice to semantic desktop control. It sits
-		// here — after the overlay's own vocabulary (voice on/off, teach, ui, exit),
-		// which is the overlay configuring ITSELF and never a desktop intent — and
-		// before route lookup, which becomes the fallback rather than the default.
-		//
-		// Typed commands are untouched. Someone typing `m my route` is naming a route
-		// they taught; someone speaking is describing what they want to happen.
-		//
-		// Dispatch returns immediately. A spoken "stop" during a long command has to
-		// reach this handler while that command is still running, and it cannot if the
-		// handler is blocked waiting for it.
-		if req.Action == "RunVoice" {
-			mlogI("overlay: voice to director", "phrase", name)
-			h.setHeard(name)
-			dispatchVoice(h, name)
+		// THE OVERLAY'S OWN VERBS, and nothing else, stay here. bind / unbind / press /
+		// forget / rename / simplify are instructions about Marco's catalogue, not about
+		// the desktop; they are `marco` subcommands and were never invocations.
+		if verb, ok := overlayVerb(name, fields); ok {
+			mlogI("overlay: running", "name", name, "args", verb)
+			h.setStatus("running: " + name)
+			r := runRecord(h, name, verb...)
+			if r.err != nil {
+				mlogW2("overlay: command failed", "name", name)
+				return fail("command failed: " + name)
+			}
 			return okData(nil)
 		}
-		// Verb commands; anything else is a route to run.
-		args := []string{"do", name}
-		switch {
-		case len(fields) > 0 && (fields[0] == "bind" || fields[0] == "unbind"):
-			args = fields
-		case len(fields) >= 2 && fields[0] == "press":
-			args = fields // press a key or chord (e.g. "press enter", "press control c")
-		case len(fields) >= 2 && fields[0] == "forget":
-			args = append([]string{"forget"}, fields[1:]...) // delete a route
-		case len(fields) >= 4 && fields[0] == "rename":
-			// "rename old name to new name" — split on " to " and pass as separate args.
-			rest := strings.TrimSpace(strings.TrimPrefix(name, "rename "))
-			if idx := strings.Index(rest, " to "); idx > 0 {
-				args = []string{"rename", rest[:idx], "to", strings.TrimSpace(rest[idx+4:])}
-			}
-		case len(fields) >= 2 && fields[0] == "simplify":
-			args = fields // re-simplify a route from its recording
+
+		// EVERYTHING PAST HERE IS ONE REQUEST, whichever way it arrived.
+		//
+		// The only difference between typing and speaking is which word goes in
+		// --source, and the engine records that word without ever reading it to decide
+		// anything. See intake.go for the whole of why.
+		source := invoke.SourceTyped
+		if req.Action == "RunVoice" {
+			source = invoke.SourceSpoken
+			h.setHeard(name) // the HUD still shows what was heard
 		}
-		mlogI("overlay: running", "name", name, "args", args)
+
+		// A CONTROL WORD IS RECOGNISED HERE FOR IMMEDIACY, AND FOR NOTHING ELSE.
+		//
+		// `intent.IsControlPhrase` is the ONE definition — the same function the engine's
+		// intake and the Director's own phrase routing use. A second list in the overlay
+		// would be a second answer to "did they say stop", and the two would drift the
+		// first time a word was added to either.
+		//
+		// Recognising it locally kills the child NOW, so a long play stops the moment the
+		// word lands instead of after a process spawn and a socket dial. The phrase still
+		// goes through the intake, because that is what reaches the Director — the thing
+		// actually driving a learned play, which treats a dropped client as "the work
+		// continues". This local half decides nothing: it cannot route, refuse or consume
+		// the phrase.
+		//
+		// Deleting this must fail TestASpokenStopKillsTheChildImmediately.
+		if intent.IsControlPhrase(name) {
+			mlogI("overlay: control phrase — cancelling locally too", "phrase", name)
+			killChildRun()
+		}
+
 		h.setStatus("running: " + name)
-		_, outcome, route := runRecord(h, name, args...)
-		if outcome == "failed" {
-			// A run that never announced a [route] didn't resolve — it's an unknown
-			// command, so offer to teach it in-HUD rather than just erroring. (Other
-			// verbs like forget/rename aren't routes, so only the plain `do` path.)
-			//
-			// THE ROUTE TEST IS LOAD-BEARING, and more so now that a learned play is
-			// performed by the Director rather than run in the child: that path
-			// resolves, announces its [route], and can still fail — application not
-			// available, place unknown, an edge that would not verify. Without the
-			// `route == ""` test every such refusal would be presented as a command
-			// Marco has never heard of, and the person would be invited to teach a
-			// play they already taught. See cmd/marco/perform.go and
-			// TestABridgeFailureStillAnnouncesTheResolvedRoute.
-			if args[0] == "do" && route == "" {
-				mlogI("overlay: unknown command — offering teach", "name", name)
-				offerTeach(h, name)
-				return okData(nil)
-			}
-			mlogW2("overlay: command failed", "name", name)
-			return fail("command failed: " + name)
-		}
+		dispatchIntake(h, name, source)
 		return okData(nil)
 	case "Hotkey":
 		key := asText(req.Input)
@@ -260,9 +256,12 @@ func dispatch(h *model, req request) response {
 			return okData(nil)
 		}
 		mlogD("overlay: hotkey", "key", key)
-		if err, _, _ := runMarco(h, "hotkey", key); err != nil {
-			mlogE("overlay: hotkey failed", "key", key, "err", err)
-			return fail(err.Error())
+		// A hotkey is an EXPLICIT IDENTITY, not a phrase: `marco hotkey` resolves the
+		// binding to a play once and hands the intake that identity, so the words are
+		// never read back. Nothing about that decision belongs here.
+		if r := runMarco(h, "hotkey", key); r.err != nil {
+			mlogE("overlay: hotkey failed", "key", key, "err", r.err)
+			return fail(r.err.Error())
 		}
 		return okData(nil)
 	case "Active":
@@ -391,29 +390,29 @@ var (
 	runCanceled bool
 )
 
-// Interactive-prompt plumbing (named "teach*" for historical reasons, but it now
-// serves ANY subcommand's prompts — teach save/scope/simplify, a `forget` delete
-// confirm, a `simplify` confirm, …). The child's stdin is teachPipe; the global
-// hook sets teachAsk when a prompt is up and the controller writes the y/n/s reply.
+// Interactive-prompt plumbing (no longer named for one subcommand: it now
+// serves ANY subcommand's prompts — learn save/scope/simplify, a `forget` delete
+// confirm, a `simplify` confirm, …). The child's stdin is promptPipe; the global
+// hook sets promptAsk when a prompt is up and the controller writes the y/n/s reply.
 var (
-	teachMu   sync.Mutex
-	teachPipe io.WriteCloser // the active interactive child's stdin
-	teachAsk  atomic.Bool    // a y/n/s prompt is waiting for an answer
+	promptMu   sync.Mutex
+	promptPipe io.WriteCloser // the active interactive child's stdin
+	promptAsk  atomic.Bool    // a y/n/s prompt is waiting for an answer
 )
 
-// writeTeachAnswer forwards the submitted answer (e.g. "y", "n", "s", or "" for the
+// writePromptAnswer forwards the submitted answer (e.g. "y", "n", "s", or "" for the
 // bare-Enter default) plus a newline to the active child's stdin. Called from the
 // controller's processor goroutine (NOT the hook thread), so the write is safe.
-func writeTeachAnswer(s string) {
-	teachMu.Lock()
-	w := teachPipe
-	teachMu.Unlock()
+func writePromptAnswer(s string) {
+	promptMu.Lock()
+	w := promptPipe
+	promptMu.Unlock()
 	if w != nil {
 		_, _ = w.Write([]byte(s + "\n"))
 	}
 }
 
-// Voice-teach plumbing: while voiceActive, the dispatcher pipes each phrase to the
+// Voice-learn plumbing: while voiceActive, the dispatcher pipes each phrase to the
 // `marco teach --voice` child's stdin (one phrase per line) instead of running it.
 var (
 	voiceMu     sync.Mutex
@@ -444,7 +443,7 @@ func voiceToggleCmd(fields []string) (on bool, matched bool) {
 	return false, false
 }
 
-// writeVoicePhrase forwards one narration phrase to the voice-teach child's stdin.
+// writeVoicePhrase forwards one narration phrase to the voice-learn child's stdin.
 func writeVoicePhrase(phrase string) {
 	voiceMu.Lock()
 	w := voicePipe
@@ -454,7 +453,7 @@ func writeVoicePhrase(phrase string) {
 	}
 }
 
-// runNarrateTeach runs `marco teach --narrate <name>`, feeding it the phrases the
+// runNarrateLearn runs `marco teach --narrate <name>`, feeding it the phrases the
 // dispatcher forwards (writeVoicePhrase) — typed or spoken — and streaming its
 // per-step status into the HUD. The child saves on "done" / discards on "cancel"
 // and exits, which ends the session here. Mirrors streamChild but with the
@@ -469,7 +468,7 @@ func narrateLockPath() string {
 	return filepath.Join(os.TempDir(), "marco-narrate.lock")
 }
 
-func runNarrateTeach(h *model, name string) error {
+func runNarrateLearn(h *model, name string) error {
 	// Signal the voice plugin to re-arm between phrases for the duration of this
 	// session. The file is removed in the defer below (normal exit) or simply
 	// expires as stale if the overlay crashes.
@@ -477,7 +476,7 @@ func runNarrateTeach(h *model, name string) error {
 	_ = os.WriteFile(lock, nil, 0o600)
 	defer os.Remove(lock)
 
-	cmd := exec.Command(marcoBin(), "teach", "--narrate", name)
+	cmd := exec.Command(marcoBin(), "learn", "--narrate", name)
 	cmd.Env = append(os.Environ(), "MARCO_NO_PANIC_STOP=1")
 	inW, err := cmd.StdinPipe()
 	if err != nil {
@@ -523,17 +522,22 @@ const noPlayMatches = "no play matches "
 
 // streamChild runs a marco subcommand, streams its stdout/stderr into the HUD,
 // and makes ANY interactive prompt it raises answerable from the overlay: the
-// child gets a stdin pipe (teachPipe) that the controller writes the y/n/s answer
-// to, and prompts are detected on the partial (newline-less) line. Returns (err,
-// canceled, route); route is the canonical name announced via "[route] <name>".
-// trackCancel registers the child so Esc can kill it — on for runMarco's commands,
-// off for teach (the recorder owns F12 instead).
-func streamChild(h *model, trackCancel bool, args ...string) (error, bool, string) {
+// child gets a stdin pipe (promptPipe) that the controller writes the y/n/s answer
+// to, and prompts are detected on the partial (newline-less) line.
+//
+// It returns a childRun: what the engine ANNOUNCED (`[route] ` and `[result] `) plus
+// whether the process errored or was killed here. The two announced lines are the whole
+// reason this returns a struct — the outcome is read, not guessed from an exit code.
+//
+// trackCancel registers the child so the leader key can kill it — on for runMarco's
+// commands, off for learn (the recorder owns F12 instead) and off for a control phrase,
+// which is the thing doing the cancelling.
+func streamChild(h *model, trackCancel bool, args ...string) childRun {
 	cmd := exec.Command(marcoBin(), args...)
 	// NO_PANIC_STOP: the overlay owns the global hook (dueling LL hooks + a route's
 	// injected input deadlock). NO_TEACH: an unknown `do` errors instead of dropping
-	// into teach-on-unknown. SIMPLIFY_SAVES: teach's [s] simplifies AND saves (the
-	// HUD can't show the preview to re-confirm). All harmless to non-teach commands.
+	// into learn-on-unknown. SIMPLIFY_SAVES: learn's [s] simplifies AND saves (the
+	// HUD can't show the preview to re-confirm). All harmless to non-learn commands.
 	cmd.Env = append(os.Environ(), "MARCO_NO_PANIC_STOP=1", "MARCO_NO_TEACH=1", "MARCO_SIMPLIFY_SAVES=1")
 	if len(args) > 0 && args[0] == "teach" {
 		// The leader key stops the demo. The overlay passes it through while recording so
@@ -542,25 +546,25 @@ func streamChild(h *model, trackCancel bool, args ...string) (error, bool, strin
 	}
 	inW, err := cmd.StdinPipe()
 	if err != nil {
-		return err, false, ""
+		return childRun{err: err}
 	}
 	pr, pw := io.Pipe()
 	cmd.Stdout = pw
 	cmd.Stderr = pw
 
-	teachMu.Lock()
-	teachPipe = inW
-	teachMu.Unlock()
+	promptMu.Lock()
+	promptPipe = inW
+	promptMu.Unlock()
 	defer func() {
-		teachMu.Lock()
-		teachPipe = nil
-		teachMu.Unlock()
-		teachAsk.Store(false)
-		h.clearTeachPrompt()
+		promptMu.Lock()
+		promptPipe = nil
+		promptMu.Unlock()
+		promptAsk.Store(false)
+		h.clearPrompt()
 		_ = inW.Close()
 	}()
 
-	route := ""
+	route, result := "", ""
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
@@ -579,15 +583,32 @@ func streamChild(h *model, trackCancel bool, args ...string) (error, bool, strin
 			// "[route] " is WIRE PROTOCOL, not user text: the engine announces the
 			// resolved play on it and cmd/marco has a live test pinning the producer
 			// side. It is deliberately NOT renamed with the product vocabulary.
-			if r, ok := strings.CutPrefix(s, "[route] "); ok {
+			if r, ok := strings.CutPrefix(s, routePrefix); ok {
 				route = strings.TrimSpace(r) // the resolved play name, not a log line
 				return
 			}
-			// Unknown-`do` error: the overlay offers to teach instead (see the `do`
-			// dispatch branch), so don't also log the raw engine error. Matched on the
-			// do-specific hint so a failed `bind`/etc. still surfaces its own error.
-			if strings.HasPrefix(s, noPlayMatches) && strings.Contains(s, "marco teach") {
+			// "[result] " is the same kind of line and says what BECAME of it. Both are
+			// consumed rather than logged: they are for this program, not for a person
+			// reading the HUD, which renders the outcome as its own row.
+			if v, ok := strings.CutPrefix(s, resultPrefix); ok {
+				result = strings.TrimSpace(v)
 				return
+			}
+			// Unknown-`do` error: the overlay offers to learn instead (see the `do`
+			// dispatch branch), so don't also log the raw engine error. Matched on the
+			// do-specific hint so a failed `bind`/etc. still surfaces its own error. Both
+			// spellings are accepted: the engine says `marco learn`, older builds said `marco teach`.
+			if strings.HasPrefix(s, noPlayMatches) &&
+				(strings.Contains(s, "marco learn") || strings.Contains(s, "marco teach")) {
+				return
+			}
+			// A LONG COMMAND HAS TO BE LEGIBLE WHILE IT RUNS. The Director's rendered
+			// events stream through this same child now that spoken phrases take the
+			// ordinary path, so the status line follows them — "heard: …", then
+			// "[3/5] …", then the question if one is asked. The Director's own wording
+			// is used as-is; re-describing it here would be a second vocabulary.
+			if st, ok := directorStatusLine(s); ok {
+				h.setStatus(st)
 			}
 			h.log(s)
 		}
@@ -608,49 +629,97 @@ func streamChild(h *model, trackCancel bool, args ...string) (error, bool, strin
 			// options "? [" AND ends with ": " (the answer cursor) — waiting for the
 			// ": " captures the FULL menu, e.g. "...? [y]es / [n]o / [s]implify: ",
 			// not just a truncated "? [y]", and re-arms cleanly for a re-ask.
-			if !teachAsk.Load() && bytes.Contains(line, []byte("? [")) && bytes.HasSuffix(line, []byte(": ")) {
-				h.setTeachPrompt(strings.TrimRight(string(line), "\r"))
-				teachAsk.Store(true)
+			if !promptAsk.Load() && bytes.Contains(line, []byte("? [")) && bytes.HasSuffix(line, []byte(": ")) {
+				h.setPrompt(strings.TrimRight(string(line), "\r"))
+				promptAsk.Store(true)
 				line = line[:0]
 			}
 		}
 	}()
 
 	if trackCancel {
-		runMu.Lock()
-		runCmd, runCanceled = cmd, false
-		runMu.Unlock()
+		claimRunSlot(cmd)
 	}
 
 	err = cmd.Run()
 	pw.Close()
 	<-done
 
-	canceled := false
+	killed := false
 	if trackCancel {
-		runMu.Lock()
-		canceled = runCanceled
-		runCmd = nil
-		runMu.Unlock()
+		killed = releaseRunSlot(cmd)
 	}
-	return err, canceled, route
+	return childRun{err: err, killed: killed, route: route, result: result}
+}
+
+// claimRunSlot and releaseRunSlot are the cancellable-run registration.
+//
+// There is ONE slot, and that is deliberate: the leader key cancels "the thing that is
+// running", and a person who presses it means the most recent thing they started.
+//
+// # Why release checks that the slot is still ours
+//
+// Because dispatch is asynchronous for BOTH sources now, a second invocation can start
+// while the first is still going — which is the whole reason it is asynchronous. Without
+// the check, the child that finished FIRST would clear a LATER child's registration, and
+// the leader key would then find nothing to cancel while something was plainly still
+// running: it would open the command line instead of stopping the desktop.
+//
+// Deleting the identity check must fail TestAFinishedChildDoesNotDeregisterALaterOne.
+func claimRunSlot(cmd *exec.Cmd) {
+	runMu.Lock()
+	defer runMu.Unlock()
+	runCmd, runCanceled = cmd, false
+}
+
+// releaseRunSlot gives the slot back and reports whether THIS child was the one killed.
+func releaseRunSlot(cmd *exec.Cmd) bool {
+	runMu.Lock()
+	defer runMu.Unlock()
+	if runCmd != cmd {
+		return false
+	}
+	killed := runCanceled
+	runCmd = nil
+	return killed
 }
 
 // runTeachInteractive runs `marco teach <name>` interactively (the recorder owns
 // F12, so no Esc-cancel); its save/scope/simplify prompts are answered in the HUD.
 func runTeachInteractive(h *model, name string) error {
-	err, _, _ := streamChild(h, false, "teach", name)
-	return err
+	return streamChild(h, false, "learn", name).err
 }
 
-// cancelRun kills the in-flight route, if any, marking it canceled (vs failed).
-func cancelRun() {
+// killChildRun kills the in-flight child, if any, marking it cancelled (vs failed).
+//
+// This is HALF a cancellation: it is the immediate, local half. It stops the process the
+// overlay spawned, which for an ordinary play IS the thing performing — and for a learned
+// play is only a client holding a socket.
+func killChildRun() {
 	runMu.Lock()
 	defer runMu.Unlock()
 	if runCmd != nil && runCmd.Process != nil {
 		runCanceled = true
 		_ = runCmd.Process.Kill()
 	}
+}
+
+// cancelRun is the WHOLE cancellation: kill the child for immediacy, and tell the
+// Director to stop because it is the one that may still be driving the desktop.
+//
+// # Why the second half was missing and why it mattered
+//
+// Killing the child looks like it stops everything, and for a recorded play it does. For a
+// learned play the child is a client and the Director is the performer — and the Director
+// deliberately treats a dropped client as "not a cancellation: the work continues", so
+// that a front end which crashed cannot abort a replay. The consequence was that pressing
+// the panic key made the HUD go quiet while the desktop carried on being driven, with
+// nothing left on screen offering to stop it.
+//
+// Deleting the stopTheDirector call must fail TestCancelAlsoStopsTheDirector.
+func cancelRun() {
+	killChildRun()
+	stopTheDirector()
 }
 
 // isRunning reports whether a cancelable route is currently executing, so the
@@ -661,99 +730,88 @@ func isRunning() bool {
 	return runCmd != nil
 }
 
-// runRecord runs the command, sets the status, and appends it to the command
-// history with its outcome (ok/canceled/failed) and how long it took. It also
-// returns the canonical route the command resolved to ("" if none) so the caller
-// can tell an unknown command from a route that failed at run time.
-func runRecord(h *model, name string, args ...string) (time.Duration, string, string) {
-	start := time.Now()
-	err, canceled, route := runMarco(h, args...)
-	d := time.Since(start)
-	disp := name
-	if route != "" {
-		disp = route // show the canonical route a loose phrase resolved to
-	}
-	outcome := "ok"
-	switch {
-	case canceled:
-		outcome = "canceled"
-		h.setStatus("canceled: " + disp)
-	case err != nil:
-		outcome = "failed"
-		h.setStatus("failed: " + disp)
-	default:
-		h.setStatus("ran: " + disp)
-	}
-	h.log(fmt.Sprintf("%s  %s  %s", outcomeIcon(outcome), disp, fmtDur(d)))
-	h.addHistory(disp, outcome, d)
-	return d, outcome, route
+// runRecord runs the command, sets the status, and appends it to the command history with
+// its outcome and how long it took.
+//
+// The outcome is the engine's, read off `[result] `; only a subcommand that announces none
+// falls back to the exit code. That is the whole of what changed here, and it is why a
+// refusal no longer renders as a success — see outcome.go.
+func runRecord(h *model, name string, args ...string) childRun {
+	return runRecordTracked(h, name, true, args...)
 }
 
-// recording is true while a demonstration teach child is running. The keyboard hook
+// runRecordTracked is runRecord with the cancellable-slot registration made explicit, for
+// the one caller that must not claim it: a control phrase is the thing doing the
+// cancelling, not a thing to cancel.
+func runRecordTracked(h *model, name string, track bool, args ...string) childRun {
+	start := time.Now()
+	r := streamChild(h, track, args...)
+	r.dur = time.Since(start)
+	disp := name
+	if r.route != "" {
+		disp = r.route // show the canonical play a loose phrase resolved to
+	}
+	out := r.outcome()
+	h.setStatus(out.status(disp))
+	h.log(fmt.Sprintf("%s  %s  %s", out, disp, fmtDur(r.dur)))
+	h.addHistory(disp, string(out), r.dur)
+	return r
+}
+
+// recording is true while a demonstration learn child is running. The keyboard hook
 // reads it to pass every key through to the recorder (and the app) — so the leader
 // key reaches the recorder's stop detection and ends the demo, instead of opening
 // the overlay command line.
 var recording atomic.Bool
 
-// startTeach kicks off an in-HUD demonstration teach for name (record → leader → save),
+// startLearn kicks off an in-HUD demonstration learn for name (record → leader → save),
 // keeping the panel awake and streaming the engine's prompts into the HUD. Shared by
-// the explicit `m teach <name>` command and the unknown-command teach offer.
-func startTeach(h *model, name string) {
-	mlogI("overlay: teach starting", "name", name)
-	h.setTeaching(true) // keep the HUD awake for the whole demonstration
+// the explicit `m learn <name>` command and the unknown-command learn offer.
+func startLearn(h *model, name string) {
+	mlogI("overlay: learn starting", "name", name)
+	h.setLearnSession(true) // keep the HUD awake for the whole demonstration
 	recording.Store(true)
 	h.log("recording \"" + name + "\" — demonstrate now, press " + strings.ToUpper(cfgLeader()) + " to save")
 	go func() {
 		err := runTeachInteractive(h, name) // streams prompts; answered in-HUD
 		recording.Store(false)
-		h.setTeaching(false)
+		h.setLearnSession(false)
 		if err != nil {
-			mlogE("overlay: teach failed", "name", name, "err", err)
-			h.log("teach failed: " + name)
+			mlogE("overlay: learn failed", "name", name, "err", err)
+			h.log("learn failed: " + name)
 		} else {
-			mlogI("overlay: teach done", "name", name)
+			mlogI("overlay: learn done", "name", name)
 		}
 	}()
 }
 
-// pendingTeach holds the route name an unknown-command teach offer would teach if
+// pendingPrompt holds the route name an unknown-command learn offer would learn if
 // accepted ("" = none). Set when `marco do <name>` resolves nothing; consumed by the
-// controller when the user answers the in-HUD "Teach …?" prompt.
+// controller when the user answers the in-HUD "Learn …?" prompt.
 var (
-	pendingTeachMu sync.Mutex
-	pendingTeach   string
+	pendingPromptMu sync.Mutex
+	pendingPrompt   string
 )
 
-// offerTeach shows an in-HUD "Teach \"name\"? [y]es / [n]o" prompt for an unknown
-// command, reusing the teach-prompt answering path (teachAsk). The controller starts
+// offerTeach shows an in-HUD "Learn \"name\"? [y]es / [n]o" prompt for an unknown
+// command, reusing the prompt answering path (promptAsk). The controller starts
 // a demonstration on yes (see actTeachSubmit) and clears it on no.
 func offerTeach(h *model, name string) {
-	pendingTeachMu.Lock()
-	pendingTeach = name
-	pendingTeachMu.Unlock()
+	pendingPromptMu.Lock()
+	pendingPrompt = name
+	pendingPromptMu.Unlock()
 	h.setStatus("unknown: " + name)
-	h.setTeachPrompt(fmt.Sprintf("Teach %q? [y]es / [n]o: ", name))
-	teachAsk.Store(true)
+	h.setPrompt(fmt.Sprintf("Learn %q? [y]es / [n]o: ", name))
+	promptAsk.Store(true)
 }
 
-// takePendingTeach returns and clears the pending teach-offer name.
+// takePendingTeach returns and clears the pending learn-offer name.
 func takePendingTeach() string {
-	pendingTeachMu.Lock()
-	defer pendingTeachMu.Unlock()
-	n := pendingTeach
-	pendingTeach = ""
+	pendingPromptMu.Lock()
+	defer pendingPromptMu.Unlock()
+	n := pendingPrompt
+	pendingPrompt = ""
 	return n
-}
-
-func outcomeIcon(outcome string) string {
-	switch outcome {
-	case "ok":
-		return "ok"
-	case "canceled":
-		return "canceled"
-	default:
-		return "failed"
-	}
 }
 
 func fmtDur(d time.Duration) string {
@@ -765,9 +823,8 @@ func fmtDur(d time.Duration) string {
 
 // runMarco runs a marco subcommand, streaming output into the HUD and answering
 // any prompt it raises (a `forget` delete confirm, a `simplify` confirm, …) from
-// the overlay. Esc cancels it. Returns (err, canceled, route) — route is the
-// canonical name the engine announced via a "[route] <name>" line.
-func runMarco(h *model, args ...string) (error, bool, string) {
+// the overlay. The leader key cancels it.
+func runMarco(h *model, args ...string) childRun {
 	return streamChild(h, true, args...)
 }
 
@@ -776,7 +833,7 @@ func helpLines() []string {
 	lines := []string{
 		"`m then type:",
 		"  <play>             run it",
-		"  teach <name>       record a new one (leader to save)",
+		"  learn <name>       record a new one (leader to save)",
 		"  ui                 visual editor: plays · bindings · config · help",
 		"  edit <play>        edit one play in the browser",
 		"  simplify <play>    re-clean its steps",
@@ -823,7 +880,7 @@ func helpLines() []string {
 		}
 	}
 	if len(context)+len(focus)+len(global) == 0 {
-		lines = append(lines, "plays: (none yet — `m teach <name>)")
+		lines = append(lines, "plays: (none yet — `m learn <name>)")
 		return lines
 	}
 	if app != "" {

@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chaynes-simpleclouds/marco/internal/director/learn"
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
 	"github.com/chaynes-simpleclouds/marco/internal/director/observesession"
 	"github.com/chaynes-simpleclouds/marco/internal/director/service"
-	"github.com/chaynes-simpleclouds/marco/internal/director/teach"
 	"github.com/chaynes-simpleclouds/marco/internal/director/world"
 	"github.com/chaynes-simpleclouds/marco/pkg/playbill"
 )
@@ -59,18 +59,18 @@ func (r *Runtime) Playbill(p service.PlaybillPayload) playbill.View {
 		},
 		Doing: playbill.Doing{Phase: playbill.NotDoing},
 	}
-	// THE teaching call site, and it is ABOVE every early return on purpose.
+	// THE Learn call site, and it is ABOVE every early return on purpose.
 	//
-	// Teaching does not depend on anything having been observed yet. The first thing a teach
+	// LearnSession does not depend on anything having been observed yet. The first thing a learn
 	// attempt does is establish where it starts, and at that moment no session has finished —
-	// so a teaching section assembled after the "nothing has ever been watched" branch would
+	// so a Learn section assembled after the "nothing has ever been watched" branch would
 	// be invisible during exactly the phase a person is waiting on a cue.
 	//
 	// The coordinator is the only thing that knows a person asked for something, what they
 	// called it, and which cue they are waiting for; the observation session cannot tell any
 	// of it. Deleting this line leaves every surface rendering a Director that is watching for
 	// no reason — see TestTheTeachingSectionReachesEverySurface.
-	v.Teaching = r.teachingNow()
+	v.LearnSession = r.learnSessionNow()
 
 	if r.observations == nil {
 		v.Why = "this Director cannot watch anything — it has no observation registry"
@@ -87,7 +87,7 @@ func (r *Runtime) Playbill(p service.PlaybillPayload) playbill.View {
 		// first useful thing a person can be shown about Light Mode, and withholding it
 		// until a session exists would make the surface blank exactly when somebody is
 		// asking "is this thing working at all".
-		v.Offers = r.offersFromWorld(v.Teaching.Active)
+		v.Offers = r.offersFromWorld(v.LearnSession.Active)
 		v.Why = "I haven't watched anything yet. Ask me to watch a window and I'll start."
 		if p.Diagnostics {
 			v.Diagnostics = r.diagnosticsFor(observationView{})
@@ -97,10 +97,10 @@ func (r *Runtime) Playbill(p service.PlaybillPayload) playbill.View {
 
 	v.Current = r.observations.currentFrom(view)
 	v.Seeing = seeingFrom(view)
-	// THE offers call site. The Learn licence is read from the teaching section assembled
+	// THE offers call site. The Learn licence is read from the Learn section assembled
 	// above, so what Sight may name and what a demonstration may keep are decided by one
 	// fact rather than two.
-	v.Offers = r.offersFromWorld(v.Teaching.Active)
+	v.Offers = r.offersFromWorld(v.LearnSession.Active)
 	v.Thinking = r.observations.thinkingFrom(view)
 	v.Learning = r.observations.learningFrom(view)
 	if q := r.observations.questionFrom(view); q != nil {
@@ -185,7 +185,7 @@ func (g *observationRegistry) currentFrom(view observationView) playbill.Current
 	//
 	// The cause is that recognition was read ONLY from the proposal ledger. RecallFrom seeds
 	// a recognised subject into the ledger, but only when that subject carries a JUDGEMENT
-	// about the interpretation in hand — and a place established by teaching or by Remember
+	// about the interpretation in hand — and a place established by Learn or by Remember
 	// carries none by design: it persists an identity and no semantic claim at all. See
 	// [[ADR-047]] and Episode.EstablishPlaces.
 	//
@@ -470,7 +470,7 @@ func standingOf(h observe.Hypothesis) playbill.Standing {
 
 // ── LEARNING ──────────────────────────────────────────────────────────────────
 
-// learningFrom is where the teaching lifecycle has got to.
+// learningFrom is where the Learn lifecycle has got to.
 //
 // Ordered by what is most immediate rather than by the order the stages happen in: a
 // capture in progress matters more than a rehearsal that could be offered, and a
@@ -1223,42 +1223,42 @@ var _ = func(g *observationRegistry) (observationView, bool) { return g.Snapshot
 
 var _ = observesession.Stats{}
 
-// ── TEACHING ──────────────────────────────────────────────────────────────────
+// ── LEARN SESSION ─────────────────────────────────────────────────────────────
 
-// teachSteps is the checklist a person sees, in the order a teach attempt walks it.
+// learnSteps is the checklist a person sees, in the order a learn attempt walks it.
 //
 // Named in ordinary words, and the mapping below is from the COORDINATOR's phase — so a
 // session that legitimately skips a step shows it skipped rather than pending, and a
 // coordinator that grows a phase makes this fail to compile rather than quietly lie.
-var teachSteps = []struct {
+var learnSteps = []struct {
 	name  string
-	after []teach.Phase
+	after []learn.Phase
 }{
-	{name: "Starting place", after: []teach.Phase{
-		teach.EstablishingStart}},
-	{name: "Show me", after: []teach.Phase{
-		teach.ReadyForDemo, teach.Capturing, teach.EstablishingDestination}},
-	{name: "Another example", after: []teach.Phase{
-		teach.NeedsAnotherExample, teach.Evaluating}},
-	{name: "Try it", after: []teach.Phase{
-		teach.ReadyToRehearse, teach.Rehearsing}},
-	{name: "Name screens", after: []teach.Phase{teach.Naming}},
-	{name: "Save", after: []teach.Phase{teach.Lowering}},
+	{name: "Starting place", after: []learn.Phase{
+		learn.EstablishingStart}},
+	{name: "Show me", after: []learn.Phase{
+		learn.ReadyForDemo, learn.Capturing, learn.EstablishingDestination}},
+	{name: "Another example", after: []learn.Phase{
+		learn.NeedsAnotherExample, learn.Evaluating}},
+	{name: "Try it", after: []learn.Phase{
+		learn.ReadyToRehearse, learn.Rehearsing}},
+	{name: "Name screens", after: []learn.Phase{learn.Naming}},
+	{name: "Save", after: []learn.Phase{learn.Lowering}},
 }
 
-// teachingNow is the explicit teaching session, as a presentation may see it.
+// learnSessionNow is the explicit learn session, as a presentation may see it.
 //
 // A READ over the coordinator's own session value. It starts nothing, answers nothing and
 // cancels nothing; there is no argument a caller could pass that would.
-func (r *Runtime) teachingNow() playbill.Teaching {
-	if r.teach == nil {
-		return playbill.Teaching{}
+func (r *Runtime) learnSessionNow() playbill.LearnSession {
+	if r.learn == nil {
+		return playbill.LearnSession{}
 	}
-	s, ok := r.teach.read()
+	s, ok := r.learn.read()
 	if !ok {
-		return playbill.Teaching{}
+		return playbill.LearnSession{}
 	}
-	out := playbill.Teaching{
+	out := playbill.LearnSession{
 		Active:   !s.Phase.Settled(),
 		Asked:    s.Name,
 		Examples: s.Examples,
@@ -1266,47 +1266,47 @@ func (r *Runtime) teachingNow() playbill.Teaching {
 		// ARMED is the bounded demonstration window, and it is read from the phase the
 		// coordinator is actually in rather than from anything this function decides.
 		// `ready_for_demo` is Marco having said "go ahead"; `capturing` is it watching.
-		Armed: s.Phase == teach.ReadyForDemo || s.Phase == teach.Capturing,
+		Armed: s.Phase == learn.ReadyForDemo || s.Phase == learn.Capturing,
 		// WAITING is the coordinator's own word for "this is your turn". Read rather than
 		// re-derived: the coordinator is what decides which phases it will not advance past
 		// on a timer, and a surface that guessed would eventually disagree with it.
 		Waiting:  s.Phase.Waiting(),
-		Progress: teachProgress(s.Phase),
+		Progress: learnProgress(s.Phase),
 	}
 	// The RESULT, from the artifact. `Learned()` reads the saved play; a phase never does.
 	if s.Learned() {
 		out.Learned, out.Registered = s.Saved.Name, s.Saved.Registered
 	}
-	if s.Phase == teach.Refused || s.Phase == teach.Cancelled {
+	if s.Phase == learn.Refused || s.Phase == learn.Cancelled {
 		out.Stopped = true
 	}
-	out.Did, out.Unattributed = teachDid(s)
+	out.Did, out.Unattributed = learnDid(s)
 	return out
 }
 
-// teachProgress renders the checklist against the coordinator's current phase.
+// learnProgress renders the checklist against the coordinator's current phase.
 //
 // A step is DONE once the flow has moved past every phase it covers, CURRENT while it is
 // in one, and SKIPPED when the flow went past without ever entering it — which is a real
 // case: an assessment that is satisfied by one example never enters "another example".
-func teachProgress(now teach.Phase) []playbill.Step {
+func learnProgress(now learn.Phase) []playbill.Step {
 	reached := -1
-	for i, step := range teachSteps {
+	for i, step := range learnSteps {
 		for _, p := range step.after {
 			if p == now {
 				reached = i
 			}
 		}
 	}
-	out := make([]playbill.Step, 0, len(teachSteps))
-	for i, step := range teachSteps {
+	out := make([]playbill.Step, 0, len(learnSteps))
+	for i, step := range learnSteps {
 		state := playbill.StepPending
 		switch {
 		case i == reached:
 			state = playbill.StepCurrent
 		case reached >= 0 && i < reached:
 			state = playbill.StepDone
-		case reached < 0 && now == teach.Complete:
+		case reached < 0 && now == learn.Complete:
 			state = playbill.StepDone
 		}
 		out = append(out, playbill.Step{Name: step.name, State: state})
@@ -1314,7 +1314,7 @@ func teachProgress(now teach.Phase) []playbill.Step {
 	return out
 }
 
-// teachDid is what Marco believes the person just did, and whether it could tell.
+// learnDid is what Marco believes the person just did, and whether it could tell.
 //
 // Read from the demonstration the coordinator holds — the last leg's ordered navigation.
 // Nothing is inferred from timing here: an action is attributed because the production
@@ -1325,7 +1325,7 @@ func teachProgress(now teach.Phase) []playbill.Step {
 // COMPLETE demonstration with no navigation in it is Marco having watched somebody arrive
 // somewhere and being unable to say how, which is the honest failure that must never
 // render as a blank line.
-func teachDid(s teach.Session) (did []string, unattributed bool) {
+func learnDid(s learn.Session) (did []string, unattributed bool) {
 	d := s.Demonstration
 	if d == nil || len(d.Steps) == 0 {
 		return nil, false

@@ -8,7 +8,7 @@ import (
 
 	"github.com/chaynes-simpleclouds/marco/internal/oshost"
 	"github.com/chaynes-simpleclouds/marco/internal/runtime"
-	"github.com/chaynes-simpleclouds/marco/internal/voiceteach"
+	"github.com/chaynes-simpleclouds/marco/internal/voicelearn"
 )
 
 // runPress presses a single key or a key chord — the spoken/typed key name(s).
@@ -19,7 +19,7 @@ import (
 // already understands, so chords work for free. Real input, like `marco do`, under
 // the Esc/stop-key panic-stop.
 func runPress(args []string) {
-	spec := voiceteach.NormalizeChord(strings.Join(args, " "))
+	spec := voicelearn.NormalizeChord(strings.Join(args, " "))
 	if spec == "" {
 		fmt.Fprintln(os.Stderr, `usage: marco press <key>   (e.g. "enter", "ctrl+c", "control shift escape")`)
 		os.Exit(2)

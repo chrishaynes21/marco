@@ -1,4 +1,4 @@
-// Package orchestrator implements the named-route teach loop: run a route by
+// Package orchestrator implements the named-route learn loop: run a route by
 // name if it exists, otherwise ask the user to demonstrate it, record the
 // demonstration, simplify it, generate a Marco route, save it, and run it — so
 // next time the same name just runs. OS-agnostic; the OS-specific work is the
@@ -26,7 +26,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
 	"github.com/chaynes-simpleclouds/marco/internal/runtime"
 	"github.com/chaynes-simpleclouds/marco/internal/simplify"
-	"github.com/chaynes-simpleclouds/marco/internal/voiceteach"
+	"github.com/chaynes-simpleclouds/marco/internal/voicelearn"
 )
 
 // Deps are the orchestrator's collaborators (injectable for testing).
@@ -47,7 +47,7 @@ type Deps struct {
 	// "ctrl+f12"). Empty uses recorder.DefaultStopKey. Keeping it off Esc lets a
 	// macro record Esc as an ordinary key.
 	StopKey string
-	// SimplifySaves makes the teach "[s]implify" choice simplify AND save in one
+	// SimplifySaves makes the learn "[s]implify" choice simplify AND save in one
 	// step, with no re-confirmation. It's for a front-end that can't show the
 	// simplified preview (the overlay HUD) — re-confirming a result you can't see
 	// is pointless. The CLI leaves it false so the preview-then-confirm stays.
@@ -58,9 +58,9 @@ type Deps struct {
 	ArgKey string
 }
 
-// teachOptions are the simplify defaults for a demonstration, honoring the
+// learnOptions are the simplify defaults for a demonstration, honoring the
 // configured arg key.
-func (d Deps) teachOptions() simplify.Options {
+func (d Deps) learnOptions() simplify.Options {
 	o := simplify.DefaultOptions()
 	if k := strings.TrimSpace(d.ArgKey); k != "" {
 		o.ArgKey = strings.ToLower(k)
@@ -76,7 +76,7 @@ func (d Deps) teachOptions() simplify.Options {
 
 // cvOff reports whether computer vision / anchors are OFF — the DEFAULT now (the anchor stack
 // isn't reliable yet, so CV is a feature flag). Off unless explicitly enabled with $MARCO_CV=
-// on/max (or $MARCO_ANCHORS=1/on); when off, teach preserves the recorded timings faithfully.
+// on/max (or $MARCO_ANCHORS=1/on); when off, learn preserves the recorded timings faithfully.
 // Kept consistent with recorder.anchorsEnabled and oshost.cvOff.
 func cvOff() bool {
 	switch strings.ToLower(strings.TrimSpace(os.Getenv("MARCO_CV"))) {
@@ -93,9 +93,9 @@ func cvOff() bool {
 }
 
 // argKeyHint is the recording prompt's note about the arg key (or "" when off),
-// listing the declared arg names when the teach phrase had a "with …" clause.
+// listing the declared arg names when the learn phrase had a "with …" clause.
 func (d Deps) argKeyHint(argNames []string) string {
-	k := d.teachOptions().ArgKey
+	k := d.learnOptions().ArgKey
 	if k == "" || k == "off" {
 		return ""
 	}
@@ -124,7 +124,7 @@ func (d Deps) activeApp() string {
 }
 
 // Do runs the route best matching name in the current app context; if there
-// isn't one, it teaches it, then offers to run.
+// isn't one, it learns it, then offers to run.
 // Resolve answers WHICH play, and nothing else.
 //
 // THE seam. It can be called, its answer inspected, logged and refused, and nothing has happened:
@@ -158,15 +158,15 @@ func (d Deps) Do(name string) error {
 		mlog.Info("do: running", "route", r.Route.Slug, "scope", r.Route.App)
 		return d.Run(r.Route)
 	}
-	mlog.Info("do: unknown — offering teach", "name", name)
+	mlog.Info("do: unknown — offering learn", "name", name)
 	fmt.Fprintf(d.Out, "I don't know %q yet.\n", name)
 	// Confirm before recording — a typo or misheard phrase shouldn't drop straight
 	// into a demonstration. [n] (or no stdin) just stops here.
-	if !d.confirm("Teach it now? [y]es / [n]o: ") {
-		mlog.Info("do: teach declined", "name", name)
+	if !d.confirm("Learn it now? [y]es / [n]o: ") {
+		mlog.Info("do: learn declined", "name", name)
 		return nil
 	}
-	if err := d.Teach(name); err != nil {
+	if err := d.Learn(name); err != nil {
 		return err
 	}
 	// A play the user has just demonstrated themselves. They wrote it; the ordinary policy
@@ -179,7 +179,7 @@ func (d Deps) Do(name string) error {
 
 // Teach records a demonstration of name, simplifies it into a route, and saves
 // it. The user performs the actions and presses Esc to finish.
-func (d Deps) Teach(name string) error {
+func (d Deps) Learn(name string) error {
 	// "say hello with name, count" declares named args; the route is the part before
 	// "with". Reassign name to the route so the rest of the flow (slug, codegen, save)
 	// is unchanged.
@@ -187,25 +187,25 @@ func (d Deps) Teach(name string) error {
 	stop := recorder.ParseStopKey(d.StopKey)
 	fmt.Fprintf(d.Out, "Show me how to %q. Do it now, then press %s when finished.\n", name, stop.Label())
 	fmt.Fprintf(d.Out, "(For a password, type {{name}} and set it with: marco secret set <name>.%s)%s\n", d.argKeyHint(argNames), anchorKeyHint())
-	mlog.Debug("teach: starting recorder", "route", name, "stop_key", stop.Label())
+	mlog.Debug("record: starting recorder", "route", name, "stop_key", stop.Label())
 	if err := d.Rec.Start(); err != nil {
 		return fmt.Errorf("can't record on this platform: %w", err)
 	}
 	waitForStop(d.Rec, &stop)
 	events := stripTrailingStop(d.Rec.Stop(), stop)
-	mlog.Debug("teach: recording done", "route", name, "events", len(events))
+	mlog.Debug("record: recording done", "route", name, "events", len(events))
 
 	// The faithful recording is the default; "simplify further" re-runs the whole
 	// pipeline from the raw events with typing-rhythm folding on — re-running from
 	// events (not the folded steps) lets typing coalesce into Type steps before
 	// loop-folding ever sees repeated letters.
-	opts := d.teachOptions()
+	opts := d.learnOptions()
 	opts.ArgNames = argNames
 	steps := simplify.Simplify(events, opts)
 	d.enrichAnchors(steps) // OCR each demonstrated anchor's button → text locator
-	mlog.Info("teach: simplified", "route", name, "events", len(events), "steps", len(steps))
+	mlog.Info("record: simplified", "route", name, "events", len(events), "steps", len(steps))
 	if len(steps) == 0 {
-		mlog.Warn("teach: nothing recorded", "route", name)
+		mlog.Warn("record: nothing recorded", "route", name)
 		fmt.Fprintln(d.Out, "Nothing was recorded — not saving.")
 		return nil
 	}
@@ -256,7 +256,7 @@ func (d Deps) Teach(name string) error {
 	return d.saveTaught(name, argNames, steps, app, events)
 }
 
-// scopeMode is where a taught route is available and whether it switches windows.
+// scopeMode is where a recorded route is available and whether it switches windows.
 type scopeMode int
 
 const (
@@ -291,10 +291,10 @@ func (d Deps) chooseScope(app string) scopeMode {
 	}
 }
 
-// saveTaught writes a freshly taught route under the chosen scope. Only the focus
+// saveTaught writes a freshly recorded route under the chosen scope. Only the focus
 // mode keeps the leading Activate (window switch); context and global strip it.
 // events (the raw demonstration) is persisted beside the route when non-nil so it
-// can be re-simplified later. Shared by demonstration and narration teach.
+// can be re-simplified later. Shared by demonstration and narration learn.
 func (d Deps) saveTaught(name string, argNames []string, steps []macroir.Step, app string, events []recorder.RecordedEvent) error {
 	mode := d.chooseScope(app)
 	rt := routes.Route{Slug: routes.Slug(name)}
@@ -313,23 +313,23 @@ func (d Deps) saveTaught(name string, argNames []string, steps []macroir.Step, a
 	if err != nil {
 		return err
 	}
-	mlog.Info("teach: saving", "route", name, "mode", mode, "path", d.Reg.Path(rt))
+	mlog.Info("record: saving", "route", name, "mode", mode, "path", d.Reg.Path(rt))
 	if err := d.Reg.Save(rt, finalSrc); err != nil {
-		mlog.Error("teach: save failed", "route", name, "err", err)
+		mlog.Error("record: save failed", "route", name, "err", err)
 		return err
 	}
 	if err := d.Reg.WriteAssets(assets); err != nil {
-		mlog.Error("teach: asset write failed", "route", name, "err", err)
+		mlog.Error("record: asset write failed", "route", name, "err", err)
 		return err
 	}
 	// Keep the raw demonstration beside the route so it can be re-simplified later
-	// (marco simplify). Best-effort: a failure here doesn't fail the teach.
+	// (marco simplify). Best-effort: a failure here doesn't fail the learn.
 	if events != nil {
 		if data, mErr := json.Marshal(events); mErr == nil {
 			_ = d.Reg.SaveRecording(rt, data)
 		}
 	}
-	mlog.Info("teach: saved", "route", name, "steps", len(steps), "path", d.Reg.Path(rt))
+	mlog.Info("record: saved", "route", name, "steps", len(steps), "path", d.Reg.Path(rt))
 	fmt.Fprintf(d.Out, "Learned %q (%s) → %s\n", name, scopeLabel(mode, app), d.Reg.Path(rt))
 	return nil
 }
@@ -358,29 +358,29 @@ func stripLeadingActivate(steps []macroir.Step) []macroir.Step {
 	return steps
 }
 
-// TeachAuto records a demonstration and saves it with NO interactive prompts —
-// it simplifies with defaults and scopes the route to the app it was taught in
-// (global only if no app context). This is what the overlay uses so teaching is
+// LearnAuto records a demonstration and saves it with NO interactive prompts —
+// it simplifies with defaults and scopes the route to the app it was recorded in
+// (global only if no app context). This is what the overlay uses so learning is
 // driven entirely from the HUD (record → F12 → saved) without a console window.
-func (d Deps) TeachAuto(name string) error {
+func (d Deps) LearnAuto(name string) error {
 	name, argNames := routes.SplitArgs(name)
 	stop := recorder.ParseStopKey(d.StopKey)
-	mlog.Debug("teach-auto: starting recorder", "route", name, "stop_key", stop.Label())
+	mlog.Debug("record-auto: starting recorder", "route", name, "stop_key", stop.Label())
 	fmt.Fprintf(d.Out, "Recording %q — do it now, press %s when done.%s%s\n", name, stop.Label(), d.argKeyHint(argNames), anchorKeyHint())
 	if err := d.Rec.Start(); err != nil {
 		return fmt.Errorf("can't record on this platform: %w", err)
 	}
 	waitForStop(d.Rec, &stop)
 	events := stripTrailingStop(d.Rec.Stop(), stop)
-	mlog.Debug("teach-auto: recording done", "route", name, "events", len(events))
+	mlog.Debug("record-auto: recording done", "route", name, "events", len(events))
 
-	opts := d.teachOptions()
+	opts := d.learnOptions()
 	opts.ArgNames = argNames
 	steps := simplify.Simplify(events, opts)
 	d.enrichAnchors(steps) // OCR each demonstrated anchor's button → text locator
-	mlog.Info("teach-auto: simplified", "route", name, "events", len(events), "steps", len(steps))
+	mlog.Info("record-auto: simplified", "route", name, "events", len(events), "steps", len(steps))
 	if len(steps) == 0 {
-		mlog.Warn("teach-auto: nothing recorded", "route", name)
+		mlog.Warn("record-auto: nothing recorded", "route", name)
 		fmt.Fprintln(d.Out, "Nothing was recorded — not saving.")
 		return nil
 	}
@@ -388,7 +388,7 @@ func (d Deps) TeachAuto(name string) error {
 	if app == "" {
 		app = d.activeApp()
 	}
-	// Auto-teach defaults to a CONTEXT route (foreground-only) for the app it was taught
+	// Auto-learn defaults to a CONTEXT route (foreground-only) for the app it was recorded
 	// in — global if there's no app. Neither switches windows, so drop a leading Activate.
 	rt := routes.Route{App: app, Slug: routes.Slug(name)} // Focus=false → context
 	steps = stripLeadingActivate(steps)
@@ -396,9 +396,9 @@ func (d Deps) TeachAuto(name string) error {
 	if err != nil {
 		return err
 	}
-	mlog.Info("teach-auto: saving", "route", name, "app", app, "path", d.Reg.Path(rt))
+	mlog.Info("record-auto: saving", "route", name, "app", app, "path", d.Reg.Path(rt))
 	if err := d.Reg.Save(rt, finalSrc); err != nil {
-		mlog.Error("teach-auto: save failed", "route", name, "err", err)
+		mlog.Error("record-auto: save failed", "route", name, "err", err)
 		return err
 	}
 	if err := d.Reg.WriteAssets(assets); err != nil {
@@ -411,22 +411,22 @@ func (d Deps) TeachAuto(name string) error {
 	if app != "" {
 		where = "in " + app
 	}
-	mlog.Info("teach-auto: saved", "route", name, "app", app, "steps", len(steps))
+	mlog.Info("record-auto: saved", "route", name, "app", app, "steps", len(steps))
 	fmt.Fprintf(d.Out, "Learned %q (%s), %d steps\n", name, where, len(steps))
 	return nil
 }
 
-// TeachVoice builds a route by narration instead of demonstration: each phrase from
-// the phrases channel is parsed and applied to a voiceteach.Session reading the live
+// LearnVoice builds a route by narration instead of demonstration: each phrase from
+// the phrases channel is parsed and applied to a voicelearn.Session reading the live
 // cursor/screen through env (status, if non-nil, gets a short line per step for a
-// HUD). It saves on "done" (scoped to the app, like TeachAuto), discards on "cancel".
-func (d Deps) TeachVoice(name string, env voiceteach.Env, phrases <-chan string, status func(string)) error {
+// HUD). It saves on "done" (scoped to the app, like LearnAuto), discards on "cancel".
+func (d Deps) LearnVoice(name string, env voicelearn.Env, phrases <-chan string, status func(string)) error {
 	name, argNames := routes.SplitArgs(name)
 	mlog.Info("narrate: session started", "route", name, "args", len(argNames))
-	sess := voiceteach.New(env, argNames...)
+	sess := voicelearn.New(env, argNames...)
 	fmt.Fprintf(d.Out, "Narrate %q — say what to do (\"click this\", \"type …\", \"wait for this screen\"), then \"done\".\n", name)
 	for phrase := range phrases {
-		cmd := voiceteach.Parse(phrase)
+		cmd := voicelearn.Parse(phrase)
 		mlog.Debug("narrate: phrase", "route", name, "phrase", phrase, "kind", cmd.Kind)
 		st, done, canceled := sess.Apply(cmd)
 		fmt.Fprintf(d.Out, "  %s\n", st)
@@ -453,7 +453,7 @@ func (d Deps) TeachVoice(name string, env voiceteach.Env, phrases <-chan string,
 	if app == "" {
 		app = d.activeApp()
 	}
-	// Same save / scope prompts as demonstration teach (no simplify — narration has
+	// Same save / scope prompts as demonstration learn (no simplify — narration has
 	// no raw event stream to re-fold, and no recording is persisted).
 	preview, _, err := codegen.Route(name, app, steps, "", argNames...)
 	if err != nil {
@@ -475,8 +475,8 @@ func (d Deps) Run(rt routes.Route) error {
 // SimplifyRoute re-simplifies an already-saved route from its stored
 // demonstration — folding it as far as it goes (typing rhythm included) — shows
 // the result, and overwrites the route in place if confirmed. A route with no
-// stored recording (taught before recordings were kept, or hand-written) can't
-// be re-simplified; re-teach it instead. Re-simplifying always starts from the
+// stored recording (recorded before recordings were kept, or hand-written) can't
+// be re-simplified; record it again instead. Re-simplifying always starts from the
 // raw events, never the already-folded steps, so nothing is lost to an earlier
 // pass (e.g. repeated letters that a loop-fold would otherwise have swallowed).
 func (d Deps) SimplifyRoute(name string) error {
@@ -486,7 +486,7 @@ func (d Deps) SimplifyRoute(name string) error {
 	}
 	data, ok := d.Reg.LoadRecording(rt)
 	if !ok {
-		return fmt.Errorf("I don't have a recording for %q, so I can't re-simplify it — re-teach it with: marco teach %q", name, name)
+		return fmt.Errorf("I don't have a recording for %q, so I can't re-simplify it — record it again with: marco learn %q", name, name)
 	}
 	var events []recorder.RecordedEvent
 	if err := json.Unmarshal(data, &events); err != nil {
@@ -495,7 +495,7 @@ func (d Deps) SimplifyRoute(name string) error {
 	// Canonical name → the same file resolves and overwrites, even if the caller
 	// passed a loose phrasing that matched.
 	canon := strings.ReplaceAll(rt.Slug, "-", " ")
-	opts := d.teachOptions()
+	opts := d.learnOptions()
 	opts.TypingRhythmMs = simplify.AggressiveTypingRhythmMs
 	steps := simplify.Simplify(events, opts)
 	d.enrichAnchors(steps) // re-derive text anchors lost when rebuilding from raw events
@@ -537,7 +537,7 @@ func (d Deps) SimplifyRoute(name string) error {
 // (the Text host's Read) and/or the element CLASS (the Vision host's Identify) under the
 // click. Each recognised signal becomes a run-time `Find`/`Locate` fallback, so a moved
 // control (text), or one with no text and no clean edge — an icon on a gradient (vision) —
-// still resolves. This is the SINGLE teaching path: demonstrate once, the anchor gains
+// still resolves. This is the SINGLE learn path: demonstrate once, the anchor gains
 // whatever resolvers are wired. Best-effort and graceful — a host that's absent (no
 // $MARCO_OCR / $MARCO_VISION) or can't read leaves that signal off and the anchor keeps
 // whatever it has (image/colour/edge). Mutates steps in place, recursing loop bodies.
@@ -564,13 +564,13 @@ func (d Deps) labelAnchors(text, vision runtime.Host, steps []macroir.Step) {
 		if text != nil && s.AnchorText == "" {
 			if t := readAnchorText(text, s.Template, s.AnchorClickX, s.AnchorClickY); t != "" {
 				s.AnchorText = t
-				mlog.Info("teach: labelled anchor by OCR", "text", t)
+				mlog.Info("record: labelled anchor by OCR", "text", t)
 			}
 		}
 		if vision != nil && s.AnchorVision == "" {
 			if label, box, ok := readAnchorVision(vision, s.Template, s.AnchorClickX, s.AnchorClickY); ok {
 				s.AnchorVision = label
-				mlog.Info("teach: labelled anchor by vision", "label", label)
+				mlog.Info("record: labelled anchor by vision", "label", label)
 				// Re-crop the template to the DETECTED button box — a pixel-tight anchor the
 				// geometric crop can't produce (it fuses stacked menu buttons). Keeps the
 				// recorded screen click; only the template image and the click-within-template
@@ -578,7 +578,7 @@ func (d Deps) labelAnchors(text, vision runtime.Host, steps []macroir.Step) {
 				if cropped, ncx, ncy, ok := cropTemplate(s.Template, box, s.AnchorClickX, s.AnchorClickY); ok {
 					s.Template = cropped
 					s.AnchorClickX, s.AnchorClickY = ncx, ncy
-					mlog.Info("teach: re-cropped anchor to detected button", "box", fmt.Sprintf("%dx%d", box[2], box[3]))
+					mlog.Info("record: re-cropped anchor to detected button", "box", fmt.Sprintf("%dx%d", box[2], box[3]))
 				}
 			}
 		}
@@ -591,7 +591,7 @@ func (d Deps) labelAnchors(text, vision runtime.Host, steps []macroir.Step) {
 // labels the button under the click, not the whole crop; (0,0) lets Read fall back to
 // the template centre. The bridge never errors the Go call — a failure arrives as a
 // non-"ok" status — so a missing tesseract degrades to "no text anchor", never a failed
-// teach.
+// learn.
 func readAnchorText(host runtime.Host, template []byte, clickX, clickY int) string {
 	in := runtime.NewSet()
 	in.Put("Image", runtime.Text(base64.StdEncoding.EncodeToString(template)))
@@ -726,11 +726,11 @@ func stripTrailingStop(events []recorder.RecordedEvent, stop recorder.StopKey) [
 	return events[:end]
 }
 
-// teachAction is the user's choice at the save prompt.
-type teachAction int
+// learnAction is the user's choice at the save prompt.
+type learnAction int
 
 const (
-	actionSave teachAction = iota
+	actionSave learnAction = iota
 	actionDiscard
 	actionSimplify
 )
@@ -739,7 +739,7 @@ const (
 // "simplify further" option is offered only when canSimplify is true (it's a
 // one-shot). It re-prompts on unrecognized input; an empty line (or no input)
 // means save.
-func (d Deps) chooseSave(name string, canSimplify bool) teachAction {
+func (d Deps) chooseSave(name string, canSimplify bool) learnAction {
 	for {
 		if canSimplify {
 			fmt.Fprintf(d.Out, "Save this as %q? [y]es / [n]o / [s]implify: ", name)

@@ -15,7 +15,7 @@ import (
 // same breath — one function, no seam, nothing that could hold "I believe this is the play you
 // mean" without also performing it.
 //
-// That was fine while every play was one a person had written or taught by demonstration: they
+// That was fine while every play was one a person had written or recorded by demonstration: they
 // asked for it, so they authorized it. It stops being fine the moment a play exists that MARCO
 // wrote, from behaviour it watched, because the user asking for it by name is not the same as the
 // user having read what it does.

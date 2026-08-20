@@ -125,7 +125,7 @@ func cvLerp(strict, loose float64) float64 { return strict + (loose-strict)*cvSe
 // so a loosened dial lets AutoCrop capture BIG buttons whole (game UIs — a control can be
 // enormous) instead of rejecting them into the small click-centred fallback patch. 1× at/
 // below 0.5 (legacy — desktop menus where an over-grab would re-centre onto the wrong row),
-// up to 4× at full-loose. Capture-time, so it takes effect on the next TEACH.
+// up to 4× at full-loose. Capture-time, so it takes effect on the next LEARN.
 func cropScale() float64 { return 1.0 + max(0.0, cvSensitivity()-0.5)*6.0 }
 
 func edgeToleranceFromEnv() int {
@@ -250,7 +250,7 @@ func buttonSearchWin() int { return int(480 * cropScale()) }
 // Pure and OS-agnostic.
 // clickX, clickY (the last two returns) are the click's position inside the returned
 // template (its own 0-origin space) — the ORIGINAL click, even when the anchor is
-// re-centred on a wider button. Teach-time OCR uses it to read the button under the
+// re-centred on a wider button. Learn-time OCR uses it to read the button under the
 // click, not every word in the crop.
 func AutoCropAt(img *image.RGBA, cx, cy, fallbackR int) (out *image.RGBA, centerX, centerY, clickX, clickY int) {
 	if img == nil {

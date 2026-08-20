@@ -79,7 +79,7 @@ func run() error {
 		return fmt.Errorf("unpack: %w", err)
 	}
 	// Seed a single "hello" starter route on first run only; a user's later edits (and any
-	// routes they teach) are never overwritten.
+	// routes they learn) are never overwritten.
 	if _, err := os.Stat(routesDir); os.IsNotExist(err) {
 		if err := seedHello(routesDir); err != nil {
 			return fmt.Errorf("seed hello route: %w", err)

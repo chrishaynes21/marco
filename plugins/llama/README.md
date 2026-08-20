@@ -45,6 +45,12 @@ the policy and re-validates every answer, and is model-independent — this plug
 just one pluggable "Advisor" behind it (`$MARCO_ASSISTANT`, falling back to
 `$MARCO_RESOLVER`). Try it with `marco dispatch "<phrase>" --json`.
 
+> **On the wire it is still `"teach"`.** The engine calls that intent `IntentLearn`
+> (`internal/dispatch/dispatch.go`) because the flow it names is Marco *learning* what
+> you show it — but the constant's **value** is the unchanged string `"teach"`, and
+> `plugins/llama` accepts exactly that. This is a cross-module wire contract with no
+> compile link: a model that answers `"intent":"learn"` is rejected. Send `"teach"`.
+
 (This is route-level dispatch, not the Director — see `internal/director`, which
 builds a world model of the desktop and plans UI actions against it.)
 

@@ -853,7 +853,7 @@ func directorHistoryN(jsonMode bool, limit int) int {
 // Because "nothing happened" is the hard silence, and one of its explanations is not about the
 // screen or the phrase at all: this machine has nothing that can act. That is a real refusal —
 // `no_actor_available` — but it is only reachable by RUNNING a play, so the first time anybody
-// finds out the Theater is empty is when a play they have just taught does nothing. `diagnose` is
+// finds out the Theater is empty is when a play they have just learned does nothing. `diagnose` is
 // where a person goes when nothing happened, so it is where the answer should be.
 //
 // # Whose Theater this is

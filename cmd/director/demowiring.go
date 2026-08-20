@@ -108,7 +108,7 @@ func (r *Runtime) ApproveProcedure(id demo.ID, by string) (*demo.Learned, error)
 		return nil, err
 	}
 	// Into the LIVE registry, so the next request can use it. Without this the user would
-	// have to restart the service to use something they just taught it.
+	// have to restart the service to use something Marco just learned.
 	if err := r.registerLearned(l); err != nil {
 		return nil, err
 	}
@@ -149,7 +149,7 @@ func (r *Runtime) ForgetProcedure(name string) error {
 	return r.demoStore.Forget(name)
 }
 
-// LearnedProcedures is what has been taught, for listing and explaining.
+// LearnedProcedures is what has been learned, for listing and explaining.
 func (r *Runtime) LearnedProcedures() []*demo.Learned {
 	if r.demoStore == nil {
 		return nil

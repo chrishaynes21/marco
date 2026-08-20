@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -81,7 +82,7 @@ func TestAColdProcessFindsItsWindowOnTheDesktop(t *testing.T) {
 
 	// And performing reports an honest refusal rather than "nothing has been observed yet":
 	// the goal is known, the desktop is what it is.
-	v, err := rt.PerformGoal(service.PerformQuery{Name: "Open Mouse Settings"})
+	v, err := rt.PerformGoal(context.Background(), service.PerformQuery{Name: "Open Mouse Settings"})
 	if err != nil {
 		t.Fatalf("performing: %v", err)
 	}
@@ -99,7 +100,7 @@ func TestAnUnlearnedOutcomeIsRefused(t *testing.T) {
 	store, _ := semanticmemory.Open(filepath.Join(dir, "memory.json"))
 	rt := &Runtime{observations: newObservationRegistry().withMemory(store)}
 
-	v, err := rt.PerformGoal(service.PerformQuery{Name: "Do Something Nobody Taught"})
+	v, err := rt.PerformGoal(context.Background(), service.PerformQuery{Name: "Do Something Marco Never Learned"})
 	if err != nil {
 		t.Fatalf("performing: %v", err)
 	}
@@ -107,11 +108,11 @@ func TestAnUnlearnedOutcomeIsRefused(t *testing.T) {
 		t.Errorf("an unlearned outcome refused with %q, want not_learned", v.Refusal)
 	}
 	if len(v.Steps) != 0 {
-		t.Errorf("%d step(s) were attempted for something nobody taught", len(v.Steps))
+		t.Errorf("%d step(s) were attempted for something Marco never learned", len(v.Steps))
 	}
 }
 
-// settingsInFront is a desktop with the taught application in front, and nothing else.
+// settingsInFront is a desktop with the learned application in front, and nothing else.
 func settingsInFront() *fakeDesktop {
 	return &fakeDesktop{front: windowref.Candidate{
 		ID: "window_9", Handle: 0x9999, ProcessID: 7512, Application: "settings",
@@ -146,7 +147,7 @@ func TestTheWindowComesFromTheDesktopNotAPreviousSession(t *testing.T) {
 		},
 	}}
 
-	got := rt.performSelector("settings")
+	got := rt.performSelector(context.Background(), "settings")
 	if got.EphemeralID == "window_from_history" {
 		t.Fatal("the window came from a finished session while the desktop could answer. " +
 			"That makes a restart look durable when it is really a warm cache.")
@@ -157,7 +158,7 @@ func TestTheWindowComesFromTheDesktopNotAPreviousSession(t *testing.T) {
 
 	// …and with no desktop at all, history is an honest fallback rather than nothing.
 	rt.winPlatform = nil
-	if fell := rt.performSelector("settings"); fell.EphemeralID != "window_from_history" {
+	if fell := rt.performSelector(context.Background(), "settings"); fell.EphemeralID != "window_from_history" {
 		t.Errorf("with no desktop to read, the known window was not used as history: %+v", fell)
 	}
 }

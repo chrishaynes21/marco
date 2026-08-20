@@ -169,7 +169,7 @@ func showHighlight(v pointView, hold time.Duration) error {
 // highlightCommand builds the surface invocation without running it.
 //
 // Separate from the two ways of running it because they are genuinely different: `show-me` waits,
-// because the highlight IS the command's output; a teach session must not, because it is in the
+// because the highlight IS the command's output; a learn session must not, because it is in the
 // middle of a conversation and a blocked follower would stop reading what Marco says next.
 func highlightCommand(boxes []box, say, role string, hold time.Duration) (*exec.Cmd, error) {
 	bin := groundBinary()

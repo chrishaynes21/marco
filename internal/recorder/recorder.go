@@ -53,7 +53,7 @@ type RecordedEvent struct {
 	// match in the wrong window can't produce a confident click. Empty when unknown.
 	Window string
 	// ClickX, ClickY, on an EvClick down with an Image, are the click's position WITHIN
-	// that Image (its own 0-origin pixel space). Teach-time OCR uses it to read the
+	// that Image (its own 0-origin pixel space). Learn-time OCR uses it to read the
 	// button under the click rather than every word in the crop. (0,0) when no anchor
 	// capture (no Image) — the OCR step then falls back to the template centre.
 	ClickX, ClickY int

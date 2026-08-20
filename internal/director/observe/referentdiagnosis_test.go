@@ -10,7 +10,7 @@ import (
 //
 // # Why this needed a milestone of its own
 //
-// A live Explorer teach attempt refused with `coordinate_mapping_unreliable` and no surface could
+// A live Explorer learn attempt refused with `coordinate_mapping_unreliable` and no surface could
 // say which of two opposite things had happened:
 //
 //	A. there is no trustworthy frame to convert against  — a fact about the SESSION
@@ -175,14 +175,14 @@ func TestGroundingAPlaceSaysWhichOfItsTwoStepsFailed(t *testing.T) {
 	live, group := grounded(t)
 
 	unsettled := observe.ReferentForPlace(observe.ScreenStateUnknown,
-		observe.ReferentTeachStart, live)
+		observe.ReferentLearnStart, live)
 	if unsettled.Diagnosis.StateSettled {
 		t.Error("the unknown screen is reported as settled")
 	}
 
 	// A settled screen the live geometry holds no group for.
 	noGroup := observe.ReferentForPlace(observe.ScreenStateID("state_absent"),
-		observe.ReferentTeachStart, live)
+		observe.ReferentLearnStart, live)
 	if !noGroup.Diagnosis.StateSettled {
 		t.Error("a named screen is reported as unsettled")
 	}
@@ -190,7 +190,7 @@ func TestGroundingAPlaceSaysWhichOfItsTwoStepsFailed(t *testing.T) {
 		t.Error("stands_for_group is true for a screen with no group in live geometry")
 	}
 
-	settled := observe.ReferentForPlace(group.State, observe.ReferentTeachStart, live)
+	settled := observe.ReferentForPlace(group.State, observe.ReferentLearnStart, live)
 	if !settled.Diagnosis.StateSettled || !settled.Diagnosis.StandsForGroup {
 		t.Errorf("the fixture's own screen did not resolve: %+v", settled.Diagnosis)
 	}

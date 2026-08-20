@@ -10,8 +10,8 @@ affects:
 source_paths:
   - internal/director/observe/assessment.go
   - internal/director/observe/rehearsal.go
-  - internal/director/teach/teach.go
-  - internal/director/teach/say.go
+  - internal/director/learn/learn.go
+  - internal/director/learn/say.go
 ---
 
 # ADR-051 — one demonstration and an attempt
@@ -140,7 +140,7 @@ the protocol.
 
 ## Enforced by
 
-- `internal/director/teach/oneshot_test.go` —
+- `internal/director/learn/oneshot_test.go` —
   `TestOneCleanDemonstrationOffersToTryRatherThanAskingAgain` (restoring the mandatory second
   demonstration fails it), `TestOneDemonstrationAndOneRehearsalIsEnoughToLearn` (the whole chain,
   three observation passes, one save), `TestWithoutASuccessfulRehearsalOneDemonstrationLearnsNothing`
@@ -149,7 +149,7 @@ the protocol.
   `TestPassiveLearningStillRequiresCrossSessionCorroboration`,
   `TestTheCrossSessionThresholdIsUnchanged`, `TestOnlyTheCountOfExamplesIsAnsweredByTrying`
   (widening `ConfirmableByRehearsal` fails it), `TestACleanFirstAssessmentDoesNotBlock`.
-- `internal/director/teach/teach_test.go` —
+- `internal/director/learn/learn_test.go` —
   `TestAnotherExampleIsAskedForWhenSomethingWasUnreadable`, which also requires the sentence to
   name the uncertainty.
 

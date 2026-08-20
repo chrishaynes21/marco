@@ -170,7 +170,7 @@ func TestNoCandidatesIsNoRoutes(t *testing.T) {
 // took the slot and the rehearsal question was refused. Recency ordering could not help: it only
 // decides which ROUTE goes first, and the budget was already gone to a different KIND.
 //
-// Under teaching the reasoning inverts. The person asked for this; the incidental question is the
+// Under Learn the reasoning inverts. The person asked for this; the incidental question is the
 // interruption. See Episode.PermissionExpected.
 func TestAnInvitedRehearsalQuestionIsNotBlockedByAnotherQuestion(t *testing.T) {
 	policy := observe.DefaultProposalThresholds()
@@ -322,7 +322,7 @@ func TestAnInvitedRehearsalQuestionIsNotRationed(t *testing.T) {
 			"bound is gone", passive[0].Refusals)
 	}
 
-	// TEACHING: asked.
+	// LEARN: asked.
 	invited := build(Episode{PermissionExpected: true})
 	if len(invited) == 0 {
 		t.Fatal("nothing was judged")
@@ -330,7 +330,7 @@ func TestAnInvitedRehearsalQuestionIsNotRationed(t *testing.T) {
 	if !invited[0].Eligible {
 		t.Fatalf("the runner refused the question the person is waiting for: %v.\nThe "+
 			"widening exists and reviewRehearsal does not apply it, so every live "+
-			"teach ends at \"Want me to try?\" with nothing behind it.",
+			"learn ends at \"Want me to try?\" with nothing behind it.",
 			invited[0].Refusals)
 	}
 }
@@ -361,7 +361,7 @@ func (s *fixedCandidates) Candidates(string) []observe.ProcedureCandidate { retu
 //
 // "The person asked for this" licenses the question about what they just demonstrated. It does
 // not license a queue of questions about every route in the store, which is the interruption the
-// budget exists to prevent — and which teaching, running several passes, would otherwise produce
+// budget exists to prevent — and which Learn, running several passes, would otherwise produce
 // in bulk.
 //
 // Deleting `spent = true` must fail this.
@@ -503,7 +503,7 @@ func TestAZeroPolicyStillBoundsAPassiveSession(t *testing.T) {
 //
 // # What happened
 //
-// A teach called "Open Mouse Settings" demonstrated `subj_543793ccc326 → subj_61ffd6bc8602`, one
+// A learn called "Open Mouse Settings" demonstrated `subj_543793ccc326 → subj_61ffd6bc8602`, one
 // click, and the session's own conclusion named that candidate. The panel then sat on "I think I
 // got it, but I can't ask you for permission right now" with ZERO questions open.
 //
@@ -543,7 +543,7 @@ func TestTheExemptionFollowsTheDemonstratedRoute(t *testing.T) {
 		policy:        observe.DefaultProposalThresholds(),
 		captureBounds: observe.DefaultCaptureBounds(),
 		// The slot already taken by questions nobody asked for — the ordinary state of
-		// a teach that watched an interesting screen.
+		// a learn that watched an interesting screen.
 		proposals: observe.ProposalLedger{Proposals: []observe.Proposal{
 			{ID: "q_a", Ask: observe.AskSemantic, Status: observe.ProposalOpen},
 		}},
@@ -741,7 +741,7 @@ func (grantClock) After(time.Duration) <-chan time.Time { return nil }
 
 // rehearsalRunner is a runner with real evidence for one route and no question of its own.
 //
-// It stands for the ordinary shape of a teach episode: a session that started AFTER a question was
+// It stands for the ordinary shape of a learn episode: a session that started AFTER a question was
 // raised, so the proposal being answered was never in its ledger.
 func rehearsalRunner(t *testing.T, refs ...observe.RelationshipRef) (*Runner, *recallingMemory) {
 	t.Helper()

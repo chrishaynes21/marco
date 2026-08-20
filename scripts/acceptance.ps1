@@ -160,7 +160,7 @@ $q = [int]$learn.questions_open
 if ($q -ne 0) { Die "$q question(s) already open - a stale question holds the interruption slot" }
 Ok 'questions open: 0'
 
-if ($learn.running) { Die 'a teaching session is already running' }
+if ($learn.running) { Die 'a learning session is already running' }
 Ok 'no session in flight'
 
 # omitempty means an absent array, and @($null).Count is 1 in PowerShell — the nulls

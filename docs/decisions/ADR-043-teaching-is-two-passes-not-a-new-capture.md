@@ -8,14 +8,22 @@ affects:
   - demonstrations
   - semantic-memory
 source_paths:
-  - internal/director/teach/teach.go
-  - internal/director/teach/say.go
+  - internal/director/learn/learn.go
+  - internal/director/learn/say.go
   - internal/director/observe/place.go
-  - cmd/director/teachwiring.go
-  - cmd/director/teachcmd.go
+  - cmd/director/learnsessionwiring.go
+  - cmd/director/learncmd.go
 ---
 
 # ADR-043 — teaching is two passes, not a new kind of capture
+
+> *Editorial note, added 2026-08-20.* Written before
+> [[ADR-048-learn-teach-and-do-are-three-different-sentences]]. **"Teaching" here — in the title
+> and throughout the body — is the flow the product now calls Learn**: the person demonstrates and
+> Marco acquires. It is *not* the reserved **Teach** feature, in which Marco guides a person
+> through something it already knows. The record is left in the vocabulary of its date, and its
+> title is part of the evidence ADR-048 cites; the rename is
+> [[ADR-086-one-acquisition-one-word-one-request]].
 
 Everything needed to learn a play from a person existed and was unreachable. Passive observation
 finds screens, transitions become durable relationships, an approved demonstration becomes a
@@ -99,13 +107,13 @@ screen is this" — the mistake `SignatureOfState` already exists to prevent.
 
 ## Enforced by
 
-- `internal/director/teach/teach_test.go` — the orchestration: the start is established before
+- `internal/director/learn/learn_test.go` — the orchestration: the start is established before
   anything is armed, no request is written before the user is invited, the assessment decides when
   another example is wanted, disagreement is refused rather than resolved, a waiting phase does not
   advance, cancelling from any phase leaves no pending request, and every refusal names a distinct
   situation in words with no subject id in them.
-- `internal/director/teach/boundary_test.go` — Teach cannot act, and cannot open a file.
-- `cmd/director/teachwiring_test.go` — the production request route, one session at a time, the
+- `internal/director/learn/boundary_test.go` — Teach cannot act, and cannot open a file.
+- `cmd/director/learnsessionwiring_test.go` — the production request route, one session at a time, the
   pass adapter's lack of a fallback window, and `RunPass` returning the session's own record.
 - Eleven mutations were applied and all eleven were caught; the arming, the request route, the
   waiting phase and the withdrawal on cancel were among them.

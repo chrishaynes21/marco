@@ -31,7 +31,7 @@ import (
 // The whole of it is `Client.Playbill`, which starts no session, takes no sample, answers no
 // question, writes no memory and carries no authority. Refreshing it faster changes nothing
 // about what Marco believes — which is the property that lets a person leave it running
-// beside the application they are teaching.
+// beside the application they are learning.
 //
 // # One account, three readings
 //

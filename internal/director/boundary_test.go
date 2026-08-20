@@ -37,9 +37,9 @@ var forbidden = []struct{ prefix, why string }{
 	{modulePath + "/internal/bridgehost", "providers are constructed in cmd/director, not here"},
 	{modulePath + "/internal/platform", "platform implementations are wired in, never imported"},
 	{modulePath + "/internal/driver", "Marco programs are run through directorapi.MarcoRunner, wired in cmd/director"},
-	{modulePath + "/internal/orchestrator", "teach/do workflow is a Marco concern"},
+	{modulePath + "/internal/orchestrator", "learn/do workflow is a Marco concern"},
 	{modulePath + "/internal/macroir", "the Director plans semantic actions, not recorded steps"},
-	{modulePath + "/internal/codegen", "route codegen is a teach concern; the Director lowers its own typed steps in internal/director/marcostep"},
+	{modulePath + "/internal/codegen", "route codegen is a learn concern; the Director lowers its own typed steps in internal/director/marcostep"},
 	{modulePath + "/internal/simplify", "macro simplification is a Marco concern"},
 	{modulePath + "/internal/dispatch", "route dispatch is a separate system"},
 	// A capability pack is contributed KNOWLEDGE about one application. The Director

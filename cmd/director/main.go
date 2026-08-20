@@ -110,11 +110,12 @@ func main() {
 		os.Exit(runRehearse(os.Args[2:]))
 	case "observe-game":
 		os.Exit(runObserveGame(os.Args[2:]))
-	case "teach":
+	// LEARN is the word; `teach` remains a compatibility alias. See cmd/marco/main.go.
+	case "learn", "teach":
 		// Shows Marco something on purpose. Bounded observation with a conversation around
 		// it: it grants no authority, drives no input, and writes nothing until the
 		// evidence earns it.
-		os.Exit(runTeach(os.Args[2:]))
+		os.Exit(runLearn(os.Args[2:]))
 	case "light":
 		// Watch what Light Mode currently understands, live. A read: it starts no
 		// session, takes no sample and carries no authority.
@@ -244,7 +245,7 @@ func usage() {
   director frames                the recent frames read, and what came of each
   director windows               which windows exist now, and how to target one
   director observe-game <sel>    watch a window while you play; emits no input
-  director teach "<name>" <sel>  show Marco something on purpose; emits no input
+  director learn "<name>" <sel>  show Marco something on purpose; emits no input
   director light [--debug]       watch what Marco's Accessibility perception understands,
                                  live: the place, what it can act on, what it is learning
   director perform "<outcome>"  carry out something Marco has learned (drives real input)
