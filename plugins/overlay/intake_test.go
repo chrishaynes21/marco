@@ -534,3 +534,37 @@ func TestEveryControlWordTheEngineKnowsKillsTheChild(t *testing.T) {
 		})
 	}
 }
+
+// A learn child is given the stop key, so the leader key can end a demonstration.
+//
+// # The regression this guards
+//
+// The guard that sets MARCO_STOP_KEY tested `args[0] == "teach"`. When the verb the overlay
+// spawns became `learn`, the guard silently stopped matching — the child no longer got the stop
+// key, and the leader key would have stopped ending a demonstration. Nothing failed to say so:
+// the env var is read by a different process, so neither module's compiler nor either suite could
+// see the two halves disagree.
+//
+// Mutation: drop the "learn" arm, or change the spawned verb without changing the guard. This
+// fails.
+func TestALearnChildIsGivenTheStopKey(t *testing.T) {
+	src := readOverlaySources(t)
+	i := strings.Index(src, "MARCO_STOP_KEY=")
+	if i < 0 {
+		t.Fatal("nothing gives a demonstration child the stop key any more")
+	}
+	// The guard sits just above the assignment; take the preceding lines.
+	head := src[:i]
+	if j := strings.LastIndex(head, "if len(args) > 0"); j >= 0 {
+		head = head[j:]
+	}
+	if !strings.Contains(head, `"learn"`) {
+		t.Error("the stop key is set for a verb the overlay no longer spawns — the leader " +
+			"key cannot end a demonstration")
+	}
+	// And the verb it actually spawns is the one the guard names.
+	if !strings.Contains(src, `streamChild(h, false, "learn", name)`) {
+		t.Error("the overlay no longer spawns `learn` for a demonstration; the guard above " +
+			"is now naming something that does not happen")
+	}
+}

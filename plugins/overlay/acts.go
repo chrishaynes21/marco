@@ -539,7 +539,13 @@ func streamChild(h *model, trackCancel bool, args ...string) childRun {
 	// into learn-on-unknown. SIMPLIFY_SAVES: learn's [s] simplifies AND saves (the
 	// HUD can't show the preview to re-confirm). All harmless to non-learn commands.
 	cmd.Env = append(os.Environ(), "MARCO_NO_PANIC_STOP=1", "MARCO_NO_TEACH=1", "MARCO_SIMPLIFY_SAVES=1")
-	if len(args) > 0 && args[0] == "teach" {
+	// BOTH SPELLINGS, because this guard is about what the CHILD is doing, not about which
+	// word reached the overlay. The verb the overlay spawns became `learn`, and a guard still
+	// testing for `teach` silently stopped setting the stop key — so the leader key would have
+	// stopped ending a demonstration, with nothing failing to say so.
+	//
+	// Deleting the "learn" arm must fail TestALearnChildIsGivenTheStopKey.
+	if len(args) > 0 && (args[0] == "learn" || args[0] == "teach") {
 		// The leader key stops the demo. The overlay passes it through while recording so
 		// it reaches the recorder's stop detection (see handleKey's recording gate).
 		cmd.Env = append(cmd.Env, "MARCO_STOP_KEY="+cfgLeader())

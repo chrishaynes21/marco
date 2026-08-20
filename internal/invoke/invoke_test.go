@@ -59,7 +59,7 @@ func TestSourceCannotChangeTheDecision(t *testing.T) {
 		{"a control phrase", invoke.Request{Text: "stop"}, invoke.KindControl},
 		{"an explicit identity", invoke.Request{Text: "anything at all", Play: &mouse}, invoke.KindPlay},
 		{"an answer to a question", invoke.Request{Text: "the second one", Pending: true}, invoke.KindDirector},
-		{"an answer that names a play", invoke.Request{Text: "Open Mouse Settings", Pending: true}, invoke.KindDirector},
+		{"a play name while a question is pending", invoke.Request{Text: "Open Mouse Settings", Pending: true}, invoke.KindPlay},
 	}
 	for _, c := range cases {
 		var first invoke.Decision
@@ -224,10 +224,16 @@ func TestAnExplicitPlayIsNeverLookedUpAgain(t *testing.T) {
 	}
 }
 
-// While Director is waiting to be told which one, the next words are the answer.
+// While Director is waiting to be told which one, an ANSWER is the answer.
+//
+// It must not be resolved against the registry: "the second one" is a choice between things
+// Director is holding, not the name of anything.
 func TestAnAnswerToAPendingQuestionIsNotAPlay(t *testing.T) {
-	plays := newPlays(mouse, routes.Route{Slug: "yes"}, routes.Route{Slug: "the-second-one"})
-	for _, text := range []string{"the second one", "yes", "Open Mouse Settings"} {
+	// Registered under the exact words of an answer, so a registry lookup would find
+	// something if one were made. ("cancel" is not in this list: it is a CONTROL phrase and
+	// arm 1 claims it before a question is ever considered.)
+	plays := newPlays(mouse, routes.Route{Slug: "the-second-one"})
+	for _, text := range []string{"the second one", "the first", "1"} {
 		got := invoke.Decide(plays, invoke.Request{Text: text, Pending: true})
 		if got.Kind != invoke.KindDirector {
 			t.Errorf("%q with a question pending decided %q — the question was discarded and "+
@@ -237,9 +243,44 @@ func TestAnAnswerToAPendingQuestionIsNotAPlay(t *testing.T) {
 			t.Errorf("the answer reached Director as %q, want %q unchanged", got.Phrase, text)
 		}
 	}
-	// With no question pending the same words are ordinary again.
-	if got := invoke.Decide(plays, invoke.Request{Text: "Open Mouse Settings"}); got.Kind != invoke.KindPlay {
-		t.Error("with nothing pending, a play name stopped being a play")
+}
+
+// A question nobody answered does not capture everything said afterwards.
+//
+// # The failure this guards, measured live
+//
+// The first version of this claimed the words whenever ANY question was outstanding. A question
+// left behind by some earlier command then hijacked every invocation after it: typing the name of
+// a play you have got you `nothing matching "test" is present in the observed window`, because the
+// words had been delivered as an answer to a question you had forgotten asking. Nothing said why,
+// and the only way out was to answer or cancel a question you could no longer see.
+//
+// The rule is not new judgement. `intent.ParseClarification` is the same function the service runs
+// on the other side, and it is strict: one word it does not recognise and the phrase is not an
+// answer.
+//
+// Mutation: capture the words whenever Pending is set. This fails.
+func TestAStalePendingQuestionDoesNotHijackAKnownPlay(t *testing.T) {
+	plays := newPlays(mouse)
+	for _, text := range []string{
+		"open mouse settings", "Open Mouse Settings", "open-mouse-settings",
+	} {
+		got := invoke.Decide(plays, invoke.Request{Text: text, Pending: true})
+		if got.Kind != invoke.KindPlay {
+			t.Errorf("%q with a stale question pending decided %q — a play Marco has was "+
+				"delivered to Director as an answer", text, got.Kind)
+		}
+		if got.Play != mouse {
+			t.Errorf("%q resolved to %+v", text, got.Play)
+		}
+	}
+	// A request Marco has no play for still reaches Director, question or no question.
+	if got := invoke.Decide(plays, invoke.Request{Text: "turn bluetooth off", Pending: true}); got.Kind != invoke.KindDirector {
+		t.Errorf("an unknown request decided %q", got.Kind)
+	}
+	// And a control phrase still beats everything, including a pending question.
+	if got := invoke.Decide(plays, invoke.Request{Text: "stop", Pending: true}); got.Kind != invoke.KindControl {
+		t.Errorf("stop with a question pending decided %q", got.Kind)
 	}
 }
 

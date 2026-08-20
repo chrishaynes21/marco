@@ -261,7 +261,7 @@ func TestStopReachesTheRunningWorkFromEveryEntrance(t *testing.T) {
 // A phrase that answers Director's pending question is not claimed by a play of the same name.
 //
 // Mutation: drop the pending check. This fails.
-func TestAnAnswerIsNotClaimedByAPlayOfTheSameName(t *testing.T) {
+func TestAnAnswerReachesTheQuestionAndNothingElseDoes(t *testing.T) {
 	d := intakeWorld(t)
 	noDirector(t)
 	prev := pendingQuestion
@@ -273,15 +273,43 @@ func TestAnAnswerIsNotClaimedByAPlayOfTheSameName(t *testing.T) {
 	submitPhrase = func(p string, _ bool) int { submitted = p; return exitOK }
 	t.Cleanup(func() { submitPhrase = prevSubmit })
 
-	out, err := runInvocation(d, invoke.Request{
-		Text: "open mouse settings", Source: invoke.SourceSpoken,
+	// AN ANSWER goes to the question, and is not resolved against the registry.
+	if _, err := runInvocation(d, invoke.Request{
+		Text: "the second one", Source: invoke.SourceSpoken,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if submitted != "the second one" {
+		t.Fatalf("an answer went somewhere other than the question (submitted %q)", submitted)
+	}
+
+	// This half actually PERFORMS the play, so it needs a fixture that compiles.
+	if err := d.Reg.Save(routes.Route{App: "settings", Focus: true, Slug: "open-mouse-settings"},
+		runnableSrc); err != nil {
+		t.Fatal(err)
+	}
+
+	// AND A PLAY NAME IS STILL A PLAY. A question nobody answered must not capture every
+	// invocation after it — measured live, it did, and typing the name of a play you have
+	// answered `nothing matching "test" is present in the observed window`.
+	//
+	// Deleting the ParseClarification test in invoke.Decide must fail this.
+	submitted = ""
+	said, err := captureStdout(t, func() error {
+		_, e := runInvocation(d, invoke.Request{
+			Text: "open mouse settings", Source: invoke.SourceSpoken,
+		})
+		return e
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if submitted != "open mouse settings" {
-		t.Fatalf("while a question was pending the words went to a play instead of to the "+
-			"question (submitted %q, outcome %q)", submitted, out)
+	if submitted != "" {
+		t.Fatalf("a play Marco has was delivered to Director as an answer to a question "+
+			"nobody asked about it (submitted %q)", submitted)
+	}
+	if !strings.Contains(said, "[route] open mouse settings") {
+		t.Errorf("the play did not run while a stale question was pending:\n%s", said)
 	}
 }
 

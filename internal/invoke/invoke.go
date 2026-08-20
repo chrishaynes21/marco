@@ -159,16 +159,37 @@ func Decide(plays Plays, req Request) Decision {
 			Why: "a control phrase — it acts on what is running"}
 	}
 
-	// 2. AN ANSWER BELONGS TO THE QUESTION.
+	// 2. AN ANSWER BELONGS TO THE QUESTION — and only an answer does.
 	//
-	// Ahead of Play matching on purpose: while Director is waiting to be told which one, a
-	// phrase that happens to name a Play is still an answer. Claiming it here would silently
-	// discard the question and start something else.
+	// Ahead of Play matching on purpose: while Director is waiting to be told which one, "the
+	// second one" is that answer and must never be resolved against the registry as though it
+	// were the name of something.
 	//
-	// Deleting this arm must fail TestAnAnswerToAPendingQuestionIsNotAPlay.
+	// # But a pending question may not capture everything
+	//
+	// The first version of this arm claimed the words whenever ANY question was outstanding.
+	// Measured, live: a question left unanswered by some earlier command silently hijacked
+	// every invocation after it — typing the name of a play you have got you
+	// `nothing matching "test" is present in the observed window`, because the words were
+	// delivered as an answer to a question you had forgotten asking. Nothing on screen said
+	// why, and the only way out was to answer or cancel a question you could no longer see.
+	//
+	// So the test is whether the words READ as an answer, and it is not a new judgement:
+	// `intent.ParseClarification` is the same function the service runs on the other side, and
+	// it is strict — one word it does not recognise as an ordinal, a role or a filler and the
+	// phrase is not an answer. "the second one" is; "open the test" is not.
+	//
+	// Deleting the ParseClarification test must fail
+	// TestAStalePendingQuestionDoesNotHijackAKnownPlay.
 	if req.Pending {
-		return Decision{Kind: KindDirector, Phrase: text,
-			Why: "Director is waiting for an answer — these words are it"}
+		if _, isAnswer := intent.ParseClarification(text); isAnswer {
+			return Decision{Kind: KindDirector, Phrase: text,
+				Why: "Director is waiting for an answer — these words are it"}
+		}
+		// Not an answer. It is an ordinary request, and it takes the ordinary arms below.
+		// The service reaches the same conclusion for anything that does arrive at it:
+		// `Server.clarify` clears the pending question and re-enters execute when the text
+		// does not parse as an answer.
 	}
 
 	// 3. EXPLICIT IDENTITY. The surface already knows which Play; it is not asked to say so in
