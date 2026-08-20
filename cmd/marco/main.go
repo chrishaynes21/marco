@@ -51,6 +51,24 @@ func main() {
 	case "assistant":
 		runAssistant(os.Args[2:])
 		return
+	case "games":
+		// Which games Marco understands, and what it may do in them. A pure client, like
+		// `marco director`: the capability packs live in the Director service, which is the
+		// process that observes the desktop.
+		runGames(os.Args[2:])
+		return
+	case "director":
+		// The stable client entry point for a front-end (the overlay, and through it
+		// voice). A pure client: the Director service owns all the state.
+		runDirector(os.Args[2:])
+		return
+	case "dispatch":
+		// Classify a phrase into one ROUTE-LEVEL decision (run/teach/chat/clarify)
+		// without acting. This is NOT the Director (which plans desktop actions from a
+		// world model) — it only picks among the routes you already have. A front-end
+		// uses `marco dispatch "<phrase>" --json` to converse. See internal/dispatch.
+		runDispatch(os.Args[2:])
+		return
 	case "routes":
 		runRoutes(os.Args[2:])
 		return
@@ -257,6 +275,7 @@ Assistant (teach by demonstration, then run by name):
   marco ui                 open the control center (all routes, bindings, help) in a browser
   marco edit "<name>"      open the control center on one route's visual editor
   marco assistant          interactive loop — say what you want, in plain words
+  marco dispatch "<phrase>" [--json]  classify a phrase (run/teach/chat/clarify)
   marco routes [--json]    list known routes (--json for a UI plugin)
   marco active             print the foreground app (context)
   marco forget "<name>"    delete a route
@@ -286,5 +305,10 @@ is free to record as an ordinary key; change it with $MARCO_STOP_KEY (e.g. "esc"
 executable to let the assistant fall back to it (e.g. the Claude one in
 plugins/claude-resolver) for loosely-phrased commands. The engine is headless;
 UIs are plugins that drive it (see plugins/web-ui). Marco itself has no deps.
+
+Conversation: dispatch decides run/teach/chat/clarify from a plain phrase. It
+works offline (deterministic matcher) and gets smarter when a brain plugin is set
+via $MARCO_ASSISTANT (falls back to $MARCO_RESOLVER) — e.g. the local model in
+plugins/llama. A front-end uses "marco dispatch --json" to converse.
 `)
 }

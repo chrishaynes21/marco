@@ -1,16 +1,26 @@
+// The three words are not three spellings of one thing.
+//
+//   an act    organises what the play can do, and is the way in
+//   a scene   describes where things happen, and holds what is there
+//   an actor  is a thing in the play
+
 the Ahk is an act.
-this can Click.
-this's Click does...
-    log "click".
+this exports Click.        // offered outwards; a host does the clicking
+
+the Knight is an actor.
+this can Charge.
+this's Charge does...
+    log "the knight charges".
     this is ok!
 
-the SaveScene is a scene.
-this can Render.
-this's Render does...
-    log "rendered".
+the Battlefield is a scene.
+this's Hero is a Knight.   // the scene holds an actor
+this can Begin.            // and knows a verb of its own
+this's Begin does...
+    do Knight's Charge.
+    log "the battle begins".
     this is ok!
 
 the App is a script.
 
-do Ahk's Click.
-do SaveScene's Render.
+do Battlefield's Begin.

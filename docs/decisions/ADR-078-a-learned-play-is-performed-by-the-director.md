@@ -1,0 +1,121 @@
+---
+type: decision
+status: accepted
+date: 2026-08-19
+supersedes: []
+affects:
+  - teaching
+  - learned-plays
+  - execution
+source_paths:
+  - cmd/director/perform.go
+  - cmd/director/performcmd.go
+  - internal/director/rehearse/live.go
+---
+
+# ADR-078 — a learned Play is performed by the Director
+
+## LEARN → RUNNABLE PLAY: COMPLETE
+
+Proven from a **cold process** with an **unrelated foreground application**. Director resolved the
+durable learned goal, brought the application forward, obtained fresh Stage truth without relying
+on session history, planned two verified edges, executed both through the shared bounded `Perform`
+walker, verified after each edge, and positively confirmed the final Place.
+
+One demonstration produced three durable semantic Places, two reusable edges, 2/2 verified, a
+complete legal Marco Play — saved, registered, and callable by the phrase that taught it.
+
+## The gap this closes
+
+A learned play could be demonstrated, verified edge by edge, written down as legal Marco,
+registered and resolved — and nothing in the system would walk it. Measured, all three surfaces:
+
+| surface | outcome |
+|---|---|
+| `marco do "Open Mouse Settings"` | resolved and ran; refused at its own first line — standalone Marco has no perception, so `Screen's Showing with "Home"` can never be satisfied |
+| `director execute "open mouse settings"` | ignored the Play; one-shot semantic lookup — `absent: nothing matching "mouse settings"` |
+| `director reach "Open Mouse Settings"` | knew the outcome, planned only, and planned from where a finished session ended |
+
+## Decision
+
+**Execution is its own path above the walker rehearsal already uses.**
+
+`Rehearse` is grant-state guards, then `Perform`. `Perform` is: establish → source check →
+`BeginAttempt` → step loop verifying after every step. Both callers go through it. A second caller
+reimplementing the walk would be a second set of answers to *"did that step work"*, and every
+verification claim in this system rests on there being one.
+
+What differs is **above** the walk:
+
+- **rehearsal authority** — Marco asked whether it may try something once, and was told yes;
+- **execution authority** — the Audience named a learned behaviour and asked for it.
+
+Both mint the same object, because that object is also the **budget**: `BeginAttempt` binds an
+attempt to its input and duration bounds and consumes it, so there is no path to real input without
+one. Execution's is minted under the epoch `asked`, so an audit can tell the two apart.
+
+### The order is not arrangeable
+
+**Foreground → look → decide.** A Stage read taken while another application is in front describes
+somebody else's window, and the source check made from it would refuse a reachable route or accept
+an unreachable one.
+
+### No planning from history
+
+`freshPlace` takes a real look through `StartObservation` — the same path Sight uses — and resolves
+it with `observe.PlaceNow`. No second resolver: the freshness is in the evidence, not in a new
+opinion about it. `reach` answered from the newest finished session and told the Audience
+*"You're already there"* about a screen they had left.
+
+### Cold start is the test of durability
+
+Both the application and the window used to come from session history, which quietly means "Marco
+can run this if it happened to observe the application in this process" — a warm cache wearing
+durability's clothes. The Audience's phrase names a goal; durable memory says which application the
+goal lives in; the desktop says where that application's window is. History remains available only
+as history, for when the desktop cannot be read at all.
+
+### Stop at the first honest failure
+
+A route that got half way is a different fact from one that never started. Replanning around a
+failed edge is a decision nobody has made yet.
+
+### A plan that ran is not a goal that was reached
+
+A second fresh look confirms arrival. The last edge's own verification says the step worked; this
+says the Audience is where they asked to be.
+
+## Known follow-ons
+
+1. **Redundant settle work makes normal execution slower than necessary.** `freshPlace` starts a
+   bounded observation to answer "where am I", returns as soon as the place resolves, and leaves the
+   session alive; `Perform` then establishes again immediately, settling the same unchanged screen
+   twice. The planning look and the first establish should share one settle, and the look should
+   finish as soon as it has its answer.
+2. **Application-name foregrounding is ambiguous when several top-level windows share a process.**
+   Settings, XBOX and Realtek Audio Console are all `applicationframehost`; activating by
+   application name can raise the wrong one, and the fresh look then cannot place the screen —
+   observed live as `place_unknown` on a first attempt. Foreground selection should prefer the
+   candidate window whose fresh Stage resolves to the required Place, and fail honestly when
+   ambiguous.
+
+Neither invalidates the acceptance. Both are efficiency and selection, not correctness of the walk.
+
+## Enforced by
+
+- `internal/director/rehearse/rehearse_test.go` — `TestRehearsalAndExecutionShareOneWalker`
+  (removing the shared call fails 23 tests)
+- `cmd/director/performwiring_test.go` — `TestAColdProcessFindsItsWindowOnTheDesktop`;
+  `TestTheWindowComesFromTheDesktopNotAPreviousSession` (seeds a live desktop AND session history,
+  and requires the live one to win); `TestAnUnlearnedOutcomeIsRefused`
+- **not gated:** `bringForward` preceding the Stage read. Reordering it compiles and passes,
+  because foregrounding needs a live desktop the fakes cannot move. The live acceptance is the only
+  thing that catches it.
+
+## Related
+
+[[ADR-077-consent-is-the-audiences-authority-is-marcos]] ·
+[[ADR-075-a-learn-episode-outlives-its-sessions]] ·
+[[ADR-074-one-demonstration-every-leg-reviewed]] ·
+[[ADR-076-a-place-may-say-what-it-appears-to-be-called]] ·
+[[ADR-029-resolution-is-not-permission]] · [[Learned-Plays]]

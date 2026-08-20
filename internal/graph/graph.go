@@ -72,8 +72,16 @@ func (k NodeKind) String() string {
 
 // Node represents one named entity in the program graph.
 type Node struct {
-	Name         string
-	Kind         NodeKind
+	Name string
+	Kind NodeKind
+	// Declared is the word the author actually wrote: "actor", "act" or "scene".
+	//
+	// Kind collapses all three to KindActor because they behave the same way at runtime —
+	// each one owns state, declares verbs, and hears and says. That sharing is deliberate
+	// and correct. What it must NOT do is erase which word the author chose, because the
+	// three words mean different things to a reader and the compiler has to be able to hold
+	// them to that. See spec/Core.md.
+	Declared     string
 	Fields       []Field
 	Caps         []*Capability
 	Owner        *Node          // for `this can X` declared inside an actor
@@ -172,7 +180,8 @@ type Block struct {
 }
 
 // EdgeKind enumerates the runtime edge types implied by Marco sentence forms.
-// MVP supports the subset listed in 09-mvp-slice.md.
+// The set below is what the compiler and runtime implement; spec/Core.md says which of them
+// a Marco program should rely on, and which are supported extensions.
 type EdgeKind int
 
 const (

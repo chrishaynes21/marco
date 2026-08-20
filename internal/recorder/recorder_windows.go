@@ -105,8 +105,12 @@ const moveThrottle = 8 * time.Millisecond
 const appPollInterval = 120 * time.Millisecond
 
 type winRecorder struct {
-	done           chan struct{}
-	stopped        chan struct{} // hook pump finished
+	done    chan struct{}
+	stopped chan struct{} // hook pump finished
+	// ready closes once the pump publishes its thread id; a blocking pump is woken by a
+	// posted WM_QUIT rather than by a closed channel.
+	ready          chan struct{}
+	threadID       atomic.Uint32
 	pollStopped    chan struct{} // app poller finished
 	captureStopped chan struct{} // click-template capture worker finished
 }
@@ -159,6 +163,7 @@ func (r *winRecorder) Start() error {
 
 	r.done = make(chan struct{})
 	r.stopped = make(chan struct{})
+	r.ready = make(chan struct{})
 	r.pollStopped = make(chan struct{})
 	r.captureStopped = make(chan struct{})
 	captureReqs = make(chan captureReq, 256)
@@ -266,31 +271,35 @@ func (r *winRecorder) Start() error {
 		defer runtime.UnlockOSThread()
 		defer close(r.stopped)
 
+		// Published before the hooks exist, so a Stop racing Start still has a thread to wake.
+		tid, _, _ := procGetCurrentThreadId.Call()
+		r.threadID.Store(uint32(tid))
+		close(r.ready)
+
 		kbCB := syscall.NewCallback(keyboardProc)
 		msCB := syscall.NewCallback(mouseProc)
 		kbHook, _, _ := procSetWindowsHookExW.Call(whKeyboardLL, kbCB, 0, 0)
 		msHook, _, _ := procSetWindowsHookExW.Call(whMouseLL, msCB, 0, 0)
 
+		// BLOCKING, for the reason set out in internal/platform/navsource: Windows can only
+		// deliver a low-level hook callback while the installing thread waits on messages, and
+		// PeekMessage with a Sleep between polls leaves it asleep instead — which puts up to a
+		// scheduler quantum of latency on every keystroke and every mouse move on the whole
+		// desktop. It is not a dropped hook and never looks like one; it just feels heavy.
 		var m msg
 		for {
-			select {
-			case <-r.done:
-				if kbHook != 0 {
-					procUnhookWindowsHookEx.Call(kbHook)
-				}
-				if msHook != 0 {
-					procUnhookWindowsHookEx.Call(msHook)
-				}
-				return
-			default:
+			ret, _, _ := procGetMessageW.Call(uintptr(unsafe.Pointer(&m)), 0, 0, 0)
+			if ret == 0 || int32(ret) == -1 {
+				break
 			}
-			ret, _, _ := procPeekMessageW.Call(uintptr(unsafe.Pointer(&m)), 0, 0, 0, pmRemove)
-			if ret != 0 {
-				procTranslateMessage.Call(uintptr(unsafe.Pointer(&m)))
-				procDispatchMessageW.Call(uintptr(unsafe.Pointer(&m)))
-			} else {
-				procSleep.Call(1)
-			}
+			procTranslateMessage.Call(uintptr(unsafe.Pointer(&m)))
+			procDispatchMessageW.Call(uintptr(unsafe.Pointer(&m)))
+		}
+		if kbHook != 0 {
+			procUnhookWindowsHookEx.Call(kbHook)
+		}
+		if msHook != 0 {
+			procUnhookWindowsHookEx.Call(msHook)
 		}
 	}()
 	return nil
@@ -301,6 +310,10 @@ func (r *winRecorder) Stop() []RecordedEvent {
 		return nil
 	}
 	close(r.done)
+	// Wake the blocking pump so it can unhook what it installed — only the installing
+	// thread may do that, and it is asleep in GetMessage until something arrives.
+	<-r.ready
+	procPostThreadMessageW.Call(uintptr(r.threadID.Load()), wmQuit, 0, 0)
 	<-r.stopped // hook pump unhooked — no more mouseProc, so no more capture sends
 	<-r.pollStopped
 	close(captureReqs) // safe now: nothing sends after the hooks are gone

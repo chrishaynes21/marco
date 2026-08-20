@@ -1,2 +1,2 @@
-[INFO] click
-[INFO] rendered
+[INFO] the knight charges
+[INFO] the battle begins

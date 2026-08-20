@@ -18,7 +18,10 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/osmod"
 	"github.com/chaynes-simpleclouds/marco/internal/parser"
 	"github.com/chaynes-simpleclouds/marco/internal/runtime"
+	"github.com/chaynes-simpleclouds/marco/internal/screenmod"
 	"github.com/chaynes-simpleclouds/marco/internal/textmod"
+	"github.com/chaynes-simpleclouds/marco/internal/theatermod"
+	"github.com/chaynes-simpleclouds/marco/internal/uiamod"
 	"github.com/chaynes-simpleclouds/marco/internal/visionmod"
 )
 
@@ -34,6 +37,12 @@ func builtinModule(name string) (string, bool) {
 		return textmod.Source, true
 	case "vision":
 		return visionmod.Source, true
+	case "accessibility":
+		return uiamod.Source, true
+	case "screen":
+		return screenmod.Source, true
+	case "theater":
+		return theatermod.Source, true
 	}
 	return "", false
 }
@@ -212,6 +221,38 @@ type cursorSnapshotter interface {
 // at route end, so a hold can't leave a key stuck down. Only the real OS host implements it.
 type heldKeyReleaser interface {
 	ReleaseHeld()
+}
+
+// CheckSource compiles a source string the way Marco itself would, and runs nothing.
+//
+// # Why generated Marco must be checked HERE and nowhere else
+//
+// A caller that wants to know "is this legal Marco" has to resolve `use` the way the runtime
+// resolves it. The Director used to answer the question its own way instead — concatenating
+// `osmod.Source` and `screenmod.Source` and deleting the two `use` lines it knew about — and the
+// spec suite answered it a third way, concatenating four modules and deleting four `use` lines.
+// Two hand-maintained lists of the same fact.
+//
+// They drifted the moment a play could press a control by name. That play imports the Theater act,
+// which the Director's list did not have, so a verified, named, rehearsed route ended at:
+//
+//	not_lowerable: core_cannot_express
+//	the generated play does not compile: 101:13: unknown type "Target"
+//
+// while the spec test asserting that exact play compiles was green — because its list did have it.
+// The language was never the problem. The Director was asking a question the runtime never asks.
+//
+// So there is one answer: `buildGraph`, the same resolver `RunSource` uses, with the same built-in
+// modules. A module the Director emits an import for either resolves for real or fails here.
+//
+// Nothing is executed. A graph is built, compiled, and dropped — see
+// [[ADR-005-legal-marco-only]].
+func CheckSource(src string) error {
+	g, err := buildGraph(src, "", map[string]bool{})
+	if err != nil {
+		return err
+	}
+	return compile.Compile(g, nil)
 }
 
 // RunSource runs a source string with no import support (single-file).

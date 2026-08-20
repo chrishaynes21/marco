@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/chaynes-simpleclouds/marco/pkg/playbill"
 )
 
 // idleAfter is how long after the last activity the HUD reverts to idle (the
@@ -32,35 +34,46 @@ const (
 // controller, and the clock/app pollers mutate it; the view's Draw reads it. All
 // access goes through the mutex.
 type model struct {
-	mu           sync.Mutex
-	visible      bool
-	editing      bool
-	status       string // raw status text from the engine
-	state        string // idle | listen | run | ok | error
-	input        string
-	logs         []string
-	lastRun      string
-	app          string    // foreground app (polled via `marco active`)
-	lastActive   time.Time // drives the wake/idle fade + auto-revert
-	helpOn       bool
-	help         []string
-	leaderEcho   string      // the leader sequence being typed, e.g. "`h"
-	heard        string      // live voice transcript (Google-style preview)
-	history      []histEntry // recent commands with their outcome + time
-	cpu, ram     float64     // system metrics (%), for the optional widget
-	curX, curY   int         // live cursor position (virtual-desktop coords)
-	curHasPos    bool        // whether curX/curY have been sampled yet
-	teaching     bool        // a teach recording is in progress (keeps the HUD awake)
-	teachStart   time.Time   // when the current teach recording began (for the live timer)
-	configOn     bool        // the config editor is open
-	configSel    int         // selected config row
-	config       []string    // rendered config rows
-	teachLog     []string    // answered teach prompts + their selections (terminal transcript)
-	teachPrompt  string      // the active teach y/n/s prompt ("" = none), shown verbatim with its options
-	teachPending string      // the answer typed but not yet submitted (type y/n/s, then Enter)
-	argHints     []string    // arg labels to auto-pop for the route being typed ("name:" …)
-	routeNames   []string    // known route display names, for Tab autocomplete
-	quit         bool
+	mu            sync.Mutex
+	visible       bool
+	editing       bool
+	status        string // raw status text from the engine
+	state         string // idle | listen | run | ok | error
+	input         string
+	logs          []string
+	lastRun       string
+	app           string    // foreground app (polled via `marco active`)
+	lastActive    time.Time // drives the wake/idle fade + auto-revert
+	helpOn        bool
+	help          []string
+	leaderEcho    string      // the leader sequence being typed, e.g. "`h"
+	heard         string      // live voice transcript (Google-style preview)
+	history       []histEntry // recent commands with their outcome + time
+	cpu, ram      float64     // system metrics (%), for the optional widget
+	curX, curY    int         // live cursor position (virtual-desktop coords)
+	curHasPos     bool        // whether curX/curY have been sampled yet
+	teaching      bool        // a teach recording is in progress (keeps the HUD awake)
+	teachStart    time.Time   // when the current teach recording began (for the live timer)
+	configOn      bool        // the config editor is open
+	configSel     int         // selected config row
+	config        []string    // rendered config rows
+	teachLog      []string    // answered teach prompts + their selections (terminal transcript)
+	teachPrompt   string      // the active teach y/n/s prompt ("" = none), shown verbatim with its options
+	teachPending  string      // the answer typed but not yet submitted (type y/n/s, then Enter)
+	insightOn     bool        // the frozen perception snapshot panel is open (`explain`)
+	inspectorOn   bool        // mouse passthrough OFF, full detail
+	insightFrozen bool        // showing a deep snapshot; the live poll is paused
+	insight       []string    // rendered insight rows (see insight.go)
+	// wmode is which reading of the Director's playbill is on screen, and watch is the
+	// account itself. ONE value drives all three readings — see watch.go.
+	wmode watchLevel
+	watch playbill.View
+	// headline is the NORMAL reading: one word and one sentence, kept current in the
+	// background so a pending question is never invisible behind a closed panel.
+	headline   playbill.Headline
+	argHints   []string // arg labels to auto-pop for the route being typed ("name:" …)
+	routeNames []string // known route display names, for Tab autocomplete
+	quit       bool
 }
 
 // inputForHint returns the current command text and whether the line is open, so the
@@ -219,6 +232,145 @@ func (h *model) showHelp(lines []string) {
 }
 
 func (h *model) closeHelp() { h.mu.Lock(); h.helpOn = false; h.mu.Unlock() }
+
+// ---- the Director's playbill: Normal, Watch, Diagnostics ----
+
+// watchLevel is which reading of the ONE account is on screen.
+//
+// Levels of a single surface rather than three panels. They render the same value, they
+// share a poller, and there is deliberately no state that one has and another does not —
+// which is what makes "the same underlying state drives all of them" a property rather
+// than an intention.
+type watchLevel int
+
+const (
+	// watchOff: no panel. The NORMAL reading still runs in the background.
+	watchOff watchLevel = iota
+	// watchOn: WATCH — what Marco sees, believes, is learning and needs.
+	watchOn
+	// watchDeep: DIAGNOSTICS — the evidence underneath what Watch said.
+	watchDeep
+)
+
+// openWatch shows the human-readable reading.
+//
+// Opening always leaves the mouse alone: Watch is click-through, because a person is
+// meant to keep using another application while it is up. Only Diagnostics captures.
+func (h *model) openWatch() {
+	h.mu.Lock()
+	h.wmode, h.helpOn, h.editing = watchOn, false, false
+	h.insightOn, h.insightFrozen, h.inspectorOn = false, false, false
+	h.lastActive = time.Now()
+	h.mu.Unlock()
+}
+
+// openDiagnostics shows the evidence underneath, and captures the mouse.
+//
+// Capturing is entered BY NAME and announced on screen, exactly as the old inspector was.
+// An overlay that quietly swallowed a click meant for the game would be worse than
+// useless, so the mode that does it has to be asked for and has to say so.
+func (h *model) openDiagnostics() {
+	h.mu.Lock()
+	h.wmode, h.inspectorOn = watchDeep, true
+	h.helpOn, h.editing = false, false
+	h.insightOn, h.insightFrozen = false, false
+	h.lastActive = time.Now()
+	h.mu.Unlock()
+}
+
+func (h *model) closeWatch() {
+	h.mu.Lock()
+	h.wmode, h.inspectorOn = watchOff, false
+	h.lastActive = time.Now().Add(-2 * idleAfter) // fade out now
+	h.mu.Unlock()
+}
+
+// watchMode reports which reading is on screen, for the poller.
+func (h *model) watchMode() watchLevel {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.wmode
+}
+
+// setWatch replaces the account.
+//
+// It does NOT wake the panel: a refresh is the poller talking, not the user, and waking
+// on it would keep the HUD lit for as long as anybody left it open.
+func (h *model) setWatch(v playbill.View) {
+	h.mu.Lock()
+	h.watch = v
+	// The headline comes from the same value, always. A separate fetch for it would be a
+	// second opinion about whether Marco has a question.
+	h.headline = v.Normal()
+	h.mu.Unlock()
+}
+
+// setHeadline stores the NORMAL reading from the background poll.
+//
+// It wakes the panel only for something that is WAITING ON A PERSON. That is the whole
+// of the consumer surface's claim on attention, and everything else Marco does — watching,
+// learning, thinking — deliberately does not earn one.
+func (h *model) setHeadline(hd playbill.Headline) {
+	h.mu.Lock()
+	if hd.Attention && !h.headline.Attention {
+		h.lastActive = time.Now()
+	}
+	h.headline = hd
+	h.mu.Unlock()
+}
+
+// ---- the frozen perception snapshot (`perception` / `explain`) ----
+//
+// The one surface the playbill does NOT replace. It is the per-element account, it is
+// quadratic in the observation count, and it is the only thing that produces the
+// anonymous-label share — so it stays a point-in-time snapshot somebody asks for by name
+// rather than something a live panel pays for forever. See [[Visibility]]'s known gaps.
+
+func (h *model) closeInsight() {
+	h.mu.Lock()
+	h.insightOn, h.inspectorOn, h.insightFrozen = false, false, false
+	h.lastActive = time.Now().Add(-2 * idleAfter) // fade out now
+	h.mu.Unlock()
+}
+
+// inspectorOpen reports whether the mouse-capturing mode is active.
+func (h *model) inspectorOpen() bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.inspectorOn
+}
+
+// insightPolls reports whether the live poller should refresh.
+//
+// False while frozen. The deep view is an expensive point-in-time sample, and letting the
+// cheap poll overwrite it two seconds later would mean the thing the user asked for
+// flickered past and vanished.
+func (h *model) insightPolls() bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.insightOn && !h.insightFrozen
+}
+
+// setInsight replaces the rendered rows. It does NOT wake the panel: a refresh is the
+// poller talking, not the user, and waking on it would keep the HUD lit indefinitely.
+func (h *model) setInsight(lines []string) {
+	h.mu.Lock()
+	h.insight = lines
+	h.mu.Unlock()
+}
+
+// freezeInsight opens the panel and stops the live poll, for the deep snapshot.
+//
+// It closes the playbill panel: two surfaces sharing one slot would render on top of each
+// other, and the one underneath would be the one nobody could see was still polling.
+func (h *model) freezeInsight() {
+	h.mu.Lock()
+	h.wmode, h.inspectorOn = watchOff, false
+	h.insightOn, h.insightFrozen, h.helpOn, h.editing = true, true, false, false
+	h.insight = []string{"director  reading (deep)…"}
+	h.lastActive = time.Now()
+	h.mu.Unlock()
+}
 
 // ---- config editor ----
 
@@ -429,6 +581,9 @@ func (h *model) shouldQuit() bool { h.mu.Lock(); defer h.mu.Unlock(); return h.q
 // snapshot is an immutable copy the view renders without holding the lock.
 type snapshot struct {
 	visible, editing, helpOn, configOn bool
+	inspectorOn                        bool
+	insightOn                          bool
+	insight                            []string
 	status, state, input, lastRun, app string
 	leaderEcho, heard                  string
 	cpu, ram                           float64
@@ -442,6 +597,10 @@ type snapshot struct {
 	argHints                           []string
 	logs, help, config                 []string
 	history                            []histEntry
+	// wmode, watch and headline are the three readings of one account.
+	wmode    watchLevel
+	watch    playbill.View
+	headline playbill.Headline
 }
 
 func (h *model) snapshot() snapshot {
@@ -459,6 +618,8 @@ func (h *model) snapshot() snapshot {
 	copy(tlog, h.teachLog)
 	hints := make([]string, len(h.argHints))
 	copy(hints, h.argHints)
+	ins := make([]string, len(h.insight))
+	copy(ins, h.insight)
 	return snapshot{
 		visible: h.visible, editing: h.editing, helpOn: h.helpOn, configOn: h.configOn,
 		status: h.status, state: h.state, input: h.input, lastRun: h.lastRun, app: h.app,
@@ -466,7 +627,9 @@ func (h *model) snapshot() snapshot {
 		curX: h.curX, curY: h.curY, curHasPos: h.curHasPos, teaching: h.teaching,
 		teachStart: h.teachStart, configSel: h.configSel,
 		teachPrompt: h.teachPrompt, teachPending: h.teachPending, teachLog: tlog,
-		argHints: hints,
-		logs:     logs, help: help, config: conf, history: hist,
+		argHints:  hints,
+		insightOn: h.insightOn, inspectorOn: h.inspectorOn, insight: ins,
+		wmode: h.wmode, watch: h.watch, headline: h.headline,
+		logs: logs, help: help, config: conf, history: hist,
 	}
 }

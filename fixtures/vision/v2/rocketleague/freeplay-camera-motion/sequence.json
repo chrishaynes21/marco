@@ -1,0 +1,8 @@
+{
+  "schema": 2,
+  "sequence": "freeplay-camera-motion",
+  "note": "Free play with the camera swinging. The scene moves, the HUD does not.",
+  "tracks": [
+    { "identity": "hud_boost", "present": [[0, 9]] }
+  ]
+}

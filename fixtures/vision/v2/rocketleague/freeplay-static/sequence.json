@@ -1,0 +1,8 @@
+{
+  "schema": 2,
+  "sequence": "freeplay-static",
+  "note": "Free play, camera at rest. The boost meter is on screen throughout; the question is whether a detector holds one identity or rediscovers it every frame.",
+  "tracks": [
+    { "identity": "hud_boost", "present": [[0, 7]] }
+  ]
+}

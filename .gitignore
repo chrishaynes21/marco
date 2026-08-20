@@ -51,3 +51,27 @@ plugins/marco-app/assets/overlay.exe
 plugins/marco-app/assets/overlay.marco
 plugins/marco-app/assets/version.txt
 dist/
+
+# Obsidian editor state for the docs/ vault. The notes are the knowledge; this is
+# workspace layout, graph zoom and plugin settings. Un-ignore deliberately if the team
+# ever wants shared vault settings.
+.obsidian/
+
+# Vision fixture capture, before privacy review.
+#
+# Frames land here as `captured_private` and stay there until a person has LOOKED at them
+# and approved each one. Nothing in this directory is benchmark evidence, and an accidental
+# `git add .` during a capture session is exactly the accident this line prevents.
+.tmp/
+
+# One-time model-export environment. Python and Ultralytics are DEVELOPMENT tooling used to
+# convert a .pt checkpoint into the .onnx artifact Marco actually runs; neither is a Marco
+# runtime dependency and neither is ever shipped. The export recipe is tracked; the
+# environment and the multi-hundred-megabyte checkpoints are not.
+tools/vision-export/.venv/
+tools/vision-export/weights/
+tools/onnxruntime/
+
+# Packaged build artifacts — never source.
+marco.zip
+docs.zip

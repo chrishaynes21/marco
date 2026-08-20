@@ -1,0 +1,48 @@
+{
+  "capture": {
+    "game": "Rocket League",
+    "screen": "Free Play, car still, ball at the far goal, Urban Central (night)",
+    "window": "rocketleague",
+    "bounds": { "x": 0, "y": 0, "width": 1920, "height": 1080 },
+    "scale": 1.0,
+    "transform": "identity",
+    "captured": "2026-08-05"
+  },
+  "detector": {
+    "model": "icon_detect.onnx",
+    "family": "Ultralytics YOLO11m (OmniParser)",
+    "classes": ["icon"],
+    "input": [1, 3, 640, 640],
+    "output": [1, 5, 8400],
+    "iou": 0.45
+  },
+  "detections_by_floor": {
+    "0.25": [],
+    "0.05": [
+      { "class": "icon", "score": 0.13, "x": 1643, "y": 831, "w": 195, "h": 202, "note": "the boost gauge, correctly located, at noise confidence" }
+    ],
+    "0.01": [
+      { "class": "icon", "score": 0.13, "x": 1643, "y": 831, "w": 195, "h": 202, "note": "the boost gauge" },
+      { "class": "icon", "score": 0.01, "x": 1712, "y": 99, "w": 106, "h": 159, "note": "nothing; arena geometry" }
+    ]
+  },
+  "ocr_whole_frame": { "psm": 3, "lines": [], "engine_results": 0 },
+  "ocr_boost_crop": {
+    "box": [1620, 810, 240, 240],
+    "attempts": [
+      { "psm": 3, "upscale": 1, "text": "" },
+      { "psm": 7, "upscale": 1, "text": "" },
+      { "psm": 11, "upscale": 1, "text": "" },
+      { "psm": 3, "upscale": 3, "text": "" },
+      { "psm": 7, "upscale": 3, "text": "" },
+      { "psm": 11, "upscale": 3, "text": "=  “Tk  “  —  Sesh  ~~  A" }
+    ],
+    "truth": "33",
+    "note": "the digits are disconnected horizontal bars in a thin translucent font over a moving 3D scene"
+  },
+  "expected_semantics": {
+    "state": "unknown",
+    "boost": "unknown",
+    "note": "the honest answer for this frame. Both providers ran and both found nothing usable; a pack that reported a boost value here would be inventing it."
+  }
+}

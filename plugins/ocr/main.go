@@ -35,7 +35,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
+
+	"github.com/chaynes-simpleclouds/marco/internal/bridgehost"
 )
 
 // request is one bridge call. Input is the Marco set as a JSON object (set fields
@@ -56,7 +59,7 @@ type response struct {
 func main() {
 	eng := newTesseract()
 	in := bufio.NewScanner(os.Stdin)
-	in.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
+	in.Buffer(make([]byte, 0, 64*1024), bridgehost.MaxLine)
 	enc := json.NewEncoder(os.Stdout)
 
 	for in.Scan() {
@@ -81,6 +84,19 @@ func main() {
 			return // stdout gone (engine exited) — nothing more to do
 		}
 	}
+
+	// Why the loop ended, when it was not EOF.
+	//
+	// A request too long to read stops the scanner, and simply falling out of the loop
+	// exits the process without a word — which the engine sees as a closed pipe and
+	// reports as a dead plugin. The frame that did it was a fullscreen game capture, and
+	// nothing in that message would have pointed at its size.
+	if err := in.Err(); err != nil {
+		_ = enc.Encode(response{Status: "failed", Error: "unreadable request: " + err.Error()})
+		fmt.Fprintf(os.Stderr, "%s: unreadable request (limit %d bytes): %v\n",
+			filepath.Base(os.Args[0]), bridgehost.MaxLine, err)
+		os.Exit(1)
+	}
 }
 
 // handle dispatches a bridge request to the Text act's actions.
@@ -90,6 +106,8 @@ func handle(eng ocrEngine, req request) (string, any, error) {
 		return doFind(eng, req.Input)
 	case "read":
 		return doRead(eng, req.Input)
+	case "words":
+		return doWords(eng, req.Input)
 	default:
 		return "failed", nil, fmt.Errorf("Text host has no action %q", req.Action)
 	}

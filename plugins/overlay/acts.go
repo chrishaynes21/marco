@@ -192,6 +192,25 @@ func dispatch(h *model, req request) response {
 			startEdit(h, ename)
 			return okData(nil)
 		}
+		// A FINAL SPOKEN PHRASE goes to the Director, not to route lookup.
+		//
+		// This is the one line that connects voice to semantic desktop control. It sits
+		// here — after the overlay's own vocabulary (voice on/off, teach, ui, exit),
+		// which is the overlay configuring ITSELF and never a desktop intent — and
+		// before route lookup, which becomes the fallback rather than the default.
+		//
+		// Typed commands are untouched. Someone typing `m my route` is naming a route
+		// they taught; someone speaking is describing what they want to happen.
+		//
+		// Dispatch returns immediately. A spoken "stop" during a long command has to
+		// reach this handler while that command is still running, and it cannot if the
+		// handler is blocked waiting for it.
+		if req.Action == "RunVoice" {
+			mlogI("overlay: voice to director", "phrase", name)
+			h.setHeard(name)
+			dispatchVoice(h, name)
+			return okData(nil)
+		}
 		// Verb commands; anything else is a route to run.
 		args := []string{"do", name}
 		switch {

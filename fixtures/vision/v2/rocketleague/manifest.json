@@ -1,0 +1,18 @@
+{
+  "corpus": "vision-corpus-v2",
+  "fixture": "rocketleague-v2",
+  "application": "rocketleague",
+  "vocabulary": "game-ui-v1",
+  "privacy_review": "REVIEW WAIVED BY THE USER for this game on 2026-08-07. Not a review performed by anyone. The pause sequences (pause-open, pause-stable, pause-close) contain, in the bottom strip of the frame, the player account name and club tag, a level number, a party prompt, and a music-player overlay naming a track and artist. The gameplay sequences do not. Crop or exclude the bottom 13% of the pause frames before publishing this corpus anywhere.",
+  "sequences": [
+    { "id": "freeplay-static",         "frames": 8,  "note": "gameplay, mostly stable camera" },
+    { "id": "freeplay-camera-motion",  "frames": 10, "note": "camera rotates; HUD stays screen-relative while the arena moves" },
+    { "id": "pause-open",              "frames": 6,  "note": "gameplay to menu; menu present from index 3" },
+    { "id": "pause-stable",            "frames": 9,  "note": "menu held open" },
+    { "id": "pause-close",             "frames": 6,  "note": "menu to gameplay; menu gone from index 2" }
+  ],
+  "frames": [
+    { "id": "placeholder", "sequence": 0, "width": 1920, "height": 1080,
+      "expected": "see each sequence's ground-truth.json" }
+  ]
+}

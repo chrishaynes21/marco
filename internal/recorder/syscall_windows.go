@@ -11,7 +11,9 @@ var (
 	procSetWindowsHookExW   = user32.NewProc("SetWindowsHookExW")
 	procUnhookWindowsHookEx = user32.NewProc("UnhookWindowsHookEx")
 	procCallNextHookEx      = user32.NewProc("CallNextHookEx")
-	procPeekMessageW        = user32.NewProc("PeekMessageW")
+	procGetMessageW         = user32.NewProc("GetMessageW")
+	procPostThreadMessageW  = user32.NewProc("PostThreadMessageW")
+	procGetCurrentThreadId  = kernel32.NewProc("GetCurrentThreadId")
 	procTranslateMessage    = user32.NewProc("TranslateMessage")
 	procDispatchMessageW    = user32.NewProc("DispatchMessageW")
 	procSleep               = kernel32.NewProc("Sleep")
@@ -37,7 +39,7 @@ const (
 	llkhfInjected = 0x00000010
 	llmhfInjected = 0x00000001
 
-	pmRemove = 0x0001
+	wmQuit = 0x0012
 )
 
 type point struct{ x, y int32 }

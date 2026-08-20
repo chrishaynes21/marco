@@ -12,6 +12,12 @@ func ForegroundTitle() string { return "" }
 // Activate is a no-op error on platforms without a window backend.
 func Activate(string) error { return ErrUnsupported }
 
+// ActivateTitle is a no-op error on platforms without a window backend.
+func ActivateTitle(string) error { return ErrUnsupported }
+
+// CloseTitle is a no-op error on platforms without a window backend.
+func CloseTitle(string) error { return ErrUnsupported }
+
 // RestorePrevious is a no-op without a window backend.
 func RestorePrevious() error { return nil }
 

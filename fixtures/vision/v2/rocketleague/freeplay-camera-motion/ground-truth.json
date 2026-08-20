@@ -1,0 +1,482 @@
+[
+  {
+    "schema": 1,
+    "frame": "rocketleague-freeplay-camera-motion-000",
+    "sequence": "freeplay-camera-motion",
+    "index": 0,
+    "interface_present": true,
+    "regions": [
+      {
+        "kind": "meter",
+        "bounds": {
+          "X": 0.862,
+          "Y": 0.75,
+          "W": 0.104,
+          "H": 0.18
+        },
+        "identity": "hud_boost"
+      }
+    ],
+    "negative_regions": [
+      {
+        "kind": "scene_texture",
+        "bounds": {
+          "X": 0,
+          "Y": 0.55,
+          "W": 0.42,
+          "H": 0.4
+        }
+      },
+      {
+        "kind": "background_geometry",
+        "bounds": {
+          "X": 0,
+          "Y": 0,
+          "W": 0.55,
+          "H": 0.35
+        }
+      },
+      {
+        "kind": "background_geometry",
+        "bounds": {
+          "X": 0.62,
+          "Y": 0,
+          "W": 0.38,
+          "H": 0.42
+        }
+      }
+    ]
+  },
+  {
+    "schema": 1,
+    "frame": "rocketleague-freeplay-camera-motion-002",
+    "sequence": "freeplay-camera-motion",
+    "index": 1,
+    "interface_present": true,
+    "regions": [
+      {
+        "kind": "meter",
+        "bounds": {
+          "X": 0.862,
+          "Y": 0.75,
+          "W": 0.104,
+          "H": 0.18
+        },
+        "identity": "hud_boost"
+      }
+    ],
+    "negative_regions": [
+      {
+        "kind": "scene_texture",
+        "bounds": {
+          "X": 0,
+          "Y": 0.55,
+          "W": 0.42,
+          "H": 0.4
+        }
+      },
+      {
+        "kind": "background_geometry",
+        "bounds": {
+          "X": 0,
+          "Y": 0,
+          "W": 0.55,
+          "H": 0.35
+        }
+      },
+      {
+        "kind": "background_geometry",
+        "bounds": {
+          "X": 0.62,
+          "Y": 0,
+          "W": 0.38,
+          "H": 0.42
+        }
+      }
+    ]
+  },
+  {
+    "schema": 1,
+    "frame": "rocketleague-freeplay-camera-motion-004",
+    "sequence": "freeplay-camera-motion",
+    "index": 2,
+    "interface_present": true,
+    "regions": [
+      {
+        "kind": "meter",
+        "bounds": {
+          "X": 0.862,
+          "Y": 0.75,
+          "W": 0.104,
+          "H": 0.18
+        },
+        "identity": "hud_boost"
+      }
+    ],
+    "negative_regions": [
+      {
+        "kind": "scene_texture",
+        "bounds": {
+          "X": 0,
+          "Y": 0.55,
+          "W": 0.42,
+          "H": 0.4
+        }
+      },
+      {
+        "kind": "background_geometry",
+        "bounds": {
+          "X": 0,
+          "Y": 0,
+          "W": 0.55,
+          "H": 0.35
+        }
+      },
+      {
+        "kind": "background_geometry",
+        "bounds": {
+          "X": 0.62,
+          "Y": 0,
+          "W": 0.38,
+          "H": 0.42
+        }
+      }
+    ]
+  },
+  {
+    "schema": 1,
+    "frame": "rocketleague-freeplay-camera-motion-006",
+    "sequence": "freeplay-camera-motion",
+    "index": 3,
+    "interface_present": true,
+    "regions": [
+      {
+        "kind": "meter",
+        "bounds": {
+          "X": 0.862,
+          "Y": 0.75,
+          "W": 0.104,
+          "H": 0.18
+        },
+        "identity": "hud_boost"
+      }
+    ],
+    "negative_regions": [
+      {
+        "kind": "scene_texture",
+        "bounds": {
+          "X": 0,
+          "Y": 0.55,
+          "W": 0.42,
+          "H": 0.4
+        }
+      },
+      {
+        "kind": "background_geometry",
+        "bounds": {
+          "X": 0,
+          "Y": 0,
+          "W": 0.55,
+          "H": 0.35
+        }
+      },
+      {
+        "kind": "background_geometry",
+        "bounds": {
+          "X": 0.62,
+          "Y": 0,
+          "W": 0.38,
+          "H": 0.42
+        }
+      }
+    ]
+  },
+  {
+    "schema": 1,
+    "frame": "rocketleague-freeplay-camera-motion-008",
+    "sequence": "freeplay-camera-motion",
+    "index": 4,
+    "interface_present": true,
+    "regions": [
+      {
+        "kind": "meter",
+        "bounds": {
+          "X": 0.862,
+          "Y": 0.75,
+          "W": 0.104,
+          "H": 0.18
+        },
+        "identity": "hud_boost"
+      }
+    ],
+    "negative_regions": [
+      {
+        "kind": "scene_texture",
+        "bounds": {
+          "X": 0,
+          "Y": 0.55,
+          "W": 0.42,
+          "H": 0.4
+        }
+      },
+      {
+        "kind": "background_geometry",
+        "bounds": {
+          "X": 0,
+          "Y": 0,
+          "W": 0.55,
+          "H": 0.35
+        }
+      },
+      {
+        "kind": "background_geometry",
+        "bounds": {
+          "X": 0.62,
+          "Y": 0,
+          "W": 0.38,
+          "H": 0.42
+        }
+      }
+    ]
+  },
+  {
+    "schema": 1,
+    "frame": "rocketleague-freeplay-camera-motion-010",
+    "sequence": "freeplay-camera-motion",
+    "index": 5,
+    "interface_present": true,
+    "regions": [
+      {
+        "kind": "meter",
+        "bounds": {
+          "X": 0.862,
+          "Y": 0.75,
+          "W": 0.104,
+          "H": 0.18
+        },
+        "identity": "hud_boost"
+      }
+    ],
+    "negative_regions": [
+      {
+        "kind": "scene_texture",
+        "bounds": {
+          "X": 0,
+          "Y": 0.55,
+          "W": 0.42,
+          "H": 0.4
+        }
+      },
+      {
+        "kind": "background_geometry",
+        "bounds": {
+          "X": 0,
+          "Y": 0,
+          "W": 0.55,
+          "H": 0.35
+        }
+      },
+      {
+        "kind": "background_geometry",
+        "bounds": {
+          "X": 0.62,
+          "Y": 0,
+          "W": 0.38,
+          "H": 0.42
+        }
+      }
+    ]
+  },
+  {
+    "schema": 1,
+    "frame": "rocketleague-freeplay-camera-motion-011",
+    "sequence": "freeplay-camera-motion",
+    "index": 6,
+    "interface_present": true,
+    "regions": [
+      {
+        "kind": "meter",
+        "bounds": {
+          "X": 0.862,
+          "Y": 0.75,
+          "W": 0.104,
+          "H": 0.18
+        },
+        "identity": "hud_boost"
+      }
+    ],
+    "negative_regions": [
+      {
+        "kind": "scene_texture",
+        "bounds": {
+          "X": 0,
+          "Y": 0.55,
+          "W": 0.42,
+          "H": 0.4
+        }
+      },
+      {
+        "kind": "background_geometry",
+        "bounds": {
+          "X": 0,
+          "Y": 0,
+          "W": 0.55,
+          "H": 0.35
+        }
+      },
+      {
+        "kind": "background_geometry",
+        "bounds": {
+          "X": 0.62,
+          "Y": 0,
+          "W": 0.38,
+          "H": 0.42
+        }
+      }
+    ]
+  },
+  {
+    "schema": 1,
+    "frame": "rocketleague-freeplay-camera-motion-012",
+    "sequence": "freeplay-camera-motion",
+    "index": 7,
+    "interface_present": true,
+    "regions": [
+      {
+        "kind": "meter",
+        "bounds": {
+          "X": 0.862,
+          "Y": 0.75,
+          "W": 0.104,
+          "H": 0.18
+        },
+        "identity": "hud_boost"
+      }
+    ],
+    "negative_regions": [
+      {
+        "kind": "scene_texture",
+        "bounds": {
+          "X": 0,
+          "Y": 0.55,
+          "W": 0.42,
+          "H": 0.4
+        }
+      },
+      {
+        "kind": "background_geometry",
+        "bounds": {
+          "X": 0,
+          "Y": 0,
+          "W": 0.55,
+          "H": 0.35
+        }
+      },
+      {
+        "kind": "background_geometry",
+        "bounds": {
+          "X": 0.62,
+          "Y": 0,
+          "W": 0.38,
+          "H": 0.42
+        }
+      }
+    ]
+  },
+  {
+    "schema": 1,
+    "frame": "rocketleague-freeplay-camera-motion-014",
+    "sequence": "freeplay-camera-motion",
+    "index": 8,
+    "interface_present": true,
+    "regions": [
+      {
+        "kind": "meter",
+        "bounds": {
+          "X": 0.862,
+          "Y": 0.75,
+          "W": 0.104,
+          "H": 0.18
+        },
+        "identity": "hud_boost"
+      }
+    ],
+    "negative_regions": [
+      {
+        "kind": "scene_texture",
+        "bounds": {
+          "X": 0,
+          "Y": 0.55,
+          "W": 0.42,
+          "H": 0.4
+        }
+      },
+      {
+        "kind": "background_geometry",
+        "bounds": {
+          "X": 0,
+          "Y": 0,
+          "W": 0.55,
+          "H": 0.35
+        }
+      },
+      {
+        "kind": "background_geometry",
+        "bounds": {
+          "X": 0.62,
+          "Y": 0,
+          "W": 0.38,
+          "H": 0.42
+        }
+      }
+    ]
+  },
+  {
+    "schema": 1,
+    "frame": "rocketleague-freeplay-camera-motion-015",
+    "sequence": "freeplay-camera-motion",
+    "index": 9,
+    "interface_present": true,
+    "regions": [
+      {
+        "kind": "meter",
+        "bounds": {
+          "X": 0.862,
+          "Y": 0.75,
+          "W": 0.104,
+          "H": 0.18
+        },
+        "identity": "hud_boost"
+      }
+    ],
+    "negative_regions": [
+      {
+        "kind": "scene_texture",
+        "bounds": {
+          "X": 0,
+          "Y": 0.55,
+          "W": 0.42,
+          "H": 0.4
+        }
+      },
+      {
+        "kind": "background_geometry",
+        "bounds": {
+          "X": 0,
+          "Y": 0,
+          "W": 0.55,
+          "H": 0.35
+        }
+      },
+      {
+        "kind": "background_geometry",
+        "bounds": {
+          "X": 0.62,
+          "Y": 0,
+          "W": 0.38,
+          "H": 0.42
+        }
+      }
+    ]
+  }
+]

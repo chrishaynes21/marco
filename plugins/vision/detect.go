@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"image"
@@ -10,18 +11,47 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/screen"
 )
 
-// doDetect captures the requested region (or the whole primary screen) and returns every
-// UI element the detector found as a list of { Label, X, Y, W, H, Score } in ABSOLUTE
-// screen coordinates. Input fields: X1/Y1/X2/Y2 (optional region). "failed" with an error
-// = the detector is unavailable (no model/runtime); "ok" with an empty list = nothing found.
+// doDetect returns every UI element the detector found as a list of
+// { Label, X, Y, W, H, Score }.
+//
+// TWO modes, and which one is in use decides the coordinate space of the answer:
+//
+//   - Image given (base64 PNG): the detector runs over THAT picture and the boxes come
+//     back in IMAGE-LOCAL coordinates. This is the mode the Director's vision provider
+//     uses. The provider owns the frame — it captured it, it knows where it came from, and
+//     it applies its own transform — so a plugin that placed boxes on the desktop would be
+//     a second answer to a question already answered.
+//   - No Image: the plugin captures the requested region (or the primary screen) itself
+//     and returns ABSOLUTE screen coordinates. The original mode, kept for `marco vision
+//     detect` and for the anchor resolver, which have no frame to hand it.
+//
+// Input fields: Image (optional, base64 PNG), X1/Y1/X2/Y2 (optional region, capture mode
+// only). "failed" with an error = the detector is unavailable (no model/runtime); "ok"
+// with an empty list = nothing found.
 func doDetect(det detector, in map[string]any) (string, any, error) {
 	if !det.Ready() {
 		return "failed", nil, errors.New("Vision has no model loaded (set $MARCO_VISION_MODEL, build with -tags onnxvision)")
 	}
-	region := regionFrom(in)
-	img, ox, oy, err := capture(region)
-	if err != nil {
-		return "failed", nil, err
+
+	var img *image.RGBA
+	var ox, oy int
+	var err error
+
+	if b64 := strings.TrimSpace(asString(in["Image"])); b64 != "" {
+		raw, derr := base64.StdEncoding.DecodeString(b64)
+		if derr != nil {
+			return "failed", nil, fmt.Errorf("Vision's Detect: bad Image base64: %w", derr)
+		}
+		if img, err = decodeRGBA(raw); err != nil {
+			return "failed", nil, fmt.Errorf("Vision's Detect: %w", err)
+		}
+		// ox, oy stay ZERO: the caller supplied the picture and will place the boxes.
+	} else {
+		region := regionFrom(in)
+		img, ox, oy, err = capture(region)
+		if err != nil {
+			return "failed", nil, err
+		}
 	}
 	els, err := det.Detect(img)
 	if err != nil {

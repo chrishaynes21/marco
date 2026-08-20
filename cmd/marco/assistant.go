@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/chaynes-simpleclouds/marco/internal/bridgehost"
@@ -38,6 +39,9 @@ func stopKeySpec() string { return os.Getenv("MARCO_STOP_KEY") }
 // (routes drive and demonstrations capture real input).
 func newDeps() orchestrator.Deps {
 	hosts := map[string]runtime.Host{"*": oshost.New()}
+	// The Screen act, so a play can say where it begins. Read-only: it looks and compares,
+	// and cannot press anything. A play that asks and gets no answer refuses.
+	hosts["Screen"] = newScreenHost()
 	// Wire the OCR text resolver when $MARCO_OCR points at the plugin binary, so a
 	// route's text anchor (do Text's Find) resolves by OCR. Launched lazily on first
 	// use, so it costs nothing when no route needs it. Absent → text anchors fall
@@ -52,7 +56,23 @@ func newDeps() orchestrator.Deps {
 	if vis := strings.TrimSpace(os.Getenv("MARCO_VISION")); vis != "" {
 		hosts["Vision"] = bridgehost.New(vis)
 	}
-	return orchestrator.Deps{
+	// The Accessibility act, when a bridge is available, and the THEATER above it.
+	//
+	// The Theater is what a learned play actually asks: `do Theater's Activate with target1`.
+	// It casts whichever actor can play the part on this machine — accessibility today,
+	// something else later — so a play learned here still runs somewhere with a different
+	// perception configuration. See [[ADR-068-the-theater-is-the-durable-semantic-world]].
+	//
+	// Wired unconditionally. A Theater with no actors is inert and SAYS so, which is the
+	// honest answer for a machine that cannot act on a target; leaving the act unfulfilled
+	// would make the same situation look like a broken program.
+	var accessibility runtime.Host
+	if uia := accessibilityBridge(); uia != "" {
+		accessibility = bridgehost.New(uia)
+		hosts["Accessibility"] = accessibility
+	}
+	hosts["Theater"] = newTheaterHost(hosts, accessibility)
+	d := orchestrator.Deps{
 		Reg:     routes.Registry{Dir: routesDir()},
 		Rec:     recorder.New(),
 		Hosts:   hosts,
@@ -66,6 +86,11 @@ func newDeps() orchestrator.Deps {
 		// Reserved demonstration key for "an argument goes here" → {{N}} (default F9).
 		ArgKey: os.Getenv("MARCO_ARG_KEY"),
 	}
+	// THE door. Every invocation passes through it; only a learned play with intact
+	// provenance is ever stopped there, and then only to ask. See
+	// [[ADR-029-resolution-is-not-permission]].
+	d.Authority = orchestrator.AskFirst{Deps: d}
+	return d
 }
 
 func runAssistantDo(args []string) {
@@ -383,9 +408,18 @@ func runAssistant(_ []string) {
 		}
 
 		m := nlu.Resolve(line, d.Reg.Slugs())
+		if m.Exact {
+			runDo(d, m.Route) // exact route name — free offline fast path, no model call
+			continue
+		}
+		// Conversational brain: the director's local-LLM Advisor turns a loose line
+		// into run/teach/chat/clarify. Returns false (and we fall through) when no
+		// brain is wired or it's unsure, so the classic fuzzy-confirm flow below —
+		// including any legacy $MARCO_RESOLVER — is preserved unchanged.
+		if converseTurn(d, line) {
+			continue
+		}
 		switch {
-		case m.Exact:
-			runDo(d, m.Route)
 		case m.Route != "" && m.Score >= 0.6:
 			if askYes(fmt.Sprintf("Did you mean %q? [y]es / [n]o: ", prettyRoute(m.Route))) {
 				runDo(d, m.Route)
@@ -442,3 +476,42 @@ func readStdinLine() (line string, ok bool) {
 }
 
 func prettyRoute(slug string) string { return strings.ReplaceAll(slug, "-", " ") }
+
+// accessibilityBridge is the accessibility plugin this machine can cast, or nothing.
+//
+// # Why discovery rather than an environment variable alone
+//
+// The Theater is wired unconditionally and casts whichever actor can play the part. Its only actor
+// today is accessibility — so with no bridge the Theater is inert, and a learned play that says
+// `do Theater's Activate` reaches a Theater with nobody in it.
+//
+// That is exactly what a live invocation hit: the play was saved, registered and resolvable, the
+// Audience stood on the right screen, asked for it, and nothing happened. `$MARCO_UIA_BRIDGE` was
+// never set, because nothing tells anybody to set it — and the Director next to it has always
+// found the plugin by looking.
+//
+// So `marco` looks the same way the Director does: beside the executable first, so a packaged
+// install works, then the working directory, so a build tree does. The environment variable still
+// wins where somebody has said explicitly which bridge to use.
+//
+// Empty when there is no plugin, and the Theater then says it has no actor — which is the honest
+// answer for a machine that cannot act, and different from a broken program.
+//
+// Deleting the discovery must fail TestALearnedPlayFindsAnActorWithoutBeingTold.
+func accessibilityBridge() string {
+	if uia := strings.TrimSpace(os.Getenv("MARCO_UIA_BRIDGE")); uia != "" {
+		return uia
+	}
+	const rel = "plugins/uia/uia.exe"
+	if exe, err := os.Executable(); err == nil {
+		if candidate := filepath.Join(filepath.Dir(exe), rel); exists(candidate) {
+			return candidate
+		}
+	}
+	if p := filepath.FromSlash(rel); exists(p) {
+		return p
+	}
+	return ""
+}
+
+func exists(p string) bool { _, err := os.Stat(p); return err == nil }

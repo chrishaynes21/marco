@@ -1,0 +1,56 @@
+{
+  "capture": {
+    "game": "Rocket League",
+    "screen": "pause menu over Free Play, Urban Central (night)",
+    "window": "rocketleague",
+    "bounds": { "x": 0, "y": 0, "width": 1920, "height": 1080 },
+    "scale": 1.0,
+    "transform": "identity",
+    "captured": "2026-08-05"
+  },
+  "detector": {
+    "model": "icon_detect.onnx",
+    "family": "Ultralytics YOLO11m (OmniParser)",
+    "classes": ["icon"],
+    "input": [1, 3, 640, 640],
+    "output": [1, 5, 8400],
+    "confidence_floor": 0.25,
+    "iou": 0.45
+  },
+  "detections": [
+    { "class": "icon", "score": 0.64, "x": 786, "y": 558, "w": 346, "h": 46, "note": "menu button" },
+    { "class": "icon", "score": 0.64, "x": 790, "y": 512, "w": 342, "h": 47, "note": "menu button" },
+    { "class": "icon", "score": 0.61, "x": 791, "y": 468, "w": 340, "h": 47, "note": "menu button" },
+    { "class": "icon", "score": 0.59, "x": 782, "y": 603, "w": 350, "h": 46, "note": "menu button" },
+    { "class": "icon", "score": 0.54, "x": 38, "y": 938, "w": 81, "h": 118, "note": "player badge, left" },
+    { "class": "icon", "score": 0.29, "x": 732, "y": 847, "w": 463, "h": 103, "note": "scored-by banner" }
+  ],
+  "ocr_whole_frame": {
+    "psm": 3,
+    "lines": ["HOLD FOR PLAYLISTS"],
+    "note": "one line out of a dozen a person reads; global binarisation loses the panel against the lit arena"
+  },
+  "ocr_per_detection": [
+    { "box": [791, 468, 340, 47], "psm": 7, "text": "RESUME GAME" },
+    { "box": [790, 512, 342, 47], "psm": 7, "text": "CHANGE MODE/MATCH" },
+    { "box": [786, 558, 346, 46], "psm": 7, "text": "SETTINGS" },
+    { "box": [782, 603, 350, 46], "psm": 7, "text": "EXIT TO MAIN MENU" },
+    { "box": [38, 938, 81, 118], "psm": 7, "text": "" },
+    { "box": [732, 847, 463, 103], "psm": 7, "text": "Qovisivre ys", "note": "stylised name plate; garbage, and must stay refused" }
+  ],
+  "ocr_panel_crop": {
+    "box": [760, 400, 400, 270],
+    "psm": 3,
+    "upscale": 3,
+    "lines": ["PAUSED", "RESUME GAME", "CHANGE MODE/MATCH", "SETTINGS", "EXIT TO MAIN MENU"]
+  },
+  "expected_semantics": {
+    "state": "paused",
+    "evidence": [
+      "four same-sized boxes, evenly pitched 45px, one column",
+      "their labels read RESUME GAME / CHANGE MODE/MATCH / SETTINGS / EXIT TO MAIN MENU",
+      "the panel title reads PAUSED"
+    ],
+    "note": "no single one of these proves it; the state is the agreement of several"
+  }
+}

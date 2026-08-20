@@ -66,8 +66,18 @@ func TestIdentifyDeclinesOffElement(t *testing.T) {
 	}
 }
 
+// notReadyDetector stands in for a build with no model behind it.
+//
+// Defined here rather than reusing `nullDetector`, which only exists under `!onnxvision` — the
+// test compiled in one build and broke the other, so `go test -tags onnxvision` had never run
+// in this module at all.
+type notReadyDetector struct{}
+
+func (notReadyDetector) Detect(*image.RGBA) ([]Element, error) { return nil, nil }
+func (notReadyDetector) Ready() bool                           { return false }
+
 func TestIdentifyNoModel(t *testing.T) {
-	status, _, err := doIdentify(nullDetector{}, map[string]any{"Image": tinyPNG(t)})
+	status, _, err := doIdentify(notReadyDetector{}, map[string]any{"Image": tinyPNG(t)})
 	if status != "failed" || err == nil {
 		t.Fatalf("doIdentify with null detector = %q err=%v, want failed/error", status, err)
 	}

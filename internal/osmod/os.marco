@@ -4,10 +4,11 @@
 // `--host bridge:<exe>` an external program (e.g. AHK) performs them.
 
 the OS is an act.
-this exports Key.       // press a named key, e.g. "e" or "enter"
+this exports Key.       // press a key/chord ("e" or "alt+tab"); or a Press set to hold it down
 this exports KeyDown.    // press and HOLD a key (released by a later KeyUp)
 this exports KeyUp.      // release a held key
 this exports Type.      // type a text string
+this exports Navigate. // one navigation MEANING: "up"|"down"|"left"|"right"|"confirm"|"back"|"pause"
 this exports Click.     // click; input may be a Point to move-then-click
 this exports Move.      // move the cursor to a Point
 this exports Drag.      // press at (FromX,FromY), glide to (ToX,ToY), release — a real drag
@@ -25,6 +26,10 @@ this exports Secret.    // type a stored secret by name (value never in the rout
 this exports Activate.  // focus a named app, launching it if not running (e.g. "chrome")
 this exports Launch.    // start an app/path/URL via the shell (e.g. "steam://rungameid/...")
 this exports Restore.   // return focus to the window that was in front before the last Activate
+this exports ClipboardGet.  // read the clipboard; result is { Text, IsText, Empty }
+this exports ClipboardSet.  // put text on the clipboard: a text, or a set with Text
+this exports MoveWindow.    // move and resize a window: a WindowMove
+this exports WindowState.   // maximise / minimise / restore a window: a WindowStateChange
 
 // A screen coordinate, passed to Click / Move / Color.
 the Point is a set.
@@ -38,3 +43,34 @@ this's FromY is a number.
 this's ToX is a number.
 this's ToY is a number.
 this's Button is a text.   // "left" | "right" | "middle" (default left)
+
+// What the clipboard holds, returned by ClipboardGet.
+//
+// Three states, not two. Through the text format alone an EMPTY clipboard and one
+// holding an image both read as an empty Text, and the difference decides whether a
+// route may borrow the clipboard: an empty one can be restored, an image cannot be
+// saved or reproduced at all. IsText and Empty keep them apart.
+the Clipboard is a set.
+this's Text is a text.
+this's IsText is a boolean.
+this's Empty is a boolean.
+
+// A window move: where a window should end up. Passed to MoveWindow.
+the WindowMove is a set.
+this's Window is a text.   // "hwnd:<handle>"
+this's X is a number.
+this's Y is a number.
+this's W is a number.
+this's H is a number.
+
+// A symbolic window state change. Passed to WindowState.
+the WindowStateChange is a set.
+this's Window is a text.   // "hwnd:<handle>"
+this's State is a text.    // "normal" | "maximized" | "minimized"
+
+// A held key press, passed to Key instead of a plain text key. Hold is how many ms
+// the key/combo stays down before release — what lets Alt+Tab stay held long enough
+// to commit the switch (a fast tap bounces back). Omit Hold for the default linger.
+the Press is a set.
+this's Key is a text.      // the key or chord, e.g. "alt+tab"
+this's Hold is a number.   // ms to hold before release

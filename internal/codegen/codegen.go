@@ -95,11 +95,14 @@ func Route(name, app string, steps []macroir.Step, assetDir string, declaredArgs
 	// An anchored click needs an Anchor set type — one shape carries every resolver:
 	// OS's Find reads Image/Color/X/Y, Text's Find reads Text; each ignores the rest.
 	if g.anchorN > 0 {
-		b.WriteString("// An on-screen target the engine resolves by SCORING signals into a confidence:\n")
-		b.WriteString("// the Image crop match, the pixel Colour at the click, and how near a candidate\n")
-		b.WriteString("// is to the recorded point (X,Y / window-relative RelX,RelY). Clears the bar →\n")
-		b.WriteString("// click the located point (follows a moved target); below it → fall back. Text is\n")
-		b.WriteString("// the OCR locator, tried when the scored signals are unsure.\n")
+		// The comment a person reads describes WHAT an Anchor is, not how the host scores
+		// one. How a target gets found is backstage; a route that explained the resolver
+		// would be teaching its reader to expect cognition in Marco.
+		// See spec/Core.md#governance.
+		b.WriteString("// Where something is on screen, described several ways so it can still be found\n")
+		b.WriteString("// after a window moves: a picture of it, the colour under the click, where it was\n")
+		b.WriteString("// last time (X,Y, and RelX,RelY relative to the window), and the words on it.\n")
+		b.WriteString("// Marco asks the host to find it; how the host decides is the host's business.\n")
 		b.WriteString("the Anchor is a set.\n")
 		b.WriteString("this's Image is a text.\n")
 		b.WriteString("this's Color is a text.    // signal: the pixel colour at X,Y\n")

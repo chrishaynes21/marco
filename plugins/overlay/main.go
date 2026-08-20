@@ -40,6 +40,9 @@ func main() {
 	go pollArgHints(m)      // auto-pop "name:" labels for the route being typed
 	go pollCursor(m)        // feed the optional screen-coords tooltip
 	go pollRoutes(m)        // known route names, for Tab autocomplete
+	go pollInsight(m)       // frozen perception snapshot panel (only polls while open)
+	go pollWatch(m)         // Watch / Diagnostics — one account, two readings (only while open)
+	go pollHeadline(m)      // the NORMAL reading, so a pending question is never invisible
 	emit := func(ev event) { out <- ev }
 	if err := startInput(m, emit); err != nil { // controller: input → model + intents
 		fmt.Fprintln(os.Stderr, "overlay: input capture unavailable:", err)

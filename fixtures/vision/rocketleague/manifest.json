@@ -1,0 +1,52 @@
+{
+  "corpus": "legacy-crop-corpus",
+  "corpus_note": "CROPS, not full frames, and not an ordered sequence. Useful for watching what a detector does; must NOT be used to calibrate normalised thresholds or temporal metrics. See docs/experiments/Experiment-003-classical-cv-tuning.md.",
+  "fixture": "rocketleague",
+  "application": "rocketleague",
+  "vocabulary": "game-ui-v1",
+  "privacy_review": "manual: no account name, party, chat, notification or server text",
+  "frames": [
+    {
+      "id": "01-gameplay-full",
+      "sequence": 0,
+      "width": 960,
+      "height": 540,
+      "expected": "contains_no_ui_structure"
+    },
+    {
+      "id": "02-gameplay-hud-corner",
+      "sequence": 1,
+      "width": 420,
+      "height": 320,
+      "expected": "contains_no_ui_structure"
+    },
+    {
+      "id": "03-meter-region",
+      "sequence": 2,
+      "width": 240,
+      "height": 240,
+      "expected": "contains_meter_like_region"
+    },
+    {
+      "id": "04-gameplay-upper",
+      "sequence": 3,
+      "width": 640,
+      "height": 267,
+      "expected": "contains_no_ui_structure"
+    },
+    {
+      "id": "05-pause-panel",
+      "sequence": 4,
+      "width": 400,
+      "height": 270,
+      "expected": "contains_menu_like_structure"
+    },
+    {
+      "id": "06-pause-panel-upper",
+      "sequence": 5,
+      "width": 400,
+      "height": 140,
+      "expected": "contains_menu_like_structure"
+    }
+  ]
+}

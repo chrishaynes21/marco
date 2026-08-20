@@ -1,4 +1,8 @@
 ---
+status: reference
+---
+
+---
 # Example {#example}
 ---
 

@@ -1,0 +1,33 @@
+[
+  {
+    "backend": "classical-cv",
+    "model": "deterministic rectangles",
+    "fixture": "rocketleague",
+    "metrics": {
+      "frames": 6,
+      "detections": 92,
+      "accepted": 92,
+      "rejected": 0,
+      "stable_entities": 5,
+      "transient_entities": 11,
+      "anonymous_ratio": 1,
+      "structural_coverage": 1,
+      "nameable_coverage": 0.375,
+      "nameable_detections": 9,
+      "persistence": 0.45833333333333337,
+      "flicker_rate": 0.22727272727272727,
+      "false_structure_rate": 0.6875,
+      "ocr_regions": 92,
+      "median_latency": 0,
+      "p95_latency": 1519400,
+      "max_latency": 1519400,
+      "failures": 0,
+      "vocabulary": {
+        "bar": 2,
+        "button": 9,
+        "panel": 81
+      }
+    },
+    "acceptance": "0.35/0.50 (production)"
+  }
+]

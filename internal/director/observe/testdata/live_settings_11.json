@@ -1,0 +1,5994 @@
+{
+  "comparison": {
+    "agreed": 0,
+    "authoritative_only": 0,
+    "geometry_disagreement": 0,
+    "role_disagreement": 0,
+    "shadow_only": 0,
+    "shadow_only_nameable": 0,
+    "uncomparable": 0
+  },
+  "current_state": "state_2",
+  "detections": 0,
+  "detector": "",
+  "failures": 0,
+  "inferences": 0,
+  "input_producer": {
+    "classified": 12,
+    "dropped_buffer_full": 0,
+    "ignored": {
+      "ambiguous_gameplay_key": 120,
+      "no_session": 60,
+      "repeat": 17,
+      "unplaceable_pointer": 89,
+      "unsupported_navigation": 82
+    },
+    "received": 654
+  },
+  "match": {
+    "first": 1,
+    "joined": 88,
+    "joined_max": 1,
+    "joined_mean": 1,
+    "joined_min": 1,
+    "local_mean": 0.978021978021978,
+    "local_replaced": 2,
+    "local_seen": 91,
+    "separated": 2,
+    "separated_max": 0.6923076923076923,
+    "separated_mean": 0.6923076923076923
+  },
+  "max_ms": 0,
+  "median_ms": 0,
+  "nameable": 0,
+  "opportunities": 91,
+  "p95_ms": 0,
+  "provenance_failures": 0,
+  "skipped": 91,
+  "state_transitions": [
+    {
+      "count": 1,
+      "from": "state_1",
+      "preceded": {
+        "confirm": 1
+      },
+      "sequences": [
+        {
+          "count": 1,
+          "intents": [
+            "confirm"
+          ]
+        }
+      ],
+      "to": "state_unknown"
+    },
+    {
+      "count": 1,
+      "from": "state_unknown",
+      "to": "state_2",
+      "unattributed": 1,
+      "unsettled_run": 1
+    }
+  ],
+  "states": [
+    {
+      "editable_fields": 1,
+      "episodes": 1,
+      "first_inference": 11,
+      "id": "state_2",
+      "inferences": 81,
+      "last_inference": 91,
+      "local_cell": "2,2",
+      "local_from": "state_1",
+      "roles": {
+        "button": 10,
+        "group": 10,
+        "image": 13,
+        "list": 1,
+        "list_item": 20,
+        "menu": 1,
+        "menu_item": 1,
+        "pane": 3,
+        "text": 24,
+        "text_field": 1,
+        "unknown": 2,
+        "window": 4
+      },
+      "surface": "state_1",
+      "term_episodes": {
+        "back": 1,
+        "settings": 1
+      },
+      "term_observations": 81,
+      "terms": {
+        "back": 81,
+        "settings": 81
+      },
+      "tracks": 90
+    },
+    {
+      "editable_fields": 2,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "state_1",
+      "inferences": 9,
+      "last_inference": 9,
+      "roles": {
+        "button": 15,
+        "combo_box": 1,
+        "group": 20,
+        "image": 14,
+        "link": 1,
+        "list": 2,
+        "list_item": 22,
+        "menu": 1,
+        "menu_item": 1,
+        "pane": 3,
+        "text": 32,
+        "text_field": 1,
+        "unknown": 2,
+        "window": 4
+      },
+      "term_episodes": {
+        "back": 1,
+        "settings": 1
+      },
+      "term_observations": 9,
+      "terms": {
+        "back": 9,
+        "settings": 9
+      },
+      "tracks": 119
+    }
+  ],
+  "structural_groups": [
+    {
+      "envelope": {
+        "height": 0.06106870229007633,
+        "width": 0.44628099173553715,
+        "x": 0.3899793388429752,
+        "y": 0.1297709923664122
+      },
+      "episodes": 1,
+      "id": "group_1",
+      "mean_spacing": 0.0045589482612383376,
+      "members": [
+        "shadow_29",
+        "shadow_30",
+        "shadow_33",
+        "shadow_37",
+        "shadow_34",
+        "shadow_38",
+        "shadow_31",
+        "shadow_35",
+        "shadow_39",
+        "shadow_32"
+      ],
+      "nameable": 1,
+      "roles": {
+        "button": 2,
+        "group": 1,
+        "link": 1,
+        "text": 6
+      },
+      "state": "state_1",
+      "uniformity": 0.028423772609819986
+    },
+    {
+      "envelope": {
+        "height": 0.40076335877862596,
+        "width": 0.5180785123966942,
+        "x": 0.3181818181818182,
+        "y": 0.21946564885496184
+      },
+      "episodes": 1,
+      "id": "group_2",
+      "mean_spacing": 0,
+      "members": [
+        "shadow_40",
+        "shadow_54"
+      ],
+      "nameable": 0,
+      "roles": {
+        "group": 2
+      },
+      "state": "state_1",
+      "uniformity": 0
+    },
+    {
+      "envelope": {
+        "height": 0.030534351145038163,
+        "width": 0.490702479338843,
+        "x": 0.33264462809917356,
+        "y": 0.28053435114503816
+      },
+      "episodes": 1,
+      "id": "group_3",
+      "mean_spacing": 0.004770992366412208,
+      "members": [
+        "shadow_42",
+        "shadow_55"
+      ],
+      "nameable": 0,
+      "roles": {
+        "text": 2
+      },
+      "state": "state_1",
+      "uniformity": 1
+    },
+    {
+      "envelope": {
+        "height": 0.20038167938931295,
+        "width": 0.5051652892561984,
+        "x": 0.3181818181818182,
+        "y": 0.32061068702290074
+      },
+      "episodes": 1,
+      "id": "group_4",
+      "mean_spacing": 0.0006361323155216388,
+      "members": [
+        "shadow_43",
+        "shadow_44",
+        "shadow_45",
+        "shadow_56"
+      ],
+      "nameable": 0,
+      "roles": {
+        "group": 1,
+        "list": 1,
+        "list_item": 1,
+        "text": 1
+      },
+      "state": "state_1",
+      "uniformity": 0.3333333333333335
+    },
+    {
+      "envelope": {
+        "height": 0.075381679389313,
+        "width": 0.3569214876033057,
+        "x": 0.3181818181818182,
+        "y": 0.3797709923664122
+      },
+      "episodes": 1,
+      "id": "group_5",
+      "mean_spacing": 0.0038167938931297773,
+      "members": [
+        "shadow_57",
+        "shadow_48",
+        "shadow_49"
+      ],
+      "nameable": 0,
+      "roles": {
+        "group": 1,
+        "list_item": 1,
+        "text": 1
+      },
+      "state": "state_1",
+      "uniformity": 0.24999999999999634
+    },
+    {
+      "envelope": {
+        "height": 0.6545801526717558,
+        "width": 0.5196280991735536,
+        "x": 0.31766528925619836,
+        "y": 0.3368320610687023
+      },
+      "episodes": 1,
+      "id": "group_6",
+      "mean_spacing": 0.019174845510723373,
+      "members": [
+        "shadow_122",
+        "shadow_123",
+        "shadow_155",
+        "shadow_124",
+        "shadow_154",
+        "shadow_125",
+        "shadow_156",
+        "shadow_126",
+        "shadow_127",
+        "shadow_128",
+        "shadow_129",
+        "shadow_130",
+        "shadow_131",
+        "shadow_132",
+        "shadow_133",
+        "shadow_134",
+        "shadow_135",
+        "shadow_136",
+        "shadow_137",
+        "shadow_138",
+        "shadow_139",
+        "shadow_140"
+      ],
+      "nameable": 3,
+      "roles": {
+        "button": 3,
+        "group": 4,
+        "list": 1,
+        "list_item": 4,
+        "text": 10
+      },
+      "state": "state_2",
+      "uniformity": 0.42450914014894925
+    }
+  ],
+  "structure_source": "fused",
+  "tracks": [
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_1",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 1,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 1,
+        "width": 1,
+        "x": 0,
+        "y": 0
+      },
+      "role": "window",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_10",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 1,
+      "min_confidence": 0.9,
+      "nameable": true,
+      "present": true,
+      "reference": {
+        "height": 0.02099236641221374,
+        "width": 0.011363636363636364,
+        "x": 0.004132231404958678,
+        "y": 0.007633587786259542
+      },
+      "role": "menu",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_100",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 0.9999999999999999,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.03435114503816794,
+        "width": 0.1446280991735537,
+        "x": 0.012396694214876033,
+        "y": 0.4112595419847328
+      },
+      "role": "list_item",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 9.825582188149884e-20,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.028008580559354852,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_101",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 0.4544964402289341,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.016221374045801526,
+        "width": 0.06714876033057851,
+        "x": 0.35330578512396693,
+        "y": 0.976145038167939
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 8.963419726662842e-8,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_102",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 0.9999999999999989,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.019083969465648856,
+        "width": 0.010330578512396695,
+        "x": 0.01756198347107438,
+        "y": 0.41889312977099236
+      },
+      "role": "image",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 5.293955920339377e-23,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_103",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 0.9999999999999999,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.03435114503816794,
+        "width": 0.1446280991735537,
+        "x": 0.012396694214876033,
+        "y": 0.4494274809160305
+      },
+      "role": "list_item",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 9.825582188149884e-20,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_104",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 0.9999999999999989,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.019083969465648856,
+        "width": 0.010330578512396695,
+        "x": 0.01756198347107438,
+        "y": 0.4570610687022901
+      },
+      "role": "image",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 5.293955920339377e-23,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_105",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 0.9999999999999999,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.03435114503816794,
+        "width": 0.1446280991735537,
+        "x": 0.012396694214876033,
+        "y": 0.48759541984732824
+      },
+      "role": "list_item",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 9.825582188149884e-20,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_106",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 0.9999999999999989,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.019083969465648856,
+        "width": 0.010330578512396695,
+        "x": 0.01756198347107438,
+        "y": 0.4952290076335878
+      },
+      "role": "image",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 5.293955920339377e-23,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_107",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 0.9999999999999999,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.03435114503816794,
+        "width": 0.1446280991735537,
+        "x": 0.012396694214876033,
+        "y": 0.5257633587786259
+      },
+      "role": "list_item",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 9.825582188149884e-20,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_108",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 0.9999999999999989,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.019083969465648856,
+        "width": 0.010330578512396695,
+        "x": 0.01756198347107438,
+        "y": 0.5333969465648855
+      },
+      "role": "image",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 5.293955920339377e-23,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_109",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 0.9999999999999999,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.03435114503816794,
+        "width": 0.1446280991735537,
+        "x": 0.012396694214876033,
+        "y": 0.5639312977099237
+      },
+      "role": "list_item",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 9.825582188149884e-20,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_11",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 1,
+      "min_confidence": 0.9,
+      "nameable": true,
+      "present": true,
+      "reference": {
+        "height": 0.02099236641221374,
+        "width": 0.011363636363636364,
+        "x": 0.004132231404958678,
+        "y": 0.007633587786259542
+      },
+      "role": "menu_item",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_110",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 0.9999999999999989,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.019083969465648856,
+        "width": 0.010330578512396695,
+        "x": 0.01756198347107438,
+        "y": 0.5715648854961832
+      },
+      "role": "image",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 5.293955920339377e-23,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.041424484606302825,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_111",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 0.37099762982115897,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.03625954198473282,
+        "width": 0.03977272727272727,
+        "x": 0.3197314049586777,
+        "y": 0.05916030534351145
+      },
+      "role": "group",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "unstable",
+      "size_variance": 9.904840897029063e-7,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "unstable",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "unstable",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_112",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 0.9999999999999961,
+      "min_confidence": 0.9,
+      "nameable": true,
+      "present": true,
+      "reference": {
+        "height": 0.030534351145038167,
+        "width": 0.023760330578512397,
+        "x": 0.9245867768595041,
+        "y": 0.007633587786259542
+      },
+      "role": "button",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_113",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 0.9999999999999961,
+      "min_confidence": 0.9,
+      "nameable": true,
+      "present": true,
+      "reference": {
+        "height": 0.030534351145038167,
+        "width": 0.023760330578512397,
+        "x": 0.9483471074380165,
+        "y": 0.007633587786259542
+      },
+      "role": "button",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_114",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 0.9999999999999961,
+      "min_confidence": 0.9,
+      "nameable": true,
+      "present": true,
+      "reference": {
+        "height": 0.030534351145038167,
+        "width": 0.023760330578512397,
+        "x": 0.9721074380165289,
+        "y": 0.007633587786259542
+      },
+      "role": "button",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_115",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 1,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.9847328244274809,
+        "width": 0.9917355371900827,
+        "x": 0.004132231404958678,
+        "y": 0.007633587786259542
+      },
+      "role": "window",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_118",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 1.0000000000000002,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.015267175572519083,
+        "width": 0.868801652892562,
+        "x": 0.029958677685950414,
+        "y": 0.022900763358778626
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_12",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 1.0000000000000002,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.01812977099236641,
+        "width": 0.08109504132231404,
+        "x": 0.049586776859504134,
+        "y": 0.07442748091603053
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_13",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 0.9999999999999999,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.015267175572519083,
+        "width": 0.08109504132231404,
+        "x": 0.049586776859504134,
+        "y": 0.09255725190839695
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 2.541098841762901e-21,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_14",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 1.0000000000000002,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.8425572519083969,
+        "width": 0.15495867768595042,
+        "x": 0.004132231404958678,
+        "y": 0.14217557251908397
+      },
+      "role": "pane",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 5.551115123125783e-17,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_15",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 0.9826007326007322,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.4541984732824427,
+        "width": 0.1446280991735537,
+        "x": 0.012396694214876033,
+        "y": 0.14408396946564886
+      },
+      "role": "group",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 8.243878762640572e-7,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_16",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 0.9999999999999999,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.030534351145038167,
+        "width": 0.09710743801652892,
+        "x": 0.8987603305785123,
+        "y": 0.007633587786259542
+      },
+      "role": "window",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.0003669994128009394,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_17",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 0.992743105950653,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.03435114503816794,
+        "width": 0.1446280991735537,
+        "x": 0.012396694214876033,
+        "y": 0.14408396946564886
+      },
+      "role": "list_item",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 0.000001014235006614047,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_18",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 1.0000000000000002,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.019083969465648856,
+        "width": 0.010330578512396695,
+        "x": 0.01756198347107438,
+        "y": 0.15171755725190839
+      },
+      "role": "image",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 5.293955920339377e-23,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_19",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 0.9986263736263735,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.03435114503816794,
+        "width": 0.1446280991735537,
+        "x": 0.012396694214876033,
+        "y": 0.18225190839694658
+      },
+      "role": "list_item",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 5.4745879574991975e-9,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_2",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 1,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.030534351145038167,
+        "width": 0.2665289256198347,
+        "x": 0.36673553719008267,
+        "y": 0.015267175572519083
+      },
+      "role": "text_field",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 1.4907779871675686e-19,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_20",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 1.0000000000000002,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.019083969465648856,
+        "width": 0.010330578512396695,
+        "x": 0.01756198347107438,
+        "y": 0.1898854961832061
+      },
+      "role": "image",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 5.293955920339377e-23,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.0003302994715208456,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_21",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 0.9172696115765422,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.03435114503816794,
+        "width": 0.1446280991735537,
+        "x": 0.012396694214876033,
+        "y": 0.22041984732824427
+      },
+      "role": "list_item",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 9.860097883807251e-7,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_22",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 1.0000000000000002,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.019083969465648856,
+        "width": 0.010330578512396695,
+        "x": 0.01756198347107438,
+        "y": 0.22805343511450382
+      },
+      "role": "image",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 5.293955920339377e-23,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_23",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 0.9999999999999999,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.03435114503816794,
+        "width": 0.1446280991735537,
+        "x": 0.012396694214876033,
+        "y": 0.258587786259542
+      },
+      "role": "list_item",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 9.825582188149884e-20,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.041424484606302825,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_24",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 0.37099762982115897,
+      "min_confidence": 0.9,
+      "nameable": true,
+      "present": true,
+      "reference": {
+        "height": 0.03625954198473282,
+        "width": 0.03977272727272727,
+        "x": 0.3197314049586777,
+        "y": 0.05916030534351145
+      },
+      "role": "button",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "unstable",
+      "size_variance": 9.904840897029063e-7,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "unstable",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "unstable",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_25",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 0.9999999999999989,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.019083969465648856,
+        "width": 0.010330578512396695,
+        "x": 0.01756198347107438,
+        "y": 0.26622137404580154
+      },
+      "role": "image",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 5.293955920339377e-23,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.041424484606302825,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_26",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 0.37099762982115897,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.03625954198473282,
+        "width": 0.03977272727272727,
+        "x": 0.3197314049586777,
+        "y": 0.05916030534351145
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "unstable",
+      "size_variance": 9.904840897029063e-7,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "unstable",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "unstable",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.00605528547314235,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_28",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 0.9854574838910203,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.8835877862595419,
+        "width": 0.8233471074380165,
+        "x": 0.1725206611570248,
+        "y": 0.10877862595419847
+      },
+      "role": "pane",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 0.00001274434282216852,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_3",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 1,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.9847328244274809,
+        "width": 0.9917355371900827,
+        "x": 0.004132231404958678,
+        "y": 0.007633587786259542
+      },
+      "role": "unknown",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_36",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 0.9999999999999999,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.03435114503816794,
+        "width": 0.1446280991735537,
+        "x": 0.012396694214876033,
+        "y": 0.2967557251908397
+      },
+      "role": "list_item",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 9.825582188149884e-20,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_4",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 1,
+      "min_confidence": 0.9,
+      "nameable": true,
+      "present": true,
+      "reference": {
+        "height": 0.03435114503816794,
+        "width": 0.02066115702479339,
+        "x": 0.006198347107438017,
+        "y": 0.013358778625954198
+      },
+      "role": "button",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_47",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 0.9999999999999989,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.019083969465648856,
+        "width": 0.010330578512396695,
+        "x": 0.01756198347107438,
+        "y": 0.30438931297709926
+      },
+      "role": "image",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 5.293955920339377e-23,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_5",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 1.0000000000000002,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.9847328244274809,
+        "width": 0.15495867768595042,
+        "x": 0.004132231404958678,
+        "y": 0.007633587786259542
+      },
+      "role": "window",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 6.245004513516506e-17,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.11692552519973916,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_51",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 0.4994146036245691,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.06870229007633588,
+        "width": 0.259297520661157,
+        "x": 0.3181818181818182,
+        "y": 0.45229007633587787
+      },
+      "role": "list_item",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 0.000026933181138698694,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.11694391347449523,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_52",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 0.4880291097350895,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.06583969465648855,
+        "width": 0.25516528925619836,
+        "x": 0.3202479338842975,
+        "y": 0.4532442748091603
+      },
+      "role": "group",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 0.000026374212541349553,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.005116639288083662,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_53",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 0.5568302504948446,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.01812977099236641,
+        "width": 0.024793388429752067,
+        "x": 0.3543388429752066,
+        "y": 0.4780534351145038
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 1.4118924324353517e-11,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_58",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 0.9999999999999999,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.03435114503816794,
+        "width": 0.1446280991735537,
+        "x": 0.012396694214876033,
+        "y": 0.3349236641221374
+      },
+      "role": "list_item",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 9.825582188149884e-20,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_6",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 1,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.0715648854961832,
+        "width": 0.14979338842975207,
+        "x": 0.006714876033057851,
+        "y": 0.05438931297709924
+      },
+      "role": "button",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 1.3552527156068805e-20,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_69",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 0.9999999999999989,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.019083969465648856,
+        "width": 0.010330578512396695,
+        "x": 0.01756198347107438,
+        "y": 0.3425572519083969
+      },
+      "role": "image",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 5.293955920339377e-23,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_7",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 0.9999999999999999,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.05725190839694656,
+        "width": 0.030991735537190084,
+        "x": 0.012396694214876033,
+        "y": 0.06202290076335878
+      },
+      "role": "image",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 1.2705494208814505e-21,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_8",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 1,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.9541984732824428,
+        "width": 0.9917355371900827,
+        "x": 0.004132231404958678,
+        "y": 0.03816793893129771
+      },
+      "role": "pane",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_80",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 0.9999999999999999,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.03435114503816794,
+        "width": 0.1446280991735537,
+        "x": 0.012396694214876033,
+        "y": 0.37309160305343514
+      },
+      "role": "list_item",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 9.825582188149884e-20,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_9",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 1,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.02194656488549618,
+        "width": 0.9917355371900827,
+        "x": 0.004132231404958678,
+        "y": 0.007633587786259542
+      },
+      "role": "unknown",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 2.222614453595284e-18,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_91",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000004,
+      "mean_iou": 0.9999999999999989,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.019083969465648856,
+        "width": 0.010330578512396695,
+        "x": 0.01756198347107438,
+        "y": 0.38072519083969464
+      },
+      "role": "image",
+      "role_changes": 0,
+      "seen": 91,
+      "shape": "persistent",
+      "size_variance": 5.293955920339377e-23,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        },
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.005655371439210597,
+      "eligible": 82,
+      "episodes": 1,
+      "first_inference": 10,
+      "id": "shadow_120",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.8999999999999998,
+      "mean_iou": 0.9475501834664375,
+      "min_confidence": 0.9,
+      "nameable": true,
+      "present": true,
+      "reference": {
+        "height": 0.2099236641221374,
+        "width": 0.11363636363636363,
+        "x": 0.31921487603305787,
+        "y": 0.11927480916030535
+      },
+      "role": "button",
+      "role_changes": 0,
+      "seen": 82,
+      "shape": "persistent",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.0056553714392106125,
+      "eligible": 82,
+      "episodes": 1,
+      "first_inference": 10,
+      "id": "shadow_121",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.8999999999999998,
+      "mean_iou": 0.525853658536586,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.01812977099236641,
+        "width": 0.03667355371900827,
+        "x": 0.35795454545454547,
+        "y": 0.24141221374045801
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 82,
+      "shape": "persistent",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.005184090485942988,
+      "eligible": 82,
+      "episodes": 1,
+      "first_inference": 10,
+      "id": "shadow_122",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.8999999999999998,
+      "mean_iou": 0.741289198606273,
+      "min_confidence": 0.9,
+      "nameable": true,
+      "present": true,
+      "reference": {
+        "height": 0.03435114503816794,
+        "width": 0.5165289256198347,
+        "x": 0.31921487603305787,
+        "y": 0.3368320610687023
+      },
+      "role": "button",
+      "role_changes": 0,
+      "seen": 82,
+      "shape": "persistent",
+      "size_variance": 2.9263350079722014e-9,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.005184090485942988,
+      "eligible": 82,
+      "episodes": 1,
+      "first_inference": 10,
+      "id": "shadow_123",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.8999999999999998,
+      "mean_iou": 0.5472560975609753,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.01717557251908397,
+        "width": 0.05991735537190083,
+        "x": 0.5475206611570248,
+        "y": 0.34541984732824427
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 82,
+      "shape": "persistent",
+      "size_variance": 3.937676386712847e-11,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.005655371439210557,
+      "eligible": 82,
+      "episodes": 1,
+      "first_inference": 10,
+      "id": "shadow_124",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.8999999999999998,
+      "mean_iou": 0.525853658536586,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.01812977099236641,
+        "width": 0.031508264462809916,
+        "x": 0.3496900826446281,
+        "y": 0.3969465648854962
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 82,
+      "shape": "persistent",
+      "size_variance": 1.0587911840678754e-21,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.0023564047663377917,
+      "eligible": 82,
+      "episodes": 1,
+      "first_inference": 10,
+      "id": "shadow_125",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.8999999999999998,
+      "mean_iou": 0.9876524390243886,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.5276717557251909,
+        "width": 0.5196280991735537,
+        "x": 0.31766528925619836,
+        "y": 0.4637404580152672
+      },
+      "role": "list",
+      "role_changes": 0,
+      "seen": 82,
+      "shape": "persistent",
+      "size_variance": 1.4511626228452812e-7,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.0056553714392106125,
+      "eligible": 82,
+      "episodes": 1,
+      "first_inference": 10,
+      "id": "shadow_126",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.8999999999999998,
+      "mean_iou": 0.46119733924611533,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.015267175572519083,
+        "width": 0.1771694214876033,
+        "x": 0.3496900826446281,
+        "y": 0.49904580152671757
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 82,
+      "shape": "persistent",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.0056553714392106125,
+      "eligible": 82,
+      "episodes": 1,
+      "first_inference": 10,
+      "id": "shadow_127",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.8999999999999998,
+      "mean_iou": 0.8460563826417463,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.06774809160305344,
+        "width": 0.5196280991735537,
+        "x": 0.31766528925619836,
+        "y": 0.5324427480916031
+      },
+      "role": "list_item",
+      "role_changes": 0,
+      "seen": 82,
+      "shape": "persistent",
+      "size_variance": 3.903127820947816e-18,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.005655371439210502,
+      "eligible": 82,
+      "episodes": 1,
+      "first_inference": 10,
+      "id": "shadow_128",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.8999999999999998,
+      "mean_iou": 0.841951219512198,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.06583969465648855,
+        "width": 0.5165289256198347,
+        "x": 0.31921487603305787,
+        "y": 0.5333969465648855
+      },
+      "role": "group",
+      "role_changes": 0,
+      "seen": 82,
+      "shape": "persistent",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.0056553714392106125,
+      "eligible": 82,
+      "episodes": 1,
+      "first_inference": 10,
+      "id": "shadow_129",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.8999999999999998,
+      "mean_iou": 0.5258536585365865,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.01812977099236641,
+        "width": 0.06198347107438017,
+        "x": 0.3496900826446281,
+        "y": 0.549618320610687
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 82,
+      "shape": "persistent",
+      "size_variance": 6.352747104407253e-22,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.005655371439210502,
+      "eligible": 82,
+      "episodes": 1,
+      "first_inference": 10,
+      "id": "shadow_130",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.8999999999999998,
+      "mean_iou": 0.46119733924612627,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.015267175572519083,
+        "width": 0.03254132231404959,
+        "x": 0.3496900826446281,
+        "y": 0.5677480916030534
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 82,
+      "shape": "persistent",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.0056553714392106125,
+      "eligible": 82,
+      "episodes": 1,
+      "first_inference": 10,
+      "id": "shadow_131",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.8999999999999998,
+      "mean_iou": 0.8460563826417463,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.06774809160305344,
+        "width": 0.5196280991735537,
+        "x": 0.31766528925619836,
+        "y": 0.601145038167939
+      },
+      "role": "list_item",
+      "role_changes": 0,
+      "seen": 82,
+      "shape": "persistent",
+      "size_variance": 3.903127820947816e-18,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.005655371439210502,
+      "eligible": 82,
+      "episodes": 1,
+      "first_inference": 10,
+      "id": "shadow_132",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.8999999999999998,
+      "mean_iou": 0.841951219512198,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.06583969465648855,
+        "width": 0.5165289256198347,
+        "x": 0.31921487603305787,
+        "y": 0.6020992366412213
+      },
+      "role": "group",
+      "role_changes": 0,
+      "seen": 82,
+      "shape": "persistent",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.0056553714392106125,
+      "eligible": 82,
+      "episodes": 1,
+      "first_inference": 10,
+      "id": "shadow_133",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.8999999999999998,
+      "mean_iou": 0.5258536585365862,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.01812977099236641,
+        "width": 0.04803719008264463,
+        "x": 0.3496900826446281,
+        "y": 0.6183206106870229
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 82,
+      "shape": "persistent",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.005655371439210502,
+      "eligible": 82,
+      "episodes": 1,
+      "first_inference": 10,
+      "id": "shadow_134",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.8999999999999998,
+      "mean_iou": 0.4611973392461261,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.015267175572519083,
+        "width": 0.1399793388429752,
+        "x": 0.3496900826446281,
+        "y": 0.6364503816793893
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 82,
+      "shape": "persistent",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.0056553714392106125,
+      "eligible": 82,
+      "episodes": 1,
+      "first_inference": 10,
+      "id": "shadow_135",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.8999999999999998,
+      "mean_iou": 0.8460563826417463,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.06774809160305344,
+        "width": 0.5196280991735537,
+        "x": 0.31766528925619836,
+        "y": 0.6698473282442748
+      },
+      "role": "list_item",
+      "role_changes": 0,
+      "seen": 82,
+      "shape": "persistent",
+      "size_variance": 3.903127820947816e-18,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.005655371439210502,
+      "eligible": 82,
+      "episodes": 1,
+      "first_inference": 10,
+      "id": "shadow_136",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.8999999999999998,
+      "mean_iou": 0.841951219512198,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.06583969465648855,
+        "width": 0.5165289256198347,
+        "x": 0.31921487603305787,
+        "y": 0.6708015267175572
+      },
+      "role": "group",
+      "role_changes": 0,
+      "seen": 82,
+      "shape": "persistent",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.0056553714392106125,
+      "eligible": 82,
+      "episodes": 1,
+      "first_inference": 10,
+      "id": "shadow_137",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.8999999999999998,
+      "mean_iou": 0.5258536585365862,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.01812977099236641,
+        "width": 0.027892561983471075,
+        "x": 0.3496900826446281,
+        "y": 0.6870229007633588
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 82,
+      "shape": "persistent",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.005655371439210502,
+      "eligible": 82,
+      "episodes": 1,
+      "first_inference": 10,
+      "id": "shadow_138",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.8999999999999998,
+      "mean_iou": 0.4611973392461261,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.015267175572519083,
+        "width": 0.12086776859504132,
+        "x": 0.3496900826446281,
+        "y": 0.7051526717557252
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 82,
+      "shape": "persistent",
+      "size_variance": 1.0587911840678754e-20,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.0056553714392106125,
+      "eligible": 82,
+      "episodes": 1,
+      "first_inference": 10,
+      "id": "shadow_139",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.8999999999999998,
+      "mean_iou": 0.8460563826417463,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.06774809160305344,
+        "width": 0.5196280991735537,
+        "x": 0.31766528925619836,
+        "y": 0.7385496183206107
+      },
+      "role": "list_item",
+      "role_changes": 0,
+      "seen": 82,
+      "shape": "persistent",
+      "size_variance": 3.903127820947816e-18,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.005655371439210502,
+      "eligible": 82,
+      "episodes": 1,
+      "first_inference": 10,
+      "id": "shadow_140",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.8999999999999998,
+      "mean_iou": 0.841951219512198,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.06583969465648855,
+        "width": 0.5165289256198347,
+        "x": 0.31921487603305787,
+        "y": 0.7395038167938931
+      },
+      "role": "group",
+      "role_changes": 0,
+      "seen": 82,
+      "shape": "persistent",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.0056553714392106125,
+      "eligible": 82,
+      "episodes": 1,
+      "first_inference": 10,
+      "id": "shadow_141",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.8999999999999998,
+      "mean_iou": 0.5258536585365865,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.01812977099236641,
+        "width": 0.02169421487603306,
+        "x": 0.3496900826446281,
+        "y": 0.7557251908396947
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 82,
+      "shape": "persistent",
+      "size_variance": 7.940933880509066e-23,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.005655371439210502,
+      "eligible": 82,
+      "episodes": 1,
+      "first_inference": 10,
+      "id": "shadow_142",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.8999999999999998,
+      "mean_iou": 0.4611973392461257,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.015267175572519083,
+        "width": 0.11105371900826447,
+        "x": 0.3496900826446281,
+        "y": 0.773854961832061
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 82,
+      "shape": "persistent",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.0056553714392106125,
+      "eligible": 82,
+      "episodes": 1,
+      "first_inference": 10,
+      "id": "shadow_143",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.8999999999999998,
+      "mean_iou": 0.8460563826417463,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.06774809160305344,
+        "width": 0.5196280991735537,
+        "x": 0.31766528925619836,
+        "y": 0.8072519083969466
+      },
+      "role": "list_item",
+      "role_changes": 0,
+      "seen": 82,
+      "shape": "persistent",
+      "size_variance": 3.903127820947816e-18,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.005655371439210502,
+      "eligible": 82,
+      "episodes": 1,
+      "first_inference": 10,
+      "id": "shadow_144",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.8999999999999998,
+      "mean_iou": 0.841951219512198,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.06583969465648855,
+        "width": 0.5165289256198347,
+        "x": 0.31921487603305787,
+        "y": 0.808206106870229
+      },
+      "role": "group",
+      "role_changes": 0,
+      "seen": 82,
+      "shape": "persistent",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.0056553714392106125,
+      "eligible": 82,
+      "episodes": 1,
+      "first_inference": 10,
+      "id": "shadow_145",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.8999999999999998,
+      "mean_iou": 0.5258536585365865,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.01812977099236641,
+        "width": 0.030475206611570247,
+        "x": 0.3496900826446281,
+        "y": 0.8244274809160306
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 82,
+      "shape": "persistent",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.005655371439210502,
+      "eligible": 82,
+      "episodes": 1,
+      "first_inference": 10,
+      "id": "shadow_146",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.8999999999999998,
+      "mean_iou": 0.4611973392461261,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.015267175572519083,
+        "width": 0.07179752066115702,
+        "x": 0.3496900826446281,
+        "y": 0.8425572519083969
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 82,
+      "shape": "persistent",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.0056553714392106125,
+      "eligible": 82,
+      "episodes": 1,
+      "first_inference": 10,
+      "id": "shadow_147",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.8999999999999998,
+      "mean_iou": 0.8460563826417463,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.06774809160305344,
+        "width": 0.5196280991735537,
+        "x": 0.31766528925619836,
+        "y": 0.8759541984732825
+      },
+      "role": "list_item",
+      "role_changes": 0,
+      "seen": 82,
+      "shape": "persistent",
+      "size_variance": 3.903127820947816e-18,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.005655371439210502,
+      "eligible": 82,
+      "episodes": 1,
+      "first_inference": 10,
+      "id": "shadow_148",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.8999999999999998,
+      "mean_iou": 0.841951219512198,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.06583969465648855,
+        "width": 0.5165289256198347,
+        "x": 0.31921487603305787,
+        "y": 0.8769083969465649
+      },
+      "role": "group",
+      "role_changes": 0,
+      "seen": 82,
+      "shape": "persistent",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.0056553714392106125,
+      "eligible": 82,
+      "episodes": 1,
+      "first_inference": 10,
+      "id": "shadow_149",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.8999999999999998,
+      "mean_iou": 0.5258536585365862,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.01812977099236641,
+        "width": 0.0625,
+        "x": 0.3496900826446281,
+        "y": 0.8931297709923665
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 82,
+      "shape": "persistent",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.005655371439210502,
+      "eligible": 82,
+      "episodes": 1,
+      "first_inference": 10,
+      "id": "shadow_150",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.8999999999999998,
+      "mean_iou": 0.4611973392461261,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.015267175572519083,
+        "width": 0.1797520661157025,
+        "x": 0.3496900826446281,
+        "y": 0.9112595419847328
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 82,
+      "shape": "persistent",
+      "size_variance": 2.541098841762901e-21,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.0023564047663377917,
+      "eligible": 82,
+      "episodes": 1,
+      "first_inference": 10,
+      "id": "shadow_151",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.8999999999999998,
+      "mean_iou": 0.8765243902439024,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.046755725190839696,
+        "width": 0.5196280991735537,
+        "x": 0.31766528925619836,
+        "y": 0.9446564885496184
+      },
+      "role": "list_item",
+      "role_changes": 0,
+      "seen": 82,
+      "shape": "persistent",
+      "size_variance": 1.4511626244488162e-7,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.002356404766337682,
+      "eligible": 82,
+      "episodes": 1,
+      "first_inference": 10,
+      "id": "shadow_152",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.8999999999999998,
+      "mean_iou": 0.8742793791574284,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.04580152671755725,
+        "width": 0.5165289256198347,
+        "x": 0.31921487603305787,
+        "y": 0.9456106870229007
+      },
+      "role": "group",
+      "role_changes": 0,
+      "seen": 82,
+      "shape": "persistent",
+      "size_variance": 1.4339041540082937e-7,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.0056553714392106125,
+      "eligible": 82,
+      "episodes": 1,
+      "first_inference": 10,
+      "id": "shadow_153",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.8999999999999998,
+      "mean_iou": 0.5258536585365865,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.01812977099236641,
+        "width": 0.028925619834710745,
+        "x": 0.3496900826446281,
+        "y": 0.9618320610687023
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 82,
+      "shape": "persistent",
+      "size_variance": 1.0587911840678754e-22,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.005655371439210557,
+      "eligible": 82,
+      "episodes": 1,
+      "first_inference": 10,
+      "id": "shadow_154",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.8999999999999998,
+      "mean_iou": 0.4611973392461227,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": true,
+      "reference": {
+        "height": 0.015267175572519083,
+        "width": 0.4297520661157025,
+        "x": 0.3496900826446281,
+        "y": 0.4150763358778626
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 82,
+      "shape": "persistent",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.005655371439210557,
+      "eligible": 82,
+      "episodes": 1,
+      "first_inference": 10,
+      "id": "shadow_155",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.8999999999999998,
+      "mean_iou": 0.742311770943797,
+      "min_confidence": 0.9,
+      "nameable": true,
+      "present": true,
+      "reference": {
+        "height": 0.03816793893129771,
+        "width": 0.0371900826446281,
+        "x": 0.7897727272727273,
+        "y": 0.39408396946564883
+      },
+      "role": "button",
+      "role_changes": 0,
+      "seen": 82,
+      "shape": "persistent",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0.005184090485942988,
+      "eligible": 82,
+      "episodes": 1,
+      "first_inference": 10,
+      "id": "shadow_156",
+      "last_inference": 91,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.8999999999999998,
+      "mean_iou": 0.7063282794990106,
+      "min_confidence": 0.9,
+      "nameable": true,
+      "present": true,
+      "reference": {
+        "height": 0.029580152671755726,
+        "width": 0.06714876033057851,
+        "x": 0.7453512396694215,
+        "y": 0.48282442748091603
+      },
+      "role": "button",
+      "role_changes": 0,
+      "seen": 82,
+      "shape": "persistent",
+      "size_variance": 4.945506163809665e-11,
+      "states": [
+        {
+          "eligible": 81,
+          "episodes": 1,
+          "seen": 81,
+          "shape": "persistent",
+          "state": "state_2"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_116",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 1.0000000000000033,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.015267175572519083,
+        "width": 0.16115702479338842,
+        "x": 0.3543388429752066,
+        "y": 0.6650763358778626
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 8.470329472543003e-22,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_117",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 0.9999999999999967,
+      "min_confidence": 0.9,
+      "nameable": true,
+      "present": false,
+      "reference": {
+        "height": 0.03816793893129771,
+        "width": 0.0371900826446281,
+        "x": 0.5258264462809917,
+        "y": 0.6450381679389313
+      },
+      "role": "button",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 8.470329472543003e-22,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_119",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 1.0000000000000042,
+      "min_confidence": 0.9,
+      "nameable": true,
+      "present": false,
+      "reference": {
+        "height": 0.030534351145038167,
+        "width": 0.06714876033057851,
+        "x": 0.47520661157024796,
+        "y": 0.7156488549618321
+      },
+      "role": "button",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_27",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 1,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.8835877862595419,
+        "width": 0.8233471074380165,
+        "x": 0.1725206611570248,
+        "y": 0.10877862595419847
+      },
+      "role": "group",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_29",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 1.0000000000000009,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.061068702290076333,
+        "width": 0.054235537190082644,
+        "x": 0.3899793388429752,
+        "y": 0.1297709923664122
+      },
+      "role": "group",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 1.6940658945086007e-21,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_30",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 1.000000000000002,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.022900763358778626,
+        "width": 0.054235537190082644,
+        "x": 0.3899793388429752,
+        "y": 0.1297709923664122
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 4.235164736271502e-22,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_31",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 1,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.01812977099236641,
+        "width": 0.054235537190082644,
+        "x": 0.3899793388429752,
+        "y": 0.15267175572519084
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_32",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 0.999999999999998,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.020038167938931296,
+        "width": 0.02634297520661157,
+        "x": 0.3899793388429752,
+        "y": 0.17080152671755724
+      },
+      "role": "link",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 1.0587911840678754e-22,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_33",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 1.000000000000001,
+      "min_confidence": 0.9,
+      "nameable": true,
+      "present": false,
+      "reference": {
+        "height": 0.04961832061068702,
+        "width": 0.07231404958677685,
+        "x": 0.6606404958677686,
+        "y": 0.13263358778625955
+      },
+      "role": "button",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 1.6940658945086007e-21,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_34",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 0.9999999999999984,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.019083969465648856,
+        "width": 0.045454545454545456,
+        "x": 0.6833677685950413,
+        "y": 0.1383587786259542
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_35",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 0.999999999999998,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.015267175572519083,
+        "width": 0.045454545454545456,
+        "x": 0.6833677685950413,
+        "y": 0.15935114503816794
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_37",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 1,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.04961832061068702,
+        "width": 0.09917355371900827,
+        "x": 0.7370867768595041,
+        "y": 0.13263358778625955
+      },
+      "role": "button",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 6.776263578034403e-21,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_38",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 1.0000000000000016,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.019083969465648856,
+        "width": 0.07231404958677685,
+        "x": 0.7598140495867769,
+        "y": 0.1383587786259542
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_39",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 1.000000000000001,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.015267175572519083,
+        "width": 0.07231404958677685,
+        "x": 0.7598140495867769,
+        "y": 0.15935114503816794
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 2.117582368135751e-22,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_40",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 1.0000000000000002,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.3015267175572519,
+        "width": 0.259297520661157,
+        "x": 0.3181818181818182,
+        "y": 0.21946564885496184
+      },
+      "role": "group",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_41",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 0.9999999999999977,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.025763358778625955,
+        "width": 0.2303719008264463,
+        "x": 0.33264462809917356,
+        "y": 0.2433206106870229
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 1.3552527156068805e-20,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_42",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 0.9999999999999992,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.01812977099236641,
+        "width": 0.11570247933884298,
+        "x": 0.33264462809917356,
+        "y": 0.28053435114503816
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_43",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 0.9999999999999998,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.20038167938931298,
+        "width": 0.259297520661157,
+        "x": 0.3181818181818182,
+        "y": 0.32061068702290074
+      },
+      "role": "list",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 4.336808689942018e-19,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_44",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 1,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.06870229007633588,
+        "width": 0.259297520661157,
+        "x": 0.3181818181818182,
+        "y": 0.32061068702290074
+      },
+      "role": "list_item",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_45",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 0.9999999999999992,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.06583969465648855,
+        "width": 0.25516528925619836,
+        "x": 0.3202479338842975,
+        "y": 0.32156488549618323
+      },
+      "role": "group",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_46",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 0.9999999999999984,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.01812977099236641,
+        "width": 0.04442148760330578,
+        "x": 0.3543388429752066,
+        "y": 0.3463740458015267
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_48",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 1,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.06870229007633588,
+        "width": 0.259297520661157,
+        "x": 0.3181818181818182,
+        "y": 0.38645038167938933
+      },
+      "role": "list_item",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_49",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 0.9999999999999992,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.06583969465648855,
+        "width": 0.25516528925619836,
+        "x": 0.3202479338842975,
+        "y": 0.38740458015267176
+      },
+      "role": "group",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_50",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 1.0000000000000007,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.01812977099236641,
+        "width": 0.02324380165289256,
+        "x": 0.3543388429752066,
+        "y": 0.4122137404580153
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_54",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 0.9999999999999998,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.40076335877862596,
+        "width": 0.256198347107438,
+        "x": 0.5800619834710744,
+        "y": 0.21946564885496184
+      },
+      "role": "group",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_55",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 1.0000000000000002,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.025763358778625955,
+        "width": 0.2303719008264463,
+        "x": 0.5929752066115702,
+        "y": 0.28530534351145037
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 1.3552527156068805e-20,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_56",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 1.0000000000000002,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.03816793893129771,
+        "width": 0.2303719008264463,
+        "x": 0.5929752066115702,
+        "y": 0.32251908396946566
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_57",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 0.9999999999999964,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.019083969465648856,
+        "width": 0.08212809917355372,
+        "x": 0.5929752066115702,
+        "y": 0.3797709923664122
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_59",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 1.0000000000000009,
+      "min_confidence": 0.9,
+      "nameable": true,
+      "present": false,
+      "reference": {
+        "height": 0.030534351145038167,
+        "width": 0.06869834710743801,
+        "x": 0.5929752066115702,
+        "y": 0.45133587786259544
+      },
+      "role": "button",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_60",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 1.000000000000002,
+      "min_confidence": 0.9,
+      "nameable": true,
+      "present": false,
+      "reference": {
+        "height": 0.05725190839694656,
+        "width": 0.25516528925619836,
+        "x": 0.5805785123966942,
+        "y": 0.5047709923664122
+      },
+      "role": "button",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 2.710505431213761e-20,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_61",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 0.9999999999999962,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.019083969465648856,
+        "width": 0.03409090909090909,
+        "x": 0.6136363636363636,
+        "y": 0.5248091603053435
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_62",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 1.0000000000000038,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.01812977099236641,
+        "width": 0.033574380165289255,
+        "x": 0.7716942148760331,
+        "y": 0.5248091603053435
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 5.293955920339377e-23,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_63",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 1.000000000000002,
+      "min_confidence": 0.9,
+      "nameable": true,
+      "present": false,
+      "reference": {
+        "height": 0.05725190839694656,
+        "width": 0.25516528925619836,
+        "x": 0.5805785123966942,
+        "y": 0.5620229007633588
+      },
+      "role": "button",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 2.710505431213761e-20,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_64",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 0.999999999999999,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.019083969465648856,
+        "width": 0.07179752066115702,
+        "x": 0.6136363636363636,
+        "y": 0.5820610687022901
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 6.352747104407253e-22,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_65",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 1.0000000000000009,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.2366412213740458,
+        "width": 0.256198347107438,
+        "x": 0.3197314049586777,
+        "y": 0.5276717557251909
+      },
+      "role": "group",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_66",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 1.0000000000000038,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.025763358778625955,
+        "width": 0.2303719008264463,
+        "x": 0.33264462809917356,
+        "y": 0.5515267175572519
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 1.3552527156068805e-20,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_67",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 1.000000000000005,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.01812977099236641,
+        "width": 0.10898760330578512,
+        "x": 0.33264462809917356,
+        "y": 0.5887404580152672
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_68",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 1.0000000000000047,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.01812977099236641,
+        "width": 0.031508264462809916,
+        "x": 0.3543388429752066,
+        "y": 0.6469465648854962
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_70",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 0.9999999999999992,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.06583969465648855,
+        "width": 0.25516528925619836,
+        "x": 0.3202479338842975,
+        "y": 0.6975190839694656
+      },
+      "role": "group",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_71",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 1.0000000000000042,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.01812977099236641,
+        "width": 0.05010330578512397,
+        "x": 0.33264462809917356,
+        "y": 0.7213740458015268
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_72",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 0.9999999999999967,
+      "min_confidence": 0.9,
+      "nameable": true,
+      "present": false,
+      "reference": {
+        "height": 0.030534351145038167,
+        "width": 0.01652892561983471,
+        "x": 0.5444214876033058,
+        "y": 0.7156488549618321
+      },
+      "role": "button",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_73",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 1,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.36450381679389315,
+        "width": 0.256198347107438,
+        "x": 0.5800619834710744,
+        "y": 0.6278625954198473
+      },
+      "role": "group",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_74",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 1.0000000000000047,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.025763358778625955,
+        "width": 0.2303719008264463,
+        "x": 0.5929752066115702,
+        "y": 0.6517175572519084
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 1.3552527156068805e-20,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_75",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 1.0000000000000007,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.1965648854961832,
+        "width": 0.1859504132231405,
+        "x": 0.5919421487603306,
+        "y": 0.6965648854961832
+      },
+      "role": "list",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 2.168404344971009e-19,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_76",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 0.999999999999998,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.08969465648854962,
+        "width": 0.05991735537190083,
+        "x": 0.5919421487603306,
+        "y": 0.6965648854961832
+      },
+      "role": "list_item",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_77",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 1.000000000000001,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.08587786259541985,
+        "width": 0.05785123966942149,
+        "x": 0.5929752066115702,
+        "y": 0.6984732824427481
+      },
+      "role": "group",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_78",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 0.999999999999998,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.08969465648854962,
+        "width": 0.05991735537190083,
+        "x": 0.6539256198347108,
+        "y": 0.6965648854961832
+      },
+      "role": "list_item",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_79",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 1.000000000000001,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.08587786259541985,
+        "width": 0.05785123966942149,
+        "x": 0.6549586776859504,
+        "y": 0.6984732824427481
+      },
+      "role": "group",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_81",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 0.999999999999998,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.08969465648854962,
+        "width": 0.05991735537190083,
+        "x": 0.7159090909090909,
+        "y": 0.6965648854961832
+      },
+      "role": "list_item",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_82",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 1.000000000000001,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.08587786259541985,
+        "width": 0.05785123966942149,
+        "x": 0.7169421487603306,
+        "y": 0.6984732824427481
+      },
+      "role": "group",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_83",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 0.999999999999998,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.08969465648854962,
+        "width": 0.05991735537190083,
+        "x": 0.5919421487603306,
+        "y": 0.7900763358778626
+      },
+      "role": "list_item",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_84",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 1.000000000000001,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.08587786259541985,
+        "width": 0.05785123966942149,
+        "x": 0.5929752066115702,
+        "y": 0.7919847328244275
+      },
+      "role": "group",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_85",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 0.9999999999999967,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.022900763358778626,
+        "width": 0.012396694214876033,
+        "x": 0.6363636363636364,
+        "y": 0.7958015267175572
+      },
+      "role": "image",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_86",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 0.999999999999998,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.08969465648854962,
+        "width": 0.05991735537190083,
+        "x": 0.6539256198347108,
+        "y": 0.7900763358778626
+      },
+      "role": "list_item",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_87",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 1.000000000000001,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.08587786259541985,
+        "width": 0.05785123966942149,
+        "x": 0.6549586776859504,
+        "y": 0.7919847328244275
+      },
+      "role": "group",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_88",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 0.999999999999998,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.08969465648854962,
+        "width": 0.05991735537190083,
+        "x": 0.7159090909090909,
+        "y": 0.7900763358778626
+      },
+      "role": "list_item",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_89",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 1.000000000000001,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.08587786259541985,
+        "width": 0.05785123966942149,
+        "x": 0.7169421487603306,
+        "y": 0.7919847328244275
+      },
+      "role": "group",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_90",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 1.0000000000000036,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.01812977099236641,
+        "width": 0.03770661157024793,
+        "x": 0.6146694214876033,
+        "y": 0.9351145038167938
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_92",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 0.9999999999999964,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.03816793893129771,
+        "width": 0.07128099173553719,
+        "x": 0.7541322314049587,
+        "y": 0.9255725190839694
+      },
+      "role": "combo_box",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_93",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 1.0000000000000036,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.01812977099236641,
+        "width": 0.04132231404958678,
+        "x": 0.762396694214876,
+        "y": 0.9351145038167938
+      },
+      "role": "list_item",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_94",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 0.999999999999998,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.01431297709923664,
+        "width": 0.25516528925619836,
+        "x": 0.5805785123966942,
+        "y": 0.9780534351145038
+      },
+      "role": "group",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 1.6940658945086007e-21,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_95",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 1.0000000000000002,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.22041984732824427,
+        "width": 0.256198347107438,
+        "x": 0.3197314049586777,
+        "y": 0.7719465648854962
+      },
+      "role": "group",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_96",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 1.000000000000001,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.01812977099236641,
+        "width": 0.01962809917355372,
+        "x": 0.5366735537190083,
+        "y": 0.7986641221374046
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 2.6469779601696886e-23,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_97",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 1.0000000000000038,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.025763358778625955,
+        "width": 0.2303719008264463,
+        "x": 0.33264462809917356,
+        "y": 0.8387404580152672
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 1.3552527156068805e-20,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_98",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 1.0000000000000016,
+      "min_confidence": 0.9,
+      "nameable": false,
+      "present": false,
+      "reference": {
+        "height": 0.05725190839694656,
+        "width": 0.2303719008264463,
+        "x": 0.33264462809917356,
+        "y": 0.8759541984732825
+      },
+      "role": "text",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    },
+    {
+      "centre_drift": 0,
+      "eligible": 91,
+      "episodes": 1,
+      "first_inference": 1,
+      "id": "shadow_99",
+      "last_inference": 9,
+      "max_confidence": 0.9,
+      "mean_confidence": 0.9000000000000001,
+      "mean_iou": 0.9999999999999984,
+      "min_confidence": 0.9,
+      "nameable": true,
+      "present": false,
+      "reference": {
+        "height": 0.03625954198473282,
+        "width": 0.25516528925619836,
+        "x": 0.3202479338842975,
+        "y": 0.9561068702290076
+      },
+      "role": "button",
+      "role_changes": 0,
+      "seen": 9,
+      "shape": "transient",
+      "size_variance": 0,
+      "states": [
+        {
+          "eligible": 9,
+          "episodes": 1,
+          "seen": 9,
+          "shape": "persistent",
+          "state": "state_1"
+        }
+      ]
+    }
+  ],
+  "unknown": 0
+}

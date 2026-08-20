@@ -1,4 +1,8 @@
 ---
+status: reference
+---
+
+---
 # Core Concepts {#core-concepts}
 ---
 

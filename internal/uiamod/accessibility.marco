@@ -1,0 +1,70 @@
+// accessibility.marco — the Accessibility act surface: the foreign primitives an accessibility
+// host fulfills (see spec/Hosts.md). Imported with `use accessibility.`.
+//
+// Why these are ACTS and not perception. Reading the tree is safe and repeatable;
+// focusing a control and writing its value are effects on the user's machine, and
+// they belong in the same vocabulary as clicking and typing. Snapshot is here too
+// because a route that wants to act on a control has to be able to find it — but it
+// returns EVIDENCE, and nothing in Marco turns evidence into an action by itself.
+//
+// Focus exists because focusing cannot be expressed as input: clicking a control
+// ACTIVATES it, and "focus the search box" must not press anything. Only the
+// application can move focus without side effects, and this is how you ask it to.
+//
+// SetValue exists because typing is not the same as setting text. Typing sends
+// characters through the keyboard layout, the IME, and whatever the application does
+// with each keystroke — an autocomplete that rewrites the field on the third letter,
+// a validation that rejects an intermediate state. SetValue has no intermediate state
+// for anything to react to. A control that does not implement it fails with a status
+// the caller can branch on, rather than silently doing something else.
+
+the Accessibility is an act.
+
+this exports Snapshot.  // walk a window's control tree; result is the tree
+this exports Focus.     // move keyboard focus to a control, without activating it
+this exports SetValue.  // set a control's value directly; fails if it has no value API
+this exports GetValue.  // read a control's value; result is { Value }
+
+// The STRUCTURAL actions. Each asks the application to do the thing the user named,
+// rather than synthesising the input that usually causes it.
+//
+// Why they are worth having when a click exists. A click is a guess about geometry: it
+// needs the control to be on screen, unobscured, and to have its hit target where its
+// bounds say. Expanding a tree node by clicking means finding a disclosure triangle a
+// few pixels wide, which is why "expand the folder" used to lower to a coordinate.
+// ExpandCollapsePattern.Expand has no geometry, cannot hit the wrong thing, works on a
+// scrolled control, and — the part that matters for verification — reports whether the
+// control was expandable AT ALL. A click cannot tell "it expanded" from "I missed".
+//
+// Each FAILS (never silently succeeds) when the control does not implement the
+// underlying pattern, so the Director's ladder can fall back to a click and record that
+// it did. A capability that quietly did something else would make the fallback
+// indistinguishable from a preference — the same rule SetValue follows.
+this exports Invoke.    // press/activate a control through its Invoke pattern
+this exports Expand.    // open a collapsible control
+this exports Collapse.  // close one
+this exports Toggle.    // flip a two-state control; result is { State }
+this exports Select.    // make a control the selection among its siblings
+this exports Deselect.  // remove it from the selection
+this exports ScrollIntoView. // bring a control into view without moving the pointer
+
+// A control to act on, named in one of two ways.
+//
+// Element is the id the SOURCE knows it by — a UIA RuntimeId, a DOM id. It is exact, it is what
+// a value API will accept, and it is EPHEMERAL: it identifies a control in the tree as it stands
+// right now and means nothing after the application redraws, let alone tomorrow.
+//
+// Called is the control's own label, and it is what a SAVED play uses. A learned play has to
+// survive a restart, so it cannot hold a runtime id; what it can hold is the word the person saw
+// on the control and Marco admitted while watching them press it. The host resolves that word
+// against the controls actually on screen at the moment the play runs.
+//
+// Exactly one of the two. Element when a caller already has the control in hand; Called when a
+// play is describing one it expects to find. Giving both would leave two answers to "which
+// control", and the host would have to prefer one silently.
+the Control is a set.
+this's Window is a text.    // "hwnd:<handle>"; empty means the foreground window
+this's Element is a text.   // the accessibility source's own id for the control — ephemeral
+this's Name is a text.      // the control's label, resolved against what is on screen now
+this's Value is a text.     // the new value, for SetValue
+this's MaxNodes is a number. // bound on the tree walk; omit for the host's default

@@ -71,6 +71,21 @@ func dispatchDo(d orchestrator.Deps, name string, named map[string]string, posit
 	mlog.Debug("dispatch: resolving", "name", name, "app", app, "named_count", len(named), "positional_count", len(positional))
 	if rt, ok := d.Reg.Resolve(app, name); ok {
 		mlog.Info("dispatch: route found", "input", name, "route", rt.Slug, "scope", rt.App)
+		// THE door. Resolving which play the user means is not permission to perform it. Every
+		// invocation passes through the authority seam here, exactly as orchestrator.Deps.Do
+		// does on the teach-miss path — authored and taught plays run as they always have, and a
+		// learned play Marco composed by watching is asked about once before it runs. See
+		// [[ADR-029-resolution-is-not-permission]].
+		decision := orchestrator.Authorize(orchestrator.Classify(d.Reg, rt, name), d.Authority)
+		mlog.Info("dispatch: authority", "route", rt.Slug, "verdict", string(decision.Verdict), "reason", decision.Reason)
+		if !decision.Allow() {
+			if decision.Sentence != "" {
+				fmt.Fprintln(os.Stdout, decision.Sentence)
+			}
+			// Not an error: "you said no" and "something went wrong" are different, and only
+			// one deserves a non-zero exit.
+			return nil
+		}
 		// Announce the canonical route that's about to run, so a front-end (the
 		// overlay) can show what a loose phrase actually resolved to.
 		fmt.Printf("[route] %s\n", prettyRoute(rt.Slug))

@@ -1,0 +1,44 @@
+{
+  "_comment": "The export recipe. The Python environment that produced the ONNX artifact was removed after held-out parity and the temporal audit were complete; everything needed to recreate it byte-for-byte is here. Python is export tooling, never Marco runtime.",
+  "source": {
+    "repo": "docling-project/ScreenParser",
+    "revision": "f029e565f1206577402e43206454522075be3f72",
+    "file": "best.pt",
+    "bytes": 153259543,
+    "sha256": "dbcb4f583ccfdb8100a68e606525c247890a2de4c1a54b14741e0ee29ce0ab88",
+    "license": "apache-2.0"
+  },
+  "artifact": {
+    "file": "weights/screenparser-1280.onnx",
+    "bytes": 102090897,
+    "sha256": "0bf9905eb0a61a055a670c9b618ad615ec443632c34eaf5e214ec046a9554a3e",
+    "input": "images (1,3,1280,1280) float32 CHW 0..1, grey-114 letterbox",
+    "output": "output0 (1,59,33600) — 4 box + 55 class scores, channel-major; NMS external"
+  },
+  "toolchain": {
+    "_comment": "One-time isolated venv, removed 2026-08-07. Recreate with: py -3.12 -m venv .venv && .venv/Scripts/pip install torch==2.13.0+cpu ultralytics==8.3.253 onnx==1.22.0 onnxruntime==1.28.0",
+    "python": "3.12.10",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "packages": {
+      "torch": "2.13.0+cpu",
+      "ultralytics": "8.3.253",
+      "onnx": "1.22.0",
+      "onnxruntime": "1.28.0",
+      "numpy": "2.5.1"
+    }
+  },
+  "export": {
+    "script": "export_screenparser.py",
+    "opset": 17,
+    "dynamic": false,
+    "simplify": false,
+    "nms": false,
+    "imgsz": 1280
+  },
+  "runtime": {
+    "_comment": "Inference is Go + ONNX Runtime only. No Python is involved at run time.",
+    "onnxruntime": "1.28.0 (win-x64)",
+    "binding": "github.com/yalue/onnxruntime_go v1.32.0",
+    "build_tag": "onnxvision"
+  }
+}

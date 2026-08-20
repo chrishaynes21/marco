@@ -90,6 +90,8 @@ func runEdit(name, view string) {
 	mux.HandleFunc("/api/scope", ed.handleScope)     // move a route between context/focus/global
 	mux.HandleFunc("/api/delete", ed.handleDelete)   // delete a route
 	mux.HandleFunc("/api/oconfig", ed.handleOConfig) // read/write the overlay settings
+	// THE Learn panel. Its endpoints hold no state and decide nothing — see learnui.go.
+	learnAPI(mux)
 
 	where := "all routes"
 	if name != "" {
@@ -901,6 +903,7 @@ const editPage = `<!doctype html><html><head><meta charset="utf-8"><title>MARCO<
 </header>
 <nav id="drawer">
   <a data-view="edit" class="active" onclick="nav('edit')">◆ Edit</a>
+  <a data-view="learn" onclick="nav('learn')">✦ Learn</a>
   <a data-view="routes" onclick="nav('routes')">▤ Routes</a>
   <a data-view="bindings" onclick="nav('bindings')">⌨ Bindings</a>
   <a data-view="config" onclick="nav('config')">⚙ Config</a>
@@ -919,6 +922,64 @@ const editPage = `<!doctype html><html><head><meta charset="utf-8"><title>MARCO<
     <button type="button" class="mini" onclick="document.getElementById('steps').appendChild(addRow(-1))">+ add step</button>
     <span id="saved2"></span></div>
   <details><summary>Full route source</summary><pre id="src"></pre></details>
+ </section>
+ <section id="view-learn" hidden>
+  <h2>Learn</h2>
+  <p class="hint">Name it, press <b>Start Learning</b>, then go and do the thing normally.
+    Marco waits for you to leave this page — it never treats clicks on itself as part of what
+    you are showing it. Press <b>Stop Learning</b> when you are done.</p>
+  <div class="bar">
+    <input class="field" id="lname" placeholder="Open Mouse Settings" style="flex:1;min-width:260px">
+    <button class="go" id="lstart" onclick="learnStart()">Start Learning</button>
+    <button class="go" id="lstop" onclick="learnVerb('stop')" hidden>Stop Learning</button>
+    <button class="go" id="ltry" onclick="learnVerb('try')" hidden>Try It</button>
+    <button id="lcancel" onclick="learnVerb('cancel')" hidden
+      style="padding:9px 14px;background:transparent;color:var(--dim);border:1px solid var(--line);border-radius:6px;cursor:pointer;font:inherit">cancel</button>
+  </div>
+  <div id="lready" hidden style="margin:0 0 12px;padding:10px 12px;border:1px solid var(--line);border-radius:6px;background:var(--panel);font-size:13px;line-height:1.8"></div>
+  <div id="lherebar" style="margin:0 0 12px;padding:12px;border:1px solid var(--line);border-radius:6px;background:var(--panel)">
+    <div class="bar" style="margin:0 0 8px">
+      <div class="grouphead" style="margin:0;flex:1">HERE</div>
+      <button id="lwatch" onclick="learnVerb('watch')"
+        style="padding:6px 12px;background:transparent;color:var(--run);border:1px solid var(--line);border-radius:6px;cursor:pointer;font:inherit">Watch</button>
+      <button id="lunwatch" onclick="learnVerb('unwatch')" hidden
+        style="padding:6px 12px;background:transparent;color:var(--dim);border:1px solid var(--line);border-radius:6px;cursor:pointer;font:inherit">Stop watching</button>
+    </div>
+    <div id="lherename" style="color:var(--accent);font-size:15px"></div>
+    <div id="lherestatus" style="font-size:12px;margin-top:2px"></div>
+    <div id="lherewhy" style="color:var(--dim);font-size:12px;margin-top:2px"></div>
+    <div class="bar" id="lherebtns" style="margin:10px 0 0"></div>
+    <div id="ltrailbox" hidden style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">
+      <div class="grouphead" style="margin-top:0">RECENT PLACES</div>
+      <div id="ltrail" style="font-size:13px;line-height:1.7"></div>
+    </div>
+  </div>
+  <div id="laskbar" hidden style="margin:0 0 12px;padding:12px;border:1px solid var(--line);border-radius:6px;background:var(--panel)">
+    <div class="grouphead" style="margin-top:0">MARCO IS ASKING</div>
+    <div id="lasking"></div>
+  </div>
+  <div id="lstage" class="grouphead"></div>
+  <p id="lsaying" style="color:var(--text);font-size:14px;margin:6px 0 14px"></p>
+  <p id="lstuck" hidden style="color:var(--err);font-size:13px;margin:-8px 0 14px"></p>
+  <div id="lwaitbar" hidden style="margin:0 0 14px;padding:12px;border:1px solid var(--line);border-radius:6px;background:var(--panel)">
+    <div class="grouphead" style="margin-top:0">WAITING FOR</div>
+    <p id="lwaitwhat" style="color:var(--accent);font-size:14px;margin:4px 0 0"></p>
+    <p id="lwaithere" style="color:var(--amber);font-size:13px;margin:8px 0 0"></p>
+  </div>
+  <div id="lnamebar" hidden style="margin-top:10px;padding:12px;border:1px solid var(--line);border-radius:6px;background:var(--panel)">
+    <div class="grouphead" style="margin-top:0">MARCO IS ASKING ABOUT</div>
+    <p id="lnamingwhat" style="color:var(--accent);font-size:14px;margin:4px 0 10px"></p>
+    <div class="bar" style="margin-top:0">
+      <input class="field" id="lcalled" placeholder="what you call this screen" style="flex:1;min-width:220px">
+      <button class="go" onclick="learnName()">Save name</button>
+      <button onclick="learnVerb('skip')"
+        style="padding:9px 14px;background:transparent;color:var(--dim);border:1px solid var(--line);border-radius:6px;cursor:pointer;font:inherit">skip</button>
+    </div>
+  </div>
+  <div id="lfacts"></div>
+  <div id="lresult"></div>
+  <div id="lplaces"></div>
+  <details id="ldebug" hidden><summary>Debug</summary><pre id="ldebugbody"></pre></details>
  </section>
  <section id="view-routes" hidden><h2>Routes</h2><div id="routes"></div></section>
  <section id="view-bindings" hidden>
@@ -1038,6 +1099,470 @@ function nav(v){
   for(const a of document.querySelectorAll('nav a')) a.classList.toggle('active', a.dataset.view===v);
   closeNav();
   if(v==='edit') loadEdit(); else if(v==='routes') loadRoutes(); else if(v==='bindings') loadBindings(); else if(v==='config') loadConfigView();
+  learnPolling(v==='learn');
+}
+// ---- Learn ----
+//
+// A WINDOW onto the Director's teaching lifecycle. Every button posts one verb and renders
+// whatever comes back; nothing here decides when learning has finished, whether a candidate is
+// ready, or whether a rehearsal may run. The server answers all of that.
+//
+// The panel never parses the sentence Marco says. It switches on the STAGE and on the three
+// can_* flags, which are structured state — a UI that keyed off prose would break the first time
+// somebody improved the wording.
+// show toggles one control. The Learn panel's buttons are hidden rather than disabled: a
+// control that cannot apply right now is noise, and a greyed-out Try It invites a person to
+// wonder what they did wrong.
+// renderPlaces lists the screens Marco knows, so a name can be corrected at any time.
+//
+// Authorship is not a mode. Somebody who realises a screen is misnamed fixes it here rather than
+// waiting for Marco to raise the subject again — the absence of exactly this is what once made a
+// mistaken name unrepairable without editing the store by hand.
+// STATUSTONE colours the one word. Green only for known: a surface that made "new" and
+// "known" look alike would hide the finding this panel exists to produce.
+const STATUSTONE={known:'var(--run)', new:'var(--amber)', settling:'var(--dim)',
+  ambiguous:'var(--amber)', contested:'var(--err)', degraded:'var(--err)',
+  nowhere:'var(--dim)'};
+function renderHere(v){
+  const h=v.here;
+  const watching=!!(h && h.status && h.status!=='nowhere');
+  show('lwatch', !watching);
+  show('lunwatch', watching);
+
+  const nameEl=document.getElementById('lherename');
+  const statusEl=document.getElementById('lherestatus');
+  const whyEl=document.getElementById('lherewhy');
+  const btns=document.getElementById('lherebtns');
+  if(!nameEl) return;
+
+  if(!h){
+    nameEl.textContent='—';
+    statusEl.textContent='';
+    whyEl.textContent='Marco is not watching anything. Press Watch, then move around.';
+    btns.innerHTML='';
+    show('ltrailbox', false);
+    return;
+  }
+  // The NAME if somebody gave one, otherwise what it is made of. Never an identifier:
+  // "which screen is this" is not answered by subj_543793ccc326.
+  nameEl.textContent = h.words || h.called || h.describes || 'a screen';
+  statusEl.innerHTML = '<span style="color:'+(STATUSTONE[h.status]||'var(--dim)')+
+    ';font-weight:600;letter-spacing:.08em">'+esc((h.status||'').toUpperCase())+'</span>'+
+    (h.application ? '<span style="color:var(--dim)"> in '+esc(h.application)+'</span>' : '');
+  // WHY IT IS NOT THE PLACE YOU MEAN.
+  //
+  // The actual question when recognition fails: not "is this new" but "why is this not the
+  // one I named a minute ago". The fields come from the matcher itself — CompareStructure is
+  // ExplainStructure with the explanation discarded — so what is shown here and what the
+  // Director decided are one walk of one set of rules.
+  let whyText = h.why || '';
+  const near = h.closest;
+  if(near && (near.why||[]).length){
+    const fields = near.why.map(d =>
+      d.current || d.remembered
+        ? d.field+' '+(d.current||'—')+' vs '+(d.remembered||'—')
+        : d.field).join(' · ');
+    whyText += (whyText ? '  ' : '') + 'Nearest: ' +
+      (near.words || near.called || near.describes || 'a place Marco holds') +
+      ' (' + near.verdict + ') — ' + fields;
+  }
+  whyEl.textContent = whyText;
+
+  // NAMING, bound to the durable place HERE actually represents. Offered only when Marco
+  // recognised one: renaming a screen it has not recognised would rename nothing, or
+  // worse, whichever place it last had a handle for.
+  let b='';
+  if(h.handle){
+    b += '<input class="field" id="lherecall" placeholder="call this screen…" '+
+         'value="'+esc(h.called||'')+'" style="flex:1;min-width:200px">'+
+         '<button class="go" onclick="nameHere()">'+(h.called?'Rename':'Name this screen')+'</button>';
+    if(h.called){
+      b += '<button onclick="unnameHere()" style="padding:9px 14px;background:transparent;'+
+           'color:var(--dim);border:1px solid var(--line);border-radius:6px;cursor:pointer;font:inherit">Remove name</button>';
+    }
+  } else if(h.status==='new'){
+    // A screen Marco can SEE clearly and does not know. Naming it is what makes it worth
+    // remembering, so the field and the button say that — and the name is the licence:
+    // pressing this with nothing typed establishes nothing. See Runtime.rememberHere.
+    b = '<input class="field" id="lherecall" placeholder="call this screen…" '+
+        'style="flex:1;min-width:200px">'+
+        '<button class="go" onclick="rememberHere()">Remember this screen</button>';
+  } else if(watching){
+    b = '<span style="color:var(--dim);font-size:12px">Marco has not settled on what this '+
+        'screen is yet.</span>';
+  }
+  // ONLY REBUILD WHEN THE BUTTONS ACTUALLY CHANGE.
+  //
+  // The panel re-reads every 700ms and this block used to be rewritten every time, which
+  // destroys the input somebody is typing a name into: the field is removed mid-keystroke
+  // and recreated empty, and focus lands back on the document. It reads as the box
+  // "exiting out" about once a second, and it is impossible to type into.
+  //
+  // Exactly the same mistake as the screens list, made again in this block within an hour
+  // of fixing it there — so the guard is the same one, over the values that decide the
+  // markup. Everything else here is textContent, which does not disturb focus.
+  const bsig = JSON.stringify([h.handle||'', h.called||'', h.status||'']);
+  if(bsig !== LHEREBTNSIG){
+    LHEREBTNSIG = bsig;
+    // And when it does legitimately change, whatever was half-typed survives it.
+    const a=document.activeElement;
+    const keep=(a && a.id==='lherecall')
+      ? {value:a.value, start:a.selectionStart, end:a.selectionEnd} : null;
+    btns.innerHTML=b;
+    if(keep){
+      const el=document.getElementById('lherecall');
+      if(el){
+        el.value=keep.value;
+        el.focus();
+        try{ el.setSelectionRange(keep.start, keep.end); }catch(e){}
+      }
+    }
+  }
+
+  // THE WALK, in order, so "it thought the way back was a new screen" is visible at once.
+  const trail=v.trail||[];
+  show('ltrailbox', trail.length>0);
+  const tr=document.getElementById('ltrail');
+  if(tr && trail.length){
+    tr.innerHTML = trail.map((s,i)=>
+      (i?'<div style="color:var(--dim)">&nbsp;&nbsp;↓</div>':'')+
+      '<div>'+esc(s.words||s.called||s.describes||'a screen')+
+      ' <span style="color:'+(STATUSTONE[s.status]||'var(--dim)')+
+      ';font-size:11px;letter-spacing:.08em">'+esc((s.status||'').toUpperCase())+'</span></div>'
+    ).join('');
+  }
+}
+// nameHere binds the naming actions to the durable place HERE represents.
+//
+// Read from the field at press time and sent with THAT handle, rather than "the current
+// place": between rendering and pressing, the current place may have moved, and naming
+// whichever screen Marco means rather than the one somebody is looking at is the exact
+// failure ADR-069 exists to prevent.
+async function nameHere(){
+  const v=LHERE; if(!v || !v.handle) return;
+  const el=document.getElementById('lherecall');
+  learnPost('rename', {place: v.handle, called: (el ? el.value.trim() : '')});
+}
+async function unnameHere(){
+  const v=LHERE; if(!v || !v.handle) return;
+  learnPost('rename', {place: v.handle, called: ''});
+}
+// rememberHere makes a screen Marco does not know durable, under the name just typed.
+//
+// The name is the licence. A person looking at a screen and saying what it is called is the
+// human semantic event that permits persisting it — the same one a teach session relies on —
+// and pressing this with nothing typed establishes nothing.
+async function rememberHere(){
+  const el=document.getElementById('lherecall');
+  const called=el ? el.value.trim() : '';
+  if(!called){ banner('Say what you call this screen first', true); return; }
+  learnPost('remember', {name: called});
+}
+let LHERE=null;
+// LHEREBTNSIG is the last set of HERE actions actually drawn.
+//
+// Naming is the one place in this panel where somebody types something they cannot recover
+// by pressing the button again, so it is the one place churn is least affordable.
+let LHEREBTNSIG=null;
+let LASKSIG=null;
+
+// LPLACESIG is the last list actually drawn, so an unchanged list is left alone.
+//
+// The panel re-reads every 700ms and used to rebuild this list every time. Rebuilding replaces
+// the very input somebody is typing a name into: the field is destroyed mid-keystroke, recreated
+// with its old value, and focus lands back on the document. Live, that read as "I can't type into
+// the call it… boxes, it exits out" — because it does, about once a second.
+//
+// Naming is the one place in this panel where a person types something they cannot get back by
+// pressing the button again, so it is the one place churn is least affordable.
+let LPLACESIG='';
+function renderPlaces(places){
+  const host=document.getElementById('lplaces');
+  if(!host) return;
+  // NOTHING CHANGED, so nothing is touched. The common case while somebody types.
+  const sig=JSON.stringify(places);
+  if(sig===LPLACESIG) return;
+  LPLACESIG=sig;
+  // And when it HAS changed, whatever was being typed survives the rebuild — text, focus
+  // and caret. A list that legitimately updates must not cost somebody their half-typed name.
+  const a=document.activeElement;
+  const keep=(a && a.id && a.id.indexOf('pn_')===0)
+    ? {id:a.id, value:a.value, start:a.selectionStart, end:a.selectionEnd} : null;
+  const restore=()=>{
+    if(!keep) return;
+    const el=document.getElementById(keep.id);
+    if(!el) return;
+    el.value=keep.value;
+    el.focus();
+    try{ el.setSelectionRange(keep.start, keep.end); }catch(e){}
+  };
+  if(!places.length){ host.innerHTML=''; restore(); return; }
+  let h='<div class="grouphead">SCREENS MARCO KNOWS</div>';
+  for(const p of places){
+    // THE CANONICAL NAME, and it says whose word it is. An inferred name shown as
+    // "not named" is Marco knowing the answer and reporting that it does not — which is
+    // what the panel did while the store already held an inferred name for that screen.
+    const inferred = !p.called && p.words && p.words !== p.describes;
+    const label=p.called ? esc(p.called)
+      : inferred ? esc(p.words)+' <span class="tag" style="opacity:.7">marco</span>'
+      : '<span style="color:var(--dim)">not named</span>';
+    h+='<div class="rowcard">'+
+       '<span class="nm">'+label+(p.here?' <span class="tag cur">here</span>':'')+'</span>'+
+       '<span style="color:var(--dim);font-size:12px">'+esc(p.describes)+'</span>'+
+       '<span class="spacer"></span>'+
+       '<input class="field" style="width:170px" placeholder="call it…" '+
+         'value="'+esc(p.called||'')+'" id="pn_'+esc(p.handle)+'">'+
+       '<button class="go" onclick="renamePlace(\''+esc(p.handle)+'\')">save</button>'+
+       (p.called?'<button onclick="unnamePlace(\''+esc(p.handle)+'\')" '+
+         'style="padding:7px 10px;background:transparent;color:var(--dim);border:1px solid var(--line);border-radius:6px;cursor:pointer;font:inherit">remove</button>':'')+
+       '</div>';
+  }
+  host.innerHTML=h;
+  restore();
+}
+async function renamePlace(handle){
+  const el=document.getElementById('pn_'+handle);
+  learnPost2('rename', {place: handle, called: el? el.value.trim() : ''});
+}
+// Removing a name is a first-class action, not an empty save. The place survives; only the
+// word goes, and the word becomes available to whichever screen the person actually meant.
+async function unnamePlace(handle){ learnPost2('rename', {place: handle, called: ''}); }
+async function learnPost2(v, body){
+  try{
+    const r=await fetch('/api/learn/'+v, {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(body)});
+    learnRender(await r.json());
+  }catch(e){ banner('Marco could not be reached', true); }
+}
+function show(id, on){ const e=document.getElementById(id); if(e) e.hidden=!on; }
+let LTIMER=null;
+function learnPolling(on){
+  if(LTIMER){ clearInterval(LTIMER); LTIMER=null; }
+  if(!on) return;
+  learnRead();
+  // A human-useful cadence, not an animation. The read is a copy of state the service already
+  // holds, so this changes nothing about what Marco does — but there is no reason to ask faster
+  // than a person can read.
+  LTIMER=setInterval(learnRead, 700);
+}
+async function learnRead(){
+  try{ learnRender(await (await fetch('/api/learn')).json()); }catch(e){}
+}
+async function learnStart(){
+  const name=document.getElementById('lname').value.trim();
+  if(!name){ banner('Say what you want Marco to learn', true); return; }
+  learnPost('start', {name});
+}
+async function learnVerb(v){ learnPost(v, {}); }
+// learnAnswer settles one of Marco.s own questions. Addressed: WHICH question, in WHICH
+// session -- answering "the current one" would settle whichever happened to be first.
+async function learnAnswer(id, session, response){
+  learnPost('answer', {id: id, session: session, response: response});
+}
+async function learnName(){
+  const el=document.getElementById('lcalled');
+  const called=el.value.trim();
+  if(!called){ banner('Say what you call it, or skip', true); return; }
+  el.value='';
+  learnPost('name', {name: called});
+}
+// LREFUSAL is the last thing Marco refused to do, and WHY, held until something changes.
+//
+// A verb's answer used to be painted and then overwritten by the 700ms poll, so a refusal was on
+// screen for under a second and the panel snapped back to the same question. Live, that read as
+// "it's stuck on Want me to try it?" — the press WAS refused, every time, and there was no way to
+// see it. A refusal nobody can read is a refusal that did not happen.
+let LREFUSAL=null;
+async function learnPost(v, body){
+  try{
+    const r=await fetch('/api/learn/'+v, {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(body)});
+    const s=await r.json();
+    // Held, not flashed. Cleared by the next render that shows a different stage — which is
+    // what "something changed" means here.
+    LREFUSAL = (s.stage==='refused' && s.saying) ? {saying:s.saying, at:s.stage} : null;
+    learnRender(s);
+  }catch(e){ banner('Marco could not be reached', true); }
+}
+const LSTAGE={
+  idle:'READY', unavailable:'DIRECTOR NOT RUNNING',
+  waiting_for_demonstration:'WAITING FOR YOU', learning:'LEARNING',
+  finishing:'FINISHING UNDERSTANDING', needs_another_example:'NEEDS ANOTHER EXAMPLE',
+  ready_to_try:'READY TO TRY', waiting_to_try:'WAITING TO TRY', trying:'TRYING',
+  naming:'NAMING A SCREEN', understood:'UNDERSTOOD', refused:'REFUSED', stopped:'STOPPED',
+};
+function learnRender(v){
+  const stage=v.stage||'idle';
+  document.getElementById('lstage').textContent=LSTAGE[stage]||stage;
+  document.getElementById('lsaying').textContent=v.saying||'';
+  show('lstart', !v.running && v.available!==false);
+  show('lstop', !!v.can_stop);
+  show('ltry', !!v.can_try);
+  show('lcancel', !!v.can_cancel);
+  show('lnamebar', !!v.can_name);
+  // WHICH screen the question is about, in words. Marco may not ask somebody to name a
+  // thing it cannot point at: two Settings pages once produced identical wording, the
+  // wrong one got named, and the word was then reserved against the right one.
+  const naming=document.getElementById('lnamingwhat');
+  if(naming) naming.textContent = v.naming
+    ? (v.naming.words ? v.naming.words+' — '+v.naming.describes : v.naming.describes)
+    : 'a screen Marco cannot currently point at';
+  // THE READINESS BLOCK, above everything else.
+  //
+  // The four facts somebody needs BEFORE they start clicking, because each of them has
+  // silently wasted a live demonstration: the wrong window was latched and only said so at
+  // the end; nothing was captured; a stale question held the single interruption slot so no
+  // rehearsal could ever be offered. All four were knowable at the time and none was shown.
+  // HOW MUCH OF THE DEMONSTRATED ROUTE IS VERIFIED.
+  //
+  // A demonstration of Home to Bluetooth to Mouse is two reusable legs, and both have to be
+  // reviewed before the goal is reachable from where it starts. The second leg used to be
+  // dropped silently, so a person was told the route was learned when one step of it had
+  // never been tried. Verified 1 / 2 is the difference between that and the truth.
+  function routeProgressLine(v){
+    const total=v.required_edges|0;
+    if(!total) return '';
+    const done=v.verified_edges|0;
+    const ok=t=>'<span style="color:var(--run)">'+t+'</span>';
+    const part=t=>'<span style="color:var(--amber)">'+t+'</span>';
+    const count=done===total?ok(done+' / '+total):part(done+' / '+total);
+    let out='<div>Route: '+esc(v.route||'')+'</div>'+
+            '<div>Verified: '+count+'</div>';
+      // 'trying' read as Marco ATTEMPTING the step. It means Marco has asked and is waiting
+      // for an answer — and an open question sitting under the word 'trying' reads as stuck.
+    (v.steps||[]).forEach(function(s,i){
+      const mark=s.status==='verified'?ok('done'):
+                 s.status==='offered'?part('waiting for your answer'):
+                 s.status==='pending'?part('to do'):part(esc(s.status));
+      out+='<div style="opacity:.85">  step '+(i+1)+' of '+total+': '+
+           esc(s.from)+' → '+esc(s.to)+' — '+mark+
+           (s.why?' <span style="opacity:.7">('+esc(s.why)+')</span>':'')+'</div>';
+    });
+    return out;
+  }
+
+  const ready=document.getElementById('lready');
+  show('lready', !!v.available);
+  if(ready){
+    const yes=t=>'<span style="color:var(--run)">'+t+'</span>';
+    const no=t=>'<span style="color:var(--amber)">'+t+'</span>';
+    const q=v.questions_open|0;
+    ready.innerHTML=
+      '<div>Watching: '+(v.watching?yes(esc(v.watching)):no('nothing yet'))+'</div>'+
+      '<div>Target locked: '+(v.target_locked?yes('YES'):no('NO'))+'</div>'+
+      '<div>Captured actions: '+(v.captured|0)+'</div>'+
+      '<div>Questions open: '+(q===0?yes('0'):no(String(q)))+'</div>'+
+      routeProgressLine(v);
+  }
+
+  // WHERE MARCO THINKS YOU ARE, live, and whether it recognises it.
+  //
+  // The instrument for hardening place identity. Marco was minting several durable subjects
+  // for one Settings page and nothing said so until a Learn run collapsed minutes later; this
+  // is so somebody can walk an application and watch the answer change as they go.
+  //
+  // Every value is READ from the Director's own account. There is no place detector here and
+  // there must not be one: a UI that decided for itself whether two screens matched would be
+  // a second matcher, and the two would disagree about the very thing under investigation.
+  LHERE = v.here || null;
+  renderHere(v);
+
+  // EVERY QUESTION MARCO IS WAITING ON, with a way to answer it.
+  //
+  // These are Marco's own — "are these one set?" — raised during a teach pass. They hold the
+  // interruption budget, they block the rehearsal question behind them, and the panel used
+  // to count them at you and offer nothing. A question nobody can answer is worse than a
+  // question nobody is asked.
+  //
+  // A naming question gets no Yes/No: it wants a word, and the naming box below asks for it.
+  const asking = v.asking || [];
+  show('laskbar', asking.length > 0);
+  const askHost = document.getElementById('lasking');
+  if(askHost && asking.length){
+    let ah = '';
+    for(const q of asking){
+      const btn = (label, resp, colour) =>
+        '<button onclick="learnAnswer(\''+esc(q.id)+'\',\''+esc(q.session_id||'')+'\',\''+resp+'\')" '+
+        'style="padding:6px 12px;background:transparent;color:'+colour+
+        ';border:1px solid var(--line);border-radius:6px;cursor:pointer;font:inherit">'+label+'</button>';
+      ah += '<div class="rowcard" style="align-items:flex-start">'+
+        '<span style="flex:1;min-width:220px;color:var(--text);font-size:14px">'+
+        esc(q.question||'Marco is asking about something')+'</span>';
+      ah += q.naming
+        ? '<span style="color:var(--dim);font-size:12px">answer below</span>'
+        : btn('Yes','confirmed','var(--run)')+btn('No','contradicted','var(--err)')+
+          btn('Not now','declined','var(--dim)');
+      ah += '</div>';
+    }
+    // Same churn guard as HERE and the screens list. No input lives here today, but a
+    // block rewritten every 700ms also drops keyboard focus off whichever button somebody
+    // tabbed to — and this is the third place in one panel where rebuilding on every poll
+    // has cost somebody an interaction.
+    const asig = JSON.stringify(asking);
+    if(asig !== LASKSIG){ LASKSIG = asig; askHost.innerHTML = ah; }
+  }
+
+  // WHICH screen a patient rehearsal is waiting for, and whether Marco thinks you are on a
+  // different one. Marco used to say "I'll try it when we're back there" and then wait
+  // forever, because "there" was a twin of the page you were standing on — one screen
+  // recorded twice. Nothing said so, and the only way to find out was to read the store.
+  const wp = v.waiting, we = v.elsewhere;
+  show('lwaitbar', !!wp);
+  if(wp){
+    document.getElementById('lwaitwhat').textContent =
+      wp.called ? wp.called+' — '+wp.describes : wp.describes;
+    const h = document.getElementById('lwaithere');
+    // TWO conditions, and the second one is this page.
+    //
+    // Input has no address: Marco refuses to send clicks unless the watched window is
+    // genuinely in front, or they would land wherever you actually are. Reading this panel
+    // means being in a browser, so watching it is itself what stops the rehearsal — which
+    // reads as "it never fires" and is the reason somebody sat through ten identical
+    // window_not_in_front refusals wondering what was wrong.
+    const wrongScreen = we
+      ? 'You look like you are on '+(we.called ? we.called+' — '+we.describes : we.describes)
+        +', which Marco thinks is a different screen. It will not fire here. '
+      : '';
+    h.textContent = wrongScreen +
+      'It also will not fire while you are looking at this page: it only sends input when ' +
+      'the window it is watching is in front. Go there, leave it in front, and wait.';
+  }
+  // WHAT MARCO REFUSED, and why — held until the stage moves, plus whatever the Director
+  // says it cannot get past. detail now arrives on a dead end too, not only on a refusal:
+  // "a yes created no authority" is the sentence that explains a Try button doing nothing.
+  const lines=[];
+  if(LREFUSAL) lines.push(LREFUSAL.saying);
+  (v.detail||[]).forEach(d=>lines.push(d));
+  const stuck=document.getElementById('lstuck');
+  show('lstuck', lines.length>0);
+  if(stuck) stuck.textContent=lines.join(' · ');
+
+  renderPlaces(v.places||[]);
+  document.getElementById('lname').disabled=!!v.running;
+
+  // WHAT MARCO CURRENTLY UNDERSTANDS. Only the fields it actually has: an empty row would
+  // read as "Marco knows nothing about this" when the truth is "not yet".
+  const f=[];
+  if(v.watching) f.push(['Watching', v.watching]);
+  if(v.place) f.push(['Place', v.place]);
+  if(v.running||v.captured) f.push(['Actions captured', String(v.captured||0)]);
+  if(v.targets) f.push(['…that named a control', String(v.targets)]);
+  if(v.unnamed) f.push(['…whose name is withheld', String(v.unnamed)]);
+  if(v.offered) f.push(['Controls on offer', String(v.offered)]);
+  if(v.route) f.push(['Transition', v.route]);
+  if(v.goal) f.push(['Would be called', v.goal]);
+  document.getElementById('lfacts').innerHTML=f.map(([k,x])=>
+    '<div class="crow"><label>'+esc(k)+'</label><span style="color:var(--accent)">'+esc(x)+'</span></div>').join('');
+
+  const out=[];
+  if(v.learned) out.push('<p style="color:var(--run)">Saved. It is in the Routes tab.</p>');
+  if(v.refused) out.push('<p style="color:var(--err)">Refused: '+esc(v.refused)+'</p>');
+  document.getElementById('lresult').innerHTML=out.join('');
+
+  const dbg=document.getElementById('ldebug');
+  const detail=(v.detail||[]).join('\n');
+  dbg.hidden=!detail;
+  document.getElementById('ldebugbody').textContent=detail;
 }
 const BT=String.fromCharCode(96); // backtick, kept out of the Go raw string
 // ---- config view (overlay settings) ----

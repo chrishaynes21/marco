@@ -33,26 +33,29 @@ var initErr error
 // isn't goroutine-safe, so Detect is serialised; the bridge processes one request at a
 // time anyway.
 type onnxDetector struct {
-	mu      sync.Mutex
-	sess    *ort.DynamicAdvancedSession
-	inName  string
-	outName string
-	side    int
-	conf    float32
-	iou     float32
-	labels  []string
-	ready   bool
-	loadErr error
+	mu       sync.Mutex
+	sess     *ort.DynamicAdvancedSession
+	inName   string
+	outName  string
+	side     int
+	conf     float32
+	iou      float32
+	labels   []string
+	labelsBy labelSource
+	ready    bool
+	loadErr  error
 }
 
 func newDetector() detector {
+	labels, from := loadLabels()
 	d := &onnxDetector{
-		side:    envInt("MARCO_VISION_SIZE", 640),
-		conf:    float32(envFloat("MARCO_VISION_CONF", 0.25)),
-		iou:     float32(envFloat("MARCO_VISION_IOU", 0.45)),
-		labels:  loadLabels(),
-		inName:  envStr("MARCO_VISION_INPUT", "images"),
-		outName: envStr("MARCO_VISION_OUTPUT", "output0"),
+		side:     envInt("MARCO_VISION_SIZE", 640),
+		conf:     float32(envFloat("MARCO_VISION_CONF", 0.25)),
+		iou:      float32(envFloat("MARCO_VISION_IOU", 0.45)),
+		labels:   labels,
+		labelsBy: from,
+		inName:   envStr("MARCO_VISION_INPUT", "images"),
+		outName:  envStr("MARCO_VISION_OUTPUT", "output0"),
 	}
 	if err := d.load(); err != nil {
 		d.loadErr = err // surfaced on the first Detect; Ready() stays false
@@ -81,8 +84,39 @@ func (d *onnxDetector) load() error {
 		return fmt.Errorf("open model %s: %w", model, err)
 	}
 	d.sess = sess
+	d.adoptModelNames(model)
 	d.ready = true
 	return nil
+}
+
+// adoptModelNames replaces GUESSED labels with the ones the model carries.
+//
+// Ultralytics exports embed `names` — the authoritative class list, in class-index order.
+// Using it closes the gap that made a one-class icon detector announce 56 desktop icons as
+// buttons: the built-in default list starts with "button", and nothing had ever asked the
+// model what its single class actually was.
+//
+// An EXPLICIT list still wins. Someone who set $MARCO_VISION_LABELS or wrote a labels.txt
+// is correcting the model on purpose, and silently overriding them would make that
+// impossible.
+func (d *onnxDetector) adoptModelNames(model string) {
+	if d.labelsBy != labelsFromDefault {
+		return
+	}
+	md, err := ort.GetModelMetadata(model)
+	if err != nil {
+		return
+	}
+	defer md.Destroy()
+
+	raw, _, err := md.LookupCustomMetadataMap("names")
+	if err != nil {
+		return
+	}
+	if names := parseNames(raw); len(names) > 0 {
+		d.labels = names
+		d.labelsBy = labelsFromModel
+	}
 }
 
 func (d *onnxDetector) Ready() bool { return d.ready }

@@ -1,0 +1,13 @@
+{
+  "schema": 2,
+  "sequence": "pause-stable",
+  "note": "The pause menu already open and unchanging across all nine frames.",
+  "tracks": [
+    { "identity": "pause_panel",      "present": [[0, 8]] },
+    { "identity": "pause_title",      "present": [[0, 8]] },
+    { "identity": "menu_resume",      "present": [[0, 8]] },
+    { "identity": "menu_change_mode", "present": [[0, 8]] },
+    { "identity": "menu_settings",    "present": [[0, 8]] },
+    { "identity": "menu_exit",        "present": [[0, 8]] }
+  ]
+}

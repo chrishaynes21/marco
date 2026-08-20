@@ -1,0 +1,11 @@
+// screen.marco — asking what is on the screen, and never changing it.
+//
+// Every capability here READS. There is no sentence in this act that moves a pointer,
+// presses a key, focuses a window or launches anything, and that is the whole point:
+// a play uses this to decide whether its first line belongs on this stage, and
+// deciding must not be doing.
+//
+// A host that cannot answer says so, and the play refuses. Silence is never yes.
+
+the Screen is an act.
+this exports Showing.   // ok if the screen the user named is the one in front

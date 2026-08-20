@@ -25,6 +25,7 @@ package bridgehost
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -58,9 +59,12 @@ type wireEvent struct {
 // Host drives a bridge subprocess. It implements runtime.Host and, so an
 // event-pushing bridge can feed a `marco serve` run, runtime.EventSource.
 type Host struct {
-	mu       sync.Mutex
-	path     string
-	args     []string
+	mu   sync.Mutex
+	path string
+	args []string
+	// env are extra "KEY=value" entries for the child, on top of the parent process
+	// environment. Per-host so two bridges over one binary cannot configure each other.
+	env      []string
 	started  bool
 	startErr error
 	cmd      *exec.Cmd
@@ -83,8 +87,31 @@ func New(path string, args ...string) *Host {
 	return h
 }
 
+// WithEnv adds environment entries ("KEY=value") for this bridge's child process only.
+//
+// # Why this exists
+//
+// Because the alternative caused a real, silent failure. Two bridges over the same plugin
+// binary were configured by setting process-wide environment variables before creating each
+// one — and since a host launches its child on FIRST USE rather than at construction, both
+// children were spawned after the last setter ran and both inherited the same configuration.
+// The result was an experimental detector quietly running as the authoritative one: no error,
+// no warning, and two provider instances answering with the same model.
+//
+// Per-host environment removes the shared mutable state the mistake depended on. Entries are
+// appended to the parent's environment, so a later entry wins for a repeated key.
+func (h *Host) WithEnv(env ...string) *Host {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.env = append(h.env, env...)
+	return h
+}
+
 func (h *Host) startProcess() (io.Writer, io.Reader, func() error, error) {
 	cmd := exec.Command(h.path, h.args...)
+	if len(h.env) > 0 {
+		cmd.Env = append(os.Environ(), h.env...)
+	}
 	// Inherit the parent's stderr so the bridge child's LOGS reach the console. A nil
 	// Stderr would send them to the null device (Go's default) — which is why the
 	// overlay/macros bridges' debug output, and the route logs they relay, vanished.
@@ -138,12 +165,30 @@ func (h *Host) ensureStarted() error {
 	return nil
 }
 
+// MaxLine is the largest single protocol line, in bytes.
+//
+// The protocol puts one JSON object on one line, and an image travels inside it as base64
+// — so this is really "the biggest frame the bridge can carry". It was 4MB, and a 1920×1080
+// Rocket League frame encodes to about 4.6MB, because a game render is photographic and
+// PNG does not compress it the way it compresses a desktop. The result was not an error: a
+// scanner that hits its cap stops, the plugin's `for sc.Scan()` loop ended, the process
+// exited, and the Director reported "the pipe has been ended" — which reads as a crashed
+// plugin rather than an oversized picture.
+//
+// 64MB leaves room for a 4K frame with the same headroom. The buffer only grows to what is
+// actually read, so the cost of the ceiling is nothing until a frame needs it.
+//
+// A cap cannot be removed altogether: it is also what stops a wedged or hostile child from
+// making the Director allocate without bound. So it is large AND the overflow is reported
+// — see the Err() checks here and in each plugin's read loop.
+const MaxLine = 64 << 20
+
 // readLoop is the single demultiplexer: feed lines go to events, everything else
 // is the response to the current request. On EOF it closes both channels so a
 // pending Invoke unblocks (as failed) and serve sees the event source end.
 func (h *Host) readLoop(r io.Reader) {
 	sc := bufio.NewScanner(r)
-	sc.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
+	sc.Buffer(make([]byte, 0, 64*1024), MaxLine)
 	for sc.Scan() {
 		line := sc.Bytes()
 		if len(line) == 0 {
@@ -166,6 +211,12 @@ func (h *Host) readLoop(r io.Reader) {
 		var resp response
 		_ = json.Unmarshal(line, &resp) // a malformed response surfaces as ok/empty
 		h.respCh <- resp
+	}
+	// Why the reply stopped, when it was not simply EOF. A reply too long to read is
+	// indistinguishable from a dead child unless somebody says so, and the person reading
+	// the log is the one who has to tell those apart.
+	if err := sc.Err(); err != nil {
+		fmt.Fprintf(os.Stderr, "bridge %s: cannot read the plugin's reply: %v\n", h.path, err)
 	}
 	close(h.events)
 	close(h.respCh)

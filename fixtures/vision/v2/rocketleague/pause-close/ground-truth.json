@@ -1,0 +1,576 @@
+[
+  {
+    "schema": 1,
+    "frame": "rocketleague-pause-cycle-036",
+    "sequence": "pause-close",
+    "index": 0,
+    "interface_present": true,
+    "regions": [
+      {
+        "kind": "panel",
+        "bounds": {
+          "X": 0.396,
+          "Y": 0.36,
+          "W": 0.208,
+          "H": 0.262
+        },
+        "identity": "pause_panel"
+      },
+      {
+        "kind": "text_region",
+        "bounds": {
+          "X": 0.455,
+          "Y": 0.383,
+          "W": 0.09,
+          "H": 0.04
+        },
+        "identity": "pause_title"
+      },
+      {
+        "kind": "button",
+        "bounds": {
+          "X": 0.414,
+          "Y": 0.437,
+          "W": 0.172,
+          "H": 0.035
+        },
+        "identity": "menu_resume"
+      },
+      {
+        "kind": "button",
+        "bounds": {
+          "X": 0.414,
+          "Y": 0.479,
+          "W": 0.172,
+          "H": 0.035
+        },
+        "identity": "menu_change_mode"
+      },
+      {
+        "kind": "button",
+        "bounds": {
+          "X": 0.414,
+          "Y": 0.521,
+          "W": 0.172,
+          "H": 0.035
+        },
+        "identity": "menu_settings"
+      },
+      {
+        "kind": "button",
+        "bounds": {
+          "X": 0.414,
+          "Y": 0.563,
+          "W": 0.172,
+          "H": 0.035
+        },
+        "identity": "menu_exit"
+      }
+    ],
+    "negative_regions": [
+      {
+        "kind": "scene_texture",
+        "bounds": {
+          "X": 0,
+          "Y": 0.55,
+          "W": 0.42,
+          "H": 0.4
+        }
+      },
+      {
+        "kind": "background_geometry",
+        "bounds": {
+          "X": 0,
+          "Y": 0,
+          "W": 0.55,
+          "H": 0.35
+        }
+      },
+      {
+        "kind": "background_geometry",
+        "bounds": {
+          "X": 0.62,
+          "Y": 0,
+          "W": 0.38,
+          "H": 0.42
+        }
+      }
+    ],
+    "ignore_regions": [
+      {
+        "X": 0,
+        "Y": 0.8,
+        "W": 1,
+        "H": 0.2
+      }
+    ]
+  },
+  {
+    "schema": 1,
+    "frame": "rocketleague-pause-cycle-037",
+    "sequence": "pause-close",
+    "index": 1,
+    "interface_present": true,
+    "regions": [
+      {
+        "kind": "panel",
+        "bounds": {
+          "X": 0.396,
+          "Y": 0.36,
+          "W": 0.208,
+          "H": 0.262
+        },
+        "identity": "pause_panel"
+      },
+      {
+        "kind": "text_region",
+        "bounds": {
+          "X": 0.455,
+          "Y": 0.383,
+          "W": 0.09,
+          "H": 0.04
+        },
+        "identity": "pause_title"
+      },
+      {
+        "kind": "button",
+        "bounds": {
+          "X": 0.414,
+          "Y": 0.437,
+          "W": 0.172,
+          "H": 0.035
+        },
+        "identity": "menu_resume"
+      },
+      {
+        "kind": "button",
+        "bounds": {
+          "X": 0.414,
+          "Y": 0.479,
+          "W": 0.172,
+          "H": 0.035
+        },
+        "identity": "menu_change_mode"
+      },
+      {
+        "kind": "button",
+        "bounds": {
+          "X": 0.414,
+          "Y": 0.521,
+          "W": 0.172,
+          "H": 0.035
+        },
+        "identity": "menu_settings"
+      },
+      {
+        "kind": "button",
+        "bounds": {
+          "X": 0.414,
+          "Y": 0.563,
+          "W": 0.172,
+          "H": 0.035
+        },
+        "identity": "menu_exit"
+      }
+    ],
+    "negative_regions": [
+      {
+        "kind": "scene_texture",
+        "bounds": {
+          "X": 0,
+          "Y": 0.55,
+          "W": 0.42,
+          "H": 0.4
+        }
+      },
+      {
+        "kind": "background_geometry",
+        "bounds": {
+          "X": 0,
+          "Y": 0,
+          "W": 0.55,
+          "H": 0.35
+        }
+      },
+      {
+        "kind": "background_geometry",
+        "bounds": {
+          "X": 0.62,
+          "Y": 0,
+          "W": 0.38,
+          "H": 0.42
+        }
+      }
+    ],
+    "ignore_regions": [
+      {
+        "X": 0,
+        "Y": 0.8,
+        "W": 1,
+        "H": 0.2
+      }
+    ]
+  },
+  {
+    "schema": 1,
+    "frame": "rocketleague-pause-cycle-038",
+    "sequence": "pause-close",
+    "index": 2,
+    "interface_present": true,
+    "negative_regions": [
+      {
+        "kind": "scene_texture",
+        "bounds": {
+          "X": 0,
+          "Y": 0.55,
+          "W": 0.42,
+          "H": 0.4
+        }
+      },
+      {
+        "kind": "background_geometry",
+        "bounds": {
+          "X": 0,
+          "Y": 0,
+          "W": 0.55,
+          "H": 0.35
+        }
+      },
+      {
+        "kind": "background_geometry",
+        "bounds": {
+          "X": 0.62,
+          "Y": 0,
+          "W": 0.38,
+          "H": 0.42
+        }
+      }
+    ],
+    "ignore_regions": [
+      {
+        "X": 0,
+        "Y": 0.8,
+        "W": 1,
+        "H": 0.2
+      }
+    ]
+  },
+  {
+    "schema": 1,
+    "frame": "rocketleague-pause-cycle-039",
+    "sequence": "pause-close",
+    "index": 3,
+    "interface_present": true,
+    "regions": [
+      {
+        "kind": "panel",
+        "bounds": {
+          "X": 0.396,
+          "Y": 0.36,
+          "W": 0.208,
+          "H": 0.262
+        },
+        "identity": "pause_panel"
+      },
+      {
+        "kind": "text_region",
+        "bounds": {
+          "X": 0.455,
+          "Y": 0.383,
+          "W": 0.09,
+          "H": 0.04
+        },
+        "identity": "pause_title"
+      },
+      {
+        "kind": "button",
+        "bounds": {
+          "X": 0.414,
+          "Y": 0.437,
+          "W": 0.172,
+          "H": 0.035
+        },
+        "identity": "menu_resume"
+      },
+      {
+        "kind": "button",
+        "bounds": {
+          "X": 0.414,
+          "Y": 0.479,
+          "W": 0.172,
+          "H": 0.035
+        },
+        "identity": "menu_change_mode"
+      },
+      {
+        "kind": "button",
+        "bounds": {
+          "X": 0.414,
+          "Y": 0.521,
+          "W": 0.172,
+          "H": 0.035
+        },
+        "identity": "menu_settings"
+      },
+      {
+        "kind": "button",
+        "bounds": {
+          "X": 0.414,
+          "Y": 0.563,
+          "W": 0.172,
+          "H": 0.035
+        },
+        "identity": "menu_exit"
+      }
+    ],
+    "negative_regions": [
+      {
+        "kind": "scene_texture",
+        "bounds": {
+          "X": 0,
+          "Y": 0.55,
+          "W": 0.42,
+          "H": 0.4
+        }
+      },
+      {
+        "kind": "background_geometry",
+        "bounds": {
+          "X": 0,
+          "Y": 0,
+          "W": 0.55,
+          "H": 0.35
+        }
+      },
+      {
+        "kind": "background_geometry",
+        "bounds": {
+          "X": 0.62,
+          "Y": 0,
+          "W": 0.38,
+          "H": 0.42
+        }
+      }
+    ],
+    "ignore_regions": [
+      {
+        "X": 0,
+        "Y": 0.8,
+        "W": 1,
+        "H": 0.2
+      }
+    ]
+  },
+  {
+    "schema": 1,
+    "frame": "rocketleague-pause-cycle-040",
+    "sequence": "pause-close",
+    "index": 4,
+    "interface_present": true,
+    "regions": [
+      {
+        "kind": "panel",
+        "bounds": {
+          "X": 0.396,
+          "Y": 0.36,
+          "W": 0.208,
+          "H": 0.262
+        },
+        "identity": "pause_panel"
+      },
+      {
+        "kind": "text_region",
+        "bounds": {
+          "X": 0.455,
+          "Y": 0.383,
+          "W": 0.09,
+          "H": 0.04
+        },
+        "identity": "pause_title"
+      },
+      {
+        "kind": "button",
+        "bounds": {
+          "X": 0.414,
+          "Y": 0.437,
+          "W": 0.172,
+          "H": 0.035
+        },
+        "identity": "menu_resume"
+      },
+      {
+        "kind": "button",
+        "bounds": {
+          "X": 0.414,
+          "Y": 0.479,
+          "W": 0.172,
+          "H": 0.035
+        },
+        "identity": "menu_change_mode"
+      },
+      {
+        "kind": "button",
+        "bounds": {
+          "X": 0.414,
+          "Y": 0.521,
+          "W": 0.172,
+          "H": 0.035
+        },
+        "identity": "menu_settings"
+      },
+      {
+        "kind": "button",
+        "bounds": {
+          "X": 0.414,
+          "Y": 0.563,
+          "W": 0.172,
+          "H": 0.035
+        },
+        "identity": "menu_exit"
+      }
+    ],
+    "negative_regions": [
+      {
+        "kind": "scene_texture",
+        "bounds": {
+          "X": 0,
+          "Y": 0.55,
+          "W": 0.42,
+          "H": 0.4
+        }
+      },
+      {
+        "kind": "background_geometry",
+        "bounds": {
+          "X": 0,
+          "Y": 0,
+          "W": 0.55,
+          "H": 0.35
+        }
+      },
+      {
+        "kind": "background_geometry",
+        "bounds": {
+          "X": 0.62,
+          "Y": 0,
+          "W": 0.38,
+          "H": 0.42
+        }
+      }
+    ],
+    "ignore_regions": [
+      {
+        "X": 0,
+        "Y": 0.8,
+        "W": 1,
+        "H": 0.2
+      }
+    ]
+  },
+  {
+    "schema": 1,
+    "frame": "rocketleague-pause-cycle-041",
+    "sequence": "pause-close",
+    "index": 5,
+    "interface_present": true,
+    "regions": [
+      {
+        "kind": "panel",
+        "bounds": {
+          "X": 0.396,
+          "Y": 0.36,
+          "W": 0.208,
+          "H": 0.262
+        },
+        "identity": "pause_panel"
+      },
+      {
+        "kind": "text_region",
+        "bounds": {
+          "X": 0.455,
+          "Y": 0.383,
+          "W": 0.09,
+          "H": 0.04
+        },
+        "identity": "pause_title"
+      },
+      {
+        "kind": "button",
+        "bounds": {
+          "X": 0.414,
+          "Y": 0.437,
+          "W": 0.172,
+          "H": 0.035
+        },
+        "identity": "menu_resume"
+      },
+      {
+        "kind": "button",
+        "bounds": {
+          "X": 0.414,
+          "Y": 0.479,
+          "W": 0.172,
+          "H": 0.035
+        },
+        "identity": "menu_change_mode"
+      },
+      {
+        "kind": "button",
+        "bounds": {
+          "X": 0.414,
+          "Y": 0.521,
+          "W": 0.172,
+          "H": 0.035
+        },
+        "identity": "menu_settings"
+      },
+      {
+        "kind": "button",
+        "bounds": {
+          "X": 0.414,
+          "Y": 0.563,
+          "W": 0.172,
+          "H": 0.035
+        },
+        "identity": "menu_exit"
+      }
+    ],
+    "negative_regions": [
+      {
+        "kind": "scene_texture",
+        "bounds": {
+          "X": 0,
+          "Y": 0.55,
+          "W": 0.42,
+          "H": 0.4
+        }
+      },
+      {
+        "kind": "background_geometry",
+        "bounds": {
+          "X": 0,
+          "Y": 0,
+          "W": 0.55,
+          "H": 0.35
+        }
+      },
+      {
+        "kind": "background_geometry",
+        "bounds": {
+          "X": 0.62,
+          "Y": 0,
+          "W": 0.38,
+          "H": 0.42
+        }
+      }
+    ],
+    "ignore_regions": [
+      {
+        "X": 0,
+        "Y": 0.8,
+        "W": 1,
+        "H": 0.2
+      }
+    ]
+  }
+]

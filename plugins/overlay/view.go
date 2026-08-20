@@ -236,6 +236,18 @@ func (g *view) Update() error {
 	g.alphaBg += (tb - g.alphaBg) * 0.18
 	g.alphaText += (tt - g.alphaText) * 0.18
 
+	// Mouse passthrough follows the mode.
+	//
+	// The overlay is click-through by default and must stay that way: it floats over a
+	// game, and an overlay that swallowed a click meant for the game would be worse
+	// than useless. Inspector is the ONE mode that captures the mouse, it is entered by
+	// name, and Esc leaves it.
+	//
+	// Applied here rather than at the toggle because ebiten window calls belong on the
+	// loop that owns the window, and only when the value actually changes — this runs
+	// every frame.
+	setPassthrough(!s.inspectorOn)
+
 	// Auto-fit the window height to the content (grow for menus/logs, shrink when idle).
 	if nh := layoutHeight(s); nh != int(winH.Load()) {
 		winH.Store(int32(nh))
@@ -277,12 +289,34 @@ func layoutHeight(s snapshot) int {
 	switch {
 	case s.configOn:
 		y += 8 + menuLineH*float64(configRowCount(s, innerW)) + 18 // sep + rows + footer
+	case s.wmode != watchOff:
+		y += 8 + watchLineH*float64(watchRowCount(s, innerW))
+	case s.insightOn:
+		y += 8 + menuLineH*float64(insightRowCount(s, innerW))
+		if s.inspectorOn {
+			y += menuLineH // the captured-mouse banner
+		}
 	case s.helpOn:
 		y += 8 + menuLineH*float64(helpRowCount(s, innerW))
 	case !mini && len(s.history) > 0:
 		y += 8 + histLineH*float64(historyRowCount(s, innerW))
 	}
 	return int(y) + 8 // bottom padding
+}
+
+// passthroughOn mirrors the window's current click-through setting.
+//
+// Tracked so the per-frame call is a comparison rather than a window-system call sixty
+// times a second. Starts true because runView installs passthrough before the first frame.
+var passthroughOn = true
+
+// setPassthrough changes click-through only when it actually differs.
+func setPassthrough(want bool) {
+	if want == passthroughOn {
+		return
+	}
+	passthroughOn = want
+	ebiten.SetWindowMousePassthrough(want)
 }
 
 func (g *view) Layout(int, int) (int, int) { return cfgSize() }
@@ -407,6 +441,43 @@ func (g *view) Draw(screen *ebiten.Image) {
 			}
 		}
 		drawText(screen, "↑↓ pick  ←→ change  S save  Esc", pad, y+2, faceSmall, lerp(th.bg, th.idle, 0.4))
+	case s.wmode != watchOff:
+		// The Director's playbill: WATCH, or DIAGNOSTICS. One account, two readings —
+		// and the status chip at its top is the same one word a consumer surface would
+		// show, from the same value. See watchview.go.
+		sep(screen, pad, y-4, innerW)
+		y += 8
+		drawWatch(screen, pad, y, innerW, s)
+	case s.insightOn:
+		// The Director insight panel. Colour carries the reading: a warning row is the
+		// point of the panel and must not look like the rest of the table.
+		sep(screen, pad, y-4, innerW)
+		y += 8
+		if s.inspectorOn {
+			// Capturing the mouse must never be a silent state. If the overlay is
+			// eating clicks, the reason has to be on screen — and so does the way out.
+			drawText(screen, "INSPECTOR — mouse captured — Esc to release",
+				pad, y, faceSmall, th.listen)
+			y += menuLineH
+		}
+		for _, line := range s.insight {
+			col := th.desc
+			switch {
+			case strings.HasPrefix(line, "director"):
+				col = th.idle
+			case strings.Contains(line, "<- none"),
+				strings.Contains(line, "PROVENANCE INCOMPLETE"),
+				strings.Contains(line, "degraded:"),
+				strings.Contains(line, "failed:"),
+				strings.Contains(line, "not running"),
+				strings.Contains(line, "unreachable"):
+				col = th.errc
+			}
+			for _, ln := range wrapText(line, faceSmall, innerW) {
+				drawText(screen, ln, pad, y, faceSmall, col)
+				y += menuLineH
+			}
+		}
 	case s.helpOn:
 		sep(screen, pad, y-4, innerW)
 		y += 8
@@ -771,6 +842,14 @@ func helpRowCount(s snapshot, innerW float64) int {
 	return n
 }
 
+func insightRowCount(s snapshot, innerW float64) int {
+	n := 0
+	for _, line := range s.insight {
+		n += len(wrapText(line, faceSmall, innerW))
+	}
+	return n
+}
+
 func historyRowCount(s snapshot, innerW float64) int {
 	n := 0
 	for _, e := range s.history {
@@ -783,7 +862,18 @@ func historyRowCount(s snapshot, innerW float64) int {
 // the latest log word-wrapped to innerW (so a long teach prompt isn't truncated).
 func descRows(s snapshot, innerW float64) []string {
 	if !s.editing && (s.state == "idle" || s.state == "listen") {
-		return []string{"`m ui  ·  `m help  ·  `m config"}
+		// The NORMAL reading, on the always-visible line. This is the consumer surface:
+		// one word, and one sentence when there is one. It is a reduction of the SAME
+		// account the Watch panel expands — see model.setWatch — so the two cannot
+		// disagree about whether Marco has a question.
+		//
+		// Only when there is something to say. "Ready" is not news, and a hint line that
+		// restated it forever would train a person to stop reading the one line that
+		// eventually tells them Marco is waiting on them.
+		if row := normalRow(s); row != "" {
+			return wrapText(row, faceSmall, innerW)
+		}
+		return []string{"`m watch  ·  `m ui  ·  `m help  ·  `m config"}
 	}
 	if len(s.logs) > 0 {
 		return wrapText(s.logs[len(s.logs)-1], faceSmall, innerW)

@@ -1,6 +1,7 @@
 // Package runtime walks the static program graph one Frame at a time.
 //
-// MVP scope: single cursor, no concurrency. Branch groups are flattened into
+// Scope: single cursor for the main line; `start` and `execute` spawn independent frames.
+// Branch groups are flattened into
 // the Block as edges; we scan for groups at execution time.
 package runtime
 

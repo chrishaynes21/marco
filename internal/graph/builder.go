@@ -8,7 +8,7 @@ import (
 
 // Build walks the parsed file and produces the static program graph.
 //
-// MVP scope (per .claude/engine/09-mvp-slice.md): handle the declaration
+// Scope: the declaration
 // patterns used by the SaveApp target plus a single script body.
 func Build(file *ast.File) (*Graph, error) {
 	g := New()
@@ -187,9 +187,13 @@ func (b *builder) declareKind(s *ast.Sentence) error {
 	case "set":
 		kind = KindSet
 	case "actor", "act", "scene":
-		// Acts and scenes are structurally actors in MVP — they own state,
-		// declare capabilities, and hear/say messages. The `exports`
-		// declaration and scene-specific composition rules can layer on later.
+		// Three words, ONE kind. An act and a scene are structurally actors: they own
+		// state, declare capabilities, and hear/say messages. `act` is the word a host
+		// surface uses and is the only place `exports` appears, so it carries real
+		// meaning to a reader; `scene` currently carries none the compiler can see and
+		// appears once in the whole corpus. See spec/Core.md — Core v1 promises `actor`,
+		// `act` and `script`, and a future milestone should decide whether `scene`
+		// earns its keep or goes.
 		kind = KindActor
 	case "script":
 		kind = KindScript
@@ -206,7 +210,7 @@ func (b *builder) declareKind(s *ast.Sentence) error {
 	default:
 		return fmt.Errorf("%s: unknown kind %q", s.Pos, kindWord)
 	}
-	n := &Node{Name: name, Kind: kind}
+	n := &Node{Name: name, Kind: kind, Declared: kindWord}
 	if err := b.g.AddNode(n); err != nil {
 		return fmt.Errorf("%s: %w", s.Pos, err)
 	}
@@ -389,7 +393,7 @@ func (b *builder) hasMemberDecl(s *ast.Sentence) error {
 	}
 	memberName := s.Parts[2].Value
 	// Resolve eagerly if the node is already known; otherwise defer.
-	// For MVP we do an eager-lookup pass after the file is built — store the
+	// An eager-lookup pass after the file is built — store the
 	// name in a field-style entry so resolveTypes can backfill the *Node.
 	b.subject.Fields = append(b.subject.Fields, Field{
 		Name:     memberName,

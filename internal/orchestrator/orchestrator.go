@@ -36,7 +36,13 @@ type Deps struct {
 	Hosts map[string]runtime.Host // route execution hosts (e.g. {"*": oshost.New()})
 	In    io.Reader               // prompts / confirmations
 	Out   io.Writer               // user-facing output
-	App   func() string           // current foreground app; nil disables context-awareness
+	// Authority decides whether a resolved play may be performed now.
+	//
+	// Nil means Marco has no way to ask, and a learned play is then REFUSED rather than
+	// assumed — a Marco that cannot put the question must not answer it for the user.
+	// Authored and taught plays are unaffected: they run as they always have.
+	Authority Gate
+	App       func() string // current foreground app; nil disables context-awareness
 	// StopKey is the gesture that ends a recording (e.g. "f12", "esc",
 	// "ctrl+f12"). Empty uses recorder.DefaultStopKey. Keeping it off Esc lets a
 	// macro record Esc as an ordinary key.
@@ -119,12 +125,38 @@ func (d Deps) activeApp() string {
 
 // Do runs the route best matching name in the current app context; if there
 // isn't one, it teaches it, then offers to run.
-func (d Deps) Do(name string) error {
+// Resolve answers WHICH play, and nothing else.
+//
+// THE seam. It can be called, its answer inspected, logged and refused, and nothing has happened:
+// no host built, no input sent, no grant spent, no window focused, no application launched. Getting
+// from here to `Run` means going through `Authorize`.
+func (d Deps) Resolve(name string) (Resolved, bool) {
 	app := d.activeApp()
 	mlog.Debug("do: resolving", "name", name, "app", app)
-	if rt, ok := d.Reg.Resolve(app, name); ok {
-		mlog.Info("do: running", "route", rt.Slug, "scope", rt.App)
-		return d.Run(rt)
+	rt, ok := d.Reg.Resolve(app, name)
+	if !ok {
+		return Resolved{Phrase: name}, false
+	}
+	return Classify(d.Reg, rt, name), true
+}
+
+func (d Deps) Do(name string) error {
+	if r, ok := d.Resolve(name); ok {
+		// THE door. Knowing which play the user means is not permission to perform it —
+		// see [[ADR-029-resolution-is-not-permission]].
+		decision := Authorize(r, d.Authority)
+		mlog.Info("do: authority", "route", r.Route.Slug, "verdict", string(decision.Verdict),
+			"reason", decision.Reason)
+		if !decision.Allow() {
+			if decision.Sentence != "" {
+				fmt.Fprintln(d.Out, decision.Sentence)
+			}
+			// Not an error. "You said no" and "something went wrong" are different
+			// things, and only one of them deserves a non-zero exit.
+			return nil
+		}
+		mlog.Info("do: running", "route", r.Route.Slug, "scope", r.Route.App)
+		return d.Run(r.Route)
 	}
 	mlog.Info("do: unknown — offering teach", "name", name)
 	fmt.Fprintf(d.Out, "I don't know %q yet.\n", name)
@@ -137,6 +169,8 @@ func (d Deps) Do(name string) error {
 	if err := d.Teach(name); err != nil {
 		return err
 	}
+	// A play the user has just demonstrated themselves. They wrote it; the ordinary policy
+	// applies, and the question here is about running it NOW rather than about trusting it.
 	if rt, ok := d.Reg.Resolve(d.activeApp(), name); ok && d.confirm("Run it now? [y]es / [n]o: ") {
 		return d.Run(rt)
 	}

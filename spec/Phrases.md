@@ -1,4 +1,8 @@
 ---
+status: reference
+---
+
+---
 # Phrases {#phrases}
 ---
 

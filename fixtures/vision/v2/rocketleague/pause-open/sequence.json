@@ -1,0 +1,13 @@
+{
+  "schema": 2,
+  "sequence": "pause-open",
+  "note": "Gameplay for three frames, then the pause menu arrives at frame 3 and stays. A detector claiming menu buttons before frame 3 is wrong, not early.",
+  "tracks": [
+    { "identity": "pause_panel",      "present": [[3, 5]] },
+    { "identity": "pause_title",      "present": [[3, 5]] },
+    { "identity": "menu_resume",      "present": [[3, 5]] },
+    { "identity": "menu_change_mode", "present": [[3, 5]] },
+    { "identity": "menu_settings",    "present": [[3, 5]] },
+    { "identity": "menu_exit",        "present": [[3, 5]] }
+  ]
+}

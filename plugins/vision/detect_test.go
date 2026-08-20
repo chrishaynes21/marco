@@ -2,6 +2,7 @@ package main
 
 import (
 	"image"
+	"strings"
 	"testing"
 )
 
@@ -52,14 +53,24 @@ func TestPickNoMatch(t *testing.T) {
 	}
 }
 
-func TestNullDetectorDeclines(t *testing.T) {
-	// The default build's detector is never ready and finds nothing — the graceful path.
+func TestUnconfiguredDetectorDeclines(t *testing.T) {
+	// An unconfigured detector must never invent detections. Both builds satisfy that, and
+	// they say so differently: the default build finds nothing quietly, while the onnxvision
+	// build reports WHY it cannot run. Either is correct; a detection is not.
+	//
+	// Asserted this way because the previous version pinned the default build's exact
+	// return and did not compile under `-tags onnxvision` at all, so the production build's
+	// behaviour here had never been tested.
 	d := newDetector()
 	if d.Ready() {
-		t.Fatal("null detector reports ready")
+		t.Fatal("an unconfigured detector reports ready")
 	}
 	els, err := d.Detect(image.NewRGBA(image.Rect(0, 0, 10, 10)))
-	if err != nil || len(els) != 0 {
-		t.Fatalf("null detect = %v, %v; want nil, empty", els, err)
+	if len(els) != 0 {
+		t.Fatalf("unconfigured detect returned %d elements; it must find nothing", len(els))
+	}
+	if err != nil && !strings.Contains(err.Error(), "MARCO_VISION_MODEL") {
+		t.Fatalf("unconfigured detect failed with %v; an error here must name the missing "+
+			"configuration, not something a caller cannot act on", err)
 	}
 }

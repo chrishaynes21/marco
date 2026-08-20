@@ -1,7 +1,10 @@
 // Package compile turns action and script bodies into Block sequences of edges
 // that the runtime can execute.
 //
-// MVP scope: handles only the patterns used by the SaveApp target.
+// Scope: the whole of Marco Core v1 (spec/Core.md) plus the supported extensions listed
+// there. The "MVP / SaveApp target" this comment used to name has not described this file
+// for a long time — 108 fixtures under testdata/ exercise contracts, translators, feeds,
+// queues, channels, locking, concurrency and tests, and every one of them comes through here.
 package compile
 
 import (
@@ -198,6 +201,7 @@ func Compile(g *graph.Graph, _ *ast.File) error {
 		c.checkAllowedShapes,
 		c.checkNoReentrancy,
 		c.checkPhrasesResolve,
+		c.checkExportsBelongToActs,
 	}
 	for _, fn := range checks {
 		before := len(c.errs)
@@ -2616,7 +2620,7 @@ func (c *compiler) compileBody(sents []ast.Sentence) ([]graph.Edge, error) {
 	return block.Edges, nil
 }
 
-// compileSentence compiles a non-branch-header sentence. MVP forms:
+// compileSentence compiles a non-branch-header sentence. Supported forms:
 //
 //   - `this is ok!`                        → return ok
 //   - `this is ok with this's <F>!`        → return ok with self.field
@@ -2968,7 +2972,7 @@ func (c *compiler) compileSentence(s *ast.Sentence) ([]graph.Edge, error) {
 			}
 			return []graph.Edge{{Kind: graph.EdgeAssign, Ref: ref, Expr: expr, Pos: *s}}, nil
 		}
-		return nil, &Error{Pos: *s, Msg: "unsupported `.` sentence (MVP)"}
+		return nil, &Error{Pos: *s, Msg: "unsupported `.` sentence — see spec/Core.md for the sentences Marco understands"}
 	case ast.TermEllipsis:
 		// for each [<Name>] in <ref>...
 		if len(parts) >= 4 &&
@@ -3206,9 +3210,9 @@ func (c *compiler) compileSentence(s *ast.Sentence) ([]graph.Edge, error) {
 			edges = append(edges, body...)
 			return edges, nil
 		}
-		return nil, &Error{Pos: *s, Msg: "unsupported `...` sentence (MVP)"}
+		return nil, &Error{Pos: *s, Msg: "unsupported `...` sentence — see spec/Core.md for the sentences Marco understands"}
 	default:
-		return nil, &Error{Pos: *s, Msg: "unsupported sentence terminator (MVP)"}
+		return nil, &Error{Pos: *s, Msg: "unsupported sentence terminator — Marco sentences end in `.`, `!`, `?` or `...`"}
 	}
 }
 
@@ -3536,7 +3540,7 @@ func lastTopLevelPlus(parts []ast.Part) int {
 }
 
 // parseConstructFields parses `Field <Expr>, Field <Expr>, ...` —
-// MVP: each field's expression is a single literal or single-name reference.
+// Each field's expression is a single literal or single-name reference.
 func (c *compiler) parseConstructFields(parts []ast.Part, src *ast.Sentence) ([]graph.ConstructField, error) {
 	var out []graph.ConstructField
 	i := 0
@@ -3575,4 +3579,74 @@ func findCap(n *graph.Node, name string) *graph.Capability {
 		}
 	}
 	return nil
+}
+
+// checkExportsBelongToActs holds the one distinction between `act`, `scene` and `actor` that
+// the compiler can genuinely check.
+//
+// # Why these three words share a Kind, and why that is fine
+//
+// An act, a scene and an actor all own state, declare verbs, and hear and say. At runtime they
+// behave identically, so they share KindActor — and sharing machinery beneath distinct meanings
+// is not a bug. What WOULD be a bug is the language losing the distinction the author wrote
+// down, which is why Node.Declared keeps the authored word.
+//
+// # What the distinction actually is
+//
+//	act    organises what the play can do, and is the boundary that EXPOSES capabilities
+//	       outwards. `this exports …` is an act's sentence, and an exported capability with no
+//	       body is fulfilled by a host.
+//	scene  describes where things happen. It may hold actors and declare verbs.
+//	actor  is a thing in the play.
+//
+// Only the first of those is checkable from the graph alone, and it is the one that matters:
+// `exports` on an actor used to compile, which meant "act" carried no obligation a reader could
+// rely on. A scene or an actor that exports is claiming to be a module boundary, and the honest
+// answer is to say so rather than to let the word drift.
+func (c *compiler) checkExportsBelongToActs() error {
+	for _, name := range c.g.Order {
+		n := c.g.Nodes[name]
+		if n.Kind != graph.KindActor || n.Declared == "act" || n.Declared == "" {
+			continue
+		}
+		for _, cap := range n.Caps {
+			if !cap.Exported {
+				continue
+			}
+			pos := ast.Sentence{}
+			if cap.Action != nil && cap.Action.Body != nil {
+				pos = *cap.Action.Body
+			}
+			c.report(&Error{
+				Pos: pos,
+				Msg: fmt.Sprintf(
+					"%s is %s %s, and only an act exports.\n"+
+						"  An act is the boundary that offers capabilities outwards — it is "+
+						"what `use` brings in and what a host fulfils.\n"+
+						"  %s %s is part of the play, not a way in: give %s a verb with "+
+						"`this can %s.` instead.",
+					n.Name, article(n.Declared), n.Declared,
+					capitalise(article(n.Declared)), n.Declared, n.Name, cap.Name),
+			})
+		}
+	}
+	return nil
+}
+
+func article(word string) string {
+	if word == "" {
+		return "a"
+	}
+	switch word[0] {
+	case 'a', 'e', 'i', 'o', 'u':
+		return "an"
+	}
+	return "a"
+}
+
+func capitalise(s string) string {
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
 }

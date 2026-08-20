@@ -14,3 +14,14 @@
 *.png binary
 *.tar binary
 *.zip binary
+
+# Vision benchmark corpus images.
+#
+# Full-resolution 1920x1080 game frames: ~3MB each, and the corpus is expected to grow as
+# sequences are added. Ordinary Git would keep every revision of every frame forever, and a
+# benchmark corpus is exactly the wrong thing to store that way — the frames are replaced
+# wholesale when a sequence is recaptured, never diffed.
+#
+# The MANIFEST and GROUND TRUTH stay in ordinary Git: they are small, they are edited by hand,
+# and their history is the interesting one.
+fixtures/vision/v2/**/*.png filter=lfs diff=lfs merge=lfs -text

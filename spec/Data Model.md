@@ -1,4 +1,8 @@
 ---
+status: reference
+---
+
+---
 # Data Model {#data-model}
 ---
 

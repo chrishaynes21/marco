@@ -232,14 +232,40 @@ func processActions(h *model, emit func(event)) {
 			case "config", "cfg", "settings":
 				inConfig.Store(true)
 				h.openConfig(configLines())
+			case "watch", "director", "insight":
+				// Opens the panel rather than submitting a phrase. "director" on its
+				// own is not something to DO to the screen, and sending it to the
+				// Director would make it hunt for a control called "director".
+				//
+				// WATCH: what Marco sees, believes, is learning and needs. Click-through,
+				// because a person is meant to keep using another application while it
+				// is up.
+				h.openWatch()
+			case "diagnostics", "diagnose", "inspector", "inspect":
+				// DIAGNOSTICS: the evidence underneath what Watch said, and the one mode
+				// that captures the mouse. Entered by name, never implicitly, and Esc
+				// releases it — see actCancel/actDismiss below.
+				h.openDiagnostics()
+			case "perception", "explain":
+				// The frozen per-element perception snapshot. Kept as its own word: it
+				// is expensive, it is a point-in-time sample rather than a live view,
+				// and it answers a narrower question than the playbill does.
+				refreshInsightDeep(h)
 			default:
 				h.setStatus("running: " + cmd)
 				emit(event{Feed: "Commands", Event: "Run", Data: cmd})
 			}
 		case actCancel:
+			// Esc always releases the mouse and closes whatever is up. Visibility must
+			// never be able to trap a person: the way out of a panel is the same key it
+			// has always been, and it is checked before anything else.
+			h.closeWatch()
+			h.closeInsight()
 			h.dismiss()
 		case actDismiss:
 			h.closeHelp()
+			h.closeWatch()
+			h.closeInsight()
 			h.dismiss()
 		case actHelp:
 			h.setLeaderEcho("`" + string(a.r)) // show "`h" in the terminal

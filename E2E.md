@@ -225,3 +225,55 @@ Remove-Item Env:MARCO_ROUTES
 >
 > URLs in route phrases work fine (`go to http://…` stays intact — the `//` guard
 > in `ParseInvocation` prevents it from being treated as a `key:value` arg).
+
+## Realistic Learn acceptance (Roadmap 34, goal-centric — needs a human, ~5 min)
+
+The acceptance criterion: **you use the computer normally while Marco learns.** You should
+never need to know when START fingerprints, when capture arms, when a session samples, when
+to wait for boxes, or when to return anywhere. If any step below makes you feel like you're
+operating Marco's protocol instead of your computer, that is a FAIL of the milestone even if
+the mechanics pass.
+
+Setup: `director serve` running with the UIA bridge; Windows **Settings** open on its home
+page (Settings grounds cleanly; Explorer cannot be pointed at — see Experiment-012).
+
+> Already confirmed on a cold service (2026-08-17), so if any of these fail it is a
+> regression rather than an unknown: the phrase is accepted and the play name it derives is
+> printed up front (`do MouseSettings's Open`); a cold Settings — never established, no
+> question ever answered about it — still reaches "go ahead and show me" and grounds its
+> start; and with nobody demonstrating, the pass refuses honestly with *"I didn't see
+> anything change"* and saves nothing. What needs your hands starts at the click.
+
+1. **Learn with one ordinary click.**
+   `director teach "open mouse settings"` — if Settings is not the foreground window, add
+   `--window-title Settings`. Wait for "go ahead and show me", then simply click
+   **Bluetooth & devices → Mouse** (or navigate Home → Mouse however you normally would,
+   clicks included). Stop when you're there. Do nothing else.
+   - PASS: the pass ends a couple of seconds after you stop, on its own. No second
+     demonstration is requested for a clean example. `--watch` shows the click attributed
+     WITH its target (a `list_item` and, under the Learn licence, its name).
+   - PASS: `director reach` lists `"open mouse settings"`.
+   - PASS (capture-first): even if recognition failed somewhere, `director observation-session`
+     shows every click/keypress you made in the session's input log — nothing discarded.
+
+2. **The rehearsal reaches the right window.**
+   Answer the "want me to try?" question (`director answer … yes`) from the terminal — and
+   deliberately leave the terminal in front for a few seconds.
+   - PASS: nothing is typed into the terminal. Teach reports it is waiting
+     (`window_not_in_front` in `--watch`); the moment you click into Settings (standing on
+     the start), the attempt fires ONCE, and each step classifies against the right screens
+     (no unconditional `unrecognised`).
+
+3. **Reuse from somewhere other than the demonstrated start.**
+   Walk Settings to wherever the route's start was (e.g. Bluetooth & devices) by hand, then
+   `director reach "open mouse settings"`.
+   - PASS: the plan starts from where you ARE. If you're already on Mouse, it says you're
+     already there. From a page with no known chain, it says "I know what you want to
+     reach, but I don't yet know how to get there from here" — never "go back to Home".
+
+4. **No stale boxes.**
+   During and after all of the above: run a bare `director teach` status read mid-session
+   and again after it settles.
+   - PASS: highlights appear only at the moment their decision is made, are gone when the
+     phase moves on or the session ends, and a status read after the moment prints the
+     sentence with no box. Nothing lingers waiting for a timer.

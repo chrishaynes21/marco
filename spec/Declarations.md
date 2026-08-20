@@ -1,4 +1,8 @@
 ---
+status: reference
+---
+
+---
 # Declarations {#declarations}
 ---
 

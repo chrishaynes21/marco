@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"runtime"
+	"time"
 )
 
 func newBackend() backend { return stubBackend{} }
@@ -19,7 +20,9 @@ func unsupported(op string) error {
 	return fmt.Errorf("OS host: %s not supported on %s", op, runtime.GOOS)
 }
 
-func (stubBackend) key(context.Context, string) error      { return unsupported("key") }
+func (stubBackend) key(context.Context, string, time.Duration) error {
+	return unsupported("key")
+}
 func (stubBackend) keyDown(context.Context, string) error  { return unsupported("keydown") }
 func (stubBackend) keyUp(context.Context, string) error    { return unsupported("keyup") }
 func (stubBackend) typeText(context.Context, string) error { return unsupported("type") }

@@ -37,6 +37,7 @@ var (
 	procCloseHandle          = kernel32.NewProc("CloseHandle")
 	procGetModuleFileNameExW = psapi.NewProc("GetModuleFileNameExW")
 	procShellExecuteW        = shell32.NewProc("ShellExecuteW")
+	procPostMessageW         = user32.NewProc("PostMessageW")
 )
 
 const (
@@ -119,6 +120,14 @@ func ForegroundTitle() string {
 	if hwnd == 0 {
 		return ""
 	}
+	return titleOf(hwnd)
+}
+
+// titleOf reads one window's title-bar text, "" when it cannot be read.
+func titleOf(hwnd uintptr) string {
+	if hwnd == 0 {
+		return ""
+	}
 	buf := make([]uint16, 512)
 	n, _, _ := procGetWindowTextW.Call(hwnd, uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)))
 	return syscall.UTF16ToString(buf[:n])
@@ -172,9 +181,117 @@ func Activate(name string) error {
 	return nil
 }
 
+// ActivateTitle brings the window whose TITLE contains a phrase to the front.
+//
+// Distinct from Activate, which matches by executable and therefore cannot tell two
+// windows of the same application apart. That is exactly the case this exists for: a
+// machine with three File Explorer windows open has three windows belonging to
+// explorer.exe, and "the one showing this folder" is not expressible any other way.
+//
+// Refuses an AMBIGUOUS match rather than picking one. Two windows whose titles contain the
+// phrase means the phrase did not identify a window, and foregrounding either would be
+// choosing on the user's behalf — the same refusal the Director's own resolver makes.
+func ActivateTitle(phrase string) error {
+	phrase = strings.ToLower(strings.TrimSpace(phrase))
+	if phrase == "" {
+		return fmt.Errorf("activate: empty window title")
+	}
+
+	var matches []uintptr
+	cb := syscall.NewCallback(func(hwnd uintptr, _ uintptr) uintptr {
+		if vis, _, _ := procIsWindowVisible.Call(hwnd); vis == 0 {
+			return 1
+		}
+		if strings.Contains(strings.ToLower(titleOf(hwnd)), phrase) {
+			matches = append(matches, hwnd)
+		}
+		return 1
+	})
+	procEnumWindows.Call(cb, 0)
+
+	switch len(matches) {
+	case 0:
+		return fmt.Errorf("activate: no visible window's title contains %q", phrase)
+	case 1:
+	default:
+		return fmt.Errorf("activate: %d visible windows' titles contain %q, so it names "+
+			"no particular one", len(matches), phrase)
+	}
+
+	found := matches[0]
+	if cur, _, _ := procGetForegroundWindow.Call(); cur != 0 && cur != found {
+		prevForeground = cur
+	}
+	forceForeground(found)
+	for range 15 {
+		if fg, _, _ := procGetForegroundWindow.Call(); fg == found {
+			waitWindowStable(found)
+			return nil
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	// Windows refuses foreground changes from a process that does not hold it. Reported
+	// rather than papered over: a caller that believed this succeeded would then act in
+	// whatever window is really in front.
+	return fmt.Errorf("activate: %q would not come to the front; this process may not "+
+		"hold the foreground right", phrase)
+}
+
+// CloseTitle asks the one window whose title contains a phrase to close.
+//
+// ASKS: it posts WM_CLOSE, which is what clicking the X does. The window decides — an
+// application with unsaved work still gets to put up its prompt — and nothing is
+// terminated. There is deliberately no force here and no process-level fallback: a
+// "cleanup" that killed the shell would take the user's taskbar with it.
+//
+// Refuses an ambiguous match for the same reason ActivateTitle does. A phrase that names
+// two windows names neither, and closing one of them would be choosing on the user's
+// behalf.
+func CloseTitle(phrase string) error {
+	phrase = strings.ToLower(strings.TrimSpace(phrase))
+	if phrase == "" {
+		return fmt.Errorf("close: empty window title")
+	}
+
+	var matches []uintptr
+	cb := syscall.NewCallback(func(hwnd uintptr, _ uintptr) uintptr {
+		if vis, _, _ := procIsWindowVisible.Call(hwnd); vis == 0 {
+			return 1
+		}
+		if strings.Contains(strings.ToLower(titleOf(hwnd)), phrase) {
+			matches = append(matches, hwnd)
+		}
+		return 1
+	})
+	procEnumWindows.Call(cb, 0)
+
+	switch len(matches) {
+	case 0:
+		return fmt.Errorf("close: no visible window's title contains %q", phrase)
+	case 1:
+	default:
+		return fmt.Errorf("close: %d visible windows' titles contain %q, so it names no "+
+			"particular one", len(matches), phrase)
+	}
+
+	procPostMessageW.Call(matches[0], wmClose, 0, 0)
+	// Wait for it to go, briefly. A window that is still there afterwards is reported
+	// rather than escalated to something more forceful.
+	for range 40 {
+		if vis, _, _ := procIsWindowVisible.Call(matches[0]); vis == 0 {
+			return nil
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	return fmt.Errorf("close: the window matching %q did not close", phrase)
+}
+
 // prevForeground is the window that was in front before the most recent Activate
 // switch — Restore returns to it. Per-process (a route runs in its own `marco do`).
 var prevForeground uintptr
+
+// wmClose is WM_CLOSE: the polite "please close", which is what the X button posts.
+const wmClose = 0x0010
 
 // RestorePrevious re-focuses the window that was in front before the last Activate,
 // so a route can act in another app and then return you to where you were (mute

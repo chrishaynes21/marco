@@ -53,6 +53,7 @@ func anchorVal(fields map[string]runtime.Value) runtime.Value {
 type recBackend struct {
 	mu       sync.Mutex
 	keys     []string
+	keyHolds []time.Duration // hold passed alongside each keys entry
 	keyDowns []string
 	keyUps   []string
 	typed    []string
@@ -62,10 +63,11 @@ type recBackend struct {
 	exe      string
 }
 
-func (r *recBackend) key(_ context.Context, name string) error {
+func (r *recBackend) key(_ context.Context, name string, hold time.Duration) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.keys = append(r.keys, name)
+	r.keyHolds = append(r.keyHolds, hold)
 	return nil
 }
 func (r *recBackend) keyDown(_ context.Context, name string) error {
@@ -157,6 +159,29 @@ func TestKeyAndType(t *testing.T) {
 	}
 	if len(rec.typed) != 1 || rec.typed[0] != "hi" {
 		t.Fatalf("typed = %v", rec.typed)
+	}
+	// A plain text key carries no explicit hold (0 → backend's default linger).
+	if len(rec.keyHolds) != 1 || rec.keyHolds[0] != 0 {
+		t.Fatalf("keyHolds = %v, want [0]", rec.keyHolds)
+	}
+}
+
+// A Press set { Key, Hold } passes the key through and holds it Hold ms — the knob
+// that lets Alt+Tab commit without spelling out KeyDown/Sleep/KeyUp.
+func TestKeyHold(t *testing.T) {
+	rec := &recBackend{}
+	h := &Host{b: rec}
+	s := runtime.NewSet()
+	s.Put("Key", runtime.Text("alt+tab"))
+	s.Put("Hold", runtime.Number(250))
+	if st, _, _ := call(h, "Key", runtime.SetVal(s)); st != "ok" {
+		t.Fatalf("Key status = %q", st)
+	}
+	if len(rec.keys) != 1 || rec.keys[0] != "alt+tab" {
+		t.Fatalf("keys = %v, want [alt+tab]", rec.keys)
+	}
+	if len(rec.keyHolds) != 1 || rec.keyHolds[0] != 250*time.Millisecond {
+		t.Fatalf("keyHolds = %v, want [250ms]", rec.keyHolds)
 	}
 }
 

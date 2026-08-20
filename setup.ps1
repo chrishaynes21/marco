@@ -19,6 +19,14 @@
     -NoVoice   leave voice out of overlay.cmd even if voice.exe is built.
     -WebUI     the web control panel (plugins/web-ui)
     -Resolver  the Claude NL resolver plugin (plugins/claude-resolver)
+    -Llama     the LOCAL-first NL resolver plugin (plugins/llama). Builds llama.exe
+               and provisions a small model that runs ON THIS MACHINE via Ollama
+               (installs Ollama via winget if missing, then `ollama pull` the
+               -LlamaModel), then pins MARCO_RESOLVER + MARCO_ASSISTANT (the
+               conversational director) + MARCO_LLM_MODEL. No API key,
+               no cost, nothing leaves the computer. If Ollama can't be installed the
+               plugin is still wired and degrades to "no match" until it's running.
+               Overrides -Resolver (both set MARCO_RESOLVER; local wins).
     -OCR       the text/OCR anchor resolver (plugins/ocr). Builds ocr.exe AND
                installs the tesseract OCR engine it needs (via winget, or a
                -TesseractUrl silent installer), then pins MARCO_TESSERACT.
@@ -53,6 +61,7 @@ param(
     [switch]$NoVoice,
     [switch]$WebUI,
     [switch]$Resolver,
+    [switch]$Llama,
     [switch]$OCR,
     [switch]$Vision,
     [switch]$CV,
@@ -67,7 +76,8 @@ param(
     [string]$VisionModel = "",
     [string]$OnnxRuntimeVersion = "1.26.0",
     [string]$VisionModelUrl = "https://huggingface.co/microsoft/OmniParser-v2.0/resolve/main/icon_detect/model.pt",
-    [string]$VisionLabels = "icon"
+    [string]$VisionLabels = "icon",
+    [string]$LlamaModel = "llama3.2:3b"
 )
 
 $ErrorActionPreference = "Stop"
@@ -148,6 +158,44 @@ function Install-Tesseract {
         return ""
     }
     return Find-Tesseract
+}
+
+# Find-Ollama returns the path to ollama.exe — on PATH or the standard per-user install
+# location — or "" if it isn't installed.
+function Find-Ollama {
+    $cmd = Get-Command ollama -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+    $p = Join-Path $env:LOCALAPPDATA "Programs\Ollama\ollama.exe"
+    if (Test-Path $p) { return $p }
+    return ""
+}
+
+# Install-Ollama ensures the local model runner is present and the model is pulled.
+# Returns the ollama.exe path ("" if it couldn't install it). Prefers an existing
+# install, then winget (Ollama.Ollama). Any failure is a warning, never fatal — the
+# plugin is still wired and simply returns "no match" until Ollama is up.
+function Install-Ollama {
+    $found = Find-Ollama
+    if ($found -eq "") {
+        if (Get-Command winget -ErrorAction SilentlyContinue) {
+            Info "installing Ollama via winget (Ollama.Ollama)..."
+            # winget returns non-zero if it's already installed; not an error here.
+            & winget install -e --id Ollama.Ollama `
+                --accept-package-agreements --accept-source-agreements --disable-interactivity
+            $found = Find-Ollama
+        } else {
+            Warn "can't auto-install Ollama: no winget. Install it from https://ollama.com/download,"
+            Warn "then re-run .\setup.ps1 -Llama. The plugin is wired and will work once Ollama runs."
+            return ""
+        }
+    }
+    if ($found -eq "") { Warn "Ollama not found after install attempt."; return "" }
+    Info "have ollama ($found)"
+    # Pull the model now so the first `marco` command isn't a multi-GB download. `ollama
+    # pull` is a no-op (fast) when the model is already present.
+    Info "pulling model $LlamaModel (first run downloads a few GB)..."
+    try { & $found pull $LlamaModel } catch { Warn "ollama pull failed: $($_.Exception.Message)" }
+    return $found
 }
 
 # Install-OnnxRuntime downloads the ONNX Runtime Windows shared library and returns the
@@ -256,6 +304,17 @@ if ($Resolver) {
     } elseif (-not $env:ANTHROPIC_API_KEY) {
         Warn "no API key: set one with  setx ANTHROPIC_API_KEY sk-...  (or re-run with -ApiKey sk-...)"
     }
+}
+
+# --- local-first LLM resolver (optional) ------------------------------------
+$llamaReady = $false
+if ($Llama) {
+    Step "Llama (local NL -> route)"
+    BuildMod "plugins\llama" "llama.exe"
+    $llamaReady = $true
+    # Provision a model that runs on THIS machine. Best-effort: a failure here leaves
+    # the plugin wired but returning "no match" until Ollama is running.
+    Install-Ollama | Out-Null
 }
 
 # --- OCR text resolver (optional) -------------------------------------------
@@ -402,7 +461,16 @@ if ($CV) {
 } elseif ($NoCV) {
     [void]$lines.Add('set "MARCO_CV=off"')
 }
-if ($resolverReady) {
+if ($llamaReady) {
+    # A LOCAL model resolves loose phrasing the offline matcher misses — no key, no
+    # cost, private. Wins over the Claude resolver when both were built (both set
+    # MARCO_RESOLVER). The plugin defaults to Ollama at localhost:11434.
+    [void]$lines.Add('set "MARCO_RESOLVER=%CD%\plugins\llama\llama.exe"')
+    # MARCO_ASSISTANT points the conversational director at the SAME binary (it also
+    # speaks the richer converse protocol), enabling run/teach/chat/clarify.
+    [void]$lines.Add('set "MARCO_ASSISTANT=%CD%\plugins\llama\llama.exe"')
+    [void]$lines.Add("set `"MARCO_LLM_MODEL=$LlamaModel`"")
+} elseif ($resolverReady) {
     # Claude resolves loose phrasing the local matcher misses (needs ANTHROPIC_API_KEY).
     [void]$lines.Add('set "MARCO_RESOLVER=%CD%\plugins\claude-resolver\claude-resolver.exe"')
 }

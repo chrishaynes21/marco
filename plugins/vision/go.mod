@@ -12,6 +12,6 @@ go 1.26.2
 // dependency-free, so the plugin builds and tests everywhere without the runtime or a model.
 require github.com/chaynes-simpleclouds/marco v0.0.0
 
-require github.com/yalue/onnxruntime_go v1.31.0 // indirect
+require github.com/yalue/onnxruntime_go v1.32.0 // indirect
 
 replace github.com/chaynes-simpleclouds/marco => ../..

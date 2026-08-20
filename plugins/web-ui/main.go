@@ -68,8 +68,24 @@ func main() {
 	}
 	http.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		fmt.Fprint(w, page)
+		// The page is compiled into the binary and changes when the binary does, so a
+		// browser holding an old copy is showing a Director that no longer exists. That
+		// cost an entire round of "the buttons are not there" once already.
+		w.Header().Set("Cache-Control", "no-store, must-revalidate")
+		fmt.Fprint(w, accountPage)
 	})
+	http.HandleFunc("/api/playbill", handlePlaybill)
+	http.HandleFunc("/api/answer", handleAnswer)
+	http.HandleFunc("/api/name", handleName)
+	http.HandleFunc("/api/stop", handleStop)
+	http.HandleFunc("/api/knows", handleKnows)
+	http.HandleFunc("/api/correct", handleCorrect)
+	// "Show me what this refers to". A read: it points, and changes nothing.
+	http.HandleFunc("/api/showme", handleShowMe)
+	// Show Sight. A READ: it starts nothing and answers nothing, which is what makes it safe
+	// to leave a panel polling it while a person is being asked a question.
+	http.HandleFunc("/api/sight", handleSight)
+	http.HandleFunc("/api/point", handlePoint)
 	http.HandleFunc("/api/routes", func(w http.ResponseWriter, _ *http.Request) {
 		out, err := exec.Command(marcoBin(), "routes", "--json").Output()
 		if err != nil {

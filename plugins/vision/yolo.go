@@ -162,10 +162,21 @@ func toElements(boxes []rawBox, scale float64, padX, padY int, labels []string, 
 	return out
 }
 
-// labelFor names a class index from the model's label list, falling back to "class<N>".
+// labelFor names a class index from the model's label list, NORMALISED into Marco's
+// vocabulary.
+//
+// The normalisation happens here — at the last point the model's own word exists — because
+// everything above the plugin speaks Marco's closed vocabulary and nothing above it should
+// need to know which model produced a detection. Putting this any later is what made a
+// perfectly working ScreenParser emit 14 detections and have all 14 refused as unknown
+// classes, which is the same failure Experiment-001 recorded for Grounding DINO.
+//
+// An unmapped class keeps its native word and is refused downstream. That is deliberate: a
+// closed vocabulary stays closed by refusing what it does not recognise.
 func labelFor(class int, labels []string) string {
 	if class >= 0 && class < len(labels) {
-		return labels[class]
+		normalised, _ := normaliseClass(labels[class])
+		return normalised
 	}
 	return "element"
 }

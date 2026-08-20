@@ -88,7 +88,16 @@ Backtick (`` ` ``) is the **leader**; the next key chooses what happens:
   (grey), **✗** failed (red). It fades with the text and sticks ~1 minute, then
   clears. Capped to the `max lines` config.
 - **Voice (optional)** — run the [`voice`](../voice) layer piped into `serve`;
-  speaking shows a live preview and a finished phrase runs as a command.
+  speaking shows a live preview, and a finished phrase goes to the **Director**
+  (`marco director "<phrase>"`), which resolves it against what is actually on
+  screen. Route lookup is the fallback when the Director cannot be reached; a
+  recognised phrase is never dropped. The Director streams back what it is doing —
+  `heard: …`, progress, and the outcome — into the HUD log, and it answers a spoken
+  **"stop"** even mid-command, because dispatch does not block the panel. If the
+  Director asks which of several controls you meant, the HUD lists them numbered and
+  your next phrase ("the second one") answers it. Typed commands are unaffected —
+  they still run routes. `MARCO_DIRECTOR=off` restores the old behaviour.
+  See [`docs/director-service.md`](../../docs/director-service.md).
 - **Esc** — cancel the command while typing; otherwise stop a running route
   (→ canceled) and unfocus the panel. Esc is *not* swallowed when idle, so games
   still get it.

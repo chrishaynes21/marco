@@ -1,0 +1,59 @@
+// theater.marco — putting on a production: acting on the things a play means.
+//
+// # What a Target is, and why it names no provider
+//
+// A TARGET is what somebody meant to interact with: the Mouse button. It is not a UIA element, a
+// DOM node, a rectangle or a detection. Those are how Marco FOUND it on one machine at one
+// moment, and they belong to whichever provider did the finding.
+//
+//	Targets describe what the audience meant to interact with.
+//	Providers describe how Marco found it.
+//
+// That split is the whole reason this act exists. A play written against a provider stops working
+// when the provider does; a play written against a target keeps working wherever Marco can still
+// recognise the thing, because the sentence says what it wants rather than where to look.
+//
+// # Why the Theater performs it
+//
+// Because deciding HOW is not the play's job and not the Director's. The Director says which
+// production to put on; the Theater knows the stage it is standing on, which actors are available
+// to it tonight, and casts one that can play the part. A play that chose its own actor would be a
+// script with the casting notes written into the dialogue.
+//
+// # Why this is not part of Screen
+//
+// `screen.marco` says in its first paragraph that every capability in it READS, and that deciding
+// must not be doing. Asking "is the settings screen up?" and pressing something on it are
+// opposite kinds of sentence, and putting them in one act would quietly retire a promise that
+// every guarded play depends on.
+//
+// # And why it is not part of Accessibility
+//
+// Because naming a provider in a play is the thing being fixed. The Accessibility act keeps its
+// own capabilities for callers that genuinely hold a control already — see accessibility.marco,
+// whose Control carries the source's own ephemeral id. That act is one of the actors this one
+// may cast, not a synonym for it.
+//
+// See [[ADR-068-the-theater-is-the-durable-semantic-world]].
+
+the Theater is an act.
+
+this exports Activate.  // do to this target what pressing it would do
+
+// A thing in the world, named the way a person would name it.
+//
+// Name is what the target is CALLED — the word on the button, as somebody reading the play would
+// say it. It is a REFERENCE, not a search: Marco already knows this target, and the name is how
+// the play refers to what Marco knows, exactly as `Screen's Showing with "the pause menu"` refers
+// to a place. The evidence that resolves it lives with the target, not in the play.
+//
+// Kind is what sort of thing to expect — button, item, field, menu, link, tab, checkbox, window.
+// Deliberately not a provider's control-type list: a play should not have to know that Windows
+// calls something a ListItem. It narrows a search and it disambiguates, because a word shared by
+// a button and a caption is only one thing you can press.
+//
+// Empty Kind means "whatever it is", which is the honest answer when the demonstration could not
+// tell, and it is treated as saying nothing rather than as excluding anything.
+the Target is a set.
+this's Name is a text.  // what the person would call it
+this's Kind is a text.  // button | item | field | menu | link | tab | checkbox | window

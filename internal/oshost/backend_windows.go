@@ -60,7 +60,7 @@ func sleepCtx(ctx context.Context, d time.Duration) {
 	}
 }
 
-func (winBackend) key(ctx context.Context, name string) error {
+func (winBackend) key(ctx context.Context, name string, hold time.Duration) error {
 	// A chord like "ctrl+c" or "ctrl+shift+esc": all parts but the last are
 	// modifiers held down while the last key is tapped, then released in reverse.
 	// A plain "c" is just a one-element chord.
@@ -92,15 +92,22 @@ func (winBackend) key(ctx context.Context, name string) error {
 	// game/app registers the press — an instant down+up is what they drop.
 	chord := len(keys) > 1
 	last := keys[len(keys)-1]
+	// How long the key/combo stays down before release. An explicit hold (from
+	// `Key with Key …, Hold …`) overrides the default linger — this is what lets
+	// Alt+Tab stay held long enough to commit the switch against a fullscreen app.
+	holdDur := hold
+	if holdDur <= 0 {
+		if chord {
+			holdDur = chordHold
+		} else {
+			holdDur = tapHold
+		}
+	}
 	if chord {
 		sleepCtx(ctx, chordHold) // let the modifier(s) settle
 	}
 	okDown := sendKeyDown(last.vk, last.scan, last.ext)
-	if chord {
-		sleepCtx(ctx, chordHold) // hold the combo
-	} else {
-		sleepCtx(ctx, tapHold) // small linger so a plain tap registers
-	}
+	sleepCtx(ctx, holdDur) // hold the key/combo before releasing
 	okUp := sendKeyUp(last.vk, last.scan, last.ext)
 	// Release modifiers in reverse order, even if the tap was rejected.
 	for i := len(keys) - 2; i >= 0; i-- {

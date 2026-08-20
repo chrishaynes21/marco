@@ -28,9 +28,9 @@ import (
 // backend is the platform-specific primitive surface. Implemented by the
 // Windows SendInput backend and a no-op stub elsewhere.
 type backend interface {
-	key(ctx context.Context, name string) error
-	keyDown(ctx context.Context, name string) error // press and hold
-	keyUp(ctx context.Context, name string) error   // release
+	key(ctx context.Context, name string, hold time.Duration) error // hold<=0 → default linger
+	keyDown(ctx context.Context, name string) error                 // press and hold
+	keyUp(ctx context.Context, name string) error                   // release
 	typeText(ctx context.Context, text string) error
 	click(ctx context.Context, button string) error
 	clickAt(ctx context.Context, button string, x, y int) error
@@ -109,11 +109,13 @@ func (h *Host) CursorSnapshot() func() {
 func (h *Host) Invoke(c runtime.HostCall) (string, runtime.Value, error) {
 	switch strings.ToLower(c.Action) {
 	case "key":
-		return ok(h.b.key(c.Ctx, c.Input.AsText()))
+		return h.doKey(c)
 	case "keydown":
 		return h.doKeyDown(c)
 	case "keyup":
 		return h.doKeyUp(c)
+	case "navigate":
+		return h.doNavigate(c)
 	case "type":
 		return ok(h.b.typeText(c.Ctx, c.Input.AsText()))
 	case "click":
@@ -129,6 +131,10 @@ func (h *Host) Invoke(c runtime.HostCall) (string, runtime.Value, error) {
 		return h.doDrag(c)
 	case "sleep":
 		return h.doSleep(c)
+	case "clipboardget":
+		return h.doClipboardGet(c)
+	case "clipboardset":
+		return h.doClipboardSet(c)
 	case "color":
 		return h.doColor(c)
 	case "focus":
@@ -162,9 +168,69 @@ func (h *Host) Invoke(c runtime.HostCall) (string, runtime.Value, error) {
 		return ok(winctx.Launch(c.Input.AsText()))
 	case "restore":
 		return ok(winctx.RestorePrevious())
+	case "movewindow":
+		return h.doMoveWindow(c)
+	case "windowstate":
+		return h.doWindowState(c)
 	default:
 		return fail(fmt.Sprintf("OS host has no action %q", c.Action))
 	}
+}
+
+// doMoveWindow repositions a window: `{ Window: "hwnd:1234", X, Y, W, H }`.
+//
+// The window is named by HANDLE rather than by app name, unlike Activate. A caller
+// that has already decided WHICH window it means — the Director, from its World
+// Model — must be able to say so exactly; resolving by name again here could pick a
+// different window of a multi-window application than the one that was chosen.
+func (h *Host) doMoveWindow(c runtime.HostCall) (string, runtime.Value, error) {
+	set := c.Input.AsSet()
+	if set == nil {
+		return fail("movewindow needs a set with Window, X, Y, W and H")
+	}
+	hwnd, err := parseHandle(textOf(set, "Window"))
+	if err != nil {
+		return fail(err.Error())
+	}
+	x, y := setInt(set, "X"), setInt(set, "Y")
+	w, ht := setInt(set, "W"), setInt(set, "H")
+	if w <= 0 || ht <= 0 {
+		return fail("movewindow needs a positive W and H")
+	}
+	mlog.Debug("movewindow", "window", hwnd, "to", fmt.Sprintf("(%d,%d %dx%d)", x, y, w, ht))
+	return ok(winctx.MoveWindow(hwnd, x, y, w, ht))
+}
+
+// doWindowState applies a symbolic window state: `{ Window: "hwnd:1234", State: "maximized" }`.
+func (h *Host) doWindowState(c runtime.HostCall) (string, runtime.Value, error) {
+	set := c.Input.AsSet()
+	if set == nil {
+		return fail("windowstate needs a set with Window and State")
+	}
+	hwnd, err := parseHandle(textOf(set, "Window"))
+	if err != nil {
+		return fail(err.Error())
+	}
+	return ok(winctx.SetWindowState(hwnd, strings.ToLower(textOf(set, "State"))))
+}
+
+// parseHandle reads the "hwnd:<n>" form the Director uses for a WindowID. An
+// unparseable handle is an error rather than a fall-back to the foreground window:
+// silently acting on a different window than the one requested is the failure mode
+// this format exists to prevent.
+func parseHandle(s string) (uintptr, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0, fmt.Errorf("no Window given")
+	}
+	if !strings.HasPrefix(strings.ToLower(s), "hwnd:") {
+		return 0, fmt.Errorf("Window must look like \"hwnd:<handle>\", got %q", s)
+	}
+	n, err := strconv.ParseUint(s[5:], 10, 64)
+	if err != nil || n == 0 {
+		return 0, fmt.Errorf("Window %q is not a usable handle", s)
+	}
+	return uintptr(n), nil
 }
 
 // doSecret types the value of a named secret from the OS credential store. The
@@ -202,6 +268,31 @@ func (h *Host) doSecret(c runtime.HostCall) (string, runtime.Value, error) {
 	}
 	mlog.Debug("secret: store hit", "key", name)
 	return ok(h.b.typeText(c.Ctx, val))
+}
+
+// doKey presses a key or chord. Input is either the key text ("alt+tab") or a set
+// { Key "alt+tab", Hold 250 } whose Hold (ms) is how long the key/combo is held before
+// release — the knob that makes Alt+Tab commit against a fullscreen app without the
+// user having to spell out KeyDown/Sleep/KeyUp. Hold<=0 uses the default linger.
+func (h *Host) doKey(c runtime.HostCall) (string, runtime.Value, error) {
+	var name string
+	var hold time.Duration
+	if set := c.Input.AsSet(); set != nil {
+		if v, has := set.Get("Key"); has {
+			name = v.AsText()
+		}
+		if v, has := set.Get("Hold"); has {
+			if n, okN := v.AsNumber(); okN && n > 0 {
+				hold = time.Duration(n) * time.Millisecond
+			}
+		}
+	} else {
+		name = c.Input.AsText()
+	}
+	if name == "" {
+		return fail("key needs a key name (text, or a set with Key)")
+	}
+	return ok(h.b.key(c.Ctx, name, hold))
 }
 
 // doKeyDown presses and HOLDS a key, tracking it so a route end always releases it. The
@@ -1041,7 +1132,7 @@ func (h *Host) doSpam(c runtime.HostCall) (string, runtime.Value, error) {
 			default:
 			}
 			if key != "" {
-				_ = h.b.key(ctx, key)
+				_ = h.b.key(ctx, key, 0)
 			} else {
 				_ = h.b.click(ctx, button)
 			}
@@ -1208,7 +1299,7 @@ func (h *Host) doRepeat(c runtime.HostCall) (string, runtime.Value, error) {
 			return "ok", runtime.Absent(), nil
 		default:
 		}
-		if err := h.b.key(c.Ctx, key); err != nil {
+		if err := h.b.key(c.Ctx, key, 0); err != nil {
 			return fail(err.Error())
 		}
 		select {
@@ -1323,4 +1414,37 @@ func point(v runtime.Value) (x, y int, present bool) {
 		return 0, 0, false
 	}
 	return int(xn), int(yn), true
+}
+
+// doClipboardGet reads the clipboard as text.
+//
+// Reports whether it HELD text separately from what that text was. A clipboard holding
+// an image is not a clipboard holding "", and a caller saving the contents to restore
+// them later must not overwrite an image with an empty string.
+func (h *Host) doClipboardGet(c runtime.HostCall) (string, runtime.Value, error) {
+	text, isText, empty, err := clipboardText()
+	if err != nil {
+		return fail(err.Error())
+	}
+	set := runtime.NewSet()
+	set.Put("Text", runtime.Text(text))
+	set.Put("IsText", runtime.Bool(isText))
+	// Empty separates "nothing is on the clipboard" from "something that is not text".
+	// Only the first can be borrowed and restored faithfully.
+	set.Put("Empty", runtime.Bool(empty))
+	return "ok", runtime.SetVal(set), nil
+}
+
+// doClipboardSet replaces the clipboard with text.
+func (h *Host) doClipboardSet(c runtime.HostCall) (string, runtime.Value, error) {
+	text := c.Input.AsText()
+	if s := c.Input.AsSet(); s != nil {
+		if v, ok := s.Get("Text"); ok {
+			text = v.AsText()
+		}
+	}
+	if err := setClipboardText(text); err != nil {
+		return fail(err.Error())
+	}
+	return "ok", runtime.Absent(), nil
 }

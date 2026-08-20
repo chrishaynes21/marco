@@ -1,0 +1,13 @@
+{
+  "schema": 2,
+  "sequence": "pause-close",
+  "note": "Read from the pixels, not the name: menu at full opacity on 0-1; frame 2 is gameplay with a control legend and no menu; on frame 3 the menu is attenuated behind a transition effect but every item is legible; frames 4-5 are the menu at full opacity again. This sequence is a recurrence, not a disappearance, and the earlier single-boundary declaration asserted no interface over frames that plainly contain a menu.",
+  "tracks": [
+    { "identity": "pause_panel",      "present": [[0, 1], [3, 5]] },
+    { "identity": "pause_title",      "present": [[0, 1], [3, 5]] },
+    { "identity": "menu_resume",      "present": [[0, 1], [3, 5]] },
+    { "identity": "menu_change_mode", "present": [[0, 1], [3, 5]] },
+    { "identity": "menu_settings",    "present": [[0, 1], [3, 5]] },
+    { "identity": "menu_exit",        "present": [[0, 1], [3, 5]] }
+  ]
+}

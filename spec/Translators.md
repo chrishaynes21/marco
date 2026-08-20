@@ -1,4 +1,8 @@
 ---
+status: reference
+---
+
+---
 # Translators {#translators}
 ---
 
