@@ -21,6 +21,8 @@ source_paths:
   - internal/director/observe/assessment.go
   - internal/director/observe/rehearsal.go
   - internal/director/observesession/runner.go
+  - cmd/director/graph.go
+  - cmd/marco/screenwiring.go
 ---
 
 # Semantic Memory
@@ -459,6 +461,20 @@ and verifies, refusing through a closed vocabulary — `target_not_found`, `targ
 `no_actor_available`, `perform_failed`, `not_verified`. A play now says
 `do Theater's Activate with target1`, where `target1` is a `Target` set carrying `Name` and
 `Kind`, and `Control.Name` is demoted to an executor detail.
+
+## One file, two processes
+
+The store is a single file at `$MARCO_HOME/semantic-memory.json`, chosen by
+`cmd/director/graph.go`'s `semanticMemoryPath` and by `cmd/marco/screenwiring.go`'s `memoryPath`.
+`$MARCO_MEMORY` names it outright and **both** processes honour it — an override obeyed by one and
+ignored by the other is the same split under a different name.
+
+`marco` used to look for `routes/memory.json` instead. Nothing has ever written that file, so
+there was no disagreement to reconcile — only an empty store, which made `do Screen's Showing`
+refuse with *"nothing in <app> is called <name>"* about a name the Director had in fact recorded.
+Pointing it at the one store does not make the guard pass (a learned play is performed by the
+Director, and [[ADR-078-a-learned-play-is-performed-by-the-director]] means its `Showing` lines do
+not run in `marco` at all); it makes the refusal a true sentence when the guard does run locally.
 
 ## Naming is authorship, and authorship is reversible
 

@@ -39,12 +39,27 @@ demonstration  →  rehearsal  →  verification  →  judgement  →  Marco sou
    name the screens  →  save  →  register  →  resolve  →  authorize  →  run  →  arrive
      (the user's         (a file  (findable)  (which     (may I?)              (did it
       words)              on disk)             play)                            work?)
+                         └─ one Learn ─┘
 ```
 
 **Each arrow is a wall, not a pipe.** Watching is not verification; verification is not
 permission to write it down; writing it down is not saving; saving is not registering; resolving
 is not permission to run; running every step is not succeeding. Every one of those confusions has
 its own ADR because every one of them was a real temptation.
+
+**A wall says what the mechanism keeps apart. It does not say who crosses it.** The
+save→register wall is real — two operations, two directories, a refusal on collision — and the
+Learn workflow crosses it in one act, because the Audience's *"learn X"* is the permission to
+make X askable. A person who demonstrates a behaviour and names it has not asked for a file they
+cannot use, and there is no second consent left for them to give. See
+[[ADR-079-a-demonstration-the-audience-named-is-a-play-they-may-ask-for]]. The *developer*
+lifecycle (`director learned --save` / `--register`) still crosses the two separately.
+
+And it registers as a **focus** route, not a context one — a learned play is asked for from
+wherever the Audience happens to be, and the Director brings its application forward itself.
+Registered as context it resolved only while that application was already in front, which meant
+Marco offering to teach a play it had just learned. See
+[[ADR-080-a-learned-play-is-asked-for-from-anywhere]].
 
 ## The three things that are not each other
 
@@ -179,6 +194,18 @@ layout rather than a flag somebody could forget to check. See
 Registering makes a play *findable*. It does not make it *runnable*: `internal/orchestrator`
 `Resolve → Authorize → Run` puts a door between knowing which play the user means and performing
 it — [[ADR-029-resolution-is-not-permission]].
+
+A completed Learn asks for both halves, so the ordinary end state is saved **and** registered
+([[ADR-079-a-demonstration-the-audience-named-is-a-play-they-may-ask-for]]). Saved-and-not-
+registered is still reachable — a slug already taken is the common way — and it is a state with
+its own refusal (`play_not_registered`), its own sentence (*"the play is safe — it is a file you
+can read and edit"*), and its own reason carried up from the registry. It is never reported as
+`save_failed`, and no surface may claim such a play is in the Routes tab. `Unregister` reaches
+the staged copy too, so a refused registration does not strand an artifact nothing can remove.
+
+Where a learned play lands: `<app>/context/`. It resolves while its application is in front and
+nowhere else. Pinned by `TestALearnedPlayIsRegisteredWhenItIsSaved`; whether that should be
+`focus/` is an open product question.
 
 ## The source owns the meaning; the sidecar owns nothing
 

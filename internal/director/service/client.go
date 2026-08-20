@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -442,8 +443,9 @@ func Connect(opts ConnectOptions) (*Client, error) {
 	lock, err := acquireStartupLock(opts.Dir, 30*time.Second)
 	if err != nil {
 		// Someone else is starting it. Wait for THEIR service rather than starting a
-		// competing one.
-		return waitForService(opts, dial)
+		// competing one. No startup log: this process did not spawn it, and inventing
+		// one would attribute another client's child to this attempt.
+		return waitForService(opts, dial, nil)
 	}
 	defer lock.release()
 
@@ -455,34 +457,142 @@ func Connect(opts ConnectOptions) (*Client, error) {
 		RemoveEndpoint(opts.Dir)
 	}
 
-	if err := startService(opts); err != nil {
+	startup, err := startService(opts)
+	if err != nil {
 		return nil, err
 	}
-	return waitForService(opts, dial)
+	return waitForService(opts, dial, startup)
 }
 
 // startService spawns the service process, detached from this one.
-func startService(opts ConnectOptions) error {
+//
+// # The child's stderr is EVIDENCE, and it used to be thrown away
+//
+// `cmd.Stderr = nil` sent the Director's first words to the void. So a Director that refused to
+// start — `director: accessibility bridge not found at ...`, one line, naming the exact missing
+// file — was reported to the user as "the Director service did not become ready within 20s",
+// followed by an instruction to run `director serve` in another terminal to find out why. The
+// answer had already been written, on this machine, a second earlier.
+//
+// So it is captured instead, and travels to the error waitForService returns. Bounded, because a
+// service that logs to stderr for an hour must not grow this client's memory, and DRAINED past
+// the bound rather than left to fill, because a child that blocks writing to a full pipe would be
+// a service the client hung by watching it.
+func startService(opts ConnectOptions) (*startupLog, error) {
 	if opts.ServiceBin == "" {
-		return fmt.Errorf("service: no Director executable configured to start")
+		return nil, fmt.Errorf("service: no Director executable configured to start")
 	}
 	cmd := exec.Command(opts.ServiceBin, opts.ServiceArgs...)
 	// Detached: the service must outlive the client that happened to start it,
 	// which is the entire reason it exists.
 	cmd.Stdin = nil
 	cmd.Stdout = nil
-	cmd.Stderr = nil
+
+	// A pipe rather than cmd.StderrPipe(): that one is closed by cmd.Wait(), and the Wait
+	// below runs immediately in its own goroutine so the child is not left a zombie. Owning
+	// the ends here keeps the two independent.
+	startup := &startupLog{}
+	r, w, perr := os.Pipe()
+	if perr == nil {
+		cmd.Stderr = w
+	}
+
 	configureDetached(cmd)
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("service: starting the Director (%s): %w", opts.ServiceBin, err)
+		if r != nil {
+			_, _ = r.Close(), w.Close()
+		}
+		return nil, fmt.Errorf("service: starting the Director (%s): %w", opts.ServiceBin, err)
+	}
+	if r != nil {
+		// The parent's write end must go, or the read below never sees EOF when the
+		// child exits and the drain goroutine outlives the process it was watching.
+		_ = w.Close()
+		go startup.drain(r)
 	}
 	// Release the child so it is not left as a zombie when this process exits.
 	go func() { _ = cmd.Wait() }()
-	return nil
+	return startup, nil
+}
+
+// startupLog is the beginning of a spawned Director's stderr, bounded.
+//
+// Only the beginning. A refusal to start is said in the first breath, and keeping the tail
+// instead would mean holding a ring buffer of a healthy service's ordinary logging forever to
+// preserve a line that was printed before any of it.
+type startupLog struct {
+	mu        sync.Mutex
+	buf       []byte
+	truncated bool
+}
+
+// startupLogLimit is how much of the child's first words are kept. Generous for a refusal,
+// nowhere near enough to matter if a service simply logs.
+const startupLogLimit = 8 << 10
+
+// drain reads until the child closes its stderr, keeping the first startupLogLimit bytes.
+//
+// It keeps READING after the bound is reached and discards what it reads. Stopping would leave
+// the pipe to fill, and a full pipe blocks the writer — turning a diagnostic into a service that
+// wedges the moment it becomes chatty.
+func (l *startupLog) drain(r *os.File) {
+	defer r.Close()
+	chunk := make([]byte, 4096)
+	for {
+		n, err := r.Read(chunk)
+		if n > 0 {
+			l.add(chunk[:n])
+		}
+		if err != nil {
+			return
+		}
+	}
+}
+
+func (l *startupLog) add(b []byte) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	room := startupLogLimit - len(l.buf)
+	if room <= 0 {
+		l.truncated = true
+		return
+	}
+	if len(b) > room {
+		b, l.truncated = b[:room], true
+	}
+	l.buf = append(l.buf, b...)
+}
+
+// text is what the Director said, as one line, or empty when it said nothing.
+func (l *startupLog) text() string {
+	if l == nil {
+		return ""
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	var said []string
+	for _, line := range strings.Split(string(l.buf), "\n") {
+		if s := strings.TrimSpace(line); s != "" {
+			said = append(said, s)
+		}
+	}
+	if len(said) == 0 {
+		return ""
+	}
+	out := strings.Join(said, "; ")
+	if l.truncated {
+		out += " …"
+	}
+	return out
 }
 
 // waitForService polls for a reachable endpoint, bounded.
-func waitForService(opts ConnectOptions, dial time.Duration) (*Client, error) {
+//
+// startup may be nil — this client did not spawn the service — and is the child's own account of
+// why it is not answering. Preferred over the generic sentence whenever there is one, because
+// "the Director said: accessibility bridge not found at C:\...\uia.exe" is a thing a person can
+// act on and "it did not become ready" is not.
+func waitForService(opts ConnectOptions, dial time.Duration, startup *startupLog) (*Client, error) {
 	timeout := opts.StartTimeout
 	if timeout <= 0 {
 		timeout = 15 * time.Second
@@ -496,6 +606,10 @@ func waitForService(opts ConnectOptions, dial time.Duration) (*Client, error) {
 			}
 		}
 		time.Sleep(100 * time.Millisecond)
+	}
+	if said := startup.text(); said != "" {
+		return nil, fmt.Errorf(
+			"the Director service did not start — it said: %s", said)
 	}
 	return nil, fmt.Errorf(
 		"the Director service did not become ready within %s — try running `director serve` "+

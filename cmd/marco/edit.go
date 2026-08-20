@@ -1555,7 +1555,14 @@ function learnRender(v){
     '<div class="crow"><label>'+esc(k)+'</label><span style="color:var(--accent)">'+esc(x)+'</span></div>').join('');
 
   const out=[];
-  if(v.learned) out.push('<p style="color:var(--run)">Saved. It is in the Routes tab.</p>');
+  // "In the Routes tab" is a claim about DISCOVERY, and v.learned is now saved AND
+  // registered — see learnview.go. A play that was written down and could not be made
+  // askable says so instead of borrowing the happy sentence.
+  if(v.learned) out.push('<p style="color:var(--run)">Saved'+(v.play?' as '+esc(v.play):'')+
+    '. It is in the Routes tab.</p>');
+  else if(v.saved) out.push('<p style="color:var(--run)">Saved'+(v.play?' as '+esc(v.play):'')+
+    '. It is a file you can read and edit — but nothing can ask for it yet, '+
+    'so it is not in the Routes tab.</p>');
   if(v.refused) out.push('<p style="color:var(--err)">Refused: '+esc(v.refused)+'</p>');
   document.getElementById('lresult').innerHTML=out.join('');
 

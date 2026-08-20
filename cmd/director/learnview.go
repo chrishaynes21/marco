@@ -176,8 +176,14 @@ type learnView struct {
 	RouteStatus string `json:"route_status,omitempty"`
 	// Goal is what a saved play would be called.
 	Goal string `json:"goal,omitempty"`
-	// Learned says a durable play exists — the ONLY basis for claiming anything was learned.
+	// Learned says a durable play exists AND route discovery can find it — the ONLY basis
+	// for a surface claiming the play is in the Routes tab.
 	Learned bool `json:"learned,omitempty"`
+	// Saved says the artifact is on disk, whether or not anything can ask for it. Separate
+	// from Learned so a surface can tell "written down but not askable" from "gone".
+	Saved bool `json:"saved,omitempty"`
+	// Play is what the artifact was written as, present in both of those states.
+	Play string `json:"play,omitempty"`
 	// Refused is the closed reason, and Detail the diagnostics behind it.
 	Refused teach.Refusal `json:"refused,omitempty"`
 	Detail  []string      `json:"detail,omitempty"`
@@ -251,8 +257,22 @@ func learnViewOf(s teach.Session, running, finishing bool) learnView {
 	if s.Actor != "" && s.Verb != "" {
 		v.Goal = s.Actor + "'s " + s.Verb
 	}
+	// LEARNED MEANS SAVED **AND** ASKABLE.
+	//
+	// The panel turns this into "Saved. It is in the Routes tab.", and the Routes tab is
+	// route discovery — which cannot see `<app>/learned/`. Gating on `s.Saved != nil` alone
+	// made that sentence a guess: it was true only because the saved-but-not-registered
+	// state happened to be unreachable, and it stopped being true the moment registration
+	// could fail over a real artifact (a slug already taken is the common way).
+	//
+	// A play that exists and cannot be asked for is not nothing, and it is not learned
+	// either — the refusal carries it, honestly, under its own name.
+	//
+	// Deleting the Registered clause must fail TestThePanelDoesNotClaimRoutesForAnUnregisteredPlay.
 	if s.Saved != nil {
-		v.Learned = true
+		v.Saved = s.Saved.Saved
+		v.Learned = s.Saved.Saved && s.Saved.Registered
+		v.Play = s.Saved.Name
 	}
 	// The question is ADDRESSED, never paraphrased here: the proposal owns its own wording,
 	// and a surface fetches it the same way every other reader does.

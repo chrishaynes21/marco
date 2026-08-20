@@ -10,6 +10,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/marcoexec"
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
 	"github.com/chaynes-simpleclouds/marco/internal/director/service"
+	"github.com/chaynes-simpleclouds/marco/internal/director/teach"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
 )
 
@@ -472,5 +473,124 @@ func TestAnEditedStagedPlayCannotBeRegisteredAsLearned(t *testing.T) {
 	}
 	if _, found := reg.Resolve("testgame", "volume"); found {
 		t.Fatal("the edited play became findable anyway")
+	}
+}
+
+// ── a registration that fails is not a play that was lost ─────────────────────
+
+// A save that lands and a registration that does not still reports the artifact.
+//
+// # The live failure
+//
+// Teaching the same phrase twice. The second Learn writes a correct play into `<app>/learned/`
+// and then hits `Register`'s collision refusal — the slug is taken by the first one. The
+// lifecycle published `v.Saved` only after registering, so the caller got an error and no
+// evidence at all, the teach coordinator refused `save_failed`, and Marco said:
+//
+//	I couldn't save it. Nothing was learned.
+//
+// over a file the user could open, read and edit. The work was there; the sentence said it was
+// gone, and gave nobody anything to do about it.
+//
+// Deleting the early `v.Saved = out` must fail this.
+func TestASaveThatCannotRegisterStillReportsTheArtifact(t *testing.T) {
+	dir := learnedIn(t)
+	g := verifiedRegistry(t)
+
+	// The name is already taken — by an authored play, which is the case Register is
+	// deliberately not allowed to resolve quietly.
+	reg := routes.Registry{Dir: dir}
+	if err := reg.Save(routes.Route{App: "testgame", Slug: "volume"}, "-- mine\n"); err != nil {
+		t.Fatalf("seeding the collision: %v", err)
+	}
+
+	rt := &Runtime{observations: g}
+	out, err := rt.LearnedPlay(service.LearnedQuery{
+		Application: "testgame", Name: "Volume", Verb: "Mute", Save: true, Register: true,
+	})
+	if err == nil {
+		t.Fatal("registering over an existing play was allowed")
+	}
+	// THE VIEW CAME BACK WITH THE ERROR, and it says what happened.
+	if out.Saved == nil {
+		t.Fatal("the answer carries no record of the save, so every reader above concludes " +
+			"nothing was written — and tells the person their work is gone")
+	}
+	if !out.Saved.Saved {
+		t.Errorf("saved=false over an artifact on disk: %+v", out.Saved)
+	}
+	if out.Saved.Registered {
+		t.Error("registered=true after a refused registration")
+	}
+	// And the artifact really is there.
+	staged := filepath.Join(dir, "testgame", routes.LearnedDir, "volume.marco")
+	if _, err := os.Stat(staged); err != nil {
+		t.Fatalf("nothing on disk to report: %v (tree %v)", err, tree(t, dir))
+	}
+	// The person is told the name is the problem, and what to do about it.
+	joined := strings.ToLower(strings.Join(out.Saved.Lines, "\n"))
+	if !strings.Contains(joined, "already exists") || !strings.Contains(joined, "rename") {
+		t.Errorf("nothing tells the person the name is taken or what to do:\n%s",
+			strings.Join(out.Saved.Lines, "\n"))
+	}
+}
+
+// The teach tail turns that into `play_not_registered`, never `save_failed`.
+//
+// Deleting the partial branch in savedFrom must fail this.
+func TestTheTailReportsAnUnregisterablePlayAsWrittenDown(t *testing.T) {
+	dir := learnedIn(t)
+	g := verifiedRegistry(t)
+	reg := routes.Registry{Dir: dir}
+	if err := reg.Save(routes.Route{App: "testgame", Slug: "audio-open"}, "-- mine\n"); err != nil {
+		t.Fatalf("seeding the collision: %v", err)
+	}
+
+	tail, route := taughtTail(t, g)
+	tail.phrase = func() string { return "audio open" }
+
+	saved, err := tail.Save(route, "Audio", "Open")
+	if err != nil {
+		t.Fatalf("the tail reported a lost play: %v", err)
+	}
+	if !saved.Saved {
+		t.Fatalf("the tail reported nothing written: %+v", saved)
+	}
+	if saved.Registered {
+		t.Fatal("the tail claims the play is askable")
+	}
+	if !strings.Contains(strings.ToLower(saved.Reason), "already exists") {
+		t.Errorf("the reason does not name the collision: %q", saved.Reason)
+	}
+}
+
+// The Learn panel does not claim the Routes tab for a play that is not in it.
+//
+// "Saved. It is in the Routes tab." is a claim about DISCOVERY. Gating it on `s.Saved != nil`
+// alone made it true only by luck — the saved-but-unregistered state used to be unreachable.
+//
+// Mutation: drop the Registered clause in learnViewOf. The panel then sends somebody to a tab
+// their play is not in.
+func TestThePanelDoesNotClaimRoutesForAnUnregisteredPlay(t *testing.T) {
+	written := teach.Session{
+		Phase: teach.Refused, Refusal: teach.PlayNotRegistered,
+		Name:  "open audio",
+		Saved: &teach.Saved{Name: "open-audio", Saved: true, Registered: false},
+	}
+	v := learnViewOf(written, false, false)
+	if v.Learned {
+		t.Error("the panel says the play is in the Routes tab; route discovery cannot see it")
+	}
+	// It is not nothing, either — the panel can still say where the file is.
+	if !v.Saved || v.Play != "open-audio" {
+		t.Errorf("the panel cannot say the play exists at all: saved=%v play=%q",
+			v.Saved, v.Play)
+	}
+
+	registered := written
+	registered.Phase, registered.Refusal = teach.Complete, ""
+	registered.Saved = &teach.Saved{Name: "open-audio", Saved: true, Registered: true}
+	if !learnViewOf(registered, false, false).Learned {
+		t.Error("a saved and registered play is not reported as learned")
 	}
 }

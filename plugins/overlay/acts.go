@@ -236,6 +236,15 @@ func dispatch(h *model, req request) response {
 			// A run that never announced a [route] didn't resolve — it's an unknown
 			// command, so offer to teach it in-HUD rather than just erroring. (Other
 			// verbs like forget/rename aren't routes, so only the plain `do` path.)
+			//
+			// THE ROUTE TEST IS LOAD-BEARING, and more so now that a learned play is
+			// performed by the Director rather than run in the child: that path
+			// resolves, announces its [route], and can still fail — application not
+			// available, place unknown, an edge that would not verify. Without the
+			// `route == ""` test every such refusal would be presented as a command
+			// Marco has never heard of, and the person would be invited to teach a
+			// play they already taught. See cmd/marco/perform.go and
+			// TestABridgeFailureStillAnnouncesTheResolvedRoute.
 			if args[0] == "do" && route == "" {
 				mlogI("overlay: unknown command — offering teach", "name", name)
 				offerTeach(h, name)

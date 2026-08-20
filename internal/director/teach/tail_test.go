@@ -55,7 +55,13 @@ func newTail() *stubTail {
 			observe.AskNameScreen: {ID: "q_name", SessionID: "observe_3"},
 		},
 		attempt: teach.Attempt{Attempted: true, Completed: true, Terminal: "arrived", Live: true},
-		saved:   teach.Saved{Name: "downloads-open", Saved: true, Source: "use screen.\n"},
+		// REGISTERED, because the real tail registers in the same act it saves:
+		// `cmd/director.teachTail.Save` passes Save AND Register together. A stub that
+		// saved without registering made every ORDINARY teach in this file end in
+		// play_not_registered — the failure case — which is what `unregisteringTail`
+		// below exists to cover.
+		saved: teach.Saved{Name: "downloads-open", Saved: true, Registered: true,
+			Source: "use screen.\n"},
 	}
 }
 
@@ -311,10 +317,34 @@ func TestASuccessfulTeachDoesNotRunThePlay(t *testing.T) {
 		t.Errorf("%d attempts emitted input after a successful teach, want 1 (the rehearsal)",
 			tail.rehearsals)
 	}
-	// Registration is the store's decision, not Teach's, and Teach reports it rather than
-	// asking for it.
-	if s.Saved.Registered {
-		t.Error("Teach registered the play; saving and registering are two permissions")
+	// NOT RUN, and not runnable BY TEACH. The coordinator has exactly one way to reach a
+	// computer — Rehearse — and it used it once, under the grant. Completing does not reach
+	// for it again, and the Tail interface offers Teach nothing else that could.
+	if len(tail.saves) != 1 {
+		t.Fatalf("%d saves, want exactly 1 — completing writes the play once and does no "+
+			"more", len(tail.saves))
+	}
+	// The saved play is REGISTERED, and that is not Teach running anything.
+	//
+	// Saving and registering remain two operations against two directories — see
+	// [[ADR-079-a-demonstration-the-audience-named-is-a-play-they-may-ask-for]]. What
+	// changed is the WORKFLOW: the Learn tail asks for both, because the Audience saying
+	// "learn X" IS the permission to make X askable. Registering moves a file; it does not
+	// press a key, and nothing here may confuse the two.
+	//
+	// The old assertion here read `if s.Saved.Registered { … }` and encoded the pre-9e2a45c
+	// product decision, under a name that is about NOT PERFORMING.
+	if !s.Saved.Registered {
+		t.Error("a completed teach left the play unregistered; the Audience cannot ask " +
+			"for what they just demonstrated")
+	}
+	// And nothing the person is told claims it ran.
+	said := strings.ToLower(s.Say())
+	for _, forbidden := range []string{"running", "i ran", "performed"} {
+		if strings.Contains(said, forbidden) {
+			t.Errorf("completion says %q, which claims the play was performed:\n%s",
+				forbidden, s.Say())
+		}
 	}
 }
 
@@ -611,7 +641,9 @@ type unregisteringTail struct{ *stubTail }
 func (u *unregisteringTail) Save(r observe.RelationshipRef, actor, verb string) (
 	teach.Saved, error) {
 
-	return teach.Saved{Name: "mousesettings", Saved: true, Registered: false}, nil
+	return teach.Saved{Name: "mousesettings", Saved: true, Registered: false,
+		Reason: "routes: mousesettings already exists; rename the learned play or remove " +
+			"the other one first"}, nil
 }
 
 // A PLAY IS NOT CALLED ASKABLE UNTIL IT IS REGISTERED.
@@ -650,5 +682,20 @@ func TestAPlayIsNotCalledAskableUntilItIsRegistered(t *testing.T) {
 	// The artifact survives the refusal.
 	if s.Saved == nil || !s.Saved.Saved {
 		t.Error("the written play was discarded to make the message tidy")
+	}
+	// AND THE PERSON IS TOLD WHY, in words they can act on. A name already taken is a
+	// different problem from a disk that would not take the file, and "I couldn.t make it
+	// askable" alone leaves somebody with nothing to try.
+	//
+	// Deleting the Reason clause in Coordinator.save must fail this.
+	last := s.Diagnostics[len(s.Diagnostics)-1]
+	if !strings.Contains(last, "already exists") || !strings.Contains(last, "rename") {
+		t.Errorf("the refusal does not say why registration failed or what to do:\n%s",
+			last)
+	}
+	// And the sentence a person reads does not say the work is gone.
+	if said := strings.ToLower(s.Say()); strings.Contains(said, "nothing was learned") {
+		t.Errorf("Marco says nothing was learned over a play it wrote down:\n%s",
+			s.Say())
 	}
 }

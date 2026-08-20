@@ -261,7 +261,22 @@ func (r *Runtime) lifecycle(q service.LearnedQuery, v *service.LearnedView,
 	if p := strings.TrimSpace(q.Phrase); p != "" {
 		slug = routes.Slug(p)
 	}
-	rt := routes.Route{App: v.Application, Slug: slug}
+	// FOCUS, NOT CONTEXT — because a learned play brings its own application forward.
+	//
+	// A context route resolves only while its application is ALREADY in front, which is the
+	// right rule for a command that acts on the app you are looking at. A learned play is the
+	// opposite kind of thing: the Audience asks for an outcome from wherever they happen to
+	// be, and `Runtime.PerformGoal` foregrounds the application itself before it reads the
+	// Stage. Focus is exactly that contract — `FocusDir` is "runs anywhere, activates", and
+	// `Registry.Resolve` step 3 reaches any other app's focus route for precisely this case.
+	//
+	// Registered as context, the product could not invoke a learned play at all: asking for
+	// "Open Mouse Settings" with anything else in front missed the resolver and was offered
+	// as something to teach — a play that had just been learned. Measured in the Phase-0 live
+	// acceptance with Discord in front; see [[ADR-080-a-learned-play-is-asked-for-from-anywhere]].
+	//
+	// Deleting Focus must fail TestALearnedPlayIsRegisteredWhenItIsSaved.
+	rt := routes.Route{App: v.Application, Focus: true, Slug: slug}
 	out := &service.LearnedSaved{Name: slug}
 
 	if q.Forget {
@@ -310,15 +325,43 @@ func (r *Runtime) lifecycle(q service.LearnedQuery, v *service.LearnedView,
 		out.Saved, out.Source = true, src
 		out.Lines = append(out.Lines, "Saved as "+slug+".",
 			"Nothing can ask for it yet — register it when you want to be able to.")
+		// THE ARTIFACT EXISTS, AND THE VIEW SAYS SO BEFORE ANYTHING ELSE CAN FAIL.
+		//
+		// Publishing this only at the end meant a registration failure returned a view with
+		// no Saved at all, and every reader above concluded nothing had been written. The
+		// teach coordinator then refused with `save_failed` — "I couldn't save it. Nothing
+		// was learned." — while a correct, readable play sat in `<app>/learned/`. The user
+		// was told their work was gone.
+		//
+		// `LearnedPlay` returns `out, err` together on purpose; this is what makes that
+		// pairing worth anything.
+		//
+		// Deleting this line must fail TestASaveThatCannotRegisterStillReportsTheArtifact.
+		v.Saved = out
 	}
 
 	if q.Register {
 		if err := reg.Register(rt); err != nil {
+			// SAVED STAYS SAID. `out` is already on `v`, so the caller sees Saved=true,
+			// Registered=false and can tell "written down but not askable" from "nothing
+			// was written" — and the reason travels with the error.
+			out.Lines = append(out.Lines,
+				"It could not be made askable: "+err.Error(),
+				"The play itself is safe — it is a file you can read and edit.")
 			return err
 		}
 		out.Registered = true
-		out.Lines = append(out.Lines, "Registered. You can ask for "+slug+" now.",
+		// ASKABLE FROM ANYWHERE, and the sentence says which application it will bring up.
+		//
+		// A learned play is a focus route, so the Audience can ask for it whatever is in
+		// front and Marco brings the application forward itself. Naming the application is
+		// still worth doing — it is what the play is about, and what is about to appear.
+		out.Lines = append(out.Lines, "Registered. You can ask for "+slug+" from anywhere.",
 			"Asking for it is not the same as Marco performing it.")
+		if v.Application != "" {
+			out.Lines = append(out.Lines,
+				"Marco will bring "+v.Application+" forward when you do.")
+		}
 	}
 	if q.Save || q.Register {
 		v.Saved = out

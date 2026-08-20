@@ -47,9 +47,12 @@ plugins/vision/models/
 # was silently left out of a commit. A pattern meant for one directory must say which one.
 /routes/
 
-# Bundled Windows build (pack.ps1): staged embed assets + the packed exe
+# Bundled Windows build (pack.ps1): staged embed assets + the packed exe.
+# Keep this list in step with the //go:embed line in plugins/marco-app/main.go.
 plugins/marco-app/assets/marco.exe
 plugins/marco-app/assets/marco-macros.exe
+plugins/marco-app/assets/director.exe
+plugins/marco-app/assets/uia.exe
 plugins/marco-app/assets/overlay.exe
 plugins/marco-app/assets/overlay.marco
 plugins/marco-app/assets/version.txt

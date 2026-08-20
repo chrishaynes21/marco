@@ -1,7 +1,14 @@
 // Command marco-app is the bundled, self-extracting Marco for Windows. pack.ps1 embeds the
-// engine (marco.exe, marco-macros.exe), the overlay (overlay.exe + overlay.marco), and the
-// starter routes into this single binary. On launch it unpacks them under %LOCALAPPDATA%\Marco
-// and runs the overlay serve stack — so a user double-clicks one Marco.exe with no toolchain.
+// engine (marco.exe, marco-macros.exe), the Director service (director.exe), the accessibility
+// provider (uia.exe), the overlay (overlay.exe + overlay.marco), and the starter routes into
+// this single binary. On launch it unpacks them under %LOCALAPPDATA%\Marco and runs the overlay
+// serve stack — so a user double-clicks one Marco.exe with no toolchain.
+//
+// The Director and the accessibility provider are not passed to anything: they are laid out
+// where marco.exe already LOOKS for them (director.exe beside it, plugins\uia\uia.exe under it),
+// so a packaged install has a Director to talk to and an actor to cast without configuration.
+// Ship them and a learned play performs; omit them and it is recognised, delivered, and does
+// nothing visible.
 //
 // It is its own module (stdlib only) so a plain `go build ./...` in the engine never needs the
 // staged binaries; build the bundle with pack.ps1.
@@ -15,11 +22,45 @@ import (
 	"path/filepath"
 )
 
-// The staged stack, embedded at build time by pack.ps1. These files don't exist in a fresh
-// checkout — pack.ps1 builds and stages them into assets/ before compiling this module.
+// The staged stack, embedded at build time by pack.ps1.
 //
-//go:embed assets/marco.exe assets/marco-macros.exe assets/overlay.exe assets/overlay.marco assets/version.txt
+// # Why the DIRECTORY and not a list of files
+//
+// Because `//go:embed` is a COMPILE-time pattern: a named file that does not exist is a build
+// error, not a missing asset. None of these files exist in a fresh checkout — pack.ps1 builds
+// and stages them first — so naming them individually meant this module did not compile until
+// someone had packed it, and adding a name broke every tree that had packed the old set.
+//
+// `all:assets` matches the directory, which is tracked (assets/.gitkeep) and therefore always
+// present. The module compiles on a clean clone, and what it CARRIES is decided by what
+// pack.ps1 staged. The check that moved from compile time to run time is extractBins below,
+// which names the missing file; pack.ps1 verifies the same list before it builds, so a
+// forgotten asset still fails on whoever ships rather than on whoever installs.
+//
+//go:embed all:assets
 var assets embed.FS
+
+// staged is what gets unpacked, and WHERE — the embed name on the left, the path under bin\
+// on the right.
+//
+// # Why the destination is not always the file name
+//
+// Because two of these are found by LOOKING rather than by being told. cmd/marco's
+// directorBin() looks for director.exe beside marco.exe; accessibilityBridge() looks for
+// plugins/uia/uia.exe beside marco.exe. Laying them out that way is the whole reason an
+// installed Marco has a Director and an actor without a single environment variable — and
+// putting uia.exe flat in bin\ would silently give the Theater nobody to cast again.
+//
+// This table and the //go:embed line above must name the same files. Changing one and not
+// the other must fail TestThePackagedLayoutIsWhatMarcoLooksFor in cmd/marco.
+var staged = []struct{ asset, dest string }{
+	{"marco.exe", "marco.exe"},
+	{"marco-macros.exe", "marco-macros.exe"},
+	{"director.exe", "director.exe"},
+	{"uia.exe", "plugins/uia/uia.exe"},
+	{"overlay.exe", "overlay.exe"},
+	{"overlay.marco", "overlay.marco"},
+}
 
 func main() {
 	if err := run(); err != nil {
@@ -80,12 +121,20 @@ func extractBins(binDir, ver string) error {
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
 		return err
 	}
-	for _, name := range []string{"marco.exe", "marco-macros.exe", "overlay.exe", "overlay.marco"} {
-		data, err := assets.ReadFile("assets/" + name)
+	for _, s := range staged {
+		data, err := assets.ReadFile("assets/" + s.asset)
 		if err != nil {
+			// The embed is a directory now, so a missing asset arrives here rather than
+			// as a build error. Say which one: an installer that shipped without the
+			// Director or without the accessibility provider looks, to its user, exactly
+			// like a Marco that ignores them.
+			return fmt.Errorf("this build was packaged without %s — re-run pack.ps1", s.asset)
+		}
+		dst := filepath.Join(binDir, filepath.FromSlash(s.dest))
+		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 			return err
 		}
-		if err := os.WriteFile(filepath.Join(binDir, name), data, 0o755); err != nil {
+		if err := os.WriteFile(dst, data, 0o755); err != nil {
 			return err
 		}
 	}

@@ -5063,3 +5063,87 @@ Two tests that were gating the deleted verification (`TestAnActivationThatChange
 `TestWithNoVerifierTheResultIsUnverified`) were removed rather than adapted; the invariant they
 held moved to `perform_test.go` with the verification itself, and ADR-068's *Enforced by* was
 corrected to say so.
+
+# Roadmap 34F Phase 0 — one runnable product, proven live (2026-08-20)
+
+The 34F audit found a product that could learn and could not run what it learned. Phase 0 closed
+that, and the closing was done by the live acceptance rather than by the deterministic work: four
+of the five defects below were invisible to a green suite and were found by asking for a learned
+play on a real desktop.
+
+## What is proven, end to end
+
+A **cold** process, an unrelated application in front (VS Code), a Play taught once and never
+taught again:
+
+```
+marco do "Open Mouse Settings"        app=code
+  route found            open-mouse-settings   scope=applicationframehost
+  authority              allowed (learned_play) — asked, and answered
+  delegating to the Director
+  step 1 of 2: verified
+  step 2 of 2: verified
+  Done.                  performed 2 of 2 steps        exit 0
+```
+
+Twice, from two independent cold starts, with the Director killed and its endpoint file gone
+between them. Learn established three durable Places (`Home`, `Bluetooth & devices`, `Mouse`), two
+edges, both `directly_verified`, and the Play was saved AND registered with no developer command.
+
+The chain, each arrow a real implementation: overlay/`marco do` → `dispatchDo` → `Registry.Resolve`
+→ `orchestrator.Classify`/`Authorize` → `Resolved.Learned()` fork → `service.PerformQuery` →
+`Runtime.PerformGoal` → durable goal and application → `bringForward` → live desktop selector →
+`freshPlace` → `observe.PlaceNow` → `PlanToGoal` over verified edges → execution grant (epoch
+`asked`) → `rehearse.Live.Perform` → Theater → `AccessibilityActor.Cast` → legal Marco → compile
+gate → `bridgehost`/UIA → real input → per-edge verification → a second fresh look →
+`confirmArrival`.
+
+**No second performer was created.** `cmd/marco` gained a socket client, not eyes.
+
+## The five defects, and which the suite could see
+
+| # | defect | found by |
+|---|---|---|
+| 1 | a learned Play registered as a **context** route, so it resolved only while its own application was already in front — asking for it from anywhere else offered to TEACH a play learned four minutes earlier | live |
+| 2 | making it a focus route broke collision refusal: `Has` is scope-exact, so a learned play in `focus/` no longer collided with an authored play of the same name in `context/` | the suite, immediately |
+| 3 | `applicationframehost` hosts Settings, XBOX and Realtek Audio Console; activating by application name raised the wrong window and the look honestly said `place_unknown` about a window nobody asked about | live |
+| 4 | the accessibility bridge is a console executable, so starting it created a console window, and **a new console window takes the foreground** — stealing it from the application the Director had just brought forward. Cold path only | live |
+| 5 | `Arrived = final == subject` made `"" == ""` true, so an unseeable screen reported "Done." | mutation, not the suite |
+
+Defect 2 is the one worth remembering: a fix that widens a scope silently narrows a guard, and the
+guard was written against a *file* when the invariant is about a *name*. `Registry.nameTaken` now
+asks every scope that could answer.
+
+## What the acceptance measured that no test could
+
+- **A responsive application's structure signature is size-sensitive.** Resizing Settings from
+  1936x1048 to 1500x950 collapsed its navigation pane, changed the control counts, and the taught
+  Place stopped matching. [[ADR-072-a-place-is-not-its-viewport]] says a place is not its viewport,
+  and that still holds — but an application that REFLOWS is genuinely showing a different
+  composition, and Marco is right not to recognise it. Recorded, not fixed.
+- **`director sight` answers from the newest finished session.** Three consecutive looks returned
+  identical numbers including the visit count, which read as a stuck live view and is really the
+  stale-evidence path doing exactly what it says. It is a poor probe for "what is in front now";
+  `freshPlace` is the one with the freshness rule.
+- **A fullscreen game holds the Windows foreground lock**, and nothing — Marco included — can
+  activate over it. Three independent mechanisms failed before this was attributed.
+
+## Follow-ons, recorded and NOT fixed
+
+1. Redundant Stage settling: the planning look and the first establish settle the same screen twice.
+2. Window disambiguation is by title, verified by looking. It is correct but costs one look per
+   candidate, and titles are an address, never identity.
+3. A locally-run generated play still swallows its own failure in its `or?` arm and exits 0. The
+   bridge path reports honestly; the local path does not.
+4. Learned-play names with punctuation or apostrophes do not round-trip slug→goal and refuse with
+   `not_learned`. The durable `Origin.To → Goal.Subject` join fixes it and needs no protocol change.
+5. `plugins/uia/uia.exe` is locked while the stack runs, so `setup.ps1` fails if run live.
+
+## Decisions
+
+[[ADR-079-a-demonstration-the-audience-named-is-a-play-they-may-ask-for]] — the save/register wall
+is about the mechanism, not about who crosses it.
+[[ADR-080-a-learned-play-is-asked-for-from-anywhere]] — focus, not context, and why a collision is
+about a name rather than a file.
+[[ADR-078-a-learned-play-is-performed-by-the-director]] — corrected: `bringForward` preceding the
+Stage read IS now gated, contrary to what it previously claimed.

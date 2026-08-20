@@ -88,11 +88,33 @@ if ([string]::IsNullOrWhiteSpace($Home_) -or $Fresh) {
 if (-not (Test-Path $Home_)) { New-Item -ItemType Directory -Force $Home_ | Out-Null }
 $env:MARCO_HOME = $Home_
 
+# THE PLAY STORE IS A SECOND SANDBOX, and it does not follow MARCO_HOME.
+#
+# $MARCO_ROUTES and $MARCO_HOME are independent: neither implies the other. Isolating only the
+# home left the routes tree resolving to "routes" relative to the working directory, which for a
+# Director started from the repo is the USER'S OWN tree — so an acceptance Learn wrote its play in
+# beside their real ones, and a rerun could collide with the name it left behind. A test that
+# writes into the thing it is testing is not a clean run.
+$env:MARCO_ROUTES = Join-Path $Home_ 'routes'
+if (-not (Test-Path $env:MARCO_ROUTES)) {
+    New-Item -ItemType Directory -Force $env:MARCO_ROUTES | Out-Null
+}
+$repoRoutes = Join-Path $repo 'routes'
+if ([IO.Path]::GetFullPath($env:MARCO_ROUTES).TrimEnd('\') -ieq
+    [IO.Path]::GetFullPath($repoRoutes).TrimEnd('\')) {
+    Die "the sandbox routes tree resolved to the real one ($repoRoutes)"
+}
+$strayPlays = @(Get-ChildItem $env:MARCO_ROUTES -Recurse -Filter *.marco -ErrorAction SilentlyContinue)
+if ($strayPlays.Count -ne 0) {
+    Die "$($strayPlays.Count) play(s) already in the sandbox routes tree - pass -Fresh"
+}
+
 # The reset refuses a home that is the real store, so this is safe even if someone passes one.
 $reset = & .\director.exe reset-test-state 2>&1
 if ($LASTEXITCODE -ne 0) { Die "reset refused: $reset" }
 $reset | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
 Ok "sandbox is $Home_"
+Ok "plays go to $env:MARCO_ROUTES"
 
 # ── 4. start the stack on the current binaries ────────────────────────────────
 Step 4 'Starting Director and the control centre'
@@ -167,6 +189,7 @@ Write-Host ""
 Write-Host "=============================================" -ForegroundColor DarkGray
 Write-Host " Clean stack ready" -ForegroundColor Green
 Write-Host "   sandbox : $Home_"
+Write-Host "   plays   : $env:MARCO_ROUTES"
 Write-Host "   panel   : $url"
 Write-Host ""
 Write-Host " Before you demonstrate, the panel must show:" -ForegroundColor Cyan

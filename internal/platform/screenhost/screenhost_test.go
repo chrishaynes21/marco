@@ -98,6 +98,20 @@ func TestEveryWayOfNotKnowingRefuses(t *testing.T) {
 		name:  "no application in front",
 		world: &world{names: named, current: "subj_a", outcome: screenhost.Recognised},
 		ask:   "the pause menu", why: "no application",
+	}, {
+		// A guard whose name resolved to nothing. The play asked, and a question with
+		// no subject cannot be answered yes.
+		name: "no name at all",
+		world: &world{app: "testgame", names: named, current: "subj_a",
+			outcome: screenhost.Recognised},
+		ask: "", why: "a screen name is needed",
+	}, {
+		// THE NAME IS RESOLVED INSIDE THE APPLICATION IN FRONT. `the pause menu` in
+		// one program is not `the pause menu` in another, and a play carrying a name
+		// from somewhere else must refuse rather than find the nearest match.
+		name:  "a name that means nothing in the application in front",
+		world: &world{app: "othergame", current: "subj_a", outcome: screenhost.Recognised},
+		ask:   "the pause menu", why: `nothing in othergame is called "the pause menu"`,
 	}} {
 		t.Run(tc.name, func(t *testing.T) {
 			h := screenhost.New(tc.world)
@@ -131,7 +145,7 @@ func TestAHostThatCannotLookRefuses(t *testing.T) {
 
 // The Screen host is perception. It cannot act.
 //
-// Structural, not a promise: the interface it is given has four methods and every one is a read,
+// Structural, not a promise: the interface it is given has three methods and every one is a read,
 // and the package it lives in reaches nothing that could press, focus, run or write.
 func TestTheScreenHostCannotAct(t *testing.T) {
 	rt := reflect.TypeOf((*screenhost.Recognition)(nil)).Elem()

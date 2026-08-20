@@ -175,11 +175,16 @@ func (t *teachTail) Lowering(route observe.RelationshipRef) (teach.Readiness, er
 		route.From, route.To, t.app())
 }
 
-// Save writes the play through the one persistence path.
+// Save writes the play through the one persistence path AND registers it.
 //
-// It does NOT register. Saving is "keep this" and registering is "and let me ask for it" — two
-// permissions, deliberately separated before Teach existed, and collapsing them here for
-// convenience would make teaching quietly grant discoverability.
+// Saving is "keep this" and registering is "and let me ask for it" — two steps the lifecycle
+// keeps separate, and `LearnedPlay` still exposes them separately for the developer CLI. Teach
+// asks for BOTH in one call because a teach that ends "you can ask me to do it later" has
+// promised discoverability; leaving the artifact in `learned/`, where the resolver deliberately
+// cannot see it, makes that sentence false.
+//
+// The permission that gates this is the Audience's yes to the teach itself, not a second one:
+// nothing reaches here without a completed, authorised demonstration.
 func (t *teachTail) Save(route observe.RelationshipRef, actor, verb string) (teach.Saved, error) {
 	v, err := t.rt.LearnedPlay(service.LearnedQuery{
 		Application: t.app(), Name: actor, Verb: verb, Phrase: t.taught(),
@@ -192,7 +197,31 @@ func (t *teachTail) Save(route observe.RelationshipRef, actor, verb string) (tea
 		// Deleting Register must fail TestALearnedPlayIsRegisteredWhenItIsSaved.
 		Save: true, Register: true,
 	})
+	return savedFrom(v, err)
+}
+
+// savedFrom reads one lifecycle answer, INCLUDING the half-done one.
+//
+// # A registration failure is not a lost play
+//
+// `lifecycle` publishes `v.Saved` the moment the artifact is on disk, and returns the register
+// half's error alongside it. Collapsing that to a bare error made the teach coordinator refuse
+// `save_failed` — "I couldn't save it. Nothing was learned." — over a file the user could open,
+// read and edit. The second Learn of a phrase already taken hit this every time, and the person
+// was told their work was gone rather than that the name was.
+//
+// Saved-and-not-registered is a real state with its own refusal (`play_not_registered`) and its
+// own sentence. This is what routes it there, carrying WHY as `Reason`.
+//
+// Deleting the partial branch must fail TestASaveThatCannotRegisterStillReportsTheArtifact.
+func savedFrom(v service.LearnedView, err error) (teach.Saved, error) {
 	if err != nil {
+		if v.Saved != nil && v.Saved.Saved {
+			return teach.Saved{
+				Name: v.Saved.Name, Saved: true, Registered: false,
+				Source: v.Saved.Source, Reason: err.Error(),
+			}, nil
+		}
 		return teach.Saved{}, err
 	}
 	if v.Saved == nil {
@@ -510,16 +539,7 @@ func (t *teachTail) SaveRoute(walk []observe.RelationshipRef, actor, verb string
 		From: walk[0].From, To: walk[len(walk)-1].To,
 		Walk: steps, Save: true, Register: true,
 	})
-	if err != nil {
-		return teach.Saved{}, err
-	}
-	if v.Saved == nil {
-		return teach.Saved{}, fmt.Errorf("the save reported nothing")
-	}
-	return teach.Saved{
-		Name: v.Saved.Name, Saved: v.Saved.Saved,
-		Registered: v.Saved.Registered, Source: v.Saved.Source,
-	}, nil
+	return savedFrom(v, err)
 }
 
 // taught is the Audience's own words for this behaviour, empty when nothing supplies them.

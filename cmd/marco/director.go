@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -9,10 +10,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chaynes-simpleclouds/marco/internal/bridgehost"
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/diagnostics"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/timeline"
 	"github.com/chaynes-simpleclouds/marco/internal/director/service"
+	"github.com/chaynes-simpleclouds/marco/internal/platform/theaterhost"
+	"github.com/chaynes-simpleclouds/marco/internal/runtime"
 )
 
 // runDirector is Marco's thin client for the Director service.
@@ -93,7 +97,7 @@ func runDirector(args []string) {
 		case "watch", "playbill":
 			os.Exit(directorWatch(jsonMode, false, eventCursor))
 		case "diagnose", "diagnostics":
-			os.Exit(directorWatch(jsonMode, true, eventCursor))
+			os.Exit(directorDiagnose(jsonMode, eventCursor))
 		case "normal":
 			os.Exit(directorNormal(jsonMode))
 		case "live-analysis", "live":
@@ -840,6 +844,97 @@ func directorHistoryN(jsonMode bool, limit int) int {
 		fmt.Printf("%-10s %-8s %-26s %s\n", e.ID, state, e.Phrase, e.Reason)
 	}
 	return 0
+}
+
+// directorDiagnose is the Director's evidence PLUS this machine's Theater.
+//
+// # Why the roster belongs in a diagnostic
+//
+// Because "nothing happened" is the hard silence, and one of its explanations is not about the
+// screen or the phrase at all: this machine has nothing that can act. That is a real refusal —
+// `no_actor_available` — but it is only reachable by RUNNING a play, so the first time anybody
+// finds out the Theater is empty is when a play they have just taught does nothing. `diagnose` is
+// where a person goes when nothing happened, so it is where the answer should be.
+//
+// # Whose Theater this is
+//
+// THIS process's, built the way `marco do` builds it — the same accessibilityBridge() discovery,
+// the same newTheaterHost. Not the service's: a Director in another process has its own actors,
+// and reporting them here would answer a question nobody asked. What this says is "if you ran a
+// play right now, from this Marco, here is who could perform it".
+//
+// Host.Last() rides along and is usually empty for the same reason: it is the refusal from the
+// most recent production IN THIS PROCESS, and a fresh diagnose has not put one on. Shown when it
+// is not empty rather than as a permanent blank line.
+func directorDiagnose(jsonMode bool, cursor uint64) int {
+	if !jsonMode {
+		code := directorWatch(false, true, cursor)
+		printTheater(theaterDiagnostics())
+		return code
+	}
+	// One JSON document, not two: a consumer parses `diagnose --json` as a single object, so
+	// the theater goes in as an added key rather than as a second document on stdout.
+	view, code := fetchPlaybill(true, cursor)
+	if b, err := json.Marshal(view); err == nil {
+		var doc map[string]any
+		if json.Unmarshal(b, &doc) == nil {
+			doc["theater"] = theaterDiagnostics()
+			directorPrintJSON(doc)
+			return code
+		}
+	}
+	directorPrintJSON(view)
+	return code
+}
+
+// theaterReport is what this machine could cast, and why the last production did not go on.
+type theaterReport struct {
+	// Bridge is the accessibility provider that was FOUND, empty when there is none. The
+	// path is the point: "no bridge" and "a bridge at a path you did not expect" are
+	// different problems and they look identical from a play that did nothing.
+	Bridge string `json:"bridge"`
+	// Roster is every Actor and whether it can act, in casting order.
+	Roster []theaterhost.Player `json:"roster"`
+	// Last is the most recent refusal in this process, usually empty.
+	Last string `json:"last,omitempty"`
+}
+
+func theaterDiagnostics() theaterReport {
+	var accessibility runtime.Host
+	bridge := accessibilityBridge()
+	if bridge != "" {
+		accessibility = bridgehost.New(bridge)
+	}
+	// Built exactly as newDeps builds it, over an empty act map: the roster asks each Actor
+	// whether it could act, which no Actor answers by touching the desktop. Nothing here
+	// launches the bridge, presses anything, or observes anything.
+	h := newTheaterHost(map[string]runtime.Host{}, accessibility)
+	return theaterReport{Bridge: bridge, Roster: h.Roster(context.Background()), Last: h.Last()}
+}
+
+func printTheater(r theaterReport) {
+	fmt.Println()
+	fmt.Println("theater")
+	if r.Bridge == "" {
+		fmt.Println("  accessibility provider: NOT FOUND")
+		fmt.Println("    Nothing here can act on a target, so a learned play will do nothing.")
+		fmt.Println("    Build it with .\\setup.ps1, or name one with $MARCO_UIA_BRIDGE.")
+	} else {
+		fmt.Println("  accessibility provider: " + r.Bridge)
+	}
+	if len(r.Roster) == 0 {
+		fmt.Println("  cast: nobody — every learned play refuses no_actor_available")
+	}
+	for _, p := range r.Roster {
+		state := "cannot act"
+		if p.Available {
+			state = "ready"
+		}
+		fmt.Printf("  %s: %s\n", p.Name, state)
+	}
+	if r.Last != "" {
+		fmt.Println("  last refusal: " + r.Last)
+	}
 }
 
 func directorPrintJSON(v any) int {

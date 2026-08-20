@@ -67,6 +67,28 @@ it with `observe.PlaceNow`. No second resolver: the freshness is in the evidence
 opinion about it. `reach` answered from the newest finished session and told the Audience
 *"You're already there"* about a screen they had left.
 
+### Fresh is not enough: the evidence must be about THIS application
+
+Freshness was the only condition, and it admits a second way of being confidently wrong. A live
+session watching another program answers with a real subject id, from a look taken a moment ago,
+about a window the play is not in — live evidence, wrong subject, and nothing downstream can tell.
+
+So a live reading is trusted only when the session's application is the one being performed
+(`placeNowIn`), and both the fast path and the poll loop go through that one gate — the loop
+previously asked the registry without the live check at all, so a look that started and then died
+answered from whatever session happened to be newest.
+
+### Performing waits while something else is being watched
+
+One observation session runs at a time, so a session that is running is somebody demonstrating. A
+performance would bring another application forward under them, and every reading after that would
+be about a window their session is not watching — ADR-065 keeps operating and demonstrating apart.
+
+Refused with `watching_elsewhere` **before** the foreground is touched, rather than discovered
+later by a look that cannot be taken: by then the interruption has already happened. The refusal
+names what is in the way, because *"I can't tell which screen is in front"* would be a true-sounding
+sentence about the wrong cause.
+
 ### Cold start is the test of durability
 
 Both the application and the window used to come from session history, which quietly means "Marco
@@ -108,9 +130,22 @@ Neither invalidates the acceptance. Both are efficiency and selection, not corre
 - `cmd/director/performwiring_test.go` — `TestAColdProcessFindsItsWindowOnTheDesktop`;
   `TestTheWindowComesFromTheDesktopNotAPreviousSession` (seeds a live desktop AND session history,
   and requires the live one to win); `TestAnUnlearnedOutcomeIsRefused`
-- **not gated:** `bringForward` preceding the Stage read. Reordering it compiles and passes,
-  because foregrounding needs a live desktop the fakes cannot move. The live acceptance is the only
-  thing that catches it.
+- `cmd/director/performplace_test.go` — where the Audience is standing, and the walk:
+  - `TestAFinishedSessionIsNotWhereTheAudienceIsNow` (deleting the live conjunct in `placeNowIn`
+    plans the route from where a retired session left off)
+  - `TestALiveSessionElsewhereIsNotWhereTheAudienceIsNow` (deleting the application check answers
+    with the screen somebody is standing on in another program)
+  - `TestExecutionPlansFromAFreshLook` (deleting the look drops the reason with it)
+  - `TestPerformingWaitsWhileSomethingElseIsBeingWatched`
+  - `TestExecutionStopsAtTheFirstUnverifiedEdge` (through `performPlan`, the production loop)
+  - `TestArrivalIsConfirmedByLookingNotByFinishing` (both halves: a look that answers confirms, a
+    look that cannot answer is not arrival)
+  - `TestNothingIsReadFromTheStageBeforeTheApplicationIsBroughtForward` — **the order IS gated
+    now.** The earlier record said it could not be, because foregrounding needs a live desktop the
+    fakes cannot move. That is about the EFFECT; the invariant is the ORDER, and order is
+    observable: foregrounding an application no window answers to fails, so a correct `PerformGoal`
+    returns having asked the desktop nothing. A counting fake desktop sees the read the moment
+    `bringForward` is moved after the look. Verified by applying that reordering.
 
 ## Related
 

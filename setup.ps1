@@ -4,10 +4,14 @@
   writes a one-click launcher (overlay.cmd).
 
 .DESCRIPTION
-  Always builds the pure-Go core (cgo-free, needs only Go):
+  Always builds the core (cgo-free; Go, plus the in-box .NET Framework compiler):
     - marco.exe         the headless engine
     - marco-macros.exe  the macros layer (OS effects)
+    - director.exe      the Director service (`marco director ...` starts it)
     - overlay.exe       the native gamer-HUD UI layer
+    - plugins\uia\uia.exe  the accessibility provider — the Theater's only actor.
+                        Without it a learned play reaches a Theater with nobody in it
+                        and silently does nothing, so it is core, not optional.
 
   Optional components (flags), so you install only what you want:
     -Voice     offline voice (Vosk). Sets up the external deps: downloads
@@ -110,6 +114,30 @@ function BuildMod($dir, $out) {
     & go -C $dir build -o $out .
     if ($LASTEXITCODE -ne 0) { throw "build failed: $dir" }
     Ok "built $dir\$out"
+}
+
+# Build the accessibility provider (plugins\uia\uia.exe) — CORE, not optional.
+#
+# The Theater casts whichever actor can play the part, and accessibility is the only actor
+# there is today. Without this binary a learned play reaches a Theater with nobody in it and
+# silently does nothing, which is indistinguishable from a broken play. So it is not behind a
+# switch, and a failure here is fatal rather than a warning.
+#
+# plugins\uia\build.ps1 compiles it with the .NET Framework csc.exe that ships with Windows —
+# no SDK, no NuGet, no toolchain to install — so there is nothing to detect first.
+function BuildAccessibility {
+    $buildScript = Join-Path $root "plugins\uia\build.ps1"
+    if (-not (Test-Path $buildScript)) { throw "build failed: accessibility provider build script missing ($buildScript)" }
+    try {
+        & $buildScript | Out-Host
+    } catch {
+        throw "build failed: plugins\uia (accessibility provider) - $($_.Exception.Message)"
+    }
+    $exe = Join-Path $root "plugins\uia\uia.exe"
+    if (-not (Test-Path $exe)) {
+        throw "build failed: plugins\uia produced no uia.exe. Without it the Theater has no actor and every learned play does nothing."
+    }
+    Ok "built plugins\uia\uia.exe"
 }
 
 function Download($url, $dest) {
@@ -287,7 +315,12 @@ Step "Core layers"
 Need go "Install Go from https://go.dev/dl and reopen the terminal."
 Build "marco.exe"         "./cmd/marco"
 Build "marco-macros.exe"  "./cmd/marco-macros"
+# The Director service. CORE, not optional: `marco director ...` auto-starts it beside
+# marco.exe, and an install without it cannot perform a learned play at all — the phrase is
+# recognised, delivered nowhere, and the user sees nothing happen.
+Build "director.exe"      "./cmd/director"
 BuildMod "plugins\overlay" "overlay.exe"
+BuildAccessibility
 
 if ($WebUI) { Step "Web UI"; BuildMod "plugins\web-ui" "web-ui.exe" }
 

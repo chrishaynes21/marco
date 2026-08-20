@@ -6,17 +6,35 @@ import (
 	"testing"
 )
 
-// TestExtractBins unpacks the embedded stack to a temp dir and checks every binary lands, then
-// confirms a same-version re-run is a no-op. (Runs only after pack.ps1 has staged assets/.)
+// TestExtractBins unpacks the embedded stack to a temp dir and checks every staged file lands
+// WHERE the table says, then confirms a same-version re-run is a no-op.
+//
+// Driven by `staged` rather than by a second list, because a hand-written expectation here would
+// be a third place to forget the accessibility provider. It runs only in a packed tree; the
+// invariant that survives a clean clone is TestThePackagedLayoutIsWhatMarcoLooksFor in cmd/marco,
+// which reads this file as text and needs no staged assets at all.
 func TestExtractBins(t *testing.T) {
+	// A tree is either packed to the current list or it is not one this test can speak
+	// about. Staleness is the ordinary case — an assets/ dir packed before an asset was
+	// added — and pack.ps1 is where a missing asset is an error, because that is where
+	// somebody can fix it before it ships.
+	for _, s := range staged {
+		if _, err := assets.ReadFile("assets/" + s.asset); err != nil {
+			t.Skipf("assets/%s is not staged in this tree; run pack.ps1 to exercise "+
+				"extraction", s.asset)
+		}
+	}
 	dir := t.TempDir()
 	if err := extractBins(dir, "v1"); err != nil {
 		t.Fatal(err)
 	}
-	for _, n := range []string{"marco.exe", "marco-macros.exe", "overlay.exe", "overlay.marco", ".version"} {
-		if _, err := os.Stat(filepath.Join(dir, n)); err != nil {
-			t.Errorf("missing %s: %v", n, err)
+	for _, s := range staged {
+		if _, err := os.Stat(filepath.Join(dir, filepath.FromSlash(s.dest))); err != nil {
+			t.Errorf("missing %s: %v", s.dest, err)
 		}
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".version")); err != nil {
+		t.Errorf("missing .version: %v", err)
 	}
 	if err := extractBins(dir, "v1"); err != nil { // same version → skip, no error
 		t.Fatal(err)

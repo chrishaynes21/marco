@@ -117,6 +117,10 @@ func (h *Host) startProcess() (io.Writer, io.Reader, func() error, error) {
 	// overlay/macros bridges' debug output, and the route logs they relay, vanished.
 	// stdout stays the JSON protocol pipe; only stderr carries logs.
 	cmd.Stderr = os.Stderr
+	// A bridge child never owns a window. On Windows a console executable is given one, and a
+	// new console window takes the foreground — which on the cold path stole it from the very
+	// application the Director had just brought forward. See [hideConsole].
+	hideConsole(cmd)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, nil, nil, err

@@ -181,16 +181,24 @@ func TestNoExplicitYesDoesNotAuthoriseALearnedPlay(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			d, host := askingWorld(t, tc.input)
+			// An AUTHORIZED learned play is now performed by the Director rather than run
+			// here (see performbridge_test.go), so "it ran" is the fake endpoint being
+			// asked — not keys pressed locally. Both are counted: the invariant under test
+			// is that NOTHING performs the play without an explicit yes, and it must not
+			// quietly stop being checked because the performer moved.
+			director := useFakeDirector(t, &fakeDirector{view: arrived(1)})
 			if err := dispatchDo(d, "volume", nil, nil); err != nil {
 				t.Fatalf("dispatchDo: %v", err)
 			}
-			ran := len(host.pressed()) > 0
+			ran := len(host.pressed()) > 0 || len(director.asked) > 0
 			if ran != tc.run {
 				if tc.run {
-					t.Fatalf("explicit yes did not run the play (pressed %v)", host.pressed())
+					t.Fatalf("explicit yes did not perform the play (pressed %v, asked %d)",
+						host.pressed(), len(director.asked))
 				}
-				t.Fatalf("a learned play RAN without an explicit yes (%q) — pressed %v; "+
-					"no answer must never authorize", tc.input, host.pressed())
+				t.Fatalf("a learned play was PERFORMED without an explicit yes (%q) — "+
+					"pressed %v, asked the Director %d time(s); no answer must never "+
+					"authorize", tc.input, host.pressed(), len(director.asked))
 			}
 		})
 	}

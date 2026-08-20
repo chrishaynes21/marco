@@ -277,8 +277,14 @@ func (r Refusal) Say() string {
 	case NameRefused:
 		return "I still don't have a name for that screen, so I can't write the play."
 	case PlayNotRegistered:
-		return "I wrote it down, and I couldn.t make it askable yet."
+		// THE WORK IS SAFE, and the sentence says so. This is the outcome of a save that
+		// landed and a registration that did not — most often a name already in use — and
+		// telling somebody only that it "isn.t askable" reads like the play is gone.
+		return "I wrote it down and couldn.t make it askable. The play is safe — " +
+			"it is a file you can read and edit."
 	case SaveFailed:
+		// ONLY when nothing was written. A registration failure over a real artifact goes
+		// to PlayNotRegistered above, because this sentence would be a lie about it.
 		return "I couldn't save it. Nothing was learned."
 	case AnswerTimedOut:
 		return "I waited a while and stopped. Nothing was written down."

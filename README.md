@@ -383,6 +383,8 @@ Routes live in `./routes` (override with `$MARCO_ROUTES`).
 | Variable | Effect |
 |---|---|
 | `MARCO_ROUTES` | route directory (default `./routes`) |
+| `MARCO_HOME` | where the Director keeps its action graph and semantic memory (default `%APPDATA%\marco`) |
+| `MARCO_MEMORY` | the semantic-memory file itself (default `$MARCO_HOME/semantic-memory.json`); `marco` and `director` share one store and both honour this |
 | `MARCO_STOP_KEY` | key that ends a recording / aborts a run (default `f12`) |
 | `MARCO_ARG_KEY` | key that drops an argument placeholder while teaching (default `f9`; `off` disables) |
 | `MARCO_ANCHOR_KEY` | key you tap, then click, to anchor that click by image (default `f12`; `off` disables) |

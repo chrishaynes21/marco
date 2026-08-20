@@ -76,7 +76,8 @@ func dispatchDo(d orchestrator.Deps, name string, named map[string]string, posit
 		// does on the teach-miss path — authored and taught plays run as they always have, and a
 		// learned play Marco composed by watching is asked about once before it runs. See
 		// [[ADR-029-resolution-is-not-permission]].
-		decision := orchestrator.Authorize(orchestrator.Classify(d.Reg, rt, name), d.Authority)
+		resolved := orchestrator.Classify(d.Reg, rt, name)
+		decision := orchestrator.Authorize(resolved, d.Authority)
 		mlog.Info("dispatch: authority", "route", rt.Slug, "verdict", string(decision.Verdict), "reason", decision.Reason)
 		if !decision.Allow() {
 			if decision.Sentence != "" {
@@ -89,6 +90,31 @@ func dispatchDo(d orchestrator.Deps, name string, named map[string]string, posit
 		// Announce the canonical route that's about to run, so a front-end (the
 		// overlay) can show what a loose phrase actually resolved to.
 		fmt.Printf("[route] %s\n", prettyRoute(rt.Slug))
+		// THE FORK. A play MARCO wrote by watching is performed by the Director; everything
+		// else runs here exactly as it always has.
+		//
+		// The split is on provenance, not on a flag: `Learned()` is true only for a play
+		// whose origin sidecar still describes the file beside it. An authored play, a
+		// taught play, and a learned play somebody has since EDITED are all ordinary plays
+		// and take the local path untouched — an edited one deliberately so, because the
+		// file is the user's writing now and the Director has no record of what it says.
+		//
+		// It sits AFTER the door on purpose. Delegation is performance, and
+		// [[ADR-029-resolution-is-not-permission]] puts the authority seam in front of
+		// performance wherever it happens.
+		//
+		// # Why not simply run it here
+		//
+		// Because `marco` cannot see. A learned play's first line asks the Screen whether the
+		// place it begins on is showing; this process has no perception and answers "I could
+		// not check", so the play refuses at line one — and the generated play CATCHES that
+		// refusal and logs it, so the process still exits 0 and a front-end reads success.
+		// That is the failure this fork exists to end.
+		//
+		// Deleting this branch must fail TestALearnedPlayIsPerformedByTheDirector.
+		if resolved.Learned() {
+			return performLearned(d, resolved, named, positional)
+		}
 		return withPanicStop(true, func(ctx context.Context) error {
 			return runRoute(ctx, d, rt, named, positional)
 		})

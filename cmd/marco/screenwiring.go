@@ -20,36 +20,60 @@ import (
 //
 // # Read-only by construction
 //
-// The host is handed a `screenhost.Recognition`: four reads and nothing else. It cannot press a
-// key, focus a window, run a route or write to memory, whatever it decides.
+// The host is handed a `screenhost.Recognition`: three reads and nothing else — which application
+// is in front, which screen is in front, and what the user has named. It cannot press a key, focus
+// a window, run a route or write to memory, whatever it decides.
 
-// newScreenHost builds the Screen act's implementation, or nil when nothing can recognise a screen.
+// newScreenHost builds the Screen act's implementation.
 //
-// Nil is a real answer. A Marco with no semantic memory cannot tell where it is, so a guarded play
-// refuses rather than degrading into blind replay — see [[ADR-031-the-user-names-the-stage]].
+// A host with no recogniser behind it is a real answer. A Marco that cannot tell where it is makes
+// a guarded play refuse rather than degrade into blind replay — see
+// [[ADR-031-the-user-names-the-stage]].
 func newScreenHost() *screenhost.Host {
-	store, _ := semanticmemory.Open(memoryPath())
-	if store == nil {
-		return screenhost.New(nil)
-	}
-	return screenhost.New(&liveScreens{store: store})
+	return screenhost.New(newScreenRecognition())
 }
 
-// memoryPath is where durable semantic memory lives, beside the routes it describes.
+// newScreenRecognition opens the durable store this process reads screens out of.
+//
+// Split out of [newScreenHost] so a test can hold the injected backing itself: the host keeps its
+// `Recognition` unexported (correctly — nothing may reach past it), which leaves no other way to
+// assert that the composition root opened the right file. The two are one composition; a test that
+// enters here enters the production wiring.
+func newScreenRecognition() screenhost.Recognition {
+	store, _ := semanticmemory.Open(memoryPath())
+	if store == nil {
+		return nil
+	}
+	return &liveScreens{store: store}
+}
+
+// memoryPath is where durable semantic memory lives: the Director's store, under `$MARCO_HOME`.
+//
+// ONE store, not one per process. Screen names are written by the Director while it teaches, and
+// read here while a play runs; a second file beside the routes could only ever be empty, and an
+// empty store made `Screen's Showing` refuse with "nothing in <app> is called <name>" — a sentence
+// about a name that was in fact recorded, just somewhere else.
+//
+// `$MARCO_MEMORY` still wins, and `cmd/director` honours it identically. An override one process
+// obeys and the other ignores is the same split under a different name.
 func memoryPath() string {
 	if p := strings.TrimSpace(os.Getenv("MARCO_MEMORY")); p != "" {
 		return p
 	}
-	return filepath.Join(routesDir(), "memory.json")
+	return filepath.Join(directorDir(), "semantic-memory.json")
 }
 
 // liveScreens is the read-only view the Screen host is given.
 //
 // Semantic memory answers "what is this place called"; the window tracker answers "what is in
 // front". Recognising the CURRENT screen needs perception Director owns, and standalone Marco does
-// not have it — so `CurrentSubject` reports `unavailable` and the guard refuses. That is the
-// honest architecture rather than a contorted one: Director figures out the play, Marco performs
-// it, and Director still provides the eyes while it does.
+// not have it — so `CurrentSubject` reports `unavailable` and the guard refuses.
+//
+// On the product path nothing reaches that refusal: a learned play is performed by the Director
+// (see [[ADR-078-a-learned-play-is-performed-by-the-director]]), which re-plans and verifies out of band and
+// never runs the play's `do Screen's Showing` lines here. This host answers for a guarded source
+// run locally — `marco run`, `marco do` on a saved file — and its job there is to refuse honestly,
+// naming what it could not do rather than a name it could not find.
 type liveScreens struct{ store *semanticmemory.Store }
 
 func (l *liveScreens) Application() string { return winctx.Active() }

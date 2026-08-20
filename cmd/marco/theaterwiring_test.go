@@ -188,31 +188,99 @@ func TestTheAssembledTheaterRunsItsCastProgram(t *testing.T) {
 //
 // The Director beside it has always found the plugin by looking. `marco` now looks the same way.
 //
-// Deleting the discovery must fail this.
+// # Why this no longer waits for a real plugin
+//
+// It used to skip when plugins/uia/uia.exe was absent from the tree — which is every fresh
+// clone, every CI run, and every machine where nobody had built the provider. A gate that
+// silently stands down on the machines most likely to be missing the thing it guards is not a
+// gate. It was green for the whole time the discovery it protects did not exist in any shipped
+// build.
+//
+// The three tiers are exercised against a STUB file instead. The discovery asks `os.Stat`, so a
+// zero-byte file at the right path is the whole question — and it lets the tier the INSTALLER
+// depends on be tested at all: tier 2 looks beside the executable, and under `go test` the
+// executable is the test binary, whose directory is a temp dir this test can write into.
+//
+// Deleting any tier of the discovery must fail this.
 func TestALearnedPlayFindsAnActorWithoutBeingTold(t *testing.T) {
 	t.Setenv("MARCO_UIA_BRIDGE", "")
 
-	// The repository layout a build tree has: the plugin beside the working directory.
-	if _, err := os.Stat(filepath.FromSlash("../../plugins/uia/uia.exe")); err != nil {
-		t.Skip("no accessibility plugin in this tree to discover")
-	}
-	dir, err := os.Getwd()
+	const rel = "plugins/uia/uia.exe"
+	exe, err := os.Executable()
 	if err != nil {
-		t.Fatalf("cwd: %v", err)
+		t.Fatalf("executable: %v", err)
 	}
-	t.Cleanup(func() { _ = os.Chdir(dir) })
-	if err := os.Chdir(filepath.FromSlash("../..")); err != nil {
-		t.Fatalf("chdir: %v", err)
+	besideExe := filepath.Join(filepath.Dir(exe), filepath.FromSlash(rel))
+
+	// A working directory with nothing in it, so tier 3 cannot answer for tier 2.
+	inTempCwd(t, t.TempDir())
+
+	// Nothing anywhere: the honest answer is nothing, not a path that does not exist.
+	// Returning a hopeful default here would make "this machine cannot act" arrive later,
+	// as a bridge that fails to launch.
+	if got := accessibilityBridge(); got != "" {
+		t.Fatalf("with no plugin and no bridge named, discovery invented %q", got)
 	}
 
-	if got := accessibilityBridge(); got == "" {
-		t.Fatal("no accessibility bridge was found with none named. The Theater then has no " +
-			"actor, and every learned play silently does nothing — which is what a live " +
-			"invocation looked like.")
+	// TIER 2 — beside the executable. THE tier a packaged install depends on: the bundle
+	// unpacks marco.exe into bin\ and uia.exe into bin\plugins\uia\, and nothing tells marco
+	// where it is. This tier had never been exercised.
+	stub(t, besideExe)
+	if got := accessibilityBridge(); got != besideExe {
+		t.Fatalf("a provider beside the executable was not found: got %q, want %q.\n"+
+			"That is the layout the single-file installer produces, so the Theater "+
+			"would have no actor on every installed machine and every learned play "+
+			"would silently do nothing.", got, besideExe)
 	}
-	// An explicit choice still wins.
+	remove(t, besideExe)
+
+	// TIER 3 — the working directory. The layout a build tree has.
+	work := t.TempDir()
+	stub(t, filepath.Join(work, filepath.FromSlash(rel)))
+	inTempCwd(t, work)
+	if got := accessibilityBridge(); got != filepath.FromSlash(rel) {
+		t.Errorf("a provider in the working directory was not found: got %q, want %q",
+			got, filepath.FromSlash(rel))
+	}
+
+	// An explicit choice still wins over both.
 	t.Setenv("MARCO_UIA_BRIDGE", "chosen.exe")
 	if got := accessibilityBridge(); got != "chosen.exe" {
 		t.Errorf("an explicitly named bridge became %q", got)
+	}
+}
+
+// inTempCwd moves into dir for the rest of the test and restores the old one after.
+func inTempCwd(t *testing.T, dir string) {
+	t.Helper()
+	old, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("cwd: %v", err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("chdir %s: %v", dir, err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+}
+
+// stub writes an empty file at path, creating its directory.
+//
+// Empty on purpose: the discovery asks os.Stat and nothing else, so a real binary would only
+// make the test need a build. What it must NOT be is absent.
+func stub(t *testing.T, path string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", filepath.Dir(path), err)
+	}
+	if err := os.WriteFile(path, nil, 0o755); err != nil {
+		t.Fatalf("write %s: %v", path, err)
+	}
+	t.Cleanup(func() { _ = os.Remove(path) })
+}
+
+func remove(t *testing.T, path string) {
+	t.Helper()
+	if err := os.Remove(path); err != nil {
+		t.Fatalf("remove %s: %v", path, err)
 	}
 }

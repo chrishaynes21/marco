@@ -11,9 +11,9 @@
 //
 // # What it may do
 //
-// Look, and compare. The interface it is given has four methods and every one of them is a read:
-// which application is in front, what screen is in front, what the user has named, and nothing
-// else. It cannot press a key, focus a window, run a route, write to memory, grant authority or
+// Look, and compare. The interface it is given has three methods and every one of them is a read:
+// which application is in front, which screen is in front, and what a name the user gave refers
+// to. Nothing else. It cannot press a key, focus a window, run a route, write to memory, grant authority or
 // register anything — and `TestTheScreenHostCannotAct` holds that structurally.
 //
 // **Perception, not action.** A play asking where it is must not thereby be doing something.
@@ -35,7 +35,7 @@ import (
 
 // Recognition is the smallest read-only view of the world this host needs.
 //
-// Deliberately four methods and not an interface to Director. A host handed the Director runtime
+// Deliberately three methods and not an interface to Director. A host handed the Director runtime
 // could do anything Director can do; this one can look at two things and read a name.
 type Recognition interface {
 	// Application is which program is in front, empty when that cannot be established.

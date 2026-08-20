@@ -338,14 +338,48 @@ func (r Registry) StagedSource(rt Route) (string, bool) {
 //
 // A collision is refused rather than resolved. Overwriting somebody's authored play with something
 // Director wrote is not a decision this code gets to make quietly.
+// nameTaken reports whether this name is already answerable, in ANY scope that could answer it.
+//
+// # Why not just Has
+//
+// Because `Has` is scope-exact — it asks whether THIS file exists — and a collision is not about
+// a file, it is about a name. A learned play registers as a focus route, so `Has` looks in
+// `<app>/focus/`; somebody's authored play of the same name sits in `<app>/context/` or loose
+// beside it. Scope-exact, they do not collide. To the person who asks for the name, they very
+// much do, and the one that answers is whichever the resolver reaches first.
+//
+// So every scope that `Resolve` can reach for this name is checked: both of the application's
+// scopes, the legacy loose location, and global. Registering may not put a second play behind a
+// name that already means something.
+//
+// Deleting any arm must fail TestCollisionsAreRefusedRatherThanResolved.
+func (r Registry) nameTaken(rt Route) (bool, string) {
+	for _, c := range []struct {
+		rt    Route
+		where string
+	}{
+		{Route{App: rt.App, Slug: rt.Slug}, ""},
+		{Route{App: rt.App, Focus: true, Slug: rt.Slug}, " as a focus play"},
+		{Route{Slug: rt.Slug}, " as a global play"},
+	} {
+		if c.rt.App == "" && rt.App == "" && c.where != "" {
+			continue // the app-less route IS rt; do not report it against itself
+		}
+		if r.Has(c.rt) {
+			return true, c.where
+		}
+	}
+	return false, ""
+}
+
 func (r Registry) Register(rt Route) error {
 	if rt.Slug == "" {
 		return fmt.Errorf("routes: a play needs a name")
 	}
-	if r.Has(rt) {
+	if taken, where := r.nameTaken(rt); taken {
 		return fmt.Errorf(
-			"routes: %s already exists; rename the learned play or remove the other one first",
-			rt.Slug)
+			"routes: %s already exists%s; rename the learned play or remove the other one first",
+			rt.Slug, where)
 	}
 	source, ok := r.StagedSource(rt)
 	if !ok {
@@ -359,11 +393,27 @@ func (r Registry) Register(rt Route) error {
 		return fmt.Errorf("routes: %s is %s, so it cannot be registered as a learned play",
 			rt.Slug, state)
 	}
+	// REGISTERED **OR** STAGED, NEVER BOTH.
+	//
+	// Two directories hold one play, and the whole point of that is that a person can look at
+	// the filesystem and know where it stands. A failed registration that left a half-written
+	// copy in `context/` next to the original in `learned/` would make the same play answer
+	// two different questions — and the retry would then refuse on a collision with itself.
+	//
+	// So a partial write is undone, and the staged copy — untouched, complete, and still the
+	// only one — is what the caller comes back to.
+	//
+	// Deleting the rollback must fail TestARefusedRegistrationLeavesOneCopy.
 	if err := r.SaveWithOrigin(rt, source, o); err != nil {
+		_ = os.Remove(r.OriginPath(rt))
+		_ = os.Remove(r.Path(rt))
 		return err
 	}
+	if err := os.Remove(r.StagedPath(rt)); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("routes: %s is registered and its staged copy could not be "+
+			"removed, so the play is now in two places: %w", rt.Slug, err)
+	}
 	_ = os.Remove(r.stagedOriginPath(rt))
-	_ = os.Remove(r.StagedPath(rt))
 	return nil
 }
 
@@ -374,6 +424,21 @@ func (r Registry) Register(rt Route) error {
 // asked for.
 func (r Registry) Unregister(rt Route) error {
 	if err := r.DeleteOrigin(rt); err != nil {
+		return err
+	}
+	// THE STAGED COPY GOES TOO, and this is the only door it can leave by.
+	//
+	// A play that was saved and whose registration was refused — a name already taken is the
+	// ordinary way — sits in `<app>/learned/` where nothing scans. Forgetting reached only the
+	// registered scope, so that copy could never be removed by any command a person has: it
+	// was unreachable, unforgettable, and still enough to make the next `Register` of the same
+	// slug behave strangely. Removing it here costs nothing when there is none.
+	//
+	// Deleting this must fail TestForgettingRemovesAStagedPlayNothingCouldReach.
+	if err := os.Remove(r.stagedOriginPath(rt)); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	if err := os.Remove(r.StagedPath(rt)); err != nil && !os.IsNotExist(err) {
 		return err
 	}
 	return r.Delete(rt)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -96,7 +97,8 @@ func TestAfterARestartThePlaySurvivesAndTheTeachSessionDoesNot(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("MARCO_ROUTES", dir)
 
-	tail, route := taughtTail(t, verifiedRegistry(t))
+	g := verifiedRegistry(t)
+	tail, route := taughtTail(t, g)
 	saved, err := tail.Save(route, "Audio", "Open")
 	if err != nil || !saved.Saved {
 		t.Fatalf("saving: %v %+v", err, saved)
@@ -120,9 +122,28 @@ func TestAfterARestartThePlaySurvivesAndTheTeachSessionDoesNot(t *testing.T) {
 	if after := treeOf(t, dir); len(after) != len(before) || len(after) == 0 {
 		t.Fatalf("the learned artifact did not survive: before %v after %v", before, after)
 	}
-	// And the screen names the user gave are still in durable memory.
-	store, _ := semanticmemory.Open(semanticMemoryPath())
-	_ = store
+	// And the screen names the user gave are still in durable memory — read back from the
+	// file, through a store this test opens itself, so what is asserted is what survived the
+	// process and not what a live object still happens to be holding.
+	//
+	// Reopened from the SAME path the writer used (`store.Path()`), not from a path recomputed
+	// here: a test that derives the location a second time can agree with itself while the
+	// running Director writes somewhere else.
+	written, ok := g.memory.(*semanticmemory.Store)
+	if !ok {
+		t.Fatalf("the fixture registry has no semantic store: %T", g.memory)
+	}
+	reopened, why := semanticmemory.Open(written.Path())
+	if why != "" {
+		t.Fatalf("reopening semantic memory at %s: %s", written.Path(), why)
+	}
+	for _, want := range []string{"the pause menu", "the audio page"} {
+		if _, found := reopened.SubjectNamed("testgame", want); !found {
+			t.Errorf("after a restart nothing in testgame is called %q; the names the user "+
+				"gave the screens have to outlive the session that collected them", want)
+		}
+	}
+
 	src, err := os.ReadFile(marcoFileIn(t, dir))
 	if err != nil {
 		t.Fatalf("reading the saved play: %v", err)
@@ -138,23 +159,80 @@ func TestAfterARestartThePlaySurvivesAndTheTeachSessionDoesNot(t *testing.T) {
 }
 
 // Part 16 — completing a teach runs nothing.
+//
+// # What this is about, and what it deliberately is not
+//
+// SAVING IS NOT PERFORMING. The tail writes a file and moves a file; between those two acts
+// nothing reaches a keyboard, a mouse or a window, and no authority to reach one is created.
+// That is the invariant, and it is the whole of it.
+//
+// It used to end by asserting that the saved play was NOT discoverable, which was a statement
+// about the pre-9e2a45c product decision rather than about invocation — and it now contradicts
+// TestALearnedPlayIsRegisteredWhenItIsSaved, which gates the workflow the Audience asked for.
+// See [[ADR-079-a-demonstration-the-audience-named-is-a-play-they-may-ask-for]]: saving and
+// registering are still two operations against two directories, and the Learn workflow performs
+// both because naming a behaviour is the permission to make it askable.
+//
+// Registering is a rename. Discoverable is not running.
 func TestTheTeachTailNeverInvokesWhatItJustSaved(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("MARCO_ROUTES", dir)
 
 	g := verifiedRegistry(t)
 	tail, route := taughtTail(t, g)
+
 	// The grant that authorised the rehearsal is spent or standing; either way, saving must
-	// not reach for it.
-	if _, err := tail.Save(route, "Audio", "Open"); err != nil {
+	// not reach for it, replace it or renew it.
+	before := g.last.Grant()
+	var stateBefore string
+	if before != nil {
+		stateBefore = string(before.State())
+	}
+	rehearsalsBefore := len(g.memory.(observe.RehearsalStore).Rehearsals("testgame"))
+
+	saved, err := tail.Save(route, "Audio", "Open")
+	if err != nil {
 		t.Fatalf("saving: %v", err)
 	}
-	// A saved play lives where discovery does not look. The registry's own rule, restated as
-	// the property that matters here: nothing can ask for it.
+	if !saved.Saved {
+		t.Fatalf("nothing was written: %+v", saved)
+	}
+
+	if after := g.last.Grant(); after != before {
+		t.Fatal("saving created or replaced a rehearsal grant; writing a play down is not " +
+			"permission to run it")
+	} else if after != nil && string(after.State()) != stateBefore {
+		t.Fatalf("saving changed the authorization from %q to %q", stateBefore, after.State())
+	}
+
+	// NOTHING RAN. A rehearsal is the one thing in this system that emits input on Marco's
+	// behalf, and it records itself; the count is the same on both sides of the save.
+	if got := len(g.memory.(observe.RehearsalStore).Rehearsals("testgame")); got != rehearsalsBefore {
+		t.Fatalf("%d rehearsal record(s) after saving, want %d — saving performed the play",
+			got, rehearsalsBefore)
+	}
+
+	// And what the person is told keeps the two apart: it says where the play is, never that
+	// it happened.
+	joined := strings.ToLower(strings.Join([]string{saved.Name, saved.Reason}, "\n"))
+	for _, forbidden := range []string{"running", "performed", "i ran it"} {
+		if strings.Contains(joined, forbidden) {
+			t.Errorf("saving reports %q; it wrote a file and moved it", forbidden)
+		}
+	}
+
+	// The artifact is a Route: a name and a scope, with nothing on it to invoke. The
+	// registry hands back no way to run what it just made findable.
 	reg := learnedRegistry()
-	for _, r := range reg.List() {
-		if strings.Contains(strings.ToLower(r.Slug), "audio") {
-			t.Fatalf("the saved play %q is discoverable immediately after teaching", r.Slug)
+	rt, ok := reg.Resolve("testgame", saved.Name)
+	if !ok {
+		t.Fatalf("the saved play %q did not resolve; the fixture is wrong", saved.Name)
+	}
+	v := reflect.TypeOf(rt)
+	for _, forbidden := range []string{"Run", "Execute", "Invoke", "Perform", "Do", "Play"} {
+		if _, has := v.MethodByName(forbidden); has {
+			t.Errorf("routes.Route has a %s method; teaching would then be performing",
+				forbidden)
 		}
 	}
 }
@@ -450,6 +528,37 @@ func TestALearnedPlayIsRegisteredWhenItIsSaved(t *testing.T) {
 		t.Errorf("route discovery does not list %q. It is on disk somewhere the resolver "+
 			"never looks, which is what made \"you can ask me to do it later\" false.",
 			saved.Name)
+	}
+	// IT RESOLVES WHILE ITS APPLICATION IS IN FRONT.
+	if _, ok := reg.Resolve("testgame", saved.Name); !ok {
+		t.Errorf("%q does not resolve in the app it was learned in", saved.Name)
+	}
+
+	// AND FROM ANYWHERE ELSE TOO.
+	//
+	// This assertion used to be its exact opposite, pinning learned plays to the
+	// foreground-only `context` scope and warning that widening it without saying so would be
+	// a mistake. The Phase-0 live acceptance said it out loud: with Discord in front, asking
+	// for the play that had just been learned produced
+	//
+	//	dispatch - no route found  name=open-mouse-settings  app=discord
+	//	I don't know "open-mouse-settings" yet. Teach it now? [y]es / [n]o:
+	//
+	// — Marco offering to teach a play it had learned four minutes earlier. A context route
+	// resolves only where it was learned, and a learned play is asked for from wherever the
+	// Audience happens to be; `PerformGoal` brings the application forward itself, which is
+	// the focus contract exactly. See [[ADR-080-a-learned-play-is-asked-for-from-anywhere]].
+	//
+	// Deleting `Focus: true` from the registered route must fail this.
+	rt, ok := reg.Resolve("some-other-app", saved.Name)
+	if !ok {
+		t.Fatalf("%q does not resolve from another application. A learned play the Audience "+
+			"can only ask for while they are already looking at it is one they never need "+
+			"to ask for.", saved.Name)
+	}
+	if !rt.Focus {
+		t.Errorf("%q resolved from another application as %+v, but not as a focus route — "+
+			"so nothing promises the application will be brought forward", saved.Name, rt)
 	}
 }
 

@@ -48,7 +48,17 @@ func defaultHome() string {
 // Beside the action graph, under the same `$MARCO_HOME`, so a person who wants to inspect,
 // back up, copy or delete what Marco has learned finds it in one place — and so a test can
 // point an entire Director at a temporary directory with one environment variable.
+//
+// `$MARCO_MEMORY` names the file outright, and is honoured here for the same reason `cmd/marco`
+// honours it: one store, one override. An override obeyed by the reader and ignored by the writer
+// puts the two processes back on separate files, which is the split this is meant to close.
+//
+// The default still goes through configDir, so `reset-test-state` keeps recognising the real
+// store by the same function that chose it — see [defaultHome].
 func semanticMemoryPath() string {
+	if p := strings.TrimSpace(os.Getenv("MARCO_MEMORY")); p != "" {
+		return p
+	}
 	return filepath.Join(configDir(), "semantic-memory.json")
 }
 

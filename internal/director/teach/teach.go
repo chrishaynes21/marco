@@ -1261,8 +1261,14 @@ func (c *Coordinator) save() {
 	// Deleting this must fail TestAPlayIsNotCalledAskableUntilItIsRegistered.
 	if !s.Registered {
 		c.s.Saved = &s
-		c.refuse(PlayNotRegistered,
-			"the play was written down as "+s.Name+" and nothing can ask for it yet")
+		why := "the play was written down as " + s.Name + " and nothing can ask for it yet"
+		// WHY, when the persistence path said why. A dead end a person can act on — "that
+		// name is already taken; rename it or remove the other one" — is a different thing
+		// from one they cannot.
+		if s.Reason != "" {
+			why += ": " + s.Reason
+		}
+		c.refuse(PlayNotRegistered, why)
 		return
 	}
 	c.s.Saved = &s

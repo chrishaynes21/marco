@@ -107,9 +107,17 @@ type Saved struct {
 	// Saved says a durable artifact exists. Nothing may claim completion without it.
 	Saved bool
 	// Registered says a later request can find it. Separate on purpose: saving is "keep
-	// this", registering is "and let me ask for it", and they are two permissions.
+	// this", registering is "and let me ask for it", and they are two operations against
+	// two directories. The Learn workflow asks for both — see
+	// [[ADR-079-a-demonstration-the-audience-named-is-a-play-they-may-ask-for]] — but a
+	// Saved{Saved: true, Registered: false} is still a state a caller must be able to see.
 	Registered bool
 	Source     string
+	// Reason is why registration did not happen, when it did not. Free text from the
+	// persistence layer, and the ONLY free text on this type — it exists because "the name
+	// is already taken; rename it or remove the other one" is the difference between a dead
+	// end and something a person can act on. Empty whenever Registered is true.
+	Reason string
 }
 
 // AttemptStep is one step of a rehearsal, as the surfaces may see it.

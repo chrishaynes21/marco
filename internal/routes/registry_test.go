@@ -133,3 +133,114 @@ func must(t *testing.T, err error) {
 		t.Fatal(err)
 	}
 }
+
+// ── one copy, always ──────────────────────────────────────────────────────────
+
+// A refused registration leaves the staged play and nothing else.
+//
+// Two directories hold one play. If a refusal could leave a copy in both, the same play would
+// answer two different questions — and the retry would refuse on a collision with itself, which
+// is a dead end nobody can get out of.
+//
+// The refusal here is the ordinary one: the slug is already taken by an authored play.
+func TestARefusedRegistrationLeavesOneCopy(t *testing.T) {
+	reg := newReg(t)
+	rt := Route{App: "forza", Slug: "drift"}
+
+	// Somebody's own play is already called that.
+	must(t, reg.Save(rt, "-- theirs\n"))
+	must(t, reg.SaveStaged(rt, "-- learned\n", Origin{Kind: KindLearned, Application: "forza"}))
+
+	if err := reg.Register(rt); err == nil {
+		t.Fatal("registering over an existing play was allowed")
+	}
+	// The refusal says what to do about it, because a name collision a person cannot see is
+	// indistinguishable from the play having been lost.
+	// (The message itself is asserted where it is produced; what matters here is the disk.)
+
+	// The staged copy is intact and still the learned one.
+	src, ok := reg.StagedSource(rt)
+	if !ok || src != "-- learned\n" {
+		t.Fatalf("the staged play did not survive the refusal: %q %v", src, ok)
+	}
+	// And the registered scope still holds THEIRS, untouched.
+	got, err := os.ReadFile(reg.Path(rt))
+	if err != nil || string(got) != "-- theirs\n" {
+		t.Fatalf("the authored play was disturbed: %q %v", got, err)
+	}
+}
+
+// A successful registration leaves the staged copy behind it.
+func TestRegisteringMovesThePlayRatherThanCopyingIt(t *testing.T) {
+	reg := newReg(t)
+	rt := Route{App: "forza", Slug: "drift"}
+	must(t, reg.SaveStaged(rt, "-- learned\n", Origin{Kind: KindLearned, Application: "forza"}))
+	must(t, reg.Register(rt))
+
+	if _, ok := reg.StagedSource(rt); ok {
+		t.Error("the play is registered AND staged; one play, one place")
+	}
+	if _, err := os.Stat(reg.StagedPath(rt)); !os.IsNotExist(err) {
+		t.Errorf("the staged file is still there: %v", err)
+	}
+	if !reg.Has(rt) {
+		t.Error("the play did not arrive in the scope the resolver reads")
+	}
+}
+
+// Forgetting reaches the staged copy, which nothing else can.
+//
+// A play whose registration was refused sits in `<app>/learned/`, where discovery does not scan.
+// Before this, `Unregister` removed only the registered scope — so that copy could not be removed
+// by any command a person has. Unreachable and unforgettable at the same time.
+func TestForgettingRemovesAStagedPlayNothingCouldReach(t *testing.T) {
+	reg := newReg(t)
+	rt := Route{App: "forza", Slug: "drift"}
+	must(t, reg.SaveStaged(rt, "-- learned\n", Origin{Kind: KindLearned, Application: "forza"}))
+
+	must(t, reg.Unregister(rt))
+
+	if _, ok := reg.StagedSource(rt); ok {
+		t.Fatal("forgetting left the staged play on disk, where nothing can reach it again")
+	}
+	if _, state := reg.StagedOrigin(rt); state != OriginNone {
+		t.Errorf("staged provenance is %q, want it gone with the play it described", state)
+	}
+	must(t, reg.Unregister(rt)) // idempotent
+}
+
+// A registration that half-lands is undone.
+//
+// `SaveWithOrigin` writes the source and then the provenance. If the second write fails, the
+// source alone is sitting in the scope the resolver reads — an ordinary-looking play Director
+// wrote, which nobody chose to register — WHILE the staged copy is still in `learned/`. One play,
+// two places, and the retry then refuses on a collision with itself.
+//
+// The failure is forced the only honest way available: a directory standing where the provenance
+// file has to go.
+//
+// Deleting the rollback must fail this.
+func TestAPartlyWrittenRegistrationIsUndone(t *testing.T) {
+	reg := newReg(t)
+	rt := Route{App: "forza", Slug: "drift"}
+	must(t, reg.SaveStaged(rt, "-- learned\n", Origin{Kind: KindLearned, Application: "forza"}))
+
+	// The provenance cannot be written, and the source can.
+	if err := os.MkdirAll(reg.OriginPath(rt), 0o755); err != nil {
+		t.Fatalf("blocking the provenance path: %v", err)
+	}
+
+	if err := reg.Register(rt); err == nil {
+		t.Fatal("a registration that could not write provenance reported success")
+	}
+
+	if reg.Has(rt) {
+		t.Error("the source was left in the resolver's scope without its provenance, next " +
+			"to the staged copy it came from")
+	}
+	src, ok := reg.StagedSource(rt)
+	if !ok || src != "-- learned\n" {
+		t.Fatalf("the staged play did not survive the failure: %q %v — there is now no "+
+			"copy of it anywhere", src, ok)
+	}
+}

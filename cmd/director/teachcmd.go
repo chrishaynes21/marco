@@ -317,6 +317,15 @@ func printTeachFooter(v teachView, asked *string) {
 			v.SessionID, v.QuestionID)
 	case teach.Refused:
 		*asked = key
+		// "NOTHING WAS SAVED" IS NOT ALWAYS TRUE. A teach that wrote the play and could not
+		// register it refuses with `play_not_registered` over an artifact that is on disk;
+		// telling that person to start again would throw their work away.
+		if v.Play != "" {
+			fmt.Printf("\nSaved as %s. It is a file you can read and edit.\n", v.Play)
+			fmt.Println("Nothing can ask for it yet. `director teach --watch` says why; " +
+				"once the way is clear:\n  director learned --register --name " + v.Play)
+			return
+		}
 		// The retry does NOT suggest a window id. Naming one is a developer's override, and
 		// offering it as the fix teaches people that the ordinary way is broken — when the
 		// actual reason is almost always that Marco does not recognise the screen yet.

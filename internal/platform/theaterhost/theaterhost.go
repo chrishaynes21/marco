@@ -197,6 +197,44 @@ func New(actors ...Actor) *Theater {
 	return &Theater{actors: actors}
 }
 
+// Player is one Actor's readiness tonight. Diagnostics only — nothing decides anything on it.
+type Player struct {
+	// Name is what the Actor calls itself.
+	Name string `json:"name"`
+	// Available is the answer to the SAME question casting asks, at the moment it was asked.
+	Available bool `json:"available"`
+}
+
+// Roster is who is in the Theater and who can act, in casting order.
+//
+// # Why this exists
+//
+// Because "nothing happened" is the hard silence. `no_actor_available` is the honest refusal for
+// a machine that cannot act, but it is only reachable by RUNNING a play — so the first time
+// anybody discovers that the Theater is empty is when a learned play they just taught does
+// nothing. A person should be able to ask before that.
+//
+// # Why it must not be a second opinion
+//
+// It calls a.Available(ctx) on t.actors in order — the same predicate, on the same actors, in the
+// same sequence Activate walks. A roster that computed readiness its own way would be a
+// diagnostic that agrees with the product right up until the moment somebody needs it to
+// disagree, which is the one moment it is consulted.
+//
+// Reporting `available: false` rather than omitting the Actor on purpose: "accessibility is here
+// and cannot act" and "there is no accessibility actor at all" are different machines with
+// different fixes.
+func (t *Theater) Roster(ctx context.Context) []Player {
+	if t == nil {
+		return nil
+	}
+	out := make([]Player, 0, len(t.actors))
+	for _, a := range t.actors {
+		out = append(out, Player{Name: a.Name(), Available: a.Available(ctx)})
+	}
+	return out
+}
+
 // Activate is the whole production: resolve, cast, perform, verify.
 //
 // # Why resolution happens per Actor and refusal happens here
@@ -299,6 +337,15 @@ func NewHost(t *Theater) *Host { return &Host{theater: t} }
 
 // Last is why the most recent production did not go on, for diagnostics.
 func (h *Host) Last() string { return h.last }
+
+// Roster is who this host could cast, in casting order. Nil when there is no Theater at all,
+// empty when the Theater has nobody in it — which are different machines.
+func (h *Host) Roster(ctx context.Context) []Player {
+	if h == nil {
+		return nil
+	}
+	return h.theater.Roster(ctx)
+}
 
 func (h *Host) Invoke(c runtime.HostCall) (string, runtime.Value, error) {
 	switch strings.ToLower(c.Action) {
