@@ -114,7 +114,7 @@ func taught(t *testing.T, tail *stubTail, answer func(*stubTail, learn.Phase)) l
 	t.Helper()
 	c, _, _ := learnToDemonstration(t, goodCandidate(),
 		&observe.CandidateAssessment{Verdict: observe.CandidateConsistent})
-	c.WithTail(tail).WithPlayName("Downloads", "Open")
+	c.WithTail(tail).WithPlayName("Downloads", "Open").WithRehearsal(rehearseInWalk)
 
 	ctx := context.Background()
 	s := c.Advance(ctx) // the demonstration pass, then the assessment
@@ -214,7 +214,7 @@ func TestSilenceNeverAuthorisesARehearsal(t *testing.T) {
 
 	c, _, _ := learnToDemonstration(t, goodCandidate(),
 		&observe.CandidateAssessment{Verdict: observe.CandidateConsistent})
-	c.WithTail(tail).WithPlayName("Downloads", "Open").WithClock(clock.now)
+	c.WithTail(tail).WithPlayName("Downloads", "Open").WithClock(clock.now).WithRehearsal(rehearseInWalk)
 
 	s := c.Advance(context.Background())
 	if s.Phase != learn.ReadyToRehearse {
@@ -436,7 +436,7 @@ func TestARehearsalIsNeverWatchedByALearnPass(t *testing.T) {
 
 	c, _, passes := learnToDemonstration(t, goodCandidate(),
 		&observe.CandidateAssessment{Verdict: observe.CandidateConsistent})
-	c.WithTail(tail).WithPlayName("Downloads", "Open")
+	c.WithTail(tail).WithPlayName("Downloads", "Open").WithRehearsal(rehearseInWalk)
 
 	ctx := context.Background()
 	s := c.Advance(ctx) // the demonstration pass
@@ -499,7 +499,7 @@ func TestAnUnansweredNamingQuestionDoesNotAdvance(t *testing.T) {
 
 	c, _, _ := learnToDemonstration(t, goodCandidate(),
 		&observe.CandidateAssessment{Verdict: observe.CandidateConsistent})
-	c.WithTail(tail).WithPlayName("Downloads", "Open").WithClock(clock.now)
+	c.WithTail(tail).WithPlayName("Downloads", "Open").WithClock(clock.now).WithRehearsal(rehearseInWalk)
 
 	ctx := context.Background()
 	s := c.Advance(ctx)
@@ -605,7 +605,7 @@ func TestAYesThatCreatedNoAuthorityIsSaidOutLoud(t *testing.T) {
 
 	c, _, _ := learnToDemonstration(t, goodCandidate(),
 		&observe.CandidateAssessment{Verdict: observe.CandidateConsistent})
-	c.WithTail(tail).WithPlayName("Downloads", "Open").WithClock(clock.now)
+	c.WithTail(tail).WithPlayName("Downloads", "Open").WithClock(clock.now).WithRehearsal(rehearseInWalk)
 
 	s := c.Advance(context.Background())
 	if s.Phase != learn.ReadyToRehearse {
@@ -662,7 +662,7 @@ func TestAPlayIsNotCalledAskableUntilItIsRegistered(t *testing.T) {
 	tail := &unregisteringTail{stubTail: inner}
 	c, _, _ := learnToDemonstration(t, goodCandidate(),
 		&observe.CandidateAssessment{Verdict: observe.CandidateConsistent})
-	c.WithTail(tail).WithPlayName("Mouse", "Open")
+	c.WithTail(tail).WithPlayName("Mouse", "Open").WithRehearsal(rehearseInWalk)
 
 	s := c.Advance(context.Background())
 	for i := 0; i < 30 && !s.Phase.Settled(); i++ {
@@ -721,7 +721,7 @@ func TestARegistrationFailureNamesNoGoPackage(t *testing.T) {
 	tail := &unregisteringTail{stubTail: inner}
 	c, _, _ := learnToDemonstration(t, goodCandidate(),
 		&observe.CandidateAssessment{Verdict: observe.CandidateConsistent})
-	c.WithTail(tail).WithPlayName("Mouse", "Open")
+	c.WithTail(tail).WithPlayName("Mouse", "Open").WithRehearsal(rehearseInWalk)
 
 	s := c.Advance(context.Background())
 	for i := 0; i < 30 && !s.Phase.Settled(); i++ {

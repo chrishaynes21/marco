@@ -510,6 +510,8 @@ type Coordinator struct {
 	// from `cancelled` because they are opposite instructions — one abandons the evidence
 	// and one is the reason the evidence exists.
 	finished bool
+	// rehearsal asks Marco to try each edge itself. Off by default — see WithRehearsal.
+	rehearsal bool
 	// topology is the durable edge counts as they stood before the discovery pass.
 	//
 	// The diff against this is how Learn knows WHICH route the user just demonstrated. It
@@ -546,6 +548,23 @@ func New(name string, passes Passes, memory observe.Memory, b Bounds) *Coordinat
 // coordinator with no tail reaches `ready_to_rehearse` and then refuses with `no_tail`, which is
 // a partial wiring somebody can see.
 func (c *Coordinator) WithTail(t Tail) *Coordinator { c.tail = t; return c }
+
+// WithRehearsal asks Marco to TRY each edge itself before the route is written down.
+//
+// Off by default, and that default is Fast Learn. A clean demonstration is admitted on the
+// strength of what the person showed — see Coordinator.admitObserved — because measuring the old
+// lifecycle showed the rehearsal question was raised under EXACTLY the conditions that already
+// made the evidence sufficient: `CandidateConsistent` with nothing blocking. Anything less was
+// refused upstream and never reached a rehearsal at all. The question therefore obtained no
+// information; it obtained a permission, for an action nobody needed Marco to take yet.
+//
+// It survives as a TOOL rather than as the lifecycle. Turning it on is worth it when somebody
+// wants Marco to prove it can walk the route now — a capability check, a doubtful edge, an
+// Advanced surface — and the result is genuinely stronger: an edge Marco performed and verified
+// is EdgeVerified, which is a claim about Marco rather than about the person.
+//
+// Deleting the default-off must fail TestACleanDemonstrationIsLearnedWithoutBeingRehearsed.
+func (c *Coordinator) WithRehearsal(on bool) *Coordinator { c.rehearsal = on; return c }
 
 // WithGrounding installs the thing that can say where a screen currently is.
 //
@@ -1628,8 +1647,25 @@ const (
 	EdgePending EdgeStatus = "pending"
 	// EdgeOffered has an open rehearsal question, or a grant being spent.
 	EdgeOffered EdgeStatus = "offered"
-	// EdgeVerified rehearsed and arrived. The only status that makes a route executable.
+	// EdgeVerified rehearsed and arrived: MARCO performed this edge and positively verified
+	// where it ended up. The strongest thing an edge can say, and the only one that is about
+	// Marco rather than about the person.
+	//
+	// It used to be described as "the only status that makes a route executable", and that was
+	// true of the old lifecycle: nothing could be saved until every edge had been rehearsed.
+	// See EdgeObserved for why that is no longer the same question.
 	EdgeVerified EdgeStatus = "verified"
+	// EdgeObserved is the human demonstrated it and the evidence was clean enough to keep.
+	//
+	// Terminal, and GOOD — but it is a claim about the person, not about Marco. Marco has not
+	// performed this edge and does not assert that it can. That distinction is the whole reason
+	// this is a separate status rather than a relaxed EdgeVerified: writing "verified" for
+	// something nobody ever ran would put a lie in the durable record, and every surface that
+	// reads it would repeat the lie.
+	//
+	// What it takes to earn: a CandidateConsistent verdict with nothing Blocking. See
+	// Coordinator.admitObserved.
+	EdgeObserved EdgeStatus = "observed"
 	// EdgeDeclined is the person saying no to this leg. Their answer, kept.
 	EdgeDeclined EdgeStatus = "declined"
 	// EdgeRefused is Marco unable to try it, with a reason.
@@ -1642,7 +1678,8 @@ const (
 
 // Terminal reports whether this edge's review is over.
 func (s EdgeStatus) Terminal() bool {
-	return s == EdgeVerified || s == EdgeDeclined || s == EdgeRefused || s == EdgeUnresolved
+	return s == EdgeVerified || s == EdgeObserved || s == EdgeDeclined ||
+		s == EdgeRefused || s == EdgeUnresolved
 }
 
 // EdgeReview is one required edge of the demonstrated route, and how its review went.
@@ -1670,28 +1707,48 @@ const (
 	// but one step is not verified yet" is a different thing from success and a different
 	// thing from failure, and the edges that DID verify are durable either way.
 	RoutePartial RouteStatus = "partial"
+	// RouteObserved is every required edge known, with at least one known only by having
+	// watched the person do it. Executable knowledge; not a claim that Marco has executed it.
+	RouteObserved RouteStatus = "observed"
 )
 
 // Status folds the edge reviews into what the route amounts to.
 //
 // A fold, deliberately: there is no route-level flag anybody could set out of step with the edges
-// it is made of. Verified means every required edge verified — one unverified leg leaves the whole
-// thing not executable from its start, however well the rest went.
+// it is made of. One leg that is neither performed nor cleanly observed leaves the whole thing
+// partial, however well the rest went.
+//
+// THREE good outcomes rather than one, and the middle is the Fast Learn case:
+//
+//	RouteVerified   every edge PERFORMED by Marco and positively verified
+//	RouteObserved   every edge known, and at least one only by watching the person
+//	RoutePartial    something is neither
+//
+// Observed is deliberately not folded into Verified. A route Marco has never walked is a
+// different fact from one it has, and the difference is exactly what a person would want to know
+// before trusting it.
 func (s Session) Status() RouteStatus {
 	if len(s.Edges) == 0 {
 		return RouteUnreviewed
 	}
-	verified := 0
+	verified, learned := 0, 0
 	for _, e := range s.Edges {
 		if !e.Status.Terminal() {
 			return RouteUnreviewed
 		}
-		if e.Status == EdgeVerified {
+		switch e.Status {
+		case EdgeVerified:
 			verified++
+			learned++
+		case EdgeObserved:
+			learned++
 		}
 	}
-	if verified == len(s.Edges) {
+	switch {
+	case verified == len(s.Edges):
 		return RouteVerified
+	case learned == len(s.Edges):
+		return RouteObserved
 	}
 	return RoutePartial
 }
@@ -1767,6 +1824,34 @@ func (c *Coordinator) reviewEdges() {
 		done, _ := c.s.Verified()
 		c.note(fmt.Sprintf("reviewing step %d of %d (%d verified so far)",
 			i+1, len(c.s.Edges), done))
+	}
+	// FAST LEARN: A CLEAN DEMONSTRATION IS ALREADY ENOUGH TO REMEMBER HOW IT WAS DONE.
+	//
+	// Before this, every required edge had to be REHEARSED — Marco asking "want me to try?",
+	// the person saying yes, Marco driving the real desktop — before the route could be saved
+	// at all. Two edges meant two questions and two live attempts to learn something the
+	// person had just finished showing it.
+	//
+	// The rehearsal was doing several jobs at once, and only one of them needed the desktop.
+	// It confirmed the demonstration, it promoted the candidate, it advanced the lifecycle,
+	// AND it proved Marco could execute the edge. The first three are questions about
+	// EVIDENCE, and the evidence already exists: `CandidateConsistent` is defined as "every
+	// checkpoint is verifiable, the navigation has a clear shape, and nothing blocks a future
+	// attempt from being CHECKED", and `Blocking()` is the closed set of things that must be
+	// closed before Marco may act. Between them they are the admission rule, already built and
+	// already measured — there is no new confidence model here.
+	//
+	// So a clean edge resolves to EdgeObserved WITHOUT asking anything, and the claim it makes
+	// is the true one: the human demonstrated this and Marco understood it. It does NOT claim
+	// Marco performed it, which is what EdgeVerified means and why the two are different
+	// statuses rather than one relaxed one.
+	//
+	// Anything less than clean falls through to the rehearsal offer below, unchanged. Fast is
+	// not reckless: an ambiguous or insufficient demonstration still asks.
+	//
+	// Deleting this must fail TestACleanDemonstrationIsLearnedWithoutBeingRehearsed.
+	if !c.rehearsal && c.admitObserved(e) {
+		return
 	}
 	if !c.haveTail() {
 		return
@@ -1933,4 +2018,77 @@ func (c *Coordinator) saveWalk() (Saved, error) {
 		walk = append(walk, e.Route)
 	}
 	return saver.SaveRoute(walk, c.actor, c.verb)
+}
+
+// LearnedEdges reports how many required edges Marco now knows how to walk, and out of how many.
+//
+// Named beside `Learned() bool`, which answers the different question "is there a durable Play".
+//
+// # Why this is not Verified()
+//
+// `Verified()` counts edges MARCO PERFORMED. This counts edges Marco can walk: the ones it
+// performed, and the ones it watched a person perform cleanly enough to keep. They are different
+// numbers about different facts, and a route that reads "2/2 learned, 0/2 performed by me" is
+// telling the exact truth about a Fast Learn.
+//
+// Deleting the EdgeObserved arm must fail TestAnObservedRouteIsLearnedWithoutBeingPerformed.
+func (s Session) LearnedEdges() (int, int) {
+	n := 0
+	for _, e := range s.Edges {
+		if e.Status == EdgeVerified || e.Status == EdgeObserved {
+			n++
+		}
+	}
+	return n, len(s.Edges)
+}
+
+// admitObserved resolves one edge on the strength of the demonstration alone, when the evidence
+// already says everything a rehearsal would have been asked to confirm.
+//
+// # The rule, and why it is not a new one
+//
+// Two conditions, both already defined and already measured elsewhere in this package:
+//
+//	CandidateConsistent   "every checkpoint is verifiable, the navigation has a clear shape,
+//	                       and nothing blocks a future attempt from being CHECKED"
+//	Blocking() is empty   the closed set of uncertainties that must be closed before Marco
+//	                       may act at all — see ADR-051
+//
+// If both hold, the demonstration is as good as a demonstration gets, and asking a person
+// "want me to try?" obtains no information. It obtains a PERMISSION — and Fast Learn does not
+// need one, because nothing is performed: the answer to "may Marco act" is asked later, of the
+// person who invokes the Play, by the ordinary authority door.
+//
+// If either fails, this returns false and the ordinary rehearsal offer runs. That is the
+// ambiguity path, unchanged: an insufficient or ambiguous demonstration still asks.
+//
+// Returns true when the edge was resolved AND the review has moved on, so the caller returns.
+func (c *Coordinator) admitObserved(e *EdgeReview) bool {
+	if !c.admissible(e) {
+		return false
+	}
+	// NOT `Verified`. Marco has performed nothing here and says so; see EdgeObserved.
+	c.note("learned by watching: " + edgeWords(e.Route))
+	return c.resolveEdge(EdgeObserved, "")
+}
+
+// admissible is the rule itself, with no side effect, so it can be tested where it is decided.
+//
+// Split out because the guard turned out to be DEFENSIVE: a demonstration that is not clean is
+// refused further upstream and never reaches here, so no lifecycle test can reach this with bad
+// evidence to prove it says no. See TestAdmissionNeedsCleanEvidence.
+func (c *Coordinator) admissible(e *EdgeReview) bool {
+	if e.Status.Terminal() {
+		return false
+	}
+	a := c.s.Assessment
+	return a != nil && a.Verdict == observe.CandidateConsistent && len(a.Blocking()) == 0
+}
+
+// edgeWords names an edge for a note a person may read. Ids are for diagnostics.
+func edgeWords(r observe.RelationshipRef) string {
+	if r.From == "" || r.To == "" {
+		return "this step"
+	}
+	return r.From + " → " + r.To
 }

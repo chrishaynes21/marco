@@ -81,7 +81,7 @@ func demonstrating(t *testing.T, route []observe.RelationshipRef, granted bool,
 			Intents: []observe.NavIntent{observe.NavConfirm},
 		}},
 	}
-	demo.Assessment = realFirstAssessment()
+	demo.Assessment = assessmentForWalk()
 
 	// The walk is on every pass, as the runner puts it there.
 	discovery := placedResult("observe_2")
@@ -109,7 +109,7 @@ func demonstrating(t *testing.T, route []observe.RelationshipRef, granted bool,
 	ctx := context.Background()
 	c.Advance(ctx)
 	c.Advance(ctx)
-	c.WithTail(w).WithPlayName("Mouse", "Open")
+	c.WithTail(w).WithPlayName("Mouse", "Open").WithRehearsal(rehearseInWalk)
 	return c, w, inner
 }
 
@@ -134,6 +134,7 @@ func walked(t *testing.T, route []observe.RelationshipRef,
 //
 // Advancing to Naming after the first rehearsal must fail this.
 func TestBothDemonstratedEdgesAreOffered(t *testing.T) {
+	unclearWalk(t) // a clean demonstration is admitted without rehearsal; this test is about rehearsal
 	route := []observe.RelationshipRef{edge(placeA, placeB), edge(placeB, placeC)}
 	s, w := walked(t, route, nil)
 
@@ -164,6 +165,7 @@ func TestBothDemonstratedEdgesAreOffered(t *testing.T) {
 //
 // Reversing the order must fail this.
 func TestEdgesAreReviewedInDemonstratedOrder(t *testing.T) {
+	unclearWalk(t) // a clean demonstration is admitted without rehearsal; this test is about rehearsal
 	route := []observe.RelationshipRef{edge(placeA, placeB), edge(placeB, placeC)}
 	_, w := walked(t, route, nil)
 	if len(w.rehearsed) != 2 {
@@ -176,6 +178,7 @@ func TestEdgesAreReviewedInDemonstratedOrder(t *testing.T) {
 
 // Three edges work the same way. Nothing here counts to two.
 func TestAThreeEdgeDemonstrationReviewsAllThree(t *testing.T) {
+	unclearWalk(t) // a clean demonstration is admitted without rehearsal; this test is about rehearsal
 	route := []observe.RelationshipRef{
 		edge(placeA, placeB), edge(placeB, placeC), edge(placeC, placeD),
 	}
@@ -194,6 +197,7 @@ func TestAThreeEdgeDemonstrationReviewsAllThree(t *testing.T) {
 
 // A single-edge demonstration behaves exactly as it always did.
 func TestASingleEdgeDemonstrationStillWorks(t *testing.T) {
+	unclearWalk(t) // a clean demonstration is admitted without rehearsal; this test is about rehearsal
 	s, w := walked(t, []observe.RelationshipRef{edge(placeA, placeB)}, nil)
 	if len(w.rehearsed) != 1 {
 		t.Fatalf("%d rehearsal(s), want 1", len(w.rehearsed))
@@ -208,6 +212,7 @@ func TestASingleEdgeDemonstrationStillWorks(t *testing.T) {
 // The honest middle, and the one the old lifecycle could not say. The leg that did verify is
 // durable either way, and a route with an unverified step must never read as a learned one.
 func TestOneUnverifiedEdgeLeavesTheRoutePartial(t *testing.T) {
+	unclearWalk(t) // a clean demonstration is admitted without rehearsal; this test is about rehearsal
 	route := []observe.RelationshipRef{edge(placeA, placeB), edge(placeB, placeC)}
 	s, w := walked(t, route, map[observe.RelationshipRef]string{
 		edge(placeB, placeC): "no_actuator",
@@ -232,6 +237,7 @@ func TestOneUnverifiedEdgeLeavesTheRoutePartial(t *testing.T) {
 
 // A refusal on the FIRST leg does not stop the second being reviewed.
 func TestARefusedFirstEdgeDoesNotEndTheReview(t *testing.T) {
+	unclearWalk(t) // a clean demonstration is admitted without rehearsal; this test is about rehearsal
 	route := []observe.RelationshipRef{edge(placeA, placeB), edge(placeB, placeC)}
 	s, w := walked(t, route, map[observe.RelationshipRef]string{
 		edge(placeA, placeB): "no_actuator",
@@ -422,7 +428,7 @@ func offeringTuned(t *testing.T, route []observe.RelationshipRef,
 			Intents: []observe.NavIntent{observe.NavConfirm},
 		}},
 	}
-	demo.Assessment = realFirstAssessment()
+	demo.Assessment = assessmentForWalk()
 	discovery := placedResult("observe_2")
 	discovery.RouteWalk = route
 	discovery.Demonstration, discovery.Assessment = demo.Demonstration, demo.Assessment
@@ -443,7 +449,7 @@ func offeringTuned(t *testing.T, route []observe.RelationshipRef,
 	ctx := context.Background()
 	c.Advance(ctx)
 	c.Advance(ctx)
-	c.WithTail(tail).WithPlayName("Mouse", "Open")
+	c.WithTail(tail).WithPlayName("Mouse", "Open").WithRehearsal(rehearseInWalk)
 	s := c.Advance(ctx)
 	for i := 0; i < 30 && !s.Phase.Settled(); i++ {
 		if s.Phase == learn.Naming {
@@ -458,6 +464,7 @@ func offeringTuned(t *testing.T, route []observe.RelationshipRef,
 //
 // Deleting the OfferRehearsal call, or the widened policy behind it, must fail this.
 func TestTheSecondEdgeGetsItsOwnQuestion(t *testing.T) {
+	unclearWalk(t) // a clean demonstration is admitted without rehearsal; this test is about rehearsal
 	route := []observe.RelationshipRef{edge(placeA, placeB), edge(placeB, placeC)}
 	s, o := offering(t, route, nil)
 
@@ -481,6 +488,7 @@ func TestTheSecondEdgeGetsItsOwnQuestion(t *testing.T) {
 //
 // The second edge must have had no question before the first became terminal.
 func TestTheSecondQuestionDidNotExistBeforeTheFirstWasDone(t *testing.T) {
+	unclearWalk(t) // a clean demonstration is admitted without rehearsal; this test is about rehearsal
 	route := []observe.RelationshipRef{edge(placeA, placeB), edge(placeB, placeC)}
 	o := newOfferingTail()
 	m := newMemory()
@@ -494,7 +502,7 @@ func TestTheSecondQuestionDidNotExistBeforeTheFirstWasDone(t *testing.T) {
 			Intents: []observe.NavIntent{observe.NavConfirm},
 		}},
 	}
-	demo.Assessment = realFirstAssessment()
+	demo.Assessment = assessmentForWalk()
 	discovery := placedResult("observe_2")
 	discovery.RouteWalk = route
 	discovery.Demonstration, discovery.Assessment = demo.Demonstration, demo.Assessment
@@ -513,7 +521,7 @@ func TestTheSecondQuestionDidNotExistBeforeTheFirstWasDone(t *testing.T) {
 	ctx := context.Background()
 	c.Advance(ctx)
 	c.Advance(ctx)
-	c.WithTail(o).WithPlayName("Mouse", "Open")
+	c.WithTail(o).WithPlayName("Mouse", "Open").WithRehearsal(rehearseInWalk)
 
 	// One advance: the first edge is selected and offered, and nothing else is.
 	c.Advance(ctx)
@@ -533,6 +541,7 @@ func TestTheSecondQuestionDidNotExistBeforeTheFirstWasDone(t *testing.T) {
 //
 // The exemption creates room to ASK. Each leg still needs its own explicit yes.
 func TestApprovingOneEdgeDoesNotApproveTheNext(t *testing.T) {
+	unclearWalk(t) // a clean demonstration is admitted without rehearsal; this test is about rehearsal
 	route := []observe.RelationshipRef{edge(placeA, placeB), edge(placeB, placeC)}
 	s, o := offering(t, route, map[observe.RelationshipRef]bool{edge(placeB, placeC): true})
 
@@ -552,6 +561,7 @@ func TestApprovingOneEdgeDoesNotApproveTheNext(t *testing.T) {
 
 // Three edges raise three questions, in order, one at a time.
 func TestThreeEdgesRaiseThreeSequentialQuestions(t *testing.T) {
+	unclearWalk(t) // a clean demonstration is admitted without rehearsal; this test is about rehearsal
 	route := []observe.RelationshipRef{
 		edge(placeA, placeB), edge(placeB, placeC), edge(placeC, placeD),
 	}
@@ -596,6 +606,7 @@ func TestAnEdgeIsOfferedOnlyOnce(t *testing.T) {
 // A leg nobody could ask about is a leg still owed its turn. The slot frees; the offer is made
 // again; the question is raised; the step verifies.
 func TestABusyQuestionSlotDoesNotWriteOffTheStep(t *testing.T) {
+	unclearWalk(t) // a clean demonstration is admitted without rehearsal; this test is about rehearsal
 	route := []observe.RelationshipRef{edge(placeA, placeB), edge(placeB, placeC)}
 	s, o := offeringTuned(t, route, nil, func(o *offeringTail) learn.Tail {
 		// The slot swallows the first three offers for the FIRST leg only.
@@ -632,6 +643,7 @@ func TestABusyQuestionSlotDoesNotWriteOffTheStep(t *testing.T) {
 // ends the leg. Deleting either guard on the offer leaves the review re-offering a settled edge
 // on every pass.
 func TestAnAnsweredEdgeIsNotOfferedAgain(t *testing.T) {
+	unclearWalk(t) // a clean demonstration is admitted without rehearsal; this test is about rehearsal
 	route := []observe.RelationshipRef{edge(placeA, placeB), edge(placeB, placeC)}
 	_, o := offering(t, route, map[observe.RelationshipRef]bool{route[1]: true})
 
@@ -681,6 +693,7 @@ func (y *yesLaggingTail) Granted(r observe.RelationshipRef) bool {
 //
 // The half-second between the two halves of a yes is not an answer of any kind.
 func TestAYesIsNotReadAsARefusalBeforeTheGrantExists(t *testing.T) {
+	unclearWalk(t) // a clean demonstration is admitted without rehearsal; this test is about rehearsal
 	route := []observe.RelationshipRef{edge(placeA, placeB), edge(placeB, placeC)}
 	var lag *yesLaggingTail
 	s, o := offeringTuned(t, route, nil, func(o *offeringTail) learn.Tail {
@@ -714,6 +727,7 @@ func TestAYesIsNotReadAsARefusalBeforeTheGrantExists(t *testing.T) {
 // about the route, the other a decision not to make one — and a review that flattened them would
 // tell somebody who asked for time that they had rejected the step.
 func TestARefusedStepSaysWhichRefusalItWas(t *testing.T) {
+	unclearWalk(t) // a clean demonstration is admitted without rehearsal; this test is about rehearsal
 	route := []observe.RelationshipRef{edge(placeA, placeB), edge(placeB, placeC)}
 	s, _ := offering(t, route, map[observe.RelationshipRef]bool{route[0]: true})
 
@@ -767,6 +781,7 @@ func (x *replacingTail) Question(r observe.RelationshipRef, kind observe.AskKind
 // Required to survive: the demonstrated order, the required edges, per-edge status, and the
 // verified count.
 func TestTheEdgeReviewSurvivesASessionReplacement(t *testing.T) {
+	unclearWalk(t) // a clean demonstration is admitted without rehearsal; this test is about rehearsal
 	route := []observe.RelationshipRef{edge(placeA, placeB), edge(placeB, placeC)}
 	var swap *replacingTail
 	s, o := offeringTuned(t, route, nil, func(o *offeringTail) learn.Tail {
@@ -815,6 +830,7 @@ func TestTheEdgeReviewSurvivesASessionReplacement(t *testing.T) {
 //
 // Settled with no response is a retraction, and it ends the leg saying so.
 func TestARetractedQuestionEndsTheLeg(t *testing.T) {
+	unclearWalk(t) // a clean demonstration is admitted without rehearsal; this test is about rehearsal
 	route := []observe.RelationshipRef{edge(placeA, placeB), edge(placeB, placeC)}
 	s, _ := offeringTuned(t, route, nil, func(o *offeringTail) learn.Tail {
 		return &retractingTail{offeringTail: o, on: route[0]}
@@ -894,7 +910,7 @@ func TestAYesIsNeverReportedAsADecline(t *testing.T) {
 
 	c, _, _ := learnToDemonstration(t, goodCandidate(),
 		&observe.CandidateAssessment{Verdict: observe.CandidateConsistent})
-	c.WithTail(tail).WithPlayName("Downloads", "Open").WithClock(clock.now)
+	c.WithTail(tail).WithPlayName("Downloads", "Open").WithClock(clock.now).WithRehearsal(rehearseInWalk)
 
 	s := c.Advance(context.Background())
 	clock.at = clock.at.Add(2 * learn.DefaultBounds().Answer)
@@ -936,6 +952,7 @@ func (v *savingTail) Save(r observe.RelationshipRef, actor, verb string) (learn.
 // saving the one the episode happens to be pointing at wrote down a play that began in the middle
 // of what the Audience demonstrated.
 func TestSavingAMultiEdgeRouteWritesTheWholeWalk(t *testing.T) {
+	unclearWalk(t) // a clean demonstration is admitted without rehearsal; this test is about rehearsal
 	route := []observe.RelationshipRef{edge(placeA, placeB), edge(placeB, placeC)}
 	var saver *savingTail
 	s, _ := offeringTuned(t, route, nil, func(o *offeringTail) learn.Tail {
@@ -973,5 +990,122 @@ func TestAPartialRouteDoesNotSaveAsAWholeOne(t *testing.T) {
 		})
 	if saver.route {
 		t.Errorf("a route with a refused leg was saved as the whole behaviour: %v", saver.walk)
+	}
+}
+
+// assessmentForWalk is the assessment demonstrating() gives its passes. Always the clean one.
+var assessmentForWalk = realFirstAssessment
+
+// unclearWalk makes this test's coordinator REHEARSE rather than admit on observation.
+//
+// # Why this is an opt-in and not a weaker fixture
+//
+// The first attempt at this supplied a demonstration that was merely less clean, on the
+// assumption that there was a middle state — good enough to try, not good enough to keep.
+// Measured: there is not. Anything short of `CandidateConsistent` with nothing blocking is
+// REFUSED upstream with `evidence_insufficient` and never reaches a rehearsal at all.
+//
+// Which is the finding Fast Learn rests on: the rehearsal question was raised under exactly the
+// conditions that already made the evidence sufficient. So a test that wants to watch Marco offer
+// to try has to ASK for it, the same way an Advanced surface would.
+func unclearWalk(t *testing.T) {
+	t.Helper()
+	prev := rehearseInWalk
+	rehearseInWalk = true
+	t.Cleanup(func() { rehearseInWalk = prev })
+}
+
+// rehearseInWalk turns the opt-in on for the tests that are about rehearsal.
+var rehearseInWalk bool
+
+// FAST LEARN: A CLEAN DEMONSTRATION IS LEARNED WITHOUT BEING REHEARSED.
+//
+// The product claim of Roadmap 35B, at the boundary that owns it. One person demonstrates a
+// two-hop route once; Marco asks nothing, performs nothing, and the route is complete.
+//
+// # What this replaces
+//
+// Every required edge used to be REHEARSED before the route could be written down: "want me to
+// try?", a yes, and Marco driving the real desktop — twice, for two edges, to learn something the
+// person had just finished showing it.
+//
+// The measurement that justified removing it: the rehearsal question was raised under EXACTLY the
+// conditions that already made the evidence sufficient (`CandidateConsistent`, nothing
+// `Blocking()`), and anything less was refused upstream and never reached a rehearsal at all. So
+// the question obtained no information. It obtained a permission — for an action nobody had asked
+// Marco to take.
+//
+// Turning the admission off, or defaulting rehearsal back on, must fail this.
+func TestACleanDemonstrationIsLearnedWithoutBeingRehearsed(t *testing.T) {
+	route := []observe.RelationshipRef{edge(placeA, placeB), edge(placeB, placeC)}
+	s, w := walked(t, route, nil)
+
+	if len(w.rehearsed) != 0 {
+		t.Errorf("Marco rehearsed %v. A clean demonstration is evidence; replaying it obtains "+
+			"nothing the person did not already show.", w.rehearsed)
+	}
+	if len(s.Edges) != 2 {
+		t.Fatalf("%d edge review(s) recorded, want 2 — the second leg must not be dropped",
+			len(s.Edges))
+	}
+	for i, e := range s.Edges {
+		if e.Status != learn.EdgeObserved {
+			t.Errorf("edge %d (%v) is %s, want observed", i+1, e.Route, e.Status)
+		}
+	}
+	if got := s.Status(); got != learn.RouteObserved {
+		t.Errorf("route status %s, want observed", got)
+	}
+	if !s.Learned() {
+		t.Error("a clean two-hop demonstration produced no durable Play")
+	}
+}
+
+// AND IT DOES NOT CLAIM MARCO PERFORMED IT.
+//
+// The distinction the whole roadmap turns on. An observed route is knowledge about what the PERSON
+// did; a verified one is a claim about what MARCO did. Folding the first into the second would put
+// a lie in the durable record, and every surface reading it would repeat the lie.
+//
+// Deleting the EdgeObserved arm of LearnedEdges, or folding observed into RouteVerified, must fail
+// this.
+func TestAnObservedRouteIsLearnedWithoutBeingPerformed(t *testing.T) {
+	route := []observe.RelationshipRef{edge(placeA, placeB), edge(placeB, placeC)}
+	s, _ := walked(t, route, nil)
+
+	if done, total := s.LearnedEdges(); done != 2 || total != 2 {
+		t.Errorf("Marco knows how to walk %d/%d edges, want 2/2", done, total)
+	}
+	// And it performed none of them.
+	if done, _ := s.Verified(); done != 0 {
+		t.Errorf("%d edge(s) claim Marco performed and verified them. Marco performed nothing "+
+			"here — a human demonstration is not execution proof.", done)
+	}
+	if got := s.Status(); got == learn.RouteVerified {
+		t.Error("a route Marco never walked reports itself verified")
+	}
+}
+
+// REHEARSAL SURVIVES AS A TOOL, and asking for it still does what it always did.
+//
+// Part of the same claim: removing the ceremony must not remove the capability. An episode that
+// explicitly wants Marco to prove it can walk the route gets the old behaviour, and the result is
+// genuinely stronger — EdgeVerified is a claim about Marco.
+func TestAskingForRehearsalStillRehearses(t *testing.T) {
+	unclearWalk(t)
+	route := []observe.RelationshipRef{edge(placeA, placeB), edge(placeB, placeC)}
+	s, w := walked(t, route, nil)
+
+	if len(w.rehearsed) != 2 {
+		t.Fatalf("%d edge(s) rehearsed, want 2 — rehearsal must remain available on request",
+			len(w.rehearsed))
+	}
+	for i, e := range s.Edges {
+		if e.Status != learn.EdgeVerified {
+			t.Errorf("edge %d is %s, want verified — Marco performed this one", i+1, e.Status)
+		}
+	}
+	if got := s.Status(); got != learn.RouteVerified {
+		t.Errorf("route status %s, want verified", got)
 	}
 }

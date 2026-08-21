@@ -93,7 +93,7 @@ func (r *Runtime) Reach(q service.ObserveReach) (service.ReachView, error) {
 	out.Current, out.AsOf = current, asOf
 
 	top := memory.Topology(application)
-	plan := observe.PlanToGoal(goal.Subject, current, top, r.verifiedEdges(application, top))
+	plan := observe.PlanToGoal(goal.Subject, current, top, r.plannableEdges(application, top))
 	out.Satisfied = plan.Satisfied
 	out.Refusal = string(plan.Refusal)
 	for _, s := range plan.Steps {
@@ -120,13 +120,45 @@ func (r *Runtime) Reach(q service.ObserveReach) (service.ReachView, error) {
 	return out, nil
 }
 
-// verifiedEdges is the authority-shaped predicate: an edge is usable only when a completed
-// rehearsal still vouches for one of its demonstrations, recomputed now.
+// plannableEdges is the predicate for "do I know a way", which is the only question PlanToGoal
+// asks. An edge is plannable when Marco knows how the route goes — by either of the two ways it
+// can know that.
 //
-// The same fold every other reader of rehearsal evidence uses — AssessCandidate,
-// WithRehearsal, VerifiedBy — so this cannot come to a different answer about the same edge
-// than the lowering path does.
-func (r *Runtime) verifiedEdges(application string,
+// # Two kinds of knowledge, and both are knowledge
+//
+//	EXECUTION-PROVEN    a completed rehearsal still vouches for one of its demonstrations,
+//	                    recomputed now. Marco walked this and checked where it ended up.
+//	OBSERVATIONALLY     the person demonstrated it and the evidence was clean —
+//	  ADMITTED          `CandidateConsistent` with nothing `Blocking()`. Marco watched this
+//	                    and understood it, and has never walked it.
+//
+// Until Roadmap 35B only the first existed, because Learn could not finish without rehearsing
+// every edge. Fast Learn removed that ceremony, so a route can now be perfectly well known and
+// never have been performed — and a planner that only accepted the first would refuse to plan
+// over the very knowledge Learn had just acquired.
+//
+// # Why widening this does not weaken anything
+//
+// Because planning was never the safety boundary, and says so at its own definition:
+// PlanToGoal's doc reads "It says a route is KNOWN, never that performing it is authorised …
+// a caller that wants only verified edges passes that as the predicate." Three separate things
+// stand between a plan and an effect, and none of them is here:
+//
+//	AUTHORITY      minted per invocation by the Audience, at the ordinary door
+//	               ([[ADR-029-resolution-is-not-permission]]). A demonstration grants none.
+//	FOREGROUND     the window must lead before input is emitted.
+//	VERIFICATION   every edge is positively verified as it is walked, and arrival is confirmed
+//	               by a fresh look. An edge that was only ever observed proves itself HERE, the
+//	               first time somebody asks for it — or refuses honestly.
+//
+// So the change is exactly: Marco is willing to TRY what it watched you do, when you ask it to.
+// It is not willing to claim it worked until it has checked.
+//
+// The two kinds stay distinguishable in the record; this is the one place that treats them
+// alike, because "can I plan a path" is the one question they answer the same way.
+//
+// Deleting the observational arm must fail TestAnObservedEdgeCanBePlannedOver.
+func (r *Runtime) plannableEdges(application string,
 	top observe.Topology) func(observe.RelationshipRef) bool {
 
 	g := r.observations
@@ -154,6 +186,14 @@ func (r *Runtime) verifiedEdges(application string,
 		a := observe.AssessCandidate(c, top, observe.DefaultCaptureBounds(),
 			corroborationFor(store, application, c))
 		if a.WithRehearsal(c, j.Digest, top, evidence).Verified {
+			// Marco walked it and checked. The strongest thing an edge can say.
+			verified[c.Relationship] = true
+			continue
+		}
+		// Or the person showed Marco, cleanly. The same rule Learn admits on, read from the
+		// same assessment, so planning cannot come to a different answer about the same
+		// demonstration than the lowering path did.
+		if a.Verdict == observe.CandidateConsistent && len(a.Blocking()) == 0 {
 			verified[c.Relationship] = true
 		}
 	}

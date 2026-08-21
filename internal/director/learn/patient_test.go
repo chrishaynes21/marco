@@ -54,7 +54,7 @@ func patient(t *testing.T, refusals []string, steps int) (learn.Session, *waitin
 	w := &waitingTail{stubTail: inner, refusals: refusals}
 
 	c, _, _ := learnToDemonstration(t, goodCandidate(), realFirstAssessment())
-	c.WithTail(w).WithPlayName("Downloads", "Open")
+	c.WithTail(w).WithPlayName("Downloads", "Open").WithRehearsal(rehearseInWalk)
 
 	ctx := context.Background()
 	s := c.Advance(ctx)
@@ -172,7 +172,7 @@ func TestCancellingWhileWaitingNeverRunsTheRehearsal(t *testing.T) {
 	w := &waitingTail{stubTail: inner, refusals: []string{"source_unobservable"}}
 
 	c, _, _ := learnToDemonstration(t, goodCandidate(), realFirstAssessment())
-	c.WithTail(w).WithPlayName("Downloads", "Open")
+	c.WithTail(w).WithPlayName("Downloads", "Open").WithRehearsal(rehearseInWalk)
 
 	ctx := context.Background()
 	c.Advance(ctx) // the grant is picked up
@@ -204,7 +204,7 @@ func TestWaitingNeverWatchesAnything(t *testing.T) {
 	}}
 
 	c, _, passes := learnToDemonstration(t, goodCandidate(), realFirstAssessment())
-	c.WithTail(w).WithPlayName("Downloads", "Open")
+	c.WithTail(w).WithPlayName("Downloads", "Open").WithRehearsal(rehearseInWalk)
 
 	ctx := context.Background()
 	// Reach the waiting phase first; the passes before it are the ordinary ones.

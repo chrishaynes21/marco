@@ -81,7 +81,7 @@ func TestOneDemonstrationAndOneRehearsalIsEnoughToLearn(t *testing.T) {
 	tail.unnamed = []string{"subj_start", "subj_end"}
 
 	c, _, p := learnToDemonstration(t, goodCandidate(), realFirstAssessment())
-	c.WithTail(tail).WithPlayName("Downloads", "Open")
+	c.WithTail(tail).WithPlayName("Downloads", "Open").WithRehearsal(rehearseInWalk)
 
 	ctx := context.Background()
 	s := c.Advance(ctx)
@@ -322,7 +322,7 @@ func TestWithoutASuccessfulRehearsalOneDemonstrationLearnsNothing(t *testing.T) 
 			tail := newTail()
 			tail.attempt = tc.attempt
 			c, _, _ := learnToDemonstration(t, goodCandidate(), realFirstAssessment())
-			c.WithTail(tail).WithPlayName("Downloads", "Open")
+			c.WithTail(tail).WithPlayName("Downloads", "Open").WithRehearsal(rehearseInWalk)
 
 			ctx := context.Background()
 			s := c.Advance(ctx)
@@ -388,5 +388,23 @@ func TestOneShotDoesNotMeanAcceptAnything(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// unclearAssessment is a demonstration Marco understood but could not fully check.
+//
+// The three-way split Fast Learn rests on, and this is the middle case:
+//
+//	CandidateConsistent, nothing blocking   admit it — the person showed Marco and it is clear
+//	NOT consistent, nothing blocking        offer to TRY — the gap is one Marco could close itself
+//	something blocking                      ask for another example — trying would not settle it
+//
+// `CandidateInsufficient` is "coherent evidence with a gap Marco cannot currently close", and
+// `ReasonSingleDemonstration` is the one reason that is confirmable by rehearsal rather than by
+// another demonstration. Together they are precisely a route worth offering to try.
+func unclearAssessment() *observe.CandidateAssessment {
+	return &observe.CandidateAssessment{
+		Verdict: observe.CandidateInsufficient,
+		Reasons: []observe.AssessmentReason{observe.ReasonSingleDemonstration},
 	}
 }

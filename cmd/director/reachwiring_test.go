@@ -51,29 +51,45 @@ func TestReachPlansOverTheVerifiedEdgeFromWhereThePersonStands(t *testing.T) {
 	}
 }
 
-// A goal whose route has never survived a rehearsal yields NO plan — knowledge of the way
-// is said honestly as known-but-unearned, and nothing here creates or consumes authority.
-func TestAKnownGoalWithoutARehearsedRouteRefusesHonestly(t *testing.T) {
-	g := authorizedRegistry(t) // demonstrated and granted, never rehearsed
+// AN OBSERVED EDGE CAN BE PLANNED OVER, and planning still creates no authority.
+//
+// # This test asserted the opposite until Roadmap 35B
+//
+// It read: "an unrehearsed edge entered a plan … only a completed rehearsal earns an edge that
+// place." That was right while Learn could not finish WITHOUT rehearsing every edge — the only way
+// an edge could exist unrehearsed was for something to have gone wrong partway through.
+//
+// Fast Learn removed that ceremony, so a clean demonstration now produces edges Marco understands
+// perfectly well and has never walked. A planner that refused them would refuse to plan over the
+// knowledge Learn had just acquired, and "I learned that" would be followed by "I don't know how".
+//
+// # What did NOT change, and is asserted here because it is the whole safety argument
+//
+// Planning is not permission — PlanToGoal says so at its own definition. The three things that
+// stand between a plan and an effect are all downstream: the authority door mints a grant per
+// invocation, the foreground must lead before input is emitted, and every edge is positively
+// verified as it is walked. A read of the plan spends none of them, which is what the grant
+// assertion below holds.
+//
+// Deleting the observational arm of plannableEdges must fail this.
+func TestAnObservedEdgeCanBePlannedOver(t *testing.T) {
+	g := authorizedRegistry(t) // demonstrated cleanly, never rehearsed by Marco
 	grant := g.last.Grant()
 	rememberGoalFor(t, g, "open the audio page", grant.Destination)
 
 	v := reachOver(t, g, "open the audio page")
-	if len(v.Steps) != 0 {
-		t.Fatalf("an unrehearsed edge entered a plan: %+v.\nA plan is a claim about what "+
-			"Marco may rely on, and only a completed rehearsal earns an edge that place.",
-			v.Steps)
+	if v.Refusal != "" {
+		t.Fatalf("refused %q (%s). A route the person demonstrated cleanly is a route Marco "+
+			"knows; refusing to plan over it leaves Learn unable to produce anything runnable.",
+			v.Refusal, v.Say)
 	}
-	if v.Refusal != string(observe.PlanNoKnownRoute) {
-		t.Errorf("refusal = %q, want %q", v.Refusal, observe.PlanNoKnownRoute)
+	if len(v.Steps) != 1 {
+		t.Fatalf("plan = %+v, want the one demonstrated edge", v.Steps)
 	}
-	if !v.KnownUnverified {
-		t.Error("the observed-but-unrehearsed way was not acknowledged; \"I don't know how\" " +
-			"and \"I know how and haven't earned it\" invite different responses")
-	}
-	// And the read consumed nothing: the person's one grant is exactly as it was.
+	// AND THE READ CONSUMED NOTHING. Knowing a way is not being allowed to walk it.
 	if got := g.last.Grant(); got == nil || !got.Active() {
-		t.Error("a read of the plan touched the rehearsal grant")
+		t.Error("a read of the plan touched the rehearsal grant. Planning must create and " +
+			"consume no authority whatsoever.")
 	}
 }
 

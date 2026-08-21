@@ -184,7 +184,7 @@ func (r *Runtime) PerformGoal(ctx context.Context, q service.PerformQuery) (serv
 	out.From = current
 
 	top := memory.Topology(application)
-	plan := observe.PlanToGoal(goal.Subject, current, top, r.verifiedEdges(application, top))
+	plan := observe.PlanToGoal(goal.Subject, current, top, r.plannableEdges(application, top))
 	if plan.Refusal != "" {
 		out.Refusal = string(plan.Refusal)
 		out.Say = "I know that outcome and can't get there from here."

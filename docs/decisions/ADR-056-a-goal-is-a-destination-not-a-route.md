@@ -70,8 +70,31 @@ about what is KNOWN, enacted only through a saved play's resolve → authorize �
 - `TestAnUnrecognisableStartStillWatches`, `TestARouteFromSomewhereElseIsStillLearned`,
   `TestLearningRecordsTheDestinationAsAGoal` (`internal/director/learn/learn_test.go`)
 - `TestReachPlansOverTheVerifiedEdgeFromWhereThePersonStands`,
-  `TestAKnownGoalWithoutARehearsedRouteRefusesHonestly`
+  `TestAnObservedEdgeCanBePlannedOver`
   (`cmd/director/reachwiring_test.go`)
+
+> **Amendment, 2026-08-20 — what makes an edge PLANNABLE widened; what makes it PERMITTED did not.**
+>
+> This decision was written when Learn could not finish without rehearsing every edge, so the only
+> way an edge could exist unrehearsed was for something to have gone wrong. `verifiedEdges` — the
+> predicate handed to `PlanToGoal` — therefore accepted execution-proven edges only, and
+> TestAKnownGoalWithoutARehearsedRoute… (unbackticked so this note does not itself
+> become a citation) held that line.
+>
+> Roadmap 35B removed the ceremony: a clean demonstration is admitted without Marco replaying it,
+> so a route can now be perfectly well known and never have been walked. A planner that refused
+> those would refuse the knowledge Learn had just acquired — "I learned that" followed by "I don't
+> know how".
+>
+> The predicate is now `plannableEdges` and accepts either kind of knowing: execution-proven, or
+> observationally admitted (`CandidateConsistent` with nothing `Blocking()` — the same rule Learn
+> admits on, read from the same assessment, so the two cannot disagree about one demonstration).
+>
+> **Nothing about permission moved.** This decision's own words still hold: a plan "says a route is
+> KNOWN, never that performing it is authorised". Authority is minted per invocation at the
+> ordinary door ([[ADR-029-resolution-is-not-permission]]), the foreground must lead before input
+> is emitted, and every edge is positively verified as it is walked. An edge that was only ever
+> observed proves itself the first time somebody asks for it — or refuses honestly.
 
 ## Related
 
