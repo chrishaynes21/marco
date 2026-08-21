@@ -583,13 +583,17 @@ func placeNameEvidence(world directorapi.WorldState) []observe.PlaceNameEvidence
 
 // placeName is what this sampler believes the Place on screen is called, or nothing.
 //
-// A method rather than an expression so a test can enter through the same door production does —
-// including the licence, which is the sampler's own field and the whole reason this is not a free
-// function. See placeNameEvidence and observe.AdmittedPlaceName.
+// A method rather than an expression so a test can enter through the same door production does.
+// It used to take the sampler's `demonstration` field as a licence, and that was the whole reason
+// it was not a free function; Roadmap 35A removed the licence from the INFERENCE and left it on
+// the PERSISTENCE (see observe.AdmittedPlaceName), so the method now survives for the wiring
+// reason alone — a free function proves the rule and not that anything calls it.
 //
-// Deleting the AdmittedPlaceName call must fail TestTheSamplerNamesThePlaceOnlyUnderTheLicence.
+// See placeNameEvidence and observe.AdmittedPlaceName.
+//
+// Deleting the AdmittedPlaceName call must fail TestTheSamplerNamesThePlaceWhoeverIsWatching.
 func (s *liveSampler) placeName(world directorapi.WorldState) string {
-	return observe.AdmittedPlaceName(placeNameEvidence(world), s.demonstration)
+	return observe.AdmittedPlaceName(placeNameEvidence(world))
 }
 
 // trailContaining is the navigation trail a word appears in, or nothing.

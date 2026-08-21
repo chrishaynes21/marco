@@ -27,7 +27,7 @@ func selected(role directorapi.ElementRole, label string) observe.PlaceNameEvide
 func TestTheSelectedDestinationNamesThePlace(t *testing.T) {
 	got := observe.AdmittedPlaceName([]observe.PlaceNameEvidence{
 		selected(directorapi.RoleListItem, "Home"),
-	}, true)
+	})
 	if got != "Home" {
 		t.Errorf("the Place is called %q, want Home", got)
 	}
@@ -44,7 +44,7 @@ func TestASelectedValueDoesNotNameThePlace(t *testing.T) {
 
 	got := observe.AdmittedPlaceName([]observe.PlaceNameEvidence{
 		selected(directorapi.RoleListItem, "Home"), dark,
-	}, true)
+	})
 	if got != "Home" {
 		t.Errorf("the Place is called %q, want Home — the combo box's value is not a place", got)
 	}
@@ -62,7 +62,7 @@ func TestSeveralSelectedItemsNameNothing(t *testing.T) {
 		selected(directorapi.RoleTab, "Explorer"),
 		selected(directorapi.RoleTreeItem, "graph.json"),
 		selected(directorapi.RoleTab, "localhost:8765"),
-	}, true)
+	})
 	if got != "" {
 		t.Errorf("three selected items produced the confident name %q", got)
 	}
@@ -73,7 +73,7 @@ func TestTwoActorsAgreeingStrengthenOneName(t *testing.T) {
 	got := observe.AdmittedPlaceName([]observe.PlaceNameEvidence{
 		selected(directorapi.RoleListItem, "Mouse"),
 		selected(directorapi.RoleTab, "Mouse"),
-	}, true)
+	})
 	if got != "Mouse" {
 		t.Errorf("two Actors saying Mouse produced %q", got)
 	}
@@ -87,32 +87,55 @@ func TestAControlCannotNameThePlace(t *testing.T) {
 	for _, word := range []string{"Back", "Close", "Minimize", "Search"} {
 		if got := observe.AdmittedPlaceName([]observe.PlaceNameEvidence{
 			selected(directorapi.RoleButton, word),
-		}, true); got != "" {
+		}); got != "" {
 			t.Errorf("a button called %q became the Place name (%q)", word, got)
 		}
 	}
 }
 
-// Passive observation names nothing durable.
+// PASSIVE OBSERVATION MAY NOW INFER A NAME, AND STILL MAY NOT WRITE ONE DOWN.
 //
-// A Place's name is read off somebody's screen. The licence is the same one a semantic target
-// rides — an explicit Learn demonstration — and without it this reaches nothing.
+// This test asserted the opposite until Roadmap 35A. `AdmittedPlaceName` opened with
+// `if !demonstration { return "" }`, so outside an explicit Learn Marco could recognise the Place
+// it was standing on and could not say what it appeared to be called: "where am I?" had no answer
+// unless you happened to be teaching it something.
 //
-// Deleting the licence check must fail this.
-func TestPassiveObservationInfersNoName(t *testing.T) {
+// The argument for that gate was that "a Place's name is read off somebody's screen, and passive
+// observation has no business WRITING THAT DOWN". The second half is still policy. The first half
+// is a different question that was being answered with the same word — and, measured, the durable
+// write was already licensed one level up: the only non-transient consumer of this result is
+// `PlaceNamesToRecord`, which is called from inside `Runner.establishPlace`, and that returns at
+// its first line unless `Episode.EstablishPlaces` is set. This was a second gate, on the inference.
+//
+// What protects a person is the shape filter below, and it never depended on the licence.
+//
+// Putting a licence argument back in front of the inference must fail THIS test, and
+// cmd/director's TestTheSamplerNamesThePlaceWhoeverIsWatching, which enters through the
+// production method rather than this free function.
+//
+// It must NOT be assumed to fail cmd/director's TestObservationNamesThePlaceWithNoLearnEpisode.
+// That was the first claim written here and it was wrong: measured by running the mutation, that
+// test stayed green, because its fixture (`dryNamed`) hands the frame an `appearsCalled` directly
+// and never reaches this function. It holds the PERSISTENCE half of the same inversion, which is
+// a real and separate claim, and its own comment now says so.
+func TestPassiveObservationMayInferAName(t *testing.T) {
 	if got := observe.AdmittedPlaceName([]observe.PlaceNameEvidence{
 		selected(directorapi.RoleListItem, "Home"),
-	}, false); got != "" {
-		t.Errorf("passive observation inferred %q, which nobody asked Marco to write down", got)
+	}); got != "Home" {
+		t.Errorf("observation could not say what the Place is called (got %q). Recognising where "+
+			"you are and writing it down are different operations, and only the second needs a "+
+			"licence.", got)
 	}
 }
 
-// The shape filter is unconditional: the licence changes provenance, never what text is safe.
-func TestTheLicenceDoesNotAdmitPrivateText(t *testing.T) {
+// The shape filter is unconditional, and it is now the ONLY thing between a person's screen and a
+// name Marco will repeat back. It always was unconditional; what changed is that there is no
+// longer a licence in front of it, so these cases carry the whole weight.
+func TestTheShapeFilterDoesNotAdmitPrivateText(t *testing.T) {
 	for _, word := range []string{"@BeeTeaSea", "chris.haynes2112@gmail.com", "https://x.com"} {
 		if got := observe.AdmittedPlaceName([]observe.PlaceNameEvidence{
 			selected(directorapi.RoleTreeItem, word),
-		}, true); got != "" {
+		}); got != "" {
 			t.Errorf("%q was admitted as a Place name", word)
 		}
 	}
@@ -304,7 +327,7 @@ func TestASubPageIsNotNamedAfterItsSection(t *testing.T) {
 	// The rail says the section; the trail says the page.
 	e := selected(directorapi.RoleListItem, "Bluetooth & devices")
 	e.Trail = []string{"Bluetooth & devices", "Mouse"}
-	if got := observe.AdmittedPlaceName([]observe.PlaceNameEvidence{e}, true); got != "Mouse" {
+	if got := observe.AdmittedPlaceName([]observe.PlaceNameEvidence{e}); got != "Mouse" {
 		t.Errorf("the sub-page is called %q, want Mouse. Naming it after its section gives "+
 			"two Places one name, and neither then resolves.", got)
 	}
@@ -317,7 +340,7 @@ func TestASubPageIsNotNamedAfterItsSection(t *testing.T) {
 func TestASectionRootKeepsItsOwnName(t *testing.T) {
 	e := selected(directorapi.RoleListItem, "Home")
 	e.Trail = []string{"Home"}
-	if got := observe.AdmittedPlaceName([]observe.PlaceNameEvidence{e}, true); got != "Home" {
+	if got := observe.AdmittedPlaceName([]observe.PlaceNameEvidence{e}); got != "Home" {
 		t.Errorf("the section root is called %q, want Home", got)
 	}
 }
@@ -330,7 +353,7 @@ func TestASectionRootKeepsItsOwnName(t *testing.T) {
 func TestADeeperTrailNamesNothing(t *testing.T) {
 	e := selected(directorapi.RoleListItem, "System")
 	e.Trail = []string{"System", "Display", "Advanced"}
-	if got := observe.AdmittedPlaceName([]observe.PlaceNameEvidence{e}, true); got != "" {
+	if got := observe.AdmittedPlaceName([]observe.PlaceNameEvidence{e}); got != "" {
 		t.Errorf("a three-entry trail produced the confident name %q", got)
 	}
 }
@@ -339,7 +362,7 @@ func TestADeeperTrailNamesNothing(t *testing.T) {
 func TestATrailEntryMeetsTheShapeFilter(t *testing.T) {
 	e := selected(directorapi.RoleListItem, "Direct Messages")
 	e.Trail = []string{"Direct Messages", "@BeeTeaSea"}
-	if got := observe.AdmittedPlaceName([]observe.PlaceNameEvidence{e}, true); got != "" {
+	if got := observe.AdmittedPlaceName([]observe.PlaceNameEvidence{e}); got != "" {
 		t.Errorf("a private-looking trail entry was admitted as %q", got)
 	}
 }
@@ -347,7 +370,7 @@ func TestATrailEntryMeetsTheShapeFilter(t *testing.T) {
 // With no trail the selected item still names the Place, as it did for Chrome and Discord.
 func TestNoTrailLeavesTheSelectedItemAsTheName(t *testing.T) {
 	e := selected(directorapi.RoleTreeItem, "Downloads")
-	if got := observe.AdmittedPlaceName([]observe.PlaceNameEvidence{e}, true); got != "Downloads" {
+	if got := observe.AdmittedPlaceName([]observe.PlaceNameEvidence{e}); got != "Downloads" {
 		t.Errorf("with no trail the Place is called %q, want Downloads", got)
 	}
 }

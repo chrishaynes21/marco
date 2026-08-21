@@ -602,3 +602,109 @@ func TestAPlayResolvesTheNameMarcoWorkedOut(t *testing.T) {
 		t.Error("an unknown word resolved to a screen")
 	}
 }
+
+// OBSERVATION NAMES THE PLACE WITH NO LEARN EPISODE, AND WRITES NOTHING DOWN.
+//
+// THE PERSISTENCE HALF of Roadmap 35A's central inversion. The inference half is held by
+// TestTheSamplerNamesThePlaceWhoeverIsWatching and observe.TestPassiveObservationMayInferAName,
+// NOT here: this test's fixture hands each frame an `appearsCalled` directly, so it never reaches
+// `AdmittedPlaceName` at all. That was measured by mutation rather than assumed — restoring the
+// old licence gate leaves this test green.
+//
+// What it does hold, and what nothing else does, is the half that protects a person:
+//
+//	perception  — Marco may work out what the Place on screen appears to be called
+//	              WITHOUT anybody teaching it anything. "Where am I?" is a question about
+//	              the world, not a privilege of an acquisition session.
+//	admission   — and none of that becomes durable without a licence.
+//
+// Before this, `observe.AdmittedPlaceName` opened with `if !demonstration { return "" }`. That
+// gate was a SECOND one: measured on the tree, the only non-transient consumer of an inferred
+// name is `PlaceNamesToRecord`, called from inside `Runner.establishPlace`, which returns at its
+// first line unless `Episode.EstablishPlaces` is set. So the durable write was already licensed,
+// and the extra gate bought no privacy — it only cost Marco the ability to say where it was.
+//
+// This pass runs the SAME sampler and the SAME script as
+// TestAPlaceEstablishedThroughTheProductionPassIsNamed, and differs in exactly one thing: the
+// zero Episode. It must reach the same inference and none of the same persistence.
+//
+// Deleting the EstablishPlaces guard in establishPlace must fail this.
+func TestObservationNamesThePlaceWithNoLearnEpisode(t *testing.T) {
+	dir := t.TempDir()
+	store, why := semanticmemory.Open(filepath.Join(dir, "memory.json"))
+	if why != "" {
+		t.Fatalf("opening memory: %s", why)
+	}
+
+	g := newObservationRegistry().withMemory(store)
+	res, err := g.RunPass(t.Context(), dryTarget{},
+		&sameSampler{script: dryNamed("a", "Home", 16)},
+		nil, windowref.Selector{EphemeralID: "window_1"}, dwellBounds(),
+		observesession.Episode{}) // ← passive. No acquisition, no licence, nobody teaching.
+	if err != nil {
+		t.Fatalf("running a passive pass: %v", err)
+	}
+
+	// PERCEPTION HAPPENED. The session saw a screen and worked out what it is called; the name
+	// lives in this pass's own totals and goes no further.
+	var inferred int
+	for _, st := range res.Stats.Shadow.States {
+		for name, seen := range st.PlaceNames {
+			if name == "Home" && seen > 0 {
+				inferred++
+			}
+		}
+	}
+	if inferred == 0 {
+		t.Error("a passive session could not work out what the screen is called. Recognising " +
+			"where you are is observation, and observation does not require a Learn episode — " +
+			"that is the whole of Roadmap 35A's inversion.")
+	}
+
+	// AND NOTHING WAS WRITTEN DOWN. Read from the FILE, because the question is what the next
+	// Director inherits, not what this one happens to be holding.
+	if res.Places.Established() {
+		t.Errorf("a passive session established a Place (%+v)", res.Places)
+	}
+	reopened, why := semanticmemory.Open(filepath.Join(dir, "memory.json"))
+	if why != "" {
+		t.Fatalf("reopening: %s", why)
+	}
+	for _, s := range reopened.Subjects() {
+		if s.Semantic != "" || s.Called != "" {
+			t.Errorf("a passive session wrote %q/%q off somebody's screen. Perception is free; "+
+				"persistence is licensed, and nobody granted this one anything.",
+				s.Called, s.Semantic)
+		}
+	}
+}
+
+// A PASSIVE SESSION WRITES NO PLACE NAME — the persistence half, named for what it holds so
+// cmd/director/observeguard_test.go can point at it.
+//
+// TestObservationNamesThePlaceWithNoLearnEpisode above proves both halves together. This one
+// exists because the SAMPLER test is about inference and needs somewhere honest to point when it
+// says "and the store is where the licence lives".
+func TestAPassiveSessionWritesNoPlaceName(t *testing.T) {
+	dir := t.TempDir()
+	store, why := semanticmemory.Open(filepath.Join(dir, "memory.json"))
+	if why != "" {
+		t.Fatalf("opening memory: %s", why)
+	}
+	g := newObservationRegistry().withMemory(store)
+	if _, err := g.RunPass(t.Context(), dryTarget{},
+		&sameSampler{script: dryNamed("a", "Home", 16)},
+		nil, windowref.Selector{EphemeralID: "window_1"}, dwellBounds(),
+		observesession.Episode{}); err != nil {
+		t.Fatalf("running a passive pass: %v", err)
+	}
+	reopened, why := semanticmemory.Open(filepath.Join(dir, "memory.json"))
+	if why != "" {
+		t.Fatalf("reopening: %s", why)
+	}
+	for _, s := range reopened.Subjects() {
+		if s.Semantic != "" {
+			t.Errorf("a passive session recorded the semantic name %q", s.Semantic)
+		}
+	}
+}

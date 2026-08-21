@@ -579,21 +579,38 @@ type PlaceNameEvidence struct {
 // names the Place; zero or several name nothing, and the structural description carries that one
 // Place. A missing name costs a line of diagnostics. A confident wrong one is trusted.
 //
-// # The licence
+// # The licence, and why this function no longer holds one
 //
-// The same one a semantic target rides: an explicit Learn demonstration. A Place's name is read
-// off somebody's screen, and passive observation has no business writing that down — see
-// AdmittedTargetLabel for the argument, which is the same argument. The shape filter is
-// unconditional either way, so a friend tag or a filename is refused whatever the licence says.
+// It used to take a `demonstration bool` and open with `if !demonstration { return "" }`, so
+// outside an explicit Learn this answered NOTHING — Marco could recognise the Place it was
+// standing on and could not say what it appeared to be called. The argument written here was
+// that "a Place's name is read off somebody's screen, and passive observation has no business
+// writing that down".
 //
-// One policy site, beside the one it extends. A second copy elsewhere is a privacy decision
-// nobody reviewed.
+// The second half of that sentence is right and the first half is a different question.
+// INFERRING a name and WRITING IT DOWN are separate operations with separate owners, and this
+// function only does the first. Measured, on the current tree: every consumer of what it returns
+// is transient — it lands in `ScreenState.PlaceNames`, a per-session count inside `ShadowTotals`,
+// which nothing serialises to disk — except one, `PlaceNamesToRecord`, and that is called from
+// inside `Runner.establishPlace`, which returns at its first line unless `Episode.EstablishPlaces`
+// is set. So the durable write was ALREADY licensed, one level up, and the gate here was a second
+// gate on the inference rather than on the persistence.
+//
+// It cost the product the answer to "where am I?". [[Roadmap]] item 35A inverts the ownership:
+// observation answers what is happening, and admission decides what may be kept.
+//
+// WHAT IS UNCHANGED, and it is the part that protects a person: the shape filter is
+// unconditional and always was. `safeLabelText` refuses a friend tag, a filename with an
+// extension, a token; the length bound refuses a sentence; the role check refuses anything that
+// is not navigable; and the single-candidate rule below refuses to guess between several. None
+// of that ever depended on the licence, so removing the licence widens nothing about WHICH text
+// may be read — only about WHEN Marco may read it for its own use.
+//
+// [AdmittedTargetLabel] keeps its licence, and the difference is the point: that one WIDENS the
+// set of roles whose text may be admitted. This one narrows nothing and widens nothing.
 //
 // Deleting the single-candidate rule must fail TestSeveralSelectedItemsNameNothing.
-func AdmittedPlaceName(evidence []PlaceNameEvidence, demonstration bool) string {
-	if !demonstration {
-		return ""
-	}
+func AdmittedPlaceName(evidence []PlaceNameEvidence) string {
 	found := ""
 	for _, e := range evidence {
 		if !e.Selected || e.InsideValueChooser {

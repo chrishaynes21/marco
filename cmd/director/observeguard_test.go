@@ -82,12 +82,8 @@ func TestADemonstrationOffersThePlaceItsName(t *testing.T) {
 	if len(evidence) != 2 {
 		t.Fatalf("%d selected item(s) read from the world, want 2: %+v", len(evidence), evidence)
 	}
-	if got := observe.AdmittedPlaceName(evidence, true); got != "Home" {
+	if got := observe.AdmittedPlaceName(evidence); got != "Home" {
 		t.Errorf("the Place is called %q, want Home", got)
-	}
-	// And passive observation still writes nothing down.
-	if got := observe.AdmittedPlaceName(evidence, false); got != "" {
-		t.Errorf("passive observation inferred %q", got)
 	}
 }
 
@@ -121,9 +117,17 @@ func TestASelectedValueIsNotOfferedAsAPlaceName(t *testing.T) {
 
 // THE SAMPLER NAMES THE PLACE ONLY UNDER THE LICENCE.
 //
-// Entered through the sampler's own method, because the licence is the sampler's field: a free
-// function taking a bool proves the rule and not that production passes the right bool.
-func TestTheSamplerNamesThePlaceOnlyUnderTheLicence(t *testing.T) {
+// Entered through the sampler's own method rather than the free function, because what is being
+// proved is that PRODUCTION reads the world this way — a free function proves the rule and not
+// that anything calls it.
+//
+// This test used to be TestTheSamplerNamesThePlaceOnlyUnderTheLicence and asserted that a passive
+// sampler read NOTHING. Roadmap 35A inverted that: naming is perception, and perception does not
+// need a licence. The licence moved to where the name is written down. So the claim here becomes
+// the stronger one — the sampler reads the same name either way, and the ONLY difference an
+// acquisition context makes is what becomes durable, which `TestAPassiveSessionWritesNoPlaceName`
+// holds at the store.
+func TestTheSamplerNamesThePlaceWhoeverIsWatching(t *testing.T) {
 	nav := &directorapi.Element{
 		ID: "e1", Role: directorapi.RoleListItem, Label: "Bluetooth & devices",
 		Confidence: 1, Selected: true, Visible: true,
@@ -137,8 +141,9 @@ func TestTheSamplerNamesThePlaceOnlyUnderTheLicence(t *testing.T) {
 		t.Errorf("a demonstration read the Place as %q", got)
 	}
 	passive := &liveSampler{}
-	if got := passive.placeName(world); got != "" {
-		t.Errorf("passive observation wrote down %q off somebody's screen", got)
+	if got := passive.placeName(world); got != "Bluetooth & devices" {
+		t.Errorf("a passive sampler read the Place as %q — observation answers what is on screen "+
+			"regardless of whether anybody is teaching Marco anything", got)
 	}
 }
 

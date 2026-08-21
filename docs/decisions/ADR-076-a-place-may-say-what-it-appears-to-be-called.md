@@ -104,12 +104,35 @@ identity, targets and relationships are untouched by any of it — a name is pre
 semantic grounding, never identity. Two Places inferring the same word remain two Places;
 recognition is unchanged and semantic-name equality is not identity equality.
 
+> **Amendment, 2026-08-20 — the licence moved off the inference and stayed on the persistence.**
+>
+> This decision gated NAMING on an explicit Learn demonstration: `AdmittedPlaceName` opened with
+> `if !demonstration { return "" }`, and the argument was that "a Place's name is read off
+> somebody's screen, and passive observation has no business writing that down".
+>
+> The second half of that sentence is still policy. The first half was a different question being
+> answered with the same word. INFERRING what a screen is called and WRITING IT DOWN are separate
+> operations, and measured on the tree they already had separate owners: the only non-transient
+> consumer of an inferred name is `PlaceNamesToRecord`, called from inside `Runner.establishPlace`,
+> which returns at its first line unless `Episode.EstablishPlaces` is set. The durable write was
+> ALREADY licensed. The gate on the inference was a second one, and what it cost was the product's
+> answer to "where am I?" outside a Learn session.
+>
+> So `AdmittedPlaceName` no longer takes a licence. Everything this ADR decided about WHICH text
+> may name a Place is untouched and now carries the whole weight: the role check, the length bound,
+> the shape filter, the value-chooser exclusion, the single-candidate rule and the section-versus-
+> page trail rule are all unconditional and always were. Nothing widened about what may be read —
+> only about when Marco may read it for its own use.
+>
+> [[ADR-047-a-place-is-remembered-a-meaning-is-answered]] is unchanged: establishing a Place still
+> requires the explicit human semantic event. See [[Roadmap]] item 35A.
+
 ## Enforced by
 
 - `internal/director/observe/placename_test.go` — `TestTheSelectedDestinationNamesThePlace`;
   `TestASelectedValueDoesNotNameThePlace`; `TestSeveralSelectedItemsNameNothing`;
   `TestTwoActorsAgreeingStrengthenOneName`; `TestAControlCannotNameThePlace`;
-  `TestPassiveObservationInfersNoName`; `TestTheLicenceDoesNotAdmitPrivateText`;
+  `TestPassiveObservationMayInferAName`; `TestTheShapeFilterDoesNotAdmitPrivateText`;
   `TestAnAudienceNameBeatsAnInferredName`; `TestAnInferredNameBeatsTheStructuralDescription`;
   `TestWithNoNameTheDescriptionIsStillShown`; `TestAnInferredNameCarriesNoEvidence`;
   `TestAnInferredNameIsNotRecordedAsSomethingSomebodySaid`
@@ -117,7 +140,7 @@ recognition is unchanged and semantic-name equality is not identity equality.
   (the whole chain, through the production pass, read back from disk);
   `TestAnEstablishedPlaceKeepsWhatItAppearedToBeCalled`;
   `TestAnInferredNameNeverOverwritesTheAudiences`
-- `cmd/director/observeguard_test.go` — `TestTheSamplerNamesThePlaceOnlyUnderTheLicence`;
+- `cmd/director/observeguard_test.go` — `TestTheSamplerNamesThePlaceWhoeverIsWatching`;
   `TestADemonstrationOffersThePlaceItsName`; `TestASelectedValueIsNotOfferedAsAPlaceName`
 - `internal/director/observe/placename_test.go` — `TestANameSeenOnceDoesNotStick`;
   `TestATiedNameIsLeftUnresolved`; `TestTheMostRecurrentNameWins`;
