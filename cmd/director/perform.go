@@ -151,7 +151,8 @@ func (r *Runtime) PerformGoal(ctx context.Context, q service.PerformQuery) (serv
 	// THEN LOOK — freshly, through the canonical resolver. Never from where a session
 	// happened to end: `reach` did that and answered "You're already there" about a screen
 	// the Audience had left, which is a plan built on history.
-	current, why := r.freshPlace(ctx, application)
+	seen, why := r.freshLook(ctx, application)
+	current := seen.Subject
 	if current == "" {
 		// THE APPLICATION MAY OWN MORE THAN ONE WINDOW, and activating by name picked one.
 		//
@@ -173,12 +174,7 @@ func (r *Runtime) PerformGoal(ctx context.Context, q service.PerformQuery) (serv
 		return out, nil
 	}
 	if current == "" {
-		out.Refusal, out.Say = "place_unknown", "I can't tell which screen is in front right now"+why
-		if strings.HasPrefix(why, ambiguousWhy) {
-			out.Refusal, out.Say = "window_ambiguous",
-				"Several "+application+" windows are open and none of them is a screen I know"+
-					strings.TrimPrefix(why, ambiguousWhy)
-		}
+		refuseTheLook(&out, application, why, seen)
 		return out, nil
 	}
 	out.From = current
@@ -191,17 +187,43 @@ func (r *Runtime) PerformGoal(ctx context.Context, q service.PerformQuery) (serv
 		return out, nil
 	}
 	if plan.Satisfied || len(plan.Steps) == 0 {
+		// ARRIVED WITHOUT WALKING, and only on the strength of the look above.
+		//
+		// `current` is a Place a fresh observation RESOLVED. The empty case returned twenty
+		// lines ago as `place_unknown`, which is what stops "I saw nothing" from meeting
+		// "nothing was sought" and agreeing — the shape that made `confirmArrival` report
+		// "Done." out of two absences, and the one this branch must never grow.
+		//
+		// Nothing separate holds this: the ordering above IS the guard, and it is stated
+		// here because a later edit that moved the emptiness check below the plan would
+		// reintroduce the bug silently. `confirmArrival`'s own version of it is held by
+		// TestArrivalIsConfirmedByLookingNotByFinishing.
+		out.To = current
 		out.Arrived, out.Say = true, "You're already there."
 		return out, nil
 	}
 
-	// EVERY EDGE, IN ORDER, THROUGH THE ONE WALKER.
-	if !r.performPlan(ctx, application, top, plan.Steps, &out) {
+	// EVERY EDGE, IN ORDER, THROUGH THE ONE WALKER — and edge one starts from the look that
+	// planned the route.
+	//
+	// The look above resolved a Place through the canonical resolver, moments ago, in the
+	// application that has just been brought forward. Edge one used to establish that same
+	// Place again from nothing. Nothing could have changed it in between: the plan was built
+	// from it, and building a plan touches no desktop.
+	//
+	// What the look does NOT resolve is the window reference the proof has to be bound to, and
+	// evidence that cannot name its window cannot be checked against the foreground. So the
+	// reference is acquired here, through the same target the walk will use.
+	//
+	// Deleting this handoff must fail TestThePlanningLookIsEdgeOnesSource.
+	final, ok := r.performPlan(ctx, application, top, plan.Steps,
+		r.planningProof(ctx, application, current), &out)
+	if !ok {
 		return out, nil
 	}
 
-	// AND CONFIRM WHERE IT ENDED, freshly.
-	r.confirmArrival(ctx, application, goal.Subject, &out)
+	// AND CONFIRM WHERE IT ENDED — reusing the last edge's proof when it still stands.
+	r.confirmArrival(ctx, application, goal.Subject, final, &out)
 	return out, nil
 }
 
@@ -298,15 +320,17 @@ const cancelledWord = string(rehearse.CancelledAttempt)
 // Deleting the stop must fail TestExecutionStopsAtTheFirstUnverifiedEdge.
 // Deleting the ctx check must fail TestStoppingBetweenEdgesEndsTheWalk.
 func (r *Runtime) performPlan(ctx context.Context, application string, top observe.Topology,
-	steps []observe.RelationshipRef, out *service.PerformView) bool {
+	steps []observe.RelationshipRef, carried *rehearse.StageEvidence,
+	out *service.PerformView) (rehearse.StageEvidence, bool) {
 
 	for _, edge := range steps {
 		if ctx.Err() != nil {
 			stopped(out, len(out.Steps), len(steps))
-			return false
+			return rehearse.StageEvidence{}, false
 		}
-		step, err := r.performEdge(ctx, application, edge)
+		step, arrived, err := r.performEdge(ctx, application, edge, carried)
 		out.Steps = append(out.Steps, step)
+		out.Cost.Add(step.Cost)
 		if err != nil || !step.Verified {
 			out.Refusal = step.Refusal
 			if out.Refusal == "" {
@@ -317,14 +341,36 @@ func (r *Runtime) performPlan(ctx context.Context, application string, top obser
 			// end must not be reported as a broken play.
 			if out.Refusal == cancelledWord {
 				stopped(out, verifiedSteps(out.Steps), len(steps))
-				return false
+				return rehearse.StageEvidence{}, false
 			}
 			out.Say = fmt.Sprintf("I got as far as %s and stopped.",
 				placeWordsIn(top, edge.From))
-			return false
+			return rehearse.StageEvidence{}, false
 		}
+
+		// THE PROOF MOVES FORWARD WITH THE WALK.
+		//
+		// Edge one ends by positively verifying where it arrived. That IS edge two's source,
+		// established after the only thing that could have changed it, and checked against
+		// what the edge said should happen — better evidence than a fresh look would be, and
+		// it is already in hand.
+		//
+		// PAST THE FAILURE CHECK ON PURPOSE, and this is the whole guard. A step that
+		// refused, was stopped, or ended somewhere unverified has already ended the walk
+		// above, so there is no unverified proof to screen out here — and a guard for a case
+		// that cannot arrive is a claim nothing can test. It was written that way first and
+		// the mutation that removed it survived the suite. `rehearse.provedBy` is what makes
+		// this safe: a walk that did not complete returns empty evidence, and
+		// `StageEvidence.Justifies` refuses empty evidence on its first arm.
+		//
+		// Deleting this handoff must fail TestAVerifiedOutcomeBecomesTheNextEdgesSource.
+		held := arrived
+		carried = &held
 	}
-	return true
+	if carried == nil {
+		return rehearse.StageEvidence{}, true
+	}
+	return *carried, true
 }
 
 // verifiedSteps counts the edges that actually happened and were confirmed.
@@ -349,7 +395,31 @@ func verifiedSteps(steps []service.PerformStep) int {
 //
 // Deleting the look must fail TestArrivalIsConfirmedByLookingNotByFinishing.
 func (r *Runtime) confirmArrival(ctx context.Context, application, subject string,
-	out *service.PerformView) {
+	proved rehearse.StageEvidence, out *service.PerformView) {
+
+	// THE LAST EDGE MAY ALREADY HAVE PROVED THIS, and if it did there is nothing left to ask.
+	//
+	// Ask precisely what the extra look would establish. The final edge ended by observing the
+	// screen AFTER its action, resolving a Place from it, and checking that Place against what
+	// the edge said should happen. If that Place is the goal, in this application, on a window
+	// that still leads, and recently enough to still be justifiable, then the second look would
+	// be putting the identical question to the identical screen.
+	//
+	// `Justifies` is the same predicate the walker's source check uses, asked here of the goal
+	// rather than of an edge's source — so there is one definition of "can this proof still be
+	// relied on" and this is not a second, weaker opinion about arrival.
+	//
+	// It fails closed to the look below on every arm. A goal that is not the final edge's
+	// destination, a window that changed, evidence gone stale: all of them fall through, and
+	// the cost of being wrong here is the observation Marco was making anyway.
+	//
+	// Deleting this reuse costs nothing but time; deleting the FALLBACK below would be the
+	// serious one, and TestArrivalIsConfirmedByLookingNotByFinishing holds it.
+	if proved.Justifies(sessionClock.Now(), application, subject, windowLeads) {
+		out.To = proved.Subject
+		out.Arrived, out.Say = true, "Done."
+		return
+	}
 
 	final, _ := r.freshPlace(ctx, application)
 	out.To = final
@@ -374,29 +444,34 @@ func (r *Runtime) confirmArrival(ctx context.Context, application, subject strin
 //
 // Deleting the per-edge verification check must fail TestExecutionStopsAtTheFirstUnverifiedEdge.
 func (r *Runtime) performEdge(ctx context.Context, application string,
-	edge observe.RelationshipRef) (service.PerformStep, error) {
+	edge observe.RelationshipRef, carried *rehearse.StageEvidence) (
+	service.PerformStep, rehearse.StageEvidence, error) {
 
 	g := r.observations
 	out := service.PerformStep{From: edge.From, To: edge.To}
+	var none rehearse.StageEvidence
 
 	judgement, ok := g.judgeNow(application, edge)
 	if !ok {
 		out.Refusal = "no_evidence"
-		return out, nil
+		return out, none, nil
 	}
 	if !judgement.Eligible {
 		out.Refusal = "not_eligible"
-		return out, nil
+		return out, none, nil
 	}
+	// AUTHORITY IS NOT EVIDENCE, and carrying proof forward changes nothing here. A grant is
+	// minted for every edge whatever Marco already knows about where it is standing: knowing
+	// where you are and being allowed to act are different questions with different owners.
 	authority, err := observe.NewRehearsalGrant(performEpoch, judgement, sessionClock.Now())
 	if err != nil {
 		out.Refusal = "no_authority"
-		return out, nil
+		return out, none, nil
 	}
 	live, err := r.performer()
 	if err != nil {
 		out.Refusal = "no_actuator"
-		return out, err
+		return out, none, err
 	}
 	selector := r.performSelector(ctx, application)
 
@@ -407,12 +482,27 @@ func (r *Runtime) performEdge(ctx context.Context, application string,
 	// fire here because this argument was context.Background().
 	//
 	// Handing Background again must fail TestStoppingAPerformanceReportsItAsCancelled.
-	result, err := live.Perform(ctx, authority, judgement, selector, 1)
+	// WHAT THIS EDGE SPENT LOOKING, read off the walker either side of the walk.
+	//
+	// Snapshotted rather than taken from the result, because A REFUSAL PRODUCES NO RESULT —
+	// and the refusal path is where a walk looks most. An edge whose carried proof was
+	// contradicted runs a confirmation AND a full establishment, seven readings, and reported
+	// none of it while this came off `result`. Measured live: a route interrupted by somebody
+	// clicking mid-way reported its first edge's readings and nothing for the second, so the
+	// total understated the work in the direction that flatters the optimization.
+	//
+	// The pair is taken around the call so that both paths below are covered by one reading,
+	// and so a walker that served an earlier edge cannot double-count.
+	//
+	// Deleting the refusal branch's reading must fail TestARefusedEdgeReportsWhatItSpent.
+	spentBefore, startedAt := live.Spent(), sessionClock.Now()
+	result, err := live.Perform(ctx, authority, judgement, selector, 1, carried)
+	out.Cost = costOf(live.Spent().Since(spentBefore), sessionClock.Now().Sub(startedAt))
 	if err != nil {
 		reason, _ := rehearse.RefusalOf(err)
 		out.Refusal = string(reason)
 		out.Detail = err.Error()
-		return out, nil
+		return out, none, nil
 	}
 	out.Verified = result.Completed()
 	out.Terminal = string(result.Terminal)
@@ -422,7 +512,11 @@ func (r *Runtime) performEdge(ctx context.Context, application string,
 	if out.Verified {
 		g.rememberRehearsal(application, judgement, result)
 	}
-	return out, nil
+	// THE PROOF THIS EDGE JUST PRODUCED, handed back for the next one. Empty unless the walk
+	// completed and positively verified where it ended — an unverified walk proves nothing
+	// about where Marco is standing, and returning a guess would be worse than returning
+	// nothing, because the next edge would act on it.
+	return out, result.Arrived, nil
 }
 
 // performEpoch names authorities minted by an explicit request, so an audit can tell them from a
@@ -451,23 +545,110 @@ const performEpoch = "asked"
 //
 // Deleting the observation start must fail TestExecutionPlansFromAFreshLook.
 func (r *Runtime) freshPlace(ctx context.Context, application string) (string, string) {
-	if subject := r.placeNowIn(application); subject != "" {
-		return subject, ""
+	p, why := r.freshLook(ctx, application)
+	return p.Subject, why
+}
+
+// freshLook is the same look with the whole finding kept.
+//
+// `freshPlace` answers "which screen", which is all most callers want and all any caller wanted
+// until a live run refused with `place_unknown` about a window that had never been read. A subject
+// and a sentence cannot tell those apart; the [observe.Place] can, and it has carried the answer
+// since PlaceNow started asking. See [observe.Reach].
+//
+// Deleting the Reach from what this returns must fail
+// TestALookSaysWhetherItCouldReadTheWindow.
+func (r *Runtime) freshLook(ctx context.Context, application string) (observe.Place, string) {
+	if p := r.placeHereIn(application); p.Subject != "" {
+		return p, ""
 	}
-	if err := r.lookNow(ctx, application); err != nil {
-		return "", ": " + err.Error()
+	started, err := r.lookNow(ctx, application)
+	if err != nil {
+		return observe.Place{}, ": " + err.Error()
 	}
+	// AND THE LOOK ENDS WITH THE QUESTION IT WAS ASKED.
+	//
+	// `freshLookWatch` is eight seconds and this loop returns as soon as the screen resolves,
+	// which is ordinarily one or two. The remaining six were spent SAMPLING THE SCREEN — a
+	// full observation session, at `freshLookInterval`, running alongside the walk that the
+	// look existed to start. Every reading the route took afterwards contended with it, on
+	// one accessibility provider, for no purpose: the session's own comment says nothing
+	// downstream depends on it outliving the question, and nothing does.
+	//
+	// Deferred rather than called inline because `placeNowIn` needs the session to be RUNNING
+	// to answer — retiring it before the read would make the look unable to report what it
+	// saw.
+	//
+	// It ends only a session THIS look started. `lookNow` returns an empty id when it found
+	// one already watching this application, and that one belongs to somebody else's purpose;
+	// cancelling it to tidy up after a question would interrupt a demonstration.
+	//
+	// Deleting this must fail TestALookEndsWhenItHasItsAnswer.
+	defer r.endLook(ctx, started)
+	// THE LAST THING SEEN IS KEPT, not only the last thing recognised.
+	//
+	// A poll that runs out has still been looking the whole time, and what it saw is the
+	// evidence for why it could not answer. Throwing it away at the loop's edge is what left
+	// `place_unknown` with nothing behind it.
 	deadline := time.Now().Add(freshLookTimeout)
+	var seen observe.Place
 	for time.Now().Before(deadline) {
-		if subject := r.placeNowIn(application); subject != "" {
-			return subject, ""
+		p := r.placeHereIn(application)
+		if p.Subject != "" {
+			return p, ""
+		}
+		if p.Placed {
+			seen = p
 		}
 		if ctx.Err() != nil {
-			return "", ""
+			return seen, ""
 		}
 		time.Sleep(freshLookPoll)
 	}
-	return "", ""
+
+	// A LOOK THAT RAN OUT SAYS SO, AND SAYS WHICH LOOK.
+	//
+	// This used to return two empty strings, so `place_unknown` reached the Audience as
+	// "I can't tell which screen is in front right now" with nothing after it — the same
+	// sentence for three unrelated problems: a look that never started, a window that could
+	// not be read, and a page Marco genuinely does not know. Each needs a different thing
+	// done about it, and none could be told from the others.
+	//
+	// Measured live: a performance refused this way in 6.7 seconds and the record it left
+	// behind could not say why. The reason existed here the whole time.
+	//
+	// Deleting the distinction must fail TestALookThatRanOutSaysWhichLookItWas.
+	return seen, lookRanOutWhy(application, started != "", seen)
+}
+
+// lookRanOutWhy is what to say about a look that watched and could not answer.
+//
+// Three unrelated problems used to arrive as one empty string, and therefore as one sentence —
+// "I can't tell which screen is in front right now" — which is the sentence for the third of them
+// and useless advice for the first two:
+//
+//	nothing was started, because something else held the registry  -> a fault, not a screen
+//	the window is there and its page could not be read             -> the reading is broken
+//	the page was read and matched nothing remembered               -> open the right screen
+//
+// Its own function for the reason `refuseTheLook` is: `freshLook` cannot be entered from a test
+// without a live desktop, and a wording decision nothing can reach is one nobody can hold. The
+// mutation that made every timeout claim the window was unreadable survived until this moved.
+//
+// Every sentence names the application and nothing else. Control counts, coverage and geometry
+// are real evidence and belong in diagnostics; this is spliced onto a line somebody reads.
+func lookRanOutWhy(application string, ownLook bool, seen observe.Place) string {
+	seconds := int(freshLookTimeout / time.Second)
+	switch {
+	case !ownLook:
+		return fmt.Sprintf(": something was already watching %s, and after %d seconds "+
+			"it had not said which screen that is", application, seconds)
+	case !seen.Readable():
+		return fmt.Sprintf(": I can see %s but I can't read the page it's showing",
+			application)
+	}
+	return fmt.Sprintf(": I watched %s for %d seconds and didn't recognise the screen "+
+		"it was showing", application, seconds)
 }
 
 // placeNowIn is where Marco is standing RIGHT NOW inside one application, empty when nothing here
@@ -491,15 +672,24 @@ func (r *Runtime) freshPlace(ctx context.Context, application string) (string, s
 // Deleting either conjunct must fail TestAFinishedSessionIsNotWhereTheAudienceIsNow or
 // TestALiveSessionElsewhereIsNotWhereTheAudienceIsNow.
 func (r *Runtime) placeNowIn(application string) string {
+	return r.placeHereIn(application).Subject
+}
+
+// placeHereIn is the same question with the whole answer kept.
+//
+// A caller that has to explain WHY there is no subject needs more than an empty string: a page
+// Marco does not remember and a window it could not read are different facts with different
+// fixes, and only the Place carries which one it was.
+func (r *Runtime) placeHereIn(application string) observe.Place {
 	g := r.observations
 	if g.ActiveID() == "" {
-		return ""
+		return observe.Place{}
 	}
 	ev := g.evidenceForPointing()
 	if !ev.ok || !sameApplication(ev.app, application) {
-		return ""
+		return observe.Place{}
 	}
-	return g.placeNowSubject()
+	return g.placeHere()
 }
 
 // watchingElsewhere names the application a session is watching when it is NOT the one being
@@ -601,7 +791,7 @@ func (r *Runtime) disambiguateWindow(ctx context.Context, application, why strin
 		// The previous look holds the session, and `lookNow` returns early while one is
 		// live — so without releasing it every candidate would be answered by the first
 		// window's evidence.
-		r.releaseLook()
+		r.releaseLook(ctx)
 		if err := winctx.ActivateTitle(title); err != nil {
 			continue // ambiguous or gone; the next candidate is no worse a guess
 		}
@@ -632,10 +822,16 @@ func (r *Runtime) applicationWindowTitles(ctx context.Context, application strin
 }
 
 // releaseLook ends the observation a previous look left running.
-func (r *Runtime) releaseLook() {
+func (r *Runtime) releaseLook(ctx context.Context) {
+	if r.observations == nil {
+		return
+	}
 	if id := r.observations.ActiveID(); id != "" {
 		_ = r.observations.Cancel(id)
 	}
+	// AND WAIT FOR IT TO LET GO. Without this the release is a request rather than a fact,
+	// and the very next look declines to start one of its own -- see awaitLookRetired.
+	r.awaitLookRetired(ctx)
 }
 
 // performer is the live walker for a play the Audience asked for by name.
@@ -724,7 +920,7 @@ func (r *Runtime) performSelector(ctx context.Context, application string) windo
 // The production path — `StartObservation`, the same one the Sight surface uses — rather than a
 // private sampler. There is one way to look, and a second would be a second opinion about what is
 // in front.
-func (r *Runtime) lookNow(ctx context.Context, application string) error {
+func (r *Runtime) lookNow(ctx context.Context, application string) (observe.SessionID, error) {
 	// SOMETHING ELSE IS BEING WATCHED. The same rule PerformGoal refuses on, asked again
 	// here because a session can begin between the two — and because this is the only place
 	// that would otherwise treat somebody else's live session as this look's answer.
@@ -733,22 +929,87 @@ func (r *Runtime) lookNow(ctx context.Context, application string) error {
 	// not this command's to do. So the look cannot be had, and saying so at once is better
 	// than waiting out a deadline that nothing could satisfy.
 	if other := r.watchingElsewhere(application); other != "" {
-		return fmt.Errorf("I'm watching %s right now, so I can't take a fresh look at %s",
+		return "", fmt.Errorf("I'm watching %s right now, so I can't take a fresh look at %s",
 			other, application)
 	}
 	if id := r.observations.ActiveID(); id != "" {
-		return nil // already watching THIS application; the evidence is live
+		// ALREADY WATCHING THIS APPLICATION; the evidence is live. The empty id says this
+		// look started nothing, so nothing here is this look's to end — see endLook.
+		return "", nil
 	}
 	sel := r.performSelector(ctx, application)
 	if sel.Validate() != nil {
-		return fmt.Errorf("nothing has observed %s, so there is no window to look at",
+		return "", fmt.Errorf("nothing has observed %s, so there is no window to look at",
 			application)
 	}
-	_, err := r.StartObservation(service.ObservePayload{
+	view, err := r.StartObservation(service.ObservePayload{
 		Target: sel, Duration: freshLookWatch, Interval: freshLookInterval,
 	})
-	return err
+	if err != nil {
+		return "", err
+	}
+	return observe.SessionID(view.ID), nil
 }
+
+// endLook retires a session a look started, once the look has its answer.
+//
+// Only that session. An empty id means the look reused one that was already running, and that one
+// is somebody else's — a demonstration, most likely, and cancelling it to tidy up after a question
+// would interrupt them mid-sentence.
+//
+// A failure to cancel is not worth reporting anywhere. The session is bounded by `freshLookWatch`
+// and retires on its own; the point of this is to stop it sampling ALONGSIDE the walk, not to
+// prevent a leak.
+func (r *Runtime) endLook(ctx context.Context, id observe.SessionID) {
+	if id == "" || r.observations == nil {
+		return
+	}
+	_ = r.observations.Cancel(id)
+	r.awaitLookRetired(ctx)
+}
+
+// awaitLookRetired waits, briefly, for the registry to have nothing running.
+//
+// # Cancelling is a signal, not an event
+//
+// `Cancel` sets a context and returns. The runner notices at the end of whatever sample it is
+// taking, which is hundreds of milliseconds away, and only then does `ActiveID` go empty.
+//
+// Nothing waited for that, and the consequence is not a slow retirement — it is the NEXT look
+// failing outright. `lookNow` returns early when a session is already running, on the reasonable
+// theory that its evidence is live; a session that is retiring answers nothing, so the caller then
+// polls a corpse until `freshLookTimeout` runs out and reports `place_unknown` with no reason
+// attached. Measured live: a whole performance refused that way in 6.7 seconds without ever
+// looking at the screen.
+//
+// `disambiguateWindow` has had this hazard since it was written — it releases the previous look
+// precisely so each candidate window is judged on its own evidence, and its comment says so, which
+// is only true if the release has actually finished. The wait is here rather than at either caller
+// so both get it.
+//
+// Bounded, and it obeys the context: a person who pressed stop is not made to wait for tidying up.
+//
+// Deleting the wait must fail TestALookEndsWhenItHasItsAnswer.
+func (r *Runtime) awaitLookRetired(ctx context.Context) {
+	deadline := time.Now().Add(lookRetireWait)
+	for time.Now().Before(deadline) {
+		if r.observations.ActiveID() == "" {
+			return
+		}
+		if ctx != nil && ctx.Err() != nil {
+			return
+		}
+		time.Sleep(lookRetirePoll)
+	}
+}
+
+// lookRetireWait bounds the wait, generously enough for one sample to finish and short enough that
+// nobody is left wondering. A session that has not let go by then is a real fault, and the caller
+// that follows will report it honestly rather than hang.
+const (
+	lookRetireWait = 2 * time.Second
+	lookRetirePoll = 20 * time.Millisecond
+)
 
 // freshLookWatch bounds a look taken purely to answer "where am I".
 //
@@ -792,4 +1053,115 @@ func (r *Runtime) applicationsWithGoals(memory observe.Memory, goals observe.Goa
 	}
 	sort.Strings(out)
 	return out
+}
+
+// planningProof binds the Place the planning look established to the window it is about.
+//
+// # Why the reference has to be acquired rather than remembered
+//
+// `freshPlace` answers with a Place and nothing else. It resolves through `observe.PlaceNow` over
+// whatever the observation session saw, and a session identifies its window by SELECTOR — the
+// thing you look a window up BY, not the window. A proof carrying a selector could not be checked
+// against the foreground, because "is this window in front" is a question about a handle.
+//
+// So the reference is acquired here, from `observationTarget` — the same object the walk will use
+// to find the same window. Two targets would be two opinions about window identity, and the
+// same-process ambiguity this repository fixed once (Settings, XBOX and Realtek all being
+// `applicationframehost`) is exactly what disagreement there would let back in.
+//
+// # Everything that makes it decline, and why declining is free
+//
+// No Place, no selector, a window that cannot be found, or one belonging to another application.
+// Each returns nil, and nil is what the caller passed before any of this existed: edge one
+// establishes for itself. There is no path here that produces a weaker proof — only a proof or
+// none.
+//
+// It is also NOT the last word. The walker checks this proof against `Justifies` and then against
+// a fresh reading of the screen before it will act on it, so a reference acquired a moment too
+// late costs a discarded shortcut rather than a wrong step.
+func (r *Runtime) planningProof(ctx context.Context, application, subject string) *rehearse.StageEvidence {
+	if strings.TrimSpace(subject) == "" || ctx.Err() != nil {
+		return nil
+	}
+	selector := r.performSelector(ctx, application)
+	if selector.Zero() {
+		return nil
+	}
+	ref, err := r.observationTarget().Acquire(ctx, selector)
+	if err != nil || ref.ID == "" || !strings.EqualFold(ref.Application, application) {
+		return nil
+	}
+	return &rehearse.StageEvidence{
+		Ref: ref, Subject: subject, At: sessionClock.Now(), From: rehearse.EvidencePlanning,
+	}
+}
+
+// costOf is the walker's tally, plus the caller's stopwatch, in the shape a client reads.
+//
+// # Why the duration is an argument
+//
+// The tally is a running count read off the walker; how long the edge took is a stopwatch only
+// this caller holds. They were in one type, and `Cost.Since` — which subtracts one reading of a
+// tally from another — quietly left the duration at zero. A live run then reported a route that
+// had taken three and a half seconds as spending 0 ms inside the walk.
+//
+// A missing measurement rendered as a hard zero, for the third time in this campaign, and always
+// in the direction that flatters. Separating them makes the mistake unavailable: there is no
+// duration on the tally to forget to carry.
+//
+// Durations become milliseconds at the boundary rather than inside, because a `time.Duration` on
+// the wire is a nanosecond integer that every reader has to know to divide, and this view is read
+// by a PowerShell harness as often as by Go.
+//
+// Deleting the stopwatch must fail TestAWalkedEdgeReportsHowLongItTook.
+func costOf(c rehearse.Cost, took time.Duration) service.PerformCost {
+	return service.PerformCost{
+		Samples:        c.Samples,
+		Resolutions:    c.Resolutions,
+		Establishments: c.Establishments,
+		Confirmations:  c.Confirmations,
+		Reused:         c.ProofsReused,
+		LookingMS:      c.Looking.Milliseconds(),
+		TotalMS:        took.Milliseconds(),
+	}
+}
+
+// refuseTheLook says why a fresh look could not place the Audience.
+//
+// # Three failures wearing one sentence
+//
+// A look that produces no subject has more than one cause, and they call for different things:
+//
+//	several windows answer to this name, and none is a screen Marco knows  -> pick one
+//	the window is there and its page could not be read                     -> the reading is broken
+//	the page was read and matched nothing remembered                       -> open the right screen
+//
+// All three used to arrive as `place_unknown` — "I can't tell which screen is in front right
+// now". Measured live: the second one, three runs in a row, while the advice the sentence implies
+// (open a different page) could not possibly have helped, because the page was never the problem.
+//
+// It is its own function because `PerformGoal` cannot be entered from a test — `bringForward`
+// goes through `winctx` and moves the real desktop or fails — and a wording decision nothing can
+// reach is a wording decision nobody can hold.
+//
+// # What the Audience is told, and what it is not
+//
+// The application by name, and what Marco can and cannot do with it. No control counts, no
+// coverage numbers, no subject ids, no provider names: that evidence is real and belongs in
+// diagnostics, and this is the sentence somebody reads.
+//
+// Deleting the unreadable arm must fail TestAnUnreadableWindowIsNotAnUnknownPlace.
+func refuseTheLook(out *service.PerformView, application, why string, seen observe.Place) {
+	switch {
+	case strings.HasPrefix(why, ambiguousWhy):
+		out.Refusal = "window_ambiguous"
+		out.Say = "Several " + application + " windows are open and none of them is a " +
+			"screen I know" + strings.TrimPrefix(why, ambiguousWhy)
+	case !seen.Readable():
+		out.Refusal = "perception_incomplete"
+		out.Say = "I can see " + application + ", but I can't read the page right now."
+	default:
+		out.Refusal = "place_unknown"
+		out.Say = "I can't tell which screen is in front right now" + why
+	}
 }

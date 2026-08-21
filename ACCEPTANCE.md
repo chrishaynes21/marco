@@ -230,3 +230,53 @@ Remove-Item Env:\MARCO_ROUTES, Env:\MARCO_HOME
 ```
 
 Your real plays were never touched: everything above ran against a temporary `$MARCO_ROUTES`.
+
+---
+
+## F. Fast verified execution — carry proof forward
+
+Roadmap 35C. This one is a **measurement**, not a behaviour check: everything 35C claims is gated
+deterministically in the Go suite, and the only thing no test can reach is what the saving is worth
+on your machine.
+
+It runs against a COPY of your semantic memory, in a sandbox. Your originals are read and never
+written.
+
+```powershell
+.\acceptance-35c.ps1 -Setup     # build, sandbox, copy your learned route in, start the Director
+```
+
+Open **Windows Settings** on its **Home** page and leave it there. Then:
+
+```powershell
+.\acceptance-35c.ps1 -Run       # performs the route once and prints what it cost
+```
+
+**21. It arrives, and it says what it cost.**
+
+- [ ] Settings comes forward and Marco navigates to **Mouse**.
+- [ ] The report shows **full establishments: 0** and **proofs reused: 2**.
+- [ ] It reports a wall-clock time. Write it down — that is the number nothing else can produce.
+
+*The first live run, for comparison: 10 screen readings, 0 establishments, 2 proofs reused,
+4533 ms wall and 3018 ms inside the walk. The deterministic fixture predicts the same four counts.
+Another machine will give different milliseconds and should give the same counts — if the COUNTS
+differ, that is the finding.*
+
+*If it refuses instead, note the reason.* A refusal is data: the counters above are still printed
+and still meaningful.
+
+**22. Somebody clicking mid-route is caught.**
+Run it again, and this time — while Marco is between steps — click a different item in Settings'
+navigation.
+
+- [ ] Marco does **not** carry on as though nothing happened. It either refuses, or re-establishes
+      where it now is and refuses because that is not where the next step starts from.
+
+*Why it matters:* this is the one thing a carried proof cannot see for itself — no window changed,
+no process changed, nothing fell out of the foreground. The shortened confirmation exists for
+exactly this, and it is the reason a proof shortens the look rather than replacing it.
+
+```powershell
+.\acceptance-35c.ps1 -Clean
+```

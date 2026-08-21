@@ -280,6 +280,13 @@ verified edges, then the same bounded walker a rehearsal uses, verifying after e
 Proven from a cold process with an unrelated application in front.
 [[ADR-078-a-learned-play-is-performed-by-the-director]].
 
+And it does not prove the same unchanged fact twice on the way. A verified outcome IS the next
+edge's source, and the arrival confirmation reuses the last edge's proof when it can still be
+justified — same Place, same application, same window still in front, recent enough. Every arm
+fails closed into the establishment that was always there, so nothing is traded for the saving:
+the foreground gate, the per-edge authority, the per-edge verification and the final positive
+verification are all untouched. [[ADR-090-a-verified-outcome-is-the-next-step-s-evidence]].
+
 ## Related
 
 - [[Plays]] — what the person is holding once this chain finishes: kind, scope, standing

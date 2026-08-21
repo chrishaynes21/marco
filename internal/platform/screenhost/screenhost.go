@@ -68,6 +68,18 @@ const (
 	Unobservable Outcome = "unobservable"
 	// Unavailable is the recogniser or memory not being there.
 	Unavailable Outcome = "unavailable"
+	// Unreadable is a WINDOW that was seen and whose CONTENT could not be read.
+	//
+	// Between Unobservable and Unknown, and it used to be reported as Unknown. Measured live
+	// on Windows Settings: the right window, in front, full screen, and a reading that
+	// returned the caption buttons, a title strip, and one rectangle covering three quarters
+	// of the frame with nothing observed in it. Hosted applications do that when their
+	// content is suspended or unpainted.
+	//
+	// The doc on Unknown below says "observed CLEANLY", and nothing enforced it. This is what
+	// enforces it. Both still become `failed` at the language boundary; they stay apart
+	// because "open the right page" and "that window is not being read" are opposite fixes.
+	Unreadable Outcome = "unreadable"
 	// Unknown is a screen observed cleanly and matching nothing remembered.
 	Unknown Outcome = "unrecognised"
 )

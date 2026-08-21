@@ -251,7 +251,7 @@ func TestStoppingBetweenEdgesEndsTheWalk(t *testing.T) {
 		{From: "subj_b", To: "subj_c"},
 	}
 	var out service.PerformView
-	if rt.performPlan(ctx, performApp, observe.Topology{}, steps, &out) {
+	if _, ok := rt.performPlan(ctx, performApp, observe.Topology{}, steps, nil, &out); ok {
 		t.Fatal("a cancelled walk reported that the whole route worked")
 	}
 	if len(out.Steps) != 0 {

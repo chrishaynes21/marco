@@ -11,6 +11,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
 	"github.com/chaynes-simpleclouds/marco/internal/director/observesession"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/windowref"
+	"github.com/chaynes-simpleclouds/marco/internal/director/rehearse"
 	"github.com/chaynes-simpleclouds/marco/internal/director/semanticmemory"
 	"github.com/chaynes-simpleclouds/marco/internal/director/service"
 )
@@ -185,7 +186,7 @@ func TestExecutionStopsAtTheFirstUnverifiedEdge(t *testing.T) {
 	}
 	var out service.PerformView
 
-	if rt.performPlan(context.Background(), "settings", observe.Topology{}, steps, &out) {
+	if _, ok := rt.performPlan(context.Background(), "settings", observe.Topology{}, steps, nil, &out); ok {
 		t.Fatal("a walk whose first edge could not be verified reported that the whole " +
 			"route worked")
 	}
@@ -214,7 +215,7 @@ func TestArrivalIsConfirmedByLookingNotByFinishing(t *testing.T) {
 		rt := &Runtime{observations: g}
 
 		var arrived service.PerformView
-		rt.confirmArrival(context.Background(), "settings", here, &arrived)
+		rt.confirmArrival(context.Background(), "settings", here, rehearse.StageEvidence{}, &arrived)
 		if !arrived.Arrived || arrived.To != here {
 			t.Fatalf("a walk that ended on the goal reports %+v", arrived)
 		}
@@ -225,7 +226,7 @@ func TestArrivalIsConfirmedByLookingNotByFinishing(t *testing.T) {
 		// AND THE SAME LOOK REFUSES when it lands somewhere else. Without this half the
 		// test above would pass for a function that only ever agrees.
 		var wrong service.PerformView
-		rt.confirmArrival(context.Background(), "settings", "subj_somewhere_else", &wrong)
+		rt.confirmArrival(context.Background(), "settings", "subj_somewhere_else", rehearse.StageEvidence{}, &wrong)
 		if wrong.Arrived {
 			t.Error("a walk that ended on a different screen reported arrival")
 		}
@@ -239,7 +240,7 @@ func TestArrivalIsConfirmedByLookingNotByFinishing(t *testing.T) {
 		standingOn(rt, observe.TermAudio) // history, and nothing watching
 
 		var out service.PerformView
-		rt.confirmArrival(context.Background(), "settings", a, &out)
+		rt.confirmArrival(context.Background(), "settings", a, rehearse.StageEvidence{}, &out)
 		if out.Arrived {
 			t.Fatal("a play reported arrival on the strength of its plan running out, " +
 				"with nothing able to see the screen")
@@ -265,7 +266,7 @@ func TestArrivalIsConfirmedByLookingNotByFinishing(t *testing.T) {
 		standingOn(rt, observe.TermAudio) // history, and nothing watching
 
 		var out service.PerformView
-		rt.confirmArrival(context.Background(), "settings", "", &out)
+		rt.confirmArrival(context.Background(), "settings", "", rehearse.StageEvidence{}, &out)
 		if out.Arrived {
 			t.Fatal("a goal with no subject, confirmed by a look that saw nothing, " +
 				"reported arrival — two absences agreeing is not a place")

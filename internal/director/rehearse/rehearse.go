@@ -624,6 +624,21 @@ const (
 	RefusalNoActuator Refusal = "no_actuator"
 	// RefusalSourceUnobservable is perception that could not make out the screen at all.
 	RefusalSourceUnobservable Refusal = "source_unobservable"
+	// RefusalSourceUnreadable is a WINDOW Marco can see, whose CONTENT it could not read.
+	//
+	// The third state between the two either side of it, and it used to be reported as the
+	// one below. Measured live on Windows Settings: the right application, the right window,
+	// in front, full screen — and an accessibility reading of sixteen structures where the
+	// same page had been learned with a hundred and forty-eight, one of them a rectangle
+	// covering three quarters of the frame with nothing observed in it.
+	//
+	// "Marco does not recognise this screen" was true and sent the diagnosis to the page
+	// rather than to the reading. They call for opposite fixes: one is a screen to open, the
+	// other is a window that is not being read. See [[ADR-031-the-user-names-the-stage]],
+	// which forbids exactly this collapse one level up.
+	//
+	// It refuses just as hard. Nothing here makes Marco more willing to act.
+	RefusalSourceUnreadable Refusal = "source_unreadable"
 	// RefusalSourceUnrecognised is a screen Marco is looking at and does not remember.
 	RefusalSourceUnrecognised Refusal = "source_unrecognised"
 	// RefusalSourceAmbiguous is a screen resembling more than one remembered subject. Marco

@@ -113,7 +113,21 @@ import (
 // desktop, arrived at in silence, with the refusal that should have stopped it decoded away. That
 // is precisely the hazard this check exists for, and it is the same reasoning Version 7 was bumped
 // on for a field that was also optional.
-const ProtocolVersion = 9
+// Version 10 adds COST to PERFORM: what carrying out a route spent finding out where it was —
+// screen readings, Place resolutions, source establishments, and how many of those were answered
+// by a proof the walk already held. Developer-facing, additive, and on a RESPONSE rather than a
+// request.
+//
+// The same question as above, and this time the honest answer is that the harm is to a
+// MEASUREMENT rather than to the desktop. A version-9 Director answering a version-10 client
+// omits the object, which decodes to zeros — and zeros in these fields read as "this route never
+// looked at the screen", which is the most flattering possible reading of the optimization they
+// exist to test. Roadmap 35C is explicit that a live number must be measured or declared
+// unmeasured, never guessed, and a silent zero is a guess wearing a measurement's clothes.
+//
+// So it is bumped for the same reason Version 7 was: not because the field is required, but
+// because the degradation would be quiet and would be believed.
+const ProtocolVersion = 10
 
 // RequestType names what a client is asking for.
 type RequestType string
@@ -1647,6 +1661,8 @@ type PerformStep struct {
 	Terminal string `json:"terminal,omitempty"`
 	Refusal  string `json:"refusal,omitempty"`
 	Detail   string `json:"detail,omitempty"`
+	// Cost is what this edge spent looking. Developer-facing; see PerformCost.
+	Cost PerformCost `json:"cost,omitzero"`
 }
 
 // PerformView is what carrying out a learned outcome did.
@@ -1675,4 +1691,51 @@ type PerformView struct {
 	// Command is the registry id this performance ran under, so `director status`, a
 	// CANCEL_ACTIVE and this view all name the same thing. Empty when nothing was begun.
 	Command CommandID `json:"command,omitempty"`
+	// Cost totals what the whole performance spent looking, across every edge.
+	// Developer-facing; see PerformCost.
+	Cost PerformCost `json:"cost,omitzero"`
+}
+
+// PerformCost is what carrying out a route spent finding out where it was.
+//
+// # Developer-facing, and deliberately not a sentence
+//
+// Nobody asking Marco to open a settings screen wants to be told how many accessibility snapshots
+// it took. This travels on the view so an Advanced surface and the 35C acceptance harness can
+// report it, and nothing in this repository turns it into words for the Audience.
+//
+// # Why counts and durations both
+//
+// A duration is what a person feels, and it is the thing a test cannot assert: it depends on the
+// machine, the provider, the size of the accessibility tree, and whatever else the desktop is
+// doing. A COUNT is deterministic, and it is very nearly proportional to the duration, because
+// reading the screen is what a walk actually spends its time on.
+//
+// So the suite gates the counts and a live run reports the durations. A number nobody measured is
+// left out rather than guessed.
+type PerformCost struct {
+	// Samples is readings of the screen — the accessibility snapshots.
+	Samples int `json:"samples,omitempty"`
+	// Resolutions is how many of those readings were turned into a Place.
+	Resolutions int `json:"resolutions,omitempty"`
+	// Establishments is "where am I", asked from nothing.
+	Establishments int `json:"establishments,omitempty"`
+	// Confirmations is shortened checks of a proof already held, and Reused is how many
+	// agreed. The gap between them is how often the shortcut was tried and thrown away.
+	Confirmations int `json:"confirmations,omitempty"`
+	Reused        int `json:"reused,omitempty"`
+	// LookingMS and TotalMS are milliseconds: time inside those looks, and the whole walk.
+	LookingMS int64 `json:"looking_ms,omitempty"`
+	TotalMS   int64 `json:"total_ms,omitempty"`
+}
+
+// Add folds one edge's cost into a route's total.
+func (c *PerformCost) Add(o PerformCost) {
+	c.Samples += o.Samples
+	c.Resolutions += o.Resolutions
+	c.Establishments += o.Establishments
+	c.Confirmations += o.Confirmations
+	c.Reused += o.Reused
+	c.LookingMS += o.LookingMS
+	c.TotalMS += o.TotalMS
 }

@@ -30,12 +30,25 @@ type Place struct {
 	// EditableFields is how many text-editable controls this screen reported. A COUNT — the
 	// text-entry boundary, and the only thing about typing that is ever observed.
 	EditableFields int
+	// Reach is how far into the window this reading got, and Vacancy the evidence when it
+	// did not get past the frame. See [ReachOfState] — and note that `Placed` and `Reach`
+	// are a third distinction beside the two above: a shell-only reading IS describable, it
+	// simply describes the window rather than the page in it.
+	Reach   Reach
+	Vacancy Vacancy
 }
 
 // Established reports whether this place is a durable subject Marco can find again.
 func (p Place) Established() bool {
 	return p.Placed && p.Subject != "" && p.Verdict.Established()
 }
+
+// Readable reports whether the reading got past the window frame.
+//
+// A caller that only wants to know "did this work" should ask [Place.Established], which is false
+// either way. This is for the callers that have to say WHY, and for a future observer deciding
+// whether another way of looking might do better.
+func (p Place) Readable() bool { return p.Reach != ReachShell }
 
 // PlaceNow resolves the current screen against durable memory.
 //
@@ -66,6 +79,21 @@ func PlaceNow(t ShadowTotals, application string, m Recogniser, th HypothesisThr
 	p := Place{
 		Placed: true, Structure: sig,
 		EditableFields: EditableFieldsIn(t, t.CurrentState),
+	}
+	// HOW FAR INTO THE WINDOW THIS READING GOT, before anything is asked of memory.
+	//
+	// A shell-only reading describes the frame every page of an application shares. Recalling
+	// it would be asking memory to identify a screen from evidence that contains no screen,
+	// and the answer would be honest and useless: `MatchDifferent`, reported as "I looked and
+	// did not know it" about a page nobody looked at.
+	//
+	// So the question is asked here and the recall is SKIPPED. Not because the answer would be
+	// dangerous — it would be a miss — but because the miss is the lie. See [ReachOfState].
+	//
+	// Deleting this must fail TestAShellOnlyReadingIsNotAnUnknownPlace.
+	p.Reach, p.Vacancy = ReachOfState(t, t.CurrentState)
+	if p.Reach == ReachShell {
+		return p
 	}
 	rec := m.Recall(application, sig)
 	p.Verdict = rec.Verdict

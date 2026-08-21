@@ -691,7 +691,7 @@ func TestRehearsalAndExecutionShareOneWalker(t *testing.T) {
 	// authority, and it is the machinery that says so rather than each caller.
 	l := &rehearse.Live{}
 	if _, err := l.Perform(context.Background(), nil, observe.RehearsalJudgement{},
-		windowref.Selector{}, 0); err == nil {
+		windowref.Selector{}, 0, nil); err == nil {
 		t.Fatal("the shared walker performed with no authority at all")
 	}
 	// And rehearsal reaches the same refusal, which is what proves it is the same walker

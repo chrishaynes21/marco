@@ -637,19 +637,29 @@ func agoInWords(d time.Duration) string {
 //
 // Deleting this must fail TestHereMeansWhereYouAreNowNotWhereTheDemonstrationBegan.
 func (g *observationRegistry) placeNowSubject() string {
+	p := g.placeHere()
+	if !p.Placed {
+		return ""
+	}
+	return p.Subject
+}
+
+// placeHere is the WHOLE answer, not just which screen it was.
+//
+// The subject alone cannot say why there is no subject, and the difference between a page Marco
+// does not remember and a window it could not read is carried on the Place -- see observe.Reach.
+// Callers that only want the id keep asking placeNowSubject; callers that have to explain a
+// refusal ask this.
+func (g *observationRegistry) placeHere() observe.Place {
 	ev := g.evidenceForPointing()
 	if !ev.ok || ev.app == "" {
-		return ""
+		return observe.Place{}
 	}
 	g.mu.RLock()
 	m := g.memory
 	g.mu.RUnlock()
 	if m == nil {
-		return ""
+		return observe.Place{}
 	}
-	p := observe.PlaceNow(ev.shadow, ev.app, m, observe.DefaultHypothesisThresholds())
-	if !p.Placed {
-		return ""
-	}
-	return p.Subject
+	return observe.PlaceNow(ev.shadow, ev.app, m, observe.DefaultHypothesisThresholds())
 }

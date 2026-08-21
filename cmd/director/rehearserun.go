@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
+	"github.com/chaynes-simpleclouds/marco/internal/director/observesession"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/windowref"
 	"github.com/chaynes-simpleclouds/marco/internal/director/rehearse"
 	"github.com/chaynes-simpleclouds/marco/internal/director/service"
@@ -174,8 +175,9 @@ func rehearsalPhrase(q service.ObserveRehearse, destination string) string {
 func (r *Runtime) walker(live bool) (*rehearse.Live, error) {
 	g := r.observations
 	g.mu.RLock()
-	memory, tgt, smp := g.memory, g.lastTarget, g.lastSampler
+	memory, smp := g.memory, g.lastSampler
 	g.mu.RUnlock()
+	tgt := r.observationTarget()
 
 	// ── THE host decision. `--live` is the whole of it. ──
 	//
@@ -200,9 +202,6 @@ func (r *Runtime) walker(live bool) (*rehearse.Live, error) {
 		marco = r.liveMarco
 	}
 
-	if tgt == nil {
-		tgt = r.newObservationTarget()
-	}
 	if smp == nil {
 		smp = r.newObservationSampler(sessionClock)
 	}
@@ -373,4 +372,25 @@ func (g *observationRegistry) rememberRehearsal(application string,
 		Steps: r.StepsTaken, Inputs: r.Inputs, Verifications: verifications,
 		At: sessionClock.Now(),
 	})
+}
+
+// observationTarget is THE answer to "which object finds the window", for everything that walks.
+//
+// The session that last watched this application, when there is one, because its target already
+// holds the tracker state that tells a reacquired window from a recycled handle. A fresh one
+// otherwise, so a cold process can still find a window on the desktop.
+//
+// It is a function rather than two copies of the same three lines because a SECOND caller
+// appeared: `PerformGoal` needs a reference to bind its planning look to, and a planning proof
+// bound by one target and checked by another would be two opinions about window identity — the
+// exact shape of the same-process ambiguity this repository has already fixed once.
+func (r *Runtime) observationTarget() observesession.Target {
+	g := r.observations
+	g.mu.RLock()
+	tgt := g.lastTarget
+	g.mu.RUnlock()
+	if tgt == nil {
+		return r.newObservationTarget()
+	}
+	return tgt
 }

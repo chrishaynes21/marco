@@ -167,7 +167,7 @@ func (l *liveScreens) CurrentSubject(application string) (string, screenhost.Out
 			return "", screenhost.Unavailable
 		}
 		return view.Subject, screenhost.Recognised
-	case screenhost.Ambiguous, screenhost.Unobservable, screenhost.Unknown:
+	case screenhost.Ambiguous, screenhost.Unobservable, screenhost.Unreadable, screenhost.Unknown:
 		// Carried through as itself. All of these become `failed` at the language boundary
 		// and stay apart in the diagnostics, because "I could not see" and "I saw a different
 		// screen" call for opposite fixes.

@@ -5535,3 +5535,57 @@ yet upgrades an observed edge to execution-proven when a later run succeeds; the
 `RehearsalEvidence` and the write belongs with 35C. Automatic Place naming was verified against its
 existing regressions (nav-rail, loading/reflow) rather than re-derived from fresh accessibility
 dumps.
+
+**35C: fast verified execution — carry proof forward.** Marco proved the same unchanged fact four
+times in a two-edge play: once to plan, once before edge one, once before edge two, and once to
+confirm arrival. Three of those four asked a question that had been positively answered moments
+earlier, twice by the very action that would have changed the answer. Not wrong — redundant, and
+"nothing had changed" is a claim that has to be justified rather than assumed, which is why it had
+never been removed.
+
+The rule is two lines and only the second is interesting: **Marco may avoid proving the same
+unchanged fact twice; Marco may not act on a fact it can no longer justify.** `StageEvidence`
+carries a Place, the window reference it was established on, when, and how it came to be known;
+`Justifies` refuses on six independent arms. A verified outcome becomes the next edge's source, the
+planning look becomes edge one's, and the last edge's proof answers the arrival question. Measured
+deterministically: 10 screen readings where it used to be 15.
+
+**The first version of this was less safe than the code it replaced, and the measurement is the
+argument.** `Justifies` checks everything a stored fact can be checked against, and cannot see the
+one thing that actually happens — somebody clicked. Moving Settings from one screen to another
+changes no window, no process, no generation and no foreground. Establishing from scratch would
+have caught it. So a proof now buys a SHORTER question rather than no question: one reading, which
+must resolve to the same Place, and any disagreement — including an unreadable frame — falls
+through to the full establish. It must never refuse on one frame, because a single reading can
+catch a transition six readings and a settle would look past.
+
+Two things came out of tracing the path rather than optimising it. `freshPlace` left its
+observation session running for the remaining six of its eight seconds, **sampling the screen
+alongside the walk it existed to start** — bounded, so never a leak, and contending for the one
+accessibility provider with every reading the route took. And 35B's open seam is closed: a
+successful performance now ADDS execution evidence beside what was demonstrated, so the history can
+say both that the human showed it and that Marco later performed and verified it. A failed run adds
+nothing and erases nothing.
+
+**Three mutations survived and each one changed the code rather than the test.** Sourcing the proof from
+the plan's expectation instead of perception is unreachable through any walk — a route completes
+only on a directly verified last step, which is DEFINED as those two agreeing — so the rule was
+extracted to `provedBy` and is held directly with a record no walker can produce. A guard screening
+the handoff on `step.Verified` sat above the check that already ends the walk, and was deleted
+rather than left as a claim nothing can test. And `StageEvidence.SameWindow` was written, used, and
+removed: no caller acts on the proof's window, so every use of it was measurably equivalent to
+nothing.
+
+**And it was run live, on Windows Settings, and the fixture predicted it exactly.** Home ->
+Bluetooth & devices -> Mouse: 10 screen readings, 0 full establishments, 2 confirmations both
+accepted, 4 Place resolutions -- every count identical to the deterministic three-screen fixture,
+which is the strongest evidence available that the fixture describes the thing. 4533 ms wall,
+3018 ms inside the walk, 399 ms inside the two confirmations. From that last figure a reading cost
+about 200 ms on that machine, so the two reused proofs avoided roughly 3.2 s: a ~6.2 s walk
+reduced to ~3.0 s. DERIVED and labelled derived wherever it is printed -- the same route was not
+run against the old code, because a switch to turn the handoff off would be a second path through
+the one part of this system that must have only one.
+
+**Not done, and owed.** One run on one machine for one route is not a distribution.
+`acceptance-35c.ps1` reproduces it in two commands against a COPY of the operator's store. See
+[[ADR-090-a-verified-outcome-is-the-next-step-s-evidence]].

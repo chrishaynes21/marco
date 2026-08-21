@@ -85,10 +85,15 @@ func (r *Runtime) ShowingNow(ctx context.Context, q service.ObserveShowing) (
 		return out, nil
 	}
 
-	subject, why := r.freshPlace(ctx, application)
+	seen, why := r.freshLook(ctx, application)
 	switch {
-	case subject != "":
-		out.Outcome, out.Subject = string(screenhost.Recognised), subject
+	case seen.Subject != "":
+		out.Outcome, out.Subject = string(screenhost.Recognised), seen.Subject
+	case !seen.Readable():
+		// THE WINDOW, AND NOT WHAT IS IN IT. Between the two below it, and reported as the
+		// bottom one until a live run showed what that costs. See observe.Reach.
+		out.Outcome = string(screenhost.Unreadable)
+		out.Why = "the window is there and its content could not be read"
 	case why != "":
 		// A look that could not be TAKEN — something else is being watched, or there is no
 		// window to look at. `freshPlace` returns its reason with a leading ": " because its

@@ -248,6 +248,10 @@ type Live struct {
 	// nobody gave the question to behaves as it always has — the stub platforms cannot ask —
 	// and the Windows root always wires it.
 	inFront func(windowref.Ref) bool
+	// cost is the running tally of what this walker has spent looking. Not concurrent:
+	// one walker serves one attempt, and `walker` in cmd/director builds a fresh one per
+	// edge. Read as a pair of snapshots either side of a walk, never as an absolute.
+	cost Cost
 	// theater puts on a production for the one step shape that needs it — a demonstrated
 	// pointer press. Nil means this Director has no Theater, and a point step refuses before
 	// emitting rather than reaching for something else.
@@ -304,6 +308,14 @@ func (l *Live) behind(ref windowref.Ref) bool {
 const (
 	establishSamples = 6
 	settleSamples    = 8
+	// confirmSamples is how long Marco looks to CONTRADICT a proof it already holds.
+	//
+	// One, and the difference from establishSamples is not a confidence dial. `establish`
+	// waits for a screen it knows nothing about to settle; this asks whether a screen that was
+	// settled when it was proved is still the same screen. A single reading answers that: if
+	// it agrees, nothing has changed that a longer look would find; if it disagrees, or cannot
+	// be read at all, the proof is discarded and the full establish runs anyway.
+	confirmSamples = 1
 	// settleStableRun is how many consecutive unchanged observations count as settled.
 	settleStableRun = 3
 	// sampleGap is the pause between observations, taken on the injected clock.
@@ -380,6 +392,17 @@ type RehearsalResult struct {
 	// StartedAt and Duration bound the attempt.
 	StartedAt time.Time
 	Duration  time.Duration
+	// Arrived is the Stage this attempt POSITIVELY VERIFIED it ended on.
+	//
+	// Set only on a completed route, and carrying the subject perception actually resolved
+	// rather than the one the plan expected — an attempt that ended somewhere else must not
+	// hand the next edge a fact about where it was supposed to be.
+	//
+	// This is the output that lets the next edge skip establishing what this one just proved.
+	// A result reduced to a bool would throw it away, and the walk would prove the same screen
+	// twice: once to verify it, and again to start from it.
+	Arrived StageEvidence
+	// There is deliberately no Cost here. See [Live.Spent].
 }
 
 // Completed reports the one terminal outcome that says the whole route survived.
@@ -445,7 +468,9 @@ func (l *Live) Rehearse(ctx context.Context, g *observe.RehearsalGrant,
 	case observe.GrantRevoked:
 		return RehearsalResult{}, refuse(RefusalGrantRevoked, "this authorization was withdrawn")
 	}
-	return l.Perform(ctx, g, j, selector, from)
+	// A rehearsal establishes for itself: it is raised from a question rather than from a walk
+	// that just proved where Marco is, so there is no carried proof to offer.
+	return l.Perform(ctx, g, j, selector, from, nil)
 }
 
 // Perform walks one edge and verifies every step of it, against an authority already established.
@@ -468,8 +493,8 @@ func (l *Live) Rehearse(ctx context.Context, g *observe.RehearsalGrant,
 //
 // Deleting the shared call from Rehearse must fail TestRehearsalAndExecutionShareOneWalker.
 func (l *Live) Perform(ctx context.Context, g *observe.RehearsalGrant,
-	j observe.RehearsalJudgement, selector windowref.Selector, from int) (
-	RehearsalResult, error) {
+	j observe.RehearsalJudgement, selector windowref.Selector, from int,
+	carried *StageEvidence) (RehearsalResult, error) {
 
 	if l == nil || l.sampler == nil || l.target == nil || l.memory == nil {
 		return RehearsalResult{}, refuse(RefusalNoActuator, "this runner cannot observe")
@@ -484,9 +509,53 @@ func (l *Live) Perform(ctx context.Context, g *observe.RehearsalGrant,
 	started := l.clock.Now()
 
 	// ── 1 & 2: look, then compare. No input is possible anywhere in here. ──
-	ref, subject, err := l.establish(ctx, selector, g.Application)
-	if err != nil {
-		return RehearsalResult{}, err
+	//
+	// CARRIED EVIDENCE MAY SHORTEN THE LOOK. It may not replace it.
+	//
+	// The caller may already have proved where Marco is standing moments ago — the fresh look
+	// taken to plan, or the previous edge's positively verified outcome. Establishing that
+	// again costs `establishSamples` accessibility snapshots and the gaps between them, to
+	// re-derive a fact that has had no opportunity to change.
+	//
+	// # Why it is confirmed rather than trusted, and this is the whole safety argument
+	//
+	// `Justifies` checks everything a stored fact can be checked against: the Place, the
+	// application, the window, the foreground, the age. What it cannot check is the one thing
+	// that actually happens — SOMEBODY CLICKED. A person can move Settings from Bluetooth to
+	// Display in the gap between two edges without changing the window, the process, the
+	// generation or the foreground, and every arm of `Justifies` would still say yes.
+	//
+	// Acting on that would emit input planned for one screen into another. Establishing from
+	// scratch would have caught it, so trusting carried evidence outright would be strictly
+	// LESS SAFE than the code it replaces — and an optimization is not allowed to cost safety.
+	//
+	// So the carried proof buys a SHORTER question, not the absence of one: `confirmCarried`
+	// takes a single observation and requires it to resolve to the same Place. The screen was
+	// settled when the proof was taken, so one reading is enough to contradict it, and a
+	// contradiction — or an unreadable screen, or a window that moved — falls straight through
+	// to the full establish below.
+	//
+	// The SOURCE GUARD BELOW IS UNCHANGED and still runs. What changed is how many readings it
+	// takes to answer "where am I", never whether the answer has to match.
+	//
+	// Deleting the Justifies call — trusting carried evidence — must fail
+	// TestAWalkerHandedUnjustifiableEvidenceEstablishesForItself. Deleting the confirmation —
+	// trusting it without looking — must fail TestCarriedEvidenceLosesToWhatIsOnScreen.
+	// Ignoring `carried` altogether must fail TestCarriedEvidenceSparesTheWalkerItsOpeningLook.
+	var (
+		ref     windowref.Ref
+		subject string
+		err     error
+		reused  bool
+	)
+	if carried != nil && carried.Justifies(l.clock.Now(), g.Application, g.Source, l.inFront) {
+		ref, subject, reused = l.confirmCarried(ctx, selector, g.Application, *carried)
+	}
+	if !reused {
+		ref, subject, err = l.establish(ctx, selector, g.Application)
+		if err != nil {
+			return RehearsalResult{}, err
+		}
 	}
 	if subject != g.Source {
 		return RehearsalResult{}, refuse(RefusalSourceMismatch,
@@ -665,6 +734,11 @@ func (l *Live) Perform(ctx context.Context, g *observe.RehearsalGrant,
 		last := position == len(j.Plan)
 		if !attempt.Observed(mayContinue(rec) && !last) {
 			out.Terminal = terminalAfter(rec, last)
+			// THE PROOF THIS WALK PRODUCED, when it produced one. The rule is
+			// stated once, in provedBy, and this is its only caller.
+			//
+			// Deleting this must fail TestAVerifiedWalkReturnsTheStageItProved.
+			out.Arrived = provedBy(ref, out.Terminal, rec, l.clock.Now())
 			return l.finish(attempt, out, started), nil
 		}
 	}
@@ -736,7 +810,15 @@ func (l *Live) stop(a *Attempt, out RehearsalResult, t Terminal, why Outcome,
 	return l.finish(a, out, started)
 }
 
-// finish closes the attempt and stamps the duration.
+// finish closes the attempt and stamps how long it took.
+//
+// It does NOT stamp what the walk spent looking, and that is not an oversight. A refusal produces
+// no result at all -- see the file header -- and the refusal path is where a walk looks MOST: a
+// confirmation that disagreed, then a full establishment that could not place the screen. A cost
+// carried on the result would therefore be missing from exactly the walks that spent the most,
+// and every total built from it would understate the work in the flattering direction. Measured
+// live: a route interrupted mid-way reported the cost of its first edge and nothing for the
+// second. The tally is read off the walker instead, by [Live.Spent].
 func (l *Live) finish(a *Attempt, out RehearsalResult, started time.Time) RehearsalResult {
 	a.Finish()
 	out.Duration = l.clock.Now().Sub(started)
@@ -788,6 +870,10 @@ func (r RehearsalResult) Describe() []string {
 func (l *Live) establish(ctx context.Context, selector windowref.Selector, application string) (
 	windowref.Ref, string, error) {
 
+	l.cost.Establishments++
+	from := l.clock.Now()
+	defer l.spentLooking(from)
+
 	ref, totals, err := l.watch(ctx, selector, establishSamples, nil)
 	if err != nil {
 		return ref, "", err
@@ -807,11 +893,20 @@ func (l *Live) establish(ctx context.Context, selector windowref.Selector, appli
 	//
 	// Deleting this — resolving the source separately — must fail
 	// TestThisPackageHasNoCurrentPlaceResolverOfItsOwn.
-	p := observe.PlaceNow(totals, application, l.memory, l.th)
+	p := l.placeNow(totals, application, l.memory, l.th)
 	switch {
 	case !p.Placed:
 		return ref, "", refuse(RefusalSourceUnobservable,
 			"Marco could not make out what is on screen well enough to say where it is")
+	case !p.Readable():
+		// THE WINDOW, AND NOTHING IN IT. Asked before recognition, because a shell-only
+		// reading has nothing to recognise: it describes the frame every page of this
+		// application shares. Reporting it below as "I don't remember this screen" is a
+		// true sentence about a page nobody read.
+		//
+		// Deleting this case must fail TestAnUnreadableWindowRefusesForItsOwnReason.
+		return ref, "", refuse(RefusalSourceUnreadable,
+			"Marco can see the window and cannot read what is inside it")
 	case p.Verdict == observe.MatchCandidate:
 		return ref, "", refuse(RefusalSourceAmbiguous,
 			"this screen resembles more than one Marco remembers")
@@ -820,6 +915,81 @@ func (l *Live) establish(ctx context.Context, selector windowref.Selector, appli
 			"Marco does not recognise the screen it is looking at")
 	}
 	return ref, p.Subject, nil
+}
+
+// confirmCarried asks whether ONE reading of the screen still agrees with a proof.
+//
+// # The shortest honest question
+//
+// `establish` asks "where is Marco" from nothing. It takes `establishSamples` readings and the
+// gaps between them because it has to WAIT for a screen it knows nothing about to settle. This
+// asks a narrower question — "is Marco still where it just proved it was" — of a screen that was
+// settled when the proof was taken. One reading can contradict that; none cannot.
+//
+// It is not a cheaper `establish` and must never be used as one. It answers only about a Place
+// somebody has already established, and every way of not agreeing is the same answer: no.
+//
+// # What this is FOR, stated narrowly
+//
+// It exists for exactly one case, and it is the case `Justifies` cannot see: SOMEBODY CLICKED.
+// A person moving Settings from one screen to another changes no window, no process, no
+// generation and no foreground, so every arm of `Justifies` still says yes about a Place that is
+// no longer up. One reading catches that; nothing else in the model does.
+//
+// # And what it is NOT
+//
+// It is not what makes the walk safe, and the guards it does not have are missing on purpose.
+// The reference it returns is the one it just ACQUIRED, not the one the proof was taken on, so
+// the proof's window never authorises anything: what Marco acts on is what is in front now, the
+// foreground gate below asks about that, and the step loop re-acquires and compares before every
+// single step. Checking the proof's window here as well was written first and deleted — measured
+// equivalent, because the caller cannot act on that window either way. Window identity is held
+// where it bites: `Justifies` requires the proof's own window to still LEAD the desktop, and
+// `sameWindow` guards the walk step by step. Same for the application: `PlaceNow` recalls inside
+// the authorised application's scope, so a screen belonging to another one resolves to nothing
+// and falls through here exactly as it should.
+//
+// # A `false` costs the walk nothing
+//
+// Every disagreement — a different Place, an unreadable screen, one that resembles two things,
+// a window that went away — returns to the full `establish`, which is authoritative and is what
+// ran before any of this existed. It must NEVER refuse on the strength of one frame: a single
+// reading can catch a transition that six readings and a settle would have looked past, and
+// turning that into a refusal would make a correct walk fail intermittently.
+//
+// Deleting the comparison must fail TestADisagreeingFrameSendsMarcoToTheFullLook; skipping the
+// reading entirely must fail TestCarriedEvidenceLosesToWhatIsOnScreen.
+func (l *Live) confirmCarried(ctx context.Context, selector windowref.Selector,
+	application string, e StageEvidence) (windowref.Ref, string, bool) {
+
+	l.cost.Confirmations++
+	from := l.clock.Now()
+	defer l.spentLooking(from)
+
+	ref, totals, err := l.watch(ctx, selector, confirmSamples, nil)
+	if err != nil {
+		return windowref.Ref{}, "", false
+	}
+	// THE ONE CURRENT-PLACE ANSWER, the same call `establish` makes. There is no second
+	// resolver here and there must never be one: a cheaper opinion about where Marco is
+	// would be a different opinion.
+	//
+	// ONE COMPARISON DOES ALL OF IT, and the reason is worth writing down because the longer
+	// version was written first. `PlaceNow` only fills in a Subject when the recall was
+	// ESTABLISHED — an unreadable screen, a signature it cannot form, and a screen resembling
+	// two remembered ones all come back with an empty Subject. So spelling out `!p.Placed`,
+	// `MatchCandidate` and `!p.Established()` beside this added no case: every one of them is
+	// an empty Subject, and an empty Subject is not the one carried in a valid proof.
+	//
+	// The comparison is against what was PROVED, not against the grant's source. `Justifies`
+	// has already required those to agree; asking again here would be checking the caller
+	// rather than the screen.
+	p := l.placeNow(totals, application, l.memory, l.th)
+	if p.Subject != e.Subject {
+		return windowref.Ref{}, "", false
+	}
+	l.cost.ProofsReused++
+	return ref, p.Subject, true
 }
 
 // settled is the Director's verification, in the shape the Theater can be handed.
@@ -894,7 +1064,7 @@ func (l *Live) observeOutcome(ctx context.Context, selector windowref.Selector,
 	}
 
 	// The SAME current-place answer the source check used, and the one Sight renders.
-	p := observe.PlaceNow(totals, out.Application, l.memory, l.th)
+	p := l.placeNow(totals, out.Application, l.memory, l.th)
 	if !p.Placed {
 		// Input was emitted and Marco cannot tell what came of it. A RUNTIME failure to
 		// look, never the step's own unobservability.
@@ -1028,6 +1198,7 @@ func (l *Live) watch(ctx context.Context, selector windowref.Selector, n int, st
 		// back to the detector. It is the call the session runner makes, and there was never
 		// a reason for the two to differ: "what is on this screen" has one answer, and this
 		// file was reading a different source for it.
+		l.cost.Samples++
 		totals.Observe(sample)
 		if stable != nil {
 			if totals.CurrentState != "" && totals.CurrentState == last {
@@ -1113,4 +1284,25 @@ func (r StepRecord) Describe() []string {
 	out = append(out, "  this proves at most one step. The procedure is not verified, "+
 		"nothing was learned, and nothing was saved")
 	return out
+}
+
+// placeNow is the package's ONE call to the canonical current-place resolver, and its tally.
+//
+// Every reading in this package that becomes a Place goes through here — the source
+// establishment, the shortened confirmation, and the outcome classification. Calling
+// `observe.PlaceNow` directly would work and would under-count, and an instrument that under-
+// counts the thing it exists to measure is worse than none: it would report a saving that had not
+// happened.
+//
+// It resolves nothing itself. There is one current-place resolver and this is not a second one.
+func (l *Live) placeNow(t observe.ShadowTotals, application string, m observe.Recogniser,
+	th observe.HypothesisThresholds) observe.Place {
+
+	l.cost.Resolutions++
+	return observe.PlaceNow(t, application, m, th)
+}
+
+// spentLooking folds one establishment-shaped question into the tally.
+func (l *Live) spentLooking(from time.Time) {
+	l.cost.Looking += l.clock.Now().Sub(from)
 }

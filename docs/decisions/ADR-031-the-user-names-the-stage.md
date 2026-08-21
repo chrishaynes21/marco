@@ -46,6 +46,30 @@ Five internal outcomes — recognised, ambiguous, unobservable, unavailable, unr
 to `failed` at the language boundary and stay apart in the diagnostics, because turning *"I could
 not look"* into *"I looked and it was different"* would send somebody to fix the wrong thing.
 
+> **Amendment, 2026-08-20 — six outcomes, because the rule above was being broken one level in.**
+>
+> `Unknown` is documented as *"a screen observed **cleanly** and matching nothing remembered"*, and
+> nothing enforced the word "cleanly". A reading that reached a window and not the page fell
+> through to it.
+>
+> Measured live, on Windows Settings: the right application, the right window, in front, full
+> screen — and sixteen structures where the same page had been learned with a hundred and
+> forty-eight, one of them a rectangle covering three quarters of the frame with nothing in it.
+> Marco said *"I don't recognise this screen"*. That is the sentence for a page somebody should
+> open a different one of, and the page was never the problem; changing it produced the identical
+> refusal, three runs running.
+>
+> **`Unreadable`** joins the vocabulary: a window that was seen, whose content could not be read.
+> It refuses exactly as hard — see
+> [[ADR-090-a-verified-outcome-is-the-next-step-s-evidence]]. What changed is that Marco is
+> accurate about why.
+>
+> The distinction is decided at `observe.PlaceNow`, the one current-place answer, so every caller
+> gets it — and it is decided on ARRANGEMENT rather than richness: a space the window gives its
+> content, with nothing observed inside it and nowhere else in the window populated either.
+> Never on a control count. `148 → 130` is a responsive page and must keep meaning what it means;
+> `148 → 16 plus an empty rectangle` is a page that never arrived.
+
 ---
 ## Decision 4 — standalone Marco fails closed, and that is the architecture
 
