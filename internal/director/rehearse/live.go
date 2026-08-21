@@ -806,7 +806,7 @@ func (l *Live) establish(ctx context.Context, selector windowref.Selector, appli
 	// person is reading would be unexplainable from the outside.
 	//
 	// Deleting this — resolving the source separately — must fail
-	// TestARehearsalAsksTheSameQuestionSightDoes.
+	// TestThisPackageHasNoCurrentPlaceResolverOfItsOwn.
 	p := observe.PlaceNow(totals, application, l.memory, l.th)
 	switch {
 	case !p.Placed:

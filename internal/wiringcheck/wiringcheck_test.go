@@ -49,10 +49,35 @@ import (
 	"testing"
 )
 
-// claim matches the sentences this repository uses to point at a test. "must fail" is the
-// canonical form; the others are here so a wording that drifts is still held to the same rule
-// rather than quietly escaping it.
-var claim = regexp.MustCompile("(?:must fail|is held by|held by|[Ee]nforced by|guarded by|pinned by|proved by|asserted by)\\s+`?(Test[A-Za-z0-9_]+)")
+// phrase is the wording this repository uses to point at a test. "must fail" is the canonical
+// form; the others are here so a wording that drifts is still held to the same rule rather than
+// quietly escaping it.
+const phrase = `(?:must fail|is held by|held by|[Ee]nforced by|guarded by|pinned by|proved by|asserted by)`
+
+// claim matches a whole claim: the phrase and the test name it points at.
+var claim = regexp.MustCompile(phrase + "\\s+`?(Test[A-Za-z0-9_]+)")
+
+// dangling matches a claim phrase that ENDS a line, with its test name wrapped onto the next one.
+//
+// # This was a hole in the gate, and it was most of the gate
+//
+// The scan reads line by line, so a claim written as
+//
+//	// Deleting `Licence: observesession.LearnLicence()` must fail
+//	// TestALearnPassDeclaresTheLicenceToEstablishAPlace.
+//
+// was invisible: the phrase is on one line and the name on the next, and neither line matches
+// `claim` on its own. Measured when it was found: ONE HUNDRED AND NINETEEN claims in this tree end
+// a line with the phrase. The gate had been run, had passed, and had been reported as closing the
+// problem while never once checking any of them — and it was found only because a mutation went
+// unnoticed and the test named in the comment turned out not to exist.
+//
+// This project's comments wrap at roughly ninety-five characters, so the wrap is not an edge case;
+// it is the normal shape of a claim whose sentence is long enough to explain itself.
+var dangling = regexp.MustCompile(phrase + `\s*$`)
+
+// continuation strips the comment marker from a wrapped line so it can be joined to the one above.
+var continuation = regexp.MustCompile(`^\s*(?://+|\*)?\s*`)
 
 // declared matches a Go test function declaration.
 var declared = regexp.MustCompile(`^func\s+(Test[A-Za-z0-9_]+)\s*\(`)
@@ -129,20 +154,20 @@ func scan(t *testing.T, root string) (claims []site, tests map[string]bool) {
 		rel = filepath.ToSlash(rel)
 		sc := bufio.NewScanner(f)
 		sc.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
-		for n := 1; sc.Scan(); n++ {
-			line := sc.Text()
-			if m := declared.FindStringSubmatch(line); m != nil {
-				tests[m[1]] = true
-			}
-			if self {
-				continue
-			}
-			for _, m := range claim.FindAllStringSubmatch(line, -1) {
-				claims = append(claims, site{file: rel, line: n, name: m[1], text: strings.TrimSpace(line)})
-			}
+		var lines []string
+		for sc.Scan() {
+			lines = append(lines, sc.Text())
 		}
 		if err := sc.Err(); err != nil {
 			t.Fatalf("reading %s: %v — the scan must not silently cover less of the tree than it claims", rel, err)
+		}
+		for _, line := range lines {
+			if m := declared.FindStringSubmatch(line); m != nil {
+				tests[m[1]] = true
+			}
+		}
+		if !self {
+			claims = append(claims, claimsIn(rel, lines)...)
 		}
 		return nil
 	})
@@ -246,6 +271,21 @@ func TestTheGateItselfCanFail(t *testing.T) {
 	}
 	if !declared.MatchString("func TestSomethingReal(t *testing.T) {") {
 		t.Fatal("the declaration pattern does not match a test declaration")
+	}
+
+	// AND THE WRAPPED FORM, which is the normal shape of a claim long enough to explain itself
+	// and which this gate did not see at all until it was measured: 119 claims in this tree end a
+	// line with the phrase and carry their name on the next one.
+	if !dangling.MatchString("// Deleting the arm must fail") {
+		t.Fatal("a claim phrase ending a line is not recognised as wrapped")
+	}
+	if dangling.MatchString("// Deleting the arm must fail TestSomethingReal.") {
+		t.Fatal("a COMPLETE claim was treated as wrapped; the next line would be read as its name")
+	}
+	joined := "// Deleting the arm must fail" + " " + continuation.ReplaceAllString("	// TestSomethingReal.", "")
+	m2 := claim.FindStringSubmatch(joined)
+	if m2 == nil || m2[1] != "TestSomethingReal" {
+		t.Fatalf("a wrapped claim did not read back as its test name: %q -> %v", joined, m2)
 	}
 	if declared.MatchString("func testSomethingReal(t *testing.T) {") {
 		t.Fatal("the declaration pattern matched a non-test function")
@@ -355,4 +395,67 @@ func TestEveryTestNamedInTheDocsVaultExists(t *testing.T) {
 		}
 	}
 	t.Fatal(b.String())
+}
+
+// claimsIn reads every wiring claim out of one file's lines.
+//
+// A function taking lines rather than a path, so the WRAPPED case can be tested directly. It could
+// not be before: disabling the wrap handling left the whole gate green, because the only test of
+// it exercised the regexes and not the scan that uses them — which is the same shape of hole the
+// wrap itself was.
+func claimsIn(rel string, lines []string) []site {
+	var out []site
+	for i, line := range lines {
+		found := claim.FindAllStringSubmatch(line, -1)
+		for _, m := range found {
+			out = append(out, site{file: rel, line: i + 1, name: m[1],
+				text: strings.TrimSpace(line)})
+		}
+		// A claim whose NAME wrapped onto the next line. Joined and re-read, attributed to the
+		// line the sentence starts on. See dangling.
+		if len(found) == 0 && dangling.MatchString(line) && i+1 < len(lines) {
+			joined := line + " " + continuation.ReplaceAllString(lines[i+1], "")
+			for _, m := range claim.FindAllStringSubmatch(joined, -1) {
+				out = append(out, site{file: rel, line: i + 1, name: m[1],
+					text: strings.TrimSpace(joined)})
+			}
+		}
+	}
+	return out
+}
+
+// TestTheScanReadsAWrappedClaim pins the scan, not the regex.
+//
+// Deleting the wrap handling in claimsIn must fail this.
+func TestTheScanReadsAWrappedClaim(t *testing.T) {
+	got := claimsIn("x.go", []string{
+		"// Deleting the arm must fail",
+		"// TestWrappedOntoTheNextLine.",
+		"func thing() {}",
+		"// Deleting this must fail TestOnOneLine.",
+		"\t// Changing which permission this copies must fail",
+		"\t// TestIndentedAndWrapped.",
+	})
+	var names []string
+	for _, c := range got {
+		names = append(names, c.name)
+	}
+	want := []string{"TestWrappedOntoTheNextLine", "TestOnOneLine", "TestIndentedAndWrapped"}
+	if len(names) != len(want) {
+		t.Fatalf("read %v, want %v", names, want)
+	}
+	for i := range want {
+		if names[i] != want[i] {
+			t.Errorf("claim %d is %q, want %q", i, names[i], want[i])
+		}
+	}
+	// A claim already complete on its line must NOT also swallow the next line.
+	twice := claimsIn("x.go", []string{
+		"// Deleting this must fail TestOnOneLine.",
+		"// TestSomethingElseEntirely is a different sentence.",
+	})
+	if len(twice) != 1 || twice[0].name != "TestOnOneLine" {
+		t.Errorf("a complete claim read %d claim(s) %v; it must not consume the line below it",
+			len(twice), twice)
+	}
 }

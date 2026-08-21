@@ -135,12 +135,23 @@ func (g *observationRegistry) start(target observesession.Target, sampler observ
 	}
 	g.nextID++
 	id := observe.SessionID(fmt.Sprintf("observe_%d", g.nextID))
-	// The demonstration licence travels to the sampler, because the sampler is where the
-	// admitted-label gate for semantic targets is applied. Set from the episode the CALLER
-	// declared — the same declaration that licenses establishing places — so a passive
-	// session structurally cannot widen what a label may ride on.
+	// THE PRIVACY-CARRYING LICENCE travels to the sampler, because the sampler is where the
+	// admitted-label gate for semantic targets is applied.
+	//
+	// It used to read `episode.EstablishPlaces` — "the same declaration that licenses
+	// establishing places", as the comment here said. That was the weld: whether somebody's
+	// list items keep their text was decided by a field about making PLACES durable, because
+	// Learn was the only caller that set either. An always-on Observe is exactly the caller
+	// that needs one without the other.
+	//
+	// Set from the episode the CALLER declared, so a session that was not granted this
+	// structurally cannot widen what a label may ride on. The shape filter downstream is
+	// unconditional regardless.
+	//
+	// Changing which permission this copies must fail
+	// TestOnlyAGrantedSessionMayNameWhatWasActivated.
 	if ls, ok := sampler.(*liveSampler); ok {
-		ls.demonstration = episode.EstablishPlaces
+		ls.nameActivatedTargets = episode.NameActivatedTargets
 	}
 	runner := observesession.New(sessionClock, target, sampler, events).WithMemory(g.memory)
 	// Somewhere for an approved demonstration to be kept. The same store, reached through the

@@ -71,11 +71,19 @@ type liveSampler struct {
 	labels bool
 	// nav is this session's navigation subscription, nil when no source is available.
 	nav *navsource.Subscription
-	// demonstration says this sampler serves an explicit Learn pass, which is the licence
-	// under which an activatable control's name may travel on a semantic target. Set by
-	// the registry from the episode the CALLER declared; the zero value is the passive
-	// default and admits nothing beyond the canonical role allowlist.
-	demonstration bool
+	// nameActivatedTargets is the licence under which an activatable control's name may
+	// travel on a semantic target — the ONE control the person's own input landed on.
+	//
+	// Named for the permission rather than for the caller. It used to be `demonstration`,
+	// set from `Episode.EstablishPlaces`, which meant this sampler's privacy behaviour was
+	// decided by a field about establishing PLACES. The two were welded because Learn was
+	// the only caller that set either; Roadmap 35A separated them, and the licence now
+	// arrives as `Episode.NameActivatedTargets`.
+	//
+	// Set by the registry from the episode the CALLER declared; the zero value is the
+	// passive default and admits nothing beyond the canonical role allowlist. The shape
+	// filter is unconditional either way.
+	nameActivatedTargets bool
 
 	// frameMu guards frame, which is written from the sampling goroutine and read by
 	// whatever wants to point at something.
@@ -515,7 +523,7 @@ func (s *liveSampler) pushActionables(world directorapi.WorldState, now time.Tim
 		items = append(items, navsource.Actionable{
 			X: el.Bounds.X, Y: el.Bounds.Y, W: el.Bounds.Width, H: el.Bounds.Height,
 			Role: string(el.Role),
-			Label: observe.AdmittedTargetLabel(el.Role, s.demonstration, el.Label,
+			Label: observe.AdmittedTargetLabel(el.Role, s.nameActivatedTargets, el.Label,
 				el.Confidence),
 			Focused: focused,
 		})

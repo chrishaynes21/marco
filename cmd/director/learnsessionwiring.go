@@ -67,26 +67,40 @@ func (p *learnPasses) sameEpisode() bool { return p.counted }
 
 // episode is what a learn pass declares about itself.
 //
-// THE one place `EstablishPlaces` is ever set true. A person typed `learn "…"`, named a behaviour
-// and asked to be watched doing it; that is the human semantic event that licenses persisting
-// where they are standing. Every other session in this Director gets the zero value and persists
-// no place at all.
+// THE one place a durable licence is ever granted. A person typed `learn "…"`, named a behaviour
+// and asked to be watched doing it; that is the human semantic event the three permissions in
+// [observesession.Licence] hang off. Every other session in this Director gets the zero value and
+// makes nothing durable at all.
 //
-// It grants nothing else. A learn pass is still an ordinary bounded observation through the
-// ordinary registry, and the place it establishes carries no judgement — see
-// observesession.Episode.EstablishPlaces.
+// # It grants THREE things, and until Roadmap 35A it said it granted one
 //
-// Deleting `EstablishPlaces: true` must fail
-// TestATeachPassDeclaresTheLicenceToEstablishAPlace.
+// This comment used to read "THE one place `EstablishPlaces` is ever set true… It grants nothing
+// else." The first half was true and the second was not: that single field was read at three
+// production sites and permitted three unrelated things — establishing a Place's identity, turning
+// a watched pass into candidate route evidence, and widening which controls may keep their own
+// text. A learn session needs all three, so nothing was ever wrong with the OUTCOME; what was
+// wrong was that no other caller could ask for one of them.
+//
+// `LearnLicence()` now says all three out loud, in one place, so that adding a fourth cannot
+// silently miss the caller that should have it — and so an always-on Observe can name the
+// permissions it actually wants without pretending to be a learn session to get them.
+//
+// A learn pass is still an ordinary bounded observation through the ordinary registry, and the
+// place it establishes still carries no judgement.
+//
+// Deleting `Licence: observesession.LearnLicence()` must fail
+// TestALearnPassDeclaresTheLicenceToEstablishAPlace, and dropping any one permission from
+// LearnLicence must fail observesession's TestLearnReceivesEveryPermission.
 func (p *learnPasses) episode() observesession.Episode {
 	// PermissionExpected, because this IS the person asking. They typed what they wanted,
 	// pressed Start and demonstrated it; the question about whether Marco may try is the one
 	// they are waiting for, not an interruption of something else.
 	//
 	// Deleting `PermissionExpected: true` must fail
-	// TestATeachPassExpectsToBeAskedForPermission.
+	// TestALearnPassExpectsToBeAskedForPermission.
 	return observesession.Episode{
-		SameEpisode: p.sameEpisode(), EstablishPlaces: true, PermissionExpected: true,
+		SameEpisode: p.sameEpisode(), PermissionExpected: true,
+		Licence: observesession.LearnLicence(),
 	}
 }
 

@@ -125,7 +125,7 @@ func TestAValidInferenceOffersActionablesToTheProducer(t *testing.T) {
 
 	// Under the demonstration licence, the one control the person aims at may carry its
 	// name — shape-filtered exactly as every admitted label is.
-	s.demonstration = true
+	s.nameActivatedTargets = true
 	s.pushActionables(world, time.Now())
 	press(200, 320)
 	waitClassified(t, src, 2)

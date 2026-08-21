@@ -35,7 +35,7 @@ func establishing(t *testing.T, m observe.Memory, p observe.PlaceStore,
 	s observesession.Sampler) observesession.Result {
 
 	t.Helper()
-	return passOver(t, m, p, s, observesession.Episode{EstablishPlaces: true})
+	return passOver(t, m, p, s, observesession.Episode{Licence: observesession.LearnLicence()})
 }
 
 // passOver runs one session, wiring exactly what the caller supplied.
@@ -227,7 +227,7 @@ func TestALicensedPassWithNowhereToWriteSaysSo(t *testing.T) {
 	store := memoryAt(t, dir)
 
 	got := passOver(t, store, nil, &topologySampler{},
-		observesession.Episode{EstablishPlaces: true})
+		observesession.Episode{Licence: observesession.LearnLicence()})
 
 	if got.Places.Established() {
 		t.Fatal("a place was established with no place store wired")

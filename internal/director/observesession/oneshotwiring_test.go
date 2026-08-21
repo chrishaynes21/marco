@@ -29,7 +29,7 @@ import (
 // licensed is a learn pass: the episode that may establish places.
 func licensed() observesession.Config {
 	cfg := foregroundConfig()
-	cfg.Episode = observesession.Episode{SameEpisode: true, EstablishPlaces: true}
+	cfg.Episode = observesession.Episode{SameEpisode: true, Licence: observesession.LearnLicence()}
 	return cfg
 }
 

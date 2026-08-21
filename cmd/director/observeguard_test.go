@@ -115,7 +115,7 @@ func TestASelectedValueIsNotOfferedAsAPlaceName(t *testing.T) {
 	}
 }
 
-// THE SAMPLER NAMES THE PLACE ONLY UNDER THE LICENCE.
+// THE SAMPLER NAMES THE PLACE, WHOEVER IS WATCHING.
 //
 // Entered through the sampler's own method rather than the free function, because what is being
 // proved is that PRODUCTION reads the world this way — a free function proves the rule and not
@@ -136,7 +136,7 @@ func TestTheSamplerNamesThePlaceWhoeverIsWatching(t *testing.T) {
 		Elements: map[directorapi.ElementID]*directorapi.Element{nav.ID: nav},
 	}
 
-	learnSession := &liveSampler{demonstration: true}
+	learnSession := &liveSampler{nameActivatedTargets: true}
 	if got := learnSession.placeName(world); got != "Bluetooth & devices" {
 		t.Errorf("a demonstration read the Place as %q", got)
 	}

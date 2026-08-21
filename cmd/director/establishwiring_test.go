@@ -93,7 +93,7 @@ func TestLearningEstablishesTheStartThroughTheProductionRegistry(t *testing.T) {
 	// Hold still on one screen, which is exactly what an establishing pass asks for.
 	res, err := g.RunPass(t.Context(), dryTarget{}, &sameSampler{script: dryHold("a", 16)},
 		nil, windowref.Selector{EphemeralID: "window_1"}, dwellBounds(),
-		observesession.Episode{EstablishPlaces: true})
+		observesession.Episode{Licence: observesession.LearnLicence()})
 	if err != nil {
 		t.Fatalf("running a pass: %v", err)
 	}
@@ -464,7 +464,7 @@ func TestAPlaceEstablishedThroughTheProductionPassIsNamed(t *testing.T) {
 	res, err := g.RunPass(t.Context(), dryTarget{},
 		&sameSampler{script: dryNamed("a", "Home", 16)},
 		nil, windowref.Selector{EphemeralID: "window_1"}, dwellBounds(),
-		observesession.Episode{EstablishPlaces: true})
+		observesession.Episode{Licence: observesession.LearnLicence()})
 	if err != nil {
 		t.Fatalf("running a pass: %v", err)
 	}
@@ -531,7 +531,7 @@ func TestAKnownPlaceStillGainsItsName(t *testing.T) {
 	// PASS ONE: the Place becomes durable, and no Actor offers a name.
 	first, err := g.RunPass(t.Context(), dryTarget{}, &sameSampler{script: dryHold("a", 16)},
 		nil, windowref.Selector{EphemeralID: "window_1"}, dwellBounds(),
-		observesession.Episode{EstablishPlaces: true})
+		observesession.Episode{Licence: observesession.LearnLicence()})
 	if err != nil {
 		t.Fatalf("first pass: %v", err)
 	}
@@ -549,7 +549,7 @@ func TestAKnownPlaceStillGainsItsName(t *testing.T) {
 	if _, err := g.RunPass(t.Context(), dryTarget{},
 		&sameSampler{script: dryNamed("a", "Home", 16)},
 		nil, windowref.Selector{EphemeralID: "window_1"}, dwellBounds(),
-		observesession.Episode{EstablishPlaces: true}); err != nil {
+		observesession.Episode{Licence: observesession.LearnLicence()}); err != nil {
 		t.Fatalf("second pass: %v", err)
 	}
 
@@ -706,5 +706,165 @@ func TestAPassiveSessionWritesNoPlaceName(t *testing.T) {
 		if s.Semantic != "" {
 			t.Errorf("a passive session recorded the semantic name %q", s.Semantic)
 		}
+	}
+}
+
+// EACH PERMISSION GATES ITS OWN CONSUMER, AND ONLY ITS OWN.
+//
+// # Why the struct-level test is not enough, measured
+//
+// observesession's TestEachPermissionIsHeldAlone proves the three fields are independent as a
+// TYPE. It cannot prove that the three CONSUMERS read the right one, because every other test in
+// this file grants `LearnLicence()` — all three true — so swapping one guard for another is
+// invisible to all of them.
+//
+// That was measured, not assumed: changing `establishPlace`'s guard from `EstablishPlaces` to
+// `AcquireRouteEvidence` left the entire suite green. A guard reading the wrong permission is the
+// exact failure the split exists to prevent — it would mean a future Observe granted the right to
+// accumulate route evidence had silently also been granted the right to write Places down.
+//
+// So this drives the production pass with permissions that DIFFER, which is the only arrangement
+// in which the guard's identity is observable.
+//
+// Swapping the permission read by establishPlace must fail this.
+func TestAPermissionGatesOnlyItsOwnConsumer(t *testing.T) {
+	establish := func(t *testing.T, ep observesession.Episode) bool {
+		t.Helper()
+		dir := t.TempDir()
+		store, why := semanticmemory.Open(filepath.Join(dir, "memory.json"))
+		if why != "" {
+			t.Fatalf("opening memory: %s", why)
+		}
+		g := newObservationRegistry().withMemory(store)
+		res, err := g.RunPass(t.Context(), dryTarget{},
+			&sameSampler{script: dryNamed("a", "Home", 16)},
+			nil, windowref.Selector{EphemeralID: "window_1"}, dwellBounds(), ep)
+		if err != nil {
+			t.Fatalf("running a pass: %v", err)
+		}
+		return res.Places.Established()
+	}
+
+	// The permission that owns establishment, held ALONE, still establishes.
+	if !establish(t, observesession.Episode{
+		Licence: observesession.Licence{EstablishPlaces: true},
+	}) {
+		t.Error("a session granted EstablishPlaces and nothing else established no Place. " +
+			"The guard is reading a permission its caller did not grant.")
+	}
+
+	// And the OTHER two, held alone, establish nothing. If either of these establishes, the
+	// guard is reading the wrong field and the split is decorative.
+	if establish(t, observesession.Episode{
+		Licence: observesession.Licence{AcquireRouteEvidence: true},
+	}) {
+		t.Error("a session granted only the right to acquire ROUTE EVIDENCE established a " +
+			"Place. Those are different questions with different consumers.")
+	}
+	if establish(t, observesession.Episode{
+		Licence: observesession.Licence{NameActivatedTargets: true},
+	}) {
+		t.Error("a session granted only the right to keep an ACTIVATED CONTROL'S NAME " +
+			"established a Place. Those are different questions with different consumers.")
+	}
+
+	// AND THE SECOND CONSUMER, from the other side. `watchedDemonstration` returns a DIFFERENT
+	// refusal depending on why it did nothing: an unlicensed session is refused before it looks
+	// at anything (empty), while a licensed one that simply saw no transition says so. A
+	// single-screen pass therefore tells the two apart without needing a demonstration fixture.
+	//
+	// Measured: without this, swapping watchedDemonstration.s guard to EstablishPlaces left the
+	// whole suite green.
+	watched := func(t *testing.T, ep observesession.Episode) observe.DiscoveryRefusal {
+		t.Helper()
+		dir := t.TempDir()
+		store, why := semanticmemory.Open(filepath.Join(dir, "memory.json"))
+		if why != "" {
+			t.Fatalf("opening memory: %s", why)
+		}
+		g := newObservationRegistry().withMemory(store)
+		res, err := g.RunPass(t.Context(), dryTarget{},
+			&sameSampler{script: dryNamed("a", "Home", 16)},
+			nil, windowref.Selector{EphemeralID: "window_1"}, dwellBounds(), ep)
+		if err != nil {
+			t.Fatalf("running a pass: %v", err)
+		}
+		return res.Watched
+	}
+	if got := watched(t, observesession.Episode{
+		Licence: observesession.Licence{AcquireRouteEvidence: true},
+	}); got != observe.DiscoveryNoTransition {
+		t.Errorf("a session granted AcquireRouteEvidence refused with %q, want %q. It should have "+
+			"looked and found no transition, not declined to look.", got, observe.DiscoveryNoTransition)
+	}
+	if got := watched(t, observesession.Episode{
+		Licence: observesession.Licence{EstablishPlaces: true},
+	}); got == observe.DiscoveryNoTransition {
+		t.Error("a session granted only EstablishPlaces looked for route evidence anyway. " +
+			"Establishing a Place and acquiring a route are different permissions.")
+	}
+}
+
+// THE PRIVACY-CARRYING PERMISSION REACHES THE SAMPLER, AND ONLY WHEN IT WAS GRANTED.
+//
+// `NameActivatedTargets` is the one of the three that decides whether a control's own text may be
+// kept — a list item, a tree item, a link, for the one thing a person's input landed on. A list
+// item's text is very often a fact about the person, so this is the permission an ambient observer
+// must be able to decline while still being allowed to watch.
+//
+// It travels a different route from the other two: they are read inside the Runner from the
+// Episode, while this one is copied onto the SAMPLER at session start, because the sampler is
+// where the admitted-label gate is applied. That copy is a line of wiring, and wiring is what this
+// repository has shipped broken three times.
+//
+// # Measured, before this test existed
+//
+// Two mutations of that single line survived the entire suite:
+//
+//	ls.nameActivatedTargets = episode.EstablishPlaces   // the old weld, restored
+//	ls.nameActivatedTargets = true                      // every session may name what you click
+//
+// The second is the one that matters: it silently grants the privacy-carrying permission to a
+// passive observer, which is precisely what Roadmap 35A separated it in order to prevent.
+//
+// Entered through `start`, the production path, with a real liveSampler — a constructed sampler
+// would prove the field can hold a value and not that anything sets it.
+//
+// Changing the permission this line copies must fail this.
+func TestOnlyAGrantedSessionMayNameWhatWasActivated(t *testing.T) {
+	for _, c := range []struct {
+		name    string
+		episode observesession.Episode
+		want    bool
+	}{
+		{"a passive session may not", observesession.Episode{}, false},
+		{"nor one granted the other two", observesession.Episode{
+			Licence: observesession.Licence{EstablishPlaces: true, AcquireRouteEvidence: true},
+		}, false},
+		{"the permission itself, alone", observesession.Episode{
+			Licence: observesession.Licence{NameActivatedTargets: true},
+		}, true},
+		{"and Learn, which holds all three", observesession.Episode{
+			Licence: observesession.LearnLicence(),
+		}, true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			g := newObservationRegistry()
+			sampler := &liveSampler{}
+			id, err := g.start(dryTarget{}, sampler, nil,
+				windowref.Selector{EphemeralID: "window_1"}, dwellBounds(), c.episode)
+			if err != nil {
+				t.Fatalf("starting a session: %v", err)
+			}
+			if id == "" {
+				t.Fatal("the session started with no id")
+			}
+			if got := sampler.nameActivatedTargets; got != c.want {
+				t.Errorf("the sampler may name an activated control = %v, want %v. The licence "+
+					"the CALLER declared is what decides whether somebody's list items keep "+
+					"their text; a session that was not granted it must not receive it.",
+					got, c.want)
+			}
+		})
 	}
 }

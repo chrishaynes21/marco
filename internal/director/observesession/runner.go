@@ -138,12 +138,92 @@ type Config struct {
 	Episode
 }
 
+// Licence is what a session may make DURABLE. Three permissions, and they are separate.
+//
+// # Why they are separate, when one boolean served for so long
+//
+// Until Roadmap 35A there was one field, `EstablishPlaces`, read at three production sites that
+// permit three unrelated things. The comment above it said the fields were "the two consequences
+// of a person explicitly asking to be watched", and that a caller wanting one without the other
+// "would be claiming to be a learn session without being one".
+//
+// That was true of the only caller there was. It is the assumption an always-on Observe cannot
+// live under, because Observe is precisely a caller that wants SOME of this and not the rest —
+// it may need to accumulate route evidence for a habit it keeps seeing, and it must not therefore
+// acquire the right to write down the text of every control somebody clicks.
+//
+// So the weld is replaced by three permissions that a caller grants one at a time. Learn grants
+// all three, through [LearnLicence], and its behaviour is unchanged. What has changed is that the
+// grant is now something a reader can see, and something a future caller can decline.
+//
+// # Each one names its consumer, because a permission with no site is decoration
+//
+//	EstablishPlaces        Runner.establishPlace       identity, and the name it settled under
+//	AcquireRouteEvidence   Runner.watchedDemonstration a watched pass becomes a candidate
+//	NameActivatedTargets   liveSampler / AdmittedTargetLabel  the control they aimed at keeps its name
+//
+// # What is NOT in here, and was
+//
+// Working out what a Place appears to be CALLED. That is perception, it now happens whoever is
+// watching, and the durable write it feeds is gated by `EstablishPlaces` at the persistence
+// boundary rather than by a second gate on the inference. See observe.AdmittedPlaceName.
+type Licence struct {
+	// EstablishPlaces licenses making the place the user is standing on durably recognisable —
+	// its IDENTITY, and the word it settled under. It persists no judgement about meaning.
+	//
+	// Consumed at Runner.establishPlace, which returns PlaceNotLicensed without it.
+	// See [[ADR-047-a-place-is-remembered-a-meaning-is-answered]].
+	EstablishPlaces bool
+	// AcquireRouteEvidence licenses turning a pass Marco WATCHED into candidate route
+	// evidence — one candidate per grown edge, each a reusable piece of how somebody got
+	// somewhere.
+	//
+	// Separate from EstablishPlaces because the questions are different: one is "may this
+	// screen become something Marco can recognise again", the other is "may what I just saw
+	// somebody do become something Marco could propose doing". A future Observe accumulating
+	// habits wants the second without necessarily wanting the first on every screen it drifts
+	// across.
+	//
+	// Consumed at Runner.watchedDemonstration.
+	AcquireRouteEvidence bool
+	// NameActivatedTargets licenses the WIDER first stage of the target-label classifier: a
+	// role a person can activate — a list item, a tree item, a link — may carry its own name,
+	// for the one control their input actually landed on.
+	//
+	// This is the privacy-carrying one, and it is the reason the three could not stay welded.
+	// A list item's text is very often a fact about the person: a friend, a file, a message.
+	// What makes it admissible is the PROVENANCE — they asked Marco to learn this and then
+	// aimed at that control themselves — and an ambient observer watching somebody work has
+	// no such provenance for anything on screen.
+	//
+	// The shape filter is unconditional either way, so a friend tag, a token or a filename is
+	// refused whatever this says. Consumed via liveSampler, at observe.AdmittedTargetLabel.
+	NameActivatedTargets bool
+}
+
+// LearnLicence is everything an explicit Learn episode is granted, in one place.
+//
+// A constructor rather than a literal at the call site, so "what does Learn get" has one answer
+// that can be read, and so adding a permission cannot silently miss the one caller that should
+// have it. A caller who is NOT a learn session should not use this; it should name the permissions
+// it actually needs.
+func LearnLicence() Licence {
+	return Licence{EstablishPlaces: true, AcquireRouteEvidence: true, NameActivatedTargets: true}
+}
+
+// Any reports whether this licence permits anything durable at all.
+//
+// For diagnostics and for the guard in tests: a session holding no permission is a pure
+// observation, and saying so is clearer than three comparisons at the reading end.
+func (l Licence) Any() bool {
+	return l.EstablishPlaces || l.AcquireRouteEvidence || l.NameActivatedTargets
+}
+
 // Episode is what one caller declares about the session it asked for.
 //
-// Both fields are set by LEARN and by nothing else, and they are together in one type so that
-// stays visible: they are the two consequences of "a person explicitly asked to be watched doing
-// something", and a caller that wanted one without the other would be claiming to be a learn
-// session without being one.
+// Two kinds of field, and Roadmap 35A separated them: CONTEXT says what sort of session this is
+// and how it should be counted, and the LICENCE says what it may make durable. They were one
+// undifferentiated group when Learn was the only caller that set any of them.
 type Episode struct {
 	// SameEpisode says this session belongs to an episode whose corroboration has already
 	// been counted, so its transitions fold their evidence and claim no further independent
@@ -153,26 +233,6 @@ type Episode struct {
 	// of them as an independent session would let one explicit learn satisfy a threshold that
 	// exists to mean real-world recurrence.
 	SameEpisode bool
-	// EstablishPlaces licenses this session to make the place the user is standing on durably
-	// recognisable — its IDENTITY, and no judgement about what it means.
-	//
-	// # Why an explicit learn may do this and passive observation may not
-	//
-	// Because `learn "…"` IS the human semantic event. Until now a durable subject appeared
-	// only when somebody answered a question Marco had invented, so Learn could not begin
-	// until the user had happened to settle an incidental "is this a menu?" — and which
-	// question Marco raised was not theirs to choose. Observed live: the same application in
-	// two sessions asked about the screen once and about a group inside it once, and only the
-	// first would have unblocked Learn.
-	//
-	// It persists ZERO semantic judgements. The subject carries an empty interpretation list,
-	// which every reader already handles: `Effective()` is `none`, `RecalledValidation`
-	// returns nothing, and the edge report says "recognised, nothing known about what it is".
-	//
-	// It is bounded: at most ONE place per pass, only where the signature could ever be
-	// matched again, only where memory does not already recognise it, and refused at the
-	// store's existing subject bound. See observe.PlaceToEstablish.
-	EstablishPlaces bool
 	// PermissionExpected says the person is WAITING to be asked whether Marco may try it.
 	//
 	// # Why an explicit learn may have this slot and passive observation may not
@@ -194,6 +254,10 @@ type Episode struct {
 	// untouched, so the ledger is still bounded too, and nothing here authorises anything: a
 	// rehearsal still happens only when the person says yes.
 	PermissionExpected bool
+
+	// Licence is what this session may make DURABLE. Embedded, so every existing READ of
+	// `cfg.EstablishPlaces` still reads, and every WRITE has to name which permission it means.
+	Licence
 }
 
 // Sensible defaults for the expensive parts.
@@ -1218,7 +1282,7 @@ func (r *Runner) watchedDemonstration(application string, stats Stats,
 	grew []observe.RelationshipRef, ep Episode,
 	th observe.HypothesisThresholds) (*observe.ProcedureCandidate, observe.DiscoveryRefusal) {
 
-	if !ep.EstablishPlaces {
+	if !ep.AcquireRouteEvidence {
 		return nil, ""
 	}
 	if len(grew) == 0 {

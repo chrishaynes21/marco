@@ -864,7 +864,7 @@ func (c *Coordinator) discover(ctx context.Context) {
 	//
 	// Probed as an optional interface so every Memory fake keeps compiling; the production
 	// store implements it. Deleting this write must fail
-	// TestTeachingRecordsTheDestinationAsAGoal.
+	// TestLearningRecordsTheDestinationAsAGoal.
 	if gs, ok := c.memory.(observe.GoalStore); ok {
 		if err := gs.RememberGoal(c.s.Application, observe.Goal{
 			Name: c.s.Name, Subject: c.s.Route.To,
@@ -923,7 +923,7 @@ func (c *Coordinator) discover(ctx context.Context) {
 // rather than as an error. Learn does not depend on being able to point.
 //
 // Deleting the nil guard, or letting a caller branch on the result, must fail
-// TestGroundingFailureDoesNotChangeAnythingAboutTheTeachSession.
+// TestGroundingFailureDoesNotChangeAnythingAboutTheLearnSession.
 func (c *Coordinator) showing(res observesession.Result, state observe.ScreenStateID,
 	role observe.ReferentRole) *observe.VisualReferent {
 
