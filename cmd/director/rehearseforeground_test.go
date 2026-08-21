@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -112,5 +113,96 @@ func TestALiveWalkerProceedsWhenTheWindowLeads(t *testing.T) {
 	}
 	if strings.Contains(strings.ToLower(view.Detail), "not in front") {
 		t.Errorf("the attempt still complains about the foreground: %q", view.Detail)
+	}
+}
+
+// A LIVE WALKER REFUSES WHEN ANOTHER RUNTIME IS DRIVING THE DESKTOP.
+//
+// # Why this exists beside the AST check
+//
+// TestEveryLiveWalkerClaimsTheDesktop requires every builder of a `rehearse.Live` to call
+// `WithDesktop`. It sees the CALL and cannot see the argument — `WithDesktop(nil)` satisfies it,
+// compiles, and switches the lease off entirely, because a walker with no claim function simply
+// does not claim. Measured: that mutation survived the whole suite.
+//
+// This is the same pair the foreground gate has, for the same reason and with the same seam:
+// `desktopLease` is a package variable precisely so a test can supply the machine's answer,
+// because a kernel object is machine-wide and a test that took the real one would serialise
+// against whatever else happened to be running on the developer's machine.
+//
+// Entered through `Runtime.Observation` — the request the CLI makes — so the walker under test is
+// the one production builds.
+func TestALiveWalkerRefusesWhenTheDesktopIsBusy(t *testing.T) {
+	restore := desktopLease
+	desktopLease = func(live bool) func() (func(), error) {
+		if !live {
+			return nil
+		}
+		return func() (func(), error) {
+			return nil, fmt.Errorf("held by another runtime")
+		}
+	}
+	t.Cleanup(func() { desktopLease = restore })
+
+	leads := windowLeads
+	windowLeads = func(windowref.Ref) bool { return true }
+	t.Cleanup(func() { windowLeads = leads })
+
+	runner := &oneRun{}
+	rt := &Runtime{observations: authorizedRegistry(t), liveMarco: runner}
+	out, err := rt.Observation(service.ObserveQuery{
+		Rehearse: &service.ObserveRehearse{Step: 1, Live: true},
+	})
+	if err != nil {
+		t.Fatalf("the live rehearsal request failed: %v", err)
+	}
+	view, ok := out.(service.RehearsalView)
+	if !ok {
+		t.Fatalf("the rehearsal request returned %T", out)
+	}
+
+	if view.Refusal != "desktop_busy" {
+		t.Fatalf("a live rehearsal refused with %q while another runtime held the desktop.\n"+
+			"Two Directors serving two homes share one keyboard, and nothing else in "+
+			"this tree stops them typing at once.", view.Refusal)
+	}
+	if view.Attempted {
+		t.Error("the refusal came AFTER something was emitted; the lease sits before the " +
+			"claim so that nothing is spent and the walk can simply be tried again")
+	}
+	if runner.count() != 0 {
+		t.Errorf("%d program(s) reached the live runner despite the refusal", runner.count())
+	}
+}
+
+// AND IT DOES NOT REFUSE WHEN THE DESKTOP IS FREE.
+//
+// The negative control. Without it, a lease that never grants — the obvious way to make the test
+// above pass — would make every live rehearsal impossible while looking exactly like a working
+// one.
+func TestALiveWalkerProceedsWhenTheDesktopIsFree(t *testing.T) {
+	restore := desktopLease
+	desktopLease = func(live bool) func() (func(), error) {
+		if !live {
+			return nil
+		}
+		return func() (func(), error) { return func() {}, nil }
+	}
+	t.Cleanup(func() { desktopLease = restore })
+
+	leads := windowLeads
+	windowLeads = func(windowref.Ref) bool { return true }
+	t.Cleanup(func() { windowLeads = leads })
+
+	rt := &Runtime{observations: authorizedRegistry(t), liveMarco: &oneRun{}}
+	out, err := rt.Observation(service.ObserveQuery{
+		Rehearse: &service.ObserveRehearse{Step: 1, Live: true},
+	})
+	if err != nil {
+		t.Fatalf("the live rehearsal request failed: %v", err)
+	}
+	if view, ok := out.(service.RehearsalView); ok && view.Refusal == "desktop_busy" {
+		t.Fatal("a live rehearsal was refused for the desktop even though nothing else " +
+			"holds it; the lease is welded shut and nothing can ever be performed")
 	}
 }

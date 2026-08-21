@@ -654,6 +654,13 @@ const (
 	// Raised before the grant is claimed, so waiting for the person to bring the window
 	// forward costs nothing; the Learn coordinator treats it as the patient case.
 	RefusalWindowBehind Refusal = "window_not_in_front"
+	// RefusalDesktopBusy is another runtime already driving the physical desktop.
+	//
+	// There is one screen and it does not know about Marco homes, so two Directors serving
+	// two different homes can otherwise interleave real input on it. Raised BEFORE the grant
+	// is claimed, like the foreground gate beside it: nothing is spent, and the honest
+	// response upstream is that somebody else is using the keyboard right now.
+	RefusalDesktopBusy Refusal = "desktop_busy"
 	// RefusalTargetMoved is the window changing between checking the screen and acting on
 	// it — the race the final guard exists to close.
 	RefusalTargetMoved Refusal = "target_moved"

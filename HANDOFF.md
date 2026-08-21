@@ -5634,3 +5634,41 @@ carry edges, names, targets, provenance and Plays. And no semantic name was ever
 of the twenty-one subjects in that store: automatic naming exists and produced nothing, so
 identity still rests on composition and terms alone. See
 [[ADR-091-a-place-is-not-its-presentation]].
+
+**35E: one Director per home, one hand on the keyboard.** Found by listing what was actually
+running: three `director.exe` processes, TWO of them serving the same `$MARCO_HOME`. Two
+observation loops on one desktop, two writers to one semantic store, either able to cancel while
+the other kept acting, and each answering "where is the Audience standing" from its own private
+world. Nothing prevented it — the CLIENT had a startup lock so two clients would not spawn two
+services, and `director serve` had none, so running it twice always made two Directors.
+
+Three ownerships, and collapsing any two would be wrong: home ownership says "I am the Director
+for this Marco world"; the desktop lease says "I am the only runtime driving this screen"; Audience
+authority says "Marco may perform this action". This roadmap adds the first two and leaves the
+third exactly as it was.
+
+**Home ownership cannot cover the desktop**, which is the part worth remembering. Two homes are two
+legitimate worlds — a sandbox beside the real store is how every harness here runs — and they
+share one keyboard. A lease scoped by home would let them type at once, each holding something it
+genuinely owned. So the desktop lease is machine-wide and held around a PRODUCTION rather than for
+the life of a Director: held from startup it would stop every sandbox from ever acting; held
+around the walk it stops only what conflicts, and observation needs no lease at all.
+
+**A file cannot be the primitive.** It survives the process that wrote it, its PID can be reused,
+and a staleness timeout is a guess about how long a start takes. The claim is a named kernel
+object whose lifetime is the process's — released by Windows however the process ends, so a crash
+cannot brick a home. The endpoint file stays as DISCOVERY, validated by connecting rather than
+believed.
+
+**Three normalisations survived deletion because the fixture used an existing directory.**
+`filepath.EvalSymlinks` resolves a real path and hands back the real spelling, so the test was
+testing EvalSymlinks. Against a home that does not exist — which is the ordinary case, since the
+first `director serve` for a sandbox claims before anything creates the directory — the case
+folding is load-bearing and the explicit `Clean` is genuinely redundant, so it was deleted rather
+than left as a claim nothing can test.
+
+**Not done, and owed.** No live acceptance: whether two `director serve` invocations on one home
+refuse correctly on a real desktop is UNMEASURED. And `Connect`'s file-based startup lock is now a
+second, redundant mechanism — a losing child refuses at startup instead of racing — worth
+simplifying and not worth changing blind. See
+[[ADR-092-one-director-per-home-one-hand-on-the-keyboard]].

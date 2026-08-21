@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/service"
+	"github.com/chaynes-simpleclouds/marco/internal/platform/homelock"
 	"github.com/chaynes-simpleclouds/marco/internal/winctx"
 )
 
@@ -43,6 +44,53 @@ func runServe(args []string) int {
 		fmt.Fprintf(os.Stderr,
 			"         starting anyway: sight, text and OS input are unaffected\n")
 	}
+
+	// ── THE HOME IS CLAIMED FIRST, BEFORE THIS PROCESS ACTS LIKE THE OWNER OF ANYTHING ──
+	//
+	// `$MARCO_HOME` names one semantic Marco world: one memory, one command registry, one
+	// account of where the Audience is standing. At most one live Director may own it.
+	//
+	// Measured, live: three `director.exe` processes were running, two of them serving the
+	// same sandbox home, because nothing here ever asked. The CLIENT had a startup lock; the
+	// Director itself had none, so `director serve` twice always made two Directors — two
+	// observation loops on one desktop, two writers to one store, and either able to cancel
+	// while the other kept acting.
+	//
+	// # The order is not arrangeable
+	//
+	// Everything below this line is an act of the runtime owner: `NewRuntime` opens the
+	// semantic store and builds perception, `Listen` publishes an endpoint that clients will
+	// connect to, and the server registers commands that can drive the desktop. A process
+	// that has not claimed the home must do NONE of them — half-owning a world while another
+	// Director owns it is the state this exists to prevent, and a claim taken afterwards
+	// would be a check that has already lost.
+	//
+	// Moving this below `NewRuntime` must fail TestADirectorClaimsItsHomeBeforeItOwnsAnything.
+	held, err := homelock.ClaimHome(configDir())
+	if err != nil {
+		if !homelock.Held(err) {
+			fmt.Fprintf(os.Stderr, "director: %v\n", err)
+			return 1
+		}
+		// NOT AN ERROR IN THE ORDINARY SENSE — it is the answer. Somebody is already the
+		// Director for this home, and the honest thing is to say so and stop. Never to
+		// start anyway, and never to take the claim off them: a second Director that
+		// killed the first would make starting one a hidden restart mechanism, and a play
+		// running at that moment would be cut off mid-route.
+		fmt.Fprintln(os.Stderr, "director: a Director is already running for this Marco home.")
+		fmt.Fprintf(os.Stderr, "          home     %s\n", configDir())
+		if ep, ok := service.ReadEndpoint(configDir()); ok {
+			// Discovery metadata, and it is reported as such. It may be stale — that
+			// is exactly why it is not what decided the refusal above.
+			fmt.Fprintf(os.Stderr, "          owner    pid %d on %s\n", ep.PID, ep.Address)
+		}
+		fmt.Fprintln(os.Stderr, "          nothing was started, and the running Director was left alone.")
+		return 1
+	}
+	// Released when this process ends, whatever ends it. The explicit release is for a clean
+	// exit; the operating system's is what covers a crash, and that is the whole reason the
+	// claim is a kernel object rather than a file.
+	defer held.Release()
 
 	rt, err := NewRuntime(*bridgeFlag, *maxNodes, *dryRun, graph)
 	if err != nil {

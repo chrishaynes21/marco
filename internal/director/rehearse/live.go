@@ -248,6 +248,9 @@ type Live struct {
 	// nobody gave the question to behaves as it always has — the stub platforms cannot ask —
 	// and the Windows root always wires it.
 	inFront func(windowref.Ref) bool
+	// desktop is the machine-wide right to emit real input, claimed around a production.
+	// Nil for a walker that cannot act. See WithDesktop.
+	desktop func() (func(), error)
 	// cost is the running tally of what this walker has spent looking. Not concurrent:
 	// one walker serves one attempt, and `walker` in cmd/director builds a fresh one per
 	// edge. Read as a pair of snapshots either side of a walk, never as an absolute.
@@ -291,6 +294,32 @@ func (l *Live) WithTheater(p production.Producer) *Live {
 // foreground is none of its business.
 func (l *Live) WithForeground(f func(windowref.Ref) bool) *Live {
 	l.inFront = f
+	return l
+}
+
+// WithDesktop installs the machine's answer to "may this runtime drive the screen right now".
+//
+// # A third thing, and it is not authority
+//
+// There is one physical desktop and it does not know about Marco homes. Two Directors serving two
+// different homes — a sandbox beside the real store, which is how this repository's own
+// acceptance harnesses run — are two separate worlds sharing one keyboard. Home ownership cannot
+// arbitrate that, because it is deliberately per-home.
+//
+// So the lease is machine-wide and it is held around a PRODUCTION rather than for the life of a
+// Director. Held from startup, one Director would stop every other on the machine from ever
+// acting, including the sandboxes; held around the act of emitting, it stops only what actually
+// conflicts, and two Directors may watch the same screen at once.
+//
+// It is NOT permission. The Audience saying "do this" is minted per invocation at the ordinary
+// door and is still required — see the grant claimed below this gate. A lease that granted
+// authority would be the shortcut [[ADR-029-resolution-is-not-permission]] exists to refuse.
+//
+// Installed by the composition root, like the foreground answer, because `internal/director` may
+// not reach platform code. A walker with none — every dry run, every fixture — emits into a
+// notebook and needs no lease.
+func (l *Live) WithDesktop(claim func() (func(), error)) *Live {
+	l.desktop = claim
 	return l
 }
 
@@ -568,6 +597,33 @@ func (l *Live) Perform(ctx context.Context, g *observe.RehearsalGrant,
 	if l.behind(ref) {
 		return RehearsalResult{}, refuse(RefusalWindowBehind,
 			"the watched window is not in front, so input would land somewhere else")
+	}
+
+	// AND NOBODY ELSE IS DRIVING THE SCREEN.
+	//
+	// One physical desktop, and it does not know about Marco homes. Two Directors serving two
+	// different homes — a sandbox beside the real store — are two worlds sharing one keyboard,
+	// and home ownership cannot arbitrate that because it is per-home by design.
+	//
+	// Held around the whole walk rather than each step: a route is a sequence, and another
+	// runtime typing between step two and step three is exactly as wrong as typing during one.
+	// Released when the walk ends however it ends, and by the operating system if this process
+	// does not end tidily.
+	//
+	// BESIDE the foreground gate and before the claim, for the same reason: nothing is spent,
+	// so the honest response upstream is that somebody else is using the keyboard right now.
+	// It is not authority — the grant below is still required, and a lease that stood in for
+	// one would be the shortcut ADR-029 refuses.
+	//
+	// Deleting this must fail TestTwoRuntimesDoNotInterleaveRealInput; moving it below
+	// BeginAttempt must fail TestADesktopRefusalSpendsNoPermission.
+	if l.real && l.desktop != nil {
+		release, err := l.desktop()
+		if err != nil {
+			return RehearsalResult{}, refuse(RefusalDesktopBusy,
+				"another Marco runtime is driving this desktop right now")
+		}
+		defer release()
 	}
 
 	// ── 3: THE claim. Past this line the permission is spent whatever happens. ──

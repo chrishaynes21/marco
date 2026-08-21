@@ -99,6 +99,9 @@ worth looking at.
 - [[ADR-010-passive-observation-cannot-execute]] — the observe guard applies inside the service
 - [[ADR-085-a-performance-is-a-registry-command]] — PERFORM is visible, refusable and stoppable
 - [[ADR-084-a-plays-identity-is-its-subject]] — PERFORM carries a subject id (protocol 7)
+- [[ADR-092-one-director-per-home-one-hand-on-the-keyboard]] — the endpoint file is DISCOVERY;
+  ownership is a process-lifetime kernel object claimed before the runtime exists, and the
+  physical desktop is a second, machine-wide lease held around a production
 
 ## Validated by
 

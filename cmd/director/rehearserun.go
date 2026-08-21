@@ -9,6 +9,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/windowref"
 	"github.com/chaynes-simpleclouds/marco/internal/director/rehearse"
 	"github.com/chaynes-simpleclouds/marco/internal/director/service"
+	"github.com/chaynes-simpleclouds/marco/internal/platform/homelock"
 	"github.com/chaynes-simpleclouds/marco/internal/platform/marcorunner"
 	"github.com/chaynes-simpleclouds/marco/internal/platform/recordhost"
 	"github.com/chaynes-simpleclouds/marco/internal/platform/theaterhost"
@@ -210,7 +211,16 @@ func (r *Runtime) walker(live bool) (*rehearse.Live, error) {
 		// The platform's answer to "would input land in this window". Real attempts only —
 		// the runner checks it before the grant is claimed, so a window that is not in front
 		// is a patient wait rather than a spent permission.
-		WithForeground(windowLeads)
+		WithForeground(windowLeads).
+		// AND THE MACHINE'S ANSWER TO "may this runtime drive the screen".
+		//
+		// Real attempts only, and nil is the honest value for a dry one: a notebook
+		// is not a desktop and nothing else on the machine is competing for it.
+		// Wired here, at the one composition root, so no Actor acquires a lease of its
+		// own -- Actors must not compete for the desktop independently.
+		//
+		// Deleting this call must fail TestEveryLiveWalkerClaimsTheDesktop.
+		WithDesktop(desktopLease(live))
 	if r.bridge != nil {
 		// THE THEATER, which is how a demonstrated click becomes a real press.
 		//
@@ -393,4 +403,35 @@ func (r *Runtime) observationTarget() observesession.Target {
 		return r.newObservationTarget()
 	}
 	return tgt
+}
+
+// desktopLease is the machine-wide right to emit real input, for a walker that can.
+//
+// # Why a var, and why nil for a dry run
+//
+// A dry walker emits into a notebook. Claiming the desktop for that would make one developer's
+// dry run block another's real one, which is the opposite of what the lease is for.
+//
+// The nil is BELT AND BRACES, and measured as such: `Live.Perform` guards the claim on `l.real`
+// too, so handing a live claim function to a dry walker changes nothing and the mutation that
+// does it survives the suite. It is kept because it makes this function honest on its own terms —
+// a walker that cannot act is not offered the desktop at all — and the enforcement is one layer
+// down where it can be tested.
+//
+// A package VARIABLE for the same one reason `windowLeads` is: this is a line in the composition
+// root that a test cannot supply for itself. A kernel object is machine-wide, so a test that took
+// the real one would serialise against whatever else was running on the developer's machine — and
+// a test that could not replace it could only assert that the wiring CALL is present, which is
+// exactly what a nil answer survives.
+var desktopLease = func(live bool) func() (func(), error) {
+	if !live {
+		return nil
+	}
+	return func() (func(), error) {
+		claim, err := homelock.ClaimDesktop()
+		if err != nil {
+			return nil, err
+		}
+		return claim.Release, nil
+	}
 }

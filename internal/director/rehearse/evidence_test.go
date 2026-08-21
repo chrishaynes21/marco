@@ -2,6 +2,7 @@ package rehearse_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -781,5 +782,118 @@ func TestAResizeDoesNotKeepAProofAlive(t *testing.T) {
 	sameWindow := func(ref windowref.Ref) bool { return ref.Generation == 1 }
 	if !proof.Justifies(evidenceNow, "testgame", "subj_a", sameWindow) {
 		t.Fatal("the proof is unusable even on the window it was taken on")
+	}
+}
+
+// TWO RUNTIMES DO NOT INTERLEAVE REAL INPUT.
+//
+// # The third ownership, and why home ownership cannot cover it
+//
+// One Marco home has one Director. That is Roadmap 35E's first rule and it does not answer this
+// question, because two DIFFERENT homes are two legitimate worlds — an acceptance sandbox beside
+// the real store is how every harness in this repository runs — and they share one keyboard.
+//
+// So a machine-wide lease is claimed around a production. A walker that cannot take it emits
+// nothing at all: not a partial route, not one step, nothing. A route is a sequence, and another
+// runtime typing between step two and step three is exactly as wrong as typing during one, which
+// is why the lease is held around the walk rather than around each emission.
+func TestTwoRuntimesDoNotInterleaveRealInput(t *testing.T) {
+	w := newWorld("a", "b")
+	j := livePlan()
+	g := liveGrant(t, j)
+	l := rehearse.NewLive(newLiveClock(), w, w, newLiveMemory()).
+		WithActuator(w, w, true).
+		WithForeground(leads).
+		// Somebody else is driving the screen.
+		WithDesktop(func() (func(), error) {
+			return nil, errors.New("held by another runtime")
+		})
+
+	_, err := l.Perform(context.Background(), g, j,
+		windowref.Selector{Application: "testgame"}, 1, nil)
+	if err == nil {
+		t.Fatal("a walk drove the desktop while another runtime was driving it")
+	}
+	if reason, _ := rehearse.RefusalOf(err); reason != rehearse.RefusalDesktopBusy {
+		t.Fatalf("it refused with %q (%v), want desktop_busy", reason, err)
+	}
+	if w.sent() != 0 {
+		t.Fatalf("%d program(s) reached the desktop anyway", w.sent())
+	}
+}
+
+// AND THE REFUSAL SPENDS NO PERMISSION.
+//
+// The lease sits beside the foreground gate and before the claim, for the same reason: somebody
+// else using the keyboard is a reason to WAIT, and waiting costs nothing only while the grant is
+// unspent. `RehearsalGrant.BeginAttempt` sets GrantConsumed and `Attempt.Cancel` does not undo
+// it, so a lease checked one line later would make every busy desktop cost the person a
+// permission they would have to give again.
+func TestADesktopRefusalSpendsNoPermission(t *testing.T) {
+	w := newWorld("a", "b")
+	j := livePlan()
+	g := liveGrant(t, j)
+	l := rehearse.NewLive(newLiveClock(), w, w, newLiveMemory()).
+		WithActuator(w, w, true).
+		WithForeground(leads).
+		WithDesktop(func() (func(), error) { return nil, errors.New("busy") })
+
+	if !g.Active() {
+		t.Fatal("the grant is already spent")
+	}
+	if _, err := l.Perform(context.Background(), g, j,
+		windowref.Selector{Application: "testgame"}, 1, nil); err == nil {
+		t.Fatal("the walk went ahead")
+	}
+	if !g.Active() {
+		t.Fatal("the permission was SPENT refusing for a busy desktop. One grant permits " +
+			"one attempt and Cancel does not give it back, so the person is asked again " +
+			"because somebody else happened to be typing.")
+	}
+}
+
+// AND THE LEASE IS GIVEN BACK WHEN THE WALK ENDS, HOWEVER IT ENDS.
+//
+// A lease that leaked would lock the desktop for every other runtime on the machine until this
+// process died. The cases that matter are the ones nobody thinks about: a walk that refused
+// after taking it, one that failed, one that was cancelled.
+func TestADesktopLeaseIsAlwaysGivenBack(t *testing.T) {
+	for _, c := range []struct {
+		name   string
+		before string
+		after  string
+		ctx    func() context.Context
+	}{
+		{name: "a walk that completed", before: "a", after: "b",
+			ctx: context.Background},
+		{name: "a walk that verified nothing", before: "a", after: "a",
+			ctx: context.Background},
+		{name: "a walk that was stopped", before: "a", after: "b", ctx: func() context.Context {
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+			return ctx
+		}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			w := newWorld(c.before, c.after)
+			j := livePlan()
+			g := liveGrant(t, j)
+			held := 0
+			l := rehearse.NewLive(newLiveClock(), w, w, newLiveMemory()).
+				WithActuator(w, w, true).
+				WithForeground(leads).
+				WithDesktop(func() (func(), error) {
+					held++
+					return func() { held-- }, nil
+				})
+
+			_, _ = l.Perform(c.ctx(), g, j,
+				windowref.Selector{Application: "testgame"}, 1, nil)
+			if held != 0 {
+				t.Fatalf("the desktop is still held (%d) after the walk ended. Every "+
+					"other runtime on this machine is now locked out until this "+
+					"process dies.", held)
+			}
+		})
 	}
 }
