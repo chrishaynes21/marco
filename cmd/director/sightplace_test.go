@@ -649,8 +649,18 @@ func standingOnAs(rt *Runtime, term observe.InterfaceTerm, state observe.ScreenS
 // The comparison is the MATCHER's: CompareStructure is ExplainStructure with the explanation
 // discarded, so the reason shown and the decision made are one walk of one set of rules.
 func TestAnUnrecognisedPlaceSaysWhatItNearlyMatched(t *testing.T) {
+	// # And the drift this used to use is now RECOGNISED, on purpose
+	//
+	// The original fixture was the live finding itself: thirteen buttons remembered, ten
+	// observed. That is the drift Roadmap 35D measured across window sizes and now tolerates
+	// — the same page at two sizes is one Place — so it can no longer stand for "not
+	// recognised". See [[ADR-091-a-place-is-not-its-presentation]].
+	//
+	// The claim under test never was the button count. It is that an unrecognised screen says
+	// WHAT it nearly was and WHICH field disagreed, so the fixture moved to a disagreement
+	// that is still one: five list items, which is a different page rather than a narrower
+	// window.
 	rt, store, _, _ := namingRuntime(t)
-	// A remembered Bluetooth page with thirteen buttons, named.
 	remembered := observe.StructureSignature{
 		Subject: observe.SubjectState, Roles: map[string]int{"button": 13, "list_item": 20},
 		Terms: []observe.InterfaceTerm{observe.TermSettings}, TermsKnown: true,
@@ -661,8 +671,7 @@ func TestAnUnrecognisedPlaceSaysWhatItNearlyMatched(t *testing.T) {
 	}
 	named(t, store, id, "Bluetooth")
 
-	// Standing on the same page with three fewer buttons — the drift observed live.
-	standingOnRoles(rt, map[string]int{"button": 10, "list_item": 20}, observe.TermSettings)
+	standingOnRoles(rt, map[string]int{"button": 13, "list_item": 15}, observe.TermSettings)
 
 	here := rt.hereFrom(playbill.Current{
 		Watching: true, Application: "settings", Recognition: playbill.Unknown,
@@ -678,13 +687,13 @@ func TestAnUnrecognisedPlaceSaysWhatItNearlyMatched(t *testing.T) {
 	if len(here.Closest.Why) == 0 {
 		t.Fatal("the comparison names no field, so it explains nothing")
 	}
-	// THE FIELD, and both numbers. "button 10 vs 13" is the finding; "they differ" is not.
+	// THE FIELD, and both numbers. "list_item 15 vs 20" is the finding; "they differ" is not.
 	var found bool
 	for _, d := range here.Closest.Why {
-		if d.Field == "button" {
+		if d.Field == "list_item" {
 			found = true
-			if d.Current != "10" || d.Remembered != "13" {
-				t.Errorf("the button counts read %q vs %q", d.Current, d.Remembered)
+			if d.Current != "15" || d.Remembered != "20" {
+				t.Errorf("the item counts read %q vs %q", d.Current, d.Remembered)
 			}
 		}
 	}

@@ -147,17 +147,81 @@ func TestLosingATermIsNotTheSameSubject(t *testing.T) {
 
 // ── ambiguity ─────────────────────────────────────────────────────────────────
 
-// When several remembered subjects fit equally, the answer is "cannot tell".
+// When several remembered subjects fit equally AND DISAGREE, the answer is "cannot tell".
 //
-// Not "the closest". Two subjects that both look like this one are a case where Marco does not
-// know, and ranking them would attach a user's answer to a coin toss.
+// Not "the closest". Two subjects that both look like this one and do not look like each other
+// are a case where Marco does not know, and ranking them would attach a user's answer to a coin
+// toss.
+//
+// # Why the fixture is a chain rather than two identical records
+//
+// It was two identical records, and that is not an ambiguity — it is one Place written down
+// twice, which is exactly what a store accumulates when identity is tied to layout. Answering
+// "cannot tell" there would refuse to recognise a page Marco knows three times over. See
+// [[ADR-091-a-place-is-not-its-presentation]].
+//
+// A real ambiguity needs matching's non-transitivity: the reading is within tolerance of both
+// remembered subjects, and they are not within tolerance of each other.
 func TestAmbiguityReturnsInsufficientRatherThanTheClosest(t *testing.T) {
-	one := observe.RememberedSubject{ID: "subj_1", Structure: settingsScreen()}
-	two := observe.RememberedSubject{ID: "subj_2", Structure: settingsScreen()}
+	fewer, more := settingsScreen(), settingsScreen()
+	fewer.Roles = map[string]int{"button": 13, "icon": 2}
+	more.Roles = map[string]int{"button": 18, "icon": 2}
+	here := settingsScreen()
+	here.Roles = map[string]int{"button": 15, "icon": 2}
 
-	_, verdict := observe.Recall(settingsScreen(), []observe.RememberedSubject{one, two})
+	// PREMISE: each remembered subject matches what is on screen, and they do not match
+	// each other. Without this the test would pass for any reason at all.
+	if got := observe.CompareStructure(here, fewer); got != observe.MatchSame {
+		t.Fatalf("the reading does not match the smaller subject (%q)", got)
+	}
+	if got := observe.CompareStructure(here, more); got != observe.MatchSame {
+		t.Fatalf("the reading does not match the larger subject (%q)", got)
+	}
+	if got := observe.CompareStructure(fewer, more); got == observe.MatchSame {
+		t.Fatal("the two remembered subjects match each other, so this is a duplicate " +
+			"rather than an ambiguity and the case under test is not reached")
+	}
+
+	one := observe.RememberedSubject{ID: "subj_1", Structure: fewer}
+	two := observe.RememberedSubject{ID: "subj_2", Structure: more}
+	_, verdict := observe.Recall(here, []observe.RememberedSubject{one, two})
 	if verdict != observe.MatchInsufficient {
-		t.Errorf("verdict %q with two equally good matches, want insufficient", verdict)
+		t.Errorf("verdict %q with two matches that disagree with each other, want "+
+			"insufficient", verdict)
+	}
+}
+
+// AND ONE PLACE WRITTEN DOWN TWICE IS NOT AN AMBIGUITY.
+//
+// The case the store this roadmap came from was full of: one page recorded at three window sizes,
+// three durable subjects, and — once the layout rule stopped telling them apart — three matches
+// for every reading. Answering "cannot tell" would have made the fix worse than the bug.
+//
+// Deleting the mutual-equivalence check must fail this; deleting the ID rule that chooses between
+// them must fail the stability half.
+func TestOnePlaceWrittenDownTwiceIsNotAnAmbiguity(t *testing.T) {
+	wide, narrow := settingsScreen(), settingsScreen()
+	wide.Roles = map[string]int{"button": 18, "icon": 2}
+	narrow.Roles = map[string]int{"button": 16, "icon": 2}
+
+	older := observe.RememberedSubject{ID: "subj_aaa", Structure: wide}
+	newer := observe.RememberedSubject{ID: "subj_bbb", Structure: narrow}
+
+	got, verdict := observe.Recall(wide, []observe.RememberedSubject{newer, older})
+	if verdict != observe.MatchSame {
+		t.Fatalf("verdict %q with two records of the SAME place. Marco has established "+
+			"that they are each other; refusing to choose between them is refusing to "+
+			"recognise a page it knows twice over.", verdict)
+	}
+	if got.ID != "subj_aaa" {
+		t.Errorf("it answered %q; the choice must be total and STABLE, or the same screen "+
+			"resolves to a different durable subject tomorrow and every Play, edge and "+
+			"name pointing at the other one quietly stops applying", got.ID)
+	}
+	// AND IT DOES NOT DEPEND ON THE ORDER THEY ARRIVE IN, which is store order.
+	again, _ := observe.Recall(wide, []observe.RememberedSubject{older, newer})
+	if again.ID != got.ID {
+		t.Errorf("reversing the order answered %q instead of %q", again.ID, got.ID)
 	}
 }
 

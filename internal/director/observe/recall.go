@@ -157,13 +157,37 @@ func SignatureOf(h Hypothesis) StructureSignature {
 
 // Tolerances for structural comparison.
 const (
-	// RoleCountTolerance is how many detections a role's count may differ by and still
-	// describe the same structure.
+	// RoleCountTolerance is the FLOOR for how many detections a role's count may differ by
+	// and still describe the same structure. See [roleTolerance] for the rest of it.
 	//
 	// One. The detector misses a control often enough that state-local presence exists to
 	// measure it, so exact counts would fail to recognise a screen because one button was
 	// not seen in one frame. Two would start merging a four-item menu with a six-item one.
 	RoleCountTolerance = 1
+	// RoleCountDriftDenominator makes the tolerance proportional above the floor: a fifth of
+	// the larger count, rounded.
+	//
+	// # Why a share and not a bigger number
+	//
+	// The comment above is still true and still binding — two IS too much for a four-item
+	// menu. It is nowhere near enough for a page with eighteen buttons, because reflow moves
+	// that number by three without the page changing at all.
+	//
+	// Measured, on the twelve durable subjects a real store accumulated for three Settings
+	// pages. Within one page, across window sizes, `button` moved 15→18, 13→10 and 16→13 —
+	// three, every time. Between pages, the closest pair that must stay apart is Home's 18
+	// against Bluetooth & devices' 13, which is five.
+	//
+	// A fifth puts the bar between them: 4 where the count is 18, 3 where it is 13. And
+	// BELOW SEVEN IT CHANGES NOTHING — the floor wins — so every small composition is
+	// compared exactly as it was, which is where the four-versus-six worry lives.
+	//
+	// The margin between "moves with reflow" and "is a different page" is one detection.
+	// That is thin, and it is the honest width of the gap the measurement found rather than
+	// a number chosen to be comfortable. It fails in the safe direction: a page whose buttons
+	// shift by more than this is not recognised, and this file prefers a false miss to a
+	// false merge.
+	RoleCountDriftDenominator = 5
 	// MemberTolerance is the same allowance for the member count.
 	//
 	// It governs GROUP subjects only. A state's fingerprint carries no member count since
@@ -208,10 +232,10 @@ func (s StructureSignature) Discriminating() bool {
 // The order is: disagreement first, then discrimination. A signal that positively disagrees
 // settles it as `different`; only once nothing disagrees does the question become whether
 // anything distinctive AGREES.
-// chromeRoles are the roles whose presence is a fact about PRESENTATION rather than about
+// layoutRoles are the roles whose presence or count is a fact about PRESENTATION rather than about
 // what the screen is.
 //
-// # Why there is exactly one, and why it is this one
+// # The test a role has to fail
 //
 // The test a role has to fail to be listed here: does its arrival tell a person they are
 // somewhere else? A progress bar arriving says the screen started loading; a text field
@@ -245,27 +269,83 @@ func (s StructureSignature) Discriminating() bool {
 //
 // The roles are still RECORDED — a signature says what was seen. They are not COMPARED.
 // See [[ADR-062-a-scroll-bar-is-not-a-screen]].
-var chromeRoles = map[string]bool{"scroll_bar": true}
+// # 2026-08-20 — the same rule, and four more roles that fail the same test
+//
+// The scroll bar was the first role measured to move without the screen moving. It was not the
+// only one, and keeping the list at one meant a WINDOW RESIZE minted a new Place.
+//
+// Measured, from twelve durable subjects a real store accumulated for THREE Settings pages. Home,
+// Bluetooth & devices and Mouse were each recorded three times at different window sizes, and
+// within each page the counts that moved were always the same ones:
+//
+//	Home     button 15,18,18   group 20,20,27   link 1,1,3   pane 3,3,4   text 32,32,49
+//	                           list_item 22,22,22   combo_box 1,1,1   image 14,14,14
+//	Mouse    button 16,13,14   group 9,9,14     link 0,0,6   pane 3,3,4   text 21,21,29
+//	                           list_item 15,15,15   combo_box 3,3,3   slider 2,2,2
+//
+// The right-hand column never moved. The left-hand one moved every time, and one of them — the
+// `link` on Mouse — ARRIVED, so the role-set check called the third recording a different screen
+// before any count was compared.
+//
+// Apply the test above to each:
+//
+//	group, pane   a box drawn round things. Reflow adds one; nothing is anywhere else.
+//	text          prose. Widening a window unwraps a paragraph into fewer runs, or the
+//	              reverse. What the text MEANS is in Terms, which are compared exactly.
+//	link          "related settings", which Windows shows when there is vertical room.
+//	unknown       Marco could not say what it was. It cannot be evidence of anything.
+//
+// `button` is NOT here, and it was, for a day. Its count moves with reflow — 15, 18, 18 on one
+// page — so the first version of this listed it and the same suite immediately caught the cost:
+// two fixtures told screens apart by button count alone and began merging. Dropping a role that
+// a person can PRESS is a real loss of discrimination, and the bar this file sets is that a false
+// merge is worse than a false miss. The tolerance moved instead — see [roleTolerance].
+//
+// # What did NOT move here, and stays compared
+//
+// `list_item`, `combo_box`, `slider`, `text_field`, `menu`, `menu_item`, `list`, `image`,
+// `window` — the controls a page is MADE OF. Those are what still tell Home (list_item 22,
+// combo_box 1) from Bluetooth & devices (list_item 20-21, no combo box) from Mouse (list_item 15,
+// combo_box 3, slider 2), and every one of those distinctions survives this change.
+//
+// `progress_bar` is deliberately not here. A progress bar arriving says the screen started
+// loading, which is a real event and a different Stage — see PART 20 of the roadmap and
+// [[ADR-091-a-place-is-not-its-presentation]].
+//
+// # The cost, stated
+//
+// Two screens that differ ONLY in how many buttons they have, with the same controls otherwise
+// and the same interface terms, now merge. That is a real loss of discrimination and it is
+// accepted deliberately: the alternative, measured, is that the same page at two window sizes is
+// two places, and ambient Observe would mint a new one every time somebody dragged an edge.
+var layoutRoles = map[string]bool{
+	"scroll_bar": true,
+	"group":      true,
+	"pane":       true,
+	"text":       true,
+	"link":       true,
+	"unknown":    true,
+}
 
-// identityRoles drops the chrome from a role composition, without touching the original.
+// identityRoles drops the layout from a role composition, without touching the original.
 func identityRoles(in map[string]int) map[string]int {
 	if len(in) == 0 {
 		return in
 	}
-	// Almost every comparison has no chrome at all; only pay for a copy when it does.
-	chrome := false
+	// Almost every comparison has no layout role at all; only pay for a copy when it does.
+	layout := false
 	for role := range in {
-		if chromeRoles[role] {
-			chrome = true
+		if layoutRoles[role] {
+			layout = true
 			break
 		}
 	}
-	if !chrome {
+	if !layout {
 		return in
 	}
 	out := make(map[string]int, len(in))
 	for role, n := range in {
-		if !chromeRoles[role] {
+		if !layoutRoles[role] {
 			out[role] = n
 		}
 	}
@@ -309,8 +389,29 @@ func Recall(current StructureSignature, remembered []RememberedSubject) (Remembe
 	case len(established) == 1:
 		return established[0], MatchSame
 	case len(established) > 1:
-		// Several remembered subjects are equally good matches. Marco does not know which,
-		// and saying so is the only honest answer available.
+		// SEVERAL MATCHES IS NOT ALWAYS AN AMBIGUITY, and telling the two cases apart is
+		// what stops the layout rule making an old store worse than it was.
+		//
+		// A store written under the old rule holds one record per window size: three for
+		// Settings Home, three for Bluetooth & devices, three for Mouse. Under the new rule
+		// a fresh reading of Home matches all three of the Home records — and answering
+		// "insufficient" would refuse to recognise a page that Marco has now correctly
+		// worked out it knows three times over. The fix would have broken every store it
+		// was meant to help.
+		//
+		// So: if the matches are all the same Place AS EACH OTHER, they are one Place
+		// recorded several times, and Marco says which. That is not the coin toss this
+		// function refuses — a coin toss is choosing between things that might differ, and
+		// these have been positively established not to.
+		//
+		// If they are NOT mutually the same, it is a real ambiguity and the old answer
+		// stands. That case is reachable because matching is not transitive: a tolerance
+		// lets A match B and B match C while A and C are too far apart.
+		if canonical, ok := oneAndTheSame(established); ok {
+			return canonical, MatchSame
+		}
+		// Several remembered subjects are equally good matches and disagree among
+		// themselves. Marco does not know which, and saying so is the only honest answer.
 		return RememberedSubject{}, MatchInsufficient
 	case len(candidates) == 1:
 		return candidates[0], MatchCandidate
@@ -516,7 +617,7 @@ func ExplainStructure(current, remembered StructureSignature) StructureCompariso
 	over := false
 	for _, role := range sortedRoles(currentRoles) {
 		c, r := currentRoles[role], rememberedRoles[role]
-		beyond := abs(c-r) > RoleCountTolerance
+		beyond := abs(c-r) > roleTolerance(c, r)
 		if beyond {
 			over = true
 		}
@@ -599,4 +700,62 @@ func termsOfSignature(sig StructureSignature) string {
 	}
 	sort.Strings(words)
 	return strings.Join(words, ", ")
+}
+
+// roleTolerance is how far one role's count may differ between two signatures.
+//
+// A share of the larger count, never less than [RoleCountTolerance]. Rounded rather than
+// truncated: truncation gives 2 where the count is thirteen, and thirteen against ten is a
+// measured within-page drift that must still compare equal.
+//
+// It is the LARGER count that sets the bar, so the comparison is symmetric — asking whether A
+// matches B must answer the same as asking whether B matches A, and a share of "the current one"
+// would not.
+//
+// Deleting the proportional half must fail TestOneSettingsPageIsOnePlaceAcrossLayouts; deleting
+// the floor must fail TestASmallCompositionIsStillComparedExactly.
+func roleTolerance(a, b int) int {
+	hi := a
+	if b > hi {
+		hi = b
+	}
+	// (hi + d/2) / d is rounding, in integers, without reaching for math.
+	t := (hi + RoleCountDriftDenominator/2) / RoleCountDriftDenominator
+	if t < RoleCountTolerance {
+		return RoleCountTolerance
+	}
+	return t
+}
+
+// oneAndTheSame reports whether several matched subjects are one Place recorded more than once,
+// and which of them to answer with.
+//
+// # Every pair, not just against the current reading
+//
+// Each of these already matched what is on screen. That does not make them each other: matching
+// tolerates drift, and drift does not compose — A may be within tolerance of B and B of C while A
+// and C are not. Checking only against the current reading would merge exactly the chain the
+// tolerance was careful not to merge in one step.
+//
+// # The canonical one is the lowest id, and it has to be something like that
+//
+// Not the first in the slice, which is store order; not the most recently seen, which is a fact
+// about today. Either would resolve the same screen to a different durable subject on a different
+// day, and every Play, edge and name that pointed at the other one would quietly stop applying.
+// The rule only has to be TOTAL and STABLE, and the smallest id is both.
+func oneAndTheSame(matched []RememberedSubject) (RememberedSubject, bool) {
+	for i := range matched {
+		for j := i + 1; j < len(matched); j++ {
+			if CompareStructure(matched[i].Structure, matched[j].Structure) != MatchSame {
+				return RememberedSubject{}, false
+			}
+		}
+	}
+	canonical := matched[0]
+	for _, r := range matched[1:] {
+		if r.ID < canonical.ID {
+			canonical = r
+		}
+	}
+	return canonical, true
 }

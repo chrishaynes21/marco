@@ -737,3 +737,49 @@ func TestAnUnreadableRefusalNamesNoProvider(t *testing.T) {
 		}
 	}
 }
+
+// THE SAME PLACE AFTER A RESIZE IS NOT THE SAME LIVE EVIDENCE.
+//
+// # Two questions that sound like one
+//
+// Roadmap 35D made Place identity survive a window resize: Settings Home at one size and at
+// another are one durable Place, because a Place is a semantic location and not a pixel
+// arrangement.
+//
+// It would be very easy, and completely wrong, to read that as "so a proof taken before the
+// resize still stands". It does not, and the two questions are not related:
+//
+//	is this the same PLACE?      a durable, semantic question, answered by memory
+//	is this proof still usable?  a question about the live Stage, answered by looking
+//
+// A resize moves every control in the window. A carried proof exists to let Marco act without
+// looking again, and acting on geometry that has just been rearranged is exactly what it must not
+// do. The window reference carries a GENERATION for this, and the tracker advances it when the
+// window a reference names stops being the window it named.
+//
+// Deleting the generation from the identity, or from the foreground predicate's view of it, must
+// fail this.
+func TestAResizeDoesNotKeepAProofAlive(t *testing.T) {
+	proof := justified()
+
+	// The tracker reacquired the window: same handle, same process, new epoch.
+	resized := liveRef(2)
+	inFront := func(ref windowref.Ref) bool {
+		// The desktop's honest answer is about the CURRENT window, and the proof's
+		// reference is no longer it.
+		return ref.Generation == resized.Generation
+	}
+
+	if proof.Justifies(evidenceNow, "testgame", "subj_a", inFront) {
+		t.Fatal("a proof taken before the window changed epoch still justified acting. " +
+			"The Place may well still be Home — that is 35D — but every control in " +
+			"it has just moved, and a proof exists precisely to skip looking.")
+	}
+
+	// AND THE CONTROL: the same proof, on the window it was taken on, is still fine. Without
+	// this the assertion above passes for evidence that never justifies anything.
+	sameWindow := func(ref windowref.Ref) bool { return ref.Generation == 1 }
+	if !proof.Justifies(evidenceNow, "testgame", "subj_a", sameWindow) {
+		t.Fatal("the proof is unusable even on the window it was taken on")
+	}
+}

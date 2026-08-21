@@ -420,6 +420,23 @@ A closed chrome set is excluded from comparison and still recorded.
 [[ADR-062-a-scroll-bar-is-not-a-screen]] states the test a role must fail to be listed, and
 why the widening cannot reach the over-merge case.
 
+**And the same test excludes four more, because one role was never the whole of it.** A real store
+had accumulated TWELVE durable Places for THREE Settings pages: each page recorded at a different
+window size, and every size a different screen. `group`, `pane`, `text` and `link` all move with
+reflow without the page moving, and a role-count tolerance of one cannot survive a paragraph
+unwrapping from 32 runs into 49. So layout roles are recorded and not compared, and the tolerance
+above the floor is a SHARE of the count rather than a number — which changes nothing below seven,
+where the four-versus-six-item worry lives. `button` is deliberately still compared, and
+`progress_bar` deliberately still decisive: a page part-way through loading is not the page.
+
+Several matches stopped meaning ambiguity: records that are the same Place as EACH OTHER are one
+Place written down twice, and Marco answers with the lowest id rather than refusing. Records that
+match the reading and not each other are still `insufficient`.
+
+**Same Place after a resize does not mean the same live Stage evidence** — the two questions are
+unrelated and both answers are true at once.
+[[ADR-091-a-place-is-not-its-presentation]].
+
 ## Known correctness debt: a durable Envelope can strand a subject
 
 **Status: OPEN.** `StructureSignature.Envelope` is durable and load-bearing: `CompareStructure`

@@ -5589,3 +5589,48 @@ the one part of this system that must have only one.
 **Not done, and owed.** One run on one machine for one route is not a distribution.
 `acceptance-35c.ps1` reproduces it in two commands against a COPY of the operator's store. See
 [[ADR-090-a-verified-outcome-is-the-next-step-s-evidence]].
+
+**35D: a Place is not its presentation.** A real store had accumulated TWELVE durable Places for
+THREE Settings pages — Home, Bluetooth & devices and Mouse, each recorded three times at a
+different window size — plus two loading frames and a search state. Twelve relationships for what
+is two transitions. The consequence a person sees: a Play learned on a wide Settings Home stops
+recognising Settings Home when the window is narrow.
+
+Identity diverged in `ExplainStructure`, which compares a screen's role histogram count by count
+with an absolute tolerance of one. Measured across the recordings, the counts that moved were
+always the same ones — `group`, `pane`, `text`, `link` — and on Mouse the `link` role ARRIVED, so
+the role-set check called the third recording a different screen before a single count was
+compared. What never moved: `list_item`, `combo_box`, `slider`, `image`, `text_field`.
+
+So [[ADR-062-a-scroll-bar-is-not-a-screen]]'s own test — does this role's arrival tell a person
+they are somewhere else? — was applied to four more roles, and the tolerance above the floor
+became a SHARE of the count rather than a number. Below seven that share rounds to one, so every
+small composition is compared exactly as before, which is where the four-versus-six-item worry
+lives. Nine recordings of three pages now become three Places.
+
+**`button` was in the layout set for a day and the suite caught it.** Its count does move with
+reflow, but two existing fixtures told screens apart by button count alone and began merging.
+Dropping a role a person can PRESS is a real loss of discrimination, and this file's own bar is
+that a false merge is worse than a false miss. The tolerance moved instead. The margin between
+"moves with reflow" (three) and "is a different page" (five) is one detection — thin, and the
+honest width of the gap the measurement found.
+
+**The fix would have made an existing store worse without one more change.** Under the new rule a
+fresh reading of Home matches all three Home records, and `Recall` answered `insufficient` for
+more than one match — refusing to recognise a page it had just correctly worked out it knows three
+times over. Records that are the same Place as EACH OTHER are now one Place written down twice,
+answered with the lowest id; records that match the reading and not each other are still
+ambiguous. That distinction needed the non-transitivity of tolerant matching to be taken
+seriously.
+
+**Stated normatively, because it is the easiest wrong inference available:** same Place after a
+resize does NOT mean the same live Stage evidence. A resize moves every control in the window,
+and a carried proof exists precisely to act without looking again. Both answers are true at once,
+and 35C is untouched.
+
+**Not done, and owed.** The existing duplicates are ALIASED, not merged — the store keeps its
+twelve subjects and twelve relationships, and migration needs its own design because it has to
+carry edges, names, targets, provenance and Plays. And no semantic name was ever captured for any
+of the twenty-one subjects in that store: automatic naming exists and produced nothing, so
+identity still rests on composition and terms alone. See
+[[ADR-091-a-place-is-not-its-presentation]].
