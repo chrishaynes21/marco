@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -57,14 +58,47 @@ func directorEnabled() bool {
 // The Director's own wording is used verbatim wherever it exists. Re-describing its result
 // here would mean maintaining a second vocabulary that could drift from the first.
 //
-// Deleting the CLARIFICATION_REQUIRED arm must fail TestAQuestionShowsInTheStatusLine.
+// # What it must never say is DIRECTOR
+//
+// The two lines this file writes itself used to read "director: open the settings" and
+// "director asked — answer it", and both of them land on the status line of an always-
+// visible window. A person who has learned one play is not required to know that this
+// product contains a thing called a Director, what it does, or why it is the one asking;
+// the word explains nothing to them and it is the whole of what those two lines taught.
+//
+// The register is pkg/playbill's, because that is where the product's own account of what
+// is happening already lives: MARCO HAS A QUESTION is the exact headline the Watch panel
+// and the always-visible hint show for the same state (pkg/playbill/narrate.go), so the
+// status line now agrees with the two surfaces beside it instead of naming a component.
+// The question itself is carried through when the engine sent one — "answer it" without
+// saying what is being asked is a demand, not information.
+//
+// Deleting the CLARIFICATION_REQUIRED arm must fail TestAQuestionShowsInTheStatusLine, and
+// putting a backstage word back on either line must fail
+// TestTheStatusLineNeverNamesTheDirector.
+// questionStatus is the ONE spelling of "Marco is waiting on you" on the status line.
+//
+// It is a constant because the wording is load-bearing twice: this file writes it, and
+// model.setStatus colours the panel by it — a question is the listening colour, never the
+// error colour, because nothing has gone wrong. Those two used to agree by both containing
+// the word "director", so rewording the line silently turned a question grey. A shared
+// constant is the only version of that agreement a compiler can keep.
+//
+// The words are pkg/playbill's headline for the same state, so the status line, the Watch
+// panel and the always-visible hint all say it the same way.
+const questionStatus = "Marco has a question"
+
 func directorStatusLine(line string) (string, bool) {
 	s := strings.TrimSpace(line)
 	switch {
 	case strings.HasPrefix(s, "heard: "):
-		return "director: " + strings.TrimPrefix(s, "heard: "), true
+		return "heard " + strconv.Quote(strings.TrimPrefix(s, "heard: ")), true
 	case strings.HasPrefix(s, "CLARIFICATION_REQUIRED"):
-		return "director asked — answer it", true
+		q := strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(s, "CLARIFICATION_REQUIRED"), ":"))
+		if q == "" {
+			return questionStatus + " — answer it", true
+		}
+		return questionStatus + " — " + q, true
 	case isProgressLine(s):
 		return s, true // "[3/5] iteration 3"
 	}

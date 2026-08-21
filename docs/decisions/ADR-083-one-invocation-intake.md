@@ -159,10 +159,10 @@ never has to be generous.
 - `plugins/overlay` — `TestTypedAndSpokenDifferOnlyBySource` (one argv, one flag apart),
   `TestTheSourceWordsAreTheEngines`, `TestATypedPhraseReachesTheIntake`,
   `TestOnlyTheOverlaysOwnVerbsStayLocal`, `TestControlWordsUseTheOneDefinition`,
-  `TestASpokenStopKillsTheChildImmediately`, `TestCancelAlsoStopsTheDirector`,
+  `TestASpokenStopReachesTheRunningPlayImmediately`, `TestCancelAlsoStopsTheDirector`,
   `TestResultPrefixAndVocabularyArePinned`, `TestTheSixOutcomesComeFromTheWire`,
-  `TestStreamChildReadsTheAnnouncedLines`, `TestTheTeachOfferNeedsBothHalves`,
-  `TestTheTeachOfferFiresOnlyWhenNothingTookIt`, `TestNoPlayMatchesPrefix`.
+  `TestStreamChildReadsTheAnnouncedLines`, `TestTheLearnOfferNeedsBothHalves`,
+  `TestTheLearnOfferFiresOnlyWhenNothingTookIt`, `TestNoPlayMatchesPrefix`.
 
 ## Related
 

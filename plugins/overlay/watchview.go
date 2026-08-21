@@ -173,7 +173,12 @@ func watchModeLabel(s snapshot) string {
 	if s.wmode == watchDeep {
 		return "diagnostics · mouse captured · Esc"
 	}
-	return "watch"
+	// HERE, not "watch". The control centre calls this same belief HERE, and one belief
+	// with two names is a thing a person has to learn twice — so the panel's own label,
+	// the word that opens it and the section in the browser are now one word. The old
+	// spelling still answers as an undocumented alias (commands.go), exactly as `teach`
+	// still answers for `learn`.
+	return cmdHere
 }
 
 // normalRow is the NORMAL reading as one line for the always-visible hint.

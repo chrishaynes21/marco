@@ -93,7 +93,7 @@ func TestOneStopReachesALocalPlayAndTheDirector(t *testing.T) {
 
 	var directorAsked bool
 	prev := stopWhatIsRunning
-	stopWhatIsRunning = func(bool) int { directorAsked = true; return exitOK }
+	stopWhatIsRunning = func(bool, bool) int { directorAsked = true; return exitOK }
 	t.Cleanup(func() { stopWhatIsRunning = prev })
 	noPendingQuestion(t)
 

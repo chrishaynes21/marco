@@ -653,7 +653,10 @@ func (r *Runtime) releaseLook() {
 // between a rehearsal and a performance stays where it always belonged: the AUTHORITY above the
 // walk, not the walk.
 //
-// Deleting the shared root, or its WithForeground, must fail TestEveryLiveWalkerChecksTheForeground.
+// Deleting the shared root, or its WithForeground call, must fail
+// TestEveryLiveWalkerChecksTheForeground; passing that call a nil answer — which switches the gate
+// off and passes every structural check — must fail
+// TestALiveWalkerRefusesWhenTheWindowIsNotInFront.
 func (r *Runtime) performer() (*rehearse.Live, error) {
 	live, err := r.walker(true)
 	if err != nil {
@@ -688,7 +691,13 @@ func placeWordsIn(top observe.Topology, subject string) string {
 // Never history as a substitute for current Stage truth. The caller foregrounds the application
 // first precisely so that "what is in front" is the right question to ask here.
 //
-// Deleting the live branch must fail TestAColdProcessFindsItsWindowOnTheDesktop.
+// Deleting the live branch must fail TestTheWindowComesFromTheDesktopNotAPreviousSession, which
+// seeds BOTH answers at once and requires the desktop to win.
+//
+// It used to name TestAColdProcessFindsItsWindowOnTheDesktop. That claim was measured and is
+// false: a COLD fixture has no finished session, so with the live branch gone it falls through to
+// an empty history and refuses for the same reason it always did — the test cannot tell the two
+// apart. A wiring test has to seed the losing answer as well as the winning one.
 func (r *Runtime) performSelector(ctx context.Context, application string) windowref.Selector {
 	if c, err := r.foregroundCandidate(ctx); err == nil {
 		if strings.EqualFold(c.Application, application) {

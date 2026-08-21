@@ -68,7 +68,7 @@ about what is KNOWN, enacted only through a saved play's resolve â†’ authorize â
 - `TestAMultiLegDemonstrationDecomposesIntoReusableEdges`
   (`internal/director/observesession/goalwiring_test.go`)
 - `TestAnUnrecognisableStartStillWatches`, `TestARouteFromSomewhereElseIsStillLearned`,
-  `TestTeachingRecordsTheDestinationAsAGoal` (`internal/director/learn/learn_test.go`)
+  `TestLearningRecordsTheDestinationAsAGoal` (`internal/director/learn/learn_test.go`)
 - `TestReachPlansOverTheVerifiedEdgeFromWhereThePersonStands`,
   `TestAKnownGoalWithoutARehearsedRouteRefusesHonestly`
   (`cmd/director/reachwiring_test.go`)

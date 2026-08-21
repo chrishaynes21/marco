@@ -132,7 +132,7 @@ Passive observation is unchanged and still persists nothing.
 ## Enforced by
 
 - `internal/director/observesession/establishwiring_test.go` —
-  `TestTeachingEstablishesTheStartThroughTheProductionPath` (deleting the call site from `Run`
+  `TestLearningEstablishesTheStartThroughTheProductionPath` (deleting the call site from `Run`
   fails it) and `TestAnOrdinarySessionEstablishesNoPlace` (deleting the licence check fails it).
   `TestATaughtRouteBecomesDurableWithoutASemanticAnswer` runs two passes over one file and gets
   two places and a durable route with nobody answering anything;
@@ -145,14 +145,48 @@ Passive observation is unchanged and still persists nothing.
   `TestAPlaceIsStoredUnderTheSignatureRecallWillUse`: the signature a place is stored under is the
   one `PlaceNow` looks it up by.
 - `cmd/director/establishwiring_test.go` —
-  `TestTeachEstablishesItsStartWithNoSemanticAnswer` drives the real coordinator over the real
+  `TestLearnEstablishesItsStartWithNoSemanticAnswer` drives the real coordinator over the real
   runner and store and requires `ready_for_demo` with no answers;
-  `TestATeachPassDeclaresTheLicenceToEstablishAPlace` and
+  `TestALearnPassDeclaresTheLicenceToEstablishAPlace` and
   `TestAnOrdinarySessionNeverDeclaresTheLicence` hold the two halves of the licence;
-  `TestTeachingEstablishesTheStartThroughTheProductionRegistry` holds the store wiring.
+  `TestLearningEstablishesTheStartThroughTheProductionRegistry` holds the store wiring.
+
+## Amendment, 2026-08-20 — there is a second establishment licence, and it is not the Episode
+
+**The decision above is unchanged.** This amendment records a capability the *Enforced by* section
+does not cover, found while tracing OBSERVE readiness at the close of Roadmap 34F.
+
+Every test named above is about the **session** path: `Episode.EstablishPlaces`, set at exactly one
+site, checked by the runner before it calls `EstablishPlace`. That is still true, and
+`TestAnOrdinarySessionEstablishesNoPlace` still holds it.
+
+But a place can also become durable **without any session licence at all**:
+`cmd/director/sightplace.go:613 rememberHere` — the Audience typing a name into the HERE panel
+during Light Mode — calls `store.EstablishPlace` directly at `:634`, bypassing the runner and
+therefore bypassing the check.
+
+This is **defensible, and arguably a stronger licence than Learn's**: a person looked at a screen
+and typed what it is called, which is the purest form of the human semantic event this ADR exists
+to require. It is consistent with the decision. It is simply not written down, and the comment at
+`cmd/director/learnsessionwiring.go:70` — *"THE one place `EstablishPlaces` is ever set true"* — is
+true about the **flag** while being misleading about the **capability**, which is exactly the kind
+of sentence a future reader trusts.
+
+**Consequence for Roadmap 35A.** On a fresh install nothing is Established, and
+`internal/director/observe/relationship.go:466` refuses a durable edge unless **both** endpoints
+recall as `Established`. So `rememberHere` is currently the *only* non-Learn bootstrap for the
+ambient learning loop — one button in one panel. Whether that stays the only one is a 35A policy
+decision that needs its own ADR; the options are set out in [[34F-observe-readiness]] §3 Q3. Do not
+resolve it by widening `EstablishPlaces`, which would make durable storage grow with observation
+time rather than with human semantic events — the thing this ADR decided against.
+
+**Not enforced by a test.** No test today asserts that `rememberHere` is the second licence, or
+that it is the only other one. Naming that gap is the point of this amendment; closing it belongs
+with the 35A ADR.
 
 ## Related
 
+[[34F-observe-readiness]] ·
 [[ADR-043-teaching-is-two-passes-not-a-new-capture]] ·
 [[ADR-044-a-teach-attempt-is-one-episode]] ·
 [[ADR-016-cross-session-identity-is-structural-and-conservative]] ·

@@ -85,7 +85,7 @@ func dispatch(h *model, req request) response {
 	case "Show":
 		h.show(true)
 		bootHintOnce.Do(func() { // one-time nudge toward the web control center
-			h.log("tip: type  ui  for the visual editor — plays · bindings · config · help")
+			h.log("tip: type  plays  to see what Marco can do, or  ui  for the control centre")
 		})
 		return okData(nil)
 	case "Hide":
@@ -133,6 +133,17 @@ func dispatch(h *model, req request) response {
 			writeVoicePhrase(name)
 			return okData(nil)
 		}
+		// IS THIS ONE OF THE OVERLAY'S OWN WORDS? Asked ONCE, of the one table
+		// (commands.go), and the answer is what every arm below tests against. Asking word
+		// by word is how this chain came to disagree with the two other places the same
+		// vocabulary was written down.
+		//
+		// A yes here does not say which arm handles it — `bind`, `forget` and the rest are
+		// answered further down by overlayVerb, which adds the arity rules. It says only
+		// that these words are instructions ABOUT Marco and must not be read as desktop
+		// intent: `forget my play` sent to the intake is Director hunting the screen for
+		// something to forget.
+		local, isLocal := overlayCommand(fields)
 		// Voice-listening toggle (the overlay's mic config): "voice on|off|toggle", or the
 		// natural aliases "mute"/"unmute" and "stop listening"/"listen". setVoice mirrors it to
 		// the settings panel and persists it. Typed commands are never gated, so you can always
@@ -153,8 +164,8 @@ func dispatch(h *model, req request) response {
 		// learning: subsequent typed or spoken phrases ("click this", "type …", "wait
 		// for this screen", "done") build the route. Same path whether you type each
 		// phrase or speak it.
-		if len(fields) >= 3 && (fields[0] == "narrate" || fields[0] == "voice") &&
-			(fields[1] == "learn" || fields[1] == "teach") {
+		if len(fields) >= 3 && isLocal && (local.Word == cmdNarrate || local.Word == cmdVoice) &&
+			isWord(fields[1], cmdLearn) {
 			vname := strings.TrimSpace(strings.Join(fields[2:], " "))
 			mlogI("overlay: narrate-learn starting", "name", vname)
 			voiceActive.Store(true) // set before spawning so no early phrase leaks to Run
@@ -173,7 +184,7 @@ func dispatch(h *model, req request) response {
 			return okData(nil)
 		}
 		// "exit" / "quit" closes the overlay (the window quit also stops serve).
-		if len(fields) == 1 && (fields[0] == "exit" || fields[0] == "quit") {
+		if len(fields) == 1 && isLocal && local.Word == cmdExit {
 			mlogI("overlay: quit requested")
 			h.setStatus("bye")
 			h.requestQuit()
@@ -187,7 +198,7 @@ func dispatch(h *model, req request) response {
 		// what they have been typing. TEACH is reserved for Marco guiding a person.
 		//
 		// Deleting the alias must fail TestTheLearnWordAnswersToItsOldName.
-		if len(fields) >= 1 && (fields[0] == "learn" || fields[0] == "teach") {
+		if isLocal && local.Word == cmdLearn {
 			tname := strings.TrimSpace(strings.Join(fields[1:], " "))
 			if tname == "" {
 				h.setStatus("learn needs a name — `m learn <name>")
@@ -196,12 +207,28 @@ func dispatch(h *model, req request) response {
 			startLearn(h, tname)
 			return okData(nil)
 		}
-		// "ui" (or bare "edit") opens the control center on the all-routes browser; "edit
-		// <name>" opens it on that route's editor. It runs its own local web server, so launch
-		// it detached rather than streaming it like a route — the HUD just notes it opened.
-		if fields[0] == "ui" || fields[0] == "edit" {
-			ename := strings.TrimSpace(strings.Join(fields[1:], " ")) // "" for the browser
-			startEdit(h, ename)
+		// `ui` TAKES A VIEW AND `edit` TAKES A PLAY, and conflating them was a bug a person
+		// met on their first guess.
+		//
+		// Both words used to land on `marco edit "<argument>"`, so `ui plays` — the most
+		// obvious thing to type, and the word the product now uses for what that view lists
+		// — answered: No play named "plays". The overlay then logged that it had opened in
+		// the browser anyway, because the claim was made at spawn time. Two wrong answers to
+		// one request, and the second one hid the first.
+		//
+		// The overlay does NOT keep a list of view names. `marco ui <view>` owns that
+		// vocabulary (cmd/marco/edit.go, uiView) and it is still growing; a copy here would
+		// be a fourth list to drift, and it would refuse views that exist. What the overlay
+		// owns is which ARGUMENT SPACE the word names, and that is all this decides.
+		//
+		// Deleting the split must fail TestUiOpensAViewAndEditOpensAPlay.
+		if isLocal && (local.Word == cmdUI || local.Word == cmdEdit) {
+			arg := strings.TrimSpace(strings.Join(fields[1:], " ")) // "" = the default view
+			if local.Word == cmdUI {
+				startUI(h, arg)
+			} else {
+				startEdit(h, arg)
+			}
 			return okData(nil)
 		}
 		// THE OVERLAY'S OWN VERBS, and nothing else, stay here. bind / unbind / press /
@@ -353,18 +380,22 @@ func startEdit(h *model, name string) {
 	// No name → open the control center on the all-routes browser (marco ui); a name opens it
 	// on that route's editor (marco edit <name>).
 	if name != "" {
-		launchUI(h, []string{"edit", name}, `editing "`+name+`"`)
+		launchUI(h, []string{"edit", name}, `the editor for "`+name+`"`)
 		return
 	}
-	launchUI(h, []string{"ui"}, "control center")
+	launchUI(h, []string{"ui"}, "the control centre")
 }
 
-// startUI opens the control center on a specific tab (help/routes/bindings/config), e.g. the
-// help command opens the Help view in the browser instead of an in-HUD panel.
+// startUI opens the control centre, on a named view when one was asked for.
+//
+// The view name is passed THROUGH, unexamined. `marco ui <view>` owns which views exist
+// (cmd/marco/edit.go, uiView) and that list is still growing; a copy of it here would be a
+// fourth place the product writes its vocabulary down, and it would start refusing views
+// that exist the first time one was added on the other side.
 func startUI(h *model, view string) {
-	args, note := []string{"ui"}, "control center"
+	args, note := []string{"ui"}, "the control centre"
 	if view != "" {
-		args, note = append(args, view), view
+		args, note = append(args, view), "the control centre — "+view
 	}
 	launchUI(h, args, note)
 }
@@ -386,6 +417,23 @@ func startUI(h *model, view string) {
 // this one had been missed because it is spawned by a different function from the other three.
 //
 // Deleting the environment must fail TestTheControlCentreIsSpawnedUnderTheHookGuard.
+// startUIChild starts the control centre, and is a package variable for the same reason
+// spawnIntakeChild is one: WHAT the overlay asked to be opened has to be checkable without a
+// marco binary present, and on this surface a real marco performs real input.
+//
+// Production never reassigns it. The environment is already on the command by the time this
+// is called, so a test that swaps it still sees exactly what production built — which is the
+// only version of the claim that would have caught the missing hook guard.
+var startUIChild = func(cmd *exec.Cmd) error { return cmd.Start() }
+
+// uiStartupWindow is how long the control centre gets to prove it is alive.
+//
+// It has to outlast the ordinary failures — a missing play, a bad argument, no marco on the
+// PATH — which are all decided in milliseconds, and stay short enough that somebody who
+// pressed Enter is still watching the line when it answers. A var only so a test need not
+// wait in real time; production never sets it.
+var uiStartupWindow = 1500 * time.Millisecond
+
 func launchUI(h *model, args []string, note string) {
 	editMu.Lock()
 	if editCmd != nil && editCmd.Process != nil {
@@ -393,17 +441,44 @@ func launchUI(h *model, args []string, note string) {
 	}
 	cmd := exec.Command(marcoBin(), args...)
 	cmd.Env = append(os.Environ(), "MARCO_NO_PANIC_STOP=1")
-	if err := cmd.Start(); err != nil {
+	if err := startUIChild(cmd); err != nil {
 		editMu.Unlock()
 		mlogE("overlay: ui failed to start", "err", err)
-		h.log("ui failed to open")
+		h.log("could not open " + note)
 		return
 	}
 	editCmd = cmd
 	editMu.Unlock()
 	mlogI("overlay: ui", "args", strings.Join(args, " "))
-	h.log(note + " — opened in your browser")
-	go func() { _ = cmd.Wait() }() // reap when the user closes it
+	h.log("opening " + note + "…")
+
+	// SUCCESS IS REPORTED WHEN IT IS KNOWN, AND NOT BEFORE.
+	//
+	// This said "opened in your browser" immediately after Start(), which reports only that
+	// a process was created. Every real failure happens after that: `marco ui nonsense`,
+	// `marco edit <a play that does not exist>` (exit 1 with a message the person never
+	// sees, because it goes to the child's stderr), a port that will not bind. The HUD
+	// cheerfully claimed the browser had opened in all three cases, so the surface whose
+	// whole job is to say what is happening was the one thing lying about it.
+	//
+	// A local web server that is still running after the startup window IS the success
+	// condition — there is nothing else to wait for, and the overlay cannot see the
+	// browser. An exit inside the window is a failure and says so; an exit after it is the
+	// person closing the control centre, which is not news.
+	//
+	// Deleting this must fail TestTheHudDoesNotClaimTheBrowserOpened.
+	go func() {
+		done := make(chan error, 1)
+		go func() { done <- cmd.Wait() }() // reap either way, so it cannot linger as a zombie
+		select {
+		case err := <-done:
+			mlogW2("overlay: the control centre stopped before it was up", "err", err, "args", args)
+			h.log("could not open " + note)
+		case <-time.After(uiStartupWindow):
+			h.log(note + " — open in your browser")
+			<-done // still reaped; the person closes it in their own time
+		}
+	}()
 }
 
 // runs is every marco child the overlay currently has in flight, and whether a stop has
@@ -928,6 +1003,61 @@ func runRecordTracked(h *model, name string, track bool, args ...string) childRu
 	return r
 }
 
+// inConfig is true while the settings editor owns the keyboard.
+//
+// Declared here rather than beside the hook that reads it, for the same reason `recording`
+// below is: the key capture underneath the settings editor is Windows-only, but the thing
+// that OPENS it is not — a person types `m config on any platform the HUD draws on.
+var inConfig atomic.Bool
+
+// openPanel shows the panel a word asked for.
+//
+// # Why the controller does not do this itself
+//
+// It did, and that switch was one of the three places the HUD wrote its own vocabulary
+// down (see commands.go). Splitting the decision from the doing leaves the controller with
+// one question — "is this a panel word" — answered by the table, and puts the doing here,
+// where a test can reach it: controller_windows.go is Windows-only and its switch runs on a
+// goroutine fed by a low-level keyboard hook.
+//
+// # Why it is synchronous even though the listing shells out
+//
+// panelPlays asks the engine what plays exist, which is two short `marco` reads. This runs
+// on the action-processor goroutine, never the hook thread (CLAUDE.md), and the only thing
+// queued behind it is whatever the person types NEXT — they have just pressed Enter. The
+// alternative, a goroutine per panel, would make "the word opened the panel" a race in
+// every test that checks it.
+//
+// Deleting an arm here must fail TestEveryPanelWordOpensItsPanel.
+func openPanel(h *model, k panelKind) {
+	switch k {
+	case panelHelpBrowser:
+		// The FULL manual, in the browser. Deliberately not the same thing as the in-HUD
+		// listing: one is a reference you sit and read, the other is a glance you take
+		// without leaving the application you are in.
+		startUI(h, "help")
+	case panelConfig:
+		inConfig.Store(true)
+		h.openConfig(configLines())
+	case panelHere:
+		// HERE: what Marco sees, believes, is learning and needs. Click-through, because a
+		// person is meant to keep using another application while it is up.
+		h.openWatch()
+	case panelPlays:
+		// The in-HUD answer to "what can I do", generated from the table and grouped by
+		// where each play applies. See commandListing.
+		h.showHelp(commandListing())
+	case panelDiagnostics:
+		// The evidence underneath what Here said, and the one mode that captures the
+		// mouse. Entered by name, never implicitly, and Esc releases it.
+		h.openDiagnostics()
+	case panelPerception:
+		// The frozen per-element sample. Its own word because it is expensive, it is a
+		// point in time rather than a live view, and it answers a narrower question.
+		refreshInsightDeep(h)
+	}
+}
+
 // recording is true while a demonstration learn child is running. The keyboard hook
 // reads it to pass every key through to the recorder (and the app) — so the leader
 // key reaches the recorder's stop detection and ends the demo, instead of opening
@@ -998,69 +1128,16 @@ func runMarco(h *model, args ...string) childRun {
 	return streamChild(h, true, args...)
 }
 
-// helpLines builds the help menu: the leader keys plus the known plays.
-func helpLines() []string {
-	lines := []string{
-		"`m then type:",
-		"  <play>             run it",
-		"  learn <name>       record a new one (leader to save)",
-		"  ui                 visual editor: plays · bindings · config · help",
-		"  edit <play>        edit one play in the browser",
-		"  simplify <play>    re-clean its steps",
-		"  rename <old> to <new>  rename it",
-		"  forget <play>      delete it",
-		"  bind <key> <play>  hotkey it for this app",
-		"  voice on|off / config / help / exit",
-		"`<key>  run the play bound to it   Esc  cancel",
-		"",
-	}
-	// Three groups, matching the route folders: CONTEXT (this app, in-place), FOCUS
-	// (an app's command you run from anywhere — it switches to that app), and GLOBAL
-	// (app-less). Other apps' context routes aren't runnable here, so they're omitted.
-	app := activeApp()
-	var context, focus, global []routeInfo
-	for _, r := range listRoutesFull() {
-		switch r.Scope {
-		case "global":
-			global = append(global, r)
-		case "focus":
-			focus = append(focus, r) // any app's focus is reachable from here
-		case "context":
-			if strings.EqualFold(r.App, app) {
-				context = append(context, r)
-			}
-		}
-	}
-	addGroup := func(title string, rs []routeInfo, tagApp bool) {
-		lines = append(lines, title)
-		if len(rs) == 0 {
-			lines = append(lines, "  (none)")
-			return
-		}
-		for i, r := range rs {
-			if i >= 6 {
-				lines = append(lines, "  …")
-				break
-			}
-			label := r.Name
-			if tagApp && !strings.EqualFold(r.App, app) {
-				label += " (" + r.App + ")"
-			}
-			lines = append(lines, "  "+label)
-		}
-	}
-	if len(context)+len(focus)+len(global) == 0 {
-		lines = append(lines, "plays: (none yet — `m learn <name>)")
-		return lines
-	}
-	if app != "" {
-		addGroup("context — only in "+app+":", context, false)
-	}
-	addGroup("focus — switch to the app:", focus, true)
-	addGroup("global — anywhere:", global, false)
-	return lines
-}
-
+// The hand-written help menu that used to live here is gone, and its replacement is
+// commandListing() in commands.go.
+//
+// It had had NO CALLER for as long as the history shows: `helpOn` was never set true, so
+// three render branches in view.go were unreachable and the only in-product listing of what
+// Marco can do could not be reached at all. It also spelled the command words out as prose,
+// which is how the HUD came to accept four words it never highlighted — nothing could check
+// a paragraph against a switch statement. The listing is now generated from the one table
+// every site reads, and the word `plays` opens it.
+//
 // activeApp runs `marco active` and returns the foreground app name.
 func activeApp() string {
 	out, err := exec.Command(marcoBin(), "active").Output()

@@ -377,9 +377,15 @@ func TestAQuestionShowsInTheStatusLine(t *testing.T) {
 	if got := h.snapshot().state; got != "listen" {
 		t.Errorf("a question is Marco waiting on you, not an error; state = %q", got)
 	}
-	if st, ok := directorStatusLine("CLARIFICATION_REQUIRED: which one?"); !ok ||
-		!strings.Contains(st, "answer it") {
+	// The status must SAY there is a question, in the product's own words, and say what is
+	// being asked. "Answer it" without the question is a demand rather than information,
+	// and this used to read "director asked — answer it", which is both.
+	st, ok := directorStatusLine("CLARIFICATION_REQUIRED: which one?")
+	if !ok || !strings.HasPrefix(st, questionStatus) {
 		t.Errorf("a question must say so in the status: %q (recognised=%v)", st, ok)
+	}
+	if !strings.Contains(st, "which one?") {
+		t.Errorf("the status did not say what was being asked: %q", st)
 	}
 	// And an ordinary play's log lines must NOT churn the status bar.
 	if st, ok := directorStatusLine("[find] button 'OK' score 0.91"); ok {

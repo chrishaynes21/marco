@@ -12,6 +12,39 @@ func TestTheWireLineIsOneSharedLiteral(t *testing.T) {
 		t.Fatalf("the wire prefix changed to %q — plugins/overlay and cmd/marco/edit.go match this "+
 			"literal and ship as separate modules, so nothing else would notice", ResultPrefix)
 	}
+	// RoutePrefix was named by this test's comment and NOT checked by it — found by an
+	// independent mutation gate, which changed it to "[play] " and watched the whole tree stay
+	// green. A claim that names a test is only worth what the test actually asserts, and this
+	// one asserted half of what it said.
+	if RoutePrefix != "[route] " {
+		t.Fatalf("the route prefix changed to %q. plugins/overlay reads this to learn WHICH play "+
+			"a loose phrase became; when it stops matching, the HUD quietly loses the play name "+
+			"and its unknown-command offer to learn misfires", RoutePrefix)
+	}
+}
+
+// TestBothWireLinesReadBackWhatTheyWrote — the two prefixes must not be able to shadow each
+// other. A route line is not a result and a result line is not a route, and each reader is fed
+// every line the child prints.
+func TestBothWireLinesReadBackWhatTheyWrote(t *testing.T) {
+	if _, ok := FromLine(Line(Performed)); !ok {
+		t.Fatal("a result line did not read back as a result")
+	}
+	if _, ok := RouteFromLine(Line(Performed)); ok {
+		t.Fatal("a RESULT line was read as a route — the two prefixes overlap")
+	}
+	name, ok := RouteFromLine(RoutePrefix + "open the test")
+	if !ok || name != "open the test" {
+		t.Fatalf("a route line read back as %q (ok=%v)", name, ok)
+	}
+	if _, ok := FromLine(RoutePrefix + "open the test"); ok {
+		t.Fatal("a ROUTE line was read as an outcome")
+	}
+	// And an empty name is not a route. A bare prefix says nothing, and reporting "" as the
+	// play a phrase resolved to would render a blank where the name belongs.
+	if _, ok := RouteFromLine(RoutePrefix + "   "); ok {
+		t.Fatal("a route line naming nothing was accepted")
+	}
 }
 
 // TestEveryOutcomeSurvivesTheWire — announce it, read it back, get the same word. This is the

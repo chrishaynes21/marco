@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 )
@@ -160,5 +161,92 @@ func TestRaiseLeavesNoTemporaryFilesBehind(t *testing.T) {
 			names = append(names, e.Name())
 		}
 		t.Fatalf("raising a stop left %v behind; want only %q", names, FileName)
+	}
+}
+
+// ── the baseline is read before Watch does anything else ─────────────────────
+
+// raisingParent is a parent context that raises a stop the first time Watch consults it.
+//
+// # Why the parent, of all things
+//
+// The window this is about is microseconds wide: between a Play starting and its watcher's first
+// look at the generation file. Racing a real `Raise` against it from the test's own goroutine
+// measures the Go scheduler, not the code — the raise loses nearly every time, which is exactly
+// why moving the baseline into the goroutine survived an independent mutation run with the whole
+// package green.
+//
+// So the stop is raised from INSIDE Watch instead, at a moment Watch itself chooses.
+// `context.WithCancel(parent)` consults its parent synchronously — `Done`, then `Value` — and
+// that call sits after the baseline read and before the goroutine exists. Hooking it puts the
+// stop in the window deterministically, with no timing assumption anywhere in the test.
+type raisingParent struct {
+	context.Context
+	home string
+	once sync.Once
+	// err is whatever the raise reported, checked by the test rather than swallowed here.
+	err error
+	// hit records that Watch really did consult its parent; without it a Watch that stopped
+	// doing so would make this test pass by never raising anything at all.
+	hit bool
+}
+
+func (p *raisingParent) raise() {
+	p.once.Do(func() {
+		p.hit = true
+		p.err = Raise(p.home)
+	})
+}
+
+func (p *raisingParent) Done() <-chan struct{} {
+	p.raise()
+	return p.Context.Done()
+}
+
+func (p *raisingParent) Value(key any) any {
+	p.raise()
+	return p.Context.Value(key)
+}
+
+// A stop raised while Watch was still setting up is HEARD, not adopted as the baseline.
+//
+// # The defect this exists to catch, and what it feels like
+//
+// Move `base := Generation(home)` inside Watch's goroutine and the package stays green. The
+// package comment explains at length why it must not be there: a stop raised in the window
+// between starting a Play and the goroutine's first read is then read AS the baseline, the
+// watcher waits for a generation larger than the one that was meant to stop it, and the Play runs
+// on. That window is exactly the one a person creates when they change their mind immediately —
+// they start something, see it is wrong, and say stop at once — and the failure is silent: the
+// stop file is written, `marco stop` reports nothing wrong, and the Play keeps typing.
+//
+// Nothing held it. The existing tests all wait 20ms or more before raising, by which time the
+// goroutine has long since taken its baseline either way.
+func TestAStopRaisedWhileWatchWasStartingIsStillHeard(t *testing.T) {
+	home := t.TempDir()
+	parent := &raisingParent{Context: context.Background(), home: home}
+
+	ctx, release := watch(parent, home, time.Millisecond)
+	defer release()
+
+	if !parent.hit {
+		t.Fatal("Watch never consulted its parent context, so this test had no way to " +
+			"place a stop inside it and is not measuring anything")
+	}
+	if parent.err != nil {
+		t.Fatalf("raising the stop: %v", parent.err)
+	}
+	if Generation(home) == 0 {
+		t.Fatal("the stop was never written, so there is nothing for the watcher to hear")
+	}
+
+	select {
+	case <-ctx.Done():
+	case <-time.After(2 * time.Second):
+		t.Fatal("a stop raised while Watch was still setting up was never heard.\n" +
+			"The baseline was taken after it — inside the goroutine, or otherwise not " +
+			"first — so the watcher adopted the stop that was meant for this Play as " +
+			"the number it waits to exceed, and the Play runs on with nothing on any " +
+			"surface saying why.")
 	}
 }

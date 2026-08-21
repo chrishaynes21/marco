@@ -32,3 +32,49 @@ jobs:
       # both preinstalled on ubuntu-latest.
       - name: Test (race)
         run: go test ./... -race -count=1
+
+  # The overlay is a SEPARATE Go module, and `go test ./...` in the repo root does not
+  # reach it. Nothing here ran it until now: ADR-087's three "Enforced by" tests, the whole
+  # HUD vocabulary suite and every six-outcome rendering check were held by a command that
+  # only ever ran on a developer's own machine, by hand.
+  #
+  # What this job DOES NOT cover, and it matters: `controller_windows.go` — the low-level
+  # keyboard and mouse hooks — is behind a Windows build tag, as are the recorder and the
+  # rest of the platform layer. On ubuntu the stub side compiles instead. So this job holds
+  # the overlay's LOGIC (outcome vocabulary, HUD rendering, intake, watch panel) and says
+  # nothing at all about the hook code, which remains covered only by running the suite on
+  # Windows.
+  #
+  # The vet step has the same blind spot and it is not theoretical: `go vet` on Windows
+  # already reports a standing "possible misuse of unsafe.Pointer" in controller_windows.go,
+  # which predates this job and which no Linux runner will ever see.
+  overlay:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # Ebiten links glfw through cgo on Linux, so the X11 and GL headers are a build
+      # dependency of the module rather than of the tests. Windows needs none of this —
+      # Ebiten reaches the platform through purego there — which is why this is the one
+      # step that has no local equivalent.
+      - name: Ebiten's Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libc6-dev libglu1-mesa-dev libgl1-mesa-dev libxcursor-dev libxi-dev \
+            libxinerama-dev libxrandr-dev libxxf86vm-dev libasound2-dev pkg-config
+
+      - name: Build
+        run: go -C plugins/overlay build ./...
+
+      - name: Vet
+        run: go -C plugins/overlay vet ./...
+
+      - name: Test
+        run: go -C plugins/overlay test ./... -count=1

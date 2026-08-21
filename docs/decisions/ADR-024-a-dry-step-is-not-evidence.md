@@ -133,8 +133,8 @@ ever having tried it, which is the failure the whole rehearsal design exists to 
   can see.
 - `TestTheDryPathCannotReachAHostByItself`, `TestTheRecordingHostIsIncapableOfActing`,
   `TestTheLearningLayerCannotReachTheDryPath` — the import guarantees.
-- `TestADryStepIsNotEvidence`, `TestADryAttemptChangesNothingLearned`,
-  `TestADryStepClaimsNothing` — an artefact, not a result.
+- `TestAStepEmissionIsNotEvidence`, `TestAAttemptChangesNothingLearned`,
+  `TestAStepEmissionClaimsNothing` — an artefact, not a result.
 - `TestADryRehearsalProducesNoRealEffectOfAnyKind` — every call that reached the host was a
   navigation meaning, and no capability that touches a device, a window, a control or the
   clipboard was asked for.

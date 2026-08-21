@@ -165,7 +165,6 @@ const leaderTimeout = 2 * time.Second
 var (
 	editing   atomic.Bool // marco command line open
 	armed     atomic.Bool // backtick pressed, awaiting the command key
-	inConfig  atomic.Bool // config editor open
 	shiftDown atomic.Bool
 	leaderGen atomic.Int64 // cancels a stale disarm timer
 	actCh     = make(chan action, 256)
@@ -224,33 +223,26 @@ func processActions(h *model, emit func(event)) {
 		case actSubmit:
 			cmd := h.takeInput()
 			h.setEditing(false)
-			switch cmd {
-			case "":
+			// WHICH PANEL A WORD OPENS IS NOT DECIDED HERE ANY MORE.
+			//
+			// This switch used to carry its own list of spellings — help/?/h,
+			// config/cfg/settings, watch/director/insight … — and it was one of the three
+			// places the HUD wrote its vocabulary down. The three had already drifted:
+			// `ui`, `press`, `watch` and `voice` were accepted here and by acts.go while
+			// view.go, which decides whether a word reads as a command or as the name of a
+			// play, had never heard of them. Nothing failed to build, because agreement
+			// between three switch statements is not a thing a compiler can check.
+			//
+			// panelCommand (commands.go) is now the only answer to "is this a panel word,
+			// and which panel". openPanel is the only thing that opens one, and it lives in
+			// acts.go so it can be tested at all — this file is Windows-only and this switch
+			// runs on a goroutine fed by a low-level keyboard hook, neither of which has
+			// anything to do with the property worth checking.
+			switch panel, isPanel := panelCommand(cmd); {
+			case cmd == "":
 				h.dismiss()
-			case "help", "?", "h":
-				startUI(h, "help") // open the Help screen in the visual editor
-			case "config", "cfg", "settings":
-				inConfig.Store(true)
-				h.openConfig(configLines())
-			case "watch", "director", "insight":
-				// Opens the panel rather than submitting a phrase. "director" on its
-				// own is not something to DO to the screen, and sending it to the
-				// Director would make it hunt for a control called "director".
-				//
-				// WATCH: what Marco sees, believes, is learning and needs. Click-through,
-				// because a person is meant to keep using another application while it
-				// is up.
-				h.openWatch()
-			case "diagnostics", "diagnose", "inspector", "inspect":
-				// DIAGNOSTICS: the evidence underneath what Watch said, and the one mode
-				// that captures the mouse. Entered by name, never implicitly, and Esc
-				// releases it — see actCancel/actDismiss below.
-				h.openDiagnostics()
-			case "perception", "explain":
-				// The frozen per-element perception snapshot. Kept as its own word: it
-				// is expensive, it is a point-in-time sample rather than a live view,
-				// and it answers a narrower question than the playbill does.
-				refreshInsightDeep(h)
+			case isPanel:
+				openPanel(h, panel)
 			default:
 				h.setStatus("running: " + cmd)
 				emit(event{Feed: "Commands", Event: "Run", Data: cmd})
@@ -269,7 +261,7 @@ func processActions(h *model, emit func(event)) {
 			h.dismiss()
 		case actHelp:
 			h.setLeaderEcho("`" + string(a.r)) // show "`h" in the terminal
-			startUI(h, "help")                 // open the Help screen in the visual editor
+			openPanel(h, panelHelpBrowser)     // the same place the word `help` goes
 		case actCfgUp:
 			h.configMove(-1, configFieldCount)
 		case actCfgDown:

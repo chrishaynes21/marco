@@ -1,7 +1,7 @@
 ---
 type: reference
 status: active
-updated: 2026-08-19
+updated: 2026-08-20
 source_paths:
   - internal/routes
   - internal/orchestrator
@@ -29,6 +29,66 @@ line that decides it.
 Companion to [[34E-director-theater-audit]], which audited the *new* half. This one audits the
 *old* half, and it reaches the opposite conclusion about ownership: 34E found a subsystem that was
 built and never ran; 34F finds a product that runs and can no longer complete its own promise.
+
+---
+
+## 2026-08-20 — what has landed since this audit was written
+
+**This page is the record of what was true on 2026-08-19. Its body has not been rewritten, and it
+should not be.** Read it for the reasoning; read the three notes below for the current state.
+
+Phases 0–3 of §22 are **COMPLETE**. Phase 4 is **PARTIAL**. Phase 5 (the record — this banner and
+the three notes) is **PARTIAL**: the matrices are written, several of their line items are not.
+
+| what landed | where |
+|---|---|
+| **Phase 0** — Learn → runnable Play, cold, through the shared Perform walker into Theater | `810ea1d` |
+| **Phase 1** — PLAY is the product noun; `internal/plays` is the projection; staged versus registered told truthfully; FOCUS first class | `54af0c1` |
+| **Phase 2** — `internal/invoke.Decide` is the ONE semantic decision; `runInvocation` is the ONE performance entry; the acquisition rename ([[ADR-086-one-acquisition-one-word-one-request]]) | `fca45e0`, `fc1919d` |
+| **Phase 3** — `internal/stopsignal` carries ONE stop across processes; `finally` runs on cancellation; the second invocation spine (`orchestrator.Deps.Do/.Resolve/.Run`) is **deleted**; Learn rehearsals are cancellable and registry-visible; `marco`'s Screen host asks the Director which place is showing (protocol v9) | `ac8da6c`, [[ADR-087-one-stop-and-it-crosses-a-process-boundary]], [[ADR-088-cleanup-runs-when-the-audience-stops]] |
+| **Phase 4, partial** — `internal/outcome` is THE one outcome vocabulary across engine, HUD and control centre; the control centre reports **real** outcomes; Actor availability asks its provider and carries a reason; backstage words are off `pkg/playbill` and the Learn surfaces | `ac8da6c` |
+
+### All four headline breaks in §1 are closed
+
+| break | status |
+|---|---|
+| #1 nothing in any UI ever registers a play | **CLOSED.** `marco register`, `/api/register`, and a real button driven by `plays.Life` |
+| #2 a registered play's first line always refuses | **CLOSED, twice.** Phase 0 delegated a learned Play to the Director; Phase 3 then gave the *local* runner real eyes, which also fixed the hole nobody had noticed: an **edited** learned play loses provenance, takes the local path, and used to refuse at its own first line |
+| #3 the two halves read different memory | **CLOSED.** Both processes resolve `$MARCO_MEMORY` else `$MARCO_HOME/semantic-memory.json`, with paired tests. The *default derivation* is still written twice |
+| #4 the Theater has no actor in the shipped stack | **CLOSED.** The bridge is discovered without `$MARCO_UIA_BRIDGE` |
+
+### Findings on this page that are now STALE
+
+- §12 / §20 — "Edit is the landing tab", "'Saved. It is in the Routes tab.' is false by
+  construction", "nothing registers a play", and the typed-versus-spoken split: **all fixed.**
+- §18 — "Route, ~224 user-facing occurrences": **largely fixed.** The drawer says Plays, the
+  listing says plays, and `plays.KindWord` / `Life.Word` / `Scope.Word` own the wording.
+- §13 — `nlu.Resolve` still deciding which Play `marco simplify` rewrites: **fixed**, and it was
+  worse than the audit said — the overlay offers `simplify` as a command word with save-without-
+  prompt, so a fuzzy match could silently overwrite a different person's work.
+- §14 — "three independent stop intakes": **largely fixed**, and the audit did not see the
+  *fourth* domain (the Learn session), which was the one that mattered. A live rehearsal ran under
+  `context.Background()` and no product stop could reach it.
+- §5 — "`internal/orchestrator` teach loop … ADAPT": **amend.** The package split in two. The
+  Learn half is live and canonical; the invocation half was production-dead and is now deleted.
+- §21 — "Point `marco`'s Screen memory at `$MARCO_HOME`… needs adapter": **done**, and superseded
+  by the Director query.
+
+### Findings on this page that STAND, unactioned
+
+The CV/anchor default is still undecided (§1.5). `routes/os.marco` and the empty scope scaffold
+are still shipped. `/api/bind` still writes a binding with no validation. The overlay still keeps
+a private command history beside the playbill. There is still no Advanced surface anywhere in the
+control centre, which is why several genuinely developer-grade strings have nowhere to go.
+
+### Where the current state is written down
+
+- [[34F-duplication-matrix]] — canonical owner, remaining duplicates, and the second-Marco question
+  re-verified path by path.
+- [[34F-legacy-matrix]] — every system with one status, the compatibility table, and the
+  exhaustive CLI verb surface of both binaries.
+- [[34F-observe-readiness]] — the perception dependency graph, the three gating questions, the
+  cold-start bootstrap problem, and the privacy seam that must not be weakened.
 
 ---
 

@@ -72,7 +72,53 @@ func learnAPI(mux *http.ServeMux) {
 	mux.HandleFunc("/api/learn/unwatch", learnVerb(func(string) service.ObserveLearn {
 		return service.ObserveLearn{Unwatch: true}
 	}))
+	// THE ONE THING ON THIS SURFACE THAT STARTS ANYTHING. See handleWake.
+	mux.HandleFunc("/api/learn/wake", handleWake)
 }
+
+// handleWake starts the part of Marco that watches, because a person pressed a button saying so.
+//
+// # The gap this closes
+//
+// Every read on this surface connects with `directorConnect(false)` and every one of them is
+// right to. The reasoning is written out at cmd/marco/intake.go's `pendingQuestion`: a read that
+// silently paid for a service start would charge a twenty-second wait to somebody who only opened
+// a tab, and would do it on every command forever. That rule is not being relaxed here.
+//
+// But the consequence, until now, was that on a cold machine — and `overlay.cmd` does not start
+// the service, so a cold machine is the ordinary case — the Learn tab rendered an unavailable
+// state AND hid the Start Learning button behind it. The headline capability of the product was
+// unreachable from its own surface. The only path that ever started the service was the submit
+// path, which a person reaches by asking for something Marco does not know: you had to fail at
+// using Marco before you were allowed to show it anything.
+//
+// A PRESS IS NOT A READ. This is the person saying "start it", explicitly, once, and it is the
+// only handler in this file that may start a service. `directorReach` is the same door the intake
+// uses for a submitted phrase, retry and all.
+//
+// It answers with the STATE, like every other verb here, so the page renders whatever is true
+// afterwards — including "still not available", which is a real answer and not an error.
+//
+// Deleting this must fail TestANormalSurfaceCanStartTheServiceItDependsOn.
+func handleWake(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "post only", http.StatusMethodNotAllowed)
+		return
+	}
+	if c, err := wakeDirector(); err == nil {
+		c.Close()
+	}
+	// And then the ordinary read, which will connect without starting anything — by then there
+	// is either something to connect to or there is not, and that is what the page must show.
+	writeLearn(w, service.ObserveLearn{})
+}
+
+// wakeDirector is the start itself.
+//
+// A package variable for the same reason `submitPhrase` and `pendingQuestion` are: a test must be
+// able to press this button without a socket, a service, or any chance of starting the Director
+// on the developer.s own desktop. Production never reassigns it.
+var wakeDirector = func() (*service.Client, error) { return directorReach() }
 
 // handleLearnState is the read the panel polls.
 //
@@ -120,9 +166,21 @@ func writeLearn(w http.ResponseWriter, q service.ObserveLearn) {
 	if err != nil {
 		// Not an HTTP error: "the Director is not running" is a state the panel renders,
 		// not a failure of the page.
+		// THE SENTENCE IS THE ONE pkg/playbill ALREADY SAYS.
+		//
+		// It used to name the background service and report that the service was down — a process
+		// the Audience has no word for, and a fact about Marco rather than about them. What it means
+		// to the person is that Marco cannot see anything, and the playbill has said that well for a
+		// while: "I'm not watching anything right now." Matching the register rather than
+		// inventing a second way to say the same fact.
+		//
+		// The dial error stays in `detail`, which the page keeps for its Debug block: a person
+		// gets the sentence, and whoever is diagnosing still gets the socket.
+		//
+		// Deleting the plain wording must fail TestNoNormalSurfaceNamesTheBackstage.
 		writeLearnJSON(w, map[string]any{
 			"stage":     "unavailable",
-			"saying":    "Marco's Director is not running.",
+			"saying":    "I'm not watching anything right now.",
 			"detail":    []string{err.Error()},
 			"available": false,
 		})

@@ -152,8 +152,13 @@ func performLearned(d orchestrator.Deps, r orchestrator.Resolved,
 //	           the steps that did verify, because "it stopped at step 2 of 3" and "it never
 //	           started" are different facts and only one of them is progress.
 //
-// Deleting the per-step report, or widening the success test to "some step verified", must fail
-// TestAPartlyWalkedRouteIsNotASuccess.
+// Deleting the per-step report must fail TestAPartlyWalkedRouteIsNotASuccess.
+//
+// Widening the success test to "some step verified" must fail
+// TestArrivingWithAnUnverifiedStepIsNotASuccess, and ONLY that one. This comment used to name
+// the partly-walked test; an independent mutation run measured that claim and found it false —
+// that fixture sets Arrived:false AND Refusal:"step_unverified", so it is refused by the two
+// other clauses and never reaches this count at all.
 func renderPerform(out io.Writer, phrase string, v service.PerformView) error {
 	verified := 0
 	for i, s := range v.Steps {

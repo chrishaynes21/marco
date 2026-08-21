@@ -124,7 +124,7 @@ ended somewhere else records as `unverified`, never `completed` —
   itself, so a stopped walk is not filed as a failure.
 - `internal/director/service` — `TestADirectorThatCannotPerformRefusesInsteadOfObserving`: the
   `Performer` assertion refuses honestly rather than falling through to the observation path.
-- `cmd/director` — `TestNothingInAPerformanceInventsItsOwnContext`: the mutation gate for the
+- `cmd/director` — `TestNothingThatCanReachTheWalkerInventsItsOwnContext`: the mutation gate for the
   original defect — any `context.Background()` reintroduced under a performance fails it.
 - `cmd/director` — `TestStoppingBetweenEdgesEndsTheWalk` and
   `TestAStoppedPerformanceNeverForegroundsAnything`: the context actually reaches the walker, and a

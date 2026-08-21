@@ -82,7 +82,7 @@ type-allowlist tests it required widening.
   with the one named exception
 - `TestAClickDemonstrationBecomesAnAimableCandidate`
   (`internal/director/observesession/goalwiring_test.go`)
-- `TestADemonstratedClickRehearsesAsAnInvocation`, `TestAnUnresolvableClickEmitsNothing`
+- `TestADemonstratedClickRehearsesAsAProduction`, `TestAnUnproducibleClickEmitsNothing`
   (`internal/director/rehearse/route_test.go`)
 
 ## Related

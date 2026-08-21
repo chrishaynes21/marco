@@ -43,10 +43,18 @@ import (
 // `[route] ` answers "what did these words become", `[result] ` answers "what happened to
 // it". The learn offer needs both facts and cannot be derived from either alone.
 //
-// This one is still a hand-matched literal, and it is the last of them. Its producer is
-// cmd/marco/intake.go in the ROOT module, so nothing links the two at compile time.
-// Changing it must fail TestTheRoutePrefixIsStillPinnedByHand.
-// routePrefix is the engine's other wire line, from the ONE place it is written down.
+// It is the engine's constant itself, not a copy of it, and that is the whole of what this
+// line does — a compiler now owns the agreement between the HUD and [outcome]. The comment
+// that used to stand here said the opposite ("still a hand-matched literal … nothing links
+// the two at compile time") directly above the line that links them; it described the file
+// as it was before internal/outcome existed. Asserting the VALUE cannot tell the two
+// arrangements apart, so the link is held structurally by
+// TestTheRoutePrefixIsTheEnginesConstantItself.
+//
+// What is STILL hand-matched is the PRODUCER: cmd/marco/intake.go prints the tag with a
+// literal format string, in the root module, where nothing compares it to anything.
+// TestTheRoutePrefixIsStillPinnedByHand reads that source across the boundary and is the
+// only defence there is.
 const routePrefix = outcome.RoutePrefix
 
 // childRun is everything one spawned marco child reported about one invocation.

@@ -15,7 +15,10 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/chaynes-simpleclouds/marco/internal/director/marcoexec"
+	"github.com/chaynes-simpleclouds/marco/internal/driver"
 	"github.com/chaynes-simpleclouds/marco/internal/invoke"
+	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
 	"github.com/chaynes-simpleclouds/marco/internal/plays"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
 )
@@ -42,12 +45,37 @@ var faviconPNG []byte
 // lists is now PLAY, so `marco ui plays` has to reach the same place — otherwise the tab a person
 // can see says one thing and the only argument that opens it says another.
 //
+// `settings` and `config` are the same pairing, made for the same reason: the tab a person reads
+// is called Settings now, and the DOM id and the argument that has always worked stay `config`.
+//
+// # EVERY VIEW THE PAGE HAS IS NAMEABLE HERE
+//
+// This used to accept five of them, and `learn` was not among the five — so the one capability the
+// product is named for had no deep link at all. The overlay could not open it, `marco ui learn`
+// silently landed on the Plays browser, and the only way in was to open the control centre and go
+// looking for the tab. A view a person can see and cannot be SENT to is a view the rest of the
+// product cannot point at.
+//
+// So the rule is structural rather than a list somebody remembers to extend:
+// TestEveryViewInTheControlCentreCanBeOpenedByName reads the sections `editPage` actually renders
+// and fails if one of them cannot be named here.
+//
 // Deleting the "plays" arm must fail TestMarcoUiPlaysOpensThePlaysView.
 func uiView(args []string) string {
 	switch v := strings.ToLower(strings.TrimSpace(strings.Join(args, " "))); v {
 	case "plays":
 		return "routes"
-	case "help", "routes", "bindings", "config", "edit":
+	case "settings":
+		return "config"
+	case "source", "steps":
+		return "edit"
+	// Cast is a TABLE ON the Advanced page rather than a view of its own, so the word opens the
+	// page that holds it. Somebody who typed `marco ui cast` asked to see the cast; landing on
+	// the default browser instead would be the command pretending not to understand.
+	case "cast":
+		return "advanced"
+	case "help", "routes", "bindings", "config", "edit",
+		"here", "learn", "activity", "advanced":
 		return v
 	default:
 		return ""
@@ -112,6 +140,10 @@ func runEdit(name, view string) {
 	mux.HandleFunc("/api/scope", ed.handleScope)     // move a play between context/focus/global
 	mux.HandleFunc("/api/delete", ed.handleDelete)   // forget a play
 	mux.HandleFunc("/api/oconfig", ed.handleOConfig) // read/write the overlay settings
+	// WHAT MARCO HAS DONE, and who could act. Both are READS of accounts that already exist —
+	// see activity.go and cast.go; neither keeps a record of its own.
+	mux.HandleFunc("/api/activity", ed.handleActivity)
+	mux.HandleFunc("/api/cast", handleCast)
 	// THE Learn panel. Its endpoints hold no state and decide nothing — see learnui.go.
 	learnAPI(mux)
 
@@ -499,28 +531,75 @@ func (e *editor) handleBindings(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, map[string]any{"bindings": rows, "app": e.app})
 }
 
-// handleBind binds `leader+key` to a command. The scope is the PLAY's app, so a hotkey only
-// fires while that app is in front — the same key can drive different macros in different games
-// (overloading). When App isn't given, it's inferred from the command's first play (a global
-// play → a global binding). Pass App explicitly to override.
+// bindScope infers which app a new binding belongs to, out of the play its command starts with.
+//
+// The scope is the PLAY's app, so a hotkey only fires while that app is in front — the same key
+// can drive different macros in different games (overloading). A global play gives "" and so a
+// global binding.
+//
+// It splits the chain and strips the arguments the SAME way a press does — `routes.SplitChain`
+// then `routes.ParseInvocation` — because the old hand-rolled " then " scan handed `findRouteByName`
+// a step with its arguments still attached ("greet name:sam"), which matches nothing, so a bound
+// play in an app was silently scoped global.
+func bindScope(reg routes.Registry, cmd string) string {
+	steps := routes.SplitChain(cmd)
+	if len(steps) == 0 {
+		return ""
+	}
+	base, _, _ := routes.ParseInvocation(steps[0])
+	if rt, ok := findRouteByName(reg, base); ok {
+		return rt.App
+	}
+	return ""
+}
+
+// handleBind binds `leader+key` to a command — after proving the key press could ever do anything.
+//
+// # It reported success without validating anything
+//
+// This handler used to store whatever was posted and answer `{"ok":true}`. `findRouteByName` was
+// consulted only to guess the app, so a MISS was not a refusal: the binding landed as a global one
+// pointing at a play that does not exist, the page said "bound", and the person pressed that key
+// for ever while nothing happened. `pressHotkey` skips a step it cannot resolve — deliberately, so
+// a key over a game is never a question — which is exactly what makes an unvalidated binding
+// silent rather than noisy.
+//
+// # Validated by the code the press uses, not by a copy of its rule
+//
+// `bindKey` (bind.go) is that code. It walks `routes.SplitChain`, takes each step's base with
+// `routes.ParseInvocation`, and demands `Reg.Resolve` — the EXACT resolve the press will make,
+// with no fuzzy score — before it stores anything. It was written for this defect, one surface
+// over. Calling it is the whole point: a second validation here would be a second rule, and the
+// scope a binding LANDS in could drift from the scope a press LOOKS IN without anything noticing.
+//
+// The two call sites differ in one thing only, and it is not the rule: `marco bind` scopes to
+// `winctx.Active()` — the app you are looking at when you type the command — while the control
+// centre is a local web page, so the foreground app is the person's BROWSER and the scope has to
+// come from the play instead (bindScope). They would become one call site the day binding takes
+// its scope from the play everywhere; until then `bindKey` is the shared half, and it is the half
+// that decides.
+//
+// `bindKey` prints its confirmation to stdout, which for `marco edit` is the terminal the person
+// launched the control centre from. That is a log line, not the answer — the answer is this JSON.
+//
+// Deleting the bindKey call — storing the binding directly again — must fail
+// TestABindingThePressCouldNeverResolveIsRefused.
 func (e *editor) handleBind(w http.ResponseWriter, r *http.Request) {
 	var req struct{ App, Key, Cmd string }
 	if json.NewDecoder(r.Body).Decode(&req) != nil || req.Key == "" || strings.TrimSpace(req.Cmd) == "" {
 		http.Error(w, "key and command required", 400)
 		return
 	}
+	cmd := strings.TrimSpace(req.Cmd)
 	app := strings.TrimSpace(req.App)
 	if app == "" {
-		first := strings.TrimSpace(req.Cmd)
-		if i := strings.Index(strings.ToLower(first), " then "); i >= 0 {
-			first = strings.TrimSpace(first[:i]) // scope to the first play in a chain
-		}
-		if rt, ok := findRouteByName(e.reg, first); ok {
-			app = rt.App // "" for a global play → a global binding
-		}
+		app = bindScope(e.reg, cmd)
 	}
-	if err := e.reg.Bind(app, strings.ToLower(req.Key), strings.TrimSpace(req.Cmd)); err != nil {
-		http.Error(w, err.Error(), 500)
+	if err := bindKey(orchestrator.Deps{Reg: e.reg}, app, strings.ToLower(req.Key), cmd); err != nil {
+		// 400 and the engine's own sentence — "no play matches …" is the one unknown-command
+		// wording the rest of the product prefix-matches, and a person reading it beside the
+		// field they typed into can act on it.
+		http.Error(w, unprefixRoutes(err.Error()), http.StatusBadRequest)
 		return
 	}
 	writeJSON(w, map[string]any{"ok": true, "app": app})
@@ -739,12 +818,33 @@ var clickPointRE = regexp.MustCompile(`^do OS's (Click|Move) with (\w+)\.`)
 
 // textActRE matches an OS action whose only argument is a string literal the editor exposes for
 // in-place editing — the whole "one text arg" slice of the harness: a keypress (Key), a hold /
-// release (KeyDown/KeyUp), typed text (Type), a named Secret, and app focus/launch
-// (Activate/Launch). Captured: the verb, then the literal.
-var textActRE = regexp.MustCompile(`^do OS's (Key|KeyDown|KeyUp|Type|Secret|Activate|Launch) with "(.*)"\.`)
+// release (KeyDown/KeyUp), typed text (Type), a named Secret, app focus/launch (Activate/Launch),
+// and a navigation meaning (Navigate). Captured: the verb, then the literal.
+//
+// Navigate is here because a LEARNED play is made of almost nothing else, and "the demonstration
+// went one row too far" is the single most likely correction anybody will want to make to one.
+// A meaning Marco has no host for refuses at run time exactly as an unknown key name does.
+var textActRE = regexp.MustCompile(`^do OS's (Key|KeyDown|KeyUp|Type|Secret|Activate|Launch|Navigate) with "(.*)"\.`)
 
 // repeatRE matches a `repeat N times...` loop header (any indent). Captured: indent, count.
 var repeatRE = regexp.MustCompile(`^(\s*)repeat (\d+) times\.\.\.\s*$`)
+
+// showingRE matches a SCREEN CONDITION — `do Screen's Showing with "…"...` — which is the one
+// sentence Marco has for "the play is where it said it would be". A learned play carries two of
+// them: the entry condition it begins inside, and the postcondition it must reach to end `ok`.
+// See [[ADR-030-a-play-says-where-it-begins]]. Captured: the screen's name.
+//
+// The capability is spelled ONCE, in `marcoexec`, which is where the generator reads it from — so
+// the editor cannot come to recognise a sentence the Director no longer writes.
+var showingRE = regexp.MustCompile(`^do ` + regexp.QuoteMeta(marcoexec.StartsOn) + ` with "(.*)"\.\.\.$`)
+
+// activateTargetRE matches a press-a-control-by-name step: `do Theater's Activate with target1.`
+// The captured local is the Target that carries the control's name.
+var activateTargetRE = regexp.MustCompile(`^do Theater's Activate with (\w+)\.$`)
+
+// targetDeclRE matches a Target local — `the target1 is a Target with Name "Mouse", Kind "button".`
+// Captured: the local's name, then the control's name.
+var targetDeclRE = regexp.MustCompile(`(?m)^\s*the (\w+) is a Target with Name "((?:[^"\\]|\\.)*)"`)
 
 // pointVals holds a Point's editable coordinates.
 type pointVals struct {
@@ -752,11 +852,16 @@ type pointVals struct {
 	HasRel           bool
 }
 
-// step is one entry shown in the editor, in play order: an ACTION (read-only label) or a WAIT
-// (editable ms). A click/move action also carries the Point it targets and that point's X,Y,
-// which the editor exposes as editable coordinates.
+// step is one entry shown in the editor, in play order: an ACTION (read-only label), a WAIT
+// (editable ms), or a CHECK. A click/move action also carries the Point it targets and that
+// point's X,Y, which the editor exposes as editable coordinates.
+//
+// A CHECK is a screen condition — where the play says it begins, and where it says it must
+// arrive. It is shown and it is not editable: those two lines are the play's claim about the
+// world, not a step in the procedure, and the steps between them only mean anything in their
+// company. Hiding them was how a learned play came to render as one unreadable row.
 type step struct {
-	Kind    string `json:"kind"` // "action" | "wait"
+	Kind    string `json:"kind"` // "action" | "wait" | "check"
 	Label   string `json:"label,omitempty"`
 	Act     string `json:"act,omitempty"`   // editable subtype: click|move|key|keydown|keyup|type|secret|activate|launch|repeat
 	Ms      int    `json:"ms,omitempty"`    // wait: milliseconds
@@ -771,12 +876,67 @@ type step struct {
 	Line    int    `json:"line"`            // source line index (keys delete / wait / count / drag ops)
 }
 
+// bodyIndent is the indentation at which THIS play's steps live.
+//
+// # Why it is not just 4
+//
+// Because a play that says where it begins puts its whole procedure INSIDE that claim. Director
+// generates exactly that shape — the entry condition at indent 4, `when ok?` at 8, and every step
+// at 12 — for a structural reason it will not be giving up: there is no line after the block for
+// control to fall through to, so the only path to an effect is through an `ok`. See
+// [[ADR-030-a-play-says-where-it-begins]] and internal/director/marcoexec/play.go.
+//
+// The editor recognised indent 4 (and 8 inside a repeat) and nothing else, so EVERY learned play
+// rendered as one row — the entry condition, unlabelled, with its actual steps invisible. The
+// person could not see what Marco had learned, let alone change it, in the one surface built for
+// changing plays. Phase 3 made that editing meaningful: an edited learned play stops being the
+// artifact Director verified and runs locally against its own source, so it is an ordinary play
+// and has to be editable like one.
+//
+// The rule is structural rather than a list of known shapes: if the play's first top-level
+// statement is a screen condition whose `ok` arm opens immediately beneath it, the steps are two
+// levels in. Anything else — every recorded and hand-written play — is the ordinary 4.
+//
+// Deleting the entry-condition arm must fail TestALearnedPlayShowsItsStepsInTheEditor.
+func bodyIndent(src string) int {
+	const top = 4
+	lines := strings.Split(src, "\n")
+	for i, line := range lines {
+		t := strings.TrimSpace(line)
+		if t == "" || len(line)-len(strings.TrimLeft(line, " ")) != top {
+			continue
+		}
+		if !showingRE.MatchString(t) {
+			return top // an ordinary statement at the top level: the steps are here
+		}
+		for _, next := range lines[i+1:] {
+			nt := strings.TrimSpace(next)
+			if nt == "" {
+				continue
+			}
+			if nt == "when ok?" && len(next)-len(strings.TrimLeft(next, " ")) == top+4 {
+				return top + 8
+			}
+			break
+		}
+		return top
+	}
+	return top
+}
+
 // parseSteps walks the play body and returns the ordered step sequence the editor shows: the
-// top-level actions/waits, plus one level of `repeat N times...` block — its header (editable
-// count) and its indented body steps (Depth 1). A Find block's `when ok?/or?` arms and the
-// point/anchor declarations stay hidden. Each editable action carries its subtype + fields.
+// actions/waits at the play's body indent, plus one level of `repeat N times...` block — its
+// header (editable count) and its indented body steps (Depth 1). A Find block's `when ok?/or?`
+// arms and the point/anchor/target declarations stay hidden. Each editable action carries its
+// subtype + fields.
+//
+// A play's screen conditions are shown as read-only CHECK rows: the entry condition above the
+// steps it guards, the postcondition below them. They are the play's claim about the world, and a
+// procedure read without them is a procedure read out of context.
 func (e *editor) parseSteps() []step {
 	pts := e.parsePoints()
+	tgts := e.parseTargets()
+	body := bodyIndent(e.src)
 	var steps []step
 	lines := strings.Split(e.src, "\n")
 	repeatBodyIndent := -1 // indent of the current repeat block's body (-1 = not in one)
@@ -797,21 +957,35 @@ func (e *editor) parseSteps() []step {
 			depth = 1
 			steps[repeatHdr].EndLine = i // grow the block to cover this body line
 		}
-		// A top-level `repeat N times...` header: editable count, body follows indented.
-		if m := repeatRE.FindStringSubmatch(line); m != nil && indent == 4 {
+		// A `repeat N times...` header at the body indent: editable count, body follows indented.
+		if m := repeatRE.FindStringSubmatch(line); m != nil && indent == body {
 			n, _ := strconv.Atoi(m[2])
 			steps = append(steps, step{Kind: "action", Act: "repeat", Count: n,
 				Label: fmt.Sprintf("Repeat %d times", n), Line: i, EndLine: i})
-			repeatBodyIndent, repeatHdr = 8, len(steps)-1
+			repeatBodyIndent, repeatHdr = body+4, len(steps)-1
 			continue
 		}
-		show := indent == 4 || inBody
+		// THE ENTRY CONDITION sits one level above the steps it guards, so it is the one line
+		// worth showing from outside the body. Nothing else up there is a step.
+		if body > 4 && indent == 4 {
+			if m := showingRE.FindStringSubmatch(t); m != nil {
+				steps = append(steps, step{Kind: "check", Line: i,
+					Label: fmt.Sprintf("Starts on %q", unquoteLit(m[1]))})
+			}
+			continue
+		}
+		show := indent == body || inBody
 		if !show {
 			continue
 		}
 		if m := sleepRE.FindStringSubmatch(line); m != nil {
 			ms, _ := strconv.Atoi(m[2])
 			steps = append(steps, step{Kind: "wait", Ms: ms, Depth: depth, Line: i})
+			continue
+		}
+		if m := showingRE.FindStringSubmatch(t); m != nil {
+			steps = append(steps, step{Kind: "check", Depth: depth, Line: i,
+				Label: fmt.Sprintf("Ends on %q", unquoteLit(m[1]))})
 			continue
 		}
 		if strings.HasPrefix(t, "do ") {
@@ -823,14 +997,30 @@ func (e *editor) parseSteps() []step {
 					s.Point, s.X, s.Y, s.CanDrag = cm[2], pv.X, pv.Y, true
 				}
 			} else if tm := textActRE.FindStringSubmatch(t); tm != nil {
-				// A one-text-arg action (key/hold/release/type/secret/activate/launch) → expose
-				// the literal for in-place editing.
+				// A one-text-arg action (key/hold/release/type/secret/activate/launch/navigate)
+				// → expose the literal for in-place editing.
 				s.Act, s.Text = strings.ToLower(tm[1]), unquoteLit(tm[2])
+			} else if am := activateTargetRE.FindStringSubmatch(t); am != nil {
+				// Pressing a control BY NAME: the label says which control, not which local
+				// happens to carry it. `target1` is an implementation detail of the sentence.
+				if name, ok := tgts[am[1]]; ok {
+					s.Label = fmt.Sprintf("Press %q", name)
+				}
 			}
 			steps = append(steps, s)
 		}
 	}
 	return steps
+}
+
+// parseTargets reads every Target declaration into a local-name → control-name map, so a step
+// that presses a control by name can be labelled with the control.
+func (e *editor) parseTargets() map[string]string {
+	out := map[string]string{}
+	for _, m := range targetDeclRE.FindAllStringSubmatch(e.src, -1) {
+		out[m[1]] = unquoteLit(m[2])
+	}
+	return out
 }
 
 // parsePoints reads every Point declaration into a name→coordinates map.
@@ -902,6 +1092,12 @@ func humanizeAction(line string) string {
 		return "Launch " + strings.Trim(strings.TrimPrefix(s, "OS's Launch with "), `"`)
 	case strings.HasPrefix(s, "OS's Secret with "):
 		return "Secret " + strings.Trim(strings.TrimPrefix(s, "OS's Secret with "), `"`)
+	case strings.HasPrefix(s, "OS's Navigate with "):
+		return "Navigate " + strings.Trim(strings.TrimPrefix(s, "OS's Navigate with "), `"`)
+	case strings.HasPrefix(s, "Theater's Activate with "):
+		// The local's name, only as a fallback: parseSteps resolves it to the control's own
+		// name when the declaration is there to read.
+		return "Press a control"
 	case strings.HasPrefix(s, "OS's Drag"):
 		return "Drag"
 	case strings.HasPrefix(s, "OS's Find") || strings.HasPrefix(s, "Text's Find") || strings.HasPrefix(s, "Vision's Locate"):
@@ -959,7 +1155,28 @@ type addStep struct {
 	Text  string `json:"text"`
 }
 
-// handleSave rebuilds the source from the edits and writes it back.
+// handleSave rebuilds the source from the edits and writes it back — IF Marco will still accept it.
+//
+// # The save goes through the one compile gate, and a refusal is a refusal
+//
+// This used to rebuild the text and hand it straight to `Registry.Save`, which is a `WriteFile`
+// and asks nothing. So the visual editor could write a play that does not compile: deleting the
+// header of a block, editing a literal into an unterminated string, or dropping the only line an
+// arm had. Nothing said so. The person closed the editor, and found out the next time they asked
+// for the play — by which point they had no idea which edit did it.
+//
+// `driver.CheckSource` is THE gate: it resolves `use` exactly as running the play would, off the
+// one module list in the resolver, which is the whole of [[ADR-005-legal-marco-only]] and the
+// reason `cmd/director/learnedplay.go` calls the same function rather than assembling modules of
+// its own. A second, differently-configured gate here would be worse than none — it would accept
+// what the runner refuses, or refuse what the runner accepts, and either way the editor would be
+// arguing with the engine.
+//
+// Refused means REFUSED: the file on disk is untouched, `e.src` still holds what the person is
+// editing, and the compiler's own sentence travels back so it can be read where the work is. The
+// page keeps the edits rather than reloading over them.
+//
+// Deleting the CheckSource call must fail TestASaveThatWouldNotCompileIsRefused.
 func (e *editor) handleSave(w http.ResponseWriter, r *http.Request) {
 	var req saveReq
 	if json.NewDecoder(r.Body).Decode(&req) != nil {
@@ -967,6 +1184,12 @@ func (e *editor) handleSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	updated := e.rebuild(req)
+	if err := driver.CheckSource(updated); err != nil {
+		// 409, not 500: nothing went wrong here. The edit is one Marco will not accept, and the
+		// only thing that can resolve it is the person changing it.
+		http.Error(w, "that edit is not a play Marco can run — "+err.Error(), http.StatusConflict)
+		return
+	}
 	if err := e.reg.Save(e.rt, updated); err != nil {
 		http.Error(w, err.Error(), 500)
 		return
@@ -981,6 +1204,36 @@ var anyDeclRE = regexp.MustCompile(`(?m)^\s*the (\w+) is a`)
 
 // indentOf returns the leading spaces of a line, so an inserted step matches the body indent.
 func indentOf(line string) string { return line[:len(line)-len(strings.TrimLeft(line, " "))] }
+
+// endAddAnchor is the line an end-of-body insertion goes BEFORE, with the indent it takes.
+//
+// For an ordinary play that is the closing `this is ok!`. For a play that says where it must
+// arrive it is the POSTCONDITION — everything from that line down is the verification, not the
+// procedure, and `this is ok!` lives inside the postcondition's own `ok` arm. Anchoring on the
+// text alone put a step added with "+ add step" on the far side of the screen check, so it ran
+// after the play had already decided it had arrived.
+//
+// (-1, "") when the play has neither, and the caller appends at the body indent as before.
+func endAddAnchor(lines []string, body int) (int, string) {
+	fallback := -1
+	for i, line := range lines {
+		t := strings.TrimSpace(line)
+		if t == "" {
+			continue
+		}
+		if len(line)-len(strings.TrimLeft(line, " ")) == body &&
+			(t == "this is ok!" || showingRE.MatchString(t)) {
+			return i, indentOf(line)
+		}
+		if fallback < 0 && t == "this is ok!" {
+			fallback = i
+		}
+	}
+	if fallback >= 0 {
+		return fallback, indentOf(lines[fallback])
+	}
+	return -1, ""
+}
 
 // freshName returns "<base><n>" for the smallest n not already used, and marks it used.
 func freshName(used map[string]bool, base string) string {
@@ -1089,10 +1342,11 @@ func (e *editor) rebuild(req saveReq) string {
 			out = append(out, genAdd(a, indent, used)...)
 		}
 	}
+	endAt, endIndent := endAddAnchor(lines, bodyIndent(e.src))
 	for i, line := range lines {
-		// End-of-body adds land just before the closing `this is ok!`.
-		if strings.TrimSpace(line) == "this is ok!" && len(endAdds) > 0 {
-			flush(endAdds, indentOf(line))
+		// End-of-body adds land just before the play's ending — see endAddAnchor.
+		if i == endAt && len(endAdds) > 0 {
+			flush(endAdds, endIndent)
 			endAdds = nil
 		}
 		if del[i] {
@@ -1209,6 +1463,29 @@ const editPage = `<!doctype html><html><head><meta charset="utf-8"><title>MARCO<
    border-left:3px solid transparent;letter-spacing:1px;text-transform:uppercase;font-size:13px}
  nav a:hover{color:var(--text);background:var(--panel2)}
  nav a.active{color:var(--accent);border-left-color:var(--accent);background:rgba(0,229,204,.07)}
+ /* THE LINE BETWEEN NORMAL AND ADVANCED, drawn once and visible. Everything under it names a
+    backstage thing on purpose; everything above it is the product. */
+ nav .navgroup{margin:18px 0 2px;padding:8px 20px 4px;color:var(--dim);font-size:11px;letter-spacing:2px;
+   text-transform:uppercase;border-top:1px solid var(--line);opacity:.75}
+ table.cast{width:100%;border-collapse:collapse;font-size:13px}
+ table.cast th{text-align:left;color:var(--dim);font-weight:400;font-size:11px;letter-spacing:1.5px;
+   text-transform:uppercase;border-bottom:1px solid var(--line);padding:6px 8px}
+ table.cast td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top;color:var(--text)}
+ table.cast td.no{color:var(--err)}
+ table.cast td.yes{color:var(--run)}
+ .empty{color:var(--dim);font-size:13px;padding:10px 0}
+ .act{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;padding:9px 12px;border:1px solid var(--line);
+   border-radius:6px;margin:6px 0;background:var(--panel)}
+ .act .when{color:var(--dim);font-size:12px;min-width:74px}
+ .act .what{color:var(--text);flex:1;min-width:180px}
+ .act .why{color:var(--dim);font-size:12px;flex-basis:100%}
+ .out{font-size:11px;letter-spacing:1px;text-transform:uppercase;padding:2px 7px;border-radius:4px;border:1px solid var(--line)}
+ .out.performed{color:var(--run);border-color:#153a1e}
+ .out.clarify{color:var(--listen);border-color:#12283a}
+ .out.refused{color:var(--amber);border-color:#3a3018}
+ .out.unavailable{color:var(--dim)}
+ .out.cancelled{color:var(--dim)}
+ .out.failed{color:var(--err);border-color:#3a1e1e}
  #scrim{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10;display:none}
  #scrim.on{display:block}
  main{padding:20px 18px;max-width:680px}
@@ -1289,6 +1566,15 @@ const editPage = `<!doctype html><html><head><meta charset="utf-8"><title>MARCO<
    opacity:0;transition:transform .25s ease,opacity .25s ease;z-index:50;pointer-events:none}
  .banner.show{transform:translateX(-50%) translateY(0);opacity:1}
  .banner.err{background:var(--err);color:#fff}
+ /* A screen condition: shown, never edited. See the check step kind in edit.go. */
+ .check{display:flex;align-items:center;gap:10px;padding:7px 12px;margin:3px 0;border-radius:7px;
+   border:1px dashed #3a4a5a;background:rgba(255,255,255,.02);color:#9fb3c8;font-style:italic}
+ .check .num{font-style:normal;opacity:.55;margin-right:8px}
+ .check .why{margin-left:auto;font-size:11px;font-style:normal;opacity:.6;letter-spacing:.5px}
+ /* The compiler's refusal, where the person is working — it stays until the next save. */
+ .saveerr{margin:10px 0;padding:11px 14px;border-radius:8px;border:1px solid var(--err);
+   background:rgba(255,60,60,.09);color:#ffbdbd;white-space:pre-wrap;font-size:13px;line-height:1.5}
+ .saveerr b{color:#fff;display:block;margin-bottom:4px;letter-spacing:.5px}
 </style></head><body>
 <div id="banner" class="banner"></div>
 <header>
@@ -1298,22 +1584,27 @@ const editPage = `<!doctype html><html><head><meta charset="utf-8"><title>MARCO<
   <span id="saved" class="saved"></span>
 </header>
 <nav id="drawer">
-  <a data-view="edit" class="active" onclick="nav('edit')">◆ Edit</a>
+  <a data-view="here" onclick="nav('here')">◉ Here</a>
   <a data-view="learn" onclick="nav('learn')">✦ Learn</a>
   <a data-view="routes" onclick="nav('routes')">▤ Plays</a>
+  <a data-view="activity" onclick="nav('activity')">≡ Activity</a>
   <a data-view="bindings" onclick="nav('bindings')">⌨ Bindings</a>
-  <a data-view="config" onclick="nav('config')">⚙ Config</a>
+  <a data-view="config" onclick="nav('config')">⚙ Settings</a>
   <a data-view="help" onclick="nav('help')">? Help</a>
+  <div class="navgroup">Advanced</div>
+  <a data-view="advanced" onclick="nav('advanced')">⚗ Advanced</a>
+  <a data-view="edit" onclick="nav('edit')">◆ Marco source</a>
 </nav>
 <div id="scrim" onclick="closeNav()"></div>
 <main>
- <section id="view-edit">
-  <h2>Edit play</h2>
+ <section id="view-edit" hidden>
+  <h2>Marco source — edit play</h2>
   <p class="hint">Every step is editable in place — wait (ms), coordinates (x, y), the key a
     <b>Press/Hold/Release</b> sends, <b>Type</b> text, a <b>Focus/Launch</b> app, a <b>Secret</b> name,
     or a <b>Repeat</b> count. <b>+</b> inserts after; <b>✕</b> deletes; <b>drag</b> turns a click
     into a click-drag. The last <b>settle · keep</b> wait lets the final action land before the run ends.</p>
   <div id="steps"></div>
+  <div id="saveerr" class="saveerr" hidden></div>
   <div class="bar"><button class="go" onclick="save()">Save</button>
     <button type="button" class="mini" onclick="document.getElementById('steps').appendChild(addRow(-1))">+ add step</button>
     <button type="button" class="mini" id="editrun" hidden onclick="doOpenPlay()"
@@ -1321,20 +1612,12 @@ const editPage = `<!doctype html><html><head><meta charset="utf-8"><title>MARCO<
     <span id="saved2"></span></div>
   <details><summary>Full play source</summary><pre id="src"></pre></details>
  </section>
- <section id="view-learn" hidden>
-  <h2>Learn</h2>
-  <p class="hint">Name it, press <b>Start Learning</b>, then go and do the thing normally.
-    Marco waits for you to leave this page — it never treats clicks on itself as part of what
-    you are showing it. Press <b>Stop Learning</b> when you are done.</p>
-  <div class="bar">
-    <input class="field" id="lname" placeholder="Open Mouse Settings" style="flex:1;min-width:260px">
-    <button class="go" id="lstart" onclick="learnStart()">Start Learning</button>
-    <button class="go" id="lstop" onclick="learnVerb('stop')" hidden>Stop Learning</button>
-    <button class="go" id="ltry" onclick="learnVerb('try')" hidden>Try It</button>
-    <button id="lcancel" onclick="learnVerb('cancel')" hidden
-      style="padding:9px 14px;background:transparent;color:var(--dim);border:1px solid var(--line);border-radius:6px;cursor:pointer;font:inherit">cancel</button>
-  </div>
-  <div id="lready" hidden style="margin:0 0 12px;padding:10px 12px;border:1px solid var(--line);border-radius:6px;background:var(--panel);font-size:13px;line-height:1.8"></div>
+ <section id="view-here" hidden>
+  <h2>Here</h2>
+  <p class="hint">What Marco can see right now, and whether it recognises it. Press <b>Watch</b>
+    and move around; when Marco sees a screen it does not know, give it a name and it will
+    remember it. Nothing on this page changes anything you have saved.</p>
+  <div id="hwake"></div>
   <div id="lherebar" style="margin:0 0 12px;padding:12px;border:1px solid var(--line);border-radius:6px;background:var(--panel)">
     <div class="bar" style="margin:0 0 8px">
       <div class="grouphead" style="margin:0;flex:1">HERE</div>
@@ -1352,6 +1635,24 @@ const editPage = `<!doctype html><html><head><meta charset="utf-8"><title>MARCO<
       <div id="ltrail" style="font-size:13px;line-height:1.7"></div>
     </div>
   </div>
+  <div id="lplaces"></div>
+ </section>
+ <section id="view-learn" hidden>
+  <h2>Learn</h2>
+  <p class="hint">Name it, press <b>Start Learning</b>, then go and do the thing normally.
+    Marco waits for you to leave this page — it never treats clicks on itself as part of what
+    you are showing it. Press <b>Stop Learning</b> when you are done. To just watch what Marco
+    sees, without showing it anything, open <a class="plain" onclick="nav('here')">Here</a>.</p>
+  <div id="lwake"></div>
+  <div class="bar">
+    <input class="field" id="lname" placeholder="Open Mouse Settings" style="flex:1;min-width:260px">
+    <button class="go" id="lstart" onclick="learnStart()">Start Learning</button>
+    <button class="go" id="lstop" onclick="learnVerb('stop')" hidden>Stop Learning</button>
+    <button class="go" id="ltry" onclick="learnVerb('try')" hidden>Try It</button>
+    <button id="lcancel" onclick="learnVerb('cancel')" hidden
+      style="padding:9px 14px;background:transparent;color:var(--dim);border:1px solid var(--line);border-radius:6px;cursor:pointer;font:inherit">cancel</button>
+  </div>
+  <div id="lready" hidden style="margin:0 0 12px;padding:10px 12px;border:1px solid var(--line);border-radius:6px;background:var(--panel);font-size:13px;line-height:1.8"></div>
   <div id="laskbar" hidden style="margin:0 0 12px;padding:12px;border:1px solid var(--line);border-radius:6px;background:var(--panel)">
     <div class="grouphead" style="margin-top:0">MARCO IS ASKING</div>
     <div id="lasking"></div>
@@ -1376,7 +1677,6 @@ const editPage = `<!doctype html><html><head><meta charset="utf-8"><title>MARCO<
   </div>
   <div id="lfacts"></div>
   <div id="lresult"></div>
-  <div id="lplaces"></div>
   <details id="ldebug" hidden><summary>Debug</summary><pre id="ldebugbody"></pre></details>
  </section>
  <section id="view-routes" hidden><h2>Plays</h2>
@@ -1395,14 +1695,49 @@ const editPage = `<!doctype html><html><head><meta charset="utf-8"><title>MARCO<
   <div id="bindings" style="margin-top:14px"></div>
  </section>
  <section id="view-config" hidden>
-  <h2>Overlay settings</h2>
-  <p class="hint">The overlay's config, mirrored here — the <b>leader</b> key, the voice
-    <b>activation phrase</b>, theme, HUD placement, and more. Saved to the same overlay.json the
-    overlay reads; changes apply <b>next time the overlay launches</b> (for live tweaks, use the
-    overlay's own panel: leader → <b>config</b>).</p>
+  <h2>Settings</h2>
+  <p class="hint">How Marco behaves — the <b>leader</b> key, the voice <b>activation phrase</b>,
+    theme, and where the HUD sits. Saved to the same file the overlay reads; changes apply
+    <b>next time the overlay launches</b> (for live tweaks, use the overlay's own panel:
+    leader → <b>config</b>). Hotkeys have their own tab:
+    <a class="plain" onclick="nav('bindings')">Bindings</a>.</p>
   <div id="oconfig"></div>
   <div class="bar"><button class="go" onclick="saveConfigView()">Save</button>
     <span class="hint" id="ocpath" style="margin:0"></span></div>
+ </section>
+ <section id="view-activity" hidden>
+  <h2>Activity</h2>
+  <p class="hint">What Marco has done, most recent first, and how each one ended. Six words cover
+    every ending: <b>performed</b> · <b>clarify</b> · <b>refused</b> · <b>unavailable</b> ·
+    <b>cancelled</b> · <b>failed</b>. Hover a row for the reason Marco gave.</p>
+  <div class="bar" style="margin:0 0 12px"><button class="mini" onclick="loadActivity()">refresh</button></div>
+  <div id="activity"></div>
+ </section>
+ <section id="view-advanced" hidden>
+  <h2>Advanced</h2>
+  <p class="hint">The backstage view. Everything here names a part of Marco rather than something
+    you asked it to do — useful when nothing happened and you want to know why. You never need
+    this page to use Marco.</p>
+
+  <div class="grouphead">CAST — WHO COULD ACT RIGHT NOW</div>
+  <p class="hint">A play does not name who performs it. When you ask for one, Marco casts it: the
+    first of these that can take the part gets it. If nothing here is available, a learned play
+    will do nothing at all.</p>
+  <div class="bar" style="margin:0 0 12px"><button class="mini" onclick="loadAdvanced()">refresh</button></div>
+  <div id="cast"></div>
+
+  <div class="grouphead">MARCO SOURCE</div>
+  <p class="hint">Every play is a small program you can read and edit step by step — waits,
+    coordinates, keys, typed text. That is the remedy when a screen loads slowly and a click
+    lands too early: bump the wait before it. Open it from
+    <a class="plain" onclick="nav('edit')">Marco source</a>, or from <b>edit</b> beside any play
+    in the <a class="plain" onclick="nav('routes')">Plays</a> tab.</p>
+
+  <div class="grouphead">DEEPER STILL</div>
+  <p class="hint">What Marco perceived, the places and goals it holds, and how it got where it is,
+    are answered by the command line rather than by this page:
+    <b>marco director diagnose</b>, <b>marco director perception</b>, <b>marco director world</b>,
+    <b>marco director history</b>. Each takes <b>--json</b>.</p>
  </section>
  <section id="view-help" hidden class="help"><h2>Help</h2>
   <p class="hint">Marco turns things you demonstrate once into small, editable programs that drive
@@ -1417,7 +1752,7 @@ const editPage = `<!doctype html><html><head><meta charset="utf-8"><title>MARCO<
   </ul>
 
   <h3>The leader key</h3>
-  <p>Everything in the overlay starts with the <b>leader</b> — the <kbd>` + "`" + `</kbd> key (change it in Config). Tap it, then:</p>
+  <p>Everything in the overlay starts with the <b>leader</b> — the <kbd>` + "`" + `</kbd> key (change it in Settings). Tap it, then:</p>
   <ul>
    <li><kbd>` + "`" + `</kbd><kbd>m</kbd> — open the command line; type a play name (or a command) and press <kbd>Enter</kbd>.</li>
    <li><kbd>` + "`" + `</kbd><kbd>&lt;key&gt;</kbd> — run the play bound to that key (see Hotkeys).</li>
@@ -1455,16 +1790,29 @@ const editPage = `<!doctype html><html><head><meta charset="utf-8"><title>MARCO<
 
   <h3>Voice + the activation phrase</h3>
   <p>Voice is two-phase: say the <b>activation phrase</b> (the wake word, default <b>"marco"</b>) to arm
-    the mic, then speak the command — or say both in one breath. Change the phrase in the <b>Config</b>
+    the mic, then speak the command — or say both in one breath. Change the phrase in the <b>Settings</b>
     tab (it applies when the overlay next launches). Toggle the mic with <b>voice on</b> / <b>voice off</b>,
     <b>mute</b> / <b>unmute</b>, or <b>stop listening</b> / <b>listen</b>. Typed commands still work while muted.</p>
 
-  <h3>Config tab — the overlay's settings</h3>
+  <h3>Settings tab</h3>
   <p>Edit the <b>leader</b> key, the voice <b>activation phrase</b>, theme, HUD corner / width / opacity,
     and more. It writes the same overlay.json the overlay reads, so changes apply next launch. (The
     overlay's own in-HUD panel — leader → <b>config</b> — applies the non-text settings live.)</p>
 
-  <h3>Edit a play — this tab</h3>
+  <h3>Here — what Marco can see</h3>
+  <p>Press <b>Watch</b> and move around. Marco says which screen it thinks you are on and whether it
+    recognises it; when it sees one it does not know, give it a name and it will remember. Naming a
+    screen is what makes it worth remembering, and you can rename or unname one at any time.</p>
+
+  <h3>Activity — what Marco has done</h3>
+  <p>Every run, most recent first, with how it ended. There are six endings and no others:
+    <b>performed</b>, <b>clarify</b> (Marco asked you something), <b>refused</b> (Marco said no),
+    <b>unavailable</b> (nothing took it), <b>cancelled</b> (you stopped it), <b>failed</b>.</p>
+
+  <h3>Advanced — and the step editor</h3>
+  <p>You never need the Advanced pages to use Marco. They answer "why did nothing happen": the
+    <b>Cast</b> table says whether anything on this machine can act at all, and <b>Marco source</b>
+    is the step-by-step editor for one play.</p>
   <p>Every step is editable in place; <b>+</b> inserts a step after it, <b>✕</b> deletes, <b>Save</b> writes it back.</p>
   <ul>
    <li><b>Waits</b> — the ms between steps (the pacing that matters most).</li>
@@ -1499,7 +1847,7 @@ const editPage = `<!doctype html><html><head><meta charset="utf-8"><title>MARCO<
  </section>
 </main>
 <script>
-const LABELS={key:'Press',keydown:'Hold',keyup:'Release',type:'Type',secret:'Secret',activate:'Focus',launch:'Launch'};
+const LABELS={key:'Press',keydown:'Hold',keyup:'Release',type:'Type',secret:'Secret',activate:'Focus',launch:'Launch',navigate:'Navigate'};
 let steps=[], adds=[];
 function coord(v){ const i=document.createElement('input'); i.type='number'; i.className='coord'; i.value=v; return i; }
 function numIn(v){ const i=document.createElement('input'); i.type='number'; i.className='coord'; i.value=v; return {el:i, val:()=>parseInt(i.value||'0',10)}; }
@@ -1514,8 +1862,12 @@ function nav(v){
   for(const s of document.querySelectorAll('main section')) s.hidden = (s.id!=='view-'+v);
   for(const a of document.querySelectorAll('nav a')) a.classList.toggle('active', a.dataset.view===v);
   closeNav();
-  if(v==='edit') loadEdit(); else if(v==='routes') loadRoutes(); else if(v==='bindings') loadBindings(); else if(v==='config') loadConfigView();
-  learnPolling(v==='learn');
+  if(v==='edit') loadEdit(); else if(v==='routes') loadRoutes(); else if(v==='bindings') loadBindings();
+  else if(v==='config') loadConfigView(); else if(v==='activity') loadActivity(); else if(v==='advanced') loadAdvanced();
+  // HERE AND LEARN READ THE SAME ACCOUNT. Here is what Marco can see; Learn is what it is
+  // acquiring. They are two questions about one running session, so one poll answers both — and
+  // polling is a READ, which is why it may follow a tab around without starting anything.
+  learnPolling(v==='learn' || v==='here');
 }
 // ---- Learn ----
 //
@@ -1800,8 +2152,16 @@ async function learnPost(v, body){
     learnRender(s);
   }catch(e){ banner('Marco could not be reached', true); }
 }
+// LSTAGE is the lifecycle as words a person reads.
+//
+// The 'unavailable' label used to name the background service, in capitals, at a person who has no
+// word for it and no idea what it means for them. What it means is that Marco cannot see, and
+// pkg/playbill already had the register for that — "I'm not watching anything right now." — so
+// this matches it rather than inventing a second way to say the same fact.
+//
+// Deleting the plain wording must fail TestNoNormalSurfaceNamesTheBackstage.
 const LSTAGE={
-  idle:'READY', unavailable:'DIRECTOR NOT RUNNING',
+  idle:'READY', unavailable:'NOT WATCHING YET',
   waiting_for_demonstration:'WAITING FOR YOU', learning:'LEARNING',
   finishing:'FINISHING UNDERSTANDING', needs_another_example:'NEEDS ANOTHER EXAMPLE',
   ready_to_try:'READY TO TRY', waiting_to_try:'WAITING TO TRY', trying:'TRYING',
@@ -1809,28 +2169,116 @@ const LSTAGE={
 };
 // refusalWords is a refusal code as words, the way LSTAGE is a stage as words.
 //
-// The panel used to print the raw enum at the person: "Refused: several_routes". Two of those
-// codes spell ROUTE — the retired product noun — at a normal user, and every one of them is a
-// machine word where a sentence belongs. Marco's own account of the refusal is already on screen
-// above this line (#lsaying, from learn/say.go); this is the label beside it, and a label may be
-// short without being a symbol.
+// # Why every one of them is spelled out
 //
-// The fallback un-underscores anything not named here, so a refusal added later reads as English
-// rather than as an identifier — and the two named entries exist because their words are wrong,
-// not merely ugly.
+// The panel used to print the raw enum at the person: "Refused: several_routes". Two entries were
+// then given English and the other twenty-six were left to a fallback that swaps underscores for
+// spaces — which is not translation, it is the identifier with its punctuation combed. A person
+// reading "no subject", "no tail", "not lowerable", "not assessable", "not armed" or "action not
+// attributed" has been shown a machine word and told it is a sentence. All of those are reachable:
+// they are declared in internal/director/learn/learn.go and raised by the coordinator.
 //
-// Deleting this and rendering v.refused raw must fail TestTheLearnPanelDoesNotPrintRawRefusalCodes.
+// So the map is COMPLETE against that file, and TestEveryRefusalCodeHasPlainEnglish walks the
+// declarations and fails if one of them is missing here. The fallback survives for exactly one
+// case — a code added upstream before this map is extended — and the test is what stops that case
+// being the normal one.
+//
+// Each line says what Marco could not do, in the second person where there is a person in it.
+// Marco.s own account of the refusal is already on screen above this (#lsaying, from
+// learn/say.go); this is the label beside it, and a label may be short without being a symbol.
+//
+// Deleting an entry must fail TestEveryRefusalCodeHasPlainEnglish.
 const LREFUSED={
+  no_observation:'Marco could not see anything while that happened',
+  no_subject:'you never went to an application, so there was nothing to watch',
+  nothing_changed:'the screen never changed',
+  destination_not_recognised:'Marco would not recognise where you ended up',
   several_routes:'several ways there',
   route_not_remembered:'the way there was not remembered',
+  not_armed:'Marco was never actually watching',
+  demonstration_incomplete:'Marco did not see the whole thing',
+  requires_text_entry:'it needs something typed, and Marco does not watch what you type',
+  action_not_attributed:'Marco saw where you ended up but not what you did',
+  not_assessable:'Marco could not make anything of what it saw',
+  demonstrations_disagree:'the two times you showed it were not the same',
+  evidence_insufficient:'showing it again would not settle it',
+  application_changed:'you moved to a different application partway through',
+  name_not_usable:'that name cannot be written down',
+  goal_not_remembered:'that name already means getting somewhere else',
+  examples_exhausted:'Marco has asked for another example as often as it will',
+  rehearsal_declined:'you said not now',
+  rehearsal_refused:'Marco would not try it',
+  rehearsal_not_started:'you said yes and Marco never got permission to act',
+  rehearsal_failed:'the try did not finish',
+  not_lowerable:'Marco could not write this down as a play',
+  name_refused:'that name for the screen was not accepted',
+  save_failed:'the play could not be saved',
+  play_not_registered:'it was saved, but nothing can ask for it yet',
+  answer_timed_out:'nobody answered in time',
+  no_tail:'part of Marco is not wired up on this machine',
 };
 function refusalWords(code){
   return LREFUSED[code] || String(code||'').replace(/_/g,' ');
+}
+// WAKING is true while the start request this page sent is still in flight.
+//
+// The read polls every 700ms and would otherwise repaint the button underneath somebody who has
+// just pressed it, so the press has to be visible until it resolves. Starting the service is
+// allowed to take a few seconds.
+let WAKING=false;
+// renderWake draws the one control that can start the part of Marco that watches.
+//
+// # Why a normal surface has to have this, and why it is a BUTTON
+//
+// Every read on this page connects without starting anything, which is correct and deliberate —
+// see cmd/marco/intake.go's pendingQuestion for the reasoning: a read that silently paid for a
+// service start would charge twenty seconds to somebody who only opened a tab, on every command,
+// forever. But the consequence, until now, was that a cold machine showed Learn as unavailable
+// AND hid the Start Learning button, so the one capability the product is named for was
+// unreachable — right up until the person happened to ask for something Marco did not know, which
+// is the only path that ever started it.
+//
+// A press is not a read. This is the person saying "start it", once, explicitly, and it is the
+// only thing on this page that starts anything.
+//
+// Deleting this must fail TestANormalSurfaceCanStartTheServiceItDependsOn.
+function renderWake(v){
+  const down = v.available===false;
+  const html = !down ? '' :
+    '<div style="margin:0 0 12px;padding:12px;border:1px solid var(--line);border-radius:6px;background:var(--panel)">'+
+    '<div style="color:var(--text);font-size:14px;margin-bottom:10px">'+
+      (WAKING ? 'Starting…' : "I'm not watching anything right now.")+'</div>'+
+    '<div style="color:var(--dim);font-size:12px;margin-bottom:10px">'+
+      'Marco has to be watching before it can learn anything or tell you where you are.'+'</div>'+
+    '<button class="go" onclick="wakeMarco()"'+(WAKING?' disabled':'')+'>Start Marco watching</button>'+
+    '</div>';
+  for(const id of ['lwake','hwake']){
+    const el=document.getElementById(id);
+    if(el && el.innerHTML!==html) el.innerHTML=html;
+  }
+}
+// wakeMarco starts it, and says what happened either way.
+async function wakeMarco(){
+  if(WAKING) return;
+  WAKING=true;
+  renderWake({available:false});
+  try{
+    const r=await fetch('/api/learn/wake', {method:'POST'});
+    const st=await r.json();
+    WAKING=false;
+    learnRender(st);
+    banner(st.available===false ? 'Marco could not start watching' : '✓ Marco is watching',
+      st.available===false);
+  }catch(e){
+    WAKING=false;
+    banner('Marco could not be reached', true);
+  }
 }
 function learnRender(v){
   const stage=v.stage||'idle';
   document.getElementById('lstage').textContent=LSTAGE[stage]||stage;
   document.getElementById('lsaying').textContent=v.saying||'';
+  renderWake(v);
   show('lstart', !v.running && v.available!==false);
   show('lstop', !!v.can_stop);
   show('ltry', !!v.can_try);
@@ -1862,11 +2310,17 @@ function learnRender(v){
     const ok=t=>'<span style="color:var(--run)">'+t+'</span>';
     const part=t=>'<span style="color:var(--amber)">'+t+'</span>';
     const count=done===total?ok(done+' / '+total):part(done+' / '+total);
-    // TRANSITION, the same word the facts table below uses for the same value. It is a
-    // Director graph edge — where this goes from and to — and calling it a route here while
-    // calling it a Transition there made one value look like two things.
-    let out='<div>Transition: '+esc(v.route||'')+'</div>'+
-            '<div>Verified: '+count+'</div>';
+    // THE WAY THERE, and the facts table below uses the same words for the same value.
+    //
+    // It read "Transition", which is what this is underneath — an edge in the Director's graph,
+    // from one place to another. That is a true description of the machinery and not of anything
+    // the person did: they showed Marco how to get somewhere, and this line is how far Marco has
+    // got with checking it. The two lines used to disagree — "route" here, "Transition" there —
+    // which made one value look like two different things.
+    //
+    // Deleting the plain wording must fail TestNoNormalSurfaceNamesTheBackstage.
+    let out='<div>The way there: '+esc(v.route||'')+'</div>'+
+            '<div>Checked: '+count+'</div>';
       // 'trying' read as Marco ATTEMPTING the step. It means Marco has asked and is waiting
       // for an answer — and an open question sitting under the word 'trying' reads as stuck.
     (v.steps||[]).forEach(function(s,i){
@@ -1888,7 +2342,13 @@ function learnRender(v){
     const q=v.questions_open|0;
     ready.innerHTML=
       '<div>Watching: '+(v.watching?yes(esc(v.watching)):no('nothing yet'))+'</div>'+
-      '<div>Target locked: '+(v.target_locked?yes('YES'):no('NO'))+'</div>'+
+      // The old line paired the Theater's word for the thing with a mechanism word for what had
+      // happened to it. The fact underneath is one a person can act on: Marco has decided
+      // which window this demonstration is about, and if it decided wrong, everything you do next
+      // is wasted. So the line says the fact. See learnView.TargetLocked for the live failure.
+      //
+      // Deleting the plain wording must fail TestNoNormalSurfaceNamesTheBackstage.
+      '<div>Marco has settled on a window: '+(v.target_locked?yes('YES'):no('NOT YET'))+'</div>'+
       '<div>Captured actions: '+(v.captured|0)+'</div>'+
       '<div>Questions open: '+(q===0?yes('0'):no(String(q)))+'</div>'+
       routeProgressLine(v);
@@ -1971,7 +2431,10 @@ function learnRender(v){
   // "a yes created no authority" is the sentence that explains a Try button doing nothing.
   const lines=[];
   if(LREFUSAL) lines.push(LREFUSAL.saying);
-  (v.detail||[]).forEach(d=>lines.push(d));
+  // EXCEPT when Marco simply is not watching. The detail for that state is a socket error naming
+  // an executable, and the block above already says the fact in words and offers the button that
+  // fixes it. It stays in the Debug block, which is where a dial failure belongs.
+  if(stage!=='unavailable') (v.detail||[]).forEach(d=>lines.push(d));
   const stuck=document.getElementById('lstuck');
   show('lstuck', lines.length>0);
   if(stuck) stuck.textContent=lines.join(' · ');
@@ -1988,7 +2451,7 @@ function learnRender(v){
   if(v.targets) f.push(['…that named a control', String(v.targets)]);
   if(v.unnamed) f.push(['…whose name is withheld', String(v.unnamed)]);
   if(v.offered) f.push(['Controls on offer', String(v.offered)]);
-  if(v.route) f.push(['Transition', v.route]);
+  if(v.route) f.push(['The way there', v.route]);
   if(v.goal) f.push(['Would be called', v.goal]);
   document.getElementById('lfacts').innerHTML=f.map(([k,x])=>
     '<div class="crow"><label>'+esc(k)+'</label><span style="color:var(--accent)">'+esc(x)+'</span></div>').join('');
@@ -2162,6 +2625,16 @@ async function loadEdit(){
     const finalWait = (idx===r.steps.length-1 && s.kind==='wait');
     const rec={line:s.line, kind:s.kind, point:s.point, act:s.act, del:false, dragOn:false};
     const row=document.createElement('div');
+    if(s.kind==='check'){
+      // A SCREEN CONDITION — where the play says it begins, and where it must arrive. Shown so a
+      // learned play reads as what it is, and given no ✕ or + because deleting half a condition
+      // is not an edit anybody means to make.
+      n++;
+      row.className='check' + (s.depth? ' depth1':'');
+      row.innerHTML='<span class="num">'+n+'.</span><span>◉ '+esc(s.label)+'</span>'+
+        '<span class="why">screen check</span>';
+      steps.push(rec); box.appendChild(row); continue;
+    }
     if(s.kind==='action'){
       n++;
       row.className='action' + (s.depth? ' depth1':'');
@@ -2215,9 +2688,21 @@ async function save(){
       else { points[s.point]=[x, y]; }
     }
   }
-  const res = await (await fetch('/api/save',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({waits, repeats, points, deletes, drags, texts, adds:adds.map(a=>a.get())})})).json();
-  if(res.ok){ banner('✓ Saved successfully'); } else { banner('✗ Save failed', true); }
+  const box=document.getElementById('saveerr');
+  const resp = await fetch('/api/save',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({waits, repeats, points, deletes, drags, texts, adds:adds.map(a=>a.get())})});
+  if(!resp.ok){
+    // REFUSED, and nothing was written. The compiler's own sentence stays on the page — a toast
+    // that vanishes in two seconds is no use for a message you have to act on — and the edits
+    // stay in the form, because reloading here would throw away the work AND the mistake.
+    const why=(await resp.text()).trim();
+    box.innerHTML='<b>Not saved — Marco will not accept this play</b>';
+    box.appendChild(document.createTextNode(why||'the edit was refused'));
+    box.hidden=false; banner('✗ Not saved', true);
+    return;
+  }
+  box.hidden=true; box.textContent='';
+  banner('✓ Saved successfully');
   loadEdit();
 }
 function flash(msg){ const s=document.getElementById('saved'); s.textContent=msg; setTimeout(()=>s.textContent='', 2500); }
@@ -2405,6 +2890,75 @@ async function followRun(id, name){
 }
 // doOpenPlay runs the play the Edit view has open. Also an identity: /api/route carries its slug.
 function doOpenPlay(){ if(OPEN) doPlay(OPEN); }
+// ---- activity view ----
+//
+// WHAT MARCO HAS DONE, and it holds nothing. Every row arrives already worded from /api/activity,
+// which reads the Director's own account of its actions and this session's clicked runs. The page
+// keeps no list of its own: a second record of what Marco has done is exactly the thing this
+// campaign has been removing everywhere else.
+//
+// Deleting the outcome class must fail TestActivityRendersTheSixOutcomeWords.
+const OUTWORD={
+  performed:'performed', clarify:'clarify', refused:'refused',
+  unavailable:'unavailable', cancelled:'cancelled', failed:'failed',
+};
+async function loadActivity(){
+  const box=document.getElementById('activity');
+  if(!box) return;
+  let r;
+  try{ r = await (await fetch('/api/activity')).json(); }
+  catch(e){ box.innerHTML='<p class="empty">Marco could not be asked.</p>'; return; }
+  const rows=r.entries||[];
+  if(!rows.length){
+    // AN HONEST EMPTY STATE, and it says which of the two empties this is.
+    box.innerHTML='<p class="empty">'+esc(r.why || 'Marco has not done anything yet.')+'</p>';
+    return;
+  }
+  box.innerHTML = rows.map(function(e){
+    const w = OUTWORD[e.outcome] || 'failed';
+    return '<div class="act">'+
+      '<span class="when">'+esc(e.when||'')+'</span>'+
+      '<span class="what">'+esc(e.what||'')+'</span>'+
+      '<span class="out '+w+'">'+esc(w)+'</span>'+
+      (e.from==='here'?'<span class="tag">from this page</span>':'')+
+      (e.detail?'<span class="why">'+esc(e.detail)+'</span>':'')+
+      '</div>';
+  }).join('');
+}
+// ---- advanced view: the Cast ----
+//
+// WHO COULD ACT, asked of this machine and rendered exactly as it answers. An absent roster
+// renders as an absent roster: a table of plausible-looking rows for a question Marco could not
+// ask is the one thing this surface must never produce.
+//
+// Deleting the empty state must fail TestTheCastRendersAnHonestEmptyState.
+async function loadAdvanced(){
+  const box=document.getElementById('cast');
+  if(!box) return;
+  box.innerHTML='<p class="empty">asking…</p>';
+  let r;
+  try{ r = await (await fetch('/api/cast')).json(); }
+  catch(e){ box.innerHTML='<p class="empty">Marco could not be asked.</p>'; return; }
+  const rows=r.cast||[];
+  let head='';
+  if(r.provider) head='<p class="hint">Accessibility provider: <b>'+esc(r.provider)+'</b></p>';
+  else head='<p class="hint" style="color:var(--err)">No accessibility provider was found, so '+
+    'nothing here can act on a control. Build one with setup.ps1, or name one with $MARCO_UIA_BRIDGE.</p>';
+  if(!rows.length){
+    box.innerHTML=head+'<p class="empty">'+esc(r.why||'Marco could not ask.')+'</p>';
+    return;
+  }
+  let h=head+'<table class="cast"><tr><th>Actor</th><th>Provider</th><th>Where</th>'+
+    '<th>Available</th><th>Why not</th></tr>';
+  for(const c of rows){
+    h+='<tr><td>'+esc(c.actor)+'</td><td>'+esc(c.provider||'—')+'</td><td>'+esc(c.where||'—')+'</td>'+
+       '<td class="'+(c.available?'yes':'no')+'">'+(c.available?'yes':'no')+'</td>'+
+       '<td>'+esc(c.why||'')+'</td></tr>';
+  }
+  h+='</table>';
+  if(r.last) h+='<p class="hint">Most recent refusal in this process: '+esc(r.last)+'</p>';
+  box.innerHTML=h;
+}
 // ---- bindings view ----
 async function loadBindings(){
   const r = await (await fetch('/api/bindings')).json();
@@ -2431,7 +2985,9 @@ async function bindAdd(){
   const key=document.getElementById('bkey').value.trim(), cmd=document.getElementById('bcmd').value.trim();
   if(!key||!cmd){ flash('key + play'); return; }
   const resp=await fetch('/api/bind',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({app:'', key, cmd})}); // app:'' → server scopes to the play's app
-  if(!resp.ok){ flash('bind failed'); return; }
+  // The SERVER's sentence — "no play matches …" names the step that could never fire, which is
+  // the only thing that tells the person what to type instead.
+  if(!resp.ok){ flash((await resp.text()).trim()||'bind failed'); return; }
   const res=await resp.json();
   document.getElementById('bkey').value=''; document.getElementById('bcmd').value='';
   loadBindings(); flash('bound '+key+(res.app?(' · '+res.app):' · global'));

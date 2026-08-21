@@ -84,7 +84,7 @@ answered.
 
 - `TestALearnedPlayIsRegisteredWhenItIsSaved` — registered, discoverable, and scoped to its
   own app and no other (`cmd/director/learntail_test.go`)
-- `TestTheTeachTailNeverInvokesWhatItJustSaved` — saving and registering emit no input, claim
+- `TestTheLearnTailNeverInvokesWhatItJustSaved` — saving and registering emit no input, claim
   no grant, and hand back nothing that can run (`cmd/director/learntail_test.go`)
 - `TestASaveThatCannotRegisterStillReportsTheArtifact`,
   `TestTheTailReportsAnUnregisterablePlayAsWrittenDown`,
@@ -98,7 +98,7 @@ answered.
 - `TestAPlayIsNotCalledAskableUntilItIsRegistered` — the claim is still refused when
   registration does not happen, and the refusal says why
   (`internal/director/learn/tail_test.go`)
-- `TestASuccessfulTeachDoesNotRunThePlay` — a completed Learn registers and performs nothing
+- `TestASuccessfulLearnDoesNotRunThePlay` — a completed Learn registers and performs nothing
   (`internal/director/learn/tail_test.go`)
 
 ## Related

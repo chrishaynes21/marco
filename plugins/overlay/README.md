@@ -70,8 +70,15 @@ Backtick (`` ` ``) is the **leader**; the next key chooses what happens:
   undocumented compatibility alias for the word the product shipped with, kept for
   muscle memory and retiring. **Teach** is reserved for the opposite direction:
   Marco guiding *you* through something, which is not built yet.) Type
-  **`help`** (or **`` `h ``**) shows the help menu — the leader keys plus your
-  known routes. Type **`config`** for the
+  **`plays`** for the in-HUD listing — every word the HUD accepts, and your plays
+  grouped by where they apply (only in this app · switches to the app · anywhere).
+  Type **`here`** for what Marco sees right now and whether it is waiting on you
+  (`watch` still answers, undocumented); **`stop`** to stop whatever is running,
+  wherever it is running; **`ui <view>`** to open the control centre on a view
+  (`plays`, `help`, `bindings`, `config`, … — the overlay passes the word straight
+  to `marco ui`, so whichever views that knows about are the views this opens);
+  **`edit <play>`** to open one play there. **`help`** (or **`` `h ``**) opens the
+  full manual in your browser. Type **`config`** for the
   live **config editor**: **↑/↓** pick a setting, **←/→** change it (applies
   instantly), **S** saves it to disk, **Esc** closes. Editable: theme (default,
   dracula, solarized-dark, monokai, nord, tokyo-night, catppuccin-mocha,
@@ -146,7 +153,8 @@ Env: `MARCO_OVERLAY_THEME` (`default` teal | `dracula`), `MARCO_OVERLAY_SIZE`
 
 The HUD reproduces the MacroMarco look: an opaque rounded, theme-bordered panel
 (gomono / gomonobold, Consolas-like) with the title crown (clock · date · Marco),
-the `· app  word` state line, the `` `m config | `m help`` idle hint, a `>`
+the `· app  word` state line, the always-visible hint (`` `m learn `` ·
+`` `m here `` · `` `m plays `` · `` `m stop ``), a `>`
 command line, and a log tail — top-right, default teal theme. The foreground app
 in the state line is polled via `marco active`. Not yet ported from the AHK
 overlay: the live **config panel** (tabs: Presets/General/Keybinds/Appearance/

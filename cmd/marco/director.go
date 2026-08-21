@@ -116,7 +116,7 @@ func runDirector(args []string) {
 	if len(rest) == 1 {
 		switch strings.ToLower(rest[0]) {
 		case "stop", "cancel":
-			os.Exit(directorStop(jsonMode))
+			os.Exit(directorStop(jsonMode, true))
 		case "status":
 			os.Exit(directorStatus(jsonMode))
 		case "history":
@@ -321,11 +321,25 @@ func directorRender(jsonMode bool) func(service.ResponseEnvelope) {
 	}
 }
 
-func directorStop(jsonMode bool) int {
+func directorStop(jsonMode, sayIfAbsent bool) int {
 	// Never auto-start: asking a service to exist so it can be told to stop would
 	// start a Director the user did not ask for.
 	c, err := directorConnect(false)
 	if err != nil {
+		// SILENT ON THE PRODUCT PATH, and the reason is a word rather than a behaviour.
+		//
+		// This function serves two callers. `marco director stop` is a DEVELOPER verb and the
+		// person typing it wants to know the service was not there. `runControl` is the normal
+		// stop — reached by saying "stop", by the leader key, by `marco stop` — and there, this
+		// sentence was both backstage and misleading: it named the Director on a surface where
+		// nobody should have to know it exists, and it said "nothing to stop" at the exact moment
+		// the OTHER arm had broadcast a stop to every Play running on this machine.
+		//
+		// So the absence is reported by whoever asked about the Director, and the product path
+		// says its own true sentence. See runControl.
+		if !sayIfAbsent {
+			return 0
+		}
 		if jsonMode {
 			fmt.Println(`{"accepted":false,"message":"the Director is not running"}`)
 		} else {

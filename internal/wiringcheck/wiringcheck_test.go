@@ -112,11 +112,14 @@ func scan(t *testing.T, root string) (claims []site, tests map[string]bool) {
 			return nil
 		}
 		// The gate's own source quotes the rule it enforces, in its package comment and in the
-		// fixtures of TestTheGateItselfCanFail. Reading itself would make it permanently red for
-		// saying what it is for.
-		if filepath.Base(path) == selfFile {
-			return nil
-		}
+		// fixtures of TestTheGateItselfCanFail, so its CLAIMS are not collected — reading them
+		// would make it permanently red for saying what it is for.
+		//
+		// Its DECLARATIONS still are. Skipping the file wholesale was a real bug, found by an
+		// independent audit: a claim elsewhere in the tree naming one of this file's own tests
+		// would be reported as phantom, because the test it named had been skipped on the way
+		// past. A gate that lies about its own tests is worse than no gate.
+		self := filepath.Base(path) == selfFile
 		f, err := os.Open(path)
 		if err != nil {
 			return nil
@@ -130,6 +133,9 @@ func scan(t *testing.T, root string) (claims []site, tests map[string]bool) {
 			line := sc.Text()
 			if m := declared.FindStringSubmatch(line); m != nil {
 				tests[m[1]] = true
+			}
+			if self {
+				continue
 			}
 			for _, m := range claim.FindAllStringSubmatch(line, -1) {
 				claims = append(claims, site{file: rel, line: n, name: m[1], text: strings.TrimSpace(line)})
@@ -244,4 +250,109 @@ func TestTheGateItselfCanFail(t *testing.T) {
 	if declared.MatchString("func testSomethingReal(t *testing.T) {") {
 		t.Fatal("the declaration pattern matched a non-test function")
 	}
+}
+
+// docsName matches a test named in the docs vault, in the house convention: inside backticks.
+//
+// Backticks, and not a bare word, because the vault is PROSE. A sentence may legitimately contain
+// "Tests" or begin one with "Test the…", and a gate that flagged those would be turned off inside
+// a week. Every real citation in the corpus is backticked — 950-odd of them — because that is how
+// an ADR names code.
+var docsName = regexp.MustCompile("`(Test[A-Za-z0-9_]+)`")
+
+// TestEveryTestNamedInTheDocsVaultExists closes the one place the sweep did not reach.
+//
+// # Why the docs are held to the same rule as the code
+//
+// CLAUDE.md states it outright: **"An ADR needs an Enforced by entry naming a real test."** That is
+// not decoration. An ADR's `## Enforced by` section is where this project records which decisions
+// are load-bearing enough to have been made irreversible, and it is the first thing anybody — a
+// person or a model — reads when deciding whether a change is safe.
+//
+// The Go half of this gate was written and immediately found nineteen phantom claims. It was then
+// run, passed, and reported as closing the problem. An independent audit pointed out that it scans
+// `.go` files only, and that the vault contained TWENTY-FIVE more — most of them the same
+// Teach→Learn rename fallout, sitting in `Enforced by` sections of ADRs from the two preceding
+// phases. `docscheck` said "no problems" throughout, because it validates links and frontmatter and
+// has no idea what a test is.
+//
+// So the gate that was supposed to make this impossible had the same hole as the thing it was
+// guarding: it checked what it could see, and reported on what it had checked.
+//
+// # What it does not do
+//
+// It does not require an ADR to HAVE an `Enforced by` section, and it does not check that a named
+// test is relevant to the decision. Both are judgements. This checks existence, which is the part
+// a machine can be trusted with.
+func TestEveryTestNamedInTheDocsVaultExists(t *testing.T) {
+	root := repoRoot(t)
+	_, tests := scan(t, root)
+	if len(tests) < 1000 {
+		t.Fatalf("only %d test declarations found — the scan is broken, not the vault", len(tests))
+	}
+
+	var bad []site
+	var cited int
+	err := filepath.WalkDir(filepath.Join(root, "docs"), func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			if skip[d.Name()] {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, ".md") {
+			return nil
+		}
+		f, err := os.Open(path)
+		if err != nil {
+			return nil
+		}
+		defer f.Close()
+		rel, _ := filepath.Rel(root, path)
+		rel = filepath.ToSlash(rel)
+		sc := bufio.NewScanner(f)
+		sc.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
+		for n := 1; sc.Scan(); n++ {
+			line := sc.Text()
+			for _, m := range docsName.FindAllStringSubmatch(line, -1) {
+				cited++
+				if !tests[m[1]] {
+					bad = append(bad, site{file: rel, line: n, name: m[1],
+						text: strings.TrimSpace(line)})
+				}
+			}
+		}
+		return sc.Err()
+	})
+	if err != nil {
+		t.Fatalf("walking the vault: %v", err)
+	}
+	if cited < 400 {
+		t.Fatalf("only %d test citations found in docs/ — the scan is broken, not the vault", cited)
+	}
+	if len(bad) == 0 {
+		return
+	}
+	sort.Slice(bad, func(i, j int) bool {
+		if bad[i].file != bad[j].file {
+			return bad[i].file < bad[j].file
+		}
+		return bad[i].line < bad[j].line
+	})
+	var b strings.Builder
+	b.WriteString("a note in the docs vault names a test that does not exist.\n\n")
+	b.WriteString("CLAUDE.md: \"An ADR needs an Enforced by entry naming a real test.\" Each line below\n")
+	b.WriteString("cites a test as the thing holding a decision in place. No such test is declared\n")
+	b.WriteString("anywhere, so the decision is held by nothing and the note says otherwise.\n")
+	b.WriteString("Point it at the real test, write it, or say plainly that nothing holds it.\n\n")
+	for _, c := range bad {
+		fmt.Fprintf(&b, "  %s:%d  cites %s\n", c.file, c.line, c.name)
+		if n := nearest(c.name, tests); n != "" {
+			fmt.Fprintf(&b, "      did you mean %s ?\n", n)
+		}
+	}
+	t.Fatal(b.String())
 }

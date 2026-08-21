@@ -89,7 +89,7 @@ desktop rectangle by design, so the frame is kept beside it in live process stat
 
 `internal/director/learn/grounding_test.go`:
 
-- `TestGroundingFailureDoesNotChangeAnythingAboutTheTeachSession` — every unavailable reason, and
+- `TestGroundingFailureDoesNotChangeAnythingAboutTheLearnSession` — every unavailable reason, and
   the successful case, produce an identical session.
 
 `internal/director/observe/referentdiagnosis_test.go` (added 2026-08-12):
@@ -114,9 +114,9 @@ desktop rectangle by design, so the frame is kept beside it in live process stat
 
 `cmd/director/learngroundingwiring_test.go`:
 
-- `TestTeachingInstallsGroundingThroughTheProductionStart` — the coordinator tests all inject their
+- `TestLearningInstallsGroundingThroughTheProductionStart` — the coordinator tests all inject their
   own grounding, so this is the only place that notices when production stops installing one.
-- `TestAGroundedTeachViewCarriesDesktopRectangles` — the conversion actually happens.
+- `TestAGroundedLearnViewCarriesDesktopRectangles` — the conversion actually happens.
 - `TestAWindowThatMovedSinceGroundingIsNotDrawnAtTheOldPlace` — the freshness refusal.
 
 ## Related

@@ -84,16 +84,32 @@ func overlayVerb(name string, fields []string) ([]string, bool) {
 	if len(fields) == 0 {
 		return nil, false
 	}
+	// THE SPELLINGS COME FROM THE TABLE, THE ARITY RULES STAY HERE.
+	//
+	// Which words these are is vocabulary, and vocabulary is single-sourced in commands.go
+	// so the command line can highlight the same words this acts on. Whether a line that
+	// STARTS with one is actually a use of it is a different question and belongs here: a
+	// play may legitimately be called "press the big red button", and it is the arity rules
+	// below — not the word — that keep that phrase out of the local path and send it to the
+	// intake where it belongs. See TestOnlyTheOverlaysOwnVerbsStayLocal.
+	// The typed spelling is replaced by the canonical one on the way out, so an alias can
+	// never reach `marco` as the name of a subcommand it has never heard of. `forget` always
+	// did this by hand; the other three did not, and would have broken silently the first
+	// time somebody gave one of them an alias in the table.
+	canonical := func() []string {
+		w, _ := canonicalWord(fields[0])
+		return append([]string{w}, fields[1:]...)
+	}
 	switch {
-	case fields[0] == "bind" || fields[0] == "unbind":
-		return fields, true
-	case len(fields) >= 2 && fields[0] == "press": // a key or chord: "press control c"
-		return fields, true
-	case len(fields) >= 2 && fields[0] == "forget":
-		return append([]string{"forget"}, fields[1:]...), true
-	case len(fields) >= 2 && fields[0] == "simplify":
-		return fields, true
-	case len(fields) >= 4 && fields[0] == "rename":
+	case isWord(fields[0], cmdBind, cmdUnbind):
+		return canonical(), true
+	case len(fields) >= 2 && isWord(fields[0], cmdPress): // a key or chord: "press control c"
+		return canonical(), true
+	case len(fields) >= 2 && isWord(fields[0], cmdForget):
+		return canonical(), true
+	case len(fields) >= 2 && isWord(fields[0], cmdSimplify):
+		return canonical(), true
+	case len(fields) >= 4 && isWord(fields[0], cmdRename):
 		// "rename old name to new name" — split on " to " and pass as separate args.
 		// Without a " to " it is not the rename verb at all, so it falls through to the
 		// intake rather than being run as a malformed one.

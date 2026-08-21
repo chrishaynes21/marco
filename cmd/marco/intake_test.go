@@ -237,7 +237,7 @@ func TestStopReachesTheRunningWorkFromEveryEntrance(t *testing.T) {
 	// And it reaches the ACTIVE EXECUTION AUTHORITY rather than being interpreted.
 	var asked bool
 	prev := stopWhatIsRunning
-	stopWhatIsRunning = func(bool) int { asked = true; return exitOK }
+	stopWhatIsRunning = func(bool, bool) int { asked = true; return exitOK }
 	t.Cleanup(func() { stopWhatIsRunning = prev })
 	noPendingQuestion(t)
 	prevSubmit := submitPhrase
@@ -483,7 +483,7 @@ func TestAHotkeyPerformsTheBoundPlayItself(t *testing.T) {
 		}
 		var stopped bool
 		prev := stopWhatIsRunning
-		stopWhatIsRunning = func(bool) int { stopped = true; return exitOK }
+		stopWhatIsRunning = func(bool, bool) int { stopped = true; return exitOK }
 		t.Cleanup(func() { stopWhatIsRunning = prev })
 
 		said, err := captureStdout(t, func() error {
@@ -1088,6 +1088,12 @@ func TestNoLiveAcquisitionCodeIsNamedTeach(t *testing.T) {
 		`"learn" || fields[0] == "teach"`,
 		`"learn" || fields[1] == "teach"`,
 		`"teach": true`, // the overlay highlights the alias as a verb too
+		// The overlay's alias, now DECLARED once in its command table rather than repeated
+		// at each of the three sites that used to check for it by hand. That consolidation
+		// is the reason this entry replaced two of the ones above rather than joining them:
+		// there is one place the alias exists, which is the only arrangement under which
+		// "the alias is deliberate" is a statement anybody can check.
+		`Aliases: []string{"teach"}`,
 
 		// 2. A FROZEN WIRE VALUE. `dispatch.IntentLearn` marshals to the string "teach" for
 		// out-of-tree resolver plugins that already parse it. The CONSTANT is Learn; only the

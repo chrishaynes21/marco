@@ -307,6 +307,50 @@ func TestAPartlyWalkedRouteIsNotASuccess(t *testing.T) {
 	}
 }
 
+// ARRIVAL IS NOT ENOUGH: a play that reached the destination with a step it never verified is
+// still not a performed play.
+//
+// # Why this is a separate test from the one above it
+//
+// TestAPartlyWalkedRouteIsNotASuccess sets `Arrived:false` AND `Refusal:"step_unverified"`, so it
+// is already refused by two other clauses before the count is ever consulted. Widen the success
+// test from `verified == len(v.Steps)` to `verified > 0` and that test stays green — measured.
+// The clause has to be exercised on its own, by the one fixture in which it is the ONLY thing
+// standing between a half-walked route and exit 0.
+//
+// The product consequence of losing it: the Director reports Arrived with no refusal and one of
+// three steps unverified, `marco do` exits 0, and the HUD says "ran". [[ADR-070]] is explicit that
+// finishing is not arriving — the Director takes a fresh look before it says Arrived, and this
+// insists on the other half, so neither alone can pass for the whole.
+func TestArrivingWithAnUnverifiedStepIsNotASuccess(t *testing.T) {
+	t.Setenv("MARCO_NO_PANIC_STOP", "1")
+	d, _, out := learnedWorld(t)
+	useFakeDirector(t, &fakeDirector{view: service.PerformView{
+		Application: "testgame", Goal: "mute volume", From: "subj_a",
+		// ARRIVED, and refusing NOTHING. Every other guard in renderPerform is satisfied.
+		Arrived: true, Refusal: "",
+		Steps: []service.PerformStep{
+			{From: "subj_a", To: "subj_b", Verified: true},
+			{From: "subj_b", To: "subj_c", Verified: false},
+			{From: "subj_c", To: "subj_d", Verified: true},
+		},
+		Say: "I'm at the volume panel.",
+	}})
+
+	_, err := doAsProduct(t, d, "mute-volume", nil, nil)
+	if err == nil {
+		t.Fatalf("a play with an unverified step in the middle reported SUCCESS because it "+
+			"arrived.\n`marco do` exits 0 on a nil error and the overlay reads the exit "+
+			"code, so the Audience is told it worked. Output was:\n%s", out.String())
+	}
+	if !strings.Contains(err.Error(), "2 of 3") {
+		t.Errorf("the failure does not say how far it got: %v", err)
+	}
+	if strings.Contains(out.String(), ": performed ") {
+		t.Errorf("the run was announced as a performed play:\n%s", out.String())
+	}
+}
+
 // Every refusal is a failure, whatever its word.
 //
 // The closed vocabulary is the Director's; what matters here is that none of it exits 0. A

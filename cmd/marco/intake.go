@@ -226,11 +226,18 @@ func runControl() Outcome {
 
 	// ARM (b) — the ACTIVE EXECUTION AUTHORITY. A front end may also have killed a child it
 	// spawned for immediacy; that is a local courtesy and this is the part that is authoritative.
-	code := stopWhatIsRunning(false)
+	code := stopWhatIsRunning(false, false)
 
 	switch {
 	case raiseErr == nil:
 		// The word went out where every running Play is looking. That is a delivery.
+		//
+		// And it is said out loud, because `marco stop` is a NORMAL verb now and a person who
+		// types it in a terminal deserves an answer. The sentence names no part of Marco's
+		// insides: what used to reach them here was "nothing to stop — the Director is not
+		// running", which was backstage AND wrong, since the broadcast had just gone out to
+		// every Play on the machine at the moment it claimed nothing had.
+		fmt.Println("stop sent — anything Marco was running will stop")
 		return OutcomeCancelled
 	case code == exitUnavailable:
 		// Neither arm delivered anything. Nothing heard it, and saying so is the only honest

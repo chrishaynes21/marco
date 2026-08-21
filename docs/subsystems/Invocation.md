@@ -172,7 +172,7 @@ abort a replay).
 So the local half **decides nothing**. It cannot route, refuse or consume the phrase. Killing the
 child alone made the HUD go quiet while the desktop carried on being driven, with nothing left on
 screen offering to stop it — which is why `cancelRun` also spawns `marco director stop` detached
-(`TestCancelAlsoStopsTheDirector`, `TestASpokenStopKillsTheChildImmediately`).
+(`TestCancelAlsoStopsTheDirector`, `TestASpokenStopReachesTheRunningPlayImmediately`).
 
 **One definition of the word, shared.** `intent.IsControlPhrase` is used by `invoke.Decide`, by
 the overlay, and by the Director service's own phrase routing. A second list anywhere would be a
@@ -239,7 +239,7 @@ Offering to record a demonstration is honest in exactly one state: `unavailable`
 is unavailable and already exists, so the offer would invite somebody to Learn a Play they already
 learned. And a Director that RAN and failed is not an unknown command: answering *"I could not do
 that"* with *"shall I learn it?"* is a non-sequitur about something the person just watched go
-wrong. `TestTheTeachOfferNeedsBothHalves`, `TestTheTeachOfferFiresOnlyWhenNothingTookIt`.
+wrong. `TestTheLearnOfferNeedsBothHalves`, `TestTheLearnOfferFiresOnlyWhenNothingTookIt`.
 
 The engine's side of it is one shared spelling, `"no play matches "`, prefix-matched by the
 overlay (`TestTheUnknownCommandErrorIsOnePrefix`, `TestNoPlayMatchesPrefix`).

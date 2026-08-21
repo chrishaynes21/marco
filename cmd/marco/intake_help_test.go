@@ -53,6 +53,6 @@ func noDirector(t *testing.T) {
 	noPendingQuestion(t)
 	prevSubmit, prevStop := submitPhrase, stopWhatIsRunning
 	submitPhrase = func(string, bool) int { return exitUnavailable }
-	stopWhatIsRunning = func(bool) int { return exitUnavailable }
+	stopWhatIsRunning = func(bool, bool) int { return exitUnavailable }
 	t.Cleanup(func() { submitPhrase, stopWhatIsRunning = prevSubmit, prevStop })
 }

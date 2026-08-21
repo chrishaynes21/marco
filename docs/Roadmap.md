@@ -1,7 +1,7 @@
 ---
 type: roadmap
 status: active
-updated: 2026-08-11
+updated: 2026-08-20
 ---
 
 # Roadmap
@@ -1403,6 +1403,99 @@ Nothing from 35 is begun while 34 is open.
 - constraint: [[ADR-048-learn-teach-and-do-are-three-different-sentences]]
 - constraint: [[ADR-037-opt-in-is-enforced-on-every-door]]
 
+## 35A. Observe — continuous understanding — NEXT after 35
+
+**Not implemented. Nothing in the tree is called Observe.** What exists is one passive observation
+session shape, entered from the Learn panel's Watch button and from `director light`, which already
+does most of the perception work with **no Learn licence at all**. 35A is the session shape and the
+policy around it, not a new perception system.
+
+**What it would tell us.** Whether Marco can hold a standing answer to *what is happening* — which
+place is in front, what is on it, what just changed — instead of recomputing it inside an episode
+somebody opened on purpose. Everything downstream of Learn is currently paid for twice: once to
+open a session and once to look. If a standing answer is cheap, the whole product gets calmer; if
+it is not, we will find out on the cheapest possible question rather than on a feature.
+
+**What it depends on, and none of it is the Learn licence.** [[34F-observe-readiness]] traces the
+graph and finds eight blockers, all in `observesession`, `observeregistry`, `windowref` and
+`cmd/director`: a session must name exactly one window · it dies when that window goes · one
+session runs at a time, refused rather than queued · a fifteen-minute hard maximum · accumulation
+is per-session and in memory, lost on restart · there is no CLI door to ambient observation of the
+foreground · place recognition is gated on an **active session** (not on Learn) · and there is no
+`Stage` type, so evidence selection in front of `PlaceNow` is decided independently by each of its
+callers ([[34F-duplication-matrix]] §3).
+
+**Two ADRs must be written before code.**
+
+1. **The cold-start bootstrap.** A durable relationship requires **both** endpoints to already be
+   Established places. On a fresh install nothing is Established, and places become durable only
+   through Learn or through the Audience typing a name in Light Mode — so **the ambient loop cannot
+   start itself**. Three options, and 35A must choose deliberately: make the Light Mode naming
+   affordance prominent; add a third, bounded ambient establishment licence; or let an ambient
+   session establish a place it has re-recognised N times within the session, moving the bound from
+   *who asked* to *how often seen*. Storage must keep growing with human semantic events, not with
+   observation time.
+2. **Splitting one boolean into named licences.** `Episode.EstablishPlaces` is set at exactly one
+   site and grants at least four things at once: persisting a place's identity, creating candidates
+   from a watched demonstration, widening admitted target labels to every clickable control, and
+   inferring what a place *appears to be called*. An ambient Observe will want place naming without
+   target harvesting. Splitting the sampler's `demonstration` field into two is ten lines and it
+   must land **before** anybody makes Light Mode smarter.
+
+- affects: [[Passive-Observation]], [[Perception]], [[Semantic-Memory]], [[Visibility]]
+- constraint: [[ADR-047-a-place-is-remembered-a-meaning-is-answered]]
+- constraint: [[ADR-037-opt-in-is-enforced-on-every-door]]
+
+## 35B. Learn as explicit attention and admission over Observe — after 35A
+
+Once Observe is the floor, **Learn stops being the thing that switches perception on** and becomes
+what it always meant: the Audience pointing at something and saying *pay attention to this, and you
+may keep what you find*. Two licences, granted explicitly, over a loop that was already running.
+
+**What it would tell us.** Whether the four things `EstablishPlaces` currently grants are really
+one decision or four — and how many of them a person actually wants to make. The strong version of
+this item is that Learn shrinks: an episode becomes *attention* (watch this window, this task, now)
+plus *admission* (yes, keep what you learned), and everything else it currently does is either
+already ambient or is a separate consent the person already gives by answering a question.
+
+It should also settle the boundary the product still has not explained to anybody: **Record Learn ≠
+Semantic Learn** ([[34F-duplication-matrix]] §11). Two mature mechanisms, neither subsuming the
+other, presented today as two unrelated commands.
+
+**Depends on** 35A landing both of its ADRs, because 35B is exactly the consumer that would
+otherwise be tempted to set the one boolean and take all four licences with it.
+
+- affects: [[Demonstrations]], [[Learned-Plays]], [[Passive-Observation]]
+- constraint: [[ADR-086-one-acquisition-one-word-one-request]]
+- constraint: [[ADR-047-a-place-is-remembered-a-meaning-is-answered]]
+
+## 35C. Teach — Marco guides the Audience — after 35B
+
+The mirror image of Learn: **the person acts, and Marco guides them through it.** The word is
+RESERVED and it is genuinely clean — nothing live is called Teach any more
+([[ADR-086-one-acquisition-one-word-one-request]]); the only survivors are undocumented CLI and
+overlay aliases and dated ADR bodies that quote the old sense as evidence, all of them named
+explicitly by `TestNoLiveAcquisitionCodeIsNamedTeach` so they cannot grow.
+
+**What it would tell us.** Whether a learned Play is honest enough to be *narrated to a human*.
+Performing a Play only requires the steps to work; teaching one requires Marco to be able to say
+what each step is for, where the thing to click is **right now**, and how to tell that it worked —
+against the person's live screen, at their pace. That is a much stronger claim about the evidence
+than performance makes, and it is the cheapest way to find out where the learned representation is
+thin.
+
+**The rule that governs it:** *do not fabricate an intermediate referent to complete a screen.* If
+the evidence cannot honestly supply a step's target, Teach says so. This may therefore land as a
+UX/prototype milestone rather than a full capability, and that is a legitimate outcome — establish
+first what the learned evidence can actually support.
+
+**Depends on** 35A and 35B for the standing account of *where the person is now*, which is the
+whole of what makes guidance different from a script.
+
+- affects: [[Demonstrations]], [[Learned-Plays]], [[Goals]]
+- constraint: [[ADR-048-learn-teach-and-do-are-three-different-sentences]]
+- constraint: [[ADR-086-one-acquisition-one-word-one-request]]
+
 ## Deferred, with reasons
 
 - **Grounding DINO on GPU** — the 9.6s that sank it is a CPU-only `torch` artefact, but it
@@ -1431,7 +1524,7 @@ Full reasoning: [[director-vision-backend-decision]].
   otherwise.
 - **`go test -tags onnxvision ./...` never compiled in `plugins/vision`.** `identify_test.go`
   used `nullDetector`, which only exists under `!onnxvision`, so the build tag production
-  actually ships was untested. Fixed with a tag-independent stub; `TestNullDetectorDeclines`
+  actually ships was untested. Fixed with a tag-independent stub; `TestUnconfiguredDetectorDeclines`
   became `TestUnconfiguredDetectorDeclines` and now asserts the invariant that holds in both
   builds (an unconfigured detector finds nothing) rather than one build's exact return value.
 

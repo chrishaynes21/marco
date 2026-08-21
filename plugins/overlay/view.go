@@ -518,15 +518,6 @@ func (g *view) Draw(screen *ebiten.Image) {
 	}
 }
 
-// marcoVerbs are the command words highlighted in the command line (the same
-// accent as the `m leader badge), so a marco command reads distinctly from a
-// plain route name.
-var marcoVerbs = map[string]bool{
-	"learn": true, "teach": true, "simplify": true, "forget": true, "rename": true,
-	"bind": true, "unbind": true, "config": true, "help": true,
-	"exit": true, "quit": true,
-}
-
 // drawTerminalLine renders the "> input_" / "> `h" / "> lastcmd" line (live
 // typing, leader echo, voice preview, or the last command). The per-command
 // outcome + time lives in the history list below, not here.
@@ -611,7 +602,13 @@ func editRuns(in string, names []string, accent color.RGBA) []editRun {
 			rs = append(rs, editRun{lead, th.cmd})
 		}
 		first, rest, hasSpace := strings.Cut(trimmed, " ")
-		if marcoVerbs[strings.ToLower(first)] {
+		// The accent is the ONLY thing that tells a person, while they are typing, that the
+		// word they are on is one Marco answers itself rather than the name of a play. It
+		// used to be decided by a private map in this file that had never heard of `ui`,
+		// `press`, `watch` or `voice`, so four working commands read as play names right up
+		// until they did something else. isCommandWord reads the one table every site reads.
+		if isCommandWord(first) {
+
 			rs = append(rs, editRun{first, accent})
 			if hasSpace {
 				rs = append(rs, editRun{" " + rest, th.cmd})
@@ -894,7 +891,7 @@ func descRows(s snapshot, innerW float64) []string {
 		if row := normalRow(s); row != "" {
 			return wrapText(row, faceSmall, innerW)
 		}
-		return []string{"`m watch  ·  `m ui  ·  `m help  ·  `m config"}
+		return wrapText(idleHint(), faceSmall, innerW)
 	}
 	if len(s.logs) > 0 {
 		return wrapText(s.logs[len(s.logs)-1], faceSmall, innerW)

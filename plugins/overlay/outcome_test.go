@@ -2,12 +2,17 @@ package main
 
 import (
 	"errors"
-	"github.com/chaynes-simpleclouds/marco/internal/outcome"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"go/types"
 	"os"
 	"regexp"
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/chaynes-simpleclouds/marco/internal/outcome"
 )
 
 // TestResultPrefixAndVocabularyArePinned holds the module boundary.
@@ -297,5 +302,62 @@ func TestTheHudRendersEveryOutcomeInTheSet(t *testing.T) {
 	// And the one that must be right whatever else drifts: performed does not read as failure.
 	if strings.Contains(statusLine(outcome.Performed, disp), "failed") {
 		t.Error("a performed play renders as a failure")
+	}
+}
+
+// The overlay's route prefix IS the engine's constant — not a second copy that happens to agree.
+//
+// # Why comparing the values proves nothing
+//
+// `routePrefix != "[route] "` is checked twice in this file already, and both checks pass just as
+// happily against `const routePrefix = "[route] "` written out by hand. That is the mutation an
+// independent run made, and both modules stayed green: the overlay's constant is a `string`
+// either way, with the same eight characters in it, so no assertion about its VALUE can tell a
+// shared definition from a duplicate of one.
+//
+// The defect a duplicate produces is not a wrong value today. It is that [outcome.RoutePrefix]
+// can then be reworded on the engine side, both suites stay green, and the HUD silently stops
+// finding `[route] ` lines — at which point `offersLearn`, which needs `route == ""` to mean
+// "nothing took this", starts offering to record a demonstration for plays Marco already knows.
+//
+// So this asserts the LINK: the declaration reads `= outcome.RoutePrefix`, which is what makes a
+// compiler responsible for the agreement.
+func TestTheRoutePrefixIsTheEnginesConstantItself(t *testing.T) {
+	fset := token.NewFileSet()
+	parsed, err := parser.ParseFile(fset, "outcome.go", nil, 0)
+	if err != nil {
+		t.Fatalf("parsing outcome.go: %v", err)
+	}
+	var found bool
+	for _, decl := range parsed.Decls {
+		gen, ok := decl.(*ast.GenDecl)
+		if !ok || gen.Tok != token.CONST {
+			continue
+		}
+		for _, spec := range gen.Specs {
+			vs, ok := spec.(*ast.ValueSpec)
+			if !ok || len(vs.Names) != 1 || vs.Names[0].Name != "routePrefix" ||
+				len(vs.Values) != 1 {
+				continue
+			}
+			found = true
+			sel, ok := vs.Values[0].(*ast.SelectorExpr)
+			if !ok {
+				t.Fatalf("routePrefix is declared as %T, not as the engine's constant.\n"+
+					"A hand-written literal here agrees with the engine until "+
+					"somebody rewords the engine's, and then nothing fails to "+
+					"compile and the HUD stops reading route lines.",
+					vs.Values[0])
+			}
+			pkg, ok := sel.X.(*ast.Ident)
+			if !ok || pkg.Name != "outcome" || sel.Sel.Name != "RoutePrefix" {
+				t.Errorf("routePrefix is declared from %s.%s, want outcome.RoutePrefix",
+					types.ExprString(sel.X), sel.Sel.Name)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("outcome.go no longer declares routePrefix as a constant, so nothing here " +
+			"is bound to the engine's wire line at all")
 	}
 }

@@ -39,7 +39,9 @@ import (
 // which application that goal lives in; the desktop knows where that application's window is. None
 // of that needs history.
 //
-// Deleting the search across applications, or the live branch of performSelector, must fail this.
+// Deleting the search across applications must fail this. The live branch of performSelector does
+// NOT — measured: this fixture is cold, so history is empty either way and the refusal is
+// unchanged. TestTheWindowComesFromTheDesktopNotAPreviousSession is the one that holds it.
 func TestAColdProcessFindsItsWindowOnTheDesktop(t *testing.T) {
 	dir := t.TempDir()
 	store, why := semanticmemory.Open(filepath.Join(dir, "memory.json"))

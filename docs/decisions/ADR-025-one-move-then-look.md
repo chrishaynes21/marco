@@ -152,7 +152,7 @@ everything about what Marco is entitled to conclude afterwards.
 - `TestAWindowThatChangesBetweenCheckingAndActingSendsNothing` — the final guard, load-bearing.
 - `TestTheResultComesFromAFreshObservation` — the classification cannot come from a pre-action
   sample.
-- `TestOnlyTheFirstStepIsEverEmitted` — one move, even when it verified and two more were
+- `TestAMultiStepRouteRunsOneStepAtATime` — one move, even when it verified and two more were
   authorized.
 - `TestAnAttemptOnTheWrongScreenSendsNothing`, `TestAnUnrecognisedScreenSendsNothing`,
   `TestAnAmbiguousStartingScreenSendsNothing` — perception decides where Marco is.

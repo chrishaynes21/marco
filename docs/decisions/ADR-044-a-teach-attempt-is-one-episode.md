@@ -69,19 +69,19 @@ so what decides is what the person did in the last minute, not what the screen h
 start with twenty historical routes out of it is unambiguous; two routes appearing *during the
 demonstration* are genuinely ambiguous and still refuse.
 
-Characterised rather than changed: `TestHistoryAtTheStartDoesNotMakeTeachingUnusable`. No policy
+Characterised rather than changed: `TestHistoryAtTheStartDoesNotMakeLearningUnusable`. No policy
 was touched, because the counters showed no mismatch to fix.
 
 ## Enforced by
 
 - `internal/director/semanticmemory/store_test.go` —
-  `TestATeachingEpisodeClaimsOneSessionAndAnOrdinaryOneStillClaimsItsOwn`: three passes of one
+  `TestALearningEpisodeClaimsOneSessionAndAnOrdinaryOneStillClaimsItsOwn`: three passes of one
   episode fold six observations and claim one session; two ordinary sittings after it claim their
   own. Both the rule and its default survived deliberate deletion and inversion.
 - `internal/director/observesession/relationshipwiring_test.go` —
   `TestASessionInAnEpisodeClaimsNoFurtherCorroboration`, through the production `Run` path.
 - `cmd/director/learnepisode_test.go` —
-  `TestATeachEpisodeClaimsOneCorroborationThroughTheProductionPass` drives `teachPasses.Observe`
+  `TestALearnEpisodeClaimsOneCorroborationThroughTheProductionPass` drives `teachPasses.Observe`
   and asserts the flag it hands the runner, so deleting the production line fails.
 
 ## Related

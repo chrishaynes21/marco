@@ -196,7 +196,13 @@ func (h *model) setStatus(s string) {
 		h.state = "error"
 	// A question is Marco waiting on the person, which is the same state the panel
 	// already has a colour for. It is emphatically not an error: nothing went wrong.
-	case strings.HasPrefix(s, "asked about"), strings.HasPrefix(s, "director asked"):
+	//
+	// The second prefix is a CONSTANT, not a copy of the sentence. It used to be the
+	// literal "director asked", written here and produced in director.go, and the two
+	// agreed only by both containing a backstage word nobody was supposed to see. Renaming
+	// the line in the product's own register would have left this arm matching nothing and
+	// coloured a pending question as if nothing were happening.
+	case strings.HasPrefix(s, "asked about"), strings.HasPrefix(s, questionStatus):
 		h.state = "listen"
 	case strings.HasPrefix(s, "command"):
 		h.state = "listen"

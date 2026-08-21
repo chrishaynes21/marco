@@ -313,3 +313,56 @@ func momentText(ms []playbill.Moment) string {
 	}
 	return b.String()
 }
+
+// A NEW account replaces the old one whole. Nothing from the last one survives into it.
+//
+// # The fact this exists to keep the overlay from inventing
+//
+// "Where Marco is now" is the Director's answer, and it is the one the person acts on. An account
+// that arrives with no recognised place means Marco does not know where it is — which is a real,
+// frequent and honest state — and the panel has to say so. Carrying the previous account's screen
+// name forward would render that state as a confident assertion about a place the person has
+// since left, which is worse than saying nothing: it is the surface making up a fact and then
+// putting the Director's voice to it.
+//
+// # Why the test above does not cover this
+//
+// TestTheOverlayRendersTheAccountAndAddsNothing renders ONE account twice and compares the two
+// renders. That holds purity — the same input renders the same rows — and says nothing at all
+// about what happens when the input CHANGES, which is where a carried-over field would live. An
+// independent mutation run taught `setWatch` to keep the previous Screen and Recognition whenever
+// the new account had none, and the whole overlay suite stayed green.
+func TestANewAccountCarriesNothingOverFromTheLastOne(t *testing.T) {
+	m := newModel()
+	m.openWatch()
+
+	m.setWatch(recognisedAccount())
+	before := rowText(watchRows(m.snapshot(), 300))
+	if !strings.Contains(before, "the pause menu") || !strings.Contains(before, "testgame.exe") {
+		t.Fatalf("the first account never reached the panel, so this test would pass "+
+			"vacuously:\n%s", before)
+	}
+
+	// The SAME shape of account, from a different application, in a place Marco has not
+	// recognised: an empty Screen and the zero Recognition are what "I don't know where I
+	// am" looks like on the wire.
+	m.setWatch(playbill.View{
+		Version: playbill.Version, Reach: playbill.Present, Epoch: "epoch_2",
+		Current: playbill.Current{
+			Watching: true, Application: "notepad.exe", Samples: 3, FreshnessMS: 120,
+		},
+		Seeing:   playbill.Seeing{Structure: 0, Looks: 3, Readable: 1},
+		Learning: playbill.Learning{Stage: playbill.Observing},
+		Doing:    playbill.Doing{Phase: playbill.NotDoing},
+	})
+	after := rowText(watchRows(m.snapshot(), 300))
+
+	for _, stale := range []string{"the pause menu", "testgame.exe"} {
+		if strings.Contains(after, stale) {
+			t.Errorf("%q survived into the next account:\n%s\n"+
+				"The Director said it does not recognise this place. A panel that "+
+				"fills the gap from the last account asserts, in the Director's "+
+				"voice, that the person is somewhere they have left.", stale, after)
+		}
+	}
+}

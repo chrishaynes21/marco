@@ -206,3 +206,50 @@ func TestAnUnscopedProductionOmitsTheWindow(t *testing.T) {
 		t.Errorf("an unscoped production wrote a window into the program:\n%s", program)
 	}
 }
+
+// A bridge that is THERE and cannot work is unavailable, and says the provider's own reason.
+//
+// # Why `host != nil` was never the question
+//
+// On the Director's path a host is constructed unconditionally — `bridgehost.New(path)` launches
+// lazily and never returns nil — so a zero-byte, unbuilt or unrunnable `uia.exe` produced a
+// non-nil host and an Actor that reported itself READY. The roster then said "accessibility:
+// ready", the Theater cast it, and the failure arrived several steps later inside a play as
+// `perform_failed`: a person told their play is broken when what is true is that their machine
+// cannot act at all.
+//
+// So the mutation this exists to catch is not a deleted nil check. It is dropping the round trip
+// — `return a.host != nil` — which leaves TestWithNoBridgeTheActorIsUnavailable green, because
+// that test only ever supplies a nil host. This one supplies a host that ANSWERS, and answers no.
+//
+// Both halves are load-bearing. Ready must be false, or the Theater casts an actor that cannot
+// act; and the provider's own sentence must survive, or every surface above can say nothing more
+// useful than "unavailable" about a machine somebody has to fix.
+func TestAProviderThatSaysItCannotActIsUnavailableWithItsReason(t *testing.T) {
+	const said = "uia.exe could not be started"
+	host := &recordingHost{reply: said}
+	actor := theaterhost.NewAccessibilityActor(host, "uia.exe")
+
+	av := actor.Availability(context.Background())
+	if av.Ready {
+		t.Fatal("an actor whose provider says it cannot act reported itself ready.\n" +
+			"Availability that only asks whether a host object exists cannot fail: the " +
+			"Director builds one for a path that holds nothing, the roster says " +
+			"\"accessibility: ready\", and the refusal arrives mid-play as perform_failed.")
+	}
+	if !strings.Contains(av.Reason, said) {
+		t.Errorf("the provider's own reason did not survive: %q, want it to carry %q.\n"+
+			"A reason invented here would send somebody looking for the wrong fault.",
+			av.Reason, said)
+	}
+	// And it was ASKED — the answer came over the bridge rather than from a path check.
+	var asked bool
+	for _, c := range host.calls {
+		if c.Action == "Available" {
+			asked = true
+		}
+	}
+	if !asked {
+		t.Error("nothing asked the provider whether it could act")
+	}
+}

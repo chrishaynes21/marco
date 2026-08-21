@@ -111,8 +111,13 @@ intents" would eventually give a second answer.
   `TestAChangeAcrossAnUnplaceableSampleStillBuilds` (the live shape, intents from the entry leg),
   `TestALongBlackoutDoesNotBuildACandidate`,
   `TestTheDiscoveryCandidateRefusesRatherThanGuessing` (all three refusals),
-  `TestTheOneShotPathDoesNotRelaxRecognisability`,
-  `TestAScreenYouTypeOnIsStillMarkedOnTheOneShotPath`.
+  `TestTheOneShotPathDoesNotRelaxRecognisability`.
+  (A second claim here named a test — TestAScreenYouTypeOnIsStillMarked… , unbackticked so this note
+  does not itself become a citation — which has never
+  existed. **Nothing currently holds it.** A test would have to drive the one-shot path over a pass
+  in which the person TYPED on the screen, and assert the screen is still marked recognisable —
+  the point being that typing is not a reason to lower the bar. Found 2026-08-20 by the docs half
+  of `internal/wiringcheck`, which was added because the Go half had the same blind spot.)
 - `internal/director/learn/oneshot_test.go` —
   `TestTheDiscoveryPassBecomesTheDemonstrationWithoutAskingAgain` requires **two** observation
   passes, not three, and deleting the `fromDiscovery` call fails it;

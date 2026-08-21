@@ -129,7 +129,7 @@ sessions write identical files.
   agrees with the reopened file. Mutation-gated twice — narrowing `PlacesToEstablish` back to the
   current state fails it, and making the runner's loop skip non-current candidates fails it.
   `TestAnUnlicensedPassEstablishesNoPlaceHowManyItSees` is the control: the licence did not widen.
-  `TestTeachingEstablishesTheStartThroughTheProductionPath` and
+  `TestLearningEstablishesTheStartThroughTheProductionPath` and
   `TestAnEstablishedPlaceCarriesNoUserJudgement` now assert the property — every settled place
   durable, none carrying a judgement — rather than ADR-047's count.
 

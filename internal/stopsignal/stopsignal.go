@@ -153,6 +153,9 @@ func Raise(home string) error {
 // taken inside, a stop raised in the window between starting a Play and the goroutine's first read
 // would be adopted as the baseline and the Play would never hear it. That window is small and it
 // is exactly the window a person creates when they change their mind immediately.
+//
+// Moving it into the goroutine must fail TestAStopRaisedWhileWatchWasStartingIsStillHeard, which
+// raises a stop from inside Watch itself rather than racing one against it from outside.
 func Watch(parent context.Context, home string) (context.Context, func()) {
 	return watch(parent, home, PollInterval)
 }

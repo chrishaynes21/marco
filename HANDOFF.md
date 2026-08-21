@@ -5348,3 +5348,132 @@ CLAUDE.md now carries the three-word rule as a load-bearing invariant, with the 
 named. README documents the alias once. E2E section **A** gained step **6a**, which exercises the
 `teach` alias in the HUD — the only place the overlay's command-word alias can be proven, because
 the Go suite cannot drive the command line.
+
+# Roadmap 34F Phases 3–5 — one stop, one account, and the record (2026-08-20)
+
+Phases 0–2 gave the product one runnable path, one noun and one door. This entry covers the rest of
+the 34F campaign in one go, because it landed in one commit (`ac8da6c`) plus the documentation pass
+that closed it.
+
+**A numbering note, so nobody loses an hour to it.** The HANDOFF entry above is headed *"Phase 3 —
+one vocabulary"*; the campaign plan calls that the second half of Phase 2, and calls **this**
+Phase 3. The commits are the truth: `fca45e0` is one intake + the acquisition rename, `ac8da6c` is
+one stop + one account.
+
+## What was built
+
+**One stop, and it crosses a process boundary** ([[ADR-087-one-stop-and-it-crosses-a-process-boundary]]).
+`stop` was already a control phrase from every entrance, and the Director's own performances were
+already registry commands — and neither was enough, because the thing a person is most often trying
+to stop is a Play running in a **different process** from the one they said it to. `marco do`
+performs an authored or recorded Play inside a short-lived child; the overlay starts one, so does
+the control centre, so does a hotkey, so does a terminal. `internal/stopsignal` is the one stop that
+reaches them.
+
+**`finally` had never once run on a cancellation** ([[ADR-088-cleanup-runs-when-the-audience-stops]]).
+`spec/Core.md` is normative and says `finally` runs *including cancellation*, with a worked example
+of releasing a held key — which is precisely the work that must still happen when somebody presses
+stop, and the one case in which it never happened. The mechanism was a single `if`: `runBlock`
+bailed out on a cancelled frame and called `runFinallies`, which re-entered `runBlock` **on the same
+still-cancelled frame**, so the cleanup body's first ordinary edge hit the same guard and returned.
+The whole suite was green while a normative spec sentence was false.
+
+**The second invocation spine is gone.** `orchestrator.Deps.Do` / `.Resolve` / `.Run` was a
+complete resolve → authorize → run → learn-on-unknown path with **no production caller** — and
+worse than the live one: no context (so no panic-stop, no cancellation) and no `routes.ApplyArgs`.
+The authority test suite still entered through it, which is exactly how the last authority bypass
+hid. Deleted, with the tests moved onto the production entry.
+
+**A live rehearsal can now be stopped.** `learnTail.Rehearse` took a `context.Context` with no
+name — Go's way of saying *I am obliged to accept this and I intend to ignore it* — and
+`rehearserun.go` then called the walker with `context.Background()`. Pressing **Try** in the Learn
+panel started real input that nothing in the product could stop: not the panel's Cancel (it
+cancelled a context that call had discarded), not `director stop` (no registry command existed for
+it), not the overlay's Esc, not a spoken "stop". Fixed at both ends, and `cancelActive` gained a
+third arm so a Learn episode is something the stop can find.
+
+**One live-walker composition root.** `perform.go` built the same object `rehearserun.go` built and
+differed from it in one line: it never called `WithForeground`. `Live.behind` returns false when
+`inFront` is nil, so the per-step "input would land somewhere else" refusal was **live for the
+rehearsal Marco asks permission for and dead for the play the Audience asks for** — exactly
+backwards. There is one root now, and `TestEveryLiveWalkerChecksTheForeground` enumerates every
+function in `cmd/director` that builds a `rehearse.Live` rather than naming files.
+
+**Marco's Screen host asks the Director which place is showing** (protocol v9). It used to return
+`unavailable` unconditionally — a true statement about that process and a false one about the
+system, since the eyes exist in a sibling process one dial away. This also closed a hole nobody had
+listed: an **edited** learned play loses `Resolved.Learned()`, so it takes the local runner, so it
+used to refuse at its own first `do Screen's Showing` line. Editing is invited, the authority door
+deliberately blesses it, and the result was a Play that refused at its own first line.
+
+**One outcome vocabulary.** `internal/outcome` owns the six words
+(`performed`/`clarify`/`refused`/`unavailable`/`cancelled`/`failed`), the `"[result] "` and
+`"[route] "` wire literals and the exit codes; engine, HUD and control centre all import it. The
+control centre now reports **real** outcomes — it used to fire-and-forget a child and render
+`running:` forever — through a run id the page polls (`cmd/marco/runaccount.go`). Actor
+availability asks its provider and carries a reason, empty always when it can act.
+
+## What was found
+
+Nine read-only audits were written mid-campaign and are the source material for the three new
+notes. Their findings, re-verified against the closing tree, and several of the headlines had
+already been fixed by the time the record was written — which is itself the finding worth keeping.
+
+- **The dangerous defects were all invisible to a green suite.** A dead foreground guard, a
+  `finally` that never ran, an uncancellable rehearsal, a second spine only tests could enter. Four
+  for four, and each one had complete, well-commented, correct-looking code.
+- **The "one intake" guard is weak.** `TestEveryEntranceRoutesThroughTheOneIntake` is a string grep
+  over two named files. It would pass unchanged if a tenth entrance appeared tomorrow. The
+  precedent to copy is `internal/platform/navsource/pump_test.go`, which walks the whole tree for
+  hook sites rather than naming them.
+- **There is no second Marco left, but there are five narrow primitives** that reach real input
+  without passing `Decide`: `marco press`, `marco run`, `marco serve`, `marco director "<phrase>"`
+  and `director op`. Four are defensible; the work is to **name them in the model** rather than to
+  close them.
+- **`/api/bind` still writes a binding it never validates**, reintroducing the exact defect
+  `bindKey` was written to prevent — *a binding that reports success and can never fire is worse
+  than one that refuses*.
+- **The Observe stack is far less Learn-welded than anybody expected.** Light Mode already runs a
+  passive session with a **zero Episode**, and place recognition works inside it. Exactly one
+  production site sets `EstablishPlaces` true — and that one boolean grants at least four separate
+  licences.
+- **The genuine 35A blocker is cold start, not Learn.** A durable relationship needs both endpoints
+  already Established; on a fresh install nothing is, and places become durable only through Learn
+  or through the Audience typing a name. **The ambient loop cannot start itself.** That is a policy
+  decision for 35A with an ADR, not a 34F fix.
+
+## What is owed
+
+- **`/api/bind` → `bindKey`.** The most concrete unclosed defect in the campaign. Small.
+- **One `Stage.Now()`** owning evidence selection in front of `PlaceNow`. Eight callers choose their
+  own evidence today, so there is no single answer to *what is Marco looking at* — the precondition
+  for Observe.
+- **An enumerating one-intake test**, in the shape of the pump test.
+- **One `internal/marcopaths`** — `$MARCO_HOME`, `$MARCO_ROUTES` and the uia bridge are each derived
+  independently in two binaries. Break #3 is in remission, not cured.
+- **A shared overlay config struct.** `cmd/marco/oconfig.go` hand-mirrors the overlay's `Config` and
+  does not preserve unknown keys, so the control centre can **delete a setting it does not know
+  about**.
+- **One page naming the three authority regimes** (`orchestrator.Authorize`, the rehearsal grant,
+  and `internal/director/policy`), which today a reader has to discover.
+- **The CV/anchor default**, still undecided since the audit; three hand-maintained copies of the
+  flag.
+- **One Activity.** At `ac8da6c` the overlay still keeps a private command history beside the
+  playbill. Work on a shared Activity account was in flight in the same tree while this entry was
+  written (`cmd/marco/activity.go`), so check before starting it.
+- **An Advanced surface.** The control centre has six unmarked tabs and no advanced section at all,
+  which is why several developer-grade strings have nowhere to go.
+
+## Where to read it
+
+- [[34F-duplication-matrix]] — canonical owner, remaining duplicates, why each remains, and the
+  second-Marco question re-verified path by path.
+- [[34F-legacy-matrix]] — every major system with exactly one status, the compatibility table, and
+  the exhaustive CLI verb surface of `cmd/marco` and `cmd/director`.
+- [[34F-observe-readiness]] — the perception dependency graph, the three gating questions answered
+  with proof, the cold-start bootstrap problem, and the four-tier privacy seam.
+- [[34F-legacy-marco-product-audit]] now carries a dated banner recording what landed and which of
+  its own findings are stale. **Its body was deliberately not rewritten** — it is the record of
+  what was true then.
+- [[Roadmap]] gained **35A Observe**, **35B Learn as explicit attention and admission over
+  Observe**, and **35C Teach**. Observe is not implemented; nothing in the tree is called Observe.

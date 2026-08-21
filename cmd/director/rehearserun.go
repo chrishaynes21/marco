@@ -164,7 +164,13 @@ func rehearsalPhrase(q service.ObserveRehearse, destination string) string {
 // rehearsal spends a grant Marco asked permission for, a performance spends an explicit request.
 // That difference stays in the callers, where it belongs.
 //
-// Deleting WithForeground must fail TestEveryLiveWalkerChecksTheForeground.
+// Deleting the WithForeground CALL must fail TestEveryLiveWalkerChecksTheForeground, which reads
+// this package's source and requires every builder of a rehearse.Live to install the answer.
+//
+// Passing it `nil` must fail TestALiveWalkerRefusesWhenTheWindowIsNotInFront. That distinction is
+// not pedantry: the source test sees the call and cannot see the argument, and `behind` treats a
+// nil answer as "not behind", so `WithForeground(nil)` switches the gate off while satisfying
+// every structural check. It was measured surviving both suites.
 func (r *Runtime) walker(live bool) (*rehearse.Live, error) {
 	g := r.observations
 	g.mu.RLock()
@@ -283,7 +289,15 @@ func rehearsalViewOf(r rehearse.RehearsalResult, live bool) service.RehearsalVie
 // cannot answer — the stubs, a handle that has already gone — reports true and leaves the
 // refusing to the guards that own those cases: the target validator catches a dead window,
 // and a stub platform has no real host to protect.
-func windowLeads(ref windowref.Ref) bool {
+//
+// A package VARIABLE, for the same one reason `dialPerformer` in cmd/marco is: this is the
+// single line in the composition root that a test cannot supply for itself. `winctx` answers
+// about the real desktop, and a test has no real window to put behind or in front — so
+// without a seam here the only thing any test could assert about the foreground gate is that
+// the wiring CALL is present, which is what TestEveryLiveWalkerChecksTheForeground asserts and
+// exactly what `WithForeground(nil)` survives. Production never reassigns it; it is replaced
+// only by TestALiveWalkerRefusesWhenTheWindowIsNotInFront, which exercises the predicate.
+var windowLeads = func(ref windowref.Ref) bool {
 	w, ok := winctx.LookUpWindow(ref.Handle)
 	if !ok {
 		return true
