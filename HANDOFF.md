@@ -5477,3 +5477,61 @@ already been fixed by the time the record was written — which is itself the fi
   what was true then.
 - [[Roadmap]] gained **35A Observe**, **35B Learn as explicit attention and admission over
   Observe**, and **35C Teach**. Observe is not implemented; nothing in the tree is called Observe.
+
+---
+
+## Roadmap 35A + 35B — observation stops being a privilege of Learn, and Learn stops replaying you
+
+Three commits on `feat/host-ffi`: `90a0bce`, `f1fe7d3`, `a0d1ae5`.
+
+**35A: the inversion, measured first.** `Episode.EstablishPlaces` was set true at ONE site and read
+at FOUR, permitting four unrelated things. Three are real licences and stayed. The fourth was not:
+`AdmittedPlaceName` opened with `if !demonstration { return "" }`, so outside an explicit Learn
+Marco could recognise the Place it was standing on and could not say what it appeared to be called.
+"Where am I?" had no answer unless you were teaching it something.
+
+The argument beside that gate was *"a Place's name is read off somebody's screen, and passive
+observation has no business writing that down."* The second half is still policy; the first is a
+different question answered with the same word. Traced: the durable write was **already** licensed
+one level up, inside `establishPlace`. The gate on the inference was a second gate that bought no
+privacy. It is gone; the shape filter that actually protects a person was always unconditional and
+now carries the whole weight.
+
+The remaining three are named permissions — `EstablishPlaces`, `AcquireRouteEvidence`,
+`NameActivatedTargets` — grantable one at a time, with `LearnLicence()` as the one place Learn's
+grant is written down. **Four mutations survived the first version of that split**, including
+hard-wiring the privacy-carrying permission to `true`; every test granted all three, so a swapped
+guard was invisible to all of them. Closed by tests that drive the production path with permissions
+that DIFFER. See [[ADR-076-a-place-may-say-what-it-appears-to-be-called]]'s amendment.
+
+**35B: Fast Learn.** Every required edge used to be REHEARSED before a route could be written down
+— "want me to try?", a yes, and Marco driving the real desktop, twice for a two-hop route, to learn
+something the person had just finished showing it.
+
+The measurement that settles it: the rehearsal question was raised under **exactly** the conditions
+that already made the evidence sufficient (`CandidateConsistent`, nothing `Blocking()`), and
+anything less was refused upstream and never reached a rehearsal at all. There was no middle state.
+The question obtained no information — it obtained a permission, for an action nobody had asked
+Marco to take.
+
+So a clean demonstration is admitted on the strength of what the person showed: `EdgeObserved`
+beside `EdgeVerified`, deliberately not folded into it, because they are claims about different
+actors. Rehearsal survives as a tool via `WithRehearsal(true)`. `verifiedEdges` became
+`plannableEdges` and accepts either kind of knowing — without which a Fast-Learned Play would have
+saved and then refused to run. Authority, foreground and per-edge verification are untouched and
+are the reason widening planning weakens nothing. See
+[[ADR-089-watching-is-how-marco-learns-performing-is-how-it-proves]].
+
+**Two governance findings, both about gates I had built.** The wiring-claim checker scans line by
+line, so a claim whose test name WRAPPED onto the next line was invisible — **119 claims in this
+tree end a line with the phrase**, and it had been run, passed, and reported as closing the problem
+while never checking any of them. And it read `.go` only: the docs vault held 25 more phantom
+citations in ADR `Enforced by` sections, which CLAUDE.md names as a hard rule, while `docscheck`
+said "no problems" throughout. Both holes are closed and the scan is now testable directly.
+
+**Not done, and owed.** Live acceptance — `ACCEPTANCE.md` section E is the twenty-minute
+walkthrough, and steps 16–20 need a person demonstrating a real route in Windows Settings. Nothing
+yet upgrades an observed edge to execution-proven when a later run succeeds; the seam is
+`RehearsalEvidence` and the write belongs with 35C. Automatic Place naming was verified against its
+existing regressions (nav-rail, loading/reflow) rather than re-derived from fresh accessibility
+dumps.

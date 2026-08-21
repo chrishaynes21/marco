@@ -1,14 +1,14 @@
 # Minimum live acceptance
 
-`E2E.md` is the full manual walkthrough. This is the short one: **fifteen checks, about twenty
-minutes**, covering the things a Go test structurally cannot — real hooks, a real desktop, two real
-processes, and a browser.
+`E2E.md` is the full manual walkthrough. This is the short one: **twenty checks, about half an
+hour**, covering the things a Go test structurally cannot — real hooks, a real desktop, two real
+processes, a browser, and a person demonstrating something.
 
 Everything here is safe. Nothing asks you to type into a document you care about, and the one Play
 you make performs no input of its own.
 
 > **If a check fails, that is the point.** Write down what you saw and stop; a failure here is worth
-> more than the other fourteen passing.
+> more than the other nineteen passing.
 
 ---
 
@@ -169,6 +169,58 @@ for it by name.
 > typing into the wrong window, and no permission is spent.
 
 ---
+
+## E. Fast Learn — watch once, understand, remember
+
+Roadmap 35B. This is the one that needs your hands: Marco has to watch a real person do a real
+thing. Everything below runs against the sandbox from Setup, so your own plays are untouched.
+
+Start the stack (`.\overlay.cmd`) and open **Windows Settings** on its **Home** page.
+
+**16. Learn it in one demonstration.**
+In the overlay: `` `m learn open mouse settings ``
+Then, in Settings, click **Bluetooth & devices**, then click **Mouse**. Press the leader key to
+finish.
+
+- [ ] Marco does **not** ask you to name Home, Bluetooth & devices, or Mouse.
+- [ ] Marco does **not** ask "Can I try that?" for either step.
+- [ ] Marco does **not** move the mouse or press anything itself.
+- [ ] It finishes concisely — the sense of *"Got it."*
+
+*Why it matters:* before this, learning that route required Marco to REPLAY both steps on your
+desktop, after asking permission twice, to learn something you had just shown it.
+
+**17. It kept both steps, and one Play.**
+`.\marco.exe plays`
+
+- [ ] `open mouse settings` is listed, as **Learned**.
+- [ ] Exactly one Play was created — not one per step.
+
+**18. It does not claim it performed anything.**
+`.\director.exe reach "open mouse settings"`, or the control centre's Advanced view.
+
+- [ ] Marco reports it knows a way there.
+- [ ] Nothing claims Marco executed or verified those steps — it watched you, and only that.
+
+*This is the distinction the whole roadmap turns on. If any surface says an edge Marco never ran is
+"verified", that is a bug and worth stopping for.*
+
+**19. Demonstrate the same route again.**
+Go back to Settings Home and repeat step 16 exactly.
+
+- [ ] `.\marco.exe plays` still shows **one** `open mouse settings`.
+- [ ] No duplicate Places appear — Here still shows three, not six.
+
+**20. Now run it — the first time Marco actually performs it.**
+Put an unrelated window in front. Then: `` `m open mouse settings ``
+
+- [ ] Settings comes forward.
+- [ ] Marco navigates to **Mouse** and reports success only after arriving.
+- [ ] If it refuses instead, note the reason — a refusal here is honest, and is data rather than a
+      failed acceptance.
+
+*This is where observation becomes proof: Marco learned the route by watching, and proves it now,
+under the ordinary authority and verification it has always used.*
 
 ## Tidy up
 
