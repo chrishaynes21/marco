@@ -10,9 +10,9 @@ import (
 //
 // # The progression this sits in the middle of
 //
-//	I SAW IT ONCE                    candidate evidence
-//	I SAW THE SAME THING AGAIN       stronger, independent evidence
-//	IT IS CONSISTENT AND SAFE        durable EdgeObserved knowledge   <- here
+//	I SAW YOU CROSS IT ONCE          candidate evidence
+//	IT WAS A CLEAN CROSSING          durable EdgeObserved knowledge   <- here
+//	I SEE YOU CROSS IT AGAIN         the same edge, stronger
 //	THE PERSON ASKS ME TO DO IT      ordinary authority
 //	I DO IT                          Theater
 //	I PROVE IT WORKED                EdgeVerified evidence
@@ -37,31 +37,45 @@ import (
 // must lead before any input is emitted, and every edge is verified as it is walked. See
 // [[ADR-095-repeated-observation-may-become-knowledge]].
 
-// DefaultOccasions is how many independent demonstrations the first policy asks for.
+// DefaultTraversals is how many clean traversals the policy asks for before an edge is admitted.
 //
-// Two. Not because two is a magic number but because one is not evidence of a HABIT — it is
-// evidence of a thing that happened — and the difference between those is the entire claim
-// ambient learning makes. Anything higher would make the feature invisible: somebody would have
-// to do the same thing on three separate occasions before Marco noticed, and by then they would
-// have taught it explicitly.
-const DefaultOccasions = 2
+// ONE. A clean human traversal of A --X--> B is already knowledge: the person went there, by
+// pressing that, and arrived. Repeating it does not make the relationship more TRUE — it makes
+// Marco more confident that it is reliable, which is a different question and belongs in the
+// evidence rather than in whether the fact exists.
+//
+// # It was two, and that was the wrong model
+//
+// The first policy asked for two independent demonstrations, on the reasoning that "one is not
+// evidence of a habit". That reasoning is right about HABITS and this is not a habit store: it is
+// a graph of what the interface is. Waiting for a repetition to admit an edge is waiting for
+// somebody to prove that a door they just walked through is still a door.
+//
+// Worse, it made a product out of the wait. Somebody had to perform an action, wait, and perform
+// it again before Marco would admit what it had plainly seen — ceremony, in the one mode whose
+// whole promise is that there is no ceremony. See ADR-095's correction.
+//
+// It remains configurable, so a deployment that wants corroboration before admission can ask for
+// it, and so the refusal it produces stays reachable and tested.
+const DefaultTraversals = 1
 
-// IndependentGap is how far apart two crossings have to be to count as two occasions.
+// There is deliberately no minimum time between traversals.
 //
-// # Why there is a gap at all
+// # What the old sixty-second gap was for, and why it was answering the wrong question
 //
-// Because a thousand samples of one action must not read as a thousand demonstrations, and the
-// version of that mistake which actually happens is smaller and more plausible: somebody flicks
-// between two pages half a dozen times while looking for something. That is one person, one
-// minute, one piece of hunting — and counting it as six occasions would let hunting be the thing
-// Marco learns fastest.
+// It existed so a thousand provider samples of one action could not read as a thousand
+// demonstrations. That is a real hazard and it is handled twice already, upstream, where it
+// belongs: duplicate input events are coalesced into one act, and a crossing is only recorded when
+// the PLACE CHANGES. One traversal is one recorded step, whatever the desktop emitted.
 //
-// A minute. Long enough that back-and-forth inside one task is one occasion; short enough that
-// somebody who does a thing, does something else, and comes back is credited with two.
+// So the clock was measuring nothing that mattered — and it charged for it. A person who did a
+// thing, went back, and did it again fifteen seconds later had performed two real traversals and
+// was credited with one, because a timer said so. Semantic re-entry is what makes a second
+// traversal second: to do A --X--> B again you have to get back to A, and getting back to A is
+// itself a recorded step.
 //
-// A different watching SESSION also separates two occasions, whatever the clock says — see
-// Independent. Between them they cover both meanings of "again": later today, and next time.
-const IndependentGap = time.Minute
+// What DOES still separate evidence is the watching session, and that is provenance rather than a
+// threshold: see WatchedEdge.Sessions.
 
 // Policy is the promotion rule's configuration.
 //
@@ -76,28 +90,20 @@ type Policy struct {
 	// something nobody said yes to. See ADR-095, and ADR-093 for the same argument about
 	// watching itself.
 	Enabled bool
-	// Occasions is how many independent demonstrations are required. Zero means the default.
-	Occasions int
-	// Gap is how far apart two crossings must be to be independent. Zero means the default.
-	Gap time.Duration
+	// Traversals is how many clean traversals are required before admission. Zero means the
+	// default, which is one: a clean traversal is already knowledge.
+	Traversals int
 	// Freshness bounds how old the most recent evidence may be. Zero means no bound, which is
 	// the first policy's choice: see the note on Stale.
 	Freshness time.Duration
 }
 
-// occasions and gap read the policy with its defaults applied.
-func (p Policy) occasions() int {
-	if p.Occasions > 0 {
-		return p.Occasions
+// traversals reads the policy with its default applied.
+func (p Policy) traversals() int {
+	if p.Traversals > 0 {
+		return p.Traversals
 	}
-	return DefaultOccasions
-}
-
-func (p Policy) gap() time.Duration {
-	if p.Gap > 0 {
-		return p.Gap
-	}
-	return IndependentGap
+	return DefaultTraversals
 }
 
 // Verdict is what the policy concluded, from a closed vocabulary of three.
@@ -196,28 +202,10 @@ func Judge(e observe.WatchedEdge, p Policy, now time.Time) Judgement {
 	if p.Freshness > 0 && !e.Last.IsZero() && now.Sub(e.Last) > p.Freshness {
 		return Judgement{Verdict: Wait, Why: WhyStale}
 	}
-	if want := p.occasions(); e.Occasions < want {
-		return Judgement{Verdict: Wait, Why: WhyTooFew, Short: want - e.Occasions}
+	if want := p.traversals(); e.Seen < want {
+		return Judgement{Verdict: Wait, Why: WhyTooFew, Short: want - e.Seen}
 	}
 	return Judgement{Verdict: Promote, Why: WhyEnough}
-}
-
-// Independent reports whether a crossing at `at` counts as a new occasion, given when the last
-// counted one was.
-//
-// A different watching session always does, whatever the clock says: a session boundary is a
-// restart of the observer and often of the day. Otherwise the gap decides.
-//
-// The FIRST crossing of a candidate is always an occasion — `last` is zero and nothing precedes
-// it — which is what makes "seen once" a real state rather than a special case somewhere else.
-func Independent(last, at time.Time, gap time.Duration, sameSession bool) bool {
-	if last.IsZero() {
-		return true
-	}
-	if !sameSession {
-		return true
-	}
-	return at.Sub(last) >= gap
 }
 
 // Fold adds one observed step to a candidate summary and returns the result.
@@ -234,13 +222,19 @@ func Independent(last, at time.Time, gap time.Duration, sameSession bool) bool {
 // A step that begins where this candidate begins, by the same action on the same control, and
 // arrives somewhere ELSE, is counted against it. The caller finds that candidate — see the
 // matching rule in the Director's ledger — and hands it here; this only knows how to add one.
-func Fold(e observe.WatchedEdge, s Step, sameSession bool, gap time.Duration) observe.WatchedEdge {
-	if gap <= 0 {
-		gap = IndependentGap
-	}
+func Fold(e observe.WatchedEdge, s Step, sameSession bool) observe.WatchedEdge {
+	// ONE RECORDED CROSSING IS ONE TRAVERSAL. No clock, no threshold.
+	//
+	// The two things that could make that untrue are both handled upstream: duplicate provider
+	// events are coalesced into one act, and a crossing is only recorded when the PLACE
+	// CHANGES — so a screen sampled forty times produces no traversal at all, and one press
+	// arriving as a burst produces one.
 	e.Seen++
-	if Independent(e.Last, s.At, gap, sameSession) {
-		e.Occasions++
+	if !sameSession || e.Sessions == 0 {
+		// A DIFFERENT WATCHING SESSION is provenance rather than a threshold: it says this
+		// relationship has been seen across a restart, a different window generation, very
+		// often a different day. It strengthens confidence and gates nothing.
+		e.Sessions++
 	}
 	if e.First.IsZero() {
 		e.First = s.At

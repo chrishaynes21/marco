@@ -519,10 +519,11 @@ func (a *ambientObserver) record(application string, look ambientLook, now time.
 		// unchanged desktop reaches nothing here, which is why ambient learning costs
 		// 36A's idle profile exactly nothing.
 		//
-		// Same session means the same watching session: it is one of the two ways two
-		// crossings count as two occasions rather than one. See ambient.Independent.
+		// Same session means the same watching session. It gates nothing — one clean
+		// traversal is already knowledge — and travels with the step so the durable edge
+		// can record how widely it has been evidenced. See observe.WatchedEdge.Sessions.
 		//
-		// Deleting this must fail TestWatchingTheSameThingTwiceIsRemembered.
+		// Deleting this must fail TestOneCleanTraversalBecomesGraphKnowledge.
 		a.noticed(step, sameSession)
 	}
 	return changed

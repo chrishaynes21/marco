@@ -53,6 +53,7 @@ func (a *ambientObserver) noticed(s ambient.Step, sameSession bool) {
 	if !ok {
 		return
 	}
+	memory, _ := a.rt.durableMemory()
 	policy := a.policy()
 
 	// ONE ACTION PER CANDIDATE. A leg with several — a menu opened and an item chosen inside
@@ -83,19 +84,22 @@ func (a *ambientObserver) noticed(s ambient.Step, sameSession bool) {
 	// majority is not an answer when the question is whether Marco understands the screen.
 	//
 	// Deleting this must fail TestOneControlThatLeadsTwoWaysIsNotLearned.
+	contested := false
 	for _, w := range existing {
-		if !sameAct(w, act) || !sameEnd(w.From, from) {
+		if !sameAct(w, act) || !sameEnd(memory, s.Application, w.From, from) {
 			continue
 		}
-		if sameEnd(w.To, to) {
+		if sameEnd(memory, s.Application, w.To, to) {
 			continue
 		}
 		_ = store.RememberWatched(ambient.Contradict(w, s.At))
+		contested = true
 	}
 
 	found := observe.WatchedEdge{}
 	for _, w := range existing {
-		if sameAct(w, act) && sameEnd(w.From, from) && sameEnd(w.To, to) {
+		if sameAct(w, act) && sameEnd(memory, s.Application, w.From, from) &&
+			sameEnd(memory, s.Application, w.To, to) {
 			found = w
 			break
 		}
@@ -106,7 +110,24 @@ func (a *ambientObserver) noticed(s ambient.Step, sameSession bool) {
 			Kind: string(act.Kind), Target: act.Target.Label, Role: act.Target.Role,
 		}
 	}
-	folded := ambient.Fold(found, s, sameSession, policy.Gap)
+	folded := ambient.Fold(found, s, sameSession)
+	// A CONTRADICTION CUTS BOTH WAYS.
+	//
+	// The pass above marked whatever this disagrees with. It has to mark THIS too, or the
+	// disagreement is one-sided: the older record stops being promotable and the newer one —
+	// which is the one that caused the disagreement — sails through and becomes knowledge on
+	// its own. The graph would then say that pressing X on A leads to C, on the strength of an
+	// observation whose whole significance is that it disagreed with something.
+	//
+	// Both records say "this is contested". Neither is refused for being wrong, because
+	// neither is: what is refused is the claim that Marco understands the screen well enough
+	// to act on either. Explicit Learn is the way through, because a person saying what they
+	// mean is information a repetition is not.
+	//
+	// Deleting this must fail TestOneControlThatLeadsTwoWaysIsNotLearned.
+	if contested {
+		folded = ambient.Contradict(folded, s.At)
+	}
 	// THE HANDLE IS ASSIGNED ONCE AND KEPT.
 	//
 	// It is a handle, not the identity test — exactly like RememberedSubject.ID, and for
@@ -130,6 +151,25 @@ func (a *ambientObserver) noticed(s ambient.Step, sameSession bool) {
 	a.noticedEdges++
 	a.mu.Unlock()
 
+	// AND IF MARCO ALREADY KNOWS THIS EDGE, THE TRAVERSAL STRENGTHENS IT.
+	//
+	// Repetition does not create the relationship — one clean traversal already did that — but
+	// it is exactly what makes Marco more confident the relationship is reliable, and that
+	// belongs on the durable edge rather than only on the candidate row beside it. Otherwise a
+	// route somebody takes every day and one they took once look identical to the planner
+	// forever.
+	//
+	// The same fold the licensed path uses, so it is one record with a bigger number on it and
+	// never a second edge.
+	//
+	// Deleting this must fail TestTravellingAKnownEdgeAgainStrengthensIt.
+	if !folded.Promoted.IsZero() {
+		if policy.Enabled {
+			a.rt.strengthen(folded)
+		}
+		return
+	}
+
 	j := ambient.Judge(folded, policy, s.At)
 	if j.Verdict != ambient.Promote {
 		return
@@ -142,6 +182,38 @@ func (a *ambientObserver) noticed(s ambient.Step, sameSession bool) {
 	a.mu.Lock()
 	a.promoted++
 	a.mu.Unlock()
+}
+
+// strengthen folds one more traversal into an edge Marco already knows.
+//
+// # Evidence, not admission
+//
+// The relationship exists; this says it has been taken again. It goes through the SAME
+// `RememberRelationships` fold every other path uses, so the durable topology holds one record
+// whose numbers grow — never a second edge, and never a second kind of edge.
+//
+// Nothing is established and nothing is named: both ends are durable by definition, because a
+// promoted edge is one whose endpoints were admitted when it was.
+func (r *Runtime) strengthen(w observe.WatchedEdge) {
+	if !w.Known() {
+		// The record still describes a screen rather than naming one, which means the
+		// promotion that established it has not been read back yet. The next traversal
+		// will carry subjects; folding a shape here would ask the store for an edge
+		// between endpoints it cannot resolve.
+		return
+	}
+	memory, ok := r.durableMemory()
+	if !ok {
+		return
+	}
+	p := promotion{
+		licence: ambientPromotionLicence(), application: w.Application, memory: memory,
+	}
+	intents, _ := lowerActs([]ambient.Act{{Kind: ambient.ActionKind(w.Kind),
+		Target: ambient.Target{Role: w.Role, Label: w.Target}}})
+	_, _ = p.relate([]promotedStep{{
+		from: w.From.Subject, to: w.To.Subject, intents: intents,
+	}})
 }
 
 // endOf describes one end of an observed step for the ledger.
@@ -180,14 +252,45 @@ func sameAct(w observe.WatchedEdge, act ambient.Act) bool {
 // ever reaches a threshold, and nothing would ever say why.
 //
 // Deleting the structural comparison must fail TestAWideAndANarrowHomeAreOneCandidate.
-func sameEnd(a, b observe.WatchedEnd) bool {
-	if a.Recognised() || b.Recognised() {
+func sameEnd(m observe.Recogniser, application string, a, b observe.WatchedEnd) bool {
+	if a.Recognised() && b.Recognised() {
 		return a.Subject == b.Subject
 	}
-	if a.Shape == nil || b.Shape == nil {
+	if !a.Recognised() && !b.Recognised() {
+		if a.Shape == nil || b.Shape == nil {
+			return false
+		}
+		return observe.CompareStructure(*a.Shape, *b.Shape) == observe.MatchSame
+	}
+	// ONE RECOGNISED, ONE DESCRIBED — and this is the case that matters most.
+	//
+	// # The duplicate it prevents, which appears the moment anything is learned
+	//
+	// A relationship is first seen between two screens Marco does not recognise, so the record
+	// carries their structures. Promoting it ESTABLISHES those screens — so the very next
+	// traversal reads them as durable subjects, and a comparison that only knew how to match
+	// subject-to-subject and shape-to-shape would find no match and mint a second record
+	// beside the knowledge that record had just become.
+	//
+	// One edge in the graph and a pending candidate for it forever, growing in parallel. The
+	// fixtures could not see it because they never established anything.
+	//
+	// The described end is resolved through the ONE recogniser — the same Recall the place
+	// store matches on — so the answer is the store's, not a second opinion about identity.
+	//
+	// Deleting this arm must fail TestATraversedEdgeIsNotRelearnedOnceItsScreensAreKnown.
+	described, known := a, b
+	if b.Shape != nil {
+		described, known = b, a
+	}
+	if described.Shape == nil || m == nil {
 		return false
 	}
-	return observe.CompareStructure(*a.Shape, *b.Shape) == observe.MatchSame
+	if known.Subject == "" {
+		return false
+	}
+	r := m.Recall(application, *described.Shape)
+	return r.Verdict.Established() && r.Subject.ID == known.Subject
 }
 
 // admitWatched makes one candidate durable, through the boundary an explicit Learn goes through.
@@ -265,7 +368,7 @@ func watchedDemonstration(w observe.WatchedEdge) ambient.Demonstration {
 // Measured: it did exactly that, and the two ends had genuinely different structures the whole
 // time. The bug was entirely in the name.
 //
-// Deleting the side must fail TestWatchingTheSameThingTwiceIsRemembered.
+// Deleting the side must fail TestOneCleanTraversalBecomesGraphKnowledge.
 func endKey(e observe.WatchedEnd, side string) string {
 	if e.Recognised() {
 		return e.Subject
@@ -392,10 +495,11 @@ func (r *Runtime) AmbientEvidence() []service.WatchedView {
 			out = append(out, service.WatchedView{
 				Application: w.Application, Did: w.Kind, Control: w.Target,
 				FromKnown: w.From.Recognised(), ToKnown: w.To.Recognised(),
-				Seen: w.Seen, Occasions: w.Occasions, Contradicted: w.Contradicted,
+				Seen: w.Seen, Sessions: w.Sessions, Contradicted: w.Contradicted,
 				Verdict: string(j.Verdict), Why: string(j.Why),
 				Said: ambient.Describe(j), Short: j.Short,
-				Learned: !w.Promoted.IsZero(), LastSaw: w.Last.Format(time.RFC3339),
+				Learned:  !w.Promoted.IsZero(),
+				FirstSaw: stamp(w.First), LastSaw: stamp(w.Last),
 			})
 		}
 	}
@@ -417,4 +521,16 @@ func (r *Runtime) applicationsWatched() []string {
 		return nil
 	}
 	return lister.WatchedApplications()
+}
+
+// stamp renders a time for the evidence read, and an absent one as nothing at all.
+//
+// A zero time formats as the year one, which reads as a date rather than as "no answer" and would
+// be the sort of thing somebody quotes back. There is no such thing as a candidate with no
+// last-seen in practice, but a report is exactly where a value nobody thought about turns up.
+func stamp(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.Format(time.RFC3339)
 }

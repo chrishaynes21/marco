@@ -5,18 +5,22 @@
 # The BOM is the fix; keeping the prose ASCII below is the belt to its braces.
 <#
 .SYNOPSIS
-  The live acceptance for Roadmap 36C: repeated observation becoming knowledge.
+  The live acceptance for Roadmap 36C: watching becoming graph knowledge.
 
 .DESCRIPTION
   The claim only a person can test:
 
       marco observe
       marco observe learn
-      [do a thing]
-      [later, do the same thing again]
-      Marco knows it
+      [walk from one screen to another, once]
+      Marco knows that way between them
 
-  Nobody typed Learn. Nobody was asked anything. Nothing was invented that they did not do.
+  Nobody typed Learn. Nobody was asked anything. Nothing was invented that they did not do, and
+  nobody had to do it twice to prove that a door they had just walked through was still a door.
+
+  What Marco learns is a GRAPH EDGE, not a recording of a workflow. So the second round of this
+  acceptance is not "now it counts" -- it is "the edges you walked on two different occasions
+  compose into a route you never walked as a whole".
 
   The Go suite proves the policy, the ledger, the licences, the bounds and the refusals against a
   real store. What it cannot supply is a real Settings window, a real accessibility tree, and a
@@ -31,8 +35,10 @@
       .\acceptance-36c.ps1 -Why          why the numbers are what they are
       .\acceptance-36c.ps1 -Clean        stop the Director and delete the sandbox
 
-  DO THE ROUTE TWICE, with something else in between. The whole point is that the second time is
-  what makes it knowledge, and a run that did it once proves the opposite of what it looks like.
+  ONE CLEAN CROSSING IS ENOUGH. Round 1 should already show knowledge on disk; if it does not,
+  something is wrong and -Report says which condition Marco is waiting on. Round 2 walks a
+  DIFFERENT way out of a screen you have already been to, which is what shows the graph
+  composing rather than a workflow repeating.
 
   YOUR REAL PLAYS AND MEMORY ARE NEVER WRITTEN TO. -Setup COPIES your semantic memory into a
   throwaway MARCO_HOME under TEMP and everything after that runs there. -Clean deletes it.
@@ -45,7 +51,7 @@
   .\acceptance-36c.ps1 -Setup
   # open Settings, click "Bluetooth & devices", then click "Mouse"
   .\acceptance-36c.ps1 -Round
-  # go back to Home, do something else for a minute, then do the same route again
+  # go back to Home and click something ELSE -- "Network & internet", say
   .\acceptance-36c.ps1 -Round
   .\acceptance-36c.ps1 -Report
   .\acceptance-36c.ps1 -Restart
@@ -73,6 +79,10 @@ $Store   = Join-Path $Home36 "semantic-memory.json"
 $Marco   = Join-Path $Sandbox "marco.exe"
 $Dir     = Join-Path $Sandbox "director.exe"
 $Rounds  = Join-Path $Sandbox "rounds.jsonl"
+# THE STORE AS IT WAS BEFORE ANY OF THIS. -Setup copies a real semantic memory in, so
+# what is on disk at round 1 is not what round 1 learned. Without this the harness
+# would credit ambient watching with everything the person had ever taught Marco.
+$Baseline = Join-Path $Sandbox "baseline.json"
 
 function Use-Sandbox {
     $env:MARCO_HOME   = $Home36
@@ -222,6 +232,12 @@ function Explain-Round ($st) {
         Note "withholds is the commonest reason -- that is the boundary working, not"
         Note "perception failing."
     }
+    if ((Num $st.noticed) -gt 0 -and (Num $st.learned) -eq 0) {
+        Warn "relationships were noticed and none became knowledge"
+        Note "One clean traversal is meant to be enough, so this is a real result rather"
+        Note "than something to wait out. Run -Report: every candidate names the one"
+        Note "condition it is failing, in Marco's own words."
+    }
 }
 
 # Store-Shape counts what is durable, so two rounds can be compared.
@@ -346,8 +362,8 @@ if ($Why) {
             Note "reporting knowledge that no longer resolves to anything."
         }
         foreach ($w in @($f.watched)) {
-            Say ("  candidate {0}  seen {1} / occasions {2} / contradicted {3}  {4} -> {5}  [{6}]" -f
-                 $w.id, (Num $w.seen), (Num $w.occasions), (Num $w.contradicted),
+            Say ("  candidate {0}  traversed {1} / in {2} session(s) / contradicted {3}  {4} -> {5}  [{6}]" -f
+                 $w.id, (Num $w.seen), (Num $w.sessions), (Num $w.contradicted),
                  $(if ($w.from.subject) { $w.from.subject } else { "(unrecognised)" }),
                  $(if ($w.to.subject) { $w.to.subject } else { "(unrecognised)" }),
                  $(if ($w.promoted) { "promoted" } else { "pending" }))
@@ -418,6 +434,8 @@ if ($Setup) {
         Note "has never seen, which is exactly the case ambient learning had to make work."
     }
     Remove-Item $Rounds -ErrorAction SilentlyContinue
+    (Store-Shape | ConvertTo-Json -Compress) |
+        Set-Content -Path $Baseline -Encoding utf8
 
     Step "Starting a Director, watching AND learning"
     Use-Sandbox
@@ -461,9 +479,12 @@ if ($Setup) {
     Note "up -- if it needs that, it is not ambient and the run should say so. Watching"
     Note "follows the window in front within about a tenth of a second."
     Note ""
-    Note "After that, go back to Home, do something else for a minute or so, and do the"
-    Note "SAME ROUTE AGAIN. The second time is the whole point: one demonstration is"
-    Note "evidence that a thing happened, not evidence of how anything works."
+    Note ""
+    Note "One clean crossing is enough. You are not proving a habit -- you are showing Marco"
+    Note "what a control does, and it only has to see that once."
+    Note ""
+    Note "After -Round, go back to Home and click something ELSE. Two ways out of one screen,"
+    Note "learned on two occasions, is what a graph turns into a route and a recording cannot."
     return
 }
 
@@ -500,10 +521,22 @@ if ($Round) {
     if ((Num $st.transitions) -eq 0) {
         Note "For the full picture: .\acceptance-36c.ps1 -Why"
     }
-    if ($n -eq 1 -and $shape.relationships -gt 0) {
-        Warn "something became durable after ONE round"
-        Note "That may be a route Marco already knew from your real memory, which -Setup"
-        Note "copied in. Compare the numbers again after round 2."
+    # ONE CLEAN CROSSING IS ENOUGH, so round 1 producing knowledge is the pass and round 1
+    # producing none is the thing that needs explaining. This assertion used to be the other
+    # way up -- it WARNED when something became durable after one round, because the policy
+    # then wanted two. That was the workflow model, and it is what 36C.1 corrected.
+    if ($n -eq 1) {
+        $base = if (Test-Path $Baseline) {
+            Get-Content $Baseline -Raw | ConvertFrom-Json
+        } else { $shape }
+        if ($shape.relationships -gt $base.relationships) {
+            Good ("{0} relationship(s) became knowledge on the FIRST clean crossing" -f
+                  ($shape.relationships - $base.relationships))
+        } elseif ((Num $st.transitions) -gt 0) {
+            Warn "you moved between screens and nothing became knowledge"
+            Note "One clean traversal is meant to be enough, so this is a real result and"
+            Note "not patience. Run -Report: Marco says which condition it is waiting on."
+        }
     }
 
     $row = [pscustomobject]@{
@@ -517,7 +550,8 @@ if ($Round) {
     Add-Content -Path $Rounds -Value ($row | ConvertTo-Json -Compress) -Encoding utf8
     Say ""
     if ($n -lt 2) {
-        Say "  Do the same route again, then run:  .\acceptance-36c.ps1 -Round"
+        Say "  Now go back and take a DIFFERENT way out of a screen you have already seen,"
+        Say "  then run:  .\acceptance-36c.ps1 -Round"
     } else {
         Say "  Then run:  .\acceptance-36c.ps1 -Report"
     }
@@ -538,21 +572,27 @@ if ($Report) {
         subjects, relationships, promoted, goals -AutoSize | Out-String | Write-Host
 
     if ($rows.Count -lt 2) {
-        Warn "only one round -- this cannot say anything about repetition"
-        Note "The claim is that the SECOND independent demonstration is what makes it"
-        Note "knowledge. Do the route again and run -Round."
-        return
+        Note "one round -- enough to judge the headline claim, which is that a single clean"
+        Note "crossing becomes knowledge. A second round is what shows edges COMPOSING, so"
+        Note "take a different way out of a screen you have seen and run -Round again."
     }
     $first = $rows[0]
     $last  = $rows[-1]
 
-    Step "Did repetition become knowledge"
-    if ($last.promoted -gt $first.promoted) {
-        Good "$($last.promoted - $first.promoted) relationship(s) became knowledge between rounds"
+    Step "Did watching become knowledge"
+    if ($last.promoted -gt 0) {
+        Good "$($last.promoted) relationship(s) Marco learned by watching, with nobody teaching it"
     } elseif ($last.candidates -gt 0) {
         Warn "evidence accumulated and nothing was promoted"
+        Note "Every candidate names its own reason. The next section asks Marco for it."
     } else {
         Bad "no candidate evidence at all -- nothing was noticed to learn from"
+    }
+    if ($rows.Count -ge 2 -and $last.relationships -gt $first.relationships) {
+        Good ("the graph grew by {0} edge(s) across the rounds" -f
+              ($last.relationships - $first.relationships))
+        Note "Edges learned on separate occasions, and a route through them is one nobody"
+        Note "demonstrated as a whole. That is the difference between a graph and a recording."
     }
 
     # AND MARCO SAYS WHY, in its own words.
@@ -625,7 +665,7 @@ if ($Restart) {
         Bad "the durable record changed across a restart: $($before.relationships) -> $($after.relationships) relationships"
     }
     if ($after.watched -eq $before.watched) {
-        Good "$($after.watched) candidate summaries survived, which is what makes a second occasion count"
+        Good "$($after.watched) candidate summaries survived -- provenance for what was learned"
     } else {
         Bad "candidate evidence changed across a restart"
     }
@@ -650,7 +690,7 @@ if ($Restart) {
     return
 }
 
-Say "acceptance-36c.ps1 -- the live acceptance for repeated observation becoming knowledge"
+Say "acceptance-36c.ps1 -- the live acceptance for watching becoming graph knowledge"
 Say ""
 Say "  -Setup     build, sandbox, start a Director, watch AND learn"
 Say "  -Round     after you have clicked: what has been noticed"
@@ -661,6 +701,6 @@ Say "  -Why       everything the Director knows, unsummarised"
 Say "  -Where     print the sandbox paths"
 Say "  -Clean     stop the Director and delete the sandbox"
 Say ""
-Say "  Do the route TWICE, with something else in between. The second time is the point."
+Say "  One clean crossing is enough. Round 2 is for a DIFFERENT way out of a screen."
 Say ""
 Say "  Get-Help .\acceptance-36c.ps1 -Detailed   for what this is actually testing"

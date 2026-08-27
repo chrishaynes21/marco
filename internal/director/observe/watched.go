@@ -83,14 +83,19 @@ type WatchedEdge struct {
 	// Role is the sort of control the target was, when it was resolved.
 	Role string `json:"role,omitempty"`
 
-	// Seen is every crossing of this edge; Occasions is how many of them were INDEPENDENT.
+	// Seen is how many times this relationship has been TRAVERSED, and Sessions across how
+	// many watching sessions.
 	//
-	// Held apart, and the distinction is the whole of what makes repetition mean anything.
-	// Somebody flicking back and forth between two pages produces twenty crossings in a
-	// minute and has shown Marco one thing; the same route on two afternoons is two
-	// occasions. See ambient.Independent for the rule.
-	Seen      int `json:"seen"`
-	Occasions int `json:"occasions"`
+	// One recorded crossing is one traversal: duplicate provider events are coalesced into one
+	// act upstream, and a crossing is only recorded when the place changes, so a screen
+	// sampled forty times produces none. There is deliberately no clock between them — see
+	// the note in ambient/promote.go about the sixty seconds this used to charge.
+	//
+	// Sessions is PROVENANCE. A relationship seen across a restart, a different window
+	// generation and very often a different day is better evidenced than one seen twice in a
+	// minute, and saying so is worth a field. It gates nothing.
+	Seen     int `json:"seen"`
+	Sessions int `json:"sessions,omitempty"`
 	// Contradicted counts crossings that began at the same screen, by the same action on the
 	// same control, and arrived somewhere ELSE.
 	//
@@ -134,9 +139,9 @@ func (w WatchedEdge) Describable() bool {
 // # Deterministic, and the order is a judgement about what is worth keeping
 //
 // A candidate already promoted is the most valuable thing here — it is the provenance of durable
-// knowledge — and goes last. Then the ones closest to promotion by independent occasions, because
-// discarding those loses the most work. Contradicted candidates go early: they are evidence Marco
-// does not understand the screen, and re-accumulating them costs one more sighting.
+// knowledge — and goes last. Then the most traversed, then the most widely evidenced, because
+// discarding those loses the most. Contradicted candidates go early: they are evidence Marco does
+// not understand the screen, and re-accumulating them costs one more traversal.
 //
 // Ties break on last-seen and then on id, so eviction never depends on map order. A store that
 // dropped whichever candidate a range happened to reach first would forget different things on
@@ -150,11 +155,11 @@ func (w WatchedEdge) WeakerThan(other WatchedEdge) bool {
 	if wc != oc {
 		return wc
 	}
-	if w.Occasions != other.Occasions {
-		return w.Occasions < other.Occasions
-	}
 	if w.Seen != other.Seen {
 		return w.Seen < other.Seen
+	}
+	if w.Sessions != other.Sessions {
+		return w.Sessions < other.Sessions
 	}
 	if !w.Last.Equal(other.Last) {
 		return w.Last.Before(other.Last)

@@ -1894,18 +1894,27 @@ type WatchedView struct {
 	// what stops a relationship being learnable, and the verdict below says which.
 	FromKnown bool `json:"from_known"`
 	ToKnown   bool `json:"to_known"`
-	// Seen is every crossing; Occasions is how many were independent. Held apart because the
-	// difference is the whole of what makes repetition mean anything.
+	// Seen is how many times this was traversed; Sessions across how many watching sessions.
+	// Held apart because "twice in a minute" and "twice on different days" are different
+	// strengths of the same fact.
 	Seen         int `json:"seen"`
-	Occasions    int `json:"occasions"`
+	Sessions     int `json:"sessions,omitempty"`
 	Contradicted int `json:"contradicted,omitempty"`
 	// Verdict and Why are the policy's own words, and Said is the sentence for a person.
 	Verdict string `json:"verdict"`
 	Why     string `json:"why"`
 	Said    string `json:"said"`
-	// Short is how many more independent occasions this is waiting for, zero otherwise.
+	// Short is how many more traversals a policy that asked for corroboration is waiting for,
+	// zero otherwise.
 	Short int `json:"short,omitempty"`
-	// Learned says this already became durable knowledge, and when.
-	Learned bool   `json:"learned,omitempty"`
-	LastSaw string `json:"last_saw,omitempty"`
+	// Learned says this already became durable knowledge.
+	Learned bool `json:"learned,omitempty"`
+	// FirstSaw and LastSaw are when this way between two screens was first and last taken.
+	//
+	// BOTH, because one of them alone says the wrong thing. "Last seen an hour ago" describes
+	// a thing somebody does and a thing they did once identically, and the span between the two
+	// is what tells them apart — a relationship taken twelve times since Tuesday is a different
+	// fact from twelve times in one afternoon, and the counts cannot say which.
+	FirstSaw string `json:"first_saw,omitempty"`
+	LastSaw  string `json:"last_saw,omitempty"`
 }

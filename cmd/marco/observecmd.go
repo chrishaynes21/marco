@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/service"
 )
@@ -129,9 +130,8 @@ func runObserve(args []string) int {
 // "what do I do about this", and the answer is the same for everything in a group.
 func printWatched(seen []service.WatchedView) {
 	if len(seen) == 0 {
-		fmt.Println("Marco hasn't seen anything happen twice yet.")
-		fmt.Println("  it records a relationship the first time it sees you do something,")
-		fmt.Println("  and remembers it once it has seen the same thing on another occasion")
+		fmt.Println("Marco hasn't watched you go anywhere yet.")
+		fmt.Println("  it learns a way between two screens the first time it sees you take it")
 		return
 	}
 	learned, waiting, never := 0, 0, 0
@@ -145,9 +145,9 @@ func printWatched(seen []service.WatchedView) {
 			waiting++
 		}
 	}
-	fmt.Printf("Marco has seen %s happen more than once.\n",
-		plural(len(seen), "thing", "things"))
-	fmt.Printf("  %d remembered, %d waiting for more, %d it can't learn as they stand\n\n",
+	fmt.Printf("Marco has watched you take %s between screens.\n",
+		plural(len(seen), "way", "ways"))
+	fmt.Printf("  %d it knows, %d waiting on something, %d it can't learn as they stand\n\n",
 		learned, waiting, never)
 
 	for _, w := range seen {
@@ -159,8 +159,9 @@ func printWatched(seen []service.WatchedView) {
 			mark = " x "
 		}
 		fmt.Printf("%s%s in %s\n", mark, describeWatched(w), w.Application)
-		fmt.Printf("     seen %d time(s) on %s\n", w.Seen,
-			plural(w.Occasions, "occasion", "separate occasions"))
+		fmt.Printf("     traversed %s%s%s\n",
+			plural(w.Seen, "time", "times"), acrossSessions(w.Sessions),
+			since(w.FirstSaw, w.LastSaw))
 		fmt.Printf("     %s\n", w.Said)
 		if !w.FromKnown || !w.ToKnown {
 			// SAID PLAINLY, because it is the commonest reason for waiting and it
@@ -255,7 +256,7 @@ func learnedSoFar(v service.AmbientView) string {
 		return fmt.Sprintf(" (%s remembered so far)",
 			plural(v.Learned, "thing", "things"))
 	case v.Noticed > 0:
-		return " (nothing remembered yet — it waits until it has seen a thing twice)"
+		return " (nothing remembered yet — every way it saw you take was blocked on something)"
 	}
 	return ""
 }
@@ -310,4 +311,43 @@ func observeRequest(sub string, rest []string) (service.ObserveAmbient, bool) {
 		return service.ObserveAmbient{}, false
 	}
 	return q, true
+}
+
+// acrossSessions is the parenthetical about how widely a relationship has been evidenced.
+//
+// "Twice in a minute" and "twice on different days" are different strengths of the same fact, and
+// the second is worth saying out loud: it has survived a restart, a different window generation
+// and very often a different day. It gates nothing — see observe.WatchedEdge.Sessions.
+func acrossSessions(n int) string {
+	if n < 2 {
+		return ""
+	}
+	return fmt.Sprintf(", across %d separate watching sessions", n)
+}
+
+// since is the span a relationship has been watched over, when there is one worth saying.
+//
+// # Why the span and not just the last time
+//
+// Because "last seen an hour ago" describes something somebody does and something they did once,
+// identically, and the counts cannot tell them apart either. Twelve traversals since Tuesday and
+// twelve in one afternoon are different facts about how somebody works, and the only thing that
+// separates them is how far apart the first and the last are.
+//
+// Silent when the two are the same day, which is the ordinary case and where the sentence would
+// be noise.
+func since(first, last string) string {
+	f, err := time.Parse(time.RFC3339, first)
+	if err != nil {
+		return ""
+	}
+	l, err := time.Parse(time.RFC3339, last)
+	if err != nil {
+		return ""
+	}
+	days := int(l.Sub(f).Hours() / 24)
+	if days < 1 {
+		return ""
+	}
+	return fmt.Sprintf(", over %s", plural(days, "day", "days"))
 }

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/service"
 )
@@ -223,5 +224,53 @@ func TestTurningLearningOffIsItsOwnVerb(t *testing.T) {
 	if _, ok := observeRequest("stpo", nil); ok {
 		t.Error("a misspelt verb was accepted; if it fell through to something that changes " +
 			"state, a typo does it silently")
+	}
+}
+
+// THE EVIDENCE READ SAYS HOW LONG MARCO HAS BEEN WATCHING SOMETHING HAPPEN.
+//
+// # Why a count is not enough
+//
+// "Traversed twelve times" describes a route somebody has used every morning since Tuesday and one
+// they clicked through a dozen times in a single confused afternoon, identically. Those are
+// different facts about how a person works and only the span between the first and the last
+// sighting separates them.
+//
+// Silent when the span is under a day, which is the ordinary case and where the sentence would be
+// noise on every row.
+//
+// Deleting the span must fail this.
+func TestTheEvidenceReadSaysOverHowLong(t *testing.T) {
+	at := time.Date(2026, 8, 20, 9, 0, 0, 0, time.UTC)
+	row := func(first, last time.Time) service.WatchedView {
+		return service.WatchedView{
+			Application: "settings", Did: "activate", Control: "Bluetooth & devices",
+			Seen: 12, Sessions: 4, Verdict: "never", Why: "already_known",
+			Said: "I already know this", Learned: true,
+			FirstSaw: first.Format(time.RFC3339), LastSaw: last.Format(time.RFC3339),
+		}
+	}
+	week := captureObserveOutput(t, func() {
+		printWatched([]service.WatchedView{row(at, at.Add(6*24*time.Hour))})
+	})
+	if !strings.Contains(week, "over 6 days") {
+		t.Errorf("a relationship watched over most of a week does not say so:\n%s", week)
+	}
+
+	afternoon := captureObserveOutput(t, func() {
+		printWatched([]service.WatchedView{row(at, at.Add(3*time.Hour))})
+	})
+	if strings.Contains(afternoon, "over ") {
+		t.Errorf("twelve traversals in one afternoon claims a span:\n%s", afternoon)
+	}
+
+	// AND A ROW WITH NO TIMES AT ALL SAYS NOTHING RATHER THAN SOMETHING WRONG. A stored
+	// summary written by an older Marco has no first-seen, and a report that turned that into
+	// a date in the year one would be quoted back at somebody as a fact.
+	silent := captureObserveOutput(t, func() {
+		printWatched([]service.WatchedView{row(time.Time{}, time.Time{})})
+	})
+	if strings.Contains(silent, "over ") || strings.Contains(silent, "0001") {
+		t.Errorf("a summary with no times invented one:\n%s", silent)
 	}
 }

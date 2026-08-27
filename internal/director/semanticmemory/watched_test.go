@@ -22,7 +22,7 @@ func watchedStore(t *testing.T) *semanticmemory.Store {
 	return s
 }
 
-func candidate(id string, occasions int, at time.Time) observe.WatchedEdge {
+func candidate(id string, traversals int, at time.Time) observe.WatchedEdge {
 	sig := observe.StructureSignature{
 		Subject: observe.SubjectState, Members: 4, TermsKnown: true,
 		Roles: map[string]int{"button": 4}, Terms: []observe.InterfaceTerm{observe.TermSettings},
@@ -32,7 +32,7 @@ func candidate(id string, occasions int, at time.Time) observe.WatchedEdge {
 		From: observe.WatchedEnd{Shape: &sig, Called: "Home"},
 		To:   observe.WatchedEnd{Shape: &sig, Called: "Bluetooth & devices"},
 		Kind: "activate", Target: "Bluetooth & devices", Role: "button",
-		Seen: occasions, Occasions: occasions, First: at, Last: at,
+		Seen: traversals, First: at, Last: at,
 	}
 }
 
@@ -57,17 +57,17 @@ func TestRepeatedEvidenceIsOneRecordNotAPile(t *testing.T) {
 	if len(held) != 1 {
 		t.Fatalf("%d records after fifty sightings of one relationship, want 1", len(held))
 	}
-	if held[0].Occasions != 50 {
+	if held[0].Seen != 50 {
 		t.Errorf("the record says %d occasions, want 50: it is one record and the numbers "+
-			"on it are what grow", held[0].Occasions)
+			"on it are what grow", held[0].Seen)
 	}
 }
 
 // AND IT SURVIVES A RESTART.
 //
 // Candidate evidence is the first thing in the ambient path that is durable, and the reason is the
-// product claim: "I saw you do this on more than one occasion" is usually two occasions with a
-// Director stopping in between.
+// product claim: a candidate that has not qualified yet must not have to be re-earned because a
+// Director stopped, and the provenance of one that did must outlive the session that saw it.
 func TestCandidateEvidenceSurvivesAReopen(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "memory.json")

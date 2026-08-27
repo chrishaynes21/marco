@@ -35,7 +35,7 @@ func seenOnce(at time.Time) observe.WatchedEdge {
 	}, ambient.Step{
 		From: "subj_home", To: "subj_bt", Application: app, By: ambient.ByHuman, At: at,
 		Did: []ambient.Act{press("Bluetooth & devices")},
-	}, true, ambient.IndependentGap)
+	}, true)
 }
 
 // learning is the policy with ambient learning switched on and everything else default.
@@ -43,33 +43,71 @@ var learning = ambient.Policy{Enabled: true}
 
 // ── A: one demonstration is not a habit ───────────────────────────────────────
 
-// SEEING SOMETHING ONCE IS NOT KNOWING IT.
+// ONE CLEAN TRAVERSAL IS ALREADY KNOWLEDGE.
 //
-// The whole conservatism of the first policy, in one test. Somebody did a thing; that is evidence
-// that it happened, not evidence that it is how anything works. A policy that learned on the first
-// sighting would permanently remember an accident, and nobody would have asked it to.
+// # The correction this test exists to hold
 //
-// Making one occasion enough must fail this.
-func TestSeeingSomethingOnceIsNotKnowingIt(t *testing.T) {
-	j := ambient.Judge(seenOnce(now()), learning, now())
-	if j.Verdict != ambient.Wait || j.Why != ambient.WhyTooFew {
-		t.Fatalf("verdict %q/%q, want wait/%q", j.Verdict, j.Why, ambient.WhyTooFew)
+// It used to say the opposite: two independent demonstrations, on the reasoning that "one is not
+// evidence of a habit". That is right about habits and this is not a habit store — it is a graph
+// of what the interface IS. Somebody went from A to B by pressing X and arrived; the relationship
+// is a fact about the world, and waiting for a repetition is waiting for them to prove that a door
+// they just walked through is still a door.
+//
+// What repetition buys is CONFIDENCE, which lives in the evidence. What it must not be is the
+// admission ticket for the relationship's existence.
+//
+// Raising the default back to two must fail this.
+func TestOneCleanTraversalIsAlreadyKnowledge(t *testing.T) {
+	e := seenOnce(now())
+	if e.Seen != 1 {
+		t.Fatalf("the fixture was traversed %d time(s), want 1", e.Seen)
 	}
-	if j.Short != 1 {
-		t.Errorf("it is short by %d, want 1", j.Short)
+	j := ambient.Judge(e, learning, now())
+	if j.Verdict != ambient.Promote || j.Why != ambient.WhyEnough {
+		t.Fatalf("verdict %q/%q, want promote/%q — a clean traversal is a fact about the "+
+			"interface, not a habit somebody has to prove", j.Verdict, j.Why, ambient.WhyEnough)
+	}
+}
+
+// AND A DEPLOYMENT MAY STILL ASK FOR CORROBORATION.
+//
+// The default is one; the policy has the knob. Kept configurable so a deployment that wants a
+// second traversal before admission can have it, and so the refusal it produces stays reachable
+// and tested rather than being a word nothing can say.
+func TestAPolicyMayStillAskForCorroboration(t *testing.T) {
+	cautious := ambient.Policy{Enabled: true, Traversals: 2}
+	e := seenOnce(now())
+
+	j := ambient.Judge(e, cautious, now())
+	if j.Verdict != ambient.Wait || j.Why != ambient.WhyTooFew || j.Short != 1 {
+		t.Fatalf("verdict %q/%q short %d, want wait/%q short 1",
+			j.Verdict, j.Why, j.Short, ambient.WhyTooFew)
+	}
+	e.Seen++
+	if j := ambient.Judge(e, cautious, now()); j.Verdict != ambient.Promote {
+		t.Errorf("a second traversal did not satisfy a policy asking for two: %+v", j)
 	}
 }
 
 // ── B: one action is one demonstration, however many times it is sampled ──────
 
-// FLICKING BACK AND FORTH IS ONE OCCASION.
+// A FAST SECOND TRAVERSAL IS A SECOND TRAVERSAL.
 //
-// A person hunting for something crosses the same edge half a dozen times in a minute. That is one
-// person, one task, one thing shown to Marco — and counting it as six would make hunting the
-// behaviour Marco learns fastest, which is precisely backwards.
+// # The ceremony this removes
 //
-// Deleting the gap must fail this.
-func TestFlickingBackAndForthIsOneOccasion(t *testing.T) {
+// The old rule made two crossings count as one unless a minute had passed between them, so a
+// person who did a thing, went back, and did it again fifteen seconds later was credited with one.
+// The clock was standing in for a hazard it did not guard: a thousand provider samples of ONE
+// action reading as a thousand demonstrations.
+//
+// That hazard is handled twice, upstream, where it belongs. Duplicate input events are coalesced
+// into one act, and a crossing is recorded only when the PLACE CHANGES — so a screen sampled forty
+// times produces no traversal at all. To traverse A --X--> B a second time you have to get back to
+// A, and getting back to A is itself a recorded step. Semantic re-entry is what makes a second
+// traversal second; the clock never was.
+//
+// Reintroducing a minimum gap must fail this.
+func TestAFastSecondTraversalIsASecondTraversal(t *testing.T) {
 	at := now()
 	e := observe.WatchedEdge{Application: app, From: known("subj_home"), To: known("subj_bt"),
 		Kind: string(ambient.Activate), Target: "Bluetooth & devices", Role: "button"}
@@ -78,37 +116,59 @@ func TestFlickingBackAndForthIsOneOccasion(t *testing.T) {
 			From: "subj_home", To: "subj_bt", Application: app, By: ambient.ByHuman,
 			At:  at.Add(time.Duration(i) * 5 * time.Second),
 			Did: []ambient.Act{press("Bluetooth & devices")},
-		}, true, ambient.IndependentGap)
+		}, true)
 	}
 	if e.Seen != 6 {
-		t.Errorf("%d crossings recorded, want 6: what happened is a fact and is not the "+
-			"thing being judged", e.Seen)
+		t.Fatalf("%d traversals recorded from six crossings five seconds apart, want 6. "+
+			"Somebody who did a thing six times did it six times.", e.Seen)
 	}
-	if e.Occasions != 1 {
-		t.Fatalf("%d occasions from six crossings inside a minute, want 1", e.Occasions)
-	}
-	if j := ambient.Judge(e, learning, at); j.Verdict != ambient.Wait {
-		t.Errorf("six crossings of one minute's hunting were learned: %+v", j)
+	// AND IT IS ONE EDGE, however often it was taken.
+	if e.Sessions != 1 {
+		t.Errorf("%d watching sessions, want 1: they all happened in one", e.Sessions)
 	}
 }
 
-// ── C: the second occasion ────────────────────────────────────────────────────
-
-// THE SAME THING AGAIN, LATER, IS WHAT MARCO REMEMBERS.
+// AND A DIFFERENT WATCHING SESSION IS PROVENANCE, NOT A THRESHOLD.
 //
-// The affirmative case and the product claim: two independent demonstrations of one clean
-// relationship, and Marco may keep it.
+// "Twice in a minute" and "twice across a restart" are different strengths of the same fact, and
+// the second is worth recording: it has survived a different window generation and very often a
+// different day. It gates nothing — the edge was already knowledge after the first traversal.
+func TestADifferentSessionIsProvenanceRatherThanAThreshold(t *testing.T) {
+	at := now()
+	e := seenOnce(at)
+	if j := ambient.Judge(e, learning, at); j.Verdict != ambient.Promote {
+		t.Fatal("the first traversal did not already qualify, so this proves nothing")
+	}
+	e = ambient.Fold(e, ambient.Step{
+		From: "subj_home", To: "subj_bt", Application: app, By: ambient.ByHuman,
+		At: at.Add(time.Second), Did: []ambient.Act{press("Bluetooth & devices")},
+	}, false)
+
+	if e.Sessions != 2 {
+		t.Errorf("%d watching sessions after a boundary, want 2", e.Sessions)
+	}
+	if e.Seen != 2 {
+		t.Errorf("%d traversals, want 2", e.Seen)
+	}
+}
+
+// ── C: the same edge again ────────────────────────────────────────────────────
+
+// THE SAME THING AGAIN, LATER, IS STILL ONE EDGE.
+//
+// A second clean crossing of a relationship that already qualified: the counts move, the verdict
+// does not, and there is never a second edge to have a second verdict about.
 func TestTheSameThingAgainLaterIsRemembered(t *testing.T) {
 	at := now()
 	e := seenOnce(at)
 	e = ambient.Fold(e, ambient.Step{
 		From: "subj_home", To: "subj_bt", Application: app, By: ambient.ByHuman,
-		At:  at.Add(2 * ambient.IndependentGap),
+		At:  at.Add(2 * time.Second),
 		Did: []ambient.Act{press("Bluetooth & devices")},
-	}, true, ambient.IndependentGap)
+	}, true)
 
-	if e.Occasions != 2 {
-		t.Fatalf("%d occasions, want 2", e.Occasions)
+	if e.Seen != 2 {
+		t.Fatalf("%d traversals, want 2", e.Seen)
 	}
 	j := ambient.Judge(e, learning, at)
 	if j.Verdict != ambient.Promote || j.Why != ambient.WhyEnough {
@@ -127,10 +187,10 @@ func TestADifferentSessionIsADifferentOccasion(t *testing.T) {
 	e = ambient.Fold(e, ambient.Step{
 		From: "subj_home", To: "subj_bt", Application: app, By: ambient.ByHuman,
 		At: at.Add(time.Second), Did: []ambient.Act{press("Bluetooth & devices")},
-	}, false, ambient.IndependentGap)
+	}, false)
 
-	if e.Occasions != 2 {
-		t.Fatalf("%d occasions across a session boundary, want 2", e.Occasions)
+	if e.Seen != 2 {
+		t.Fatalf("%d occasions across a session boundary, want 2", e.Seen)
 	}
 }
 
@@ -153,14 +213,14 @@ func TestOneControlThatLeadsTwoWaysIsNeverLearned(t *testing.T) {
 	e := seenOnce(at)
 	e = ambient.Fold(e, ambient.Step{
 		From: "subj_home", To: "subj_bt", Application: app, By: ambient.ByHuman,
-		At:  at.Add(2 * ambient.IndependentGap),
+		At:  at.Add(2 * time.Second),
 		Did: []ambient.Act{press("Bluetooth & devices")},
-	}, true, ambient.IndependentGap)
+	}, true)
 	if ambient.Judge(e, learning, at).Verdict != ambient.Promote {
 		t.Fatal("the fixture does not promote without the contradiction, so this proves nothing")
 	}
 
-	e = ambient.Contradict(e, at.Add(3*ambient.IndependentGap))
+	e = ambient.Contradict(e, at.Add(3*time.Second))
 	j := ambient.Judge(e, learning, at)
 	if j.Verdict != ambient.Never || j.Why != ambient.WhyContradicted {
 		t.Fatalf("verdict %q/%q, want never/%q — a button that leads two ways was learned "+
@@ -170,9 +230,9 @@ func TestOneControlThatLeadsTwoWaysIsNeverLearned(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		e = ambient.Fold(e, ambient.Step{
 			From: "subj_home", To: "subj_bt", Application: app, By: ambient.ByHuman,
-			At:  at.Add(time.Duration(4+i) * ambient.IndependentGap),
+			At:  at.Add(time.Duration(4+i) * time.Second),
 			Did: []ambient.Act{press("Bluetooth & devices")},
-		}, true, ambient.IndependentGap)
+		}, true)
 	}
 	if ambient.Judge(e, learning, at).Verdict != ambient.Never {
 		t.Error("repetition resolved a contradiction it cannot resolve")
@@ -190,7 +250,7 @@ func TestAnActionMarcoCannotNameIsNeverLearned(t *testing.T) {
 	at := now()
 	e := seenOnce(at)
 	e.Target, e.Role = "", "listitem"
-	e.Occasions = 9
+	e.Seen = 9
 
 	j := ambient.Judge(e, learning, at)
 	if j.Verdict != ambient.Never || j.Why != ambient.WhyUnnamedTarget {
@@ -212,7 +272,7 @@ func TestAnActionWordThisMarcoDoesNotKnowIsNeverLearned(t *testing.T) {
 	at := now()
 	for _, kind := range []string{"drag", "scroll", "typed", ""} {
 		e := seenOnce(at)
-		e.Kind, e.Occasions = kind, 9
+		e.Kind, e.Seen = kind, 9
 		j := ambient.Judge(e, learning, at)
 		if j.Verdict != ambient.Never || j.Why != ambient.WhyUnsupported {
 			t.Errorf("%q: verdict %q/%q, want never/%q",
@@ -230,7 +290,7 @@ func TestAnActionWordThisMarcoDoesNotKnowIsNeverLearned(t *testing.T) {
 func TestAScreenNothingCouldEstablishIsNotAnEndpointYet(t *testing.T) {
 	at := now()
 	e := seenOnce(at)
-	e.Occasions = 9
+	e.Seen = 9
 	// Describable at all, and carrying no discriminator — so it could never be recognised
 	// again, which is what the place store itself refuses.
 	bare := observe.StructureSignature{Subject: observe.SubjectState, Members: 3}
@@ -261,7 +321,7 @@ func TestAScreenNothingCouldEstablishIsNotAnEndpointYet(t *testing.T) {
 func TestWatchingWithoutLearningRemembersNothing(t *testing.T) {
 	at := now()
 	e := seenOnce(at)
-	e.Occasions = 99
+	e.Seen = 99
 
 	j := ambient.Judge(e, ambient.Policy{}, at)
 	if j.Verdict == ambient.Promote {
@@ -283,7 +343,7 @@ func TestWatchingWithoutLearningRemembersNothing(t *testing.T) {
 func TestWhatIsAlreadyKnownIsNotLearnedAgain(t *testing.T) {
 	at := now()
 	e := seenOnce(at)
-	e.Occasions, e.Promoted = 9, at
+	e.Seen, e.Promoted = 9, at
 
 	j := ambient.Judge(e, learning, at.Add(time.Hour))
 	if j.Verdict != ambient.Never || j.Why != ambient.WhyAlready {
@@ -295,14 +355,15 @@ func TestWhatIsAlreadyKnownIsNotLearnedAgain(t *testing.T) {
 func TestSightingsAfterPromotionStrengthenTheSameRecord(t *testing.T) {
 	at := now()
 	e := seenOnce(at)
-	e.Occasions, e.Promoted = 2, at
+	e.Promoted = at
+	before := e.Seen
 
 	e = ambient.Fold(e, ambient.Step{
 		From: "subj_home", To: "subj_bt", Application: app, By: ambient.ByHuman,
 		At: at.Add(time.Hour), Did: []ambient.Act{press("Bluetooth & devices")},
-	}, true, ambient.IndependentGap)
-	if e.Seen != 2 || e.Occasions != 3 {
-		t.Errorf("seen %d, occasions %d, want 2 and 3", e.Seen, e.Occasions)
+	}, true)
+	if e.Seen != before+1 {
+		t.Errorf("traversed %d time(s) after another one, want %d", e.Seen, before+1)
 	}
 	if e.Promoted.IsZero() {
 		t.Error("a further sighting erased the record of when this became knowledge, so " +
@@ -321,7 +382,7 @@ func TestSightingsAfterPromotionStrengthenTheSameRecord(t *testing.T) {
 func TestEvidenceThePolicyCallsStaleIsNotActedOn(t *testing.T) {
 	at := now()
 	e := seenOnce(at)
-	e.Occasions = 2
+	e.Seen = 2
 
 	fussy := ambient.Policy{Enabled: true, Freshness: 24 * time.Hour}
 	if j := ambient.Judge(e, fussy, at.Add(48*time.Hour)); j.Why != ambient.WhyStale {
@@ -376,7 +437,7 @@ func TestARecognisedScreenReplacesItsDescription(t *testing.T) {
 			From: "seen_state_1", To: "subj_bt", Application: app, By: ambient.ByHuman,
 			FromShape: &ambient.Shape{Signature: sig, Called: "Home"}, At: at,
 			Did: []ambient.Act{press("Bluetooth & devices")},
-		}, true, ambient.IndependentGap)
+		}, true)
 	if e.From.Recognised() || e.From.Shape == nil {
 		t.Fatalf("the first sighting did not describe the unknown screen: %+v", e.From)
 	}
@@ -384,9 +445,9 @@ func TestARecognisedScreenReplacesItsDescription(t *testing.T) {
 	// The same walk again, and by now Marco knows where it starts.
 	e = ambient.Fold(e, ambient.Step{
 		From: "subj_home", To: "subj_bt", Application: app, By: ambient.ByHuman,
-		At:  at.Add(2 * ambient.IndependentGap),
+		At:  at.Add(2 * time.Second),
 		Did: []ambient.Act{press("Bluetooth & devices")},
-	}, true, ambient.IndependentGap)
+	}, true)
 	if !e.From.Recognised() || e.From.Subject != "subj_home" {
 		t.Fatalf("the candidate still describes a screen Marco now recognises: %+v", e.From)
 	}
@@ -405,28 +466,40 @@ func TestARecognisedScreenReplacesItsDescription(t *testing.T) {
 // over the same evidence forget the same things.
 func TestEvictionOrdersCandidatesDeterministically(t *testing.T) {
 	at := now()
-	mk := func(id string, occasions, seen, contradicted int, promoted bool) observe.WatchedEdge {
-		e := observe.WatchedEdge{ID: id, Occasions: occasions, Seen: seen,
+	mk := func(id string, seen, sessions, contradicted int, promoted bool) observe.WatchedEdge {
+		e := observe.WatchedEdge{ID: id, Seen: seen, Sessions: sessions,
 			Contradicted: contradicted, Last: at}
 		if promoted {
 			e.Promoted = at
 		}
 		return e
 	}
-	promoted := mk("d", 2, 2, 0, true)
+	// EVERY FIXTURE LOSES ON THE CRITERION UNDER TEST AND WINS ON ALL THE OTHERS.
+	//
+	// A pair that agrees on two criteria at once cannot say which one decided, and the
+	// comparison passes with the rule under test deleted. Measured: `promoted is strongest`
+	// and `more sightings breaks a tie` both did exactly that, and a mutation run that
+	// removed the promoted arm and the sessions arm survived this test twice.
+	promoted := mk("d", 1, 1, 0, true)
 	strong := mk("c", 1, 4, 0, false)
-	weak := mk("b", 1, 1, 0, false)
-	contradicted := mk("a", 3, 9, 1, false)
+	weak := mk("z", 1, 1, 0, false)
+	contradicted := mk("a", 9, 9, 1, false)
 
 	for _, c := range []struct {
 		name     string
 		weaker   observe.WatchedEdge
 		stronger observe.WatchedEdge
 	}{
+		// The promoted one is behind on sightings, sessions and id, and still strongest:
+		// it is the provenance of durable knowledge, and losing it would leave that
+		// knowledge unable to say where it came from.
 		{"promoted is strongest", strong, promoted},
+		// The contradicted one leads on everything countable, and goes first anyway.
 		{"contradicted goes early", contradicted, weak},
-		{"more occasions is stronger", weak, promoted},
-		{"more sightings breaks a tie", weak, strong},
+		{"promoted beats an ordinary tie", weak, promoted},
+		// Equal sightings, and the id order runs the OTHER way, so only sessions can
+		// decide this.
+		{"more sessions breaks a tie", weak, strong},
 	} {
 		if !c.weaker.WeakerThan(c.stronger) {
 			t.Errorf("%s: %q was not weaker than %q", c.name, c.weaker.ID, c.stronger.ID)
@@ -437,6 +510,7 @@ func TestEvictionOrdersCandidatesDeterministically(t *testing.T) {
 	}
 	// AND A TIE ON EVERYTHING STILL BREAKS, so eviction never depends on slice order.
 	x, y := mk("x", 1, 1, 0, false), mk("y", 1, 1, 0, false)
+	// Identical in every field the order consults except the handle itself.
 	if x.WeakerThan(y) == y.WeakerThan(x) {
 		t.Error("two identical candidates cannot be ordered, so which one is forgotten " +
 			"depends on how the store happened to be laid out")
@@ -482,4 +556,126 @@ func renderDeep(v any) string {
 		return fmt.Sprintf("%+v", v)
 	}
 	return fmt.Sprintf("%+v %s", v, b)
+}
+
+// ── what a fold must not lose ─────────────────────────────────────────────────
+
+// NOTHING IS PROMOTED ON NO EVIDENCE AT ALL.
+//
+// A summary with zero traversals is not a thing anybody watched — it is an empty record, and the
+// only way one reaches the policy is a bug upstream or a store written by a different Marco. The
+// rule that "one is enough" has to mean one, not "any number including none", and a threshold of
+// zero would let an empty row through with nothing behind it.
+//
+// Setting DefaultTraversals to zero must fail this.
+func TestNoTraversalsIsNotOneTraversal(t *testing.T) {
+	e := observe.WatchedEdge{
+		Application: app, From: known("subj_home"), To: known("subj_bt"),
+		Kind: string(ambient.Activate), Target: "Bluetooth & devices", Role: "button",
+	}
+	if e.Seen != 0 {
+		t.Fatalf("the fixture already has %d traversal(s)", e.Seen)
+	}
+	if j := ambient.Judge(e, learning, now()); j.Verdict != ambient.Wait {
+		t.Errorf("a summary nobody has traversed says %q/%q, want wait", j.Verdict, j.Why)
+	}
+}
+
+// WHEN IT WAS FIRST TAKEN IS KEPT, AND ONLY THE LAST TIME MOVES.
+//
+// The two together are the only thing that tells "twelve times since Tuesday" from "twelve times
+// this afternoon" — the counts cannot, and neither can either timestamp alone. A first-seen that
+// moved with every crossing would silently make every relationship look like it was discovered
+// moments ago, which is exactly the reading somebody would use to decide whether Marco has known
+// something long enough to be trusted about it.
+//
+// Assigning First unconditionally must fail this.
+func TestWhenARelationshipWasFirstTakenIsKept(t *testing.T) {
+	at := now()
+	e := seenOnce(at)
+	if !e.First.Equal(at) {
+		t.Fatalf("first sighting is %v, want %v", e.First, at)
+	}
+	later := at.Add(72 * time.Hour)
+	e = ambient.Fold(e, ambient.Step{
+		From: "subj_home", To: "subj_bt", Application: app, By: ambient.ByHuman, At: later,
+		Did: []ambient.Act{press("Bluetooth & devices")},
+	}, false)
+
+	if !e.First.Equal(at) {
+		t.Errorf("first-seen moved to %v when the relationship was taken again three days "+
+			"later. Marco can no longer tell a way somebody has used all week from one "+
+			"they found this minute.", e.First)
+	}
+	if !e.Last.Equal(later) {
+		t.Errorf("last-seen is %v, want %v", e.Last, later)
+	}
+}
+
+// THE FIRST DESCRIPTION OF A SCREEN IS THE ONE THAT IS KEPT.
+//
+// Two readings of one screen differ in small ways — that is why the canonical matcher has
+// tolerances at all. Overwriting the description on every sighting makes the candidate's own
+// content move underneath it, and the endpoint the promotion eventually establishes is then
+// whichever reading happened to be last rather than the one the evidence accumulated against.
+//
+// Any of them would do; what must not happen is that it CHANGES.
+//
+// Overwriting on every sighting must fail this.
+func TestTheFirstDescriptionOfAScreenIsTheOneKept(t *testing.T) {
+	at := now()
+	wide := screen(7, observe.TermSettings, observe.TermAudio)
+	narrow := screen(5, observe.TermSettings)
+
+	e := ambient.Fold(observe.WatchedEdge{
+		Application: app, Kind: string(ambient.Activate),
+		Target: "Bluetooth & devices", Role: "button",
+	}, ambient.Step{
+		From: "seen_state_1", To: "seen_state_2", Application: app, By: ambient.ByHuman,
+		At: at, ToShape: &ambient.Shape{Signature: wide},
+		Did: []ambient.Act{press("Bluetooth & devices")},
+	}, true)
+	if e.To.Shape == nil || e.To.Shape.Members != wide.Members {
+		t.Fatalf("the first sighting did not describe the destination: %+v", e.To)
+	}
+	e = ambient.Fold(e, ambient.Step{
+		From: "seen_state_1", To: "seen_state_2", Application: app, By: ambient.ByHuman,
+		At: at.Add(time.Minute), ToShape: &ambient.Shape{Signature: narrow},
+		Did: []ambient.Act{press("Bluetooth & devices")},
+	}, true)
+
+	if e.To.Shape == nil || e.To.Shape.Members != wide.Members {
+		t.Errorf("a second reading replaced the description: %d members, want %d. The "+
+			"evidence accumulated against one screen and the promotion would establish "+
+			"another.", e.To.Shape.Members, wide.Members)
+	}
+}
+
+// AND A SCREEN THAT HAS AN IDENTITY NEVER GOES BACK TO BEING A SHAPE.
+//
+// Memory only improves. Once an end is a durable subject, a later sighting that could only
+// describe it must not overwrite the identity with the description — that would ask a promotion to
+// establish a place that already exists, and the graph would fork into two copies of one screen
+// with the edges divided between them.
+//
+// Deleting the guard must fail this.
+func TestAnIdentifiedScreenNeverGoesBackToBeingAShape(t *testing.T) {
+	at := now()
+	e := seenOnce(at)
+	if e.To.Subject != "subj_bt" {
+		t.Fatalf("the fixture's destination is not identified: %+v", e.To)
+	}
+	e = ambient.Fold(e, ambient.Step{
+		From: "subj_home", To: "seen_state_2", Application: app, By: ambient.ByHuman,
+		At: at.Add(time.Minute), Did: []ambient.Act{press("Bluetooth & devices")},
+		ToShape: &ambient.Shape{Signature: screen(9, observe.TermSettings)},
+	}, true)
+
+	if e.To.Subject != "subj_bt" {
+		t.Errorf("the destination lost its identity and became %+v. A promotion would now "+
+			"establish a second copy of a screen Marco already knows.", e.To)
+	}
+	if e.To.Shape != nil {
+		t.Errorf("an identified end is also carrying a description: %+v", e.To.Shape)
+	}
 }

@@ -18,6 +18,32 @@ source_paths:
 
 # ADR-095 — Repeated observation may become knowledge
 
+> **Amended 2026-08-27 (36C.1).** The original decision required **two independent
+> demonstrations** before ambient evidence became knowledge. That threshold was wrong, and wrong
+> in a way worth stating plainly rather than quietly editing away.
+>
+> It came from thinking of the unit as a *demonstration*: something a person performs, which one
+> performance is too thin a sample of. The unit is not a demonstration. It is **one edge of a
+> semantic graph of the computer** — and a person going from A to B by pressing X and arriving at
+> B is not a sample of a habit, it is a **fact about what the interface is**. Waiting for a second
+> crossing was asking somebody to prove that a door they had just walked through was still a door.
+>
+> The cost was not only latency. Under the old rule, two crossings watched a week apart were two
+> pieces of pending evidence rather than two known edges, so the route composed from them did not
+> exist; Marco could give back only what it had been shown as a whole. That is the behaviour of a
+> workflow recorder, and the point of this ADR is that Marco is not one.
+>
+> **The corrected rule: one clean traversal is already knowledge.** *Clean* still means everything
+> it meant before — uncontradicted, both endpoints describable, the control nameable, the action
+> in the closed vocabulary, human work only. Only the count changed, from two to one.
+> Repetition still matters, but as **strength on an edge Marco already has**, not as a gate in
+> front of it. `Policy.Traversals` remains, so a deployment that wants corroboration can ask for
+> it; the default is 1. What used to be `Occasions` is now `Sessions` and is **provenance** — it
+> says how widely an edge has been evidenced and gates nothing.
+>
+> Sections below are amended in place. `DefaultOccasions`, `IndependentGap` and
+> `ambient.Independent` no longer exist.
+
 ## Watching and remembering are two things to agree to
 
 `marco observe` is attention. It reads the desktop, keeps up with where somebody is, and holds a
@@ -42,16 +68,22 @@ be arriving at it by implication.
 ## The progression, and each step is a different claim
 
 ```
-I SAW IT ONCE                    candidate evidence
-I SAW THE SAME THING AGAIN       stronger, independent evidence
-IT IS CONSISTENT AND SAFE        durable EdgeObserved knowledge
+I SAW YOU CROSS IT ONCE          candidate evidence
+IT WAS A CLEAN CROSSING          durable EdgeObserved knowledge — one edge of the graph
+I SEE YOU CROSS IT AGAIN         the same edge, stronger
 THE PERSON ASKS ME TO DO IT      ordinary authority
 I DO IT                          Theater
 I PROVE IT WORKED                EdgeVerified evidence
 ```
 
-36C implements exactly the third arrow. It is a memory operation and nothing else: no grant, no
+36C implements exactly the second arrow. It is a memory operation and nothing else: no grant, no
 lease, no input, no rehearsal, no play, and no name invented for anything.
+
+**The arrows are about one edge, never about a route.** Two edges learned on different days, in
+different watching sessions, with nothing connecting them, compose into a route nobody ever
+demonstrated as a whole — because a graph gives back what its edges imply, and a recording gives
+back only what it was shown. That is the whole reason the unit is an edge, and
+`TestEdgesWatchedApartComposeIntoARouteNobodyDemonstrated` is where it is held.
 
 ## A candidate is not knowledge
 
@@ -89,22 +121,43 @@ for it.
 
 ### What it asks for
 
-**Two independent demonstrations.** Not because two is magic, but because one is not evidence of a
-habit — it is evidence of a thing that happened. Anything higher would make the feature invisible:
-somebody would have to do the same thing on three separate occasions before Marco noticed, and by
-then they would have taught it explicitly.
+**One clean traversal.** Not because one is generous, but because one is what the fact costs.
+Somebody pressing X on screen A and arriving at screen B has told Marco what that control does;
+asking for a second crossing asks them to re-prove a door. The old rule wanted two, and the
+reasoning — *one is evidence of a thing that happened, not evidence of a habit* — was sound about
+habits and wrong about edges. Marco is not learning what this person tends to do. It is learning
+what this program is.
 
-**Independent, which is not the same as "again".** A thousand samples of one action must not read
-as a thousand demonstrations, and the version of that mistake which actually happens is smaller: a
-person flicks between two pages six times while looking for something. That is one occasion.
-Crossings count separately when they are a minute apart, **or** in different watching sessions —
-between them, the two meanings of "again": later today, and next time.
+**Repetition is strength, not a gate.** A crossing of an edge Marco already knows folds into that
+edge: the count rises, the last-seen moves, and nothing new is created — no second screen, no
+parallel record, no duplicate edge. That is what separates a way somebody takes every day from one
+they took once, and everything downstream can read it. `Policy.Traversals` is still there for a
+deployment that wants corroboration before believing anything; the default is 1.
+
+**Sessions are provenance and gate nothing.** *Twice in a minute* and *twice on different days* are
+different strengths of the same fact, and the second is worth recording: it has survived a restart,
+a different window generation, very often a different day. It is written on the edge and read by
+eviction and by the report. It is not a threshold, and the old `IndependentGap` — which existed to
+stop a person flicking between two pages from counting as several demonstrations — is gone with the
+threshold it protected. Flicking back and forth six times is now six traversals of an edge that was
+already knowledge after the first, which is the correct answer.
 
 **No contradiction.** The same screen, the same control, arriving somewhere else. That is `Never`
 rather than `Wait`, because more of the same evidence deepens the problem instead of settling it:
 what it means is that Marco does not understand the screen, and promoting the more frequent
 destination would be a coin toss dressed as knowledge. Explicit Learn is the way through, because a
 person saying what they mean is information a repetition is not.
+
+**A contradiction cuts both ways, and it arrives later than it used to.** The observation that
+causes a disagreement is marked as contested along with the one it disagrees with — otherwise the
+newer record, whose whole significance is that it disagreed with something, sails through on its
+own. But learning on the first clean traversal has a consequence worth saying out loud: the first
+edge is often already knowledge by the time the second crossing contradicts it. Per follow-on 3
+there is no unlearning, so what happens is that the contradiction is recorded, the second edge is
+refused, and the first stays. That is a deliberate trade and the honest description of it is: the
+faster rule is more willing to be wrong about an ambiguous control, in exchange for being useful
+about the overwhelming majority that are not ambiguous. Unlearning is the roadmap that fixes it,
+not a higher threshold — a higher threshold buys the ambiguous case by taxing every other one.
 
 **Both endpoints describable, and the control nameable.** A screen nothing could establish is
 `Wait` — memory improves, and the same evidence is re-judged every time, per
@@ -140,15 +193,16 @@ split.
 ## What is durable, and it is a summary
 
 Candidate evidence is the first thing in the ambient path that survives a restart, and the reason
-is the product claim: *"I saw you do this on more than one occasion"* is usually two occasions with
-a Director stopping in between.
+is the product claim: an edge Marco learned by watching yesterday must still be an edge today,
+and a candidate that has not qualified yet must not have to be re-earned because a Director
+stopped.
 
 | kept | not kept |
 |---|---|
 | application, action kind, control's name and role | screenshots |
 | durable subject ids, or the structure an unrecognised screen was seen as | accessibility trees |
 | what a screen appears to be called | pointer trajectories |
-| counts, occasions, contradictions, first and last seen | typed text, clipboard, secrets |
+| traversals, sessions, contradictions, first and last seen | typed text, clipboard, secrets |
 | when it became knowledge | coordinates that mean anything off their window |
 
 The two words that cross — a control's admitted name and a screen's apparent name — are the two
@@ -170,7 +224,8 @@ record with a bigger number on it.
 
 Eviction is weakest-first: promoted last (it is the provenance of durable knowledge and losing it
 would leave that knowledge unable to say where it came from), then uncontradicted, then by
-independent occasions, then sightings, then last-seen, then id. **Every tie breaks on something**,
+traversals, then by how many sessions have evidenced it, then last-seen, then id.
+**Every tie breaks on something**,
 so two runs over the same evidence forget the same things. A bound that forgot by insertion order
 would drop a candidate one sighting from promotion in favour of a thing somebody did once this
 morning.
@@ -220,10 +275,10 @@ having and is not this one.
 
 ## Marco says what it is waiting for
 
-"Noticed four relationships, learned none" is true and tells nobody anything they can act on. One
-occasion short, a control with no admitted name, a button that leads two different places, a screen
-nothing can establish: four situations, four different things to do about them, and the counts
-cannot tell them apart.
+"Noticed four relationships, learned none" is true and tells nobody anything they can act on. A
+control with no admitted name, a button that leads two different places, a screen nothing can
+establish, a policy that was asked for corroboration and has not had it: four situations, four
+different things to do about them, and the counts cannot tell them apart.
 
 `marco observe status --evidence` asks. It reports every relationship the ledger holds — across
 every application, because the ledger outlives the observer and evidence from yesterday is still
@@ -233,6 +288,12 @@ evidence — with the policy's own verdict and its own sentence for each.
 oversight: the control somebody pressed, and whether Marco recognises the screens either side. A
 person asking what Marco has recorded about them is entitled to the answer, and a privacy boundary
 that made Marco's own memory unreadable to its owner would be protecting the wrong party.
+
+**And it says over how long.** Twelve traversals since Tuesday and twelve in one confused afternoon
+are different facts about how somebody works, and neither the count nor the last-seen alone can
+separate them — so the summary keeps the first sighting as well as the last, and the report says the
+span when there is one. The field existed from the beginning of 36C and nothing read it; that is the
+same defect as an unreachable explanation, one field along.
 
 It is a READ. It judges, which is pure, and reports; a diagnostic that promoted what it was asked
 about would be the worst possible answer to "what are you waiting for".
@@ -276,16 +337,41 @@ about would be the worst possible answer to "what are you waiting for".
    that fits.
 6. **Cross-application routes are not promoted**, because a Play is application-scoped. Making one
    span two is a change to what a Play IS.
-7. **`DefaultOccasions`, `IndependentGap` and `MaxWatchedEdges` are internal constants**, like
-   36A's three and 36B's three. They should become configurable before anybody runs this for a
+7. **`DefaultTraversals` and `MaxWatchedEdges` are internal constants**, like 36A's three and
+   36B's three. They should become configurable before anybody runs this for a
    working month.
 8. **Live acceptance is UNMEASURED.** `acceptance-36c.ps1` is the harness. It drives nothing, and
    the step that would drive the desktop is handed to the person.
 
 ## Enforced by
 
-- `internal/director/ambient` — `TestSeeingSomethingOnceIsNotKnowingIt`;
-  `TestFlickingBackAndForthIsOneOccasion`; `TestTheSameThingAgainLaterIsRemembered`;
+The graph claims — the ones 36C.1 corrected — first:
+
+- `cmd/director` — `TestOneCleanTraversalBecomesGraphKnowledge` (one clean crossing of two screens
+  Marco has never seen becomes a durable edge, through real stores, with nothing invented);
+  `TestEdgesWatchedApartComposeIntoARouteNobodyDemonstrated` (two edges watched in different
+  sessions compose into a route nobody walked as a whole — the headline);
+  `TestAScreenReachedTwoWaysIsOneScreen` (three edges over four screens, no duplicated tail);
+  `TestTravellingAKnownEdgeAgainStrengthensIt` (repetition is strength on the edge, not a second
+  edge and not a second screen); `TestATraversedEdgeIsNotRelearnedOnceItsScreensAreKnown` (a
+  described end and a recognised end are the same end, so a promoted edge grows no pending twin).
+- `internal/director/ambient` — `TestOneCleanTraversalIsAlreadyKnowledge`;
+  `TestAPolicyMayStillAskForCorroboration`; `TestAFastSecondTraversalIsASecondTraversal`;
+  `TestADifferentSessionIsProvenanceRatherThanAThreshold`;
+  `TestNoTraversalsIsNotOneTraversal` (one means one, not "any number including none").
+- And what a fold must not lose, since repetition now lands on knowledge rather than in front of
+  it: `TestWhenARelationshipWasFirstTakenIsKept`;
+  `TestTheFirstDescriptionOfAScreenIsTheOneKept`;
+  `TestAnIdentifiedScreenNeverGoesBackToBeingAShape` (all `internal/director/ambient`);
+  `TestAnEdgeOutOfAKnownScreenReusesIt` (`cmd/director` — the second edge out of a screen the
+  first traversal established must look that screen up, not establish a second copy);
+  `TestAContradictionMarksWhatItDisagreesWith` (`cmd/director` — both halves of a disagreement,
+  under a policy asked for corroboration, which is the only configuration where the older half
+  is still pending long enough to see).
+
+And the rest of the decision:
+
+- `internal/director/ambient` — `TestTheSameThingAgainLaterIsRemembered`;
   `TestADifferentSessionIsADifferentOccasion`; `TestOneControlThatLeadsTwoWaysIsNeverLearned`;
   `TestAnActionMarcoCannotNameIsNeverLearned`;
   `TestAnActionWordThisMarcoDoesNotKnowIsNeverLearned`;
@@ -300,19 +386,19 @@ about would be the worst possible answer to "what are you waiting for".
 - `internal/director/semanticmemory` — `TestRepeatedEvidenceIsOneRecordNotAPile`;
   `TestCandidateEvidenceSurvivesAReopen`; `TestEvictionForgetsTheWeakestCandidateFirst`;
   `TestAPromotedCandidateIsNotEvicted`; `TestCandidateEvidenceIsNotPlannableKnowledge`;
-  `TestACandidateWithNoHandleIsRefused`.
-- `cmd/director` — `TestWatchingTheSameThingTwiceIsRemembered` (the whole thing, through real
-  stores, with nothing invented); `TestFurtherSightingsDoNotLearnTheSameThingTwice`;
-  `TestMarcosOwnWorkIsNotEvidenceOfAHabit`; `TestOneControlThatLeadsTwoWaysIsNotLearned`;
-  `TestAWideAndANarrowHomeAreOneCandidate`; `TestWatchingDoesNotStartLearning`;
-  `TestLearningFromWhatYouSeeMeansWatching`; `TestTurningLearningOffLeavesMarcoWatching`;
-  `TestStatusSaysWhetherMarcoIsLearning`;
+  `TestACandidateWithNoHandleIsRefused`; `TestEvictionMakesRoomRatherThanRefusingNewEvidence`;
+  `TestALedgerFullOfProvenanceRefusesRatherThanForgetting`.
+- `cmd/director` — `TestMarcosOwnWorkIsNotEvidenceOfAHabit`;
+  `TestOneControlThatLeadsTwoWaysIsNotLearned`; `TestAWideAndANarrowHomeAreOneCandidate`;
+  `TestWatchingDoesNotStartLearning`; `TestLearningFromWhatYouSeeMeansWatching`;
+  `TestTurningLearningOffLeavesMarcoWatching`; `TestStatusSaysWhetherMarcoIsLearning`;
   `TestAmbientPromotionCannotWriteWithoutItsLicence`;
   `TestAmbientPromotionTouchesNothingThatActs`; `TestEvidenceSurvivesARestart`;
-  `TestCandidateStorageTracksNoveltyAndNotTime`; `TestWhatMarcoLearnsByWatchingIsPlannable`;
-  `TestExplicitLearnDoesNotWaitForAmbientRepetition`; `TestAskingWhatMarcoIsWaitingForSaysWhy`;
+  `TestCandidateStorageTracksNoveltyAndNotTime`; `TestAskingWhatMarcoIsWaitingForSaysWhy`
+  (the verdict, the reason, the counts and the span, all four);
   `TestWhatMarcoIsWaitingForCoversEveryApplication`.
-- `cmd/marco` — `TestTurningLearningOffIsItsOwnVerb`; `TestWatchingSaysWhetherItIsAlsoLearning`.
+- `cmd/marco` — `TestTurningLearningOffIsItsOwnVerb`; `TestWatchingSaysWhetherItIsAlsoLearning`;
+  `TestTheEvidenceReadSaysOverHowLong`.
 
 ## Related
 

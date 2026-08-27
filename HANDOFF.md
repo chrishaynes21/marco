@@ -5908,3 +5908,119 @@ It names the control and says whether the screens are known. That is a deliberat
 diagnostic surface: a person asking what Marco has recorded about them is entitled to the answer,
 and a privacy boundary that made Marco's own memory unreadable to its owner would be protecting the
 wrong party. It is a read — it judges, which is pure, and reports.
+
+## 36C.1: the graph is the knowledge — one clean traversal, and the 60-second ceremony removed
+
+36C shipped with a threshold: two independent occasions, at least a minute apart or in different
+watching sessions, before ambient evidence became durable knowledge. The threshold was wrong, and
+the reason it was wrong is worth keeping rather than quietly editing out of the ADR.
+
+It came from thinking of the unit as a **demonstration** — something a person performs, which one
+performance is too thin a sample of. The unit is not a demonstration. It is **one edge of a
+semantic graph of the computer.** A person pressing "Bluetooth & devices" on Settings Home and
+arriving at the Bluetooth page has not given Marco a sample of a habit; they have told it **what
+that control does**, which is a fact about the program and not about them. Waiting for a second
+crossing was asking somebody to prove that a door they had just walked through was still a door.
+
+**The cost was not only latency.** Under the old rule, two crossings watched a week apart were two
+pieces of *pending* evidence rather than two known edges, so the route composed from them did not
+exist. Marco could give back only what it had been shown as a whole. That is the behaviour of a
+workflow recorder, and the whole point of ambient observation is that Marco is not one.
+
+**What changed.** `DefaultOccasions = 2` became `DefaultTraversals = 1`. `IndependentGap` and
+`ambient.Independent` are gone — the sixty-second window existed only to stop somebody flicking
+between two pages from counting as several demonstrations, and with no threshold to protect there
+is nothing for it to do. `WatchedEdge.Occasions` became `WatchedEdge.Sessions` and is now
+**provenance**: it says how widely an edge has been evidenced, it is read by eviction and by the
+report, and it gates nothing. `Policy.Traversals` remains, so a deployment that wants corroboration
+before believing anything can still ask for it.
+
+**Repetition did not stop mattering; it moved.** It used to be a gate in front of the edge and it
+is now strength on the edge. A crossing of something Marco already knows folds into the existing
+relationship through the same admission path the first one took — `Runtime.strengthen` — so the
+count rises and nothing new is created. Without that, a way somebody takes every day and one they
+took once would look identical to everything downstream, forever.
+
+**Two defects fell out of making the change, both of which only exist because promotion is now
+immediate.**
+
+The first: a promoted edge grew a pending twin. The first traversal establishes both screens, so
+the *next* traversal reads them as durable subjects — and the candidate matcher compared ends
+either as two ids or as two structures, with no arm for one of each. So it matched nothing, minted
+a second candidate, and the ledger would have carried an edge and a shadow of it growing in
+parallel forever. `sameEnd` now takes a `Recogniser` and resolves the mixed case by asking the
+store whether the described end IS the recognised one. Held by
+`TestATraversedEdgeIsNotRelearnedOnceItsScreensAreKnown`.
+
+The second: contradiction was one-sided. A control that leads two different places marks the
+candidate it disagrees with — but the observation that CAUSED the disagreement went on to be judged
+on its own and, with a threshold of one, promoted immediately. The graph would then have recorded
+that pressing X on A leads to C on the strength of an observation whose entire significance was
+that it disagreed with something. Both records are marked now.
+
+**And an honest consequence, recorded in the ADR rather than left for somebody to find.** Learning
+on the first clean traversal means the first edge is often already knowledge by the time a second
+crossing contradicts it, and there is no unlearning. The faster rule is more willing to be wrong
+about a genuinely ambiguous control, in exchange for being useful about the overwhelming majority
+that are not. Unlearning is the roadmap that fixes that; a higher threshold is not, because it buys
+the ambiguous case by taxing every other one.
+
+**The headline gate is a route nobody demonstrated.** `A --X--> B` watched on one occasion,
+`B --Y--> C` watched in a different session with nothing connecting them, and the planner asked for
+A → C returns a two-step plan. That is the test that would fail if any of this were quietly
+rebuilt as workflow capture, and it is where the claim now lives:
+`TestEdgesWatchedApartComposeIntoARouteNobodyDemonstrated`.
+
+**The tests that fell were the interesting part.** Five failed on the policy change and every one
+of them was encoding the workflow model: *seeing something once is not knowing it*, *flicking back
+and forth is one occasion*, *further sightings do not learn the same thing twice*. They were not
+wrong about the code — they were right about the code and wrong about the product, which is the
+only kind of test failure worth reading carefully. Each was rewritten to the corrected model or
+removed; `TestAskingWhatMarcoIsWaitingForSaysWhy` now gets its "waiting" row from a policy that was
+explicitly asked for corroboration, because the default no longer produces one.
+
+**Live acceptance remains UNMEASURED.** `acceptance-36c.ps1` no longer asks anybody to do the route
+twice with something else in between: round 1 is expected to produce knowledge on its own, and
+round 2 is for a DIFFERENT way out of a screen already seen, which is what shows edges composing.
+It also records a baseline of the store at `-Setup`, because that step copies a real semantic memory
+in — without one the harness would have credited ambient watching with everything the person had
+ever taught Marco.
+
+**The mutation gate found four things, and the pattern is the same one this repository keeps
+paying for.** Sixty-three attacks over three rounds. The first round killed 29 of 38 that applied.
+
+*A field written and never read.* `WatchedEdge.First` — when a relationship was first taken — has
+existed since 36C and nothing anywhere read it. Deleting the guard that keeps it stable survived,
+because there was nothing downstream to notice. It is now on the evidence read as a span: "traversed
+twelve times, over six days", silent when the span is under a day. That is the honest fix rather
+than deleting the field, because the count alone genuinely cannot tell a route somebody has used all
+week from one they clicked through a dozen times in a single confused afternoon, and neither can the
+last-seen. Fourth unreachable thing in two roadmaps, after a dead discriminator, an uncalled drain
+and unreachable sentences.
+
+*A branch every existing test walked past.* `endKey` returning a recognised end's subject id — the
+thing that stops the admission boundary establishing a SECOND copy of a screen it already has.
+Every test in the file handed the ledger transient keys at both ends, the way a cold Marco does, so
+none of them could reach it; and in life it is reached on the second edge out of every screen. The
+graph would have forked, with the edges divided between two copies of one place and neither able to
+reach the other's destinations. `TestAnEdgeOutOfAKnownScreenReusesIt` enters the way life does.
+
+*Two fixtures that agreed on two criteria at once.* The eviction order test paired candidates that
+differed on the rule under test AND on a later tiebreak, so deleting the rule left the comparison
+passing on the tiebreak. Both `promoted is strongest` and `more sessions breaks a tie` did it. Every
+fixture now loses on the criterion being tested and wins on all the others, which is the only shape
+that can attribute the answer.
+
+*And a guard whose reachability I nearly talked myself out of.* `stamp`'s zero-time check looked
+defensive: every edge goes through `Fold`, and `Fold` always sets `First`. But the ledger is a FILE
+— an older Marco, a hand edit, a future rename — and the loader reads what is on disk rather than
+what this version would have written. `TestASummaryWithNoTimesReportsNone` writes such a row and
+asks for the report, because a date in the year one is exactly the sort of value somebody quotes
+back as a fact about their own afternoon.
+
+Two survivors in round one were the harness lying rather than the code being untested: the attack
+list named the wrong packages for `WeakerThan`, whose tests live in `ambient` and not beside it.
+Three more were reported BROKEN by the verified-apply check — the attack file used `|` as its field
+separator and the perl alternation in three expressions contained one. A gate that had silently
+called those three "survived" would have sent me looking for coverage that already existed; the
+verified apply is why it did not.
