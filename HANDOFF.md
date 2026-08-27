@@ -5865,3 +5865,26 @@ screens recognised that never changed. `acceptance-36c.ps1 -Round` printed five 
 the reasons — the same one-sentence-for-four-problems failure the Director itself was fixed for
 twice, reproduced in the harness meant to catch it. It now explains, and `-Why` dumps everything
 the Director already knows.
+
+**And the fix was not enough, twice over.** Ending the session at a switch stopped Marco reading
+the wrong window; it did not make it start reading the right one promptly, because the supervisor's
+next move was the between-sessions ATTENTION wait — a backoff about how long to leave a desktop
+that has been sitting still, applied to somebody who had just switched program. The advice that
+came out of the first fix was "give it a couple of seconds", which is ceremony, and ambient
+watching exists to remove ceremony. It now continues immediately, and the wait between readings is
+broken into tenth-of-a-second glances at the foreground: a cheap Win32 call against a
+two-hundred-millisecond screen reading, three orders of magnitude apart, so asking often costs
+nothing. Measured at ~120ms from switch to watching.
+
+**A third bug came out of looking.** A screen Marco cannot name is keyed on the session-local state
+it was read from, and those counters restart every twenty seconds — so two different unrecognised
+screens either side of a boundary compared EQUAL, no transition was recorded, and the evidence
+vanished silently. Not a rare edge: one boundary every twenty seconds, all day. The name now
+carries the session.
+
+**There was no way to see any of this happening, and that was the real complaint.** Every mode in
+the harness was a snapshot taken afterwards; a number at the end cannot say when it went wrong or
+what Marco was looking at while it did. `acceptance-36c.ps1 -Tail` is a live view — which window is
+being read, whether the page is readable, whether the screen is known, and the counts — printing
+only on change. One line of it would have made the original diagnosis immediate: the application
+column would have read `powershell` the whole time.

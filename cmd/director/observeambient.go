@@ -298,7 +298,18 @@ func (a *ambientObserver) run(ctx context.Context, done chan struct{}) {
 			}
 			continue
 		}
-		a.watchOnce(ctx)
+		if moved := a.watchOnce(ctx); moved {
+			// STRAIGHT ON TO THE NEW WINDOW, with no pause at all.
+			//
+			// The gap between sessions is attention — how long to wait before looking
+			// again at a desktop that has been sitting still. A person who has just
+			// switched program is the opposite of a desktop sitting still, and making
+			// them wait for it is the difference between a mode you can use normally
+			// and one you have to accommodate.
+			//
+			// Deleting this must fail TestWatchingIsNotBlindWhileYouSwitchWindows.
+			continue
+		}
 		a.mu.Lock()
 		gap := a.attention
 		a.mu.Unlock()
@@ -309,10 +320,10 @@ func (a *ambientObserver) run(ctx context.Context, done chan struct{}) {
 }
 
 // watchOnce runs one bounded ambient observation and records what it saw.
-func (a *ambientObserver) watchOnce(ctx context.Context) {
+func (a *ambientObserver) watchOnce(ctx context.Context) (moved bool) {
 	application := strings.TrimSpace(winctxActive())
 	if application == "" {
-		return
+		return false
 	}
 	view, err := ambientObserveNow(a.rt, service.ObservePayload{
 		Target:   currentWindowSelector(application),
@@ -320,14 +331,14 @@ func (a *ambientObserver) watchOnce(ctx context.Context) {
 		Interval: ambientBusy,
 	})
 	if err != nil {
-		return
+		return false
 	}
 	a.mu.Lock()
 	a.sessions++
 	a.mu.Unlock()
 	id := observe.SessionID(view.ID)
 
-	changed, moved := false, false
+	changed := false
 	deadline := time.Now().Add(ambientSession)
 	for time.Now().Before(deadline) && ctx.Err() == nil {
 		if a.rt.observations.ActiveID() == "" {
@@ -363,7 +374,18 @@ func (a *ambientObserver) watchOnce(ctx context.Context) {
 		if a.sample(application) {
 			changed = true
 		}
-		if !sleepCtx(ctx, ambientBusy) {
+		// THE WAIT BETWEEN READINGS IS BROKEN UP, so a window switch is noticed in a
+		// tenth of a second rather than at the next reading.
+		//
+		// Asking the desktop what is in front is a cheap Win32 call; TAKING a reading is a
+		// run of accessibility snapshots costing about two hundred milliseconds. Those are
+		// three orders of magnitude apart, so the cheap question can be asked far more
+		// often than the expensive one without changing what watching costs — and the
+		// reading cadence is untouched.
+		if left, ok := a.waitOrLeave(ctx, ambientBusy, application); left {
+			moved = true
+			break
+		} else if !ok {
 			break
 		}
 	}
@@ -378,6 +400,7 @@ func (a *ambientObserver) watchOnce(ctx context.Context) {
 		a.lastChange = time.Now()
 	}
 	a.mu.Unlock()
+	return moved
 }
 
 // sample reads where Marco is AND what the person has done since the last look, and records both.
@@ -444,7 +467,7 @@ func (a *ambientObserver) record(application string, look ambientLook, now time.
 	// that is what "not recognised" means.
 	key := place.Subject
 	if key == "" {
-		key = transientKey(look.State)
+		key = transientKey(look.Session, look.State)
 	}
 	previous, previousApp := a.last, a.lastApp
 	previousState, previousShape := a.lastState, a.lastShape
@@ -517,6 +540,7 @@ func (a *ambientObserver) recordPlace(application string, place observe.Place,
 
 	return a.record(application, ambientLook{
 		OK: true, Application: application, Place: place, State: stateOfPlace(place),
+		Session: "recordPlace",
 	}, now)
 }
 
@@ -538,8 +562,21 @@ func stateOfPlace(p observe.Place) observe.ScreenStateID {
 // counter and it means nothing outside the session that issued it — which is exactly right for a
 // place that has no identity yet, and is why the promotion step establishes the SHAPE rather than
 // looking anything up by this.
-func transientKey(state observe.ScreenStateID) string {
-	return ambient.TransientKey(string(state))
+//
+// # It carries the session, and that is not decoration
+//
+// `state_2` in one session and `state_2` in the next are unrelated screens. Without the session in
+// the name, two different unrecognised screens either side of a session boundary compare EQUAL —
+// so `changed` is false, no transition is recorded, and the evidence is lost silently. Ambient
+// sessions end every twenty seconds, so this is not a rare boundary: it is one every twenty
+// seconds, all day.
+//
+// Deleting the session must fail TestTwoScreensEitherSideOfASessionAreNotOneScreen.
+func transientKey(session observe.SessionID, state observe.ScreenStateID) string {
+	if state == "" {
+		return ""
+	}
+	return ambient.TransientKey(string(session) + ":" + string(state))
 }
 
 // marcoIsActing reports whether Marco currently holds the keyboard.
@@ -678,4 +715,47 @@ var ambientObserveNow = func(r *Runtime, p service.ObservePayload) (service.Obse
 
 var currentWindowSelector = func(application string) windowref.Selector {
 	return windowref.Selector{Application: application}
+}
+
+// ambientGlance is how often the supervisor asks the desktop what is in front, while waiting
+// between readings.
+//
+// A tenth of a second. `winctx.Active()` is one cheap Win32 call; a screen READING is a run of
+// accessibility snapshots costing around two hundred milliseconds. Three orders of magnitude
+// apart, so asking the cheap question ten times a second changes nothing about what watching
+// costs — and it is what makes a window switch cost a tenth of a second of blindness instead of a
+// reading interval.
+const ambientGlance = 100 * time.Millisecond
+
+// waitOrLeave waits between two readings, and cuts the wait short if the person has gone
+// somewhere else.
+//
+// Reports `left` when the foreground is a different application, and `ok` false when the context
+// ended. A wait that ran to completion is `false, true`.
+//
+// # Why the foreground is polled and the readings are not
+//
+// Because they cost completely different amounts, and the thing that has to be prompt is the
+// cheap one. Nothing here takes a reading, touches the session or writes anything: it asks a
+// question whose answer decides whether the expensive work is still pointed at the right window.
+func (a *ambientObserver) waitOrLeave(ctx context.Context, d time.Duration,
+	application string) (left, ok bool) {
+
+	deadline := time.Now().Add(d)
+	for {
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			return false, true
+		}
+		if remaining > ambientGlance {
+			remaining = ambientGlance
+		}
+		if !sleepCtx(ctx, remaining) {
+			return false, false
+		}
+		if front := strings.TrimSpace(winctxActive()); front != "" &&
+			!sameApplication(front, application) {
+			return true, true
+		}
+	}
 }

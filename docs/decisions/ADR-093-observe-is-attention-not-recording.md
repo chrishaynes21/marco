@@ -113,7 +113,18 @@ nineteen seconds reading the terminal — reporting one screen and no transition
 honestly describing a window nobody was at. A mode whose promise is *use your computer normally*
 cannot be blind for a third of a minute after every switch.
 
-Enforced by `TestWatchingFollowsYouToAnotherWindow`.
+The switch also costs no ATTENTION. The gap between sessions is "how long to leave a desktop that
+has been sitting still", and somebody who has just changed program is the opposite of that — so
+the supervisor opens the next session immediately rather than waiting out a backoff that is about
+a question nobody asked. Measured at roughly a tenth of a second from switch to watching.
+
+And a screen Marco cannot name carries the SESSION in its transient name. Those state counters
+restart with every session, so without it two different unrecognised screens either side of a
+boundary compare equal — no change, no transition, evidence gone silently, every twenty seconds
+all day.
+
+Enforced by `TestWatchingFollowsYouToAnotherWindow`, `TestWatchingIsNotBlindWhileYouSwitchWindows`
+and `TestTwoScreensEitherSideOfASessionAreNotOneScreen`.
 
 ## Attention falls while nothing happens, and snaps back when something does
 
@@ -222,6 +233,8 @@ must never bring something into existence to stop.
   `TestHumanAndMarcoAreNotTheSameEvidence`; `TestTheBufferHoldsNoWordsAnybodyCouldRead`.
 - `cmd/director` — `TestWatchingTwiceIsStillWatchingOnce` (one supervisor AND one loop);
   `TestWatchingFollowsYouToAnotherWindow` (the session ends at a switch, not twenty seconds later);
+  `TestWatchingIsNotBlindWhileYouSwitchWindows` (and the next one opens without waiting out
+  attention); `TestTwoScreensEitherSideOfASessionAreNotOneScreen`;
   `TestWatchingWaitsForWhoeverElseIsLooking`; `TestShuttingDownStopsWatching`;
   `TestWatchingRecordsNeitherDegradedNorUnknownScreens`;
   `TestAnUnknownScreenDoesNotBreakTheWalkThroughIt`; `TestWatchingRecordsWhatThePersonDid`;

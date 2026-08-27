@@ -403,3 +403,128 @@ func waitForWatched(t *testing.T, g *observationRegistry, application string) st
 	t.Fatalf("the supervisor never opened a session over %q", application)
 	return ""
 }
+
+// TWO SCREENS EITHER SIDE OF A SESSION ARE NOT ONE SCREEN.
+//
+// # A collision that loses evidence silently, every twenty seconds
+//
+// A screen Marco does not recognise is named by the session-local state it was read from —
+// `state_2`. Those counters restart with every session, and ambient sessions end every twenty
+// seconds. So without the session in the name, two DIFFERENT unrecognised screens either side of a
+// boundary compare equal: `changed` is false, no transition is recorded, and the evidence for
+// whatever the person just did is gone with nothing anywhere saying so.
+//
+// Not a rare boundary. One every twenty seconds, all day.
+//
+// Deleting the session from the name must fail this.
+func TestTwoScreensEitherSideOfASessionAreNotOneScreen(t *testing.T) {
+	rt := watchingRuntime(t)
+	a := rt.ambient()
+	at := time.Now()
+	shape := func(members int) *ambient.Shape {
+		return &ambient.Shape{Signature: observe.StructureSignature{
+			Subject: observe.SubjectState, Members: members, TermsKnown: true,
+			Roles: map[string]int{"button": members},
+			Terms: []observe.InterfaceTerm{observe.TermSettings},
+		}}
+	}
+
+	// One session, on a screen Marco cannot name.
+	a.record("settings", ambientLook{OK: true, Session: "observe_1", Application: "settings",
+		Place: observe.Place{Placed: true, Reach: observe.ReachContent},
+		State: "state_2", Shape: shape(4)}, at)
+
+	// The session ends and another begins — and the new session's counter starts over, so
+	// the NEXT screen is also `state_2` and is a completely different screen.
+	a.record("settings", ambientLook{OK: true, Session: "observe_2", Application: "settings",
+		Place: observe.Place{Placed: true, Reach: observe.ReachContent},
+		State: "state_2", Shape: shape(9)}, at.Add(time.Second))
+
+	recent := a.buf.Look().Recent
+	if len(recent) != 1 {
+		t.Fatalf("%d transition(s) across a session boundary, want 1. Two different screens "+
+			"read as one because their session-local counters collided, and the evidence "+
+			"for whatever the person did between them is gone.", len(recent))
+	}
+	if recent[0].From == recent[0].To {
+		t.Errorf("the transition runs from %q to itself", recent[0].From)
+	}
+}
+
+// WATCHING IS NOT BLIND WHILE YOU SWITCH WINDOWS.
+//
+// # Why the first fix was not enough
+//
+// Ending the session at a switch stopped Marco reading the wrong window. It did not make it start
+// reading the RIGHT one promptly: the supervisor's next move was the ordinary between-sessions
+// wait, which is attention — how long to leave a desktop that has been sitting still. A person who
+// has just switched program is the opposite of a desktop sitting still, and making them wait for it
+// is the difference between a mode you can use normally and one you have to accommodate.
+//
+// The person must not have to pause after switching. That is ceremony, and ambient watching exists
+// to remove ceremony.
+//
+// This drives the real supervisor across a switch and requires the new window to be under
+// observation quickly — well inside the attention window that would otherwise apply, and inside
+// the reading interval too.
+//
+// Deleting the immediate continue must fail this.
+func TestWatchingIsNotBlindWhileYouSwitchWindows(t *testing.T) {
+	g, _ := watchedRegistry(t)
+	rt := &Runtime{observations: g}
+	t.Cleanup(func() { rt.DisableAmbient() })
+
+	var mu sync.Mutex
+	front := "settings"
+	app, sel := winctxActive, currentWindowSelector
+	winctxActive = func() string {
+		mu.Lock()
+		defer mu.Unlock()
+		return front
+	}
+	currentWindowSelector = func(a string) windowref.Selector {
+		return windowref.Selector{Application: a}
+	}
+	t.Cleanup(func() { winctxActive, currentWindowSelector = app, sel })
+
+	open := ambientObserveNow
+	ambientObserveNow = func(_ *Runtime, p service.ObservePayload) (service.ObserveStarted, error) {
+		bounds := dryBounds()
+		bounds.Duration = ambientSession
+		id, err := g.Start(namedTarget{app: p.Target.Application},
+			&drySampler{script: dryHold("a", 64)}, observesession.NopEvents{},
+			p.Target, bounds)
+		return service.ObserveStarted{ID: string(id)}, err
+	}
+	t.Cleanup(func() { ambientObserveNow = open })
+
+	rt.EnableAmbient()
+	waitForWatched(t, g, "settings")
+
+	// THE SWITCH. From here the clock is running: the person is about to do something in
+	// the new window, and everything they do before Marco is watching it is lost.
+	mu.Lock()
+	front = "notepad"
+	switchedAt := time.Now()
+	mu.Unlock()
+
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		if g.ActiveID() != "" &&
+			sameApplication(strings.TrimSpace(g.ObservedApplication()), "notepad") {
+			blind := time.Since(switchedAt)
+			// Generous against the mechanism and strict against the product claim: the
+			// glance is a tenth of a second and starting a session is not free, but a
+			// person must never be waiting on the ATTENTION gap, which is what the
+			// unfixed version made them do.
+			if blind > ambientBusy {
+				t.Errorf("Marco was blind for %v after a window switch. The between-"+
+					"sessions wait is attention, and somebody who has just switched "+
+					"program is the opposite of a desktop sitting still.", blind)
+			}
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatal("watching never reached the new window")
+}

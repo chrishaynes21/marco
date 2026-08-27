@@ -27,6 +27,7 @@
       .\acceptance-36c.ps1 -Round        after you have clicked: what has been noticed
       .\acceptance-36c.ps1 -Report       candidates, promotions, and what it cost
       .\acceptance-36c.ps1 -Restart      stop and restart; is the knowledge still there
+      .\acceptance-36c.ps1 -Tail         LIVE: what Marco is watching, right now
       .\acceptance-36c.ps1 -Why          why the numbers are what they are
       .\acceptance-36c.ps1 -Clean        stop the Director and delete the sandbox
 
@@ -55,9 +56,11 @@ param(
     [switch]$Round,
     [switch]$Report,
     [switch]$Restart,
+    [switch]$Tail,
     [switch]$Why,
     [switch]$Where,
     [switch]$Clean,
+    [int]$EveryMs = 500,
     [string]$App = ""
 )
 
@@ -219,6 +222,57 @@ function Store-Shape {
     }
 }
 
+# ── tail ──────────────────────────────────────────────────────────────────────
+
+# -Tail is a live view of what Marco is watching.
+#
+# # Why this exists, and why it should have existed first
+#
+# Every other mode here is a snapshot taken afterwards. If something goes wrong while you are
+# clicking, a snapshot gives you one number at the end and no way to know WHEN it went wrong or
+# what Marco was looking at while it did. The first live run of ambient watching failed for a
+# reason that would have been obvious in one line of this -- the application column would have read
+# `powershell` the entire time -- and instead it took a round trip and a guess.
+#
+# Run it in a second terminal and leave it there while you do the route.
+#
+# It prints ONLY when something changes, so a quiet desktop is a quiet screen and a change is
+# something you can see happen. Nothing here writes anything or asks the Director to do anything:
+# it is the same status read `marco observe status` makes, on a loop.
+if ($Tail) {
+    Use-Sandbox
+    Say "Watching what Marco is watching. Ctrl-C to stop."
+    Say ""
+    Say ("{0,-8}  {1,-22} {2,-11} {3,-9}  {4}" -f "time", "application", "page", "screen", "counts")
+    $last = ""
+    while ($true) {
+        $st = Observe-Status
+        if (-not $st) {
+            $line = "no Director is running"
+        } elseif (-not $st.watching) {
+            $line = "not watching"
+        } else {
+            # THE APPLICATION IS THE FIRST COLUMN, deliberately. "Which window is Marco
+            # actually reading" is the question that was unanswerable, and it is the one
+            # that turned out to matter.
+            $page = if ($st.perception_degraded) { "unreadable" } else { "readable" }
+            $screen = if ($st.place) { "known" } else { "new" }
+            $counts = "{0} screens, {1} moves, {2} seen, {3} learned" -f
+                      (Num $st.places), (Num $st.transitions), (Num $st.noticed), (Num $st.learned)
+            $app = if ($st.application) { $st.application } else { "(nothing in front)" }
+            $line = "{0,-22} {1,-11} {2,-9}  {3}" -f $app, $page, $screen, $counts
+        }
+        if ($line -ne $last) {
+            $colour = "Gray"
+            if ($line -match "unreadable")  { $colour = "Yellow" }
+            if ($line -match "not watching|no Director") { $colour = "Red" }
+            Write-Host ("{0,-8}  {1}" -f (Get-Date -Format "HH:mm:ss"), $line) -ForegroundColor $colour
+            $last = $line
+        }
+        Start-Sleep -Milliseconds $EveryMs
+    }
+}
+
 # ── why ───────────────────────────────────────────────────────────────────────
 
 # -Why prints everything the Director already knows, unsummarised.
@@ -348,13 +402,26 @@ if ($Setup) {
     }
     Good "Marco is watching, and may remember what recurs"
 
-    Step "Now use your computer"
+    Step "First: open a second terminal and leave this running in it"
+    Say  ""
+    Say  "      .\acceptance-36c.ps1 -Tail"
+    Say  ""
+    Note "It shows which window Marco is reading, whether it can read the page, and the"
+    Note "counts, live. Without it the only evidence you get is a number afterwards, and"
+    Note "a number afterwards cannot tell you WHEN something went wrong or what Marco was"
+    Note "looking at while it did."
+
+    Step "Then use your computer, normally"
     Say  "  1. Open Settings."
     Say  "  2. Click 'Bluetooth & devices'."
     Say  "  3. Click 'Mouse'."
     Say  ""
     Say  "  Then run:  .\acceptance-36c.ps1 -Round"
     Say  ""
+    Note "NORMALLY means normally. Do not pause after switching windows to let Marco catch"
+    Note "up -- if it needs that, it is not ambient and the run should say so. Watching"
+    Note "follows the window in front within about a tenth of a second."
+    Note ""
     Note "After that, go back to Home, do something else for a minute or so, and do the"
     Note "SAME ROUTE AGAIN. The second time is the whole point: one demonstration is"
     Note "evidence that a thing happened, not evidence of how anything works."
@@ -544,6 +611,7 @@ Say "  -Setup     build, sandbox, start a Director, watch AND learn"
 Say "  -Round     after you have clicked: what has been noticed"
 Say "  -Report    candidates, promotions, and what it cost"
 Say "  -Restart   stop and restart; is the knowledge still there"
+Say "  -Tail      LIVE: what Marco is watching, right now"
 Say "  -Why       everything the Director knows, unsummarised"
 Say "  -Where     print the sandbox paths"
 Say "  -Clean     stop the Director and delete the sandbox"

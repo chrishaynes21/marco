@@ -551,7 +551,7 @@ func TestCandidateStorageTracksNoveltyAndNotTime(t *testing.T) {
 	for i := 0; i < observe.MaxWatchedEdges*2; i++ {
 		to := &ambient.Shape{Called: "somewhere",
 			Signature: screenLike(3+i%40, observe.TermSettings)}
-		a.noticed(crossed("seen_state_1", transientKey(observe.ScreenStateID(
+		a.noticed(crossed("seen_state_1", transientKey("s1", observe.ScreenStateID(
 			"s"+time.Duration(i).String())), homeShape(), to,
 			"thing "+time.Duration(i).String(), ambient.ByHuman,
 			at.Add(time.Duration(i)*2*ambient.IndependentGap)), true)
