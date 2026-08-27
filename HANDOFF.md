@@ -5842,3 +5842,26 @@ discarded rather than kept for execution confidence. There is no unlearning: con
 after promotion is recorded and does nothing. And the live acceptance is UNMEASURED —
 `acceptance-36c.ps1` is the harness, it drives nothing, and it insists you do the route twice. See
 [[ADR-095-repeated-observation-may-become-knowledge]].
+
+### 36C, live: the first run of ambient watching found a twenty-second blind spot
+
+The Go suite was green for three roadmaps and the first live run said: one screen recognised, no
+transitions, nothing learned. Every number was honest and every one of them was about the wrong
+window.
+
+**An ambient session pins the foreground at START and reads it for its whole twenty seconds.**
+Watching was switched on from a terminal; the person opened Settings a second later and walked the
+route; Marco read the terminal throughout. A mode whose promise is "use your computer normally"
+cannot be blind for a third of a minute after every window switch — and it had been, in all three
+roadmaps, because nothing had ever run it against a desktop that moved.
+
+The session now ends AT the switch and the supervisor opens one on the new window immediately, with
+attention back at busy. One `winctx.Active()` per reading, which is far cheaper than the reading it
+gates.
+
+**And the harness could not say which of five things had happened.** `0 moves` covers: no session
+started, sessions took no readings, perception degraded, screens read but not recognised, and
+screens recognised that never changed. `acceptance-36c.ps1 -Round` printed five counts and none of
+the reasons — the same one-sentence-for-four-problems failure the Director itself was fixed for
+twice, reproduced in the harness meant to catch it. It now explains, and `-Why` dumps everything
+the Director already knows.

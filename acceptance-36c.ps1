@@ -27,6 +27,7 @@
       .\acceptance-36c.ps1 -Round        after you have clicked: what has been noticed
       .\acceptance-36c.ps1 -Report       candidates, promotions, and what it cost
       .\acceptance-36c.ps1 -Restart      stop and restart; is the knowledge still there
+      .\acceptance-36c.ps1 -Why          why the numbers are what they are
       .\acceptance-36c.ps1 -Clean        stop the Director and delete the sandbox
 
   DO THE ROUTE TWICE, with something else in between. The whole point is that the second time is
@@ -54,6 +55,7 @@ param(
     [switch]$Round,
     [switch]$Report,
     [switch]$Restart,
+    [switch]$Why,
     [switch]$Where,
     [switch]$Clean,
     [string]$App = ""
@@ -118,6 +120,85 @@ function Observe-Status {
     try { return ($raw | ConvertFrom-Json) } catch { return $null }
 }
 
+# Explain-Round says WHY the numbers are what they are.
+#
+# "0 moves noticed" has at least five explanations, and they send somebody to five different
+# places:
+#
+#     nothing ever started a session      -> the window could not be acquired
+#     sessions ran and read nothing       -> the accessibility bridge
+#     the page could not be read          -> perception degraded, shell only
+#     the page was read and not known     -> ordinary, and not a fault
+#     screens were known and never changed-> you did not move, or the pin is on one window
+#
+# Every one of these is already on the status payload. The first version of this harness printed
+# five counts and none of the reasons, which is the same "one sentence for four problems" failure
+# the Director itself was fixed for twice. See ADR-090's note on why a silence must say which.
+function Explain-Round ($st) {
+    $sessions = Num $st.sessions
+    $samples  = Num $st.samples
+    $places   = Num $st.places
+    $moves    = Num $st.transitions
+
+    if (-not $st.watching) {
+        Bad "Marco is not watching at all"
+        return
+    }
+    if ($sessions -eq 0) {
+        Bad "no observation session has started"
+        Note "The supervisor asks for one every second or so and something is refusing."
+        Note "Either the foreground window could not be acquired, or another observation"
+        Note "session owns the substrate -- ambient watching always yields to Learn, Here"
+        Note "and a performance. Check: $Dir status"
+        return
+    }
+    if ($samples -eq 0) {
+        Bad "$sessions session(s) ran and took no readings"
+        Note "The session started and the sampler produced nothing. That is perception,"
+        Note "not the observer. Check: $Dir light"
+        return
+    }
+    Good "$sessions session(s), $samples reading(s) of the desktop"
+
+    if ($st.perception_degraded) {
+        Bad "the last reading got no further than the window frame"
+        Note "Marco can see the window and cannot read the page inside it. That is the"
+        Note "accessibility bridge or a window that exposes no tree, and NOTHING here can"
+        Note "be learned until it is fixed -- a degraded reading is deliberately not a"
+        Note "screen, so it cannot become a place or an endpoint."
+        return
+    }
+    if ($st.application) {
+        Note "watching: $($st.application)"
+    } else {
+        Warn "no application on the last reading -- nothing was in front, or it could not be named"
+    }
+
+    if ($places -eq 0 -and $moves -eq 0) {
+        Warn "readings happened and no screen was RECOGNISED"
+        Note "That is ordinary on software Marco has not seen before, and it does not stop"
+        Note "ambient learning: an unrecognised screen it can DESCRIBE is still an endpoint."
+        Note "Zero moves beside it means the screen never changed -- see below."
+    }
+    if ($moves -eq 0) {
+        Warn "no move was recorded"
+        Note "A move is recorded when two consecutive readings place you somewhere"
+        Note "DIFFERENT, in the same application. Zero after clicking through Settings"
+        Note "means one of: the readings never resolved to distinguishable screens, the"
+        Note "session is pinned to a window you have left, or the click changed the page"
+        Note "faster than a reading could settle on either side of it."
+    } else {
+        Good "$moves move(s) recorded across $places recognised screen(s)"
+    }
+    if ((Num $st.noticed) -eq 0 -and $moves -gt 0) {
+        Warn "moves were recorded and no relationship was noticed"
+        Note "A move becomes candidate evidence only when Marco also saw WHAT you pressed,"
+        Note "and could name it. A press on a control whose name the privacy allowlist"
+        Note "withholds is the commonest reason -- that is the boundary working, not"
+        Note "perception failing."
+    }
+}
+
 # Store-Shape counts what is durable, so two rounds can be compared.
 #
 # It reads the JSON rather than asking the Director, deliberately: the question is what is ON DISK,
@@ -136,6 +217,53 @@ function Store-Shape {
         promoted      = $promoted
         goals         = @($f.goals).Count
     }
+}
+
+# ── why ───────────────────────────────────────────────────────────────────────
+
+# -Why prints everything the Director already knows, unsummarised.
+#
+# The counts in -Round are a product answer. This is the diagnostic one: the whole ambient status
+# payload, the Director's own account of itself, and what perception last managed. Nothing here is
+# computed by the harness, because a harness that derived its own answer would be a second opinion
+# about a system that already has one.
+if ($Why) {
+    Use-Sandbox
+    Step "Is anything watching"
+    $raw = & $Marco observe status --json 2>&1
+    Say ($raw | Out-String)
+
+    Step "What the Director says it is doing"
+    $ds = & $Dir status 2>&1
+    Say ($ds | Out-String)
+    Note "Watching and Learning are two lines and they are answered separately. An active"
+    Note "command here means something else owns the substrate and ambient watching is"
+    Note "yielding to it, which is correct behaviour and would explain zero sessions."
+
+    Step "What perception can currently read"
+    # `director light` is the read-only account of the window in front: whether it could be
+    # acquired, how far into it the reading got, and what it resolved to. It is the one
+    # command that separates "no window" from "a window nothing can read".
+    $light = & $Dir light 2>&1
+    Say ($light | Out-String)
+
+    Step "The durable record"
+    if (Test-Path $Store) {
+        $f = Get-Content $Store -Raw | ConvertFrom-Json
+        Say ("subjects {0}, relationships {1}, candidates {2}, goals {3}" -f
+             @($f.subjects).Count, @($f.relationships).Count,
+             @($f.watched).Count, @($f.goals).Count)
+        foreach ($w in @($f.watched)) {
+            Say ("  candidate {0}  seen {1} / occasions {2} / contradicted {3}  {4} -> {5}  [{6}]" -f
+                 $w.id, (Num $w.seen), (Num $w.occasions), (Num $w.contradicted),
+                 $(if ($w.from.subject) { $w.from.subject } else { "(unrecognised)" }),
+                 $(if ($w.to.subject) { $w.to.subject } else { "(unrecognised)" }),
+                 $(if ($w.promoted) { "promoted" } else { "pending" }))
+        }
+    } else {
+        Warn "no store at $Store"
+    }
+    return
 }
 
 # ── where ─────────────────────────────────────────────────────────────────────
@@ -253,13 +381,18 @@ if ($Round) {
     Say  "  candidates held   : $(Num $st.candidates)"
     Say  "  remembered so far : $(Num $st.learned)"
     Say  ""
-    Say  "  on disk: $($shape.subjects) subjects, $($shape.relationships) relationships, " +
-         "$($shape.watched) candidates ($($shape.promoted) promoted), $($shape.goals) goals"
+    Say  ("  on disk: {0} subjects, {1} relationships, {2} candidates ({3} promoted), {4} goals" -f
+          $shape.subjects, $shape.relationships, $shape.watched, $shape.promoted, $shape.goals)
 
+    # WHY, not just how much.
+    #
+    # "0 moves" has five explanations that send somebody to five different places, and the first
+    # version of this printed one sentence for all of them -- the exact shape of failure this
+    # repository has paid for repeatedly, reproduced in the harness meant to catch it. Every
+    # field below is already on the status payload; it was simply not being read.
+    Explain-Round $st
     if ((Num $st.transitions) -eq 0) {
-        Warn "no moves noticed, so there is nothing to learn from"
-        Note "Marco records a move only between two readings it could place. If you clicked"
-        Note "and this is zero, the accessibility reading is the thing to look at."
+        Note "For the full picture: .\acceptance-36c.ps1 -Why"
     }
     if ($n -eq 1 -and $shape.relationships -gt 0) {
         Warn "something became durable after ONE round"
@@ -411,6 +544,7 @@ Say "  -Setup     build, sandbox, start a Director, watch AND learn"
 Say "  -Round     after you have clicked: what has been noticed"
 Say "  -Report    candidates, promotions, and what it cost"
 Say "  -Restart   stop and restart; is the knowledge still there"
+Say "  -Why       everything the Director knows, unsummarised"
 Say "  -Where     print the sandbox paths"
 Say "  -Clean     stop the Director and delete the sandbox"
 Say ""

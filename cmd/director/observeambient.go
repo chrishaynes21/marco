@@ -314,7 +314,7 @@ func (a *ambientObserver) watchOnce(ctx context.Context) {
 	if application == "" {
 		return
 	}
-	view, err := a.rt.StartObservation(service.ObservePayload{
+	view, err := ambientObserveNow(a.rt, service.ObservePayload{
 		Target:   currentWindowSelector(application),
 		Duration: ambientSession,
 		Interval: ambientBusy,
@@ -327,10 +327,37 @@ func (a *ambientObserver) watchOnce(ctx context.Context) {
 	a.mu.Unlock()
 	id := observe.SessionID(view.ID)
 
-	changed := false
+	changed, moved := false, false
 	deadline := time.Now().Add(ambientSession)
 	for time.Now().Before(deadline) && ctx.Err() == nil {
 		if a.rt.observations.ActiveID() == "" {
+			break
+		}
+		// THE WINDOW IN FRONT IS THE ONE TO WATCH, and it is asked every reading.
+		//
+		// # The bug this exists to prevent, measured live
+		//
+		// The session pins whatever was in front when it STARTED and reads that window for
+		// its whole length. Somebody starts watching from a terminal, opens Settings a
+		// second later, and clicks through it — and Marco spends the next nineteen seconds
+		// reading the terminal. The first live run of ambient watching did exactly that:
+		// one screen recognised, no transitions, and every count honestly reporting a
+		// window nobody was using.
+		//
+		// It is not enough to say a new session pins the new window. A person switching
+		// application is the single most informative thing that happens on a desktop, and
+		// a mode whose whole promise is "use your computer normally" cannot be blind for a
+		// third of a minute after every switch.
+		//
+		// So the session ENDS at the switch and the supervisor immediately starts one on
+		// the new window. A `winctx.Active()` is a cheap Win32 call — far cheaper than the
+		// reading it decides whether to take — so this costs nothing against a screen
+		// reading and buys the whole product claim.
+		//
+		// Deleting this must fail TestWatchingFollowsYouToAnotherWindow.
+		if front := strings.TrimSpace(winctxActive()); front != "" &&
+			!sameApplication(front, application) {
+			moved = true
 			break
 		}
 		if a.sample(application) {
@@ -343,7 +370,10 @@ func (a *ambientObserver) watchOnce(ctx context.Context) {
 	a.rt.endLook(ctx, id)
 
 	a.mu.Lock()
-	a.attention = nextAttention(a.attention, changed)
+	// A SWITCH IS A CHANGE, for the purposes of attention. Somebody who has just moved to
+	// another program is about to do something in it, and meeting them with a reading eight
+	// seconds later is exactly the asymmetry the backoff exists to avoid.
+	a.attention = nextAttention(a.attention, changed || moved)
 	if changed {
 		a.lastChange = time.Now()
 	}
@@ -628,6 +658,22 @@ var winctxActive = func() string { return winctx.Active() }
 // Production never reassigns it.
 var ambientLookNow = func(r *Runtime, application string) ambientLook {
 	return r.ambientLook(application)
+}
+
+// ambientObserveNow is how the supervisor opens one bounded session.
+//
+// A package VARIABLE for the third time in this file and for the same one reason: a real session
+// needs a live window tracker and a desktop with something in front of it, so a test that could
+// not replace this could only assert that `watchOnce` compiles.
+//
+// It exists because of a specific thing that must be tested through the LOOP rather than around
+// it: the session ends when the person moves to another window. That check lives inside the
+// sampling loop, and a test on an extracted predicate would pass with the check deleted from
+// where it matters.
+//
+// Production never reassigns it.
+var ambientObserveNow = func(r *Runtime, p service.ObservePayload) (service.ObserveStarted, error) {
+	return r.StartObservation(p)
 }
 
 var currentWindowSelector = func(application string) windowref.Selector {

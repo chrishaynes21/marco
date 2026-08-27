@@ -1,12 +1,16 @@
 package main
 
 import (
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/ambient"
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
+	"github.com/chaynes-simpleclouds/marco/internal/director/observesession"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/windowref"
+	"github.com/chaynes-simpleclouds/marco/internal/director/service"
 )
 
 // Marco paying attention, and the four things that must stay true while it does.
@@ -304,4 +308,98 @@ func TestWatchingRecordsWhatThePersonDid(t *testing.T) {
 	if edges[0].By[ambient.ByMarco] != 0 {
 		t.Error("watching attributed somebody's own navigation to Marco")
 	}
+}
+
+// WATCHING FOLLOWS YOU TO ANOTHER WINDOW.
+//
+// # The defect this was written for, found by the first live run
+//
+// An ambient session pins whatever is in front when it STARTS and reads that window for its whole
+// length — twenty seconds. Somebody starts watching from a terminal, opens Settings a second
+// later, and walks a route through it; Marco spends nineteen seconds reading the terminal, and
+// every count honestly reports a window nobody was using. Measured: one screen recognised, no
+// transitions, and no way to tell from the numbers that the wrong window was being read.
+//
+// A person switching application is the single most informative thing that happens on a desktop.
+// A mode whose promise is "use your computer normally" cannot be blind for a third of a minute
+// after every switch.
+//
+// So the session ends AT the switch. This drives the real supervisor over a desktop that moves
+// under it, and asserts the session it opened on the first window does not outlive the move.
+//
+// Deleting the foreground check must fail this.
+func TestWatchingFollowsYouToAnotherWindow(t *testing.T) {
+	g, store := watchedRegistry(t)
+	_ = store
+	rt := &Runtime{observations: g}
+	t.Cleanup(func() { rt.DisableAmbient() })
+
+	var mu sync.Mutex
+	front := "settings"
+	app, sel := winctxActive, currentWindowSelector
+	winctxActive = func() string {
+		mu.Lock()
+		defer mu.Unlock()
+		return front
+	}
+	currentWindowSelector = func(a string) windowref.Selector {
+		return windowref.Selector{Application: a}
+	}
+	t.Cleanup(func() { winctxActive, currentWindowSelector = app, sel })
+
+	// The supervisor opens a session on whatever is in front, through the seam that stands in
+	// for a live window tracker. What matters is WHICH application it is about.
+	open := ambientObserveNow
+	ambientObserveNow = func(_ *Runtime, p service.ObservePayload) (service.ObserveStarted, error) {
+		bounds := dryBounds()
+		bounds.Duration = ambientSession
+		id, err := g.Start(namedTarget{app: p.Target.Application},
+			&drySampler{script: dryHold("a", 64)}, observesession.NopEvents{},
+			p.Target, bounds)
+		return service.ObserveStarted{ID: string(id)}, err
+	}
+	t.Cleanup(func() { ambientObserveNow = open })
+
+	rt.EnableAmbient()
+	firstSeen := waitForWatched(t, g, "settings")
+
+	// AND NOW THE PERSON GOES SOMEWHERE ELSE.
+	mu.Lock()
+	front = "notepad"
+	mu.Unlock()
+
+	// The session on the old window must not outlive the move. It has twenty seconds left on
+	// its own clock, so anything under that which still shows the OLD application would have
+	// been the bug.
+	deadline := time.Now().Add(6 * time.Second)
+	for time.Now().Before(deadline) {
+		if got := strings.TrimSpace(g.ObservedApplication()); got != "" &&
+			!sameApplication(got, "settings") {
+			return
+		}
+		if g.ActiveID() == "" && firstSeen != "" {
+			// The old session ended and a new one has not started yet, which is the
+			// same fact a moment earlier.
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatalf("watching stayed on %q for six seconds after the person moved to notepad. "+
+		"A session pinned to a window nobody is using reads a desktop nobody is at, and "+
+		"reports it as though it were the truth.", g.ObservedApplication())
+}
+
+// waitForWatched waits until the supervisor has a session over one application, and says which.
+func waitForWatched(t *testing.T, g *observationRegistry, application string) string {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		if id := g.ActiveID(); id != "" &&
+			sameApplication(strings.TrimSpace(g.ObservedApplication()), application) {
+			return string(id)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("the supervisor never opened a session over %q", application)
+	return ""
 }

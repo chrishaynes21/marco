@@ -95,6 +95,26 @@ breaks no safety property and the mutation survives the suite — measured. With
 asks for the substrate every few seconds throughout somebody else's Learn and is refused every
 time, which is churn for nothing.
 
+## Watching follows you to another window
+
+An ambient session pins the window that was in front when it STARTED. It has to: evidence from one
+cycle is attributable to one window only because every provider is scoped to the same one, and a
+session that re-read the foreground each sample would follow somebody's focus into the middle of
+their own work.
+
+What it must not do is go on reading a window nobody is using. So the sampling loop asks the
+desktop what is in front, once per reading, and **ends the session at a switch** — the supervisor
+then opens a new one on the new window immediately, and attention drops back to busy because
+somebody who has just moved to another program is about to do something in it.
+
+**Measured, on the first live run of ambient watching.** Watching was started from a terminal, the
+person opened Settings a second later and walked a route through it, and Marco spent the next
+nineteen seconds reading the terminal — reporting one screen and no transitions, every count
+honestly describing a window nobody was at. A mode whose promise is *use your computer normally*
+cannot be blind for a third of a minute after every switch.
+
+Enforced by `TestWatchingFollowsYouToAnotherWindow`.
+
 ## Attention falls while nothing happens, and snaps back when something does
 
 A screen reading costs a run of accessibility snapshots — about 200 ms on one measured machine —
@@ -201,6 +221,7 @@ must never bring something into existence to stop.
   what it dropped); `TestTheRecentWalkKeepsWhatJustHappened`;
   `TestHumanAndMarcoAreNotTheSameEvidence`; `TestTheBufferHoldsNoWordsAnybodyCouldRead`.
 - `cmd/director` — `TestWatchingTwiceIsStillWatchingOnce` (one supervisor AND one loop);
+  `TestWatchingFollowsYouToAnotherWindow` (the session ends at a switch, not twenty seconds later);
   `TestWatchingWaitsForWhoeverElseIsLooking`; `TestShuttingDownStopsWatching`;
   `TestWatchingRecordsNeitherDegradedNorUnknownScreens`;
   `TestAnUnknownScreenDoesNotBreakTheWalkThroughIt`; `TestWatchingRecordsWhatThePersonDid`;
