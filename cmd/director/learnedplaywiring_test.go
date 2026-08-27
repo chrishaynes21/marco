@@ -188,28 +188,74 @@ func treeOf(t *testing.T, dir string) []string {
 	return out
 }
 
-// A route Marco has only WATCHED cannot be written down.
+// A ROUTE MARCO ONLY WATCHED CAN STILL BE WRITTEN DOWN.
 //
-// The gate is the derived verification, not consistency and not corroboration. Two agreeing
-// demonstrations are still only two things Marco saw somebody else do.
-func TestAnUnrehearsedRouteIsNotWrittenDown(t *testing.T) {
+// # What this replaces, and why
+//
+// It used to be TestAnUnrehearsedRouteIsNotWrittenDown, and it said the opposite: the gate was
+// the derived verification, and two agreeing demonstrations were still only two things Marco had
+// watched somebody else do. That was right until
+// [[ADR-089-watching-is-how-marco-learns-performing-is-how-it-proves]], which measured that the
+// rehearsal question was raised under exactly the conditions that already made the evidence
+// sufficient — and then changed the Learn coordinator and the planner and NOT this gate.
+//
+// So Fast Learn produced every durable thing except the artifact: the places, the edges, the
+// candidates, the goal, and `no route is ready to be written down`. Nothing caught it, because
+// every save test in this package writes a rehearsal record into its fixture first — and because
+// this test asserted the old rule and passed.
+//
+// Narrowing the gate back to `a.Verified` must fail this.
+func TestARouteMarcoOnlyWatchedCanStillBeWrittenDown(t *testing.T) {
 	g := authorizedRegistry(t) // demonstrated twice, never rehearsed
+	// The screens are named, because a play refers to them by name and that gate is
+	// unchanged. This is the ONLY thing standing between a watched route and a play.
+	nameTheFixturesScreens(t, g)
+
 	v := learned(t, g)
 	if len(v.Plays) == 0 {
 		t.Fatal("the fixture produced no routes at all")
 	}
+	wrote := false
 	for _, p := range v.Plays {
-		if p.Eligible || p.Source != "" {
-			t.Fatalf("a route nobody has tried was written down:\n%s", p.Source)
-		}
-		var sawNotVerified bool
 		for _, r := range p.Refusals {
 			if r == string(observe.RefusalNotVerified) {
-				sawNotVerified = true
+				t.Errorf("a clean demonstration was refused %q. ADR-089 says a play "+
+					"may be saved that Marco has never executed; this is the gate "+
+					"that has to agree with it.", r)
 			}
 		}
-		if !sawNotVerified {
-			t.Errorf("refusals %v do not say it has never been verified", p.Refusals)
+		if p.Eligible && p.Source != "" {
+			wrote = true
+		}
+	}
+	if !wrote {
+		t.Fatalf("nothing lowered: %+v", v.Plays)
+	}
+}
+
+// nameTheFixturesScreens gives the authorized route's two ends the Audience's words.
+//
+// A play refers to a screen by name and that gate is unchanged by any of this; without it every
+// test below refuses `screen_unnamed` and says nothing about the gate it is actually driving.
+func nameTheFixturesScreens(t *testing.T, g *observationRegistry) {
+	t.Helper()
+	grant := g.last.Grant()
+	if grant == nil {
+		t.Fatal("the fixture holds no authorization")
+	}
+	store, ok := g.memory.(*semanticmemory.Store)
+	if !ok {
+		return
+	}
+	for id, word := range map[string]string{
+		grant.Source: "the pause menu", grant.Destination: "the audio page",
+	} {
+		name, err := observe.UserSuppliedScreenName(word)
+		if err != nil {
+			t.Fatalf("naming: %v", err)
+		}
+		if err := store.NameSubject("testgame", id, name); err != nil {
+			t.Fatalf("naming: %v", err)
 		}
 	}
 }

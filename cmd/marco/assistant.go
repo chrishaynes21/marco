@@ -475,7 +475,7 @@ func runAssistantLearn(args []string) {
 	// --auto: non-interactive learn (record → simplify → save scoped to the
 	// foreground app), so a front-end like the overlay can drive learning with no
 	// prompts and no console window.
-	auto, narrate := false, false
+	auto, narrate, recent := false, false, false
 	var rest []string
 	for _, a := range args {
 		switch a {
@@ -483,11 +483,31 @@ func runAssistantLearn(args []string) {
 			auto = true
 		case "--narrate", "--voice": // narrate from typed stdin lines OR the mic
 			narrate = true
+		case "--recent":
+			// LEARN WHAT I JUST DID. See runLearnRecent — it goes to the Director,
+			// because the recent past is something only the Director watched.
+			recent = true
 		default:
 			rest = append(rest, a)
 		}
 	}
 	name := strings.TrimSpace(strings.Join(rest, " "))
+	// THE RETROSPECTIVE HALF, checked before the name is asked for interactively.
+	//
+	// `marco learn "open mouse settings" --recent` is the product sentence: Marco was already
+	// watching, so there is nothing to demonstrate and nothing to prompt for. A bare
+	// `--recent` with no name is refused rather than prompted, because the prompt below is
+	// part of starting a demonstration and this does not start one.
+	if recent {
+		if name == "" {
+			fmt.Fprintln(os.Stderr,
+				`usage: marco learn "<name>" --recent`+"\n"+
+					"  learns what Marco has just watched you do. "+
+					"Turn watching on with: marco observe")
+			os.Exit(2)
+		}
+		os.Exit(runLearnRecent(name))
+	}
 	if name == "" && !auto {
 		// No name given (e.g. bare "learn" from a console) — ask for one.
 		fmt.Print("Name this command: ")

@@ -143,6 +143,10 @@ lands in a slot the cadence gate declined.
   one supervisor on the one substrate, the ZERO licence so nothing it sees becomes durable,
   a transient buffer whose size tracks novelty rather than time, and no authority or desktop
   lease of any kind
+- [[ADR-094-observe-gathers-evidence-learn-promotes-it]] — "learn what I just did": the trail
+  gains what somebody PRESSED, an action is attributed to the screen it was performed on rather
+  than to whatever is in front when it is read, and an explicit Learn promotes a selected walk
+  under the same licence a live one declares. Observe still holds none
 - [[ADR-003-evidence-authority-by-source]]
 - [[ADR-012-presence-is-state-relative]]
 - [[ADR-013-navigation-is-meaning-not-keys]]

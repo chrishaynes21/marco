@@ -77,18 +77,42 @@ func (r *Runtime) serviceContext() context.Context {
 func (r *Runtime) beginPerformance(ctx context.Context, phrase string) (
 	context.Context, func(refusal string, steps int), error) {
 
+	// MARCO IS ABOUT TO DRIVE THE DESKTOP, and one thing has to know: ambient watching, which
+	// is about to see the screen move and must not offer it back as something the person
+	// demonstrated. Counted here rather than at the call sites for the same reason the
+	// command slot itself is — a rehearsal reaches the desktop from inside a Learn episode,
+	// several layers below any handler, and a flag set where the requests arrive would miss
+	// exactly that entrance.
+	//
+	// BEFORE the registry check, deliberately. A Runtime with no registry is a test's, and it
+	// still types; the provenance of what it does is not a thing to lose because nobody was
+	// watching the command list.
+	//
+	// Deleting this must fail TestWhatMarcoDidIsNotWhatYouDemonstrated.
+	r.actingMu.Lock()
+	r.acting++
+	r.actingMu.Unlock()
+	release := func() {
+		r.actingMu.Lock()
+		if r.acting > 0 {
+			r.acting--
+		}
+		r.actingMu.Unlock()
+	}
+
 	if r.commands == nil {
 		// NO REGISTRY, AND THAT IS NOT AN ERROR. A Runtime nobody published is a test's,
 		// and refusing to walk would make every dry fixture in this package fail for a
 		// reason that has nothing to do with what it is testing. The caller's context still
 		// governs the walk, so what is lost is visibility, not stoppability.
-		return ctx, func(string, int) {}, nil
+		return ctx, func(string, int) { release() }, nil
 	}
 	if ctx == nil {
 		ctx = r.serviceContext()
 	}
 	cmd, cmdCtx, err := r.commands.Begin(ctx, "", phrase)
 	if err != nil {
+		release()
 		// REFUSED, NOT QUEUED, and the same rule a performance follows: two things driving
 		// one desktop is the state the mutating slot exists to prevent. The error already
 		// reads as a sentence — see service.ErrBusy — so it is passed up rather than
@@ -96,6 +120,7 @@ func (r *Runtime) beginPerformance(ctx context.Context, phrase string) (
 		return nil, nil, fmt.Errorf("%w", err)
 	}
 	done := func(refusal string, steps int) {
+		release()
 		r.commands.Finish(cmd.ID, performanceState(refusal), steps, refusal)
 	}
 	return cmdCtx, done, nil

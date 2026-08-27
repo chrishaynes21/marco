@@ -64,6 +64,14 @@ func runLearn(args []string) int {
 	actor := fs.String("actor", "", "the thing the play is about, e.g. Downloads")
 	verb := fs.String("verb", "", "what it does, e.g. Open")
 	dry := fs.Bool("dry", false, "rehearse against a recording host; nothing reaches the computer")
+	// THE RETROSPECTIVE HALF. `director learn "open mouse settings" --recent` learns what
+	// Marco has already WATCHED rather than starting a demonstration.
+	//
+	// A flag on the same verb rather than a verb of its own, because it is the same act: a
+	// person naming a behaviour and asking for it to be remembered. What differs is only
+	// whether the demonstration is about to happen or has already happened. See ADR-094.
+	recent := fs.Bool("recent", false,
+		"learn what Marco has just watched you do, instead of watching a new demonstration")
 	watch := fs.Bool("watch", false, "show the evidence underneath, not only the plain reading")
 	// THE TWO ENDINGS, under names that say which is which. See the note at the top of this
 	// file for what one shared word cost.
@@ -98,7 +106,25 @@ func runLearn(args []string) int {
 	// ONE acquisition request, configured for a person at a terminal: no Surface, so the
 	// session.s own account comes back rather than the control surface's.
 	q := service.ObserveLearn{Evidence: *watch, Cancel: abandon, Finish: keep}
-	if name != "" && !ending {
+	if *recent {
+		if name == "" {
+			fmt.Fprintln(os.Stderr,
+				"director: --recent needs a name for what you just did:\n"+
+					"  director learn \"open mouse settings\" --recent")
+			return 2
+		}
+		if ending {
+			// --recent AND an ending is two different requests in one command, and
+			// guessing which was meant would either abandon a session somebody wanted
+			// or fail to end one they did. Refused rather than resolved.
+			fmt.Fprintln(os.Stderr,
+				"director: --recent learns what already happened; there is nothing to "+
+					"finish or cancel")
+			return 2
+		}
+		q.Recent, q.Name, q.Actor, q.Verb = true, name, *actor, *verb
+		q.Target = windowref.Selector{Application: *application}
+	} else if name != "" && !ending {
 		q.Name, q.Actor, q.Verb, q.Dry = name, *actor, *verb, *dry
 		q.Target = windowref.Selector{
 			EphemeralID: *windowID, Title: *title,

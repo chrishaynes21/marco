@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/chaynes-simpleclouds/marco/internal/director/ambient"
 	"github.com/chaynes-simpleclouds/marco/internal/director/learn"
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
 	"github.com/chaynes-simpleclouds/marco/internal/director/observesession"
@@ -471,6 +472,44 @@ type learnSessionView struct {
 	// Grounding is where Marco's two decisions currently are on the display, or why they
 	// cannot be shown. Present from the moment a start is established.
 	Grounding []groundedView `json:"grounding,omitempty"`
+	// Recent is what a RETROSPECTIVE learn concluded, present only for one.
+	//
+	// On this view rather than on one of its own, because every surface that renders a Learn
+	// already renders this — the sentence, whether it worked, what the play is called — and a
+	// second shape would be a second thing for each of them to learn. What is genuinely
+	// different about a retrospective learn is the selection outcome and what got promoted,
+	// and that is what this carries.
+	Recent *recentLearn `json:"recent,omitempty"`
+}
+
+// viewRecent renders a retrospective learn as an ordinary finished learn session.
+//
+// # It is settled the moment it returns, always
+//
+// There is no session, nothing is running, and there is nothing to poll. A follower that saw
+// `active` here would sit waiting for a phase that will never change. That is the shape of the
+// thing: retrospective Learn is one call that either learned something or explained why it could
+// not, and the CLI's follow loop must see it finish immediately.
+//
+// Deleting the settled phase must fail TestARetrospectiveLearnIsFinishedWhenItAnswers.
+func viewRecent(v recentLearn) learnSessionView {
+	out := learnSessionView{
+		Application: v.Application, Saying: v.Said,
+		Active: false, Settled: true, Recent: &v,
+	}
+	if v.Outcome == ambient.Selected {
+		out.Phase = learn.Complete
+		out.Learned = v.Play != nil && v.Play.Saved
+		if v.Play != nil {
+			out.Play, out.Registered = v.Play.Name, v.Play.Registered
+		}
+		return out
+	}
+	// NOT AN ERROR, and not a refusal of the request either — the request was answered. What
+	// there was not is enough evidence, which the outcome names and the sentence explains.
+	out.Phase = learn.Refused
+	out.Refused = learn.Refusal(v.Outcome)
+	return out
 }
 
 func viewLearn(s learn.Session, active, watch bool) learnSessionView {
@@ -510,6 +549,23 @@ func (r *Runtime) LearnSession(ctx context.Context, q service.ObserveLearn) (lea
 		return learnSessionView{}, fmt.Errorf("this Director cannot learn")
 	}
 	switch {
+	case q.Recent:
+		// THE RETROSPECTIVE DOOR, and it is deliberately the first arm.
+		//
+		// It must not be reachable by accident from any other verb, and — more importantly —
+		// it must never fall through to `case q.Name != ""`, which would start a live
+		// demonstration. Somebody asking Marco to learn what already happened and being
+		// quietly put into recording mode instead is the worst possible answer: they would
+		// walk away believing it was learned.
+		//
+		// Deleting this arm, or moving it below the Name arm, must fail
+		// TestAskingToLearnTheRecentPastNeverStartsWatchingInstead.
+		v, err := r.LearnRecent(q)
+		if err != nil {
+			return learnSessionView{}, err
+		}
+		return viewRecent(v), nil
+
 	case q.Cancel:
 		s, err := r.learn.stop()
 		if err != nil {

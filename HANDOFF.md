@@ -5711,3 +5711,75 @@ deleting it breaks nothing — measured.
 and that seam is left clean rather than taken. "Learn what I just did" would know where somebody
 went and not what they clicked. And every live number — CPU, memory, sample rate, Learn-over-Observe
 — is UNMEASURED. See [[ADR-093-observe-is-attention-not-recording]].
+
+## 36B: `marco learn "..." --recent` — the thing Marco just watched becomes useful
+
+36A ended with an honest gap written into its own ADR: the trail knew where somebody went and not
+what they pressed, so "learn what I just did" would have produced a route with no way to walk it.
+36B closes that, and the sentence it makes true is the whole roadmap:
+
+```
+marco observe
+   ... use your computer ...
+marco learn "open mouse settings" --recent
+done
+```
+
+No repeat demonstration. No naming a screen. No naming a button. No rehearsal. No input from Marco
+at any point.
+
+**A demonstration is `Place → activated control → Place`, and none of it is a coordinate.** The
+press was already resolved against the accessibility tree at the moment it happened — that
+machinery predates this roadmap — so what enters the trail is a role and an admitted name. There
+is no position field for `button = (742, 318)` to live in.
+
+**The privacy boundary moved by exactly one thing, deliberately.** The name of the ONE control a
+person's own action landed on, plus what a screen appears to be called. Neither widens what Marco
+PERCEIVES: both already cross under the zero licence, through the canonical plaintext allowlist and
+the unconditional place-name rule. What ambient watching still cannot have is the WIDER label
+stage — the one that admits list items, links and icons, where somebody's documents and contacts
+live — because that is `NameActivatedTargets` and it holds no licences at all.
+
+**The one correlation that had to be right.** An event is drained about a second after it happens,
+by which time the click has usually already changed the screen — so whatever is in front when the
+event is read is very often the DESTINATION rather than the source. Attributing to it produces "on
+the Bluetooth page, press Bluetooth", which is wrong in a way that reads as entirely reasonable.
+Every admitted event carries the session-local screen state it was banked against; the action is
+filed against that.
+
+**The defect this landed on, and it was a real one.** ADR-089 says in as many words that "a Play
+can now be saved that Marco has never executed". It changed the Learn coordinator and it changed
+planning, and it did NOT change the lowering gate, which went on asking a field only a completed
+live rehearsal can set. So Fast Learn produced every durable thing except the artifact — places,
+edges, candidates, the goal, and then `no route is ready to be written down`. Nothing caught it:
+every save test in `cmd/director` writes a rehearsal record into its fixture first, and the test
+that named the gate asserted the pre-089 rule and passed. Found here because the retrospective path
+makes it unmissable. ADR-027 is amended.
+
+**An unreachable discriminator, written and then removed.** Widening the gate raised the question
+of what a FAILED attempt should do, and the honest answer turned out to be that the store cannot
+represent one: `rememberRehearsal` is called only for a completed live route. An `Attempted` field
+was written, measured to be unsettable, and deleted. What stands is `Rehearsed` — a rehearsal of
+this ROUTE is on record and has not verified — which is reachable and stops a second demonstration
+of a route quietly lowering instead of the one that failed.
+
+**Nothing on this path can act.** No input, no desktop lease, no authority, no second performer.
+Asserted through `beginPerformance`'s counter rather than through the absence of a symptom, because
+that slot is the one every actuating entrance funnels through — which is also how the observer now
+tells Marco's own work from the person's.
+
+**Not done, and owed.** Ambient promotion is still not built: repeated evidence does not become
+knowledge on its own, and the seam is now much better fed than it was. Text entry stays structural.
+A drag is refused rather than flattened into an activation. A multi-leg walk saves its terminal leg
+as the play and lets planning walk the rest. And the live acceptance is UNMEASURED —
+`acceptance-36b.ps1` is the harness, and the one step that would drive the desktop is deliberately
+handed to the person. See [[ADR-094-observe-gathers-evidence-learn-promotes-it]].
+
+**Fifty mutations, six survivors, and every one was about what the tests entered rather than what
+the code did.** The drain in `sample` was production code nothing invoked — the third uncalled
+mechanism this repository has found. The licence test passed with the licence check deleted,
+because it asked only whether *an* error came back. `ambientLook` had no test at all. And the
+sentence 36A and 36B both rest on — *however long watching runs it cannot make anything durable* —
+was enforced by nothing at all; the first fix for that drove the session runner instead of the
+passive door and the mutation survived a second time. Two pieces of code came out: a write-only
+state map that looked load-bearing, and a guard that restated a rule enforced elsewhere.

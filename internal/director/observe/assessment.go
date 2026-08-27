@@ -177,6 +177,91 @@ type CandidateAssessment struct {
 	// A consumer asking "may I use this" must get an answer, and after one watched example
 	// the answer is no. Nothing in this package can set it true.
 	Verified bool `json:"verified"`
+	// Rehearsed says a rehearsal of THIS ROUTE is on record, whether or not it was of this
+	// candidate's own lineage.
+	//
+	// # Why the route rather than the lineage, when Verified is per lineage
+	//
+	// Because Marco walks a route, not a candidate. Once a cleanly-watched demonstration may
+	// be written down, a route with a rehearsal on record and no verification is a route
+	// something is wrong with — the digest no longer matches, an endpoint has been forgotten,
+	// the evidence was revised — and the second demonstration of it must not lower as though
+	// nothing had ever been tried. Silently, at that: the lowering takes the first eligible
+	// candidate and would simply pick the other one.
+	//
+	// Verification stays per lineage, which is what Sequence is for and is unchanged.
+	//
+	// # What it deliberately does NOT mean
+	//
+	// It is not "Marco tried this and failed". A failed rehearsal leaves no durable record
+	// at all — `rememberRehearsal` is called only for a completed live route — so that state
+	// is not representable here and this field does not pretend to represent it. Making it
+	// so would mean storing failed attempts, which is a change to what the store keeps and a
+	// decision of its own. See ADR-094's KNOWN FOLLOW-ONS.
+	Rehearsed bool `json:"rehearsed,omitempty"`
+}
+
+// CleanlyObserved reports whether the demonstration alone is enough to write the route down.
+//
+// # [[ADR-089-watching-is-how-marco-learns-performing-is-how-it-proves]]'s admission rule, stated
+// where the assessment lives
+//
+// Two conditions, both already defined and both already measured elsewhere in this package:
+// `CandidateConsistent` — every checkpoint verifiable, the navigation with a clear shape, nothing
+// blocking a future attempt from being CHECKED — and nothing in `Blocking()`, the closed set of
+// uncertainties another example must settle. There is no new confidence model here and no
+// threshold; it is the same predicate the Learn coordinator admits an edge on, said once so both
+// callers ask the same question rather than two copies of it.
+//
+// # Why it exists and is not simply `Verified`
+//
+// Because they are claims about different actors, and only one of them was ever wired to the
+// thing that writes a play down. ADR-089 says in as many words that "a Play can now be saved that
+// Marco has never executed" — and the lowering gate went on asking `Verified`, which nothing but
+// a rehearsal can set. So Fast Learn produced every durable thing except the artifact: the places,
+// the edges, the candidates, the goal, and then `no route is ready to be written down`.
+//
+// Measured on the retrospective path, where it is unmissable: three places established, two edges
+// durable, two demonstrations kept, the goal written, and no play. Nothing in the tree caught it,
+// because every save test in cmd/director writes a rehearsal record into the fixture first.
+//
+// The same widening `verifiedEdges` -> `plannableEdges` already made for planning, one layer over.
+// It weakens no boundary: authority is still minted per invocation, the window must still lead,
+// and every edge is still positively verified as it is walked. What it changes is that Marco is
+// willing to WRITE DOWN what it watched, which is what learning by watching means.
+func (a CandidateAssessment) CleanlyObserved() bool {
+	return a.Verdict == CandidateConsistent && len(a.Blocking()) == 0
+}
+
+// Writable reports whether this route is known well enough to become a play.
+//
+// Either kind of knowing: Marco performed and verified it, or a person demonstrated it cleanly.
+// The RECORD still says which — `Verified` is untouched, the candidate carries its own false, and
+// no rehearsal is invented — so every reader that cares about the difference still sees it.
+//
+// # A route with a rehearsal on record that did not verify is not written down
+//
+// This is the one place the two kinds of knowing are not simply added together, and it exists
+// because they are not symmetrical. Never having tried is "Marco has no reason to doubt this". A
+// rehearsal on record for this ROUTE that has not produced a verification is "something about
+// this route stopped adding up" — a revised demonstration, a forgotten endpoint, a digest that no
+// longer matches — and a second demonstration of the same walk must not lower as though nothing
+// had ever happened. Silently, at that: the lowering takes the first eligible candidate and would
+// simply pick the other one.
+//
+// While `Verified` was the only gate none of this mattered, because both cases refused.
+//
+// Deleting the Rehearsed arm must fail
+// TestTheLoweringRefusalMatrix, whose "a rehearsal of another demonstration of the same
+// route" case is exactly this.
+func (a CandidateAssessment) Writable() bool {
+	if a.Verified {
+		return true
+	}
+	if a.Rehearsed {
+		return false
+	}
+	return a.CleanlyObserved()
 }
 
 // NeedsAnotherDemonstration reports whether a second example could close any current gap.
@@ -1040,7 +1125,22 @@ func (a CandidateAssessment) WithRehearsal(c ProcedureCandidate, digest string, 
 	evidence []RehearsalEvidence) CandidateAssessment {
 
 	for _, e := range evidence {
+		if e.Relationship != c.Relationship {
+			continue
+		}
+		// A REHEARSAL OF THIS ROUTE IS ON RECORD.
+		//
+		// Per ROUTE and not per lineage, deliberately, and it is the one thing in this
+		// function that is: Marco walks a route, not a candidate. Scoping it to the
+		// lineage would let a second demonstration of the same walk lower as though
+		// nothing had ever been rehearsed — silently, because the lowering takes the
+		// first eligible candidate and would simply pick the other one.
+		//
+		// See CandidateAssessment.Rehearsed for what this does and does not claim.
+		a.Rehearsed = true
 		if e.Sequence != c.Sequence {
+			// VERIFICATION stays per lineage. Candidate 1 having been rehearsed says
+			// nothing about candidate 2's evidence, which is what Sequence is for.
 			continue
 		}
 		if e.VerifiedBy(c, digest, top) {

@@ -61,8 +61,27 @@ type ambientObserver struct {
 	attention time.Duration
 	// last is the Place the previous sample resolved to, which is what makes a change a
 	// TRANSITION rather than two unrelated sightings.
-	last     string
-	lastApp  string
+	last    string
+	lastApp string
+	// lastState is the session-local screen state `last` was read from, lastShape its
+	// description when Marco does not recognise it, and bridged how many unrecognised
+	// readings have been crossed since. Together they are the SOURCE half of the next step.
+	lastState observe.ScreenStateID
+	lastShape *ambient.Shape
+	bridged   int
+	settled   int
+	// session, cursor and behind track the input log this observer is reading. Session-local
+	// and reset together; see ambientObserver.drain.
+	session observe.SessionID
+	cursor  int
+	behind  int
+	// pending holds the actions filed against each session-local screen state. It IS the
+	// generation correlation — see ambientObserver.attribute for why an action is filed
+	// against the state on its own stamp rather than against whatever is in front when it is
+	// read.
+	pending map[observe.ScreenStateID][]ambient.Act
+	// actions counts the semantic actions this observer has attributed, for status.
+	actions  int
 	samples  int
 	sessions int
 	// loops counts supervisor goroutines that are currently running. It exists to be
@@ -159,6 +178,13 @@ func (r *Runtime) DisableAmbient() service.AmbientView {
 
 	a.mu.Lock()
 	a.last, a.lastApp, a.samples, a.sessions = "", "", 0, 0
+	// AND EVERYTHING DERIVED FROM WATCHING, not only the buffer. The session cursor, the
+	// screen states, the actions filed against them and the count of them are the same
+	// present tense the buffer holds; leaving any of them behind would let the next watching
+	// session attribute its first action to the previous one's screen.
+	a.session, a.cursor, a.behind, a.actions = "", 0, 0, 0
+	a.lastState, a.lastShape, a.bridged, a.settled = "", nil, 0, 0
+	a.pending = map[observe.ScreenStateID][]ambient.Act{}
 	a.mu.Unlock()
 	return a.view()
 }
@@ -262,17 +288,32 @@ func (a *ambientObserver) watchOnce(ctx context.Context) {
 	a.mu.Unlock()
 }
 
-// sample reads where Marco is and records it. Reports whether anything changed.
+// sample reads where Marco is AND what the person has done since the last look, and records both.
+// Reports whether anything changed.
+//
+// One call, one snapshot. See ambientLook for why those two facts must not be fetched separately.
 func (a *ambientObserver) sample(application string) bool {
-	return a.recordPlace(application, a.rt.placeHereIn(application), time.Now())
+	look := ambientLookNow(a.rt, application)
+	if !look.OK {
+		return false
+	}
+	// THE ACTIONS FIRST, before the place is recorded. They were performed on the screen the
+	// person was on when they did them, and every one of them carries the state that says
+	// which — but recording the new place first would move `lastState` out from under the
+	// step that is about to be built from it.
+	//
+	// Deleting the drain must fail TestWatchingSeesWhatYouPressed.
+	a.attribute(a.drain(look))
+	return a.record(application, look, time.Now())
 }
 
-// recordPlace decides what one reading is worth keeping.
+// record decides what one reading is worth keeping.
 //
 // Separated from the reading above so it can be driven from a test: the supervisor loop needs a
-// desktop and this needs only a Place, and the two refusals below are the whole of what ambient
+// desktop and this needs only a look, and the refusals below are the whole of what ambient
 // watching is allowed to conclude.
-func (a *ambientObserver) recordPlace(application string, place observe.Place, now time.Time) bool {
+func (a *ambientObserver) record(application string, look ambientLook, now time.Time) bool {
+	place := look.Place
 	a.mu.Lock()
 	a.samples++
 	if !place.Readable() {
@@ -280,28 +321,129 @@ func (a *ambientObserver) recordPlace(application string, place observe.Place, n
 		// not being read; inventing a Place from that would put the frame every page of
 		// an application shares into the buffer as a screen. See ADR-090.
 		a.lastDegrade = now
+		a.settled++
 		a.mu.Unlock()
 		return false
 	}
-	if place.Subject == "" {
-		// A screen Marco does not recognise stays unrecognised. Ambient watching holds
-		// no licence to establish it, and asking somebody to name it would turn paying
-		// attention into an interactive acquisition episode.
+	if place.Subject == "" && look.Shape == nil {
+		// A SCREEN THAT IS NOT SOMEWHERE YOU WENT. Marco does not recognise it and the
+		// evidence would not let a licensed session establish it either: it is still
+		// loading, or unsettled, or nothing distinctive enough to tell apart.
+		//
+		// Crossed rather than refused. A real walk passes through frames like this on
+		// the way somewhere, and the walk survives them — see the bridging note below.
+		// Ambient watching holds no licence to establish anything and asking somebody to
+		// name a spinner would turn paying attention into an acquisition episode.
+		a.bridged++
+		a.settled++
 		a.mu.Unlock()
 		return false
+	}
+	// A SCREEN MARCO DOES NOT KNOW IS STILL SOMEWHERE YOU WENT, when the evidence would let
+	// an explicit Learn establish it. 36A recorded nothing for one, which meant a
+	// demonstration through unfamiliar software produced no evidence at all — the first time
+	// anybody uses a program is exactly when they most want to show Marco something.
+	//
+	// Nothing durable happens here: the description is transient, held under no licence, and
+	// forgotten when watching stops. What it buys is that a later Learn, which DOES hold a
+	// licence, can establish the same screen from the same signature.
+	//
+	// It is keyed on the session-local state rather than on an id, because it has no id —
+	// that is what "not recognised" means.
+	key := place.Subject
+	if key == "" {
+		key = transientKey(look.State)
 	}
 	previous, previousApp := a.last, a.lastApp
-	a.last, a.lastApp = place.Subject, application
+	previousState, previousShape := a.lastState, a.lastShape
+	bridged, settled := a.bridged, a.settled
+	a.last, a.lastApp = key, application
+	a.lastState, a.lastShape = look.State, look.Shape
+	changed := previous != key
+	if changed {
+		a.bridged, a.settled = 0, 0
+	} else {
+		a.settled++
+	}
 	a.mu.Unlock()
 
-	a.buf.Saw(application, place.Subject, now)
-	if previous != "" && previous != place.Subject && previousApp == application {
-		// HUMAN, because ambient watching is what somebody doing their own work looks
-		// like. A performance's transitions are recorded by the walk that made them, and
-		// conflating the two would eventually teach Marco its own behaviour back.
-		a.buf.Moved(application, previous, place.Subject, ambient.ByHuman, now)
+	if place.Subject != "" {
+		a.buf.Saw(application, place.Subject, now)
 	}
-	return previous != place.Subject
+	if previous != "" && changed && previousApp == application {
+		// WHO DID THIS. Ambient watching is ordinarily what somebody doing their own
+		// work looks like — but a play running while watching is on moves the screen
+		// too, and offering that back as something the person demonstrated is how a
+		// system comes to learn its own behaviour from itself.
+		//
+		// Deleting the provenance question must fail
+		// TestWhatMarcoDidIsNotWhatYouDemonstrated.
+		by := ambient.ByHuman
+		if a.rt.marcoIsActing() {
+			by = ambient.ByMarco
+		}
+		did := a.takePending(previousState)
+		a.mu.Lock()
+		a.actions += len(did)
+		a.mu.Unlock()
+		a.buf.Walked(ambient.Step{
+			From: previous, To: key, Application: application,
+			FromShape: previousShape, ToShape: look.Shape,
+			Did: did, By: by, Bridged: bridged, Settled: settled, At: now,
+		})
+	}
+	return changed
+}
+
+// recordPlace records one reading that carries a Place and nothing else.
+//
+// The place half of [ambientObserver.record], which is what 36A's gates are about: degraded
+// perception, an unrecognised screen, a transition, the tally that makes repetition free. Those
+// claims are unchanged by 36B and are still asserted through this shape, because a test that had
+// to build an input log to say "watching all day costs nothing" would be saying two things at
+// once and failing for either.
+func (a *ambientObserver) recordPlace(application string, place observe.Place,
+	now time.Time) bool {
+
+	return a.record(application, ambientLook{
+		OK: true, Application: application, Place: place, State: stateOfPlace(place),
+	}, now)
+}
+
+// stateOfPlace gives a Place-only reading a stable session-local state to be attributed through.
+//
+// Derived from the subject so two readings of one screen share a state and two screens do not,
+// which is the only property the correlation needs from it. A reading that resolved to nothing
+// gets nothing, which is correct: there is no generation for a screen that was never placed.
+func stateOfPlace(p observe.Place) observe.ScreenStateID {
+	if p.Subject == "" {
+		return ""
+	}
+	return observe.ScreenStateID("state_of_" + p.Subject)
+}
+
+// transientKey names a screen Marco does not recognise, for the length of one watching session.
+//
+// The session-local state id, prefixed so it can never be mistaken for a durable subject. It is a
+// counter and it means nothing outside the session that issued it — which is exactly right for a
+// place that has no identity yet, and is why the promotion step establishes the SHAPE rather than
+// looking anything up by this.
+func transientKey(state observe.ScreenStateID) string {
+	return ambient.TransientKey(string(state))
+}
+
+// marcoIsActing reports whether Marco currently holds the keyboard.
+//
+// Read from the ONE slot every actuating entrance funnels through — see beginPerformance, which
+// exists because a rehearsal reached the desktop from inside a Learn episode without passing any
+// handler. A second flag set at the call sites would have the same defect it fixed.
+func (r *Runtime) marcoIsActing() bool {
+	if r == nil {
+		return false
+	}
+	r.actingMu.Lock()
+	defer r.actingMu.Unlock()
+	return r.acting > 0
 }
 
 // nextAttention is the backoff, and it is asymmetric on purpose.
@@ -367,7 +509,9 @@ func (a *ambientObserver) view() service.AmbientView {
 // once, because two supervisors would be two observers by another name.
 func (r *Runtime) ambient() *ambientObserver {
 	r.watchingOnce.Do(func() {
-		r.watching = &ambientObserver{rt: r, buf: ambient.New(), attention: ambientBusy}
+		r.watching = &ambientObserver{rt: r, buf: ambient.New(), attention: ambientBusy,
+			pending: map[observe.ScreenStateID][]ambient.Act{},
+		}
 	})
 	return r.watching
 }
@@ -378,6 +522,23 @@ func (r *Runtime) ambient() *ambientObserver {
 // supply for itself, and without a seam the only thing any test could assert about ambient
 // watching is that it compiles.
 var winctxActive = func() string { return winctx.Active() }
+
+// ambientLookNow is the reading the supervisor takes each cycle.
+//
+// A package VARIABLE for the same one reason the two below it are: it is the line in `sample`
+// that a test cannot supply for itself — a real look needs a live observation session over a real
+// desktop — and without a seam the only thing any test could assert about the sample loop is that
+// it compiles.
+//
+// That is not hypothetical here. The drain call in `sample` was production code nothing invoked
+// through the production path: deleting it left every test in this package passing, because each
+// of them called `attribute(drain(...))` itself. Measured, by mutation, and it is the third time
+// this repository has found a complete piece of working code that nothing ever ran.
+//
+// Production never reassigns it.
+var ambientLookNow = func(r *Runtime, application string) ambientLook {
+	return r.ambientLook(application)
+}
 
 var currentWindowSelector = func(application string) windowref.Selector {
 	return windowref.Selector{Application: application}

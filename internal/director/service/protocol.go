@@ -1511,6 +1511,27 @@ type ObserveLearn struct {
 	// Start begins a session for Name. The person's own words, and the only string here.
 	Start bool   `json:"start,omitempty"`
 	Name  string `json:"name,omitempty"`
+	// Recent asks Marco to learn what it has just WATCHED, rather than to watch something
+	// new. The retrospective half of Learn.
+	//
+	// # Why it is a field here and not a request of its own
+	//
+	// Because it is the same act. Somebody names a behaviour and asks for it to be
+	// remembered; the only difference is whether the demonstration is about to happen or has
+	// already happened. Giving it its own request type would give it its own router, its own
+	// name validation, its own view and eventually its own idea of what a Learn is — and the
+	// whole point of retrospective Learn is that everything after the evidence is the path
+	// that already exists.
+	//
+	// Name is required with it, and every other field means what it always did: Target
+	// narrows which application's recent evidence to read, Actor and Verb still override the
+	// derived play name.
+	//
+	// It never starts a session. A `--recent` with nothing usable behind it says so and
+	// stops; quietly falling back to watching would answer a question about the past by
+	// starting to record the future, which is not something to do to somebody by
+	// implication. See ADR-094.
+	Recent bool `json:"recent,omitempty"`
 	// Stop is the person saying their demonstration is over.
 	//
 	// It KEEPS everything captured and lets the ordinary pipeline finish — see

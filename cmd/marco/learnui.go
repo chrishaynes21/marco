@@ -39,6 +39,16 @@ func learnAPI(mux *http.ServeMux) {
 	mux.HandleFunc("/api/learn/stop", learnVerb(func(string) service.ObserveLearn {
 		return service.ObserveLearn{Stop: true}
 	}))
+	// LEARN WHAT I JUST DID. The retrospective half, reaching the same request the command
+	// line makes with `--recent` — because it is the same act, and giving a surface its own
+	// path to it would give it its own idea of what a Learn is.
+	//
+	// It starts nothing. `Recent` is answered from evidence ambient watching already has, and
+	// a `--recent` with nothing behind it says so rather than quietly beginning to record.
+	// See ADR-094.
+	mux.HandleFunc("/api/learn/recent", learnVerb(func(name string) service.ObserveLearn {
+		return service.ObserveLearn{Recent: true, Name: name}
+	}))
 	mux.HandleFunc("/api/learn/try", learnVerb(func(string) service.ObserveLearn {
 		return service.ObserveLearn{Try: true}
 	}))

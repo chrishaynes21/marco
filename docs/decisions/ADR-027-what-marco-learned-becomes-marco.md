@@ -121,7 +121,28 @@ and invocation are each separate, and each still needs a person.
   — Core vocabulary only, and nothing in the file but the presses.
 - `TestAMeaningCoreCannotSayStopsTheLowering` — the language-expression gap is reported.
 - `TestTheLoweringRefusalMatrix`, `TestLoweringEligibilityIsRecomputedNotRemembered`,
-  `TestAnUnrehearsedRouteIsNotWrittenDown`, `TestARevisedDemonstrationCanNoLongerBeWrittenDown`.
+  `TestARouteMarcoOnlyWatchedCanStillBeWrittenDown`,
+  `TestARevisedDemonstrationCanNoLongerBeWrittenDown`.
+
+## Amended 2026-08-26 — the gate is whether the route is KNOWN, not whether Marco performed it
+
+This ADR was written when a route had to be **rehearsed** before it could be written down, and its
+lowering gate asked `CandidateAssessment.Verified` — which only a completed live rehearsal can set.
+[[ADR-089-watching-is-how-marco-learns-performing-is-how-it-proves]] changed what *learned* means
+and says in as many words that "a Play can now be saved that Marco has never executed". It changed
+the Learn coordinator and it changed planning. **It did not change this gate**, so Fast Learn
+produced every durable thing except the artifact — places, edges, candidates, the goal, and then
+`no route is ready to be written down`.
+
+Nothing caught it: every save test in `cmd/director` writes a rehearsal record into its fixture
+first, and the test that named this gate asserted the pre-089 rule and passed. It was found in
+Roadmap 36B, where the retrospective path made it unmissable. That test now states the corrected
+rule under the name in the list above.
+
+The gate now asks `CandidateAssessment.Writable()` — verified by a rehearsal, **or** cleanly
+observed by ADR-089's own admission rule, and never when a rehearsal of the route is on record that
+has not verified. Everything else in this ADR stands: the play is still compiled before anybody
+sees it, still says WHAT rather than WHY, and is still not registered by being written.
 - `TestWritingAPlayDownRegistersNothing` — the working tree is byte-unchanged and the view carries
   no handle.
 - `TestTheLearnedGeneratorCannotReachAnythingThatActs`, `TestTheLearnedGeneratorCannotStartAProcess`.

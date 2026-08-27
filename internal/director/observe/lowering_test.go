@@ -120,13 +120,18 @@ func TestTheLoweringRefusalMatrix(t *testing.T) {
 		app  string
 		want observe.LoweringRefusal
 	}{{
-		name: "watched but never tried",
+		// WATCHED AND NEVER TRIED IS NO LONGER A REFUSAL — see
+		// [[ADR-089-watching-is-how-marco-learns-performing-is-how-it-proves]] and
+		// CandidateAssessment.CleanlyObserved. What still refuses is an attempt that
+		// did not arrive, which is the case below and the newer evidence.
+		name: "a demonstration whose navigation says nothing",
 		build: func(*testing.T) (observe.ProcedureCandidate, observe.CandidateAssessment,
 			observe.Topology) {
 			c := twoStep()
+			c.Steps = nil
 			return c, watchedOnly(c, full), full
 		},
-		app: "testgame", want: observe.RefusalNotVerified,
+		app: "testgame", want: observe.RefusalNothingToDo,
 	}, {
 		name: "a rehearsal that did not complete",
 		build: func(t *testing.T) (observe.ProcedureCandidate, observe.CandidateAssessment,
@@ -157,6 +162,18 @@ func TestTheLoweringRefusalMatrix(t *testing.T) {
 		},
 		app: "testgame", want: observe.RefusalNotVerified,
 	}, {
+		// A REHEARSAL OF ANOTHER DEMONSTRATION DOES NOT LET THE ROUTE THROUGH.
+		//
+		// Verification is per LINEAGE — candidate 1 having been rehearsed says nothing
+		// about candidate 2's evidence — and after
+		// [[ADR-089-watching-is-how-marco-learns-performing-is-how-it-proves]] that alone
+		// would no longer refuse anything, because candidate 2 is cleanly observed and a
+		// cleanly observed route may now be written down.
+		//
+		// So what refuses is that a rehearsal of this ROUTE is on record and has not
+		// produced a verification. Something about the route stopped adding up, and the
+		// other demonstration of it must not quietly lower instead. See
+		// CandidateAssessment.Rehearsed.
 		name: "a rehearsal of another demonstration of the same route",
 		build: func(t *testing.T) (observe.ProcedureCandidate, observe.CandidateAssessment,
 			observe.Topology) {
@@ -167,6 +184,9 @@ func TestTheLoweringRefusalMatrix(t *testing.T) {
 					Evidence: "d1", Source: "subj_a", Destination: "subj_b",
 					Completed: true,
 				}})
+			if a.Verified {
+				t.Fatal("a rehearsal of another lineage marked this one verified")
+			}
 			return c, a, full
 		},
 		app: "testgame", want: observe.RefusalNotVerified,
@@ -414,7 +434,15 @@ func TestLoweringEligibilityIsRecomputedNotRemembered(t *testing.T) {
 func TestLoweringSaysWhyInWordsNotInScores(t *testing.T) {
 	c := twoStep()
 	top := lowerTopology("subj_a", "subj_b", "subj_x")
-	j := observe.JudgeLowering(c, watchedOnly(c, top), top, "testgame")
+	// A route with a rehearsal on record that did not verify. A merely-watched one is no
+	// longer refused at all — see the matrix case above and
+	// [[ADR-089-watching-is-how-marco-learns-performing-is-how-it-proves]] — so a fixture
+	// built on one would be asserting the wording of a refusal that never happens.
+	a := watchedOnly(c, top).WithRehearsal(c, "d1", top, []observe.RehearsalEvidence{{
+		Application: "testgame", Relationship: c.Relationship, Sequence: 2,
+		Evidence: "d1", Source: "subj_a", Destination: "subj_b", Completed: true,
+	}})
+	j := observe.JudgeLowering(c, a, top, "testgame")
 	lines := strings.Join(observe.DescribeLowering(j), "\n")
 	if !strings.Contains(lines, "not_verified") {
 		t.Errorf("the description does not say why:\n%s", lines)

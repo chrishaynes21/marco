@@ -168,6 +168,17 @@ type Runtime struct {
 	// which is one per Director, which is one per home -- see ADR-092.
 	watching     *ambientObserver
 	watchingOnce sync.Once
+	// acting counts the performances currently driving the desktop, and actingMu guards it.
+	//
+	// It exists for ONE reader: ambient watching, deciding whether a screen change it just
+	// saw was somebody's own work or Marco's. A count rather than a bool because a rehearsal
+	// inside a Learn episode and the walk it authorises are both performances and can nest,
+	// and a bool would go false at the inner one's end while the outer was still typing.
+	//
+	// Written in beginPerformance, which is the one slot every actuating entrance funnels
+	// through. See marcoIsActing.
+	acting   int
+	actingMu sync.Mutex
 	// pinnedWindow, when set, is the EXPLICITLY selected window for the pass in flight.
 	// It overrides "whatever is in front" for exactly the duration of that pass — see
 	// ReadVision and activeWindow. Guarded by mu, which the pass already holds.

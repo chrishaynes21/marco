@@ -202,8 +202,17 @@ func JudgeLowering(c ProcedureCandidate, a CandidateAssessment, top Topology,
 		add(RefusalWrongApplication)
 	}
 	// THE gate. Everything else here is about whether the procedure can be SAID; this is
-	// whether it is true.
-	if !a.Verified {
+	// whether it is KNOWN.
+	//
+	// It used to ask `a.Verified`, which only a rehearsal can set — so a route Marco had
+	// watched somebody walk cleanly was refused here however good the evidence was, and Fast
+	// Learn produced every durable thing except the artifact. See
+	// CandidateAssessment.CleanlyObserved for the measurement and for why the two kinds of
+	// knowing are still told apart everywhere the difference matters.
+	//
+	// Narrowing this back to `a.Verified` must fail
+	// TestARouteMarcoOnlyWatchedCanStillBeWrittenDown.
+	if !a.Writable() {
 		add(RefusalNotVerified)
 	}
 	if len(c.Steps) == 0 {
