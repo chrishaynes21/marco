@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/service"
@@ -107,5 +108,120 @@ func TestOnlyAskingMarcoToWatchMayStartADirector(t *testing.T) {
 			t.Errorf("`observe %v` asked for autostart=%v, want %v: %s",
 				c.args, asked[0], c.mayStart, c.why)
 		}
+	}
+}
+
+// WATCHING SAYS WHETHER IT IS ALSO LEARNING.
+//
+// The sentence that must not be missing. Somebody who typed `marco observe` and walked away is
+// entitled to know whether Marco is building durable memory from what it sees — and a line that
+// appeared only when it was would make its absence mean two things at once.
+//
+// Deleting either arm must fail this.
+func TestWatchingSaysWhetherItIsAlsoLearning(t *testing.T) {
+	quiet := captureObserveOutput(t, func() {
+		printObserving(service.AmbientView{Watching: true, Application: "settings"})
+	})
+	if !strings.Contains(quiet, "isn't remembering") {
+		t.Errorf("watching-only does not say it is not learning:\n%s", quiet)
+	}
+	if !strings.Contains(quiet, "marco observe learn") {
+		t.Errorf("it does not say how to let it learn:\n%s", quiet)
+	}
+
+	loud := captureObserveOutput(t, func() {
+		printObserving(service.AmbientView{Watching: true, Application: "settings",
+			Learning: true, Noticed: 4, Learned: 2})
+	})
+	if !strings.Contains(loud, "learning from what it sees") {
+		t.Errorf("learning does not say so:\n%s", loud)
+	}
+	if !strings.Contains(loud, "2 things remembered") {
+		t.Errorf("it does not say how much it has remembered:\n%s", loud)
+	}
+	// COUNTS ONLY. What Marco has learned is a size a person may want; WHICH things is a
+	// question for the store, and naming one here would be this command reading somebody's
+	// own afternoon back to them.
+	for _, leak := range []string{"subj_", "Bluetooth", "watched_"} {
+		if strings.Contains(loud, leak) {
+			t.Errorf("it printed %q:\n%s", leak, loud)
+		}
+	}
+}
+
+// captureObserveOutput runs fn with os.Stdout redirected and returns what it printed.
+func captureObserveOutput(t *testing.T, fn func()) string {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe: %v", err)
+	}
+	saved := os.Stdout
+	os.Stdout = w
+	done := make(chan string, 1)
+	go func() {
+		var sb strings.Builder
+		buf := make([]byte, 4096)
+		for {
+			n, err := r.Read(buf)
+			sb.Write(buf[:n])
+			if err != nil {
+				break
+			}
+		}
+		done <- sb.String()
+	}()
+	fn()
+	os.Stdout = saved
+	_ = w.Close()
+	out := <-done
+	_ = r.Close()
+	return out
+}
+
+// TURNING LEARNING OFF IS ITS OWN VERB.
+//
+// `marco observe learn` and `marco observe learn off` are two different requests, and the second
+// must never be the first. A person switching learning off and being given more of it is the worst
+// possible misreading of a command about permanence.
+//
+// The decision is asserted where it is MADE. Everything else in the command needs a Director on
+// the other end of a socket; what verb means what does not, and a test that spawned a service to
+// find out would be testing the socket.
+//
+// Deleting the off arm must fail this.
+func TestTurningLearningOffIsItsOwnVerb(t *testing.T) {
+	for _, c := range []struct {
+		sub  string
+		rest []string
+		want service.ObserveAmbient
+		why  string
+	}{
+		{sub: "learn", want: service.ObserveAmbient{Learn: true},
+			why: "`observe learn` asks Marco to learn from what it sees"},
+		{sub: "learn", rest: []string{"off"}, want: service.ObserveAmbient{Unlearn: true},
+			why: "`observe learn off` asks it to stop, and must never ask for more"},
+		{sub: "learn", rest: []string{"stop"}, want: service.ObserveAmbient{Unlearn: true},
+			why: "stop means off here, as it does everywhere else"},
+		{sub: "status", want: service.ObserveAmbient{},
+			why: "a status read asks for neither lifecycle"},
+		{sub: "", want: service.ObserveAmbient{Enable: true},
+			why: "watching is its own lifecycle and must not turn learning on with it"},
+		{sub: "stop", want: service.ObserveAmbient{Disable: true},
+			why: "stopping watching is not a statement about memory"},
+	} {
+		got, ok := observeRequest(c.sub, c.rest)
+		if !ok {
+			t.Errorf("`observe %s %v` was refused", c.sub, c.rest)
+			continue
+		}
+		if got != c.want {
+			t.Errorf("`observe %s %v` asked %+v, want %+v: %s",
+				c.sub, c.rest, got, c.want, c.why)
+		}
+	}
+	if _, ok := observeRequest("stpo", nil); ok {
+		t.Error("a misspelt verb was accepted; if it fell through to something that changes " +
+			"state, a typo does it silently")
 	}
 }

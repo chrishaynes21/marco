@@ -81,6 +81,24 @@ type file struct {
 	// the subjects for the same reason everything here is: a goal names a subject, and a
 	// second file could disagree about whether that subject exists.
 	Goals []observe.Goal `json:"goals,omitempty"`
+	// Watched is what ambient observation has SEEN repeatedly and Marco has not yet decided
+	// to know. Candidate evidence, not knowledge.
+	//
+	// # Why it is in this file and not a second one
+	//
+	// Because it is written by the same process, under the same home, and it has to survive
+	// the same restart — and because a second store would be a second durability
+	// implementation to keep atomic, a second thing to bound, and a second place for a
+	// MARCO_HOME to be got wrong. One file, one atomic rename, one answer.
+	//
+	// # And why it is nevertheless a separate FIELD, read through its own interface
+	//
+	// Because a candidate is emphatically not a relationship. Nothing plans over these, and
+	// observe.WatchedStore — the only way in — cannot write a subject, a relationship, a goal
+	// or a judgement. Being in one file makes them durable together; being separate types
+	// behind separate interfaces is what keeps "I have seen this" from becoming "I know this"
+	// by accident. See [[ADR-095-repeated-observation-may-become-knowledge]].
+	Watched []observe.WatchedEdge `json:"watched,omitempty"`
 }
 
 // Store is durable semantic memory.
@@ -97,6 +115,9 @@ type Store struct {
 	// goals are remembered destinations. A name and a subject — never a start, never a
 	// route; see observe.Goal for why the type has nowhere to put either.
 	goals []observe.Goal
+	// watched is candidate evidence: what repeated observation has seen and Marco has not
+	// yet decided to know. Never plannable; see observe.WatchedEdge.
+	watched []observe.WatchedEdge
 	// orphaned counts relationships dropped at load because an endpoint was gone.
 	orphaned int
 	// unavailable explains why memory cannot be used, empty when it can.
@@ -187,6 +208,21 @@ func Open(path string) (*Store, string) {
 			continue
 		}
 		s.rehearsals = append(s.rehearsals, e)
+	}
+	for _, w := range f.Watched {
+		// THE SAME REFERENTIAL RULE, and it applies to only HALF of a candidate.
+		//
+		// An endpoint Marco recognises is named by a subject id, and an id whose subject
+		// is gone describes nothing — so that candidate goes, like every other record
+		// here. But an endpoint Marco does NOT recognise carries a structure instead of an
+		// id, and there is nothing for it to dangle from; those are the whole point of
+		// candidate evidence and must survive.
+		if (w.From.Recognised() && !known[w.From.Subject]) ||
+			(w.To.Recognised() && !known[w.To.Subject]) {
+			s.orphaned++
+			continue
+		}
+		s.watched = append(s.watched, w)
 	}
 	for _, g := range f.Goals {
 		// And once more for goals: a goal whose subject is gone names nothing anybody can
@@ -425,6 +461,7 @@ func (s *Store) snapshotLocked() file {
 		Candidates:    append([]observe.ProcedureCandidate{}, s.candidates...),
 		Rehearsals:    append([]observe.RehearsalEvidence{}, s.rehearsals...),
 		Goals:         append([]observe.Goal{}, s.goals...),
+		Watched:       append([]observe.WatchedEdge{}, s.watched...),
 	}
 }
 

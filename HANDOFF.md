@@ -5783,3 +5783,62 @@ sentence 36A and 36B both rest on — *however long watching runs it cannot make
 was enforced by nothing at all; the first fix for that drove the session runner instead of the
 passive door and the mutation survived a second time. Two pieces of code came out: a write-only
 state map that looked load-bearing, and a guard that restated a rule enforced elsewhere.
+
+## 36C: `marco observe learn` — repeated observation may become knowledge
+
+36B ended with the gap written into its own ADR: repeated evidence did not become knowledge on its
+own. 36C closes it, and the sentence is:
+
+```
+marco observe
+marco observe learn
+   [do a thing]
+   [later, do the same thing again]
+Marco knows it
+```
+
+Nobody typed Learn. Nobody was asked anything. Nothing was invented that they did not do.
+
+**Watching and remembering are two things to agree to, so they are two switches.** Learning is off
+by default and does not survive a restart — the same two rules watching itself follows, for a
+sharper version of the same reason. `marco observe` and `director status` both report which,
+either way, because a status that folded them into one would let somebody read "watching" and not
+know whether their desktop was becoming permanent memory.
+
+**A candidate is not knowledge.** `observe.WatchedEdge` says *I have seen this*; a
+`RememberedRelationship` says *I know this*, and a planner handed one will walk it. Collapsing them
+would make the first sighting of anything immediately plannable. Candidate evidence lives in the
+same file (one atomic rename, one home, no second durability implementation) behind an interface
+that cannot write a subject, a relationship, a goal or a judgement.
+
+**The policy is pure and dull.** Two independent occasions — a minute apart, or in different
+watching sessions. No contradiction, and a contradiction is `Never` rather than `Wait`, because
+more of the same evidence deepens it. Both endpoints describable, the control nameable, human work
+only. No score anywhere: a number between nought and one is a way of avoiding a decision, and the
+failure mode here is permanent.
+
+**Identity is structure, and two bugs proved it.** Keying candidates on a content hash split the
+evidence for one screen read at two widths across two records that would each have waited forever;
+recomputing the handle on every fold did the same thing a second way. The handle is assigned once
+and kept, exactly as `RememberedSubject.ID` is, and matching goes through `CompareStructure` — the
+canonical test, with the tolerances that exist because two readings of one screen differ. A third
+bug gave both ends of a relationship the same transient name, so the admission boundary established
+one place and produced an edge from it to itself.
+
+**One admission path.** `promotion` is 36B's object; ambient promotion builds one and hands it a
+one-step demonstration. No goal, no play, no name invented from anonymous behaviour, no rehearsal,
+no grant, no lease, no input. And `plannableEdges` now asks `CleanlyObserved` rather than restating
+it — it was a second copy of the rule the lowering gate grew in 36B, which is one rule with two
+futures.
+
+**Not in Activity, and that is a decision.** Every node in the action graph is a replayable desktop
+action with an intent and a binding; a memory operation is neither. Visibility is the two status
+surfaces and the ledger's own record of when each thing became knowledge.
+
+**Not done, and owed.** Ambient learning stays off by default — the architecture makes the two
+lifecycles separately controllable, which is what 36C was for, and whether the shipping product
+couples them is a consent decision rather than a default to drift into. `ByMarco` evidence is
+discarded rather than kept for execution confidence. There is no unlearning: contradictory evidence
+after promotion is recorded and does nothing. And the live acceptance is UNMEASURED —
+`acceptance-36c.ps1` is the harness, it drives nothing, and it insists you do the route twice. See
+[[ADR-095-repeated-observation-may-become-knowledge]].

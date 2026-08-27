@@ -196,6 +196,12 @@ func TestWatchingFromOnToOffAndGone(t *testing.T) {
 		"watching": true, "watching_for_ms": true, "application": true, "place": true,
 		"perception_degraded": true, "places": true, "transitions": true, "recent": true,
 		"samples": true, "sessions": true, "attention_ms": true,
+		// 36C. `learning` is the second lifecycle — whether what Marco watches may become
+		// durable memory — and the three beside it are COUNTS: relationships with evidence,
+		// relationships that earned memory, and how many the ledger holds. Not one of them
+		// is a word off anybody's screen, which is the rule this list exists to hold.
+		// See ADR-095.
+		"learning": true, "noticed": true, "learned": true, "candidates": true,
 	}
 	for k := range fields {
 		if !allowed[k] {

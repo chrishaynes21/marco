@@ -1813,6 +1813,30 @@ type AmbientView struct {
 	Samples     int   `json:"samples,omitempty"`
 	Sessions    int   `json:"sessions,omitempty"`
 	AttentionMS int64 `json:"attention_ms,omitempty"`
+
+	// Learning is whether Marco may turn what it watches into durable memory.
+	//
+	// A VALUE and always present, for exactly the reason `Watching` is: "is Marco building
+	// permanent memory from what it sees" is a question somebody is entitled to a straight
+	// answer to, and a field that is absent when the answer is no cannot be told apart from a
+	// Director too old to have it.
+	//
+	// SEPARATE FROM WATCHING, and the separation is the product decision rather than a
+	// implementation detail. Watching is attention; learning is memory. One switch that did
+	// both would make `marco observe` mean something nobody agreed to. See ADR-095.
+	Learning bool `json:"learning"`
+	// Noticed and Learned are what the candidate ledger has done: relationships it has
+	// evidence about, and how many of them have earned durable memory.
+	//
+	// Counts, never a subject id and never a control's name — the same boundary the rest of
+	// this view holds. "Marco has learned three things by watching you" is a fact somebody
+	// should be able to read; which three is a question for the store.
+	Noticed int `json:"noticed,omitempty"`
+	Learned int `json:"learned,omitempty"`
+	// Candidates is how many relationships the durable ledger currently holds evidence about,
+	// promoted or not. The number that must track how many DIFFERENT things somebody does,
+	// never how long Marco watched.
+	Candidates int `json:"candidates,omitempty"`
 }
 
 // ObserveAmbient turns ambient watching on or off, or asks what it is doing.
@@ -1823,4 +1847,21 @@ type ObserveAmbient struct {
 	// Enable and Disable are the lifecycle. Neither set is a status read.
 	Enable  bool `json:"enable,omitempty"`
 	Disable bool `json:"disable,omitempty"`
+	// Learn and Unlearn turn ambient LEARNING on and off — whether what Marco watches may
+	// become durable memory.
+	//
+	// A separate pair from Enable and Disable, on the same request, because they are the same
+	// lifecycle asked about a different thing. What they must never be is one pair: watching
+	// and remembering are two things to agree to, and a switch that silently did both would
+	// make `marco observe` a promise about permanence that nobody heard.
+	//
+	// `Learn` may turn watching on with it — asking Marco to learn from what it sees is
+	// meaningless while it is not looking, and refusing would be pedantry about a state the
+	// person plainly did not want. `Unlearn` never turns watching off: they asked for less
+	// memory, not less attention.
+	//
+	// Named for what they do rather than for the field they set, so a reader of a request does
+	// not have to know that "promotion" is what the policy calls it.
+	Learn   bool `json:"learn,omitempty"`
+	Unlearn bool `json:"unlearn,omitempty"`
 }

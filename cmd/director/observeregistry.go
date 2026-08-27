@@ -771,7 +771,19 @@ func (r *Runtime) Observation(q service.ObserveQuery) (any, error) {
 		// It grants nothing. Turning watching on gives Marco no permission it did not
 		// have and no lease on the desktop; the sessions it runs are started with the
 		// ZERO licence, so nothing it sees can become durable. See ADR-093.
+		//
+		// LEARNING IS ITS OWN PAIR OF VERBS, checked first. Turning watching on must never
+		// turn learning on with it — that is the one thing this whole separation exists to
+		// prevent — so the two lifecycles are decided independently and only the direction
+		// that makes sense is coupled: asking to learn starts watching, and asking to stop
+		// learning leaves attention exactly where it was. See ADR-095.
+		//
+		// Deleting the separation must fail TestWatchingDoesNotStartLearning.
 		switch {
+		case q.Ambient.Learn:
+			return r.EnableAmbientLearning(), nil
+		case q.Ambient.Unlearn:
+			return r.DisableAmbientLearning(), nil
 		case q.Ambient.Enable:
 			return r.EnableAmbient(), nil
 		case q.Ambient.Disable:

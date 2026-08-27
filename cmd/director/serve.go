@@ -228,6 +228,18 @@ func printStatus(st service.StatusPayload) {
 	} else {
 		fmt.Printf("Watching: no\n")
 	}
+	// AND WHETHER ANY OF IT IS BECOMING PERMANENT, printed either way and separately.
+	//
+	// Two lifecycles, two lines. A status that folded them into one would let somebody read
+	// "watching" and not know whether their desktop was being turned into durable memory,
+	// which is the one thing the separation exists to make visible. Counts only, never a
+	// screen name — the rule the rest of this function already follows. See ADR-095.
+	if st.Watching.Learning {
+		fmt.Printf("Learning: yes (%d relationships seen, %d remembered)\n",
+			st.Watching.Noticed, st.Watching.Learned)
+	} else {
+		fmt.Printf("Learning: no\n")
+	}
 
 	// WHY THERE ARE NONE, when there are none for a reason.
 	//

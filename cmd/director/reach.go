@@ -190,10 +190,14 @@ func (r *Runtime) plannableEdges(application string,
 			verified[c.Relationship] = true
 			continue
 		}
-		// Or the person showed Marco, cleanly. The same rule Learn admits on, read from the
-		// same assessment, so planning cannot come to a different answer about the same
-		// demonstration than the lowering path did.
-		if a.Verdict == observe.CandidateConsistent && len(a.Blocking()) == 0 {
+		// Or the person showed Marco, cleanly. The same rule Learn admits on, ASKED of the
+		// assessment rather than restated here, so planning cannot come to a different
+		// answer about the same demonstration than the lowering path did.
+		//
+		// It was a second copy of the predicate until the lowering gate grew one — see
+		// CandidateAssessment.CleanlyObserved. Two spellings of one rule is one rule with
+		// two futures, and the one nobody edits is the one that goes wrong quietly.
+		if a.CleanlyObserved() {
 			verified[c.Relationship] = true
 		}
 	}

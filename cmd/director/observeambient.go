@@ -81,9 +81,17 @@ type ambientObserver struct {
 	// read.
 	pending map[observe.ScreenStateID][]ambient.Act
 	// actions counts the semantic actions this observer has attributed, for status.
-	actions  int
-	samples  int
-	sessions int
+	actions int
+	// promotion is the ambient learning rule this observer runs under, and noticedEdges and
+	// promoted are what the ledger has done under it. Separate from watching by construction:
+	// see ADR-095.
+	promotion    ambient.Policy
+	noticedEdges int
+	promoted     int
+	// lastLedgerSession is which watching session the previous crossing belonged to.
+	lastLedgerSession observe.SessionID
+	samples           int
+	sessions          int
 	// loops counts supervisor goroutines that are currently running. It exists to be
 	// asserted: "one observer" is the product claim, and the only way to see a second one
 	// is to count them.
@@ -185,6 +193,60 @@ func (r *Runtime) DisableAmbient() service.AmbientView {
 	a.session, a.cursor, a.behind, a.actions = "", 0, 0, 0
 	a.lastState, a.lastShape, a.bridged, a.settled = "", nil, 0, 0
 	a.pending = map[observe.ScreenStateID][]ambient.Act{}
+	a.mu.Unlock()
+	return a.view()
+}
+
+// EnableAmbientLearning lets what Marco watches become durable memory, and starts watching if it
+// was not.
+//
+// # Why this starts watching and its opposite does not stop it
+//
+// Because asking Marco to learn from what it sees is meaningless while it is not looking, and
+// refusing would be pedantry about a state the person plainly did not want. The reverse is not
+// symmetrical: somebody switching learning off asked for less MEMORY, not less attention, and
+// stopping the observer would take away the thing they were happy with.
+//
+// # It is off until asked for, and it does not survive a restart
+//
+// The same two rules watching itself follows, and for the same reason — a durable toggle that
+// makes Marco build permanent memory from a desktop is a consent conversation, and inventing one
+// here would be arriving at it by implication. See ADR-093's note on why watching is a command
+// rather than a setting; this is the sharper case of the same argument, because what it switches
+// on writes to disk.
+//
+// Deleting the start-watching arm must fail TestLearningFromWhatYouSeeMeansWatching.
+func (r *Runtime) EnableAmbientLearning() service.AmbientView {
+	if r == nil || r.observations == nil {
+		return service.AmbientView{}
+	}
+	a := r.ambient()
+	a.mu.Lock()
+	a.promotion.Enabled = true
+	on := a.on
+	a.mu.Unlock()
+	if !on {
+		return r.EnableAmbient()
+	}
+	return a.view()
+}
+
+// DisableAmbientLearning stops what Marco watches becoming durable memory, and leaves it watching.
+//
+// What has ALREADY been learned stays learned. Durable knowledge is not evidence of the mode that
+// produced it, and deleting it because somebody switched a switch would be forgetting something
+// true because they stopped wanting more of it. Candidate evidence stays too, under its own
+// bound: it is what the next enabling would judge, and throwing it away would make the switch
+// destructive in a way nobody asked for.
+//
+// Deleting the leave-watching-alone arm must fail TestTurningLearningOffLeavesMarcoWatching.
+func (r *Runtime) DisableAmbientLearning() service.AmbientView {
+	if r == nil || r.observations == nil {
+		return service.AmbientView{}
+	}
+	a := r.ambient()
+	a.mu.Lock()
+	a.promotion.Enabled = false
 	a.mu.Unlock()
 	return a.view()
 }
@@ -357,6 +419,11 @@ func (a *ambientObserver) record(application string, look ambientLook, now time.
 	previous, previousApp := a.last, a.lastApp
 	previousState, previousShape := a.lastState, a.lastShape
 	bridged, settled := a.bridged, a.settled
+	// WHETHER THIS CROSSING IS IN THE SAME WATCHING SESSION as the one before it, which is
+	// one of the two things that make two crossings two occasions rather than one. Read here
+	// because this is where the previous reading is still in scope.
+	sameSession := a.lastLedgerSession == look.Session
+	a.lastLedgerSession = look.Session
 	a.last, a.lastApp = key, application
 	a.lastState, a.lastShape = look.State, look.Shape
 	changed := previous != key
@@ -386,11 +453,24 @@ func (a *ambientObserver) record(application string, look ambientLook, now time.
 		a.mu.Lock()
 		a.actions += len(did)
 		a.mu.Unlock()
-		a.buf.Walked(ambient.Step{
+		step := ambient.Step{
 			From: previous, To: key, Application: application,
 			FromShape: previousShape, ToShape: look.Shape,
 			Did: did, By: by, Bridged: bridged, Settled: settled, At: now,
-		})
+		}
+		a.buf.Walked(step)
+		// AND THE LEDGER, on the same event and only on this event.
+		//
+		// A new semantic transition is the only thing that can change what repeated
+		// evidence says, so this is the whole of when the promotion rule runs. An
+		// unchanged desktop reaches nothing here, which is why ambient learning costs
+		// 36A's idle profile exactly nothing.
+		//
+		// Same session means the same watching session: it is one of the two ways two
+		// crossings count as two occasions rather than one. See ambient.Independent.
+		//
+		// Deleting this must fail TestWatchingTheSameThingTwiceIsRemembered.
+		a.noticed(step, sameSession)
 	}
 	return changed
 }
@@ -496,7 +576,17 @@ func (a *ambientObserver) view() service.AmbientView {
 	if !a.lastDegrade.IsZero() && a.lastDegrade.After(a.lastChange) {
 		out.PerceptionDegraded = true
 	}
+	// LEARNING, ALWAYS, and separately from watching. A status that mentioned it only while
+	// it was on would make its silence mean two things at once — and this is the field that
+	// says whether anything on this desktop is becoming permanent.
+	out.Learning = a.promotion.Enabled
+	out.Noticed, out.Learned = a.noticedEdges, a.promoted
+	application := a.lastApp
 	a.mu.Unlock()
+
+	if store, ok := a.rt.watchedStore(); ok && application != "" {
+		out.Candidates = len(store.Watched(application))
+	}
 
 	places, edges, recent := a.buf.Size()
 	out.Places, out.Transitions, out.Recent = places, edges, recent

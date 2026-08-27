@@ -147,6 +147,10 @@ lands in a slot the cadence gate declined.
   gains what somebody PRESSED, an action is attributed to the screen it was performed on rather
   than to whatever is in front when it is read, and an explicit Learn promotes a selected walk
   under the same licence a live one declares. Observe still holds none
+- [[ADR-095-repeated-observation-may-become-knowledge]] -- repeated ambient evidence may become
+  durable knowledge, under a policy separate from watching and off by default: a candidate ledger
+  that is not knowledge, two independent occasions, no contradiction, the same admission boundary
+  an explicit Learn uses, and no name invented for anything
 - [[ADR-003-evidence-authority-by-source]]
 - [[ADR-012-presence-is-state-relative]]
 - [[ADR-013-navigation-is-meaning-not-keys]]
