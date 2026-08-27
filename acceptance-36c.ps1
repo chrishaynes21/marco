@@ -110,9 +110,31 @@ function Stop-SandboxDirector {
     }
 }
 
+# RealStore is captured ONCE, at the top of the script, before anything is sandboxed.
+#
+# # The bug this exists to prevent, and it silently changed what was being tested
+#
+# `Use-Sandbox` sets $env:MARCO_HOME at PROCESS scope, and PowerShell keeps process-scope
+# environment variables for the whole terminal session. So the second invocation of this script in
+# the same window inherited MARCO_HOME pointing at the sandbox — and a Real-Store that read
+# MARCO_HOME then returned the SANDBOX path.
+#
+# Measured: a `-Clean` followed by `-Setup` in one terminal looked for the person's real memory at
+# the sandbox path it had just deleted, found nothing, said "starting cold", and ran the whole
+# acceptance against an empty store. Then `-Report` told them "your real store is at
+# <temp>\marco-36c\..." — which is not their real store and would be alarming if they believed it.
+#
+# So it is resolved once, before Use-Sandbox can ever have run, and pinned in the sandbox so later
+# invocations agree with the first.
+$RealStorePin = Join-Path $Sandbox "real-store.txt"
 function Real-Store {
+    if (Test-Path $RealStorePin) { return (Get-Content $RealStorePin -Raw).Trim() }
     if ($env:MARCO_MEMORY) { return $env:MARCO_MEMORY }
-    if ($env:MARCO_HOME)   { return (Join-Path $env:MARCO_HOME "semantic-memory.json") }
+    # MARCO_HOME is read only when it is NOT this script's own sandbox. A terminal that has run
+    # -Setup already has it set, and following it would be following ourselves.
+    if ($env:MARCO_HOME -and $env:MARCO_HOME -ne $Home36) {
+        return (Join-Path $env:MARCO_HOME "semantic-memory.json")
+    }
     return (Join-Path $env:APPDATA "marco\semantic-memory.json")
 }
 
@@ -301,12 +323,28 @@ if ($Why) {
     $light = & $Dir light 2>&1
     Say ($light | Out-String)
 
+    Step "What Marco is waiting for"
+    $seen = & $Marco observe status --evidence 2>&1
+    Say ($seen | Out-String)
+
     Step "The durable record"
     if (Test-Path $Store) {
         $f = Get-Content $Store -Raw | ConvertFrom-Json
         Say ("subjects {0}, relationships {1}, candidates {2}, goals {3}" -f
              @($f.subjects).Count, @($f.relationships).Count,
              @($f.watched).Count, @($f.goals).Count)
+        # A STORE THAT CONTRADICTS ITSELF SAYS SO.
+        #
+        # An edge or a goal needs its endpoints to exist. The loader drops orphans, so a
+        # file holding relationships with no subjects will silently lose them the next time
+        # it is opened — and the counts above would read as though the knowledge were there.
+        if (@($f.subjects).Count -eq 0 -and
+            (@($f.relationships).Count -gt 0 -or @($f.goals).Count -gt 0)) {
+            Bad "this store has relationships or goals and NO subjects"
+            Note "Both need endpoints that exist. The loader drops orphans, so these are"
+            Note "already gone as far as any running Director is concerned -- the file is"
+            Note "reporting knowledge that no longer resolves to anything."
+        }
         foreach ($w in @($f.watched)) {
             Say ("  candidate {0}  seen {1} / occasions {2} / contradicted {3}  {4} -> {5}  [{6}]" -f
                  $w.id, (Num $w.seen), (Num $w.occasions), (Num $w.contradicted),
@@ -370,6 +408,7 @@ if ($Setup) {
 
     Step "Sandboxing your memory"
     $real = Real-Store
+    Set-Content -Path $RealStorePin -Value $real -Encoding utf8
     if (Test-Path $real) {
         Copy-Item $real $Store -Force
         Good "copied $real"
@@ -512,12 +551,18 @@ if ($Report) {
         Good "$($last.promoted - $first.promoted) relationship(s) became knowledge between rounds"
     } elseif ($last.candidates -gt 0) {
         Warn "evidence accumulated and nothing was promoted"
-        Note "That is a legitimate answer and the policy will say why: a control with no"
-        Note "admitted name, a screen too vague to establish, or a contradiction. Read the"
-        Note "candidate rows in $Store."
     } else {
         Bad "no candidate evidence at all -- nothing was noticed to learn from"
     }
+
+    # AND MARCO SAYS WHY, in its own words.
+    #
+    # The first version of this said "the policy will say why ... read the candidate rows in
+    # <file>" -- which is the harness telling somebody to go and be the diagnostic itself, the
+    # same cop-out one layer along. The policy has the sentences; this asks for them.
+    Step "What Marco is waiting for"
+    $seen = & $Marco observe status --evidence 2>&1
+    Say ($seen | Out-String)
 
     Step "What it did NOT do"
     if ($last.goals -eq $first.goals) {

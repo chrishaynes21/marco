@@ -123,3 +123,29 @@ func (s *Store) Watched(application string) []observe.WatchedEdge {
 	sort.Slice(out, func(a, b int) bool { return out[b].WeakerThan(out[a]) })
 	return out
 }
+
+// WatchedApplications is every application the ledger holds candidate evidence about.
+//
+// In a stable order, and deduplicated case-insensitively the way every other application
+// comparison here is. It exists so a diagnostic can report the WHOLE ledger rather than the one
+// window somebody happens to be looking at: evidence from a Director that ran yesterday is still
+// evidence, and a report that showed only the current application would hide it.
+func (s *Store) WatchedApplications() []string {
+	if s == nil {
+		return nil
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	seen := map[string]bool{}
+	var out []string
+	for _, w := range s.watched {
+		key := strings.ToLower(w.Application)
+		if key == "" || seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, w.Application)
+	}
+	sort.Strings(out)
+	return out
+}

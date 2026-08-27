@@ -780,6 +780,11 @@ func (r *Runtime) Observation(q service.ObserveQuery) (any, error) {
 		//
 		// Deleting the separation must fail TestWatchingDoesNotStartLearning.
 		switch {
+		case q.Ambient.Evidence:
+			// WHAT IT HAS SEEN AND WHAT IT IS WAITING FOR. A read, before every
+			// lifecycle verb, because asking what Marco has recorded about you must
+			// never be answered by recording more.
+			return r.AmbientEvidence(), nil
 		case q.Ambient.Learn:
 			return r.EnableAmbientLearning(), nil
 		case q.Ambient.Unlearn:

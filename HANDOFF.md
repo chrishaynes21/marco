@@ -5888,3 +5888,23 @@ what Marco was looking at while it did. `acceptance-36c.ps1 -Tail` is a live vie
 being read, whether the page is readable, whether the screen is known, and the counts — printing
 only on change. One line of it would have made the original diagnosis immediate: the application
 column would have read `powershell` the whole time.
+
+**And the harness silently changed what was being tested.** `Use-Sandbox` sets `$env:MARCO_HOME`
+at process scope, which PowerShell keeps for the whole terminal — so the second `-Setup` in one
+window looked for the person's real memory at the sandbox path it had just deleted, said "starting
+cold", and ran the entire acceptance against an empty store. `-Report` then told them their real
+store was under TEMP, which is not true and would be alarming if believed. The real store is
+resolved once now, before anything is sandboxed, and pinned so later invocations agree.
+
+**Marco can now say what it is waiting for.** "Noticed four relationships, learned none" is true
+and useless: one occasion short, an unnameable control, a button that leads two ways and a screen
+nothing can establish are four situations with four different remedies, and the counts cannot tell
+them apart. `marco observe status --evidence` reports every relationship the ledger holds, across
+every application, with the policy's own verdict and its own sentence. `ambient.Describe` had those
+sentences since the day it was written and NOTHING CALLED IT — the third unreachable thing this
+session, after an unreachable discriminator and an uncalled mechanism.
+
+It names the control and says whether the screens are known. That is a deliberate widening of the
+diagnostic surface: a person asking what Marco has recorded about them is entitled to the answer,
+and a privacy boundary that made Marco's own memory unreadable to its owner would be protecting the
+wrong party. It is a read — it judges, which is pure, and reports.

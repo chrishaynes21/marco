@@ -2,10 +2,12 @@ package main
 
 import (
 	"strings"
+	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/ambient"
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
 	"github.com/chaynes-simpleclouds/marco/internal/director/observesession"
+	"github.com/chaynes-simpleclouds/marco/internal/director/service"
 )
 
 // Where a thing seen twice becomes a thing Marco knows.
@@ -344,4 +346,75 @@ func (a *ambientObserver) promotionCounts() (noticed, promoted int) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.noticedEdges, a.promoted
+}
+
+// AmbientEvidence is what Marco has seen repeatedly, and what it is waiting for.
+//
+// # The question this answers, and how long it had no answer
+//
+// "Marco has noticed four relationships and learned none of them" is a true report that tells
+// somebody nothing they can act on. Is it one occasion short? Is the control unnameable? Does that
+// button lead two different places? Those are four different situations with four different things
+// to do about them, and until this existed the only way to tell was to open the store and run the
+// policy in your head.
+//
+// The policy already had the sentences — `ambient.Describe` has said them since the day it was
+// written and nothing called it. An unreachable explanation is the same defect as an unreachable
+// discriminator, and this is what makes it reachable.
+//
+// # A read, and it changes nothing
+//
+// It judges, which is a pure function, and reports. It establishes nothing, promotes nothing and
+// writes nothing — a diagnostic that promoted what it was asked about would be the worst possible
+// answer to "what are you waiting for".
+//
+// Deleting the Judge call must fail TestAskingWhatMarcoIsWaitingForSaysWhy.
+func (r *Runtime) AmbientEvidence() []service.WatchedView {
+	store, ok := r.watchedStore()
+	if !ok {
+		return nil
+	}
+	a := r.ambient()
+	policy := a.policy()
+	now := time.Now()
+
+	// EVERY APPLICATION, not just the one in front. Somebody asking what Marco has recorded
+	// about them is not asking about this window.
+	seen := map[string]bool{}
+	var out []service.WatchedView
+	for _, app := range r.applicationsWatched() {
+		if seen[strings.ToLower(app)] {
+			continue
+		}
+		seen[strings.ToLower(app)] = true
+		for _, w := range store.Watched(app) {
+			j := ambient.Judge(w, policy, now)
+			out = append(out, service.WatchedView{
+				Application: w.Application, Did: w.Kind, Control: w.Target,
+				FromKnown: w.From.Recognised(), ToKnown: w.To.Recognised(),
+				Seen: w.Seen, Occasions: w.Occasions, Contradicted: w.Contradicted,
+				Verdict: string(j.Verdict), Why: string(j.Why),
+				Said: ambient.Describe(j), Short: j.Short,
+				Learned: !w.Promoted.IsZero(), LastSaw: w.Last.Format(time.RFC3339),
+			})
+		}
+	}
+	return out
+}
+
+// applicationsWatched is every application the candidate ledger holds evidence about.
+//
+// Read from the store rather than remembered, because the ledger outlives the observer: evidence
+// from a Director that ran yesterday is still evidence, and a list built from what THIS process
+// happens to have seen would hide it.
+func (r *Runtime) applicationsWatched() []string {
+	memory, ok := r.durableMemory()
+	if !ok {
+		return nil
+	}
+	lister, ok := memory.(interface{ WatchedApplications() []string })
+	if !ok {
+		return nil
+	}
+	return lister.WatchedApplications()
 }

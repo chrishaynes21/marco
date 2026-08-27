@@ -218,6 +218,25 @@ report learning and its counts, either way, and the candidate ledger records whe
 knowledge. A first-class account of *what Marco has learned by watching you* is a surface worth
 having and is not this one.
 
+## Marco says what it is waiting for
+
+"Noticed four relationships, learned none" is true and tells nobody anything they can act on. One
+occasion short, a control with no admitted name, a button that leads two different places, a screen
+nothing can establish: four situations, four different things to do about them, and the counts
+cannot tell them apart.
+
+`marco observe status --evidence` asks. It reports every relationship the ledger holds — across
+every application, because the ledger outlives the observer and evidence from yesterday is still
+evidence — with the policy's own verdict and its own sentence for each.
+
+**It names things**, and that is a deliberate widening of the diagnostic surface rather than an
+oversight: the control somebody pressed, and whether Marco recognises the screens either side. A
+person asking what Marco has recorded about them is entitled to the answer, and a privacy boundary
+that made Marco's own memory unreadable to its owner would be protecting the wrong party.
+
+It is a READ. It judges, which is pure, and reports; a diagnostic that promoted what it was asked
+about would be the worst possible answer to "what are you waiting for".
+
 ## What this does not touch
 
 - **No authority.** A promoted edge is a thing Marco KNOWS, and knowing has never been permission
@@ -291,7 +310,8 @@ having and is not this one.
   `TestAmbientPromotionCannotWriteWithoutItsLicence`;
   `TestAmbientPromotionTouchesNothingThatActs`; `TestEvidenceSurvivesARestart`;
   `TestCandidateStorageTracksNoveltyAndNotTime`; `TestWhatMarcoLearnsByWatchingIsPlannable`;
-  `TestExplicitLearnDoesNotWaitForAmbientRepetition`.
+  `TestExplicitLearnDoesNotWaitForAmbientRepetition`; `TestAskingWhatMarcoIsWaitingForSaysWhy`;
+  `TestWhatMarcoIsWaitingForCoversEveryApplication`.
 - `cmd/marco` — `TestTurningLearningOffIsItsOwnVerb`; `TestWatchingSaysWhetherItIsAlsoLearning`.
 
 ## Related

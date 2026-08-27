@@ -724,3 +724,112 @@ func TestALegWithSeveralActionsIsNotCandidateEvidence(t *testing.T) {
 		t.Fatalf("%d relationship(s) were learned from them", n)
 	}
 }
+
+// ── what are you waiting for ──────────────────────────────────────────────────
+
+// ASKING WHAT MARCO IS WAITING FOR SAYS WHY.
+//
+// # The report that had no answer
+//
+// "Noticed four relationships, learned none" is true and tells nobody anything they can act on.
+// One occasion short, a control with no admitted name, a button that leads two different places
+// and a screen nothing can establish are four situations with four different things to do about
+// them — and the counts cannot tell them apart.
+//
+// The policy has had the sentences since it was written and nothing called them. An unreachable
+// explanation is the same defect as an unreachable discriminator: the decision is made somewhere
+// and no reader can find it.
+//
+// Deleting the Judge call must fail this.
+func TestAskingWhatMarcoIsWaitingForSaysWhy(t *testing.T) {
+	rt, store := learningRuntime(t)
+	a := rt.ambient()
+	at := time.Now()
+
+	// SEEN ONCE: nothing wrong with it, there is not enough of it.
+	a.noticed(crossed("seen_state_1", "seen_state_2", homeShape(), btShape(),
+		"Bluetooth & devices", ambient.ByHuman, at), true)
+	// SEEN, AND THE CONTROL HAD NO NAME MARCO COULD ADMIT: repetition will not fix that.
+	unnamed := crossed("seen_state_1", "seen_state_7", homeShape(),
+		&ambient.Shape{Called: "Somewhere",
+			Signature: screenLike(12, observe.TermSettings)},
+		"", ambient.ByHuman, at)
+	unnamed.Did[0].Target.Role = "listitem"
+	a.noticed(unnamed, true)
+
+	seen := rt.AmbientEvidence()
+	if len(seen) != 2 {
+		t.Fatalf("%d row(s), want 2: %+v", len(seen), seen)
+	}
+	byWhy := map[string]service.WatchedView{}
+	for _, w := range seen {
+		byWhy[w.Why] = w
+	}
+
+	short, ok := byWhy[string(ambient.WhyTooFew)]
+	if !ok {
+		t.Fatalf("nothing reported as short of occasions: %+v", seen)
+	}
+	if short.Verdict != string(ambient.Wait) || short.Short != 1 {
+		t.Errorf("the short one says verdict %q, short by %d: %+v",
+			short.Verdict, short.Short, short)
+	}
+	if short.Said == "" {
+		t.Error("it has no sentence for a person, which is the whole point of the read")
+	}
+	if short.Control != "Bluetooth & devices" {
+		t.Errorf("it does not say WHICH: %+v", short)
+	}
+
+	blocked, ok := byWhy[string(ambient.WhyUnnamedTarget)]
+	if !ok {
+		t.Fatalf("nothing reported as unnameable: %+v", seen)
+	}
+	if blocked.Verdict != string(ambient.Never) {
+		t.Errorf("an unnameable control is reported as %q; more of the same evidence will "+
+			"never fix it and calling it `wait` tells somebody to keep trying",
+			blocked.Verdict)
+	}
+	if short.Said == blocked.Said {
+		t.Errorf("both got the same sentence (%q), so the person cannot tell "+
+			"\"do it again\" from \"doing it again will not help\"", short.Said)
+	}
+
+	// AND IT CHANGED NOTHING. A diagnostic that promoted what it was asked about would be
+	// the worst possible answer to "what are you waiting for".
+	if n := len(store.Topology(recentApp).Relationships); n != 0 {
+		t.Errorf("asking what Marco is waiting for made it learn %d relationship(s)", n)
+	}
+	before := len(store.Watched(recentApp))
+	rt.AmbientEvidence()
+	if after := len(store.Watched(recentApp)); after != before {
+		t.Errorf("asking changed the evidence: %d -> %d", before, after)
+	}
+}
+
+// AND IT REPORTS EVERY APPLICATION, not the one in front.
+//
+// Somebody asking what Marco has recorded about them is not asking about this window. The ledger
+// outlives the observer, so evidence from a Director that ran yesterday is still evidence and a
+// list built from what this process happens to have seen would hide it.
+func TestWhatMarcoIsWaitingForCoversEveryApplication(t *testing.T) {
+	rt, _ := learningRuntime(t)
+	a := rt.ambient()
+	at := time.Now()
+
+	a.noticed(crossed("seen_state_1", "seen_state_2", homeShape(), btShape(),
+		"Bluetooth & devices", ambient.ByHuman, at), true)
+	elsewhere := crossed("seen_state_1", "seen_state_2", homeShape(), btShape(),
+		"New", ambient.ByHuman, at)
+	elsewhere.Application = "mail"
+	a.noticed(elsewhere, true)
+
+	apps := map[string]bool{}
+	for _, w := range rt.AmbientEvidence() {
+		apps[w.Application] = true
+	}
+	if !apps[recentApp] || !apps["mail"] {
+		t.Fatalf("the read covers %v; it must cover every application the ledger holds "+
+			"evidence about, not the one somebody happens to be looking at", apps)
+	}
+}

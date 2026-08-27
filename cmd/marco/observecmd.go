@@ -38,9 +38,12 @@ func runObserve(args []string) int {
 	}
 	fs := flag.NewFlagSet("observe", flag.ExitOnError)
 	jsonOut := fs.Bool("json", false, "print as JSON")
+	evidence := fs.Bool("evidence", false,
+		"with status: what Marco has seen repeatedly, and what it is waiting for")
 	_ = fs.Parse(rest)
 
 	q, ok := observeRequest(sub, rest)
+	q.Evidence = q.Evidence || (*evidence && sub == "status")
 	if !ok {
 		fmt.Fprintf(os.Stderr, "marco: I don't know `observe %s`. Try: observe, "+
 			"observe status, observe learn, observe learn off, observe stop\n", sub)
@@ -80,6 +83,25 @@ func runObserve(args []string) int {
 		fmt.Fprintf(os.Stderr, "marco: %v\n", err)
 		return 1
 	}
+	// THE EVIDENCE READ COMES BACK AS A LIST, not a status. Decoded on its own branch rather
+	// than by probing the JSON, because two shapes down one wire is the sort of thing that
+	// works until somebody adds a field.
+	if q.Evidence {
+		var seen []service.WatchedView
+		if err := json.Unmarshal(raw, &seen); err != nil {
+			fmt.Fprintf(os.Stderr,
+				"marco: the Director's reply was unreadable: %v\n", err)
+			return 1
+		}
+		if *jsonOut {
+			out, _ := json.MarshalIndent(seen, "", "  ")
+			fmt.Println(string(out))
+			return 0
+		}
+		printWatched(seen)
+		return 0
+	}
+
 	var view service.AmbientView
 	if err := json.Unmarshal(raw, &view); err != nil {
 		fmt.Fprintf(os.Stderr, "marco: the Director's reply was unreadable: %v\n", err)
@@ -92,6 +114,73 @@ func runObserve(args []string) int {
 	}
 	printObserving(view)
 	return 0
+}
+
+// printWatched is what Marco has seen repeatedly, and what it is waiting for on each.
+//
+// # The report that had no answer
+//
+// "Noticed four, learned none" is true and useless. Is it one occasion short? Is the control
+// unnameable? Does that button lead two different places? Four situations, four different things
+// to do about them, and the counts cannot tell them apart. The policy has always had the
+// sentences; this is what says them out loud.
+//
+// Grouped by what is BLOCKING rather than by application, because the thing somebody wants is
+// "what do I do about this", and the answer is the same for everything in a group.
+func printWatched(seen []service.WatchedView) {
+	if len(seen) == 0 {
+		fmt.Println("Marco hasn't seen anything happen twice yet.")
+		fmt.Println("  it records a relationship the first time it sees you do something,")
+		fmt.Println("  and remembers it once it has seen the same thing on another occasion")
+		return
+	}
+	learned, waiting, never := 0, 0, 0
+	for _, w := range seen {
+		switch {
+		case w.Learned:
+			learned++
+		case w.Verdict == "never":
+			never++
+		default:
+			waiting++
+		}
+	}
+	fmt.Printf("Marco has seen %s happen more than once.\n",
+		plural(len(seen), "thing", "things"))
+	fmt.Printf("  %d remembered, %d waiting for more, %d it can't learn as they stand\n\n",
+		learned, waiting, never)
+
+	for _, w := range seen {
+		mark := " . "
+		switch {
+		case w.Learned:
+			mark = " * "
+		case w.Verdict == "never":
+			mark = " x "
+		}
+		fmt.Printf("%s%s in %s\n", mark, describeWatched(w), w.Application)
+		fmt.Printf("     seen %d time(s) on %s\n", w.Seen,
+			plural(w.Occasions, "occasion", "separate occasions"))
+		fmt.Printf("     %s\n", w.Said)
+		if !w.FromKnown || !w.ToKnown {
+			// SAID PLAINLY, because it is the commonest reason for waiting and it
+			// sounds like a fault when it is not. A screen Marco has not established
+			// yet is ordinary; it becomes durable the moment something learns it.
+			fmt.Println("     (one or both screens are ones Marco hasn't established yet)")
+		}
+		fmt.Println()
+	}
+}
+
+// describeWatched names one relationship in the words a person used, not Marco's.
+func describeWatched(w service.WatchedView) string {
+	switch {
+	case w.Control != "":
+		return fmt.Sprintf("pressing %q", w.Control)
+	case w.Did != "":
+		return w.Did
+	}
+	return "something"
 }
 
 // printObserving is what a person reads.
@@ -192,6 +281,11 @@ func observeRequest(sub string, rest []string) (service.ObserveAmbient, bool) {
 	case "status":
 		// A read. Deliberately asks for nothing: somebody asking whether Marco is paying
 		// attention must not thereby make it start.
+		//
+		// `--evidence` widens the same read to what Marco has SEEN repeatedly and what it
+		// is waiting for on each; the flag is applied by the caller, which is where the
+		// parsed flags are. The counts alone answer "how much" and cannot answer "why not
+		// yet", which is the question somebody actually has.
 	case "learn", "learning":
 		// LEARNING FROM WHAT IT SEES, which is a second thing to agree to and therefore a
 		// second verb. `marco observe learn` turns it on; `marco observe learn off` turns

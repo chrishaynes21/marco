@@ -1864,4 +1864,48 @@ type ObserveAmbient struct {
 	// not have to know that "promotion" is what the policy calls it.
 	Learn   bool `json:"learn,omitempty"`
 	Unlearn bool `json:"unlearn,omitempty"`
+	// Evidence asks what Marco has seen repeatedly and what it is waiting for.
+	//
+	// A READ, and it changes nothing. It is the answer to "why haven't you learned that
+	// yet", which until it existed had no answer at all — the counts said how many
+	// relationships had evidence and nothing said what any of them was short of, so the only
+	// way to find out was to open the store and reason about the policy by hand.
+	//
+	// It deliberately names things: the control somebody pressed, and whether Marco
+	// recognises the screens either side. That is a WIDENING of the diagnostic surface and it
+	// is the right one — a person asking what Marco has recorded about them is entitled to
+	// the answer, and a privacy boundary that made Marco's own memory unreadable to its owner
+	// would be protecting the wrong party. See ADR-095.
+	Evidence bool `json:"evidence,omitempty"`
+}
+
+// WatchedView is one thing Marco has seen repeatedly, and what it makes of it.
+//
+// The candidate ledger, rendered for a person. Counts, the semantic identity, and the POLICY's
+// own verdict in its own words — so "seen twice and not learned" and "that control leads two
+// different places" are told apart by Marco rather than inferred by whoever is reading.
+type WatchedView struct {
+	Application string `json:"application"`
+	// Did and Control are what somebody did and what they did it to.
+	Did     string `json:"did"`
+	Control string `json:"control,omitempty"`
+	// FromKnown and ToKnown say whether Marco recognises the screens either side. A screen it
+	// does not recognise is ordinary and not a fault; a screen it cannot even describe is
+	// what stops a relationship being learnable, and the verdict below says which.
+	FromKnown bool `json:"from_known"`
+	ToKnown   bool `json:"to_known"`
+	// Seen is every crossing; Occasions is how many were independent. Held apart because the
+	// difference is the whole of what makes repetition mean anything.
+	Seen         int `json:"seen"`
+	Occasions    int `json:"occasions"`
+	Contradicted int `json:"contradicted,omitempty"`
+	// Verdict and Why are the policy's own words, and Said is the sentence for a person.
+	Verdict string `json:"verdict"`
+	Why     string `json:"why"`
+	Said    string `json:"said"`
+	// Short is how many more independent occasions this is waiting for, zero otherwise.
+	Short int `json:"short,omitempty"`
+	// Learned says this already became durable knowledge, and when.
+	Learned bool   `json:"learned,omitempty"`
+	LastSaw string `json:"last_saw,omitempty"`
 }
