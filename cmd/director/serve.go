@@ -215,6 +215,20 @@ func printStatus(st service.StatusPayload) {
 		fmt.Printf("Active command: none\n")
 	}
 
+	// WATCHING IS PART OF THE SELF-REPORT, always, and printed even when the answer is no.
+	//
+	// A status command that mentioned ambient observation only while it was running would
+	// make its silence mean two things at once: not watching, or too old to say. Somebody
+	// asking what the Director is doing deserves to be told this without having to know that
+	// `marco observe status` exists. Counts only, never a screen name — the rule the rest
+	// of this function already follows. See ADR-093.
+	if st.Watching.Watching {
+		fmt.Printf("Watching: yes (%d screens, %d moves noticed)\n",
+			st.Watching.Places, st.Watching.Transitions)
+	} else {
+		fmt.Printf("Watching: no\n")
+	}
+
 	// WHY THERE ARE NONE, when there are none for a reason.
 	//
 	// "Accessibility clients: 0" has two causes that read identically — nothing has been

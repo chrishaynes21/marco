@@ -5672,3 +5672,42 @@ refuse correctly on a real desktop is UNMEASURED. And `Connect`'s file-based sta
 second, redundant mechanism — a losing child refuses at startup instead of racing — worth
 simplifying and not worth changing blind. See
 [[ADR-092-one-director-per-home-one-hand-on-the-keyboard]].
+
+**36A: `marco observe` — Marco pays attention.** The first ambient product lifecycle on the
+observation substrate 35A built. Somebody types it and then uses their computer normally; Marco
+keeps up with which application and which screen they are on, and what just changed.
+
+Four things it deliberately is not, and each one is gated. Not a recording: nothing reaches disk,
+and what is held in memory carries no labels, titles, text or coordinates. Not a Learn: no
+questions, no naming. Not authority: watching grants no permission and takes no desktop lease —
+observation is the one thing 35E deliberately left ungated. Not a second observer: the registry
+allows one session, and ambient watching is its LOWEST-priority consumer.
+
+**Storage growth tracks novelty, never time.** Ten thousand sightings of one screen are one entry
+with a count of ten thousand. Bounds are on distinct things — 256 places, 512 edges, a 64-move
+recent walk — and past them the least recently seen is forgotten, counted rather than silently.
+That property is the whole reason an always-on observer is acceptable at all.
+
+**The default licence is none.** Sessions go through `Start`, which hands the runner
+`Episode{}` — so however long ambient watching runs it cannot make anything durable. Not a policy
+check that could be forgotten: there is no licence in the object. A screen Marco does not know
+stays unknown and nobody is asked to name it.
+
+**Six mutations "survived" and all six were my verification lying.** `git diff` reports nothing for
+UNTRACKED files, and every file in this roadmap was new — so the check that confirmed the edit had
+landed passed vacuously for all of them. Re-run with grep, five were real survivors and every one
+found a genuine gap: a second supervisor loop against the same object, backoff with no test at all,
+provenance unasserted at the supervisor level, an autostart flag the fixture could not see, and —
+the one that mattered — **an unknown screen breaking the walk through it**. Home → unknown frame →
+Bluetooth must still be one transition, and one line does that.
+
+**Yielding, not layering, and the cost is written down.** The prettier design is one continuous
+session whose licences change as consumers come and go; that is a rewrite of the session runner.
+Ambient waits instead, so a Learn interrupts it rather than borrowing it, and the ambient tally has
+a gap for its duration. The registry is what enforces one observer; the yield only buys quiet, and
+deleting it breaks nothing — measured.
+
+**Not done, and owed.** No ambient promotion: repeated evidence does not become durable knowledge,
+and that seam is left clean rather than taken. "Learn what I just did" would know where somebody
+went and not what they clicked. And every live number — CPU, memory, sample rate, Learn-over-Observe
+— is UNMEASURED. See [[ADR-093-observe-is-attention-not-recording]].

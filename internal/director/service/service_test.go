@@ -48,6 +48,9 @@ type fakeRuntime struct {
 	activeValues values.EnvironmentSnapshot
 	// activeCollections is what ActiveCollections reports.
 	activeCollections collections.Snapshot
+	// ambient is what AmbientStatus reports, so a test can prove the status surface carries
+	// ambient watching through without running an observation loop.
+	ambient AmbientView
 	// abandoned counts AbandonProgram calls, so a test can prove a cancelled
 	// clarification ends the program rather than only the question.
 	abandoned int
@@ -200,7 +203,8 @@ func (f *fakeRuntime) RunOperation(context.Context, marcoexec.Operation) marcoex
 	return marcoexec.Result{}
 }
 
-func (f *fakeRuntime) OCRUnavailable() string { return "no OCR in tests" }
+func (f *fakeRuntime) OCRUnavailable() string     { return "no OCR in tests" }
+func (f *fakeRuntime) AmbientStatus() AmbientView { return f.ambient }
 
 func (f *fakeRuntime) Graph() actiongraph.Graph    { return f.graph }
 func (f *fakeRuntime) Providers() []ProviderStatus { return f.providers }

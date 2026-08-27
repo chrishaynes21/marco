@@ -764,6 +764,20 @@ func (r *Runtime) Observation(q service.ObserveQuery) (any, error) {
 		// THE goal-planning call site, and the only one. A read over remembered goals and
 		// the durable topology; it grants nothing and can reach nothing that acts.
 		return r.Reach(*q.Reach)
+	case q.Ambient != nil:
+		// AMBIENT WATCHING, and the whole of its lifecycle. Three shapes of one request,
+		// because they are the same thing asked three ways.
+		//
+		// It grants nothing. Turning watching on gives Marco no permission it did not
+		// have and no lease on the desktop; the sessions it runs are started with the
+		// ZERO licence, so nothing it sees can become durable. See ADR-093.
+		switch {
+		case q.Ambient.Enable:
+			return r.EnableAmbient(), nil
+		case q.Ambient.Disable:
+			return r.DisableAmbient(), nil
+		}
+		return r.AmbientStatus(), nil
 	case q.Showing != nil:
 		// THE "where am I standing" call site for anything outside this process, and the only
 		// one. It takes a fresh look and resolves it with the canonical resolver — the same

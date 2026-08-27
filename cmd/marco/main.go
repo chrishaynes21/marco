@@ -82,6 +82,10 @@ func main() {
 		// uses `marco dispatch "<phrase>" --json` to converse. See internal/dispatch.
 		runDispatch(os.Args[2:])
 		return
+	case "observe":
+		// MARCO PAYS ATTENTION. Off until asked for, visible while it runs, and stopped
+		// when told -- see runObserve for why it is a command rather than a setting.
+		os.Exit(runObserve(os.Args[2:]))
 	case "plays":
 		// THE PRODUCT LISTING: every play, the saved-but-not-yet-askable ones included.
 		// `marco routes` below is the older, narrower question — see runPlays for why both

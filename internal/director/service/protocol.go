@@ -529,6 +529,19 @@ type StatusPayload struct {
 
 	Active *ActiveSummary `json:"active,omitempty"`
 
+	// Watching is whether ambient observation is on, and what it has noticed.
+	//
+	// A VALUE, not a pointer, unlike almost every optional thing around it. "Is Marco watching
+	// me" is a question somebody is entitled to a straight answer to, and a field that is
+	// absent when the answer is no cannot be told apart from a field a Director too old to
+	// have it never sent. A pointer would make the common case — not watching — the absent
+	// one. So it is always present and it always says. See ADR-093.
+	//
+	// (The `omitempty` next door on Active does the omitting; on a struct value the tag would
+	// do nothing at all, which is why there isn't one here rather than a claim being made by
+	// its absence.)
+	Watching AmbientView `json:"watching"`
+
 	// Providers reports accessibility lifecycle, per application.
 	Providers []ProviderStatus `json:"providers,omitempty"`
 
@@ -1025,6 +1038,9 @@ type ObserveQuery struct {
 	Answer *ObserveAnswer `json:"answer,omitempty"`
 	// Rehearse asks Marco to attempt one authorized step. See ObserveRehearse.
 	Rehearse *ObserveRehearse `json:"rehearse,omitempty"`
+	// Ambient turns continuous watching on or off, or asks what it is doing.
+	// See ObserveAmbient.
+	Ambient *ObserveAmbient `json:"ambient,omitempty"`
 	// Name answers a naming question with the word the user chose. See ObserveScreenName.
 	//
 	// A SEPARATE field rather than a text member on ObserveAnswer, deliberately. Answers to
@@ -1738,4 +1754,52 @@ func (c *PerformCost) Add(o PerformCost) {
 	c.Reused += o.Reused
 	c.LookingMS += o.LookingMS
 	c.TotalMS += o.TotalMS
+}
+
+// AmbientView is what ambient watching is doing, and what it has noticed.
+//
+// # Visible on purpose
+//
+// Ambient observation is materially different product behaviour from an explicit Learn, and the
+// difference a person cares about is that it is ON when they are not thinking about it. A
+// background mode nobody can see the state of is the shape of surveillance whatever its
+// intentions, so the state is a first-class answer rather than a diagnostic.
+//
+// Everything here is a count, a duration or a durable subject id. No labels, no titles, no screen
+// text, no coordinates: the transient buffer behind it holds none of those, and this view could
+// not report them if it wanted to.
+type AmbientView struct {
+	// Watching is the whole product question. Everything else is detail.
+	Watching bool `json:"watching"`
+	// WatchingForMS is how long this run of attention has lasted.
+	WatchingForMS int64 `json:"watching_for_ms,omitempty"`
+	// Application and Place are where the last reading put the Audience. Place is a durable
+	// subject id, empty when the screen is not one Marco knows — which is ordinary, and not
+	// a question anybody is asked.
+	Application string `json:"application,omitempty"`
+	Place       string `json:"place,omitempty"`
+	// PerceptionDegraded says the most recent reading got no further than the window frame.
+	// A different fact from an unrecognised screen; see ADR-090.
+	PerceptionDegraded bool `json:"perception_degraded,omitempty"`
+	// Places, Transitions and Recent are how much the transient buffer holds — DISTINCT
+	// things, not events. These are the numbers that must not grow with how long somebody
+	// watched, only with how much they did.
+	Places      int `json:"places,omitempty"`
+	Transitions int `json:"transitions,omitempty"`
+	Recent      int `json:"recent,omitempty"`
+	// Samples and Sessions are what it cost. AttentionMS is the current gap between
+	// readings, which grows while nothing changes.
+	Samples     int   `json:"samples,omitempty"`
+	Sessions    int   `json:"sessions,omitempty"`
+	AttentionMS int64 `json:"attention_ms,omitempty"`
+}
+
+// ObserveAmbient turns ambient watching on or off, or asks what it is doing.
+//
+// One request with three shapes rather than three verbs: they are the same lifecycle asked about
+// three ways, and a separate protocol entry for each would be three things to keep in agreement.
+type ObserveAmbient struct {
+	// Enable and Disable are the lifecycle. Neither set is a status read.
+	Enable  bool `json:"enable,omitempty"`
+	Disable bool `json:"disable,omitempty"`
 }

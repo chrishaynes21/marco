@@ -164,6 +164,10 @@ type Runtime struct {
 	// `director rehearse` uses the recording host unless `--live` is given, and nothing
 	// below cmd/director can obtain this field. See [[ADR-024-a-dry-step-is-not-evidence]].
 	liveMarco directorapi.MarcoRunner
+	// watching is the ambient observation supervisor, built on first use. One per Runtime,
+	// which is one per Director, which is one per home -- see ADR-092.
+	watching     *ambientObserver
+	watchingOnce sync.Once
 	// pinnedWindow, when set, is the EXPLICITLY selected window for the pass in flight.
 	// It overrides "whatever is in front" for exactly the duration of that pass — see
 	// ReadVision and activeWindow. Guarded by mu, which the pass already holds.
@@ -993,6 +997,17 @@ func (r *Runtime) Close() {
 		// Unhooks and stops the worker. A low-level hook that outlived its process would
 		// be the kind of leak nobody notices until the keyboard misbehaves.
 		_ = r.navSource.Close()
+	}
+	// AND AMBIENT WATCHING STOPS WITH THE DIRECTOR.
+	//
+	// A supervisor goroutine that outlived its Runtime would go on sampling a desktop for a
+	// home nobody owns any more — and since 35E the home's claim is released the moment the
+	// process ends, so the next Director could be watching the same screen while this one's
+	// orphan still was.
+	//
+	// Deleting this must fail TestShuttingDownStopsWatching.
+	if r.watching != nil {
+		r.DisableAmbient()
 	}
 }
 

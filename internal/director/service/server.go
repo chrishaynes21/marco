@@ -63,6 +63,13 @@ type Runtime interface {
 	Graph() actiongraph.Graph
 	// Providers reports accessibility lifecycle.
 	Providers() []ProviderStatus
+	// AmbientStatus is whether ambient observation is on, and what it has noticed.
+	//
+	// A READ, in the same sense as World and Playbill: it copies state that already exists,
+	// starts nothing and stops nothing. That matters more here than elsewhere — a status
+	// surface that started watching in order to report on watching would be the worst possible
+	// answer to the question it was asked. See ADR-093.
+	AmbientStatus() AmbientView
 	// Perception reports what the observation providers and the fusion engine did.
 	// Diagnostics only: nothing plans from it, and the service does not interpret it.
 	Perception() diagnostics.Perception
@@ -843,6 +850,7 @@ func (s *Server) status() StatusPayload {
 		Uptime:       time.Since(s.startedAt).Round(time.Second),
 		Version:      ProtocolVersion,
 		Providers:    s.runtime.Providers(),
+		Watching:     s.runtime.AmbientStatus(),
 		Conversation: s.convo.Summary(),
 		Values:       activeValuesOf(s.runtime),
 		Collections:  activeCollectionsOf(s.runtime),

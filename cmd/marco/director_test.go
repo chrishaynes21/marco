@@ -123,7 +123,8 @@ func (s *stubRuntime) RunOperation(context.Context, marcoexec.Operation) marcoex
 	return marcoexec.Result{}
 }
 
-func (s *stubRuntime) OCRUnavailable() string { return "" }
+func (s *stubRuntime) OCRUnavailable() string             { return "" }
+func (s *stubRuntime) AmbientStatus() service.AmbientView { return service.AmbientView{} }
 
 func (s *stubRuntime) Graph() actiongraph.Graph            { return s.graph }
 func (s *stubRuntime) Providers() []service.ProviderStatus { return nil }

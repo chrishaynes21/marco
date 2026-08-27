@@ -139,6 +139,10 @@ lands in a slot the cadence gate declined.
 ## Decisions
 
 - [[ADR-010-passive-observation-cannot-execute]]
+- [[ADR-093-observe-is-attention-not-recording]] — `marco observe` is the ambient lifecycle:
+  one supervisor on the one substrate, the ZERO licence so nothing it sees becomes durable,
+  a transient buffer whose size tracks novelty rather than time, and no authority or desktop
+  lease of any kind
 - [[ADR-003-evidence-authority-by-source]]
 - [[ADR-012-presence-is-state-relative]]
 - [[ADR-013-navigation-is-meaning-not-keys]]
