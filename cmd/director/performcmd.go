@@ -55,6 +55,14 @@ func runPerform(args []string) int {
 		return 0
 	}
 
+	// WHAT THE WORDS COULD HAVE MEANT, when Marco refused to guess between them.
+	//
+	// Before the steps, because there are none: this refusal happens before anything moves,
+	// and the person needs the choice rather than an explanation of a walk that did not
+	// happen.
+	for _, c := range v.Candidates {
+		fmt.Printf("  %q in %s\n", c.Name, c.Application)
+	}
 	// WHAT HAPPENED, step by step, because a route that got half way is a different fact
 	// from one that never started.
 	for i, s := range v.Steps {

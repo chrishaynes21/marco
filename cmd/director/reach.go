@@ -56,12 +56,33 @@ func (r *Runtime) Reach(q service.ObserveReach) (service.ReachView, error) {
 		break
 	}
 	g.mu.RUnlock()
-	if memory == nil || application == "" {
+	if memory == nil {
 		return service.ReachView{}, fmt.Errorf("nothing has been observed yet")
 	}
 	goals, ok := memory.(observe.GoalStore)
 	if !ok {
 		return service.ReachView{}, fmt.Errorf("this Director keeps no learned outcomes")
+	}
+	// EVERY APPLICATION HOLDING OUTCOMES, when nobody named one and no session did either.
+	//
+	// # Why the diagnostic has to be able to answer cold
+	//
+	// This used to refuse with "nothing has been observed yet" whenever no session had run —
+	// which is every fresh Director. So the one command for asking what a phrase MEANS could
+	// not answer the question in exactly the state somebody asks it in: they have just started
+	// Marco and want to know what it knows.
+	//
+	// `PerformGoal` has always searched wider, because a learned outcome carries its own
+	// application and the store knows where it lives. The diagnostic searching narrower is
+	// how a diagnostic comes to disagree with the thing it describes.
+	//
+	// Deleting this must fail TestAskingWhatAPhraseMeansWorksBeforeAnythingHasBeenWatched.
+	search := []string{application}
+	if application == "" {
+		if q.Name == "" {
+			return service.ReachView{}, fmt.Errorf("nothing has been observed yet")
+		}
+		search = r.applicationsWithGoals(memory, goals, "")
 	}
 
 	out := service.ReachView{Application: application}
@@ -77,19 +98,38 @@ func (r *Runtime) Reach(q service.ObserveReach) (service.ReachView, error) {
 		return out, nil
 	}
 
-	var goal *observe.Goal
-	for _, have := range goals.Goals(application) {
-		if strings.EqualFold(have.Name, q.Name) {
-			copied := have
-			goal = &copied
-			break
+	// THE SAME LANGUAGE STEP `perform` USES, over the same store.
+	//
+	// This is the whole reason the diagnostic is worth having: asking what a phrase means must
+	// give the answer Marco would ACT on, not a second opinion arrived at by a similar-looking
+	// loop. The loop that used to be here was a similar-looking loop — it matched on the name
+	// only, ignored a subject id a caller supplied, and could not report that the words meant
+	// two things because it stopped at the first.
+	//
+	// Deleting the resolveGoal call must fail TestAskingWhatAPhraseMeansAnswersLikePerformWould.
+	res := resolveGoal(goals, search, service.PerformQuery{
+		Name: q.Name, Application: application,
+	})
+	if len(res.Ambiguous) > 0 {
+		out.Refusal = ambiguousWord
+		out.Say = sayAmbiguous(q.Name, res.Ambiguous)
+		for _, g := range res.Ambiguous {
+			out.Candidates = append(out.Candidates, service.OutcomeView{
+				Name: g.Name, Subject: g.Subject, Application: g.Application,
+			})
 		}
+		return out, nil
 	}
+	goal := res.Goal
 	if goal == nil {
 		return service.ReachView{}, fmt.Errorf("nothing has been learned under %q in %s",
 			q.Name, application)
 	}
 	out.Name, out.Subject = goal.Name, goal.Subject
+	// WHICH APPLICATION IT TURNED OUT TO BE IN, which the caller may not have known.
+	if res.Application != "" {
+		application, out.Application = res.Application, res.Application
+	}
 	out.Current, out.AsOf = current, asOf
 
 	top := memory.Topology(application)

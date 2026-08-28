@@ -61,6 +61,16 @@ type recentLearn struct {
 	Play *service.LearnedSaved `json:"play,omitempty"`
 	// Considered is how much of the trail selection looked at, for the diagnostics.
 	Considered int `json:"considered,omitempty"`
+	// Rebound is the subject this name USED to mean, and ReboundSaid is that in words.
+	//
+	// Two fields because they answer different readers: a client that wants to show the old
+	// destination needs the id, and a person needs the sentence.
+	//
+	// Empty in the ordinary case, which is a new name or the same name for the same outcome.
+	// A name coming to mean somewhere else is rebinding — deliberate, and the right rule —
+	// but it is invisible from the outside, so it travels here and gets said.
+	Rebound     string `json:"rebound_from,omitempty"`
+	ReboundSaid string `json:"rebound_said,omitempty"`
 }
 
 // LearnRecent promotes the demonstration somebody just gave, under the name they gave it.
@@ -184,6 +194,14 @@ func (r *Runtime) LearnRecent(q service.ObserveLearn) (recentLearn, error) {
 	//
 	// Deleting this must fail TestLearningRecentEvidenceRemembersTheGoal.
 	if gs, ok := memory.(observe.GoalStore); ok {
+		// WHAT IT USED TO MEAN, read BEFORE the write, because afterwards there is nothing
+		// left to read. See reboundFrom: the store rebinds on purpose and cannot report it.
+		//
+		// Deleting this must fail TestTeachingANameAgainSaysWhatItUsedToMean.
+		if was, changed := reboundFrom(gs, d.Application, name, terminal.to); changed {
+			out.Rebound = was
+			out.ReboundSaid = sayRebound(name, was, memory, d.Application)
+		}
 		if err := gs.RememberGoal(d.Application, observe.Goal{
 			Name: name, Subject: terminal.to,
 		}); err != nil {
@@ -278,6 +296,13 @@ func sayLearned(out recentLearn, registered bool) string {
 	if out.Established > 0 {
 		fmt.Fprintf(&b, " %d screen(s) I hadn't seen before are now ones I know.",
 			out.Established)
+	}
+	// AND WHAT THE NAME USED TO MEAN, when it used to mean something else.
+	//
+	// Before "you can ask me to do it", because the order is the point: somebody about to
+	// use a command needs to know it stopped being the old one first.
+	if out.ReboundSaid != "" {
+		b.WriteString(" " + out.ReboundSaid)
 	}
 	if registered {
 		b.WriteString(" You can ask me to do it.")

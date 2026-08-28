@@ -64,6 +64,26 @@ func runReach(args []string) int {
 	}
 
 	fmt.Println(v.Say)
+	// WHAT THE WORDS COULD EQUALLY HAVE MEANT, when they meant more than one thing.
+	//
+	// The list, not just the sentence: somebody choosing between two outcomes needs to see
+	// both, and the whole reason `perform` refuses here is that nobody should be guessing.
+	for _, c := range v.Candidates {
+		fmt.Printf("  %q in %s\n", c.Name, c.Application)
+	}
+	// AND THE WHOLE CHAIN, from words to route, because that is what this command is for.
+	//
+	// A person debugging "why did it go there" needs each hop named: which phrase matched,
+	// which outcome that is, which screen the outcome IS, and where Marco thinks they are
+	// standing. Any one of those being wrong looks identical from the outside.
+	if v.Subject != "" {
+		fmt.Printf("\n  %q → %s\n", v.Name, v.Subject)
+		if v.Current != "" {
+			fmt.Printf("  from %s\n", v.Current)
+		} else {
+			fmt.Println("  from nowhere Marco has resolved yet")
+		}
+	}
 	if len(v.Steps) > 0 {
 		for i, s := range v.Steps {
 			fmt.Printf("  step %d: %s → %s\n", i+1, s.From, s.To)

@@ -6102,3 +6102,65 @@ survived all seventeen one-graph gates, because none of them ever handed the tra
 The store is idempotent by signature, so nothing would break today — which is precisely why no
 test could see it. `TestAnExplicitLearnOverFamiliarScreensEstablishesNothing` walks the second
 afternoon instead, and the mutation dies.
+
+## 36D: language names the outcome — three defects in the thinnest layer
+
+36C.2 proved the two layers below this one: one canonical graph, taught through either door, with
+the route chosen at invocation from wherever somebody is standing. What sits above is the step
+where words become a destination, and the audit went looking for the first boundary that stops
+natural goal association from working.
+
+It found three, all in the same place, and all of them silent.
+
+**One phrase meaning two things resolved by sort order.** `PerformGoal` searched every application
+holding goals, sorted, and took the first match. Measured: two outcomes named "open settings", one
+in Windows Settings and one in a mail client, resolved to `mail` — because `m` sorts before `s`.
+The person who taught it in Settings would have had their mail client brought forward and a route
+walked in it, and nothing anywhere would have said so. Deterministic is not the same as right; a
+sort order is not evidence about which afternoon somebody is having. It is now
+`ambiguous_outcome`, refused before anything is brought forward, naming both applications and the
+flag that answers the question.
+
+**A name that stopped meaning what it meant said nothing.** The store REBINDS a reused name rather
+than refusing — deliberately, for a reason measured live on 2026-08-17: a goal left behind by a
+*failed* learn held its name hostage, so refusing punished the person for Marco's own earlier
+failure. That rule is right and none of this touched it. What was missing was the saying. Measured:
+teach "mouse settings" for one screen, teach it again for another, and Marco replies
+
+> "I saw what you did. Learned it as mouse-settings. 2 screen(s) I hadn't seen before are now ones
+> I know. Still watching."
+
+Not one word about the name having meant somewhere else. They would believe they had two commands.
+`observe.ReboundFrom` is now read before the write on both Learn paths and travels to the person.
+Rebinding is still what happens; silence is not.
+
+**The diagnostic and the performer were two loops.** `director reach` exists so somebody can ask
+what Marco would do without Marco doing it, which is only worth having if it is the *same* answer.
+It was a second similar-looking loop: name-only, first-match, unable to honour a supplied identity
+and unable to report ambiguity. Somebody debugging "why did it go to the wrong place" would have
+been told the right place by a tool that could not see the defect. There is one `resolveGoal` now,
+and `PerformGoal` and `Reach` both call it.
+
+**The mutation gate then found a fourth, in my own fix.** The shared-resolver claim in `reach`
+survived — because `reach` searched one application, and within one application a name means one
+outcome, so the copy and the shared rule behaved identically. The claim was decorative. Fixing it
+properly also fixed a real limitation: `reach` derived its application from the last finished
+session and refused with "nothing has been observed yet" on a fresh Director — which is exactly
+the state somebody asks in. It now searches every application holding outcomes when nobody names
+one, the same way `PerformGoal` always has, and the ambiguity refusal became reachable there.
+
+**And one guard nearly went unheld for the same reason as 36C.1's timestamp.** `resolveGoal`
+refuses an empty phrase. `RememberGoal` will not write a nameless goal, so nothing this Marco
+produces can match one — but the store is a file, and the loader drops only goals whose SUBJECT is
+gone. A nameless goal survives a load, and then asking Marco for nothing would fold-compare equal
+to it and resolve to a real destination it would walk to. The test writes that file.
+
+**Aliases needed nothing built.** Two names for one destination are two goal records pointing at
+one subject: two user-facing names, one outcome, no duplicate topology, no duplicate destination.
+The representation was already there; what was missing was a gate saying both work, neither is
+weakened by the other, and forgetting one leaves the other and everything they both point at.
+
+Twenty mutations, twenty killed. No new store, no new planner, no NLP, no LLM, and no
+foreground-preference disambiguation — reading which application is in front and quietly preferring
+its goal is tempting and is resolution context being smuggled into identity. Refusing with the
+choice named is the honest first behaviour, and the other is recorded as a follow-on.

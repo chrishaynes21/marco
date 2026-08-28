@@ -973,3 +973,61 @@ func TestTheDiagnosticLinesAreExactlyTheAccountRendered(t *testing.T) {
 			"about the rendering; the unrecognised-start path is supposed to record five")
 	}
 }
+
+// REUSING A NAME SAYS WHAT IT USED TO MEAN.
+//
+// # The silence this closes
+//
+// A name that already means somewhere else is REBOUND by the store rather than refused, for a
+// reason measured live on 2026-08-17: a goal left behind by a failed learn held its name hostage,
+// so refusing punished the person for Marco's own earlier failure. That rule stands.
+//
+// What was missing is the saying. Marco finished with "I learned X. You can ask me to do it
+// later." and nothing about X having stopped meaning what it meant — so somebody would believe
+// they had two commands, and the old one would silently be the new one.
+//
+// Deleting the observe.ReboundFrom read, or the Complete-phase sentence, must fail this.
+func TestReusingANameSaysWhatItUsedToMean(t *testing.T) {
+	route := observe.RelationshipRef{From: startSubject, To: endSubject}
+	m := &goalMemory{fakeMemory: newMemory()}
+	// The name already means somewhere else, the way it would after an earlier learn.
+	m.goals = []observe.Goal{{Name: "open downloads", Subject: "subj_somewhere_else"}}
+
+	p := &scriptedPasses{
+		results: []observesession.Result{placedResult("observe_1"), placedResult("observe_2")},
+		onPass: func(n int) {
+			if n == 1 {
+				m.edges[route] = m.edges[route] + 1
+			}
+		},
+	}
+	c := learn.New("open downloads", p, m, learn.Bounds{Dwell: time.Second, Watch: time.Second})
+	c.Advance(context.Background())
+	s := c.Advance(context.Background())
+	if s.Phase == learn.Refused {
+		t.Fatalf("refused: %s", s.Refusal)
+	}
+	if s.ReboundFrom != "subj_somewhere_else" {
+		t.Fatalf("the session says the name used to mean %q; it meant subj_somewhere_else",
+			s.ReboundFrom)
+	}
+
+	// AND THE PERSON IS TOLD, at the phase where they are told what was learned.
+	done := s
+	done.Phase = learn.Complete
+	said := done.Say()
+	if !strings.Contains(said, "used to mean") {
+		t.Errorf("what the person reads does not say the name changed meaning: %q", said)
+	}
+	// AND NOT WHERE, because Normal never names a subject id.
+	if strings.Contains(said, "subj_") {
+		t.Errorf("the Normal line names a subject id: %q", said)
+	}
+
+	// A FIRST USE SAYS NOTHING, so the sentence stays meaningful.
+	fresh := done
+	fresh.ReboundFrom = ""
+	if plain := fresh.Say(); strings.Contains(plain, "used to mean") {
+		t.Errorf("an ordinary learn claims a name changed meaning: %q", plain)
+	}
+}

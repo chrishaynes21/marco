@@ -1207,14 +1207,21 @@ type ReachView struct {
 	// KnownUnverified says a chain exists on observed evidence that has not all been
 	// rehearsed — "I know a way, and I haven't earned every step of it yet."
 	KnownUnverified bool `json:"known_unverified,omitempty"`
+	// Candidates is what the words could equally have meant, when they meant more than one
+	// thing. The diagnostic answer to the question `perform` refuses to guess at.
+	Candidates []OutcomeView `json:"candidates,omitempty"`
 	// Say is the Normal-mode sentence.
 	Say string `json:"say,omitempty"`
 }
 
 // OutcomeView is one learned outcome.
 type OutcomeView struct {
-	Name           string `json:"name"`
-	Subject        string `json:"subject"`
+	Name    string `json:"name"`
+	Subject string `json:"subject"`
+	// Application is where this outcome lives. Empty in a single-application listing, where
+	// the view already says which one, and always present in a candidate list — the whole
+	// point of which is that the outcomes are in DIFFERENT applications.
+	Application    string `json:"application,omitempty"`
 	Demonstrations int    `json:"demonstrations,omitempty"`
 }
 
@@ -1725,6 +1732,13 @@ type PerformView struct {
 	// Deleting the cancelled wording must fail TestStoppingAPerformanceReportsItAsCancelled.
 	Refusal string `json:"refusal,omitempty"`
 	Say     string `json:"say,omitempty"`
+	// Candidates is what the words could equally have meant, present only with the
+	// `ambiguous_outcome` refusal.
+	//
+	// NAMED, because "that was ambiguous" is not something anybody can act on. A person who
+	// taught one phrase in two applications needs to be told which two, and a client that
+	// wants to put the choice in front of them needs the list rather than the sentence.
+	Candidates []OutcomeView `json:"candidates,omitempty"`
 	// Command is the registry id this performance ran under, so `director status`, a
 	// CANCEL_ACTIVE and this view all name the same thing. Empty when nothing was begun.
 	Command CommandID `json:"command,omitempty"`

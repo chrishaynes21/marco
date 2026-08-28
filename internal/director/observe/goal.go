@@ -1,6 +1,9 @@
 package observe
 
-import "sort"
+import (
+	"sort"
+	"strings"
+)
 
 // A GOAL is a destination, remembered in the user's own words — the correction Roadmap 34
 // exists to make.
@@ -49,6 +52,44 @@ type Goal struct {
 	// Demonstrations counts how many times reaching it has been shown. Lineage for a
 	// report, never confidence: two demonstrations of a goal verify nothing about any edge.
 	Demonstrations int `json:"demonstrations,omitempty"`
+}
+
+// ReboundFrom is what a name USED to mean, when learning it again would change that.
+//
+// # Why this is a separate reading and not the store's answer
+//
+// `RememberGoal` REBINDS rather than refusing, deliberately and for a measured reason: a goal left
+// behind by a failed learn made its name unusable, so refusing punished somebody for Marco's own
+// earlier failure. That decision stands and this does not touch it.
+//
+// What was missing is the SAYING. The write reports an error or nothing, so a person who taught
+// one phrase for one screen and later taught it for another was told the new thing was learned and
+// nothing at all about the old thing being gone. They would believe they had two commands.
+//
+// So the reading happens BEFORE the write — afterwards there is nothing left to read — and it is
+// one function rather than a copy in each Learn path. It is pure: a fact about a list of goals,
+// with no store, no clock and nothing it could change.
+//
+// Reports the old subject and true ONLY when the meaning is about to move. The same name for the
+// same outcome is a repeat demonstration, which is lineage rather than a change of meaning.
+//
+// Deleting this must fail cmd/director's TestTeachingANameAgainSaysWhatItUsedToMean and
+// learn's TestReusingANameSaysWhatItUsedToMean.
+func ReboundFrom(existing []Goal, name, subject string) (string, bool) {
+	name = strings.TrimSpace(name)
+	if name == "" || subject == "" {
+		return "", false
+	}
+	for _, have := range existing {
+		if !strings.EqualFold(strings.TrimSpace(have.Name), name) {
+			continue
+		}
+		if have.Subject == subject {
+			return "", false
+		}
+		return have.Subject, true
+	}
+	return "", false
 }
 
 // GoalStore is where goals become durable.

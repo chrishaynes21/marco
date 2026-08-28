@@ -86,21 +86,32 @@ func (r *Runtime) PerformGoal(ctx context.Context, q service.PerformQuery) (serv
 	//
 	// Deleting the search across applications must fail TestAColdProcessFindsItsWindowOnTheDesktop.
 	application := strings.TrimSpace(q.Application)
-	var goal *observe.Goal
-	for _, app := range r.applicationsWithGoals(memory, goals, application) {
-		for _, have := range goals.Goals(app) {
-			if !namesOutcome(have, q) {
-				continue
-			}
-			copied := have
-			goal, application = &copied, app
-			break
-		}
-		if goal != nil {
-			break
-		}
+	// THE LANGUAGE STEP, and it is one function shared with the diagnostic.
+	//
+	// `director reach` asks the identical question of the identical store, so what Marco says
+	// a phrase means and what it acts on cannot come apart. Two spellings of one rule is one
+	// rule with two futures, and the one nobody edits is the one that goes wrong quietly.
+	//
+	// Deleting the resolveGoal call must fail TestOnePhraseInTwoApplicationsIsAQuestionNotAGuess.
+	res := resolveGoal(goals, r.applicationsWithGoals(memory, goals, application), q)
+	goal := res.Goal
+	if res.Found() {
+		application = res.Application
 	}
 	out := service.PerformView{Application: application, Goal: q.Name}
+	if len(res.Ambiguous) > 0 {
+		// A QUESTION, not a guess, and nothing has moved. Bringing an application forward
+		// on the strength of a sort order is how somebody's mail client gets walked
+		// because `m` comes before `s`.
+		out.Refusal = ambiguousWord
+		out.Say = sayAmbiguous(askedFor(q), res.Ambiguous)
+		for _, g := range res.Ambiguous {
+			out.Candidates = append(out.Candidates, service.OutcomeView{
+				Name: g.Name, Subject: g.Subject, Application: g.Application,
+			})
+		}
+		return out, nil
+	}
 	if goal == nil {
 		out.Refusal = "not_learned"
 		out.Say = fmt.Sprintf("I haven't learned how to reach %q.", askedFor(q))

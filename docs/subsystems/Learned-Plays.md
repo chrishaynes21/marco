@@ -59,7 +59,10 @@ And it registers as a **focus** route, not a context one — a learned play is a
 wherever the Audience happens to be, and the Director brings its application forward itself.
 Registered as context it resolved only while that application was already in front, which meant
 Marco offering to Learn a play it had just learned. See
-[[ADR-080-a-learned-play-is-asked-for-from-anywhere]].
+[[ADR-080-a-learned-play-is-asked-for-from-anywhere]]. What that phrase MEANS, and how the words
+become a destination, is [[ADR-097-language-names-the-outcome-the-graph-decides-the-way]]: the
+graph tells Marco how the computer can move, the goal tells it what outcome somebody wants, and
+the route is chosen at the moment of asking.
 
 ## The three things that are not each other
 

@@ -150,10 +150,12 @@ strengthens the same edge rather than making another.
    "forgetting a play is not forgetting what Marco saw" is therefore holding a property that is
    currently structural — worth keeping, because the first delete anybody adds is when it stops
    being.
-3. **Ranking is shortest-chain and nothing else.** A later direct edge wins over a two-edge route
+3. **The language layer above this is [[ADR-097-language-names-the-outcome-the-graph-decides-the-way]].**
+   It is where a phrase becomes a destination, and it must never come to know about routes.
+4. **Ranking is shortest-chain and nothing else.** A later direct edge wins over a two-edge route
    because it is shorter, not because anything weighed evidence. Preferring an edge Marco has
    verified over one it has only watched is a real question and is not this roadmap's.
-4. **Live acceptance is UNMEASURED**, as it is for 36A, 36B and 36C. `acceptance-36c2.ps1` is the
+5. **Live acceptance is UNMEASURED**, as it is for 36A, 36B and 36C. `acceptance-36c2.ps1` is the
    north-star check and it is deliberately small: teach one way into a screen, walk another
    without teaching it, and read the graph. Everything else this ADR claims is held by
    deterministic tests, which is where a claim belongs when a test can hold it.

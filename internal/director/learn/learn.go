@@ -337,6 +337,12 @@ type Session struct {
 	Actor, Verb string
 	// Application is what the first pass turned out to be watching.
 	Application string
+	// ReboundFrom is the subject Name USED to mean, when learning it again moved the meaning.
+	//
+	// Empty in the ordinary case. Held here rather than only noted, because the Normal line
+	// and the Watch panel are both derived from this one value and a person about to use a
+	// command needs to know it stopped being the old one.
+	ReboundFrom string
 	Phase       Phase
 	Refusal     Refusal
 	// Start is the place established before the user was told to go ahead.
@@ -885,6 +891,18 @@ func (c *Coordinator) discover(ctx context.Context) {
 	// store implements it. Deleting this write must fail
 	// TestLearningRecordsTheDestinationAsAGoal.
 	if gs, ok := c.memory.(observe.GoalStore); ok {
+		// WHAT THE NAME USED TO MEAN, read before the write because afterwards it is gone.
+		//
+		// Rebinding is the right rule and it is invisible from outside; somebody reusing a
+		// phrase for a different screen would otherwise be told the new thing was learned
+		// and nothing about the old thing ceasing to exist. See observe.ReboundFrom.
+		//
+		// Deleting this must fail TestReusingANameSaysWhatItUsedToMean.
+		if was, changed := observe.ReboundFrom(gs.Goals(c.s.Application),
+			c.s.Name, c.s.Route.To); changed {
+			c.s.ReboundFrom = was
+			c.note("goal rebound: " + quote(c.s.Name) + " used to reach " + was)
+		}
 		if err := gs.RememberGoal(c.s.Application, observe.Goal{
 			Name: c.s.Name, Subject: c.s.Route.To,
 		}); err != nil {

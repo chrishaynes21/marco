@@ -66,6 +66,17 @@ func (s Session) Say() string {
 		}
 		return "Writing it down…"
 	case Complete:
+		// AND WHAT THE NAME STOPPED MEANING, when it used to mean something else.
+		//
+		// First, before "you can ask me to do it": somebody about to use a command needs to
+		// know it is no longer the old one. No subject id — Normal never names one — so this
+		// says THAT the meaning moved and leaves WHERE it moved from to the Watch panel.
+		//
+		// Deleting this must fail TestReusingANameSaysWhatItUsedToMean.
+		if s.ReboundFrom != "" {
+			return "I learned " + quote(s.Name) + ". It used to mean a different screen, " +
+				"and now it means this one. You can ask me to do it later."
+		}
 		return "I learned " + quote(s.Name) + ". You can ask me to do it later."
 	case Cancelled:
 		return "Stopped. I haven't kept anything from that."

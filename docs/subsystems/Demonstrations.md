@@ -75,6 +75,10 @@ that control, though a saved play still cannot say it (`cannot_say_pointer`, fol
 - [[ADR-053-a-search-box-on-the-last-page-is-not-a-step]]
 - [[ADR-054-the-one-shot-candidate-belongs-to-the-session]]
 - [[ADR-056-a-goal-is-a-destination-not-a-route]]
+- [[ADR-097-language-names-the-outcome-the-graph-decides-the-way]] — the layer above the graph:
+  one resolver shared by the performer and the diagnostic, a phrase that means two things is a
+  question rather than a sort order, a reused name says what it used to mean, and aliases are
+  two names over one destination with no duplicate topology
 - [[ADR-096-observe-and-learn-are-two-doors-into-one-graph]] — Observe and Learn differ in
   acquisition INTENT and not in what they produce: both write canonical Places, Targets and
   Edges into one store, an edge's identity is its two endpoints and nothing else, and a Play is
