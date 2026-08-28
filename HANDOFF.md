@@ -6024,3 +6024,81 @@ Three more were reported BROKEN by the verified-apply check — the attack file 
 separator and the perl alternation in three expressions contained one. A gate that had silently
 called those three "survived" would have sent me looking for coverage that already existed; the
 verified apply is why it did not.
+
+## 36C.2: Learn teaches the graph — the boundary that was not there
+
+36C.1 established the model on the ambient side: what watching learns is a semantic graph edge, and
+edges watched apart compose into routes nobody demonstrated. This roadmap went looking for the same
+correction on the explicit Learn side, expecting to find a private route store and remove it.
+
+**It was not there.** The audit traced every Learn entrance to the same store, through the same
+identity test, into the same planner:
+
+- A live `marco learn "…"` is an ordinary observation session carrying `LearnLicence()`. The runner
+  writes places through `PlaceStore.EstablishPlace` and edges through
+  `Memory.RememberRelationships` — **one observation per transition**, endpoints resolved by
+  `Recall`, which is `CompareStructure`.
+- `marco learn "…" --recent` builds a `promotion` — 36B's licence-gated admission object — and
+  admits **one candidate per leg**.
+- Ambient promotion builds the identical object and admits one candidate per promoted edge.
+- An edge's identity is `(application, from-subject, to-subject)`. No name, no episode, no session,
+  no timestamp, no coordinate.
+- A goal has no start. It is a name bound to a destination subject, decided by ADR-056 in the
+  goal-centric roadmap and already correct.
+
+So the deliverable is the proof, not the correction — and the proof is what was missing.
+
+**The seam had never been crossed by a test.** Every Learn test drove Learn; every Observe test
+drove Observe. Nothing in seventy-odd packages had ever taught one edge through one door, the next
+edge through the other, and asked the planner to walk both. That is the case a person reaches on
+their second afternoon, and it is exactly the case a second graph would break. The mutation that
+namespaces explicit Learn into `settings_learned` — the most literal possible "second graph" —
+survived the whole suite before this roadmap, and dies now.
+
+`cmd/director/onegraph_test.go` is eighteen gates through the two production doors against one
+store: both compose orders, both duplicate orders, a route entered halfway, another way in found
+later by watching alone, a shorter way found later that the demonstration does not veto, two names
+over one route duplicating nothing, and the edges surviving both the episode and the process.
+
+**Two things were genuinely at risk and are now held.** Prospective Learn establishes places at a
+different call site from the promotion boundary — two call sites, one store — so a drift between
+them would have produced a second copy of every screen somebody had both walked past and been
+shown, with every existing test still green. And the mutation that re-mints a place the other mode
+established now dies against a real licensed pass driven through the production registry.
+
+**The Play was audited rather than assumed, because it was the likeliest place to find private
+route knowledge.** A learned Play is a registered phrase plus a readable generated `.marco` file
+with an entry guard on one screen and a fixed sequence of presses — genuinely route-shaped. It is
+not the execution path. Asking for one by name goes: resolver → `performLearned`, which refuses to
+run the file locally → `PerformGoal`, which resolves the name to a destination, brings the
+application forward, takes a **fresh look at where the person actually is**, and asks
+`observe.PlanToGoal` over the canonical topology. Measured: the same goal asked from Home and from
+Printers & scanners produces two different first steps.
+
+**The compatibility debt, recorded rather than hidden.** The saved `.marco` still describes one way
+in from one starting screen and is not regenerated as the graph improves, so somebody reading it
+reads the demonstration rather than what Marco would now do. That is a readability gap and not an
+ownership gap — deleting the entire routes tree leaves the graph, the goal and the plan intact, and
+there is a gate that does exactly that.
+
+**A structural finding worth naming:** the semantic store has no delete path at all. Forgetting a
+play unregisters a phrase and *cannot* reach the topology, because there is nothing to reach it
+with. The gate that holds "forgetting a play is not forgetting what Marco saw" is therefore holding
+a property that is currently structural. It is worth keeping precisely because the first delete
+anybody adds is the moment it stops being.
+
+**And a false survivor the verified-apply check could not catch.** The first attempt at that gate's
+mutation established a place from a signature carrying only a member count. The edit applied — so
+the harness called it a survivor — but the store refused the under-described signature, so the
+mutation did nothing at all. A no-op that changes bytes is not a no-op the byte comparison can see;
+only reading the survivor and asking "would this actually have done anything" catches it. Rerun
+with a signature the store accepts, it dies.
+
+**And one gate that could not see the arm it was aimed at.** Every fixture in the new file walks
+COLD ground — screens the observer can describe and not name — because that is what a first
+afternoon looks like. The admission boundary has a second arm for the other case: a key the
+observer already recognises IS the subject, and there is nothing to establish. Deleting that arm
+survived all seventeen one-graph gates, because none of them ever handed the trail a subject id.
+The store is idempotent by signature, so nothing would break today — which is precisely why no
+test could see it. `TestAnExplicitLearnOverFamiliarScreensEstablishesNothing` walks the second
+afternoon instead, and the mutation dies.

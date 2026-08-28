@@ -153,6 +153,10 @@ lands in a slot the cadence gate declined.
   than a gate in front of it, a candidate ledger that is not knowledge, no contradiction, the
   same admission boundary an explicit Learn uses, and no name invented for anything. Edges
   learned in different sessions compose into routes nobody demonstrated as a whole
+- [[ADR-096-observe-and-learn-are-two-doors-into-one-graph]] -- and explicit Learn writes the
+  SAME graph: one store, one identity test, one planner. What differs is the licence and the
+  intent, never the knowledge. Edges taught through one door compose with edges taught through
+  the other, in either order, with no duplicate topology
 - [[ADR-003-evidence-authority-by-source]]
 - [[ADR-012-presence-is-state-relative]]
 - [[ADR-013-navigation-is-meaning-not-keys]]

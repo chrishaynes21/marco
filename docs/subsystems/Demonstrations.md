@@ -75,6 +75,10 @@ that control, though a saved play still cannot say it (`cannot_say_pointer`, fol
 - [[ADR-053-a-search-box-on-the-last-page-is-not-a-step]]
 - [[ADR-054-the-one-shot-candidate-belongs-to-the-session]]
 - [[ADR-056-a-goal-is-a-destination-not-a-route]]
+- [[ADR-096-observe-and-learn-are-two-doors-into-one-graph]] — Observe and Learn differ in
+  acquisition INTENT and not in what they produce: both write canonical Places, Targets and
+  Edges into one store, an edge's identity is its two endpoints and nothing else, and a Play is
+  a registered phrase plus a readable artifact rather than the execution path
 - [[ADR-057-attributed-input-survives-interpretation]]
 - [[ADR-065-operating-marco-is-not-demonstrating-to-it]]
 - [[ADR-066-stop-is-a-product-event]]
