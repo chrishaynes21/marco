@@ -91,6 +91,19 @@ and `text` and `image` are not structural at all. It carries **10 of the 100 sco
 taken out of structural usefulness (30 → 20) rather than added beside it, because structure
 that cannot be named was being paid for twice.
 
+## Admission — and why the detector is still in the shadows
+
+[[ADR-101-visual-presence-is-not-legal-actionability]] recorded the decision:
+`SCREENPARSER_DECISION = REMAIN_SHADOW_ONLY`. The model is now on disk, but no ONNX Runtime is
+installed on the measuring machine, so the corpus comparison, stability runs and calibration that
+admission requires cannot produce a number — and the ADR lists exactly what would be needed to
+reconsider.
+
+It also closed the hole admission would have fallen into: `Targetable()` derived capability from
+role alone, so a detector rectangle classified `button` read as legally targetable with nothing
+having claimed a mechanism to press it. Affordance and capability are now separate questions, and
+the second is decided from provenance.
+
 ## Related systems
 
 - [[Fusion]] — weights these claims down deliberately

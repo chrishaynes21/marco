@@ -161,10 +161,51 @@ func TestTheGateNamesWhatWasInsufficient(t *testing.T) {
 	lower := strings.ToLower(d.Reason)
 	for _, want := range []string{
 		"visible", "quality", "confidence", "sourc", "identif", "evidence", "weak",
+		// AND THE MOST SPECIFIC ANSWER OF ALL, added when the actionability firewall
+		// landed: a window whose controls only a camera saw is refused BEFORE the
+		// quality gate, and "no accessibility information" names the cause exactly
+		// rather than describing its symptom as weak evidence.
+		"accessibility",
 	} {
 		if strings.Contains(lower, want) {
 			return
 		}
 	}
 	t.Errorf("the reason does not say what was insufficient: %q", d.Reason)
+}
+
+// THE GATE SAYS WHEN ONLY A CAMERA SAW IT.
+//
+// # Two windows, one Blind(), opposite responses
+//
+// A window with nothing in it and a window full of controls that only a visual detector
+// reported both have no targetable element. The first is empty; the second Marco can see
+// perfectly well and has no mechanism to work.
+//
+// Told only "nothing here can be operated", a person looking at a screen full of buttons would
+// reasonably conclude their application was broken. The honest answer is that accessibility did
+// not describe it — and that is the answer that would matter most on the day a visual detector
+// is admitted to fusion.
+//
+// Deleting the pixel-only branch must fail this.
+func TestTheGateSaysWhenOnlyACameraSawIt(t *testing.T) {
+	now := time.Now()
+	w := perceive(t, now, directorapi.SourceVision, 0.9)
+
+	step, target := click(w)
+	d := engineAt(now).EvaluateStep(context.Background(), step, target, w)
+	if d.Allowed && !d.RequiresConfirmation {
+		t.Fatal("a control only a camera saw was allowed outright")
+	}
+	lower := strings.ToLower(d.Reason)
+	if !strings.Contains(lower, "accessibility") {
+		t.Errorf("the refusal does not say the window was described by the screen alone: %q",
+			d.Reason)
+	}
+	// AND IT DOES NOT SAY THE WINDOW IS EMPTY, which is the wrong half of Blind() and the
+	// one that sends somebody to look for a fault in their application.
+	if strings.Contains(lower, "nothing in this window") {
+		t.Errorf("a window full of visible controls was described as having none: %q",
+			d.Reason)
+	}
 }

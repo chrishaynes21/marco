@@ -458,3 +458,31 @@ func (t TargetProvenance) Matches(expected TargetProvenance) bool {
 
 // TargetScoped reports whether this observation describes the validated target.
 func (o Observation) TargetScoped() bool { return o.Scope != ScopeGlobal }
+
+// OnlyDescribesPixels reports that every source which reported this element describes what the
+// screen LOOKS like, and none of them can say how to operate it.
+//
+// The provenance-side half of the affordance/capability distinction — see
+// Actionability.Targetable and ActuatingSource.
+//
+// # Why this is phrased as a denial
+//
+// It answers false for an element with no provenance at all, and that is deliberate rather than
+// an oversight. "Nobody recorded where this came from" and "only a camera saw it" are different
+// claims: the first describes a hand-built query, a capability pack's enrichment or a fixture,
+// and refusing those would break every caller that constructs an element rather than observing
+// one — measured, five of them, the moment it was tried the other way round.
+//
+// So the rule denies on POSITIVE evidence: every source is a pixel source, therefore nothing
+// here has claimed a mechanism. That is the exact shape of the risk it exists for.
+func (p Provenance) OnlyDescribesPixels() bool {
+	if len(p.Sources) == 0 {
+		return false
+	}
+	for _, ref := range p.Sources {
+		if ActuatingSource(ref.Source) {
+			return false
+		}
+	}
+	return true
+}

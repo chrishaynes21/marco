@@ -6359,3 +6359,57 @@ change the offering: two elements that tie on geometry, role and label produce b
 `navsource.Actionable` values, so which one survives truncation is unobservable at this seam. The
 line stays because a non-total comparator is undefined behaviour, and the mutation is equivalent
 because it is.
+
+## 37B: visual presence is not legal actionability — and ScreenParser stays in the shadows
+
+The roadmap asked whether ScreenParser's evidence has earned a seat at fusion. The audit found
+two things, and the second changed what the roadmap was for.
+
+**The measurement cannot be taken here.** ScreenParser is opt-in behind three environment
+variables and is nil on an ordinary Director. The model is now on disk —
+`tools/vision-export/weights/screenparser-1280.onnx`, 97.4 MB, which was missing when
+Experiment-010 last looked — but **no ONNX Runtime shared library is installed**, so the detector
+refuses before it starts. Every number the roadmap asks for — match rate, conflict rate,
+stability, per-class calibration, cost — has no way to be produced. Fabricating them was the one
+thing forbidden above all, so they are reported UNMEASURED and the decision follows from that.
+
+**The firewall admission would have needed did not exist.** `Element.Actions()` derives capability
+from ROLE — a thing whose role is `button` is `Invokable` — and `Targetable()` asked only
+`Enabled && ClickableByBounds && Any()`. So an element whose entire evidence was a detector
+classifying a rectangle as `button` read as **legally targetable**, with nothing anywhere having
+claimed a mechanism to press it. Unreported state defaults to usable and any visible box is
+clickable-by-bounds, so a detection needed nothing else.
+
+It was safe only because ScreenParser is shadow-only. **A safety property that depends on an
+experiment's configuration is not a safety property** — it would have evaporated silently the
+moment anyone did what this roadmap was asking about, and no existing test could have seen it.
+
+Affordance and capability are now separate questions. `Actuable` is decided from provenance:
+accessibility, native, DOM and plugin sources can say how to operate a control; a vision detector
+and an OCR reader describe pixels. The list is explicit and short rather than a rank comparison,
+because a threshold would silently admit whatever source is added next.
+
+**And it denies on evidence, never on absence — which was measured rather than reasoned.** The
+first attempt required a positive actuating source and broke five tests across three packages:
+hand-built queries, capability-pack enrichment, fixtures. "Nobody recorded where this came from"
+and "only a camera saw it" are different claims. So the rule denies only when every source
+positively is a pixel source.
+
+**The refusal also learned to say which.** Two very different windows answered `Blind()`
+identically — one with nothing in it, one full of controls only a camera saw. Told "nothing in
+this window can be operated", a person looking at a screen full of buttons would reasonably
+conclude their application was broken. It now says the window was described by the screen alone,
+with no accessibility information — the diagnostic that would matter most on the day a detector
+IS admitted.
+
+**What it would take to reconsider** is written down in the ADR rather than left as a mood: a
+runtime, a bounded corpus of coherent readings, match and conflict rates against healthy
+accessibility, stability across repeated inference, evidence from a naturally degraded reading,
+per-class calibration, and cost against the ambient cadence. The provider's own documentation
+records ~0.9s per frame and 1.25 GB resident, which is why it already runs on a separate cadence
+with skip-never-queue — against Observe's 1s active cadence that is the whole budget, and it is
+the single most likely reason the answer stays no.
+
+Even with all seven, admission should be constrained: geometry and presence before role, role
+before structure, and never actionability. The firewall makes that last one structural rather
+than a matter of care.

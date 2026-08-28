@@ -207,6 +207,22 @@ func (e *Engine) checkWorld(w *directorapi.WorldState, risk directorapi.RiskLeve
 
 	// Gate 2 — is there anything here that can be operated?
 	if c.Blind() {
+		// AND WHY NOT, when the answer is that only a camera saw it.
+		//
+		// "Nothing here can be operated" is true of an empty window and of one full of
+		// controls that only a visual detector reported, and those need opposite
+		// responses: the first is a window with nothing in it, the second is a window
+		// Marco can SEE and has no mechanism to work.
+		//
+		// Saying which is what stops a person concluding their application is broken
+		// when the honest answer is that accessibility did not describe it.
+		//
+		// Deleting this must fail TestTheGateSaysWhenOnlyACameraSawIt.
+		if w.SeenOnlyByPixels() {
+			return refuse("I can see controls here but nothing told me how to " +
+				"operate them — this window was described by the screen alone, " +
+				"with no accessibility information")
+		}
 		return refuse("nothing in this window can be operated, " +
 			"so there is nothing here to act on")
 	}
