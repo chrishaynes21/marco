@@ -290,6 +290,13 @@ fails closed into the establishment that was always there, so nothing is traded 
 the foreground gate, the per-edge authority, the per-edge verification and the final positive
 verification are all untouched. [[ADR-090-a-verified-outcome-is-the-next-step-s-evidence]].
 
+## When reality diverges from the graph
+
+A route that fails is not a route that was wrong. Marco looks again, works out where it actually
+is, avoids what just failed for the rest of this attempt, and asks the same planner for another
+way — bounded, explained, and with nothing durable written about the failure. See
+[[ADR-099-a-failed-attempt-is-not-a-false-edge]].
+
 ## Related
 
 - [[Plays]] — what the person is holding once this chain finishes: kind, scope, standing

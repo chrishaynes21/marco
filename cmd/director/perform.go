@@ -227,15 +227,147 @@ func (r *Runtime) PerformGoal(ctx context.Context, q service.PerformQuery) (serv
 	// reference is acquired here, through the same target the walk will use.
 	//
 	// Deleting this handoff must fail TestThePlanningLookIsEdgeOnesSource.
+	//
+	// # And when it does not work
+	//
+	// The walk stops at the first edge that fails, which is right — but stopping the GOAL
+	// there was only right while Marco knew one way to anywhere. Now it usually knows
+	// several, and a control that has moved since yesterday is a reason to take the other
+	// one rather than to give up. See `carryOn`.
+	track := newAttempt()
+	track.arrivedAt(current)
+	track.steps = len(plan.Steps)
 	final, ok := r.performPlan(ctx, application, top, plan.Steps,
 		r.planningProof(ctx, application, current), &out)
-	if !ok {
-		return out, nil
+	for !ok {
+		next, again := r.carryOn(ctx, application, goal.Subject, top, track, &out)
+		if !again {
+			return out, nil
+		}
+		final, ok = r.performPlan(ctx, application, top, next,
+			r.planningProof(ctx, application, out.From), &out)
 	}
 
 	// AND CONFIRM WHERE IT ENDED — reusing the last edge's proof when it still stands.
 	r.confirmArrival(ctx, application, goal.Subject, final, &out)
 	return out, nil
+}
+
+// carryOn decides whether the goal can still be reached after an edge failed, and how.
+//
+// # It is one function because the decision is one decision
+//
+//	what kind of failure was that?      classify
+//	where is Marco actually standing?   the step's own observation, then a fresh look
+//	may it try again at all?            the attempt's bounds
+//	what is the other way?              the SAME planner, over the SAME graph
+//
+// Any of those answered separately would be a second execution model. In particular the planner
+// is the canonical one, handed an attempt-local exclusion rather than a private ruleset — a
+// recovery route passes exactly the eligibility, source recognition, authority, legal Marco and
+// verification the first one did. There is no weaker fallback mode.
+//
+// Returns the alternate route and true when the goal is still worth pursuing. On false the view
+// already says why, and nothing further touches the desktop.
+//
+// Deleting the PlanToGoal call must fail TestRecoveryReplansThroughTheCanonicalPlanner.
+func (r *Runtime) carryOn(ctx context.Context, application, goal string, top observe.Topology,
+	track *attempt, out *service.PerformView) ([]observe.RelationshipRef, bool) {
+
+	if ctx.Err() != nil {
+		// CANCELLATION ALWAYS WINS, and it is checked before anything else so that a stop
+		// arriving during a failure cannot be read as a reason to try harder.
+		stopped(out, verifiedSteps(out.Steps), len(out.Steps))
+		return nil, false
+	}
+	if len(out.Steps) == 0 {
+		return nil, false
+	}
+	last := out.Steps[len(out.Steps)-1]
+	if classify(last) == stopHere {
+		// A BOUNDARY, not a broken interface. Cancellation, lost authority, a spent bound,
+		// a screen Marco cannot read — none of them is something to plan around, and the
+		// refusal the walk already recorded is the honest answer.
+		return nil, false
+	}
+	failed := observe.RelationshipRef{From: last.From, To: last.To}
+	track.recordFailure(failed)
+
+	// WHERE MARCO ACTUALLY IS, which is not where the plan expected.
+	//
+	// A failed step may still have moved the interface: the action ran, the destination did
+	// not appear, and something else did. The walker already resolved whatever it could see
+	// afterwards, so that reading is preferred to a second look — it was taken at the moment
+	// that matters and a later one describes a screen that has had time to change.
+	//
+	// Falling back to the edge's own source would be planning from a screen Marco is not on.
+	//
+	// Deleting the observed-place preference must fail TestRecoveryReplansFromWhereMarcoActuallyIs.
+	here := last.Observed
+	if here == "" {
+		seen, _ := r.freshLook(ctx, application)
+		here = seen.Subject
+	}
+	if here == "" {
+		// AN UNREADABLE OR UNKNOWN SCREEN IS NOT A SOURCE. 35C's rule, and the one thing
+		// recovery must never do is guess where it is standing.
+		out.Refusal = "source_unknown_after_failure"
+		out.Say = "Something went wrong and I can't tell where that left us, so I've stopped."
+		return nil, false
+	}
+	if _, known := top.Subjects[here]; !known {
+		// A HEALTHY SCREEN MARCO DOES NOT KNOW. Execution is not Learn: minting a place
+		// because recovery would find one convenient is how a Do turns into acquisition.
+		out.Refusal = "source_unknown_after_failure"
+		out.Say = "That left us somewhere I don't recognise, so I've stopped."
+		return nil, false
+	}
+	out.From = here
+	track.arrivedAt(here)
+
+	if track.stuck(here) {
+		out.Refusal = "no_progress"
+		out.Say = "I keep ending up back here without getting any closer, so I've stopped."
+		return nil, false
+	}
+
+	// AND THE OTHER WAY, from the one planner, over the one graph, avoiding what just failed.
+	plan := observe.PlanToGoal(goal, here, top, track.avoiding(r.plannableEdges(application, top)))
+	if plan.Satisfied {
+		// THE FAILURE LANDED ON THE GOAL. Not a route to walk — the arrival check below
+		// will look for itself, which is the only thing that may say "done".
+		return nil, false
+	}
+	if len(plan.Steps) == 0 {
+		out.Refusal = "alternatives_exhausted"
+		out.Say = fmt.Sprintf("I know where %s is and I don't know another way there from %s.",
+			out.Goal, placeWordsIn(top, here))
+		return nil, false
+	}
+	if why, spent := track.exhausted(len(plan.Steps)); spent {
+		out.Refusal = why
+		out.Say = "I've tried enough different ways for one request, so I've stopped."
+		return nil, false
+	}
+	track.replans++
+	track.steps += len(plan.Steps)
+	out.Recovered = append(out.Recovered,
+		recoveryWords(here, failed, failureWord(last), top, len(plan.Steps)))
+	return plan.Steps, true
+}
+
+// failureWord is the most specific thing known about why a step failed.
+//
+// The walker's own classification when there is one, because "the control had moved" is what
+// somebody can act on and "ended_unverified" is not.
+func failureWord(step service.PerformStep) string {
+	if step.Outcome != "" {
+		return step.Outcome
+	}
+	if step.Terminal != "" {
+		return step.Terminal
+	}
+	return step.Refusal
 }
 
 // namesOutcome says whether one remembered goal is the outcome that was asked for.
@@ -517,6 +649,17 @@ func (r *Runtime) performEdge(ctx context.Context, application string,
 	}
 	out.Verified = result.Completed()
 	out.Terminal = string(result.Terminal)
+	// HOW IT FAILED, AND WHERE IT LEFT MARCO — both computed by the walker and both dropped
+	// here until 36F. A failed step may still have moved the interface, and the difference
+	// between a control that moved and one that led somewhere else decides whether the honest
+	// response is to try again or to look for another way. See classify.
+	//
+	// Deleting this must fail TestAFailedStepSaysHowItFailedAndWhereItLeftMarco.
+	if n := len(result.Steps); n > 0 {
+		last := result.Steps[n-1]
+		out.Outcome = string(last.Outcome)
+		out.Observed = last.Observed
+	}
 	if !out.Verified {
 		out.Refusal = string(result.Terminal)
 	}

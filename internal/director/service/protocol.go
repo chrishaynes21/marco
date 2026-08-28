@@ -1729,6 +1729,18 @@ type PerformStep struct {
 	Terminal string `json:"terminal,omitempty"`
 	Refusal  string `json:"refusal,omitempty"`
 	Detail   string `json:"detail,omitempty"`
+	// Outcome is the walker's own classification of the last step, from rehearse.Outcome.
+	//
+	// The difference between "the control had moved" and "it went somewhere else entirely"
+	// is the difference between trying again and looking for another way, and until 36F it
+	// was computed by the walker and dropped here.
+	Outcome string `json:"outcome,omitempty"`
+	// Observed is the subject perception resolved AFTER the action, empty when nothing did.
+	//
+	// A failed step may still have moved the interface. Where it actually left Marco is the
+	// only honest source to plan from next, and assuming it is still where the edge began is
+	// how recovery walks off a screen it is not on.
+	Observed string `json:"observed,omitempty"`
 	// Cost is what this edge spent looking. Developer-facing; see PerformCost.
 	Cost PerformCost `json:"cost,omitzero"`
 }
@@ -1756,6 +1768,13 @@ type PerformView struct {
 	// Deleting the cancelled wording must fail TestStoppingAPerformanceReportsItAsCancelled.
 	Refusal string `json:"refusal,omitempty"`
 	Say     string `json:"say,omitempty"`
+	// Recovered is what happened when the first route did not work: what was tried, what went
+	// wrong with it, and what Marco did instead.
+	//
+	// Present whether or not the goal was reached, because "it worked" and "it worked on the
+	// second attempt" are different facts about somebody's afternoon — and a success reported
+	// with no trace of the recovery would hide a broken control indefinitely.
+	Recovered []string `json:"recovered,omitempty"`
 	// Candidates is what the words could equally have meant, present only with the
 	// `ambiguous_outcome` refusal.
 	//

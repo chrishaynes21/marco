@@ -78,6 +78,16 @@ func runPerform(args []string) int {
 			fmt.Printf("      %s\n", s.Detail)
 		}
 	}
+	// AND WHAT IT DID WHEN THE FIRST WAY DIDN'T WORK.
+	//
+	// Whether or not the goal was reached, because "it worked" and "it worked on the second
+	// attempt" are different facts about somebody's afternoon — and a success reported with no
+	// trace of the recovery would hide a broken control indefinitely.
+	//
+	// Deleting this must fail TestRecoveryIsReportedWhetherOrNotItWorked.
+	for _, r := range v.Recovered {
+		fmt.Printf("  %s\n", r)
+	}
 	if v.Say != "" {
 		fmt.Println(v.Say)
 	}

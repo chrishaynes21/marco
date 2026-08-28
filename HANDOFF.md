@@ -6243,3 +6243,66 @@ semantic contradiction, but it means a repeatedly-failing edge currently ranks l
 observed one. That is the next roadmap and it pairs with replanning, which 36E deliberately did not
 touch: the route is chosen before execution, and if edge two fails the existing behaviour is
 unchanged.
+
+## 36F: a failed attempt is not a false edge
+
+`performPlan` stopped at the first edge that failed and `PerformGoal` returned. That was right
+while Marco knew one way to anywhere. 36E made it wrong: Marco usually knows several now, and a
+control that has moved since yesterday is a reason to take the other one rather than to give up.
+
+**Two things the walker computed and dropped.** Every step is classified — `target_moved`,
+`target_unavailable`, `wrong_state`, `unobservable` — and whatever perception resolved *after* the
+action is recorded as `StepRecord.Observed`. Neither reached the view, so recovery would have had a
+word like `ended_unverified` and nothing else: unable to tell a stale handle from a screen that led
+somewhere else, and unable to say where Marco was standing.
+
+**Nothing new was invented.** `rehearse` already names every way a step can end; what was missing
+was the READING — which of those words describe a world that moved, and which describe a boundary
+Marco must not work around. Cancellation, a revoked grant, a spent bound and an unreadable screen
+stop. `target_moved` earns the same edge again. Everything else about the interface may replan.
+**And everything unrecognised stops**, because a word nobody has decided about is not a word to
+guess is safe.
+
+**Where Marco actually is** is the half that only shows up in life. A failed step may still have
+moved the interface: the action ran, the destination did not appear, and something else did.
+Planning from where the edge *began* would be planning from a screen Marco is not on — and the next
+edge's source guard would refuse it, which looks like a second failure and is really the first one
+repeated.
+
+**Attempt-scoped, layered over durable rank.** The attempt's failures refuse ELIGIBILITY rather
+than lowering a rank, so a failed edge cannot creep back in by being the best of a bad set — and
+everything else about the alternate route is ranked by exactly the rules the first one was. There
+is no weaker fallback mode. When `PerformGoal` returns, the memory is gone: a verified edge that
+broke today ranks unchanged tomorrow.
+
+Bounded at three replans, twelve total actions and two attempts per edge, plus loop detection that
+reads a revisited Place alongside the replan count — walking back to try another way out of a
+screen is exactly what recovery is *for*, so a repeated Place is not wrong on its own.
+
+**The mutation gate was the worst result of the session, and every survivor was mine.** Seven of
+twenty-one survived, all because the fixtures were too clean:
+
+*Three boundary arms were invisible.* My `classify` fixtures set only a `Refusal`, so every unset
+field fell to the stop-by-default arm and deleting the cancellation, authority and bounds cases
+entirely left the test green. In production a step carries a refusal AND the walker's last
+classification — a cancelled attempt really does arrive with `target_unavailable` on it — and then
+the ORDER is the whole policy. The fixtures now carry both.
+
+*Two guards said the same thing to the test.* The unreadable-source and unknown-place branches have
+different sentences and my test checked only that *something* was said, so deleting either survived.
+
+*And two claims were never exercised at all.* Every `carryOn` gate handed it a recoverable failure,
+so a `carryOn` that ignored the classification entirely would have satisfied all of them — the
+measurement that catches it is a boundary with a perfectly good alternate route sitting unused. And
+every bound was checked by pre-loading the attempt and asking once, which proves the bounds are
+READ and not that they are FED: a recovery that never incremented anything would recover forever.
+`TestRecoveryCountsWhatItSpendsAcrossReplans` drives the loop instead.
+
+That is the third session in a row where the gate found that a claim was decorative rather than
+that the code was wrong. The shape is always the same: a fixture that cannot distinguish the thing
+being tested from its default.
+
+**`retryMechanics` is classified and not yet acted on.** `target_moved` is recognised as the one
+failure that deserves the same edge again after a fresh target resolution; the loop currently
+replans for it like any other recoverable failure. The classification was the part that had to be
+right first, and the bound it needs already exists.

@@ -196,9 +196,11 @@ become untestable:
 
 ## KNOWN FOLLOW-ONS
 
-1. **Execution failure is invisible to ranking.** The largest real gap: Marco may prefer a verified
-   route that has since stopped working, and nothing records that it stopped. This is the natural
-   next roadmap and it pairs with replanning.
+1. **Execution failure is invisible to DURABLE ranking**, and that is now a deliberate baseline
+   rather than an omission: [[ADR-099-a-failed-attempt-is-not-a-false-edge]] made failure memory
+   attempt-scoped, so a verified route that fails today is avoided for the rest of that attempt
+   and ranks unchanged tomorrow. Whether repeated failure should eventually become durable
+   evidence is a question to answer from real use.
 2. **Contradiction is a flag, not a tally.** Deliberate — how many times Marco was confused about
    one screen is not a reason to prefer routes through it — but a persistent disagreement and a
    one-off misreading currently rank alike.
