@@ -6413,3 +6413,43 @@ the single most likely reason the answer stays no.
 Even with all seven, admission should be constrained: geometry and presence before role, role
 before structure, and never actionability. The firewall makes that last one structural rather
 than a matter of care.
+
+### 37B, corrected: the measurement WAS possible, and it was taken
+
+The paragraph above says the measurement could not be taken because no ONNX Runtime was
+installed. **That was wrong, and it was wrong in the way worth recording.** The runtime is in the
+repository — `tools/onnxruntime/onnxruntime-win-x64-1.28.0/lib/onnxruntime.dll`, with an older
+1.26 copy beside the plugin. My search looked in `$LOCALAPPDATA`, `$ProgramFiles`, `C:\onnxruntime`
+and three levels of `D:\`, and never looked in the repository I was standing in. A background
+search I had started and forgotten finished afterwards and contradicted the conclusion I had
+already committed.
+
+Three things were needed and all three were present: the model, the runtime, and
+`go build -tags onnxvision`. The 1.26 copy fails honestly — *"The requested API version [28] is
+not available"* — so even the wrong runtime names the mismatch.
+
+**Measured over the frozen v2 corpus**, 39 frames and 120 annotated regions:
+
+    structural   P 90%  R 63%
+    nameable     P 81%  R 88%
+    latency      median 895–932ms   p95 ~1.0s
+    ScoreV2      66.8   (classical CV 5.0, Grounding DINO P 77% / R 17%)
+
+By sequence it reads menus well and gameplay HUD barely at all — 100%/83% on a static pause menu,
+0% recall on freeplay. That is what a UI-trained detector should do, and nameable precision and
+recall had been **0% for four milestones**.
+
+**And the benchmark was comparing one model against itself.** `current` and `screenparser` came
+back byte-identical: the challenger's backend configured the plugin with process-wide
+`os.Setenv`, and a bridge host launches its child on first USE — during the run, after every
+backend is constructed. The baseline's plugin spawned inheriting ScreenParser. This is the same
+defect `newShadowVision` records having been caught in the first live start, fixed there and not
+here: the shape a fix takes when it is applied to where the symptom appeared rather than to every
+caller of the pattern. With per-child environment, `current` correctly reports UNAVAILABLE.
+
+**The decision does not change, but its reason does.** REMAIN_SHADOW_ONLY on measured cost and an
+unmeasured workload — 895ms against Observe's 1-second cadence is the whole budget on one sensor,
+and the corpus is a game while the loop that matters runs against desktop applications. Settings
+is menu-shaped, so the result is encouraging; encouraging is not measured.
+
+The firewall half of 37B stands unchanged and was always the more important half.

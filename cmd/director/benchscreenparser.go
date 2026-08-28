@@ -7,8 +7,10 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/chaynes-simpleclouds/marco/internal/bridgehost"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/providers/vision"
 	"github.com/chaynes-simpleclouds/marco/internal/director/visionbench"
+	visionclient "github.com/chaynes-simpleclouds/marco/internal/platform/visionclient"
 )
 
 // ScreenParser as a benchmark backend.
@@ -65,19 +67,42 @@ func newScreenParserBackend() *screenParserBackend {
 	}
 	b.model = model
 
-	// The plugin reads its configuration from the environment it inherits. Set here rather
-	// than left to the caller so a benchmark run is reproducible from the command alone.
-	os.Setenv("MARCO_VISION_MODEL", model)
-	os.Setenv("MARCO_VISION_SIZE", "1280") // ScreenParser's training resolution.
-	os.Setenv("MARCO_VISION_CONF", "0.15") // Frozen on the calibration split. Do not sweep.
-	os.Setenv("MARCO_VISION_IOU", "0.45")  // Matches the reference NMS.
-
-	detector, _, reason := newVisionDetector(defaultVisionBridge())
-	if detector == nil {
-		b.reason = reason
+	// THE CONFIGURATION GOES TO THIS CHILD ONLY.
+	//
+	// # The benchmark was comparing one model against itself
+	//
+	// This was process-wide `os.Setenv`, and a bridge host launches its child on FIRST USE —
+	// which is during the run, after every backend has been constructed. So the `current`
+	// backend's plugin spawned inheriting ScreenParser's model and settings, and the report
+	// printed two rows with byte-identical numbers under two different names.
+	//
+	// Measured on the v2 Rocket League corpus: `current` and `screenparser` both reported
+	// 145 detections, 80 TP, 9 FP, ScoreV2 66.8. A benchmark whose baseline silently becomes
+	// its challenger cannot answer the question it exists for.
+	//
+	// This is the SAME defect `newShadowVision` records having been caught in the first live
+	// start, fixed there and not here. Per-child environment is what makes it impossible; see
+	// bridgehost.Host.WithEnv.
+	//
+	// Deleting WithEnv must fail TestTheBenchmarkBaselineIsNotTheChallenger.
+	bridge := defaultVisionBridge()
+	if bridge == "" {
+		b.reason = "no vision plugin found — build plugins/vision and set " +
+			"$DIRECTOR_VISION to vision.exe"
 		return b
 	}
-	b.detector = detector
+	if _, err := os.Stat(bridge); err != nil {
+		b.reason = "the vision plugin is not at " + bridge
+		return b
+	}
+	// The values themselves are the ones FROZEN on the calibration split. A benchmark run at
+	// different settings would not be measuring the detector the decision record approved.
+	b.detector = visionclient.New(bridgehost.New(bridge).WithEnv(
+		"MARCO_VISION_MODEL="+model,
+		"MARCO_VISION_SIZE=1280", // ScreenParser's training resolution.
+		"MARCO_VISION_CONF=0.15", // Frozen on the calibration split. Do not sweep.
+		"MARCO_VISION_IOU=0.45",  // Matches the reference NMS.
+	))
 	return b
 }
 

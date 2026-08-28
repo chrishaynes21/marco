@@ -8,6 +8,7 @@ affects:
   - fusion
   - vision
 source_paths:
+  - cmd/director/benchscreenparser.go
   - pkg/directorapi/actionability.go
   - pkg/directorapi/actionability_test.go
   - pkg/directorapi/observation.go
@@ -19,35 +20,59 @@ source_paths:
 
 ## The decision
 
-**`SCREENPARSER_DECISION = REMAIN_SHADOW_ONLY`**, because the evidence required to admit it
-cannot be gathered on this machine — and, separately, because the safety property that admission
-would have depended on **did not exist**. It does now.
+**`SCREENPARSER_DECISION = REMAIN_SHADOW_ONLY`** — on measured cost and an unmeasured workload,
+not for want of a runtime. And, separately, because the safety property admission would have
+depended on **did not exist**. It does now.
 
 ## What was actually found
 
-37B set out to measure whether ScreenParser's evidence has earned a seat at fusion. The audit
-found two things, and the second changed the roadmap.
+### One: it runs here, and it is good at menus
 
-### One: the measurement cannot be taken here
+An early pass concluded the measurement could not be taken because no ONNX Runtime was
+installed. **That was wrong** — the runtime is in the repository
+(`tools/onnxruntime/onnxruntime-win-x64-1.28.0/`, and an older 1.26 copy beside the plugin), the
+model is at `tools/vision-export/weights/screenparser-1280.onnx`, and the only missing pieces
+were `$MARCO_ONNXRUNTIME` and a plugin built with `-tags onnxvision`. The first search looked
+outside the repository and missed both.
 
-ScreenParser is opt-in behind three environment variables and is `nil` on an ordinary Director —
-"nothing loaded, nothing allocated, no reason to report". It needs:
+Measured over `fixtures/vision/v2/rocketleague` — 39 frames, 5 sequences, 120 annotated regions:
 
-| | |
-|---|---|
-| `$MARCO_SHADOW_VISION=screenparser` | unset |
-| `$MARCO_SCREENPARSER_MODEL` | unset, but the model **is** on disk (`tools/vision-export/weights/screenparser-1280.onnx`, 97.4 MB) |
-| `$MARCO_ONNXRUNTIME` | unset, and **no ONNX Runtime shared library is installed** |
+| | ScreenParser | classical CV | Grounding DINO |
+|---|---|---|---|
+| structural precision / recall | **90% / 63%** | 0% / 0% | 77% / 17% |
+| nameable precision / recall | **81% / 88%** | 0% / 0% | — |
+| detections | 145 (80 TP, 9 FP, 44 FN) | 3915 (0 TP, 1858 FP) | 43 (20 TP, 6 FP) |
+| latency median / p95 | **895–932ms / 992ms–1.04s** | 1ms / 2ms | — |
+| ScoreV2 | **66.8** | 5.0 | — |
 
-Without the runtime the detector refuses before it starts, so the corpus comparison, the
-match/conflict rates, the stability runs and the per-class calibration this roadmap asks for
-have no way to produce a number. [[Experiment-010-vision-structure-as-a-semantic-path]] recorded
-the same blocker on 2026-08-09 with the model *also* missing; half of it has since been resolved.
+Per sequence, the shape of it is clear:
 
-Fabricating those measurements was the one thing the roadmap forbade above all, so they are
-reported UNMEASURED and the decision follows from that rather than from a guess.
+| sequence | precision | recall |
+|---|---|---|
+| pause-stable (a static menu) | 100% | 83% |
+| pause-open | 100% | 56% |
+| pause-close | 75% | 67% |
+| freeplay-camera-motion (in-game) | 50% | 10% |
+| freeplay-static (in-game) | — | 0% |
 
-### Two: the firewall admission would have needed did not exist
+**It reads menus and panels well and gameplay HUD barely at all**, which is exactly what a
+UI-trained detector should do. Nameable precision and recall had been 0% for four milestones;
+81%/88% is the number the [[director-vision-ui-detector-decision|detector survey]] set out to
+move, and it moved.
+
+### Two: the benchmark was comparing one model against itself
+
+The `current` and `screenparser` rows came back **byte-identical** — 145 detections, 80 TP, 9 FP,
+ScoreV2 66.8. The challenger's backend configured the plugin with process-wide `os.Setenv`, and a
+bridge host launches its child on FIRST USE, which is during the run and after every backend has
+been constructed. So the baseline's plugin spawned inheriting ScreenParser's model.
+
+This is the same defect `newShadowVision` records having been caught in the first live start —
+fixed there, and not here. With per-child environment, `current` correctly reports UNAVAILABLE
+and only the challenger produces numbers. Any benchmark run that constructed both backends was
+affected.
+
+### Three: the firewall admission would have needed did not exist
 
 `Element.Actions()` derives capability from **role**:
 
@@ -116,12 +141,34 @@ policy gate now separates them:
 
 That is the diagnostic that would matter most on the day a detector *is* admitted.
 
+## Why the answer is still no
+
+Not because it cannot be measured, but because of what the measurement says.
+
+**Cost.** 895–932ms median, ~1s p95, on this machine, over 39 frames. Ambient Observe samples at
+1 second when active. Admitting this into the ordinary session cycle spends the entire budget on
+one sensor — which is precisely why the provider already runs on its own cadence with
+skip-never-queue, and why its own documentation records ~0.9s per frame and 1.25 GB resident.
+That figure is now confirmed rather than quoted.
+
+**The wrong workload.** The corpus is a game. The loop that matters — Observe, Learn, Perform,
+recovery — runs against desktop applications, and the measurement says the detector is excellent
+on menus and near-blind on in-game HUD. Windows Settings is a menu-shaped interface, so the
+result is *encouraging*, but encouraging is not measured. Admission on evidence from a different
+workload would be admission on a hunch wearing a table.
+
+**A third of the structure is missed.** 63% structural recall, 44 false negatives and 56
+detections matching nothing in the truth set. Useful, and not yet a reading to plan from.
+
+**And no degraded case.** The scenario that would justify admission — accessibility returning
+shell-only while the detector recovers real content — did not occur, and manufacturing it was
+forbidden.
+
 ## What would be required to reconsider
 
-Stated precisely, as the roadmap demands of a shadow-only outcome:
-
-1. **An ONNX Runtime shared library on the measuring machine**, with `$MARCO_ONNXRUNTIME` set.
-   Without it nothing below is possible.
+1. **The same measurement on a desktop corpus** — Settings, Explorer, a browser — captured with
+   coherent accessibility evidence beside each frame. This is the single most valuable next step
+   and the reason the recommendation below is what it is.
 2. **A bounded corpus of coherent readings** — the same window, same moment — carrying
    accessibility evidence, OCR evidence, the production fused world, and ScreenParser's
    detections.
@@ -133,10 +180,10 @@ Stated precisely, as the roadmap demands of a shadow-only outcome:
    detections in the opaque region correspond to real structure.
 6. **Per-class calibration**, since a detector excellent at buttons and poor at containers should
    be admitted for buttons only.
-7. **Cost**, against the ambient cadence. The provider's own documentation records **~0.9s per
-   frame and 1.25 GB resident**, which is why it runs on a separate cadence with skip-never-queue
-   rather than in the observation loop. Against Observe's 1s active cadence that is the whole
-   budget, and it is the single most likely reason the answer stays no.
+7. **A cost that fits somewhere.** 895–932ms is the whole ambient budget. Either a cheaper model,
+   a smaller input, an escalation policy that runs it rarely, or admission confined to a
+   synchronous path where a second is affordable — Learn and verification can spend it; ambient
+   watching cannot.
 
 Even with all seven, admission should be **constrained**: geometry and presence before role, role
 before structure, and **never actionability**. The firewall above now makes that last one
@@ -159,10 +206,12 @@ because the collector routes by interface satisfaction.
    and the only behaviour that changed was a refusal becoming more precise. A source that
    genuinely can operate a control and is missing from `ActuatingSource` would be refused, so the
    list is the thing to check when a provider is added.
-2. **Performance remains unmeasured for the ordinary pipeline.** The 0.9s/1.25 GB figure is
-   ScreenParser's own, recorded in its provider. UIA, capture, OCR and fusion timings exist on
-   every sample as `Phases` and were not sampled for this roadmap.
+2. **Performance remains unmeasured for the ordinary pipeline.** ScreenParser's own cost is now
+   measured; UIA, capture, OCR and fusion timings exist on every sample as `Phases` and were not
+   sampled. That debt is now two roadmaps old.
 3. **Degraded-UIA repair remains UNMEASURED**, and no degraded reading occurred to analyse.
+4. **The benchmark's other backends are unverified against the isolation fix.** Grounding DINO
+   runs out of process and is unaffected; classical CV takes no model. Nothing else was checked.
 
 ## Enforced by
 
@@ -172,6 +221,8 @@ because the collector routes by interface satisfaction.
   `TestAWindowWithAccessibilityIsNotSeenOnlyByPixels`.
 - `internal/director/policy` — `TestTheGateSaysWhenOnlyACameraSawIt`;
   `TestTheGateNamesWhatWasInsufficient`.
+- `cmd/director` — `TestTheBenchmarkBaselineIsNotTheChallenger` (no process-wide detector
+  configuration, so a benchmark cannot compare one model against itself).
 - And, holding shadow-only, `internal/director/perception/providers` and
   `internal/director/perception/shadow` — the five existing boundary tests named above.
 
@@ -183,4 +234,5 @@ because the collector routes by interface satisfaction.
 [[ADR-029-resolution-is-not-permission]] ·
 [[ADR-005-legal-marco-only]] ·
 [[Experiment-010-vision-structure-as-a-semantic-path]] ·
+[[Experiment-015-screenparser-admission-measured]] ·
 [[Vision]] · [[Fusion]]
