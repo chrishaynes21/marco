@@ -88,6 +88,16 @@ Because nothing bypasses fusion, a fusion report that does not mention something
 - **The guard's cost is unmeasured.** It adds a platform re-read per targeted provider per
   cycle. Expected to be small against a tree walk and never checked.
 
+## One substrate, and the audit that established it
+
+[[ADR-100-marco-sees-through-evidence]] traced the production pipeline end to end: providers →
+collector → `Engine.Fuse` → `WorldState` → `buildSample` → the semantic layer. Fusion is called
+from four places, every semantic consumer is an observation session and therefore reaches it, and
+the packages that decide what a Place IS cannot import a provider at all.
+
+It also records what is NOT admissible: the ScreenParser experiment is `ShadowOnly`, so its
+evidence reaches diagnostics and never belief.
+
 ## Milestone record
 
 [[director-perception]] — *Merge criteria*, *Fusion report*, *Conservative fusion*.

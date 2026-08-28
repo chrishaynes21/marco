@@ -798,3 +798,18 @@ func (u *Subscription) close() {
 // purpose and visible while it runs. Keeping that on its own channel is what lets passive
 // observation stay structurally incapable of reconstructing typed content — a mode flag on
 // THIS producer would mean the capability existed and was merely switched off.
+
+// Actionables is what the last reading offered a press to resolve against.
+//
+// A READ, for diagnostics and for the gate that holds the offering deterministic. It returns a
+// copy: the slice is shared with the classifier goroutine, and handing a caller the live one is
+// how a diagnostic comes to race the thing it describes.
+//
+// Deleting the copy must fail TestReadingTheActionablesCannotRaceTheClassifier.
+func (s *Source) Actionables() []Actionable {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]Actionable, len(s.controls.items))
+	copy(out, s.controls.items)
+	return out
+}

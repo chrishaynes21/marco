@@ -565,3 +565,55 @@ type unavailableBackend struct{}
 func (unavailableBackend) unavailable() string             { return "no hook on this platform" }
 func (unavailableBackend) start(func(rawEvent) bool) error { return nil }
 func (unavailableBackend) stop()                           {}
+
+// READING THE ACTIONABLES CANNOT RACE THE CLASSIFIER.
+//
+// The slice a reading pushes is shared with the goroutine that resolves presses against it.
+// Handing a caller the live one is how a diagnostic comes to race the thing it describes — and a
+// race here is not a crash, it is a press attributed to a control that was being replaced.
+//
+// Deleting the copy in Actionables must fail this under -race.
+func TestReadingTheActionablesCannotRaceTheClassifier(t *testing.T) {
+	s, why := New()
+	if s == nil {
+		t.Skipf("no navigation source on this platform: %s", why)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	s.SetActionables([]Actionable{
+		{X: 1, Y: 2, W: 3, H: 4, Role: "button", Label: "Save"},
+	}, time.Now())
+
+	// A READ THAT KEEPS WHAT IT WAS GIVEN, while the producer replaces it underneath.
+	held := s.Actionables()
+	s.SetActionables([]Actionable{
+		{X: 9, Y: 9, W: 9, H: 9, Role: "listitem", Label: "Mouse"},
+	}, time.Now())
+
+	if len(held) != 1 || held[0].Label != "Save" {
+		t.Errorf("the earlier reading changed underneath its caller: %+v", held)
+	}
+	if now := s.Actionables(); len(now) != 1 || now[0].Label != "Mouse" {
+		t.Errorf("the new reading did not take: %+v", now)
+	}
+
+	// AND MUTATING WHAT WAS RETURNED CHANGES NOTHING INSIDE.
+	//
+	// Read and scribbled with NOTHING replacing the list in between, which is the only shape
+	// that can see the difference: a test that let a later push land first would find the new
+	// entry either way and prove nothing about sharing.
+	mine := s.Actionables()
+	if len(mine) != 1 {
+		t.Fatalf("%d actionable(s) held, want 1", len(mine))
+	}
+	mine[0].Label = "scribbled on"
+	again := s.Actionables()
+	if len(again) != 1 {
+		t.Fatalf("%d actionable(s) after a caller's edit, want 1", len(again))
+	}
+	if again[0].Label != "Mouse" {
+		t.Errorf("a caller's edit reached the source's own list: it now says %q. The "+
+			"classifier resolves presses against that list from another goroutine.",
+			again[0].Label)
+	}
+}

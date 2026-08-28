@@ -6306,3 +6306,56 @@ being tested from its default.
 failure that deserves the same edge again after a fresh target resolution; the loop currently
 replans for it like any other recoverable failure. The classification was the part that had to be
 right first, and the bound it needs already exists.
+
+## 37A: Marco sees through evidence — the audit, and the one seam that was a coin toss
+
+The roadmap's first deliverable was to establish the perception pipeline rather than infer it from
+package names. It is:
+
+    window (validated, pinned) → providers.Collector.Collect → observation.Cycle
+      → fusion.Engine.Fuse → directorapi.WorldState → buildSample → observe.Sample
+      → session → PlaceNow / target resolution / ReachOfState
+
+**There is one door.** `Engine.Fuse` is called from exactly four places — the session sampler, the
+foreground pipeline, the one-shot inspect reading, and the text path — and each serves a different
+surface rather than a different interpretation. **Every semantic consumer is a session**: ambient
+Observe runs a long unlicensed one, Learn a licensed one, execution takes a short look, and 36F's
+recovery takes another after a failure. All four go through `liveSampler.Sample`, so all four
+consume the same fused reading. They have four sensor budgets, not four perceptions.
+
+**And the asymmetry holds from above too.** `observe`, `semanticmemory` and `ambient` cannot import
+a provider, a capture surface or the fusion engine. That is structural: no amount of editing inside
+them can grow a second reading of the screen.
+
+**What is not admissible, stated plainly.** The ScreenParser ONNX detector is `ShadowOnly` — the
+collector routes its evidence to `Cycle.Shadow` and fusion never sees it. So the honest answer to
+"can visual parsing repair a degraded accessibility reading today" is: the *authoritative* visual
+provider can, and the ScreenParser experiment cannot, because its evidence has no authority.
+Promoting it is a decision with its own evidence to gather, not a wiring change.
+
+**The one thing that was wrong was a coin toss.** `pushActionables` iterated `world.Elements` — a
+map — and truncated at `MaxActionables`. On a screen offering more clickable controls than the
+bound, *which* of them reached the navigation producer depended on Go's map iteration, which Go
+randomises per range. That set is what a human click is attributed against, so the same press could
+resolve to a Target on one reading and to nothing on the next — and from outside, "Marco didn't see
+what you clicked" is indistinguishable from a perception failure. A bound is fine; which half of a
+screen it keeps must not be arbitrary. The offering is now sorted into reading order before the
+bound.
+
+The neighbouring paths were checked and left alone: `buildSample` already sorted its ids, and
+`AdmittedPlaceName` is order-independent by construction — it returns nothing when two entries
+disagree, so there is no first to pick.
+
+**The mutation gate found four more, two of them mine.** Reading the actionables back handed the
+caller the live slice the classifier resolves presses against, and my own test could not see it
+because a later push had already replaced the list before the check. The `buildSample` id sort had
+a comment explaining that it exists so a recorded fixture replays byte-for-byte, and nothing held
+it. The window-coherence guard — which stops a neighbour's controls being folded into this Place's
+structure — had no test at all.
+
+**And one equivalent mutation, recorded rather than papered over.** `earlierOnScreen`'s final
+tie-break on element id makes the comparator total, which the sort contract requires. It cannot
+change the offering: two elements that tie on geometry, role and label produce byte-identical
+`navsource.Actionable` values, so which one survives truncation is unobservable at this seam. The
+line stays because a non-total comparator is undefined behaviour, and the mutation is equivalent
+because it is.

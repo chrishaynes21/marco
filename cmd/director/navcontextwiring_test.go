@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -261,5 +262,102 @@ func waitReceived(t *testing.T, src *navsource.Source, n int) {
 	}
 	if got := src.Stats().Received; got < n {
 		t.Fatalf("the producer handled %d event(s), waited for %d", got, n)
+	}
+}
+
+// WHICH CONTROLS ARE OFFERED DOES NOT DEPEND ON MAP ORDER.
+//
+// # The defect, measured
+//
+// A fused world is a MAP, and `pushActionables` truncated at MaxActionables. So on a screen
+// offering more clickable controls than the bound, WHICH of them reached the navigation producer
+// depended on Go's map iteration — which Go deliberately randomises per range.
+//
+// Two readings of one unchanged screen offered different sets. The set is what a human click is
+// attributed against, so the same press could resolve to a Target on one reading and to nothing on
+// the next — and from outside, "Marco didn't see what you clicked" is indistinguishable from a
+// perception failure.
+//
+// A bound is fine. Which half of a screen it keeps must not be a coin toss.
+//
+// Deleting the sort must fail this.
+func TestWhichControlsAreOfferedDoesNotDependOnMapOrder(t *testing.T) {
+	s, _, _ := samplerWithNav(t)
+
+	// MORE CLICKABLE CONTROLS THAN THE BOUND, which is the only shape where truncation can
+	// choose. A long list, a busy web page, a file view: ordinary screens reach this.
+	world := directorapi.WorldState{Elements: map[directorapi.ElementID]*directorapi.Element{}}
+	for i := 0; i < MaxActionables*2; i++ {
+		id := directorapi.ElementID(fmt.Sprintf("e%04d", i))
+		world.Elements[id] = &directorapi.Element{
+			ID: id, Role: directorapi.RoleButton, Label: fmt.Sprintf("Item %d", i),
+			Visible: true, Confidence: 0.9,
+			Bounds: directorapi.Rect{
+				X: 10, Y: 20 * i, Width: 100, Height: 18,
+			},
+		}
+	}
+
+	offered := func() []navsource.Actionable {
+		s.pushActionables(world, time.Now())
+		return s.rt.navSource.Actionables()
+	}
+	first := offered()
+	if len(first) != MaxActionables {
+		t.Fatalf("%d actionable(s) offered, want the bound of %d — the fixture does not "+
+			"reach truncation and so proves nothing", len(first), MaxActionables)
+	}
+	for run := 0; run < 20; run++ {
+		again := offered()
+		if len(again) != len(first) {
+			t.Fatalf("run %d offered %d, the first offered %d",
+				run, len(again), len(first))
+		}
+		for i := range again {
+			if again[i] != first[i] {
+				t.Fatalf("run %d offered a different set: item %d is %+v, was %+v. "+
+					"Which controls a press can resolve against must not be a "+
+					"coin toss.", run, i, again[i], first[i])
+			}
+		}
+	}
+	// AND IT KEEPS READING ORDER — top to bottom — which is the half that says the bound
+	// keeps something a person would recognise rather than an arbitrary sample.
+	for i := 1; i < len(first); i++ {
+		if first[i].Y < first[i-1].Y {
+			t.Fatalf("item %d is above item %d: %+v then %+v",
+				i, i-1, first[i-1], first[i])
+		}
+	}
+
+	// AND CONTROLS THAT TIE ON EVERYTHING STILL ORDER, which is what makes the comparison a
+	// total order rather than nearly one. Two controls really can share a rectangle, a role
+	// and a label — a tab strip with repeated glyphs, a grid of identical cells — and a
+	// comparison that called them equal would leave the sort free to swap them.
+	tied := directorapi.WorldState{Elements: map[directorapi.ElementID]*directorapi.Element{}}
+	for i := 0; i < MaxActionables*2; i++ {
+		id := directorapi.ElementID(fmt.Sprintf("t%04d", i))
+		tied.Elements[id] = &directorapi.Element{
+			ID: id, Role: directorapi.RoleButton, Label: "Same",
+			Visible: true, Confidence: 0.9,
+			Bounds: directorapi.Rect{X: 10, Y: 20, Width: 100, Height: 18},
+		}
+	}
+	s.pushActionables(tied, time.Now())
+	settled := s.rt.navSource.Actionables()
+	if len(settled) != MaxActionables {
+		t.Fatalf("%d tied actionable(s) offered, want the bound", len(settled))
+	}
+	for run := 0; run < 20; run++ {
+		s.pushActionables(tied, time.Now())
+		again := s.rt.navSource.Actionables()
+		for i := range again {
+			if again[i] != settled[i] {
+				t.Fatalf("run %d chose a different one of %d identical controls at "+
+					"position %d. Two controls can share a rectangle, a role and "+
+					"a label; the order still has to be total.",
+					run, len(again), i)
+			}
+		}
 	}
 }

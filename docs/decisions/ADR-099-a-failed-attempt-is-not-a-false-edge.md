@@ -190,6 +190,12 @@ handles, no typed text.
 - Through the real walker — `TestAFailedStepSaysHowItFailedAndWhereItLeftMarco`;
   `TestTheWalkFailsAndRecoveryHandsBackARouteTheWalkerCanTake`.
 
+## The perception boundary underneath
+
+Every terminal failure class here — `unobservable`, `unrecognised`, an unknown-but-healthy screen
+— is a limit on what Marco can SEE rather than on what it can do.
+[[ADR-100-marco-sees-through-evidence]] is the audit of that boundary.
+
 ## Related
 
 [[ADR-098-the-planner-prefers-better-evidence-and-says-why]] ·

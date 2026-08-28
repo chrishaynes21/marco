@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -509,23 +510,46 @@ func (s *liveSampler) pushActionables(world directorapi.WorldState, now time.Tim
 	// controls come from the FUSED world, which accessibility fills on every ordinary
 	// cycle. Gating this on the vision experiment would mean click-target resolution never
 	// ran on a default Director — the enrichment would exist and never once fire.
-	items := make([]navsource.Actionable, 0, 64)
+	// DETERMINISTIC ORDER, BEFORE THE BOUND.
+	//
+	// # The defect this closes
+	//
+	// A fused world is a MAP, and this loop truncated at MaxActionables. So on a screen
+	// offering more clickable controls than the bound, WHICH of them reached the navigation
+	// producer depended on Go's map iteration — and Go randomises that per range. Two
+	// readings of one unchanged screen offered different sets, and the set is what a human
+	// click is attributed against (36B): the same press could resolve to a Target on one
+	// reading and to nothing on the next, with no way to tell that from a perception
+	// failure.
+	//
+	// Sorted by geometry — top to bottom, then left to right, then role and label — which is
+	// reading order and therefore the order a person would name them in. Nothing here is
+	// durable identity; it is a deterministic way to decide what to keep when there is too
+	// much to keep.
+	//
+	// Deleting the sort must fail TestWhichControlsAreOfferedDoesNotDependOnMapOrder.
+	found := make([]*directorapi.Element, 0, 64)
 	for _, el := range world.Elements {
 		if el == nil || !el.Visible || el.Offscreen || el.Bounds.Empty() {
 			continue
 		}
 		// A control someone can aim at, or the one holding the keyboard's attention — the
 		// two ways an input event acquires a target.
-		focused := el.Focused
-		if !el.Role.Clickable() && !focused {
+		if !el.Role.Clickable() && !el.Focused {
 			continue
 		}
+		found = append(found, el)
+	}
+	sort.Slice(found, func(i, j int) bool { return earlierOnScreen(found[i], found[j]) })
+
+	items := make([]navsource.Actionable, 0, len(found))
+	for _, el := range found {
 		items = append(items, navsource.Actionable{
 			X: el.Bounds.X, Y: el.Bounds.Y, W: el.Bounds.Width, H: el.Bounds.Height,
 			Role: string(el.Role),
 			Label: observe.AdmittedTargetLabel(el.Role, s.nameActivatedTargets, el.Label,
 				el.Confidence),
-			Focused: focused,
+			Focused: el.Focused,
 		})
 		if len(items) >= MaxActionables {
 			break
@@ -648,4 +672,29 @@ func trailContaining(byID map[directorapi.ElementID]*directorapi.Element, word s
 		}
 	}
 	return nil
+}
+
+// earlierOnScreen is reading order over two elements, total and stable.
+//
+// Top to bottom, then left to right, then role and label. Geometry first because that is how a
+// person would enumerate what is on a screen, and the remaining keys because two controls really
+// can share a rectangle — a total order has to break every tie or the sort is not one.
+//
+// TRANSIENT, and it is worth saying: this is a way to decide what to KEEP when a bound is spent,
+// and never a claim about identity. Nothing durable is derived from it, and moving a control
+// changes where it sorts and nothing else. See [[ADR-100-marco-sees-through-evidence]].
+func earlierOnScreen(a, b *directorapi.Element) bool {
+	if a.Bounds.Y != b.Bounds.Y {
+		return a.Bounds.Y < b.Bounds.Y
+	}
+	if a.Bounds.X != b.Bounds.X {
+		return a.Bounds.X < b.Bounds.X
+	}
+	if a.Role != b.Role {
+		return a.Role < b.Role
+	}
+	if a.Label != b.Label {
+		return a.Label < b.Label
+	}
+	return a.ID < b.ID
 }
