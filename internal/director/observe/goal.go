@@ -145,6 +145,13 @@ type GoalPlan struct {
 	Steps []RelationshipRef `json:"steps,omitempty"`
 	// Refusal is why there is no plan, in the closed vocabulary.
 	Refusal PlanRefusal `json:"refusal,omitempty"`
+	// Rank is WHY this route was chosen over the others, in the evidence classes the
+	// comparison is made of. Present whenever there are steps.
+	//
+	// Carried on the plan rather than recomputed by a caller, because an explanation derived
+	// separately is a second opinion about a decision that has already been made — and the one
+	// nobody edits is the one that ends up describing a route nothing would take.
+	Rank PathRank `json:"rank,omitzero"`
 }
 
 // PlanToGoal finds a chain of usable edges from the current subject to the goal subject.
@@ -161,7 +168,7 @@ type GoalPlan struct {
 // Shortest chain wins, ties broken deterministically by subject id, so the same memory
 // always produces the same plan. One demonstration A→B→C never makes B required for C: if a
 // direct A→C edge exists it wins on length, and planning from B never consults A at all.
-func PlanToGoal(goal, current string, top Topology, usable func(RelationshipRef) bool) GoalPlan {
+func PlanToGoal(goal, current string, top Topology, grade EdgeGrade) GoalPlan {
 	out := GoalPlan{Goal: goal, Current: current}
 	if _, ok := top.Subjects[goal]; !ok || goal == "" {
 		out.Refusal = PlanGoalUnknown
@@ -181,50 +188,168 @@ func PlanToGoal(goal, current string, top Topology, usable func(RelationshipRef)
 		return out
 	}
 
-	// Adjacency, deterministic: every usable edge, grouped by source, neighbours sorted.
-	next := map[string][]string{}
+	// ELIGIBILITY FIRST, and it is the only thing that removes an edge from consideration.
+	//
+	// Adjacency, deterministic: every edge the grade admits, grouped by source, neighbours
+	// sorted. An edge the grade refuses is not in the graph as far as anything below is
+	// concerned — which is what stops good evidence from ever making an ineligible edge
+	// usable, and it is a different question from the ranking that follows.
+	type link struct {
+		to   string
+		rank EdgeRank
+	}
+	next := map[string][]link{}
 	for _, rel := range top.Relationships {
 		ref := RelationshipRef{From: rel.From, To: rel.To}
-		if usable != nil && !usable(ref) {
-			continue
-		}
-		next[rel.From] = append(next[rel.From], rel.To)
-	}
-	for from := range next {
-		sort.Strings(next[from])
-	}
-
-	// Breadth-first, so the shortest chain wins. Bounded by the subject count: every node
-	// is visited at most once, and the topology is already bounded by MaxSubjects.
-	type hop struct{ from string }
-	cameFrom := map[string]hop{current: {}}
-	queue := []string{current}
-	for len(queue) > 0 {
-		at := queue[0]
-		queue = queue[1:]
-		if at == goal {
-			break
-		}
-		for _, to := range next[at] {
-			if _, seen := cameFrom[to]; seen {
+		rank := EdgeRank{Class: ClassObservedOnce}
+		if grade != nil {
+			var eligible bool
+			if rank, eligible = grade(ref); !eligible {
 				continue
 			}
-			cameFrom[to] = hop{from: at}
-			queue = append(queue, to)
+		}
+		next[rel.From] = append(next[rel.From], link{to: rel.To, rank: rank})
+	}
+	for from := range next {
+		sort.Slice(next[from], func(i, j int) bool { return next[from][i].to < next[from][j].to })
+	}
+
+	// PREFERENCE SECOND, over complete routes.
+	//
+	// # Why the search carries the weakest class in its state
+	//
+	// The rank is lexicographic on (contradicted, effort, weakest, actions) and `effort` adds
+	// one for a route that is not fully verified — a PATH property, not an edge property, so a
+	// partial route's cost is not a bound on its extensions unless the search knows which
+	// class it is in. Carrying the weakest class in the state makes (contradicted, actions)
+	// purely additive within a state, which is what makes the search correct.
+	//
+	// Four states per subject, so the whole thing stays bounded by 4 × MaxSubjects visits with
+	// the topology already bounded by MaxRelationships. Each state is settled once and a
+	// settled state is never revisited, so a CYCLE cannot improve a route: going round adds
+	// actions and can only lower the weakest class, and neither of those makes a rank better.
+	// better compares two partial routes within the search, on the additive dimensions only.
+	better := func(a, b planReached) bool {
+		if a.contradicted != b.contradicted {
+			return a.contradicted < b.contradicted
+		}
+		return a.actions < b.actions
+	}
+	start := planState{at: current, weakest: ClassVerified}
+	best := map[planState]planReached{start: {}}
+
+	for {
+		// The cheapest unsettled state. A linear scan rather than a heap: the frontier is
+		// bounded by four times the subject count, which the store already bounds, and a
+		// heap here would be a data structure to maintain for no measurable gain.
+		var pick planState
+		var found bool
+		for st, r := range best {
+			if r.settled {
+				continue
+			}
+			if !found || better(r, best[pick]) || (!better(best[pick], r) && lessState(st, pick)) {
+				pick, found = st, true
+			}
+		}
+		if !found {
+			break
+		}
+		here := best[pick]
+		here.settled = true
+		best[pick] = here
+		for _, l := range next[pick.at] {
+			weakest := pick.weakest
+			if l.rank.Class < weakest {
+				weakest = l.rank.Class
+			}
+			to := planState{at: l.to, weakest: weakest}
+			step := planReached{
+				contradicted: here.contradicted, actions: here.actions + 1,
+				from: pick, via: RelationshipRef{From: pick.at, To: l.to},
+			}
+			if l.rank.Contradicted {
+				step.contradicted++
+			}
+			have, seen := best[to]
+			if seen && (have.settled || !better(step, have)) {
+				continue
+			}
+			best[to] = step
 		}
 	}
-	if _, reached := cameFrom[goal]; !reached {
+
+	// THE BEST COMPLETE ROUTE, chosen among the ways the goal was reached — one per weakest
+	// class — because the not-fully-verified penalty is only known once a route is whole.
+	var winner *PathRank
+	for _, class := range []EdgeClass{ClassVerified, ClassObservedOften, ClassObservedOnce, ClassNone} {
+		st := planState{at: goal, weakest: class}
+		r, ok := best[st]
+		if !ok || (st != start && r.actions == 0) {
+			continue
+		}
+		rank := PathRank{
+			Contradicted: r.contradicted, Actions: r.actions, Weakest: class,
+			Steps: stepsBack(best, st, start),
+		}
+		if winner == nil || rank.BetterThan(*winner) {
+			copied := rank
+			winner = &copied
+		}
+	}
+	if winner == nil {
 		out.Refusal = PlanNoKnownRoute
 		return out
 	}
-	// Walk back, then reverse.
-	var back []RelationshipRef
-	for at := goal; at != current; at = cameFrom[at].from {
-		back = append(back, RelationshipRef{From: cameFrom[at].from, To: at})
+	out.Steps, out.Rank = winner.Steps, *winner
+	return out
+}
+
+// lessState is the deterministic order the frontier scan falls back on.
+func lessState(a, b planState) bool {
+	if a.at != b.at {
+		return a.at < b.at
 	}
-	out.Steps = make([]RelationshipRef, 0, len(back))
+	return a.weakest > b.weakest
+}
+
+// stepsBack walks a settled state chain back to the start and returns it in walking order.
+func stepsBack(best map[planState]planReached, at, start planState) []RelationshipRef {
+	var back []RelationshipRef
+	for at != start {
+		r := best[at]
+		back = append(back, r.via)
+		at = r.from
+	}
+	out := make([]RelationshipRef, 0, len(back))
 	for i := len(back) - 1; i >= 0; i-- {
-		out.Steps = append(out.Steps, back[i])
+		out = append(out, back[i])
 	}
 	return out
+}
+
+// planState is one node of the search, plus the worst edge class the route into it has crossed.
+//
+// # Why the class is part of the STATE and not just the cost
+//
+// A route's rank includes an effort penalty for not being fully verified, which is a property of
+// the WHOLE route rather than of any edge. So the cheapest way to a subject is not necessarily the
+// cheapest way that is still fully verified, and a search that kept only one answer per subject
+// would discard the route that eventually wins.
+//
+// Splitting the state by weakest class fixes that and keeps the remaining dimensions —
+// contradictions and actions — purely additive, which is what makes settling a state once
+// correct. Four classes, so the search is bounded by four visits per subject over a topology the
+// store already bounds.
+type planState struct {
+	at      string
+	weakest EdgeClass
+}
+
+// planReached is the best route found so far into one state.
+type planReached struct {
+	contradicted, actions int
+	from                  planState
+	via                   RelationshipRef
+	settled               bool
 }

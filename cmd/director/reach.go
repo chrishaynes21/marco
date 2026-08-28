@@ -126,6 +126,17 @@ func (r *Runtime) Reach(q service.ObserveReach) (service.ReachView, error) {
 			q.Name, application)
 	}
 	out.Name, out.Subject = goal.Name, goal.Subject
+	// A SOURCE THE CALLER NAMED beats where somebody was last seen standing.
+	//
+	// Asking "what would you do from the Home page" is the question a person debugging a
+	// route actually has, and it is answerable from the store alone. The reading that follows
+	// says which source it used, so an answer about somewhere else is never mistaken for an
+	// answer about here.
+	//
+	// Deleting this must fail TestTheDiagnosticCanAskFromSomewhereElse.
+	if asked := strings.TrimSpace(q.From); asked != "" {
+		current, asOf = asked, ""
+	}
 	// WHICH APPLICATION IT TURNED OUT TO BE IN, which the caller may not have known.
 	if res.Application != "" {
 		application, out.Application = res.Application, res.Application
@@ -138,6 +149,19 @@ func (r *Runtime) Reach(q service.ObserveReach) (service.ReachView, error) {
 	out.Refusal = string(plan.Refusal)
 	for _, s := range plan.Steps {
 		out.Steps = append(out.Steps, service.ReachStepView{From: s.From, To: s.To})
+	}
+	// AND WHY THIS ROUTE AND NOT ANOTHER, from the planner's own comparison.
+	//
+	// Taken off the plan rather than recomputed here: an explanation derived separately is a
+	// second opinion about a decision already made, and it would eventually describe a route
+	// nothing would take. See observe.PathRank.Because.
+	//
+	// Deleting this must fail TestTheDiagnosticSaysWhyThatRouteWon.
+	if len(plan.Steps) > 0 {
+		out.Why = plan.Rank.Because()
+		out.Actions = plan.Rank.Actions
+		out.Contradicted = plan.Rank.Contradicted
+		out.Verified = plan.Rank.Verified()
 	}
 	switch {
 	case plan.Satisfied:
@@ -198,22 +222,25 @@ func (r *Runtime) Reach(q service.ObserveReach) (service.ReachView, error) {
 // alike, because "can I plan a path" is the one question they answer the same way.
 //
 // Deleting the observational arm must fail TestAnObservedEdgeCanBePlannedOver.
-func (r *Runtime) plannableEdges(application string,
-	top observe.Topology) func(observe.RelationshipRef) bool {
-
+func (r *Runtime) plannableEdges(application string, top observe.Topology) observe.EdgeGrade {
 	g := r.observations
 	g.mu.RLock()
 	memory := g.memory
 	g.mu.RUnlock()
 	store, ok := memory.(observe.CandidateStore)
 	if !ok {
-		return func(observe.RelationshipRef) bool { return false }
+		return func(observe.RelationshipRef) (observe.EdgeRank, bool) {
+			return observe.EdgeRank{}, false
+		}
 	}
 	rehearsals, ok := memory.(observe.RehearsalStore)
 	if !ok {
-		return func(observe.RelationshipRef) bool { return false }
+		return func(observe.RelationshipRef) (observe.EdgeRank, bool) {
+			return observe.EdgeRank{}, false
+		}
 	}
 	evidence := rehearsals.Rehearsals(application)
+	eligible := map[observe.RelationshipRef]bool{}
 	verified := map[observe.RelationshipRef]bool{}
 	for _, c := range store.Candidates(application) {
 		if verified[c.Relationship] {
@@ -226,8 +253,10 @@ func (r *Runtime) plannableEdges(application string,
 		a := observe.AssessCandidate(c, top, observe.DefaultCaptureBounds(),
 			corroborationFor(store, application, c))
 		if a.WithRehearsal(c, j.Digest, top, evidence).Verified {
-			// Marco walked it and checked. The strongest thing an edge can say.
-			verified[c.Relationship] = true
+			// Marco walked it and checked. The strongest thing an edge can say — and,
+			// since 36E, the thing that makes the planner PREFER it rather than merely
+			// permit it.
+			eligible[c.Relationship], verified[c.Relationship] = true, true
 			continue
 		}
 		// Or the person showed Marco, cleanly. The same rule Learn admits on, ASKED of the
@@ -238,8 +267,68 @@ func (r *Runtime) plannableEdges(application string,
 		// CandidateAssessment.CleanlyObserved. Two spellings of one rule is one rule with
 		// two futures, and the one nobody edits is the one that goes wrong quietly.
 		if a.CleanlyObserved() {
-			verified[c.Relationship] = true
+			eligible[c.Relationship] = true
 		}
 	}
-	return func(ref observe.RelationshipRef) bool { return verified[ref] }
+	// AND WHAT MARCO DOES NOT UNDERSTAND, from the candidate ledger beside the topology.
+	//
+	// A contradiction is the same beginning and the same control arriving somewhere else. It
+	// is recorded where it is found — on the watched record — and until 36E nothing read it
+	// after promotion, so an edge Marco was demonstrably confused about planned exactly like
+	// one it was sure of.
+	//
+	// It does not make the edge INELIGIBLE. The disagreement is about which of two
+	// destinations that control reaches, and either might be right; what it means is that if
+	// there is another way, Marco should take it. See observe.PathRank.
+	//
+	// Deleting this must fail TestAContradictedShortcutLosesToACleanerRoute.
+	return observe.GradeFrom(func(ref observe.RelationshipRef) bool { return eligible[ref] },
+		verified, r.contradictedEdges(application, memory), observe.TraversalsIn(top))
+}
+
+// contradictedEdges is every promoted relationship the candidate ledger disagrees with itself
+// about.
+//
+// # Why the ends have to be resolved rather than read
+//
+// A watched record names its ends by durable subject where the observer RECOGNISED them and by
+// structure where it could only describe them — and an edge promoted from screens Marco had never
+// seen carries descriptions until somebody crosses it again. Reading `.Subject` alone would find
+// contradictions only on the edges somebody happened to walk twice after the promotion, which is
+// the subset least likely to matter.
+//
+// So a described end is resolved through `Recall`, the canonical identity test, exactly as the
+// ledger's own matcher does.
+func (r *Runtime) contradictedEdges(application string,
+	memory observe.Memory) map[observe.RelationshipRef]bool {
+
+	store, ok := memory.(observe.WatchedStore)
+	if !ok {
+		return nil
+	}
+	out := map[observe.RelationshipRef]bool{}
+	resolve := func(e observe.WatchedEnd) string {
+		if e.Recognised() {
+			return e.Subject
+		}
+		if e.Shape == nil {
+			return ""
+		}
+		rec := memory.Recall(application, *e.Shape)
+		if !rec.Verdict.Established() {
+			return ""
+		}
+		return rec.Subject.ID
+	}
+	for _, w := range store.Watched(application) {
+		if w.Contradicted == 0 {
+			continue
+		}
+		from, to := resolve(w.From), resolve(w.To)
+		if from == "" || to == "" || from == to {
+			continue
+		}
+		out[observe.RelationshipRef{From: from, To: to}] = true
+	}
+	return out
 }

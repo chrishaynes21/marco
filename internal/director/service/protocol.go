@@ -1183,6 +1183,19 @@ type ObserveReach struct {
 	Name string `json:"name,omitempty"`
 	// Application scopes the answer. Empty means the most recently observed one.
 	Application string `json:"application,omitempty"`
+	// From is "if I were standing HERE, what would you do" — a subject id, empty for
+	// wherever Marco last saw the person.
+	//
+	// # Why a diagnostic needs to be able to ask about somewhere else
+	//
+	// The route depends on where you are, so the interesting question is usually about a
+	// place you are not: would it still take the long way from the Home page? Without this
+	// the only answerable question is about the one screen a session happened to end on, and
+	// on a fresh Director there is no such screen at all.
+	//
+	// It drives nothing and asserts nothing about where anybody actually is — the plan says
+	// which source it was computed from.
+	From string `json:"from,omitempty"`
 }
 
 // ReachView is what Marco knows about reaching learned outcomes.
@@ -1210,6 +1223,17 @@ type ReachView struct {
 	// Candidates is what the words could equally have meant, when they meant more than one
 	// thing. The diagnostic answer to the question `perform` refuses to guess at.
 	Candidates []OutcomeView `json:"candidates,omitempty"`
+	// Why is what made this route better than the others, in the evidence classes the
+	// planner compared — never a score.
+	//
+	// A person about to watch Marco take the long way is owed the reason, and "cost 3" is not
+	// one. These are the planner's own words for its own comparison; see observe.PathRank.
+	Why []string `json:"why,omitempty"`
+	// Actions, Contradicted and Verified are the same comparison in fields, for a client that
+	// wants to render it rather than print it.
+	Actions      int  `json:"actions,omitempty"`
+	Contradicted int  `json:"contradicted,omitempty"`
+	Verified     bool `json:"verified,omitempty"`
 	// Say is the Normal-mode sentence.
 	Say string `json:"say,omitempty"`
 }

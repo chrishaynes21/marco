@@ -141,11 +141,12 @@ identity, and refusing with the choice named is the honest first behaviour. Reco
 3. **The generated `.marco` still shows the historical demonstration**, not the route Marco would
    plan now. Unchanged from [[ADR-096-observe-and-learn-are-two-doors-into-one-graph]]; the artifact
    owns nothing and the execution path is graph-native, so this is a readability debt.
-4. **Planner ranking is shortest-chain only**, with no preference for edges Marco has verified over
-   edges it has only watched. Named again here because the goal layer is now the obvious place
-   somebody would be tempted to put ranking — and it must not go there. The goal hands over a
-   destination and stops.
-5. **`reach` still plans from where somebody was LAST seen standing**, and says so. `PerformGoal`
+4. **Planner ranking became evidence-aware in
+   [[ADR-098-the-planner-prefers-better-evidence-and-says-why]].** The goal layer remains the
+   obvious place somebody would be tempted to put ranking, and it must not go there: the goal
+   hands over a destination and stops.
+5. **`reach` plans from where somebody was LAST seen standing** unless `--from` names a source
+   (added by ADR-098), and says which it used. `PerformGoal`
    takes a fresh look. The two agree about what a phrase MEANS, which is what this ADR made true;
    they can still disagree about where the person is, and the diagnostic labels its answer with the
    session it came from.

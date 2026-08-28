@@ -25,6 +25,10 @@ func runReach(args []string) int {
 	}
 	fs := flag.NewFlagSet("reach", flag.ExitOnError)
 	application := fs.String("application", "", "which application's outcomes to ask about")
+	// FROM SOMEWHERE ELSE, because the route depends on where you are and the question
+	// somebody debugging one has is usually about a place they are not. It drives nothing and
+	// asserts nothing about where anybody is; the answer says which source it used.
+	from := fs.String("from", "", "plan as if standing on this screen (a subject id)")
 	jsonOut := fs.Bool("json", false, "print as JSON")
 	_ = fs.Parse(flagsFirst(rest))
 
@@ -36,7 +40,7 @@ func runReach(args []string) int {
 	defer client.Close()
 
 	raw, err := client.Observation(service.ObserveQuery{
-		Reach: &service.ObserveReach{Name: name, Application: *application},
+		Reach: &service.ObserveReach{Name: name, Application: *application, From: *from},
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "director: %v\n", err)
@@ -87,6 +91,11 @@ func runReach(args []string) int {
 	if len(v.Steps) > 0 {
 		for i, s := range v.Steps {
 			fmt.Printf("  step %d: %s → %s\n", i+1, s.From, s.To)
+		}
+		// WHY THIS ONE. A route somebody is about to watch happen is owed a reason, and it
+		// is the planner's own reason rather than a sentence written beside it.
+		if len(v.Why) > 0 {
+			fmt.Printf("\n  chosen because: %s\n", strings.Join(v.Why, ", "))
 		}
 		fmt.Println("\nPerforming a step still goes through its saved play — reach shows, " +
 			"it never does.")

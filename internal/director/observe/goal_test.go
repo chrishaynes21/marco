@@ -121,7 +121,9 @@ func TestThePlannerRoutesOnlyOverUsableEdges(t *testing.T) {
 		edge("subj_a", "subj_b"): true, edge("subj_b", "subj_c"): true,
 	}
 	p := observe.PlanToGoal("subj_c", "subj_a", top,
-		func(r observe.RelationshipRef) bool { return verified[r] })
+		func(r observe.RelationshipRef) (observe.EdgeRank, bool) {
+			return observe.EdgeRank{Class: observe.ClassObservedOnce}, verified[r]
+		})
 	want := []observe.RelationshipRef{edge("subj_a", "subj_b"), edge("subj_b", "subj_c")}
 	if !reflect.DeepEqual(p.Steps, want) {
 		t.Fatalf("plan is %v, want %v — an edge the predicate refused was routed through",

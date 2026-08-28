@@ -304,6 +304,12 @@ Load applies the same referential rule as candidates: evidence whose endpoints a
 
 ## Decisions
 
+- [[ADR-098-the-planner-prefers-better-evidence-and-says-why]] — eligibility decides whether an
+  edge MAY be planned and ranking decides which eligible route is preferred; the two are kept
+  apart. Ordered classes rather than a score: contradiction first and never traded away,
+  verification worth exactly one extra action, the weakest edge rather than an average,
+  repetition saturating at "more than once", and route length still costing
+
 - [[ADR-056-a-goal-is-a-destination-not-a-route]]
 - [[ADR-016-cross-session-identity-is-structural-and-conservative]]
 - [[ADR-018-a-remembered-relationship-is-adjacency-not-a-route]]

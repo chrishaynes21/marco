@@ -165,6 +165,9 @@ var valued = map[string]bool{
 	"-watch": true, "--watch": true,
 	"-hold": true, "--hold": true,
 	"-subject": true, "--subject": true,
+	// `reach --from <subject>` asks what Marco would do from somewhere it is not standing.
+	// Caught by this table's own test before it ever ran, which is the fourth time.
+	"-from": true, "--from": true,
 	"-question": true, "--question": true,
 	// `rehearse --step 2 --live`. A fourth instance of the same silence, found while
 	// testing the command that could not be invoked at all: without this, the reorder

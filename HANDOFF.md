@@ -6164,3 +6164,82 @@ Twenty mutations, twenty killed. No new store, no new planner, no NLP, no LLM, a
 foreground-preference disambiguation — reading which application is in front and quietly preferring
 its goal is tempting and is resolution context being smuggled into identity. Refusing with the
 choice named is the honest first behaviour, and the other is recorded as a follow-on.
+
+## 36E: the planner prefers better evidence, and says why
+
+The planner was breadth-first, shortest chain, ties on subject id. Every edge cost one, and the
+only question asked of an edge was a boolean.
+
+**Two things it already knew and threw away.** `plannableEdges` computed which of two kinds of
+knowledge an edge had — a completed rehearsal still vouching for it, or a clean human
+demonstration — and collapsed both to `true`. So Marco knew which edges it had actually performed
+and planned as though it did not. And `WatchedEdge.Contradicted`, the record that one control had
+been seen leading two different places, was written by the observer, kept durably, and **read by
+nothing** once the edge was promoted: an edge Marco was demonstrably confused about planned exactly
+like one it was sure of.
+
+**The model is two small ordinals and a flag.** No score, no weights, nothing to tune. Classes:
+verified, watched-more-than-once, watched-once, and a zero value that ranks worst so an ungraded
+edge cannot win by default. Routes compare lexicographically on contradictions, effort, weakest
+class, actions, and finally the step ids.
+
+**Contradiction is first and is never traded away.** A route Marco does not understand is not
+something to weigh against a saved keystroke. It does not make the edge *ineligible* — the
+disagreement is about which of two destinations a control reaches and either might be right, so
+when it is the only way it is still a way, and the plan says it goes through one. Turning a
+preference into a safety boundary would let a single confused reading take a destination away.
+
+**Verification is worth exactly one action.** Both extremes are wrong: ignoring it throws away the
+only evidence Marco has about its own ability, and letting it win outright makes Marco open four
+windows rather than one to save a hypothetical. One action is the smallest bounded answer that says
+*I would rather use the way I have actually done, if it is not much further*. It is a policy, it is
+written down, and it is the thing to change if it is wrong — not the shape of the comparison.
+
+**Repetition saturates at two, immediately.** The second sighting is the whole of what repetition
+tells the planner: more evidence that the fact is real. It is not evidence that the person prefers
+this way, and a class that kept counting would let a habit outvote a contradiction by volume —
+Marco would be modelling somebody's routine rather than their computer. Fourteen mornings on the
+long way still lose to one clean traversal of the short one.
+
+**The weakest edge, never an average.** Two verified edges and one contradicted one is still a
+route with a bad edge in it, and the bad edge is the one that will fail. Likewise two-of-two
+verified beats three-of-five: a raw count of verified edges would prefer the longer route because
+it has more of them.
+
+**The search is Dijkstra over `(subject, weakest class so far)`.** The class is in the state and
+not just the cost because the not-fully-verified penalty is a *path* property, so the cheapest way
+to a subject is not necessarily the cheapest way that is still fully verified. Four states per
+subject over a bounded topology. Cycles cannot improve a route structurally — actions only increase
+and the weakest class only falls — which is also why it terminates.
+
+**Freshness was left out, deliberately.** A durable relationship carries no timestamp; ranking on
+one would mean inventing it, and decay that made known graph facts evaporate is worse than none.
+
+**The mutation gate found the same class of defect twice, both mine.** A claim is decorative until
+something produces the thing it describes: dropping the traversal counts from the production grade
+changed nothing any test could see, so the whole saturating-strength dimension was live in the
+policy and dead in production. The pure tests proved what `ClassObservedOften` MEANS; nothing
+proved the real Director ever produced one.
+`TestTheProductionGradeReportsHowOftenAnEdgeWasWatched` now does, and the same shape of gate holds
+the verified class — a `plannableEdges` returning a flat "everything is watched once" would have
+satisfied every pure test and ranked nothing at all.
+
+**And `reach` gained `--from`.** The question somebody debugging a route actually has is usually
+about a place they are *not*: would it still take the long way from the Home page? Until now the
+only answerable question was about the one screen a session happened to end on, and on a fresh
+Director there is no such screen — so the explanation surface could not be reached in the state it
+is most wanted. It drives nothing and the answer says which source it used.
+
+`director reach` now prints the planner's own reasons rather than a number:
+
+    step 1: Home → Bluetooth & devices
+    step 2: Bluetooth & devices → Mouse
+
+    chosen because: 2 actions, every step is one Marco has done and checked
+
+**The largest remaining gap is failure.** `rememberRehearsal` records only completed routes, so a
+failed attempt leaves the graph untouched — the right default, since a target that moved is not a
+semantic contradiction, but it means a repeatedly-failing edge currently ranks like any other
+observed one. That is the next roadmap and it pairs with replanning, which 36E deliberately did not
+touch: the route is chosen before execution, and if edge two fails the existing behaviour is
+unchanged.
