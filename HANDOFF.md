@@ -6673,3 +6673,73 @@ larger remembered one. Stated rather than measured: the capture-to-totals adapte
 build a StructureSignature (37D), so it cannot be checked offline, and it needs the same
 live-store session 35D is waiting on. It is confined to configured machines; with no model the
 detector reported unavailable and contributed nothing.
+
+## 37G — ask the actual graph what place Marco thinks it is in
+
+Three phases had left the same measurement outstanding and none of them could take it offline:
+35D's resize acceptance, 37D's finding that the capture-to-totals adapter cannot build a
+`StructureSignature`, and 37F's stated risk that a Place learned with visual evidence has a
+richer signature than the same page read by accessibility alone.
+
+So this one asked the running system: an isolated `$MARCO_HOME`, a real `semanticmemory.Store`,
+`director learn` to establish and passive sessions to resolve, with `ObserveShowing` — the one
+"where am I standing" door — printing the durable subject. `acceptance-37g.ps1` runs it. Marco
+emitted no desktop input: navigation is `ms-settings:` shell activation, resizing is
+`SetWindowPos`.
+
+**Two defects had to be fixed before the question could be asked at all, and both were invisible
+to a green 85-package suite.**
+
+*Every observation session stopped after one sample.* `liveSampler.Sample` holds `Runtime.mu` for
+the whole collect-and-fuse, 37F put the escalation gate inside that section, and the gate's
+`incompleteFor` took `Runtime.mu` to guard a timestamp. Not reentrant.
+
+	pre-37E build            9 samples / 12s
+	HEAD, gate bypassed     14 samples / 12s
+	HEAD                     1 sample, then silence
+
+The FIRST sample survived — nothing had settled, so the gate returned before reaching the lock —
+which is why a hang looked like a slow start. Learn, Light Mode, ambient watching and the fresh
+look a performance takes were all dead on the branch. Every existing test of that gate calls it
+directly, holding nothing.
+
+*A window emptied because it had been watched for longer.* `ReachOfState` divides structures
+inside the largest space by the structures the observation found; the second half returned every
+structure ever seen in the state, which grows with the session.
+
+	 14 samples    466 ever-seen    142 present    recognised
+	 27 samples    817 ever-seen    142 present    recognised
+	 40 samples   1024 ever-seen     88 present    UNREADABLE
+	183 samples   1024 ever-seen     88 present    UNREADABLE
+
+Eighty-seven structures sat inside the content region throughout. Recognition stopped working
+part way through every long look and reported it as a fact about the page — the one diagnosis
+that classifier exists to route correctly.
+
+**Then the measurement.** One Settings page is one Place from 1500px down to 850px, a 43% width
+reduction, with a signature that is not merely inside tolerance but IDENTICAL, while the fused
+element count moves 115 → 84. Both directions. Two clean restarts change nothing. Mouse and
+Bluetooth stay distinct at every width pair including narrow against narrow, and the store held
+exactly two subjects for two pages.
+
+Below about 850px Windows Settings removes its navigation pane — thirteen images and twelve of
+fifteen list items — and adds a search term. The matcher says `different` and Marco mints
+nothing. Recorded, not fixed: making it match means dropping `image`, `list_item` and
+`text_field` from identity, which is what tells Settings pages apart, so the reflow case would be
+bought with the false-merge case. A false miss is preferred to a false merge.
+
+**Sensor richness: recognition survives it, establishment does not.** A Place remembered from
+accessibility alone resolves to the same subject with the detector contributing, and the
+signature is byte-identical even though the fused world grows 115 → 135 elements. But one cold
+`director learn` with the detector configured left TWO Mouse Places: the gate is ignorant early
+in the pass so it buys the visual pass, a Place is established carrying nine `icon` structures,
+the reading is then placed and sufficient so the gate declines, the composition changes, and the
+open licence makes that durable too. Every later reading resolves to the second one; the first is
+an orphan. Bounded to machines with `$MARCO_VISION_MODEL` set, and recorded rather than fixed —
+holding the sensor set for a session would make a game viewport buy an inference every sample,
+which is the expense ADR-104 exists to refuse.
+
+12 mutations, 12 killed. Two survived first: one because the drift fixture put its churn inside
+the region it was meant to dilute, and one because a second filter written for the principle
+turned out unreachable against the live population — deleted rather than kept as a guard nobody
+can hold.

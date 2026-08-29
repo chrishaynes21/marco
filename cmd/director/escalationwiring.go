@@ -19,6 +19,26 @@ import (
 // evidence one: nothing it returns becomes belief, and a stale answer costs at worst one
 // inference that was not needed or one that was.
 //
+// # IT RUNS INSIDE THE PERCEPTION CYCLE, SO IT MAY TAKE NO LOCK THE CYCLE HOLDS
+//
+// Both callers ask from within `liveSampler.Sample`, which holds `Runtime.mu` for the whole
+// collect-and-fuse so the pinned window cannot move under the providers: `liveSampler.request`
+// is evaluated as an argument inside that section, and the shadow provider's own gate is called
+// deeper still, from inside `Collect`.
+//
+// `sync.Mutex` is not reentrant. When `incompleteFor` took `Runtime.mu`, the second sample of
+// EVERY observation session blocked forever — Learn, Light Mode, ambient watching, and the fresh
+// look a performance takes to find out where it is. The first sample survived only because
+// nothing was settled yet, so this returned at `!p.Placed` before reaching the lock, which is
+// what made a hang look like a slow start.
+//
+// Measured on Windows Settings: 14 samples in 12 seconds with the gate bypassed, 1 sample and
+// then silence with it. Nothing in an 85-package suite saw it, because every test of this gate
+// calls it directly and no test held the cycle's lock.
+//
+// So: `incompleteSince` has its own mutex, and anything added here must not reach for `mu`.
+// Enforced by TestTheSensorGateDoesNotReenterTheCycleLock.
+//
 // It must never be read the other way round. "The last reading was sufficient" is not a claim
 // about the current screen and may not stand in for one.
 func (r *Runtime) moreEvidenceIsWorthBuying() bool {
@@ -46,8 +66,8 @@ func (r *Runtime) moreEvidenceIsWorthBuying() bool {
 // page that has been blank for two seconds is not still arriving.
 func (r *Runtime) incompleteFor(p observe.Place) time.Duration {
 	now := sessionClock.Now()
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.incompleteSinceMu.Lock()
+	defer r.incompleteSinceMu.Unlock()
 	if observe.SufficiencyOf(p).State != observe.Incomplete {
 		r.incompleteSince = nil
 		return 0

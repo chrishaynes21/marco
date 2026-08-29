@@ -189,6 +189,11 @@ func main() {
 		os.Exit(runRevise(os.Args[2:], false))
 	case "knows":
 		os.Exit(runKnows(os.Args[2:]))
+	case "showing":
+		// Which durable place is in front, by its identity. A read: one bounded passive
+		// look through the production path, resolved against the real store. It
+		// establishes nothing and carries no authority.
+		os.Exit(runShowing(os.Args[2:]))
 	case "sight":
 		// "Show me what you're seeing." A read: no session, no answer, no write.
 		os.Exit(runSight(os.Args[2:]))

@@ -186,8 +186,16 @@ type Runtime struct {
 	// incompleteSince is when the reading first came back incomplete, nil when it is not.
 	// Corroboration for the escalation budget only — see escalationwiring.go. It is not
 	// evidence, is never persisted, and nothing about a Place is decided from it.
-	incompleteSince *time.Time
-	winPlatform     windowref.Platform
+	//
+	// GUARDED BY ITS OWN MUTEX, and that is load-bearing rather than tidy. The escalation
+	// gate is asked from INSIDE a perception cycle — by `liveSampler.request` and by the
+	// shadow provider's own gate, both of which run while `mu` is held for the whole
+	// collect-and-fuse. Putting this under `mu` made the gate re-enter a lock its caller
+	// already held, and `sync.Mutex` is not reentrant: every observation session in the
+	// build deadlocked on its second sample. See escalationwiring.go.
+	incompleteSince   *time.Time
+	incompleteSinceMu sync.Mutex
+	winPlatform       windowref.Platform
 	// owner decides whether MARCO'S OWN control surface is the thing in front, so input
 	// aimed at Marco never becomes evidence of what the person was demonstrating. See
 	// surfaceowner.go.

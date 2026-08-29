@@ -67,6 +67,7 @@ Governed by [[ADR-003-evidence-authority-by-source]].
 - [[ADR-103-acquisition-success-is-not-semantic-completeness]]
 - [[ADR-104-perception-is-a-budget-not-a-habit]]
 - [[ADR-105-repair-buys-knowledge-not-permission]]
+- [[ADR-106-a-place-is-not-how-long-you-looked-at-it]]
 
 ## Validated by
 
@@ -137,6 +138,36 @@ buying. Measured with the detector configured:
 
 So a healthy reading buys nothing, and repair can improve what Marco KNOWS without improving
 what Marco MAY DO. See [[ADR-105-repair-buys-knowledge-not-permission]].
+
+### A judgement must not measure the session
+
+`observe.ReachOfState` decides whether a large space in a window is vacant by the SHARE of the
+reading's structures that lie inside it. Both halves of that ratio have to be counted over the
+same reading, and one of them was not: the denominator was every structure ever seen in the
+screen state, which grows with every sample.
+
+One session over one Settings page nobody touched, at 900ms:
+
+	 14 samples    466 ever-seen    142 present    recognised
+	 27 samples    817 ever-seen    142 present    recognised
+	 40 samples   1024 ever-seen     88 present    UNREADABLE
+	183 samples   1024 ever-seen     88 present    UNREADABLE
+
+Eighty-seven structures sat inside the content region throughout. Recognition therefore stopped
+working part way through every long look, and said so as a fact about the page rather than about
+the reading. `tracksInState` now returns the structures that are still there. See
+[[ADR-106-a-place-is-not-how-long-you-looked-at-it]].
+
+### The escalation gate runs inside the cycle
+
+`liveSampler.Sample` holds `Runtime.mu` for the whole collect-and-fuse, and both consumers of
+`moreEvidenceIsWorthBuying` are called from inside it — the sampler's own request as an argument
+to `Collect`, and the shadow provider's gate deeper still. A gate that reaches back for that lock
+deadlocks the session on its second sample, which is exactly what happened; the first sample
+survives because nothing has settled yet, so it reads as a slow start rather than a hang.
+
+Measured: 14 samples in 12 seconds with the gate bypassed, one sample and then silence with it.
+Anything the gate needs to remember has its own mutex.
 
 ## Known gaps
 

@@ -61,6 +61,10 @@ type Vacancy struct {
 	Share  float64
 	// Inside is how many observed structures fall within it, and Structures how many the
 	// whole observation found. The RATIO is the discriminator — see [ReachOfState].
+	//
+	// BOTH ARE COUNTED OVER THE SAME READING. "The whole observation found" is what this
+	// always said and for a long time not what it held: it counted every structure ever seen
+	// in the state, so the ratio shrank the longer a window was watched. See tracksInState.
 	Inside     int
 	Structures int
 }
@@ -187,17 +191,64 @@ func ReachOfState(t ShadowTotals, id ScreenStateID) (Reach, Vacancy, Sufficiency
 	return ReachShell, empty, ReasonClientAreaUnpopulated
 }
 
-// tracksInState is the structures one screen state was made of.
+// tracksInState is the structures one screen state is made of RIGHT NOW.
 //
 // Scoped to the state on purpose. A session that crossed several screens holds tracks from all of
 // them, and judging a page by structures observed somewhere else would be the stale-evidence
 // mistake this repository has already made twice.
+//
+// # And scoped to the present reading, which is the same rule in the other dimension
+//
+// It was not. It returned every track that had EVER been seen in this state, and the occupancy
+// ratio above divides by what this returns — so the denominator grew with every sample while the
+// numerator described one reading. The longer Marco looked at an unchanging window, the emptier
+// it appeared, until a page it had recognised a moment earlier was reported as a shell.
+//
+// Measured live on 2026-08-28, one observation session over one Windows Settings page that
+// nobody touched, at 900ms:
+//
+//	14 samples    466 ever-seen    142 present    recognised
+//	27 samples    817 ever-seen    142 present    recognised
+//	40 samples   1024 ever-seen     88 present    UNREADABLE
+//	183 samples  1024 ever-seen     88 present    UNREADABLE
+//
+// Eighty-seven structures sat inside the content region throughout. Against the present
+// population that is nearly all of them; against the accumulated one it fell under
+// [maxVacantOccupancy] between the 27th sample and the 40th, and never came back — 1024 is the
+// track table's cap, so it saturates there and the verdict is permanent.
+//
+// The consequence was not cosmetic. `PlaceNow` reads this, so recognition stopped working part
+// way through every long look: a Learn pass, a `reach`, a rehearsal, anything watching for more
+// than about half a minute. It reported the failure as a fact about the PAGE — "accessibility
+// described the window but not the content" — which is the diagnosis this file exists to route
+// correctly and the one place it must never be wrong.
+//
+// This is the maturing-quantity mistake `recall.go` names twice, arriving in the classifier
+// instead of in identity: [SignatureOfState] drops `Recurrence` and a state's `Members` because
+// both grow within a visit. A ratio whose two halves are counted over different spans is the same
+// error, and it is worse here because it silently disables recognition rather than splitting it.
+//
+// `Present` is the field that says a structure is still there. It tolerates a gap —
+// [TrackAbsenceTolerance] misses before a track is called absent — so a skipped inference does
+// not empty the window, and a page whose content genuinely stopped coming back still empties it,
+// which is the case this whole file was written for.
+//
+// Deleting the Present filter must fail TestAWindowDoesNotEmptyBecauseItWasWatchedForLonger.
 func tracksInState(t ShadowTotals, id ScreenStateID) []ShadowTrack {
 	if id == "" || id == ScreenStateUnknown {
 		return nil
 	}
 	var out []ShadowTrack
 	for _, tr := range t.Tracks {
+		// STILL THERE. Of the 1024 tracks that state held, 88 were present — and exactly
+		// those 88 were the ones carrying a usable region. A second filter on geometry was
+		// written here for the principle (a judgement about arrangement should not count
+		// structures that have none), measured against the live population, found to change
+		// nothing, and removed. An unreachable condition beside a working one is a guard
+		// nobody can hold and a mutation nobody can kill.
+		if !tr.Present {
+			continue
+		}
 		for _, st := range tr.States {
 			if st.State == id && st.Seen > 0 {
 				out = append(out, tr)
