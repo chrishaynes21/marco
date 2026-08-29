@@ -6871,3 +6871,67 @@ re-deriving a comparison — it had been reporting layout roles as decisive that
 already dropped — and reports terms as lost and gained rather than as two lists.
 
 3 mutations, 3 killed. 35D responsive acceptance: PASSED to 850px, CONSERVATIVE_UNKNOWN below.
+
+## 37K — a screen carries several true names at once
+
+37J ended by pointing at naming: the collapsed page still contains its own name in a breadcrumb,
+and `AdmittedPlaceName` reads the selected navigation item, which is what the collapse removes. It
+also caught Printers naming itself after its SECTION at one width and not the others. 37K went to
+find out why, and the answer is a measured negative with two wrong names recorded rather than
+fixed.
+
+**The audit.** `placeNameEvidence` (producer, cmd/director) walks the fused world and keeps only
+elements the provider reports as SELECTED; `observe.AdmittedPlaceName` is the rule; the result
+reaches `ScreenState.PlaceNames`, `settledPlaceName`, `PlaceNamesToRecord` and
+`Store.ObserveSemanticName`, with `promotion.establish` covering the retrospective path. Everything
+is gated on selection, which is why a collapsed layout produces no name at all.
+
+`AdmittedPlaceName` became `ExplainPlaceName` with the verdict discarded — the
+`ExplainStructure`/`CompareStructure` shape — so the reasoning could be read without a second
+implementation existing to disagree with it. Suite green before any behaviour question was asked.
+Then `director name-probe`, which calls the production producer and the production rule and prints
+every claim, its semantic level, the trail evidence it came from, and why. It reports the
+presentation as whether anything claims to be the selected destination — not from a window width,
+which describes one machine's DPI, and not from a label like `Open Navigation`, which describes one
+operating system in one language.
+
+**A screen carries several true names at once.** On Printers at 1500px: `Settings` is the shell,
+`Bluetooth & devices` is the section AND the selected rail item, `Printers & scanners` is where you
+are. The existing rule separates them with the TRAIL — the group of sibling buttons containing the
+selected word is the path, and the entry that is not the selected word is the leaf.
+
+**The Printers trap, in the rule's own account:**
+
+	1500  siblings [Bluetooth & devices, Printers & scanners]  -> "Printers & scanners"
+	 850  siblings [More, Printers & scanners]                 -> "Bluetooth & devices"
+	 750  no element reports itself as selected                -> no name
+
+At 850 the breadcrumb's ancestor has collapsed into an overflow control, so no group holds the
+selected word, the trail lookup finds nothing, and the section is admitted by default. At 750 the
+breadcrumb is back and complete — and nothing is selected, so the rule never sees it.
+
+**The obvious fix was implemented, measured, and rejected.** Requiring a trail to corroborate a
+selected item fixes Printers at 850 and fixes Visual Studio Code, which today names itself
+`Terminal (Ctrl+`)` — a keyboard hint, the exact failure ADR-076's own comment warned about. And it
+breaks Settings HOME, which has no trail either: measured, the sibling groups are `[Add device, View
+all devices]`, `[Close Settings, …]`, `[Ethernet 2 Connected, …]`, `[Get more storage, …]` and none
+holds `Home`. ADR-076 recorded a one-entry trail there; this Windows build no longer produces one,
+and Home is named correctly today by the same path that gets Printers wrong.
+
+So `Home` and `Printers at 850` arrive as the identical shape — one selected navigable item, no
+trail — with opposite correct answers. Nothing in the evidence the rule receives separates them.
+
+Stage A is PARTIAL: ownership unified, the rule explains itself, destination-versus-section
+explicit and mutation-proven where a trail exists, ambiguity honest — and naming does not survive
+the breakpoint. Stage B was NOT ATTEMPTED on the roadmap's own condition. Confirmed live, two cold Learns on the same page:
+
+	at 1500px   one Place, subj_71727a02470f, semantic=[Mouse]
+	at  750px   one Place, subj_421b923d9093, semantic=[]
+
+so the unnamed-Place debt is unchanged and now has a measured cause — and the two subjects differ,
+which is 37J-s false miss showing up in the same run.
+
+Place identity is byte-identical — `recall.go` and `screenstate.go` untouched — and the 37J
+firewall passes unchanged.
+
+8 mutations, 8 killed.

@@ -189,6 +189,11 @@ func main() {
 		os.Exit(runRevise(os.Args[2:], false))
 	case "knows":
 		os.Exit(runKnows(os.Args[2:]))
+	case "name-probe":
+		// What this screen says it is, and which of its words is the Place. A read: one
+		// collection through the production path, then the production naming rule with its
+		// reasoning kept. It establishes nothing.
+		os.Exit(runNameProbe(os.Args[2:]))
 	case "showing":
 		// Which durable place is in front, by its identity. A read: one bounded passive
 		// look through the production path, resolved against the real store. It

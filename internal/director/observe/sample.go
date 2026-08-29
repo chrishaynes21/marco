@@ -614,10 +614,77 @@ type PlaceNameEvidence struct {
 // set of roles whose text may be admitted. This one narrows nothing and widens nothing.
 //
 // Deleting the single-candidate rule must fail TestSeveralSelectedItemsNameNothing.
-func AdmittedPlaceName(evidence []PlaceNameEvidence) string {
+// NameLevel is what a claim is a name FOR.
+//
+// The whole of 37K's first finding is that a screen carries several TRUE names at once, at
+// different semantic levels, and that admitting the wrong one is worse than admitting none.
+// Measured on Windows Settings' Printers page, which simultaneously offers:
+//
+//	Settings               the application shell
+//	Bluetooth & devices    the section it sits under, and the selected item in the rail
+//	Printers & scanners    the destination the person is actually on
+//
+// These are not competing answers to one question. They are correct answers to three, and the
+// only one a Place may be called is the last.
+type NameLevel string
+
+const (
+	// LevelDestination: the leaf — where the person actually is.
+	LevelDestination NameLevel = "destination"
+	// LevelSection: a true name for the region of the application this destination sits in.
+	// Never a Place name; it belongs to every destination underneath it.
+	LevelSection NameLevel = "section"
+	// LevelUnknown: a claim whose level could not be established. Not admissible — the
+	// question "is this the destination or the thing containing it" has no default answer.
+	LevelUnknown NameLevel = "unknown"
+)
+
+// NameClaim is one candidate, with what it names and why it was or was not admitted.
+type NameClaim struct {
+	// Value is the word.
+	Value string
+	// Level is what the word names, once the evidence has been read.
+	Level NameLevel
+	// Function says which semantic relationship produced this claim — `selected item`,
+	// `trail leaf`, `trail ancestor`. Deliberately not a provider: which sensor saw the word
+	// is provenance and lives on the element, and a naming rule that branched on it would
+	// make the same interface name itself differently on two machines.
+	Function string
+	// Admitted says this claim is the one a Place may be called by.
+	Admitted bool
+	// Why explains the outcome in a sentence somebody debugging a wrong name can act on.
+	Why string
+}
+
+// PlaceNaming is the whole account: the admitted name, and every claim considered.
+type PlaceNaming struct {
+	// Name is the admitted destination name, empty when nothing may be admitted.
+	Name string
+	// Claims is every candidate the evidence produced, admitted or not.
+	Claims []NameClaim
+	// Why explains an empty Name.
+	Why string
+}
+
+// ExplainPlaceName is AdmittedPlaceName with the reasoning kept.
+//
+// ONE implementation of what a Place is called, deliberately — the same shape as
+// ExplainStructure and CompareStructure, and for the same reason. A probe that re-derived the
+// answer would be a second naming rule, and the two would disagree exactly when somebody was
+// using the probe to find out why the first one was wrong.
+func ExplainPlaceName(evidence []PlaceNameEvidence) PlaceNaming {
+	out := PlaceNaming{}
 	found := ""
 	for _, e := range evidence {
-		if !e.Selected || e.InsideValueChooser {
+		if !e.Selected {
+			continue
+		}
+		if e.InsideValueChooser {
+			out.Claims = append(out.Claims, NameClaim{
+				Value: strings.TrimSpace(e.Label), Level: LevelUnknown, Function: "selected value",
+				Why: "the selected item of a control for PICKING A VALUE says what a setting " +
+					"is set to, not where you are",
+			})
 			continue
 		}
 		// A DESTINATION, not a control. A button is something you press; it never reports
@@ -625,6 +692,11 @@ func AdmittedPlaceName(evidence []PlaceNameEvidence) string {
 		// cannot reach this rule at all — but the role check says so rather than relying
 		// on that.
 		if !e.Role.Navigable() {
+			out.Claims = append(out.Claims, NameClaim{
+				Value: strings.TrimSpace(e.Label), Level: LevelUnknown,
+				Function: "selected " + string(e.Role),
+				Why:      "a " + string(e.Role) + " is not something you can be inside",
+			})
 			continue
 		}
 		trimmed := strings.TrimSpace(e.Label)
@@ -632,6 +704,10 @@ func AdmittedPlaceName(evidence []PlaceNameEvidence) string {
 			continue
 		}
 		if !safeLabelText(trimmed, e.Confidence, DefaultLabelPolicy()) {
+			out.Claims = append(out.Claims, NameClaim{
+				Value: trimmed, Level: LevelUnknown, Function: "selected item",
+				Why: "the text does not look like the name of a place",
+			})
 			continue
 		}
 		// THE SECTION IS NOT THE PLACE.
@@ -647,30 +723,63 @@ func AdmittedPlaceName(evidence []PlaceNameEvidence) string {
 		// Order is never read, because the fused world is a map and has none.
 		//
 		// Deleting the trail branch must fail TestASubPageIsNotNamedAfterItsSection.
-		word := trimmed
+		word, level, function := trimmed, LevelDestination, "selected item"
 		if len(e.Trail) > 0 {
 			other := ""
 			for _, t := range e.Trail {
 				if s := strings.TrimSpace(t); s != "" && s != trimmed {
 					if other != "" {
-						return "" // three or more: unmeasured, fail closed
+						out.Claims = append(out.Claims, NameClaim{
+							Value: trimmed, Level: LevelUnknown, Function: "selected item",
+							Why: "the trail this word sits in has three or more entries; " +
+								"which one is the destination has never been measured",
+						})
+						out.Why = "a trail deeper than anything measured"
+						return PlaceNaming{Claims: out.Claims, Why: out.Why}
 					}
 					other = s
 				}
 			}
 			if other != "" {
+				out.Claims = append(out.Claims, NameClaim{
+					Value: trimmed, Level: LevelSection, Function: "trail ancestor",
+					Why: "the trail holds a deeper entry, so this word names the section",
+				})
 				if !safeLabelText(other, e.Confidence, DefaultLabelPolicy()) {
-					return ""
+					out.Claims = append(out.Claims, NameClaim{
+						Value: other, Level: LevelUnknown, Function: "trail leaf",
+						Why: "the text does not look like the name of a place",
+					})
+					out.Why = "the destination's own word could not be admitted"
+					return PlaceNaming{Claims: out.Claims, Why: out.Why}
 				}
-				word = other
+				word, function = other, "trail leaf"
 			}
 		}
 		if found != "" && found != word {
 			// Two different answers. Marco does not know which, and saying so is the
 			// honest report.
-			return ""
+			out.Claims = append(out.Claims, NameClaim{
+				Value: word, Level: LevelDestination, Function: function,
+				Why: "a second, different destination was claimed; Marco cannot tell which",
+			})
+			out.Why = "two destinations were claimed"
+			return PlaceNaming{Claims: out.Claims, Why: out.Why}
 		}
 		found = word
+		out.Claims = append(out.Claims, NameClaim{
+			Value: word, Level: level, Function: function, Admitted: true,
+			Why: "the destination this observation is standing on",
+		})
 	}
-	return found
+	out.Name = found
+	if found == "" && out.Why == "" {
+		out.Why = "nothing in this observation claimed a destination"
+	}
+	return out
+}
+
+// AdmittedPlaceName is ExplainPlaceName with the explanation discarded.
+func AdmittedPlaceName(evidence []PlaceNameEvidence) string {
+	return ExplainPlaceName(evidence).Name
 }

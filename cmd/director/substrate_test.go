@@ -105,6 +105,12 @@ func TestFusionIsTheOnlyDoorFromSensorsToBelief(t *testing.T) {
 		// collector and engine on purpose — an audit of a second reading would be an
 		// audit of that second reading. Reads; writes nothing; performs nothing.
 		"walkaudit.go": true,
+		// Asks what the screen in front says it is called, and why. It fuses for the
+		// same reason walk-audit does: the naming rule reads the FUSED world, where
+		// selection and parentage survive, so a probe over anything else would be
+		// explaining a different world from the one production names. It prints; it
+		// establishes nothing and performs nothing.
+		"nameprobe.go": true,
 	}
 	fuse := regexp.MustCompile(`\.Fuse\(`)
 	for name, src := range directorSource(t) {

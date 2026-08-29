@@ -328,6 +328,8 @@ Load applies the same referential rule as candidates: evidence whose endpoints a
 - [[ADR-014-hypotheses-are-evidence-not-identity]]
 - [[ADR-076-a-place-may-say-what-it-appears-to-be-called]] — the selected destination names a
   Place; an inference is never recorded as something the Audience said
+- [[ADR-109-a-screen-carries-several-true-names-at-once]] — the shell, the section and the
+  destination are three true names, and only the last may be a Place's
 
 ## Validated by
 
@@ -462,6 +464,33 @@ The collapsed reading also loses the page's NAME: `AdmittedPlaceName` reads the 
 navigation item. The page still names itself in a breadcrumb, which is where a future attempt
 should look — carefully, because the same run caught Printers naming itself after its section at
 one width. See [[ADR-108-what-a-reflow-removes-cannot-always-be-told-from-where-you-are]].
+
+### What a Place is called, and which of the screen's words that is
+
+A screen carries several TRUE names at once. Measured on Windows Settings' Printers page:
+
+	Settings              the application shell
+	Bluetooth & devices   the section, and the selected item in the navigation rail
+	Printers & scanners   where the person actually is
+
+None is wrong; only the last may be a Place's name. `observe.ExplainPlaceName` is the one rule —
+`AdmittedPlaceName` is it with the explanation discarded — and it separates the levels using the
+TRAIL: the group of sibling buttons containing the selected word is the path taken, and the entry
+that is not the selected word is the leaf.
+
+`director name-probe` prints every claim, its level, the trail evidence it came from, and why it
+was admitted or refused. It calls the production producer and the production rule, so a claim it
+shows is a claim production made.
+
+**Where it stops, measured.** The rule is reached only through a SELECTED item, so a responsive
+layout that removes the navigation removes the name — the breadcrumb is still on screen and
+unreachable. And a selected item that no trail corroborates is admitted anyway, which is right on
+Settings Home and wrong on Printers at its overflow width, where the section gets admitted. Those
+two arrive as the identical shape with opposite correct answers, so requiring corroboration was
+measured and rejected: it fixes Printers and VS Code's `Terminal (Ctrl+`)` and loses Home.
+
+A Learn performed while the navigation is collapsed therefore still produces an unnamed Place. See
+[[ADR-109-a-screen-carries-several-true-names-at-once]].
 
 ## Known correctness debt: a durable Envelope can strand a subject
 
