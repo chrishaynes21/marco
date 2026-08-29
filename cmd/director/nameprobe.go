@@ -41,6 +41,7 @@ func runNameProbe(args []string) int {
 	fs := flag.NewFlagSet("name-probe", flag.ExitOnError)
 	app := fs.String("application", "", "the application to read")
 	title := fs.String("title", "", "or the window whose title contains this")
+	deep := fs.Bool("deep", false, "also show what contains every claim and every sibling group")
 	bridgeFlag := fs.String("accessibility", defaultBridge(), "path to the accessibility bridge")
 	_ = fs.Parse(flagsFirst(args))
 
@@ -100,6 +101,10 @@ func runNameProbe(args []string) int {
 	// findings, and only this line tells them apart.
 	for _, group := range siblingButtonGroups(world) {
 		fmt.Printf("  siblings      %v\n", group)
+	}
+
+	if *deep {
+		reportStructure(world)
 	}
 
 	naming := observe.ExplainPlaceName(placeNameEvidence(world))
@@ -181,4 +186,80 @@ func siblingButtonGroups(world directorapi.WorldState) [][]string {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i][0] < out[j][0] })
 	return out
+}
+
+// ancestryOf is the chain of roles above an element, nearest first.
+//
+// The question 37L opens with: can the accessibility hierarchy ABOVE a claim say whether it names
+// where you are or the region you are in? A selected rail item and a selected breadcrumb step are
+// both `selected` and both navigable; if anything separates them it is what contains them.
+//
+// Bounded, because a tree can be deep and a diagnostic that printed forty ancestors would be read
+// by nobody.
+func ancestryOf(world directorapi.WorldState, el *directorapi.Element) []string {
+	var out []string
+	cur := el
+	for depth := 0; depth < 8; depth++ {
+		if cur.ParentID == nil {
+			break
+		}
+		parent, ok := world.Elements[*cur.ParentID]
+		if !ok || parent == nil {
+			break
+		}
+		label := parent.Label
+		if label == "" {
+			label = "-"
+		}
+		out = append(out, fmt.Sprintf("%s(%s)", parent.Role, label))
+		cur = parent
+	}
+	return out
+}
+
+// reportStructure prints, for every selected element and every sibling-button group, what contains
+// it. This is the Stage A measurement: whether local structure separates a destination from a
+// section without asking memory anything.
+func reportStructure(world directorapi.WorldState) {
+	type row struct {
+		what      string
+		ancestors []string
+	}
+	var rows []row
+	for _, el := range world.Elements {
+		if el == nil || el.Offscreen || !el.Visible {
+			continue
+		}
+		if el.Selected {
+			rows = append(rows, row{
+				what:      fmt.Sprintf("selected %s %q", el.Role, el.Label),
+				ancestors: ancestryOf(world, el),
+			})
+			continue
+		}
+		if el.Role == directorapi.RoleButton && el.Label != "" && el.ParentID != nil {
+			if siblingCount(world, *el.ParentID) < 2 {
+				continue
+			}
+			rows = append(rows, row{
+				what:      fmt.Sprintf("button   %q", el.Label),
+				ancestors: ancestryOf(world, el),
+			})
+		}
+	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].what < rows[j].what })
+	for _, r := range rows {
+		fmt.Printf("  where         %-46s in %v\n", r.what, r.ancestors)
+	}
+}
+
+func siblingCount(world directorapi.WorldState, parent directorapi.ElementID) int {
+	n := 0
+	for _, el := range world.Elements {
+		if el != nil && el.ParentID != nil && *el.ParentID == parent &&
+			el.Role == directorapi.RoleButton && el.Label != "" && !el.Offscreen && el.Visible {
+			n++
+		}
+	}
+	return n
 }

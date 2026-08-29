@@ -330,6 +330,8 @@ Load applies the same referential rule as candidates: evidence whose endpoints a
   Place; an inference is never recorded as something the Audience said
 - [[ADR-109-a-screen-carries-several-true-names-at-once]] — the shell, the section and the
   destination are three true names, and only the last may be a Place's
+- [[ADR-110-a-navigation-rail-is-a-list-of-places-you-could-go]] — neither the hierarchy above a
+  claim nor remembered topology can say which
 
 ## Validated by
 
@@ -491,6 +493,18 @@ measured and rejected: it fixes Printers and VS Code's `Terminal (Ctrl+`)` and l
 
 A Learn performed while the navigation is collapsed therefore still produces an unnamed Place. See
 [[ADR-109-a-screen-carries-several-true-names-at-once]].
+
+**Two routes out were measured and closed.** The accessibility hierarchy above the selection is
+byte-identical on the screen where the selection IS the destination and on the screen where it is
+the section. And remembered topology cannot referee it, because a navigation rail publishes every
+one of a page's children — so "the selected Place has an edge to a visible label" is true on every
+wide page, and a rule built on it would demote every parent, starting with Home. See
+[[ADR-110-a-navigation-rail-is-a-list-of-places-you-could-go]].
+
+The boundary that rule would have crossed is now enforced: `placeNameEvidence` reads one fused
+world and nothing else. Memory may help interpret current evidence; memory may never become
+current evidence.
+
 
 ## Known correctness debt: a durable Envelope can strand a subject
 

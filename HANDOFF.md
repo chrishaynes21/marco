@@ -6935,3 +6935,57 @@ Place identity is byte-identical — `recall.go` and `screenstate.go` untouched 
 firewall passes unchanged.
 
 8 mutations, 8 killed.
+
+## 37L — a navigation rail is a list of places you could go
+
+37K reduced destination naming to one ambiguity: a selected navigable item with no trail means
+opposite things on two real screens. Settings Home — selected `Home`, and Home IS the destination.
+Printers at 850px — selected `Bluetooth & devices`, and the destination is its child, whose
+breadcrumb ancestor has collapsed into an overflow. 37L asked whether anything else Marco has
+could separate them. Two routes, both measured, both closed.
+
+**The hierarchy above the selection is byte-identical.** `director name-probe --deep` now reports
+what contains every claim:
+
+	Home @1500     selected list_item "Home"                in [group pane window unknown window window]
+	Printers @850  selected list_item "Bluetooth & devices" in [group pane window unknown window window]
+
+There IS a structural difference elsewhere — the breadcrumb's buttons sit outside the content pane
+at depth 4, every content button passes through a `pane`, and Home has no such group at all, which
+is coherent for a root. It was not used: identifying a group by the roles above it is the shape
+37D measured into the ground, it rests on one application, and it does not finish the job. At 850
+the group is `[More, Printers & scanners]` — two unordered entries, the selected word in neither,
+and `PlaceNameEvidence` carries no rectangle on purpose, so "the last one" is not a question Marco
+may ask.
+
+**The graph cannot referee it, and the reason is the rail.** The hypothesis was: if the selected
+Place has a remembered edge to a currently visible label, that label is the destination and the
+selection is only the section. Settings Home kills it — measured, the rail publishes every one of
+its children:
+
+	Home, System, Bluetooth & devices, Network & internet, Personalization, Apps, Accounts,
+	Time & language, Gaming, Accessibility, Privacy & security, Windows Update, Sound, Display…
+
+A rail is a list of places you COULD go, and it is on every wide page. So "an edge to a visible
+label" is satisfied everywhere and the rule would demote every parent, starting with the one
+screen whose name is currently right. Constraining it to the breadcrumb group needs the Stage A
+signal that is not available. A second objection never had to be reached: the graph's
+`Printers & scanners` was named by this same rule at the widths where the trail exists, so
+refereeing the rule with it is circular unless name provenance is persisted — and building that to
+rescue an already-unsafe idea would be the wrong order.
+
+So: `CONSERVATIVE_UNKNOWN`, nothing changed, and one boundary now enforced rather than intended —
+`placeNameEvidence` reads one fused world and nothing else. Memory may help interpret current
+evidence; memory may never become current evidence.
+
+Known wrong and staying wrong: Printers at its overflow width takes its section's name; VS Code
+names itself `Terminal (Ctrl+`)` (its ancestry does differ — a `tab_list` — so a local rule is
+imaginable there, on one data point, not built); and a Learn while collapsed produces an unnamed
+Place.
+
+Place identity untouched, 37J firewall unchanged. 4 mutations, 4 killed.
+
+**This closes the naming and identity investigations.** The two screens are indistinguishable to
+everything Marco can currently read, and the fact that separates them — a breadcrumb is a path, a
+rail is a menu — is not exposed by UI Automation on this application. The next question is not
+architectural. It is how much any of this costs in use.
