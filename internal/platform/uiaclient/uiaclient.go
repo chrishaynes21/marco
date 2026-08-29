@@ -161,6 +161,11 @@ func (p *Provider) Snapshot(ctx context.Context, scope directorapi.WindowID) (di
 	in.Put("MaxDepth", runtime.Number(float64(p.maxDepth())))
 	in.Put("TimeoutMs", runtime.Number(float64(p.timeout().Milliseconds())))
 
+	// The walk is the expensive thing in perception and nothing counted them. See
+	// walkcount.go — off unless an audit turns it on.
+	startedWalk := time.Now()
+	defer func() { recordWalk(time.Since(startedWalk)) }()
+
 	status, data, err := p.host.Invoke(runtime.HostCall{
 		Act:    accessibilityAct,
 		Action: "Snapshot",

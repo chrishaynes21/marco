@@ -6569,3 +6569,60 @@ capture-to-totals adapter cannot produce a StructureSignature — every sample s
 `CompareStructure` then answers "candidate" for any pair, including two obviously different
 Settings pages. Checked rather than assumed, and the limitation is written into
 `assessdesktop.go` so the next person does not claim it either.
+
+
+## 37E — perception is a budget, not a habit
+
+Two questions, both answered by counting rather than reasoning. `director walk-audit` runs a
+window's reading repeatedly through the production collector and fusion engine and reports what
+each walk cost.
+
+**The bridge is not the problem.** One Snapshot is a single bulk CacheRequest over the whole
+subtree — every property of every node in one cross-process call, which is the right shape.
+It keeps no state between calls, subscribes to NO UI Automation events, and has no cheap
+targeted read: `Locate` exists for actuation and searches the same tree. Exactly one walk per
+Collect, so there was no duplicate to eliminate — Level 0 and Level 1 on the roadmap's ladder
+had nothing to take. Polling costs nothing either; `placeHereIn` reads a session's accumulated
+evidence and starts no walk. The sampler already refuses to queue a backlog.
+
+	File Explorer   298 elements   1674ms mean   identical every reading
+	Settings        155 elements     70ms mean   identical every reading
+
+**What was wrong was how often, and the answer was already in the tree.** Ambient watching's
+`attention` grows from one second to eight while nothing changes and snaps back the moment
+something does — governing the gap BETWEEN twenty-second sessions, while each session it opened
+sampled at a flat second regardless. About seven full walks of an unchanged Explorer tree per
+session, roughly 42% of wall-clock rebuilding it. Passing the same attention through as the
+session's interval is the whole change: 7 walks a session to 2, ~42% to ~12%. Settings, 18 to 2.
+
+It retains NO state. Every sample is still a complete fresh walk taken at the moment it is
+reported; there are fewer of them when nothing is happening. Nothing is cached, so nothing can
+go stale — it is not on the caching ladder at all. And it reaches ambient only: `freshLookInterval`
+is 400ms and is not the supervisor's, so execution does not slow because the desktop is quiet.
+
+**And nothing consulted sufficiency to decide sensors.** ScreenParser is opt-in at process
+level and already cadence-gated, so it was never unbounded — but when enabled it inferred
+against healthy readings 37C had already proved it adds nothing to. `observe.EscalationOf` is
+now the one place that decides whether more perception is worth paying for, and the shadow
+provider is its first consumer. It names no sensor: `SpendMore` says more evidence is worth
+buying, and which evidence belongs to whoever holds one and knows its cost.
+
+Three rules carry it. A sufficient reading buys nothing — 37C measured that directly. A fresh
+incomplete reading settles first, because a page mid-navigation is briefly indistinguishable
+from one that failed to arrive and waiting is free. And nobody waiting is not worth spending
+on: a game viewport is incomplete for as long as it is in front, which is a standing condition
+rather than an event.
+
+The gate declines only on a positive answer. No session, no memory, nothing settled yet are all
+Marco not knowing — and a gate reading those as "no need" would silently end the experiment it
+gates while looking like an optimisation. Deny on evidence, never on absence, the same rule as
+`Provenance.OnlyDescribesPixels`.
+
+**The mutation gate found four survivors and every one was the same shape.** The policy and the
+cadence both had thorough unit tests, and reverting the production cadence, making the gate
+decline on ignorance, and having the gate reach its own verdict instead of asking the policy all
+left them green. The rules were tested; nobody had tested that production asks them. 14 of 14
+die now.
+
+Nothing about the firewall moved. No cache, no event subsystem, no targeted refresh, no
+persistent scene graph — the last is documented as a follow-on rather than quietly begun.

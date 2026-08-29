@@ -211,6 +211,7 @@ var valued = map[string]bool{
 	"-examples": true, "--examples": true,
 	"-iou": true, "--iou": true,
 	"-redact": true, "--redact": true,
+	"-pause": true, "--pause": true,
 }
 
 // valuedFlags is the table above, for the test that holds every command's value-taking flags to

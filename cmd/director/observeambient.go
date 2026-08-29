@@ -325,10 +325,38 @@ func (a *ambientObserver) watchOnce(ctx context.Context) (moved bool) {
 	if application == "" {
 		return false
 	}
+	// THE SAME ATTENTION GOVERNS THE GAP BETWEEN SESSIONS AND THE CADENCE INSIDE ONE.
+	//
+	// It used to govern only the first. `attention` already grows from a second to eight
+	// while nothing changes and snaps back the moment something does — and then each session
+	// it opened sampled at a flat one-second interval for twenty seconds regardless, so a
+	// desktop nobody was touching still paid full price for the whole session and only the
+	// silence between sessions got cheaper.
+	//
+	// Measured: one accessibility walk of a File Explorer window is 1.67s (298 elements, six
+	// identical readings, 37E). At a one-second gap that is a 2.67s cycle, roughly seven
+	// walks a session, about twelve seconds of walking in every twenty — against a tree that
+	// did not change once. Passing the attention through makes the settled case sample at an
+	// eight-second gap instead: two walks a session rather than seven.
+	//
+	// This is NOT a cache and costs no freshness. Every sample is still a complete walk taken
+	// at the moment it is reported; there are simply fewer of them when nothing is happening,
+	// decided by the signal that already existed for exactly this question.
+	//
+	// It reaches ambient watching ONLY. A look taken to answer a question sets its own
+	// interval — see freshLookInterval — and execution is not slowed by a quiet desktop.
+	//
+	// Deleting this must fail TestAQuietDesktopIsWatchedMoreCheaply.
+	a.mu.Lock()
+	cadence := a.attention
+	a.mu.Unlock()
+	if cadence <= 0 {
+		cadence = ambientBusy
+	}
 	view, err := ambientObserveNow(a.rt, service.ObservePayload{
 		Target:   currentWindowSelector(application),
 		Duration: ambientSession,
-		Interval: ambientBusy,
+		Interval: cadence,
 	})
 	if err != nil {
 		return false

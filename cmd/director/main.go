@@ -142,6 +142,10 @@ func main() {
 		// One coherent perception moment: the screenshot AND what production believed,
 		// pinned to one window. Scratch only — see capturedesktop.go.
 		os.Exit(runCaptureDesktopSample(os.Args[2:]))
+	case "walk-audit":
+		// Counts and times the accessibility walks one window costs, through the
+		// production collector. Reads; performs nothing. See walkaudit.go.
+		os.Exit(runWalkAudit(os.Args[2:]))
 	case "assess-desktop-sample":
 		// Says whether the PRIMARY sensor represented the interface, why, and what it
 		// cost — the three kept separate. Reads; classifies through production. See

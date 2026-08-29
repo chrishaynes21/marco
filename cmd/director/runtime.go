@@ -183,7 +183,11 @@ type Runtime struct {
 	// It overrides "whatever is in front" for exactly the duration of that pass — see
 	// ReadVision and activeWindow. Guarded by mu, which the pass already holds.
 	pinnedWindow *windowref.Ref
-	winPlatform  windowref.Platform
+	// incompleteSince is when the reading first came back incomplete, nil when it is not.
+	// Corroboration for the escalation budget only — see escalationwiring.go. It is not
+	// evidence, is never persisted, and nothing about a Place is decided from it.
+	incompleteSince *time.Time
+	winPlatform     windowref.Platform
 	// owner decides whether MARCO'S OWN control surface is the thing in front, so input
 	// aimed at Marco never becomes evidence of what the person was demonstrating. See
 	// surfaceowner.go.
@@ -472,6 +476,22 @@ func NewRuntime(bridgePath string, maxNodes int, dryRun bool, g *actiongraph.Fil
 	rt.shadowVision, rt.shadowBridge, rt.shadowUnavailable =
 		newShadowVision(provenCapture, rt.activeWindow, newLabelReader(textEngine))
 	if rt.shadowVision != nil {
+		// AND IT DOES NOT SPEND ON A READING THAT ALREADY ANSWERS THE QUESTION.
+		//
+		// 37C measured this exactly: over six coherent desktop moments, ScreenParser added
+		// no actionable semantic item to an accessibility reading that was already
+		// sufficient, at 645-1379ms an inference. Buying that against a healthy Settings
+		// page is a second of work for something the World already contains.
+		//
+		// It declines ONLY on a positive statement that the reading suffices. No session,
+		// no memory, nothing observed yet, incomplete, unobservable — none of those is a
+		// reason to stop looking, and every one of them is Marco not knowing rather than
+		// Marco knowing it has enough. Defaulting the unknown case to "spend" is what
+		// keeps a gate from quietly ending the experiment it gates; the same shape as
+		// Provenance.OnlyDescribesPixels, which denies on evidence and never on absence.
+		//
+		// Deleting this must fail TestASufficientReadingDoesNotBuyAnInference.
+		rt.shadowVision.WhenWorthIt(func() bool { return rt.moreEvidenceIsWorthBuying() })
 		sources = append(sources, rt.shadowVision)
 	}
 	// The navigation observer. Deliberately NOT a perception provider: it observes the

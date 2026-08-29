@@ -75,6 +75,7 @@ func directorSource(t *testing.T) map[string]string {
 //	main.go           a one-shot reading for the inspect commands
 //	ocrwiring.go      the text-reading path
 //	capturedesktop.go the 37C corpus capture — measurement, not behaviour
+//	walkaudit.go      the 37E acquisition audit — measurement, not behaviour
 //
 // A fifth would not be wrong on its own. It would be a fifth thing to keep in step, and this test
 // exists so that adding one is a decision somebody makes rather than a line somebody adds.
@@ -98,8 +99,12 @@ func TestFusionIsTheOnlyDoorFromSensorsToBelief(t *testing.T) {
 		"runtime.go":       true, // the foreground pipeline
 		"main.go":          true, // the one-shot inspect reading
 		"ocrwiring.go":     true, // the text-reading path
-		// Measurement, not behaviour. See the note above; it drives nothing.
+		// Measurement, not behaviour. See the note above; neither drives anything.
 		"capturedesktop.go": true,
+		// Counts and times the walks one window costs, through the production
+		// collector and engine on purpose — an audit of a second reading would be an
+		// audit of that second reading. Reads; writes nothing; performs nothing.
+		"walkaudit.go": true,
 	}
 	fuse := regexp.MustCompile(`\.Fuse\(`)
 	for name, src := range directorSource(t) {

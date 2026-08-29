@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/chaynes-simpleclouds/marco/internal/platform/uiaclient"
 	"sort"
 	"strings"
 	"sync"
@@ -162,8 +163,13 @@ func (s *liveSampler) Sample(ctx context.Context, req observesession.SampleReque
 
 	s.rt.mu.Lock()
 	s.rt.pinnedWindow = &req.Window
+	// EVERY SESSION SAMPLE IS A FULL ACCESSIBILITY WALK, and this is the door almost all of
+	// them come through — Observe, Learn, and every fresh look a Perform takes. Attributed so
+	// an audit can tell a session's walks from a one-shot command's. See uiaclient/walkcount.go.
+	restore := uiaclient.AttributeWalksTo(uiaclient.PurposeSession)
 	cycleStart := time.Now()
 	cycle := s.rt.collector.Collect(ctx, s.request(req))
+	restore()
 	collectFor := time.Since(cycleStart)
 
 	fuseStart := time.Now()

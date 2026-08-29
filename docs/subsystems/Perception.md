@@ -65,6 +65,7 @@ Governed by [[ADR-003-evidence-authority-by-source]].
 - [[ADR-101-visual-presence-is-not-legal-actionability]]
 - [[ADR-102-a-detector-earns-its-place-where-perception-fails]]
 - [[ADR-103-acquisition-success-is-not-semantic-completeness]]
+- [[ADR-104-perception-is-a-budget-not-a-habit]]
 
 ## Validated by
 
@@ -105,6 +106,24 @@ took 1.6 seconds to read — all sufficient. See
 
 `director assess-desktop-sample` prints it, with acquisition cost beside the verdict and
 deliberately not part of it.
+
+## What a reading costs, and how often one is taken
+
+One `Snapshot` is a single bulk `CacheRequest` over the whole subtree — every property of every
+node in one cross-process call. The bridge keeps no state between calls, subscribes to no UI
+Automation events, and has no cheap targeted read (`Locate` exists for actuation and searches
+the same tree). Measured over repeated readings of unchanged windows:
+
+	File Explorer   298 elements   1674ms mean
+	Settings        155 elements     70ms mean
+
+Exactly one walk per `Collect`. So cost is entirely a question of how often one is asked for,
+and the answer is the attention the ambient supervisor already keeps: one second while things
+are changing, relaxing to eight while they are not, governing both the gap between sessions and
+the cadence inside one. Nothing is cached — every sample is a full fresh walk — there are simply
+fewer of them on a quiet desktop. See [[ADR-104-perception-is-a-budget-not-a-habit]].
+
+`director walk-audit` counts and times them.
 
 ## Known gaps
 

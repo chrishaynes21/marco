@@ -39,6 +39,11 @@ type Provider struct {
 	inner   observation.TargetedProvider
 	cadence time.Duration
 	now     func() time.Time
+	// worth is asked before an inference starts: is more evidence worth buying right now?
+	//
+	// Nil means yes, which is what keeps every existing caller and every test unchanged.
+	// See WhenWorthIt.
+	worth func() bool
 
 	mu       sync.Mutex
 	inFlight bool
@@ -55,7 +60,11 @@ type Stats struct {
 	Inferences  int64 `json:"inferences"`
 	SkippedBusy int64 `json:"skipped_busy"`
 	SkippedRate int64 `json:"skipped_cadence"`
-	Failures    int64 `json:"failures"`
+	// SkippedUnneeded is inferences declined because the primary reading already answered
+	// the question. Counted rather than silent: an experiment that stopped running must
+	// never look like one that ran and found nothing.
+	SkippedUnneeded int64 `json:"skipped_unneeded"`
+	Failures        int64 `json:"failures"`
 
 	// FirstLatency is the cold pass: model load plus session creation plus one inference.
 	// Held separately because averaging it into the median would misreport steady cost by
@@ -97,11 +106,12 @@ func (p *Provider) recordLatency(d time.Duration) {
 // Snapshot copies the counters for a diagnostic.
 func (p *Provider) Snapshot() Stats {
 	return Stats{
-		Inferences:   atomic.LoadInt64(&p.stats.Inferences),
-		SkippedBusy:  atomic.LoadInt64(&p.stats.SkippedBusy),
-		SkippedRate:  atomic.LoadInt64(&p.stats.SkippedRate),
-		Failures:     atomic.LoadInt64(&p.stats.Failures),
-		FirstLatency: p.stats.FirstLatency,
+		Inferences:      atomic.LoadInt64(&p.stats.Inferences),
+		SkippedBusy:     atomic.LoadInt64(&p.stats.SkippedBusy),
+		SkippedRate:     atomic.LoadInt64(&p.stats.SkippedRate),
+		SkippedUnneeded: atomic.LoadInt64(&p.stats.SkippedUnneeded),
+		Failures:        atomic.LoadInt64(&p.stats.Failures),
+		FirstLatency:    p.stats.FirstLatency,
 	}
 }
 
@@ -176,6 +186,24 @@ func (p *Provider) Observe(ctx context.Context,
 func (p *Provider) ObserveTargeted(ctx context.Context,
 	req observation.Request) observation.ProviderOutcome {
 
+	// IS MORE EVIDENCE WORTH BUYING? Asked BEFORE the cadence slot is claimed, so a
+	// declined inference does not consume the slot a later, useful one would have used.
+	//
+	// 37C measured what this saves: over six coherent desktop moments, ScreenParser added no
+	// actionable semantic item to a reading that was already sufficient, and took 645–1379ms
+	// per frame to add it. Running it against a healthy accessibility reading is a second of
+	// work for a result the World already contains.
+	//
+	// The policy is observe.EscalationOf and it names no sensor — it answers "is more
+	// evidence worth buying", and this provider decides that it is the one holding the
+	// expensive sensor. Nothing here re-derives sufficiency; deciding that is 37D's job and
+	// there is exactly one place it happens.
+	//
+	// Deleting this must fail TestASufficientReadingDoesNotBuyAnInference.
+	if p.worth != nil && !p.worth() {
+		atomic.AddInt64(&p.stats.SkippedUnneeded, 1)
+		return p.skipped(req)
+	}
 	if !p.claim() {
 		return p.skipped(req)
 	}
@@ -238,4 +266,17 @@ func (p *Provider) skipped(req observation.Request) observation.ProviderOutcome 
 		out.ExpectedTarget = *req.Target
 	}
 	return out
+}
+
+// WhenWorthIt gates inference on whether more evidence is worth buying.
+//
+// The hook is a function rather than a value because the answer changes with every reading,
+// and a provider holding a stale boolean would keep spending on a screen that recovered — or
+// stop spending on one that broke.
+//
+// Nil, or never set, means always worth it. That is the pre-37E behaviour and it is the
+// default on purpose: a gate that defaulted to closed would silently end the experiment.
+func (p *Provider) WhenWorthIt(worth func() bool) *Provider {
+	p.worth = worth
+	return p
 }
