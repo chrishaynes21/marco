@@ -6626,3 +6626,50 @@ die now.
 
 Nothing about the firewall moved. No cache, no event subsystem, no targeted refresh, no
 persistent scene graph — the last is documented as a follow-on rather than quietly begun.
+
+
+## 37F — the loop was not open, it was stuck open
+
+37E left one thing outstanding: EscalationOf could decline an expensive sensor and nothing ever
+acquired one because it said yes. The expectation was a missing acquisition path.
+
+**There was no missing path.** `observation.Request.Include` already opts extra sensors into an
+ordinary cycle. `WithVision` and `WithPixels` already exist, and WithPixels is documented as
+"what an application exposing no accessibility tree needs". `rt.vision` and `rt.ocr` are
+AUTHORITATIVE providers in the production collector — no ShadowOnly marker, so their evidence
+reaches fusion and therefore reaches SufficiencyOf. And the session sampler already asked for
+vision.
+
+It asked on EVERY sample. 37E's gate reached shadow.Provider, which by construction can never
+reach belief; the authoritative detector beside it was ungated. Measured, detector configured:
+
+	Settings    66ms / 155 elements  →   940ms / 176 elements   sufficient either way
+	Explorer  1567ms / 298 elements  →  2460ms / 307 elements   sufficient either way
+
+Fourteen times the cost on Settings for the same answer — 37C's finding arriving from the other
+direction. So the change is one condition: the sampler asks the same wiring that already gated
+the shadow provider, and declines only on a positive statement that the reading suffices.
+~875ms saved per sufficient sample on Settings, ~890ms on Explorer, verdict unchanged on both.
+
+**And the firewall became a standing gate rather than an argument.** The browser fixture carries
+two controls planted in 37C for exactly this. `#looks-like-a-button` — a span styled like the
+buttons beside it, wired to nothing, which ScreenParser called a `button` at 0.63, its highest
+confidence unique detection in the whole desktop corpus — stays `text` and stays untargetable
+after visual evidence is admitted, with the visual account recorded rather than discarded so the
+disagreement remains reviewable. `#disabled-action` stays disabled. And a detection with nothing
+beside it is readable and not operable, which is the case repair exists FOR and where the
+firewall matters most.
+
+"I now know where I am" while still saying "I cannot safely act on that control" is a successful
+repair, not a partial failure.
+
+11 mutations, 11 killed — including the four that would quietly restore the old behaviour and
+the five that would let pixels become permission.
+
+**One honest cost.** On a machine with $MARCO_VISION_MODEL configured, sessions previously fused
+visual evidence into every reading, so a Place learned there has a signature built from richer
+evidence — 176 elements against 155. Recognising it now compares a smaller signature against a
+larger remembered one. Stated rather than measured: the capture-to-totals adapter still cannot
+build a StructureSignature (37D), so it cannot be checked offline, and it needs the same
+live-store session 35D is waiting on. It is confined to configured machines; with no model the
+detector reported unavailable and contributed nothing.

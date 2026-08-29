@@ -66,6 +66,7 @@ Governed by [[ADR-003-evidence-authority-by-source]].
 - [[ADR-102-a-detector-earns-its-place-where-perception-fails]]
 - [[ADR-103-acquisition-success-is-not-semantic-completeness]]
 - [[ADR-104-perception-is-a-budget-not-a-habit]]
+- [[ADR-105-repair-buys-knowledge-not-permission]]
 
 ## Validated by
 
@@ -123,7 +124,19 @@ are changing, relaxing to eight while they are not, governing both the gap betwe
 the cadence inside one. Nothing is cached — every sample is a full fresh walk — there are simply
 fewer of them on a quiet desktop. See [[ADR-104-perception-is-a-budget-not-a-habit]].
 
-`director walk-audit` counts and times them.
+`director walk-audit` counts and times them; `--pixels` adds the visual pass an ordinary sample
+used to ask for unconditionally.
+
+The visual detector and OCR are AUTHORITATIVE providers in the same collector — no ShadowOnly
+marker, so their evidence reaches fusion and therefore reaches SufficiencyOf. They are opt-in
+per request, and the request is made when `observe.EscalationOf` says more evidence is worth
+buying. Measured with the detector configured:
+
+	Settings   66ms / 155 elements  →   940ms / 176 elements   sufficient either way
+	Explorer  1567ms / 298 elements →  2460ms / 307 elements   sufficient either way
+
+So a healthy reading buys nothing, and repair can improve what Marco KNOWS without improving
+what Marco MAY DO. See [[ADR-105-repair-buys-knowledge-not-permission]].
 
 ## Known gaps
 

@@ -42,6 +42,8 @@ func runWalkAudit(args []string) int {
 	title := fs.String("title", "", "or the window whose title contains this")
 	repeat := fs.Int("repeat", 5, "how many readings to take")
 	pause := fs.Duration("pause", 0, "wait between readings")
+	pixels := fs.Bool("pixels", false,
+		"also ask for the visual pass, as an ordinary session sample does")
 	bridgeFlag := fs.String("accessibility", defaultBridge(),
 		"path to the accessibility bridge")
 	_ = fs.Parse(flagsFirst(args))
@@ -73,9 +75,38 @@ func runWalkAudit(args []string) int {
 		fmt.Fprintln(os.Stderr, "director: the accessibility provider reports it is unavailable")
 		return 1
 	}
-	collector := providers.NewCollector(
+	sources := []observation.Provider{
 		providers.NewAccessibility(uia).WithTargetResolver(newTargetResolver(tracker)),
-		providers.NewWindowSystem(windows))
+		providers.NewWindowSystem(windows),
+	}
+	// The visual detector, on the same terms production has it: present in the collector,
+	// and silent unless the request names it. Absent on a machine with no plugin, which is
+	// reported rather than hidden — a measurement that quietly skipped the expensive half
+	// would be a measurement of the cheap one.
+	detector, visionHost, visionReason := newVisionDetector(defaultVisionBridge())
+	if visionHost != nil {
+		defer visionHost.Close()
+	}
+	if detector == nil {
+		fmt.Printf("visual pass unavailable: %s\n\n", visionReason)
+	} else {
+		// THE WINDOW THE PASS IS ABOUT. Passing nil here made the detector refuse with
+		// "no window to look at" on every reading, and the comparison it was supposed to
+		// produce measured a pass that never ran — a cost of nothing, reported as though
+		// the visual half were free.
+		active := func(context.Context) (directorapi.Window, bool) {
+			v := tracker.AcquireBy(ctx, windows, windowref.NewDirectory(), selector)
+			if !v.State.OK() {
+				return directorapi.Window{}, false
+			}
+			return directorapi.Window{ID: v.Ref.ID, Application: v.Ref.Application,
+				Title: v.Ref.Title, Bounds: v.Ref.Bounds}, true
+		}
+		sources = append(sources, newVisionProvider(detector,
+			providers.NewProvenCapture(newCapture(windows), newTargetResolver(tracker)),
+			active))
+	}
+	collector := providers.NewCollector(sources...)
 	engine := fusion.NewEngine()
 
 	stop := uiaclient.CountWalks()
@@ -96,7 +127,14 @@ func runWalkAudit(args []string) int {
 			continue
 		}
 		window := ref.Ref.ID
+		// THE REQUEST AN ORDINARY SESSION SAMPLE MAKES. liveSampler.request sets
+		// WithVision on every sample, so a reading measured without it is not the
+		// reading production takes — which is the comparison this flag exists for.
 		req := observation.Request{Window: &window, Target: expectedTarget(ref.Ref)}
+		if *pixels {
+			req = observation.WithVision(nil)
+			req.Window, req.Target = &window, expectedTarget(ref.Ref)
+		}
 
 		before, _ := uiaclient.TotalWalks()
 		restore := uiaclient.AttributeWalksTo(uiaclient.PurposeCommand)
@@ -127,6 +165,12 @@ func runWalkAudit(args []string) int {
 			i+1, len(world.Elements), after-before, collectFor.Round(time.Millisecond),
 			fuseFor.Round(time.Millisecond), a.State)
 		_ = walked
+		// WHAT EACH SOURCE ACTUALLY DID. Without this a provider that refused cheaply is
+		// indistinguishable from one that ran and found nothing — the confusion that cost
+		// this project two milestones on icon_detect.
+		for _, o := range cycle.Outcomes {
+			fmt.Printf("           %-14s %-22s %s\n", o.Source, o.State, o.Reason)
+		}
 	}
 
 	fmt.Println()

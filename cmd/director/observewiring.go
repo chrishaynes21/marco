@@ -345,9 +345,36 @@ func (s *liveSampler) ensureShadow(in *observe.ShadowSample) *observe.ShadowSamp
 // The nil that remains is a REGION, which is a different narrowing and correctly absent:
 // a tree walk has no notion of a rectangle.
 func (s *liveSampler) request(req observesession.SampleRequest) observation.Request {
-	out := observation.WithVision(nil)
-	if s.labels && req.ReadLabels {
-		out = observation.WithPixels(nil)
+	// THE VISUAL PASS IS BOUGHT, NOT ASSUMED.
+	//
+	// This asked for vision on EVERY sample. On a Director with the detector configured
+	// that is a screen capture and a model inference per sample, and 37F measured what it
+	// buys on a healthy Settings page:
+	//
+	//	accessibility alone        66ms    155 elements   sufficient
+	//	accessibility + vision    940ms    176 elements   sufficient
+	//
+	// Fourteen times the cost, twenty-one more elements, and the same verdict — which is
+	// 37C's finding arriving from the other direction: on healthy desktop UI the detector
+	// adds no actionable semantic item, and every one of its unmatched detections sat
+	// inside something production already perceived.
+	//
+	// So the pass is requested when more evidence is worth buying and not otherwise. The
+	// decision is observe.EscalationOf, reached through the one wiring that asks it — the
+	// same policy that already gates the shadow detector, now reaching the authoritative
+	// one it could not see. Nothing here re-derives sufficiency and nothing here names a
+	// sensor: this is the caller that happens to hold one.
+	//
+	// It declines only on a positive answer. No session, no memory, nothing settled yet
+	// all mean Marco does not know whether the reading suffices, and those keep the pass.
+	//
+	// Deleting this must fail TestASufficientSampleDoesNotAskForPixels.
+	out := observation.Request{}
+	if s.rt.moreEvidenceIsWorthBuying() {
+		out = observation.WithVision(nil)
+		if s.labels && req.ReadLabels {
+			out = observation.WithPixels(nil)
+		}
 	}
 	// The window the RUNNER validated this cycle. Every provider that can be scoped now
 	// describes the same target, which is what makes evidence from one cycle
