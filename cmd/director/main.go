@@ -142,6 +142,11 @@ func main() {
 		// One coherent perception moment: the screenshot AND what production believed,
 		// pinned to one window. Scratch only — see capturedesktop.go.
 		os.Exit(runCaptureDesktopSample(os.Args[2:]))
+	case "assess-desktop-sample":
+		// Says whether the PRIMARY sensor represented the interface, why, and what it
+		// cost — the three kept separate. Reads; classifies through production. See
+		// assessdesktop.go.
+		os.Exit(runAssessDesktopSample(os.Args[2:]))
 	case "compare-desktop-perception":
 		// Reads one captured moment twice — production fusion and the shadow detector — and
 		// counts. Decides nothing; see comparedesktop.go.

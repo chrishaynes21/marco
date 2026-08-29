@@ -62,6 +62,9 @@ Governed by [[ADR-003-evidence-authority-by-source]].
 - [[ADR-003-evidence-authority-by-source]]
 - [[ADR-008-no-stale-window-geometry]]
 - [[ADR-011-provenance-is-proven-not-assumed]]
+- [[ADR-101-visual-presence-is-not-legal-actionability]]
+- [[ADR-102-a-detector-earns-its-place-where-perception-fails]]
+- [[ADR-103-acquisition-success-is-not-semantic-completeness]]
 
 ## Validated by
 
@@ -78,6 +81,30 @@ fusion made of it, and flags any provider that contributed **nothing** — which
 shape of the gap below. The overlay renders the same thing as a live panel (type
 `director`). Both read the service's own history, so neither perturbs what it describes.
 See [[Service]].
+
+## Is the reading good enough?
+
+A separate question from "what did we see", and it has its own owner: `observe.ReachOfState`
+judges how far into a window an observation got — on arrangement rather than richness — and
+`observe.SufficiencyOf` names the answer as `sufficient`, `incomplete` or `unobservable` with
+a reason a person can read.
+
+Four facts stay apart, and three of them used to be reported as the second:
+
+	I do not know this Place.                    healthy reading, memory has no match
+	Accessibility did not show me the Place.     the frame arrived and the page did not
+	Accessibility showed me the Place, slowly.   a rich reading that cost 1.5 seconds
+	There was nothing to read.                   the sensors did not report
+
+Not evidence of incompleteness: element count, acquisition time, the application's name,
+whether memory recognises the Place, or whether any optional sensor exists. Validated against
+the seven real desktop readings in `fixtures/perception/desktop/corpus` and, live, on a
+Settings Place that reflowed from 111 elements to 57 and an Explorer tree of 294 elements that
+took 1.6 seconds to read — all sufficient. See
+[[ADR-103-acquisition-success-is-not-semantic-completeness]].
+
+`director assess-desktop-sample` prints it, with acquisition cost beside the verdict and
+deliberately not part of it.
 
 ## Known gaps
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
 	"github.com/chaynes-simpleclouds/marco/internal/director/service"
 	"github.com/chaynes-simpleclouds/marco/internal/platform/screenhost"
 )
@@ -92,8 +93,17 @@ func (r *Runtime) ShowingNow(ctx context.Context, q service.ObserveShowing) (
 	case !seen.Readable():
 		// THE WINDOW, AND NOT WHAT IS IN IT. Between the two below it, and reported as the
 		// bottom one until a live run showed what that costs. See observe.Reach.
+		//
+		// The sentence comes from the ASSESSMENT rather than being written here. It was a
+		// hand-written string, and a second one lived in perform.go saying the same thing
+		// differently — which is how two callers of one judgement start disagreeing about
+		// what it means. observe.SufficiencyOf is the one place that turns the reading
+		// into words, and it carries the evidence, so this line can say how much of the
+		// window came back empty instead of only that something did.
+		//
+		// Deleting this must fail TestTheUnreadableReasonComesFromTheAssessment.
 		out.Outcome = string(screenhost.Unreadable)
-		out.Why = "the window is there and its content could not be read"
+		out.Why = observe.SufficiencyOf(seen).Describe()
 	case why != "":
 		// A look that could not be TAKEN — something else is being watched, or there is no
 		// window to look at. `freshPlace` returns its reason with a leading ": " because its

@@ -124,12 +124,17 @@ const (
 // [ReachContent], which means "nothing here says the page went unread" rather than "the page was
 // read well" — the caller's existing checks still have to pass.
 //
+// The reason is returned beside the verdict because three different findings resolve to
+// [ReachContent] and a caller that has to explain itself cannot tell them apart afterwards:
+// the page was read, a panel elsewhere was populated, or there was too little to judge. Only
+// the first is a statement about the page. See [SufficiencyOf].
+//
 // Deleting the occupancy ratio, or replacing it with a count, must fail
 // TestASparseWindowIsNotADegradedOne.
-func ReachOfState(t ShadowTotals, id ScreenStateID) (Reach, Vacancy) {
+func ReachOfState(t ShadowTotals, id ScreenStateID) (Reach, Vacancy, SufficiencyReason) {
 	tracks := tracksInState(t, id)
 	if len(tracks) < minStructuresToJudge {
-		return ReachContent, Vacancy{}
+		return ReachContent, Vacancy{}, ReasonTooLittleToJudge
 	}
 
 	var empty Vacancy
@@ -160,7 +165,7 @@ func ReachOfState(t ShadowTotals, id ScreenStateID) (Reach, Vacancy) {
 		}
 	}
 	if !empty.Found() {
-		return ReachContent, Vacancy{}
+		return ReachContent, Vacancy{}, ReasonContentReached
 	}
 
 	// A WINDOW WITH A POPULATED PANEL WAS READ, whatever else in it is empty.
@@ -177,9 +182,9 @@ func ReachOfState(t ShadowTotals, id ScreenStateID) (Reach, Vacancy) {
 	//
 	// Deleting this must fail TestASparseWindowIsNotADegradedOne's empty-panel case.
 	if fullest >= panelShare {
-		return ReachContent, Vacancy{}
+		return ReachContent, Vacancy{}, ReasonPopulatedPanel
 	}
-	return ReachShell, empty
+	return ReachShell, empty, ReasonClientAreaUnpopulated
 }
 
 // tracksInState is the structures one screen state was made of.

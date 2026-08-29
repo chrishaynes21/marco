@@ -6504,3 +6504,68 @@ prevent), and three tests hold the committed artifacts to it.
 
 Also corrected: `docs/subsystems/Vision.md` still said no ONNX Runtime was installed. That claim
 was retracted in 37B's ADR and HANDOFF and not in the subsystem note.
+
+
+## 37D — knowing when the primary sensor has not actually shown you the interface
+
+37C ended pointing here: a detector is admitted by the ABSENCE of better evidence, so the next
+question is detecting that absence. 37D's audit found the answer already largely built, which
+changed the work from "write a classifier" to "name what one already decides, and prove it is
+right about real applications rather than about its own fixtures".
+
+`observe.ReachOfState` has judged this since 35C, and it was built carefully: it decides on
+ARRANGEMENT rather than richness — find the largest space any structure claims, and if it
+covers a serious share of the window with almost nothing inside it and nowhere else is
+populated, the page is present and unread. It names no application, consults no clock, and
+depends on no optional sensor. `PlaceNow` asks it BEFORE consulting memory, so a shell-only
+reading never becomes an unrecognised page. The audit found no count heuristic, no latency
+input, no app-specific branch and no sensor dependency anywhere in the quality path.
+
+**What was missing was proof and a name.** Every fixture in the package was written by the same
+hand as the rule, so a rule subtly wrong about real applications would pass all of them. 37C's
+committed corpus fixed that: the seven real desktop readings — Settings at two widths, a second
+Settings Place, Explorer, a browser at two widths, and Paint — all classify as content reached,
+which is what they were.
+
+Paint is the interesting one. Its canvas is 68% of the window and empty, and it is sufficient
+because its ribbon sits INSIDE the same top-level pane, so somewhere in the window has things in
+it. Not a special case for drawing applications: the populated-panel rule, doing exactly what it
+was written for. Captured live at 106 elements and committed.
+
+`observe.Sufficiency{State, Reason, Vacancy}` is the new name and the seam 37E consumes — three
+states that must not collapse, five bounded reasons, and NO sensor named. It says "the primary
+reading did not represent the interface", never "run ScreenParser", because that decision has to
+weigh cost against what is missing and belongs to whatever schedules perception.
+
+**The custom-surface policy is stated rather than left to a threshold.** A window whose
+accessibility reports only frame furniture around an empty client area is `incomplete`, and a
+game viewport is the clearest case. That is the intended answer: the verdict is about the
+READING, the description shown to an owner contains no word like "broken" or "failed", and a
+game surface is precisely where extra perception is worth spending. A classifier calling it
+sufficient would close the door on the case that motivated the whole line of work.
+
+**History is deliberately not consulted.** It could corroborate a collapse, and the structural
+evidence already detects the original live failure without it — so adding it would be
+unfalsifiable complexity carrying a real hazard, an expectation that fabricates current
+elements. The seam is named if a future case ever earns it.
+
+**The mutation gate found five survivors and none was equivalent.** All five were the same
+defect as 36F and 37A: fixtures too clean to see what they test. Every degraded fixture was
+small, so "more than twenty structures is healthy" passed; nothing made ratio and count
+disagree; nothing had two vacancies to choose between; nothing sat between 0.40 and 0.20; and
+the sufficiency tests only asserted the two reasons the headline cases produce. Four new
+fixtures, each sitting on the far side of exactly one boundary, and 14 of 14 now die.
+
+Cost, measured: judging a reading is p95 514µs against 104ms–1.6s to acquire it. **The
+performance problem in perception is the accessibility walk and it is not this.**
+
+Live: two healthy Settings Places sufficient; the same Place at 111 elements wide and 57 narrow
+BOTH sufficient; Explorer at 294 elements and 1625ms sufficient. No naturally incomplete reading
+occurred, so no live degraded case is claimed.
+
+**35D's resize acceptance is still unmeasured, and the reason is worth recording.** Sufficiency
+at both widths is half the claim; the other half is that both are the same Place, and the
+capture-to-totals adapter cannot produce a StructureSignature — every sample signs as empty and
+`CompareStructure` then answers "candidate" for any pair, including two obviously different
+Settings pages. Checked rather than assumed, and the limitation is written into
+`assessdesktop.go` so the next person does not claim it either.

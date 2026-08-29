@@ -85,46 +85,64 @@ func TestASparseWindowIsNotADegradedOne(t *testing.T) {
 		name  string
 		given observe.ShadowTotals
 		want  observe.Reach
-		why   string
+		// wantReason pins WHICH finding produced the verdict. Three separate findings
+		// all reach the content — the page was read, a panel elsewhere was populated, or
+		// there was too little to judge — and only the first says anything about the
+		// page. A table checking the verdict alone passes while the rule arrives at it
+		// for entirely the wrong reason.
+		wantReason observe.SufficiencyReason
+		why        string
 	}{
 		{name: "a window whose content never arrived", given: shell(),
-			want: observe.ReachShell,
+			wantReason: observe.ReasonClientAreaUnpopulated,
+			want:       observe.ReachShell,
 			why: "three quarters of the frame came back as one rectangle with nothing " +
 				"in it, and every structure observed was window furniture"},
 		{name: "the same window with its page read", given: page(),
-			want: observe.ReachContent,
-			why:  "the content area is full of things, which is what reading a page means"},
+			wantReason: observe.ReasonContentReached,
+			want:       observe.ReachContent,
+			why:        "the content area is full of things, which is what reading a page means"},
 		{name: "a small dialog, sparse and perfectly readable", given: dialog(),
-			want: observe.ReachContent,
+			wantReason: observe.ReasonContentReached,
+			want:       observe.ReachContent,
 			why: "few controls is not the same fact as no controls. A dialog puts a large " +
 				"SHARE of what it has inside its body; the degraded window put one " +
 				"structure of thirteen inside a region covering most of the frame"},
 		{name: "a window with more furniture than page", given: toolbarHeavy(),
-			want: observe.ReachContent,
+			wantReason: observe.ReasonContentReached,
+			want:       observe.ReachContent,
 			why: "a quarter of what was observed is inside the content area — far more " +
 				"than an empty window and far less than a dialog. A bar set anywhere " +
 				"between those two calls this degraded, and it was read perfectly well"},
 		{name: "a big empty panel beside a full one", given: emptyPanel(),
-			want: observe.ReachContent,
+			wantReason: observe.ReasonPopulatedPanel,
+			want:       observe.ReachContent,
 			why: "the reading pane is blank because nothing is selected, and the message " +
 				"list beside it is full. A window with a populated panel was READ; the " +
 				"Settings failure had nowhere at all with anything in it"},
 		{name: "a floating palette with an empty swatch", given: palette(),
-			want: observe.ReachContent,
+			wantReason: observe.ReasonContentReached,
+			want:       observe.ReachContent,
 			why: "nothing here is big enough to be a populated panel, so the panel rule " +
 				"cannot save it. What does is that its empty space is a SWATCH and not " +
 				"a page — which is the only thing minVacantShare is for"},
 		{name: "too little observed to judge", given: totalsOf("state_1",
 			seenAt("window", 0.0, 0.0, 1.0, 1.0), seenAt("label", 0.1, 0.1, 0.2, 0.05)),
-			want: observe.ReachContent,
+			wantReason: observe.ReasonTooLittleToJudge,
+			want:       observe.ReachContent,
 			why: "two structures say nothing about arrangement, and an observation that " +
 				"thin is already refused for not settling"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			got, evidence := observe.ReachOfState(c.given, "state_1")
+			got, evidence, reason := observe.ReachOfState(c.given, "state_1")
 			if got != c.want {
 				t.Fatalf("reach = %q, want %q: %s\n(vacancy %+v)", got, c.want, c.why,
 					evidence)
+			}
+			if reason != c.wantReason {
+				t.Errorf("reason = %q, want %q\nThe verdict is right and the route to "+
+					"it is not, so the explanation an owner reads would be wrong.",
+					reason, c.wantReason)
 			}
 		})
 	}
@@ -136,7 +154,7 @@ func TestASparseWindowIsNotADegradedOne(t *testing.T) {
 // back empty; a future observer deciding whether another way of looking is worth trying wants the
 // same fact. A bare boolean would answer neither.
 func TestAShellReadingKeepsWhatMadeItOne(t *testing.T) {
-	got, v := observe.ReachOfState(shell(), "state_1")
+	got, v, _ := observe.ReachOfState(shell(), "state_1")
 	if got != observe.ReachShell {
 		t.Fatalf("reach = %q", got)
 	}

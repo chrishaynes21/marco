@@ -1,0 +1,1921 @@
+{
+ "id": "custom-canvas-paint",
+ "application": "mspaint",
+ "window": "hwnd:512164418",
+ "generation": 1,
+ "width": 1100,
+ "height": 800,
+ "bounds": {
+  "x": 0,
+  "y": 64,
+  "width": 1100,
+  "height": 800
+ },
+ "captured_at": "2026-08-28T17:51:29.7671592-07:00",
+ "read_at": "2026-08-28T17:51:30.0183278-07:00",
+ "gap_millis": 251,
+ "coherent": true,
+ "privacy": "captured_private",
+ "elements": [
+  {
+   "id": "e1",
+   "role": "window",
+   "label": "Untitled - Paint",
+   "bounds": {
+    "x": 0,
+    "y": 0,
+    "width": 1,
+    "height": 1
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e10",
+   "role": "button",
+   "label": "Share",
+   "bounds": {
+    "x": 0.2009090909090909,
+    "y": 0.04375,
+    "width": 0.02909090909090909,
+    "height": 0.04
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e100",
+   "role": "button",
+   "label": "Zoom out",
+   "bounds": {
+    "x": 0.8054545454545454,
+    "y": 0.955,
+    "width": 0.02909090909090909,
+    "height": 0.025
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e101",
+   "role": "slider",
+   "label": "Zoom",
+   "bounds": {
+    "x": 0.8381818181818181,
+    "y": 0.9475,
+    "width": 0.11818181818181818,
+    "height": 0.04
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e102",
+   "role": "button",
+   "label": "Zoom in",
+   "bounds": {
+    "x": 0.96,
+    "y": 0.955,
+    "width": 0.02909090909090909,
+    "height": 0.025
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e103",
+   "role": "title_bar",
+   "label": "Untitled - Paint",
+   "bounds": {
+    "x": 0.007272727272727273,
+    "y": 0.01,
+    "width": 0.9854545454545455,
+    "height": 0.02875
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e104",
+   "role": "menu",
+   "label": "System Menu Bar",
+   "bounds": {
+    "x": 0.007272727272727273,
+    "y": 0.01,
+    "width": 0.02,
+    "height": 0.0275
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e105",
+   "role": "menu_item",
+   "label": "System",
+   "bounds": {
+    "x": 0.007272727272727273,
+    "y": 0.01,
+    "width": 0.02,
+    "height": 0.0275
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e106",
+   "role": "button",
+   "label": "Minimize",
+   "bounds": {
+    "x": 0.8663636363636363,
+    "y": 0.00125,
+    "width": 0.042727272727272725,
+    "height": 0.0375
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e107",
+   "role": "button",
+   "label": "Maximize",
+   "bounds": {
+    "x": 0.9090909090909091,
+    "y": 0.00125,
+    "width": 0.04181818181818182,
+    "height": 0.0375
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e108",
+   "role": "button",
+   "label": "Close",
+   "bounds": {
+    "x": 0.9509090909090909,
+    "y": 0.00125,
+    "width": 0.042727272727272725,
+    "height": 0.0375
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e11",
+   "role": "button",
+   "label": "Undo",
+   "bounds": {
+    "x": 0.24181818181818182,
+    "y": 0.04375,
+    "width": 0.02909090909090909,
+    "height": 0.04
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": false,
+   "visible": true
+  },
+  {
+   "id": "e12",
+   "role": "button",
+   "label": "Redo",
+   "bounds": {
+    "x": 0.2781818181818182,
+    "y": 0.04375,
+    "width": 0.02909090909090909,
+    "height": 0.04
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": false,
+   "visible": true
+  },
+  {
+   "id": "e13",
+   "role": "button",
+   "label": "What's new",
+   "bounds": {
+    "x": 0.8981818181818182,
+    "y": 0.04375,
+    "width": 0.02909090909090909,
+    "height": 0.04
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e14",
+   "role": "button",
+   "bounds": {
+    "x": 0.9309090909090909,
+    "y": 0.04375,
+    "width": 0.02909090909090909,
+    "height": 0.04
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e15",
+   "role": "button",
+   "label": "Open settings",
+   "bounds": {
+    "x": 0.96,
+    "y": 0.04375,
+    "width": 0.02909090909090909,
+    "height": 0.04
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e16",
+   "role": "group",
+   "bounds": {
+    "x": 0.007272727272727273,
+    "y": 0.09,
+    "width": 0.9854545454545455,
+    "height": 0.13625
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e17",
+   "role": "pane",
+   "bounds": {
+    "x": 0.007272727272727273,
+    "y": 0.09,
+    "width": 0.9618181818181818,
+    "height": 0.135
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e18",
+   "role": "group",
+   "label": "Selection",
+   "bounds": {
+    "x": 0.007272727272727273,
+    "y": 0.095,
+    "width": 0.06818181818181818,
+    "height": 0.125
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e19",
+   "role": "radio",
+   "label": "Select",
+   "bounds": {
+    "x": 0.022727272727272728,
+    "y": 0.11125,
+    "width": 0.03636363636363636,
+    "height": 0.0675
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e2",
+   "role": "pane",
+   "bounds": {
+    "x": 0.007272727272727273,
+    "y": 0.03875,
+    "width": 0.9854545454545455,
+    "height": 0.95125
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e20",
+   "role": "image",
+   "bounds": {
+    "x": 0.03,
+    "y": 0.12,
+    "width": 0.02181818181818182,
+    "height": 0.03
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e21",
+   "role": "group",
+   "label": "Image",
+   "bounds": {
+    "x": 0.07545454545454545,
+    "y": 0.095,
+    "width": 0.14454545454545453,
+    "height": 0.125
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e22",
+   "role": "button",
+   "label": "Crop",
+   "bounds": {
+    "x": 0.08636363636363636,
+    "y": 0.1,
+    "width": 0.02909090909090909,
+    "height": 0.04
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": false,
+   "visible": true
+  },
+  {
+   "id": "e23",
+   "role": "button",
+   "label": "Remove background",
+   "bounds": {
+    "x": 0.08636363636363636,
+    "y": 0.15,
+    "width": 0.02909090909090909,
+    "height": 0.04
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e24",
+   "role": "image",
+   "bounds": {
+    "x": 0.09,
+    "y": 0.155,
+    "width": 0.02181818181818182,
+    "height": 0.03
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e25",
+   "role": "button",
+   "label": "Rotate",
+   "bounds": {
+    "x": 0.12272727272727273,
+    "y": 0.1,
+    "width": 0.04909090909090909,
+    "height": 0.04
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e26",
+   "role": "image",
+   "bounds": {
+    "x": 0.13090909090909092,
+    "y": 0.11,
+    "width": 0.014545454545454545,
+    "height": 0.02
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e27",
+   "role": "button",
+   "label": "Flip",
+   "bounds": {
+    "x": 0.12272727272727273,
+    "y": 0.15,
+    "width": 0.04909090909090909,
+    "height": 0.04
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e28",
+   "role": "image",
+   "bounds": {
+    "x": 0.13090909090909092,
+    "y": 0.16,
+    "width": 0.014545454545454545,
+    "height": 0.02
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e29",
+   "role": "button",
+   "label": "Resize and skew",
+   "bounds": {
+    "x": 0.17909090909090908,
+    "y": 0.125,
+    "width": 0.02909090909090909,
+    "height": 0.04
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e3",
+   "role": "pane",
+   "bounds": {
+    "x": 0.007272727272727273,
+    "y": 0.03875,
+    "width": 0.9854545454545455,
+    "height": 0.95125
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e30",
+   "role": "image",
+   "bounds": {
+    "x": 0.18272727272727274,
+    "y": 0.13,
+    "width": 0.02181818181818182,
+    "height": 0.03
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e31",
+   "role": "group",
+   "label": "Tools",
+   "bounds": {
+    "x": 0.22,
+    "y": 0.095,
+    "width": 0.12454545454545454,
+    "height": 0.125
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e32",
+   "role": "button",
+   "label": "Pencil",
+   "bounds": {
+    "x": 0.2309090909090909,
+    "y": 0.1,
+    "width": 0.02909090909090909,
+    "height": 0.04
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e33",
+   "role": "image",
+   "bounds": {
+    "x": 0.2381818181818182,
+    "y": 0.11,
+    "width": 0.014545454545454545,
+    "height": 0.02
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e34",
+   "role": "button",
+   "label": "Fill",
+   "bounds": {
+    "x": 0.2672727272727273,
+    "y": 0.1,
+    "width": 0.02909090909090909,
+    "height": 0.04
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e35",
+   "role": "image",
+   "bounds": {
+    "x": 0.27454545454545454,
+    "y": 0.11,
+    "width": 0.014545454545454545,
+    "height": 0.02
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e36",
+   "role": "button",
+   "label": "Text",
+   "bounds": {
+    "x": 0.30363636363636365,
+    "y": 0.1,
+    "width": 0.02909090909090909,
+    "height": 0.04
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e37",
+   "role": "image",
+   "bounds": {
+    "x": 0.3109090909090909,
+    "y": 0.11,
+    "width": 0.014545454545454545,
+    "height": 0.02
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e38",
+   "role": "button",
+   "label": "Eraser",
+   "bounds": {
+    "x": 0.2309090909090909,
+    "y": 0.15,
+    "width": 0.02909090909090909,
+    "height": 0.04
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e39",
+   "role": "image",
+   "bounds": {
+    "x": 0.2381818181818182,
+    "y": 0.16,
+    "width": 0.014545454545454545,
+    "height": 0.02
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e4",
+   "role": "unknown",
+   "bounds": {
+    "x": 0.007272727272727273,
+    "y": 0.03875,
+    "width": 0.9854545454545455,
+    "height": 0.95125
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e40",
+   "role": "button",
+   "label": "Color picker",
+   "bounds": {
+    "x": 0.2672727272727273,
+    "y": 0.15,
+    "width": 0.02909090909090909,
+    "height": 0.04
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e41",
+   "role": "image",
+   "bounds": {
+    "x": 0.27454545454545454,
+    "y": 0.16,
+    "width": 0.014545454545454545,
+    "height": 0.02
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e42",
+   "role": "button",
+   "label": "Magnifier",
+   "bounds": {
+    "x": 0.30363636363636365,
+    "y": 0.15,
+    "width": 0.02909090909090909,
+    "height": 0.04
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e43",
+   "role": "image",
+   "bounds": {
+    "x": 0.3109090909090909,
+    "y": 0.16,
+    "width": 0.014545454545454545,
+    "height": 0.02
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e44",
+   "role": "group",
+   "label": "Brushes",
+   "bounds": {
+    "x": 0.34454545454545454,
+    "y": 0.095,
+    "width": 0.06181818181818182,
+    "height": 0.125
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e45",
+   "role": "radio",
+   "label": "Brushes",
+   "bounds": {
+    "x": 0.3572727272727273,
+    "y": 0.11125,
+    "width": 0.03636363636363636,
+    "height": 0.0675
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e46",
+   "role": "image",
+   "bounds": {
+    "x": 0.36454545454545456,
+    "y": 0.12,
+    "width": 0.02181818181818182,
+    "height": 0.03
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e47",
+   "role": "group",
+   "label": "Shapes",
+   "bounds": {
+    "x": 0.40636363636363637,
+    "y": 0.095,
+    "width": 0.05818181818181818,
+    "height": 0.125
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e48",
+   "role": "button",
+   "label": "Shapes",
+   "bounds": {
+    "x": 0.42,
+    "y": 0.11625,
+    "width": 0.03090909090909091,
+    "height": 0.0575
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e49",
+   "role": "image",
+   "bounds": {
+    "x": 0.42454545454545456,
+    "y": 0.1225,
+    "width": 0.02181818181818182,
+    "height": 0.03
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e5",
+   "role": "menu",
+   "bounds": {
+    "x": 0.007272727272727273,
+    "y": 0.03875,
+    "width": 0.14454545454545453,
+    "height": 0.05
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e50",
+   "role": "group",
+   "label": "Colors",
+   "bounds": {
+    "x": 0.47363636363636363,
+    "y": 0.09875,
+    "width": 0.3,
+    "height": 0.11625
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e51",
+   "role": "radio",
+   "label": "Color 1: Black",
+   "bounds": {
+    "x": 0.47363636363636363,
+    "y": 0.09875,
+    "width": 0.03272727272727273,
+    "height": 0.045
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e52",
+   "role": "radio",
+   "label": "Color 2: White",
+   "bounds": {
+    "x": 0.47363636363636363,
+    "y": 0.14625,
+    "width": 0.03272727272727273,
+    "height": 0.045
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e53",
+   "role": "list",
+   "bounds": {
+    "x": 0.5118181818181818,
+    "y": 0.1,
+    "width": 0.21818181818181817,
+    "height": 0.09
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e54",
+   "role": "list_item",
+   "label": "Black",
+   "bounds": {
+    "x": 0.5118181818181818,
+    "y": 0.1,
+    "width": 0.02181818181818182,
+    "height": 0.03
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e55",
+   "role": "list_item",
+   "label": "Gray",
+   "bounds": {
+    "x": 0.5336363636363637,
+    "y": 0.1,
+    "width": 0.02181818181818182,
+    "height": 0.03
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e56",
+   "role": "list_item",
+   "label": "Dark red",
+   "bounds": {
+    "x": 0.5554545454545454,
+    "y": 0.1,
+    "width": 0.02181818181818182,
+    "height": 0.03
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e57",
+   "role": "list_item",
+   "label": "Red",
+   "bounds": {
+    "x": 0.5772727272727273,
+    "y": 0.1,
+    "width": 0.02181818181818182,
+    "height": 0.03
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e58",
+   "role": "list_item",
+   "label": "Orange",
+   "bounds": {
+    "x": 0.5990909090909091,
+    "y": 0.1,
+    "width": 0.02181818181818182,
+    "height": 0.03
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e59",
+   "role": "list_item",
+   "label": "Yellow",
+   "bounds": {
+    "x": 0.6209090909090909,
+    "y": 0.1,
+    "width": 0.02181818181818182,
+    "height": 0.03
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e6",
+   "role": "menu_item",
+   "label": "File",
+   "bounds": {
+    "x": 0.01090909090909091,
+    "y": 0.04375,
+    "width": 0.03727272727272727,
+    "height": 0.04
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e60",
+   "role": "list_item",
+   "label": "Green",
+   "bounds": {
+    "x": 0.6427272727272727,
+    "y": 0.1,
+    "width": 0.02181818181818182,
+    "height": 0.03
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e61",
+   "role": "list_item",
+   "label": "Turquoise",
+   "bounds": {
+    "x": 0.6645454545454546,
+    "y": 0.1,
+    "width": 0.02181818181818182,
+    "height": 0.03
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e62",
+   "role": "list_item",
+   "label": "Indigo",
+   "bounds": {
+    "x": 0.6863636363636364,
+    "y": 0.1,
+    "width": 0.02181818181818182,
+    "height": 0.03
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e63",
+   "role": "list_item",
+   "label": "Purple",
+   "bounds": {
+    "x": 0.7081818181818181,
+    "y": 0.1,
+    "width": 0.02181818181818182,
+    "height": 0.03
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e64",
+   "role": "list_item",
+   "label": "White",
+   "bounds": {
+    "x": 0.5118181818181818,
+    "y": 0.13,
+    "width": 0.02181818181818182,
+    "height": 0.03
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e65",
+   "role": "list_item",
+   "label": "Light gray",
+   "bounds": {
+    "x": 0.5336363636363637,
+    "y": 0.13,
+    "width": 0.02181818181818182,
+    "height": 0.03
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e66",
+   "role": "list_item",
+   "label": "Brown",
+   "bounds": {
+    "x": 0.5554545454545454,
+    "y": 0.13,
+    "width": 0.02181818181818182,
+    "height": 0.03
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e67",
+   "role": "list_item",
+   "label": "Rose",
+   "bounds": {
+    "x": 0.5772727272727273,
+    "y": 0.13,
+    "width": 0.02181818181818182,
+    "height": 0.03
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e68",
+   "role": "list_item",
+   "label": "Gold",
+   "bounds": {
+    "x": 0.5990909090909091,
+    "y": 0.13,
+    "width": 0.02181818181818182,
+    "height": 0.03
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e69",
+   "role": "list_item",
+   "label": "Light yellow",
+   "bounds": {
+    "x": 0.6209090909090909,
+    "y": 0.13,
+    "width": 0.02181818181818182,
+    "height": 0.03
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e7",
+   "role": "menu_item",
+   "label": "Edit",
+   "bounds": {
+    "x": 0.05545454545454546,
+    "y": 0.04375,
+    "width": 0.04,
+    "height": 0.04
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e70",
+   "role": "list_item",
+   "label": "Lime",
+   "bounds": {
+    "x": 0.6427272727272727,
+    "y": 0.13,
+    "width": 0.02181818181818182,
+    "height": 0.03
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e71",
+   "role": "list_item",
+   "label": "Light turquoise",
+   "bounds": {
+    "x": 0.6645454545454546,
+    "y": 0.13,
+    "width": 0.02181818181818182,
+    "height": 0.03
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e72",
+   "role": "list_item",
+   "label": "Blue-gray",
+   "bounds": {
+    "x": 0.6863636363636364,
+    "y": 0.13,
+    "width": 0.02181818181818182,
+    "height": 0.03
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e73",
+   "role": "list_item",
+   "label": "Lavender",
+   "bounds": {
+    "x": 0.7081818181818181,
+    "y": 0.13,
+    "width": 0.02181818181818182,
+    "height": 0.03
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e74",
+   "role": "button",
+   "label": "Edit colors",
+   "bounds": {
+    "x": 0.7372727272727273,
+    "y": 0.12,
+    "width": 0.03636363636363636,
+    "height": 0.05
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e75",
+   "role": "image",
+   "bounds": {
+    "x": 0.7427272727272727,
+    "y": 0.1275,
+    "width": 0.025454545454545455,
+    "height": 0.035
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e76",
+   "role": "group",
+   "label": "Copilot",
+   "bounds": {
+    "x": 0.7845454545454545,
+    "y": 0.095,
+    "width": 0.05909090909090909,
+    "height": 0.125
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e77",
+   "role": "button",
+   "label": "Copilot",
+   "bounds": {
+    "x": 0.7990909090909091,
+    "y": 0.11625,
+    "width": 0.03090909090909091,
+    "height": 0.0575
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e78",
+   "role": "group",
+   "label": "Layers",
+   "bounds": {
+    "x": 0.8436363636363636,
+    "y": 0.095,
+    "width": 0.05909090909090909,
+    "height": 0.125
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e79",
+   "role": "button",
+   "bounds": {
+    "x": 0.8554545454545455,
+    "y": 0.12,
+    "width": 0.03636363636363636,
+    "height": 0.05
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e8",
+   "role": "menu_item",
+   "label": "View",
+   "bounds": {
+    "x": 0.10272727272727272,
+    "y": 0.04375,
+    "width": 0.045454545454545456,
+    "height": 0.04
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e80",
+   "role": "image",
+   "bounds": {
+    "x": 0.8627272727272727,
+    "y": 0.13,
+    "width": 0.02181818181818182,
+    "height": 0.03
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e81",
+   "role": "button",
+   "label": "Toolbar options",
+   "bounds": {
+    "x": 0.9690909090909091,
+    "y": 0.1925,
+    "width": 0.02,
+    "height": 0.0275
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e82",
+   "role": "pane",
+   "bounds": {
+    "x": 0.007272727272727273,
+    "y": 0.22625,
+    "width": 0.9854545454545455,
+    "height": 0.71625
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e83",
+   "role": "group",
+   "label": "Using Brush tool on Canvas",
+   "bounds": {
+    "x": 0.03636363636363636,
+    "y": 0.22625,
+    "width": 0.9563636363636364,
+    "height": 0.71625
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e84",
+   "role": "scroll_bar",
+   "label": "Vertical",
+   "bounds": {
+    "x": 0.9818181818181818,
+    "y": 0.22625,
+    "width": 0.01090909090909091,
+    "height": 0.70125
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e85",
+   "role": "button",
+   "label": "Vertical Small Decrease",
+   "bounds": {
+    "x": 0.9818181818181818,
+    "y": 0.22625,
+    "width": 0.01090909090909091,
+    "height": 0.015
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e86",
+   "role": "button",
+   "label": "Vertical Large Decrease",
+   "bounds": {
+    "x": 0.9818181818181818,
+    "y": 0.24125,
+    "width": 0.01090909090909091,
+    "height": 0.03
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e87",
+   "role": "button",
+   "label": "Vertical Large Increase",
+   "bounds": {
+    "x": 0.9818181818181818,
+    "y": 0.81125,
+    "width": 0.01090909090909091,
+    "height": 0.10125
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e88",
+   "role": "button",
+   "label": "Vertical Small Increase",
+   "bounds": {
+    "x": 0.9818181818181818,
+    "y": 0.9125,
+    "width": 0.01090909090909091,
+    "height": 0.015
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e89",
+   "role": "scroll_bar",
+   "label": "Horizontal",
+   "bounds": {
+    "x": 0.007272727272727273,
+    "y": 0.9275,
+    "width": 0.9745454545454545,
+    "height": 0.015
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e9",
+   "role": "button",
+   "label": "Save",
+   "bounds": {
+    "x": 0.16,
+    "y": 0.04375,
+    "width": 0.02909090909090909,
+    "height": 0.04
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e90",
+   "role": "button",
+   "label": "Horizontal Small Decrease",
+   "bounds": {
+    "x": 0.007272727272727273,
+    "y": 0.9275,
+    "width": 0.01090909090909091,
+    "height": 0.015
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e92",
+   "role": "button",
+   "label": "Horizontal Large Increase",
+   "bounds": {
+    "x": 0.8672727272727273,
+    "y": 0.9275,
+    "width": 0.10363636363636364,
+    "height": 0.015
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e93",
+   "role": "button",
+   "label": "Horizontal Small Increase",
+   "bounds": {
+    "x": 0.9709090909090909,
+    "y": 0.9275,
+    "width": 0.01090909090909091,
+    "height": 0.015
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e94",
+   "role": "slider",
+   "label": "Size",
+   "bounds": {
+    "x": 0.02181818181818182,
+    "y": 0.41125,
+    "width": 0.02909090909090909,
+    "height": 0.3825
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e95",
+   "role": "slider",
+   "label": "Opacity",
+   "bounds": {
+    "x": 0.06545454545454546,
+    "y": 0.40875,
+    "width": 0.02909090909090909,
+    "height": 0.385
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e96",
+   "role": "text",
+   "label": "1152 × 648px",
+   "bounds": {
+    "x": 0.27636363636363637,
+    "y": 0.9575,
+    "width": 0.08363636363636363,
+    "height": 0.02
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e97",
+   "role": "button",
+   "label": "Fit to window",
+   "bounds": {
+    "x": 0.6727272727272727,
+    "y": 0.95125,
+    "width": 0.034545454545454546,
+    "height": 0.0325
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e98",
+   "role": "combo_box",
+   "label": "Zoom",
+   "bounds": {
+    "x": 0.7109090909090909,
+    "y": 0.94375,
+    "width": 0.09090909090909091,
+    "height": 0.04625
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  }
+ ],
+ "collect_millis": 122,
+ "fuse_millis": 0,
+ "redactions": [
+  {
+   "region": {
+    "x": 0.9254545454545454,
+    "y": 0.03625,
+    "width": 0.04,
+    "height": 0.055
+   },
+   "reason": "account indicator: name",
+   "labels_cleared": 1
+  }
+ ],
+ "providers": [
+  "accessibility"
+ ]
+}

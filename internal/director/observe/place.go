@@ -36,6 +36,10 @@ type Place struct {
 	// simply describes the window rather than the page in it.
 	Reach   Reach
 	Vacancy Vacancy
+	// Reason is why the reading got as far as it did, from a closed set. Three distinct
+	// findings all reach the content, and a caller that has to say WHY cannot recover
+	// which one afterwards. See [SufficiencyOf].
+	Reason SufficiencyReason
 }
 
 // Established reports whether this place is a durable subject Marco can find again.
@@ -91,7 +95,7 @@ func PlaceNow(t ShadowTotals, application string, m Recogniser, th HypothesisThr
 	// dangerous — it would be a miss — but because the miss is the lie. See [ReachOfState].
 	//
 	// Deleting this must fail TestAShellOnlyReadingIsNotAnUnknownPlace.
-	p.Reach, p.Vacancy = ReachOfState(t, t.CurrentState)
+	p.Reach, p.Vacancy, p.Reason = ReachOfState(t, t.CurrentState)
 	if p.Reach == ReachShell {
 		return p
 	}
