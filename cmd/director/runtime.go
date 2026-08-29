@@ -195,7 +195,10 @@ type Runtime struct {
 	// build deadlocked on its second sample. See escalationwiring.go.
 	incompleteSince   *time.Time
 	incompleteSinceMu sync.Mutex
-	winPlatform       windowref.Platform
+	// learned is the ring of durable knowledge changes, fed by the store's own committed
+	// writes so a person can be told what Marco now knows. See learningfeed.go.
+	learned     learningFeed
+	winPlatform windowref.Platform
 	// owner decides whether MARCO'S OWN control surface is the thing in front, so input
 	// aimed at Marco never becomes evidence of what the person was demonstrating. See
 	// surfaceowner.go.
@@ -406,6 +409,10 @@ func NewRuntime(bridgePath string, maxNodes int, dryRun bool, g *actiongraph.Fil
 	// this" and "Marco could not read its memory" are different sentences, and only one of
 	// them is about the screen.
 	rt.semanticMemory, rt.semanticMemoryUnavailable = semanticmemory.Open(semanticMemoryPath())
+	// TELL SOMEBODY WHEN THIS STORE COMMITS SOMETHING. Wired here, at the one place the
+	// store is opened, so there is no Director with durable memory and no feed. See
+	// learningfeed.go.
+	rt.watchLearning(rt.semanticMemory)
 	rt.observations = newObservationRegistry().withMemory(rt.semanticMemory)
 	// Somewhere for the one learn session to live. Empty and inert until somebody asks to
 	// learn something; it holds no authority, and a restart begins with nothing.

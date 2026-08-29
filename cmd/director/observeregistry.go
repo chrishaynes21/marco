@@ -795,6 +795,10 @@ func (r *Runtime) Observation(q service.ObserveQuery) (any, error) {
 			return r.DisableAmbient(), nil
 		}
 		return r.AmbientStatus(), nil
+	case q.Learning != nil:
+		// WHAT HAS ACTUALLY BEEN LEARNED, from the store.s own committed writes. A read:
+		// it starts nothing, samples nothing, and cannot create what it reports.
+		return r.LearningSince(*q.Learning), nil
 	case q.Showing != nil:
 		// THE "where am I standing" call site for anything outside this process, and the only
 		// one. It takes a fresh look and resolves it with the canonical resolver — the same

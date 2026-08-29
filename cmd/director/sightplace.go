@@ -464,6 +464,9 @@ func (r *Runtime) yieldWatching() {
 		r.watchCancel()
 		r.watchCancel = nil
 	}
+	// AND AMBIENT WATCHING, which holds the same one slot and was refusing every Learn
+	// typed at a command line. See ambientObserver.standAside.
+	r.ambient().standAside()
 	mine := r.watchSession
 	r.watchSession = ""
 	r.watchMu.Unlock()

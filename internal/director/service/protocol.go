@@ -1096,6 +1096,9 @@ type ObserveQuery struct {
 	// — recognising a screen is perception, and asking where you are must never be a way of
 	// doing something.
 	Showing *ObserveShowing `json:"showing,omitempty"`
+	// Learning asks what durable knowledge has changed since a cursor. A read; see
+	// ObserveLearning.
+	Learning *ObserveLearning `json:"learning,omitempty"`
 	// Perform CARRIES OUT a learned outcome, and is the only field here that can.
 	//
 	// Separated from Reach on purpose: planning and doing are different requests, and a
@@ -1974,4 +1977,44 @@ type WatchedView struct {
 	// fact from twelve times in one afternoon, and the counts cannot say which.
 	FirstSaw string `json:"first_saw,omitempty"`
 	LastSaw  string `json:"last_saw,omitempty"`
+}
+
+// ObserveLearning asks what durable knowledge has changed since a cursor.
+//
+// A READ, and the narrowest one on this query: it starts nothing, samples nothing, and cannot
+// create the knowledge it reports. `After` is a sequence number from a previous reply; zero means
+// "everything the Director still holds".
+type ObserveLearning struct {
+	After uint64 `json:"after,omitempty"`
+}
+
+// LearningEvent is one committed change to durable semantic knowledge, in words.
+//
+// Rendered by the Director rather than by the client, because rendering means resolving a
+// subject id to what the Place is called and only the Director has the store. `Description` is
+// therefore already the sentence; a client that reassembled one from parts would be a second
+// vocabulary for the same fact.
+type LearningEvent struct {
+	// Change is learned, strengthened, named or rebound.
+	Change string `json:"change"`
+	// Kind is place, edge or goal.
+	Kind string `json:"kind"`
+	// Application scopes it.
+	Application string `json:"application,omitempty"`
+	// Description is what to show: a Place's word, an edge as `from → to`, a goal as
+	// `"name" → place`.
+	Description string `json:"description"`
+}
+
+// LearningView is the reply: what changed, and where to resume.
+type LearningView struct {
+	Events []LearningEvent `json:"events,omitempty"`
+	// Newest is the cursor to ask from next time.
+	Newest uint64 `json:"newest"`
+	// Missed is how many events fell out of the Director's ring before this read.
+	//
+	// Reported rather than swallowed. A feed that quietly started late would let somebody
+	// conclude Marco had learned nothing during the gap, which is the one wrong answer this
+	// surface must never give.
+	Missed uint64 `json:"missed,omitempty"`
 }

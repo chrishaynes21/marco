@@ -587,6 +587,17 @@ func (r *Runtime) LearnSession(ctx context.Context, q service.ObserveLearn) (lea
 		if r.observations == nil {
 			return learnSessionView{}, fmt.Errorf("this Director has no observation registry")
 		}
+		// A DEMONSTRATION TAKES THE SLOT FROM WATCHING, and it is taken HERE because this
+		// is where a session is actually started — by the command line and by the control
+		// surface alike.
+		//
+		// It was first put in `Runtime.Learn`, which only the control surface reaches, so
+		// `marco learn` went on being refused `no_observation` while ambient watching held
+		// the one slot. The rule was right and nothing on the path a person actually types
+		// called it.
+		//
+		// Deleting this must fail TestLearningTakesTheSlotBackFromWatching.
+		r.yieldWatching()
 		// MARCO CHOOSES THE WINDOW when nobody named one.
 		//
 		// A person saying "learn to open downloads" is standing in front of the thing

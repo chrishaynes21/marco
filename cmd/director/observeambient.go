@@ -56,6 +56,9 @@ type ambientObserver struct {
 	cancel  context.CancelFunc
 	done    chan struct{}
 	started time.Time
+	// held is the observation session ambient watching currently owns, empty when it owns
+	// none. Recorded so an explicit Learn can ask for the slot back — see standAside.
+	held observe.SessionID
 	// attention is the current gap between ambient sessions. It grows while nothing changes
 	// and resets the moment something does — see [nextAttention].
 	attention time.Duration
@@ -361,10 +364,21 @@ func (a *ambientObserver) watchOnce(ctx context.Context) (moved bool) {
 	if err != nil {
 		return false
 	}
+	id := observe.SessionID(view.ID)
 	a.mu.Lock()
 	a.sessions++
+	// WHAT AMBIENT IS HOLDING, so an explicit Learn can ask for it back. Recorded rather
+	// than inferred: the registry knows which session is active and not whose it is, and a
+	// passive observe-game somebody set up deliberately is not Marco.s to cancel.
+	a.held = id
 	a.mu.Unlock()
-	id := observe.SessionID(view.ID)
+	defer func() {
+		a.mu.Lock()
+		if a.held == id {
+			a.held = ""
+		}
+		a.mu.Unlock()
+	}()
 
 	changed := false
 	deadline := time.Now().Add(ambientSession)
@@ -787,4 +801,42 @@ func (a *ambientObserver) waitOrLeave(ctx context.Context, d time.Duration,
 			return true, true
 		}
 	}
+}
+
+// standAside gives up the observation slot if ambient watching is the one holding it.
+//
+// # Why watching yields to a demonstration
+//
+// Measured in the 38A dogfood, and it stopped the session dead: with `marco observe` on, an
+// explicit `learn` came back
+//
+//	phase: refused   refused: no_observation
+//	"I couldn't watch — I lost sight of that window."
+//
+// Every time. One observation runs at a time, ambient watching had the slot, and Learn was
+// refused — so the product's headline loop, watch me and then teach me, could not be walked from
+// the command line at all. The sentence made it worse by blaming the window, which sends somebody
+// to check their screen for a fault that is not there.
+//
+// This is the rule Light Mode already follows, and for the same reason: background attention is
+// an instrument, a demonstration is the work, and somebody who typed `learn` has said which of
+// the two they want. See yieldWatching.
+//
+// It yields ONLY the session ambient itself started. Watching is not switched off — the
+// supervisor's own loop sees the slot go, stops early, and asks again afterwards.
+//
+// Deleting this must fail TestLearningTakesTheSlotBackFromWatching.
+func (a *ambientObserver) standAside() {
+	if a == nil || a.rt == nil || a.rt.observations == nil {
+		return
+	}
+	a.mu.Lock()
+	held := a.held
+	a.held = ""
+	a.mu.Unlock()
+	if held == "" {
+		return
+	}
+	_ = a.rt.observations.Cancel(held)
+	a.rt.awaitLookRetired(context.Background())
 }

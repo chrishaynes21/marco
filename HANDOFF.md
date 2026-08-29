@@ -6989,3 +6989,63 @@ Place identity untouched, 37J firewall unchanged. 4 mutations, 4 killed.
 everything Marco can currently read, and the fact that separates them — a breadcrumb is a path, a
 rail is a menu — is not exposed by UI Automation on this application. The next question is not
 architectural. It is how much any of this costs in use.
+
+## 38A — dogfood 1: watch me, tell me what you learned
+
+The 37-series closed as READY_FOR_DOGFOOD. This is the first phase whose question is not "does
+this subsystem hold" but "what happens when somebody uses it". Two things came out of turning
+Marco on.
+
+**A surface that did not exist.** Nothing told a person when durable knowledge changed, so
+`marco observe --follow` now prints a line per COMMITTED change — a Place established, a way
+remembered, a name settled, a destination bound to a word:
+
+	+ learned place       Mouse
+	+ named               Mouse
+
+The events come from `semanticmemory.Store` after its own write succeeded. Nothing upstream
+announces, nothing predicts: a Place refused at a bound, a signature matching a record already
+held, a file that could not be written all arrive as silence. Four words rather than one —
+learned, strengthened, named, rebound — because a feed that said "learned" every time somebody
+walked a familiar route would train them to stop reading it. Names resolve when somebody looks,
+not when the write happened, since a Place is established on one pass and named on a later one.
+Across the whole session it produced ZERO false events.
+
+**A defect that stopped the headline loop dead.** From a cold home, doing exactly what the product
+invites:
+
+	marco observe learn   → Marco is watching, learning from what it sees
+	marco learn "…"       → phase: refused
+	                        refused: no_observation
+	                        "I couldn't watch — I lost sight of that window."
+
+Every time. With watching OFF the identical command reached `ready_for_demo` and established a
+Place — so it is a slot conflict, and the message points at the window, which sends somebody to
+look for a fault that is not there. One observation runs at a time by design; ambient watching held
+it and Learn was refused. Watch me, then teach me could not be walked from a command line at all.
+
+Fixed as a blocker: background attention yields to a demonstration, which is the rule Light Mode
+already followed, and only ever the session ambient itself started. **The first attempt at the fix
+did not work** — it went into `Runtime.Learn`, which only the control surface reaches, so
+`marco learn` went on being refused exactly as before. The rule was right and nothing on the path a
+person types called it. Fourth time in this series. After the fix: `ready_for_demo`, one Place
+committed, the feed said so, and watching came back.
+
+**And the observation half needs a hand on the mouse.** Seven Settings pages, 180 samples, 10
+transitions recorded — and zero candidate edges. `noticed` requires exactly one attributed human
+ACTION per transition, and actions come from real input. Navigation driven by `ms-settings:` URIs
+presses nothing, so from Marco's point of view the screen changed on its own and it correctly
+learned nothing. That is the mechanism working; this method cannot exercise it. Edges, goals,
+execution, composition, different starting places, midway entry and recovery all sit behind it and
+were not reached.
+
+Also found: `marco observe status` says "0 screens and 8 moves" while `--evidence` says "hasn't
+watched you go anywhere yet". Both true under their own meanings — the transient buffer versus the
+candidate ledger — and together they read as a contradiction that names neither cause.
+
+Verified: feed reports committed knowledge, 0 false events, Place established from cold, survives
+restart, recognised after restart, watching resumes after a demonstration. Not reached: everything
+that needs a click.
+
+DEMO_READINESS: ENGINEERING_DEMO. The next session needs a human hand: `marco observe learn
+--follow`, then navigate Settings by CLICKING, and watch for `+ learned way`.

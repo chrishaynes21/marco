@@ -41,6 +41,11 @@ func runObserve(args []string) int {
 	jsonOut := fs.Bool("json", false, "print as JSON")
 	evidence := fs.Bool("evidence", false,
 		"with status: what Marco has seen repeatedly, and what it is waiting for")
+	// THE DOGFOOD FLAG. Stay here and say what gets learned, so somebody can turn round and
+	// try it the moment it happens. See observefeed.go for why this reports committed
+	// knowledge and not perception.
+	follow := fs.Bool("follow", false,
+		"stay open and report each thing Marco learns, as it commits")
 	_ = fs.Parse(rest)
 
 	q, ok := observeRequest(sub, rest)
@@ -114,6 +119,18 @@ func runObserve(args []string) int {
 		return 0
 	}
 	printObserving(view)
+	if *follow {
+		if !view.Learning {
+			// WATCHING IS NOT LEARNING, and a silent feed would read as a broken one.
+			// Nothing durable is written while learning is off, so there is nothing
+			// honest for this feed to say — better to explain than to sit blank.
+			fmt.Println()
+			fmt.Println("Marco is watching but not learning, so nothing will be written down.")
+			fmt.Println("  turn it on with:  marco observe learn --follow")
+		}
+		fmt.Println()
+		return followLearning(client, *jsonOut)
+	}
 	return 0
 }
 

@@ -105,6 +105,11 @@ type file struct {
 type Store struct {
 	path string
 
+	// learnedObserver is who to tell when a write COMMITS. Embedded so the notification
+	// carries its own lock: an observer renders names, which means it reads this store, and
+	// a shared mutex would deadlock the Director at the moment it learned something.
+	learnedObserver
+
 	mu            sync.RWMutex
 	subjects      []observe.RememberedSubject
 	relationships []observe.RememberedRelationship
@@ -290,6 +295,9 @@ func (s *Store) RememberRelationships(application string,
 	obs []observe.RelationshipObservation) (observe.RelationshipUpdate, error) {
 
 	var update observe.RelationshipUpdate
+	// Collected under the lock and announced after the save, so an edge nobody could write
+	// is an edge nobody is told about.
+	var pending []Learning
 	if s == nil {
 		return update, fmt.Errorf("semanticmemory: no store")
 	}
@@ -343,8 +351,16 @@ func (s *Store) RememberRelationships(application string,
 			})
 			idx = len(s.relationships) - 1
 			update.Created++
+			pending = append(pending, Learning{
+				Change: Learned, Kind: KindEdge, Application: application,
+				From: o.From, To: o.To,
+			})
 		} else {
 			update.Corroborated++
+			pending = append(pending, Learning{
+				Change: Strengthened, Kind: KindEdge, Application: application,
+				From: o.From, To: o.To,
+			})
 		}
 		s.relationships[idx].Fold(o.Evidence)
 		// One increment per session per edge, which is what makes this a count of
@@ -371,7 +387,11 @@ func (s *Store) RememberRelationships(application string,
 	snapshot := s.snapshotLocked()
 	s.mu.Unlock()
 
-	return update, save(s.path, snapshot)
+	if err := save(s.path, snapshot); err != nil {
+		return update, err
+	}
+	s.announce(pending...)
+	return update, nil
 }
 
 // Topology is the durable relationship graph for one application, with its endpoints.
@@ -646,7 +666,18 @@ func (s *Store) EstablishPlace(application string,
 	id := s.subjects[idx].ID
 	snapshot := s.snapshotLocked()
 	s.mu.Unlock()
-	return id, save(s.path, snapshot)
+	// AFTER THE WRITE, AND ONLY IF IT WORKED. A Place that could not be saved is a Place
+	// Marco has not learned, whatever the in-memory slice now says. The early return above
+	// announces nothing on purpose: coming back with an existing id is recognition, not
+	// learning, and a feed that said otherwise would fire every time somebody walked a route
+	// they had already taught.
+	if err := save(s.path, snapshot); err != nil {
+		return id, err
+	}
+	s.announce(Learning{
+		Change: Learned, Kind: KindPlace, Application: application, Subject: id,
+	})
+	return id, nil
 }
 
 // NoteSession records that a subject was seen again, without changing what is known.
@@ -907,6 +938,7 @@ func (s *Store) RememberGoal(application string, g observe.Goal) error {
 			application)
 	}
 	folded := false
+	change := Learned
 	for i, have := range s.goals {
 		if !strings.EqualFold(have.Application, application) ||
 			!strings.EqualFold(have.Name, name) {
@@ -916,11 +948,11 @@ func (s *Store) RememberGoal(application string, g observe.Goal) error {
 			// REBOUND. The lineage of the old binding does not carry over — it was about
 			// reaching somewhere else — so the count starts again at this demonstration.
 			s.goals[i].Subject, s.goals[i].Demonstrations = g.Subject, 1
-			folded = true
+			folded, change = true, Rebound
 			break
 		}
 		s.goals[i].Demonstrations++
-		folded = true
+		folded, change = true, Strengthened
 		break
 	}
 	if !folded {
@@ -940,7 +972,14 @@ func (s *Store) RememberGoal(application string, g observe.Goal) error {
 	}
 	snapshot := s.snapshotLocked()
 	s.mu.Unlock()
-	return save(s.path, snapshot)
+	if err := save(s.path, snapshot); err != nil {
+		return err
+	}
+	s.announce(Learning{
+		Change: change, Kind: KindGoal, Application: application,
+		Subject: g.Subject, Name: name,
+	})
+	return nil
 }
 
 // Goals returns the learned goals for one application, in a stable order.
@@ -1422,5 +1461,13 @@ func (s *Store) ObserveSemanticName(application, id, name string, from observe.E
 	s.subjects[found].Semantic, s.subjects[found].SemanticFrom = name, from
 	snapshot := s.snapshotLocked()
 	s.mu.Unlock()
-	return save(s.path, snapshot)
+	if err := save(s.path, snapshot); err != nil {
+		return err
+	}
+	// A Place Marco could already recognise can now be spoken about. Worth telling somebody,
+	// and NOT a new Place: the idempotent return above means the same word again says nothing.
+	s.announce(Learning{
+		Change: Named, Kind: KindPlace, Application: application, Subject: id, Name: name,
+	})
+	return nil
 }

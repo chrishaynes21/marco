@@ -136,9 +136,37 @@ lands in a slot the cadence gate declined.
 - [[Perception]] — the pipeline, and the pinning gap below
 - [[Windows]] — the callback exhaustion this workload exposed
 
+## Telling somebody what was learned
+
+`marco observe --follow` prints a line per COMMITTED change to durable knowledge — a Place
+established, a way between two screens remembered, a name settled, a destination bound to a word:
+
+	+ learned place       Mouse
+	+ learned way         Home -> Bluetooth & devices
+	· saw again           Home -> Bluetooth & devices
+	+ learned destination "mouse" -> Mouse
+
+Not a log of what Marco perceived. Samples, walks, candidates and confidences are Marco LOOKING,
+and a person waiting for the moment they can say "alright, do that then" would never find it under
+those.
+
+The events come from `semanticmemory.Store` after its own write succeeded. Nothing upstream
+announces and nothing predicts, so a Place refused at a bound, a signature that matched a record
+already held, or a file that could not be written all arrive as silence. Names are resolved when
+somebody looks rather than when the write happened, because a Place is established on one pass and
+named on a later one. See [[ADR-111-a-demonstration-takes-the-slot-from-watching]].
+
+**Watching yields to a demonstration.** One observation session runs at a time, and until 38A
+ambient watching simply held it: every `marco learn` came back `no_observation` — *"I couldn't
+watch — I lost sight of that window"* — so the product's headline loop could not be walked from a
+command line. Ambient now stands aside for a Learn, exactly as Light Mode does, and takes the slot
+back afterwards.
+
 ## Decisions
 
 - [[ADR-010-passive-observation-cannot-execute]]
+- [[ADR-111-a-demonstration-takes-the-slot-from-watching]] — watching yields the one observation
+  slot to a demonstration, and `marco observe --follow` reports what durable memory COMMITTED
 - [[ADR-093-observe-is-attention-not-recording]] — `marco observe` is the ambient lifecycle:
   one supervisor on the one substrate, the ZERO licence so nothing it sees becomes durable,
   a transient buffer whose size tracks novelty rather than time, and no authority or desktop
