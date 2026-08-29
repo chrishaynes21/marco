@@ -319,6 +319,7 @@ Load applies the same referential rule as candidates: evidence whose endpoints a
 - [[ADR-026-verification-is-derived-from-a-completed-rehearsal]]
 - [[ADR-031-the-user-names-the-stage]]
 - [[ADR-041-a-screen-is-not-its-dominant-group]]
+- [[ADR-108-what-a-reflow-removes-cannot-always-be-told-from-where-you-are]]
 - [[ADR-047-a-place-is-remembered-a-meaning-is-answered]]
 - [[ADR-063-a-pass-remembers-every-place-it-settled-on]]
 - [[ADR-064-the-order-of-a-walk-is-evidence]]
@@ -442,6 +443,25 @@ match the reading and not each other are still `insufficient`.
 **Same Place after a resize does not mean the same live Stage evidence** — the two questions are
 unrelated and both answers are true at once.
 [[ADR-091-a-place-is-not-its-presentation]].
+
+### Where that stops, measured
+
+One Settings page is one Place from 1500px to 850px with a **byte-identical** signature. Below
+about 800px Windows removes its navigation pane and the page is no longer recognised — the
+decisive field is the role set, because `image` and `text_field` leave with the navigation.
+
+That false miss is deliberate. Measured over three destinations at six widths each: tolerating
+what the reflow removed raises same-destination matches from 18 of 45 to 36 **and merges Mouse
+with Printers & scanners fifteen times**, because `back settings` is a subset of `back controls
+settings`. And it still does not recognise Mouse, whose own content has three list items — so the
+navigation's twelve leaving arrives as a count disagreement (15 against 3) rather than as an
+absence, while on pages with no content list items the identical event is an absence. A flat role
+histogram cannot tell those apart.
+
+The collapsed reading also loses the page's NAME: `AdmittedPlaceName` reads the selected
+navigation item. The page still names itself in a breadcrumb, which is where a future attempt
+should look — carefully, because the same run caught Printers naming itself after its section at
+one width. See [[ADR-108-what-a-reflow-removes-cannot-always-be-told-from-where-you-are]].
 
 ## Known correctness debt: a durable Envelope can strand a subject
 

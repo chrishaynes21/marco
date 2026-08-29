@@ -160,50 +160,70 @@ func report(app string, visits []visit) {
 	fmt.Printf("  SUMMARY %s: same=%d not-same=%d\n", app, same, other)
 }
 
-// whyDiffer names the identity-bearing fields that disagree, in the matcher's own order.
+// whyDiffer explains a mismatch, and asks the MATCHER rather than re-deriving one.
 //
-// It reports what CompareStructure would have looked at rather than a general diff, so a
-// reader is told which rule fired rather than which numbers happen to be unequal.
+// It used to compute its own role-set and term comparison. Two problems, both of which showed up
+// the moment this was pointed at the responsive breakpoint: it compared RAW roles where the
+// matcher compares `identityRoles`, so it reported layout roles as decisive when the matcher had
+// already dropped them; and it printed two term lists without saying which terms had been LOST
+// and which GAINED, which is precisely the distinction between an interface that reflowed and a
+// person who navigated.
+//
+// So the verdict and its reasons now come from `ExplainStructure` — the one implementation —
+// and what this adds is the lost/gained breakdown, which is a MEASUREMENT and not a rule.
 func whyDiffer(a, b observe.StructureSignature) []string {
 	var out []string
-	if a.Subject != b.Subject {
-		out = append(out, fmt.Sprintf("kind: %s vs %s", a.Subject, b.Subject))
+	cmp := observe.ExplainStructure(a, b)
+	for _, d := range cmp.Why {
+		mark := " "
+		if d.Decisive {
+			mark = "*"
+		}
+		out = append(out, fmt.Sprintf("%s %-10s current=%s remembered=%s",
+			mark, d.Field, d.Current, d.Remembered))
 	}
-	// Role SET, then per-role counts — the two rules, kept apart.
+	// LOST and GAINED, kept apart. An interface that reflows away its navigation loses
+	// structures and contradicts nothing; a person who navigated brings different ones.
+	if lost, gained := termDelta(a.Terms, b.Terms); len(lost) > 0 || len(gained) > 0 {
+		out = append(out, fmt.Sprintf("  terms      lost=%v gained=%v", lost, gained))
+	}
 	onlyA, onlyB := missingRoles(a.Roles, b.Roles), missingRoles(b.Roles, a.Roles)
 	if len(onlyA) > 0 || len(onlyB) > 0 {
-		out = append(out, fmt.Sprintf("role SET differs: only-in-first=%v only-in-second=%v",
+		out = append(out, fmt.Sprintf("  roles      only-in-first=%v only-in-second=%v",
 			onlyA, onlyB))
 	}
-	var over []string
-	for role, n := range a.Roles {
-		m, ok := b.Roles[role]
-		if !ok {
-			continue
-		}
-		if d := n - m; d > observe.RoleCountTolerance || -d > observe.RoleCountTolerance {
-			over = append(over, fmt.Sprintf("%s %d vs %d", role, n, m))
-		}
-	}
-	sort.Strings(over)
-	if len(over) > 0 {
-		out = append(out, "role COUNTS past tolerance: "+strings.Join(over, ", "))
-	}
-	if a.TermsKnown && b.TermsKnown && !sameTerms(a.Terms, b.Terms) {
-		out = append(out, fmt.Sprintf("terms differ: %v vs %v", a.Terms, b.Terms))
-	}
-	if !a.TermsKnown || !b.TermsKnown {
-		out = append(out, fmt.Sprintf("terms not comparable: known=%v/%v",
-			a.TermsKnown, b.TermsKnown))
-	}
-	if !a.Discriminating() || !b.Discriminating() {
-		out = append(out, fmt.Sprintf("no discriminator: %v/%v",
-			a.Discriminating(), b.Discriminating()))
-	}
-	// The totals, so a reader can see the SHAPE of the difference at a glance.
-	out = append(out, fmt.Sprintf("total members: %d vs %d over %d vs %d roles",
+	out = append(out, fmt.Sprintf("  totals     %d vs %d over %d vs %d roles",
 		total(a.Roles), total(b.Roles), len(a.Roles), len(b.Roles)))
 	return out
+}
+
+// termDelta is what the FIRST signature has that the second does not, and the reverse.
+//
+// Named from the second's point of view, because the question this exists for is asked that way:
+// "what did the remembered place have that this reading does not" is a different fact from "what
+// does this reading have that the remembered place did not".
+func termDelta(current, remembered []observe.InterfaceTerm) (lost, gained []string) {
+	has := func(list []observe.InterfaceTerm, t observe.InterfaceTerm) bool {
+		for _, got := range list {
+			if got == t {
+				return true
+			}
+		}
+		return false
+	}
+	for _, t := range remembered {
+		if !has(current, t) {
+			lost = append(lost, string(t))
+		}
+	}
+	for _, t := range current {
+		if !has(remembered, t) {
+			gained = append(gained, string(t))
+		}
+	}
+	sort.Strings(lost)
+	sort.Strings(gained)
+	return lost, gained
 }
 
 func missingRoles(from, in map[string]int) []string {

@@ -6812,3 +6812,62 @@ Selective perception is untouched. Nothing was pinned, delayed, frozen or reconc
 cleaner, no migration, no matcher loosening, and the rule names no sensor.
 
 10 mutations, 10 killed.
+
+## 37J — what a reflow removes cannot always be told from where you are
+
+37G left one false miss on purpose: below about 800px Windows Settings removes its navigation
+pane and the same destination stops being recognised. 37H then supplied a vocabulary that looked
+like it might generalise — evidence ABOUT a screen is not evidence a screen is identified BY —
+so 37J asked the same question of responsive layout.
+
+**Measured first.** Three destinations (Mouse, Bluetooth & devices, Printers & scanners), six
+widths each, through the production path into `SignatureOfState`. The breakpoint is between 850
+and 800px and is identical on all three, verified SEMANTICALLY rather than by width: a
+`button "Open Navigation"` and a `button "Expand search box"` appear and the navigation list goes.
+
+Lost on every page: 13 `image`, 1 `text_field`, the navigation's `list_item`s, and the selected
+navigation entry — which is where `AdmittedPlaceName` reads the page's name, so a collapsed
+reading does not know what it is called. Gained: the `search` term. The decisive field is the
+role set, on all three.
+
+**Nothing shipped, and two independent reasons why.**
+
+The same interface event is a CONTRADICTION on one page and a SILENCE on another. Mouse has
+three list items of its own, so the navigation's twelve leaving takes `list_item` 15 → 3 — a
+positive count disagreement on a shared role. Bluetooth and Printers have no content list items,
+so the identical event removes the role entirely. The durable signature is a flat role histogram;
+`ScreenSignature` has cells and `StructureSignature` deliberately does not, so nothing can tell
+those apart. "Absence is not contradiction" is a real seam in `sameRoleSet` — and it does not
+reach the page this phase was written for.
+
+And the rule that would work is a measured false merge. Over every pair:
+
+	current matcher                            same 18/45   false merges  0
+	shared roles only, terms exact             same 18/45   false merges  0
+	shared roles only, terms nested            same 36/45   false merges 15
+	shared roles + tolerant counts + nesting   same 36/45   false merges 15
+
+All fifteen are Mouse against Printers: `back settings` is a subset of `back controls settings`.
+Requiring a shared distinctive term removes them, but `settings` is generic in an operating
+system and destination-bearing in a game's settings menu — which is what the term vocabulary was
+built for — so distinctiveness cannot be declared statically.
+
+Printers collapsed settles it: its whole account is `back search settings` plus button, list,
+menu, menu_item, window — the furniture of every page of that application. UNKNOWN is the only
+honest answer there, and any rule lenient enough to change it would recognise anything.
+
+**What survives, and is not being read.** The collapsed reading contains `button "Mouse"` and
+`text "Mouse"` in a breadcrumb — the page names itself at BOTH presentations, and
+`AdmittedPlaceName` reads the selected navigation item, which is exactly what disappears. That is
+the route to closing this, and it is a perception change rather than a matcher change. It is not
+free: the same run caught Printers naming itself "Printers & scanners" at 1500 and 1000 and
+"Bluetooth & devices" — its section — at 850. A name that moves between presentations would move
+identity with it.
+
+So `responsive_test.go` is a firewall rather than a fix: the measured signatures as fixtures, the
+current answer stated with the field that decides it, and a mutation gate that kills the three
+loosenings this experiment rejected. `identityprobe` now asks `ExplainStructure` instead of
+re-deriving a comparison — it had been reporting layout roles as decisive that the matcher had
+already dropped — and reports terms as lost and gained rather than as two lists.
+
+3 mutations, 3 killed. 35D responsive acceptance: PASSED to 850px, CONSERVATIVE_UNKNOWN below.
