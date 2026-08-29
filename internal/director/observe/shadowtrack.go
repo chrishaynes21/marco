@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 	"sort"
+
+	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 )
 
 // Turning repeated detections into structures that persist.
@@ -76,6 +78,14 @@ type ShadowRegion struct {
 	// It is a label, not a removal: chrome is still observed, still addressable, and still
 	// shown. Exactly one consumer reads it — the durable place signature.
 	Chrome bool `json:"chrome,omitempty"`
+	// Kind says who accounted for what this structure IS. See KindEvidence.
+	//
+	// The same shape as Chrome and for the same reason: classified where the evidence and
+	// its provenance are both still in scope, carried here because by the time a region
+	// reaches identity there is nothing left to ask. It is a label, not a removal — the
+	// region is still tracked, still counted toward whether the window was read, and still
+	// reported. One consumer reads it, and it is the durable place signature.
+	Kind directorapi.KindEvidence `json:"kind_evidence,omitempty"`
 }
 
 const (

@@ -126,6 +126,21 @@ func (a Actionability) Affords() bool {
 	return a.Enabled && a.ClickableByBounds && a.Any()
 }
 
+// Generic reports whether a role carries no real claim about what the object is.
+//
+// Empty, `unknown` and `text` all mean "something is here and I cannot say what kind of thing
+// it is". They are not claims, so a source reporting one has not described the object's KIND
+// even though it has described the object.
+//
+// Two callers, and they must agree or the system contradicts itself: fusion admits a specific
+// role over a generic one when building an element, and the durable place signature asks
+// whether any source that can describe structure made a claim about this thing's kind. If those
+// two definitions drifted, an element would be given a kind by one rule and have it counted
+// under another.
+func (r ElementRole) Generic() bool {
+	return r == "" || r == RoleUnknown || r == RoleText
+}
+
 // ActuatingSource reports whether a source can say how to OPERATE what it reports, rather than
 // only that it is there.
 //

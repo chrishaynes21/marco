@@ -68,6 +68,7 @@ Governed by [[ADR-003-evidence-authority-by-source]].
 - [[ADR-104-perception-is-a-budget-not-a-habit]]
 - [[ADR-105-repair-buys-knowledge-not-permission]]
 - [[ADR-106-a-place-is-not-how-long-you-looked-at-it]]
+- [[ADR-107-a-sensor-appearing-is-not-the-screen-changing]]
 
 ## Validated by
 
@@ -168,6 +169,31 @@ survives because nothing has settled yet, so it reads as a slow start rather tha
 
 Measured: 14 samples in 12 seconds with the gate bypassed, one sample and then silence with it.
 Anything the gate needs to remember has its own mutex.
+
+### A sensor appearing is not the screen changing
+
+The composition a screen is identified by is what a source that can describe STRUCTURE said the
+screen is made of. A detector's own word is corroboration, not composition — unless pixels are
+all Marco has, which is the case the detector exists for.
+
+`directorapi.KindEvidence` carries who accounted for what a thing IS, which is a different
+question from `Provenance.OnlyDescribesPixels` — that one asks whether anything but a camera
+reported the thing is THERE. Three answers, because a detection nothing structural saw and an
+element accessibility saw without being able to name are not the same:
+
+	described     a structural source said what this is       counted as it is
+	pixel_named   something structural saw it and could not   counted as `unknown`
+	              name it; a detector did
+	pixel_only    pixels are the whole account                not counted, unless they are
+	                                                          the whole reading
+
+Classified in `buildSample` beside the chrome classifier — the last point where the evidence and
+its provenance are both in scope — and read at `NewScreenSignature`, which both the segmenter and
+`stateFingerprint` go through. A label, not a removal: every structure is still tracked, still
+counted toward whether the window was read, and still reported.
+
+Without it, one cold Learn with the detector configured left two durable Places for one Settings
+page nobody touched. See [[ADR-107-a-sensor-appearing-is-not-the-screen-changing]].
 
 ## Known gaps
 

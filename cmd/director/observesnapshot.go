@@ -79,6 +79,16 @@ func buildSample(world directorapi.WorldState, cycle observation.Cycle,
 	}
 	chrome := observation.Chrome(nodes)
 
+	// AND WHICH OF THEM NOTHING BUT A DETECTOR CAN NAME.
+	//
+	// Asked here for the same reason chrome is: this is the last place the evidence and its
+	// provenance are both in scope. An EntitySnapshot carries a role and a rectangle, and the
+	// durable signature built from it could never work out that the role was a detector's
+	// word — see observation.StructuralKindClaims.
+	//
+	// Deleting this must fail TestTheSampleProductionBuildsSaysWhoNamedEachThing.
+	claims := observation.StructuralKindClaims(cycle.Observations)
+
 	for _, id := range ids {
 		el := world.Elements[id]
 		if el.WindowID != "" && window.ID != "" && el.WindowID != window.ID {
@@ -88,6 +98,7 @@ func buildSample(world directorapi.WorldState, cycle observation.Cycle,
 		}
 		snapshot, ok := safeEntity(el, frame, policy)
 		snapshot.Chrome = chrome[string(id)]
+		snapshot.Kind = observation.KindOf(el.Role, el.Provenance, claims)
 		if !ok {
 			continue
 		}
@@ -194,7 +205,7 @@ func fusedStructure(entities []observe.EntitySnapshot, cycle observation.Cycle,
 		regions = append(regions, observe.ShadowRegion{
 			Role: string(e.Role), Region: e.Region,
 			Nameable: e.Label.Text != "", Confidence: e.Confidence,
-			Chrome: e.Chrome,
+			Chrome: e.Chrome, Kind: e.Kind,
 		})
 	}
 

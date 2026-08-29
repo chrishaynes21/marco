@@ -486,3 +486,38 @@ func (p Provenance) OnlyDescribesPixels() bool {
 	}
 	return true
 }
+
+// KindEvidence says who accounted for what a thing IS, as opposed to that it is there.
+//
+// # Why three, when two looks like enough
+//
+// Because two of them are not the same, and collapsing them cost a fix. A window read with a
+// visual detector running contains structures nothing else reported AND structures another
+// source reported without being able to name. Measured on one Windows Settings page: twenty-one
+// detections nothing structural had seen, and one element accessibility DID report — as
+// `unknown`, which is not a claim, so fusion let the detector name it `icon`.
+//
+// A rule with one bit either keeps both, which leaves a detector's own boxes in a screen's
+// durable identity, or drops both, which deletes an element the application really has the
+// moment a sensor names it. Both were tried; both were wrong.
+//
+// This is provenance ABOUT A FIELD rather than about an element, which is why it does not live
+// on Provenance: `OnlyDescribesPixels` answers "did anything but a camera report this object",
+// and the question here is "did anything but a camera say what it is".
+type KindEvidence string
+
+const (
+	// KindDescribed: a source that can describe structure said what this is — or nothing
+	// recorded where it came from at all, which is the ZERO VALUE and is deliberately this
+	// case. Elements are constructed as well as observed (a fixture, a capability pack's
+	// enrichment, a hand-built query), and treating "nobody wrote it down" as "only a camera
+	// saw it" would quietly empty every composition built that way. The same rule, and the
+	// same reason, as Provenance.OnlyDescribesPixels.
+	KindDescribed KindEvidence = ""
+	// KindPixelNamed: a structural source reported this object and could not say what it was,
+	// so a detector named it. The thing is really there; its KIND is a detector's word.
+	KindPixelNamed KindEvidence = "pixel_named"
+	// KindPixelOnly: pixels are the entire account. Nothing structural reported this object at
+	// all, so it is in the reading only while a detector is running.
+	KindPixelOnly KindEvidence = "pixel_only"
+)

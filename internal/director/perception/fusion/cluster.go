@@ -337,9 +337,11 @@ func rolesCompatible(a, b directorapi.ElementRole) bool {
 }
 
 // generic reports whether a role carries no real claim about what the object is.
-func generic(r directorapi.ElementRole) bool {
-	return r == "" || r == directorapi.RoleUnknown || r == directorapi.RoleText
-}
+//
+// ONE definition, and it lives in directorapi because the durable place signature asks the same
+// question about the same roles — see ElementRole.Generic. Two copies would let an element be
+// given its kind under one rule and counted under another.
+func generic(r directorapi.ElementRole) bool { return r.Generic() }
 
 // build turns a cluster into an element. The cluster is already strongest-source
 // first, so "the first observation that supplies a field" is exactly "the most

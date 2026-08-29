@@ -204,14 +204,6 @@ function Get-Reading([string]$label) {
             $elements = [int]$Matches[1]; $sufficiency = $Matches[2]
         }
     }
-    $ran = @()
-    foreach ($line in ($audit -split "`n")) {
-        if ($line -match '^\s+(accessibility|vision|ocr|window_system)\s+(\S+)') {
-            if ($Matches[2] -eq 'contributed') { $ran += $Matches[1] }
-        }
-    }
-    $visionRan = ($ran -contains 'vision')
-
     # THE IDENTITY HALF, and the load-bearing one. A passive observation session — the
     # production `StartObservation`, whose Episode is the zero value, so it recognises
     # and cannot establish — then `director showing`, which is ObserveShowing: the one
@@ -222,6 +214,22 @@ function Get-Reading([string]$label) {
     Start-Sleep -Seconds 9
     $place = ((Invoke-Director showing --application $SettingsApplication --json) |
                 Out-String | ConvertFrom-Json)
+
+    # WHICH SENSORS THE DIRECTOR ITSELF USED, from the session's own record.
+    #
+    # NOT from walk-audit. That is a separate reading taken by a separate process, and it
+    # never asks for the visual pass — so reporting its providers here printed `vision:False`
+    # for every row of a run where the Director had the detector configured and was using it.
+    # A harness that mislabels which sensors ran is a harness that can claim a sensor-richness
+    # result it did not measure.
+    $account = ((Invoke-Director observation-session $sessionID --json) | Out-String)
+    $ran = @()
+    try {
+        $ran = @(($account | ConvertFrom-Json).stats.proven_providers.PSObject.Properties |
+                    ForEach-Object { $_.Name })
+    } catch { $ran = @() }
+    $visionRan = ($ran -contains 'vision')
+
     $null = Invoke-Director cancel-observation $sessionID
     Start-Sleep -Seconds 2
 

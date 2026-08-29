@@ -6743,3 +6743,72 @@ which is the expense ADR-104 exists to refuse.
 the region it was meant to dilute, and one because a second filter written for the principle
 turned out unreachable against the live population — deleted rather than kept as a guard nobody
 can hold.
+
+## 37H — a sensor appearing is not the screen changing
+
+37G ended with one defect diagnosed and left alone: with `$MARCO_VISION_MODEL` configured, one
+cold `director learn` on one Windows Settings page nobody touched left TWO durable Places. 37H
+reproduced it deterministically, found the layer, and prevented the birth rather than cleaning up
+the orphan.
+
+**The chain, and every link of it is correct on its own.** The pass begins with nothing settled,
+so `EscalationOf` does not know whether the reading suffices and keeps the visual pass (ADR-104:
+ignorance is not a decline). Twenty-one detections nothing structural reported join the
+composition as `icon`, and one element accessibility DID report — as `unknown`, which fusion
+rightly treats as no claim — is named `icon` by the detector. That settles. The reading is now
+placed and sufficient, so the gate stops buying (ADR-105). The composition changes back. The
+segmenter sees a coherent part of the surface replaced and calls it a different state of the same
+surface, which is what that branch is for. And the licence, still open, makes both durable —
+because `PlacesToEstablish` walks every settled state, since a demonstration walks THROUGH places.
+
+	state_1   inferences 2    settled   … icon 22 …
+	state_2   inferences 9    settled   … unknown 1 …   local_from=state_1  surface=state_1
+	transitions   state_1 -> state_2   count 1   unattributed 1
+
+Marco concluded that the world had changed when only its evidence had.
+
+**The suspected heart was not the heart.** The roadmap's hypothesis was `unmatched + licence =
+establish`. Measured, no: the licence acts on settled screen STATES, and establishing every state
+a pass settled on is right — an intermediate place that never becomes durable leaves the edges
+either side of it unresolvable. The establishment layer asked the segmenter which screens it had
+seen and was told two. It was told correctly, from evidence that was wrong. Licence semantics are
+unchanged.
+
+**What the composition is made of, measured on the same window seconds apart:**
+
+	vision=false — 115 elements       vision=true — 136 elements
+	  button   accessibility x17        button  accessibility x14 + accessibility+vision x3
+	  unknown  accessibility x1         icon    accessibility+vision x1
+	                                    icon    vision x21
+
+Two different things, and the difference decided the fix. Both single-bit rules were tried and
+both were wrong: keeping everything a structural source reported leaves the twenty-one boxes in
+the identity, and dropping anything a structural source did not NAME removed `text x29` and
+`unknown x1` from a real page. Accessibility described those text nodes and said they were text; a
+poorer claim than `button` is not the same as no account at all.
+
+So `directorapi.KindEvidence` says who accounted for what a thing IS — described / pixel-named /
+pixel-only — which is a different question from `OnlyDescribesPixels`, which asks whether anything
+but a camera reported that the thing is THERE. Pixel-named counts as `unknown`: the object is
+real, its kind is a detector's word. Pixel-only is not counted, unless pixels are the whole
+reading, which is the case the detector exists for. Classified in `buildSample` beside the chrome
+classifier — the last point where evidence and provenance are both in scope — and read at
+`NewScreenSignature`, the one choke point the segmenter and the durable fingerprint share. A
+label, not a removal.
+
+	                       before    after
+	screen states              2         1
+	durable Places             2         1
+	samples / elapsed    12/6.3s   12/6.1s
+	providers proven      a11y+vision  a11y+vision
+
+The surviving subject is `subj_71727a02470f` — byte-identical to the Place a Director with no
+detector at all establishes for the same page. A configured machine and an unconfigured one now
+learn the same Place, which also closes the compatibility cost ADR-105 recorded. The whole 37G
+matrix re-run with the detector on is unchanged: same Mouse, Bluetooth distinct, two restarts
+stable, two subjects in the store.
+
+Selective perception is untouched. Nothing was pinned, delayed, frozen or reconciled; no orphan
+cleaner, no migration, no matcher loosening, and the rule names no sensor.
+
+10 mutations, 10 killed.

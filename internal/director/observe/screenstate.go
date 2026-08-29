@@ -5,6 +5,8 @@ import (
 	"math"
 	"sort"
 	"strings"
+
+	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 )
 
 // Segmenting a session into the screen states an element can actually exist in.
@@ -145,7 +147,51 @@ type ScreenSignature struct {
 // Every structural source in the system passes through here.
 func NewScreenSignature(regions []ShadowRegion) ScreenSignature {
 	sig := ScreenSignature{Roles: map[string]int{}, Cells: map[string]int{}}
+	// A SENSOR APPEARING IS NOT THE SCREEN CHANGING.
+	//
+	// Where anything that can describe structure said what things ARE, that is what the screen
+	// is made of, and a detector's own boxes are corroboration rather than composition. Where
+	// NOTHING did — a game, a canvas, an application with no accessibility tree — pixels are
+	// all there is and they are the composition, which is the case the detector exists for.
+	//
+	// The same precedence StructureOf already applies between the fused world and the
+	// detector, asked one level down: it chose between two whole readings, and this chooses
+	// within one, because an authoritative reading can now contain both kinds at once.
+	//
+	// # What it cost to leave this out
+	//
+	// One cold Learn on Windows Settings with the detector configured left TWO durable Places
+	// for one page nobody touched. The pass begins with nothing settled, so the escalation gate
+	// buys the visual pass; twenty-one detector boxes join the composition and one element
+	// accessibility called `unknown` is renamed `icon`; that settles, and the reading is now
+	// sufficient, so the gate stops buying; the composition changes back; the segmenter reads a
+	// coherent part of the surface being replaced and calls it a new state; and the licence,
+	// still open, makes both durable.
+	//
+	// Marco concluded the world had changed when only its evidence had.
+	//
+	// Deleting the filter, or the fallback that keeps a pixels-only reading whole, must fail
+	// TestASensorAppearingIsNotAScreenChanging.
+	// The fallback asks whether ANYTHING on this screen was described by something other than
+	// a detector — not whether any region survives the filter. Where nothing was, pixels are
+	// the composition, which is the case the detector exists for.
+	pixelsAreTheOnlyAccount := true
 	for _, r := range regions {
+		if !r.Chrome && roleShaped(r.Role) && r.Kind != directorapi.KindPixelOnly {
+			pixelsAreTheOnlyAccount = false
+			break
+		}
+	}
+	for _, r := range regions {
+		if r.Kind == directorapi.KindPixelOnly && !pixelsAreTheOnlyAccount {
+			continue
+		}
+		// NAMED BY A DETECTOR, over an object something structural really reported. The
+		// object stays; the detector's word for it does not. Counted as what the structural
+		// source actually said about its kind, which was nothing.
+		if r.Kind == directorapi.KindPixelNamed && !pixelsAreTheOnlyAccount {
+			r.Role = string(directorapi.RoleUnknown)
+		}
 		if r.Chrome {
 			// A WINDOW IS NOT A PLACE.
 			//

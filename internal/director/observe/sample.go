@@ -357,6 +357,10 @@ type EntitySnapshot struct {
 	// A label, not a removal. The entity is still observed, still actionable and still
 	// shown; exactly one consumer reads this, and it is the durable place signature.
 	Chrome bool `json:"chrome,omitempty"`
+	// Kind says who accounted for what this IS, as opposed to that it is there. Classified
+	// where provenance is still in scope, for the same reason and with the same meaning as
+	// Chrome: a label, not a removal, read by the durable place signature alone.
+	Kind directorapi.KindEvidence `json:"kind_evidence,omitempty"`
 	// GridPosition is set for cells of a detected grid.
 	GridPosition string `json:"grid_position,omitempty"`
 }
