@@ -209,6 +209,10 @@ func valueTakingFlags(t *testing.T) map[string]string {
 	valueKinds := map[string]bool{
 		"String": true, "Int": true, "Int64": true, "Uint": true, "Uint64": true,
 		"Float64": true, "Duration": true,
+		// Var ALWAYS takes a value, and it is the one kind whose name is not the first
+		// argument. It was missing here, and `redact-desktop-sample --region` — an
+		// fs.Var — went straight through the gate that exists to catch exactly this.
+		"Var": true,
 	}
 	out := map[string]string{}
 	fset := token.NewFileSet()
@@ -239,7 +243,15 @@ func valueTakingFlags(t *testing.T) map[string]string {
 			if !ok || !strings.Contains(strings.ToLower(recv.Name), "fs") {
 				return true
 			}
-			lit, ok := call.Args[0].(*ast.BasicLit)
+			// fs.Var takes (value, name, usage); every other kind takes (name, ...).
+			nameArg := 0
+			if sel.Sel.Name == "Var" {
+				if len(call.Args) < 2 {
+					return true
+				}
+				nameArg = 1
+			}
+			lit, ok := call.Args[nameArg].(*ast.BasicLit)
 			if !ok || lit.Kind != token.STRING {
 				return true
 			}
@@ -266,5 +278,24 @@ func TestEveryValueTakingFlagIsInTheReorderingTable(t *testing.T) {
 				"package will then read the wrong token — quietly. Add \"-%s\" and "+
 				"\"--%s\" to the table in explain.go.", path, name, name, name)
 		}
+	}
+}
+
+// The extraction actually reads fs.Var, which is the kind it was blind to.
+//
+// Adding "Var" to valueKinds closes a hole that nothing else exercises: every Var flag in the
+// tree today happens to share a name with a flag declared elsewhere as a String, so the gate
+// above would keep passing if the extraction silently went back to ignoring Var. This names
+// the one thing that would then be missing.
+//
+// `redact-desktop-sample --redact` is an fs.Var and takes x,y,w,h. Deleting the "Var" entry,
+// or the nameArg offset that reads a Var's second argument, must fail here.
+func TestTheFlagWalkReadsVarFlags(t *testing.T) {
+	found := valueTakingFlags(t)
+	if _, ok := found["redact"]; !ok {
+		t.Errorf("the flag walk did not find --redact, which redactdesktop.go declares as " +
+			"an fs.Var.\nfs.Var always takes a value and its name is its SECOND argument; " +
+			"an extraction that reads Args[0] for every kind sees the variable, not the " +
+			"flag name, and the reordering gate goes quiet.")
 	}
 }

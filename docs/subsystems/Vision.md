@@ -94,10 +94,24 @@ that cannot be named was being paid for twice.
 ## Admission — and why the detector is still in the shadows
 
 [[ADR-101-visual-presence-is-not-legal-actionability]] recorded the decision:
-`SCREENPARSER_DECISION = REMAIN_SHADOW_ONLY`. The model is now on disk, but no ONNX Runtime is
-installed on the measuring machine, so the corpus comparison, stability runs and calibration that
-admission requires cannot produce a number — and the ADR lists exactly what would be needed to
-reconsider.
+`SCREENPARSER_DECISION = REMAIN_SHADOW_ONLY`. It first recorded that no ONNX Runtime was
+installed to measure with, which was **wrong** — 1.28 was in `tools/onnxruntime/` inside this
+repository, and the search that concluded otherwise had looked everywhere except the tree it was
+standing in. The measurement was taken and the ADR corrected.
+
+[[Experiment-016-desktop-perception-corpus]] then asked the question admission actually turns on,
+over six coherent desktop moments: what does the detector ADD to perception that already works?
+Nothing measurable. All 302 of its unmatched detections fall inside elements production already
+perceived; the fairest additive reading leaves 12%, and those are boxes without meanings. Its
+single most confident unique detection in the corpus is a `<span>` styled to look like a button
+and wired to nothing — production reads it as `text`.
+
+[[ADR-102-a-detector-earns-its-place-where-perception-fails]] draws the general rule out of that:
+a detector is admitted by the ABSENCE of better evidence, never by its own quality. Experiment 015
+and Experiment 016 ran the same model and disagreed completely, because a game has no
+accessibility tree and a Settings page has a good one. So ScreenParser's value is a function of
+what the other sensors are not providing, and the next question is degradation detection rather
+than admission.
 
 It also closed the hole admission would have fallen into: `Targetable()` derived capability from
 role alone, so a detector rectangle classified `button` read as legally targetable with nothing

@@ -138,6 +138,18 @@ func main() {
 		// Diagnosis only. Replays recorded detections through track matching to say which
 		// layer loses an element's identity; changes nothing and drives no input.
 		os.Exit(runShadowReplay(os.Args[2:]))
+	case "capture-desktop-sample":
+		// One coherent perception moment: the screenshot AND what production believed,
+		// pinned to one window. Scratch only — see capturedesktop.go.
+		os.Exit(runCaptureDesktopSample(os.Args[2:]))
+	case "compare-desktop-perception":
+		// Reads one captured moment twice — production fusion and the shadow detector — and
+		// counts. Decides nothing; see comparedesktop.go.
+		os.Exit(runCompareDesktopPerception(os.Args[2:]))
+	case "redact-desktop-sample":
+		// Removes personal information from a captured sample, geometrically, in place.
+		// Scratch only — see redactdesktop.go.
+		os.Exit(runRedactDesktopSample(os.Args[2:]))
 	case "capture-vision-fixture":
 		// Collects CANDIDATE frames into a scratch directory. It cannot approve anything
 		// and cannot write into a corpus — see capturefixture.go.

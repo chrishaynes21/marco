@@ -1,0 +1,554 @@
+[
+ {
+  "id": "stability-explorer-r1",
+  "width": 1100,
+  "height": 800,
+  "production_elements": 140,
+  "production_actionable": 82,
+  "detector_detections": 77,
+  "matched": 23,
+  "detector_only": 54,
+  "detector_only_inside_known": 54,
+  "production_only": 120,
+  "detector_only_examples": [
+   {
+    "label": "menu",
+    "confidence": 0.47722533345222473,
+    "bounds": {
+     "x": 0.09636363636363636,
+     "y": 0.26125,
+     "width": 0.013636363636363636,
+     "height": 0.01625
+    },
+    "nearest_role": "pane",
+    "nearest_iou": 0.001021669880124067
+   },
+   {
+    "label": "text",
+    "confidence": 0.4590555429458618,
+    "bounds": {
+     "x": 0.67,
+     "y": 0.28375,
+     "width": 0.04818181818181818,
+     "height": 0.02125
+    },
+    "nearest_role": "text_field",
+    "nearest_label": "Type",
+    "nearest_iou": 0.3951754385964914
+   },
+   {
+    "label": "menu",
+    "confidence": 0.4568503797054291,
+    "bounds": {
+     "x": 0.09636363636363636,
+     "y": 0.3,
+     "width": 0.013636363636363636,
+     "height": 0.0175
+    },
+    "nearest_role": "pane",
+    "nearest_iou": 0.001100259870902843
+   },
+   {
+    "label": "menu",
+    "confidence": 0.39825376868247986,
+    "bounds": {
+     "x": 0.11545454545454545,
+     "y": 0.29875,
+     "width": 0.02090909090909091,
+     "height": 0.02125
+    },
+    "nearest_role": "tree_item",
+    "nearest_label": "Beta",
+    "nearest_iou": 0.4525462962962959
+   },
+   {
+    "label": "text",
+    "confidence": 0.3878999948501587,
+    "bounds": {
+     "x": 0.3981818181818182,
+     "y": 0.1325,
+     "width": 0.02,
+     "height": 0.01875
+    },
+    "nearest_role": "button",
+    "nearest_label": "Sort",
+    "nearest_iou": 0.08540372670807456
+   },
+   {
+    "label": "menu",
+    "confidence": 0.3724066913127899,
+    "bounds": {
+     "x": 0.33545454545454545,
+     "y": 0.25,
+     "width": 0.02090909090909091,
+     "height": 0.01875
+    },
+    "nearest_role": "text_field",
+    "nearest_label": "Name",
+    "nearest_iou": 0.08216241962371999
+   }
+  ],
+  "detect_millis": 1379
+ },
+ {
+  "id": "stability-explorer-r2",
+  "width": 1100,
+  "height": 800,
+  "production_elements": 140,
+  "production_actionable": 82,
+  "detector_detections": 77,
+  "matched": 23,
+  "detector_only": 54,
+  "detector_only_inside_known": 54,
+  "production_only": 120,
+  "detector_only_examples": [
+   {
+    "label": "menu",
+    "confidence": 0.4770752191543579,
+    "bounds": {
+     "x": 0.09636363636363636,
+     "y": 0.26125,
+     "width": 0.013636363636363636,
+     "height": 0.01625
+    },
+    "nearest_role": "pane",
+    "nearest_iou": 0.001021669880124067
+   },
+   {
+    "label": "text",
+    "confidence": 0.45912277698516846,
+    "bounds": {
+     "x": 0.67,
+     "y": 0.28375,
+     "width": 0.04818181818181818,
+     "height": 0.02125
+    },
+    "nearest_role": "text_field",
+    "nearest_label": "Type",
+    "nearest_iou": 0.3951754385964914
+   },
+   {
+    "label": "menu",
+    "confidence": 0.45677700638771057,
+    "bounds": {
+     "x": 0.09636363636363636,
+     "y": 0.3,
+     "width": 0.013636363636363636,
+     "height": 0.0175
+    },
+    "nearest_role": "pane",
+    "nearest_iou": 0.001100259870902843
+   },
+   {
+    "label": "menu",
+    "confidence": 0.3981020450592041,
+    "bounds": {
+     "x": 0.11545454545454545,
+     "y": 0.29875,
+     "width": 0.02090909090909091,
+     "height": 0.02125
+    },
+    "nearest_role": "tree_item",
+    "nearest_label": "Beta",
+    "nearest_iou": 0.4525462962962959
+   },
+   {
+    "label": "text",
+    "confidence": 0.3878442943096161,
+    "bounds": {
+     "x": 0.3981818181818182,
+     "y": 0.1325,
+     "width": 0.02,
+     "height": 0.01875
+    },
+    "nearest_role": "button",
+    "nearest_label": "Sort",
+    "nearest_iou": 0.08540372670807456
+   },
+   {
+    "label": "menu",
+    "confidence": 0.37228769063949585,
+    "bounds": {
+     "x": 0.33545454545454545,
+     "y": 0.25,
+     "width": 0.02090909090909091,
+     "height": 0.01875
+    },
+    "nearest_role": "text_field",
+    "nearest_label": "Name",
+    "nearest_iou": 0.08216241962371999
+   }
+  ],
+  "detect_millis": 718
+ },
+ {
+  "id": "stability-explorer-r3",
+  "width": 1100,
+  "height": 800,
+  "production_elements": 140,
+  "production_actionable": 82,
+  "detector_detections": 77,
+  "matched": 23,
+  "detector_only": 54,
+  "detector_only_inside_known": 54,
+  "production_only": 120,
+  "detector_only_examples": [
+   {
+    "label": "menu",
+    "confidence": 0.4773041009902954,
+    "bounds": {
+     "x": 0.09636363636363636,
+     "y": 0.26125,
+     "width": 0.013636363636363636,
+     "height": 0.01625
+    },
+    "nearest_role": "pane",
+    "nearest_iou": 0.001021669880124067
+   },
+   {
+    "label": "text",
+    "confidence": 0.4589468240737915,
+    "bounds": {
+     "x": 0.67,
+     "y": 0.28375,
+     "width": 0.04818181818181818,
+     "height": 0.02125
+    },
+    "nearest_role": "text_field",
+    "nearest_label": "Type",
+    "nearest_iou": 0.3951754385964914
+   },
+   {
+    "label": "menu",
+    "confidence": 0.4567074477672577,
+    "bounds": {
+     "x": 0.09636363636363636,
+     "y": 0.3,
+     "width": 0.013636363636363636,
+     "height": 0.0175
+    },
+    "nearest_role": "pane",
+    "nearest_iou": 0.001100259870902843
+   },
+   {
+    "label": "menu",
+    "confidence": 0.39833101630210876,
+    "bounds": {
+     "x": 0.11545454545454545,
+     "y": 0.29875,
+     "width": 0.02090909090909091,
+     "height": 0.02125
+    },
+    "nearest_role": "tree_item",
+    "nearest_label": "Beta",
+    "nearest_iou": 0.4525462962962959
+   },
+   {
+    "label": "text",
+    "confidence": 0.3878347873687744,
+    "bounds": {
+     "x": 0.3981818181818182,
+     "y": 0.1325,
+     "width": 0.02,
+     "height": 0.01875
+    },
+    "nearest_role": "button",
+    "nearest_label": "Sort",
+    "nearest_iou": 0.08540372670807456
+   },
+   {
+    "label": "menu",
+    "confidence": 0.37250521779060364,
+    "bounds": {
+     "x": 0.33545454545454545,
+     "y": 0.25,
+     "width": 0.02090909090909091,
+     "height": 0.01875
+    },
+    "nearest_role": "text_field",
+    "nearest_label": "Name",
+    "nearest_iou": 0.08216241962371999
+   }
+  ],
+  "detect_millis": 763
+ },
+ {
+  "id": "stability-settings-r1",
+  "width": 1216,
+  "height": 941,
+  "production_elements": 102,
+  "production_actionable": 32,
+  "detector_detections": 87,
+  "matched": 30,
+  "detector_only": 57,
+  "detector_only_inside_known": 57,
+  "production_only": 74,
+  "detector_only_examples": [
+   {
+    "label": "menu",
+    "confidence": 0.6025129556655884,
+    "bounds": {
+     "x": 0.05592105263157895,
+     "y": 0.1636556854410202,
+     "width": 0.03042763157894737,
+     "height": 0.019128586609989374
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Home",
+    "nearest_iou": 0.06607142857142854
+   },
+   {
+    "label": "button",
+    "confidence": 0.6002059578895569,
+    "bounds": {
+     "x": 0.946546052631579,
+     "y": 0.5207226354941552,
+     "width": 0.013980263157894737,
+     "height": 0.01700318809776833
+    },
+    "nearest_role": "button",
+    "nearest_label": "Show more settings",
+    "nearest_iou": 0.26562499999999933
+   },
+   {
+    "label": "menu",
+    "confidence": 0.5980018377304077,
+    "bounds": {
+     "x": 0.05592105263157895,
+     "y": 0.3751328374070138,
+     "width": 0.02631578947368421,
+     "height": 0.020191285866099893
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Apps",
+    "nearest_iou": 0.060317460317460395
+   },
+   {
+    "label": "button",
+    "confidence": 0.5543653964996338,
+    "bounds": {
+     "x": 0.946546052631579,
+     "y": 0.36663124335812963,
+     "width": 0.013157894736842105,
+     "height": 0.018065887353878853
+    },
+    "nearest_role": "button",
+    "nearest_label": "Show more settings",
+    "nearest_iou": 0.2656250000000015
+   },
+   {
+    "label": "button",
+    "confidence": 0.5269568562507629,
+    "bounds": {
+     "x": 0.9457236842105263,
+     "y": 0.5961742826780021,
+     "width": 0.013980263157894737,
+     "height": 0.018065887353878853
+    },
+    "nearest_role": "button",
+    "nearest_label": "Show more settings",
+    "nearest_iou": 0.2822265624999981
+   },
+   {
+    "label": "button",
+    "confidence": 0.5215863585472107,
+    "bounds": {
+     "x": 0.946546052631579,
+     "y": 0.29011689691817216,
+     "width": 0.013157894736842105,
+     "height": 0.018065887353878853
+    },
+    "nearest_role": "button",
+    "nearest_label": "Show more settings",
+    "nearest_iou": 0.2656250000000015
+   }
+  ],
+  "detect_millis": 734
+ },
+ {
+  "id": "stability-settings-r2",
+  "width": 1216,
+  "height": 941,
+  "production_elements": 102,
+  "production_actionable": 32,
+  "detector_detections": 87,
+  "matched": 30,
+  "detector_only": 57,
+  "detector_only_inside_known": 57,
+  "production_only": 74,
+  "detector_only_examples": [
+   {
+    "label": "button",
+    "confidence": 0.6011226177215576,
+    "bounds": {
+     "x": 0.946546052631579,
+     "y": 0.5207226354941552,
+     "width": 0.013980263157894737,
+     "height": 0.01700318809776833
+    },
+    "nearest_role": "button",
+    "nearest_label": "Show more settings",
+    "nearest_iou": 0.26562499999999933
+   },
+   {
+    "label": "menu",
+    "confidence": 0.6007875204086304,
+    "bounds": {
+     "x": 0.05592105263157895,
+     "y": 0.1636556854410202,
+     "width": 0.03042763157894737,
+     "height": 0.019128586609989374
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Home",
+    "nearest_iou": 0.06607142857142854
+   },
+   {
+    "label": "menu",
+    "confidence": 0.5955842137336731,
+    "bounds": {
+     "x": 0.05592105263157895,
+     "y": 0.3751328374070138,
+     "width": 0.02631578947368421,
+     "height": 0.020191285866099893
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Apps",
+    "nearest_iou": 0.060317460317460395
+   },
+   {
+    "label": "button",
+    "confidence": 0.5593076944351196,
+    "bounds": {
+     "x": 0.946546052631579,
+     "y": 0.36663124335812963,
+     "width": 0.013157894736842105,
+     "height": 0.018065887353878853
+    },
+    "nearest_role": "button",
+    "nearest_label": "Show more settings",
+    "nearest_iou": 0.2656250000000015
+   },
+   {
+    "label": "button",
+    "confidence": 0.5289252996444702,
+    "bounds": {
+     "x": 0.9457236842105263,
+     "y": 0.5961742826780021,
+     "width": 0.013980263157894737,
+     "height": 0.018065887353878853
+    },
+    "nearest_role": "button",
+    "nearest_label": "Show more settings",
+    "nearest_iou": 0.2822265624999981
+   },
+   {
+    "label": "button",
+    "confidence": 0.5287596583366394,
+    "bounds": {
+     "x": 0.946546052631579,
+     "y": 0.29011689691817216,
+     "width": 0.013157894736842105,
+     "height": 0.018065887353878853
+    },
+    "nearest_role": "button",
+    "nearest_label": "Show more settings",
+    "nearest_iou": 0.2656250000000015
+   }
+  ],
+  "detect_millis": 858
+ },
+ {
+  "id": "stability-settings-r3",
+  "width": 1216,
+  "height": 941,
+  "production_elements": 102,
+  "production_actionable": 32,
+  "detector_detections": 87,
+  "matched": 30,
+  "detector_only": 57,
+  "detector_only_inside_known": 57,
+  "production_only": 74,
+  "detector_only_examples": [
+   {
+    "label": "menu",
+    "confidence": 0.6011244058609009,
+    "bounds": {
+     "x": 0.05592105263157895,
+     "y": 0.1636556854410202,
+     "width": 0.03042763157894737,
+     "height": 0.019128586609989374
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Home",
+    "nearest_iou": 0.06607142857142854
+   },
+   {
+    "label": "button",
+    "confidence": 0.6011033654212952,
+    "bounds": {
+     "x": 0.946546052631579,
+     "y": 0.5207226354941552,
+     "width": 0.013980263157894737,
+     "height": 0.01700318809776833
+    },
+    "nearest_role": "button",
+    "nearest_label": "Show more settings",
+    "nearest_iou": 0.26562499999999933
+   },
+   {
+    "label": "menu",
+    "confidence": 0.5957968831062317,
+    "bounds": {
+     "x": 0.05592105263157895,
+     "y": 0.3751328374070138,
+     "width": 0.02631578947368421,
+     "height": 0.020191285866099893
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Apps",
+    "nearest_iou": 0.060317460317460395
+   },
+   {
+    "label": "button",
+    "confidence": 0.5606557726860046,
+    "bounds": {
+     "x": 0.946546052631579,
+     "y": 0.36663124335812963,
+     "width": 0.013157894736842105,
+     "height": 0.018065887353878853
+    },
+    "nearest_role": "button",
+    "nearest_label": "Show more settings",
+    "nearest_iou": 0.2656250000000015
+   },
+   {
+    "label": "button",
+    "confidence": 0.5280697345733643,
+    "bounds": {
+     "x": 0.946546052631579,
+     "y": 0.29011689691817216,
+     "width": 0.013157894736842105,
+     "height": 0.018065887353878853
+    },
+    "nearest_role": "button",
+    "nearest_label": "Show more settings",
+    "nearest_iou": 0.2656250000000015
+   },
+   {
+    "label": "button",
+    "confidence": 0.5268113613128662,
+    "bounds": {
+     "x": 0.9457236842105263,
+     "y": 0.5961742826780021,
+     "width": 0.013980263157894737,
+     "height": 0.018065887353878853
+    },
+    "nearest_role": "button",
+    "nearest_label": "Show more settings",
+    "nearest_iou": 0.2822265624999981
+   }
+  ],
+  "detect_millis": 872
+ }
+]

@@ -74,9 +74,22 @@ func directorSource(t *testing.T) map[string]string {
 //	runtime.go        the foreground pipeline — waits, commands, diagnostics
 //	main.go           a one-shot reading for the inspect commands
 //	ocrwiring.go      the text-reading path
+//	capturedesktop.go the 37C corpus capture — measurement, not behaviour
 //
 // A fifth would not be wrong on its own. It would be a fifth thing to keep in step, and this test
 // exists so that adding one is a decision somebody makes rather than a line somebody adds.
+//
+// # The fifth, decided
+//
+// capturedesktop.go is a fifth, and it was admitted on purpose. It exists to record what
+// production perception BELIEVED at a moment, beside the screenshot of that moment, so a
+// detector can be measured against it (37C). A corpus built from a second, private reading of
+// the sensors would be a corpus about that second reading — which is exactly the mistake this
+// test guards against, arriving from the other direction.
+//
+// It is allowed because it drives nothing: it is a command a person runs, it writes to a
+// scratch directory, and no belief it produces reaches a Stage, a plan or an input. If that
+// ever stops being true it belongs behind observewiring.go like everything else.
 //
 // Adding a Fuse call without naming it here must fail this.
 func TestFusionIsTheOnlyDoorFromSensorsToBelief(t *testing.T) {
@@ -85,6 +98,8 @@ func TestFusionIsTheOnlyDoorFromSensorsToBelief(t *testing.T) {
 		"runtime.go":       true, // the foreground pipeline
 		"main.go":          true, // the one-shot inspect reading
 		"ocrwiring.go":     true, // the text-reading path
+		// Measurement, not behaviour. See the note above; it drives nothing.
+		"capturedesktop.go": true,
 	}
 	fuse := regexp.MustCompile(`\.Fuse\(`)
 	for name, src := range directorSource(t) {

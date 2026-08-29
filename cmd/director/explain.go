@@ -168,6 +168,10 @@ var valued = map[string]bool{
 	// `reach --from <subject>` asks what Marco would do from somewhere it is not standing.
 	// Caught by this table's own test before it ever ran, which is the fourth time.
 	"-from": true, "--from": true,
+	// `capture-desktop-sample --title Settings` — which window, when an application owns
+	// several. Caught by this table's own test the first time the command ran, which is the
+	// fifth time and the reason the test walks every FlagSet rather than a list.
+	"-title": true, "--title": true,
 	"-question": true, "--question": true,
 	// `rehearse --step 2 --live`. A fourth instance of the same silence, found while
 	// testing the command that could not be invoked at all: without this, the reorder
@@ -203,6 +207,10 @@ var valued = map[string]bool{
 	"-name": true, "--name": true,
 	"-sequence": true, "--sequence": true,
 	"-sequences": true, "--sequences": true,
+	"-dir": true, "--dir": true,
+	"-examples": true, "--examples": true,
+	"-iou": true, "--iou": true,
+	"-redact": true, "--redact": true,
 }
 
 // valuedFlags is the table above, for the test that holds every command's value-taking flags to

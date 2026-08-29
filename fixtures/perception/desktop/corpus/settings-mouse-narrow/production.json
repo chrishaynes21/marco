@@ -1,0 +1,991 @@
+{
+ "id": "settings-mouse-narrow",
+ "application": "applicationframehost",
+ "window": "hwnd:4000582",
+ "generation": 1,
+ "width": 700,
+ "height": 941,
+ "bounds": {
+  "x": 0,
+  "y": 64,
+  "width": 700,
+  "height": 941
+ },
+ "captured_at": "2026-08-28T16:52:45.5727646-07:00",
+ "read_at": "2026-08-28T16:52:45.8091368-07:00",
+ "gap_millis": 236,
+ "coherent": true,
+ "privacy": "captured_private",
+ "elements": [
+  {
+   "id": "e1",
+   "role": "window",
+   "label": "Settings",
+   "bounds": {
+    "x": 0,
+    "y": 0,
+    "width": 1,
+    "height": 1
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e10",
+   "role": "button",
+   "label": "Expand search box",
+   "bounds": {
+    "x": 0.2257142857142857,
+    "y": 0.009564293304994687,
+    "width": 0.05142857142857143,
+    "height": 0.03400637619553666
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e11",
+   "role": "unknown",
+   "bounds": {
+    "x": 0.011428571428571429,
+    "y": 0.0010626992561105207,
+    "width": 0.9771428571428571,
+    "height": 0.9904357066950054
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e12",
+   "role": "button",
+   "label": "Back",
+   "bounds": {
+    "x": 0.017142857142857144,
+    "y": 0.007438894792773645,
+    "width": 0.05714285714285714,
+    "height": 0.03825717321997875
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e13",
+   "role": "button",
+   "label": "Open Navigation",
+   "bounds": {
+    "x": 0.07428571428571429,
+    "y": 0.007438894792773645,
+    "width": 0.05714285714285714,
+    "height": 0.03825717321997875
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e15",
+   "role": "group",
+   "bounds": {
+    "x": 0.045714285714285714,
+    "y": 0.04357066950053135,
+    "width": 0.5485714285714286,
+    "height": 0.04675876726886291
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e16",
+   "role": "button",
+   "label": "Bluetooth \u0026 devices",
+   "bounds": {
+    "x": 0.045714285714285714,
+    "y": 0.04357066950053135,
+    "width": 0.42428571428571427,
+    "height": 0.04675876726886291
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e17",
+   "role": "text",
+   "label": "Bluetooth \u0026 devices",
+   "bounds": {
+    "x": 0.047142857142857146,
+    "y": 0.04675876726886291,
+    "width": 0.36428571428571427,
+    "height": 0.040382571732199786
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e18",
+   "role": "button",
+   "label": "Mouse",
+   "bounds": {
+    "x": 0.4714285714285714,
+    "y": 0.04675876726886291,
+    "width": 0.12285714285714286,
+    "height": 0.040382571732199786
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e19",
+   "role": "text",
+   "label": "Mouse",
+   "bounds": {
+    "x": 0.4714285714285714,
+    "y": 0.04675876726886291,
+    "width": 0.12285714285714286,
+    "height": 0.040382571732199786
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e2",
+   "role": "window",
+   "label": "Settings",
+   "bounds": {
+    "x": 0.72,
+    "y": 0.0010626992561105207,
+    "width": 0.26857142857142857,
+    "height": 0.03400637619553666
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e20",
+   "role": "group",
+   "bounds": {
+    "x": 0.04857142857142857,
+    "y": 0.10201912858660998,
+    "width": 0.94,
+    "height": 0.8894792773645058
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e21",
+   "role": "pane",
+   "bounds": {
+    "x": 0.04857142857142857,
+    "y": 0.10201912858660998,
+    "width": 0.94,
+    "height": 0.8894792773645058
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e22",
+   "role": "text",
+   "label": "Primary mouse button",
+   "bounds": {
+    "x": 0.13285714285714287,
+    "y": 0.1339001062699256,
+    "width": 0.19714285714285715,
+    "height": 0.020191285866099893
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e23",
+   "role": "combo_box",
+   "label": "Primary mouse button",
+   "bounds": {
+    "x": 0.7385714285714285,
+    "y": 0.12327311370882041,
+    "width": 0.19714285714285715,
+    "height": 0.04250797024442083
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e24",
+   "role": "list_item",
+   "label": "Left",
+   "bounds": {
+    "x": 0.7614285714285715,
+    "y": 0.1339001062699256,
+    "width": 0.11428571428571428,
+    "height": 0.020191285866099893
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e25",
+   "role": "text",
+   "label": "Mouse pointer speed",
+   "bounds": {
+    "x": 0.13285714285714287,
+    "y": 0.2104144527098831,
+    "width": 0.18857142857142858,
+    "height": 0.020191285866099893
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e26",
+   "role": "slider",
+   "label": "Mouse pointer speed",
+   "bounds": {
+    "x": 0.5471428571428572,
+    "y": 0.20403825717321997,
+    "width": 0.38285714285714284,
+    "height": 0.03400637619553666
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e27",
+   "role": "text",
+   "label": "Enhance pointer precision",
+   "bounds": {
+    "x": 0.13285714285714287,
+    "y": 0.2879914984059511,
+    "width": 0.22857142857142856,
+    "height": 0.020191285866099893
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e28",
+   "role": "button",
+   "label": "Enhance pointer precision",
+   "bounds": {
+    "x": 0.8271428571428572,
+    "y": 0.2763018065887354,
+    "width": 0.10285714285714286,
+    "height": 0.04250797024442083
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e29",
+   "role": "group",
+   "label": "Scrolling",
+   "bounds": {
+    "x": 0.04857142857142857,
+    "y": 0.3687566418703507,
+    "width": 0.9057142857142857,
+    "height": 0.332624867162593
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e30",
+   "role": "text",
+   "label": "Scrolling",
+   "bounds": {
+    "x": 0.04857142857142857,
+    "y": 0.3687566418703507,
+    "width": 0.9057142857142857,
+    "height": 0.020191285866099893
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e31",
+   "role": "text",
+   "label": "Roll the mouse wheel to scroll",
+   "bounds": {
+    "x": 0.07285714285714286,
+    "y": 0.42401700318809776,
+    "width": 0.2642857142857143,
+    "height": 0.020191285866099893
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e32",
+   "role": "combo_box",
+   "label": "Roll the mouse wheel to scroll",
+   "bounds": {
+    "x": 0.6514285714285715,
+    "y": 0.41339001062699254,
+    "width": 0.2842857142857143,
+    "height": 0.04250797024442083
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e33",
+   "role": "list_item",
+   "label": "Multiple lines at a time",
+   "bounds": {
+    "x": 0.6742857142857143,
+    "y": 0.42401700318809776,
+    "width": 0.20142857142857143,
+    "height": 0.020191285866099893
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e34",
+   "role": "text",
+   "label": "Lines to scroll at a time",
+   "bounds": {
+    "x": 0.07285714285714286,
+    "y": 0.5005313496280552,
+    "width": 0.2042857142857143,
+    "height": 0.020191285866099893
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e35",
+   "role": "slider",
+   "label": "Lines to scroll at a time",
+   "bounds": {
+    "x": 0.5471428571428572,
+    "y": 0.49415515409139216,
+    "width": 0.38285714285714284,
+    "height": 0.03400637619553666
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e36",
+   "role": "text",
+   "label": "Scroll inactive windows when hovering over them",
+   "bounds": {
+    "x": 0.07285714285714286,
+    "y": 0.5781083953241233,
+    "width": 0.4357142857142857,
+    "height": 0.020191285866099893
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e37",
+   "role": "button",
+   "label": "Scroll inactive windows when hovering over them",
+   "bounds": {
+    "x": 0.8271428571428572,
+    "y": 0.5664187035069076,
+    "width": 0.10285714285714286,
+    "height": 0.04250797024442083
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e38",
+   "role": "text",
+   "label": "Scrolling direction",
+   "bounds": {
+    "x": 0.07285714285714286,
+    "y": 0.6546227417640808,
+    "width": 0.16,
+    "height": 0.020191285866099893
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e39",
+   "role": "combo_box",
+   "label": "Scrolling direction",
+   "bounds": {
+    "x": 0.6171428571428571,
+    "y": 0.6439957492029755,
+    "width": 0.31857142857142856,
+    "height": 0.04250797024442083
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e40",
+   "role": "list_item",
+   "label": "Down motion scrolls down",
+   "bounds": {
+    "x": 0.64,
+    "y": 0.6546227417640808,
+    "width": 0.2357142857142857,
+    "height": 0.020191285866099893
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e41",
+   "role": "group",
+   "label": "Related settings",
+   "bounds": {
+    "x": 0.04857142857142857,
+    "y": 0.7353878852284803,
+    "width": 0.9057142857142857,
+    "height": 0.2561105207226355
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e42",
+   "role": "text",
+   "label": "Related settings",
+   "bounds": {
+    "x": 0.04857142857142857,
+    "y": 0.7353878852284803,
+    "width": 0.9057142857142857,
+    "height": 0.020191285866099893
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e43",
+   "role": "group",
+   "label": "Mouse pointer and touch",
+   "bounds": {
+    "x": 0.04857142857142857,
+    "y": 0.7640807651434643,
+    "width": 0.9057142857142857,
+    "height": 0.07332624867162593
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e44",
+   "role": "text",
+   "label": "Mouse pointer and touch",
+   "bounds": {
+    "x": 0.07285714285714286,
+    "y": 0.7821466524973433,
+    "width": 0.22428571428571428,
+    "height": 0.020191285866099893
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e45",
+   "role": "text",
+   "label": "Pointer size and color",
+   "bounds": {
+    "x": 0.07285714285714286,
+    "y": 0.8023379383634431,
+    "width": 0.16714285714285715,
+    "height": 0.01700318809776833
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e46",
+   "role": "button",
+   "label": "Mouse pointer and touch",
+   "bounds": {
+    "x": 0.8957142857142857,
+    "y": 0.7842720510095643,
+    "width": 0.045714285714285714,
+    "height": 0.03400637619553666
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e47",
+   "role": "group",
+   "label": "Accessibility mouse settings",
+   "bounds": {
+    "x": 0.04857142857142857,
+    "y": 0.8405951115834219,
+    "width": 0.9057142857142857,
+    "height": 0.07332624867162593
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e48",
+   "role": "text",
+   "label": "Accessibility mouse settings",
+   "bounds": {
+    "x": 0.07285714285714286,
+    "y": 0.8586609989373007,
+    "width": 0.24571428571428572,
+    "height": 0.020191285866099893
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e49",
+   "role": "text",
+   "label": "Double click speed, hide while typing, click lock",
+   "bounds": {
+    "x": 0.07285714285714286,
+    "y": 0.8788522848034006,
+    "width": 0.36714285714285716,
+    "height": 0.01700318809776833
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e5",
+   "role": "button",
+   "label": "Minimize Settings",
+   "bounds": {
+    "x": 0.7914285714285715,
+    "y": 0.0010626992561105207,
+    "width": 0.06571428571428571,
+    "height": 0.03400637619553666
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e50",
+   "role": "button",
+   "label": "Accessibility mouse settings",
+   "bounds": {
+    "x": 0.8957142857142857,
+    "y": 0.8607863974495218,
+    "width": 0.045714285714285714,
+    "height": 0.03400637619553666
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e51",
+   "role": "group",
+   "label": "Additional mouse settings",
+   "bounds": {
+    "x": 0.04857142857142857,
+    "y": 0.9171094580233794,
+    "width": 0.9057142857142857,
+    "height": 0.07332624867162593
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e52",
+   "role": "text",
+   "label": "Additional mouse settings",
+   "bounds": {
+    "x": 0.07285714285714286,
+    "y": 0.9436769394261424,
+    "width": 0.23142857142857143,
+    "height": 0.020191285866099893
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e53",
+   "role": "button",
+   "label": "Additional mouse settings",
+   "bounds": {
+    "x": 0.8957142857142857,
+    "y": 0.9373007438894793,
+    "width": 0.045714285714285714,
+    "height": 0.03400637619553666
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e6",
+   "role": "button",
+   "label": "Maximize Settings",
+   "bounds": {
+    "x": 0.8571428571428571,
+    "y": 0.0010626992561105207,
+    "width": 0.06571428571428571,
+    "height": 0.03400637619553666
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e7",
+   "role": "button",
+   "label": "Close Settings",
+   "bounds": {
+    "x": 0.9228571428571428,
+    "y": 0.0010626992561105207,
+    "width": 0.06571428571428571,
+    "height": 0.03400637619553666
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e78",
+   "role": "pane",
+   "bounds": {
+    "x": 0.011428571428571429,
+    "y": 0.03506907545164718,
+    "width": 0.9771428571428571,
+    "height": 0.9564293304994687
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e79",
+   "role": "title_bar",
+   "label": "Settings",
+   "bounds": {
+    "x": 0.011428571428571429,
+    "y": 0.008501594048884165,
+    "width": 0.9771428571428571,
+    "height": 0.024442082890541977
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e8",
+   "role": "window",
+   "label": "Settings",
+   "bounds": {
+    "x": 0.011428571428571429,
+    "y": 0.0010626992561105207,
+    "width": 0.9771428571428571,
+    "height": 0.9904357066950054
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e80",
+   "role": "menu",
+   "label": "System Menu Bar",
+   "bounds": {
+    "x": 0.011428571428571429,
+    "y": 0.008501594048884165,
+    "width": 0.03142857142857143,
+    "height": 0.023379383634431455
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e81",
+   "role": "menu_item",
+   "label": "System",
+   "bounds": {
+    "x": 0.011428571428571429,
+    "y": 0.008501594048884165,
+    "width": 0.03142857142857143,
+    "height": 0.023379383634431455
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e9",
+   "role": "text",
+   "label": "Settings",
+   "bounds": {
+    "x": 0.15142857142857144,
+    "y": 0.018065887353878853,
+    "width": 0.5685714285714286,
+    "height": 0.01700318809776833
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  }
+ ],
+ "providers": [
+  "accessibility"
+ ]
+}

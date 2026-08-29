@@ -1,0 +1,1840 @@
+{
+ "id": "stability-settings-r1",
+ "application": "applicationframehost",
+ "window": "hwnd:4000582",
+ "generation": 1,
+ "width": 1216,
+ "height": 941,
+ "bounds": {
+  "x": 0,
+  "y": 64,
+  "width": 1216,
+  "height": 941
+ },
+ "captured_at": "2026-08-28T17:07:35.816701-07:00",
+ "read_at": "2026-08-28T17:07:36.1204631-07:00",
+ "gap_millis": 303,
+ "coherent": true,
+ "privacy": "captured_private",
+ "elements": [
+  {
+   "id": "e1",
+   "role": "window",
+   "label": "Settings",
+   "bounds": {
+    "x": 0,
+    "y": 0,
+    "width": 1,
+    "height": 1
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e10",
+   "role": "text_field",
+   "label": "Search box, Find a setting",
+   "bounds": {
+    "x": 0.2878289473684211,
+    "y": 0.009564293304994687,
+    "width": 0.4243421052631579,
+    "height": 0.03400637619553666
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e100",
+   "role": "group",
+   "label": "Other devices",
+   "bounds": {
+    "x": 0.2746710526315789,
+    "y": 0.23379383634431455,
+    "width": 0.6990131578947368,
+    "height": 0.7577045696068013
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e101",
+   "role": "text",
+   "label": "Other devices",
+   "bounds": {
+    "x": 0.2746710526315789,
+    "y": 0.23379383634431455,
+    "width": 0.6990131578947368,
+    "height": 0.020191285866099893
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e102",
+   "role": "list",
+   "bounds": {
+    "x": 0.2746710526315789,
+    "y": 0.2624867162592986,
+    "width": 0.6990131578947368,
+    "height": 0.7290116896918172
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e103",
+   "role": "group",
+   "label": "65\" Crystal UHD, Category Display device, Battery Unknown, State Unknown device state, ",
+   "bounds": {
+    "x": 0.2746710526315789,
+    "y": 0.2624867162592986,
+    "width": 0.6990131578947368,
+    "height": 0.07332624867162593
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e104",
+   "role": "button",
+   "label": "Show more settings",
+   "bounds": {
+    "x": 0.9399671052631579,
+    "y": 0.2826780021253985,
+    "width": 0.02631578947368421,
+    "height": 0.03400637619553666
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e105",
+   "role": "text",
+   "label": "65\" Crystal UHD",
+   "bounds": {
+    "x": 0.32319078947368424,
+    "y": 0.28055260361317746,
+    "width": 0.08223684210526316,
+    "height": 0.020191285866099893
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e106",
+   "role": "text",
+   "bounds": {
+    "x": 0.33305921052631576,
+    "y": 0.3007438894792774,
+    "width": 0.5805921052631579,
+    "height": 0.01700318809776833
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e107",
+   "role": "group",
+   "label": "65\" Crystal UHD, Category Multimedia device, Battery Unknown, State Unknown device state, ",
+   "bounds": {
+    "x": 0.2746710526315789,
+    "y": 0.3390010626992561,
+    "width": 0.6990131578947368,
+    "height": 0.07332624867162593
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e108",
+   "role": "button",
+   "label": "Show more settings",
+   "bounds": {
+    "x": 0.9399671052631579,
+    "y": 0.359192348565356,
+    "width": 0.02631578947368421,
+    "height": 0.03400637619553666
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e109",
+   "role": "text",
+   "label": "65\" Crystal UHD",
+   "bounds": {
+    "x": 0.32319078947368424,
+    "y": 0.357066950053135,
+    "width": 0.08223684210526316,
+    "height": 0.020191285866099893
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e11",
+   "role": "unknown",
+   "bounds": {
+    "x": 0.006578947368421052,
+    "y": 0.0010626992561105207,
+    "width": 0.9868421052631579,
+    "height": 0.9904357066950054
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e110",
+   "role": "text",
+   "bounds": {
+    "x": 0.33305921052631576,
+    "y": 0.37725823591923485,
+    "width": 0.5805921052631579,
+    "height": 0.01700318809776833
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e111",
+   "role": "group",
+   "label": "Bedroom TV, Category Display device, Battery Unknown, State Not connected, ",
+   "bounds": {
+    "x": 0.2746710526315789,
+    "y": 0.4155154091392136,
+    "width": 0.6990131578947368,
+    "height": 0.07332624867162593
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e112",
+   "role": "button",
+   "label": "Show more settings",
+   "bounds": {
+    "x": 0.9399671052631579,
+    "y": 0.4357066950053135,
+    "width": 0.02631578947368421,
+    "height": 0.03400637619553666
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e113",
+   "role": "text",
+   "label": "Bedroom TV",
+   "bounds": {
+    "x": 0.32319078947368424,
+    "y": 0.43358129649309246,
+    "width": 0.06414473684210527,
+    "height": 0.020191285866099893
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e114",
+   "role": "text",
+   "label": "Not connected",
+   "bounds": {
+    "x": 0.32319078947368424,
+    "y": 0.4537725823591923,
+    "width": 0.5970394736842105,
+    "height": 0.01700318809776833
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e115",
+   "role": "group",
+   "label": "Bedroom TV, Category Multimedia device, Battery Unknown, State Not connected, ",
+   "bounds": {
+    "x": 0.2746710526315789,
+    "y": 0.4920297555791711,
+    "width": 0.6990131578947368,
+    "height": 0.07332624867162593
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e116",
+   "role": "button",
+   "label": "Show more settings",
+   "bounds": {
+    "x": 0.9399671052631579,
+    "y": 0.512221041445271,
+    "width": 0.02631578947368421,
+    "height": 0.03400637619553666
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e117",
+   "role": "text",
+   "label": "Bedroom TV",
+   "bounds": {
+    "x": 0.32319078947368424,
+    "y": 0.51009564293305,
+    "width": 0.06414473684210527,
+    "height": 0.020191285866099893
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e118",
+   "role": "text",
+   "label": "Not connected",
+   "bounds": {
+    "x": 0.32319078947368424,
+    "y": 0.5302869287991498,
+    "width": 0.5970394736842105,
+    "height": 0.01700318809776833
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e119",
+   "role": "group",
+   "label": "Bluetooth Radio, Category Network bluetooth, Battery Unknown, State Unknown device state, ",
+   "bounds": {
+    "x": 0.2746710526315789,
+    "y": 0.5685441020191286,
+    "width": 0.6990131578947368,
+    "height": 0.07332624867162593
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e12",
+   "role": "button",
+   "label": "Back",
+   "bounds": {
+    "x": 0.009868421052631578,
+    "y": 0.007438894792773645,
+    "width": 0.03289473684210526,
+    "height": 0.03825717321997875
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e120",
+   "role": "button",
+   "label": "Show more settings",
+   "bounds": {
+    "x": 0.9399671052631579,
+    "y": 0.5887353878852285,
+    "width": 0.02631578947368421,
+    "height": 0.03400637619553666
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e121",
+   "role": "text",
+   "label": "Bluetooth Radio",
+   "bounds": {
+    "x": 0.32319078947368424,
+    "y": 0.5866099893730075,
+    "width": 0.08223684210526316,
+    "height": 0.020191285866099893
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e122",
+   "role": "text",
+   "bounds": {
+    "x": 0.33305921052631576,
+    "y": 0.6068012752391073,
+    "width": 0.5805921052631579,
+    "height": 0.01700318809776833
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e123",
+   "role": "group",
+   "label": "G502 LIGHTSPEED, Category Unknown device, Battery Unknown, State Unknown device state, ",
+   "bounds": {
+    "x": 0.2746710526315789,
+    "y": 0.6450584484590861,
+    "width": 0.6990131578947368,
+    "height": 0.07332624867162593
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e124",
+   "role": "button",
+   "label": "Show more settings",
+   "bounds": {
+    "x": 0.9399671052631579,
+    "y": 0.665249734325186,
+    "width": 0.02631578947368421,
+    "height": 0.03400637619553666
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e125",
+   "role": "text",
+   "label": "G502 LIGHTSPEED",
+   "bounds": {
+    "x": 0.32319078947368424,
+    "y": 0.6631243358129649,
+    "width": 0.09292763157894737,
+    "height": 0.020191285866099893
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e126",
+   "role": "text",
+   "bounds": {
+    "x": 0.33305921052631576,
+    "y": 0.6833156216790648,
+    "width": 0.5805921052631579,
+    "height": 0.01700318809776833
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e127",
+   "role": "group",
+   "label": "G502 LIGHTSPEED, Category Unknown device, Battery Unknown, State Unknown device state, ",
+   "bounds": {
+    "x": 0.2746710526315789,
+    "y": 0.7215727948990436,
+    "width": 0.6990131578947368,
+    "height": 0.07332624867162593
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e128",
+   "role": "button",
+   "label": "Show more settings",
+   "bounds": {
+    "x": 0.9399671052631579,
+    "y": 0.7417640807651434,
+    "width": 0.02631578947368421,
+    "height": 0.03400637619553666
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e129",
+   "role": "text",
+   "label": "G502 LIGHTSPEED",
+   "bounds": {
+    "x": 0.32319078947368424,
+    "y": 0.7396386822529224,
+    "width": 0.09292763157894737,
+    "height": 0.020191285866099893
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e13",
+   "role": "window",
+   "bounds": {
+    "x": 0.006578947368421052,
+    "y": 0.0010626992561105207,
+    "width": 0.24671052631578946,
+    "height": 0.9904357066950054
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e130",
+   "role": "text",
+   "bounds": {
+    "x": 0.33305921052631576,
+    "y": 0.7598299681190224,
+    "width": 0.5805921052631579,
+    "height": 0.01700318809776833
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e131",
+   "role": "group",
+   "label": "G502 LIGHTSPEED, Category Unknown device, Battery Unknown, State Unknown device state, ",
+   "bounds": {
+    "x": 0.2746710526315789,
+    "y": 0.798087141339001,
+    "width": 0.6990131578947368,
+    "height": 0.07332624867162593
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e132",
+   "role": "button",
+   "label": "Show more settings",
+   "bounds": {
+    "x": 0.9399671052631579,
+    "y": 0.8182784272051009,
+    "width": 0.02631578947368421,
+    "height": 0.03400637619553666
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e133",
+   "role": "text",
+   "label": "G502 LIGHTSPEED",
+   "bounds": {
+    "x": 0.32319078947368424,
+    "y": 0.8161530286928799,
+    "width": 0.09292763157894737,
+    "height": 0.020191285866099893
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e134",
+   "role": "text",
+   "bounds": {
+    "x": 0.33305921052631576,
+    "y": 0.8363443145589798,
+    "width": 0.5805921052631579,
+    "height": 0.01700318809776833
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e135",
+   "role": "group",
+   "label": "G502 LIGHTSPEED, Category Unknown device, Battery Unknown, State Unknown device state, ",
+   "bounds": {
+    "x": 0.2746710526315789,
+    "y": 0.8746014877789585,
+    "width": 0.6990131578947368,
+    "height": 0.07332624867162593
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e136",
+   "role": "button",
+   "label": "Show more settings",
+   "bounds": {
+    "x": 0.9399671052631579,
+    "y": 0.8947927736450585,
+    "width": 0.02631578947368421,
+    "height": 0.03400637619553666
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e137",
+   "role": "text",
+   "label": "G502 LIGHTSPEED",
+   "bounds": {
+    "x": 0.32319078947368424,
+    "y": 0.8926673751328374,
+    "width": 0.09292763157894737,
+    "height": 0.020191285866099893
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e138",
+   "role": "text",
+   "bounds": {
+    "x": 0.33305921052631576,
+    "y": 0.9128586609989373,
+    "width": 0.5805921052631579,
+    "height": 0.01700318809776833
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e139",
+   "role": "group",
+   "label": "G502 LIGHTSPEED, Category Unknown device, Battery Unknown, State Unknown device state, ",
+   "bounds": {
+    "x": 0.2746710526315789,
+    "y": 0.9511158342189161,
+    "width": 0.6990131578947368,
+    "height": 0.040382571732199786
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e14",
+   "role": "button",
+   "bounds": {
+    "x": 0.01069078947368421,
+    "y": 0.053134962805526036,
+    "width": 0.23848684210526316,
+    "height": 0.07970244420828905
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e140",
+   "role": "button",
+   "label": "Show more settings",
+   "bounds": {
+    "x": 0.9399671052631579,
+    "y": 0.971307120085016,
+    "width": 0.02631578947368421,
+    "height": 0.020191285866099893
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e141",
+   "role": "text",
+   "label": "G502 LIGHTSPEED",
+   "bounds": {
+    "x": 0.32319078947368424,
+    "y": 0.9691817215727949,
+    "width": 0.09292763157894737,
+    "height": 0.020191285866099893
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e142",
+   "role": "text",
+   "bounds": {
+    "x": 0.33305921052631576,
+    "y": 0.9893730074388948,
+    "width": 0.5805921052631579,
+    "height": 0.0021253985122210413
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e15",
+   "role": "image",
+   "bounds": {
+    "x": 0.019736842105263157,
+    "y": 0.061636556854410204,
+    "width": 0.049342105263157895,
+    "height": 0.06376195536663125
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e16",
+   "role": "text",
+   "bounds": {
+    "x": 0.07894736842105263,
+    "y": 0.07545164718384698,
+    "width": 0.12911184210526316,
+    "height": 0.020191285866099893
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e17",
+   "role": "text",
+   "bounds": {
+    "x": 0.07894736842105263,
+    "y": 0.09564293304994687,
+    "width": 0.12911184210526316,
+    "height": 0.01700318809776833
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e18",
+   "role": "pane",
+   "bounds": {
+    "x": 0.006578947368421052,
+    "y": 0.15090329436769395,
+    "width": 0.24671052631578946,
+    "height": 0.8320935175345378
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e19",
+   "role": "group",
+   "bounds": {
+    "x": 0.019736842105263157,
+    "y": 0.153028692879915,
+    "width": 0.23026315789473684,
+    "height": 0.5058448459086079
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e2",
+   "role": "window",
+   "label": "Settings",
+   "bounds": {
+    "x": 0.8388157894736842,
+    "y": 0.0010626992561105207,
+    "width": 0.15460526315789475,
+    "height": 0.03400637619553666
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e20",
+   "role": "list_item",
+   "label": "Home",
+   "bounds": {
+    "x": 0.019736842105263157,
+    "y": 0.153028692879915,
+    "width": 0.23026315789473684,
+    "height": 0.03825717321997875
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e21",
+   "role": "image",
+   "bounds": {
+    "x": 0.027960526315789474,
+    "y": 0.16153028692879914,
+    "width": 0.01644736842105263,
+    "height": 0.021253985122210415
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e216",
+   "role": "pane",
+   "bounds": {
+    "x": 0.006578947368421052,
+    "y": 0.03506907545164718,
+    "width": 0.9868421052631579,
+    "height": 0.9564293304994687
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e217",
+   "role": "title_bar",
+   "label": "Settings",
+   "bounds": {
+    "x": 0.006578947368421052,
+    "y": 0.008501594048884165,
+    "width": 0.9868421052631579,
+    "height": 0.024442082890541977
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e218",
+   "role": "menu",
+   "label": "System Menu Bar",
+   "bounds": {
+    "x": 0.006578947368421052,
+    "y": 0.008501594048884165,
+    "width": 0.018092105263157895,
+    "height": 0.023379383634431455
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e219",
+   "role": "menu_item",
+   "label": "System",
+   "bounds": {
+    "x": 0.006578947368421052,
+    "y": 0.008501594048884165,
+    "width": 0.018092105263157895,
+    "height": 0.023379383634431455
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e22",
+   "role": "list_item",
+   "label": "System",
+   "bounds": {
+    "x": 0.019736842105263157,
+    "y": 0.19553666312433582,
+    "width": 0.23026315789473684,
+    "height": 0.03825717321997875
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e23",
+   "role": "image",
+   "bounds": {
+    "x": 0.027960526315789474,
+    "y": 0.20403825717321997,
+    "width": 0.01644736842105263,
+    "height": 0.021253985122210415
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e24",
+   "role": "list_item",
+   "label": "Bluetooth \u0026 devices",
+   "bounds": {
+    "x": 0.019736842105263157,
+    "y": 0.23804463336875664,
+    "width": 0.23026315789473684,
+    "height": 0.03825717321997875
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e25",
+   "role": "image",
+   "bounds": {
+    "x": 0.027960526315789474,
+    "y": 0.24654622741764082,
+    "width": 0.01644736842105263,
+    "height": 0.021253985122210415
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e26",
+   "role": "list_item",
+   "label": "Network \u0026 internet",
+   "bounds": {
+    "x": 0.019736842105263157,
+    "y": 0.28055260361317746,
+    "width": 0.23026315789473684,
+    "height": 0.03825717321997875
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e27",
+   "role": "image",
+   "bounds": {
+    "x": 0.027960526315789474,
+    "y": 0.28905419766206164,
+    "width": 0.01644736842105263,
+    "height": 0.021253985122210415
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e28",
+   "role": "list_item",
+   "label": "Personalization",
+   "bounds": {
+    "x": 0.019736842105263157,
+    "y": 0.3230605738575983,
+    "width": 0.23026315789473684,
+    "height": 0.03825717321997875
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e29",
+   "role": "image",
+   "bounds": {
+    "x": 0.027960526315789474,
+    "y": 0.33156216790648246,
+    "width": 0.01644736842105263,
+    "height": 0.021253985122210415
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e30",
+   "role": "list_item",
+   "label": "Apps",
+   "bounds": {
+    "x": 0.019736842105263157,
+    "y": 0.3655685441020191,
+    "width": 0.23026315789473684,
+    "height": 0.03825717321997875
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e31",
+   "role": "image",
+   "bounds": {
+    "x": 0.027960526315789474,
+    "y": 0.3740701381509033,
+    "width": 0.01644736842105263,
+    "height": 0.021253985122210415
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e32",
+   "role": "list_item",
+   "label": "Accounts",
+   "bounds": {
+    "x": 0.019736842105263157,
+    "y": 0.40807651434643993,
+    "width": 0.23026315789473684,
+    "height": 0.03825717321997875
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e33",
+   "role": "image",
+   "bounds": {
+    "x": 0.027960526315789474,
+    "y": 0.4165781083953241,
+    "width": 0.01644736842105263,
+    "height": 0.021253985122210415
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e34",
+   "role": "list_item",
+   "label": "Time \u0026 language",
+   "bounds": {
+    "x": 0.019736842105263157,
+    "y": 0.4505844845908608,
+    "width": 0.23026315789473684,
+    "height": 0.03825717321997875
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e35",
+   "role": "image",
+   "bounds": {
+    "x": 0.027960526315789474,
+    "y": 0.45908607863974493,
+    "width": 0.01644736842105263,
+    "height": 0.021253985122210415
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e36",
+   "role": "list_item",
+   "label": "Gaming",
+   "bounds": {
+    "x": 0.019736842105263157,
+    "y": 0.49309245483528164,
+    "width": 0.23026315789473684,
+    "height": 0.03825717321997875
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e37",
+   "role": "image",
+   "bounds": {
+    "x": 0.027960526315789474,
+    "y": 0.5015940488841658,
+    "width": 0.01644736842105263,
+    "height": 0.021253985122210415
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e38",
+   "role": "list_item",
+   "label": "Accessibility",
+   "bounds": {
+    "x": 0.019736842105263157,
+    "y": 0.5356004250797024,
+    "width": 0.23026315789473684,
+    "height": 0.03825717321997875
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e39",
+   "role": "image",
+   "bounds": {
+    "x": 0.027960526315789474,
+    "y": 0.5441020191285866,
+    "width": 0.01644736842105263,
+    "height": 0.021253985122210415
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e40",
+   "role": "list_item",
+   "label": "Privacy \u0026 security",
+   "bounds": {
+    "x": 0.019736842105263157,
+    "y": 0.5781083953241233,
+    "width": 0.23026315789473684,
+    "height": 0.03825717321997875
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e41",
+   "role": "image",
+   "bounds": {
+    "x": 0.027960526315789474,
+    "y": 0.5866099893730075,
+    "width": 0.01644736842105263,
+    "height": 0.021253985122210415
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e42",
+   "role": "list_item",
+   "label": "Windows Update",
+   "bounds": {
+    "x": 0.019736842105263157,
+    "y": 0.620616365568544,
+    "width": 0.23026315789473684,
+    "height": 0.03825717321997875
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e43",
+   "role": "image",
+   "bounds": {
+    "x": 0.027960526315789474,
+    "y": 0.6291179596174282,
+    "width": 0.01644736842105263,
+    "height": 0.021253985122210415
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e46",
+   "role": "group",
+   "bounds": {
+    "x": 0.2730263157894737,
+    "y": 0.05526036131774708,
+    "width": 0.3256578947368421,
+    "height": 0.04675876726886291
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e47",
+   "role": "button",
+   "label": "Bluetooth \u0026 devices",
+   "bounds": {
+    "x": 0.2730263157894737,
+    "y": 0.05526036131774708,
+    "width": 0.24424342105263158,
+    "height": 0.04675876726886291
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e48",
+   "role": "text",
+   "label": "Bluetooth \u0026 devices",
+   "bounds": {
+    "x": 0.2738486842105263,
+    "y": 0.05844845908607864,
+    "width": 0.20970394736842105,
+    "height": 0.040382571732199786
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e49",
+   "role": "button",
+   "label": "Devices",
+   "bounds": {
+    "x": 0.5180921052631579,
+    "y": 0.05844845908607864,
+    "width": 0.0805921052631579,
+    "height": 0.040382571732199786
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e5",
+   "role": "button",
+   "label": "Minimize Settings",
+   "bounds": {
+    "x": 0.8799342105263158,
+    "y": 0.0010626992561105207,
+    "width": 0.03782894736842105,
+    "height": 0.03400637619553666
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e50",
+   "role": "text",
+   "label": "Devices",
+   "bounds": {
+    "x": 0.5180921052631579,
+    "y": 0.05844845908607864,
+    "width": 0.0805921052631579,
+    "height": 0.040382571732199786
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e51",
+   "role": "group",
+   "bounds": {
+    "x": 0.2746710526315789,
+    "y": 0.11370882040382571,
+    "width": 0.71875,
+    "height": 0.8777895855472901
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e52",
+   "role": "pane",
+   "bounds": {
+    "x": 0.2746710526315789,
+    "y": 0.11370882040382571,
+    "width": 0.71875,
+    "height": 0.8777895855472901
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e6",
+   "role": "button",
+   "label": "Maximize Settings",
+   "bounds": {
+    "x": 0.9177631578947368,
+    "y": 0.0010626992561105207,
+    "width": 0.03782894736842105,
+    "height": 0.03400637619553666
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e7",
+   "role": "button",
+   "label": "Close Settings",
+   "bounds": {
+    "x": 0.9555921052631579,
+    "y": 0.0010626992561105207,
+    "width": 0.03782894736842105,
+    "height": 0.03400637619553666
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e77",
+   "role": "group",
+   "label": "Audio",
+   "bounds": {
+    "x": 0.2746710526315789,
+    "y": 0.11370882040382571,
+    "width": 0.6990131578947368,
+    "height": 0.08607863974495218
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e79",
+   "role": "list",
+   "bounds": {
+    "x": 0.2746710526315789,
+    "y": 0.11370882040382571,
+    "width": 0.6990131578947368,
+    "height": 0.08607863974495218
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e8",
+   "role": "window",
+   "label": "Settings",
+   "bounds": {
+    "x": 0.006578947368421052,
+    "y": 0.0010626992561105207,
+    "width": 0.9868421052631579,
+    "height": 0.9904357066950054
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e9",
+   "role": "text",
+   "label": "Settings",
+   "bounds": {
+    "x": 0.047697368421052634,
+    "y": 0.018065887353878853,
+    "width": 0.7911184210526315,
+    "height": 0.01700318809776833
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e92",
+   "role": "group",
+   "label": "HyperX QuadCast S, Category Audio device, Battery Unknown, State Unknown device state, ",
+   "bounds": {
+    "x": 0.2746710526315789,
+    "y": 0.11370882040382571,
+    "width": 0.6990131578947368,
+    "height": 0.009564293304994687
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e96",
+   "role": "group",
+   "label": "OBSBOT Tiny 2, Category Webcam, Battery Unknown, State Device can perform faster when connected to USB 3.0, ",
+   "bounds": {
+    "x": 0.2746710526315789,
+    "y": 0.12646121147715197,
+    "width": 0.6990131578947368,
+    "height": 0.07332624867162593
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e97",
+   "role": "button",
+   "label": "Show more settings",
+   "bounds": {
+    "x": 0.9399671052631579,
+    "y": 0.14665249734325186,
+    "width": 0.02631578947368421,
+    "height": 0.03400637619553666
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e98",
+   "role": "text",
+   "label": "OBSBOT Tiny 2",
+   "bounds": {
+    "x": 0.32319078947368424,
+    "y": 0.14452709883103082,
+    "width": 0.0756578947368421,
+    "height": 0.020191285866099893
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e99",
+   "role": "text",
+   "label": "Device can perform faster when connected to USB 3.0",
+   "bounds": {
+    "x": 0.33305921052631576,
+    "y": 0.1647183846971307,
+    "width": 0.5805921052631579,
+    "height": 0.01700318809776833
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  }
+ ],
+ "collect_millis": 120,
+ "fuse_millis": 1,
+ "redactions": [
+  {
+   "region": {
+    "x": 0.006578947368421052,
+    "y": 0.04675876726886291,
+    "width": 0.24671052631578946,
+    "height": 0.09351753453772582
+   },
+   "reason": "account header",
+   "labels_cleared": 4
+  }
+ ],
+ "providers": [
+  "accessibility"
+ ]
+}

@@ -6453,3 +6453,54 @@ and the corpus is a game while the loop that matters runs against desktop applic
 is menu-shaped, so the result is encouraging; encouraging is not measured.
 
 The firewall half of 37B stands unchanged and was always the more important half.
+
+
+## 37C — the desktop perception corpus, and what a detector is actually for
+
+37B left one sentence hanging: *"the corpus is a game while the loop that matters runs against
+desktop applications."* 37C built that corpus and asked the question admission turns on — not
+"is ScreenParser good?" but **what does it add to perception that already works?**
+
+Six coherent desktop moments, each a screenshot plus the production fused world for that same
+moment, pinned to one window and bracketed by a re-acquisition either side so incoherence is
+recorded rather than assumed away. Three families, two reflow pairs. Plus a synthetic
+`browser-fixture.html` carrying two items planted to be got wrong: a real button that is
+`disabled`, and a `<span>` styled exactly like the buttons beside it and wired to nothing.
+
+**The answer is nothing measurable.** 537 production elements against 473 detections: 64% of
+detections have no production element under them at IoU, which looks generous until it is read.
+**All 302 of those have their centre inside an element production already perceived.** Narrowing
+to the fairest possible reading — a detection whose only container is an unlabelled,
+non-actionable region — leaves 35 (12%), topping out at 0.49 confidence, and they are boxes
+without meanings: the detector says `text`, not what the text says.
+
+**Its most confident unique finding in the whole corpus is the trap.** `#looks-like-a-button`,
+at 0.63. ScreenParser calls it a `button`; production calls it `text, actionable=false`.
+Production also reads the disabled button as disabled, which no detector class encodes. On the
+one item where visual and semantic truth disagree, the detector is confidently wrong. That is
+ADR-101's firewall measured rather than reasoned about.
+
+**The performance gate, skipped in 37A and 37B, was finally taken.** Fusion costs **0–1ms**. The
+entire cost of production perception is the accessibility walk — 104–120ms on Settings, and
+**~1.5s on an Explorer tree**. A ScreenParser pass is 645–1379ms. So the real performance problem
+in the stack is the accessibility walk, it is not fusion, and it is not the detector. Both layers
+show zero jitter across three unchanged readings.
+
+`37C_DECISION = SCREENPARSER_STRONG_DEGRADED_REPAIR_CANDIDATE`. Both halves are needed:
+NOT_USEFUL_ENOUGH where accessibility is healthy, and Experiment 015's result stands where it is
+absent. Those are one finding seen from two sides — ADR-102: **a detector is admitted by the
+absence of better evidence, never by its own quality.** The next question is degradation
+detection, not admission.
+
+**Two things were caught on the way, both of the same shape as the session's running theme.**
+The `valued` reordering table swallowed `--dir`, which is the sixth time a value-taking flag has
+been silently reordered; the gate that exists to prevent it was blind to `fs.Var`, whose name is
+its *second* argument. Closed, and the closure is mutation-proven — `--redact` is the one Var
+flag no String flag shares a name with, so deleting the fix now fails a test. And the corpus was
+captured from a real desktop, so it carried the person's name, email and home-folder tree.
+Redaction is a command with a recorded result rather than a manual pass, it is **geometric**
+rather than name-based (source that carries the name to scrub it is the leak it was written to
+prevent), and three tests hold the committed artifacts to it.
+
+Also corrected: `docs/subsystems/Vision.md` still said no ONNX Runtime was installed. That claim
+was retracted in 37B's ADR and HANDOFF and not in the subsystem note.

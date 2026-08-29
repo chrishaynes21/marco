@@ -1,0 +1,1422 @@
+{
+ "id": "browser-fixture-wide",
+ "application": "msedge",
+ "window": "hwnd:143986738",
+ "generation": 1,
+ "width": 1294,
+ "height": 703,
+ "bounds": {
+  "x": 0,
+  "y": 107,
+  "width": 1294,
+  "height": 703
+ },
+ "captured_at": "2026-08-28T16:52:12.7361163-07:00",
+ "read_at": "2026-08-28T16:52:12.9404235-07:00",
+ "gap_millis": 204,
+ "coherent": true,
+ "privacy": "captured_private",
+ "elements": [
+  {
+   "id": "e1",
+   "role": "window",
+   "label": "Marco perception fixture - Profile 1 - Microsoft​ Edge",
+   "bounds": {
+    "x": 0,
+    "y": 0,
+    "width": 1,
+    "height": 1
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e10",
+   "role": "pane",
+   "bounds": {
+    "x": 0.0061823802163833074,
+    "y": 0,
+    "width": 0.9876352395672334,
+    "height": 0.9886201991465149
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e11",
+   "role": "pane",
+   "bounds": {
+    "x": 0.0061823802163833074,
+    "y": 0,
+    "width": 0.9876352395672334,
+    "height": 0.11379800853485064
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e12",
+   "role": "toolbar",
+   "label": "App bar",
+   "bounds": {
+    "x": 0.0061823802163833074,
+    "y": 0.05689900426742532,
+    "width": 0.9876352395672334,
+    "height": 0.05689900426742532
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e13",
+   "role": "button",
+   "label": "Back",
+   "bounds": {
+    "x": 0.00927357032457496,
+    "y": 0.06258890469416785,
+    "width": 0.02472952086553323,
+    "height": 0.04551920341394026
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e14",
+   "role": "button",
+   "label": "Refresh",
+   "bounds": {
+    "x": 0.03709428129829984,
+    "y": 0.06258890469416785,
+    "width": 0.02472952086553323,
+    "height": 0.04551920341394026
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e15",
+   "role": "group",
+   "bounds": {
+    "x": 0.06491499227202473,
+    "y": 0.06258890469416785,
+    "width": 0.7063369397217929,
+    "height": 0.04551920341394026
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e16",
+   "role": "button",
+   "label": "File",
+   "bounds": {
+    "x": 0.06800618238021638,
+    "y": 0.06827880512091039,
+    "width": 0.03941267387944358,
+    "height": 0.034139402560455195
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e17",
+   "role": "text_field",
+   "label": "Address and search bar",
+   "bounds": {
+    "x": 0.10741885625965997,
+    "y": 0.06827880512091039,
+    "width": 0.6391035548686245,
+    "height": 0.034139402560455195
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e19",
+   "role": "pane",
+   "bounds": {
+    "x": 0.749613601236476,
+    "y": 0.06827880512091039,
+    "width": 0.01854714064914992,
+    "height": 0.034139402560455195
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e2",
+   "role": "pane",
+   "bounds": {
+    "x": 0.0061823802163833074,
+    "y": 0,
+    "width": 0.9876352395672334,
+    "height": 0.9886201991465149
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": false,
+   "visible": true
+  },
+  {
+   "id": "e20",
+   "role": "button",
+   "label": "Add this page to favorites (Ctrl+D)",
+   "bounds": {
+    "x": 0.749613601236476,
+    "y": 0.06827880512091039,
+    "width": 0.01854714064914992,
+    "height": 0.034139402560455195
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e21",
+   "role": "pane",
+   "bounds": {
+    "x": 0.7743431221020093,
+    "y": 0.05689900426742532,
+    "width": 0.05641421947449768,
+    "height": 0.05689900426742532
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e22",
+   "role": "button",
+   "label": "Proton Pass: Free Password Manager\nNo access needed",
+   "bounds": {
+    "x": 0.7743431221020093,
+    "y": 0.06258890469416785,
+    "width": 0.02472952086553323,
+    "height": 0.04551920341394026
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e23",
+   "role": "button",
+   "label": "Extensions",
+   "bounds": {
+    "x": 0.8021638330757341,
+    "y": 0.06258890469416785,
+    "width": 0.02472952086553323,
+    "height": 0.04551920341394026
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e24",
+   "role": "pane",
+   "bounds": {
+    "x": 0.8299845440494591,
+    "y": 0.07396870554765292,
+    "width": 0.0007727975270479134,
+    "height": 0.02275960170697013
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e25",
+   "role": "pane",
+   "bounds": {
+    "x": 0.8338485316846986,
+    "y": 0.05689900426742532,
+    "width": 0.02472952086553323,
+    "height": 0.05689900426742532
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e26",
+   "role": "button",
+   "label": "Favorites",
+   "bounds": {
+    "x": 0.8338485316846986,
+    "y": 0.06258890469416785,
+    "width": 0.02472952086553323,
+    "height": 0.04551920341394026
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e27",
+   "role": "button",
+   "label": "Profile 1 Profile, Please sign in",
+   "bounds": {
+    "x": 0.8616692426584235,
+    "y": 0.06258890469416785,
+    "width": 0.02472952086553323,
+    "height": 0.04551920341394026
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e28",
+   "role": "button",
+   "label": "Settings and more (Alt+F)",
+   "bounds": {
+    "x": 0.8894899536321483,
+    "y": 0.06258890469416785,
+    "width": 0.02472952086553323,
+    "height": 0.04551920341394026
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e29",
+   "role": "pane",
+   "bounds": {
+    "x": 0.9173106646058733,
+    "y": 0.06258890469416785,
+    "width": 0.07341576506955177,
+    "height": 0.04551920341394026
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e3",
+   "role": "pane",
+   "label": "Marco perception fixture - Microsoft Edge - Profile 1",
+   "bounds": {
+    "x": 0.0061823802163833074,
+    "y": 0,
+    "width": 0.9876352395672334,
+    "height": 0.9886201991465149
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e30",
+   "role": "button",
+   "label": "Chat",
+   "bounds": {
+    "x": 0.9173106646058733,
+    "y": 0.06258890469416785,
+    "width": 0.05486862442040186,
+    "height": 0.04551920341394026
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e31",
+   "role": "button",
+   "label": "Copilot menu",
+   "bounds": {
+    "x": 0.9721792890262752,
+    "y": 0.06258890469416785,
+    "width": 0.01854714064914992,
+    "height": 0.04551920341394026
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e32",
+   "role": "pane",
+   "bounds": {
+    "x": 0.0061823802163833074,
+    "y": 0.11379800853485064,
+    "width": 0.9876352395672334,
+    "height": 0.8748221906116643
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e33",
+   "role": "pane",
+   "bounds": {
+    "x": 0.0061823802163833074,
+    "y": 0.11379800853485064,
+    "width": 0.9876352395672334,
+    "height": 0.8748221906116643
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e34",
+   "role": "pane",
+   "bounds": {
+    "x": 0.0061823802163833074,
+    "y": 0.11379800853485064,
+    "width": 0.9876352395672334,
+    "height": 0.8748221906116643
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e35",
+   "role": "group",
+   "label": "Infobar Container",
+   "bounds": {
+    "x": 0.0061823802163833074,
+    "y": 0.11379800853485064,
+    "width": 0.9876352395672334,
+    "height": 0.06401137980085349
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e36",
+   "role": "window",
+   "label": "Infobar",
+   "bounds": {
+    "x": 0.010046367851622875,
+    "y": 0.1166429587482219,
+    "width": 0.9791344667697064,
+    "height": 0.05689900426742532
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e37",
+   "role": "pane",
+   "bounds": {
+    "x": 0.010046367851622875,
+    "y": 0.1166429587482219,
+    "width": 0.9791344667697064,
+    "height": 0.05689900426742532
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e38",
+   "role": "text",
+   "label": "Browse right away. Launch Edge when Windows starts.",
+   "bounds": {
+    "x": 0.41576506955177744,
+    "y": 0.1337126600284495,
+    "width": 0.223338485316847,
+    "height": 0.02275960170697013
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e39",
+   "role": "button",
+   "label": "Turn on",
+   "bounds": {
+    "x": 0.6452859350850078,
+    "y": 0.1251778093883357,
+    "width": 0.04791344667697063,
+    "height": 0.03982930298719772
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e4",
+   "role": "pane",
+   "bounds": {
+    "x": 0.0061823802163833074,
+    "y": 0,
+    "width": 0.9876352395672334,
+    "height": 0.9886201991465149
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e40",
+   "role": "button",
+   "label": "Close",
+   "bounds": {
+    "x": 0.9675425038639877,
+    "y": 0.13086770981507823,
+    "width": 0.015455950540958269,
+    "height": 0.02844950213371266
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e41",
+   "role": "pane",
+   "bounds": {
+    "x": 0.0061823802163833074,
+    "y": 0.17780938833570412,
+    "width": 0.9876352395672334,
+    "height": 0.8108108108108109
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e42",
+   "role": "pane",
+   "bounds": {
+    "x": 0.0061823802163833074,
+    "y": 0.17780938833570412,
+    "width": 0.9876352395672334,
+    "height": 0.8108108108108109
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e43",
+   "role": "pane",
+   "bounds": {
+    "x": 0.0061823802163833074,
+    "y": 0.17780938833570412,
+    "width": 0.9876352395672334,
+    "height": 0.8108108108108109
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e45",
+   "role": "text_field",
+   "label": "Marco perception fixture",
+   "bounds": {
+    "x": 0.00927357032457496,
+    "y": 0.1806543385490754,
+    "width": 0.98145285935085,
+    "height": 0.802275960170697
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e46",
+   "role": "group",
+   "label": "Sections",
+   "bounds": {
+    "x": 0.00927357032457496,
+    "y": 0.1806543385490754,
+    "width": 0.17001545595054096,
+    "height": 1.3157894736842106
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e47",
+   "role": "link",
+   "label": "Overview",
+   "bounds": {
+    "x": 0.00927357032457496,
+    "y": 0.2034139402560455,
+    "width": 0.16924265842349304,
+    "height": 0.05832147937411095
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e48",
+   "role": "link",
+   "label": "Devices",
+   "bounds": {
+    "x": 0.00927357032457496,
+    "y": 0.2603129445234708,
+    "width": 0.16924265842349304,
+    "height": 0.05832147937411095
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e49",
+   "role": "link",
+   "label": "Appearance",
+   "bounds": {
+    "x": 0.00927357032457496,
+    "y": 0.3186344238975818,
+    "width": 0.16924265842349304,
+    "height": 0.05832147937411095
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e5",
+   "role": "pane",
+   "bounds": {
+    "x": 0.0061823802163833074,
+    "y": 0,
+    "width": 0.9876352395672334,
+    "height": 0.9886201991465149
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e50",
+   "role": "link",
+   "label": "Storage",
+   "bounds": {
+    "x": 0.00927357032457496,
+    "y": 0.3755334281650071,
+    "width": 0.16924265842349304,
+    "height": 0.05832147937411095
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e51",
+   "role": "link",
+   "label": "About",
+   "bounds": {
+    "x": 0.00927357032457496,
+    "y": 0.43385490753911804,
+    "width": 0.16924265842349304,
+    "height": 0.05832147937411095
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e52",
+   "role": "group",
+   "bounds": {
+    "x": 0.17928902627511592,
+    "y": 0.1806543385490754,
+    "width": 0.6058732612055642,
+    "height": 1.3157894736842106
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e53",
+   "role": "text",
+   "label": "Overview",
+   "bounds": {
+    "x": 0.20401854714064915,
+    "y": 0.2147937411095306,
+    "width": 0.5564142194744977,
+    "height": 0.04694167852062589
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e54",
+   "role": "text",
+   "label": "A synthetic settings-shaped page for measuring what a visual detector adds.",
+   "bounds": {
+    "x": 0.20401854714064915,
+    "y": 0.2844950213371266,
+    "width": 0.3902627511591963,
+    "height": 0.02844950213371266
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e55",
+   "role": "text",
+   "label": "Actions",
+   "bounds": {
+    "x": 0.20401854714064915,
+    "y": 0.3541963015647226,
+    "width": 0.5564142194744977,
+    "height": 0.03556187766714083
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e56",
+   "role": "text",
+   "label": "Run the check now",
+   "bounds": {
+    "x": 0.21715610510046368,
+    "y": 0.4423897581792319,
+    "width": 0.0973724884080371,
+    "height": 0.029871977240398292
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e57",
+   "role": "button",
+   "label": "Check now",
+   "bounds": {
+    "x": 0.6646058732612056,
+    "y": 0.4295874822190612,
+    "width": 0.08268933539412673,
+    "height": 0.05547652916073969
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e58",
+   "role": "text",
+   "label": "Restore the defaults",
+   "bounds": {
+    "x": 0.21715610510046368,
+    "y": 0.49786628733997157,
+    "width": 0.10200927357032458,
+    "height": 0.02844950213371266
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e59",
+   "role": "button",
+   "label": "Restore",
+   "bounds": {
+    "x": 0.6823802163833076,
+    "y": 0.4850640113798009,
+    "width": 0.06491499227202473,
+    "height": 0.05547652916073969
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": false,
+   "visible": true
+  },
+  {
+   "id": "e6",
+   "role": "pane",
+   "bounds": {
+    "x": 0.8871715610510046,
+    "y": 0.001422475106685633,
+    "width": 0.10664605873261206,
+    "height": 0.05547652916073969
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e60",
+   "role": "text",
+   "label": "Current status",
+   "bounds": {
+    "x": 0.21715610510046368,
+    "y": 0.5519203413940256,
+    "width": 0.07187017001545595,
+    "height": 0.029871977240398292
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e61",
+   "role": "text",
+   "label": "Up to date",
+   "bounds": {
+    "x": 0.6792890262751159,
+    "y": 0.5519203413940256,
+    "width": 0.05486862442040186,
+    "height": 0.029871977240398292
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e62",
+   "role": "text",
+   "label": "Preferences",
+   "bounds": {
+    "x": 0.20401854714064915,
+    "y": 0.6586059743954481,
+    "width": 0.5564142194744977,
+    "height": 0.034139402560455195
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e63",
+   "role": "text",
+   "label": "Display name",
+   "bounds": {
+    "x": 0.21715610510046368,
+    "y": 0.7453769559032717,
+    "width": 0.0687789799072643,
+    "height": 0.02844950213371266
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e64",
+   "role": "text_field",
+   "label": "Display name",
+   "bounds": {
+    "x": 0.5479134466769706,
+    "y": 0.7339971550497866,
+    "width": 0.19938176197836166,
+    "height": 0.05263157894736842
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e65",
+   "role": "text",
+   "label": "Theme",
+   "bounds": {
+    "x": 0.21715610510046368,
+    "y": 0.7965860597439545,
+    "width": 0.0347758887171561,
+    "height": 0.029871977240398292
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e66",
+   "role": "combo_box",
+   "label": "Theme",
+   "bounds": {
+    "x": 0.6816074188562596,
+    "y": 0.7852062588904695,
+    "width": 0.06568778979907264,
+    "height": 0.05263157894736842
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e67",
+   "role": "checkbox",
+   "label": "Send notifications",
+   "bounds": {
+    "x": 0.7349304482225657,
+    "y": 0.8435277382645804,
+    "width": 0.010046367851622875,
+    "height": 0.01991465149359886
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e68",
+   "role": "text",
+   "label": "Update channel",
+   "bounds": {
+    "x": 0.21715610510046368,
+    "y": 0.8705547652916074,
+    "width": 0.08114374034003091,
+    "height": 0.02844950213371266
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e69",
+   "role": "radio",
+   "label": "Stable",
+   "bounds": {
+    "x": 0.6383307573415765,
+    "y": 0.8748221906116643,
+    "width": 0.010819165378670788,
+    "height": 0.01849217638691323
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e7",
+   "role": "button",
+   "label": "Minimize",
+   "bounds": {
+    "x": 0.8871715610510046,
+    "y": 0.001422475106685633,
+    "width": 0.03554868624420402,
+    "height": 0.05547652916073969
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e70",
+   "role": "radio",
+   "label": "Preview",
+   "bounds": {
+    "x": 0.6916537867078826,
+    "y": 0.8748221906116643,
+    "width": 0.010819165378670788,
+    "height": 0.01849217638691323
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e71",
+   "role": "text",
+   "label": "Items",
+   "bounds": {
+    "x": 0.20401854714064915,
+    "y": 0.9644381223328592,
+    "width": 0.5564142194744977,
+    "height": 0.03556187766714083
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e8",
+   "role": "button",
+   "label": "Maximize",
+   "bounds": {
+    "x": 0.9227202472952086,
+    "y": 0.001422475106685633,
+    "width": 0.03554868624420402,
+    "height": 0.05547652916073969
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e84",
+   "role": "tab_list",
+   "label": "Tab bar",
+   "bounds": {
+    "x": 0.0077279752704791345,
+    "y": 0,
+    "width": 0.8794435857805255,
+    "height": 0.05832147937411095
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e85",
+   "role": "button",
+   "label": "Search tabs",
+   "bounds": {
+    "x": 0.00927357032457496,
+    "y": 0,
+    "width": 0.02472952086553323,
+    "height": 0.051209103840682786
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e86",
+   "role": "pane",
+   "bounds": {
+    "x": 0.030911901081916538,
+    "y": 0,
+    "width": 0.19783616692426584,
+    "height": 0.05832147937411095
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e87",
+   "role": "tab_list",
+   "bounds": {
+    "x": 0.030911901081916538,
+    "y": 0,
+    "width": 0.19783616692426584,
+    "height": 0.05832147937411095
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e88",
+   "role": "tab",
+   "label": "Marco perception fixture",
+   "bounds": {
+    "x": 0.030911901081916538,
+    "y": 0,
+    "width": 0.19783616692426584,
+    "height": 0.05832147937411095
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e89",
+   "role": "button",
+   "label": "Close tab",
+   "bounds": {
+    "x": 0.20401854714064915,
+    "y": 0.017069701280227598,
+    "width": 0.012364760432766615,
+    "height": 0.02275960170697013
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e9",
+   "role": "button",
+   "label": "Close",
+   "bounds": {
+    "x": 0.9582689335394127,
+    "y": 0.001422475106685633,
+    "width": 0.03554868624420402,
+    "height": 0.05547652916073969
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e94",
+   "role": "pane",
+   "bounds": {
+    "x": 0.030911901081916538,
+    "y": 0,
+    "width": 0.19783616692426584,
+    "height": 0.05832147937411095
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e95",
+   "role": "button",
+   "label": "New Tab",
+   "bounds": {
+    "x": 0.22565687789799072,
+    "y": 0,
+    "width": 0.02472952086553323,
+    "height": 0.05832147937411095
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": true,
+   "affords": true,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e96",
+   "role": "pane",
+   "bounds": {
+    "x": 0.250386398763524,
+    "y": 0,
+    "width": 0.6367851622874807,
+    "height": 0.05832147937411095
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  },
+  {
+   "id": "e97",
+   "role": "pane",
+   "bounds": {
+    "x": 0.0061823802163833074,
+    "y": 0,
+    "width": 0.9876352395672334,
+    "height": 0.9886201991465149
+   },
+   "sources": [
+    "accessibility"
+   ],
+   "actionable": false,
+   "affords": false,
+   "enabled": true,
+   "visible": true
+  }
+ ],
+ "offscreen_dropped": 11,
+ "providers": [
+  "accessibility"
+ ]
+}

@@ -1,0 +1,3989 @@
+[
+ {
+  "id": "browser-fixture-narrow",
+  "width": 720,
+  "height": 900,
+  "production_elements": 85,
+  "production_actionable": 36,
+  "detector_detections": 79,
+  "matched": 28,
+  "detector_only": 51,
+  "detector_only_inside_known": 51,
+  "production_only": 59,
+  "detector_only_examples": [
+   {
+    "label": "button",
+    "confidence": 0.6303405165672302,
+    "bounds": {
+     "x": 0.7486111111111111,
+     "y": 0.44666666666666666,
+     "width": 0.14583333333333334,
+     "height": 0.043333333333333335
+    },
+    "nearest_role": "text",
+    "nearest_label": "Up to date",
+    "nearest_iou": 0.3467643467643462
+   },
+   {
+    "label": "icon",
+    "confidence": 0.6085801720619202,
+    "bounds": {
+     "x": 0.7583333333333333,
+     "y": 0.05444444444444444,
+     "width": 0.03194444444444444,
+     "height": 0.024444444444444446
+    },
+    "nearest_role": "button",
+    "nearest_label": "Profile 1 Profile, Please sign in",
+    "nearest_iou": 0.4941406249999999
+   },
+   {
+    "label": "text",
+    "confidence": 0.583153486251831,
+    "bounds": {
+     "x": 0.36666666666666664,
+     "y": 0.30333333333333334,
+     "width": 0.07916666666666666,
+     "height": 0.025555555555555557
+    },
+    "nearest_role": "text",
+    "nearest_label": "Actions",
+    "nearest_iou": 0.13759445843828713
+   },
+   {
+    "label": "text",
+    "confidence": 0.5434411764144897,
+    "bounds": {
+     "x": 0.15833333333333333,
+     "y": 0.057777777777777775,
+     "width": 0.02638888888888889,
+     "height": 0.017777777777777778
+    },
+    "nearest_role": "button",
+    "nearest_label": "File",
+    "nearest_iou": 0.24836601307189535
+   },
+   {
+    "label": "field",
+    "confidence": 0.4825022220611572,
+    "bounds": {
+     "x": 0.36527777777777776,
+     "y": 0.9566666666666667,
+     "width": 0.55,
+     "height": 0.03111111111111111
+    },
+    "nearest_role": "text",
+    "nearest_label": "The first paragraph of scrollable content.",
+    "nearest_iou": 0.06852467399642083
+   },
+   {
+    "label": "text",
+    "confidence": 0.42515814304351807,
+    "bounds": {
+     "x": 0.08055555555555556,
+     "y": 0.30666666666666664,
+     "width": 0.02361111111111111,
+     "height": 0.021111111111111112
+    },
+    "nearest_role": "link",
+    "nearest_label": "Storage",
+    "nearest_iou": 0.035972825481679516
+   },
+   {
+    "label": "icon",
+    "confidence": 0.40050801634788513,
+    "bounds": {
+     "x": 0.6055555555555555,
+     "y": 0.056666666666666664,
+     "width": 0.022222222222222223,
+     "height": 0.01888888888888889
+    },
+    "nearest_role": "button",
+    "nearest_label": "Proton Pass: Free Password Manager\nNo access needed",
+    "nearest_iou": 0.26562500000000056
+   },
+   {
+    "label": "text",
+    "confidence": 0.4000510573387146,
+    "bounds": {
+     "x": 0.36666666666666664,
+     "y": 0.9233333333333333,
+     "width": 0.0625,
+     "height": 0.023333333333333334
+    },
+    "nearest_role": "text",
+    "nearest_label": "Notes",
+    "nearest_iou": 0.09521410579345081
+   },
+   {
+    "label": "text",
+    "confidence": 0.3984009623527527,
+    "bounds": {
+     "x": 0.36666666666666664,
+     "y": 0.5411111111111111,
+     "width": 0.12222222222222222,
+     "height": 0.025555555555555557
+    },
+    "nearest_role": "text",
+    "nearest_label": "Preferences",
+    "nearest_iou": 0.20392947103274559
+   },
+   {
+    "label": "icon",
+    "confidence": 0.37635180354118347,
+    "bounds": {
+     "x": 0.8597222222222223,
+     "y": 0.05444444444444444,
+     "width": 0.03333333333333333,
+     "height": 0.025555555555555557
+    },
+    "nearest_role": "button",
+    "nearest_label": "Chat",
+    "nearest_iou": 0.24295774647887322
+   },
+   {
+    "label": "text",
+    "confidence": 0.35757410526275635,
+    "bounds": {
+     "x": 0.044444444444444446,
+     "y": 0.3511111111111111,
+     "width": 0.05694444444444444,
+     "height": 0.021111111111111112
+    },
+    "nearest_role": "link",
+    "nearest_label": "About",
+    "nearest_iou": 0.08675799086758003
+   },
+   {
+    "label": "button",
+    "confidence": 0.3484184443950653,
+    "bounds": {
+     "x": 0.6555555555555556,
+     "y": 0.056666666666666664,
+     "width": 0.022222222222222223,
+     "height": 0.01888888888888889
+    },
+    "nearest_role": "button",
+    "nearest_label": "Extensions",
+    "nearest_iou": 0.26562500000000056
+   },
+   {
+    "label": "text",
+    "confidence": 0.33764535188674927,
+    "bounds": {
+     "x": 0.9013888888888889,
+     "y": 0.056666666666666664,
+     "width": 0.034722222222222224,
+     "height": 0.02
+    },
+    "nearest_role": "button",
+    "nearest_label": "Chat",
+    "nearest_iou": 0.19806338028169007
+   },
+   {
+    "label": "text",
+    "confidence": 0.3297141194343567,
+    "bounds": {
+     "x": 0.39444444444444443,
+     "y": 0.8666666666666667,
+     "width": 0.07083333333333333,
+     "height": 0.021111111111111112
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Gamma",
+    "nearest_iou": 0.1117518163994924
+   },
+   {
+    "label": "button",
+    "confidence": 0.319965124130249,
+    "bounds": {
+     "x": 0.7111111111111111,
+     "y": 0.057777777777777775,
+     "width": 0.02361111111111111,
+     "height": 0.017777777777777778
+    },
+    "nearest_role": "button",
+    "nearest_label": "Favorites",
+    "nearest_iou": 0.26562500000000044
+   },
+   {
+    "label": "text",
+    "confidence": 0.319242000579834,
+    "bounds": {
+     "x": 0.39444444444444443,
+     "y": 0.8166666666666667,
+     "width": 0.05277777777777778,
+     "height": 0.021111111111111112
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Alpha",
+    "nearest_iou": 0.0832660592780531
+   },
+   {
+    "label": "text",
+    "confidence": 0.3165064752101898,
+    "bounds": {
+     "x": 0.3888888888888889,
+     "y": 0.6811111111111111,
+     "width": 0.16527777777777777,
+     "height": 0.022222222222222223
+    },
+    "nearest_role": "group",
+    "nearest_iou": 0.0054516259818080705
+   },
+   {
+    "label": "button",
+    "confidence": 0.30788207054138184,
+    "bounds": {
+     "x": 0.0763888888888889,
+     "y": 0.013333333333333334,
+     "width": 0.02361111111111111,
+     "height": 0.017777777777777778
+    },
+    "nearest_role": "pane",
+    "nearest_iou": 0.02591463414634146
+   },
+   {
+    "label": "text",
+    "confidence": 0.3056568503379822,
+    "bounds": {
+     "x": 0.044444444444444446,
+     "y": 0.30666666666666664,
+     "width": 0.0375,
+     "height": 0.021111111111111112
+    },
+    "nearest_role": "link",
+    "nearest_label": "Storage",
+    "nearest_iou": 0.05713331105913807
+   },
+   {
+    "label": "text",
+    "confidence": 0.2999323606491089,
+    "bounds": {
+     "x": 0.39444444444444443,
+     "y": 0.8422222222222222,
+     "width": 0.04027777777777778,
+     "height": 0.021111111111111112
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Beta",
+    "nearest_iou": 0.06354515050167217
+   },
+   {
+    "label": "radio",
+    "confidence": 0.2971687316894531,
+    "bounds": {
+     "x": 0.8222222222222222,
+     "y": 0.7055555555555556,
+     "width": 0.07222222222222222,
+     "height": 0.023333333333333334
+    },
+    "nearest_role": "group",
+    "nearest_iou": 0.002501334274006049
+   },
+   {
+    "label": "button",
+    "confidence": 0.2761248052120209,
+    "bounds": {
+     "x": 0.027777777777777776,
+     "y": 0.058888888888888886,
+     "width": 0.022222222222222223,
+     "height": 0.015555555555555555
+    },
+    "nearest_role": "button",
+    "nearest_label": "Back",
+    "nearest_iou": 0.21874999999999997
+   },
+   {
+    "label": "icon",
+    "confidence": 0.2750878930091858,
+    "bounds": {
+     "x": 0.044444444444444446,
+     "y": 0.17555555555555555,
+     "width": 0.08888888888888889,
+     "height": 0.012222222222222223
+    },
+    "nearest_role": "link",
+    "nearest_label": "Overview",
+    "nearest_iou": 0.07840516761331995
+   },
+   {
+    "label": "text",
+    "confidence": 0.2738530933856964,
+    "bounds": {
+     "x": 0.39444444444444443,
+     "y": 0.8166666666666667,
+     "width": 0.05277777777777778,
+     "height": 0.021111111111111112
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Alpha",
+    "nearest_iou": 0.0832660592780531
+   },
+   {
+    "label": "button",
+    "confidence": 0.27010440826416016,
+    "bounds": {
+     "x": 0.7694444444444445,
+     "y": 0.37222222222222223,
+     "width": 0.10138888888888889,
+     "height": 0.021111111111111112
+    },
+    "nearest_role": "button",
+    "nearest_label": "Check now",
+    "nearest_iou": 0.3323747903187159
+   },
+   {
+    "label": "icon",
+    "confidence": 0.2642756700515747,
+    "bounds": {
+     "x": 0.29305555555555557,
+     "y": 0.10222222222222223,
+     "width": 0.02638888888888889,
+     "height": 0.021111111111111112
+    },
+    "nearest_role": "window",
+    "nearest_label": "Infobar",
+    "nearest_iou": 0.013023088023088027
+   },
+   {
+    "label": "button",
+    "confidence": 0.26268261671066284,
+    "bounds": {
+     "x": 0.9472222222222222,
+     "y": 0.10666666666666667,
+     "width": 0.016666666666666666,
+     "height": 0.013333333333333334
+    },
+    "nearest_role": "button",
+    "nearest_label": "Close",
+    "nearest_iou": 0.3600000000000016
+   },
+   {
+    "label": "button",
+    "confidence": 0.259640097618103,
+    "bounds": {
+     "x": 0.4166666666666667,
+     "y": 0.014444444444444444,
+     "width": 0.020833333333333332,
+     "height": 0.016666666666666666
+    },
+    "nearest_role": "button",
+    "nearest_label": "New Tab",
+    "nearest_iou": 0.1714939024390242
+   },
+   {
+    "label": "image",
+    "confidence": 0.2521953582763672,
+    "bounds": {
+     "x": 0.8597222222222223,
+     "y": 0.05444444444444444,
+     "width": 0.03333333333333333,
+     "height": 0.024444444444444446
+    },
+    "nearest_role": "button",
+    "nearest_label": "Chat",
+    "nearest_iou": 0.23239436619718304
+   },
+   {
+    "label": "radio",
+    "confidence": 0.25025230646133423,
+    "bounds": {
+     "x": 0.7263888888888889,
+     "y": 0.7055555555555556,
+     "width": 0.05694444444444444,
+     "height": 0.022222222222222223
+    },
+    "nearest_role": "group",
+    "nearest_iou": 0.0018782913046565626
+   },
+   {
+    "label": "text",
+    "confidence": 0.24995684623718262,
+    "bounds": {
+     "x": 0.39444444444444443,
+     "y": 0.8422222222222222,
+     "width": 0.04027777777777778,
+     "height": 0.021111111111111112
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Beta",
+    "nearest_iou": 0.06354515050167217
+   },
+   {
+    "label": "text",
+    "confidence": 0.24818313121795654,
+    "bounds": {
+     "x": 0.36666666666666664,
+     "y": 0.17,
+     "width": 0.13472222222222222,
+     "height": 0.03333333333333333
+    },
+    "nearest_role": "text",
+    "nearest_label": "Overview",
+    "nearest_iou": 0.2221204488207007
+   },
+   {
+    "label": "button",
+    "confidence": 0.24778029322624207,
+    "bounds": {
+     "x": 0.07777777777777778,
+     "y": 0.057777777777777775,
+     "width": 0.020833333333333332,
+     "height": 0.016666666666666666
+    },
+    "nearest_role": "button",
+    "nearest_label": "Refresh",
+    "nearest_iou": 0.21972656249999986
+   },
+   {
+    "label": "text",
+    "confidence": 0.24475353956222534,
+    "bounds": {
+     "x": 0.044444444444444446,
+     "y": 0.26,
+     "width": 0.10833333333333334,
+     "height": 0.023333333333333334
+    },
+    "nearest_role": "link",
+    "nearest_label": "Appearance",
+    "nearest_iou": 0.18242565987303694
+   },
+   {
+    "label": "icon",
+    "confidence": 0.23851901292800903,
+    "bounds": {
+     "x": 0.0763888888888889,
+     "y": 0.013333333333333334,
+     "width": 0.02361111111111111,
+     "height": 0.017777777777777778
+    },
+    "nearest_role": "pane",
+    "nearest_iou": 0.02591463414634146
+   },
+   {
+    "label": "text",
+    "confidence": 0.23370704054832458,
+    "bounds": {
+     "x": 0.7819444444444444,
+     "y": 0.05333333333333334,
+     "width": 0.009722222222222222,
+     "height": 0.008888888888888889
+    },
+    "nearest_role": "button",
+    "nearest_label": "Profile 1 Profile, Please sign in",
+    "nearest_iou": 0.054687499999999806
+   },
+   {
+    "label": "button",
+    "confidence": 0.23289847373962402,
+    "bounds": {
+     "x": 0.8958333333333334,
+     "y": 0.9566666666666667,
+     "width": 0.022222222222222223,
+     "height": 0.03
+    },
+    "nearest_role": "group",
+    "nearest_iou": 0.0009895388336727262
+   },
+   {
+    "label": "button",
+    "confidence": 0.2168169617652893,
+    "bounds": {
+     "x": 0.8111111111111111,
+     "y": 0.056666666666666664,
+     "width": 0.02361111111111111,
+     "height": 0.017777777777777778
+    },
+    "nearest_role": "button",
+    "nearest_label": "Settings and more (Alt+F)",
+    "nearest_iou": 0.26562500000000033
+   },
+   {
+    "label": "button",
+    "confidence": 0.21019864082336426,
+    "bounds": {
+     "x": 0.775,
+     "y": 0.10444444444444445,
+     "width": 0.05694444444444444,
+     "height": 0.017777777777777778
+    },
+    "nearest_role": "button",
+    "nearest_label": "Turn on",
+    "nearest_iou": 0.37788018433179743
+   },
+   {
+    "label": "text",
+    "confidence": 0.20898273587226868,
+    "bounds": {
+     "x": 0.6625,
+     "y": 0.10555555555555556,
+     "width": 0.034722222222222224,
+     "height": 0.016666666666666666
+    },
+    "nearest_role": "text",
+    "nearest_label": "Browse right away. Launch Edge when Windows starts.",
+    "nearest_iou": 0.08109861591695497
+   },
+   {
+    "label": "text",
+    "confidence": 0.20076587796211243,
+    "bounds": {
+     "x": 0.39444444444444443,
+     "y": 0.8666666666666667,
+     "width": 0.07083333333333333,
+     "height": 0.021111111111111112
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Gamma",
+    "nearest_iou": 0.1117518163994924
+   },
+   {
+    "label": "text",
+    "confidence": 0.19716382026672363,
+    "bounds": {
+     "x": 0.044444444444444446,
+     "y": 0.21666666666666667,
+     "width": 0.06944444444444445,
+     "height": 0.022222222222222223
+    },
+    "nearest_role": "link",
+    "nearest_label": "Devices",
+    "nearest_iou": 0.1113709767234659
+   },
+   {
+    "label": "text",
+    "confidence": 0.1964748501777649,
+    "bounds": {
+     "x": 0.10972222222222222,
+     "y": 0.014444444444444444,
+     "width": 0.18333333333333332,
+     "height": 0.017777777777777778
+    },
+    "nearest_role": "pane",
+    "nearest_iou": 0.20121951219512185
+   },
+   {
+    "label": "button",
+    "confidence": 0.19496449828147888,
+    "bounds": {
+     "x": 0.8861111111111111,
+     "y": 0.016666666666666666,
+     "width": 0.013888888888888888,
+     "height": 0.011111111111111112
+    },
+    "nearest_role": "button",
+    "nearest_label": "Maximize",
+    "nearest_iou": 0.055741360089185954
+   },
+   {
+    "label": "text",
+    "confidence": 0.19243353605270386,
+    "bounds": {
+     "x": 0.10416666666666667,
+     "y": 0.31,
+     "width": 0.011111111111111112,
+     "height": 0.015555555555555555
+    },
+    "nearest_role": "link",
+    "nearest_label": "Storage",
+    "nearest_iou": 0.012473549393028171
+   },
+   {
+    "label": "text",
+    "confidence": 0.18499690294265747,
+    "bounds": {
+     "x": 0.49027777777777776,
+     "y": 0.10555555555555556,
+     "width": 0.05416666666666667,
+     "height": 0.016666666666666666
+    },
+    "nearest_role": "text",
+    "nearest_label": "Browse right away. Launch Edge when Windows starts.",
+    "nearest_iou": 0.12651384083044975
+   },
+   {
+    "label": "text",
+    "confidence": 0.18491694331169128,
+    "bounds": {
+     "x": 0.044444444444444446,
+     "y": 0.21666666666666667,
+     "width": 0.06944444444444445,
+     "height": 0.021111111111111112
+    },
+    "nearest_role": "link",
+    "nearest_label": "Devices",
+    "nearest_iou": 0.10580242788729256
+   },
+   {
+    "label": "button",
+    "confidence": 0.15936222672462463,
+    "bounds": {
+     "x": 0.95,
+     "y": 0.016666666666666666,
+     "width": 0.013888888888888888,
+     "height": 0.011111111111111112
+    },
+    "nearest_role": "button",
+    "nearest_label": "Close",
+    "nearest_iou": 0.055741360089185954
+   },
+   {
+    "label": "button",
+    "confidence": 0.15495926141738892,
+    "bounds": {
+     "x": 0.12916666666666668,
+     "y": 0.057777777777777775,
+     "width": 0.019444444444444445,
+     "height": 0.016666666666666666
+    },
+    "nearest_role": "button",
+    "nearest_label": "File",
+    "nearest_iou": 0.17156862745098048
+   },
+   {
+    "label": "text",
+    "confidence": 0.15389332175254822,
+    "bounds": {
+     "x": 0.7944444444444444,
+     "y": 0.6477777777777778,
+     "width": 0.06527777777777778,
+     "height": 0.022222222222222223
+    },
+    "nearest_role": "combo_box",
+    "nearest_label": "Theme",
+    "nearest_iou": 0.30718954248366065
+   },
+   {
+    "label": "button",
+    "confidence": 0.15051323175430298,
+    "bounds": {
+     "x": 0.8958333333333334,
+     "y": 0.9566666666666667,
+     "width": 0.022222222222222223,
+     "height": 0.03111111111111111
+    },
+    "nearest_role": "group",
+    "nearest_iou": 0.0010261884201050477
+   }
+  ],
+  "detect_millis": 1456
+ },
+ {
+  "id": "browser-fixture-wide",
+  "width": 1294,
+  "height": 703,
+  "production_elements": 79,
+  "production_actionable": 33,
+  "detector_detections": 66,
+  "matched": 27,
+  "detector_only": 39,
+  "detector_only_inside_known": 39,
+  "production_only": 53,
+  "detector_only_examples": [
+   {
+    "label": "button",
+    "confidence": 0.5411674380302429,
+    "bounds": {
+     "x": 0.6661514683153014,
+     "y": 0.5405405405405406,
+     "width": 0.08114374034003091,
+     "height": 0.05405405405405406
+    },
+    "nearest_role": "text",
+    "nearest_label": "Up to date",
+    "nearest_iou": 0.373684210526315
+   },
+   {
+    "label": "radio",
+    "confidence": 0.4482465386390686,
+    "bounds": {
+     "x": 0.7086553323029366,
+     "y": 0.8705547652916074,
+     "width": 0.03863987635239567,
+     "height": 0.031294452347083924
+    },
+    "nearest_role": "text_field",
+    "nearest_label": "Marco perception fixture",
+    "nearest_iou": 0.0015357122912827378
+   },
+   {
+    "label": "text",
+    "confidence": 0.44134050607681274,
+    "bounds": {
+     "x": 0.08732612055641421,
+     "y": 0.07254623044096728,
+     "width": 0.015455950540958269,
+     "height": 0.025604551920341393
+    },
+    "nearest_role": "button",
+    "nearest_label": "File",
+    "nearest_iou": 0.2941176470588236
+   },
+   {
+    "label": "radio",
+    "confidence": 0.43468815088272095,
+    "bounds": {
+     "x": 0.6537867078825348,
+     "y": 0.871977240398293,
+     "width": 0.03168469860896445,
+     "height": 0.02844950213371266
+    },
+    "nearest_role": "text_field",
+    "nearest_label": "Marco perception fixture",
+    "nearest_iou": 0.0011448037080471346
+   },
+   {
+    "label": "text",
+    "confidence": 0.410503089427948,
+    "bounds": {
+     "x": 0.21715610510046368,
+     "y": 0.8392603129445235,
+     "width": 0.09119010819165378,
+     "height": 0.029871977240398292
+    },
+    "nearest_role": "text_field",
+    "nearest_label": "Marco perception fixture",
+    "nearest_iou": 0.00345954096163511
+   },
+   {
+    "label": "button",
+    "confidence": 0.3606961965560913,
+    "bounds": {
+     "x": 0.8400309119010819,
+     "y": 0.07396870554765292,
+     "width": 0.012364760432766615,
+     "height": 0.02275960170697013
+    },
+    "nearest_role": "button",
+    "nearest_label": "Favorites",
+    "nearest_iou": 0.249999999999999
+   },
+   {
+    "label": "button",
+    "confidence": 0.3373570442199707,
+    "bounds": {
+     "x": 0.8091190108191654,
+     "y": 0.07396870554765292,
+     "width": 0.010819165378670788,
+     "height": 0.02275960170697013
+    },
+    "nearest_role": "button",
+    "nearest_label": "Extensions",
+    "nearest_iou": 0.21874999999999978
+   },
+   {
+    "label": "button",
+    "confidence": 0.3294271230697632,
+    "bounds": {
+     "x": 0.7527047913446677,
+     "y": 0.07396870554765292,
+     "width": 0.012364760432766615,
+     "height": 0.02275960170697013
+    },
+    "nearest_role": "pane",
+    "nearest_iou": 0.4444444444444424
+   },
+   {
+    "label": "text",
+    "confidence": 0.3217563033103943,
+    "bounds": {
+     "x": 0.9443585780525502,
+     "y": 0.07396870554765292,
+     "width": 0.02009273570324575,
+     "height": 0.02418207681365576
+    },
+    "nearest_role": "button",
+    "nearest_label": "Chat",
+    "nearest_iou": 0.19454225352112697
+   },
+   {
+    "label": "text",
+    "confidence": 0.3180270493030548,
+    "bounds": {
+     "x": 0.20401854714064915,
+     "y": 0.3584637268847795,
+     "width": 0.04404945904173107,
+     "height": 0.031294452347083924
+    },
+    "nearest_role": "text",
+    "nearest_label": "Actions",
+    "nearest_iou": 0.0696666666666666
+   },
+   {
+    "label": "button",
+    "confidence": 0.2988865375518799,
+    "bounds": {
+     "x": 0.9706336939721792,
+     "y": 0.13513513513513514,
+     "width": 0.00927357032457496,
+     "height": 0.01849217638691323
+    },
+    "nearest_role": "button",
+    "nearest_label": "Close",
+    "nearest_iou": 0.3900000000000013
+   },
+   {
+    "label": "button",
+    "confidence": 0.29886096715927124,
+    "bounds": {
+     "x": 0.678516228748068,
+     "y": 0.4438122332859175,
+     "width": 0.05564142194744977,
+     "height": 0.029871977240398292
+    },
+    "nearest_role": "button",
+    "nearest_label": "Check now",
+    "nearest_iou": 0.3623292595255218
+   },
+   {
+    "label": "text",
+    "confidence": 0.29804107546806335,
+    "bounds": {
+     "x": 0.02472952086553323,
+     "y": 0.44950213371266,
+     "width": 0.03168469860896445,
+     "height": 0.02844950213371266
+    },
+    "nearest_role": "link",
+    "nearest_label": "About",
+    "nearest_iou": 0.09132420091324202
+   },
+   {
+    "label": "button",
+    "confidence": 0.25422605872154236,
+    "bounds": {
+     "x": 0.04404945904173107,
+     "y": 0.07396870554765292,
+     "width": 0.010819165378670788,
+     "height": 0.02275960170697013
+    },
+    "nearest_role": "button",
+    "nearest_label": "Refresh",
+    "nearest_iou": 0.21874999999999997
+   },
+   {
+    "label": "button",
+    "confidence": 0.24324673414230347,
+    "bounds": {
+     "x": 0.69629057187017,
+     "y": 0.4992887624466572,
+     "width": 0.03786707882534776,
+     "height": 0.02702702702702703
+    },
+    "nearest_role": "button",
+    "nearest_label": "Restore",
+    "nearest_iou": 0.28418803418803523
+   },
+   {
+    "label": "text",
+    "confidence": 0.2399243414402008,
+    "bounds": {
+     "x": 0.02472952086553323,
+     "y": 0.3911806543385491,
+     "width": 0.03941267387944358,
+     "height": 0.02844950213371266
+    },
+    "nearest_role": "link",
+    "nearest_label": "Storage",
+    "nearest_iou": 0.1135983962579352
+   },
+   {
+    "label": "button",
+    "confidence": 0.2381504476070404,
+    "bounds": {
+     "x": 0.04327666151468315,
+     "y": 0.017069701280227598,
+     "width": 0.01313755795981453,
+     "height": 0.02275960170697013
+    },
+    "nearest_role": "pane",
+    "nearest_iou": 0.02591463414634146
+   },
+   {
+    "label": "icon",
+    "confidence": 0.23670244216918945,
+    "bounds": {
+     "x": 0.9234930448222566,
+     "y": 0.07112375533428165,
+     "width": 0.01622874806800618,
+     "height": 0.029871977240398292
+    },
+    "nearest_role": "button",
+    "nearest_label": "Chat",
+    "nearest_iou": 0.19410211267605695
+   },
+   {
+    "label": "text",
+    "confidence": 0.23267415165901184,
+    "bounds": {
+     "x": 0.41576506955177744,
+     "y": 0.1337126600284495,
+     "width": 0.02936630602782071,
+     "height": 0.02275960170697013
+    },
+    "nearest_role": "text",
+    "nearest_label": "Browse right away. Launch Edge when Windows starts.",
+    "nearest_iou": 0.1314878892733564
+   },
+   {
+    "label": "button",
+    "confidence": 0.2226581871509552,
+    "bounds": {
+     "x": 0.7805255023183926,
+     "y": 0.07396870554765292,
+     "width": 0.012364760432766615,
+     "height": 0.02275960170697013
+    },
+    "nearest_role": "button",
+    "nearest_label": "Proton Pass: Free Password Manager\nNo access needed",
+    "nearest_iou": 0.249999999999999
+   },
+   {
+    "label": "button",
+    "confidence": 0.21868500113487244,
+    "bounds": {
+     "x": 0.015455950540958269,
+     "y": 0.07396870554765292,
+     "width": 0.011591962905718702,
+     "height": 0.02275960170697013
+    },
+    "nearest_role": "button",
+    "nearest_label": "Back",
+    "nearest_iou": 0.234375
+   },
+   {
+    "label": "text",
+    "confidence": 0.20535314083099365,
+    "bounds": {
+     "x": 0.5494590417310664,
+     "y": 0.13513513513513514,
+     "width": 0.06723338485316847,
+     "height": 0.021337126600284494
+    },
+    "nearest_role": "text",
+    "nearest_label": "Browse right away. Launch Edge when Windows starts.",
+    "nearest_iou": 0.2822231833910033
+   },
+   {
+    "label": "text",
+    "confidence": 0.19873514771461487,
+    "bounds": {
+     "x": 0.11128284389489954,
+     "y": 0.07254623044096728,
+     "width": 0.32457496136012365,
+     "height": 0.025604551920341393
+    },
+    "nearest_role": "text_field",
+    "nearest_label": "Address and search bar",
+    "nearest_iou": 0.3808948004836758
+   },
+   {
+    "label": "button",
+    "confidence": 0.19801238179206848,
+    "bounds": {
+     "x": 0.8956723338485317,
+     "y": 0.07254623044096728,
+     "width": 0.012364760432766615,
+     "height": 0.02418207681365576
+    },
+    "nearest_role": "button",
+    "nearest_label": "Settings and more (Alt+F)",
+    "nearest_iou": 0.26562499999999895
+   },
+   {
+    "label": "icon",
+    "confidence": 0.1979082226753235,
+    "bounds": {
+     "x": 0.9227202472952086,
+     "y": 0.07112375533428165,
+     "width": 0.017001545595054096,
+     "height": 0.029871977240398292
+    },
+    "nearest_role": "button",
+    "nearest_label": "Chat",
+    "nearest_iou": 0.2033450704225348
+   },
+   {
+    "label": "text",
+    "confidence": 0.19533365964889526,
+    "bounds": {
+     "x": 0.27125193199381764,
+     "y": 0.9871977240398293,
+     "width": 0.09041731066460587,
+     "height": 0.011379800853485065
+    },
+    "nearest_role": "text",
+    "nearest_label": "Items",
+    "nearest_iou": 0.052000000000000206
+   },
+   {
+    "label": "text",
+    "confidence": 0.19103094935417175,
+    "bounds": {
+     "x": 0.2132921174652241,
+     "y": 0.7411095305832148,
+     "width": 0.32457496136012365,
+     "height": 0.03698435277382646
+    },
+    "nearest_role": "text",
+    "nearest_label": "Display name",
+    "nearest_iou": 0.163003663003663
+   },
+   {
+    "label": "button",
+    "confidence": 0.19028544425964355,
+    "bounds": {
+     "x": 0.98145285935085,
+     "y": 0.18634423897581792,
+     "width": 0.0077279752704791345,
+     "height": 0.012802275960170697
+    },
+    "nearest_role": "text_field",
+    "nearest_label": "Marco perception fixture",
+    "nearest_iou": 0.00012564918746858683
+   },
+   {
+    "label": "text",
+    "confidence": 0.18931403756141663,
+    "bounds": {
+     "x": 0.20942812982998454,
+     "y": 0.49786628733997157,
+     "width": 0.44590417310664604,
+     "height": 0.032716927453769556
+    },
+    "nearest_role": "text",
+    "nearest_label": "Restore the defaults",
+    "nearest_iou": 0.19892999773943149
+   },
+   {
+    "label": "text",
+    "confidence": 0.18776774406433105,
+    "bounds": {
+     "x": 0.02472952086553323,
+     "y": 0.33428165007112376,
+     "width": 0.061051004636785165,
+     "height": 0.02844950213371266
+    },
+    "nearest_role": "link",
+    "nearest_label": "Appearance",
+    "nearest_iou": 0.17596614322307613
+   },
+   {
+    "label": "text",
+    "confidence": 0.17911821603775024,
+    "bounds": {
+     "x": 0.20479134466769705,
+     "y": 0.968705547652916,
+     "width": 0.03168469860896445,
+     "height": 0.02702702702702703
+    },
+    "nearest_role": "text",
+    "nearest_label": "Items",
+    "nearest_iou": 0.04327777777777768
+   },
+   {
+    "label": "text",
+    "confidence": 0.17755505442619324,
+    "bounds": {
+     "x": 0.20401854714064915,
+     "y": 0.6600284495021337,
+     "width": 0.06800618238021638,
+     "height": 0.031294452347083924
+    },
+    "nearest_role": "text",
+    "nearest_label": "Preferences",
+    "nearest_iou": 0.11203703703703713
+   },
+   {
+    "label": "button",
+    "confidence": 0.17506736516952515,
+    "bounds": {
+     "x": 0.9366306027820711,
+     "y": 0.021337126600284494,
+     "width": 0.006955177743431221,
+     "height": 0.012802275960170697
+    },
+    "nearest_role": "button",
+    "nearest_label": "Maximize",
+    "nearest_iou": 0.04515050167224091
+   },
+   {
+    "label": "text",
+    "confidence": 0.1728609800338745,
+    "bounds": {
+     "x": 0.061823802163833076,
+     "y": 0.017069701280227598,
+     "width": 0.10200927357032458,
+     "height": 0.02418207681365576
+    },
+    "nearest_role": "pane",
+    "nearest_iou": 0.2137957317073171
+   },
+   {
+    "label": "text",
+    "confidence": 0.16517606377601624,
+    "bounds": {
+     "x": 0.38794435857805254,
+     "y": 0.07396870554765292,
+     "width": 0.019319938176197836,
+     "height": 0.02275960170697013
+    },
+    "nearest_role": "text_field",
+    "nearest_label": "Address and search bar",
+    "nearest_iou": 0.020153164046755313
+   },
+   {
+    "label": "text",
+    "confidence": 0.16499337553977966,
+    "bounds": {
+     "x": 0.02472952086553323,
+     "y": 0.2759601706970128,
+     "width": 0.03941267387944358,
+     "height": 0.029871977240398292
+    },
+    "nearest_role": "link",
+    "nearest_label": "Devices",
+    "nearest_iou": 0.11927831607083202
+   },
+   {
+    "label": "text",
+    "confidence": 0.15997567772865295,
+    "bounds": {
+     "x": 0.4095826893353941,
+     "y": 0.07396870554765292,
+     "width": 0.02241112828438949,
+     "height": 0.02418207681365576
+    },
+    "nearest_role": "text_field",
+    "nearest_label": "Address and search bar",
+    "nearest_iou": 0.024838774687625985
+   },
+   {
+    "label": "text",
+    "confidence": 0.1580103635787964,
+    "bounds": {
+     "x": 0.20401854714064915,
+     "y": 0.22048364153627312,
+     "width": 0.07573415765069552,
+     "height": 0.03982930298719772
+    },
+    "nearest_role": "text",
+    "nearest_label": "Overview",
+    "nearest_iou": 0.11548821548821558
+   },
+   {
+    "label": "menu",
+    "confidence": 0.1552799642086029,
+    "bounds": {
+     "x": 0.02472952086553323,
+     "y": 0.2759601706970128,
+     "width": 0.03941267387944358,
+     "height": 0.029871977240398292
+    },
+    "nearest_role": "link",
+    "nearest_label": "Devices",
+    "nearest_iou": 0.11927831607083202
+   }
+  ],
+  "detect_millis": 787
+ },
+ {
+  "id": "explorer-fixture-wide",
+  "width": 1100,
+  "height": 800,
+  "production_elements": 140,
+  "production_actionable": 82,
+  "detector_detections": 94,
+  "matched": 31,
+  "detector_only": 63,
+  "detector_only_inside_known": 63,
+  "production_only": 115,
+  "detector_only_examples": [
+   {
+    "label": "menu",
+    "confidence": 0.48956188559532166,
+    "bounds": {
+     "x": 0.09636363636363636,
+     "y": 0.26125,
+     "width": 0.013636363636363636,
+     "height": 0.01625
+    },
+    "nearest_role": "pane",
+    "nearest_iou": 0.001021669880124067
+   },
+   {
+    "label": "menu",
+    "confidence": 0.466999888420105,
+    "bounds": {
+     "x": 0.09636363636363636,
+     "y": 0.30125,
+     "width": 0.013636363636363636,
+     "height": 0.01625
+    },
+    "nearest_role": "pane",
+    "nearest_iou": 0.001021669880124067
+   },
+   {
+    "label": "text",
+    "confidence": 0.454863041639328,
+    "bounds": {
+     "x": 0.67,
+     "y": 0.28375,
+     "width": 0.04818181818181818,
+     "height": 0.02125
+    },
+    "nearest_role": "text_field",
+    "nearest_label": "Type",
+    "nearest_iou": 0.3951754385964914
+   },
+   {
+    "label": "menu",
+    "confidence": 0.41979289054870605,
+    "bounds": {
+     "x": 0.11545454545454545,
+     "y": 0.29875,
+     "width": 0.02090909090909091,
+     "height": 0.02125
+    },
+    "nearest_role": "tree_item",
+    "nearest_label": "Beta",
+    "nearest_iou": 0.4525462962962959
+   },
+   {
+    "label": "text",
+    "confidence": 0.4174537658691406,
+    "bounds": {
+     "x": 0.3981818181818182,
+     "y": 0.1325,
+     "width": 0.02,
+     "height": 0.01875
+    },
+    "nearest_role": "button",
+    "nearest_label": "Sort",
+    "nearest_iou": 0.08540372670807456
+   },
+   {
+    "label": "menu",
+    "confidence": 0.38197213411331177,
+    "bounds": {
+     "x": 0.33545454545454545,
+     "y": 0.25,
+     "width": 0.02090909090909091,
+     "height": 0.01875
+    },
+    "nearest_role": "text_field",
+    "nearest_label": "Name",
+    "nearest_iou": 0.08216241962371999
+   },
+   {
+    "label": "menu",
+    "confidence": 0.3455442786216736,
+    "bounds": {
+     "x": 0.11454545454545455,
+     "y": 0.25875,
+     "width": 0.02909090909090909,
+     "height": 0.02125
+    },
+    "nearest_role": "tree_item",
+    "nearest_label": "Alpha",
+    "nearest_iou": 0.48571428571428565
+   },
+   {
+    "label": "text",
+    "confidence": 0.34431490302085876,
+    "bounds": {
+     "x": 0.045454545454545456,
+     "y": 0.1325,
+     "width": 0.022727272727272728,
+     "height": 0.01875
+    },
+    "nearest_role": "button",
+    "nearest_label": "New",
+    "nearest_iou": 0.09479271991911012
+   },
+   {
+    "label": "menu",
+    "confidence": 0.3403072655200958,
+    "bounds": {
+     "x": 0.09,
+     "y": 0.22,
+     "width": 0.013636363636363636,
+     "height": 0.0175
+    },
+    "nearest_role": "pane",
+    "nearest_iou": 0.0011002598709028413
+   },
+   {
+    "label": "text",
+    "confidence": 0.3339095115661621,
+    "bounds": {
+     "x": 0.10727272727272727,
+     "y": 0.22,
+     "width": 0.12363636363636364,
+     "height": 0.02
+    },
+    "nearest_role": "tree_item",
+    "nearest_label": "marco-perception-fixture",
+    "nearest_iou": 0.4927536231884054
+   },
+   {
+    "label": "menu",
+    "confidence": 0.3179335594177246,
+    "bounds": {
+     "x": 0.09636363636363636,
+     "y": 0.34125,
+     "width": 0.014545454545454545,
+     "height": 0.01625
+    },
+    "nearest_role": "pane",
+    "nearest_iou": 0.0010897812054656707
+   },
+   {
+    "label": "text",
+    "confidence": 0.31483834981918335,
+    "bounds": {
+     "x": 0.67,
+     "y": 0.25,
+     "width": 0.04909090909090909,
+     "height": 0.01875
+    },
+    "nearest_role": "text_field",
+    "nearest_label": "Type",
+    "nearest_iou": 0.3552631578947364
+   },
+   {
+    "label": "text",
+    "confidence": 0.31265872716903687,
+    "bounds": {
+     "x": 0.8190909090909091,
+     "y": 0.35375,
+     "width": 0.02090909090909091,
+     "height": 0.02125
+    },
+    "nearest_role": "text_field",
+    "nearest_label": "Size",
+    "nearest_iou": 0.25723684210526254
+   },
+   {
+    "label": "text",
+    "confidence": 0.29523906111717224,
+    "bounds": {
+     "x": 0.6709090909090909,
+     "y": 0.21375,
+     "width": 0.04727272727272727,
+     "height": 0.02125
+    },
+    "nearest_role": "text_field",
+    "nearest_label": "Type",
+    "nearest_iou": 0.3877192982456135
+   },
+   {
+    "label": "menu",
+    "confidence": 0.2920125722885132,
+    "bounds": {
+     "x": 0.33545454545454545,
+     "y": 0.28375,
+     "width": 0.038181818181818185,
+     "height": 0.02125
+    },
+    "nearest_role": "text_field",
+    "nearest_label": "Name",
+    "nearest_iou": 0.1700404858299596
+   },
+   {
+    "label": "button",
+    "confidence": 0.2900988459587097,
+    "bounds": {
+     "x": 0.9254545454545454,
+     "y": 0.0125,
+     "width": 0.00909090909090909,
+     "height": 0.0125
+    },
+    "nearest_role": "button",
+    "nearest_label": "Maximize",
+    "nearest_iou": 0.07246376811594159
+   },
+   {
+    "label": "menu",
+    "confidence": 0.2894458472728729,
+    "bounds": {
+     "x": 0.33545454545454545,
+     "y": 0.21375,
+     "width": 0.028181818181818183,
+     "height": 0.02125
+    },
+    "nearest_role": "text_field",
+    "nearest_label": "Name",
+    "nearest_iou": 0.12550607287449395
+   },
+   {
+    "label": "menu",
+    "confidence": 0.2889865040779114,
+    "bounds": {
+     "x": 0.31727272727272726,
+     "y": 0.215,
+     "width": 0.014545454545454545,
+     "height": 0.01625
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Alpha",
+    "nearest_iou": 0.0144927536231884
+   },
+   {
+    "label": "button",
+    "confidence": 0.28553324937820435,
+    "bounds": {
+     "x": 0.07272727272727272,
+     "y": 0.1375,
+     "width": 0.007272727272727273,
+     "height": 0.0075
+    },
+    "nearest_role": "button",
+    "nearest_label": "New",
+    "nearest_iou": 0.012133468149646127
+   },
+   {
+    "label": "button",
+    "confidence": 0.2847791314125061,
+    "bounds": {
+     "x": 0.5063636363636363,
+     "y": 0.13625,
+     "width": 0.007272727272727273,
+     "height": 0.00875
+    },
+    "nearest_role": "button",
+    "nearest_label": "View",
+    "nearest_iou": 0.013993003498250977
+   },
+   {
+    "label": "button",
+    "confidence": 0.28431200981140137,
+    "bounds": {
+     "x": 0.9718181818181818,
+     "y": 0.96625,
+     "width": 0.012727272727272728,
+     "height": 0.0175
+    },
+    "nearest_role": "radio",
+    "nearest_label": "Large Icons",
+    "nearest_iou": 0.3402777777777757
+   },
+   {
+    "label": "menu",
+    "confidence": 0.28143608570098877,
+    "bounds": {
+     "x": 0.3190909090909091,
+     "y": 0.32,
+     "width": 0.01090909090909091,
+     "height": 0.0175
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "example.json",
+    "nearest_iou": 0.011705685618729124
+   },
+   {
+    "label": "text",
+    "confidence": 0.27367544174194336,
+    "bounds": {
+     "x": 0.82,
+     "y": 0.31875,
+     "width": 0.02090909090909091,
+     "height": 0.02
+    },
+    "nearest_role": "text_field",
+    "nearest_label": "Size",
+    "nearest_iou": 0.24210526315789457
+   },
+   {
+    "label": "menu",
+    "confidence": 0.26872456073760986,
+    "bounds": {
+     "x": 0.11545454545454545,
+     "y": 0.34,
+     "width": 0.038181818181818185,
+     "height": 0.01875
+    },
+    "nearest_role": "tree_item",
+    "nearest_label": "Gamma",
+    "nearest_iou": 0.4279891304347822
+   },
+   {
+    "label": "menu",
+    "confidence": 0.26733118295669556,
+    "bounds": {
+     "x": 0.33545454545454545,
+     "y": 0.32,
+     "width": 0.06272727272727273,
+     "height": 0.02
+    },
+    "nearest_role": "text_field",
+    "nearest_label": "Name",
+    "nearest_iou": 0.2629197427959042
+   },
+   {
+    "label": "menu",
+    "confidence": 0.26326537132263184,
+    "bounds": {
+     "x": 0.10818181818181818,
+     "y": 0.18,
+     "width": 0.03272727272727273,
+     "height": 0.01875
+    },
+    "nearest_role": "tree_item",
+    "nearest_label": "claude",
+    "nearest_iou": 0.4326923076923076
+   },
+   {
+    "label": "text",
+    "confidence": 0.2625318765640259,
+    "bounds": {
+     "x": 0.9390909090909091,
+     "y": 0.1325,
+     "width": 0.03363636363636364,
+     "height": 0.01875
+    },
+    "nearest_role": "button",
+    "nearest_label": "Details",
+    "nearest_iou": 0.14194373401534538
+   },
+   {
+    "label": "icon",
+    "confidence": 0.2608983814716339,
+    "bounds": {
+     "x": 0.31727272727272726,
+     "y": 0.25,
+     "width": 0.014545454545454545,
+     "height": 0.01625
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Beta",
+    "nearest_iou": 0.014492753623188378
+   },
+   {
+    "label": "button",
+    "confidence": 0.25911247730255127,
+    "bounds": {
+     "x": 0.42363636363636364,
+     "y": 0.1375,
+     "width": 0.006363636363636364,
+     "height": 0.0075
+    },
+    "nearest_role": "button",
+    "nearest_label": "Sort",
+    "nearest_iou": 0.010869565217391288
+   },
+   {
+    "label": "menu",
+    "confidence": 0.2570319175720215,
+    "bounds": {
+     "x": 0.3190909090909091,
+     "y": 0.355,
+     "width": 0.01090909090909091,
+     "height": 0.0175
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "notes.txt",
+    "nearest_iou": 0.011705685618729124
+   },
+   {
+    "label": "text",
+    "confidence": 0.24053847789764404,
+    "bounds": {
+     "x": 0.33545454545454545,
+     "y": 0.35625,
+     "width": 0.04090909090909091,
+     "height": 0.01875
+    },
+    "nearest_role": "text_field",
+    "nearest_label": "Name",
+    "nearest_iou": 0.16075256013336492
+   },
+   {
+    "label": "menu",
+    "confidence": 0.23814815282821655,
+    "bounds": {
+     "x": 0.31727272727272726,
+     "y": 0.25,
+     "width": 0.014545454545454545,
+     "height": 0.01625
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Beta",
+    "nearest_iou": 0.014492753623188378
+   },
+   {
+    "label": "checkbox",
+    "confidence": 0.23659375309944153,
+    "bounds": {
+     "x": 0.3090909090909091,
+     "y": 0.17875,
+     "width": 0.01090909090909091,
+     "height": 0.015
+    },
+    "nearest_role": "button",
+    "nearest_label": "Name",
+    "nearest_iou": 0.021176470588235307
+   },
+   {
+    "label": "button",
+    "confidence": 0.23574644327163696,
+    "bounds": {
+     "x": 0.1572727272727273,
+     "y": 0.0725,
+     "width": 0.01090909090909091,
+     "height": 0.015
+    },
+    "nearest_role": "button",
+    "nearest_label": "Refresh \"marco-perception-fixture\" (F5)",
+    "nearest_iou": 0.1406250000000002
+   },
+   {
+    "label": "menu",
+    "confidence": 0.23356327414512634,
+    "bounds": {
+     "x": 0.31727272727272726,
+     "y": 0.285,
+     "width": 0.014545454545454545,
+     "height": 0.01625
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Gamma",
+    "nearest_iou": 0.014492753623188378
+   },
+   {
+    "label": "text",
+    "confidence": 0.22700446844100952,
+    "bounds": {
+     "x": 0.4781818181818182,
+     "y": 0.1325,
+     "width": 0.023636363636363636,
+     "height": 0.0175
+    },
+    "nearest_role": "button",
+    "nearest_label": "View",
+    "nearest_iou": 0.09095452273863071
+   },
+   {
+    "label": "menu",
+    "confidence": 0.21628427505493164,
+    "bounds": {
+     "x": 0.33545454545454545,
+     "y": 0.35625,
+     "width": 0.04090909090909091,
+     "height": 0.01875
+    },
+    "nearest_role": "text_field",
+    "nearest_label": "Name",
+    "nearest_iou": 0.16075256013336492
+   },
+   {
+    "label": "button",
+    "confidence": 0.2107393443584442,
+    "bounds": {
+     "x": 0.06545454545454546,
+     "y": 0.22,
+     "width": 0.015454545454545455,
+     "height": 0.01875
+    },
+    "nearest_role": "pane",
+    "nearest_iou": 0.0013360298432391646
+   },
+   {
+    "label": "button",
+    "confidence": 0.18869975209236145,
+    "bounds": {
+     "x": 0.96,
+     "y": 0.0725,
+     "width": 0.01090909090909091,
+     "height": 0.015
+    },
+    "nearest_role": "group",
+    "nearest_iou": 0.018145161290322506
+   },
+   {
+    "label": "button",
+    "confidence": 0.18864411115646362,
+    "bounds": {
+     "x": 0.026363636363636363,
+     "y": 0.0725,
+     "width": 0.01090909090909091,
+     "height": 0.015
+    },
+    "nearest_role": "button",
+    "nearest_label": "Back",
+    "nearest_iou": 0.14062500000000003
+   },
+   {
+    "label": "menu",
+    "confidence": 0.18305593729019165,
+    "bounds": {
+     "x": 0.33,
+     "y": 0.175,
+     "width": 0.02909090909090909,
+     "height": 0.0225
+    },
+    "nearest_role": "button",
+    "nearest_label": "Name",
+    "nearest_iou": 0.08470588235294121
+   },
+   {
+    "label": "text",
+    "confidence": 0.18199706077575684,
+    "bounds": {
+     "x": 0.7345454545454545,
+     "y": 0.32,
+     "width": 0.016363636363636365,
+     "height": 0.0175
+    },
+    "nearest_role": "text_field",
+    "nearest_label": "Type",
+    "nearest_iou": 0.11052631578947376
+   },
+   {
+    "label": "button",
+    "confidence": 0.1818755567073822,
+    "bounds": {
+     "x": 0.2318181818181818,
+     "y": 0.0725,
+     "width": 0.01,
+     "height": 0.01375
+    },
+    "nearest_role": "button",
+    "nearest_label": "This PC",
+    "nearest_iou": 0.09885620915032689
+   },
+   {
+    "label": "button",
+    "confidence": 0.1813696324825287,
+    "bounds": {
+     "x": 0.06727272727272728,
+     "y": 0.1825,
+     "width": 0.01090909090909091,
+     "height": 0.01625
+    },
+    "nearest_role": "pane",
+    "nearest_iou": 0.0008173359040992532
+   },
+   {
+    "label": "button",
+    "confidence": 0.17816829681396484,
+    "bounds": {
+     "x": 0.6609090909090909,
+     "y": 0.07125,
+     "width": 0.011818181818181818,
+     "height": 0.0175
+    },
+    "nearest_role": "button",
+    "nearest_label": "marco-perception-fixture",
+    "nearest_iou": 0.038299663299663375
+   },
+   {
+    "label": "menu",
+    "confidence": 0.17787137627601624,
+    "bounds": {
+     "x": 0.0890909090909091,
+     "y": 0.18125,
+     "width": 0.014545454545454545,
+     "height": 0.01625
+    },
+    "nearest_role": "pane",
+    "nearest_iou": 0.0010897812054656726
+   },
+   {
+    "label": "text",
+    "confidence": 0.17746928334236145,
+    "bounds": {
+     "x": 0.6709090909090909,
+     "y": 0.17625,
+     "width": 0.022727272727272728,
+     "height": 0.02125
+    },
+    "nearest_role": "button",
+    "nearest_label": "Type",
+    "nearest_iou": 0.14166666666666644
+   },
+   {
+    "label": "button",
+    "confidence": 0.17724329233169556,
+    "bounds": {
+     "x": 0.4818181818181818,
+     "y": 0.07125,
+     "width": 0.011818181818181818,
+     "height": 0.01625
+    },
+    "nearest_role": "button",
+    "nearest_label": "Temp",
+    "nearest_iou": 0.09388888888888906
+   },
+   {
+    "label": "text",
+    "confidence": 0.17666369676589966,
+    "bounds": {
+     "x": 0.72,
+     "y": 0.32,
+     "width": 0.01090909090909091,
+     "height": 0.0175
+    },
+    "nearest_role": "text_field",
+    "nearest_label": "Type",
+    "nearest_iou": 0.07368421052631556
+   },
+   {
+    "label": "button",
+    "confidence": 0.17483773827552795,
+    "bounds": {
+     "x": 0.95,
+     "y": 0.9675,
+     "width": 0.013636363636363636,
+     "height": 0.01625
+    },
+    "nearest_role": "radio",
+    "nearest_label": "Details",
+    "nearest_iou": 0.33854166666666735
+   },
+   {
+    "label": "text",
+    "confidence": 0.17136651277542114,
+    "bounds": {
+     "x": 0.54,
+     "y": 0.17625,
+     "width": 0.06818181818181818,
+     "height": 0.02125
+    },
+    "nearest_role": "button",
+    "nearest_label": "Date modified",
+    "nearest_iou": 0.354166666666666
+   },
+   {
+    "label": "button",
+    "confidence": 0.17056316137313843,
+    "bounds": {
+     "x": 0.4127272727272727,
+     "y": 0.07,
+     "width": 0.013636363636363636,
+     "height": 0.01875
+    },
+    "nearest_role": "button",
+    "nearest_label": "Local",
+    "nearest_iou": 0.12842465753424634
+   },
+   {
+    "label": "button",
+    "confidence": 0.17053213715553284,
+    "bounds": {
+     "x": 0.20909090909090908,
+     "y": 0.02375,
+     "width": 0.008181818181818182,
+     "height": 0.01125
+    },
+    "nearest_role": "button",
+    "nearest_label": "Close Tab",
+    "nearest_iou": 0.10546875
+   },
+   {
+    "label": "button",
+    "confidence": 0.16942143440246582,
+    "bounds": {
+     "x": 0.07,
+     "y": 0.0725,
+     "width": 0.01090909090909091,
+     "height": 0.015
+    },
+    "nearest_role": "button",
+    "nearest_label": "Forward",
+    "nearest_iou": 0.140625
+   },
+   {
+    "label": "text",
+    "confidence": 0.16928136348724365,
+    "bounds": {
+     "x": 0.94,
+     "y": 0.1325,
+     "width": 0.03272727272727273,
+     "height": 0.01875
+    },
+    "nearest_role": "button",
+    "nearest_label": "Details",
+    "nearest_iou": 0.13810741687979525
+   },
+   {
+    "label": "button",
+    "confidence": 0.16334685683250427,
+    "bounds": {
+     "x": 0.06818181818181818,
+     "y": 0.22375,
+     "width": 0.00909090909090909,
+     "height": 0.01125
+    },
+    "nearest_role": "pane",
+    "nearest_iou": 0.000471539944672647
+   },
+   {
+    "label": "text",
+    "confidence": 0.16087839007377625,
+    "bounds": {
+     "x": 0.78,
+     "y": 0.17625,
+     "width": 0.01818181818181818,
+     "height": 0.02
+    },
+    "nearest_role": "button",
+    "nearest_label": "Size",
+    "nearest_iou": 0.15999999999999998
+   },
+   {
+    "label": "button",
+    "confidence": 0.1582649052143097,
+    "bounds": {
+     "x": 0.9672727272727273,
+     "y": 0.0125,
+     "width": 0.00909090909090909,
+     "height": 0.0125
+    },
+    "nearest_role": "button",
+    "nearest_label": "Close",
+    "nearest_iou": 0.07092198581560241
+   },
+   {
+    "label": "button",
+    "confidence": 0.15673798322677612,
+    "bounds": {
+     "x": 0.4218181818181818,
+     "y": 0.135,
+     "width": 0.01,
+     "height": 0.01375
+    },
+    "nearest_role": "button",
+    "nearest_label": "Sort",
+    "nearest_iou": 0.031314699792960726
+   },
+   {
+    "label": "button",
+    "confidence": 0.1558820605278015,
+    "bounds": {
+     "x": 0.11272727272727273,
+     "y": 0.07,
+     "width": 0.012727272727272728,
+     "height": 0.01875
+    },
+    "nearest_role": "button",
+    "nearest_label": "Up to \"Temp\" (Alt + Up Arrow)",
+    "nearest_iou": 0.205078125
+   },
+   {
+    "label": "text",
+    "confidence": 0.15298381447792053,
+    "bounds": {
+     "x": 0.71,
+     "y": 0.32,
+     "width": 0.01,
+     "height": 0.0175
+    },
+    "nearest_role": "text_field",
+    "nearest_label": "Type",
+    "nearest_iou": 0.06754385964912295
+   },
+   {
+    "label": "text",
+    "confidence": 0.15224111080169678,
+    "bounds": {
+     "x": 0.7172727272727273,
+     "y": 0.32,
+     "width": 0.031818181818181815,
+     "height": 0.01875
+    },
+    "nearest_role": "text_field",
+    "nearest_label": "Type",
+    "nearest_iou": 0.23026315789473703
+   },
+   {
+    "label": "button",
+    "confidence": 0.15146437287330627,
+    "bounds": {
+     "x": 0.07,
+     "y": 0.185,
+     "width": 0.006363636363636364,
+     "height": 0.01125
+    },
+    "nearest_role": "pane",
+    "nearest_iou": 0.00033007796127085276
+   }
+  ],
+  "detect_millis": 703
+ },
+ {
+  "id": "settings-bluetooth-wide",
+  "width": 1216,
+  "height": 941,
+  "production_elements": 95,
+  "production_actionable": 31,
+  "detector_detections": 90,
+  "matched": 31,
+  "detector_only": 59,
+  "detector_only_inside_known": 59,
+  "production_only": 67,
+  "detector_only_examples": [
+   {
+    "label": "button",
+    "confidence": 0.600818395614624,
+    "bounds": {
+     "x": 0.9457236842105263,
+     "y": 0.436769394261424,
+     "width": 0.014802631578947368,
+     "height": 0.019128586609989374
+    },
+    "nearest_role": "button",
+    "nearest_label": "Show more settings",
+    "nearest_iou": 0.31640624999999983
+   },
+   {
+    "label": "menu",
+    "confidence": 0.5877841114997864,
+    "bounds": {
+     "x": 0.05592105263157895,
+     "y": 0.3751328374070138,
+     "width": 0.02631578947368421,
+     "height": 0.020191285866099893
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Apps",
+    "nearest_iou": 0.060317460317460395
+   },
+   {
+    "label": "menu",
+    "confidence": 0.5802665948867798,
+    "bounds": {
+     "x": 0.05592105263157895,
+     "y": 0.1636556854410202,
+     "width": 0.03042763157894737,
+     "height": 0.019128586609989374
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Home",
+    "nearest_iou": 0.06607142857142854
+   },
+   {
+    "label": "button",
+    "confidence": 0.5719375014305115,
+    "bounds": {
+     "x": 0.9457236842105263,
+     "y": 0.5132837407013815,
+     "width": 0.014802631578947368,
+     "height": 0.019128586609989374
+    },
+    "nearest_role": "button",
+    "nearest_label": "Show more settings",
+    "nearest_iou": 0.31640624999999983
+   },
+   {
+    "label": "button",
+    "confidence": 0.5292705297470093,
+    "bounds": {
+     "x": 0.946546052631579,
+     "y": 0.8034006376195537,
+     "width": 0.013157894736842105,
+     "height": 0.01700318809776833
+    },
+    "nearest_role": "button",
+    "nearest_label": "Show more settings",
+    "nearest_iou": 0.2500000000000014
+   },
+   {
+    "label": "menu",
+    "confidence": 0.5107686519622803,
+    "bounds": {
+     "x": 0.05592105263157895,
+     "y": 0.206163655685441,
+     "width": 0.03536184210526316,
+     "height": 0.019128586609989374
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "System",
+    "nearest_iou": 0.07678571428571425
+   },
+   {
+    "label": "button",
+    "confidence": 0.5046147108078003,
+    "bounds": {
+     "x": 0.9457236842105263,
+     "y": 0.361317747077577,
+     "width": 0.013980263157894737,
+     "height": 0.018065887353878853
+    },
+    "nearest_role": "button",
+    "nearest_label": "Show more settings",
+    "nearest_iou": 0.2822265624999992
+   },
+   {
+    "label": "button",
+    "confidence": 0.49775245785713196,
+    "bounds": {
+     "x": 0.946546052631579,
+     "y": 0.9553666312433581,
+     "width": 0.013980263157894737,
+     "height": 0.018065887353878853
+    },
+    "nearest_role": "button",
+    "nearest_label": "Show more settings",
+    "nearest_iou": 0.2822265624999981
+   },
+   {
+    "label": "menu",
+    "confidence": 0.4878833293914795,
+    "bounds": {
+     "x": 0.05592105263157895,
+     "y": 0.5887353878852285,
+     "width": 0.09046052631578948,
+     "height": 0.019128586609989374
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Privacy \u0026 security",
+    "nearest_iou": 0.19642857142857162
+   },
+   {
+    "label": "button",
+    "confidence": 0.4862598180770874,
+    "bounds": {
+     "x": 0.9457236842105263,
+     "y": 0.7258235919234857,
+     "width": 0.013980263157894737,
+     "height": 0.018065887353878853
+    },
+    "nearest_role": "button",
+    "nearest_label": "Show more settings",
+    "nearest_iou": 0.2822265624999981
+   },
+   {
+    "label": "menu",
+    "confidence": 0.48493173718452454,
+    "bounds": {
+     "x": 0.05592105263157895,
+     "y": 0.5462274176408076,
+     "width": 0.061677631578947366,
+     "height": 0.019128586609989374
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Accessibility",
+    "nearest_iou": 0.1339285714285716
+   },
+   {
+    "label": "menu",
+    "confidence": 0.4809219539165497,
+    "bounds": {
+     "x": 0.05592105263157895,
+     "y": 0.41764080765143463,
+     "width": 0.046875,
+     "height": 0.021253985122210415
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Accounts",
+    "nearest_iou": 0.11309523809523826
+   },
+   {
+    "label": "menu",
+    "confidence": 0.47581154108047485,
+    "bounds": {
+     "x": 0.05592105263157895,
+     "y": 0.6312433581296493,
+     "width": 0.08717105263157894,
+     "height": 0.019128586609989374
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Windows Update",
+    "nearest_iou": 0.18928571428571447
+   },
+   {
+    "label": "text",
+    "confidence": 0.4657568335533142,
+    "bounds": {
+     "x": 0.9004934210526315,
+     "y": 0.14665249734325186,
+     "width": 0.014802631578947368,
+     "height": 0.021253985122210415
+    },
+    "nearest_role": "button",
+    "nearest_label": "Bluetooth",
+    "nearest_iou": 0.12499999999999976
+   },
+   {
+    "label": "menu",
+    "confidence": 0.463091641664505,
+    "bounds": {
+     "x": 0.05592105263157895,
+     "y": 0.332624867162593,
+     "width": 0.07730263157894737,
+     "height": 0.021253985122210415
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Personalization",
+    "nearest_iou": 0.18650793650793676
+   },
+   {
+    "label": "menu",
+    "confidence": 0.4580044746398926,
+    "bounds": {
+     "x": 0.05592105263157895,
+     "y": 0.24867162592986186,
+     "width": 0.10361842105263158,
+     "height": 0.019128586609989374
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Bluetooth \u0026 devices",
+    "nearest_iou": 0.2250000000000003
+   },
+   {
+    "label": "menu",
+    "confidence": 0.44826093316078186,
+    "bounds": {
+     "x": 0.05592105263157895,
+     "y": 0.5037194473963869,
+     "width": 0.039473684210526314,
+     "height": 0.019128586609989374
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Gaming",
+    "nearest_iou": 0.08571428571428578
+   },
+   {
+    "label": "menu",
+    "confidence": 0.44454970955848694,
+    "bounds": {
+     "x": 0.05592105263157895,
+     "y": 0.2911795961742827,
+     "width": 0.09868421052631579,
+     "height": 0.020191285866099893
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Network \u0026 internet",
+    "nearest_iou": 0.2261904761904765
+   },
+   {
+    "label": "menu",
+    "confidence": 0.4266934394836426,
+    "bounds": {
+     "x": 0.05592105263157895,
+     "y": 0.461211477151966,
+     "width": 0.08799342105263158,
+     "height": 0.020191285866099893
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Time \u0026 language",
+    "nearest_iou": 0.20168650793650825
+   },
+   {
+    "label": "checkbox",
+    "confidence": 0.4111979305744171,
+    "bounds": {
+     "x": 0.9268092105263158,
+     "y": 0.14558979808714134,
+     "width": 0.033717105263157895,
+     "height": 0.021253985122210415
+    },
+    "nearest_role": "button",
+    "nearest_label": "Bluetooth",
+    "nearest_iou": 0.2758620689655165
+   },
+   {
+    "label": "button",
+    "confidence": 0.39994484186172485,
+    "bounds": {
+     "x": 0.9457236842105263,
+     "y": 0.589798087141339,
+     "width": 0.014802631578947368,
+     "height": 0.018065887353878853
+    },
+    "nearest_role": "button",
+    "nearest_label": "Show more settings",
+    "nearest_iou": 0.2988281249999987
+   },
+   {
+    "label": "button",
+    "confidence": 0.3882845342159271,
+    "bounds": {
+     "x": 0.9457236842105263,
+     "y": 0.8788522848034006,
+     "width": 0.013980263157894737,
+     "height": 0.018065887353878853
+    },
+    "nearest_role": "button",
+    "nearest_label": "Show more settings",
+    "nearest_iou": 0.2822265624999981
+   },
+   {
+    "label": "text",
+    "confidence": 0.38697338104248047,
+    "bounds": {
+     "x": 0.2746710526315789,
+     "y": 0.30499468650371947,
+     "width": 0.027960526315789474,
+     "height": 0.020191285866099893
+    },
+    "nearest_role": "text",
+    "nearest_label": "Input",
+    "nearest_iou": 0.037815126050420235
+   },
+   {
+    "label": "text",
+    "confidence": 0.369144082069397,
+    "bounds": {
+     "x": 0.2746710526315789,
+     "y": 0.6695005313496281,
+     "width": 0.03125,
+     "height": 0.020191285866099893
+    },
+    "nearest_role": "text",
+    "nearest_label": "Audio",
+    "nearest_iou": 0.0447058823529411
+   },
+   {
+    "label": "text",
+    "confidence": 0.36860835552215576,
+    "bounds": {
+     "x": 0.32401315789473684,
+     "y": 0.16046758767268862,
+     "width": 0.14144736842105263,
+     "height": 0.015940488841657812
+    },
+    "nearest_role": "text",
+    "nearest_label": "Discoverable as “FIREFRAMEOS”",
+    "nearest_iou": 0.21725009022013703
+   },
+   {
+    "label": "text",
+    "confidence": 0.33445146679878235,
+    "bounds": {
+     "x": 0.047697368421052634,
+     "y": 0.019128586609989374,
+     "width": 0.03618421052631579,
+     "height": 0.015940488841657812
+    },
+    "nearest_role": "text",
+    "nearest_label": "Settings",
+    "nearest_iou": 0.042879417879417875
+   },
+   {
+    "label": "menu",
+    "confidence": 0.32707926630973816,
+    "bounds": {
+     "x": 0.2894736842105263,
+     "y": 0.8002125398512221,
+     "width": 0.017269736842105265,
+     "height": 0.021253985122210415
+    },
+    "nearest_role": "group",
+    "nearest_label": "Generic Monitor (XZ270 Z), Category Display device, Battery Unknown, State Unknown device state, ",
+    "nearest_iou": 0.007161125319693099
+   },
+   {
+    "label": "menu",
+    "confidence": 0.3098400831222534,
+    "bounds": {
+     "x": 0.2878289473684211,
+     "y": 0.7194473963868225,
+     "width": 0.02055921052631579,
+     "height": 0.030818278427205102
+    },
+    "nearest_role": "group",
+    "nearest_label": "Arctis Nova Pro Wireless, Category Audio device, Battery Unknown, State Unknown device state, ",
+    "nearest_iou": 0.012361466325660675
+   },
+   {
+    "label": "menu",
+    "confidence": 0.30926814675331116,
+    "bounds": {
+     "x": 0.2886513157894737,
+     "y": 0.1434643995749203,
+     "width": 0.018914473684210526,
+     "height": 0.025504782146652496
+    },
+    "nearest_role": "group",
+    "nearest_iou": 0.0007646234229641895
+   },
+   {
+    "label": "button",
+    "confidence": 0.2888350784778595,
+    "bounds": {
+     "x": 0.9325657894736842,
+     "y": 0.012752391073326248,
+     "width": 0.008223684210526315,
+     "height": 0.010626992561105207
+    },
+    "nearest_role": "button",
+    "nearest_label": "Maximize Settings",
+    "nearest_iou": 0.06793478260869576
+   },
+   {
+    "label": "text",
+    "confidence": 0.28880205750465393,
+    "bounds": {
+     "x": 0.2730263157894737,
+     "y": 0.061636556854410204,
+     "width": 0.6875,
+     "height": 0.039319872476089264
+    },
+    "nearest_role": "group",
+    "nearest_iou": 0.4347258485639686
+   },
+   {
+    "label": "menu",
+    "confidence": 0.2768961787223816,
+    "bounds": {
+     "x": 0.05592105263157895,
+     "y": 0.332624867162593,
+     "width": 0.19161184210526316,
+     "height": 0.021253985122210415
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Personalization",
+    "nearest_iou": 0.4623015873015881
+   },
+   {
+    "label": "menu",
+    "confidence": 0.2761911451816559,
+    "bounds": {
+     "x": 0.2894736842105263,
+     "y": 0.8756641870350691,
+     "width": 0.018092105263157895,
+     "height": 0.023379383634431455
+    },
+    "nearest_role": "group",
+    "nearest_label": "Generic Monitor (XZ270 Z), Category Display device, Battery Unknown, State Unknown device state, ",
+    "nearest_iou": 0.008252344416027296
+   },
+   {
+    "label": "checkbox",
+    "confidence": 0.2577975392341614,
+    "bounds": {
+     "x": 0.946546052631579,
+     "y": 0.14984059511158343,
+     "width": 0.009046052631578948,
+     "height": 0.012752391073326248
+    },
+    "nearest_role": "button",
+    "nearest_label": "Bluetooth",
+    "nearest_iou": 0.045833333333333476
+   },
+   {
+    "label": "menu",
+    "confidence": 0.25150924921035767,
+    "bounds": {
+     "x": 0.2878289473684211,
+     "y": 0.9489904357066951,
+     "width": 0.02138157894736842,
+     "height": 0.030818278427205102
+    },
+    "nearest_role": "group",
+    "nearest_label": "HyperX QuadCast S, Category Audio device, Battery Unknown, State Unknown device state, ",
+    "nearest_iou": 0.014784313725490184
+   },
+   {
+    "label": "button",
+    "confidence": 0.2451937198638916,
+    "bounds": {
+     "x": 0.8782894736842105,
+     "y": 0.22422954303931988,
+     "width": 0.05674342105263158,
+     "height": 0.019128586609989374
+    },
+    "nearest_role": "button",
+    "nearest_label": "Add device",
+    "nearest_iou": 0.2985576923076918
+   },
+   {
+    "label": "field",
+    "confidence": 0.24081572890281677,
+    "bounds": {
+     "x": 0.296875,
+     "y": 0.01700318809776833,
+     "width": 0.014802631578947368,
+     "height": 0.019128586609989374
+    },
+    "nearest_role": "text_field",
+    "nearest_label": "Search box, Find a setting",
+    "nearest_iou": 0.019622093023255786
+   },
+   {
+    "label": "menu",
+    "confidence": 0.23850291967391968,
+    "bounds": {
+     "x": 0.2886513157894737,
+     "y": 0.59192348565356,
+     "width": 0.019736842105263157,
+     "height": 0.01381509032943677
+    },
+    "nearest_role": "group",
+    "nearest_label": "Keychron Q1, Category Keyboard, Battery Unknown, State Unknown device state, ",
+    "nearest_iou": 0.0053196930946291425
+   },
+   {
+    "label": "menu",
+    "confidence": 0.23466742038726807,
+    "bounds": {
+     "x": 0.2886513157894737,
+     "y": 0.5132837407013815,
+     "width": 0.018914473684210526,
+     "height": 0.018065887353878853
+    },
+    "nearest_role": "group",
+    "nearest_label": "HID Keyboard Device, Category Keyboard, Battery Unknown, State Unknown device state, ",
+    "nearest_iou": 0.006666666666666647
+   },
+   {
+    "label": "field",
+    "confidence": 0.21905043721199036,
+    "bounds": {
+     "x": 0.2993421052631579,
+     "y": 0.020191285866099893,
+     "width": 0.009046052631578948,
+     "height": 0.012752391073326248
+    },
+    "nearest_role": "text",
+    "nearest_label": "Settings",
+    "nearest_iou": 0.008575883575883556
+   },
+   {
+    "label": "menu",
+    "confidence": 0.21667993068695068,
+    "bounds": {
+     "x": 0.2886513157894737,
+     "y": 0.43889479277364507,
+     "width": 0.018914473684210526,
+     "height": 0.01381509032943677
+    },
+    "nearest_role": "group",
+    "nearest_label": "G502 LIGHTSPEED, Category Keyboard, Battery Unknown, State Unknown device state, ",
+    "nearest_iou": 0.005098039215686276
+   },
+   {
+    "label": "menu",
+    "confidence": 0.21543842554092407,
+    "bounds": {
+     "x": 0.2886513157894737,
+     "y": 0.35600425079702447,
+     "width": 0.019736842105263157,
+     "height": 0.026567481402763018
+    },
+    "nearest_role": "group",
+    "nearest_label": "Controller, Category Keyboard, Battery Unknown, State Unknown device state, ",
+    "nearest_iou": 0.010230179028132984
+   },
+   {
+    "label": "button",
+    "confidence": 0.2136034369468689,
+    "bounds": {
+     "x": 0.9695723684210527,
+     "y": 0.011689691817215728,
+     "width": 0.009868421052631578,
+     "height": 0.012752391073326248
+    },
+    "nearest_role": "button",
+    "nearest_label": "Close Settings",
+    "nearest_iou": 0.09782608695652117
+   },
+   {
+    "label": "button",
+    "confidence": 0.21050751209259033,
+    "bounds": {
+     "x": 0.018092105263157895,
+     "y": 0.01700318809776833,
+     "width": 0.014802631578947368,
+     "height": 0.019128586609989374
+    },
+    "nearest_role": "button",
+    "nearest_label": "Back",
+    "nearest_iou": 0.22499999999999998
+   },
+   {
+    "label": "text",
+    "confidence": 0.20130354166030884,
+    "bounds": {
+     "x": 0.2870065789473684,
+     "y": 0.22316684378320936,
+     "width": 0.553453947368421,
+     "height": 0.021253985122210415
+    },
+    "nearest_role": "text",
+    "nearest_label": "Connect a new device to “FIREFRAMEOS”",
+    "nearest_iou": 0.3585438335809806
+   },
+   {
+    "label": "text",
+    "confidence": 0.18855074048042297,
+    "bounds": {
+     "x": 0.32319078947368424,
+     "y": 0.35069075451647186,
+     "width": 0.5863486842105263,
+     "height": 0.021253985122210415
+    },
+    "nearest_role": "group",
+    "nearest_label": "Controller, Category Keyboard, Battery Unknown, State Unknown device state, ",
+    "nearest_iou": 0.24313725490196114
+   },
+   {
+    "label": "text",
+    "confidence": 0.18688270449638367,
+    "bounds": {
+     "x": 0.32319078947368424,
+     "y": 0.5037194473963869,
+     "width": 0.6151315789473685,
+     "height": 0.021253985122210415
+    },
+    "nearest_role": "group",
+    "nearest_label": "HID Keyboard Device, Category Keyboard, Battery Unknown, State Unknown device state, ",
+    "nearest_iou": 0.25507246376811626
+   },
+   {
+    "label": "menu",
+    "confidence": 0.18289050459861755,
+    "bounds": {
+     "x": 0.05592105263157895,
+     "y": 0.206163655685441,
+     "width": 0.19407894736842105,
+     "height": 0.020191285866099893
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "System",
+    "nearest_iou": 0.44484126984126976
+   },
+   {
+    "label": "text",
+    "confidence": 0.1804884970188141,
+    "bounds": {
+     "x": 0.3305921052631579,
+     "y": 0.1392136025504782,
+     "width": 0.375,
+     "height": 0.020191285866099893
+    },
+    "nearest_role": "text",
+    "nearest_label": "Bluetooth",
+    "nearest_iou": 0.10532238100596372
+   },
+   {
+    "label": "button",
+    "confidence": 0.17949813604354858,
+    "bounds": {
+     "x": 0.02138157894736842,
+     "y": 0.020191285866099893,
+     "width": 0.009046052631578948,
+     "height": 0.011689691817215728
+    },
+    "nearest_role": "button",
+    "nearest_label": "Back",
+    "nearest_iou": 0.08402777777777776
+   },
+   {
+    "label": "text",
+    "confidence": 0.1794165074825287,
+    "bounds": {
+     "x": 0.32319078947368424,
+     "y": 0.869287991498406,
+     "width": 0.4761513157894737,
+     "height": 0.021253985122210415
+    },
+    "nearest_role": "text",
+    "nearest_label": "Generic Monitor (XZ270 Z)",
+    "nearest_iou": 0.2690846286701204
+   },
+   {
+    "label": "button",
+    "confidence": 0.17452648282051086,
+    "bounds": {
+     "x": 0.9671052631578947,
+     "y": 0.008501594048884165,
+     "width": 0.014802631578947368,
+     "height": 0.019128586609989374
+    },
+    "nearest_role": "button",
+    "nearest_label": "Close Settings",
+    "nearest_iou": 0.22010869565217353
+   },
+   {
+    "label": "text",
+    "confidence": 0.17244425415992737,
+    "bounds": {
+     "x": 0.34375,
+     "y": 0.5812964930924548,
+     "width": 0.37417763157894735,
+     "height": 0.020191285866099893
+    },
+    "nearest_role": "group",
+    "nearest_label": "Keychron Q1, Category Keyboard, Battery Unknown, State Unknown device state, ",
+    "nearest_iou": 0.14739982949701594
+   },
+   {
+    "label": "menu",
+    "confidence": 0.17107689380645752,
+    "bounds": {
+     "x": 0.05592105263157895,
+     "y": 0.5462274176408076,
+     "width": 0.18996710526315788,
+     "height": 0.020191285866099893
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Accessibility",
+    "nearest_iou": 0.43541666666666556
+   },
+   {
+    "label": "menu",
+    "confidence": 0.17019125819206238,
+    "bounds": {
+     "x": 0.2878289473684211,
+     "y": 0.5844845908607864,
+     "width": 0.02138157894736842,
+     "height": 0.028692879914984058
+    },
+    "nearest_role": "group",
+    "nearest_label": "Keychron Q1, Category Keyboard, Battery Unknown, State Unknown device state, ",
+    "nearest_iou": 0.01196930946291559
+   },
+   {
+    "label": "menu",
+    "confidence": 0.16700369119644165,
+    "bounds": {
+     "x": 0.05592105263157895,
+     "y": 0.5026567481402763,
+     "width": 0.18914473684210525,
+     "height": 0.021253985122210415
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Gaming",
+    "nearest_iou": 0.45634920634920695
+   },
+   {
+    "label": "text",
+    "confidence": 0.1619676947593689,
+    "bounds": {
+     "x": 0.3215460526315789,
+     "y": 0.01700318809776833,
+     "width": 0.06825657894736842,
+     "height": 0.019128586609989374
+    },
+    "nearest_role": "text_field",
+    "nearest_label": "Search box, Find a setting",
+    "nearest_iou": 0.09047965116279069
+   },
+   {
+    "label": "menu",
+    "confidence": 0.1589994728565216,
+    "bounds": {
+     "x": 0.05592105263157895,
+     "y": 0.1636556854410202,
+     "width": 0.19407894736842105,
+     "height": 0.020191285866099893
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Home",
+    "nearest_iou": 0.44484126984126976
+   },
+   {
+    "label": "menu",
+    "confidence": 0.1506282091140747,
+    "bounds": {
+     "x": 0.05592105263157895,
+     "y": 0.41764080765143463,
+     "width": 0.19161184210526316,
+     "height": 0.021253985122210415
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Accounts",
+    "nearest_iou": 0.4623015873015881
+   }
+  ],
+  "detect_millis": 785
+ },
+ {
+  "id": "settings-mouse-narrow",
+  "width": 700,
+  "height": 941,
+  "production_elements": 54,
+  "production_actionable": 22,
+  "detector_detections": 56,
+  "matched": 20,
+  "detector_only": 36,
+  "detector_only_inside_known": 36,
+  "production_only": 35,
+  "detector_only_examples": [
+   {
+    "label": "text",
+    "confidence": 0.4565006196498871,
+    "bounds": {
+     "x": 0.07285714285714286,
+     "y": 0.8799149840595112,
+     "width": 0.8285714285714286,
+     "height": 0.01700318809776833
+    },
+    "nearest_role": "text",
+    "nearest_label": "Double click speed, hide while typing, click lock",
+    "nearest_iou": 0.40421516200062785
+   },
+   {
+    "label": "bar",
+    "confidence": 0.44705408811569214,
+    "bounds": {
+     "x": 0.5471428571428572,
+     "y": 0.21891604675876727,
+     "width": 0.1742857142857143,
+     "height": 0.004250797024442083
+    },
+    "nearest_role": "slider",
+    "nearest_label": "Mouse pointer speed",
+    "nearest_iou": 0.05690298507462694
+   },
+   {
+    "label": "checkbox",
+    "confidence": 0.41367307305336,
+    "bounds": {
+     "x": 0.8728571428571429,
+     "y": 0.2869287991498406,
+     "width": 0.05714285714285714,
+     "height": 0.021253985122210415
+    },
+    "nearest_role": "button",
+    "nearest_label": "Enhance pointer precision",
+    "nearest_iou": 0.2777777777777783
+   },
+   {
+    "label": "checkbox",
+    "confidence": 0.37340378761291504,
+    "bounds": {
+     "x": 0.8728571428571429,
+     "y": 0.5770456960680127,
+     "width": 0.05714285714285714,
+     "height": 0.021253985122210415
+    },
+    "nearest_role": "button",
+    "nearest_label": "Scroll inactive windows when hovering over them",
+    "nearest_iou": 0.2777777777777783
+   },
+   {
+    "label": "text",
+    "confidence": 0.35966914892196655,
+    "bounds": {
+     "x": 0.8257142857142857,
+     "y": 0.2879914984059511,
+     "width": 0.02857142857142857,
+     "height": 0.021253985122210415
+    },
+    "nearest_role": "button",
+    "nearest_label": "Enhance pointer precision",
+    "nearest_iou": 0.13103448275862078
+   },
+   {
+    "label": "text",
+    "confidence": 0.3536002039909363,
+    "bounds": {
+     "x": 0.8271428571428572,
+     "y": 0.5781083953241233,
+     "width": 0.027142857142857142,
+     "height": 0.021253985122210415
+    },
+    "nearest_role": "button",
+    "nearest_label": "Scroll inactive windows when hovering over them",
+    "nearest_iou": 0.1319444444444446
+   },
+   {
+    "label": "button",
+    "confidence": 0.3449477553367615,
+    "bounds": {
+     "x": 0.8271428571428572,
+     "y": 0.5781083953241233,
+     "width": 0.027142857142857142,
+     "height": 0.021253985122210415
+    },
+    "nearest_role": "button",
+    "nearest_label": "Scroll inactive windows when hovering over them",
+    "nearest_iou": 0.1319444444444446
+   },
+   {
+    "label": "button",
+    "confidence": 0.3414396643638611,
+    "bounds": {
+     "x": 0.24142857142857144,
+     "y": 0.020191285866099893,
+     "width": 0.018571428571428572,
+     "height": 0.01381509032943677
+    },
+    "nearest_role": "button",
+    "nearest_label": "Expand search box",
+    "nearest_iou": 0.1467013888888889
+   },
+   {
+    "label": "text",
+    "confidence": 0.33493518829345703,
+    "bounds": {
+     "x": 0.7614285714285715,
+     "y": 0.13496280552603612,
+     "width": 0.032857142857142856,
+     "height": 0.018065887353878853
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Left",
+    "nearest_iou": 0.25723684210526254
+   },
+   {
+    "label": "text",
+    "confidence": 0.3313326835632324,
+    "bounds": {
+     "x": 0.15142857142857144,
+     "y": 0.019128586609989374,
+     "width": 0.06285714285714286,
+     "height": 0.015940488841657812
+    },
+    "nearest_role": "text",
+    "nearest_label": "Settings",
+    "nearest_iou": 0.103643216080402
+   },
+   {
+    "label": "text",
+    "confidence": 0.314207524061203,
+    "bounds": {
+     "x": 0.07571428571428572,
+     "y": 0.6546227417640808,
+     "width": 0.5142857142857142,
+     "height": 0.021253985122210415
+    },
+    "nearest_role": "text",
+    "nearest_label": "Scrolling direction",
+    "nearest_iou": 0.2887537993920967
+   },
+   {
+    "label": "text",
+    "confidence": 0.3024383783340454,
+    "bounds": {
+     "x": 0.07285714285714286,
+     "y": 0.8034006376195537,
+     "width": 0.8385714285714285,
+     "height": 0.01700318809776833
+    },
+    "nearest_role": "group",
+    "nearest_label": "Mouse pointer and touch",
+    "nearest_iou": 0.21469391487221717
+   },
+   {
+    "label": "button",
+    "confidence": 0.2974568009376526,
+    "bounds": {
+     "x": 0.8828571428571429,
+     "y": 0.012752391073326248,
+     "width": 0.014285714285714285,
+     "height": 0.010626992561105207
+    },
+    "nearest_role": "button",
+    "nearest_label": "Maximize Settings",
+    "nearest_iou": 0.06793478260869541
+   },
+   {
+    "label": "text",
+    "confidence": 0.2859081029891968,
+    "bounds": {
+     "x": 0.13142857142857142,
+     "y": 0.21147715196599362,
+     "width": 0.39714285714285713,
+     "height": 0.019128586609989374
+    },
+    "nearest_role": "text",
+    "nearest_label": "Mouse pointer speed",
+    "nearest_iou": 0.4626168224299063
+   },
+   {
+    "label": "text",
+    "confidence": 0.28212469816207886,
+    "bounds": {
+     "x": 0.07285714285714286,
+     "y": 0.5005313496280552,
+     "width": 0.4542857142857143,
+     "height": 0.021253985122210415
+    },
+    "nearest_role": "text",
+    "nearest_label": "Lines to scroll at a time",
+    "nearest_iou": 0.4272012578616343
+   },
+   {
+    "label": "button",
+    "confidence": 0.28202489018440247,
+    "bounds": {
+     "x": 0.91,
+     "y": 0.946865037194474,
+     "width": 0.018571428571428572,
+     "height": 0.01487778958554729
+    },
+    "nearest_role": "button",
+    "nearest_label": "Additional mouse settings",
+    "nearest_iou": 0.17773437500000025
+   },
+   {
+    "label": "text",
+    "confidence": 0.2712901830673218,
+    "bounds": {
+     "x": 0.04857142857142857,
+     "y": 0.3687566418703507,
+     "width": 0.08,
+     "height": 0.021253985122210415
+    },
+    "nearest_role": "text",
+    "nearest_label": "Scrolling",
+    "nearest_iou": 0.08791935217319462
+   },
+   {
+    "label": "text",
+    "confidence": 0.26297417283058167,
+    "bounds": {
+     "x": 0.07142857142857142,
+     "y": 0.8586609989373007,
+     "width": 0.8114285714285714,
+     "height": 0.020191285866099893
+    },
+    "nearest_role": "text",
+    "nearest_label": "Accessibility mouse settings",
+    "nearest_iou": 0.3028169014084501
+   },
+   {
+    "label": "text",
+    "confidence": 0.2612980008125305,
+    "bounds": {
+     "x": 0.07714285714285714,
+     "y": 0.7832093517534537,
+     "width": 0.8285714285714286,
+     "height": 0.019128586609989374
+    },
+    "nearest_role": "text",
+    "nearest_label": "Mouse pointer and touch",
+    "nearest_iou": 0.26025725284010937
+   },
+   {
+    "label": "bar",
+    "confidence": 0.25496214628219604,
+    "bounds": {
+     "x": 0.7385714285714285,
+     "y": 0.21891604675876727,
+     "width": 0.19142857142857142,
+     "height": 0.004250797024442083
+    },
+    "nearest_role": "slider",
+    "nearest_label": "Mouse pointer speed",
+    "nearest_iou": 0.06250000000000007
+   },
+   {
+    "label": "checkbox",
+    "confidence": 0.24526503682136536,
+    "bounds": {
+     "x": 0.9071428571428571,
+     "y": 0.5812964930924548,
+     "width": 0.017142857142857144,
+     "height": 0.012752391073326248
+    },
+    "nearest_role": "button",
+    "nearest_label": "Scroll inactive windows when hovering over them",
+    "nearest_iou": 0.05000000000000001
+   },
+   {
+    "label": "text",
+    "confidence": 0.23706170916557312,
+    "bounds": {
+     "x": 0.07428571428571429,
+     "y": 0.4250797024442083,
+     "width": 0.5471428571428572,
+     "height": 0.020191285866099893
+    },
+    "nearest_role": "text",
+    "nearest_label": "Roll the mouse wheel to scroll",
+    "nearest_iou": 0.4427807486631023
+   },
+   {
+    "label": "text",
+    "confidence": 0.23281019926071167,
+    "bounds": {
+     "x": 0.13142857142857142,
+     "y": 0.1339001062699256,
+     "width": 0.58,
+     "height": 0.020191285866099893
+    },
+    "nearest_role": "text",
+    "nearest_label": "Primary mouse button",
+    "nearest_iou": 0.3399014778325122
+   },
+   {
+    "label": "checkbox",
+    "confidence": 0.2308754026889801,
+    "bounds": {
+     "x": 0.9071428571428571,
+     "y": 0.2911795961742827,
+     "width": 0.017142857142857144,
+     "height": 0.012752391073326248
+    },
+    "nearest_role": "button",
+    "nearest_label": "Enhance pointer precision",
+    "nearest_iou": 0.05000000000000001
+   },
+   {
+    "label": "button",
+    "confidence": 0.22539430856704712,
+    "bounds": {
+     "x": 0.037142857142857144,
+     "y": 0.021253985122210415,
+     "width": 0.015714285714285715,
+     "height": 0.010626992561105207
+    },
+    "nearest_role": "button",
+    "nearest_label": "Back",
+    "nearest_iou": 0.07638888888888891
+   },
+   {
+    "label": "button",
+    "confidence": 0.2130317986011505,
+    "bounds": {
+     "x": 0.8928571428571429,
+     "y": 0.6578108395324124,
+     "width": 0.017142857142857144,
+     "height": 0.01381509032943677
+    },
+    "nearest_role": "combo_box",
+    "nearest_label": "Scrolling direction",
+    "nearest_iou": 0.01748878923766809
+   },
+   {
+    "label": "bar",
+    "confidence": 0.20155861973762512,
+    "bounds": {
+     "x": 0.7128571428571429,
+     "y": 0.20935175345377258,
+     "width": 0.03,
+     "height": 0.022316684378320937
+    },
+    "nearest_role": "slider",
+    "nearest_label": "Mouse pointer speed",
+    "nearest_iou": 0.051422574626865725
+   },
+   {
+    "label": "button",
+    "confidence": 0.19850167632102966,
+    "bounds": {
+     "x": 0.9485714285714286,
+     "y": 0.012752391073326248,
+     "width": 0.014285714285714285,
+     "height": 0.010626992561105207
+    },
+    "nearest_role": "button",
+    "nearest_label": "Close Settings",
+    "nearest_iou": 0.06793478260869541
+   },
+   {
+    "label": "button",
+    "confidence": 0.1966995894908905,
+    "bounds": {
+     "x": 0.8271428571428572,
+     "y": 0.2879914984059511,
+     "width": 0.025714285714285714,
+     "height": 0.022316684378320937
+    },
+    "nearest_role": "button",
+    "nearest_label": "Enhance pointer precision",
+    "nearest_iou": 0.13125
+   },
+   {
+    "label": "button",
+    "confidence": 0.19157478213310242,
+    "bounds": {
+     "x": 0.8914285714285715,
+     "y": 0.13708820403825717,
+     "width": 0.018571428571428572,
+     "height": 0.01381509032943677
+    },
+    "nearest_role": "combo_box",
+    "nearest_label": "Primary mouse button",
+    "nearest_iou": 0.030615942028985484
+   },
+   {
+    "label": "menu",
+    "confidence": 0.18974852561950684,
+    "bounds": {
+     "x": 0.07714285714285714,
+     "y": 0.2869287991498406,
+     "width": 0.024285714285714285,
+     "height": 0.021253985122210415
+    },
+    "nearest_role": "group",
+    "nearest_iou": 0.0006173444745853812
+   },
+   {
+    "label": "button",
+    "confidence": 0.18941250443458557,
+    "bounds": {
+     "x": 0.8914285714285715,
+     "y": 0.42720510095642933,
+     "width": 0.018571428571428572,
+     "height": 0.01487778958554729
+    },
+    "nearest_role": "combo_box",
+    "nearest_label": "Roll the mouse wheel to scroll",
+    "nearest_iou": 0.02286432160804023
+   },
+   {
+    "label": "text",
+    "confidence": 0.16696622967720032,
+    "bounds": {
+     "x": 0.04857142857142857,
+     "y": 0.7364505844845909,
+     "width": 0.1442857142857143,
+     "height": 0.019128586609989374
+    },
+    "nearest_role": "text",
+    "nearest_label": "Related settings",
+    "nearest_iou": 0.15092146770712192
+   },
+   {
+    "label": "menu",
+    "confidence": 0.16558706760406494,
+    "bounds": {
+     "x": 0.07571428571428572,
+     "y": 0.21253985122210414,
+     "width": 0.02857142857142857,
+     "height": 0.01700318809776833
+    },
+    "nearest_role": "group",
+    "nearest_iou": 0.0005810300937274166
+   },
+   {
+    "label": "bar",
+    "confidence": 0.15844300389289856,
+    "bounds": {
+     "x": 0.5485714285714286,
+     "y": 0.49946865037194477,
+     "width": 0.032857142857142856,
+     "height": 0.022316684378320937
+    },
+    "nearest_role": "slider",
+    "nearest_label": "Lines to scroll at a time",
+    "nearest_iou": 0.056319962686567
+   },
+   {
+    "label": "text",
+    "confidence": 0.15083518624305725,
+    "bounds": {
+     "x": 0.07428571428571429,
+     "y": 0.944739638682253,
+     "width": 0.8128571428571428,
+     "height": 0.020191285866099893
+    },
+    "nearest_role": "text",
+    "nearest_label": "Additional mouse settings",
+    "nearest_iou": 0.2636702756801004
+   }
+  ],
+  "detect_millis": 796
+ },
+ {
+  "id": "settings-mouse-wide",
+  "width": 1216,
+  "height": 941,
+  "production_elements": 84,
+  "production_actionable": 34,
+  "detector_detections": 88,
+  "matched": 34,
+  "detector_only": 54,
+  "detector_only_inside_known": 54,
+  "production_only": 57,
+  "detector_only_examples": [
+   {
+    "label": "menu",
+    "confidence": 0.5563324689865112,
+    "bounds": {
+     "x": 0.05592105263157895,
+     "y": 0.1636556854410202,
+     "width": 0.03042763157894737,
+     "height": 0.019128586609989374
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Home",
+    "nearest_iou": 0.06607142857142854
+   },
+   {
+    "label": "menu",
+    "confidence": 0.5474616885185242,
+    "bounds": {
+     "x": 0.05592105263157895,
+     "y": 0.3751328374070138,
+     "width": 0.02631578947368421,
+     "height": 0.021253985122210415
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Apps",
+    "nearest_iou": 0.06349206349206357
+   },
+   {
+    "label": "button",
+    "confidence": 0.5380575060844421,
+    "bounds": {
+     "x": 0.9383223684210527,
+     "y": 0.6695005313496281,
+     "width": 0.01069078947368421,
+     "height": 0.01381509032943677
+    },
+    "nearest_role": "combo_box",
+    "nearest_label": "Scrolling direction",
+    "nearest_iou": 0.01894618834080707
+   },
+   {
+    "label": "button",
+    "confidence": 0.4991147518157959,
+    "bounds": {
+     "x": 0.9375,
+     "y": 0.43783209351753455,
+     "width": 0.011513157894736841,
+     "height": 0.01487778958554729
+    },
+    "nearest_role": "combo_box",
+    "nearest_label": "Roll the mouse wheel to scroll",
+    "nearest_iou": 0.024623115577889463
+   },
+   {
+    "label": "checkbox",
+    "confidence": 0.49706628918647766,
+    "bounds": {
+     "x": 0.9268092105263158,
+     "y": 0.29861849096705634,
+     "width": 0.03289473684210526,
+     "height": 0.021253985122210415
+    },
+    "nearest_role": "button",
+    "nearest_label": "Enhance pointer precision",
+    "nearest_iou": 0.2777777777777775
+   },
+   {
+    "label": "menu",
+    "confidence": 0.48080387711524963,
+    "bounds": {
+     "x": 0.05592105263157895,
+     "y": 0.206163655685441,
+     "width": 0.03536184210526316,
+     "height": 0.019128586609989374
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "System",
+    "nearest_iou": 0.07678571428571425
+   },
+   {
+    "label": "menu",
+    "confidence": 0.46272340416908264,
+    "bounds": {
+     "x": 0.05592105263157895,
+     "y": 0.5462274176408076,
+     "width": 0.061677631578947366,
+     "height": 0.019128586609989374
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Accessibility",
+    "nearest_iou": 0.1339285714285716
+   },
+   {
+    "label": "menu",
+    "confidence": 0.46010175347328186,
+    "bounds": {
+     "x": 0.05592105263157895,
+     "y": 0.5887353878852285,
+     "width": 0.09046052631578948,
+     "height": 0.019128586609989374
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Privacy \u0026 security",
+    "nearest_iou": 0.19642857142857162
+   },
+   {
+    "label": "checkbox",
+    "confidence": 0.45941150188446045,
+    "bounds": {
+     "x": 0.9268092105263158,
+     "y": 0.5887353878852285,
+     "width": 0.03289473684210526,
+     "height": 0.021253985122210415
+    },
+    "nearest_role": "button",
+    "nearest_label": "Scroll inactive windows when hovering over them",
+    "nearest_iou": 0.2777777777777775
+   },
+   {
+    "label": "menu",
+    "confidence": 0.45566314458847046,
+    "bounds": {
+     "x": 0.05592105263157895,
+     "y": 0.24867162592986186,
+     "width": 0.10279605263157894,
+     "height": 0.019128586609989374
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Bluetooth \u0026 devices",
+    "nearest_iou": 0.22321428571428595
+   },
+   {
+    "label": "menu",
+    "confidence": 0.45418867468833923,
+    "bounds": {
+     "x": 0.05592105263157895,
+     "y": 0.332624867162593,
+     "width": 0.07730263157894737,
+     "height": 0.021253985122210415
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Personalization",
+    "nearest_iou": 0.18650793650793676
+   },
+   {
+    "label": "menu",
+    "confidence": 0.4367374777793884,
+    "bounds": {
+     "x": 0.05592105263157895,
+     "y": 0.41764080765143463,
+     "width": 0.046052631578947366,
+     "height": 0.021253985122210415
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Accounts",
+    "nearest_iou": 0.11111111111111124
+   },
+   {
+    "label": "menu",
+    "confidence": 0.42294076085090637,
+    "bounds": {
+     "x": 0.05592105263157895,
+     "y": 0.29011689691817216,
+     "width": 0.09868421052631579,
+     "height": 0.021253985122210415
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Network \u0026 internet",
+    "nearest_iou": 0.23809523809523842
+   },
+   {
+    "label": "menu",
+    "confidence": 0.40814197063446045,
+    "bounds": {
+     "x": 0.05592105263157895,
+     "y": 0.461211477151966,
+     "width": 0.08799342105263158,
+     "height": 0.020191285866099893
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Time \u0026 language",
+    "nearest_iou": 0.20168650793650825
+   },
+   {
+    "label": "menu",
+    "confidence": 0.40702539682388306,
+    "bounds": {
+     "x": 0.05592105263157895,
+     "y": 0.5037194473963869,
+     "width": 0.039473684210526314,
+     "height": 0.019128586609989374
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Gaming",
+    "nearest_iou": 0.08571428571428578
+   },
+   {
+    "label": "text",
+    "confidence": 0.4068410396575928,
+    "bounds": {
+     "x": 0.2746710526315789,
+     "y": 0.38150903294367694,
+     "width": 0.046052631578947366,
+     "height": 0.020191285866099893
+    },
+    "nearest_role": "text",
+    "nearest_label": "Scrolling",
+    "nearest_iou": 0.06219918548685677
+   },
+   {
+    "label": "menu",
+    "confidence": 0.4002149701118469,
+    "bounds": {
+     "x": 0.05592105263157895,
+     "y": 0.6312433581296493,
+     "width": 0.08717105263157894,
+     "height": 0.019128586609989374
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Windows Update",
+    "nearest_iou": 0.18928571428571447
+   },
+   {
+    "label": "text",
+    "confidence": 0.36110949516296387,
+    "bounds": {
+     "x": 0.9004934210526315,
+     "y": 0.589798087141339,
+     "width": 0.014802631578947368,
+     "height": 0.021253985122210415
+    },
+    "nearest_role": "button",
+    "nearest_label": "Scroll inactive windows when hovering over them",
+    "nearest_iou": 0.12499999999999996
+   },
+   {
+    "label": "text",
+    "confidence": 0.3380831182003021,
+    "bounds": {
+     "x": 0.8626644736842105,
+     "y": 0.14665249734325186,
+     "width": 0.018914473684210526,
+     "height": 0.019128586609989374
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Left",
+    "nearest_iou": 0.2723684210526312
+   },
+   {
+    "label": "text",
+    "confidence": 0.32661595940589905,
+    "bounds": {
+     "x": 0.9004934210526315,
+     "y": 0.29968119022316686,
+     "width": 0.014802631578947368,
+     "height": 0.021253985122210415
+    },
+    "nearest_role": "button",
+    "nearest_label": "Enhance pointer precision",
+    "nearest_iou": 0.12499999999999996
+   },
+   {
+    "label": "text",
+    "confidence": 0.32521283626556396,
+    "bounds": {
+     "x": 0.047697368421052634,
+     "y": 0.019128586609989374,
+     "width": 0.03618421052631579,
+     "height": 0.015940488841657812
+    },
+    "nearest_role": "text",
+    "nearest_label": "Settings",
+    "nearest_iou": 0.042879417879417875
+   },
+   {
+    "label": "button",
+    "confidence": 0.30845707654953003,
+    "bounds": {
+     "x": 0.9383223684210527,
+     "y": 0.1487778958554729,
+     "width": 0.009868421052631578,
+     "height": 0.01381509032943677
+    },
+    "nearest_role": "combo_box",
+    "nearest_label": "Primary mouse button",
+    "nearest_iou": 0.028260869565217214
+   },
+   {
+    "label": "button",
+    "confidence": 0.30402272939682007,
+    "bounds": {
+     "x": 0.9457236842105263,
+     "y": 0.8799149840595112,
+     "width": 0.013980263157894737,
+     "height": 0.019128586609989374
+    },
+    "nearest_role": "button",
+    "nearest_label": "Accessibility mouse settings",
+    "nearest_iou": 0.2988281249999992
+   },
+   {
+    "label": "text",
+    "confidence": 0.29430606961250305,
+    "bounds": {
+     "x": 0.2886513157894737,
+     "y": 0.8916046758767269,
+     "width": 0.6570723684210527,
+     "height": 0.01700318809776833
+    },
+    "nearest_role": "text",
+    "nearest_label": "Double click speed, hide while typing, click lock",
+    "nearest_iou": 0.2956061651713843
+   },
+   {
+    "label": "text",
+    "confidence": 0.28367888927459717,
+    "bounds": {
+     "x": 0.2894736842105263,
+     "y": 0.436769394261424,
+     "width": 0.49917763157894735,
+     "height": 0.019128586609989374
+    },
+    "nearest_role": "text",
+    "nearest_label": "Roll the mouse wheel to scroll",
+    "nearest_iou": 0.2976008626111964
+   },
+   {
+    "label": "button",
+    "confidence": 0.28280550241470337,
+    "bounds": {
+     "x": 0.9325657894736842,
+     "y": 0.012752391073326248,
+     "width": 0.008223684210526315,
+     "height": 0.010626992561105207
+    },
+    "nearest_role": "button",
+    "nearest_label": "Maximize Settings",
+    "nearest_iou": 0.06793478260869576
+   },
+   {
+    "label": "text",
+    "confidence": 0.2783548831939697,
+    "bounds": {
+     "x": 0.2886513157894737,
+     "y": 0.512221041445271,
+     "width": 0.43585526315789475,
+     "height": 0.021253985122210415
+    },
+    "nearest_role": "text",
+    "nearest_label": "Lines to scroll at a time",
+    "nearest_iou": 0.2563207547169806
+   },
+   {
+    "label": "button",
+    "confidence": 0.2740780711174011,
+    "bounds": {
+     "x": 0.9457236842105263,
+     "y": 0.8034006376195537,
+     "width": 0.013980263157894737,
+     "height": 0.018065887353878853
+    },
+    "nearest_role": "button",
+    "nearest_label": "Mouse pointer and touch",
+    "nearest_iou": 0.2822265624999981
+   },
+   {
+    "label": "text",
+    "confidence": 0.26613056659698486,
+    "bounds": {
+     "x": 0.05592105263157895,
+     "y": 0.3751328374070138,
+     "width": 0.02631578947368421,
+     "height": 0.021253985122210415
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Apps",
+    "nearest_iou": 0.06349206349206357
+   },
+   {
+    "label": "text",
+    "confidence": 0.2632635533809662,
+    "bounds": {
+     "x": 0.2886513157894737,
+     "y": 0.667375132837407,
+     "width": 0.4720394736842105,
+     "height": 0.020191285866099893
+    },
+    "nearest_role": "text",
+    "nearest_label": "Scrolling direction",
+    "nearest_iou": 0.18297331639135986
+   },
+   {
+    "label": "field",
+    "confidence": 0.24836644530296326,
+    "bounds": {
+     "x": 0.296875,
+     "y": 0.01700318809776833,
+     "width": 0.014802631578947368,
+     "height": 0.019128586609989374
+    },
+    "nearest_role": "text_field",
+    "nearest_label": "Search box, Find a setting",
+    "nearest_iou": 0.019622093023255786
+   },
+   {
+    "label": "button",
+    "confidence": 0.2466799020767212,
+    "bounds": {
+     "x": 0.9004934210526315,
+     "y": 0.29968119022316686,
+     "width": 0.014802631578947368,
+     "height": 0.021253985122210415
+    },
+    "nearest_role": "button",
+    "nearest_label": "Enhance pointer precision",
+    "nearest_iou": 0.12499999999999996
+   },
+   {
+    "label": "text",
+    "confidence": 0.24553772807121277,
+    "bounds": {
+     "x": 0.2746710526315789,
+     "y": 0.7481402763018066,
+     "width": 0.08305921052631579,
+     "height": 0.019128586609989374
+    },
+    "nearest_role": "text",
+    "nearest_label": "Related settings",
+    "nearest_iou": 0.11256965944272457
+   },
+   {
+    "label": "text",
+    "confidence": 0.2419445812702179,
+    "bounds": {
+     "x": 0.2894736842105263,
+     "y": 0.793836344314559,
+     "width": 0.65625,
+     "height": 0.020191285866099893
+    },
+    "nearest_role": "group",
+    "nearest_label": "Mouse pointer and touch",
+    "nearest_iou": 0.2585166240409202
+   },
+   {
+    "label": "button",
+    "confidence": 0.24143385887145996,
+    "bounds": {
+     "x": 0.2886513157894737,
+     "y": 0.2964930924548353,
+     "width": 0.019736842105263157,
+     "height": 0.024442082890541977
+    },
+    "nearest_role": "group",
+    "nearest_iou": 0.0007646234229641913
+   },
+   {
+    "label": "bar",
+    "confidence": 0.23862260580062866,
+    "bounds": {
+     "x": 0.7393092105263158,
+     "y": 0.230605738575983,
+     "width": 0.09539473684210527,
+     "height": 0.004250797024442083
+    },
+    "nearest_role": "slider",
+    "nearest_label": "Mouse pointer speed",
+    "nearest_iou": 0.05410447761194039
+   },
+   {
+    "label": "text",
+    "confidence": 0.23550668358802795,
+    "bounds": {
+     "x": 0.3684210526315789,
+     "y": 0.871413390010627,
+     "width": 0.375,
+     "height": 0.019128586609989374
+    },
+    "nearest_role": "group",
+    "nearest_label": "Accessibility mouse settings",
+    "nearest_iou": 0.13994884910485952
+   },
+   {
+    "label": "button",
+    "confidence": 0.22999534010887146,
+    "bounds": {
+     "x": 0.9473684210526315,
+     "y": 0.9585547290116897,
+     "width": 0.011513157894736841,
+     "height": 0.01487778958554729
+    },
+    "nearest_role": "button",
+    "nearest_label": "Additional mouse settings",
+    "nearest_iou": 0.19140625000000014
+   },
+   {
+    "label": "menu",
+    "confidence": 0.22852855920791626,
+    "bounds": {
+     "x": 0.2878289473684211,
+     "y": 0.2199787460148778,
+     "width": 0.019736842105263157,
+     "height": 0.024442082890541977
+    },
+    "nearest_role": "group",
+    "nearest_iou": 0.0007646234229641904
+   },
+   {
+    "label": "button",
+    "confidence": 0.22592905163764954,
+    "bounds": {
+     "x": 0.018914473684210526,
+     "y": 0.018065887353878853,
+     "width": 0.013157894736842105,
+     "height": 0.01700318809776833
+    },
+    "nearest_role": "button",
+    "nearest_label": "Back",
+    "nearest_iou": 0.1777777777777777
+   },
+   {
+    "label": "field",
+    "confidence": 0.22284576296806335,
+    "bounds": {
+     "x": 0.2993421052631579,
+     "y": 0.020191285866099893,
+     "width": 0.009046052631578948,
+     "height": 0.012752391073326248
+    },
+    "nearest_role": "text",
+    "nearest_label": "Settings",
+    "nearest_iou": 0.008575883575883556
+   },
+   {
+    "label": "text",
+    "confidence": 0.21938404440879822,
+    "bounds": {
+     "x": 0.2722039473684211,
+     "y": 0.06057385759829968,
+     "width": 0.6891447368421053,
+     "height": 0.04144527098831031
+    },
+    "nearest_role": "group",
+    "nearest_iou": 0.43280735217617483
+   },
+   {
+    "label": "bar",
+    "confidence": 0.21917542815208435,
+    "bounds": {
+     "x": 0.8355263157894737,
+     "y": 0.22104144527098832,
+     "width": 0.015625,
+     "height": 0.023379383634431455
+    },
+    "nearest_role": "slider",
+    "nearest_label": "Mouse pointer speed",
+    "nearest_iou": 0.04874067164179106
+   },
+   {
+    "label": "checkbox",
+    "confidence": 0.21872541308403015,
+    "bounds": {
+     "x": 0.946546052631579,
+     "y": 0.5929861849096706,
+     "width": 0.009046052631578948,
+     "height": 0.011689691817215728
+    },
+    "nearest_role": "button",
+    "nearest_label": "Scroll inactive windows when hovering over them",
+    "nearest_iou": 0.042013888888888906
+   },
+   {
+    "label": "menu",
+    "confidence": 0.21630018949508667,
+    "bounds": {
+     "x": 0.05592105263157895,
+     "y": 0.332624867162593,
+     "width": 0.19161184210526316,
+     "height": 0.021253985122210415
+    },
+    "nearest_role": "list_item",
+    "nearest_label": "Personalization",
+    "nearest_iou": 0.4623015873015881
+   },
+   {
+    "label": "button",
+    "confidence": 0.21513840556144714,
+    "bounds": {
+     "x": 0.9695723684210527,
+     "y": 0.011689691817215728,
+     "width": 0.009868421052631578,
+     "height": 0.012752391073326248
+    },
+    "nearest_role": "button",
+    "nearest_label": "Close Settings",
+    "nearest_iou": 0.09782608695652117
+   },
+   {
+    "label": "checkbox",
+    "confidence": 0.2123991847038269,
+    "bounds": {
+     "x": 0.946546052631579,
+     "y": 0.3028692879914984,
+     "width": 0.009046052631578948,
+     "height": 0.012752391073326248
+    },
+    "nearest_role": "button",
+    "nearest_label": "Enhance pointer precision",
+    "nearest_iou": 0.04583333333333357
+   },
+   {
+    "label": "menu",
+    "confidence": 0.2008868157863617,
+    "bounds": {
+     "x": 0.2878289473684211,
+     "y": 0.1434643995749203,
+     "width": 0.02055921052631579,
+     "height": 0.026567481402763018
+    },
+    "nearest_role": "group",
+    "nearest_iou": 0.0008657421002764824
+   },
+   {
+    "label": "button",
+    "confidence": 0.18912675976753235,
+    "bounds": {
+     "x": 0.9004934210526315,
+     "y": 0.589798087141339,
+     "width": 0.014802631578947368,
+     "height": 0.021253985122210415
+    },
+    "nearest_role": "button",
+    "nearest_label": "Scroll inactive windows when hovering over them",
+    "nearest_iou": 0.12499999999999996
+   },
+   {
+    "label": "text",
+    "confidence": 0.18750637769699097,
+    "bounds": {
+     "x": 0.3207236842105263,
+     "y": 0.22316684378320936,
+     "width": 0.3963815789473684,
+     "height": 0.019128586609989374
+    },
+    "nearest_role": "text",
+    "nearest_label": "Mouse pointer speed",
+    "nearest_iou": 0.26975476839237056
+   },
+   {
+    "label": "text",
+    "confidence": 0.1870933473110199,
+    "bounds": {
+     "x": 0.3182565789473684,
+     "y": 0.8150903294367694,
+     "width": 0.375,
+     "height": 0.01700318809776833
+    },
+    "nearest_role": "text",
+    "nearest_label": "Pointer size and color",
+    "nearest_iou": 0.15277253866465446
+   },
+   {
+    "label": "button",
+    "confidence": 0.17470282316207886,
+    "bounds": {
+     "x": 0.9671052631578947,
+     "y": 0.008501594048884165,
+     "width": 0.014802631578947368,
+     "height": 0.019128586609989374
+    },
+    "nearest_role": "button",
+    "nearest_label": "Close Settings",
+    "nearest_iou": 0.22010869565217353
+   },
+   {
+    "label": "text",
+    "confidence": 0.16819754242897034,
+    "bounds": {
+     "x": 0.3223684210526316,
+     "y": 0.14665249734325186,
+     "width": 0.5131578947368421,
+     "height": 0.019128586609989374
+    },
+    "nearest_role": "text",
+    "nearest_label": "Primary mouse button",
+    "nearest_iou": 0.2184696569920843
+   },
+   {
+    "label": "text",
+    "confidence": 0.1545693278312683,
+    "bounds": {
+     "x": 0.3215460526315789,
+     "y": 0.01700318809776833,
+     "width": 0.06825657894736842,
+     "height": 0.019128586609989374
+    },
+    "nearest_role": "text_field",
+    "nearest_label": "Search box, Find a setting",
+    "nearest_iou": 0.09047965116279069
+   }
+  ],
+  "detect_millis": 740
+ }
+]
