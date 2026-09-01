@@ -216,6 +216,73 @@ func (r *Runtime) strengthen(w observe.WatchedEdge) {
 	}})
 }
 
+// callPlaces records what Places Marco ALREADY recognises have turned out to be called.
+//
+// # The wire this branch was missing
+//
+// Every mechanism below this existed and was correct. `AdmittedPlaceName` read the word off the
+// screen, `ScreenState.PlaceNames` tallied it, `settledPlaceName` held it back until it recurred,
+// `PlaceNamesToRecord` resolved it to a durable subject and `ObserveSemanticName` wrote it — and
+// during ordinary ambient watching NOTHING CALLED ANY OF IT.
+//
+// The only naming write ambient could reach was inside `promotion.establish`, which fires once,
+// at the instant a Place is created, from whatever had settled by then. Two consequences, both
+// measured on the first dogfood:
+//
+//	A Place established before its name settled was never revisited, so it stayed unnamed
+//	forever, and `ambientLook` returned early for it — an established place carries no shape,
+//	so there was not even a word to write.
+//
+//	`establish` is only reached by EDGE PROMOTION, which needs an attributed human action. A
+//	screen somebody merely walked to could never be named at all.
+//
+// Forty-five durable Settings screens, none of them named, while `director name-probe` said
+// DESTINATION "Mouse" on the same desktop. The rule was right; the product path never asked it.
+//
+// So naming is its own sweep now, exactly as it already was for a licensed session — see
+// `Runner.establishPlace`, whose comment describes this same defect being found and fixed one
+// layer up. It needs no walk, no edge, no goal, no explicit Learn and no second Place: it is one
+// word against an identity the store already holds.
+//
+// Deleting this must fail TestWatchingAndLearningNamesAPlaceItAlreadyKnows.
+func (r *Runtime) callPlaces(application string, names map[string]string) {
+	if len(names) == 0 {
+		return
+	}
+	memory, ok := r.durableMemory()
+	if !ok {
+		return
+	}
+	places, _ := memory.(observe.PlaceStore)
+	p := promotion{
+		licence: ambientPromotionLicence(), application: application, places: places,
+	}
+	for subject, name := range names {
+		// A failure loses a word, not a Place, and the next reading offers it again.
+		_ = p.call(subject, name)
+	}
+}
+
+// callPlaces is the observer's half: the one gate that decides whether watching may remember.
+//
+// # ONE gate, and this is it
+//
+// `ambientLook` computes the names unconditionally, because reading is not a permission — and
+// because a second gate up there would mean deleting either one alone left the other holding the
+// property, which is a rule stated twice with only one of them enforced. What a person agreed to
+// is asked HERE, at the write, in the same place every other ambient durable write asks it.
+//
+// So Watch alone perceives the name, reports it, and writes nothing. Watch & Learn writes it.
+// That is the whole product distinction, and it is one boolean.
+//
+// Deleting the policy check must fail TestWatchingAloneNamesNothing.
+func (a *ambientObserver) callPlaces(application string, look ambientLook) {
+	if !a.policy().Enabled {
+		return
+	}
+	a.rt.callPlaces(application, look.Names)
+}
+
 // endOf describes one end of an observed step for the ledger.
 func endOf(key string, shape *ambient.Shape) observe.WatchedEnd {
 	if ambient.Recognised(key) {

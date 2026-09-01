@@ -111,6 +111,30 @@ func runEdit(name, view string) {
 	}
 	url := fmt.Sprintf("http://%s/", ln.Addr().String())
 
+	mux := ed.serveMux()
+
+	where := "all plays"
+	if name != "" {
+		where = fmt.Sprintf("%q", prettyRoute(ed.rt.Slug))
+	}
+	fmt.Printf("marco control center (%s) → %s  (Ctrl+C when done)\n", where, url)
+	openBrowser(url)
+	if err := http.Serve(ln, mux); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+// serveMux is EVERY DOOR THE CONTROL CENTRE HAS, and it is a function so a test can open them.
+//
+// It used to be built inline in runEdit, which also binds a port, prints, opens a browser and then
+// blocks in http.Serve — so nothing could ask what this surface actually serves without starting
+// it. That is the exact shape of the failure this project keeps finding: a handler written, a page
+// written to call it, and no test able to enter where production enters, so the two agree only by
+// somebody having remembered.
+//
+// Deleting a registration here must fail TestEveryDoorThePageKnocksOnIsAnswered.
+func (ed *editor) serveMux() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -146,17 +170,10 @@ func runEdit(name, view string) {
 	mux.HandleFunc("/api/cast", handleCast)
 	// THE Learn panel. Its endpoints hold no state and decide nothing — see learnui.go.
 	learnAPI(mux)
-
-	where := "all plays"
-	if name != "" {
-		where = fmt.Sprintf("%q", prettyRoute(ed.rt.Slug))
-	}
-	fmt.Printf("marco control center (%s) → %s  (Ctrl+C when done)\n", where, url)
-	openBrowser(url)
-	if err := http.Serve(ln, mux); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
+	// THE DOGFOOD LOOP: whether Marco may remember, what it just committed, and a way to
+	// use it without leaving the page. See watchui.go.
+	watchAPI(mux, ed)
+	return mux
 }
 
 // editor holds one control-center session: the registry, the app context, and the play
@@ -1520,6 +1537,11 @@ const editPage = `<!doctype html><html><head><meta charset="utf-8"><title>MARCO<
  .wait input{width:90px;padding:6px 8px;background:#0d0e10;border:1px solid var(--line);color:var(--amber);border-radius:6px;font:inherit;text-align:right}
  .keep{color:var(--run);font-size:12px;margin-left:6px}
  .bar{margin-top:18px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+ /* HIDDEN MEANS HIDDEN. the hidden attribute is only display:none in the browser's own stylesheet, so
+    any author rule that sets display — .bar{display:flex} above — silently beats it. Every
+    show(id,false) on a bar was a no-op: the Go there box and the sentence explaining why it was
+    absent appeared together, which is the page contradicting itself. */
+ [hidden]{display:none!important}
  button.go{padding:9px 18px;background:var(--accent);color:#04110f;border:0;border-radius:6px;cursor:pointer;font:inherit;font-weight:700;letter-spacing:1px}
  button.go:hover{box-shadow:0 0 14px rgba(0,229,204,.5)}
  details{margin-top:22px;color:var(--dim)}
@@ -1614,27 +1636,89 @@ const editPage = `<!doctype html><html><head><meta charset="utf-8"><title>MARCO<
  </section>
  <section id="view-here" hidden>
   <h2>Here</h2>
-  <p class="hint">What Marco can see right now, and whether it recognises it. Press <b>Watch</b>
-    and move around; when Marco sees a screen it does not know, give it a name and it will
-    remember it. Nothing on this page changes anything you have saved.</p>
+  <p class="hint">Two things can be on here. <b>Watching</b> means Marco can see where you are.
+    <b>Watching &amp; learning</b> adds permission to keep what it works out — learning always
+    includes watching, so turning it on starts watching too, and stopping watching ends it.
+    <b>Current</b> below is what Marco sees right now; <b>Just learned</b> is what it has
+    actually written down.</p>
   <div id="hwake"></div>
+  <div id="wbar" style="margin:0 0 12px;padding:12px;border:1px solid var(--line);border-radius:6px;background:var(--panel)">
+   <div class="bar" style="margin:0">
+    <div id="wstate" style="margin:0;flex:1;font-size:15px;font-weight:600">Not watching</div>
+    <button id="wwatch" onclick="watchVerb('watch')"
+      style="padding:6px 12px;background:transparent;color:var(--run);border:1px solid var(--line);border-radius:6px;cursor:pointer;font:inherit">Watch</button>
+    <button id="wlearn" onclick="watchVerb('learn')"
+      style="padding:6px 12px;background:transparent;color:var(--run);border:1px solid var(--line);border-radius:6px;cursor:pointer;font:inherit">Watch &amp; Learn</button>
+    <button id="wunlearn" onclick="watchVerb('unlearn')" hidden
+      style="padding:6px 12px;background:transparent;color:var(--dim);border:1px solid var(--line);border-radius:6px;cursor:pointer;font:inherit">Stop learning</button>
+    <button id="wstop" onclick="watchVerb('stop')" hidden
+      style="padding:6px 12px;background:transparent;color:var(--dim);border:1px solid var(--line);border-radius:6px;cursor:pointer;font:inherit">Stop watching</button>
+   </div>
+   <div id="wmeans" style="font-size:13px;margin-top:6px"></div>
+   <div id="wsays" style="color:var(--dim);font-size:12px;margin-top:6px"></div>
+  </div>
+  <div id="gbox" hidden style="margin:0 0 12px;padding:12px;border:1px solid var(--line);border-radius:6px;background:var(--panel)">
+   <div class="bar" style="margin:0 0 8px">
+    <div class="grouphead" style="margin:0;flex:1">THE MAP</div>
+    <div id="gcount" style="color:var(--dim);font-size:12px"></div>
+   </div>
+   <div id="ggraph" style="font-size:13px;line-height:1.9"></div>
+   <div id="greach" style="font-size:13px;line-height:1.7;margin-top:12px;padding-top:10px;border-top:1px solid var(--line)"></div>
+  </div>
   <div id="lherebar" style="margin:0 0 12px;padding:12px;border:1px solid var(--line);border-radius:6px;background:var(--panel)">
     <div class="bar" style="margin:0 0 8px">
-      <div class="grouphead" style="margin:0;flex:1">HERE</div>
-      <button id="lwatch" onclick="learnVerb('watch')"
-        style="padding:6px 12px;background:transparent;color:var(--run);border:1px solid var(--line);border-radius:6px;cursor:pointer;font:inherit">Watch</button>
-      <button id="lunwatch" onclick="learnVerb('unwatch')" hidden
-        style="padding:6px 12px;background:transparent;color:var(--dim);border:1px solid var(--line);border-radius:6px;cursor:pointer;font:inherit">Stop watching</button>
+      <div class="grouphead" style="margin:0;flex:1">NOW</div>
+      <div style="color:var(--dim);font-size:12px">what Marco sees</div>
     </div>
     <div id="lherename" style="color:var(--accent);font-size:15px"></div>
     <div id="lherestatus" style="font-size:12px;margin-top:2px"></div>
+    <div id="lheresays" style="color:var(--dim);font-size:12px;margin-top:4px"></div>
     <div id="lherewhy" style="color:var(--dim);font-size:12px;margin-top:2px"></div>
     <div class="bar" id="lherebtns" style="margin:10px 0 0"></div>
-    <div id="ltrailbox" hidden style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">
-      <div class="grouphead" style="margin-top:0">RECENT PLACES</div>
-      <div id="ltrail" style="font-size:13px;line-height:1.7"></div>
-    </div>
   </div>
+  <div id="xbox" hidden style="margin:0 0 12px;padding:12px;border:1px solid var(--accent);border-radius:6px;background:var(--panel)">
+   <div class="bar" style="margin:0 0 6px">
+    <div class="grouphead" id="xhead" style="margin:0;flex:1;color:var(--accent)">READY TO TEST</div>
+    <div style="color:var(--dim);font-size:12px">one thing at a time</div>
+   </div>
+   <div id="xedge" style="font-size:16px;color:var(--accent)"></div>
+   <div id="xwhy" style="color:var(--dim);font-size:12px;margin-top:6px;line-height:1.6"></div>
+   <div id="xsteps" style="font-size:13px;line-height:1.8;margin-top:10px"></div>
+   <div class="bar" id="xbtns" style="margin:10px 0 0">
+    <button class="go" id="xgo" onclick="testEdge()">Test what I learned</button>
+    <button id="xstop" hidden onclick="stopAll()"
+      style="padding:9px 14px;background:transparent;color:var(--dim);border:1px solid var(--line);border-radius:6px;cursor:pointer;font:inherit">Stop</button>
+   </div>
+  </div>
+  <div id="lbox" hidden style="margin:0 0 12px;padding:12px;border:1px solid var(--line);border-radius:6px;background:var(--panel)">
+   <div class="bar" style="margin:0 0 4px"><div class="grouphead" style="margin:0;flex:1">LAST RESULT</div><div style="color:var(--dim);font-size:12px;font-weight:400">what Marco wrote down</div></div>
+   <div id="lnew" style="color:var(--accent);font-size:16px;margin:2px 0 0"></div>
+   <div class="bar" id="ltrybar" style="margin:10px 0 0">
+    <input class="field" id="ltryname" placeholder="ask Marco to do it" style="flex:1;min-width:240px">
+    <button class="go" onclick="tryIt()">Go there</button>
+   </div>
+   <div id="lgap" hidden style="color:var(--dim);font-size:12px;margin-top:10px;line-height:1.6">Marco knows this place now. Knowing where somewhere is and being able to be <b>asked</b> for it are different things — open <b>Everything Marco has noticed</b> below and give what you just did a name, and it becomes something you can ask for.</div>
+   <div id="ltryout" style="font-size:13px;margin-top:8px"></div>
+   <div id="lmissed" style="color:var(--dim);font-size:12px;margin-top:6px"></div>
+  </div>
+  <details id="mbox" hidden style="margin:0 0 12px;padding:10px 12px;border:1px solid var(--line);border-radius:6px;background:var(--panel)">
+   <summary style="cursor:pointer;color:var(--dim);font-size:12px;letter-spacing:.08em">EVERYTHING MARCO HAS NOTICED</summary>
+   <div id="mlist" style="font-size:13px;line-height:1.6;margin-top:10px"></div>
+   <div id="mgoal" hidden style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">
+    <div style="color:var(--dim);font-size:12px;margin-bottom:6px">Marco learns places and the
+      ways between them by watching. What to <b>ask</b> for is still yours to name — give what you
+      just did a name and it becomes something you can ask Marco to do.</div>
+    <div class="bar" style="margin:0">
+     <input class="field" id="mname" placeholder="open mouse settings" style="flex:1;min-width:240px">
+     <button class="go" onclick="nameRecent()">Name what I just did</button>
+    </div>
+   </div>
+   <div id="lolder" style="font-size:13px;line-height:1.7;margin-top:12px;padding-top:10px;border-top:1px solid var(--line)"></div>
+   <div id="ltrailbox" hidden style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">
+     <div class="grouphead" style="margin-top:0">RECENT PLACES</div>
+     <div id="ltrail" style="font-size:13px;line-height:1.7"></div>
+   </div>
+  </details>
   <div id="lplaces"></div>
  </section>
  <section id="view-learn" hidden>
@@ -1868,6 +1952,7 @@ function nav(v){
   // acquiring. They are two questions about one running session, so one poll answers both — and
   // polling is a READ, which is why it may follow a tab around without starting anything.
   learnPolling(v==='learn' || v==='here');
+  herePolling(v==='here');
 }
 // ---- Learn ----
 //
@@ -1894,14 +1979,30 @@ const STATUSTONE={known:'var(--run)', new:'var(--amber)', settling:'var(--dim)',
 function renderHere(v){
   const h=v.here;
   const watching=!!(h && h.status && h.status!=='nowhere');
-  show('lwatch', !watching);
-  show('lunwatch', watching);
+  // THERE IS ONE WATCH CONTROL ON THIS PAGE, and it is the strip above. This panel used to
+  // carry a second Watch button of its own — Light Mode — which meant somebody reading the
+  // page saw two switches both called Watch, meaning different things, either of which made
+  // recognition work. That is the confusion 38A.1 was reported for.
+  //
+  // The strip's Watch keeps an observation session running, which is what this panel needs,
+  // so nothing here is lost by removing the duplicate. See TestTheHereViewHasOneWatchControl.
 
   const nameEl=document.getElementById('lherename');
   const statusEl=document.getElementById('lherestatus');
+  const saysEl=document.getElementById('lheresays');
   const whyEl=document.getElementById('lherewhy');
   const btns=document.getElementById('lherebtns');
   if(!nameEl) return;
+
+  // WHAT THE SCREEN SAYS IT IS, which is perception and not memory.
+  //
+  // Rendered as its own labelled line rather than in place of the name, because the name is
+  // the canonical one and there is exactly one function that produces it. This is the other
+  // half of the product distinction: watching, Marco may SEE Mouse; watching and learning, it
+  // may REMEMBER Mouse. Shown only when it adds something the name does not already say.
+  const says=(h && h.perceived) ? h.perceived : '';
+  const shown=h ? (h.words || h.called || h.describes || '') : '';
+  saysEl.textContent = (says && says!==shown) ? 'this screen says it is "'+says+'"' : '';
 
   if(!h){
     nameEl.textContent='—';
@@ -2104,6 +2205,17 @@ async function learnPost2(v, body){
 }
 function show(id, on){ const e=document.getElementById(id); if(e) e.hidden=!on; }
 let LTIMER=null;
+// herePolling drives the dogfood strip. A SEPARATE timer from the Learn panel's on purpose: these
+// are reads of ambient watching and of committed memory, and neither has anything to do with a
+// demonstration's lifecycle. Held together they would have to poll at the same rate, and the feed
+// wants a slower one than a session that is asking questions.
+var HTIMER=null;
+function herePolling(on){
+  if(HTIMER){ clearInterval(HTIMER); HTIMER=null; }
+  if(!on) return;
+  watchRead(); learnedRead(); madeRead(); experimentRead(); mapRead();
+  HTIMER=setInterval(()=>{ watchRead(); learnedRead(); madeRead(); experimentRead(); mapRead(); }, 1500);
+}
 function learnPolling(on){
   if(LTIMER){ clearInterval(LTIMER); LTIMER=null; }
   if(!on) return;
@@ -2115,6 +2227,435 @@ function learnPolling(on){
 }
 async function learnRead(){
   try{ learnRender(await (await fetch('/api/learn')).json()); }catch(e){}
+}
+
+// ---- the dogfood loop: watching, what committed, and a way to use it -------------------
+//
+// WCUR is where the feed got to. It is a sequence number from the Director, never a count of
+// what this page has drawn: asking from zero every time would redraw the whole ring on every
+// poll and could never tell "nothing happened" from "I have seen it already".
+var WCUR=0, WSEEN=[];
+// WATCHING and LEARNING are the last state the strip drew, so the panels below it can ask what
+// Marco is doing without each keeping its own answer. One read decides; everything renders from it.
+var WATCHING=false, LEARNING=false;
+// WMAX is what this page keeps on screen. The Director's own ring is the real bound (256); this
+// is the smaller one a person can actually read, and it is a display limit rather than a claim
+// that nothing else happened.
+const WMAX=12;
+// WSTATES is the whole user-facing vocabulary of this strip: three states, one primary status
+// each, and a sentence saying what Marco is doing rather than which permission is set.
+//
+// There is deliberately no fourth entry for "learning but not watching". That combination is not
+// a product state — learning is a permission to remember what Marco SEES, so with nothing being
+// seen it governs nothing — and the Director makes stopping watching stop learning with it. If it
+// is ever reported anyway, the strip says the state is inconsistent rather than dressing it up as
+// a valid one. See TestTheStripHasNoLearningWithoutWatchingState.
+const WSTATES={
+  off:   {dot:'○', tone:'var(--dim)',   title:'Not watching',
+          means:'Marco is not looking at your screen.'},
+  watch: {dot:'●', tone:'var(--run)',   title:'Watching',
+          means:'Marco can see what you are doing, and is not saving anything new.'},
+  learn: {dot:'●', tone:'var(--accent)',title:'Watching &amp; learning',
+          means:'Marco can see what you are doing, and may write down the places it works out.'},
+  broken:{dot:'⚠', tone:'var(--err)',   title:'Inconsistent',
+          means:'Learning is on but Marco is not watching. That is not a state it should be able '+
+                'to reach — press Stop watching, then start again.'},
+  gone:  {dot:'○', tone:'var(--dim)',   title:'Not running',
+          means:'The part of Marco that watches is not started. Press Watch to start it.'}
+};
+// watchState names the one product state from what the Director reported. One function, so the
+// status line and the buttons can never disagree about what Marco is doing.
+function watchState(s){
+  if(!s || !s.available) return 'gone';
+  if(s.learning && !s.watching) return 'broken';
+  if(s.learning) return 'learn';
+  if(s.watching) return 'watch';
+  return 'off';
+}
+async function watchRead(){
+  try{
+    const s=await (await fetch('/api/watching')).json();
+    const st=watchState(s), w=WSTATES[st];
+    WATCHING = (st==='watch' || st==='learn');
+    LEARNING = (st==='learn');
+    document.getElementById('wstate').innerHTML =
+      '<span style="color:'+w.tone+'">'+w.dot+'</span> '+w.title;
+    document.getElementById('wmeans').innerHTML = w.means;
+    // THE BUTTONS ARE THE LEGAL TRANSITIONS OUT OF THIS STATE, and nothing else is offered.
+    // Watch and Watch & Learn are two ways IN; from watching there is one way further in and
+    // one way out; from watching and learning there is a way back to watching and a way out.
+    show('wwatch',   st==='off' || st==='gone');
+    show('wlearn',   st==='off' || st==='gone' || st==='watch');
+    document.getElementById('wlearn').innerHTML =
+      st==='watch' ? 'Remember what I do' : 'Watch &amp; Learn';
+    show('wunlearn', st==='learn');
+    show('wstop',    st==='watch' || st==='learn' || st==='broken');
+    // COUNTS, and only counts. This strip may say how much Marco has noticed; what it noticed
+    // is a question for the store, and the answer to it arrives already worded in the feed.
+    const bits=[];
+    if(s.application) bits.push('watching '+s.application);
+    if(s.candidates) bits.push(s.candidates+' thing'+(s.candidates==1?'':'s')+' seen more than once');
+    if(s.learned) bits.push(s.learned+' learned by watching');
+    document.getElementById('wsays').textContent=bits.join(' · ');
+  }catch(e){}
+}
+// ---- what Marco made of what you just did -------------------------------------------
+//
+// The dogfood failure this answers: a person turned Watch & Learn on, walked
+// Home -> Bluetooth & devices -> Mouse twice with real clicks, and the page said nothing at all.
+// Not learned, not couldn't - nothing. The Director had the answer the whole time and said it
+// only to a terminal. A mode indicator with no observable result is a light, not a product.
+//
+// Every line here is the Director's own verdict and the Director's own sentence. This page does
+// not decide whether something was learned and cannot: it prints what the policy said.
+const MADETONE={learned:'var(--run)', wait:'var(--dim)', never:'var(--err)'};
+const MADEMARK={learned:'✓', wait:'·', never:'✗'};
+function madeRow(v){
+  // LEARNED IS ITS OWN WORD. A promoted candidate reports verdict 'never' with reason
+  // 'already_known' - which is the policy being asked about a thing it has already admitted,
+  // and rendering that as a refusal would tell somebody Marco threw away what it just learned.
+  const state = v.learned ? 'learned' : (v.verdict==='promote' ? 'learned' : v.verdict);
+  const tone = MADETONE[state] || 'var(--dim)';
+  const mark = MADEMARK[state] || '·';
+  const what = (v.did||'went') + (v.control ? ' “'+esc(v.control)+'”' : '');
+  const times = v.seen===1 ? 'once' : v.seen+' times';
+  const said = v.learned ? 'Marco remembers this way between two screens.' : (v.said||'');
+  return '<div style="margin:0 0 8px">'+
+    '<span style="color:'+tone+';font-weight:600">'+mark+'</span> '+
+    '<span style="color:'+tone+'">'+esc(what)+'</span>'+
+    '<span style="color:var(--dim)"> — '+times+'</span>'+
+    (said ? '<div style="color:var(--dim);margin-left:16px">'+esc(said)+'</div>' : '')+
+    '</div>';
+}
+// ---- one thought at a time --------------------------------------------------------
+//
+// The dogfood failure this answers: Marco was observing well and discovering routes, and a person
+// watching it could not tell what it was focused on, what it was about to try, why, what it
+// needed, whether it was waiting for them, or whether it had given their computer back. Every
+// observation and discovery competed for the same space.
+//
+// So this panel shows ONE experiment and its whole lifecycle:
+//
+//   READY TO TEST -> TESTING -> the result, and the desktop given back
+//
+// The hypothesis is Marco's, in three parts, because "trying Mouse" is ambiguous between a goal,
+// a target, a Place, an edge and a route. The reason is Marco's, out of evidence. Nothing here
+// decides anything: the proposal comes from the Director and the press is what makes an attempt
+// legitimate.
+var XNOW=null, XBUSY=false;
+// stopAll ends whatever Marco is doing, through the same cancellation the spoken "stop", the
+// leader key and director stop all reach. One mechanism, four ways in.
+async function stopAll(){
+  try{ await fetch('/api/stop',{method:'POST'}); }catch(e){}
+}
+// ---- the map ----------------------------------------------------------------------
+//
+// Observe is where somebody watches Marco build a map of their computer. Not a log, not a
+// recorder, not a stream of Director internals — a graph of PLACES and the CONNECTIONS between
+// them, because that is what Marco actually learns.
+//
+// It answers four questions in order: where am I, what does Marco know around here, what did it
+// just find, what can it reach. Everything on this page below the strip is one of those.
+//
+// Every word here comes from the Director, from the one naming function. This draws and decides
+// nothing: a map that named a screen itself would be a second opinion about what a place is
+// called, which is exactly what the rest of the product spent two dogfood sessions removing.
+async function mapRead(){
+  try{
+    const m=await (await fetch('/api/map')).json();
+    const box=document.getElementById('gbox');
+    if(!box) return;
+    const places=m.places||[], edges=m.edges||[], reach=m.reachable||[];
+    show('gbox', !!m.available && (places.length>0 || m.known_places>0));
+    document.getElementById('gcount').textContent =
+      m.known_places ? (m.known_places+' place'+(m.known_places==1?'':'s')+', '+
+        (m.known_edges||0)+' connection'+(m.known_edges==1?'':'s')) : '';
+    // THE NEIGHBOURHOOD, as connections rather than as a list of names. An edge is the unit
+    // of what Marco learns, so it is the unit the map draws: FROM, what you did, TO. Never
+    // "origin" and "arrival" — those are the machinery's words and a person read them and
+    // could not tell what they meant.
+    const g=document.getElementById('ggraph');
+    if(!edges.length){
+      g.innerHTML = places.length
+        ? '<span style="color:var(--dim)">Marco knows this screen and no way in or out of it '+
+          'yet. Go somewhere from here and it will.</span>'
+        : '<span style="color:var(--dim)">No map yet. Turn on Watch &amp; Learn and use your '+
+          'computer normally.</span>';
+    } else {
+      g.innerHTML = edges.map(e => {
+        const from = e.from===m.here, to = e.to===m.here;
+        const mark = w => '<span style="color:'+(from||to?'var(--accent)':'var(--fg)')+'">'+esc(w)+'</span>';
+        const you = w => '<b style="color:var(--accent)">'+esc(w)+'</b>';
+        return '<div>'+(from?you(e.from_words):mark(e.from_words))+
+          ' <span style="color:var(--dim)">&rarr;</span> '+
+          (to?you(e.to_words):mark(e.to_words))+
+          (e.observations>1?'<span style="color:var(--dim);font-size:11px"> seen '+
+            e.observations+' times</span>':'')+'</div>';
+      }).join('');
+    }
+    // WHAT MARCO THINKS IT CAN REACH, from the canonical planner and never from the picture.
+    // A route it has walked and checked is a different claim from one it has only watched,
+    // and the two are said apart rather than drawn alike.
+    const r=document.getElementById('greach');
+    r.innerHTML = reach.length
+      ? '<div class="grouphead" style="margin:0 0 6px">I CAN GET TO</div>'+
+        reach.slice(0,6).map(x =>
+          '<div>'+esc(x.words)+
+          '<span style="color:var(--dim);font-size:11px"> &middot; '+x.steps+' step'+
+          (x.steps==1?'':'s')+(x.verified?', tried':', not tried yet')+'</span></div>').join('')
+      : '';
+  }catch(e){}
+}
+async function experimentRead(){
+  // NOT WHILE ONE IS RUNNING. The panel is showing the attempt, and a poll that overwrote it
+  // with the next proposal would take the story away mid-sentence.
+  if(XBUSY) return;
+  try{
+    const v=await (await fetch('/api/experiment')).json();
+    XNOW = (v && v.ready) ? v : null;
+    renderExperiment();
+  }catch(e){}
+}
+function renderExperiment(){
+  const box=document.getElementById('xbox');
+  if(!box) return;
+  show('xbox', !!XNOW && !XBUSY);
+  if(!XNOW || XBUSY) return;
+  document.getElementById('xhead').textContent='READY TO TEST';
+  // THE HYPOTHESIS, IN THE ORDER IT READS: from HERE, doing THIS, you arrive THERE.
+  document.getElementById('xedge').innerHTML =
+    esc(XNOW.from_words||'somewhere')+
+    ' <span style="color:var(--dim)">&mdash;</span> '+esc(XNOW.action||'')+
+    ' <span style="color:var(--dim)">&rarr;</span> '+esc(XNOW.to_words||'somewhere');
+  document.getElementById('xwhy').textContent = XNOW.why||'';
+  document.getElementById('xsteps').innerHTML='';
+  show('xgo', true); show('xstop', false);
+}
+// testEdge asks Marco to try the connection it just described.
+//
+// It sends the edge BY IDENTITY, exactly as it was handed to this page. A surface that asked to
+// test "Mouse" would be asking Marco to work out what it meant, and the whole point of the
+// proposal is that Marco already decided and said so.
+//
+// The Director does the rest where it already happens: it takes the mutating slot, brings the
+// application forward, plans over its own graph, takes authority and the actuation lease per step,
+// verifies where it landed, and puts the desktop back. This page contributes a press.
+async function testEdge(){
+  const x=XNOW;
+  if(!x || !x.edge || !x.edge.from || !x.edge.to) return;
+  XBUSY=true;
+  const box=document.getElementById('xbox');
+  show('xbox', true);
+  document.getElementById('xhead').textContent='TESTING';
+  document.getElementById('xwhy').textContent='';
+  show('xgo', false); show('xstop', true);
+  document.getElementById('xsteps').innerHTML =
+    '<div style="color:var(--dim)">&rarr; getting to '+esc(x.from_words||'the start')+'&hellip;</div>';
+  try{
+    const r=await fetch('/api/test',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({application:x.application, from:x.edge.from, to:x.edge.to})});
+    renderAttempt(x, await r.json());
+  }catch(e){
+    document.getElementById('xsteps').innerHTML=
+      '<div style="color:var(--err)">Marco could not be reached.</div>';
+  }
+  XBUSY=false;
+  show('xgo', true); show('xstop', false);
+  learnedRead(); madeRead();
+}
+// renderAttempt tells the story the attempt actually had.
+//
+// Every line is the Director's own account: whether it had to walk somewhere first, whether the
+// thing being tested ran at all, where it landed, and what became of the window the person was
+// using. Nothing is inferred here — in particular "it did not work" and "I never got as far as
+// trying" are different lines, because a person must not read a positioning failure as a result
+// about the connection.
+function renderAttempt(x, v){
+  document.getElementById('xhead').textContent='TESTED';
+  const line=(mark, tone, text)=>
+    '<div><span style="color:'+tone+'">'+mark+'</span> '+esc(text)+'</div>';
+  let out='';
+  if(v.positioned) out += line('✓','var(--run)','Got to '+(x.from_words||'the start'));
+  if(!v.tried){
+    out += line('✗','var(--err)', v.say || 'I did not get as far as trying it.');
+  } else if(v.arrived){
+    out += line('✓','var(--run)','Tried '+(x.action||'it'));
+    out += line('✓','var(--run)','Arrived at '+(x.to_words||'the other screen'));
+  } else {
+    out += line('✓','var(--dim)','Tried '+(x.action||'it'));
+    out += line('✗','var(--err)', v.say || 'That did not go where I expected.');
+  }
+  // AND THE DESKTOP. Never silent: "I put your computer back" and "I couldn't" are different
+  // facts about somebody's afternoon, and the second is the one they need.
+  const rest=v.restored;
+  if(rest && rest.attempted){
+    out += rest.restored
+      ? line('✓','var(--run)','Put you back in '+(rest.application||'where you were'))
+      : line('⚠','var(--err)', rest.say || 'I could not put you back where you were.');
+  }
+  document.getElementById('xsteps').innerHTML=out;
+}
+async function madeRead(){
+  try{
+    const v=await (await fetch('/api/made')).json();
+    const seen=(v && v.seen) ? v.seen : [];
+    const box=document.getElementById('mlist');
+    if(!box) return;
+    show('mbox', WATCHING);
+    if(!seen.length){
+      // NOT SILENCE. "Nothing yet" is an answer and "I learned nothing from that" is a
+      // different one; a blank panel is neither, and a person reads it as broken.
+      box.innerHTML='<span style="color:var(--dim)">Nothing yet — go and use another '+
+        'window, and Marco will say what it made of each move.</span>';
+      show('mgoal', false);
+      return;
+    }
+    seen.sort((a,b)=> (b.seen||0)-(a.seen||0));
+    box.innerHTML = seen.slice(0, 8).map(madeRow).join('');
+    // AND THE NEXT ACTION, when there is anything worth naming.
+    //
+    // Ambient learning admits TOPOLOGY - places and the ways between them. It deliberately
+    // creates no goal: admitWatched says so in as many words, because a name for an outcome
+    // is a thing a person means, not a thing repetition implies. So the gap is shown and the
+    // canonical way to close it is offered, rather than leaving somebody to wonder why there
+    // is nothing to try.
+    show('mgoal', LEARNING && seen.some(v => v.learned || v.verdict==='promote'));
+  }catch(e){}
+}
+// nameRecent is "learn what I just did", through the request the command line makes with
+// --recent. It is the one door that turns a walk into something you can ask for by name: it
+// promotes the walk, keeps the demonstration and records the GOAL. This page builds none of
+// that - it says the name and lets the Director do all of it.
+async function nameRecent(){
+  const el=document.getElementById('mname');
+  const name=el ? el.value.trim() : '';
+  if(!name){ banner('Say what to call it first', true); return; }
+  await learnPost('recent', {name: name});
+  if(el) el.value='';
+  learnedRead();
+}
+async function watchVerb(v){
+  try{ await fetch('/api/watching',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({verb:v})}); }catch(e){}
+  await watchRead(); madeRead();
+}
+// learnedRead draws what the store COMMITTED, and nothing else. It cannot invent an event: every
+// line here was announced by semanticmemory.Store after its own write succeeded, and arrives
+// already worded by the only process holding the store — so this page never names a place.
+async function learnedRead(){
+  try{
+    // READ FROM THE START OF THE RING, EVERY TIME, AND KEEP NOTHING.
+    //
+    // # Why a cursor was wrong here
+    //
+    // The Director resolves a place's name at READ time, deliberately: a Place is established
+    // on one pass and NAMED on a later one, so an event that carried the words it had at the
+    // instant of the write would say "about back, settings, 96 things on it" forever about a
+    // screen that is now perfectly well called Home. That is ADR-111's own reasoning.
+    //
+    // This page defeated it. It asked from a cursor, got only what was new, and cached the
+    // rendered line in WSEEN — so the description froze at the moment of the commit and the
+    // name that arrived a few seconds later was never shown. Reported live, and it is the
+    // whole of "naming propagation leaves the user confused": the naming worked and the page
+    // was showing a snapshot of the instant before it.
+    //
+    // The cursor exists for a FOLLOWER, which must not reprint what it has already printed —
+    // that is marco observe --follow, which keeps its own cursor in observefeed.go and is
+    // untouched. This is a page that redraws wholesale; re-reading is what makes it current.
+    //
+    // Deleting the re-read must fail TestTheFeedRefreshesNamesRatherThanCachingThem.
+    const v=await (await fetch('/api/learned?after=0')).json();
+    if(!v.available) return;
+    if(typeof v.newest==='number') WCUR=v.newest;
+    if(v.missed){ document.getElementById('lmissed').textContent =
+      v.missed+' earlier '+(v.missed==1?'change':'changes')+' scrolled past before this page read them.'; }
+    // NEWEST FIRST. The Director returns the ring in the order it happened, oldest to newest —
+    // and this page reads index 0 as the headline. Concatenating batches put the OLDEST of the
+    // newest batch on top, which showed on a burst and hid on a quiet desktop.
+    const all=(v.events||[]).slice().reverse();
+    if(!all.length) return;
+    WSEEN=all.slice(0,WMAX);
+    show('lbox', true);
+    // THE PRIMARY LINE IS THE MOST IMPORTANT THING THAT HAPPENED, not the most recent.
+    //
+    // Walking a familiar route is not a discovery, and a surface that put "saw way again"
+    // over the top of "learned destination" would train somebody to stop reading it. The
+    // demoted changes are still in the feed below and in Activity, where repeated evidence
+    // belongs; they simply do not compete with new knowledge for the one line somebody
+    // actually reads. See TestTheHeadlineIsNewKnowledgeRatherThanTheLatestEvent.
+    const top = WSEEN.find(e => e.change!=='strengthened') || WSEEN[0];
+    document.getElementById('lnew').textContent=learnedLine(top);
+    // AND GO THERE IS OFFERED ONLY FOR SOMETHING MARCO CAN BE ASKED FOR.
+    //
+    // # The failure this closes
+    //
+    // The box was prefilled from whatever the newest change described, and a a 'learned place'
+    // describes a PLACE. So after Marco learned Home, the page offered "Home" and a button
+    // saying Go there — and pressing it ran marco do "Home", which is not a request Marco
+    // can answer. It went through intake, matched no play and no goal, reached the Director's
+    // read-it-against-the-screen path and came back:
+    //
+    //     FAILED: I only understand click, focus, move, repeat and text editing so far
+    //
+    // A place is not a phrase. Knowing where somewhere is and being able to be asked for it
+    // are different things, and the second one is a name a person gives — which is the whole
+    // reason "Name what I just did" exists. Offering Go there without one sends somebody to a
+    // dead end and blames the vocabulary.
+    //
+    // So the phrase comes from a GOAL and from nothing else, and when there is no goal the
+    // gap is named rather than papered over.
+    //
+    // Deleting the kind test must fail TestGoThereIsOnlyOfferedForSomethingYouCanAskFor.
+    const askable = WSEEN.find(e => e.kind==='goal' && e.description);
+    show('ltrybar', !!askable);
+    show('lgap', !askable);
+    if(askable){
+      // The phrase box is a SUGGESTION and it is only ever filled once, while it is empty:
+      // overwriting what somebody was in the middle of typing because Marco learned something
+      // else is the surface taking the keyboard off them.
+      const box=document.getElementById('ltryname');
+      if(!box.value.trim()) box.value=askable.description;
+    }
+    document.getElementById('lolder').innerHTML =
+      WSEEN.filter(e=>e!==top).map(e=>'<div style="color:var(--dim)">'+esc(learnedLine(e))+'</div>').join('');
+  }catch(e){}
+}
+// learnedLine is the four words, kept apart. Calling every change "learned" would train somebody
+// to stop reading the feed — walking a familiar route is not a discovery. See ADR-111.
+function learnedLine(e){
+  const what={place:'place', edge:'way', goal:'destination'}[e.kind]||e.kind;
+  const how={learned:'learned '+what, strengthened:'saw '+what+' again',
+             named:'named', rebound:what+' moved'}[e.change]||e.change;
+  return how+'  '+(e.description||'');
+}
+// tryIt asks for the thing, through the same door a typed marco do uses. This page starts no
+// play itself; it posts the words and then asks what became of them.
+async function tryIt(){
+  const text=document.getElementById('ltryname').value.trim();
+  if(!text){ banner('Say what to try', true); return; }
+  const out=document.getElementById('ltryout');
+  out.textContent='asking Marco to '+text+'...';
+  try{
+    const r=await fetch('/api/try',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({text})});
+    if(!r.ok){ out.textContent=await r.text(); return; }
+    const j=await r.json();
+    // THE ENGINE'S OWN WORD, not this page's guess. A declined play, a play that could not
+    // recognise the screen and a play that worked are three different answers.
+    watchRun(j.run, out);
+  }catch(e){ out.textContent=String(e); }
+}
+function watchRun(id, out){
+  let n=0;
+  const t=setInterval(async()=>{
+    if(++n>200){ clearInterval(t); return; }
+    try{
+      const s=await (await fetch('/api/run?id='+encodeURIComponent(id))).json();
+      if(!s.done) return;
+      clearInterval(t);
+      out.textContent=s.outcome+(s.detail?' — '+s.detail:'');
+    }catch(e){ clearInterval(t); }
+  }, 500);
 }
 async function learnStart(){
   const name=document.getElementById('lname').value.trim();

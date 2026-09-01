@@ -125,6 +125,23 @@ type HerePlace struct {
 	// The question a person hardening identity actually has: not "is this new" but "why is
 	// this not the one I named a minute ago".
 	Closest *Mismatch `json:"closest,omitempty"`
+	// Perceived is what the screen in front SAYS it is called, right now.
+	//
+	// # A different question from every other name on this type
+	//
+	// `Called` is the Audience's word, `Words` is what Marco calls the durable place. Both are
+	// MEMORY. This one is PERCEPTION: the settled reading of the screen currently in front,
+	// through `observe.SettledPlaceNameFor` — the same recurrence rule that decides whether a
+	// name may become durable, asked as a question and written nowhere.
+	//
+	// It exists so the product distinction is visible rather than documented. Watching, Marco
+	// may SEE `Mouse`; watching and learning, it may REMEMBER `Mouse`. Without this the first
+	// half is invisible and "why is it not learning anything" has no answer on the screen.
+	//
+	// It is NOT a second naming function, and must never become the one a surface shows in
+	// place of `Words` — see TestEverySurfaceNamesAPlaceTheSameWay. It is rendered beside the
+	// name, labelled as what the screen says, and it is empty whenever nothing has settled.
+	Perceived string `json:"perceived,omitempty"`
 }
 
 // hereFrom projects the canonical current account into what a person reads.
@@ -180,6 +197,10 @@ func (r *Runtime) hereFrom(cur playbill.Current) HerePlace {
 			}
 		}
 	}
+	// AND WHAT THE SCREEN ITSELF SAYS IT IS, which is not a fact about memory at all.
+	//
+	// Deleting this must fail TestWatchingShowsWhatTheScreenSaysItIs.
+	out.Perceived = r.perceivedName(cur.Application)
 	if out.Describes == "" {
 		out.Describes = r.describeCurrent(cur)
 	}
@@ -195,6 +216,36 @@ func (r *Runtime) hereFrom(cur playbill.Current) HerePlace {
 		out.Closest = r.closestKnown(cur.Application)
 	}
 	return out
+}
+
+// perceivedName is what the screen in front says it is called, from perception alone.
+//
+// # It asks the canonical rule and writes nothing
+//
+// `observe.SettledPlaceNameFor` is the recurrence rule that decides whether a word off a screen
+// may become durable — most sightings win, a tie is unresolved, one sighting is a transition
+// frame rather than a name. Asked here as a QUESTION, on the state currently in front, so what a
+// person reads and what could be persisted are one rule rather than two.
+//
+// Empty is ordinary: nothing is watching, the name has not recurred yet, or the screen puts no
+// name in front of anybody.
+//
+// Deleting the settlement — reading the tally directly — must fail
+// TestWhatTheScreenSaysItIsComesFromWatchingNotMemory.
+func (r *Runtime) perceivedName(application string) string {
+	if r == nil || r.observations == nil {
+		return ""
+	}
+	ev := r.observations.evidenceForPointing()
+	if !ev.ok || !sameApplication(ev.app, application) {
+		return ""
+	}
+	for _, st := range ev.shadow.States {
+		if st.ID == ev.shadow.CurrentState {
+			return observe.SettledPlaceNameFor(st)
+		}
+	}
+	return ""
 }
 
 // describeCurrent is what the screen in front is made of, for a place with no durable record.

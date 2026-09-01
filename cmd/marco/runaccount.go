@@ -139,8 +139,25 @@ func (a *runAccount) sweepLocked() {
 // ([[internal/invoke]]). A control centre that decided any of it would be the second intake this
 // campaign exists to remove.
 func (a *runAccount) start(rt routes.Route) (string, error) {
-	id := a.begin(plays.Pretty(rt.Slug))
-	cmd, out, err := runSpawn(doArgv(rt))
+	return a.spawn(plays.Pretty(rt.Slug), doArgv(rt))
+}
+
+// startPhrase launches the person's OWN WORDS, and is otherwise the same act.
+//
+// Try it, on the Here panel. The only difference from a clicked Run is which of the two things the
+// person actually did: chose a play from a list, or said what they wanted. Everything after that —
+// resolution, authority, the actuation lease, verification — happens inside `marco do` either way,
+// which is why this is a second argument vector and not a second mechanism.
+//
+// The label is the phrase itself, because that is what they will be looking for in the answer.
+func (a *runAccount) startPhrase(text string) (string, error) {
+	return a.spawn(text, phraseArgv(text))
+}
+
+// spawn is the body both doors share: open an account, start the process, listen for its word.
+func (a *runAccount) spawn(label string, argv []string) (string, error) {
+	id := a.begin(label)
+	cmd, out, err := runSpawn(argv)
 	if err != nil {
 		a.finish(id, outcome.Unavailable, "", err.Error())
 		return id, err

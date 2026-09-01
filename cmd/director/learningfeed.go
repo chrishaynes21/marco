@@ -120,9 +120,10 @@ func (r *Runtime) LearningSince(q service.ObserveLearning) service.LearningView 
 
 // describeLearning renders one change in the words a person reads.
 //
-// Names come from the store NOW. An unnamed Place says so and shows its subject, because
-// [[ADR-110-a-navigation-rail-is-a-list-of-places-you-could-go]] leaves that a real outcome and
-// hiding it would hide the thing this session exists to find out about.
+// Names come from the store NOW, through `observe.PlaceWords`. An unnamed Place is a real outcome
+// that [[ADR-110-a-navigation-rail-is-a-list-of-places-you-could-go]] leaves open, and it is still
+// SAID — as what the screen is made of, which is something a person can pick out. What it is never
+// said as is a subject id.
 func (r *Runtime) describeLearning(e semanticmemory.Learning) string {
 	switch e.Kind {
 	case semanticmemory.KindPlace:
@@ -141,38 +142,39 @@ func (r *Runtime) describeLearning(e semanticmemory.Learning) string {
 	return ""
 }
 
-// placeWord is what to call a subject, or an honest admission that Marco cannot.
+// placeWord is what to call a subject, through the ONE naming function.
 //
-// The Audience's own word first, then what the interface appears to call itself — the same
-// precedence every other surface uses, so a Place is not called one thing here and another in the
-// Learn panel. Never a goal name and never a play name: those are what somebody wants, not what
-// the screen says it is.
+// # It used to end in a subject id, and that reached a person
+//
+// The last rung was `[unnamed subj_c3e77b6f]`, defended as an honest admission. It is honest and
+// it is not an answer: reported live from the control centre, reading
+//
+//	LAST RESULT
+//	  learned place [unnamed subj_c3e77b6f]
+//
+// and the person said, exactly, "I have no clue what that is telling me". An identifier is not a
+// way to tell one screen from another — the rule [[ADR-069]] states and every other surface here
+// follows.
+//
+// `observe.PlaceWords` is that rule: the Audience's word, then what Marco worked out, then what
+// the screen is MADE of. The last rung is a plain description rather than a hash, so an unnamed
+// Place is still something a person can pick out — nothing is hidden, it is said in words. This
+// was a second, worse copy of that function sitting beside it.
+//
+// Deleting the PlaceWords call must fail TestTheFeedNeverShowsASubjectId.
 func (r *Runtime) placeWord(subject string) string {
 	if subject == "" {
-		return "[unknown]"
+		return "somewhere Marco cannot name"
 	}
 	store, ok := r.placeStore()
 	if !ok {
-		return shortSubject(subject)
+		return "a screen Marco knows"
 	}
 	rec, found := store.Subject(subject)
 	if !found {
-		return shortSubject(subject)
+		return "a screen Marco knows"
 	}
-	if rec.Called != "" {
-		return rec.Called
-	}
-	if rec.Semantic != "" {
-		return rec.Semantic
-	}
-	return "[unnamed " + shortSubject(subject) + "]"
-}
-
-func shortSubject(subject string) string {
-	if len(subject) > 13 {
-		return subject[:13]
-	}
-	return subject
+	return observe.PlaceWords(rec)
 }
 
 // placeStore is the memory the feed was wired to, when there is one.

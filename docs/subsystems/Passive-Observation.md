@@ -18,6 +18,12 @@ source_paths:
   - cmd/director/observecmd.go
   - cmd/director/learncmd.go
   - cmd/director/learnsessionwiring.go
+  - cmd/marco/watchui.go
+  - cmd/director/observelook.go
+  - cmd/director/observeledger.go
+  - cmd/director/observeambient.go
+  - cmd/director/observewiring.go
+  - cmd/director/experiment.go
 ---
 
 # Passive Observation
@@ -475,3 +481,120 @@ nobody had happened to answer a question about, and *which* question Marco raise
 user's to choose. At most one place per pass, only where it could ever be matched again, and
 `Result.Places` says which of the closed reasons applied when none was.
 See [[ADR-047-a-place-is-remembered-a-meaning-is-answered]].
+
+## Where a person sees it
+
+Ambient watching is background behaviour, so its state is a first-class answer rather than a
+diagnostic — a mode nobody can see the state of is the shape of surveillance whatever its
+intentions. `AmbientView` carries it, and the control centre's **Here** panel renders it beside
+what Marco can currently see: whether Marco is watching, whether what it watches may become
+**durable memory** (a separate agreement, and a separate switch — see
+[[ADR-095-repeated-observation-may-become-knowledge]]), and what its store has actually committed.
+
+The surface may ask and may not decide. Four verbs, all attention or permission; an unrecognised
+one is a read rather than the nearest match. It writes nothing to semantic memory, and the learning
+events it draws are the store's own after its own write committed, already worded — so it cannot
+name a Place even by accident. See
+[[ADR-112-the-loop-belongs-where-a-person-is-already-looking]] and
+[[ADR-111-a-demonstration-takes-the-slot-from-watching]].
+
+### Three product states, and learning is inside watching
+
+What a person operates is not the two permissions. It is three states — **not watching**,
+**watching**, **watching and learning** — with one status line each and a sentence saying what
+Marco is doing. `LEARN ⊂ WATCH`: asking Marco to learn starts watching with it, stopping watching
+ends learning, and stopping learning leaves attention alone. There is no user-facing
+"learning but not watching"; the Director makes it unreachable and the strip reports the
+combination as inconsistent rather than dressing it up as a mode somebody chose. See
+[[ADR-113-learning-is-inside-watching]].
+
+The two panels below the strip answer two different questions, and saying which is what teaches
+the distinction that explaining Observe and Learn never did:
+
+```
+CURRENT       what Marco sees now
+JUST LEARNED  what Marco wrote down
+```
+
+`HerePlace.Perceived` is what the screen in front says it is called — the settled reading, through
+`observe.SettledPlaceNameFor`, written nowhere. So watching alone can say *this screen says it is
+"Mouse"* while committing nothing, and the difference between seeing and remembering is visible
+rather than documented.
+
+## Naming a Place Marco already knows
+
+A Place is established the first time Marco can recognise it; a name settles by RECURRENCE. The
+two almost never coincide, so **naming is its own sweep** rather than something that happens while
+establishing — `observe.PlaceNamesToRecord`, over every state the session has seen, whether or not
+any of them is new.
+
+Ambient watching runs that sweep on every reading when learning is on, through `promotion.call`,
+the one door a semantic name reaches the store by. It needs no walk, no edge, no goal, no explicit
+Learn and no second Place: `PlaceNamesToRecord` skips a state memory cannot recall and
+`ObserveSemanticName` refuses a subject the store does not hold, so enrichment can never fork an
+identity.
+
+Before 38A.1 there was no such sweep, and the only naming write ambient could reach lived inside
+`promotion.establish` — once, at Place creation, and only when an EDGE was promoted. The first
+dogfood measured the result: forty-five durable Settings places, none named, while perception could
+name them the whole time. The rule was right and nothing on the path a person uses called it.
+
+## What ambient learning may keep, and what it produces
+
+Two permissions travel with Watch & Learn, and only one of them used to arrive.
+
+**Promotion** is asked in `ambient.Judge`: may this candidate become durable knowledge.
+**The control's name** is asked much earlier, in `liveSampler.mayNameTargets`, at the push that
+offers the window's controls to the navigation producer — and a candidate whose control has no
+name is refused by rule (`Act.Representable` is false, and the verdict is
+`Never / control_not_named`) whatever the promotion policy says.
+
+`NameablePlaintext` is `{button, menu_item, menu, tab, checkbox, radio}`. Anything that navigates
+by `list_item`, `tree_item`, `link` or `row` — Windows Settings, most file managers, most
+sidebars — needs the licence, and ambient sessions declare none. So ambient learning could not
+promote anything in those interfaces at all until `mayNameTargets` learned to read the ambient
+learning switch as the second door to a permission `ambientPromotionLicence` had always declared.
+Read live, per cycle, because somebody presses the button mid-session. See
+[[ADR-114-watching-and-learning-may-keep-the-name-of-what-you-clicked]].
+
+Watching alone still keeps no control name, and the shape filter is unconditional either way.
+
+### Topology is learned; a goal is meant
+
+Ambient promotion writes places and the ways between them. It writes **no goal** — `admitWatched`
+is explicit about it — so a perfect traversal still leaves nothing a person can ask for by name.
+The canonical way to close that gap is the retrospective Learn, `ObserveLearn{Recent: true, Name}`,
+which promotes the walk, keeps the demonstration and records the goal in one act.
+
+```
+known Place  →  known way between screens  →  a name you gave it  →  Try it
+```
+
+### And learning says what it made of what you did
+
+`AmbientEvidence` renders every candidate with the policy's own verdict and its own sentence, and
+the control centre's Here panel draws it. Learned, seen again, or refused with the reason —
+never silence, because a mode indicator with no observable result is a light rather than a
+product. One rendering rule is enforced rather than assumed: a promoted candidate reports
+`never / already_known`, so a surface reading the verdict alone would draw a refusal beside the one
+relationship Marco actually learned.
+
+## One experiment at a time
+
+Marco holds at most one proposal: a promoted candidate edge it has never walked itself, chosen
+deterministically and stated as a claim — from HERE, doing THIS, you arrive THERE — with a reason
+made of the record's own fields. `Runtime.Experiment` is the read; it chooses nothing durable and
+moves nothing, because observation permission is not actuation permission and neither is a page
+refresh.
+
+Running it is `Runtime.TestEdge`, and it is a projection of the performance path rather than a
+second executor: `bringForward`, `freshLook`, `observe.PlanToGoal`, `performPlan`,
+`confirmArrival`, the command registry, the per-step authority and the actuation lease, all
+unchanged. What is new is that the SOURCE is required before the action — an experiment run from
+the wrong screen tests nothing and presses a control nobody chose — and that the desktop is given
+back afterwards, on every path out including the ones where Marco gave up.
+
+Positioning uses the canonical planner with the canonical eligibility and does not explore. An
+experiment whose source nothing connects to refuses, and says what it needed and where it was.
+
+See [[ADR-115-one-experiment-and-the-desktop-given-back]].

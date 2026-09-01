@@ -195,6 +195,14 @@ type Runtime struct {
 	// build deadlocked on its second sample. See escalationwiring.go.
 	incompleteSince   *time.Time
 	incompleteSinceMu sync.Mutex
+	// repaired is the settled observation epoch whose one semantic repair has been spent.
+	//
+	// TRANSIENT and never knowledge: a spending record, held for the life of the process,
+	// reaching no Place, no plan and no input. Its own mutex for the reason
+	// `incompleteSince` has one — this is read from inside the perception cycle, which
+	// already holds `mu`, and `sync.Mutex` is not reentrant.
+	repaired   string
+	repairedMu sync.Mutex
 	// learned is the ring of durable knowledge changes, fed by the store's own committed
 	// writes so a person can be told what Marco now knows. See learningfeed.go.
 	learned     learningFeed

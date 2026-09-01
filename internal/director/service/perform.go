@@ -156,3 +156,61 @@ func performReason(v PerformView) string {
 	}
 	return fmt.Sprintf("performed %q", v.Goal)
 }
+
+// Tester is a Runtime that can try one connection it learned by watching.
+//
+// Its own interface beside Performer, asserted for rather than required, for the reason Performer
+// is: a Director that only observes is a legitimate Director, and widening one interface would
+// make every implementer claim an ability it does not have.
+type Tester interface {
+	TestEdge(ctx context.Context, q TestQuery) (PerformView, error)
+}
+
+// testEdge runs one experiment under a registry command.
+//
+// # The same door a performance takes, deliberately
+//
+// An experiment drives real input, so every reason a performance enters the registry applies
+// unchanged: it becomes visible to `director status`, it refuses a concurrent mutating request,
+// and it becomes stoppable. What differs is only what the person asked for — "check what you
+// learned" rather than "go there" — and that difference belongs in the request and in the words,
+// not in a second lifecycle.
+//
+// The response is a PerformView because an experiment's report IS a performance's report, plus
+// what became of the desktop. One shape for a client to render; `Testing` says which act it was.
+func (s *Server) testEdge(requestID string, q TestQuery, send func(ResponseEnvelope)) {
+	tester, ok := s.runtime.(Tester)
+	if !ok {
+		send(NewResponse(requestID, ResponsePerception, PerformView{
+			Refusal: "no_performer",
+			Say:     "this Director cannot try what it has learned",
+		}))
+		return
+	}
+	phrase := "checking what I learned"
+	cmd, ctx, err := s.registry.Begin(s.ctx, requestID, phrase)
+	if err != nil {
+		var busy *ErrBusy
+		if asBusy(err, &busy) {
+			send(NewResponse(requestID, ResponsePerception, PerformView{
+				Application: q.Application, Refusal: "busy",
+				Say: busyMessage(busy.Active),
+			}))
+			return
+		}
+		send(NewResponse(requestID, ResponseError, ErrorPayload{
+			Code: "begin_failed", Message: err.Error(),
+		}))
+		return
+	}
+	view, err := tester.TestEdge(ctx, q)
+	view.Command = cmd.ID
+	if err != nil {
+		s.registry.Finish(cmd.ID, CommandFailed, len(view.Steps), err.Error())
+		send(NewResponse(requestID, ResponseError,
+			ErrorPayload{Code: "test", Message: err.Error()}))
+		return
+	}
+	s.registry.Finish(cmd.ID, performState(view), performedSteps(view), performReason(view))
+	send(NewResponse(requestID, ResponsePerception, view))
+}

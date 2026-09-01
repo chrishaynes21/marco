@@ -111,6 +111,15 @@ func TestFusionIsTheOnlyDoorFromSensorsToBelief(t *testing.T) {
 		// explaining a different world from the one production names. It prints; it
 		// establishes nothing and performs nothing.
 		"nameprobe.go": true,
+		// Measures which parts of a reading hold still and which churn, over repeated
+		// readings of one window. It fuses for the same reason name-probe does — the
+		// dimensions it measures are properties of the FUSED world, and measuring them
+		// over anything else would characterise a world production does not use.
+		//
+		// It is an instrument for deciding what semantic state IS, before anything about
+		// identity changes. It prints digests, writes nothing, establishes nothing and
+		// performs nothing.
+		"evidenceprobe.go": true,
 	}
 	fuse := regexp.MustCompile(`\.Fuse\(`)
 	for name, src := range directorSource(t) {

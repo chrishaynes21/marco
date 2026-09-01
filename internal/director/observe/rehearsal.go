@@ -362,8 +362,8 @@ func RehearsalProposalIdentity(from, to string) ProposalID {
 func RehearsalQuestion(j RehearsalJudgement, top Topology) string {
 	// NAMED, always. Two questions that both said "this move" were two different routes
 	// and the Audience could not tell them apart. See PlaceWords.
-	from := PlaceWords(top.Subjects[j.Source])
-	to := PlaceWords(top.Subjects[j.Destination])
+	from := PlaceWordsAsking(top.Subjects[j.Source])
+	to := PlaceWordsAsking(top.Subjects[j.Destination])
 	if from != "" && from == to {
 		to = ""
 	}

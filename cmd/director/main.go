@@ -194,6 +194,11 @@ func main() {
 		// collection through the production path, then the production naming rule with its
 		// reasoning kept. It establishes nothing.
 		os.Exit(runNameProbe(os.Args[2:]))
+	case "evidence":
+		// WHICH PARTS OF A READING DEFINE THE STATE, AND WHICH ARE PRESENTATION. Repeated
+		// readings of one window, reporting what each generic evidence dimension did. A
+		// measuring instrument for the semantic-state corpus; it establishes nothing.
+		os.Exit(runEvidence(os.Args[2:]))
 	case "showing":
 		// Which durable place is in front, by its identity. A read: one bounded passive
 		// look through the production path, resolved against the real store. It

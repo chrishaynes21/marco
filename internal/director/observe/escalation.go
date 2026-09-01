@@ -88,7 +88,9 @@ type Escalation struct {
 // `incompleteFor` is how long the reading has been incomplete — zero when this is the first
 // such reading. It corroborates; it never classifies. A caller that cannot track it passes
 // zero and gets the settle first, which is the cheap answer and the safe one.
-func EscalationOf(need Need, s Sufficiency, incompleteFor time.Duration) Escalation {
+func EscalationOf(need Need, s Sufficiency, sem SemanticSufficiency,
+	incompleteFor time.Duration) Escalation {
+
 	switch s.State {
 	case Unobservable:
 		// Nothing was read, so there is nothing to add to. A detector pointed at a
@@ -96,8 +98,30 @@ func EscalationOf(need Need, s Sufficiency, incompleteFor time.Duration) Escalat
 		return Escalation{Spend: SpendNothingAndRefuse, Because: s.Reason}
 
 	case Sufficient:
-		// THE RULE 37C PAID FOR. Measured: no actionable semantic item added to a
-		// healthy desktop reading, at 645–1379ms an inference.
+		// THE RULE 37C PAID FOR, AND THE CASE IT DID NOT MEASURE.
+		//
+		// 37C compared a detector against HEALTHY DESKTOP ACCESSIBILITY — screens
+		// whose accessibility already said what everything was — and found it added
+		// no actionable semantic item, at 645–1379ms an inference. That result is
+		// sound and this preserves it exactly where it was taken: a reading that can
+		// say which state it is buys nothing, forever.
+		//
+		// What it did not measure is a reading that describes an interface perfectly
+		// and says nothing about WHICH state it is. "Vision adds little when
+		// accessibility already understands the interface" became "do not buy vision
+		// when accessibility structurally reaches the interface", and those are
+		// different claims. The second one made every Xbox game one screen.
+		//
+		// So semantic silence may buy — and WHAT it buys is still nobody's business
+		// here. The caller holding an expensive sensor decides whether it is the one,
+		// and the caller holding a budget decides how often. This says only that the
+		// reading cannot answer the question.
+		//
+		// Deleting the semantic arm must fail
+		// TestASemanticallySilentReadingMayBuyOneRepair.
+		if sem.State == StateSilent {
+			return Escalation{Spend: SpendMore, Because: s.Reason}
+		}
 		return Escalation{Spend: SpendNothing, Because: s.Reason}
 
 	case Incomplete:

@@ -40,6 +40,22 @@ type Place struct {
 	// findings all reach the content, and a caller that has to say WHY cannot recover
 	// which one afterwards. See [SufficiencyOf].
 	Reason SufficiencyReason
+	// StateClaimed says something in this reading said WHICH state it is.
+	//
+	// # A different question from every other field here
+	//
+	// The rest of this value is about whether the screen could be READ. This is about
+	// whether it said anything about what it IS — and a reading can be perfect at the first
+	// and silent at the second. Measured live: an Xbox game page describes its whole shell,
+	// spreads structures through the content area, offers thirty-two actionable controls,
+	// and nothing in it claims a destination. Every game therefore reads identically.
+	//
+	// It is EVIDENCE OF A CLAIM, not the claim itself and not a name. What was claimed lives
+	// in the tally this is derived from; whether it may be persisted is a separate decision
+	// made elsewhere, and neither is this field.
+	//
+	// Deleting this must fail TestAReadingThatSaysNothingAboutItselfIsSemanticallySilent.
+	StateClaimed bool
 }
 
 // Established reports whether this place is a durable subject Marco can find again.
@@ -96,6 +112,10 @@ func PlaceNow(t ShadowTotals, application string, m Recogniser, th HypothesisThr
 	//
 	// Deleting this must fail TestAShellOnlyReadingIsNotAnUnknownPlace.
 	p.Reach, p.Vacancy, p.Reason = ReachOfState(t, t.CurrentState)
+	// AND WHETHER ANYTHING SAID WHICH STATE THIS IS, from the tally the naming rule has
+	// already filled. Read here rather than re-derived: `AdmittedPlaceName` is the one thing
+	// that decides what counts as a claim, and asking a second time would be a second answer.
+	p.StateClaimed = stateClaimedIn(t, t.CurrentState)
 	if p.Reach == ReachShell {
 		return p
 	}
@@ -118,4 +138,21 @@ func EditableFieldsIn(t ShadowTotals, id ScreenStateID) int {
 		}
 	}
 	return 0
+}
+
+// stateClaimedIn reports whether anything in one screen state claimed which destination it is.
+//
+// The TALLY, not the settled name. Settlement is a rule about whether a word may be trusted as a
+// place's name after recurrence; this is the much weaker question of whether the interface said
+// anything at all about where it is. A screen that has claimed one thing once is not semantically
+// silent — it is a screen whose claim has not settled yet, which is a different situation with a
+// different remedy.
+func stateClaimedIn(t ShadowTotals, id ScreenStateID) bool {
+	for _, st := range t.States {
+		if st.ID != id {
+			continue
+		}
+		return len(st.PlaceNames) > 0
+	}
+	return false
 }

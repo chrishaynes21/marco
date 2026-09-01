@@ -649,8 +649,27 @@ func PlaceWords(s RememberedSubject) string {
 	if w := subjectName(s); w != "" {
 		return w
 	}
-	return DescribeStructure(s.Structure)
+	// AND THE FLOOR IS A SENTENCE, NOT AN INVENTORY.
+	//
+	// It used to be `DescribeStructure` — "about back, settings, 96 things on it". That is
+	// what this function's own note above calls making somebody speak Marco's diagnostics, and
+	// two dogfood sessions ran into it: first as a subject id, then as this. Reported verbatim
+	// on reading it in the control centre: "I have no clue what that is telling me."
+	//
+	// An unnamed place is a real state and it is said plainly. What the screen is MADE of is
+	// still available — `DescribeStructure` is unchanged and `KnownPlace.Describes` carries it
+	// beside the name, which is where a list that has to tell two unnamed screens apart reads
+	// it. What changed is only what a SENTENCE calls a place nobody has named.
+	//
+	// One representation, everywhere, so two surfaces cannot describe the same nameless screen
+	// differently. Deleting this must fail TestAnUnnamedPlaceIsCalledTheSameThingEverywhere.
+	return Unnamed
 }
+
+// Unnamed is what every surface calls a place nobody has named.
+//
+// A constant rather than a literal, because the whole value of it is that there is exactly one.
+const Unnamed = "Unnamed place"
 
 // DescribeStructure says what a screen is made of, in plain words.
 //
@@ -678,4 +697,29 @@ func DescribeStructure(sig StructureSignature) string {
 		return "a screen Marco recognises"
 	}
 	return strings.Join(parts, ", ")
+}
+
+// PlaceWordsAsking is what to call a place in a question that has to tell two of them apart.
+//
+// # Why a label is not always enough
+//
+// `PlaceWords` calls every place nobody has named the same thing, which is right for a label and
+// wrong for a QUESTION. A rehearsal asks "shall I try getting from X to Y", and if X and Y are
+// both "Unnamed place" the sentence describes nothing and cannot be answered — measured by
+// TestTwoRoutesFromDifferentPlacesAskDifferentQuestions, which caught exactly that.
+//
+// So a question keeps the label and adds what the screen is MADE of, which is the only thing that
+// distinguishes two places nobody has named. It is still one naming function underneath: this
+// composes PlaceWords rather than deciding a name of its own.
+//
+// Deleting the description must fail TestTwoRoutesFromDifferentPlacesAskDifferentQuestions.
+func PlaceWordsAsking(s RememberedSubject) string {
+	w := PlaceWords(s)
+	if w != Unnamed {
+		return w
+	}
+	if d := DescribeStructure(s.Structure); d != "" {
+		return w + " (" + d + ")"
+	}
+	return w
 }

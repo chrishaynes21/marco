@@ -168,6 +168,24 @@ func (r *Runtime) DisableAmbient() service.AmbientView {
 	}
 	a := r.ambient()
 	a.mu.Lock()
+	// LEARNING ENDS WITH WATCHING, and this is the containment made real rather than
+	// described.
+	//
+	// Learning is a permission to remember what Marco SEES. With nothing being seen there is
+	// nothing for it to apply to, so leaving it set would leave a switch on that governs
+	// nothing — and the status would then say "watching: no, learning: yes", which is a state
+	// no person can act on and no product should be able to reach. The relationship is a
+	// containment: LEARN is inside WATCH.
+	//
+	// It is NOT symmetrical, deliberately. `DisableAmbientLearning` leaves watching alone:
+	// somebody switching learning off asked for less memory, not less attention. Stopping
+	// altogether is the other thing, and it means both.
+	//
+	// Above the already-stopped return, so the invariant holds unconditionally rather than
+	// only on the path that was watching.
+	//
+	// Deleting this must fail TestStoppingWatchingStopsLearning.
+	a.promotion.Enabled = false
 	if !a.on {
 		a.mu.Unlock()
 		return a.view()
@@ -260,6 +278,24 @@ func (r *Runtime) AmbientStatus() service.AmbientView {
 		return service.AmbientView{}
 	}
 	return r.ambient().view()
+}
+
+// ambientLearning is whether a person has agreed that what Marco watches may be remembered.
+//
+// # Read by perception, which is why it is here and not only in the policy
+//
+// The ambient learning switch decides two things that used to be one thing in name only: whether
+// a candidate may be PROMOTED — asked in `ambient.Judge` — and whether the name of the control
+// somebody clicked may travel on the input event at all, which is asked in the sampler, before
+// any of it. The second was never wired, and without it the first could not fire in any interface
+// that navigates by list items. See liveSampler.mayNameTargets.
+//
+// A read, on the same lock the policy uses, cheap enough for a per-cycle caller.
+func (r *Runtime) ambientLearning() bool {
+	if r == nil || r.observations == nil {
+		return false
+	}
+	return r.ambient().policy().Enabled
 }
 
 // AmbientBuffer is the transient evidence, for the surfaces that report it.
@@ -470,6 +506,19 @@ func (a *ambientObserver) sample(application string) bool {
 // desktop and this needs only a look, and the refusals below are the whole of what ambient
 // watching is allowed to conclude.
 func (a *ambientObserver) record(application string, look ambientLook, now time.Time) bool {
+	// WHAT MARCO ALREADY KNOWS HAS TURNED OUT TO BE CALLED — first, and deliberately above
+	// every refusal below.
+	//
+	// None of the refusals below is about naming. They are about whether THIS reading is a
+	// place: degraded perception, a screen nothing could describe, a transition frame. A name
+	// settles by RECURRENCE across readings that already happened, so a frame Marco cannot
+	// read does not un-settle a word that recurred — and skipping the sweep on it would mean
+	// a name arriving during a degraded moment waited for the next clean one for no reason.
+	//
+	// It is idempotent at the store, so the readings after the first write say nothing at all.
+	//
+	// Deleting this call must fail TestWatchingAndLearningNamesAPlaceItAlreadyKnows.
+	a.callPlaces(application, look)
 	place := look.Place
 	a.mu.Lock()
 	a.samples++
@@ -522,6 +571,45 @@ func (a *ambientObserver) record(application string, look ambientLook, now time.
 	a.last, a.lastApp = key, application
 	a.lastState, a.lastShape = look.State, look.Shape
 	changed := previous != key
+	// EXCEPT WHEN IT IS THE SAME SCREEN WEARING A NEW SESSION'S NAME.
+	//
+	// # The invented transition this removes
+	//
+	// A screen Marco does not recognise is keyed on `session:state`, and the session belongs
+	// in the key: `state_2` in one session and `state_2` in the next are unrelated screens, and
+	// without it two DIFFERENT screens either side of a boundary would compare equal and a
+	// real crossing would be lost — see TestTwoScreensEitherSideOfASessionAreNotOneScreen,
+	// which this must not break.
+	//
+	// The cost was the mirror image. The SAME screen either side compared UNEQUAL, so every
+	// rollover recorded a step from a screen to itself. Ambient sessions last twenty seconds,
+	// so that fired three times a minute forever. Measured live on an untouched desktop:
+	// sixteen "transitions" in five minutes, one every ten polls of a two-second poller —
+	// periodic by construction rather than by anything on screen.
+	//
+	// So a boundary is not taken at its word. The two readings are compared through the ONE
+	// identity test, the same `CompareStructure` the candidate ledger already uses to unify a
+	// wide and a narrow reading of one screen — never a second opinion about identity.
+	//
+	// Measured after: an untouched desktop crossed five session boundaries in 132 seconds and
+	// recorded no transitions at all.
+	//
+	// Deleting this must fail TestASessionBoundaryIsNotACrossing.
+	if changed && !sameSession && previousShape != nil && look.Shape != nil &&
+		observe.CompareStructure(previousShape.Signature, look.Shape.Signature) ==
+			observe.MatchSame {
+
+		// THE NEW KEY IS KEPT — the one already stored above — and only the CONCLUSION
+		// is withdrawn.
+		//
+		// Keeping the old key instead was tried and is wrong in a way that hides itself:
+		// the first reading of the new session is suppressed, and then the SECOND reading
+		// of that same session compares against the old session's key, finds it different,
+		// and crosses anyway. The phantom is delayed by one reading rather than removed,
+		// which is why it survived a live measurement and a test that only read once per
+		// session.
+		changed = false
+	}
 	if changed {
 		a.bridged, a.settled = 0, 0
 	} else {
@@ -756,8 +844,26 @@ var ambientObserveNow = func(r *Runtime, p service.ObservePayload) (service.Obse
 	return r.StartObservation(p)
 }
 
+// currentWindowSelector names the window an ambient session watches.
+//
+// # THE WINDOW IN FRONT, not the application it belongs to
+//
+// The supervisor has just asked the desktop what is in front, in order to decide whether to
+// start a session at all. Asking the resolver to find "that application" is a DIFFERENT question,
+// and it has a different answer whenever one executable owns two windows.
+//
+// Windows hosts Settings, XBOX and Realtek Audio Console in one `applicationframehost`. With the
+// audio console open, every ambient session over Settings resolved as `ambiguous` and skipped
+// every reading — measured live, `State: target_unavailable`, `Samples: 0  skipped: 39` — and
+// because starting the session succeeded, nothing anywhere reported a failure. A person walked
+// Home to Bluetooth to Mouse three times and Marco noticed nothing, silently, for twenty minutes.
+//
+// The application is still passed, and still decides when the session has been left behind: see
+// the foreground check inside watchOnce. What changed is only which window this session is about.
+//
+// Deleting the foreground selector must fail TestWatchingTheWindowInFrontIsNotAmbiguous.
 var currentWindowSelector = func(application string) windowref.Selector {
-	return windowref.Selector{Application: application}
+	return windowref.Selector{Foreground: true}
 }
 
 // ambientGlance is how often the supervisor asks the desktop what is in front, while waiting
@@ -839,4 +945,49 @@ func (a *ambientObserver) standAside() {
 	}
 	_ = a.rt.observations.Cancel(held)
 	a.rt.awaitLookRetired(context.Background())
+}
+
+// ambientHoldsSession reports whether an observation session is the one ambient watching owns.
+//
+// # Asked of what ambient RECORDED, not inferred from the registry
+//
+// The registry knows which session is active; it does not know whose purpose it serves. A passive
+// observe-game somebody set up deliberately, and a Learn demonstration, look identical to it — and
+// neither is Marco's to cancel. `held` is written when the supervisor opens a session and cleared
+// when it closes, so this is the one honest answer to "is that mine".
+//
+// It does not construct an observer. A Director that has never watched anything holds nothing, and
+// asking the question must not be what starts a supervisor.
+func (r *Runtime) ambientHoldsSession(id observe.SessionID) bool {
+	if r == nil || r.watching == nil || id == "" {
+		return false
+	}
+	a := r.watching
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.held == id
+}
+
+// standAsideForAction gives up Marco's OWN watching so the Director can act, and does nothing to
+// anybody else's session.
+//
+// # One place, because it is one decision
+//
+// Three doors can start something that moves the desktop — an executed phrase, a performance and
+// an experiment — and every one of them met the same wall: ambient watching runs continuously, so
+// with Watch & Learn on there was always an active session and every door refused. The control
+// centre offered "test what I learned" and the watching that produced the offer forbade it.
+//
+// Asked the same way in all three, so a fourth door cannot answer it differently.
+//
+// Deleting this must fail TestWatchingStandsAsideForMarcosOwnActions.
+func (r *Runtime) standAsideForAction() {
+	if r == nil || r.observations == nil {
+		return
+	}
+	id := r.observations.ActiveID()
+	if id == "" || !r.ambientHoldsSession(id) {
+		return
+	}
+	r.ambient().standAside()
 }

@@ -83,21 +83,52 @@ func (p promotion) establish(shape *ambient.Shape) (string, error) {
 	if id == "" {
 		return "", fmt.Errorf("the place store accepted that screen and named no subject")
 	}
-	// AND WHAT IT APPEARS TO BE CALLED, the same write the licensed session makes, through
-	// the same narrow interface — `ObserveSemanticName` records what the interface called
-	// itself, with its provenance, and can say nothing about what it MEANS.
-	//
-	// Not the Audience's word: that is `ScreenNamer`, and nobody has said one here. Without
-	// this the play could not be written down at all — `JudgeLowering` refuses
-	// `screen_unnamed` — and the person would be asked to name screens they walked past ten
-	// minutes ago, which is exactly the interruption a retrospective Learn exists to avoid.
+	// AND WHAT IT APPEARS TO BE CALLED, through the one naming door — `promotion.call`, which
+	// is also what the ambient naming sweep goes through, so there is exactly one place a
+	// semantic name reaches the store from a promotion and exactly one licence check on it.
 	//
 	// A failure here loses a word, not a Place. Deleting the call must fail
 	// TestLearningWhatYouJustDidAsksNothing.
-	if namer, ok := p.places.(observe.PlaceNamer); ok && shape.Called != "" {
-		_ = namer.ObserveSemanticName(p.application, id, shape.Called, observe.FromStructure)
-	}
+	_ = p.call(id, shape.Called)
 	return id, nil
+}
+
+// call records what an ESTABLISHED Place appears to be called.
+//
+// # Naming a place you already know is not route acquisition
+//
+// It needs no walk, no edge, no goal, no second place and no desktop input — it is one word
+// against an identity that already exists. So it hangs off `EstablishPlaces`, the permission that
+// is already about Places, rather than off `AcquireRouteEvidence`: a person who agreed that Marco
+// may make screens recognisable agreed to the part that says which screen it is.
+//
+// # It cannot mint anything
+//
+// `ObserveSemanticName` refuses a subject the store does not hold, and every caller here is
+// handed a subject the store gave it — either the id `EstablishPlace` just returned, or one
+// `PlaceNamesToRecord` resolved by RECALL. There is no path from this function to a new Place, so
+// naming can never fork an identity into a second row. See the store's own note for why this
+// writes `Semantic` and never `Called`: the Audience's own word is untouchable from here.
+//
+// Idempotent at the store, so a sweep that runs on every ambient reading writes the file once and
+// says nothing on the readings after it.
+//
+// Deleting the licence check must fail TestAmbientPromotionCannotWriteWithoutItsLicence.
+func (p promotion) call(subject, name string) error {
+	if !p.licence.EstablishPlaces {
+		return errNotLicensed{want: "establish a place"}
+	}
+	if subject == "" || name == "" {
+		return nil
+	}
+	namer, ok := p.places.(observe.PlaceNamer)
+	if !ok {
+		return nil
+	}
+	// Not the Audience's word: that is `ScreenNamer`, and nobody has said one here.
+	// `ObserveSemanticName` records what the interface called itself, with its provenance,
+	// and can say nothing about what it MEANS.
+	return namer.ObserveSemanticName(p.application, subject, name, observe.FromStructure)
 }
 
 // relate makes the transitions durable, so a candidate has a relationship to belong to.

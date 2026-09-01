@@ -153,6 +153,13 @@ var valued = map[string]bool{
 	// failure this table's comment above describes, a second time — a flag that takes a
 	// value and is missing from here fails quietly and plausibly.
 	"-application": true, "--application": true,
+	// `evidence`'s three. The fourth time this table has grown for the same reason, and
+	// the reason is always the same: a flag that takes a value and is missing from here
+	// fails quietly and plausibly — the value is reordered behind the next flag, and the
+	// flag package reads it as that flag's value.
+	"-label": true, "--label": true,
+	"-samples": true, "--samples": true,
+	"-gap": true, "--gap": true,
 	"-window-id": true, "--window-id": true,
 	"-window-title": true, "--window-title": true,
 	"-process": true, "--process": true,

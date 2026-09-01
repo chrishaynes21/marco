@@ -520,6 +520,53 @@ func (s *liveSampler) pushNavContext(sh *observe.ShadowSample, bounds directorap
 // exists so a pathological tree cannot grow the worker's index without limit.
 const MaxActionables = 256
 
+// mayNameTargets is whether this session may keep the name of the ONE control a person's own
+// input landed on.
+//
+// # Two doors to one permission, and the second one was never wired
+//
+// `nameActivatedTargets` is the licence a CALLER declared when it asked for the session — an
+// explicit Learn declares it, a passive session does not. Ambient watching is started with the
+// zero episode and so declares nothing, which is right: watching is not consent to retain the
+// text of whatever somebody clicks.
+//
+// But ambient LEARNING is. Turning it on is an explicit act, off by default, a separate switch
+// from watching, and `ambientPromotionLicence` has always returned `LearnLicence()` — which holds
+// `NameActivatedTargets: true`. The system already declared the permission was held. Perception
+// was never told, and the label gate is in perception.
+//
+// # What that cost, measured on the second dogfood
+//
+// Windows Settings navigates by `list_item`, which is not on the plaintext role allowlist. So
+// every control a person clicked in Settings under Watch & Learn had its label withheld, every
+// candidate edge came out with an empty Target, `Act.Representable` refused it and `ambient.Judge`
+// returned `Never / control_not_named`. Sixteen moves noticed, seven relationships seen, zero
+// learnable — and the Director's own evidence read said exactly why, in a terminal nobody was
+// looking at. **Ambient learning could not promote anything in Settings, ever.**
+//
+// # Read live rather than copied at session start
+//
+// Because somebody presses Watch & Learn while a session is already running, and a copy taken at
+// `start` would leave the mode inert for the rest of it — twenty seconds of clicking that cannot
+// be learned, for no reason a person could see.
+//
+// # What does NOT change
+//
+// The shape filter is unconditional and unchanged: a friend tag, a filename, a token or anything
+// over the length and word bounds is refused whatever the licence says. The gate still admits only
+// what an event's own resolution touched — the one control, never a sweep of the screen — and
+// nothing here widens what is PERCEIVED, only what may travel on an input the person made.
+//
+// Deleting the ambient arm must fail TestWatchAndLearnCanKeepTheNameOfWhatYouClicked.
+// Replacing it with `true`, or with watching rather than learning, must fail
+// TestWatchingAloneKeepsNoControlName.
+func (s *liveSampler) mayNameTargets() bool {
+	if s.nameActivatedTargets {
+		return true
+	}
+	return s.rt.ambientLearning()
+}
+
 // pushActionables tells the navigation producer what the watched window OFFERED this cycle,
 // so a press or a confirm that arrives before the next one can be resolved to the control it
 // landed on — at event time, from evidence that was already admitted.
@@ -580,7 +627,7 @@ func (s *liveSampler) pushActionables(world directorapi.WorldState, now time.Tim
 		items = append(items, navsource.Actionable{
 			X: el.Bounds.X, Y: el.Bounds.Y, W: el.Bounds.Width, H: el.Bounds.Height,
 			Role: string(el.Role),
-			Label: observe.AdmittedTargetLabel(el.Role, s.nameActivatedTargets, el.Label,
+			Label: observe.AdmittedTargetLabel(el.Role, s.mayNameTargets(), el.Label,
 				el.Confidence),
 			Focused: el.Focused,
 		})

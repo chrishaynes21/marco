@@ -150,3 +150,60 @@ func (s Sufficiency) Describe() string {
 	}
 	return string(s.State)
 }
+
+// CAN THIS READING SAY WHICH STATE IT IS?
+//
+// # A second question, beside the first, and not a change to it
+//
+// [SufficiencyState] answers "could this interface be read". It is about ARRANGEMENT — did
+// structures reach into the space the content belongs in — and 37D built it for the question
+// "can Marco perceive this interface at all". That question and its answer are untouched.
+//
+// This is the other one. A reading can describe a whole window, spread structures through its
+// content, offer thirty-two actionable controls, and say NOTHING about which of many states it
+// is. Measured live on an Xbox game page: structurally `Sufficient / content_reached`, and every
+// game reads identically because nothing in any of them claims a destination.
+//
+// Kept apart deliberately rather than folded into the first. Collapsing them would mean either
+// calling a perfectly-read screen "incomplete" — which is false, and would send an owner looking
+// for a broken accessibility tree — or letting a semantic gap widen what `Incomplete` means,
+// which is the classifier 37D exists to protect.
+type SemanticState string
+
+const (
+	// StateClaimed is a reading in which something said which destination this is.
+	StateClaimed SemanticState = "claimed"
+	// StateSilent is a reading that describes the interface and not which state it is.
+	//
+	// Ordinary and not a fault. Plenty of interfaces render their current state as
+	// content rather than as a selected navigation item, and the honest response is that
+	// more evidence may be worth buying — see [EscalationOf].
+	StateSilent SemanticState = "silent"
+	// StateUnreadable is no usable reading, so the question does not arise.
+	StateUnreadable SemanticState = "unreadable"
+)
+
+// SemanticSufficiency is what the reading can say about which state it is.
+type SemanticSufficiency struct {
+	State SemanticState
+}
+
+// Enough reports whether the reading can distinguish this state from another.
+func (s SemanticSufficiency) Enough() bool { return s.State == StateClaimed }
+
+// SemanticSufficiencyOf reads the assessment already made, and names it.
+//
+// It DERIVES, exactly as [SufficiencyOf] does, from a field [PlaceNow] has already filled from
+// the naming rule's own tally. There is one place that decides what counts as a claim and this is
+// not it.
+//
+// Deleting this must fail TestAReadingThatSaysNothingAboutItselfIsSemanticallySilent.
+func SemanticSufficiencyOf(p Place) SemanticSufficiency {
+	if !p.Placed || p.Reach == ReachShell {
+		return SemanticSufficiency{State: StateUnreadable}
+	}
+	if p.StateClaimed {
+		return SemanticSufficiency{State: StateClaimed}
+	}
+	return SemanticSufficiency{State: StateSilent}
+}

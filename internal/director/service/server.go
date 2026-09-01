@@ -505,6 +505,19 @@ func (s *Server) dispatch(req RequestEnvelope, send func(ResponseEnvelope)) bool
 			s.performGoal(req.RequestID, *p.Perform, send)
 			break
 		}
+		// AND SO IS TEST, for the same reason and through the same door.
+		//
+		// An experiment drives real input — it may walk somewhere to reach its starting
+		// point and then press the thing being tested — so it takes the mutating slot, is
+		// visible to `director status`, refuses a concurrent command and is reachable by
+		// CANCEL_ACTIVE. A second lifecycle for "the same thing but for learning" is how a
+		// system ends up with one path a person can stop and one they cannot.
+		//
+		// Deleting this branch must fail TestAnExperimentEntersTheCommandRegistry.
+		if p.Test != nil {
+			s.testEdge(req.RequestID, *p.Test, send)
+			break
+		}
 		out, err := s.runtime.Observation(p)
 		if err != nil {
 			send(NewResponse(req.RequestID, ResponseError,

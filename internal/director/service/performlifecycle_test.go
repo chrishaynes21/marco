@@ -266,3 +266,84 @@ func TestADirectorThatCannotPerformRefusesInsteadOfObserving(t *testing.T) {
 		t.Errorf("a Director with no performer answered %q, want no_performer", v.Refusal)
 	}
 }
+
+// AN EXPERIMENT ENTERS THE SAME COMMAND REGISTRY A PERFORMANCE DOES.
+//
+// # Why it must
+//
+// An experiment drives real input: it may walk somewhere to reach the connection's starting
+// point, and then press the thing being tested. Every reason a performance takes the mutating
+// slot applies to it unchanged — it has to be visible to `director status`, it has to refuse a
+// concurrent command, and above all it has to be STOPPABLE. A learning path a person cannot stop
+// is the one thing this whole lifecycle exists to prevent, and "it is only checking something"
+// makes it worse rather than better.
+//
+// Through the production door: `Server.testEdge` asserts for `Tester`, and this implements it.
+//
+// Deleting the Test branch in the server, or its registry Begin, must fail this.
+func TestAnExperimentEntersTheCommandRegistry(t *testing.T) {
+	release := make(chan struct{})
+	rt := newTestingRuntime(func(ctx context.Context, q TestQuery) (PerformView, error) {
+		<-release
+		return PerformView{Testing: &EdgeRef{From: q.From, To: q.To}, Arrived: true}, nil
+	})
+	_, dir := serve(t, rt)
+	runner, other := dial(t, dir), dial(t, dir)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_, _ = runner.Observation(ObserveQuery{
+			Test: &TestQuery{Application: "settings", From: "a", To: "b"}})
+	}()
+	select {
+	case <-rt.started:
+	case <-time.After(3 * time.Second):
+		// THE ROUTING NEVER REACHED THE RUNTIME. Bounded rather than blocking, so a
+		// server that stopped routing experiments fails here instead of hanging.
+		close(release)
+		t.Fatal("the experiment never reached the Director, so nothing entered the " +
+			"command registry and nothing could have stopped it")
+	}
+	defer func() { close(release); <-done }()
+
+	st, err := other.Status()
+	if err != nil {
+		t.Fatalf("status: %v", err)
+	}
+	if st.Active == nil {
+		t.Fatal("`director status` reports nothing running while an experiment is driving " +
+			"real input. A learning attempt outside the registry cannot be stopped.")
+	}
+	// AND A SECOND MUTATING REQUEST IS REFUSED, not queued: two things driving one desktop
+	// is the state the mutating slot exists to prevent, and an experiment is not exempt.
+	id, _ := other.send(RequestExecutePhrase, ExecutePayload{Phrase: "click Edit"})
+	resp, err := other.receive(id, 3*time.Second)
+	if err != nil {
+		t.Fatalf("receive: %v", err)
+	}
+	if resp.Type != ResponseBusy {
+		t.Fatalf("a phrase submitted during an experiment answered %s, want BUSY", resp.Type)
+	}
+}
+
+// testingRuntime is a Director that can try what it has learned.
+type testingRuntime struct {
+	*fakeRuntime
+	started chan struct{}
+	once    sync.Once
+	test    func(ctx context.Context, q TestQuery) (PerformView, error)
+}
+
+func (p *testingRuntime) TestEdge(ctx context.Context, q TestQuery) (PerformView, error) {
+	p.once.Do(func() { close(p.started) })
+	return p.test(ctx, q)
+}
+
+func newTestingRuntime(
+	do func(ctx context.Context, q TestQuery) (PerformView, error)) *testingRuntime {
+
+	return &testingRuntime{
+		fakeRuntime: newFakeRuntime(), started: make(chan struct{}), test: do,
+	}
+}

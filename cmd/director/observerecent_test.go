@@ -219,6 +219,10 @@ func TestObserveCannotMakeItsOwnEvidenceDurable(t *testing.T) {
 	refused("kept a demonstration", watching.remember(observe.ProcedureCandidate{}))
 	_, err = watching.name(observe.ProcedureCandidate{})
 	refused("named an activated control", err)
+	// AND THE NAMING DOOR, which is the one 38A.1 added and which the ambient sweep goes
+	// through. It writes one word against an identity the store already holds — a smaller
+	// operation than establishing, and still not one an unlicensed promotion may perform.
+	refused("named a place it recognised", watching.call("subj_whatever", "Mouse"))
 	// AND NOTHING REACHED THE STORE.
 	if n := len(subjectsIn(store, recentApp)); n != 0 {
 		t.Errorf("%d place(s) were established by an unlicensed promotion", n)

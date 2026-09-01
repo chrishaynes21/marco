@@ -61,12 +61,12 @@ func TestASufficientSampleDoesNotAskForPixels(t *testing.T) {
 	// "not sufficient" and "worth buying" disagree must both decline.
 	incomplete := observe.Sufficiency{State: observe.Incomplete,
 		Reason: observe.ReasonClientAreaUnpopulated}
-	if observe.EscalationOf(observe.NeedWatching, incomplete, 0).Worth() {
+	if observe.EscalationOf(observe.NeedWatching, incomplete, canSayWhichState, 0).Worth() {
 		t.Error("background watching of an incomplete reading was told to spend")
 	}
 	sufficient := observe.Sufficiency{State: observe.Sufficient,
 		Reason: observe.ReasonContentReached}
-	if observe.EscalationOf(observe.NeedAnswer, sufficient, 0).Worth() {
+	if observe.EscalationOf(observe.NeedAnswer, sufficient, canSayWhichState, 0).Worth() {
 		t.Error("a sufficient reading was told to spend; the sampler would then buy a " +
 			"940ms pass for a verdict it already had")
 	}

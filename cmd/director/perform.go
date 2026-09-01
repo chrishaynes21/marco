@@ -151,6 +151,9 @@ func (r *Runtime) PerformGoal(ctx context.Context, q service.PerformQuery) (serv
 		return out, nil
 	}
 
+	// AND MARCO'S OWN WATCHING GIVES UP THE SUBSTRATE, so the looks below can take it.
+	// Somebody else's session was refused above; this one is Marco's and simply ends.
+	r.standAsideForAction()
 	// FOREGROUND FIRST. A Stage read taken while another application is in front describes
 	// somebody else's window, and every decision after it would be about the wrong world.
 	if err := r.bringForward(application); err != nil {
@@ -858,6 +861,17 @@ func (r *Runtime) watchingElsewhere(application string) string {
 	if g == nil || g.ActiveID() == "" {
 		return ""
 	}
+	// MARCO'S OWN WATCHING IS NOT SOMEBODY ELSE.
+	//
+	// This refusal is about a session a PERSON set up — a demonstration in another program,
+	// which carrying a play out would interrupt. Ambient watching is Marco's own background
+	// attention and runs continuously, so treating it as somebody else made every performance
+	// and every experiment refuse for as long as Watch & Learn was on.
+	//
+	// It stands aside instead; see standAsideForAction.
+	if r.ambientHoldsSession(g.ActiveID()) {
+		return ""
+	}
 	watching := strings.TrimSpace(g.ObservedApplication())
 	if sameApplication(watching, application) {
 		return ""
@@ -891,10 +905,10 @@ const (
 //
 // Already in front is success and costs nothing.
 func (r *Runtime) bringForward(application string) error {
-	if strings.EqualFold(strings.TrimSpace(winctx.Active()), application) {
+	if strings.EqualFold(strings.TrimSpace(activeWindow()), application) {
 		return nil
 	}
-	if err := winctx.Activate(application); err != nil {
+	if err := activateWindow(application); err != nil {
 		return fmt.Errorf("I couldn't bring %s to the front: %w", application, err)
 	}
 	// One settle. Foregrounding is asynchronous on Windows and a sample taken immediately

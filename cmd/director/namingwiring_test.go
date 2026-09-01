@@ -673,3 +673,59 @@ func TestEverySurfaceNamesAPlaceTheSameWay(t *testing.T) {
 		t.Errorf("the route line calls the named place %q", got)
 	}
 }
+
+// AN UNNAMED PLACE IS CALLED THE SAME THING EVERYWHERE.
+//
+// # Two dogfood sessions, two bad answers
+//
+// The feed said `learned place [unnamed subj_c3e77b6f]`, and when that was replaced by the
+// structural description it said `learned place about back, settings, 96 things on it`. A person
+// read both and said, in order, "I have no clue what that is telling me" and "the names need to be
+// production ready".
+//
+// They were right twice. An identifier is not a name and an inventory is not a name. An unnamed
+// place is a real state, and it is said plainly and identically on every surface — the structural
+// description stays available beside it, which is where a list that has to tell two of them apart
+// reads it, and a question that must distinguish two composes it (see PlaceWordsAsking).
+//
+// Deleting the shared floor must fail this.
+func TestAnUnnamedPlaceIsCalledTheSameThingEverywhere(t *testing.T) {
+	dir := t.TempDir()
+	store, _ := semanticmemory.Open(filepath.Join(dir, "memory.json"))
+	one, err := store.EstablishPlace("settings", namedPlace(observe.TermAudio))
+	if err != nil {
+		t.Fatalf("establishing: %v", err)
+	}
+	two, err := store.EstablishPlace("settings", namedPlace(observe.TermDisplay))
+	if err != nil {
+		t.Fatalf("establishing: %v", err)
+	}
+	rt := &Runtime{observations: newObservationRegistry().withMemory(store), learn: &learnSession{}}
+	rt.watchLearning(store)
+
+	// THE SCREENS LIST, THE FEED AND THE WALK all say the same thing about a nameless place.
+	said := map[string]string{}
+	for _, p := range rt.placesKnown("settings", "") {
+		said["the screens list"] = p.Words
+	}
+	said["the feed"] = rt.placeWord(one)
+	said["a performed step"] = placeWordsIn(store.Topology("settings"), one)
+	for where, got := range said {
+		if got != observe.Unnamed {
+			t.Errorf("%s calls a place nobody has named %q, want %q. Two surfaces "+
+				"describing one nameless screen differently is how a person comes to "+
+				"think there are two screens.", where, got, observe.Unnamed)
+		}
+	}
+	// AND THE DESCRIPTION IS STILL THERE, beside the name rather than instead of it, so a
+	// list can still tell two of them apart.
+	for _, p := range rt.placesKnown("settings", "") {
+		if p.Describes == "" {
+			t.Error("the screens list dropped what the screen is made of, so two unnamed " +
+				"rows are now indistinguishable")
+		}
+	}
+	if one == two {
+		t.Fatal("the fixture established one place twice")
+	}
+}

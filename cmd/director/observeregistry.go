@@ -812,6 +812,23 @@ func (r *Runtime) Observation(q service.ObserveQuery) (any, error) {
 		//
 		// Deleting this case must fail TestTheDirectorAnswersWhichPlaceIsShowing.
 		return r.ShowingNow(r.serviceContext(), *q.Showing)
+	case q.Map != nil:
+		// THE MAP. A read, before the acting cases: asking what Marco knows about where you
+		// are must never be answered by going somewhere.
+		//
+		// Deleting this case must fail TestTheDirectorAnswersWithItsMap.
+		return r.Map(*q.Map), nil
+	case q.Experiment != nil:
+		// WHAT MARCO IS FOCUSED ON. A read, before the acting cases, because asking what
+		// Marco would like to try must never be answered by trying it.
+		//
+		// Deleting this case must fail TestTheDirectorSaysWhatItWouldLikeToTry.
+		return r.Experiment(*q.Experiment), nil
+	case q.Test != nil:
+		// NOT HERE, for the same reason a performance is not — see below. An experiment
+		// acts, so it enters through the command registry.
+		return nil, fmt.Errorf(
+			"an experiment enters through the command registry, not the observation door")
 	case q.Perform != nil:
 		// NOT HERE ANY MORE, and loudly rather than quietly.
 		//
@@ -979,6 +996,39 @@ func (r *Runtime) refuseWhileObserved() (execute.Outcome, bool) {
 	}
 	id := r.observations.ActiveID()
 	if id == "" {
+		return execute.Outcome{}, false
+	}
+	// EXCEPT WHEN THE SESSION IS MARCO'S OWN, which stands aside instead.
+	//
+	// # The state this refusal made unusable
+	//
+	// The reasoning below is about a session somebody SET UP: an observe-game, a Learn
+	// demonstration — evidence about how a person uses an application, which an action the
+	// Director took would silently corrupt. That reasoning is untouched.
+	//
+	// Ambient watching is not that. It is Marco's own background attention, started by a
+	// switch and owned by nobody's experiment, and it runs CONTINUOUSLY — so while Watch &
+	// Learn was on, every Director action was refused. Including the one that mode exists to
+	// offer: the control centre proposes "test what I learned", and pressing it was blocked by
+	// the very watching that produced the proposal. Reported live, with the refusal naming a
+	// session the person had never heard of and telling them to cancel it by id.
+	//
+	// # Standing aside rather than pausing
+	//
+	// The distinction already exists: `ambientObserver.held` records the session ambient owns
+	// precisely so an explicit Learn can ask for it back, and `standAside` cancels only that
+	// one — "a passive observe-game somebody set up deliberately is not Marco's to cancel".
+	// This asks the same question the same way.
+	//
+	// The evidence concern is answered rather than waived: the session ENDS, so nothing the
+	// Director does is folded into it, and the supervisor starts a fresh one afterwards. That
+	// is the same shape as an explicit Learn taking the slot, and it is why this is not the
+	// "pause and resume" the note below rejects — there is no stitching, because there is no
+	// second half.
+	//
+	// Deleting this must fail TestWatchingStandsAsideForMarcosOwnActions.
+	if r.ambientHoldsSession(id) {
+		r.standAsideForAction()
 		return execute.Outcome{}, false
 	}
 	app := r.observations.ObservedApplication()

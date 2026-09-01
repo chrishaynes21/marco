@@ -166,7 +166,7 @@ func TestHereIsItsOwnViewWithTheObservationControls(t *testing.T) {
 	rawLearn := editPage[i:]
 	rawLearn = rawLearn[:strings.Index(rawLearn, "</section>")]
 
-	for _, id := range []string{`id="lherebar"`, `id="lwatch"`, `id="lunwatch"`, `id="lplaces"`, `id="ltrail"`} {
+	for _, id := range []string{`id="lherebar"`, `id="wbar"`, `id="wstop"`, `id="lplaces"`, `id="ltrail"`} {
 		if !strings.Contains(rawHere, id) {
 			t.Errorf("the Here view is missing %s", id)
 		}
@@ -174,7 +174,7 @@ func TestHereIsItsOwnViewWithTheObservationControls(t *testing.T) {
 			t.Errorf("%s is still inside the Learn view", id)
 		}
 	}
-	if !strings.Contains(here, "HERE") {
+	if !strings.Contains(here, "NOW") {
 		t.Error("the Here view does not say what it is showing")
 	}
 	// And Learn is still Learn: the acquisition controls did NOT move.

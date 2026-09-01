@@ -91,7 +91,13 @@ func TestAnUnnamedPlaceIsStillDescribed(t *testing.T) {
 	if got == "" || strings.Contains(got, "subj_") {
 		t.Errorf("PlaceWords = %q", got)
 	}
-	if !strings.Contains(got, "things on it") {
-		t.Errorf("PlaceWords = %q; a description says what the screen is made of", got)
+	// THE LABEL IS ONE WORD FOR EVERY UNNAMED PLACE, deliberately — see PlaceWords, and the
+	// two dogfood sessions that ran into a subject id and then into a structural inventory.
+	if got != Unnamed {
+		t.Errorf("PlaceWords = %q, want %q", got, Unnamed)
+	}
+	// AND A QUESTION THAT HAS TO TELL TWO APART STILL CAN.
+	if asking := PlaceWordsAsking(s); !strings.Contains(asking, "things on it") {
+		t.Errorf("PlaceWordsAsking = %q; a question needs what the screen is made of", asking)
 	}
 }

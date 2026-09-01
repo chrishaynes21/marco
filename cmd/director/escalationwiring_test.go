@@ -104,14 +104,14 @@ func TestTheSensorGateRoutesThroughThePolicy(t *testing.T) {
 
 	// The two cases where "not sufficient" and "worth buying" disagree. If the gate ever
 	// answers these the same way, it has stopped asking the policy.
-	if observe.EscalationOf(observe.NeedAnswer, incomplete, 0).Worth() {
+	if observe.EscalationOf(observe.NeedAnswer, incomplete, canSayWhichState, 0).Worth() {
 		t.Error("a page that has only just come back incomplete bought an inference; " +
 			"the settle is not being applied")
 	}
-	if observe.EscalationOf(observe.NeedWatching, incomplete, time.Hour).Worth() {
+	if observe.EscalationOf(observe.NeedWatching, incomplete, canSayWhichState, time.Hour).Worth() {
 		t.Error("background watching of a standing condition bought an inference")
 	}
-	if !observe.EscalationOf(observe.NeedAnswer, incomplete, time.Hour).Worth() {
+	if !observe.EscalationOf(observe.NeedAnswer, incomplete, canSayWhichState, time.Hour).Worth() {
 		t.Fatal("a caller that waited and still cannot answer was refused; this test " +
 			"cannot distinguish anything if the policy never says yes")
 	}
@@ -143,3 +143,7 @@ func containsAll(s string, parts ...string) bool {
 	}
 	return true
 }
+
+// canSayWhichState is a reading that knows which state it is — see the note in
+// internal/director/observe/escalation_test.go.
+var canSayWhichState = observe.SemanticSufficiency{State: observe.StateClaimed}

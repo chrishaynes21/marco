@@ -1106,6 +1106,192 @@ type ObserveQuery struct {
 	// exists to prevent. The Audience naming a behaviour is the authority event; the bounds
 	// on real input are the same ones a rehearsal spends.
 	Perform *PerformQuery `json:"perform,omitempty"`
+	// Experiment asks what ONE thing Marco would most like to try, and why.
+	//
+	// A READ, and it chooses nothing durable. See ExperimentView for why exactly one.
+	Experiment *ObserveExperiment `json:"experiment,omitempty"`
+	// Test TRIES one connection Marco learned by watching, and is the second field here that
+	// can drive real input.
+	//
+	// Separated from Perform because they are different acts with different meanings to a
+	// person. Perform accomplishes what somebody ASKED FOR and leaves them where they asked to
+	// be. Test proves a connection Marco believes in, needs a specific SOURCE it may have to
+	// walk to first, and gives the desktop back afterwards — because nobody asked to be moved.
+	//
+	// A surface that labelled both "Try it" would be hiding the difference between "go there"
+	// and "check what you learned", which is the difference between doing somebody a favour
+	// and borrowing their computer.
+	Test *TestQuery `json:"test,omitempty"`
+	// Map asks what Marco knows about where somebody is — the graph, not the events.
+	//
+	// A READ. It establishes nothing, plans nothing new and cannot act; see MapView.
+	Map *ObserveMap `json:"map,omitempty"`
+}
+
+// ObserveMap asks for Marco's map of the interface around where somebody is.
+type ObserveMap struct {
+	// Application scopes the map. Empty means whichever ambient watching last saw.
+	Application string `json:"application,omitempty"`
+}
+
+// MapView is Marco's semantic map, as a person watches it being built.
+//
+// # The primary object of Observe
+//
+// Not an event feed. The dogfood finding this answers is that a person could not tell what Marco
+// thought the screen was called, what it had just discovered, how Places related, or what any of
+// it would let Marco do — because the surface showed a stream of process vocabulary and not the
+// mental model underneath it.
+//
+// Four questions, in this order: where am I, what does Marco know around here, what did it just
+// find, what can it reach.
+//
+// # Words, and never identifiers
+//
+// Every field a person reads is a word from `observe.PlaceWords` — the one naming function — so
+// the map cannot call a screen something the rest of the product does not. Subjects travel because
+// a surface has to address a place; nothing renders them.
+type MapView struct {
+	Application string `json:"application,omitempty"`
+	// Here is where fresh perception says the person is, and HereWords what to call it.
+	//
+	// EMPTY IS A REAL ANSWER and means Marco does not recognise the screen in front. It is
+	// never filled from memory: a remembered Place is not a visible Place, and a marker that
+	// moved because Marco recalled something would say where somebody once was.
+	Here      string `json:"here,omitempty"`
+	HereWords string `json:"here_words,omitempty"`
+	// HereKnown says perception resolved a durable Place. False with an application present
+	// is the ordinary unknown-screen state.
+	HereKnown bool `json:"here_known,omitempty"`
+	// Places and Edges are the NEIGHBOURHOOD — what Marco knows within one step of here —
+	// rather than the whole graph, because "what do you know around here" is a question
+	// somebody can act on.
+	Places []MapPlace `json:"places,omitempty"`
+	Edges  []MapEdge  `json:"edges,omitempty"`
+	// KnownPlaces and KnownEdges are the whole graph, as counts. So somebody watching the map
+	// grow can see it grow without being shown all of it.
+	KnownPlaces int `json:"known_places,omitempty"`
+	KnownEdges  int `json:"known_edges,omitempty"`
+	// Reachable is where the canonical planner says Marco could get to from here.
+	Reachable []MapReach `json:"reachable,omitempty"`
+}
+
+// MapPlace is one screen on the map.
+type MapPlace struct {
+	// Subject addresses it and is never rendered.
+	Subject string `json:"subject"`
+	// Words is what to call it, from the one naming function.
+	Words string `json:"words"`
+	// Describes is what it is made of, which is how a person tells two unnamed screens
+	// apart. Secondary to Words, never instead of it.
+	Describes string `json:"describes,omitempty"`
+	// Here marks the one the person is standing on.
+	Here bool `json:"here,omitempty"`
+}
+
+// MapEdge is one connection Marco has learned.
+//
+// FROM, ACTION, TO — never "origin" and "arrival", which are the machinery's words and which a
+// person reading the control centre could not make sense of.
+type MapEdge struct {
+	From      string `json:"from"`
+	To        string `json:"to"`
+	FromWords string `json:"from_words"`
+	ToWords   string `json:"to_words"`
+	// Observations is how often this connection has been seen. A count rather than a
+	// confidence: the map says what Marco has, and what that is worth is the planner's
+	// business.
+	Observations int `json:"observations,omitempty"`
+}
+
+// MapReach is somewhere Marco believes it could get to from here.
+//
+// Present because the CANONICAL planner produced a route, never because two places look connected.
+// Verified says every step is one Marco has walked and checked; false is ordinary and means "I
+// know a way and I have not earned every step of it yet".
+type MapReach struct {
+	Subject  string `json:"subject"`
+	Words    string `json:"words"`
+	Steps    int    `json:"steps"`
+	Verified bool   `json:"verified,omitempty"`
+}
+
+// ObserveExperiment asks what Marco is focused on.
+type ObserveExperiment struct {
+	// Application scopes the question. Empty means whichever ambient watching last saw.
+	Application string `json:"application,omitempty"`
+}
+
+// EdgeRef names one connection between two remembered screens.
+//
+// Ids, because it is an ADDRESS: the surface hands it straight back to ask for that exact
+// connection to be tried. What a person reads is never this — see ExperimentView's words.
+type EdgeRef struct {
+	From string `json:"from"`
+	To   string `json:"to"`
+}
+
+// ExperimentView is the ONE thing Marco would like to try, said in a sentence.
+//
+// # Why exactly one
+//
+// Because the dogfood failure it answers was not that Marco knew too little; it was that a person
+// could not tell what it was focused on. A surface offering nine things Marco might try is the
+// same undifferentiated stream in a different shape. One experiment, with its source, its action,
+// its expected destination and its reason, is a thought somebody can follow and decide about.
+//
+// # Words AND ids, and they are not the same field
+//
+// `Edge` addresses the connection and is never rendered. `FromWords`, `ToWords` and `Action` are
+// what a person reads, through the one place-naming function every other surface uses. A view
+// carrying only ids would push naming into the client, which is how two surfaces come to call one
+// screen two things.
+type ExperimentView struct {
+	Application string `json:"application,omitempty"`
+	// Ready says there IS something worth trying. False with no refusal is the ordinary
+	// early state: Marco has not watched anybody do anything twice yet.
+	Ready bool    `json:"ready,omitempty"`
+	Edge  EdgeRef `json:"edge,omitzero"`
+	// FromWords, Action and ToWords are the hypothesis, in the order it reads: from HERE,
+	// doing THIS, you arrive THERE.
+	FromWords string `json:"from_words,omitempty"`
+	Action    string `json:"action,omitempty"`
+	ToWords   string `json:"to_words,omitempty"`
+	// Why is Marco's one reason, from evidence and never from narrative.
+	Why string `json:"why,omitempty"`
+	// Seen and Sessions are the evidence behind Why, for a surface that wants to show it.
+	Seen     int `json:"seen,omitempty"`
+	Sessions int `json:"sessions,omitempty"`
+}
+
+// TestQuery asks Marco to try one connection it learned by watching.
+type TestQuery struct {
+	Application string `json:"application"`
+	// From and To are the connection, by durable subject. The surface got them from
+	// ExperimentView and hands them back unchanged — it does not choose an experiment by
+	// describing one, because a description is not an identity.
+	From string `json:"from"`
+	To   string `json:"to"`
+}
+
+// RestoreView is what became of the desktop the person was using.
+//
+// # Why this is a value and not a silence
+//
+// Because "I put your computer back" and "I couldn't" are different facts about somebody's
+// afternoon, and the second one is the one they need. A restoration that failed quietly leaves a
+// person standing in Marco's experiment believing they were returned.
+type RestoreView struct {
+	// Attempted is false when there was nothing to restore — no window context, or nothing
+	// in the foreground when the attempt began.
+	Attempted bool `json:"attempted,omitempty"`
+	// Application is the window Marco tried to bring back, for the sentence.
+	Application string `json:"application,omitempty"`
+	// Restored says a check confirmed it came forward. Never assumed from the call
+	// succeeding.
+	Restored bool `json:"restored,omitempty"`
+	// Say is why not, when it did not.
+	Say string `json:"say,omitempty"`
 }
 
 // ObserveShowing asks which remembered place is showing RIGHT NOW.
@@ -1788,6 +1974,20 @@ type PerformView struct {
 	// Command is the registry id this performance ran under, so `director status`, a
 	// CANCEL_ACTIVE and this view all name the same thing. Empty when nothing was begun.
 	Command CommandID `json:"command,omitempty"`
+	// Testing names the connection an EXPERIMENT was about, absent for an ordinary
+	// performance. It is what makes the two distinguishable in one view: "go there" and
+	// "check what you learned" produce the same kind of report and are not the same act.
+	Testing *EdgeRef `json:"testing,omitempty"`
+	// Positioned says Marco had to walk somewhere before it could try the thing being
+	// tested. A fact about the attempt somebody should be able to see: an experiment that
+	// moved them three screens to get to its starting point did more to their desktop than
+	// one that did not.
+	Positioned bool `json:"positioned,omitempty"`
+	// Tried says the experimental action itself ran. FALSE with a refusal means Marco never
+	// got as far as trying, which a person must not read as a result about the connection.
+	Tried bool `json:"tried,omitempty"`
+	// Restored is what became of the desktop the person was using. See RestoreView.
+	Restored *RestoreView `json:"restored,omitempty"`
 	// Cost totals what the whole performance spent looking, across every edge.
 	// Developer-facing; see PerformCost.
 	Cost PerformCost `json:"cost,omitzero"`

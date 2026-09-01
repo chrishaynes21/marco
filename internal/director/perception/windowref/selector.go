@@ -45,11 +45,28 @@ type Selector struct {
 	Application string
 	// ProcessID matches one running process exactly.
 	ProcessID uint32
+	// Foreground names THE WINDOW IN FRONT, whichever it is, resolved once.
+	//
+	// # Why this is a primary selector and not a convenience
+	//
+	// Because it is the only honest way to say "watch what the person is using", and the
+	// nearest alternative is a lie. Ambient watching asked the desktop what was in front,
+	// threw the answer away, and asked for that window by EXECUTABLE NAME — which is a
+	// different question the moment one executable owns two windows. Windows hosts Settings,
+	// XBOX and Realtek Audio Console in one `applicationframehost`, so a person with the
+	// audio console open made every ambient session over Settings resolve as `ambiguous`,
+	// skip every reading, and report nothing. Measured live: `Samples: 0  skipped: 39`.
+	//
+	// It does NOT follow focus. `Foreground` resolves once and the caller pins the answer,
+	// exactly as it does for every other selector — the stale-capture rule is untouched. What
+	// changes is only how the starting window is CHOSEN.
+	Foreground bool
 }
 
 // Zero reports whether nothing was selected.
 func (s Selector) Zero() bool {
-	return s.EphemeralID == "" && s.Title == "" && s.Application == "" && s.ProcessID == 0
+	return s.EphemeralID == "" && s.Title == "" && s.Application == "" && s.ProcessID == 0 &&
+		!s.Foreground
 }
 
 // Describe renders the selector for a person, without leaking a handle.
@@ -63,6 +80,8 @@ func (s Selector) Describe() string {
 		return fmt.Sprintf("title %q", s.Title)
 	case s.ProcessID != 0:
 		return fmt.Sprintf("process %d", s.ProcessID)
+	case s.Foreground:
+		return "the window in front"
 	}
 	return "nothing"
 }
@@ -72,6 +91,7 @@ func (s Selector) Validate() error {
 	n := 0
 	for _, set := range []bool{
 		s.EphemeralID != "", s.Title != "", s.Application != "", s.ProcessID != 0,
+		s.Foreground,
 	} {
 		if set {
 			n++
@@ -264,6 +284,16 @@ func Resolve(ctx context.Context, p Platform, dir *Directory, s Selector) (Candi
 	}
 
 	switch {
+	case s.Foreground:
+		// THE WINDOW IN FRONT, resolved ONCE and pinned by the caller like any other.
+		//
+		// Checked before the rest because it is the only selector that does not
+		// describe a window — it describes the person. See Selector.Foreground for the
+		// measured failure that made naming the executable the wrong question.
+		//
+		// Deleting this case must fail TestTheWindowInFrontCanBeSelected.
+		return Foreground(ctx, p)
+
 	case s.EphemeralID != "":
 		if dir == nil {
 			return Candidate{}, UnusableSelector, "no window listing has been taken yet; run `director windows` first"

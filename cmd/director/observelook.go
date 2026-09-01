@@ -52,6 +52,26 @@ type ambientLook struct {
 	// slice alone would silently re-deliver events after an overflow.
 	Inputs  []observe.AttributedInput
 	Dropped int
+	// Names is every durable Place this reading can now say a settled name for.
+	//
+	// # Why the look carries it, and why it is computed either side of the early return
+	//
+	// A Place is established the first time Marco can recognise it; a name settles by
+	// RECURRENCE. The two almost never happen on the same reading — so a Place established
+	// while its name had not settled yet is established WITHOUT one, and every later reading,
+	// having nothing left to establish, used to carry nothing that could give it the word.
+	// Measured on the first dogfood: forty-five durable Settings screens, none named, while
+	// perception could name them the whole time.
+	//
+	// So this is not "the current screen's name". It is the canonical naming sweep —
+	// `observe.PlaceNamesToRecord`, the same one a licensed session runs — over every state
+	// this session has seen, and it is deliberately computed BEFORE the established-place
+	// return above: an already-established Place is exactly the case that needs it.
+	//
+	// It is a READ and a report. It never mints a subject: a state memory cannot recall is
+	// skipped, so nothing here can create a Place, and settlement is unchanged — a word seen
+	// once is not in this map.
+	Names map[string]string
 }
 
 // ambientLook takes one reading for the ambient observer.
@@ -79,6 +99,16 @@ func (r *Runtime) ambientLook(application string) ambientLook {
 		Inputs:  ev.shadow.InputLog.Events,
 		Dropped: ev.shadow.InputLog.Dropped,
 	}
+	// THE NAMING SWEEP, BEFORE THE EARLY RETURN BELOW. See ambientLook.Names: a Place
+	// already established is the one that most needs it, so a return above this would be the
+	// defect rather than an optimisation.
+	//
+	// The canonical sweep, unchanged, and asked as a QUESTION — it reports what a caller
+	// COULD record and writes nothing itself. Whether any of it becomes durable is decided by
+	// the ambient learning policy, in one place, at the write.
+	//
+	// Deleting this must fail TestWatchingAndLearningNamesAPlaceItAlreadyKnows.
+	out.Names = observe.PlaceNamesToRecord(ev.shadow, ev.app, memory, th)
 	if out.Place.Established() {
 		// A place Marco already recognises needs no description: it HAS an identity, and
 		// carrying a second one beside it would be the start of a duplicate.

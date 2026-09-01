@@ -663,3 +663,20 @@ func (g *observationRegistry) placeHere() observe.Place {
 	}
 	return observe.PlaceNow(ev.shadow, ev.app, m, observe.DefaultHypothesisThresholds())
 }
+
+// currentEpoch is the settled observation epoch the budget is keyed on.
+//
+// The session and the segmenter's own screen state, together. Session-local, transient, upstream
+// of recall and of everything durable — which is exactly why the semantic-repair budget uses it
+// rather than the Place: the Place is the thing currently getting this wrong, and a budget keyed
+// on it would let one collapsed state spend the repair that would have told the others apart.
+//
+// The session travels with the state for the reason `transientKey` carries one: `state_2` in two
+// sessions are unrelated screens.
+func (g *observationRegistry) currentEpoch() (observe.SessionID, observe.ScreenStateID) {
+	ev := g.evidenceForPointing()
+	if !ev.ok {
+		return "", ""
+	}
+	return ev.session, ev.shadow.CurrentState
+}
