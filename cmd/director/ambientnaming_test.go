@@ -53,7 +53,7 @@ func watchCalled(t *testing.T, g *observationRegistry, store *semanticmemory.Sto
 	}
 	t.Cleanup(func() {
 		_ = g.Cancel(id)
-		for deadline := time.Now().Add(20 * time.Second); time.Now().Before(deadline); {
+		for deadline := time.Now().Add(settleDeadline); time.Now().Before(deadline); {
 			if g.ActiveID() == "" {
 				return
 			}
@@ -63,7 +63,7 @@ func watchCalled(t *testing.T, g *observationRegistry, store *semanticmemory.Sto
 	})
 
 	th := observe.DefaultHypothesisThresholds()
-	deadline := time.Now().Add(20 * time.Second)
+	deadline := time.Now().Add(settleDeadline)
 	for time.Now().Before(deadline) {
 		g.mu.RLock()
 		runner := g.active
@@ -283,7 +283,7 @@ func TestAnUnsettledNameIsNotWrittenDownByWatching(t *testing.T) {
 	// AND THE TALLY REALLY HOLDS BOTH WORDS, so the refusal below is settlement holding
 	// rather than perception having read nothing.
 	tallied := map[string]int{}
-	for deadline := time.Now().Add(20 * time.Second); time.Now().Before(deadline); {
+	for deadline := time.Now().Add(settleDeadline); time.Now().Before(deadline); {
 		tallied = map[string]int{}
 		for _, st := range lastShadow(t, g).States {
 			for name, seen := range st.PlaceNames {
@@ -325,7 +325,7 @@ func watchScript(t *testing.T, g *observationRegistry, store *semanticmemory.Sto
 	t.Cleanup(func() { _ = g.Cancel(id) })
 
 	th := observe.DefaultHypothesisThresholds()
-	deadline := time.Now().Add(20 * time.Second)
+	deadline := time.Now().Add(settleDeadline)
 	for time.Now().Before(deadline) {
 		g.mu.RLock()
 		runner := g.active
@@ -513,3 +513,15 @@ func TestWatchingShowsWhatTheScreenSaysItIs(t *testing.T) {
 			here.Perceived, "Mouse")
 	}
 }
+
+// settleDeadline is how long a fixture waits for a real session to settle.
+//
+// Sixty seconds, and it is about the SUITE rather than about the screen. These fixtures drive a
+// live observation session through the production registry, and the whole package takes about
+// ninety seconds — so on a loaded machine the twenty seconds this used to allow expired while the
+// session was still perfectly healthy. Seen twice, both times passing alone and failing in a full
+// run, which is the signature of a fixture deadline rather than of a defect.
+//
+// A generous bound costs nothing when the wait succeeds, and a flaky test in a suite this size is
+// worse than a slow one: it eventually masks something real.
+const settleDeadline = 60 * time.Second

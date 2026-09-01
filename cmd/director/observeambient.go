@@ -83,6 +83,10 @@ type ambientObserver struct {
 	// against the state on its own stamp rather than against whatever is in front when it is
 	// read.
 	pending map[observe.ScreenStateID][]ambient.Act
+	// carried is one unresolved action held over a session boundary, nil the rest of the
+	// time. Transient by construction: it lives for at most one session, reaches no store,
+	// and does not survive a restart. See carriedActs.
+	carried *carriedActs
 	// actions counts the semantic actions this observer has attributed, for status.
 	actions int
 	// promotion is the ambient learning rule this observer runs under, and noticedEdges and
@@ -186,6 +190,13 @@ func (r *Runtime) DisableAmbient() service.AmbientView {
 	//
 	// Deleting this must fail TestStoppingWatchingStopsLearning.
 	a.promotion.Enabled = false
+	// AND ANY ACTION WAITING TO CROSS A SESSION BOUNDARY. Somebody who stopped watching did
+	// not leave a press behind for the next session to finish — and this is above the
+	// already-stopped return for the same reason the line before it is: the invariant holds
+	// unconditionally or it is not one.
+	//
+	// Deleting this must fail TestStoppingClearsAPendingCarry.
+	a.carried = nil
 	if !a.on {
 		a.mu.Unlock()
 		return a.view()
@@ -528,6 +539,12 @@ func (a *ambientObserver) record(application string, look ambientLook, now time.
 		// an application shares into the buffer as a screen. See ADR-090.
 		a.lastDegrade = now
 		a.settled++
+		// AND CONTINUITY IS BROKEN. A reading that got no further than the window frame
+		// is a gap nobody read, and an action waiting for its destination cannot be said
+		// to have crossed something Marco could not see. Dropped rather than bridged.
+		//
+		// Deleting this must fail TestADegradedReadingBreaksTheCarry.
+		a.carried = nil
 		a.mu.Unlock()
 		return false
 	}
@@ -633,6 +650,18 @@ func (a *ambientObserver) record(application string, look ambientLook, now time.
 			by = ambient.ByMarco
 		}
 		did := a.takePending(previousState)
+		if len(did) == 0 {
+			// NOTHING WAS FILED AGAINST THE SCREEN THEY LEFT, which is what a session
+			// boundary between the press and its destination looks like from here. The
+			// carry answers whether this is still that same interaction; every way it
+			// is not, it says no.
+			//
+			// Deleting this must fail
+			// TestARolloverBetweenAPressAndItsDestinationKeepsTheEdge.
+			a.mu.Lock()
+			did = a.claimCarried(now)
+			a.mu.Unlock()
+		}
 		a.mu.Lock()
 		a.actions += len(did)
 		a.mu.Unlock()
