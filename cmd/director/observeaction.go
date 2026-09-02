@@ -318,3 +318,57 @@ func (a *ambientObserver) claimCarried(now time.Time) []ambient.Act {
 	}
 	return c.acts
 }
+
+// takeForCrossing is the actions one crossing may claim, and nothing else.
+//
+// # Why taking the previous screen's pending actions is not enough
+//
+// `record` bridges over readings it cannot place, so a walk survives a loading frame. That is
+// right, and it means the two screens either side of a crossing can have had a whole interaction
+// between them that Marco could not see.
+//
+// Measured live. A person went `Mouse → System → Home` at normal speed; the System page never
+// settled into a Place, so the crossing that landed on Home carried the pending "System" press
+// with it and Marco learned that pressing System on the Mouse page takes you Home. System appeared
+// in no relationship at all. A missing edge is a disappointment; that is a confident falsehood,
+// and the map then offers it as part of the way home.
+//
+// # The discriminator
+//
+// An action filed against a state that is NEITHER the screen being left NOR the one being arrived
+// at happened somewhere in between — on a screen Marco could not place. The journey was two
+// interactions and the graph may claim neither.
+//
+// Not "refuse every bridged crossing": a frame nobody touched is exactly what bridging exists for,
+// and refusing those would lose a real edge on every application that renders slowly. See
+// TestBridgingAFrameNobodyTouchedStillLearnsTheEdge.
+//
+// The crossing is still recorded as MOVEMENT. It simply carries no action, so `noticed` declines
+// to make an edge of it — the same refusal an unattributed crossing has always had.
+//
+// The orphans are cleared rather than kept. An action filed against a screen nobody could place,
+// which no crossing may ever claim, would otherwise sit in the map blocking every crossing after
+// it.
+//
+// Deleting the in-between check must fail TestAnActionIsNotCreditedWithAnArrivalItDidNotCause.
+func (a *ambientObserver) takeForCrossing(previous, current observe.ScreenStateID) []ambient.Act {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	out := a.pending[previous]
+	delete(a.pending, previous)
+	for state := range a.pending {
+		if state == current {
+			// AN ACTION ON THE SCREEN JUST ARRIVED AT is the next interaction, not an
+			// intervening one. It waits for its own crossing.
+			continue
+		}
+		// Something happened where Marco could not see. This crossing explains nothing.
+		for k := range a.pending {
+			if k != current {
+				delete(a.pending, k)
+			}
+		}
+		return nil
+	}
+	return out
+}

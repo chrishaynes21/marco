@@ -6,6 +6,8 @@ import (
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/ambient"
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
+	"github.com/chaynes-simpleclouds/marco/internal/director/observesession"
+	"github.com/chaynes-simpleclouds/marco/internal/director/perception/windowref"
 )
 
 // A TWENTY-SECOND BOOKKEEPING BOUNDARY IS NOT A USER EVENT.
@@ -386,4 +388,210 @@ func TestASessionBoundaryIsInvisibleToTheGraph(t *testing.T) {
 			}
 		})
 	}
+}
+
+// ── a crossing that spans two interactions is not one edge ────────────────────
+
+// AN ACTION IS NOT CREDITED WITH AN ARRIVAL IT DID NOT CAUSE.
+//
+// # The false edge this closes, measured live
+//
+// One person walked `Home → Bluetooth & devices → Mouse → System → Home` at normal speed. Marco
+// learned:
+//
+//	Home      --press "Bluetooth & devices"--> Bluetooth & devices     correct
+//	Bluetooth --press "Mouse"-->               Mouse                   correct
+//	Mouse     --press "System"-->              Home                    FALSE
+//
+// System appears in no relationship at all. The System page did not settle into a Place before the
+// person pressed Home, so `record` bridged over it — which is right for a loading frame — and the
+// crossing that eventually landed on Home took the pending "System" press with it. Marco came away
+// believing that pressing System on the Mouse page takes you Home.
+//
+// A missing edge is a disappointment. This is a confident falsehood about somebody's computer, and
+// it composes: the map then offers it as part of "the way home".
+//
+// # The discriminator, and why it is not "refuse all bridging"
+//
+// Bridging is legitimate. A page transition shows a frame nothing can place, and the crossing
+// either side of it is one honest interaction. What makes THIS one different is that a SECOND
+// action was taken while Marco could not see where it was — so the journey was two interactions
+// and the graph may claim neither.
+//
+// That is visible without guessing: an action filed against a state other than the one being left,
+// still unconsumed at the moment the crossing is recorded, is an interaction that happened in
+// between. The crossing is still recorded as movement; it simply carries no action, so `noticed`
+// declines to make an edge of it.
+func TestAnActionIsNotCreditedWithAnArrivalItDidNotCause(t *testing.T) {
+	learnedIn(t)
+	g, _ := watchedRegistry(t)
+	a := (&Runtime{observations: g}).ambient()
+	at := time.Now()
+
+	// On Mouse, and the person presses System.
+	walk(a, onScreen("observe_1", "state_1", homeShape()), at)
+	walk(a, onScreen("observe_1", "state_1", homeShape(),
+		pressed("state_1", "System", 100)), at.Add(time.Second))
+
+	// The System page arrives and does not settle into anything Marco can place — and the
+	// person presses Home while it is up. That press is filed against the state Marco could
+	// not place, which is why it is invisible to the crossing that follows.
+	// The input log is CUMULATIVE — it is the session's whole stream, and the observer
+	// tracks an absolute cursor into it. A reading that carried only the newest event would
+	// be a fixture the production drain never sees.
+	bridge := onScreen("observe_1", "state_2", nil,
+		pressed("state_1", "System", 100), pressed("state_2", "Home", 900))
+	walk(a, bridge, at.Add(2*time.Second))
+
+	// And then Home settles.
+	walk(a, onScreen("observe_1", "state_3", btShape(),
+		pressed("state_1", "System", 100), pressed("state_2", "Home", 900)),
+		at.Add(3*time.Second))
+
+	for _, s := range edgesAfter(a) {
+		t.Fatalf("a crossing was credited to %q after a second press happened in between, "+
+			"where Marco could not see. The journey was two interactions and the graph "+
+			"may claim neither: this is how `pressing System takes you Home` became a "+
+			"durable fact about Windows Settings.", s.Did[0].Target.Label)
+	}
+}
+
+// AND ORDINARY BRIDGING STILL PRODUCES ITS EDGE.
+//
+// The control. A page transition shows a frame nothing can place, nobody touches anything while it
+// is up, and the crossing either side is one honest interaction. Refusing every bridged crossing
+// would lose real edges on any application that renders slowly, which is most of them.
+//
+// Refusing this must fail.
+func TestBridgingAFrameNobodyTouchedStillLearnsTheEdge(t *testing.T) {
+	learnedIn(t)
+	g, _ := watchedRegistry(t)
+	a := (&Runtime{observations: g}).ambient()
+	at := time.Now()
+
+	walk(a, onScreen("observe_1", "state_1", homeShape()), at)
+	walk(a, onScreen("observe_1", "state_1", homeShape(),
+		pressed("state_1", "Mouse", 100)), at.Add(time.Second))
+	// A frame nothing can place, and nobody presses anything while it is up.
+	walk(a, onScreen("observe_1", "state_2", nil), at.Add(2*time.Second))
+	walk(a, onScreen("observe_1", "state_3", btShape()), at.Add(3*time.Second))
+
+	got := edgesAfter(a)
+	if len(got) != 1 {
+		t.Fatalf("%d crossing(s) across a frame nobody touched, want 1. Bridging exists so "+
+			"a walk survives a loading screen, and refusing it would lose a real edge on "+
+			"every application that renders slowly.", len(got))
+	}
+	if got[0].Did[0].Target.Label != "Mouse" {
+		t.Errorf("the crossing carries %q", got[0].Did[0].Target.Label)
+	}
+}
+
+// ── ingress: sample because something happened ────────────────────────────────
+
+// A PRESS CUTS THE WAIT SHORT.
+//
+// The gap between readings is attention — a second on a desktop somebody is using, eight while
+// nothing changes. A person clicking through an application is the opposite of a desktop sitting
+// still, and waiting out an interval chosen for stillness is how a four-screen walk at normal
+// speed produced three edges with the middle screen never settling at all.
+//
+// The wait already wakes every hundred milliseconds to notice a window switch. This asks one more
+// question in the same loop, at the cost of comparing two integers.
+//
+// Deleting the wake must fail this.
+func TestAPressCutsTheWaitShort(t *testing.T) {
+	learnedIn(t)
+	g, store := watchedRegistry(t)
+	rt := &Runtime{observations: g}
+	t.Cleanup(func() { rt.DisableAmbient() })
+	a := rt.ambient()
+	// The foreground is the real desktop's, which is not this fixture's application — so the
+	// window-switch arm would fire before the input arm was ever reached.
+	restore := winctxActive
+	winctxActive = func() string { return "testgame" }
+	t.Cleanup(func() { winctxActive = restore })
+
+	// A REAL SESSION, so the input log this reads is the one production reads.
+	watchNow(t, g, store, "testgame")
+	_ = store
+
+	// Nothing has happened, so the wait runs its course rather than returning early.
+	started := time.Now()
+	left, ok := a.waitOrLeave(t.Context(), 300*time.Millisecond, "testgame")
+	if left || !ok {
+		t.Fatalf("waiting reported left=%v ok=%v on a quiet desktop", left, ok)
+	}
+	if waited := time.Since(started); waited < 250*time.Millisecond {
+		t.Errorf("a quiet desktop cut the wait short after %v; idle cost must not change",
+			waited)
+	}
+
+	// AND NOW SOMETHING HAS. A real session with a real press in its log, and an observer
+	// whose cursor has not reached it — which is exactly the state a person clicking leaves.
+	_ = g.Cancel(g.ActiveID())
+	for deadline := time.Now().Add(settleDeadline); time.Now().Before(deadline) && g.ActiveID() != ""; {
+		time.Sleep(10 * time.Millisecond)
+	}
+	watchPressing(t, g, "testgame")
+	a.mu.Lock()
+	a.session, a.cursor = "", 0
+	a.mu.Unlock()
+	started = time.Now()
+	if _, ok := a.waitOrLeave(t.Context(), 5*time.Second, "testgame"); !ok {
+		t.Fatal("the wait was cancelled")
+	}
+	if waited := time.Since(started); waited > time.Second {
+		t.Errorf("a press waited %v to be looked at. The whole point is to sample because "+
+			"something happened rather than on a timer.", waited)
+	}
+}
+
+// AND ASKING DOES NOT CONSUME ANYTHING.
+//
+// Attribution happens exactly once, in `drain`, from the cursor it has always used. A wake signal
+// that ate an event would turn a press into a reading nobody could explain — the same class of
+// loss ADR-119 was about, arriving from the opposite direction.
+//
+// Making the wake consume must fail this.
+func TestTheWakeSignalConsumesNothing(t *testing.T) {
+	learnedIn(t)
+	g, store := watchedRegistry(t)
+	rt := &Runtime{observations: g}
+	t.Cleanup(func() { rt.DisableAmbient() })
+	a := rt.ambient()
+	watchNow(t, g, store, "testgame")
+
+	before := lastShadow(t, g).InputLog
+	for range 5 {
+		a.somethingHappened("testgame")
+	}
+	after := lastShadow(t, g).InputLog
+	if after.Dropped != before.Dropped || len(after.Events) != len(before.Events) {
+		t.Errorf("asking whether something happened changed the input log: %d/%d -> %d/%d",
+			before.Dropped, len(before.Events), after.Dropped, len(after.Events))
+	}
+}
+
+// watchPressing leaves a real session running whose script contains a human press, so the
+// session's own input log is non-empty — which is the state a person clicking leaves behind.
+func watchPressing(t *testing.T, g *observationRegistry, application string) {
+	t.Helper()
+	bounds := dryBounds()
+	bounds.Duration = time.Minute
+	script := append(dryHold("a", 2), dryPress("a", observe.NavConfirm))
+	script = append(script, dryHold("a", 200)...)
+	id, err := g.Start(namedTarget{app: application}, &drySampler{script: script},
+		observesession.NopEvents{}, windowref.Selector{Application: application}, bounds)
+	if err != nil {
+		t.Fatalf("starting a session over %s: %v", application, err)
+	}
+	t.Cleanup(func() { _ = g.Cancel(id) })
+	for deadline := time.Now().Add(settleDeadline); time.Now().Before(deadline); {
+		if len(lastShadow(t, g).InputLog.Events) > 0 {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("the fixture's session never banked an input, so there is no press to wake on")
 }

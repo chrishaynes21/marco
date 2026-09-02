@@ -530,3 +530,57 @@ Three of the four wrong turns in this investigation came from reading a field th
 what it looks like. `AmbientView.Application` is only written on a reading that produced a *place*,
 so "it says chrome" is not "it is watching chrome". The measurements that settled it were the
 Director's own session report and a poller, not inference from status.
+
+## Finding 9 — the walk that produced a confident falsehood, and the two fixes that closed it
+
+`Home → Bluetooth & devices → Mouse → System → Home` at normal speed, three edges, one of them
+false: `Mouse --press "System"--> Home`. System appeared in no relationship at all. Two causes,
+found together and fixed together.
+
+**The screen in the middle was never looked at.** The attention curve stretches to eight seconds
+when nothing changes, and a person at ordinary speed presses, arrives and presses again inside one
+interval — so the System page came and went unseen. Closed by
+[[ADR-121-watching-is-woken-by-a-press-not-by-a-timer]]: a press cuts the wait short, and an idle
+desktop still waits the full eight seconds.
+
+**And the crossing that followed took the wrong press with it.** `record` bridges over readings it
+cannot place, which is right; but here a *second* action happened inside the bridge, so the arrival
+at Home was credited to the press of System. Closed by
+[[ADR-120-a-crossing-that-spans-two-interactions-carries-neither]].
+
+Confirmed live on a re-run of the same walk:
+
+```
+Places   Mouse   System   Home   Bluetooth & devices      four pages, four Places, all named
+
+Mouse  --press "System"-->              System                 correct
+System --press "Home"-->                Home                   correct
+Home   --press "Bluetooth & devices"--> Bluetooth & devices    correct
+Home   -->                              Mouse          movement, no action attributed
+
+8 movements noticed → 4 relationships → 3 attributed edges
+```
+
+No false splitting, no false edge, System an endpoint on both sides. The fourth entry is the
+refusal working out loud, and it costs the true `Bluetooth & devices → Mouse` edge — the right side
+of that trade.
+
+### Two false starts worth recording
+
+The re-run before this one produced nothing at all, and the ledger was empty. The hypothesis was
+startup latency; **measured, cold start to first ambient sample is 2.3 seconds**, so that was not
+it. The provider list settled it: no `applicationframehost` client ever attached in that Director's
+71-second life, so the Settings window was never in front of it for a single one of its 68 samples.
+The walk had simply happened before the Director was restarted.
+
+The same method note as before applies, from the other direction: the reading that answered this
+was `Accessibility clients`, not any count that said `watching: yes`. **Watching reported `yes` for
+the whole of both failed runs.** Somebody did a careful traversal in good faith with no way to know
+Marco was not there — a stewardship failure of the same family as Finding 3, and not yet addressed.
+
+### Still open
+
+The JUST LEARNED feed announces the unattributed `Home → Mouse` movement as `learned … edge`.
+`semanticmemory.Store` emits `KindEdge` whenever a **relationship** is created, whether or not an
+action was attributed to it, so the strip claims knowledge Marco does not have. The refusal is
+correct; the announcement of it is not.

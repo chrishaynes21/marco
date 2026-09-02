@@ -649,7 +649,7 @@ func (a *ambientObserver) record(application string, look ambientLook, now time.
 		if a.rt.marcoIsActing() {
 			by = ambient.ByMarco
 		}
-		did := a.takePending(previousState)
+		did := a.takeForCrossing(previousState, look.State)
 		if len(did) == 0 {
 			// NOTHING WAS FILED AGAINST THE SCREEN THEY LEFT, which is what a session
 			// boundary between the press and its destination looks like from here. The
@@ -935,6 +935,16 @@ func (a *ambientObserver) waitOrLeave(ctx context.Context, d time.Duration,
 			!sameApplication(front, application) {
 			return true, true
 		}
+		// AND A PRESS CUTS THE WAIT SHORT.
+		//
+		// The same cheap loop, asked one more question. A person clicking through an
+		// application is the opposite of a desktop sitting still, and waiting out an
+		// interval chosen for stillness is how a four-screen walk becomes three edges.
+		//
+		// Deleting this must fail TestAPressCutsTheWaitShort.
+		if a.somethingHappened(application) {
+			return false, true
+		}
 	}
 }
 
@@ -1019,4 +1029,53 @@ func (r *Runtime) standAsideForAction() {
 		return
 	}
 	r.ambient().standAside()
+}
+
+// somethingHappened reports whether human input is waiting to be read.
+//
+// # Sample because something happened, rather than on a timer and hope
+//
+// The gap between readings is ATTENTION: a second on a desktop somebody is using, growing to eight
+// while nothing changes. That is right for a screen being stared at and wrong for one being
+// clicked through — a person moving at ordinary speed can press, arrive, and press again inside one
+// interval, and Marco discovers the whole journey as a single unexplained change.
+//
+// Measured: a four-screen walk at normal speed yielded three edges, one of them false, and the
+// screen in the middle never settled at all because nothing looked at it while it was up.
+//
+// So a press cuts the wait short. The input log is the session's own — the same one `drain` reads
+// — and this only asks whether it has grown past the observer's cursor. It CONSUMES NOTHING:
+// attribution still happens exactly once, in `drain`, from the same cursor it always used.
+//
+// # Why this is not raising the sampling rate
+//
+// Because nothing here samples. An idle desktop produces no input, asks this question ten times a
+// second at the cost of comparing two integers, and waits the full eight seconds exactly as
+// before. What changes is only that a desktop somebody is USING stops being watched on a schedule
+// that has nothing to do with them.
+//
+// Deleting this must fail TestAPressCutsTheWaitShort.
+func (a *ambientObserver) somethingHappened(application string) bool {
+	g := a.rt.observations
+	if g == nil {
+		return false
+	}
+	ev := g.evidenceForPointing()
+	if !ev.ok || !sameApplication(ev.app, application) {
+		return false
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if ev.session != a.session {
+		// A NEW SESSION HAS ITS OWN LOG AND ITS OWN CURSOR. Comparing across them would
+		// read one session's count against another's position, which is the same
+		// restarting-counter mistake ADR-119 was about — so the question becomes whether
+		// this session has anything in it at all.
+		//
+		// Returning true unconditionally was the first version and it cut the wait short
+		// on every quiet desktop, which is the idle cost this whole mechanism promises not
+		// to touch. Caught by TestAPressCutsTheWaitShort.
+		return len(ev.shadow.InputLog.Events) > 0
+	}
+	return ev.shadow.InputLog.Dropped+len(ev.shadow.InputLog.Events) > a.cursor
 }
