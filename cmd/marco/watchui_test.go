@@ -671,6 +671,35 @@ func TestTheHeadlineIsNewKnowledgeRatherThanTheLatestEvent(t *testing.T) {
 	if !strings.Contains(editPage, `id="mlist"`) {
 		t.Error("the per-candidate evidence was removed rather than demoted")
 	}
+	// AND A MOVEMENT IS DEMOTED FOR THE SAME REASON, from the other direction.
+	//
+	// A movement is a crossing Marco watched and cannot explain. Letting the newest one take
+	// the headline would put "watched you go Home -> Mouse" above "learned way Mouse ->
+	// System" — the loudest line on the page describing the one thing Marco does NOT know.
+	if !strings.Contains(editPage, "e.change!=='saw'") {
+		t.Error("a movement can take the headline, so a crossing Marco cannot explain " +
+			"outranks a way it actually learned")
+	}
+}
+
+// A MOVEMENT IS NOT WORDED AS A WAY.
+//
+// The strip's whole job is to say what changed, and `learned way Home -> Mouse` for a crossing
+// whose action attribution was refused is the one sentence it must never print. It reads as a
+// route somebody can ask for, and there is none. See ADR-120 for the refusal, ADR-122 for this.
+func TestAMovementIsNotWordedAsAWay(t *testing.T) {
+	if !strings.Contains(editPage, "saw:'watched you go'") {
+		t.Fatal("the page has no word for a movement, so it renders the raw change or " +
+			"falls back to way — either way it claims a route Marco declined to claim")
+	}
+	if !strings.Contains(editPage, "movement:'movement'") {
+		t.Error("the movement kind renders as its raw identifier")
+	}
+	// AND THE WORD FOR A WAY IS STILL THERE. Removing `learned way` to fix the above would
+	// close the lie by going silent about real knowledge.
+	if !strings.Contains(editPage, "learned:'learned '+what") {
+		t.Error("a learned way is no longer worded at all")
+	}
 }
 
 // GO THERE IS OFFERED ONLY FOR SOMETHING MARCO CAN ACTUALLY BE ASKED FOR.

@@ -37,6 +37,16 @@ const (
 	Named LearningChange = "named"
 	// Rebound: a name that pointed at one place now points at another.
 	Rebound LearningChange = "rebound"
+	// Saw: a crossing was observed and nothing could be said about how it was taken.
+	//
+	// A separate word from Learned because the difference is the whole architecture. A
+	// relationship is adjacency — "I watched you go from here to there". An EDGE somebody can
+	// act on additionally carries route evidence: what was pressed. Attribution refuses to
+	// name a control it did not see (ADR-120), and a feed that announced the refusal as
+	// "learned the way" would tell a person Marco knows a route it explicitly declined to
+	// claim. Movement is still worth saying — it is how the map grows — and it is not
+	// knowledge of how to travel.
+	Saw LearningChange = "saw"
 )
 
 // LearningKind is what sort of knowledge changed.
@@ -46,6 +56,9 @@ const (
 	KindPlace LearningKind = "place"
 	KindEdge  LearningKind = "edge"
 	KindGoal  LearningKind = "goal"
+	// KindMovement is a crossing between two places with no route evidence: Marco saw it
+	// happen and cannot say how. Never KindEdge — see Saw.
+	KindMovement LearningKind = "movement"
 )
 
 // Learning is one committed change, in ids rather than words.

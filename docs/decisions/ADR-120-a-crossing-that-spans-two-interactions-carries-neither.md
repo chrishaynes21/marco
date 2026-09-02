@@ -83,4 +83,5 @@ is worse than a missing one.
 - [[ADR-118-a-reading-can-be-read-and-still-say-nothing]]
 - [[ADR-119-a-bookkeeping-boundary-is-not-a-user-event]]
 - [[ADR-121-watching-is-woken-by-a-press-not-by-a-timer]]
+- [[ADR-122-a-movement-is-not-a-way]]
 - [[Experiment-022-the-first-dogfood]]

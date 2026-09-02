@@ -351,12 +351,33 @@ func (s *Store) RememberRelationships(application string,
 			})
 			idx = len(s.relationships) - 1
 			update.Created++
+			// WHAT MAY BE CLAIMED ABOUT A NEW RELATIONSHIP depends on whether
+			// anything can say how it was taken.
+			//
+			// The store writes the same record either way — adjacency is
+			// adjacency, and the topology is unchanged by this. What differs is
+			// the announcement, and the two are different claims: "I learned the
+			// way from here to there" promises a person something they can ask
+			// for, and a crossing whose action attribution was REFUSED cannot
+			// honour it. See [[ADR-120]] for the refusal and [[ADR-122]] for why
+			// the feed had to stop overstating it.
+			//
+			// Deleting the branch must fail
+			// TestAMovementWithNoRouteEvidenceIsNotAnnouncedAsALearnedEdge.
+			change, kind := Saw, KindMovement
+			if o.Routed {
+				change, kind = Learned, KindEdge
+			}
 			pending = append(pending, Learning{
-				Change: Learned, Kind: KindEdge, Application: application,
+				Change: change, Kind: kind, Application: application,
 				From: o.From, To: o.To,
 			})
 		} else {
 			update.Corroborated++
+			// A RE-SIGHTING IS NEVER "LEARNED", which is already true and stays
+			// true: an edge that exists gained evidence, and saying "learned"
+			// every time somebody walks a familiar route trains a person to stop
+			// reading the feed.
 			pending = append(pending, Learning{
 				Change: Strengthened, Kind: KindEdge, Application: application,
 				From: o.From, To: o.To,

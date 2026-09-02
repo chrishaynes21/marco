@@ -161,7 +161,7 @@ func (p promotion) relate(steps []promotedStep) (observe.RelationshipUpdate, err
 			ev.Unattributed = 1
 		}
 		obs = append(obs, observe.RelationshipObservation{
-			From: s.from, To: s.to, Evidence: ev,
+			From: s.from, To: s.to, Evidence: ev, Routed: s.demonstrated,
 			// ONE EPISODE. Every leg of one walk was seen in one sitting, so the walk
 			// claims one sighting of each edge and not one per leg. A retrospective
 			// Learn that counted each leg as independent corroboration would be Marco
@@ -229,6 +229,15 @@ type promotedStep struct {
 	// established says this leg's destination was made durable by this promotion rather than
 	// already being known. Counted so a report can say how much of the walk was new.
 	established bool
+	// demonstrated says a candidate describing HOW this leg was taken is written beside it.
+	//
+	// True for every leg that came out of `resolvePlaces`, because both callers of it write a
+	// candidate per step. False for `strengthen`, which hand-builds a step to fold a
+	// re-sighting into an edge that already exists and writes no route evidence of its own.
+	//
+	// It reaches nothing durable. It decides only whether a new relationship may be announced
+	// as an edge somebody could ask for — see observe.RelationshipObservation.Routed.
+	demonstrated bool
 }
 
 // resolvePlaces turns a selected walk's endpoints into durable subjects, establishing the ones
@@ -291,7 +300,9 @@ func resolvePlaces(p promotion, d ambient.Demonstration) ([]promotedStep, int, e
 		if err != nil {
 			return nil, 0, err
 		}
+		// Demonstrated: every caller of resolvePlaces writes a candidate per step.
 		step := promotedStep{from: from, to: to, bridged: s.Bridged, established: made}
+		step.demonstrated = true
 		if s.FromShape != nil {
 			step.fromSig = s.FromShape.Signature
 		}

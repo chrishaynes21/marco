@@ -275,6 +275,16 @@ type RelationshipObservation struct {
 	// The zero value counts, so every existing caller is unchanged and a caller that forgets
 	// this field cannot accidentally stop corroborating.
 	SameEpisode bool
+	// Routed says this crossing arrives WITH route evidence: a demonstration naming what was
+	// pressed is written alongside it.
+	//
+	// It changes nothing that is stored. It decides only what a learning feed is entitled to
+	// SAY about the write — "learned the way here" against "watched you go here" — and those
+	// are different claims. See semanticmemory.Saw.
+	//
+	// The zero value is the cautious one on purpose: a caller that forgets this field
+	// understates what Marco knows, which is the direction a wrong answer should fall.
+	Routed bool
 }
 
 // RelationshipReport is what happened to this session's transitions.

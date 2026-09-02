@@ -134,7 +134,10 @@ func (r *Runtime) describeLearning(e semanticmemory.Learning) string {
 			return e.Name
 		}
 		return r.placeWord(e.Subject)
-	case semanticmemory.KindEdge:
+	case semanticmemory.KindEdge, semanticmemory.KindMovement:
+		// The same two endpoints either way. What separates a way from a movement is the
+		// CHANGE word, not the description, and the renderer must not smuggle a difference
+		// into the words that the kind is already carrying.
 		return fmt.Sprintf("%s -> %s", r.placeWord(e.From), r.placeWord(e.To))
 	case semanticmemory.KindGoal:
 		return fmt.Sprintf("%q -> %s", e.Name, r.placeWord(e.Subject))

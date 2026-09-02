@@ -104,8 +104,12 @@ func TestAKnownWayIsStrengthenedRatherThanLearnedAgain(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// ROUTED, because this test is about a WAY. A crossing with no route evidence beside it
+	// is a movement and is announced as one — see
+	// [[ADR-122-a-movement-is-not-a-way]] — and the distinction being drawn here is the
+	// separate one between learning a way and walking it again.
 	edge := []observe.RelationshipObservation{{
-		From: from, To: to,
+		From: from, To: to, Routed: true,
 		Evidence: observe.RelationshipEvidence{Observations: 1, Unattributed: 1},
 	}}
 	if _, err := store.RememberRelationships("settings", edge); err != nil {

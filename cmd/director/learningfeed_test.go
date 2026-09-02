@@ -180,3 +180,120 @@ func TestTheFeedNeverShowsASubjectId(t *testing.T) {
 			"there are two screens.", got, want)
 	}
 }
+
+// ── a movement is not a way ───────────────────────────────────────────────────
+
+// A CROSSING WITH NO ROUTE EVIDENCE IS NOT ANNOUNCED AS A LEARNED EDGE.
+//
+// # The lie this closes, read off a live store
+//
+// One person walked Windows Settings and the strip told them:
+//
+//	learned way  Home -> Mouse
+//
+// Marco could not do Home -> Mouse and had explicitly declined to claim it. The crossing spanned a
+// page it could not place, a second press happened inside that gap, and
+// [[ADR-120-a-crossing-that-spans-two-interactions-carries-neither]] refused to credit the arrival
+// to any action. The store still recorded the ADJACENCY, which is right — that is how the map
+// grows — and the feed announced the adjacency in the words of a route.
+//
+// The distinction is the one the whole store is built around: `relationships` are places that
+// border each other, `candidates` are how you get across. A relationship written with no candidate
+// beside it is movement Marco watched and cannot explain.
+//
+// `strengthen` is the production path that writes one: it exists to fold a re-sighting into an edge
+// that already exists, so it writes no route evidence of its own — and when the edge turns out not
+// to exist, it creates the relationship anyway.
+//
+// Deleting the branch in RememberRelationships must fail this.
+func TestAMovementWithNoRouteEvidenceIsNotAnnouncedAsALearnedEdge(t *testing.T) {
+	rt, store := learningRuntime(t)
+	rt.watchLearning(store)
+	from, to := establishTwo(t, store)
+
+	rt.strengthen(watchedFor(from, to, "Mouse", 1))
+
+	view := rt.LearningSince(service.ObserveLearning{})
+	for _, e := range view.Events {
+		if e.Kind == "edge" && e.Change == "learned" {
+			t.Fatalf("the feed announced %q as a learned edge. Nothing wrote down how to "+
+				"take that crossing, so this offers a person a route Marco declined "+
+				"to claim.", e.Description)
+		}
+	}
+	// AND IT IS SAID, rather than hidden. Going silent would close the lie by concealing
+	// how the map grows, and "Marco is watching and nothing is happening" is its own defect.
+	said := false
+	for _, e := range view.Events {
+		if e.Kind == "movement" && e.Change == "saw" {
+			said = true
+			if strings.TrimSpace(e.Description) == "" {
+				t.Error("the movement rendered as nothing at all")
+			}
+		}
+	}
+	if !said {
+		t.Errorf("a crossing was recorded and the feed said nothing about it: %+v", view.Events)
+	}
+}
+
+// AND ONE THAT DOES CARRY ROUTE EVIDENCE STILL IS.
+//
+// The control, and the reason the test above cannot be satisfied by making the feed quiet. This is
+// the same admission boundary an explicit Learn goes through: a candidate describing what was
+// pressed is written beside the relationship, so "learned way" is a claim Marco can honour.
+//
+// Refusing this must fail.
+func TestACrossingWithRouteEvidenceIsStillALearnedEdge(t *testing.T) {
+	rt, store := learningRuntime(t)
+	rt.watchLearning(store)
+	from, to := establishTwo(t, store)
+
+	if err := rt.admitWatched(watchedFor(from, to, "Mouse", 3)); err != nil {
+		t.Fatalf("admitting the candidate: %v", err)
+	}
+
+	view := rt.LearningSince(service.ObserveLearning{})
+	learned := 0
+	for _, e := range view.Events {
+		switch {
+		case e.Kind == "edge" && e.Change == "learned":
+			learned++
+		case e.Kind == "movement":
+			t.Errorf("a demonstrated crossing was demoted to a movement: %+v. The "+
+				"refusal is for crossings nothing can explain, and this one has a "+
+				"candidate beside it.", e)
+		}
+	}
+	if learned != 1 {
+		t.Fatalf("%d learned edge(s) after an admitted candidate, want 1: %+v",
+			learned, view.Events)
+	}
+}
+
+// AND WALKING A FAMILIAR ROUTE IS NEITHER.
+//
+// Third state, and the one that keeps the other two apart. An edge that already exists gained
+// evidence: it is not new knowledge and it is not an unexplained movement. Announcing it as either
+// would be wrong in a different direction — "learned" trains somebody to stop reading the feed,
+// and "watched you go" would say Marco had forgotten how.
+func TestWalkingAKnownEdgeAgainIsStrengthenedRatherThanLearned(t *testing.T) {
+	rt, store := learningRuntime(t)
+	rt.watchLearning(store)
+	from, to := establishTwo(t, store)
+
+	w := watchedFor(from, to, "Mouse", 3)
+	if err := rt.admitWatched(w); err != nil {
+		t.Fatalf("admitting the candidate: %v", err)
+	}
+	first := rt.LearningSince(service.ObserveLearning{})
+	rt.strengthen(w)
+
+	for _, e := range rt.LearningSince(service.ObserveLearning{After: first.Newest}).Events {
+		if e.Kind == "edge" && e.Change == "strengthened" {
+			return
+		}
+	}
+	t.Errorf("re-walking a known edge was not announced as strengthened: %+v",
+		rt.LearningSince(service.ObserveLearning{After: first.Newest}).Events)
+}
