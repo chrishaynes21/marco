@@ -152,6 +152,7 @@ func (g *observationRegistry) start(target observesession.Target, sampler observ
 	// TestOnlyAGrantedSessionMayNameWhatWasActivated.
 	if ls, ok := sampler.(*liveSampler); ok {
 		ls.nameActivatedTargets = episode.NameActivatedTargets
+		ls.acquireVisibleAffordances = episode.AcquireVisibleAffordances
 	}
 	runner := observesession.New(sessionClock, target, sampler, events).WithMemory(g.memory)
 	// Somewhere for an approved demonstration to be kept. The same store, reached through the

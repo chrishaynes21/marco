@@ -1492,3 +1492,86 @@ func (s *Store) ObserveSemanticName(application, id, name string, from observe.E
 	})
 	return nil
 }
+
+// RememberTargetsSeen makes everything one settled screen offers durable, together.
+//
+// # One lock, one save, one announcement
+//
+// The same match-or-append RememberTarget performs, per signature, under a single lock — so a
+// screen offering thirty controls costs one disk write rather than thirty, and a reader asking
+// what Marco knows about that screen cannot catch it half written.
+//
+// And ONE Learning, carrying a count. Thirty events saying "noticed a control" would bury the one
+// saying "learned a way" under a screen's worth of furniture. The store is the only honest place
+// to summarise from: it is what knows how many of the thirty were actually new, which is the
+// number a person wants and the number no caller can compute.
+//
+// # What it asserts, which is nothing
+//
+// That these controls exist at that Place. Not what they do, not where they lead, and not that any
+// of them is visible now. `Noticed`, never `Learned`, for exactly that reason — see the note on
+// the change words.
+//
+// Announced only when something was new. A second sweep of an unchanged screen writes nothing,
+// says nothing, and touches no disk.
+func (s *Store) RememberTargetsSeen(application string, sigs []observe.StructureSignature,
+	learned observe.EvidenceSource) (int, error) {
+
+	if s == nil {
+		return 0, fmt.Errorf("semanticmemory: no store")
+	}
+	if len(sigs) == 0 {
+		return 0, nil
+	}
+	s.mu.Lock()
+	if s.unavailable != "" {
+		reason := s.unavailable
+		s.mu.Unlock()
+		return 0, fmt.Errorf("semanticmemory: not writing: %s", reason)
+	}
+	place, made := "", 0
+	for _, sig := range sigs {
+		if sig.Subject != observe.SubjectTarget || !sig.Discriminating() {
+			continue
+		}
+		known := false
+		for _, r := range s.subjects {
+			if strings.EqualFold(r.Application, application) &&
+				observe.CompareStructure(sig, r.Structure) == observe.MatchSame {
+				known = true
+				break
+			}
+		}
+		if known {
+			continue
+		}
+		idx, err := s.subjectLocked(application, sig)
+		if err != nil {
+			// The bound, or a signature the store refused. One control lost, and the
+			// rest of the sweep is still worth writing.
+			continue
+		}
+		s.subjects[idx].Learned = learned
+		if place == "" {
+			place = sig.Place
+		}
+		made++
+	}
+	if made == 0 {
+		s.mu.Unlock()
+		return 0, nil
+	}
+	snapshot := s.snapshotLocked()
+	s.mu.Unlock()
+	if err := save(s.path, snapshot); err != nil {
+		return 0, err
+	}
+	// NOTICED, not learned, and the Place it is about rather than the controls. The feed
+	// resolves names at read time, and a control's name is not something this may say out
+	// loud on a surface that also says what Marco can DO.
+	s.announce(Learning{
+		Change: Noticed, Kind: KindAffordance, Application: application,
+		Subject: place, Count: made,
+	})
+	return made, nil
+}

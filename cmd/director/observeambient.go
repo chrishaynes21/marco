@@ -105,6 +105,33 @@ type ambientObserver struct {
 	loops       int
 	lastChange  time.Time
 	lastDegrade time.Time
+	// WHAT THE AFFORDANCE SWEEP SAW AND WHAT IT REFUSED, so a dogfood can answer whether an
+	// interface that teaches Marco nothing is a QUANTITY problem or an ADMISSION problem.
+	//
+	// Counts and role names only. The refused text is exactly what the gate exists to
+	// withhold, and a diagnostic that held it would be a copy of the thing being refused.
+	//
+	// Cumulative across the session, and reset with watching, like every counter here.
+	affordancesVisible  int
+	affordancesAdmitted int
+	affordancesWithheld map[string]int
+	affordancesStored   int
+	// trace is what became of every reading, for the diagnostics. See recognition.go: it is
+	// written after the decisions and read by nothing that makes one.
+	trace recognitionTrace
+	// lastInput is when the session's input log last grew, in wall-clock, so the trace can
+	// say how long before a reading somebody last did something. Wall-clock rather than the
+	// session's own milliseconds because a reading is compared against readings, and those
+	// are stamped by the supervisor.
+	lastInput time.Time
+	// inputSeen is the input-log high-water mark the above was set at.
+	inputSeen int
+	// lastEstablished is the subject the most recent dwell-establishment created, consumed by
+	// the trace on the same reading. A one-slot handoff rather than a return value, because
+	// the write happens three calls deep and the only thing that wants to know is a
+	// diagnostic — threading it back through would put a reporting concern into a policy
+	// signature.
+	lastEstablished string
 }
 
 // The bounds ambient watching runs under, and every one of them is a refusal to be greedy.
@@ -147,6 +174,12 @@ func (r *Runtime) EnableAmbient() service.AmbientView {
 	ctx, cancel := context.WithCancel(context.Background())
 	a.on, a.cancel, a.done = true, cancel, make(chan struct{})
 	a.started, a.attention = time.Now(), ambientBusy
+	// THE TRACE BELONGS TO THIS RUN OF ATTENTION, not to the process. A diagnostic carrying
+	// readings from before somebody turned watching on is a diagnostic that answers a
+	// question about a different afternoon — which is how four dogfood runs were read as
+	// evidence about a configuration they were not exercising.
+	a.trace.reset()
+	a.lastInput, a.inputSeen = time.Time{}, 0
 	// COUNTED HERE, not inside the goroutine. A count the loop increments when it happens
 	// to be scheduled is a count a caller can read as zero while a supervisor is starting,
 	// and "how many observers are there" must be answerable the instant this returns.
@@ -530,6 +563,18 @@ func (a *ambientObserver) record(application string, look ambientLook, now time.
 	//
 	// Deleting this call must fail TestWatchingAndLearningNamesAPlaceItAlreadyKnows.
 	a.callPlaces(application, look)
+	// AND WHAT THOSE PLACES OFFER, beside the naming sweep and above the same refusals, for
+	// the same reason: what a screen offers settles by recurrence across readings that already
+	// happened, and a frame Marco cannot read does not un-settle a control that recurred.
+	//
+	// Deleting this call must fail TestWatchingAndLearningRemembersWhatAScreenOffers.
+	// AND THE SCREEN ITSELF, before what it offers — a control is scoped to a Place, so there
+	// has to be one to scope it to. See settlePlace for the measured gap this closes.
+	a.settlePlace(application, look)
+	a.rememberOffers(application, look)
+	// AND WHAT BECAME OF THIS READING, for the diagnostics. After the decisions, never
+	// before them, and read by nothing that makes one. See recognition.go.
+	a.traceReading(application, look, now)
 	place := look.Place
 	a.mu.Lock()
 	a.samples++
@@ -808,12 +853,26 @@ func (a *ambientObserver) view() service.AmbientView {
 	// says whether anything on this desktop is becoming permanent.
 	out.Learning = a.promotion.Enabled
 	out.Noticed, out.Learned = a.noticedEdges, a.promoted
+	// WHAT THE AFFORDANCE SWEEP SAW AND REFUSED. Copied rather than shared, because the map
+	// keeps being written while whoever asked is rendering it.
+	out.AffordancesVisible = a.affordancesVisible
+	out.AffordancesAdmitted = a.affordancesAdmitted
+	out.AffordancesStored = a.affordancesStored
+	steps := a.trace.all()
+	if len(a.affordancesWithheld) > 0 {
+		out.AffordancesWithheld = make(map[string]int, len(a.affordancesWithheld))
+		for role, n := range a.affordancesWithheld {
+			out.AffordancesWithheld[role] = n
+		}
+	}
 	application := a.lastApp
 	a.mu.Unlock()
 
 	if store, ok := a.rt.watchedStore(); ok && application != "" {
 		out.Candidates = len(store.Watched(application))
 	}
+
+	out.Recognition = recognitionReport(steps)
 
 	places, edges, recent := a.buf.Size()
 	out.Places, out.Transitions, out.Recent = places, edges, recent
@@ -1078,4 +1137,31 @@ func (a *ambientObserver) somethingHappened(application string) bool {
 		return len(ev.shadow.InputLog.Events) > 0
 	}
 	return ev.shadow.InputLog.Dropped+len(ev.shadow.InputLog.Events) > a.cursor
+}
+
+// recordAffordanceAdmission tallies one sweep's outcome for the diagnostics.
+//
+// On the Runtime rather than on the sampler because the sampler is per session and the question a
+// person asks — "why has Marco learned nothing about this application" — spans all of them.
+//
+// It counts and it decides nothing. Nothing reads these to admit or refuse anything, which is what
+// keeps a diagnostic from quietly becoming a policy.
+func (r *Runtime) recordAffordanceAdmission(visible, admitted int, withheld map[string]int) {
+	if r == nil {
+		return
+	}
+	a := r.ambient()
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.affordancesVisible += visible
+	a.affordancesAdmitted += admitted
+	for role, n := range withheld {
+		if a.affordancesWithheld == nil {
+			a.affordancesWithheld = map[string]int{}
+		}
+		a.affordancesWithheld[role] += n
+	}
 }

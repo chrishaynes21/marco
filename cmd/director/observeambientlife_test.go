@@ -202,7 +202,21 @@ func TestWatchingFromOnToOffAndGone(t *testing.T) {
 		// is a word off anybody's screen, which is the rule this list exists to hold.
 		// See ADR-095.
 		"learning": true, "noticed": true, "learned": true, "candidates": true,
+		// 38D. The affordance sweep's arithmetic: three counts, and a map keyed by ROLE.
+		// A role is Marco's own closed vocabulary — `button`, `list_item` — never the
+		// text on the control, which is the value the sweep gate exists to withhold.
+		//
+		// Added explicitly rather than left to omitempty. They were absent from this list
+		// and the test passed only because this fixture never sweeps anything, which is a
+		// hole in a guard whose whole job is to hold the SHAPE closed.
+		"affordances_visible": true, "affordances_admitted": true,
+		"affordances_withheld": true, "affordances_stored": true,
+		// 38D.1. What became of each reading: an application, an opaque session-local
+		// state id, closed reason codes from observe.PlaceRefusal, counts, and a boolean
+		// for whether a name had settled. Never the name. See ADR-124.
+		"recognition": true,
 	}
+
 	for k := range fields {
 		if !allowed[k] {
 			t.Errorf("the ambient status grew a field %q. Watching reports counts, an "+

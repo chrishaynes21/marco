@@ -141,6 +141,17 @@ func (r *Runtime) describeLearning(e semanticmemory.Learning) string {
 		return fmt.Sprintf("%s -> %s", r.placeWord(e.From), r.placeWord(e.To))
 	case semanticmemory.KindGoal:
 		return fmt.Sprintf("%q -> %s", e.Name, r.placeWord(e.Subject))
+	case semanticmemory.KindAffordance:
+		// A COUNT AND A PLACE, never the control names.
+		//
+		// The names were admitted for Marco to recognise a control by, and this surface
+		// sits beside the one that says what Marco can DO. Listing six labels here would
+		// read as six things somebody could ask for, and none of them is: an affordance
+		// carries no destination, which is the whole distinction this kind exists to keep.
+		//
+		// Deleting the count must fail TestAnAffordanceIsSaidAsACountAndAPlace.
+		return fmt.Sprintf("%d %s at %s", e.Count, thingsOrThing(e.Count),
+			r.placeWord(e.Subject))
 	}
 	return ""
 }
@@ -192,3 +203,13 @@ func (r *Runtime) placeStore() (*semanticmemory.Store, bool) {
 }
 
 var _ observe.Memory = (*semanticmemory.Store)(nil)
+
+// thingsOrThing is the noun for a count of affordances.
+//
+// "1 things I can do here" is the sort of sentence that tells a person nobody read the output.
+func thingsOrThing(n int) string {
+	if n == 1 {
+		return "thing I can do"
+	}
+	return "things I can do"
+}

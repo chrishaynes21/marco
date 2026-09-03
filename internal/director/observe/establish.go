@@ -429,3 +429,130 @@ func PlaceNamesToRecord(t ShadowTotals, application string, m Memory,
 	}
 	return out
 }
+
+// settledAffordance reports whether one tallied control has recurred enough to be believed.
+//
+// The same rule settledPlaceName applies, for the same reason and with the same threshold: a
+// control seen on ONE reading of a screen may belong to a transition frame, a menu that was open,
+// a toast, or a list that had not finished loading. A control seen on two separate readings of a
+// settled state is a property of the state.
+//
+// A disagreed kind is refused however often it recurs — see AffordanceTally.
+func settledAffordance(t AffordanceTally) bool {
+	return t.Kind != "" && t.Seen >= StatePromotionCount
+}
+
+// SettledAffordanceFor exposes the recurrence rule for tests and diagnostics, the way
+// SettledPlaceNameFor exposes its neighbour: one rule, one site, and a window onto it rather than
+// a second copy that could drift.
+func SettledAffordanceFor(t AffordanceTally) bool { return settledAffordance(t) }
+
+// TargetsToRecord is every durable target this session could now say exists, and where.
+//
+// # What this is, and the three things it is not
+//
+// It is the affordance half of PlaceNamesToRecord, arranged the same way on purpose: a QUESTION
+// asked of a session's own tallies, reporting what a caller COULD record. It writes nothing,
+// establishes nothing, and mints no subject — a state memory cannot recall is skipped, exactly as
+// it is there.
+//
+// It is NOT topology. A target's signature carries the Place it was seen in and says nothing about
+// where activating it leads. `Home` containing a control called `Bluetooth & devices` is not
+// evidence that pressing it reaches the Bluetooth page, however strongly the words agree — that is
+// a transition, and a transition needs a destination somebody was observed arriving at. See
+// [[ADR-123]] and TestALabelMatchingAPlaceNameCreatesNoEdge.
+//
+// It is NOT a claim about what is on screen NOW. A target remembered here is memory; whether it is
+// currently visible is a question for a fresh reading, and nothing in this file may answer it.
+//
+// It is NOT accumulated structure presented as a current reading. Every tally it consults was
+// credited from the fused world of one inference, at the moment that inference was current; what
+// accumulates is the COUNT, which is the evidence that the control keeps being there.
+//
+// # Settled states only
+//
+// A state still changing shape is one whose contents are still arriving, and `Settled` is the
+// existing answer to "has this screen stopped moving". Reading an unsettled state would durably
+// remember whatever a page happened to have painted halfway through loading.
+func TargetsToRecord(t ShadowTotals, application string, m Memory,
+	th HypothesisThresholds) []StructureSignature {
+
+	if m == nil {
+		return nil
+	}
+	// One entry per place-and-label, so a screen visited twice in one session contributes one
+	// target rather than two identical ones.
+	seen := map[string]bool{}
+	var out []StructureSignature
+	for _, st := range t.States {
+		if !st.Settled || len(st.Affordances) == 0 {
+			continue
+		}
+		cp, ok := placeOfState(t, application, st.ID, m, th)
+		if !ok || cp.Subject == "" {
+			continue
+		}
+		labels := make([]string, 0, len(st.Affordances))
+		for label := range st.Affordances {
+			labels = append(labels, label)
+		}
+		sort.Strings(labels)
+		for _, label := range labels {
+			if !settledAffordance(st.Affordances[label]) {
+				continue
+			}
+			key := cp.Subject + "\x00" + label
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			out = append(out, TargetSignature(cp.Subject, label,
+				st.Affordances[label].Kind))
+			if len(out) >= MaxAffordancesPerPlace*maxPlacesPerAcquisition {
+				return out
+			}
+		}
+	}
+	return out
+}
+
+// maxPlacesPerAcquisition bounds how many screens one reading may acquire for at once.
+//
+// A session holds every state it has visited, so a long sitting could otherwise present a hundred
+// screens' worth of targets in a single sweep. This is a bound on the WORK of one reading, not on
+// what Marco may know: the next reading asks again, and anything skipped is still tallied.
+const maxPlacesPerAcquisition = 8
+
+// SettlementOf reports how close one screen state is to being remembered, and why it is not.
+//
+// A WINDOW onto the existing rule, the way SettledPlaceNameFor is one — it decides nothing and is
+// read by diagnostics only. The rule itself stays where it is, single-sited, so this cannot drift
+// into a second answer to "has this screen stopped moving".
+//
+// `readings` is how many inferences landed in this state at all. `agreeing` is how many of them
+// saw the SAME whole role composition, which is the number `settledWhole` actually thresholds
+// against — and the difference between the two is the thing a fast walk breaks: a screen looked at
+// three times, whose composition changed each time, has three readings and one agreement.
+func SettlementOf(st ScreenState) (readings, agreeing, distinct, episodes int, settled bool) {
+	best := 0
+	for _, n := range st.Compositions {
+		if n > best {
+			best = n
+		}
+	}
+	// `distinct` is how many DIFFERENT whole compositions this screen was seen as. It is the
+	// number that says which kind of failure a screen that never settled had: two or three
+	// distinct compositions is a screen that flickers between near-identical shapes, and one
+	// distinct composition per reading is a screen whose shape has no stable form at all.
+	return st.Inferences, best, len(st.Compositions), st.Episodes, st.Settled
+}
+
+// StateOf is one screen state out of a session's totals, for diagnostics.
+func StateOf(t ShadowTotals, id ScreenStateID) (ScreenState, bool) {
+	for _, st := range t.States {
+		if st.ID == id {
+			return st, true
+		}
+	}
+	return ScreenState{}, false
+}

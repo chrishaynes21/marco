@@ -200,3 +200,57 @@ func (r *Runtime) reachableFrom(application string, top observe.Topology,
 	})
 	return out
 }
+
+// PlacesOffering is every Place Marco has seen one named control at.
+//
+// # Observational knowledge, and the line it does not cross
+//
+// A navigation control appears on every page of an application, and knowing that is worth
+// something: it is the difference between "Marco saw `Home` once" and "Marco has seen `Home` in
+// six of the rooms it knows". What it is NOT is a claim that the control can be reached from
+// anywhere — that would be a scope, and a scope is an inference nobody observed.
+//
+// So the answer is a LIST OF PLACES, which is exactly what was observed and no more. There is no
+// ANYWHERE node, no application-wide entry, and nothing here that could be executed against:
+// scoped-affordance execution stays deferred until there is a dense enough map to design it from.
+// See [[ADR-123]].
+//
+// A read. It writes nothing, resolves nothing, and cannot establish a Place — it walks the
+// subjects the store already holds. Deleting the per-place scoping and returning the application
+// must fail TestOneControlAtSeveralPlacesIsRecordedAtEachAndScopedToNone.
+func (r *Runtime) PlacesOffering(application, label string) []string {
+	label = strings.TrimSpace(label)
+	if r == nil || label == "" {
+		return nil
+	}
+	memory, ok := r.durableMemory()
+	if !ok {
+		return nil
+	}
+	lister, ok := memory.(interface {
+		Subjects() []observe.RememberedSubject
+	})
+	if !ok {
+		return nil
+	}
+	seen := map[string]bool{}
+	var out []string
+	for _, s := range lister.Subjects() {
+		if s.Structure.Subject != observe.SubjectTarget || s.Structure.Place == "" {
+			continue
+		}
+		if !strings.EqualFold(s.Application, application) {
+			continue
+		}
+		if !strings.EqualFold(strings.TrimSpace(s.Structure.Label), label) {
+			continue
+		}
+		if seen[s.Structure.Place] {
+			continue
+		}
+		seen[s.Structure.Place] = true
+		out = append(out, s.Structure.Place)
+	}
+	sort.Strings(out)
+	return out
+}

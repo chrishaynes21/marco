@@ -623,6 +623,17 @@ type ScreenState struct {
 	// whole compositions: a transition frame can carry the name of the page being left. The
 	// word that recurs is the screen.s; a word seen once is a frame.
 	PlaceNames map[string]int `json:"place_names,omitempty"`
+	// Affordances counts what this screen OFFERED, per admitted control name.
+	//
+	// Tallied for the reason PlaceNames is tallied, and it is the same failure being
+	// guarded: a transition frame carries controls belonging to the page being left, and a
+	// menu that was open for one reading is not a property of the screen underneath it. The
+	// control that RECURS across settled readings of this state belongs to it; one seen once
+	// is a moment. See [[ADR-123]].
+	//
+	// Session-local and transient, like every other tally here. It is evidence that
+	// something was there, never a durable target and never something anything may act on.
+	Affordances map[string]AffordanceTally `json:"affordances,omitempty"`
 	// Settled says this screen has stopped materially changing shape, and is therefore
 	// worth remembering. See settledWhole: visible is not settled, and settled is
 	// what identity is allowed to rest on.
@@ -1149,15 +1160,39 @@ func (g *ScreenSegmenter) Observe(n int, regions []ShadowRegion,
 	// Best MATCH and best EXPLANATION are different questions and are asked separately. The
 	// state most similar to this frame need not be the one that accounts for it: a sparse
 	// frame is fully contained in a rich screen it barely resembles.
+	// THE STATE THIS READING SAYS IT BELONGS TO, alongside the one it most resembles.
+	//
+	// Two questions, and the second is why the first version of this was wrong. Forcing a
+	// boundary whenever the claim disagreed with the STRUCTURAL best match meant a screen
+	// whose composition matched a different page kept minting a new state on every visit —
+	// the false split, reintroduced by the fix for the false collapse. Measured on the
+	// fixture: `state_unknown, state_2, state_unknown, state_3` for four readings of one
+	// screen.
+	//
+	// So the claim participates in CHOOSING the state, not only in vetoing one.
+	claim := strings.TrimSpace(sem.PlaceName)
 	best, bestSim, bestCover := -1, -1.0, 0.0
+	sameSaid, sameSaidSim := -1, -1.0
 	for i, st := range g.states {
 		m := st.mean()
-		if sim := signatureSimilarity(m, f); sim > bestSim {
+		sim := signatureSimilarity(m, f)
+		if sim > bestSim {
 			best, bestSim = i, sim
+		}
+		// A state this reading agrees with about where it is. The bar is the state's
+		// most-tallied word rather than its SETTLED one, deliberately: continuity is the
+		// conservative direction — it makes fewer states, never a second record of one
+		// screen — and the recurrence requirement exists to stop a word seen once
+		// manufacturing a BOUNDARY. See destinationSays.
+		if claim != "" && sim > sameSaidSim && strings.EqualFold(topPlaceName(*st), claim) {
+			sameSaid, sameSaidSim = i, sim
 		}
 		if c := coverage(f, m); c > bestCover {
 			bestCover = c
 		}
+	}
+	if sameSaid >= 0 {
+		best, bestSim = sameSaid, sameSaidSim
 	}
 
 	// THE SECOND QUESTION, and the one that was missing.
@@ -1179,6 +1214,71 @@ func (g *ScreenSegmenter) Observe(n int, regions []ShadowRegion,
 	// decision needs no threshold of its own: either a part of the surface is now made of
 	// something it was not, or it is not.
 	samePlace := sameSurface && localWorst == 1
+
+	// AND WHAT THE SCREEN SAYS IT IS, which outranks what it is made of.
+	//
+	// # The bidirectional defect this closes, both halves measured from this function
+	//
+	// `replacedMass` counts structures whose KIND arrived or left. Its own note explains the
+	// intent — "a list loading another page changes forty structures and remains entirely
+	// itself" — and that is exactly right for a list and exactly wrong for a page navigation,
+	// because a page navigation is a list loading another page. Driven with Settings-shaped
+	// readings, this function collapsed Home, Bluetooth & devices, Mouse and System into ONE
+	// state: same kinds, different amounts, nothing "replaced". Driven with one page whose
+	// content churned between text and images, it split that page into THREE: same page,
+	// different kinds, plenty "replaced".
+	//
+	// One rule, run in two directions. Structure alone cannot tell "the content of this page
+	// changed" from "this is a different page", because at the level of kinds and cells those
+	// two things look identical.
+	//
+	// # The evidence was already here
+	//
+	// `sem` is a parameter of this call. It carries the admitted destination claim — what the
+	// screen says it is, from its own selected navigation, through AdmittedPlaceName — and it
+	// was read only AFTER the state had been chosen, to be tallied against it. Live, every
+	// reading of the walk above carried the right word and none of it reached the decision.
+	//
+	// # Both directions, because either alone is half a fix
+	//
+	// A CHANGED destination is a boundary: the structural comparison is not consulted, because
+	// no amount of structural similarity outweighs the screen saying it is somewhere else.
+	//
+	// An UNCHANGED destination is continuity, and this half matters just as much: without it
+	// the churning page still splits on kinds exactly as it did, and only the collapse would
+	// have been fixed.
+	//
+	// # Trustworthy, or not at all
+	//
+	// Both sides have to be worth comparing. The current side is `sem.PlaceName`, which is
+	// already admitted — one Actor's unambiguous evidence, through the shape filter. The
+	// remembered side is `settledPlaceName`, the SAME recurrence rule naming uses: a word seen
+	// once is a transition frame carrying the name of the page being left, and comparing
+	// against one would invent boundaries out of exactly the frames bridging exists for.
+	//
+	// When either side has nothing to say, the structural rule decides alone and behaves
+	// exactly as it did. Most interfaces have no destination claim at all, and absence is not
+	// a boundary.
+	//
+	// # And it reaches nothing durable
+	//
+	// This decides which TRANSIENT state a reading belongs to. `NewScreenSignature` is
+	// untouched, so what a Place is remembered BY is unchanged, and a wrong answer here costs
+	// a session's segmentation rather than a permanent memory. That asymmetry is the whole
+	// licence for using richer evidence here than identity may use: see [[ADR-124]].
+	//
+	// Deleting either arm must fail TestFourPagesWithFourDestinationsAreFourStates and
+	// TestOneDestinationSurvivesItsContentChurning.
+	switch {
+	case sameSaid >= 0:
+		// The reading and the state agree about where they are. Content churning kind
+		// is what a page does; it is not the page becoming another page.
+		samePlace = sameSurface
+	case destinationSays(g, best, sem) == destinationElsewhere:
+		// The screen says it is somewhere else, and no state agrees with it. No amount
+		// of structural similarity outweighs that.
+		samePlace = false
+	}
 
 	// THE measurement. What the comparisons scored, before anything is decided from them.
 	//
@@ -1287,6 +1387,33 @@ func (s *ScreenState) creditTerms(sem SemanticEvidence) {
 			s.PlaceNames[n]++
 		}
 	}
+	// AND WHAT IT OFFERED, credited to the state that was active, with the same denominator.
+	//
+	// A kind disagreeing with what this state has already seen empties the entry rather than
+	// picking one: two readings calling the same label a button and a tab is Marco not
+	// knowing which, and a durable target keyed on the wrong kind is a duplicate nothing
+	// will reconcile.
+	for _, af := range sem.Affordances {
+		if af.Label == "" || af.Kind == "" {
+			continue
+		}
+		if s.Affordances == nil {
+			s.Affordances = map[string]AffordanceTally{}
+		}
+		prior, known := s.Affordances[af.Label]
+		if !known && len(s.Affordances) >= MaxAffordancesPerState {
+			continue
+		}
+		switch {
+		case !known:
+			s.Affordances[af.Label] = AffordanceTally{Kind: af.Kind, Seen: 1}
+		case prior.Kind != af.Kind:
+			s.Affordances[af.Label] = AffordanceTally{Seen: prior.Seen + 1}
+		default:
+			prior.Seen++
+			s.Affordances[af.Label] = prior
+		}
+	}
 	if len(sem.Terms) == 0 {
 		return
 	}
@@ -1309,6 +1436,20 @@ func (s *ScreenState) creditTerms(sem SemanticEvidence) {
 }
 
 // MaxTermsPerState bounds one state's semantic tally.
+// AffordanceTally is how often one named control was seen in a state, and what kind it is.
+//
+// Kind empty means two readings disagreed about it. The count still grows — the control WAS
+// there — and the settlement rule refuses it, so a disagreement can never resolve by being seen
+// more often.
+type AffordanceTally struct {
+	Kind TargetKind `json:"kind,omitempty"`
+	Seen int        `json:"seen"`
+}
+
+// MaxAffordancesPerState bounds one session state's tally. The durable bound is separate and
+// larger; this one only stops a pathological screen from growing a session in memory.
+const MaxAffordancesPerState = 96
+
 const MaxTermsPerState = 16
 
 func copyTerms(in map[InterfaceTerm]int) map[InterfaceTerm]int {
@@ -1672,4 +1813,75 @@ func total(roles map[string]int) int {
 		n += v
 	}
 	return n
+}
+
+// destinationVerdict is what the screen's own account of itself says about continuity.
+type destinationVerdict int
+
+const (
+	// destinationUnknown: one side or the other has nothing worth comparing, and the
+	// structural rule decides alone. This is the common case — most interfaces make no
+	// destination claim at all.
+	destinationUnknown destinationVerdict = iota
+	// destinationHere: the screen says it is the same place it was.
+	destinationHere
+	// destinationElsewhere: the screen says it is somewhere else.
+	destinationElsewhere
+)
+
+// destinationSays compares what this reading claims to be against what the matched state settled
+// on being.
+//
+// # Why the matched state and not the current one
+//
+// Because the question this answers is "should this reading fold into THAT state", and `best` is
+// the state it would fold into. Asking about `g.current` would compare against a state this
+// reading may not be a candidate for at all.
+//
+// # Why settled and not latest
+//
+// A transition frame carries the name of the page being LEFT. `settledPlaceName` is the existing
+// recurrence rule — a word has to have been seen twice, with no tie — and comparing against a word
+// seen once would manufacture a boundary out of precisely the frames bridging exists for.
+//
+// Nothing remembered is consulted. Both sides come from this session: one from the reading in
+// hand, one from the tally of readings already credited to that state. A durable Place's name
+// cannot reach this, which is what keeps memory out of a question about what is on screen now.
+func destinationSays(g *ScreenSegmenter, best int, sem SemanticEvidence) destinationVerdict {
+	claim := strings.TrimSpace(sem.PlaceName)
+	if claim == "" || best < 0 || best >= len(g.states) {
+		return destinationUnknown
+	}
+	settled := strings.TrimSpace(settledPlaceName(*g.states[best]))
+	if settled == "" {
+		return destinationUnknown
+	}
+	if strings.EqualFold(claim, settled) {
+		return destinationHere
+	}
+	return destinationElsewhere
+}
+
+// topPlaceName is the word a state has been called most often, or nothing when it is tied or has
+// never been called anything.
+//
+// Deliberately WITHOUT the recurrence threshold `settledPlaceName` applies. The two are used for
+// opposite directions and the asymmetry is the point: agreeing with a state about where it is
+// makes FEWER states and can only ever fold a reading into a screen that already exists, so a
+// single agreeing word is safe. Disagreeing MINTS, so it needs the settled word — a transition
+// frame carries the name of the page being left, and one sighting of it must not become a screen.
+func topPlaceName(st ScreenState) string {
+	best, top, tied := "", 0, false
+	for name, seen := range st.PlaceNames {
+		switch {
+		case seen > top:
+			best, top, tied = name, seen, false
+		case seen == top && name != best:
+			tied = true
+		}
+	}
+	if tied || top == 0 {
+		return ""
+	}
+	return best
 }

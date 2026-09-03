@@ -42,6 +42,9 @@ type promotion struct {
 	places      observe.PlaceStore
 	candidates  observe.CandidateStore
 	targets     observe.TargetStore
+	// sweep is the batch half, held only by the affordance path. Separate from `targets`
+	// because they answer different questions and a caller may hold one without the other.
+	sweep observe.TargetSweepStore
 }
 
 // errNotLicensed is what every refusal below says, in the words of the permission it wanted.
@@ -388,4 +391,36 @@ func candidateFor(application string, s promotedStep, verdict observe.MatchVerdi
 		Sequence:    1,
 		Verified:    false,
 	}
+}
+
+// offer makes the controls a settled screen was seen to OFFER durable, and only those.
+//
+// # What this may write, and what it structurally cannot
+//
+// It writes that a target EXISTS at a Place. It has one store — the TargetStore, whose only method
+// is RememberTarget — so it cannot write a relationship, a goal, a judgement or a candidate. There
+// is no path from here to an edge, which is not a rule this function follows but a shape it is in.
+//
+// The signatures arrive from observe.TargetsToRecord, already settled and already scoped to a
+// durable Place. Nothing is re-derived: a second decision about which controls qualify would be a
+// second policy, and only one of them would be reviewed.
+//
+// A failure loses a control, not a Place. The next reading offers it again, and RememberTarget is
+// idempotent by signature, so the readings after the first write say nothing.
+//
+// Deleting the licence check must fail TestObserveCannotMakeItsOwnEvidenceDurable.
+func (p promotion) offer(sigs []observe.StructureSignature) (int, error) {
+	if !p.licence.AcquireVisibleAffordances {
+		return 0, errNotLicensed{want: "acquire visible affordances"}
+	}
+	if p.sweep == nil {
+		return 0, nil
+	}
+	// ONE WRITE AND ONE ANNOUNCEMENT, through the batch half of the store. A loop over
+	// RememberTarget would be the same durable result and a feed full of furniture: thirty
+	// lines saying "noticed a control" bury the one saying "learned a way".
+	//
+	// FromAccessible is PROVENANCE: this came off the interface's own account of itself. It
+	// is not authority to correct anything the Audience has said.
+	return p.sweep.RememberTargetsSeen(p.application, sigs, observe.FromAccessible)
 }

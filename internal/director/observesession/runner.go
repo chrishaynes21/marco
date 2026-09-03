@@ -161,6 +161,7 @@ type Config struct {
 //	EstablishPlaces        Runner.establishPlace       identity, and the name it settled under
 //	AcquireRouteEvidence   Runner.watchedDemonstration a watched pass becomes a candidate
 //	NameActivatedTargets   liveSampler / AdmittedTargetLabel  the control they aimed at keeps its name
+//	AcquireVisibleAffordances liveSampler / AdmittedAffordanceLabel  what a settled screen offers
 //
 // # What is NOT in here, and was
 //
@@ -199,6 +200,26 @@ type Licence struct {
 	// The shape filter is unconditional either way, so a friend tag, a token or a filename is
 	// refused whatever this says. Consumed via liveSampler, at observe.AdmittedTargetLabel.
 	NameActivatedTargets bool
+	// AcquireVisibleAffordances licenses durably remembering the named controls a settled
+	// screen OFFERS, without anybody having pressed them.
+	//
+	// # Why this could not be folded into NameActivatedTargets
+	//
+	// Because that permission's whole justification is the sentence above it: the person
+	// aimed at that control themselves, and [[ADR-114]] draws the line in the same breath —
+	// *"the gate still admits only what one input event's own resolution touched, never a
+	// sweep"*. This IS the sweep, so it is a different question and it gets its own answer a
+	// caller can decline.
+	//
+	// It is deliberately the widest durable permission here, and it is the narrowest it can
+	// be while being useful: it may write that a control EXISTS at a Place, and it cannot
+	// write where the control leads. A destination is a transition, and a transition needs a
+	// person observed arriving somewhere.
+	//
+	// The label gate is its own and is narrower than NameActivatedTargets': a sweep has no
+	// per-element provenance, so the activatable-role widening does not travel. Consumed via
+	// liveSampler, at observe.AdmittedAffordanceLabel. See [[ADR-123]].
+	AcquireVisibleAffordances bool
 }
 
 // LearnLicence is everything an explicit Learn episode is granted, in one place.
@@ -208,7 +229,8 @@ type Licence struct {
 // have it. A caller who is NOT a learn session should not use this; it should name the permissions
 // it actually needs.
 func LearnLicence() Licence {
-	return Licence{EstablishPlaces: true, AcquireRouteEvidence: true, NameActivatedTargets: true}
+	return Licence{EstablishPlaces: true, AcquireRouteEvidence: true,
+		NameActivatedTargets: true, AcquireVisibleAffordances: true}
 }
 
 // Any reports whether this licence permits anything durable at all.
@@ -216,7 +238,8 @@ func LearnLicence() Licence {
 // For diagnostics and for the guard in tests: a session holding no permission is a pure
 // observation, and saying so is clearer than three comparisons at the reading end.
 func (l Licence) Any() bool {
-	return l.EstablishPlaces || l.AcquireRouteEvidence || l.NameActivatedTargets
+	return l.EstablishPlaces || l.AcquireRouteEvidence || l.NameActivatedTargets ||
+		l.AcquireVisibleAffordances
 }
 
 // Episode is what one caller declares about the session it asked for.
@@ -1182,6 +1205,25 @@ func (r *Runner) establishPlace(application string, stats Stats,
 
 			_ = namer.ObserveSemanticName(application, subject, name, observe.FromStructure)
 		}
+	}
+	// AND WHAT THOSE PLACES OFFER, under the licence that permits it.
+	//
+	// # Why this is here and not only in ambient watching
+	//
+	// Because `LearnLicence` grants AcquireVisibleAffordances, and a permission with no site
+	// is decoration — the exact defect ADR-114 recorded from the other direction, where the
+	// licence had been declared for ambient sessions since the day it was written and
+	// perception was never told.
+	//
+	// Without this, an explicit Learn READS every admitted control on the screen — the
+	// sampler's sweep is licensed and runs — tallies them, and writes none of them. Reading
+	// somebody's screen for nothing is worse than not reading it.
+	//
+	// A failure here loses a control, not a Place. Deleting this must fail
+	// TestAnExplicitLearnRemembersWhatTheScreenOffered.
+	if sweep, ok := r.targets.(observe.TargetSweepStore); ok && cfg.AcquireVisibleAffordances {
+		_, _ = sweep.RememberTargetsSeen(application, observe.TargetsToRecord(
+			stats.Shadow, application, memory, cfg.Hypotheses), observe.FromAccessible)
 	}
 	return out
 }

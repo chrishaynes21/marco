@@ -2585,7 +2585,8 @@ async function learnedRead(){
     // actually reads. See TestTheHeadlineIsNewKnowledgeRatherThanTheLatestEvent.
     // A movement is demoted for the same reason: Marco saw somebody go somewhere and cannot
     // say how, which must not sit above a way it actually learned. See ADR-122.
-    const top = WSEEN.find(e => e.change!=='strengthened' && e.change!=='saw') || WSEEN[0];
+    const top = WSEEN.find(e => e.change!=='strengthened' && e.change!=='saw' &&
+                             e.change!=='noticed') || WSEEN[0];
     document.getElementById('lnew').textContent=learnedLine(top);
     // AND GO THERE IS OFFERED ONLY FOR SOMETHING MARCO CAN BE ASKED FOR.
     //
@@ -2625,12 +2626,14 @@ async function learnedRead(){
 // learnedLine is the four words, kept apart. Calling every change "learned" would train somebody
 // to stop reading the feed — walking a familiar route is not a discovery. See ADR-111.
 function learnedLine(e){
-  const what={place:'place', edge:'way', goal:'destination', movement:'movement'}[e.kind]||e.kind;
+  const what={place:'place', edge:'way', goal:'destination', movement:'movement',
+              affordance:'affordance'}[e.kind]||e.kind;
   // 'watched you go' is deliberately not a way. A movement is a crossing Marco saw and cannot
   // explain, because attribution refused to name a control it did not see; saying 'learned way'
   // there would offer a route the graph declined to claim. See ADR-120 and ADR-122.
   const how={learned:'learned '+what, strengthened:'saw '+what+' again',
-             named:'named', rebound:what+' moved', saw:'watched you go'}[e.change]||e.change;
+             named:'named', rebound:what+' moved', saw:'watched you go',
+             noticed:'noticed'}[e.change]||e.change;
   return how+'  '+(e.description||'');
 }
 // tryIt asks for the thing, through the same door a typed marco do uses. This page starts no

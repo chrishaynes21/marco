@@ -90,6 +90,12 @@ type dryFrame struct {
 	// the evidence said nothing. Carried on the frame so a fixture can drive the whole chain
 	// from perception to a durable name.
 	appearsCalled string
+	// offers is what this frame's screen was seen to OFFER, as admitted control names.
+	//
+	// Carried on the frame for the reason appearsCalled is: so a fixture can drive the whole
+	// chain from an Actor's reading to a durable target, rather than proving each hop apart
+	// and leaving the joins untested. See TestAControlSeenRepeatedlyReachesTheStore.
+	offers []string
 }
 
 func dryHold(screen string, n int) []dryFrame {
@@ -169,6 +175,21 @@ func (s *drySampler) Sample(_ context.Context,
 		regions = append(regions, dryRegions(0.414, 0.70)...)
 		sh.Semantic = observe.SemanticEvidence{Observed: true,
 			Terms: []observe.InterfaceTerm{observe.TermAudio, observe.TermDisplay}}
+	}
+	// WHAT THE SCREEN APPEARS TO BE CALLED. Carried here as well as in sameSampler, because
+	// `appearsCalled` was on the frame and this sampler silently dropped it — a fixture that
+	// looks connected from both ends and is not, which is the failure the production code it
+	// drives has recorded three times.
+	if f.appearsCalled != "" {
+		sh.Semantic.Observed = true
+		sh.Semantic.PlaceName = f.appearsCalled
+	}
+	// WHAT THIS FRAME'S SCREEN OFFERS, carried for the reason appearsCalled is: so a fixture
+	// can drive the whole chain from an Actor's reading to a durable target.
+	for _, label := range f.offers {
+		sh.Semantic.Observed = true
+		sh.Semantic.Affordances = append(sh.Semantic.Affordances,
+			observe.ObservedAffordance{Label: label, Kind: "button"})
 	}
 	sh.Regions = regions
 	sh.Detections = len(regions)

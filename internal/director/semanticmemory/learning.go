@@ -47,6 +47,13 @@ const (
 	// claim. Movement is still worth saying — it is how the map grows — and it is not
 	// knowledge of how to travel.
 	Saw LearningChange = "saw"
+	// Noticed: something about an interface was remembered that nobody performed.
+	//
+	// Distinct from Learned and from Saw because it is a third kind of fact. Learned is
+	// knowledge of a WAY; Saw is a crossing nothing can explain; Noticed is what a screen
+	// turned out to OFFER. Announcing an affordance as Learned would say Marco knows where
+	// pressing it leads, which is the one thing this can never establish.
+	Noticed LearningChange = "noticed"
 )
 
 // LearningKind is what sort of knowledge changed.
@@ -59,6 +66,9 @@ const (
 	// KindMovement is a crossing between two places with no route evidence: Marco saw it
 	// happen and cannot say how. Never KindEdge — see Saw.
 	KindMovement LearningKind = "movement"
+	// KindAffordance is what a Place offers: controls Marco can see and name there. It is
+	// never a transition, and it carries no destination.
+	KindAffordance LearningKind = "affordance"
 )
 
 // Learning is one committed change, in ids rather than words.
@@ -77,6 +87,12 @@ type Learning struct {
 	From, To string
 	// Name is the word, for KindGoal and KindPlace naming. Never a rendered description.
 	Name string
+	// Count is how many things this one commit was about, for KindAffordance.
+	//
+	// The reason a sweep is one event rather than thirty: a person reading a feed wants "six
+	// things you can do here", and thirty lines of furniture would bury the one line that
+	// says Marco learned a way. Zero means the change is about a single thing.
+	Count int
 }
 
 // WhenLearned registers the one place committed changes are announced to.

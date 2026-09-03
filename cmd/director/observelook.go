@@ -72,6 +72,28 @@ type ambientLook struct {
 	// skipped, so nothing here can create a Place, and settlement is unchanged — a word seen
 	// once is not in this map.
 	Names map[string]string
+	// Offers is every durable target this reading could now say exists, and at which Place.
+	//
+	// The affordance half of Names, computed the same way and for the same reason: what a
+	// screen OFFERS settles by recurrence across readings, so the reading that could record
+	// it is almost never the one that established the Place.
+	//
+	// Read unconditionally and written conditionally, which is the rule this file already
+	// follows. Perception is not a permission; whether any of this becomes durable is asked
+	// once, at the write, by the ambient learning policy.
+	//
+	// Signatures, never elements: a label and the kind of control it is, scoped to a Place.
+	// Nothing here carries a position, an id or an ordering, and nothing here says where
+	// activating any of it would lead. See [[ADR-123]].
+	Offers []observe.StructureSignature
+	// Readings, Agreeing, Visits and Settled are the SETTLEMENT ARITHMETIC for the screen
+	// this reading landed on, carried for the diagnostics and read by nothing that decides.
+	//
+	// `Agreeing` is the one that matters: settlement thresholds how many readings saw the
+	// same WHOLE role composition, not how many readings there were. A screen looked at three
+	// times whose shape changed each time has three readings and one agreement, and refuses.
+	Readings, Agreeing, Distinct, Visits int
+	Settled                              bool
 }
 
 // ambientLook takes one reading for the ambient observer.
@@ -109,6 +131,18 @@ func (r *Runtime) ambientLook(application string) ambientLook {
 	//
 	// Deleting this must fail TestWatchingAndLearningNamesAPlaceItAlreadyKnows.
 	out.Names = observe.PlaceNamesToRecord(ev.shadow, ev.app, memory, th)
+	// AND WHAT THOSE PLACES OFFER, on the same side of the early return and for the same
+	// reason: a Place established on an earlier reading is exactly the one whose controls
+	// have had time to recur.
+	//
+	// Deleting this must fail TestWatchingAndLearningRemembersWhatAScreenOffers.
+	out.Offers = observe.TargetsToRecord(ev.shadow, ev.app, memory, th)
+	// THE SETTLEMENT ARITHMETIC FOR THIS SCREEN, read from the session's own tallies. A read
+	// and a report: see ambientLook.Agreeing.
+	if st, ok := observe.StateOf(ev.shadow, ev.shadow.CurrentState); ok {
+		out.Readings, out.Agreeing, out.Distinct, out.Visits, out.Settled =
+			observe.SettlementOf(st)
+	}
 	if out.Place.Established() {
 		// A place Marco already recognises needs no description: it HAS an identity, and
 		// carrying a second one beside it would be the start of a duplicate.

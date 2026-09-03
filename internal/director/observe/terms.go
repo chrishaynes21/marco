@@ -174,11 +174,31 @@ type SemanticEvidence struct {
 	// Both were live defects, found by auditing this path rather than by a failing test —
 	// which is why the fix is a representation change rather than a threshold change.
 	Observed bool `json:"observed,omitempty"`
+	// Affordances are the named controls this inference could see, admitted through
+	// AdmittedAffordanceLabel.
+	//
+	// WHAT IS THERE, not what was done. It carries no position, no element id and no
+	// ordering — a label and the kind of control it is, which is all a durable target's
+	// identity is made of. See [[ADR-123]].
+	Affordances []ObservedAffordance `json:"affordances,omitempty"`
+}
+
+// ObservedAffordance is one named control seen on screen.
+//
+// Deliberately two fields. Anything more — bounds, an element id, an index, a detector region —
+// would be presentation, and presentation moves: the same button reflows to another corner and
+// must stay the same affordance. See the identity note on TargetSignature.
+type ObservedAffordance struct {
+	Label string     `json:"label"`
+	Kind  TargetKind `json:"kind,omitempty"`
 }
 
 // Empty reports whether this inference offered no semantic evidence at all.
 func (s SemanticEvidence) Empty() bool {
-	return !s.Observed && len(s.Terms) == 0 && s.EditableFields == 0
+	// Affordances count. A screen whose only reading was "here are six buttons" HAS been
+	// looked at, and reporting that as no evidence would drop the one thing the sweep saw.
+	return !s.Observed && len(s.Terms) == 0 && s.EditableFields == 0 &&
+		len(s.Affordances) == 0
 }
 
 // SemanticEvidenceFrom reads one sample's entities into closed-vocabulary evidence.
@@ -301,6 +321,32 @@ func (s SemanticEvidence) Merge(other SemanticEvidence) SemanticEvidence {
 	case s.PlaceName == "":
 		out.PlaceName = other.PlaceName
 	}
+	// AFFORDANCES UNION, because two Actors describing one screen each see part of it and a
+	// control is no less present for having been found by the other one. Deduplicated by
+	// label: the same button reported by accessibility and by a detector is one affordance.
+	//
+	// A label arriving with two different KINDS is dropped, for the reason a disagreed name
+	// is: Marco does not know what it is, and a durable target keyed on the wrong kind is a
+	// second record of the same control that nothing will ever reconcile.
+	kinds := map[string]TargetKind{}
+	var order []string
+	for _, af := range append(append([]ObservedAffordance{}, s.Affordances...),
+		other.Affordances...) {
+		prior, seen := kinds[af.Label]
+		switch {
+		case !seen:
+			kinds[af.Label] = af.Kind
+			order = append(order, af.Label)
+		case prior != af.Kind:
+			kinds[af.Label] = ""
+		}
+	}
+	for _, label := range order {
+		if k := kinds[label]; k != "" {
+			out.Affordances = append(out.Affordances, ObservedAffordance{
+				Label: label, Kind: k})
+		}
+	}
 	return out
 }
 
@@ -334,8 +380,27 @@ func admissibleTerms(in SemanticEvidence) SemanticEvidence {
 	// and the shape filter before it was ever put on the evidence.
 	//
 	// Deleting `PlaceName` here must fail TestAPlaceEstablishedThroughTheProductionPassIsNamed.
+	// `Affordances` carried deliberately, and this is the exact trap the note above records:
+	// PlaceName was added upstream, passed its own tests, and was dropped here by a
+	// constructor that only knew about terms.
+	//
+	// No filtering of its own — AdmittedAffordanceLabel applied the role allowlist and the
+	// shape filter before any of this was put on the evidence — but BOUNDED, because a screen
+	// with four hundred buttons must not put four hundred entries into a session's state.
+	//
+	// Deleting `Affordances` here must fail
+	// TestAnAffordanceSurvivesTheProductionEvidencePath.
 	out := SemanticEvidence{
 		EditableFields: in.EditableFields, Observed: in.Observed, PlaceName: in.PlaceName,
+	}
+	for _, af := range in.Affordances {
+		if af.Label == "" || af.Kind == "" {
+			continue
+		}
+		out.Affordances = append(out.Affordances, af)
+		if len(out.Affordances) >= MaxAffordancesPerPlace {
+			break
+		}
 	}
 	for _, t := range in.Terms {
 		if !t.Known() {

@@ -97,6 +97,10 @@ func (s *sameSampler) Sample(_ context.Context,
 		sh.Semantic = observe.SemanticEvidence{
 			Observed: true, Terms: sameTerms(f.screen), PlaceName: f.appearsCalled,
 		}
+		for _, label := range f.offers {
+			sh.Semantic.Affordances = append(sh.Semantic.Affordances,
+				observe.ObservedAffordance{Label: label, Kind: "button"})
+		}
 	}
 	sh.Regions = regions
 	sh.Detections = len(regions)

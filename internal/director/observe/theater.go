@@ -204,3 +204,26 @@ type TargetStore interface {
 	RememberTarget(application string, sig StructureSignature, learned EvidenceSource) (
 		string, error)
 }
+
+// TargetSweepStore is the batch half of TargetStore: everything one settled screen offers, written
+// together.
+//
+// # Why a batch rather than a loop over RememberTarget
+//
+// Two reasons, and the second is the load-bearing one.
+//
+// One save instead of one per control, which matters when a screen offers thirty.
+//
+// And ONE announcement. A learning feed reports what changed to a person, and thirty events saying
+// "noticed a control" would bury the one saying "learned a way" under a screen's worth of
+// furniture — the exact failure Strengthened exists to prevent, arriving from a new direction. A
+// batch is what lets the store say "six things you can do here" as one commit, and the store is
+// the only honest place to say it from: it is what knows how many of the six were actually new.
+type TargetSweepStore interface {
+	// RememberTargetsSeen makes several targets durable together, returning how many were new.
+	//
+	// The same discipline RememberTarget follows for each: idempotent by signature, no
+	// judgement written, an existing record returned untouched.
+	RememberTargetsSeen(application string, sigs []StructureSignature,
+		learned EvidenceSource) (int, error)
+}

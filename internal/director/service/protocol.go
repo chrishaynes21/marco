@@ -2097,6 +2097,86 @@ type AmbientView struct {
 	// promoted or not. The number that must track how many DIFFERENT things somebody does,
 	// never how long Marco watched.
 	Candidates int `json:"candidates,omitempty"`
+	// AffordancesVisible, AffordancesAdmitted, AffordancesWithheld and AffordancesStored are
+	// what the affordance sweep saw, kept and refused.
+	//
+	// # Why a refusal rate is reported rather than assumed away
+	//
+	// "Marco learned nothing about this application" has two completely different causes, and
+	// only one of them is a bug. `39 actionable, 6 admitted, 33 withheld (list_item 33)` says
+	// which in one line — the difference between an interface with nothing to learn and one
+	// whose every control was refused by the label gate.
+	//
+	// Counts and ROLE NAMES only. The refused text is exactly what the gate exists to
+	// withhold, and a diagnostic carrying it would be a copy of the thing being refused.
+	AffordancesVisible  int            `json:"affordances_visible,omitempty"`
+	AffordancesAdmitted int            `json:"affordances_admitted,omitempty"`
+	AffordancesWithheld map[string]int `json:"affordances_withheld,omitempty"`
+	AffordancesStored   int            `json:"affordances_stored,omitempty"`
+	// Recognition is what became of every reading, per screen, in explicit reason codes.
+	//
+	// # The question the store cannot answer
+	//
+	// A screen that never became a Place leaves nothing behind, so every explanation for its
+	// absence is reconstructed from what survived. This is recorded at the moment of the
+	// decision instead: was there a world, was there a candidate, and if no Place came of it,
+	// which gate refused it.
+	//
+	// Bounded per screen and per session. Counts, ids and reason codes — the one word it
+	// carries is a candidate's settled name, which is an already-admitted value.
+	Recognition []RecognitionScreen `json:"recognition,omitempty"`
+}
+
+// RecognitionScreen is one screen's whole recognition history, compressed.
+type RecognitionScreen struct {
+	Application string `json:"application,omitempty"`
+	// State is the session-local screen state, which is what "one screen" means before
+	// anything durable exists to call it.
+	State string `json:"state,omitempty"`
+	// Readings is how many times this screen was looked at.
+	Readings int `json:"readings,omitempty"`
+	// Agreeing is how many of those readings saw the SAME whole role composition — the
+	// number settlement is actually thresholded against. The gap between this and Readings
+	// is what a fast walk opens up.
+	Agreeing int `json:"agreeing,omitempty"`
+	// Distinct is how many DIFFERENT whole compositions the screen was seen as. Two or three
+	// is a screen flickering between near-identical shapes; one per reading is a screen with
+	// no stable form at all, and the two call for different answers.
+	Distinct int `json:"distinct,omitempty"`
+	// Visits is how many separate times the screen was entered.
+	Visits int `json:"visits,omitempty"`
+	// Settled says the screen had stopped changing shape by the last reading.
+	Settled bool `json:"settled,omitempty"`
+	// Place is the durable subject it resolved to, and Established says a reading of it made
+	// the screen durable. Different facts: a screen already known resolves and establishes
+	// nothing.
+	Place       string `json:"place,omitempty"`
+	Established bool   `json:"established,omitempty"`
+	// Named says the screen had settled on a word by the last reading.
+	//
+	// A BOOLEAN, not the word. "Recognised but not yet named" is an answer this has to be
+	// able to give and the word itself is not part of it — and this rides on the ambient
+	// status, whose whole shape is held closed against anything a person could read off
+	// their own screen. See ADR-093 and TestWatchingFromOnToOffAndGone.
+	Named bool `json:"named,omitempty"`
+	// Refusals is why no Place came of each reading, by closed reason code.
+	Refusals []RecognitionRefusal `json:"refusals,omitempty"`
+	// VisibleMS is how long this screen was being read for — first reading to last.
+	//
+	// The number that separates the two explanations for a screen nobody could settle. A
+	// screen visible for 1800ms that got one reading is a CADENCE problem. A screen visible
+	// for 300ms that got one reading was gone before a second reading could have helped, and
+	// no cadence fixes that — the rule has to change instead.
+	VisibleMS int64 `json:"visible_ms,omitempty"`
+	// SinceInputMS is how long before the last reading the most recent human input landed.
+	// -1 when no input has been seen, which is how "nobody was navigating" reads.
+	SinceInputMS int64 `json:"since_input_ms,omitempty"`
+}
+
+// RecognitionRefusal is one reason, counted.
+type RecognitionRefusal struct {
+	Reason string `json:"reason"`
+	Count  int    `json:"count"`
 }
 
 // ObserveAmbient turns ambient watching on or off, or asks what it is doing.

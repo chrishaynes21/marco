@@ -86,6 +86,13 @@ type liveSampler struct {
 	// passive default and admits nothing beyond the canonical role allowlist. The shape
 	// filter is unconditional either way.
 	nameActivatedTargets bool
+	// acquireVisibleAffordances is the licence under which the named controls a settled screen
+	// OFFERS may become durable, without anybody having pressed them.
+	//
+	// A separate field from the one above because it answers a separate question: that one is
+	// about the control an input event resolved to, this one is about a sweep of the screen.
+	// Set by the registry from the episode the caller declared; the zero value reads nothing.
+	acquireVisibleAffordances bool
 
 	// frameMu guards frame, which is written from the sampling goroutine and read by
 	// whatever wants to point at something.
@@ -255,10 +262,21 @@ func (s *liveSampler) Sample(ctx context.Context, req observesession.SampleReque
 	//
 	// Deleting this must fail TestADemonstrationOffersThePlaceItsName.
 	named := s.placeName(world)
+	// AND WHAT THE PLACE OFFERS, read from the SAME fused world at the same moment.
+	//
+	// Beside the name because it is the same kind of fact and needs the same three things in
+	// scope. It is a reading of what is on screen NOW: no session history, no remembered
+	// target, nothing carried from a previous sample. What accumulates downstream is the
+	// COUNT of how often each control kept being there, which is what makes it evidence
+	// rather than a snapshot of one frame — see observe.TargetsToRecord.
+	//
+	// Deleting this must fail TestASettledScreenOffersWhatMarcoCanSeeOnIt.
+	offered := s.affordances(world)
 	if sem := observe.SemanticEvidenceFrom(sample.Entities); !sem.Empty() || named != "" ||
-		(sample.Shadow != nil && !sample.Shadow.Semantic.Empty()) {
+		len(offered) > 0 || (sample.Shadow != nil && !sample.Shadow.Semantic.Empty()) {
 
 		sem.PlaceName = named
+		sem.Affordances = offered
 		sample.Shadow = s.ensureShadow(sample.Shadow)
 		sample.Shadow.Semantic = sem.Merge(sample.Shadow.Semantic)
 	}
@@ -706,6 +724,71 @@ func placeNameEvidence(world directorapi.WorldState) []observe.PlaceNameEvidence
 // Deleting the AdmittedPlaceName call must fail TestTheSamplerNamesThePlaceWhoeverIsWatching.
 func (s *liveSampler) placeName(world directorapi.WorldState) string {
 	return observe.AdmittedPlaceName(placeNameEvidence(world))
+}
+
+// affordances is every named control this sampler may durably remember about the screen in front
+// of it, or nothing at all.
+//
+// # Three gates, and each refuses for a different reason
+//
+//  1. THE LICENCE. Without AcquireVisibleAffordances nothing is read: watching alone is not
+//     agreement to keep the text of everything on screen. Read live rather than copied at session
+//     start, for the reason ADR-114 gives — somebody turns Watch & Learn on while a session is
+//     already running, and a copy would leave the mode inert for the rest of it.
+//  2. VISIBILITY. Offscreen, invisible and empty-bounds elements are not what a person is looking
+//     at, and a virtualised list's members are mostly offscreen.
+//  3. THE LABEL. observe.AdmittedAffordanceLabel, which is the target gate's narrower sibling: no
+//     activatable-role widening, because a sweep has no per-element provenance. That refusal is
+//     the expected case on list-driven interfaces and it is COUNTED, not swallowed.
+//
+// Refusals are counted per role so a dogfood can answer whether the problem is quantity or
+// admission quality. Counts and role names only — never the text that was refused, which would
+// make the diagnostic a copy of the thing the gate exists to withhold.
+//
+// Deleting the licence check must fail TestWatchingWithoutLearningRemembersNoAffordance.
+func (s *liveSampler) affordances(world directorapi.WorldState) []observe.ObservedAffordance {
+	if s == nil || !s.mayAcquireAffordances() {
+		return nil
+	}
+	var out []observe.ObservedAffordance
+	seen := map[string]bool{}
+	visible, admitted := 0, 0
+	withheld := map[string]int{}
+	for _, el := range world.Elements {
+		if el == nil || !el.Visible || el.Offscreen || el.Bounds.Empty() {
+			continue
+		}
+		if !el.Role.Clickable() {
+			continue
+		}
+		visible++
+		label := observe.AdmittedAffordanceLabel(el.Role, el.Label, el.Confidence)
+		if label == "" {
+			withheld[string(el.Role)]++
+			continue
+		}
+		admitted++
+		if seen[label] {
+			continue
+		}
+		seen[label] = true
+		out = append(out, observe.ObservedAffordance{
+			Label: label, Kind: observe.TargetKindOf(string(el.Role))})
+	}
+	s.rt.recordAffordanceAdmission(visible, admitted, withheld)
+	return out
+}
+
+// mayAcquireAffordances is the licence, read through both doors the target gate reads.
+//
+// The same shape as mayNameTargets and for the same reason: a caller may have declared the
+// permission on its episode, or ambient learning may be on. Two doors to one permission, not two
+// permissions.
+func (s *liveSampler) mayAcquireAffordances() bool {
+	if s.acquireVisibleAffordances {
+		return true
+	}
+	return s.rt.ambientLearning()
 }
 
 // trailContaining is the navigation trail a word appears in, or nothing.

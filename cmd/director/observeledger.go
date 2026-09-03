@@ -601,3 +601,138 @@ func stamp(t time.Time) string {
 	}
 	return t.Format(time.RFC3339)
 }
+
+// rememberOffers makes what a settled screen offers durable, under the licence.
+//
+// The affordance sibling of callPlaces, and the same single-gate discipline: `ambientLook` computed
+// the offers unconditionally because reading is not a permission, and what a person agreed to is
+// asked once, HERE, at the write.
+//
+// Watch alone perceives what is on the screen, reports the counts, and writes nothing. Watch &
+// Learn writes it.
+//
+// Deleting the policy check must fail TestWatchingAloneRemembersNoAffordance.
+func (a *ambientObserver) rememberOffers(application string, look ambientLook) {
+	if !a.policy().Enabled || len(look.Offers) == 0 {
+		return
+	}
+	a.rt.rememberOffers(application, look.Offers)
+}
+
+// rememberOffers is the Runtime's half: the promotion boundary an explicit Learn goes through.
+//
+// The SAME boundary, for the reason admitWatched gives — two admission paths would eventually be
+// two policies and only one of them would be reviewed. It holds one store and can write one kind
+// of thing.
+func (r *Runtime) rememberOffers(application string, sigs []observe.StructureSignature) {
+	memory, ok := r.durableMemory()
+	if !ok {
+		return
+	}
+	sweep, _ := memory.(observe.TargetSweepStore)
+	if sweep == nil {
+		return
+	}
+	p := promotion{
+		licence: ambientPromotionLicence(), application: application, sweep: sweep,
+	}
+	written, err := p.offer(sigs)
+	if err != nil || written == 0 {
+		return
+	}
+	a := r.ambient()
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	a.affordancesStored += written
+	a.mu.Unlock()
+}
+
+// settlePlace makes the screen somebody is looking at durably recognisable, under the licence.
+//
+// # The gap this closes, measured
+//
+// Until this existed, a Place became durable in exactly three ways: a crossing was promoted, a
+// licensed session ran, or a person named the screen themselves. Ambient sessions declare the zero
+// episode, so the second never applied to them — and the consequence was invisible until
+// affordance acquisition needed an established Place to scope a control to:
+//
+//	25 seconds of Watch & Learn, a settled screen offering two named controls
+//	1219 readings carried an establishable shape
+//	0 durable places, 0 durable targets
+//
+// The screen was settled, describable and accepted by `PlacesToEstablish` on every single reading.
+// Nothing ever wrote it down. On a fresh store the passive channel could therefore never fire at
+// all: it waits for a Place that only the active channel creates, which makes two channels that
+// were meant to be independent into one with a bootstrap problem.
+//
+// # Why this is a widening, said plainly
+//
+// It means a screen you dwell on becomes durable memory without your having done anything on it.
+// That is the point — "a control does not have to be clicked to be known" is unreachable otherwise
+// — and it is bounded by the same refusals a licensed session gets: not settled, still loading,
+// not discriminating, not describable. `look.Shape` is nil for every one of those, and nil is the
+// common case.
+//
+// It writes an IDENTITY and the word the screen settled under. No judgement, no meaning, no edge —
+// the same contract [[ADR-047-a-place-is-remembered-a-meaning-is-answered]] draws, through the
+// same promotion boundary an explicit Learn goes through, so there is one policy rather than two.
+//
+// Deleting this must fail TestWatchingAndLearningRemembersWhereYouHaveBeenSitting.
+func (a *ambientObserver) settlePlace(application string, look ambientLook) {
+	if !a.policy().Enabled || look.Shape == nil {
+		return
+	}
+	// AND ONLY ONCE MARCO CAN SAY WHAT THE SCREEN IS CALLED.
+	//
+	// # The hole this closes, measured on the run that introduced it
+	//
+	// Establishing on dwell creates Places far earlier than promoting a crossing did — on the
+	// first settled reading rather than after somebody has been somewhere and come back. So
+	// screens that used to become durable late, with their name already settled, now become
+	// durable early and sometimes nameless. One walk produced:
+	//
+	//	Home --> Unnamed place --> Mouse
+	//
+	// A real screen, correctly recognised, with a structural identity and one affordance, and
+	// nothing anybody can call it. It was a TRANSIT screen: the person passed through without
+	// staying long enough for its word to recur, and a name settles by recurrence.
+	//
+	// A crossing still establishes a nameless endpoint, and must — an edge whose destination
+	// cannot be written down is an edge that is lost, and a name that arrives on a later visit
+	// fills it in through the naming sweep. But DWELLING has no such deadline. Nothing is lost
+	// by waiting: the screen is still there, the sweep still runs every reading, and the next
+	// reading that can name it establishes it with the name already on.
+	//
+	// So watching may make a screen permanent once it can also say what it is.
+	//
+	// Deleting this must fail TestDwellingDoesNotEstablishAScreenItCannotName.
+	if strings.TrimSpace(look.Shape.Called) == "" {
+		return
+	}
+	memory, ok := a.rt.durableMemory()
+	if !ok {
+		return
+	}
+	places, _ := memory.(observe.PlaceStore)
+	if places == nil {
+		return
+	}
+	p := promotion{
+		licence: ambientPromotionLicence(), application: application,
+		memory: memory, places: places,
+	}
+	// Idempotent by signature, so the readings after the first cost a scan and no disk. A
+	// failure loses a screen, not a session: the next reading offers the same shape again.
+	id, err := p.establish(look.Shape)
+	if err != nil || id == "" {
+		return
+	}
+	// FOR THE TRACE ONLY. `establish` is idempotent, so this is set on every reading of a
+	// screen already known — which is why the trace compares it against the resolved subject
+	// rather than treating it as proof anything was created.
+	a.mu.Lock()
+	a.lastEstablished = id
+	a.mu.Unlock()
+}

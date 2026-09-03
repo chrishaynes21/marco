@@ -89,5 +89,6 @@ line somebody actually reads must not be the one thing Marco does not know.
 
 - [[ADR-120-a-crossing-that-spans-two-interactions-carries-neither]]
 - [[ADR-095-repeated-observation-may-become-knowledge]]
+- [[ADR-123-a-control-you-can-see-is-worth-knowing-about]]
 - [[ADR-111-a-demonstration-takes-the-slot-from-watching]]
 - [[Experiment-022-the-first-dogfood]]

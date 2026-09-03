@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"sort"
 	"strings"
 	"time"
 
@@ -239,6 +240,63 @@ func printStatus(st service.StatusPayload) {
 			st.Watching.Noticed, st.Watching.Learned)
 	} else {
 		fmt.Printf("Learning: no\n")
+	}
+	// AND WHAT THE AFFORDANCE SWEEP MADE OF WHAT IT COULD SEE.
+	//
+	// Printed only when something was looked at, because a zero line on a desktop nobody has
+	// watched yet is noise. The withheld count is the important half: an application that
+	// teaches Marco nothing because there was nothing to learn and one whose every control
+	// was refused by the label gate read identically without it.
+	if st.Watching.AffordancesVisible > 0 {
+		fmt.Printf("Affordances: %d actionable, %d admitted, %d remembered\n",
+			st.Watching.AffordancesVisible, st.Watching.AffordancesAdmitted,
+			st.Watching.AffordancesStored)
+		roles := make([]string, 0, len(st.Watching.AffordancesWithheld))
+		for role := range st.Watching.AffordancesWithheld {
+			roles = append(roles, role)
+		}
+		sort.Strings(roles)
+		for _, role := range roles {
+			fmt.Printf("  withheld: %d %s\n", st.Watching.AffordancesWithheld[role], role)
+		}
+	}
+
+	// AND WHAT BECAME OF EVERY READING, per screen, in the vocabulary the gates speak.
+	//
+	// The store cannot answer this. A screen that never became a Place leaves nothing behind,
+	// so every explanation for its absence is reconstructed from what survived — and a
+	// reconstruction is what sent this investigation down a wrong branch twice. See
+	// [[ADR-124]].
+	if len(st.Watching.Recognition) > 0 {
+		fmt.Printf("\nRecognition — what became of each screen read\n")
+		for _, s := range st.Watching.Recognition {
+			outcome := "no Place"
+			switch {
+			case s.Established:
+				outcome = "ESTABLISHED"
+			case s.Place != "":
+				outcome = "already known"
+			}
+			name := "named"
+			if !s.Named {
+				name = "no name settled"
+			}
+			fmt.Printf("  %s %s  ×%d read  →  %s, %s\n",
+				s.Application, s.State, s.Readings, outcome, name)
+			// THE ARITHMETIC SETTLEMENT ACTUALLY APPLIES. `agreeing` is how many
+			// readings saw the same WHOLE composition, which is what the threshold
+			// tests — not how many readings there were.
+			fmt.Printf("      agreeing %d of %d (%d distinct shapes), visits %d, settled %v, read over %dms",
+				s.Agreeing, s.Readings, s.Distinct, s.Visits, s.Settled, s.VisibleMS)
+			if s.SinceInputMS >= 0 {
+				fmt.Printf(", last input %dms before", s.SinceInputMS)
+			}
+			fmt.Println()
+			for _, r := range s.Refusals {
+				fmt.Printf("      refused: %-22s ×%d\n", r.Reason, r.Count)
+			}
+		}
+		fmt.Println()
 	}
 
 	// WHY THERE ARE NONE, when there are none for a reason.

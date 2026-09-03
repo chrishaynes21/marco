@@ -203,6 +203,65 @@ func AdmittedTargetLabel(role directorapi.ElementRole, demonstration bool, text 
 	return trimmed
 }
 
+// MaxAffordancesPerPlace bounds what one settled screen may durably offer.
+//
+// NOT a policy cap on how much Marco may learn, and deliberately far above what any measurement
+// has produced: it is the same kind of bound MaxTermsPerState is, there so a pathological screen
+// cannot grow a store without limit. If a real interface ever reaches it, that is a finding to
+// report rather than a number to raise — see [[ADR-123]] on measuring before capping.
+const MaxAffordancesPerPlace = 64
+
+// AdmittedAffordanceLabel decides whether a control's name may be kept from a SWEEP of the
+// screen — every actionable thing visible, rather than the one thing somebody aimed at.
+//
+// # Why this is narrower than AdmittedTargetLabel, and must stay narrower
+//
+// They share the shape filter verbatim and they differ in exactly one stage, because the thing
+// that justifies the wider stage is absent here.
+//
+// AdmittedTargetLabel admits a role a person can ACTIVATE — a list item, a tree item, a link —
+// when a demonstration licence is held. [[ADR-114]] states the reason and states its limit in the
+// same breath: what makes a list item's text admissible is that *"they asked Marco to learn this
+// and then aimed at that control themselves"*, and *"the gate still admits only what one input
+// event's own resolution touched, never a sweep"*.
+//
+// This IS the sweep. There is no per-element provenance: nobody aimed at anything, and the
+// question is being asked of every visible control at once. A list item's text is very often a
+// fact about the person — a channel, a file, a message, a friend — so the widening does not
+// travel, and what is left is the unconditional plaintext allowlist:
+//
+//	button, menu_item, menu, tab, checkbox, radio
+//
+// # What that costs, said plainly
+//
+// Windows Settings navigates by `list_item`, so its navigation rail is refused here and Marco
+// learns a Settings page's buttons and toggles rather than its rail. That is the conservative
+// side of the trade and it is chosen on purpose: the same interfaces whose rails this refuses are
+// the interfaces whose rows are somebody's private life, and no rule available at this point can
+// tell a Settings rail from a chat list without naming applications.
+//
+// So the refusals are COUNTED and reported rather than assumed away — `director observe status`
+// says how many were withheld and under which role — and the question of whether to widen is one
+// for measurement rather than for this comment. See [[ADR-123]].
+func AdmittedAffordanceLabel(role directorapi.ElementRole, text string,
+	confidence float64) string {
+
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" || len([]rune(trimmed)) > MaxTargetLabelLength {
+		return ""
+	}
+	// NO demonstration arm. Deleting this line's difference from AdmittedTargetLabel — that
+	// is, admitting role.Clickable() here — must fail
+	// TestASweepDoesNotAdmitTheRolesADemonstrationDoes.
+	if !eligible(role) {
+		return ""
+	}
+	if !safeLabelText(trimmed, confidence, DefaultLabelPolicy()) {
+		return ""
+	}
+	return trimmed
+}
+
 // safeLabelText reports whether text looks like the name of a control and nothing else.
 func safeLabelText(s string, confidence float64, p LabelPolicy) bool {
 	if confidence < p.MinConfidence {
