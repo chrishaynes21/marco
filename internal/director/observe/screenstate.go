@@ -638,7 +638,13 @@ type ScreenState struct {
 	// worth remembering. See settledWhole: visible is not settled, and settled is
 	// what identity is allowed to rest on.
 	Settled bool `json:"settled,omitempty"`
-	Tracks  int  `json:"tracks,omitempty"`
+	// Coherent says this state settled through the SEMANTIC path rather than by repeating a
+	// whole composition — same kinds throughout, one unanimous settled word, counts drifting.
+	//
+	// For the diagnostics, so "did the coherent rule ever fire live" is a number rather than
+	// an inference from what happened to survive. See semanticallyCoherent.
+	Coherent bool `json:"coherent,omitempty"`
+	Tracks   int  `json:"tracks,omitempty"`
 	// Terms counts the inferences of THIS state in which each generic interface term was
 	// read, so a term always arrives with the denominator that makes it meaningful.
 	//
@@ -1671,6 +1677,7 @@ func (g *ScreenSegmenter) States() []ScreenState {
 		// 2026-08-18 — not an assembly of per-role modes either. See settledWhole for
 		// the blend it replaced and for the tie rule.
 		c.Roles, c.Settled = st.settledWhole()
+		c.Coherent = c.Settled && !st.repeatedAWholeShape()
 		// The tallies are copied rather than shared. A returned state is a snapshot, and
 		// aliasing the live maps would let a caller's read change while it reads.
 		c.Compositions = map[string]int{}
@@ -1803,7 +1810,135 @@ func (s *ScreenState) settledWhole() (map[string]int, bool) {
 	if best == nil || bestTied {
 		return nil, false
 	}
-	return copyRoles(best.roles), best.n >= StatePromotionCount
+	if best.n >= StatePromotionCount {
+		return copyRoles(best.roles), true
+	}
+	// AND A SCREEN THAT KEPT SAYING WHAT IT WAS WHILE ITS COUNTS MOVED.
+	//
+	// # The measured failure
+	//
+	// A page walked through at normal speed gets two or three readings, and a live interface
+	// almost never presents the identical histogram twice in that window. Measured on a
+	// Settings page that never became a Place:
+	//
+	//	2 shapes, same kinds, worst count drift 6 [group list_item text]
+	//
+	// The same kinds, throughout, differing by how many. `Mouse` on every reading. Nothing
+	// contradicted anything — and the rule above asks for one whole histogram to repeat, so a
+	// real screen somebody visited disappeared because a status line moved.
+	//
+	// # Why this is not "settle faster"
+	//
+	// Nothing here shortens a wait or lowers a count. It changes what has to RECUR. ADR-124
+	// established that transient continuity is a different question from structural equality;
+	// this is the same distinction one layer later, and settlement was still asking the frame
+	// question after segmentation had already answered the semantic one.
+	//
+	// # What it still refuses, and each refusal is a measured case
+	//
+	// Different KINDS is not drift. The same run shows a Settings state whose compositions
+	// differed by `progress_bar` — a loading frame folded in — and a Chrome state churning
+	// across seven shapes and six kinds. A screen whose kinds change is either mid-arrival or
+	// two screens, and neither may settle this way. See stillLoading for the other half.
+	//
+	// One reading is never enough: the sightings still have to reach StatePromotionCount, so
+	// a single frame with a good name settles nothing.
+	//
+	// And the name has to be UNANIMOUS, not merely settled. Two words tallied against one
+	// state is Marco not knowing which screen it was looking at, and a segmentation mistake
+	// must not become durable because settlement grew permissive.
+	//
+	// The composition returned is still one Marco actually SAW — the most-seen of them, by
+	// the same tie rule — never an average. That is the invariant ADR-073 exists for and this
+	// does not touch it.
+	//
+	// Deleting this must fail TestAScreenThatKeptSayingWhatItWasSettlesThroughItsWobble.
+	if s.semanticallyCoherent() {
+		return copyRoles(best.roles), true
+	}
+	return copyRoles(best.roles), false
+}
+
+// semanticallyCoherent reports whether this state's readings agreed about where they were while
+// their counts moved.
+//
+// Three things, and each one is a refusal the measured runs justify:
+//
+//   - ENOUGH SIGHTINGS. Summed across compositions rather than read off `Inferences`, because a
+//     state promoted out of a held composition carries sightings its placement count never saw.
+//     It used to be redundant — a settled name needed two tallies, which needed two readings —
+//     and dropping the name requirement is what made it load-bearing. It is now the only thing
+//     standing between one frame and a settled screen.
+//
+//   - NO CONTRADICTION. At most one distinct admitted word. Zero is fine and one seen once is
+//     fine; TWO is Marco not knowing which screen it was looking at, which is evidence
+//     segmentation put two together.
+//
+//     Deliberately not "a word that recurred". That requirement was here and it made coherence
+//     mean *structurally coherent AND named twice*, which defeats the separation it was supposed
+//     to serve — the same leak that had naming gating establishment, one layer up. A semantic
+//     label may CONTRADICT state coherence without being required to establish it: seeing `Mouse`
+//     once does not make the state Mouse, but seeing `Mouse` and `System` inside what segmentation
+//     calls one state is real evidence that it is not one state.
+//
+//     Nothing here persists a word. Naming keeps its own recurrence rule, and a state that
+//     settles on one sighting settles UNNAMED.
+//
+//   - THE SAME KINDS THROUGHOUT. Counts may move; what the screen is MADE of may not. A
+//     composition that gained or lost a kind is a page mid-arrival or a different page.
+func (s *ScreenState) semanticallyCoherent() bool {
+	if len(s.PlaceNames) > 1 {
+		return false
+	}
+	// AND A WORD THAT RECURRED, which is not the layer violation it looks like.
+	//
+	// # Why dropping this could not work, measured
+	//
+	// The coherent path only ever fires when NO composition repeated — a composition seen
+	// twice settles through the rule above and never reaches here. So "same kinds, counts
+	// drifting, nothing repeated" is the condition this path answers.
+	//
+	// It is also, exactly, the condition of a screen still rendering in.
+	// `TestAScreenStillArrivingIsNotIdentityBearing` drives 4, 9, 14, 18 buttons with the same
+	// kinds throughout and no repeat, and the defect behind it was measured across four
+	// independent cold stores: the START of a learn fingerprinted mid-render minted a new
+	// subject nearly every time while the DESTINATION, read once the page had finished,
+	// reproduced the same one.
+	//
+	// With two or three readings there is no structural evidence that separates a page
+	// arriving from a page wobbling. Both are the same kinds with moving counts, and
+	// monotonicity does not divide them either — the live wobble climbed too.
+	//
+	// So the recurring word is not a naming requirement wearing a settlement hat. It is the
+	// only available evidence that the screen has been ITSELF for more than one moment, which
+	// is what the repeated composition proves in the ordinary case and what nothing else here
+	// can prove. Naming still owns what a place is CALLED; this owns whether it was there.
+	//
+	// Deleting this must fail TestAScreenStillArrivingIsNotIdentityBearing.
+	if settledPlaceName(*s) == "" {
+		return false
+	}
+	sightings, kinds := 0, map[string]bool{}
+	first := true
+	for _, c := range s.compositions {
+		sightings += c.n
+		if first {
+			for role := range c.roles {
+				kinds[role] = true
+			}
+			first = false
+			continue
+		}
+		if len(c.roles) != len(kinds) {
+			return false
+		}
+		for role := range c.roles {
+			if !kinds[role] {
+				return false
+			}
+		}
+	}
+	return sightings >= StatePromotionCount
 }
 
 // total is how many structures a composition has in it.
@@ -1884,4 +2019,35 @@ func topPlaceName(st ScreenState) string {
 		return ""
 	}
 	return best
+}
+
+// repeatedAWholeShape reports whether any one whole composition recurred enough on its own.
+//
+// The original settlement question, asked separately so a diagnostic can tell which of the two
+// paths a settled state took without either of them growing a return value. It decides nothing.
+func (s *ScreenState) repeatedAWholeShape() bool {
+	for _, c := range s.compositions {
+		if c.n >= StatePromotionCount {
+			return true
+		}
+	}
+	return false
+}
+
+// NameSightingsOf is how often a state's most-tallied word was read, and what the runner-up got.
+//
+// The number the naming rule is thresholded against, exposed for diagnostics. `top` below
+// StatePromotionCount with a settled, coherent state is the case worth knowing about: a real page
+// somebody walked through, refused a Place solely because its word was admitted once.
+func NameSightingsOf(st ScreenState) (top, others int) {
+	for _, n := range st.PlaceNames {
+		if n > top {
+			top, others = n, top
+			continue
+		}
+		if n > others {
+			others = n
+		}
+	}
+	return top, others
 }

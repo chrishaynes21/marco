@@ -94,6 +94,18 @@ type ambientLook struct {
 	// times whose shape changed each time has three readings and one agreement, and refuses.
 	Readings, Agreeing, Distinct, Visits int
 	Settled                              bool
+	// SameRoles, WorstDrift and Drifted say HOW the distinct compositions differ — same
+	// kinds and how far the counts moved, or different kinds entirely.
+	SameRoles  bool
+	WorstDrift int
+	Drifted    []string
+	// NameSightings, NameRunnerUp and Coherent are the naming tally and which settlement
+	// path the state took. Diagnostics; nothing decides from them.
+	NameSightings, NameRunnerUp int
+	Coherent                    bool
+	// NameSettled says the STATE has a word that passed its recurrence rule, which is a
+	// different question from whether a candidate shape carries one.
+	NameSettled bool
 }
 
 // ambientLook takes one reading for the ambient observer.
@@ -142,6 +154,16 @@ func (r *Runtime) ambientLook(application string) ambientLook {
 	if st, ok := observe.StateOf(ev.shadow, ev.shadow.CurrentState); ok {
 		out.Readings, out.Agreeing, out.Distinct, out.Visits, out.Settled =
 			observe.SettlementOf(st)
+		out.SameRoles, out.WorstDrift, out.Drifted = observe.WobbleOf(st)
+		out.NameSightings, out.NameRunnerUp = observe.NameSightingsOf(st)
+		// WHETHER THE STATE HAS A SETTLED WORD, from the state itself.
+		//
+		// It used to be read off the candidate SHAPE, which a screen Marco already
+		// recognises does not have — so every established screen reported `no name
+		// settled, word read 9x`, a sentence that contradicts itself. The second field
+		// in this trace to have claimed something it could not know.
+		out.NameSettled = observe.SettledPlaceNameFor(st) != ""
+		out.Coherent = st.Coherent
 	}
 	if out.Place.Established() {
 		// A place Marco already recognises needs no description: it HAS an identity, and

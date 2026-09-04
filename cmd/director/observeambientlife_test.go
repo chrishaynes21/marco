@@ -215,6 +215,11 @@ func TestWatchingFromOnToOffAndGone(t *testing.T) {
 		// state id, closed reason codes from observe.PlaceRefusal, counts, and a boolean
 		// for whether a name had settled. Never the name. See ADR-124.
 		"recognition": true,
+		// 38D.4. Whether a reading could say where it was, and why not. The reasons are
+		// the naming rule's OWN closed vocabulary — "nothing in this observation claimed
+		// a destination" — never the word it read. NameClaim.Value is where the text
+		// lives and it deliberately never reaches this view.
+		"naming_produced": true, "naming_absent": true,
 	}
 
 	for k := range fields {

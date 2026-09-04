@@ -361,3 +361,254 @@ func TestSeparatingTwoScreensDoesNotSeparateWhatTheyAreRememberedBy(t *testing.T
 			"it is looking, and must not mint two permanent records out of a word.", v)
 	}
 }
+
+// ── settling a screen that kept saying what it was ────────────────────────────
+
+// settledIn reports whether the segmenter came to consider a state settled.
+func settledIn(g *observe.ScreenSegmenter, id observe.ScreenStateID) (bool, observe.ScreenState) {
+	for _, st := range g.States() {
+		if st.ID == id {
+			return st.Settled, st
+		}
+	}
+	return false, observe.ScreenState{}
+}
+
+// A SCREEN THAT KEPT SAYING WHAT IT WAS SETTLES THROUGH ITS WOBBLE.
+//
+// # The measured failure
+//
+// A page walked through at normal speed gets two or three readings, and a live interface almost
+// never presents the identical role histogram twice in that window. From the trace, on a Settings
+// page that never became a Place:
+//
+//	2 shapes, same kinds, worst count drift 6 [group list_item text]
+//
+// The same kinds throughout, differing only in how many, saying `Mouse` on every reading. Nothing
+// contradicted anything. Settlement asked for one whole histogram to repeat, and a real screen
+// somebody visited disappeared because a status line moved.
+//
+// Deleting the coherent arm of settledWhole must fail this.
+func TestAScreenThatKeptSayingWhatItWasSettlesThroughItsWobble(t *testing.T) {
+	var g observe.ScreenSegmenter
+	n := 0
+	var last observe.ScreenStateID
+	// Three readings, three histograms, one destination — the shape the live trace showed.
+	for _, texts := range []int{14, 15, 16} {
+		n++
+		last = g.Observe(n, pageLike(9, 2, texts), nil, says("Mouse"))
+	}
+	if last == observe.ScreenStateUnknown {
+		t.Fatal("the readings were not placed at all, so this proves nothing about settling")
+	}
+	settled, st := settledIn(&g, last)
+	_, agreeing, distinct, _, _ := observe.SettlementOf(st)
+	if agreeing >= 2 {
+		t.Fatalf("the fixture repeated a composition (agreeing %d), so it is not the case "+
+			"this test is about", agreeing)
+	}
+	if distinct < 3 {
+		t.Fatalf("the fixture produced %d distinct shapes, want the three the live trace "+
+			"showed", distinct)
+	}
+	if !settled {
+		t.Fatalf("a screen read three times, saying `Mouse` every time and made of the " +
+			"same kinds throughout, did not settle. No whole histogram repeated — which " +
+			"is what a live interface does, not what a different screen looks like.")
+	}
+}
+
+// AND ITS IDENTITY IS STILL A COMPOSITION MARCO ACTUALLY SAW.
+//
+// Never an average. A place may not be remembered as something it never was: the producer this
+// replaced moded each role independently and could emit a composition equal to none of the
+// samples, which is how the last surviving twin got into a live store.
+func TestAWobblingScreenIsRememberedAsAShapeItActuallyHad(t *testing.T) {
+	var g observe.ScreenSegmenter
+	n := 0
+	var last observe.ScreenStateID
+	shapes := []int{14, 15, 16}
+	for _, texts := range shapes {
+		n++
+		last = g.Observe(n, pageLike(9, 2, texts), nil, says("Mouse"))
+	}
+	_, st := settledIn(&g, last)
+	if st.Roles == nil {
+		t.Fatal("the settled state carries no composition")
+	}
+	got := st.Roles["text"]
+	for _, texts := range shapes {
+		if got == texts {
+			return
+		}
+	}
+	t.Errorf("the state settled on text=%d, which no reading ever showed (%v). A place may "+
+		"not be remembered as something it never was.", got, shapes)
+}
+
+// AND A SCREEN WHOSE KINDS CHANGE DOES NOT SETTLE THIS WAY.
+//
+// Counts moving is drift. KINDS moving is a page mid-arrival or a different page — the same run
+// showed a Settings state whose compositions differed by `progress_bar`, which is a loading
+// indicator, and a Chrome state churning across seven shapes and six kinds.
+//
+// Deleting the same-kinds requirement must fail this.
+func TestAScreenWhoseKindsChangeDoesNotSettleThroughCoherence(t *testing.T) {
+	var g observe.ScreenSegmenter
+	n := 0
+	var last observe.ScreenStateID
+	for i, extra := range []int{0, 6, 13} {
+		regions := pageLike(9, 2, 14)
+		for j := 0; j < extra; j++ {
+			regions = append(regions, observe.ShadowRegion{
+				Role: "progress_bar", Kind: directorapi.KindDescribed,
+				Region: observe.Region{X: 0.5, Y: 0.02 + float64(j)*0.03,
+					Width: 0.2, Height: 0.02},
+			})
+		}
+		n++
+		id := g.Observe(n, regions, nil, says("Mouse"))
+		if i > 0 {
+			last = id
+		}
+	}
+	if last == observe.ScreenStateUnknown {
+		t.Skip("the readings were not placed, so this proves nothing")
+	}
+	if settled, _ := settledIn(&g, last); settled {
+		t.Error("a screen whose compositions gained and lost a KIND settled through the " +
+			"coherent path. A composition that gained a kind is a page mid-arrival or " +
+			"another page, and neither may settle on a word.")
+	}
+}
+
+// AND ONE READING NEVER SETTLES, however good its name.
+//
+// The goal is not one-frame Place creation. A single sighting with a destination on it is exactly
+// what a transition frame looks like.
+func TestOneReadingNeverSettlesHoweverWellNamed(t *testing.T) {
+	var g observe.ScreenSegmenter
+	n := 1
+	id := g.Observe(n, pageLike(9, 2, 14), nil, says("Mouse"))
+	if id == observe.ScreenStateUnknown {
+		return // not placed at all is a stronger version of the same refusal
+	}
+	if settled, _ := settledIn(&g, id); settled {
+		t.Error("one reading settled a screen. A single sighting carrying a name is what a " +
+			"transition frame looks like.")
+	}
+}
+
+// AND TWO WORDS AGAINST ONE STATE IS MARCO NOT KNOWING, EVEN WHEN ONE OF THEM WINS.
+//
+// # Why a majority is not enough here
+//
+// `settledPlaceName` tolerates a minority word: three sightings of `Mouse` against one of
+// `System` settles on Mouse, which is the right answer for NAMING a screen Marco is confident
+// about. It is the wrong answer for deciding whether a wobbling state may become durable at all,
+// because the minority word is evidence that segmentation put two screens together — and a
+// permissive settlement turning a segmentation mistake into durable knowledge is exactly the
+// failure this sequence has been narrowing.
+//
+// The word has to be unanimous. Reached here through the real segmenter: a claim arriving before
+// anything has settled cannot create a boundary (see TestADestinationSeenOnceDoesNotDecideAnything),
+// so a state genuinely can accumulate two words early in its life.
+//
+// Deleting the unanimity requirement must fail this.
+func TestAMinorityWordStopsAWobblingStateSettling(t *testing.T) {
+	var g observe.ScreenSegmenter
+	n := 0
+	var last observe.ScreenStateID
+	// `System` lands second, before `Mouse` has settled, so it cannot be a boundary — and
+	// the state now carries both words while its counts drift.
+	for i, texts := range []int{14, 15, 16, 17} {
+		word := "Mouse"
+		if i == 1 {
+			word = "System"
+		}
+		n++
+		last = g.Observe(n, pageLike(9, 2, texts), nil, says(word))
+	}
+	if last == observe.ScreenStateUnknown {
+		t.Skip("the readings were not placed, so this proves nothing")
+	}
+	settled, st := settledIn(&g, last)
+	if len(st.PlaceNames) < 2 {
+		t.Skipf("the fixture produced one word (%v), so it is not the case being held",
+			st.PlaceNames)
+	}
+	if observe.SettledPlaceNameFor(st) == "" {
+		t.Skipf("the fixture's words tied, which a different guard already refuses: %v",
+			st.PlaceNames)
+	}
+	if settled {
+		t.Errorf("a state carrying %v settled through the coherent path. One of them wins "+
+			"the naming vote; that is not the same as Marco knowing which screen it was "+
+			"looking at.", st.PlaceNames)
+	}
+}
+
+// AND A WORD SEEN ONCE CANNOT SETTLE A WOBBLING SCREEN.
+//
+// Scoped reading runs on a fraction of inferences, so a state routinely holds readings that
+// carried no claim at all. One of them saying `Mouse` is a single sighting of a word — which is
+// what a transition frame carrying the name of the page being LEFT looks like — and the coherent
+// path must want the same recurrence naming wants.
+//
+// Deleting the settled-name requirement must fail this.
+func TestAWordSeenOnceCannotSettleAWobblingScreen(t *testing.T) {
+	var g observe.ScreenSegmenter
+	n := 0
+	none := observe.SemanticEvidence{Observed: true}
+	var last observe.ScreenStateID
+	for i, texts := range []int{14, 15, 16, 17} {
+		sem := none
+		if i == 0 {
+			sem = says("Mouse")
+		}
+		n++
+		last = g.Observe(n, pageLike(9, 2, texts), nil, sem)
+	}
+	if last == observe.ScreenStateUnknown {
+		t.Skip("the readings were not placed, so this proves nothing")
+	}
+	settled, st := settledIn(&g, last)
+	if len(st.PlaceNames) != 1 {
+		t.Skipf("the fixture tallied %v, so it is not the case being held", st.PlaceNames)
+	}
+	if settled {
+		t.Errorf("a screen whose destination was read exactly once (%v) settled through "+
+			"its wobble. A word seen once is a transition frame carrying the name of "+
+			"the page being left.", st.PlaceNames)
+	}
+}
+
+// AND A SCREEN WITH NO DESTINATION CLAIM SETTLES EXACTLY AS IT ALWAYS DID.
+//
+// Most interfaces make no claim. Their settlement is unchanged: one whole composition, twice.
+func TestWithNoDestinationSettlementIsUnchanged(t *testing.T) {
+	var g observe.ScreenSegmenter
+	n := 0
+	none := observe.SemanticEvidence{Observed: true}
+	var last observe.ScreenStateID
+	for _, texts := range []int{14, 15, 16} {
+		n++
+		last = g.Observe(n, pageLike(9, 2, texts), nil, none)
+	}
+	if last == observe.ScreenStateUnknown {
+		t.Skip("the readings were not placed, so this proves nothing")
+	}
+	if settled, _ := settledIn(&g, last); settled {
+		t.Error("a wobbling screen with no destination claim settled. Nothing about the " +
+			"structural rule changed for interfaces that say nothing about themselves.")
+	}
+	// AND THE CONTROL: repeat one composition and it settles, as it always has.
+	for range 2 {
+		n++
+		last = g.Observe(n, pageLike(9, 2, 14), nil, none)
+	}
+	if settled, _ := settledIn(&g, last); !settled {
+		t.Error("a repeated composition with no claim stopped settling, which would be " +
+			"this change breaking the behaviour it was supposed to leave alone")
+	}
+}

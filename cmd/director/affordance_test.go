@@ -738,26 +738,28 @@ func TestWatchingAloneRemembersNoPlaceItMerelyLookedAt(t *testing.T) {
 	}
 }
 
-// DWELLING DOES NOT MAKE A SCREEN PERMANENT UNTIL MARCO CAN SAY WHAT IT IS.
+// A COHERENT SETTLED SCREEN BECOMES A PLACE WHETHER OR NOT ITS NAME HAS SETTLED YET.
 //
-// # The hole this closes, from the dogfood run that opened it
+// # The separation this holds
 //
-// Establishing on dwell creates Places far earlier than promoting a crossing did — on the first
-// settled reading rather than after somebody has been somewhere and come back. Screens that used
-// to become durable late, with their name already settled, started becoming durable early and
-// sometimes nameless:
+//	Place establishment is gated by coherent settled state evidence.
+//	Place naming is gated by name recurrence.
 //
-//	Home --> Unnamed place --> Mouse
+// They used to be one gate. Establishing on dwell had required a settled NAME — a reaction to a
+// real defect, where transit screens became durable before their word recurred and a walk produced
+// `Home --> Unnamed place --> Mouse`. It fixed the symptom by refusing to remember the screen,
+// which is the larger loss. Measured three runs later:
 //
-// A real screen, correctly recognised, carrying a structural identity and an affordance, and
-// nothing a person can call it. It was a transit screen — walked through, never dwelt on, so its
-// word never recurred, and a name settles by recurrence.
+//	afh state_2  settled, one shape, no contradiction, word read 1x  ->  no Place
 //
-// Nothing is lost by waiting. The screen is still there, the naming sweep runs every reading, and
-// the first reading that can name it establishes it with the name already on.
+// A real page somebody walked through, coherent in every way that matters, refused because its
+// name had been admitted once rather than twice.
 //
-// The CROSSING path is deliberately not subject to this — see the control below.
-func TestDwellingDoesNotEstablishAScreenItCannotName(t *testing.T) {
+// `settledPlaceName` is untouched and still wants its two sightings. What changed is that it no
+// longer decides whether the screen may exist.
+//
+// Deleting the establishment must fail this; requiring a name again must fail it too.
+func TestACoherentScreenBecomesAPlaceBeforeItsNameSettles(t *testing.T) {
 	learnedIn(t)
 	g, store := watchedRegistry(t)
 	rt := &Runtime{observations: g}
@@ -767,32 +769,135 @@ func TestDwellingDoesNotEstablishAScreenItCannotName(t *testing.T) {
 	a.promotion = ambient.Policy{Enabled: true}
 	a.mu.Unlock()
 
-	// A settled screen that no Actor could put a word to.
+	// A settled screen whose word has been read once — no candidate name yet.
+	look := onScreen("observe_1", "state_1", nil)
+	look.Shape = &ambient.Shape{Signature: screenLike(6, observe.TermSettings)}
+	look.NameSightings = 1
+
+	a.settlePlace(recentApp, look)
+	var places []observe.RememberedSubject
+	for _, s := range store.Subjects() {
+		if s.Structure.Subject != observe.SubjectTarget {
+			places = append(places, s)
+		}
+	}
+	if len(places) != 1 {
+		t.Fatalf("%d Place(s) after a settled, coherent screen whose word had been read "+
+			"once. A page somebody walked through is somewhere they have been, whether "+
+			"or not Marco can say its name yet.", len(places))
+	}
+	if got := observe.PlaceWords(places[0]); got != observe.Unnamed {
+		t.Errorf("the Place was established as %q; nothing had earned it a name", got)
+	}
+
+	// AND THE NAME ATTACHES LATER, TO THE SAME PLACE. Establishment is idempotent by
+	// signature, so a second visit that can name it does not mint a second record.
+	look.Shape.Called = "Bluetooth & devices"
+	a.settlePlace(recentApp, look)
+	a.rt.callPlaces(recentApp, map[string]string{places[0].ID: "Bluetooth & devices"})
+
+	var after []observe.RememberedSubject
+	for _, s := range store.Subjects() {
+		if s.Structure.Subject != observe.SubjectTarget {
+			after = append(after, s)
+		}
+	}
+	if len(after) != 1 {
+		t.Fatalf("naming an unnamed Place produced %d Places. A word is not an identity.",
+			len(after))
+	}
+	if after[0].ID != places[0].ID {
+		t.Errorf("the named Place is %q, not the one established unnamed (%q)",
+			after[0].ID, places[0].ID)
+	}
+	if got := observe.PlaceWords(after[0]); got != "Bluetooth & devices" {
+		t.Errorf("the Place is called %q after its word settled", got)
+	}
+}
+
+// AND A SCREEN WITH NO ADMITTED NAME AT ALL STILL BECOMES A PLACE.
+//
+// Most interfaces never say what page they are on. Requiring a word would make an accessibility
+// tree rich enough to name itself a prerequisite for Marco knowing anywhere at all.
+func TestAScreenThatSaysNothingStillBecomesAPlace(t *testing.T) {
+	learnedIn(t)
+	g, store := watchedRegistry(t)
+	rt := &Runtime{observations: g}
+	t.Cleanup(func() { rt.DisableAmbient() })
+	a := rt.ambient()
+	a.mu.Lock()
+	a.promotion = ambient.Policy{Enabled: true}
+	a.mu.Unlock()
+
 	look := onScreen("observe_1", "state_1", nil)
 	look.Shape = &ambient.Shape{Signature: screenLike(6, observe.TermSettings)}
 
-	for range 8 {
-		a.settlePlace(recentApp, look)
-	}
-	for _, s := range store.Subjects() {
-		t.Fatalf("dwelling on a screen nobody could name made %q permanent. The map then "+
-			"reads `Home -> Unnamed place -> Mouse`, and nothing is lost by waiting for "+
-			"the word: the sweep runs on every reading.", s.ID)
-	}
-
-	// AND THE MOMENT IT CAN BE NAMED, IT IS ESTABLISHED — with the name already on.
-	look.Shape.Called = "Bluetooth & devices"
 	a.settlePlace(recentApp, look)
-	named := 0
+	found := 0
 	for _, s := range store.Subjects() {
-		named++
-		if got := observe.PlaceWords(s); got != "Bluetooth & devices" {
-			t.Errorf("the Place was established as %q rather than with the word that "+
-				"had just settled", got)
+		if s.Structure.Subject != observe.SubjectTarget {
+			found++
 		}
 	}
-	if named != 1 {
-		t.Fatalf("%d subject(s) after the name settled, want the one Place", named)
+	if found != 1 {
+		t.Fatalf("%d Place(s) for a settled screen that said nothing about itself", found)
+	}
+}
+
+// AND A STATE CARRYING TWO WORDS IS NOT ESTABLISHED BY DWELLING.
+//
+// One word tallied against a screen is Marco recognising it. Two is Marco not knowing which screen
+// it was looking at — evidence that segmentation put two together — and establishment is the last
+// place that can decline to make that permanent.
+//
+// Deleting the contradiction check must fail this.
+func TestAStateCarryingTwoWordsIsNotEstablishedByDwelling(t *testing.T) {
+	learnedIn(t)
+	g, store := watchedRegistry(t)
+	rt := &Runtime{observations: g}
+	t.Cleanup(func() { rt.DisableAmbient() })
+	a := rt.ambient()
+	a.mu.Lock()
+	a.promotion = ambient.Policy{Enabled: true}
+	a.mu.Unlock()
+
+	look := onScreen("observe_1", "state_1", nil)
+	look.Shape = &ambient.Shape{Signature: screenLike(6, observe.TermSettings),
+		Called: "Mouse"}
+	look.NameSightings, look.NameRunnerUp = 3, 1
+
+	a.settlePlace(recentApp, look)
+	for _, s := range store.Subjects() {
+		if s.Structure.Subject != observe.SubjectTarget {
+			t.Fatalf("a state carrying two words was made permanent (%q). One of them "+
+				"wins the naming vote; that is not Marco knowing which screen it was "+
+				"looking at.", s.ID)
+		}
+	}
+}
+
+// AND A SCREEN NOTHING COULD ESTABLISH IS STILL REFUSED, however good its name looks.
+//
+// `look.Shape` is nil for every state PlacesToEstablish declined — not settled, still loading, not
+// discriminating, not describable. That is the gate this change now rests on, and it is only
+// meaningful because ADR-124 and ADR-125 made a settled state mean something.
+func TestAScreenThatCouldNotBeEstablishedIsStillRefused(t *testing.T) {
+	learnedIn(t)
+	g, store := watchedRegistry(t)
+	rt := &Runtime{observations: g}
+	t.Cleanup(func() { rt.DisableAmbient() })
+	a := rt.ambient()
+	a.mu.Lock()
+	a.promotion = ambient.Policy{Enabled: true}
+	a.mu.Unlock()
+
+	// No shape: the settlement gates refused this reading.
+	look := onScreen("observe_1", "state_1", nil)
+	look.NameSightings = 9
+
+	a.settlePlace(recentApp, look)
+	for _, s := range store.Subjects() {
+		t.Fatalf("a reading no gate would establish became %q", s.ID)
 	}
 }
 

@@ -684,31 +684,45 @@ func (a *ambientObserver) settlePlace(application string, look ambientLook) {
 	if !a.policy().Enabled || look.Shape == nil {
 		return
 	}
-	// AND ONLY ONCE MARCO CAN SAY WHAT THE SCREEN IS CALLED.
+	// AND ONLY WHEN THE READINGS AGREED ABOUT WHICH SCREEN THIS WAS.
 	//
-	// # The hole this closes, measured on the run that introduced it
+	// # What this used to be, and why it was the wrong gate
 	//
-	// Establishing on dwell creates Places far earlier than promoting a crossing did — on the
-	// first settled reading rather than after somebody has been somewhere and come back. So
-	// screens that used to become durable late, with their name already settled, now become
-	// durable early and sometimes nameless. One walk produced:
+	// It used to require a settled NAME. That was a reaction to a real defect — dwelling
+	// established transit screens before their word recurred, and one walk produced
+	// `Home --> Unnamed place --> Mouse` — but it fixed the symptom by refusing to remember
+	// the screen at all, which is a different and larger loss. Measured three runs later:
 	//
-	//	Home --> Unnamed place --> Mouse
+	//	afh state_2  settled, one shape, no contradiction, word read 1x  ->  no Place
 	//
-	// A real screen, correctly recognised, with a structural identity and one affordance, and
-	// nothing anybody can call it. It was a TRANSIT screen: the person passed through without
-	// staying long enough for its word to recur, and a name settles by recurrence.
+	// A real page somebody walked through, coherent in every way that matters, refused
+	// because its name had been admitted once rather than twice.
 	//
-	// A crossing still establishes a nameless endpoint, and must — an edge whose destination
-	// cannot be written down is an edge that is lost, and a name that arrives on a later visit
-	// fills it in through the naming sweep. But DWELLING has no such deadline. Nothing is lost
-	// by waiting: the screen is still there, the sweep still runs every reading, and the next
-	// reading that can name it establishes it with the name already on.
+	// # The separation this restores
 	//
-	// So watching may make a screen permanent once it can also say what it is.
+	//	Place establishment is gated by coherent settled state evidence.
+	//	Place naming is gated by name recurrence.
 	//
-	// Deleting this must fail TestDwellingDoesNotEstablishAScreenItCannotName.
-	if strings.TrimSpace(look.Shape.Called) == "" {
+	// Those are different jobs and they now have different gates. `settledPlaceName` is
+	// untouched and still wants its two sightings; what changed is that it no longer decides
+	// whether the SCREEN may exist. An unnamed Place is a legitimate thing — crossing
+	// promotion has always made them — and the naming sweep attaches the word on a later
+	// visit, to the same subject, because establishment is idempotent by signature.
+	//
+	// # What still refuses, and it is the reason this is safe now
+	//
+	// `look.Shape` is non-nil only for a state `PlacesToEstablish` accepted: settled, not
+	// loading, discriminating, describable. ADR-124 and ADR-125 are what make that mean
+	// something — before them a single state could absorb four pages and never settle at all.
+	//
+	// And a state carrying TWO words is refused here. One word tallied against a screen is
+	// Marco recognising it; two is Marco not knowing which screen it was looking at, which is
+	// evidence segmentation put two together — and establishment is the last place that can
+	// decline to make a segmentation mistake permanent.
+	//
+	// Deleting the contradiction check must fail
+	// TestAStateCarryingTwoWordsIsNotEstablishedByDwelling.
+	if look.NameRunnerUp > 0 {
 		return
 	}
 	memory, ok := a.rt.durableMemory()
@@ -729,10 +743,18 @@ func (a *ambientObserver) settlePlace(application string, look ambientLook) {
 	if err != nil || id == "" {
 		return
 	}
-	// FOR THE TRACE ONLY. `establish` is idempotent, so this is set on every reading of a
-	// screen already known — which is why the trace compares it against the resolved subject
-	// rather than treating it as proof anything was created.
+	// FOR THE TRACE ONLY, and only the FIRST time. `establish` is idempotent and answers with
+	// the same id on every later reading of the same screen; reporting those as
+	// establishments made the diagnostic say "recognised" while printing the word
+	// "established", which is the kind of lying field that sends an investigation down the
+	// wrong branch.
 	a.mu.Lock()
-	a.lastEstablished = id
+	if a.establishedHere == nil {
+		a.establishedHere = map[string]bool{}
+	}
+	if !a.establishedHere[id] {
+		a.establishedHere[id] = true
+		a.lastEstablished = id
+	}
 	a.mu.Unlock()
 }

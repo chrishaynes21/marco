@@ -261,6 +261,25 @@ func printStatus(st service.StatusPayload) {
 		}
 	}
 
+	// AND WHETHER A READING COULD SAY WHERE IT WAS. The evidence-density number: settlement
+	// wants a screen's word twice, and this is how often a reading could offer one at all.
+	if st.Watching.NamingProduced > 0 || len(st.Watching.NamingAbsent) > 0 {
+		absent := 0
+		for _, n := range st.Watching.NamingAbsent {
+			absent += n
+		}
+		fmt.Printf("Destination claims: %d of %d readings\n",
+			st.Watching.NamingProduced, st.Watching.NamingProduced+absent)
+		whys := make([]string, 0, len(st.Watching.NamingAbsent))
+		for why := range st.Watching.NamingAbsent {
+			whys = append(whys, why)
+		}
+		sort.Strings(whys)
+		for _, why := range whys {
+			fmt.Printf("  absent: %d — %s\n", st.Watching.NamingAbsent[why], why)
+		}
+	}
+
 	// AND WHAT BECAME OF EVERY READING, per screen, in the vocabulary the gates speak.
 	//
 	// The store cannot answer this. A screen that never became a Place leaves nothing behind,
@@ -281,17 +300,35 @@ func printStatus(st service.StatusPayload) {
 			if !s.Named {
 				name = "no name settled"
 			}
-			fmt.Printf("  %s %s  ×%d read  →  %s, %s\n",
-				s.Application, s.State, s.Readings, outcome, name)
+			if s.NameSightings > 0 {
+				name = fmt.Sprintf("%s, word read %dx", name, s.NameSightings)
+				if s.NameRunnerUp > 0 {
+					name = fmt.Sprintf("%s (runner-up %dx)", name, s.NameRunnerUp)
+				}
+			}
+			fmt.Printf("  %s %s  ×%d read (%d traced)  →  %s, %s\n",
+				s.Application, s.State, s.Readings, s.Traced, outcome, name)
 			// THE ARITHMETIC SETTLEMENT ACTUALLY APPLIES. `agreeing` is how many
 			// readings saw the same WHOLE composition, which is what the threshold
 			// tests — not how many readings there were.
-			fmt.Printf("      agreeing %d of %d (%d distinct shapes), visits %d, settled %v, read over %dms",
-				s.Agreeing, s.Readings, s.Distinct, s.Visits, s.Settled, s.VisibleMS)
+			how := ""
+			if s.Settled && s.Coherent {
+				how = " (coherent)"
+			}
+			fmt.Printf("      agreeing %d of %d (%d distinct shapes), visits %d, settled %v%s, read over %dms",
+				s.Agreeing, s.Readings, s.Distinct, s.Visits, s.Settled, how, s.VisibleMS)
 			if s.SinceInputMS >= 0 {
 				fmt.Printf(", last input %dms before", s.SinceInputMS)
 			}
 			fmt.Println()
+			if s.Distinct > 1 {
+				kinds := "same kinds"
+				if !s.SameRoles {
+					kinds = "DIFFERENT kinds"
+				}
+				fmt.Printf("      %d shapes, %s, worst count drift %d %v\n",
+					s.Distinct, kinds, s.WorstDrift, s.Drifted)
+			}
 			for _, r := range s.Refusals {
 				fmt.Printf("      refused: %-22s ×%d\n", r.Reason, r.Count)
 			}

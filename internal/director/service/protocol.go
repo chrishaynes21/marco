@@ -2113,6 +2113,14 @@ type AmbientView struct {
 	AffordancesAdmitted int            `json:"affordances_admitted,omitempty"`
 	AffordancesWithheld map[string]int `json:"affordances_withheld,omitempty"`
 	AffordancesStored   int            `json:"affordances_stored,omitempty"`
+	// NamingProduced and NamingAbsent are whether a reading could say where it was, and why
+	// not when it could not.
+	//
+	// The evidence-density question. Settlement wants a screen's word twice and a brief page
+	// gets it once, and "the screen said nothing" and "the claim was refused" are different
+	// investigations. Counts and the naming rule's own reason strings — never the word.
+	NamingProduced int            `json:"naming_produced,omitempty"`
+	NamingAbsent   map[string]int `json:"naming_absent,omitempty"`
 	// Recognition is what became of every reading, per screen, in explicit reason codes.
 	//
 	// # The question the store cannot answer
@@ -2133,16 +2141,31 @@ type RecognitionScreen struct {
 	// State is the session-local screen state, which is what "one screen" means before
 	// anything durable exists to call it.
 	State string `json:"state,omitempty"`
-	// Readings is how many times this screen was looked at.
+	// Readings is how many inferences the SESSION has credited to this screen.
+	//
+	// The session's own number, not the trace's. Agreeing and Distinct below are counted by
+	// the session too, and mixing the two windows is how this once printed `agreeing 3 of 2`
+	// — a numerator from the session against a denominator from a bounded ring. Every number
+	// on this line now comes from the same place, and the trace's own count is `Traced`.
 	Readings int `json:"readings,omitempty"`
-	// Agreeing is how many of those readings saw the SAME whole role composition — the
-	// number settlement is actually thresholded against. The gap between this and Readings
-	// is what a fast walk opens up.
+	// Traced is how many readings of this screen the diagnostic ring still holds. Smaller
+	// than Readings whenever the ring has wrapped or watching began mid-session.
+	Traced int `json:"traced,omitempty"`
+	// Agreeing is how many of the session's readings saw the SAME whole role composition —
+	// the number settlement is actually thresholded against. The gap between this and
+	// Readings is what a fast walk opens up.
 	Agreeing int `json:"agreeing,omitempty"`
 	// Distinct is how many DIFFERENT whole compositions the screen was seen as. Two or three
 	// is a screen flickering between near-identical shapes; one per reading is a screen with
 	// no stable form at all, and the two call for different answers.
 	Distinct int `json:"distinct,omitempty"`
+	// SameRoles says every distinct composition was made of the same KINDS, and WorstDrift is
+	// the largest single count difference between them. Together they separate one screen
+	// whose presentation wobbles — a status line, a tooltip, a row loading — from several
+	// genuinely different screens segmentation kept together.
+	SameRoles  bool     `json:"same_roles,omitempty"`
+	WorstDrift int      `json:"worst_drift,omitempty"`
+	Drifted    []string `json:"drifted,omitempty"`
 	// Visits is how many separate times the screen was entered.
 	Visits int `json:"visits,omitempty"`
 	// Settled says the screen had stopped changing shape by the last reading.
@@ -2152,6 +2175,14 @@ type RecognitionScreen struct {
 	// nothing.
 	Place       string `json:"place,omitempty"`
 	Established bool   `json:"established,omitempty"`
+	// NameSightings is how often the screen's most-tallied word was read, and NameRunnerUp how
+	// often the next one was. `NameSightings == 1` beside a settled, coherent state is a real
+	// page refused a Place solely because its word was admitted once.
+	NameSightings int `json:"name_sightings,omitempty"`
+	NameRunnerUp  int `json:"name_runner_up,omitempty"`
+	// Coherent says the state settled through the SEMANTIC path rather than by repeating a
+	// whole composition — so "did that rule ever fire" is a number, not an inference.
+	Coherent bool `json:"coherent,omitempty"`
 	// Named says the screen had settled on a word by the last reading.
 	//
 	// A BOOLEAN, not the word. "Recognised but not yet named" is an answer this has to be

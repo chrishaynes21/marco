@@ -116,6 +116,11 @@ type ambientObserver struct {
 	affordancesAdmitted int
 	affordancesWithheld map[string]int
 	affordancesStored   int
+	// WHETHER A READING COULD SAY WHERE IT WAS, and why not when it could not. The
+	// evidence-density question: settlement wants a screen's word twice and a brief page
+	// gets it once. Reason strings from the naming rule's own vocabulary, never the word.
+	namingProduced int
+	namingAbsent   map[string]int
 	// trace is what became of every reading, for the diagnostics. See recognition.go: it is
 	// written after the decisions and read by nothing that makes one.
 	trace recognitionTrace
@@ -126,12 +131,19 @@ type ambientObserver struct {
 	lastInput time.Time
 	// inputSeen is the input-log high-water mark the above was set at.
 	inputSeen int
-	// lastEstablished is the subject the most recent dwell-establishment created, consumed by
-	// the trace on the same reading. A one-slot handoff rather than a return value, because
-	// the write happens three calls deep and the only thing that wants to know is a
-	// diagnostic — threading it back through would put a reporting concern into a policy
-	// signature.
+	// lastEstablished is the subject a dwell-establishment made durable ON THIS READING,
+	// consumed by the trace. A one-slot handoff rather than a return value, because the write
+	// happens three calls deep and the only thing that wants to know is a diagnostic —
+	// threading it back through would put a reporting concern into a policy signature.
+	//
+	// NEW ones only. `establish` is idempotent and answers with the same id on every reading
+	// of a screen already known, so setting this unconditionally made "established" mean
+	// "recognised", which is a different fact and the one the trace already had.
 	lastEstablished string
+	// establishedHere is every subject this run of attention made durable, so the line above
+	// can tell a first write from the idempotent ones after it. Bounded by how many screens
+	// somebody visits while watching, and cleared with the trace.
+	establishedHere map[string]bool
 }
 
 // The bounds ambient watching runs under, and every one of them is a refusal to be greedy.
@@ -179,7 +191,9 @@ func (r *Runtime) EnableAmbient() service.AmbientView {
 	// question about a different afternoon — which is how four dogfood runs were read as
 	// evidence about a configuration they were not exercising.
 	a.trace.reset()
+	a.namingProduced, a.namingAbsent = 0, nil
 	a.lastInput, a.inputSeen = time.Time{}, 0
+	a.establishedHere = nil
 	// COUNTED HERE, not inside the goroutine. A count the loop increments when it happens
 	// to be scheduled is a count a caller can read as zero while a supervisor is starting,
 	// and "how many observers are there" must be answerable the instant this returns.
@@ -858,6 +872,13 @@ func (a *ambientObserver) view() service.AmbientView {
 	out.AffordancesVisible = a.affordancesVisible
 	out.AffordancesAdmitted = a.affordancesAdmitted
 	out.AffordancesStored = a.affordancesStored
+	out.NamingProduced = a.namingProduced
+	if len(a.namingAbsent) > 0 {
+		out.NamingAbsent = make(map[string]int, len(a.namingAbsent))
+		for why, n := range a.namingAbsent {
+			out.NamingAbsent[why] = n
+		}
+	}
 	steps := a.trace.all()
 	if len(a.affordancesWithheld) > 0 {
 		out.AffordancesWithheld = make(map[string]int, len(a.affordancesWithheld))
@@ -1164,4 +1185,39 @@ func (r *Runtime) recordAffordanceAdmission(visible, admitted int, withheld map[
 		}
 		a.affordancesWithheld[role] += n
 	}
+}
+
+// recordNaming tallies whether a reading produced a destination claim, and why not.
+//
+// # The question this answers
+//
+// Settlement needs a screen's word twice, and a brief page gets it once. That is either a screen
+// which says nothing on most readings or a screen whose claim keeps being refused, and the two are
+// different investigations — the first is an acquisition question, the second a rule question.
+//
+// Counts and the naming rule's own reason strings. Never the text: `NameClaim.Value` is where the
+// word lives and it is deliberately not passed here.
+//
+// It decides nothing. Nothing reads these to admit, refuse or name anything.
+func (r *Runtime) recordNaming(produced bool, why string) {
+	if r == nil {
+		return
+	}
+	a := r.ambient()
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if produced {
+		a.namingProduced++
+		return
+	}
+	if why == "" {
+		why = "no reason given"
+	}
+	if a.namingAbsent == nil {
+		a.namingAbsent = map[string]int{}
+	}
+	a.namingAbsent[why]++
 }

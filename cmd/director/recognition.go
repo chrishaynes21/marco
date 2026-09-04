@@ -65,6 +65,17 @@ type recognitionStep struct {
 	// the gap between it and `readings` is what a fast walk opens up.
 	readings, agreeing, distinct, episodes int
 	settled                                bool
+	// sameRoles, worstDrift and drifted say HOW the distinct compositions differ.
+	sameRoles  bool
+	worstDrift int
+	drifted    []string
+	// nameSightings, nameRunnerUp and coherent are the naming tally and which settlement
+	// path the state took.
+	nameSightings, nameRunnerUp int
+	coherent                    bool
+	// nameSettled says the STATE has a word that passed its recurrence rule, which is a
+	// different question from whether a candidate shape carries one.
+	nameSettled bool
 	// sinceInput is how long before this reading the session's most recent human input was
 	// banked, so a destination lost because the NEXT press arrived first is visible as such.
 	// Negative when no input has been seen at all.
@@ -121,9 +132,14 @@ func recognitionReport(steps []recognitionStep) []service.RecognitionScreen {
 		last := group[len(group)-1]
 		screen := service.RecognitionScreen{
 			Application: last.application, State: string(last.state),
-			Readings: len(group), Named: last.candidateName != "",
+			Readings: last.readings, Traced: len(group),
+			Named: last.nameSettled,
 			Place: last.place, Settled: last.settled,
 			Agreeing: last.agreeing, Distinct: last.distinct, Visits: last.episodes,
+			SameRoles: last.sameRoles, WorstDrift: last.worstDrift,
+			NameSightings: last.nameSightings, NameRunnerUp: last.nameRunnerUp,
+			Coherent:     last.coherent,
+			Drifted:      last.drifted,
 			SinceInputMS: last.sinceInput.Milliseconds(),
 			VisibleMS:    last.at.Sub(group[0].at).Milliseconds(),
 		}
@@ -188,22 +204,30 @@ func (a *ambientObserver) traceReading(application string, look ambientLook, now
 
 	step := recognitionStep{
 		at: now, application: application, state: look.State,
-		readable:   look.Place.Readable(),
-		place:      look.Place.Subject,
-		candidate:  look.Shape != nil,
-		refusal:    look.Refusal,
-		readings:   look.Readings,
-		agreeing:   look.Agreeing,
-		distinct:   look.Distinct,
-		episodes:   look.Visits,
-		settled:    look.Settled,
-		sinceInput: since,
+		readable:      look.Place.Readable(),
+		place:         look.Place.Subject,
+		candidate:     look.Shape != nil,
+		refusal:       look.Refusal,
+		readings:      look.Readings,
+		agreeing:      look.Agreeing,
+		distinct:      look.Distinct,
+		sameRoles:     look.SameRoles,
+		nameSightings: look.NameSightings,
+		nameRunnerUp:  look.NameRunnerUp,
+		coherent:      look.Coherent,
+		worstDrift:    look.WorstDrift,
+		drifted:       look.Drifted,
+		episodes:      look.Visits,
+		settled:       look.Settled,
+		sinceInput:    since,
 	}
 	if look.Shape != nil {
 		step.candidateName = look.Shape.Called
 	}
-	if established != "" && established == look.Place.Subject {
-		step.established = true
-	}
+	// NOT compared against look.Place.Subject. The reading was taken BEFORE the
+	// establishment it caused, so that field is still empty on the one reading where this is
+	// true — which made `Established` a flag that could essentially never fire, and every
+	// screen printed "no Place" while the store held it.
+	step.established = established != ""
 	a.trace.add(step)
 }

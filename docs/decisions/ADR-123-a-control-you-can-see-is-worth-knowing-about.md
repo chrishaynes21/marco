@@ -137,7 +137,7 @@ not have to be clicked to be known* is unreachable otherwise — and it is bound
 licensed session already gets: not settled, still loading, not discriminating, not describable.
 Watching alone still writes nothing.
 
-### And dwelling waits for the word, where a crossing cannot
+### And dwelling waits for the word, where a crossing cannot — SUPERSEDED by [[ADR-126-a-place-may-exist-before-it-has-a-name]]
 
 Establishing on dwell creates Places far earlier than promoting a crossing did — on the first
 settled reading rather than after somebody has been somewhere and come back. The next dogfood run
@@ -202,7 +202,9 @@ not come back.
 - `cmd/director` `TestEstablishingAPlaceDoesNotLicenseAcquiringItsAffordances`
 - `cmd/director` `TestWatchingAndLearningRemembersWhereYouHaveBeenSitting`
 - `cmd/director` `TestWatchingAloneRemembersNoPlaceItMerelyLookedAt`
-- `cmd/director` `TestDwellingDoesNotEstablishAScreenItCannotName`
+- `cmd/director` `TestACoherentScreenBecomesAPlaceBeforeItsNameSettles` — superseded the naming
+  precondition below; see [[ADR-126-a-place-may-exist-before-it-has-a-name]]
+- `cmd/director` `TestAStateCarryingTwoWordsIsNotEstablishedByDwelling`
 - `cmd/director` `TestACrossingStillEstablishesAnEndpointItCannotName` — the control
 
 ## Related

@@ -1,6 +1,10 @@
 package observe
 
-import "sort"
+import (
+	"sort"
+	"strconv"
+	"strings"
+)
 
 // Making a PLACE durably recognisable, without claiming to know what it is.
 //
@@ -555,4 +559,75 @@ func StateOf(t ShadowTotals, id ScreenStateID) (ScreenState, bool) {
 		}
 	}
 	return ScreenState{}, false
+}
+
+// WobbleOf says how a screen's distinct compositions differ from each other.
+//
+// # The question this answers
+//
+// A screen that never settles has been seen as several whole compositions, and there are two very
+// different reasons for that. It may be ONE screen whose counts move a little between readings —
+// a status line appearing, a tooltip, a row loading — which is presentation wobbling within one
+// semantic state. Or it may be several genuinely different screens that segmentation kept
+// together, which is a mistake settlement is right to refuse.
+//
+// `sameRoles` separates them: true means every composition was made of the same KINDS and differed
+// only in how many, false means the kinds themselves changed. `worst` is the largest single count
+// difference, so "one text more" and "twenty rows more" do not read alike.
+//
+// A read, for diagnostics. It decides nothing, and it carries counts and role names only — a role
+// is Marco's own closed vocabulary, never the text on a control.
+func WobbleOf(st ScreenState) (sameRoles bool, worst int, roles []string) {
+	type comp map[string]int
+	parse := func(key string) comp {
+		out := comp{}
+		for _, part := range strings.Fields(key) {
+			at := strings.LastIndex(part, "=")
+			if at < 0 {
+				continue
+			}
+			n, err := strconv.Atoi(part[at+1:])
+			if err != nil {
+				continue
+			}
+			out[part[:at]] = n
+		}
+		return out
+	}
+	var seen []comp
+	for key := range st.Compositions {
+		seen = append(seen, parse(key))
+	}
+	if len(seen) < 2 {
+		return true, 0, nil
+	}
+	sameRoles = true
+	moved := map[string]int{}
+	for i := 1; i < len(seen); i++ {
+		a, b := seen[0], seen[i]
+		if len(a) != len(b) {
+			sameRoles = false
+		}
+		for role, n := range b {
+			m, held := a[role]
+			if !held {
+				sameRoles = false
+			}
+			if d := n - m; d > moved[role] {
+				moved[role] = d
+			} else if -d > moved[role] {
+				moved[role] = -d
+			}
+		}
+	}
+	for role, d := range moved {
+		if d > worst {
+			worst = d
+		}
+		if d > 0 {
+			roles = append(roles, role)
+		}
+	}
+	sort.Strings(roles)
+	return sameRoles, worst, roles
 }

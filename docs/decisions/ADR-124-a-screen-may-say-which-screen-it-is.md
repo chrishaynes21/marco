@@ -126,4 +126,5 @@ merely vetoes.
 
 - [[ADR-076-a-place-may-say-what-it-appears-to-be-called]]
 - [[ADR-123-a-control-you-can-see-is-worth-knowing-about]]
+- [[ADR-125-settle-the-screen-not-the-frame]]
 - [[Experiment-022-the-first-dogfood]]

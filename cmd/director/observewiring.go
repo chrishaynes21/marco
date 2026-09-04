@@ -723,7 +723,21 @@ func placeNameEvidence(world directorapi.WorldState) []observe.PlaceNameEvidence
 //
 // Deleting the AdmittedPlaceName call must fail TestTheSamplerNamesThePlaceWhoeverIsWatching.
 func (s *liveSampler) placeName(world directorapi.WorldState) string {
-	return observe.AdmittedPlaceName(placeNameEvidence(world))
+	// THROUGH `ExplainPlaceName` RATHER THAN `AdmittedPlaceName`, so the reason a reading
+	// produced no destination is kept instead of discarded.
+	//
+	// The rule already writes one for every refusal — "nothing in this observation claimed a
+	// destination", "two destinations were claimed", "a trail deeper than anything measured"
+	// — and the name-only accessor threw it away at the one call site that could have used
+	// it. A brief screen whose word is read once out of five readings is either a screen that
+	// says nothing four times or a screen whose claim was refused four times, and those are
+	// different investigations.
+	//
+	// The Why strings are the rule's own closed vocabulary. Nothing off the screen travels:
+	// `NameClaim.Value` holds the text and is deliberately not recorded.
+	naming := observe.ExplainPlaceName(placeNameEvidence(world))
+	s.rt.recordNaming(naming.Name != "", naming.Why)
+	return naming.Name
 }
 
 // affordances is every named control this sampler may durably remember about the screen in front
