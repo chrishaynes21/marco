@@ -220,6 +220,9 @@ func TestWatchingFromOnToOffAndGone(t *testing.T) {
 		// a destination" — never the word it read. NameClaim.Value is where the text
 		// lives and it deliberately never reaches this view.
 		"naming_produced": true, "naming_absent": true,
+		// 38D.6. How many bounded active-navigation windows were entered and how many
+		// polls ran inside one. Two counts; nothing off anybody's screen.
+		"bursts": true, "burst_polls": true,
 	}
 
 	for k := range fields {

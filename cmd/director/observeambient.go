@@ -121,6 +121,11 @@ type ambientObserver struct {
 	// gets it once. Reason strings from the naming rule's own vocabulary, never the word.
 	namingProduced int
 	namingAbsent   map[string]int
+	// burstUntil, bursts and burstPolls are the bounded active-navigation window: when it
+	// ends, how many were started, and how many polls ran inside one. See quicken.
+	burstUntil time.Time
+	bursts     int
+	burstPolls int
 	// trace is what became of every reading, for the diagnostics. See recognition.go: it is
 	// written after the decisions and read by nothing that makes one.
 	trace recognitionTrace
@@ -192,6 +197,7 @@ func (r *Runtime) EnableAmbient() service.AmbientView {
 	// evidence about a configuration they were not exercising.
 	a.trace.reset()
 	a.namingProduced, a.namingAbsent = 0, nil
+	a.bursts, a.burstPolls, a.burstUntil = 0, 0, time.Time{}
 	a.lastInput, a.inputSeen = time.Time{}, 0
 	a.establishedHere = nil
 	// COUNTED HERE, not inside the goroutine. A count the loop increments when it happens
@@ -518,7 +524,10 @@ func (a *ambientObserver) watchOnce(ctx context.Context) (moved bool) {
 		// three orders of magnitude apart, so the cheap question can be asked far more
 		// often than the expensive one without changing what watching costs — and the
 		// reading cadence is untouched.
-		if left, ok := a.waitOrLeave(ctx, ambientBusy, application); left {
+		//
+		// `pollEvery` is that cadence, and it is the ordinary one unless a bounded burst is
+		// running — see quicken. An idle desktop never enters one.
+		if left, ok := a.waitOrLeave(ctx, a.pollEvery(), application); left {
 			moved = true
 			break
 		} else if !ok {
@@ -873,6 +882,7 @@ func (a *ambientObserver) view() service.AmbientView {
 	out.AffordancesAdmitted = a.affordancesAdmitted
 	out.AffordancesStored = a.affordancesStored
 	out.NamingProduced = a.namingProduced
+	out.Bursts, out.BurstPolls = a.bursts, a.burstPolls
 	if len(a.namingAbsent) > 0 {
 		out.NamingAbsent = make(map[string]int, len(a.namingAbsent))
 		for why, n := range a.namingAbsent {
@@ -1220,4 +1230,77 @@ func (r *Runtime) recordNaming(produced bool, why string) {
 		a.namingAbsent = map[string]int{}
 	}
 	a.namingAbsent[why]++
+}
+
+// The bounded burst: what an active navigation window costs and how long it lasts.
+//
+// # Why these numbers, and why they are an experiment rather than a setting
+//
+// A page walked past at normal speed is on screen for about a second. At the ordinary cadence that
+// buys two readings, and two readings of a page mid-transition disagree about what it is made of —
+// measured, and correctly refused. The page beside it, looked at for nine seconds, got seven
+// readings, five agreeing, and became a Place.
+//
+// So the burst spends more attention exactly where information density is highest and display time
+// is shortest. `burstInterval` is deliberately not far below the ~200ms an accessibility
+// acquisition costs: faster would spend the whole window inside the provider and describe a duty
+// cycle nobody agreed to.
+//
+// `burstFor` outlasts one keypress on purpose — a person clicking through pages presses again
+// before it expires, so the window follows them and closes shortly after they stop.
+const (
+	burstInterval = 300 * time.Millisecond
+	burstFor      = 2 * time.Second
+)
+
+// quicken puts the running session into a bounded burst, and matches the supervisor's own poll to
+// it so a denser session is actually read.
+//
+// Both halves are needed and neither alone does anything useful. The session produces the
+// inferences; the supervisor's poll is what carries them into the buffer, the ledger and the
+// trace. Speeding only the session would leave readings uncollected until the next poll; speeding
+// only the poll would find the session's tally unmoved, which is exactly the `2 read (4 traced)`
+// shape the accounting audit explained.
+//
+// It grants nothing and writes nothing. Every rule downstream — settlement, admission, promotion —
+// sees ordinary readings and refuses exactly what it refused before.
+//
+// Deleting this must fail TestHumanInputPutsTheObserverIntoABurst.
+func (a *ambientObserver) quicken(now time.Time) {
+	// THE SUPERVISOR'S HALF IS SET FIRST AND UNCONDITIONALLY. The two halves are
+	// independent: whether a session happens to be running right now decides how fast the
+	// session samples, not whether this observer is in an active-navigation window.
+	a.mu.Lock()
+	a.burstUntil = now.Add(burstFor)
+	a.bursts++
+	a.mu.Unlock()
+
+	if a.rt == nil || a.rt.observations == nil {
+		return
+	}
+	a.rt.observations.mu.RLock()
+	runner := a.rt.observations.active
+	a.rt.observations.mu.RUnlock()
+	if runner == nil {
+		return
+	}
+	runner.Quicken(burstInterval, now.Add(burstFor))
+}
+
+// pollEvery is how long the supervisor waits before looking again.
+//
+// The attention curve, unless a burst is running. An idle desktop never enters one and its eight
+// seconds are untouched.
+func (a *ambientObserver) pollEvery() time.Duration {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.attention <= 0 {
+		a.attention = ambientBusy
+	}
+	if !a.burstUntil.IsZero() && time.Now().Before(a.burstUntil) &&
+		burstInterval < a.attention {
+		a.burstPolls++
+		return burstInterval
+	}
+	return a.attention
 }

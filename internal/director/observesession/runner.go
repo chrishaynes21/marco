@@ -477,10 +477,15 @@ type Runner struct {
 	sampler Sampler
 	events  Events
 
-	mu       sync.RWMutex
-	session  observe.Session
-	stats    Stats
-	analyzer *observe.Analyzer
+	mu sync.RWMutex
+	// burstInterval and burstUntil are a BOUNDED override of the sampling interval, set
+	// while somebody is actively navigating. Zero means the session's own cadence, which
+	// is what an idle desktop always gets. See Quicken.
+	burstInterval time.Duration
+	burstUntil    time.Time
+	session       observe.Session
+	stats         Stats
+	analyzer      *observe.Analyzer
 	// live folds each sample's analysis into a streamable event log, so findings are
 	// visible WHILE the session runs rather than only in its Result. It derives nothing
 	// the analyzer has not already concluded; removing it changes no analysis and no
@@ -1477,7 +1482,11 @@ func (r *Runner) loop(ctx context.Context, cfg Config, bounds observe.Bounds,
 		// Advance the schedule, skipping slots that have already passed rather than
 		// queueing them. A queued backlog would run captures back to back and describe
 		// a burst that never happened.
-		interval := bounds.Interval
+		// THE INTERVAL THIS MOMENT, which is the session's own unless a bounded burst is
+		// running. Read every iteration rather than captured once, so a burst that starts
+		// mid-session takes effect on the next slot and expiry restores the cadence with
+		// no bookkeeping. See Quicken.
+		interval := r.intervalNow(bounds.Interval)
 		now = r.clock.Now()
 		next = next.Add(interval)
 		if next.Before(now) {
@@ -2598,4 +2607,60 @@ func demonstratedFirst(routes []observe.RelationshipRef,
 		return append(out, routes[i+1:]...)
 	}
 	return routes
+}
+
+// Quicken asks this session to sample faster for a bounded window.
+//
+// # The experiment this exists for
+//
+// Measured on a normal-speed walk through Windows Settings: a page that was on screen for about
+// one second received two fresh readings, whose compositions disagreed about what the page was
+// made of, and settlement correctly refused it. The page beside it, visited for nine seconds, got
+// seven readings, five of which agreed, and became a Place. The only variable was how many
+// readings the visit afforded.
+//
+// Human navigation is when information density is highest and when the screen is on display for
+// least time. So the question this makes testable is whether spending more perception there
+// converges — `A B B B C` — or merely captures more of the transition — `A B C D E`. The second
+// answer falsifies the idea and the burst should be removed rather than made faster.
+//
+// # What it is not
+//
+// Not a cadence change. The session's own interval is untouched and resumes the moment the window
+// closes; an idle desktop never enters one. Not a queue: the loop already skips slots that have
+// passed rather than running captures back to back, so a burst cannot leave a backlog behind it.
+//
+// Every sample it causes is a genuinely fresh acquisition through the ordinary path — there is no
+// reinterpretation of an existing World here, which is the one thing that could manufacture
+// recurrence out of a single moment.
+//
+// Deleting the override must fail TestABurstTakesMoreFreshReadingsWhileSomebodyIsNavigating.
+func (r *Runner) Quicken(interval time.Duration, until time.Time) {
+	if r == nil || interval <= 0 {
+		return
+	}
+	r.mu.Lock()
+	r.burstInterval, r.burstUntil = interval, until
+	r.mu.Unlock()
+}
+
+// intervalNow is the sampling interval this moment, which is the session's own unless a bounded
+// burst is running.
+//
+// The floor is `observe.MinInterval`, the same bound every other caller of this loop obeys: an
+// experiment may spend more attention and may not spend more than the system permits anybody.
+func (r *Runner) intervalNow(normal time.Duration) time.Duration {
+	r.mu.RLock()
+	interval, until := r.burstInterval, r.burstUntil
+	r.mu.RUnlock()
+	if interval <= 0 || !r.clock.Now().Before(until) {
+		return normal
+	}
+	if interval < observe.MinInterval {
+		interval = observe.MinInterval
+	}
+	if interval > normal {
+		return normal
+	}
+	return interval
 }

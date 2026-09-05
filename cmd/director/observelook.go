@@ -96,9 +96,10 @@ type ambientLook struct {
 	Settled                              bool
 	// SameRoles, WorstDrift and Drifted say HOW the distinct compositions differ — same
 	// kinds and how far the counts moved, or different kinds entirely.
-	SameRoles  bool
-	WorstDrift int
-	Drifted    []string
+	SameRoles   bool
+	ShapeCounts []int
+	WorstDrift  int
+	Drifted     []string
 	// NameSightings, NameRunnerUp and Coherent are the naming tally and which settlement
 	// path the state took. Diagnostics; nothing decides from them.
 	NameSightings, NameRunnerUp int
@@ -155,6 +156,7 @@ func (r *Runtime) ambientLook(application string) ambientLook {
 		out.Readings, out.Agreeing, out.Distinct, out.Visits, out.Settled =
 			observe.SettlementOf(st)
 		out.SameRoles, out.WorstDrift, out.Drifted = observe.WobbleOf(st)
+		out.ShapeCounts = observe.ShapeCountsOf(st)
 		out.NameSightings, out.NameRunnerUp = observe.NameSightingsOf(st)
 		// WHETHER THE STATE HAS A SETTLED WORD, from the state itself.
 		//

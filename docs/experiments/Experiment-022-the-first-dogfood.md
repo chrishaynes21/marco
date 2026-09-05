@@ -584,3 +584,39 @@ The JUST LEARNED feed announces the unattributed `Home → Mouse` movement as `l
 `semanticmemory.Store` emits `KindEdge` whenever a **relationship** is created, whether or not an
 action was attributed to it, so the strip claims knowledge Marco does not have. The refusal is
 correct; the announcement of it is not.
+
+## Finding 10 — five hypotheses died on one four-page walk
+
+`Home → Bluetooth & devices → Mouse → System → Home`, at normal speed, run eight times across the
+sequence below. Every run produced two Places until the last.
+
+| hypothesis | verdict | what settled it |
+|---|---|---|
+| Marco is too slow | **false** | 11 readings in 24s while navigating |
+| Settlement is too strict | **unsafe** | relaxing it structurally reproduced a four-cold-store identity defect |
+| Naming blocks establishment | **true**, fixed | [[ADR-126-a-place-may-exist-before-it-has-a-name]]; stopped being the limiter |
+| Semantic evidence is too sparse | **false** | 32 of 39 readings carried a destination claim |
+| Readings are being lost | **false** | every poll accounted for; a poll reads a session, it is not an observation |
+
+What remained was arithmetic. `9s visible → 7 readings → agreeing 5 → Place`, against
+`1s visible → 2 readings → agreeing 1 → refused`, on the same application. Closed by
+[[ADR-127-look-harder-while-somebody-is-moving]]: four Places, four edges, four correct names.
+
+### The instrument needed three corrections of its own
+
+Each was quietly lying, and each was found by reading its own output rather than by a test:
+
+- `agreeing 3 of 2` — a session numerator against a bounded-ring denominator
+- `Established` — compared against a field that is empty on the very reading it describes
+- `Named` — read the candidate's word, which a screen Marco already recognises does not have
+
+A diagnostic that decides nothing can still decide what gets investigated. Two of the five dead
+hypotheses were entertained on the strength of numbers that could not have been right.
+
+### Method note
+
+The pattern that worked: instrument the refusal path in the vocabulary the gates already speak,
+run one live pass, and let it falsify the first explanation. It did so five times. Twice the
+falsification came from a regression test that already existed — the loading-list case had been
+measured across four cold stores long before this sequence, and reading it was cheaper than
+rediscovering it.

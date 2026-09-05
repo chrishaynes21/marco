@@ -268,6 +268,13 @@ func printStatus(st service.StatusPayload) {
 		for _, n := range st.Watching.NamingAbsent {
 			absent += n
 		}
+		// AND WHAT THE ACTIVE-NAVIGATION WINDOWS COST. The other half of the experiment:
+		// a burst that works epistemically and spends the whole window inside the
+		// accessibility provider is not a burst anybody agreed to.
+		if st.Watching.Bursts > 0 {
+			fmt.Printf("Active bursts: %d, %d polls inside one\n",
+				st.Watching.Bursts, st.Watching.BurstPolls)
+		}
 		fmt.Printf("Destination claims: %d of %d readings\n",
 			st.Watching.NamingProduced, st.Watching.NamingProduced+absent)
 		whys := make([]string, 0, len(st.Watching.NamingAbsent))
@@ -306,8 +313,14 @@ func printStatus(st service.StatusPayload) {
 					name = fmt.Sprintf("%s (runner-up %dx)", name, s.NameRunnerUp)
 				}
 			}
-			fmt.Printf("  %s %s  ×%d read (%d traced)  →  %s, %s\n",
-				s.Application, s.State, s.Readings, s.Traced, outcome, name)
+			// EVERY POLL ACCOUNTED FOR. A trace entry is one look by the supervisor,
+			// not an observation — the session samples on its own clock and a poll
+			// reads what it has accumulated. `2 read, 2 of 4 polls fresh` is four
+			// looks of which two found new evidence, which is a different fact from
+			// two readings having been lost.
+			fmt.Printf("  %s %s  ×%d read, %d of %d polls fresh, ~%dms apart  →  %s, %s\n",
+				s.Application, s.State, s.Readings, s.Fresh, s.Traced,
+				s.MedianGapMS, outcome, name)
 			// THE ARITHMETIC SETTLEMENT ACTUALLY APPLIES. `agreeing` is how many
 			// readings saw the same WHOLE composition, which is what the threshold
 			// tests — not how many readings there were.
@@ -326,8 +339,12 @@ func printStatus(st service.StatusPayload) {
 				if !s.SameRoles {
 					kinds = "DIFFERENT kinds"
 				}
-				fmt.Printf("      %d shapes, %s, worst count drift %d %v\n",
-					s.Distinct, kinds, s.WorstDrift, s.Drifted)
+				// THE TALLY SHAPE IS THE CONVERGENCE ANSWER. `3 1 1` is a screen
+				// that settled on one composition and passed through two others;
+				// `1 1 1 1 1` is five readings of a transition. Both report the
+				// same count of distinct shapes.
+				fmt.Printf("      %d shapes %v, %s, worst count drift %d %v\n",
+					s.Distinct, s.ShapeCounts, kinds, s.WorstDrift, s.Drifted)
 			}
 			for _, r := range s.Refusals {
 				fmt.Printf("      refused: %-22s ×%d\n", r.Reason, r.Count)

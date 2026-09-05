@@ -66,9 +66,10 @@ type recognitionStep struct {
 	readings, agreeing, distinct, episodes int
 	settled                                bool
 	// sameRoles, worstDrift and drifted say HOW the distinct compositions differ.
-	sameRoles  bool
-	worstDrift int
-	drifted    []string
+	sameRoles   bool
+	shapeCounts []int
+	worstDrift  int
+	drifted     []string
 	// nameSightings, nameRunnerUp and coherent are the naming tally and which settlement
 	// path the state took.
 	nameSightings, nameRunnerUp int
@@ -76,6 +77,17 @@ type recognitionStep struct {
 	// nameSettled says the STATE has a word that passed its recurrence rule, which is a
 	// different question from whether a candidate shape carries one.
 	nameSettled bool
+	// fresh says the SESSION had credited a new inference to this state since the previous
+	// time the trace looked at it.
+	//
+	// A trace entry is one POLL by the ambient supervisor. It is not an observation: the
+	// session samples on its own clock and accumulates, and `ambientLook` READS what it has.
+	// So `2 read (4 traced)` is four polls, two of which found the tally unmoved — not two
+	// readings lost. Without this the two numbers look like a discrepancy, and a discrepancy
+	// is what somebody changes a timer over.
+	fresh bool
+	// gap is how long since the previous trace entry, whatever state it was about.
+	gap time.Duration
 	// sinceInput is how long before this reading the session's most recent human input was
 	// banked, so a destination lost because the NEXT press arrived first is visible as such.
 	// Negative when no input has been seen at all.
@@ -88,11 +100,29 @@ type recognitionStep struct {
 type recognitionTrace struct {
 	mu    sync.Mutex
 	steps []recognitionStep
+	// seen is the inference count each state was last polled at, so a poll that found the
+	// session's tally unmoved can be told from one that found new evidence.
+	seen map[observe.ScreenStateID]int
+	// last is when the previous poll happened, for the interval between them.
+	last time.Time
 }
 
 func (t *recognitionTrace) add(s recognitionStep) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	// FRESH means the session's tally for this state moved since the previous poll of it.
+	// A first sighting counts as fresh: there was nothing before it to be unmoved.
+	if t.seen == nil {
+		t.seen = map[observe.ScreenStateID]int{}
+	}
+	if prior, held := t.seen[s.state]; !held || s.readings > prior {
+		s.fresh = true
+	}
+	t.seen[s.state] = s.readings
+	if !t.last.IsZero() {
+		s.gap = s.at.Sub(t.last)
+	}
+	t.last = s.at
 	t.steps = append(t.steps, s)
 	if len(t.steps) > maxRecognitionSteps {
 		t.steps = t.steps[len(t.steps)-maxRecognitionSteps:]
@@ -108,6 +138,7 @@ func (t *recognitionTrace) all() []recognitionStep {
 func (t *recognitionTrace) reset() {
 	t.mu.Lock()
 	t.steps = nil
+	t.seen, t.last = nil, time.Time{}
 	t.mu.Unlock()
 }
 
@@ -137,6 +168,8 @@ func recognitionReport(steps []recognitionStep) []service.RecognitionScreen {
 			Place: last.place, Settled: last.settled,
 			Agreeing: last.agreeing, Distinct: last.distinct, Visits: last.episodes,
 			SameRoles: last.sameRoles, WorstDrift: last.worstDrift,
+			Fresh: freshIn(group), MedianGapMS: medianGap(group),
+			ShapeCounts:   last.shapeCounts,
 			NameSightings: last.nameSightings, NameRunnerUp: last.nameRunnerUp,
 			Coherent:     last.coherent,
 			Drifted:      last.drifted,
@@ -191,8 +224,10 @@ func (a *ambientObserver) traceReading(application string, look ambientLook, now
 	a.mu.Lock()
 	// WHEN SOMEBODY LAST DID SOMETHING, from the session's own log growing. The high-water
 	// mark rather than the length, because the log is bounded and drops from the front.
+	moved := false
 	if seen := look.Dropped + len(look.Inputs); seen > a.inputSeen {
 		a.inputSeen, a.lastInput = seen, now
+		moved = true
 	}
 	since := time.Duration(-1)
 	if !a.lastInput.IsZero() {
@@ -201,6 +236,15 @@ func (a *ambientObserver) traceReading(application string, look ambientLook, now
 	established := a.lastEstablished
 	a.lastEstablished = ""
 	a.mu.Unlock()
+
+	// SOMEBODY IS NAVIGATING, so look more closely for a moment.
+	//
+	// Triggered from the same signal the wake reads — the session's own input log growing —
+	// so it fires on attributed HUMAN activity and not on Marco's own reading schedule. See
+	// quicken for the measurement that motivates it and for what it deliberately is not.
+	if moved {
+		a.quicken(now)
+	}
 
 	step := recognitionStep{
 		at: now, application: application, state: look.State,
@@ -212,6 +256,7 @@ func (a *ambientObserver) traceReading(application string, look ambientLook, now
 		agreeing:      look.Agreeing,
 		distinct:      look.Distinct,
 		sameRoles:     look.SameRoles,
+		shapeCounts:   look.ShapeCounts,
 		nameSightings: look.NameSightings,
 		nameRunnerUp:  look.NameRunnerUp,
 		coherent:      look.Coherent,
@@ -230,4 +275,37 @@ func (a *ambientObserver) traceReading(application string, look ambientLook, now
 	// screen printed "no Place" while the store held it.
 	step.established = established != ""
 	a.trace.add(step)
+}
+
+// freshIn is how many of a screen's polls found the session's tally moved.
+//
+// The other half is polls that read an unchanged session. Both are honest work — the supervisor
+// has to look to know — but only the fresh ones are evidence about the screen, and conflating them
+// is what made `2 read (4 traced)` look like loss.
+func freshIn(steps []recognitionStep) int {
+	n := 0
+	for _, s := range steps {
+		if s.fresh {
+			n++
+		}
+	}
+	return n
+}
+
+// medianGap is the middle interval between consecutive polls, in milliseconds.
+//
+// Median rather than mean: one long gap while somebody read something is not what the cadence is,
+// and an average would let it decide.
+func medianGap(steps []recognitionStep) int64 {
+	gaps := make([]int64, 0, len(steps))
+	for _, s := range steps {
+		if s.gap > 0 {
+			gaps = append(gaps, s.gap.Milliseconds())
+		}
+	}
+	if len(gaps) == 0 {
+		return 0
+	}
+	sort.Slice(gaps, func(a, b int) bool { return gaps[a] < gaps[b] })
+	return gaps[len(gaps)/2]
 }

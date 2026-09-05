@@ -631,3 +631,25 @@ func WobbleOf(st ScreenState) (sameRoles bool, worst int, roles []string) {
 	sort.Strings(roles)
 	return sameRoles, worst, roles
 }
+
+// ShapeCountsOf is how often each distinct whole composition was seen, most-seen first.
+//
+// # The discriminator an experiment about observation density needs
+//
+// "Three distinct shapes" cannot tell convergence from churn. `3 1 1` is a screen that settled on
+// one composition and passed through two others; `1 1 1 1 1` is five readings of a transition. Both
+// report the same `distinct` and the same `agreeing` when the agreeing count is one.
+//
+// So the shape of the tally is the answer, and it is a handful of integers. Counts only — a
+// composition key is a role histogram and never reaches this.
+func ShapeCountsOf(st ScreenState) []int {
+	out := make([]int, 0, len(st.Compositions))
+	for _, n := range st.Compositions {
+		out = append(out, n)
+	}
+	sort.Sort(sort.Reverse(sort.IntSlice(out)))
+	if len(out) > 12 {
+		out = out[:12]
+	}
+	return out
+}

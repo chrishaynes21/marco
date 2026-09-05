@@ -2119,8 +2119,12 @@ type AmbientView struct {
 	// The evidence-density question. Settlement wants a screen's word twice and a brief page
 	// gets it once, and "the screen said nothing" and "the claim was refused" are different
 	// investigations. Counts and the naming rule's own reason strings — never the word.
-	NamingProduced int            `json:"naming_produced,omitempty"`
-	NamingAbsent   map[string]int `json:"naming_absent,omitempty"`
+	NamingProduced int `json:"naming_produced,omitempty"`
+	// Bursts and BurstPolls are the bounded active-navigation windows: how many were
+	// entered, and how many polls ran inside one. The cost side of the experiment.
+	Bursts       int            `json:"bursts,omitempty"`
+	BurstPolls   int            `json:"burst_polls,omitempty"`
+	NamingAbsent map[string]int `json:"naming_absent,omitempty"`
 	// Recognition is what became of every reading, per screen, in explicit reason codes.
 	//
 	// # The question the store cannot answer
@@ -2148,6 +2152,14 @@ type RecognitionScreen struct {
 	// — a numerator from the session against a denominator from a bounded ring. Every number
 	// on this line now comes from the same place, and the trace's own count is `Traced`.
 	Readings int `json:"readings,omitempty"`
+	// Fresh is how many of the traced polls found the session's inference tally MOVED.
+	//
+	// A trace entry is one poll by the ambient supervisor, not an observation: the session
+	// samples on its own clock and accumulates, and a poll reads what it has. So `2 read
+	// (4 traced)` is four polls of which two found new evidence — not two readings lost.
+	Fresh int `json:"fresh,omitempty"`
+	// MedianGapMS is the middle interval between consecutive polls.
+	MedianGapMS int64 `json:"median_gap_ms,omitempty"`
 	// Traced is how many readings of this screen the diagnostic ring still holds. Smaller
 	// than Readings whenever the ring has wrapped or watching began mid-session.
 	Traced int `json:"traced,omitempty"`
@@ -2166,6 +2178,12 @@ type RecognitionScreen struct {
 	SameRoles  bool     `json:"same_roles,omitempty"`
 	WorstDrift int      `json:"worst_drift,omitempty"`
 	Drifted    []string `json:"drifted,omitempty"`
+	// ShapeCounts is how often each distinct composition was seen, most-seen first.
+	//
+	// The discriminator convergence needs: `3 1 1` is a screen that settled on one shape
+	// and passed through two others; `1 1 1 1 1` is five readings of a transition. Both
+	// report the same Distinct.
+	ShapeCounts []int `json:"shape_counts,omitempty"`
 	// Visits is how many separate times the screen was entered.
 	Visits int `json:"visits,omitempty"`
 	// Settled says the screen had stopped changing shape by the last reading.
