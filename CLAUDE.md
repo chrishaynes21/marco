@@ -98,8 +98,14 @@ go build ./... && go test ./...        # 73 packages, deterministic
 go build -o marco.exe ./cmd/marco
 go build -o marco-macros.exe ./cmd/marco-macros
 go -C plugins/overlay build -o overlay.exe .
+pluginsvisionuild.cmd                 # Windows: the ONNX backend (needs gcc)
 .\overlay.cmd                          # Windows: launches the overlay stack
 ```
+- **`go build` in `plugins/vision` produces a detector that detects NOTHING.** The ONNX
+  backend is behind `-tags onnxvision` and the default build answers "no model loaded" to
+  everything, which reads as a missing subsystem rather than an unbuilt one. Use
+  `pluginsvisionuild.cmd`. The runtime and model are vendored under `tools/` and are
+  chosen automatically; `$MARCO_ONNXRUNTIME` and `$MARCO_SCREENPARSER_MODEL` override.
 - **Restart `overlay.cmd`** to pick up a new `overlay.exe`; `marco.exe` is spawned
   fresh per command so it takes effect immediately (`$MARCO_BIN` overrides it).
 - `marco do` performs **real input** (types/clicks for real). For behavior checks use

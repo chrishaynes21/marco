@@ -61,7 +61,25 @@ func newVisionDetector(bridgePath string) (vision.Detector, *bridgehost.Host, st
 	if _, err := os.Stat(bridgePath); err != nil {
 		return nil, nil, "the vision plugin is not at " + bridgePath
 	}
-	host := bridgehost.New(bridgePath)
+	// THE MODEL AND ITS CALIBRATION, handed to the child rather than left to its defaults.
+	//
+	// This path never did, and inherited 640 against a 1280 model — a working detector, a
+	// present model and a compatible runtime producing a silent failure that read as "the
+	// detector found nothing". The shadow path has always passed these. See
+	// screenParserCalibration for why there is now one source.
+	model := screenParserModel()
+	if model == "" {
+		return nil, nil, "no ScreenParser model — set $MARCO_SCREENPARSER_MODEL to " +
+			"screenparser-1280.onnx"
+	}
+	if _, err := os.Stat(model); err != nil {
+		return nil, nil, "the ScreenParser model is not at " + model
+	}
+	if defaultONNXRuntime() == "" {
+		return nil, nil, "no ONNX Runtime found — the plugin loads it dynamically; " +
+			"vendor it under tools/onnxruntime or set $MARCO_ONNXRUNTIME"
+	}
+	host := bridgehost.New(bridgePath).WithEnv(visionChildEnv(model)...)
 	return visionclient.New(host), host, ""
 }
 
@@ -70,4 +88,78 @@ func newVisionProvider(det vision.Detector, cap capture.WindowCapture,
 	active func(context.Context) (directorapi.Window, bool)) *vision.Provider {
 
 	return vision.New(det, cap, active)
+}
+
+// ── the calibration a ScreenParser child runs under ───────────────────────────
+
+// screenParserCalibration is the configuration `screenparser-1280.onnx` was approved at.
+//
+// # One source, because two would eventually disagree
+//
+// These values were FROZEN on the calibration split and validated on held-out evidence. The
+// shadow detector has always passed them to its child; the authoritative one never did, and
+// inherited whatever the plugin defaulted to — 640 against a 1280 model:
+//
+//	vision inference: Got invalid dimensions for input: images
+//	  index: 2 Got: 640 Expected: 1280
+//
+// A working detector, a present model, a compatible runtime, and a silent failure that read as
+// "the detector found nothing". Two constructors configuring one model differently is the defect;
+// this is the one place it is written down.
+//
+// Deleting this and letting the child default must fail TestBothVisionPathsRunOneCalibration.
+func screenParserCalibration(model string) []string {
+	return []string{
+		"MARCO_VISION_MODEL=" + model,
+		"MARCO_VISION_SIZE=1280",
+		"MARCO_VISION_CONF=0.15",
+		"MARCO_VISION_IOU=0.45",
+	}
+}
+
+// defaultONNXRuntime is the shared library the vision plugin loads.
+//
+// # Why this is chosen rather than found
+//
+// The binding requests a specific ONNX Runtime API version, and a runtime that is too old refuses
+// with a message that never reaches a person:
+//
+//	The requested API version [28] is not available, only API versions [1, 26] are supported
+//	in this build. Current ORT Version is: 1.26.0
+//
+// There were two copies in the tree — a stale 1.26 beside the plugin and the 1.28 the repository
+// vendors under tools/ — and the plugin loaded whichever the environment happened to name. So the
+// vendored one is preferred explicitly, and $MARCO_ONNXRUNTIME still wins for anybody pointing at
+// their own.
+func defaultONNXRuntime() string {
+	if p := os.Getenv("MARCO_ONNXRUNTIME"); p != "" {
+		return p
+	}
+	candidates := []string{
+		filepath.Join("tools", "onnxruntime", "onnxruntime-win-x64-1.28.0", "lib",
+			"onnxruntime.dll"),
+	}
+	if exe, err := os.Executable(); err == nil {
+		candidates = append(candidates, filepath.Join(filepath.Dir(exe), "tools",
+			"onnxruntime", "onnxruntime-win-x64-1.28.0", "lib", "onnxruntime.dll"))
+	}
+	for _, c := range candidates {
+		if _, err := os.Stat(c); err == nil {
+			return c
+		}
+	}
+	return ""
+}
+
+// visionChildEnv is everything one ScreenParser child needs, in one place.
+//
+// Per-child rather than process-wide, for the reason shadowwiring records: a bridge host launches
+// its child on first USE, so `os.Setenv` would have handed the authoritative detector the
+// experiment's configuration and nobody would have seen it happen.
+func visionChildEnv(model string) []string {
+	env := screenParserCalibration(model)
+	if rt := defaultONNXRuntime(); rt != "" {
+		env = append(env, "MARCO_ONNXRUNTIME="+rt)
+	}
+	return env
 }

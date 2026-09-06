@@ -94,9 +94,12 @@ func newShadowVision(cap capture.WindowCapture,
 	if _, err := os.Stat(model); err != nil {
 		return nil, nil, "the ScreenParser model is not at " + model
 	}
-	if os.Getenv("MARCO_ONNXRUNTIME") == "" {
-		return nil, nil, "$MARCO_ONNXRUNTIME is not set — the plugin loads the ONNX " +
-			"Runtime shared library dynamically and cannot find it"
+	// The runtime is CHOSEN rather than required from the environment. It used to demand
+	// $MARCO_ONNXRUNTIME, so a repository that vendors a compatible runtime still refused to
+	// start the detector until somebody exported a path by hand. See defaultONNXRuntime.
+	if defaultONNXRuntime() == "" {
+		return nil, nil, "no ONNX Runtime found — the plugin loads it dynamically; " +
+			"vendor it under tools/onnxruntime or set $MARCO_ONNXRUNTIME"
 	}
 
 	// The shadow bridge's configuration goes to THAT CHILD ONLY.
@@ -116,12 +119,7 @@ func newShadowVision(cap capture.WindowCapture,
 		return nil, nil, "no vision plugin found — build plugins/vision and set " +
 			"$DIRECTOR_VISION to vision.exe"
 	}
-	host := bridgehost.New(bridge).WithEnv(
-		"MARCO_VISION_MODEL="+model,
-		"MARCO_VISION_SIZE=1280",
-		"MARCO_VISION_CONF=0.15",
-		"MARCO_VISION_IOU=0.45",
-	)
+	host := bridgehost.New(bridge).WithEnv(visionChildEnv(model)...)
 	detector := visionclient.New(host)
 
 	return newShadowProvider(detector, cap, active, reader, shadowCadence()), host, ""
