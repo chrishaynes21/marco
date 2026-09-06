@@ -138,7 +138,20 @@ type Diagnostics struct {
 	// Classes counts what was seen, by class, so a reader can tell "the model found
 	// nothing" from "the model found forty things this build has no word for".
 	Classes map[string]int `json:"classes,omitempty"`
-	Error   string         `json:"error,omitempty"`
+	// Candidates is every detection and what became of it, bounded.
+	//
+	// # Why counters were not enough
+	//
+	// One Xbox screen produced 125 detections and one accepted element: 107 below
+	// confidence, 17 in classes this build has no word for. The counters say that much and
+	// cannot say the thing that decides what to do about it — whether those boxes are the
+	// Xbox controls at mediocre confidence, or nonsense. Those call for opposite responses,
+	// and a histogram cannot tell them apart.
+	//
+	// Diagnostic only. Nothing reads this to admit or refuse anything; it is written after
+	// every decision the loop makes.
+	Candidates []Candidate `json:"candidates,omitempty"`
+	Error      string      `json:"error,omitempty"`
 	// FrameID identifies the picture this pass read, so an observation can be traced
 	// back to the frame it came from.
 	FrameID string `json:"frame_id,omitempty"`
@@ -191,6 +204,9 @@ type Provider struct {
 	// one pass is never concurrent with another.
 	counters Counters
 	classes  map[string]int
+	// candidates is every detection and what became of it, for the diagnostics. Reset per
+	// pass beside `classes`, and read by nothing that decides anything.
+	candidates []Candidate
 }
 
 // New builds a provider over a detector and a capture source.
@@ -360,6 +376,7 @@ func (p *Provider) Look(ctx context.Context, req observation.Request) (
 		req.Includes(directorapi.SourceOCR))
 	diag.Counters = p.counters
 	diag.Classes = p.classes
+	diag.Candidates = p.candidates
 	diag.Grids = grids
 	diag.Timings.Construct = time.Since(buildStart)
 	diag.Timings.Total = time.Since(started)
@@ -413,7 +430,7 @@ func (p *Provider) observations(ctx context.Context, results []Detection, img ca
 	readText bool) ([]observation.Observation, []GridSummary) {
 
 	p.counters = Counters{}
-	p.classes = map[string]int{}
+	p.classes, p.candidates = map[string]int{}, nil
 	imageBounds := img.Image.Bounds()
 	area := float64(imageBounds.Dx() * imageBounds.Dy())
 
@@ -441,6 +458,18 @@ func (p *Provider) observations(ctx context.Context, results []Detection, img ca
 
 		class, known := ClassOf(r.Class)
 		p.classes[normalizeClass(r.Class)]++
+		// EVERY CANDIDATE RECORDED, whatever becomes of it. Written beside each decision
+		// rather than derived afterwards, so the record cannot describe a different loop
+		// from the one that ran. See Candidate.
+		seen := Candidate{
+			RawClass: r.Class, Class: string(class), Confidence: r.Confidence,
+			X: box.Min.X, Y: box.Min.Y,
+			W: box.Max.X - box.Min.X, H: box.Max.Y - box.Min.Y,
+		}
+		refuse := func(why string) {
+			seen.Why = why
+			p.note(seen)
+		}
 
 		switch {
 		case !known:
@@ -448,15 +477,19 @@ func (p *Provider) observations(ctx context.Context, results []Detection, img ca
 			// with a guessed role: an unmapped class arriving as an element is how a
 			// model's private vocabulary becomes the Director's.
 			p.counters.RejectedClass++
+			refuse("this build has no word for that class")
 			continue
 		case math.IsNaN(r.Confidence) || math.IsInf(r.Confidence, 0):
 			p.counters.RejectedConfidence++
+			refuse("the confidence was not a number")
 			continue
 		case r.Confidence < p.Thresholds.MinConfidence:
 			p.counters.RejectedConfidence++
+			refuse("below the confidence floor")
 			continue
 		case box.Dx() < p.Thresholds.MinWidth || box.Dy() < p.Thresholds.MinHeight:
 			p.counters.RejectedGeometry++
+			refuse("smaller than anything a person could press")
 			continue
 		case box.Empty() || !box.In(imageBounds):
 			// A box outside the image it was found in cannot be placed on the desktop.
@@ -496,10 +529,13 @@ func (p *Provider) observations(ctx context.Context, results []Detection, img ca
 				// evidence here to report: "an image is at these coordinates" is not
 				// something anything downstream can use.
 				p.counters.RejectedClass++
+				refuse("nothing readable inside a non-structural class")
 				continue
 			}
 			p.counters.Accepted++
 			p.counters.AcceptedText++
+			seen.Accepted = true
+			p.note(seen)
 			out = append(out, observation.Text{
 				ObservationID: mintID(),
 				ProviderID:    p.Name(),
@@ -523,6 +559,8 @@ func (p *Provider) observations(ctx context.Context, results []Detection, img ca
 
 		p.counters.Accepted++
 		p.counters.AcceptedStructural++
+		seen.Accepted = true
+		p.note(seen)
 		accepted = append(accepted, placed{
 			detection: r, class: class, box: desktop, image: box,
 		})
@@ -706,4 +744,41 @@ func clamp01(v float64) float64 {
 
 func rectText(r directorapi.Rect) string {
 	return fmt.Sprintf("(%d,%d %dx%d)", r.X, r.Y, r.Width, r.Height)
+}
+
+// MaxCandidates bounds the per-detection record. A pass that produced more than this has already
+// said what a reader needs to know about it.
+const MaxCandidates = 200
+
+// Candidate is one detection and what became of it.
+//
+// Enough to correlate against a real screen by hand: what the model called it, what this build
+// mapped it to, how sure it was, where it is in window coordinates, and why it was refused.
+//
+// Deliberately not an element. It carries no id, nothing downstream consumes it, and it is
+// recorded after the loop has already decided — a diagnostic that fed back into admission would
+// be a policy nobody reviewed.
+type Candidate struct {
+	// RawClass is the model's own word, before any mapping.
+	RawClass string `json:"raw_class"`
+	// Class is what this build mapped it to, empty when it has no word for it.
+	Class      string  `json:"class,omitempty"`
+	Confidence float64 `json:"confidence"`
+	// X, Y, W, H are in the captured image's pixels, which the transform line in the report
+	// relates to the desktop.
+	X        int  `json:"x"`
+	Y        int  `json:"y"`
+	W        int  `json:"w"`
+	H        int  `json:"h"`
+	Accepted bool `json:"accepted"`
+	// Why it was refused, empty when accepted.
+	Why string `json:"why,omitempty"`
+}
+
+// note records one candidate's outcome, bounded.
+func (p *Provider) note(c Candidate) {
+	if len(p.candidates) >= MaxCandidates {
+		return
+	}
+	p.candidates = append(p.candidates, c)
 }
