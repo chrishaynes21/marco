@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -109,11 +110,15 @@ func newVisionProvider(det vision.Detector, cap capture.WindowCapture,
 //
 // Deleting this and letting the child default must fail TestBothVisionPathsRunOneCalibration.
 func screenParserCalibration(model string) []string {
+	// FROM THE PROVIDER'S OWN CONSTANTS, so the child emits at the same bar the provider
+	// admits at. Two copies of one calibration is how a detector came to be configured to
+	// emit at 0.15 and then have everything below 0.35 discarded — two policies, one model,
+	// and the stricter one winning by accident.
 	return []string{
 		"MARCO_VISION_MODEL=" + model,
-		"MARCO_VISION_SIZE=1280",
-		"MARCO_VISION_CONF=0.15",
-		"MARCO_VISION_IOU=0.45",
+		fmt.Sprintf("MARCO_VISION_SIZE=%d", vision.ScreenParserSize),
+		fmt.Sprintf("MARCO_VISION_CONF=%g", vision.ScreenParserConf),
+		fmt.Sprintf("MARCO_VISION_IOU=%g", vision.ScreenParserIOU),
 	}
 }
 

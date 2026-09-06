@@ -3,6 +3,7 @@ package visionbench_test
 import (
 	"context"
 	"errors"
+	"github.com/chaynes-simpleclouds/marco/internal/director/perception/providers/vision"
 	"image"
 	"image/color"
 	"strings"
@@ -275,13 +276,14 @@ func TestDetectionsAreJudgedByWhatTheDirectorWouldAccept(t *testing.T) {
 	// benchmark applies the same rule.
 	reg := visionbench.NewRegistry()
 	reg.Register(&scripted{name: "low", per: []visionbench.Detection{
-		det("button", 0.40, 100, 100, 200, 48, "OK"), // under the structural floor
+		det("button", 0.20, 100, 100, 200, 48, "OK"), // under the structural floor
 	}})
 	results := visionbench.Run(context.Background(), reg, frames(4),
 		visionbench.DefaultThresholds())
 
 	if results[0].Metrics.Accepted != 0 {
-		t.Fatalf("a 0.40-confidence button was accepted; production requires 0.50")
+		t.Fatalf("a 0.20-confidence button was accepted; production requires %.2f",
+			vision.ScreenParserStructural)
 	}
 	if results[0].Metrics.Rejected == 0 {
 		t.Error("the rejection was not counted")

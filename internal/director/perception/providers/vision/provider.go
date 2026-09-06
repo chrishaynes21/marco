@@ -50,11 +50,47 @@ type Thresholds struct {
 	Timeout time.Duration
 }
 
-// DefaultThresholds are the provisional defaults.
+// The calibration `screenparser-1280.onnx` actually operates at.
+//
+// # Measured, after the old numbers were measured against
+//
+// The previous floors — 0.35 and 0.50 — were provisional and derived from nothing. The first
+// detector ever measured against them disagreed on every screen tried:
+//
+//	Discord   n=165   min .157   median .198   max .348
+//	Chrome    n=116   min .153   median .235   max .343
+//	Xbox       n=29   min .151   median .181   max .291
+//
+// The MAXIMUM detection on each of three unrelated applications sat at or below the floor. Two or
+// three boxes in five hundred got through, and per-candidate inspection showed what was refused:
+// fourteen similarly-sized boxes on one icon-row baseline, and a cluster where the window and
+// account controls visibly are. The policy was not filtering noise; it was disabling the detector.
+//
+// # Why these numbers rather than others
+//
+// `ScreenParserConf` is the model's OWN emission threshold — the value this repository already
+// hands the child as approved calibration, so nothing below it exists to admit. A provider that
+// configures a detector to emit at 0.15 and then discards below 0.35 is running two calibrations
+// and believing the stricter one by accident. One calibration.
+//
+// `ScreenParserStructural` keeps the distinction the two thresholds exist for — worth reporting,
+// against worth reporting as a thing that might one day be clicked — at a bar the measured
+// distribution can actually clear.
+//
+// PROVISIONAL, and now provisional from evidence rather than from nothing. Whether 0.15 admits
+// junk is a question for a live desktop, and the per-candidate diagnostic is how it gets answered.
+const (
+	ScreenParserConf       = 0.15
+	ScreenParserStructural = 0.25
+	ScreenParserIOU        = 0.45
+	ScreenParserSize       = 1280
+)
+
+// DefaultThresholds are the measured calibration.
 func DefaultThresholds() Thresholds {
 	return Thresholds{
-		MinConfidence:           0.35,
-		MinStructuralConfidence: 0.50,
+		MinConfidence:           ScreenParserConf,
+		MinStructuralConfidence: ScreenParserStructural,
 		MinWidth:                6,
 		MinHeight:               6,
 		MaxAreaFraction:         0.9,
@@ -67,10 +103,20 @@ func DefaultThresholds() Thresholds {
 // Counters say WHY a window produced few observations, which is otherwise
 // indistinguishable from a window containing little.
 type Counters struct {
-	Accepted             int `json:"accepted"`
-	AcceptedStructural   int `json:"accepted_structural"`
-	AcceptedText         int `json:"accepted_text"`
-	RejectedClass        int `json:"rejected_unknown_class"`
+	Accepted           int `json:"accepted"`
+	AcceptedStructural int `json:"accepted_structural"`
+	AcceptedText       int `json:"accepted_text"`
+	// RejectedClass is a class this build has no word for.
+	//
+	// It used to also count a MAPPED non-structural detection with nothing readable inside
+	// it, and the two are unrelated: one says the model's vocabulary has outgrown the
+	// adapter, the other says a text region was empty. Conflated, they sent an investigation
+	// looking for a vocabulary gap that did not exist — across three applications every
+	// class the model emitted was mapped, and all 51 "unknown" refusals were the other kind.
+	RejectedClass int `json:"rejected_unknown_class"`
+	// RejectedUnreadable is a mapped non-structural detection with nothing readable in it.
+	// "An image is at these coordinates" is not something anything downstream can use.
+	RejectedUnreadable   int `json:"rejected_unreadable"`
 	RejectedConfidence   int `json:"rejected_confidence"`
 	RejectedGeometry     int `json:"rejected_geometry"`
 	RejectedStaleCapture int `json:"rejected_stale_capture"`
@@ -108,7 +154,7 @@ type Counters struct {
 
 // Total is how many detections were considered.
 func (c Counters) Total() int {
-	return c.Accepted + c.RejectedClass + c.RejectedConfidence +
+	return c.Accepted + c.RejectedClass + c.RejectedUnreadable + c.RejectedConfidence +
 		c.RejectedGeometry + c.RejectedStaleCapture + c.RejectedCeiling
 }
 
@@ -528,7 +574,7 @@ func (p *Provider) observations(ctx context.Context, results []Detection, img ca
 				// A non-structural class with nothing readable in it. There is no
 				// evidence here to report: "an image is at these coordinates" is not
 				// something anything downstream can use.
-				p.counters.RejectedClass++
+				p.counters.RejectedUnreadable++
 				refuse("nothing readable inside a non-structural class")
 				continue
 			}

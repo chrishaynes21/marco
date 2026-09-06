@@ -323,12 +323,21 @@ func TestAnUnknownClassIsRefused(t *testing.T) {
 }
 
 func TestLowConfidenceIsRejected(t *testing.T) {
+	// THE FIXTURE MOVED WITH THE CALIBRATION, and the rule did not.
+	//
+	// It used to use 0.1 and 0.4 against floors of 0.35 and 0.50. Those floors were
+	// provisional and derived from nothing, and the first detector measured against them
+	// produced maxima of .348, .343 and .291 across three applications — so 0.4 was never
+	// "low confidence" for this model, it was above everything the model emits.
+	//
+	// The numbers here are now below the measured floors for the same reason they were
+	// chosen before: one under the reporting bar, one between the two bars.
 	d := &fakeDetector{results: []vision.Detection{
-		detection("button", 10, 10, 40, 20, 0.1),
+		detection("button", 10, 10, 40, 20, 0.05),
 		// Above the reporting floor and below the structural bar: reported by neither,
 		// because a box is a claim that something is there and half-believing one is
 		// not useful.
-		detection("button", 60, 10, 40, 20, 0.4),
+		detection("button", 60, 10, 40, 20, 0.20),
 	}}
 	obs, diag := look(t, provider(t, d, nil))
 

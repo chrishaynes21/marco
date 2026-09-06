@@ -145,6 +145,7 @@ func renderVision(d vision.Diagnostics) string {
 		}
 	}
 	reject("unknown class", c.RejectedClass)
+	reject("nothing readable inside", c.RejectedUnreadable)
 	reject("below confidence", c.RejectedConfidence)
 	reject("implausible geometry", c.RejectedGeometry)
 	reject("stale capture", c.RejectedStaleCapture)

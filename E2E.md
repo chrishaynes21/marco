@@ -88,7 +88,7 @@ type `<thing>`, then Enter.
    `marco do "dm person:sam message:hi there"`.
    - PASS: `person` = `sam`, `message` = `hi there` (value runs to the next `key:`).
 
-10. **Secret argument — provide once, then remembered**
+10. **Secret argument — provide once, the remembered**
     Learn `login to facebook with username, password` (tap F9 for each).
     - `marco do "login to facebook username:me password:hunter2"` → types both.
     - `marco do "login to facebook"` (omit them) → reuses the remembered values.
