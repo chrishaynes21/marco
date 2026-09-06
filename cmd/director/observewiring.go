@@ -277,6 +277,14 @@ func (s *liveSampler) Sample(ctx context.Context, req observesession.SampleReque
 
 		sem.PlaceName = named
 		sem.Affordances = offered
+		// AND EVERYTHING ELSE THE SCREEN SAID, with where each was read from.
+		//
+		// `PlaceName` above is unchanged and still comes from selected navigation, so
+		// nothing downstream behaves differently today. What is new is that the other
+		// claims survive the reading instead of being discarded — which is what lets
+		// interpretation later discover that `Documents` recurs across two independent
+		// sources while `Items View` names nothing. See semanticClaims.
+		sem.Claims = semanticClaims(world)
 		sample.Shadow = s.ensureShadow(sample.Shadow)
 		sample.Shadow.Semantic = sem.Merge(sample.Shadow.Semantic)
 	}
@@ -874,4 +882,87 @@ func earlierOnScreen(a, b *directorapi.Element) bool {
 		return a.Label < b.Label
 	}
 	return a.ID < b.ID
+}
+
+// semanticClaims is everything the current world says about itself, with where each was read.
+//
+// # Why this is not "a better placeNameEvidence"
+//
+// Two applications measured for 39A put the same kind of fact in different places:
+//
+//	Discord   selected navigation "Sometimes Silly"   the server — true, and the wrong level
+//	          container label     "Messages in irl"   the channel — the local state
+//	Explorer  selected navigation "Documents"         the folder — the local state
+//	          container label     "Items View"        generic, names nothing
+//
+// So no source is privileged. This gathers claims and keeps their provenance; deciding which one
+// discriminates is interpretation's job, and it cannot be done here without knowing that
+// `Items View` is furniture — exactly the application-specific knowledge this design refuses.
+//
+// # The three sources, and why each is here
+//
+// SELECTED NAVIGATION is the existing evidence, unchanged, reached through the same walk
+// `placeNameEvidence` performs so there is one reading of the world rather than two.
+//
+// A CONTAINER LABEL is a region naming itself. Only collection roles are asked — `list`, `tree`,
+// `tab_list`, `group` with a label — because those are what both measured applications used to
+// mark the boundary between the interface and what it is displaying. It is a claim, not a
+// classification: nothing here decides that the region IS content.
+//
+// The WINDOW TITLE, which is a claim and never identity. "A window is not a place" is unchanged —
+// this may help decide what is on screen now, and may not become part of what a Place is
+// remembered by. Deleting that distinction must fail TestAWindowTitleIsAClaimAndNotIdentity.
+//
+// Deleting this must fail TestAScreenIsHeardFromEverySourceThatSpoke.
+func semanticClaims(world directorapi.WorldState) []observe.SemanticClaim {
+	return observe.AdmitClaims(claimCandidates(world))
+}
+
+// claimCandidates is every claim the world offered, before admission.
+//
+// Split from the admission above so a diagnostic can show what was REFUSED and why, through
+// observe.ExplainClaims — the one rule — rather than through a second reading of the world that
+// could disagree with the one production made.
+func claimCandidates(world directorapi.WorldState) []observe.SemanticClaim {
+	var out []observe.SemanticClaim
+	for _, e := range placeNameEvidence(world) {
+		if !e.InsideValueChooser && e.Role.Navigable() {
+			out = append(out, observe.SemanticClaim{
+				Text: e.Label, Source: observe.FromSelectedNavigation})
+		}
+	}
+	for _, el := range world.Elements {
+		if el == nil || !el.Visible || el.Offscreen || el.Label == "" {
+			continue
+		}
+		if !collectionRole(el.Role) {
+			continue
+		}
+		out = append(out, observe.SemanticClaim{
+			Text: el.Label, Source: observe.FromContainerLabel,
+			Container: string(el.Role)})
+	}
+	for _, w := range world.Windows {
+		if w.Title != "" {
+			out = append(out, observe.SemanticClaim{
+				Text: w.Title, Source: observe.FromWindowTitle})
+		}
+	}
+	return out
+}
+
+// collectionRole reports whether a role is one that holds a set of things.
+//
+// The roles both measured applications used to bound what they were displaying: Discord's messages
+// under a `list` and its channels under a `tree`, Explorer's files under a `list` and its folders
+// under a `tree`. A `tab_list` is the same idea drawn differently.
+//
+// A closed set, and deliberately not "anything with children". It says which regions are worth
+// ASKING what they call themselves; it does not say what any of them contains.
+func collectionRole(role directorapi.ElementRole) bool {
+	switch role {
+	case directorapi.RoleList, directorapi.RoleTree, directorapi.RoleTabList:
+		return true
+	}
+	return false
 }

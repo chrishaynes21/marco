@@ -188,3 +188,74 @@ func TestTheTrailIsTheSiblingsContainingTheSelectedWord(t *testing.T) {
 		t.Errorf("a word that appears in no trail reported %v", got)
 	}
 }
+
+// A SCREEN IS HEARD FROM EVERY SOURCE THAT SPOKE.
+//
+// # The measurement this wiring exists for
+//
+// Two applications put the same kind of fact in different places. Discord's selected navigation
+// names the SERVER while its content container names the channel; Explorer's selected navigation
+// names the FOLDER while its content container is a generic `Items View`. A collector reading one
+// privileged source is right about one of them and blind to the other.
+//
+// So this walks the world once and keeps every claim with its provenance. It decides nothing —
+// which claim discriminates is interpretation's question, and answering it here would need to know
+// that `Items View` is furniture, exactly the application-specific knowledge this refuses.
+//
+// Both measured shapes, built structurally rather than by naming an application.
+func TestAScreenIsHeardFromEverySourceThatSpoke(t *testing.T) {
+	sel := func(id string, role directorapi.ElementRole, label string) *directorapi.Element {
+		return &directorapi.Element{
+			ID: directorapi.ElementID(id), Role: role, Label: label,
+			Selected: true, Visible: true, Confidence: 1,
+			Bounds: directorapi.Rect{X: 1, Y: 1, Width: 10, Height: 10},
+		}
+	}
+	container := func(id string, role directorapi.ElementRole, label string) *directorapi.Element {
+		return &directorapi.Element{
+			ID: directorapi.ElementID(id), Role: role, Label: label,
+			Visible: true, Confidence: 1,
+			Bounds: directorapi.Rect{X: 1, Y: 1, Width: 100, Height: 100},
+		}
+	}
+
+	// THE DISCORD SHAPE: navigation names the container, the collection names the state.
+	chat := directorapi.WorldState{
+		Elements: map[directorapi.ElementID]*directorapi.Element{
+			"n1": sel("n1", directorapi.RoleTreeItem, "Sometimes Silly"),
+			"c1": container("c1", directorapi.RoleList, "Messages in irl"),
+		},
+	}
+	heard := map[observe.ClaimSource]string{}
+	for _, c := range semanticClaims(chat) {
+		heard[c.Source] = c.Text
+	}
+	if heard[observe.FromSelectedNavigation] != "Sometimes Silly" {
+		t.Errorf("the navigation claim is %q", heard[observe.FromSelectedNavigation])
+	}
+	if heard[observe.FromContainerLabel] != "Messages in irl" {
+		t.Errorf("the container claim is %q; without it the local state is unheard",
+			heard[observe.FromContainerLabel])
+	}
+
+	// THE EXPLORER SHAPE: navigation names the state, the collection names nothing useful —
+	// and the collector keeps both, because it cannot tell which is which.
+	files := directorapi.WorldState{
+		Elements: map[directorapi.ElementID]*directorapi.Element{
+			"n1": sel("n1", directorapi.RoleTreeItem, "Documents"),
+			"c1": container("c1", directorapi.RoleList, "Items View"),
+		},
+	}
+	heard = map[observe.ClaimSource]string{}
+	for _, c := range semanticClaims(files) {
+		heard[c.Source] = c.Text
+	}
+	if heard[observe.FromSelectedNavigation] != "Documents" {
+		t.Errorf("the navigation claim is %q", heard[observe.FromSelectedNavigation])
+	}
+	if heard[observe.FromContainerLabel] != "Items View" {
+		t.Errorf("the generic container claim was judged rather than reported: %q. "+
+			"Deciding it names nothing needs application knowledge this may not have.",
+			heard[observe.FromContainerLabel])
+	}
+}

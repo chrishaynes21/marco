@@ -181,6 +181,10 @@ type SemanticEvidence struct {
 	// ordering — a label and the kind of control it is, which is all a durable target's
 	// identity is made of. See [[ADR-123]].
 	Affordances []ObservedAffordance `json:"affordances,omitempty"`
+	// Claims are everything this reading heard the screen say about itself, each with the
+	// place it was read from. See SemanticClaim: no source is privileged, because two
+	// measured applications put the local state in different ones.
+	Claims []SemanticClaim `json:"claims,omitempty"`
 }
 
 // ObservedAffordance is one named control seen on screen.
@@ -328,6 +332,8 @@ func (s SemanticEvidence) Merge(other SemanticEvidence) SemanticEvidence {
 	// A label arriving with two different KINDS is dropped, for the reason a disagreed name
 	// is: Marco does not know what it is, and a durable target keyed on the wrong kind is a
 	// second record of the same control that nothing will ever reconcile.
+	// CLAIMS UNION. Two sources describing one screen each heard part of it.
+	out.Claims = AdmitClaims(append(append([]SemanticClaim{}, s.Claims...), other.Claims...))
 	kinds := map[string]TargetKind{}
 	var order []string
 	for _, af := range append(append([]ObservedAffordance{}, s.Affordances...),
@@ -393,6 +399,10 @@ func admissibleTerms(in SemanticEvidence) SemanticEvidence {
 	out := SemanticEvidence{
 		EditableFields: in.EditableFields, Observed: in.Observed, PlaceName: in.PlaceName,
 	}
+	// Claims carried deliberately, for the reason Affordances and PlaceName are: this
+	// constructor rebuilds the struct field by field and silently drops what it does not
+	// know about.
+	out.Claims = AdmitClaims(in.Claims)
 	for _, af := range in.Affordances {
 		if af.Label == "" || af.Kind == "" {
 			continue
@@ -416,3 +426,112 @@ func admissibleTerms(in SemanticEvidence) SemanticEvidence {
 
 // MaxTermsPerInference bounds one inference's semantic evidence.
 const MaxTermsPerInference = 12
+
+// ── what a screen says about itself, and where each claim came from ───────────
+
+// ClaimSource is where a semantic claim was read from.
+//
+// The provenance is the point. Two applications measured for 39A put the SAME kind of fact in
+// different places, so no source can be privileged:
+//
+//	Discord   selected navigation "Sometimes Silly"   the server — true, and the wrong level
+//	          container label     "Messages in irl"   the channel — the local state
+//	Explorer  selected navigation "Documents"         the folder — the local state
+//	          container label     "Items View"        generic, names nothing
+//
+// A rule reading the container label as the state would have been right about Discord and told
+// Marco nothing about Explorer. A rule reading selected navigation would have been right about
+// Explorer and named the server in Discord. Both are claims; which one discriminates is a
+// question for interpretation, and it needs to know which is which.
+type ClaimSource string
+
+const (
+	// FromSelectedNavigation is the selected item of something you navigate by.
+	FromSelectedNavigation ClaimSource = "selected_navigation"
+	// FromContainerLabel is the name a semantically labelled region gives itself.
+	FromContainerLabel ClaimSource = "container_label"
+	// FromWindowTitle is what the window calls itself.
+	//
+	// A claim, never identity. "A window is not a place" is unchanged: this may help decide
+	// what is on screen NOW and may not become part of what a Place is remembered by.
+	FromWindowTitle ClaimSource = "window_title"
+)
+
+// SemanticClaim is one thing the current screen says about itself.
+//
+// Text and provenance, and nothing derived. The collector does not decide whether a claim is
+// useful — it cannot, without knowing that `Items View` is furniture and `Messages in irl` is
+// not, which is exactly the application-specific knowledge this design exists to avoid.
+type SemanticClaim struct {
+	Text   string      `json:"text"`
+	Source ClaimSource `json:"source"`
+	// Container is the role of the region that made the claim, for FromContainerLabel: a
+	// `list` naming itself is a different kind of evidence from a `tree` doing so.
+	Container string `json:"container,omitempty"`
+}
+
+// MaxSemanticClaims bounds what one reading may carry. A handful of regions name themselves; a
+// tree that named every group would be describing content rather than the screen.
+const MaxSemanticClaims = 8
+
+// AdmitClaims filters and bounds claims for one reading.
+//
+// The same shape filter every other word off a screen passes. A claim is text somebody could read,
+// so it goes through `safeLabelText` exactly as a control's name does — there is no separate
+// admission policy here and there must not be one.
+func AdmitClaims(in []SemanticClaim) []SemanticClaim {
+	var out []SemanticClaim
+	for _, j := range ExplainClaims(in) {
+		if j.Admitted {
+			out = append(out, j.Claim)
+		}
+	}
+	return out
+}
+
+// ClaimJudgement is one candidate claim and what became of it.
+//
+// For diagnostics. `AdmitClaims` is this with the explanations discarded — the same shape
+// `AdmittedPlaceName` has over `ExplainPlaceName`, so a surface showing why a claim was refused
+// reads the ONE rule rather than a second copy that could disagree with it.
+type ClaimJudgement struct {
+	Claim    SemanticClaim
+	Admitted bool
+	// Why a candidate was refused, empty when it was admitted.
+	Why string
+}
+
+// ExplainClaims judges every candidate claim and says why.
+//
+// The refusals are the existing policy, unchanged: the shape filter that decides whether any text
+// off a screen may be kept, the label-length bound, and a per-reading cap so a tree that named
+// every group could not describe content as though it were describing the screen. Nothing here
+// judges whether a claim is USEFUL — `Items View` is admitted and names nothing, and discovering
+// that needs evidence across readings rather than a rule here.
+func ExplainClaims(in []SemanticClaim) []ClaimJudgement {
+	out := make([]ClaimJudgement, 0, len(in))
+	seen := map[string]bool{}
+	kept := 0
+	for _, c := range in {
+		text := strings.TrimSpace(c.Text)
+		j := ClaimJudgement{Claim: SemanticClaim{
+			Text: text, Source: c.Source, Container: c.Container}}
+		key := string(c.Source) + "\x00" + text
+		switch {
+		case text == "":
+			j.Why = "nothing was said"
+		case len([]rune(text)) > MaxTargetLabelLength:
+			j.Why = "longer than a name of a place"
+		case !safeLabelText(text, 1, DefaultLabelPolicy()):
+			j.Why = "the text does not look like the name of a place"
+		case seen[key]:
+			j.Why = "the same source already said this"
+		case kept >= MaxSemanticClaims:
+			j.Why = "more claims than one reading may carry"
+		default:
+			j.Admitted, seen[key], kept = true, true, kept+1
+		}
+		out = append(out, j)
+	}
+	return out
+}

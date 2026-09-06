@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/bridgehost"
+	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/diagnostics"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/explain"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/fusion"
@@ -41,6 +42,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/world"
 	"github.com/chaynes-simpleclouds/marco/internal/platform/uiaclient"
 	"github.com/chaynes-simpleclouds/marco/internal/platform/winprovider"
+	"github.com/chaynes-simpleclouds/marco/internal/winctx"
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 )
 
@@ -337,7 +339,8 @@ inspect flags:
 
 func runInspect(args []string) int {
 	fs := flag.NewFlagSet("inspect", flag.ExitOnError)
-	windowFlag := fs.String("window", "", "window to scope to, as hwnd:<handle>")
+	windowFlag := fs.String("window", "",
+		"window to scope to: hwnd:<handle>, an executable name, or part of a title")
 	findFlag := fs.String("find", "", "list elements whose label matches this text")
 	repeatFlag := fs.Int("repeat", 1, "number of snapshots to take")
 	bridgeFlag := fs.String("accessibility", defaultBridge(), "path to the accessibility bridge")
@@ -378,7 +381,13 @@ func runInspect(args []string) int {
 	)
 	engine := fusion.NewEngine()
 
-	scope := directorapi.WindowID(*windowFlag)
+	// A WINDOW YOU CAN NAME, not one you have to already know the handle of. See
+	// resolveInspectWindow: `hwnd:<n>` still works, and so does `discord` or a title.
+	scope, err := resolveInspectWindow(*windowFlag)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "director: %v\n", err)
+		return 1
+	}
 	req := observation.Request{}
 	if scope != "" {
 		req.Window = &scope
@@ -414,6 +423,8 @@ func runInspect(args []string) int {
 	if *repeatFlag > 1 {
 		reportStability(worlds)
 	}
+	// WHAT THE SCREEN SAID ABOUT ITSELF, from the same candidates production reads.
+	reportClaims(&worlds[len(worlds)-1])
 	if *findFlag != "" {
 		reportCandidates(&worlds[len(worlds)-1], *findFlag)
 	}
@@ -712,4 +723,89 @@ func defaultBridge() string {
 		}
 	}
 	return filepath.FromSlash(rel)
+}
+
+// resolveInspectWindow turns a friendly window spec into the handle the pipeline scopes by.
+//
+// # Why this exists
+//
+// `--window hwnd:131844` is the only spelling the pipeline understands, and nothing prints a
+// handle. `director windows` reports ephemeral ids and titles; the handle it resolved them from is
+// not in its output. So scoping a diagnostic to an application you can see on screen required
+// finding a handle by a route that does not exist, and an investigation into Discord's
+// accessibility tree stopped at exactly that gap.
+//
+// It accepts `hwnd:<n>` unchanged, and otherwise matches an executable name or a substring of a
+// window title, case-insensitively. Ambiguity is reported rather than resolved: two windows
+// matching "discord" is a question, and picking the first would answer it by accident.
+//
+// Diagnostics only. Nothing in the service reads this, and it grants nothing — the pipeline still
+// scopes by handle exactly as it did.
+func resolveInspectWindow(spec string) (directorapi.WindowID, error) {
+	spec = strings.TrimSpace(spec)
+	if spec == "" || strings.HasPrefix(strings.ToLower(spec), "hwnd:") {
+		return directorapi.WindowID(spec), nil
+	}
+	want := strings.ToLower(spec)
+	var hits []winctx.LiveWindow
+	for _, w := range winctx.LiveWindows() {
+		if !w.Visible || w.Minimized {
+			continue
+		}
+		if strings.ToLower(w.Image) == want ||
+			strings.Contains(strings.ToLower(w.Title), want) {
+			hits = append(hits, w)
+		}
+	}
+	switch len(hits) {
+	case 0:
+		return "", fmt.Errorf("no visible window matches %q", spec)
+	case 1:
+		return directorapi.WindowID(fmt.Sprintf("hwnd:%d", hits[0].Handle)), nil
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "%d visible windows match %q; name one by title or handle:\n", len(hits), spec)
+	for _, w := range hits {
+		fmt.Fprintf(&b, "  hwnd:%-10d %-18s %s\n", w.Handle, w.Image, w.Title)
+	}
+	return "", fmt.Errorf("%s", b.String())
+}
+
+// reportClaims prints what the current reading heard the screen say about itself.
+//
+// # Why a diagnostic for this
+//
+// Two applications measured for 39A put the same kind of fact in different sources — Discord's
+// channel is on its content container while Explorer's folder is on its navigation and title — so
+// "what does this screen say about itself" is now a question with several answers, and there was
+// no way to see them.
+//
+// It reads the SAME candidates production reads, and judges them with the SAME rule
+// (`observe.ExplainClaims`, of which `AdmitClaims` is the explanation-free form). A diagnostic
+// that gathered its own claims would eventually disagree with the reading it claims to describe.
+func reportClaims(w *directorapi.WorldState) {
+	judged := observe.ExplainClaims(claimCandidates(*w))
+	if len(judged) == 0 {
+		fmt.Printf("Claims: this screen said nothing about itself\n\n")
+		return
+	}
+	kept := 0
+	for _, j := range judged {
+		if j.Admitted {
+			kept++
+		}
+	}
+	fmt.Printf("Claims: %d of %d admitted\n", kept, len(judged))
+	for _, j := range judged {
+		scope := string(j.Claim.Source)
+		if j.Claim.Container != "" {
+			scope += " (" + j.Claim.Container + ")"
+		}
+		mark, why := "  ", ""
+		if !j.Admitted {
+			mark, why = "x ", "  — "+j.Why
+		}
+		fmt.Printf("  %s%-22s %q%s\n", mark, scope, j.Claim.Text, why)
+	}
+	fmt.Println()
 }

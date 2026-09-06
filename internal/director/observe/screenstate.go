@@ -634,6 +634,13 @@ type ScreenState struct {
 	// Session-local and transient, like every other tally here. It is evidence that
 	// something was there, never a durable target and never something anything may act on.
 	Affordances map[string]AffordanceTally `json:"affordances,omitempty"`
+	// Claims counts what this screen said about itself, keyed by SOURCE and text.
+	//
+	// Two applications put the local state in different sources, so none is privileged and
+	// the key keeps them apart: `Documents` from selected navigation and from the window
+	// title are two independent witnesses, and collapsing them would lose the corroboration.
+	// Session-local; nothing here reaches Place identity.
+	Claims map[string]int `json:"claims,omitempty"`
 	// Settled says this screen has stopped materially changing shape, and is therefore
 	// worth remembering. See settledWhole: visible is not settled, and settled is
 	// what identity is allowed to rest on.
@@ -1399,6 +1406,7 @@ func (s *ScreenState) creditTerms(sem SemanticEvidence) {
 	// picking one: two readings calling the same label a button and a tab is Marco not
 	// knowing which, and a durable target keyed on the wrong kind is a duplicate nothing
 	// will reconcile.
+	s.creditClaims(sem.Claims)
 	for _, af := range sem.Affordances {
 		if af.Label == "" || af.Kind == "" {
 			continue
@@ -2050,4 +2058,29 @@ func NameSightingsOf(st ScreenState) (top, others int) {
 		}
 	}
 	return top, others
+}
+
+// creditClaims records what this inference heard the screen say, against the state it was in.
+//
+// Tallied per source, for the reason PlaceNames is tallied: a claim read once is a frame, and one
+// that recurs is the screen. Keeping the SOURCE in the key is the whole point — `Documents` from
+// selected navigation and `Documents - File Explorer` from the window title are two independent
+// witnesses, and collapsing them would lose the corroboration that makes either believable.
+//
+// Session-local and bounded. Nothing here is durable, nothing decides anything, and no claim
+// reaches Place identity.
+func (s *ScreenState) creditClaims(claims []SemanticClaim) {
+	for _, c := range claims {
+		if c.Text == "" {
+			continue
+		}
+		if s.Claims == nil {
+			s.Claims = map[string]int{}
+		}
+		key := string(c.Source) + " " + c.Text
+		if _, known := s.Claims[key]; !known && len(s.Claims) >= MaxTermsPerState {
+			continue
+		}
+		s.Claims[key]++
+	}
 }

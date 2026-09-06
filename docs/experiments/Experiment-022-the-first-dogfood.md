@@ -620,3 +620,60 @@ run one live pass, and let it falsify the first explanation. It did so five time
 falsification came from a regression test that already existed — the loading-list case had been
 measured across four cold stores long before this sequence, and reading it was cheaper than
 rediscovering it.
+
+## Finding 11 — the first run with no route, and what it cost to have had one
+
+Watch & Learn on, no prescribed application: a network tab, Settings, Discord across two servers,
+a game launcher. Eight minutes. The map afterwards held **9 Places and 398 affordances**, of which:
+
+- three Places were all called `Sometimes Silly` — one Discord channel, split three ways
+- affordances included `Dhjango`, `:perfection:`, `Click to remove fire`, `they forgot..`
+- **one** of seven relationships carried an attributed action
+- `director reach` — *"I haven't learned any outcomes here yet."*
+
+Eight minutes of real use produced one usable edge. Everything the Settings route had proved was
+true and had been tuned against an application whose accessibility tree is unusually well behaved:
+Settings names every page and separates them structurally. Discord names three screens the same
+thing and puts a friend's name on a button.
+
+### What the measurement found
+
+| | Discord | Explorer |
+|---|---|---|
+| selected navigation | `Sometimes Silly` — the server | `Documents` — the folder |
+| container label | `Messages in irl` — the channel | `Items View` — generic |
+| window title | refused by the shape filter | `Documents - File Explorer` |
+
+Scrolling one channel changed the role signature by **46%** while `tree_item` stayed at exactly 17.
+A different channel's composition sits *between* two scroll positions of the same one.
+
+```
+                 baseline   scrolled   other channel
+button                120        202             186
+text                  189        296             237
+tree_item              17         17              17
+```
+
+Composition carries no information about which channel you are in. The container label does, and
+was there the whole time.
+
+### And one application where there is nothing to read
+
+Epic Games Launcher: **1 element — the window.** Not a degraded reading, not a slow one.
+Accessibility has nothing to say about that interface.
+
+```
+Discord   734 elements, semantic information present   ->  interpretation problem
+Explorer  214 elements, semantic information present   ->  interpretation problem
+Epic        1 element                                  ->  information problem
+```
+
+That is the first evidence in this project that justifies OCR and vision on their own terms rather
+than as extra sensors on a working one. Closed for the first two by
+[[ADR-128-a-screen-says-several-true-things-from-several-places]]; the third is 39B's question.
+
+### Method note
+
+Two of the three instruments used here had to be corrected mid-investigation, and one reported bug
+turned out to be a misreading of correct output. A diagnostic that decides nothing still decides
+what gets investigated.
