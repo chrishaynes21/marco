@@ -791,6 +791,11 @@ type VisionPayload struct {
 	Frames bool `json:"frames,omitempty"`
 	// Last asks for the most recent pass without performing one, for the same reason.
 	Last bool `json:"last,omitempty"`
+	// ReadLabels buys the scoped reading pass, so the report can say what the words
+	// inside each detected control turned out to be. Off by default because a reading is
+	// a serial round trip per box: this is what an observation session's label budget
+	// spends, asked for by hand.
+	ReadLabels bool `json:"read_labels,omitempty"`
 }
 
 // VisionResponse is what a VISION request returns.

@@ -435,3 +435,73 @@ func TestALabelSaysWhereItCameFrom(t *testing.T) {
 	}
 	t.Fatal("no label was produced")
 }
+
+// THE DIAGNOSTIC SAYS WHAT THE READING MADE OF EACH BOX.
+//
+// # Why this is not cosmetic
+//
+// The per-candidate record is how a person establishes whether an unnamed control was never
+// read, read and refused, or read and misattributed — and those three have completely
+// different fixes. Without it the report can say a control was accepted and never what it
+// turned out to say, which is the one thing a naming question needs.
+//
+// It found the defect it exists for. On Epic Games Launcher, whose accessibility tree exposes
+// one element, the detector produced 31 structural controls on every one of ten passes,
+// byte-identical. The World nonetheless held six anonymous shapes at 12% presence, which read
+// as a flickering detector and was not: the label-capable pass was almost never bought. A
+// report that could show `button "Buy Now"` beside `accepted: true` ended that in one command.
+//
+// Deleting the back-fill must fail this.
+func TestTheDiagnosticSaysWhatTheReadingMadeOfEachBox(t *testing.T) {
+	want := []string{"RESUME GAME", "CHANGE MODE/MATCH", "SETTINGS", "EXIT TO MAIN MENU"}
+	_, diag := lookText(t, labelledProvider(t,
+		&pauseReader{labels: want}, &fakeDetector{results: pauseMenuDetections}))
+
+	got := map[string]bool{}
+	for _, c := range diag.Candidates {
+		if c.Label != "" {
+			got[c.Label] = true
+		}
+	}
+	for _, w := range want {
+		if !got[w] {
+			t.Errorf("the candidate record does not say that a box read %q; got %v.\n"+
+				"A report that shows an accepted control but not what it said cannot "+
+				"distinguish a control that was never read from one that read as "+
+				"nothing.", w, got)
+		}
+	}
+	if len(got) != diag.Counters.LabelsRead {
+		t.Errorf("%d candidates carry a label but LabelsRead = %d; the record and the "+
+			"counter describe different passes", len(got), diag.Counters.LabelsRead)
+	}
+}
+
+// AND A PASS WITHOUT THE TEXT BUDGET READS NOTHING AT ALL.
+//
+// The cost invariant, from the diagnostic's side. `readText` is the caller's permission and
+// the only thing that may open the reader: a provider that read regardless would make the
+// label budget a property of how often vision runs rather than of what was asked for, which
+// is the defect this whole seam already had once.
+//
+// So an unnamed candidate on a detect-only pass is the CORRECT answer, and a labelled one
+// here would mean the expensive pass had escaped its gate.
+func TestADetectOnlyPassLeavesEveryCandidateUnread(t *testing.T) {
+	reader := &pauseReader{labels: []string{"RESUME GAME", "SETTINGS"}}
+	_, diag := look(t, labelledProvider(t, reader,
+		&fakeDetector{results: pauseMenuDetections}))
+
+	for _, c := range diag.Candidates {
+		if c.Label != "" {
+			t.Errorf("a detect-only pass read %q inside a box. The reading is the "+
+				"expensive half and it ran without being asked for.", c.Label)
+		}
+	}
+	if diag.Counters.LabelsRead != 0 {
+		t.Errorf("LabelsRead = %d on a pass that bought no text budget",
+			diag.Counters.LabelsRead)
+	}
+	if len(reader.sizes) != 0 {
+		t.Errorf("the reader was handed %d crops on a detect-only pass", len(reader.sizes))
+	}
+}

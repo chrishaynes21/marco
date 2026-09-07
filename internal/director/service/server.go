@@ -184,7 +184,8 @@ type Runtime interface {
 	// ReadVision performs one detection pass for diagnostics. It observes and looks;
 	// it never executes, and cannot — it returns evidence, and evidence has no path to
 	// an action.
-	ReadVision(ctx context.Context, region *directorapi.Rect, target windowref.Selector) vision.Diagnostics
+	ReadVision(ctx context.Context, region *directorapi.Rect, target windowref.Selector,
+		readLabels bool) vision.Diagnostics
 	// LastVision is the most recent pass, without performing one.
 	LastVision() vision.Diagnostics
 	// Frames is the recent frame log, newest first. It holds no pictures.
@@ -578,7 +579,7 @@ func (s *Server) dispatch(req RequestEnvelope, send func(ResponseEnvelope)) bool
 		case p.Last:
 			out.Diagnostics = s.runtime.LastVision()
 		default:
-			out.Diagnostics = s.runtime.ReadVision(s.ctx, p.Region, p.Target)
+			out.Diagnostics = s.runtime.ReadVision(s.ctx, p.Region, p.Target, p.ReadLabels)
 		}
 		send(NewResponse(req.RequestID, ResponsePerception, out))
 

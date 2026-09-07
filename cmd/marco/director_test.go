@@ -368,14 +368,14 @@ func (s *stubRuntime) GameInventory(string) game.InventoryReport {
 
 // The vision surface. The overlay's view of a Director wires no detector, and says so
 // rather than reporting an empty pass.
-func (s *stubRuntime) ReadVision(context.Context, *directorapi.Rect, windowref.Selector) vision.Diagnostics {
+func (s *stubRuntime) ReadVision(context.Context, *directorapi.Rect, windowref.Selector, bool) vision.Diagnostics {
 	return vision.Diagnostics{
 		Backend: "stub", Available: false,
 		Unavailable: "this stub Director wires no vision detector",
 	}
 }
 func (s *stubRuntime) LastVision() vision.Diagnostics {
-	return s.ReadVision(nil, nil, windowref.Selector{})
+	return s.ReadVision(nil, nil, windowref.Selector{}, false)
 }
 func (s *stubRuntime) Frames() []vision.FrameRecord { return nil }
 func (s *stubRuntime) VisionUnavailable() string {

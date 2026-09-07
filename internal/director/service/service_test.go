@@ -1151,14 +1151,14 @@ func (f *fakeRuntime) GameInventory(string) game.InventoryReport {
 // No detector, which is the ordinary state of a Director: the service must transport
 // "vision is unavailable" as an ANSWER rather than as an empty result, because "no model
 // is installed" and "this window is empty" are different findings.
-func (f *fakeRuntime) ReadVision(context.Context, *directorapi.Rect, windowref.Selector) vision.Diagnostics {
+func (f *fakeRuntime) ReadVision(context.Context, *directorapi.Rect, windowref.Selector, bool) vision.Diagnostics {
 	return vision.Diagnostics{
 		Backend: "fake", Available: false, Unavailable: "no detector in tests",
 	}
 }
 
 func (f *fakeRuntime) LastVision() vision.Diagnostics {
-	return f.ReadVision(nil, nil, windowref.Selector{})
+	return f.ReadVision(nil, nil, windowref.Selector{}, false)
 }
 
 func (f *fakeRuntime) Frames() []vision.FrameRecord { return nil }

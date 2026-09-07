@@ -26,7 +26,8 @@ import (
 //
 // It observes and looks; it never executes, and cannot — it returns evidence, and evidence
 // has no path to an action.
-func (r *Runtime) ReadVision(ctx context.Context, region *directorapi.Rect, target windowref.Selector) vision.Diagnostics {
+func (r *Runtime) ReadVision(ctx context.Context, region *directorapi.Rect,
+	target windowref.Selector, readLabels bool) vision.Diagnostics {
 	if r.vision == nil {
 		return vision.Diagnostics{
 			Backend: "vision", Available: false,
@@ -51,7 +52,14 @@ func (r *Runtime) ReadVision(ctx context.Context, region *directorapi.Rect, targ
 		defer func() { r.pinnedWindow = nil }()
 	}
 
-	_, diag, err := r.vision.Look(ctx, observation.WithVision(region))
+	// The reading pass is bought only when asked for. A diagnostic that always read
+	// would report a naming rate no ordinary sample pays for, and one that never could
+	// cannot answer why a control is unnamed. See VisionPayload.ReadLabels.
+	req := observation.WithVision(region)
+	if readLabels {
+		req = observation.WithPixels(region)
+	}
+	_, diag, err := r.vision.Look(ctx, req)
 	if r.winTracker != nil {
 		diag.WindowGeneration = r.winTracker.Generation()
 	}

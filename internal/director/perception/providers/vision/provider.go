@@ -565,9 +565,11 @@ func (p *Provider) observations(ctx context.Context, results []Detection, img ca
 				// definition, and reading inside one is exactly the hallucination the
 				// tiling measurement warned about.
 				if readText && class == ClassText && p.Reader != nil {
+					seen.Why = "held for the reading pass"
 					texts = append(texts, placed{
 						detection: r, class: class,
 						box: img.Transform.Apply(box), image: box,
+						cand: p.noteAt(seen),
 					})
 					continue
 				}
@@ -606,9 +608,9 @@ func (p *Provider) observations(ctx context.Context, results []Detection, img ca
 		p.counters.Accepted++
 		p.counters.AcceptedStructural++
 		seen.Accepted = true
-		p.note(seen)
 		accepted = append(accepted, placed{
 			detection: r, class: class, box: desktop, image: box,
+			cand: p.noteAt(seen),
 		})
 		// Every structural detection is a grid candidate. Restricting this to ClassSlot
 		// made grid inference depend on a detector emitting an inventory word that no
@@ -651,6 +653,7 @@ func (p *Provider) observations(ctx context.Context, results []Detection, img ca
 		}
 		p.counters.Accepted++
 		p.counters.AcceptedText++
+		p.noteRead(t.cand, read.text)
 		out = append(out, observation.Text{
 			ObservationID: mintID(),
 			ProviderID:    p.Name(),
@@ -677,6 +680,7 @@ func (p *Provider) observations(ctx context.Context, results []Detection, img ca
 			el.Attributes["label"] = l.text
 			el.Attributes["label_source"] = "reader"
 			el.Attributes["label_confidence"] = l.confidence
+			p.noteRead(a.cand, l.text)
 		}
 		out = append(out, observation.NewElement(el))
 	}
@@ -819,12 +823,34 @@ type Candidate struct {
 	Accepted bool `json:"accepted"`
 	// Why it was refused, empty when accepted.
 	Why string `json:"why,omitempty"`
+	// Label is what the reading pass read inside this box, empty when nothing was read
+	// or no reading was asked for. Diagnostic only -- nothing downstream reads it.
+	Label string `json:"label,omitempty"`
 }
 
 // note records one candidate's outcome, bounded.
-func (p *Provider) note(c Candidate) {
+func (p *Provider) note(c Candidate) { _ = p.noteAt(c) }
+
+// noteAt records a candidate and reports where, so a later pass can say what reading it.
+// It returns -1 when the ceiling dropped the record.
+func (p *Provider) noteAt(c Candidate) int {
 	if len(p.candidates) >= MaxCandidates {
-		return
+		return -1
 	}
 	p.candidates = append(p.candidates, c)
+	return len(p.candidates) - 1
+}
+
+// noteRead back-fills what the reading pass read inside a candidate's box.
+//
+// Diagnostic only. It changes no observation, no counter and no decision: without it a
+// report can say a control was accepted but never what it turned out to say, which is the
+// one thing a naming question needs to see.
+func (p *Provider) noteRead(i int, text string) {
+	if i < 0 || i >= len(p.candidates) {
+		return
+	}
+	p.candidates[i].Label = text
+	p.candidates[i].Accepted = true
+	p.candidates[i].Why = ""
 }

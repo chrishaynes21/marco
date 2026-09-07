@@ -128,6 +128,10 @@ type placed struct {
 	// ones, kept because the diagnostic reports it.
 	box   directorapi.Rect
 	image image.Rectangle
+	// cand indexes this detection's record in Provider.candidates, or -1 when the
+	// record was dropped by the ceiling. Diagnostic only: it back-fills what the
+	// reading pass made of the box, which is otherwise invisible in the report.
+	cand int
 }
 
 // gridsOver finds the regular arrangements among the accepted detections.

@@ -17,6 +17,7 @@ func runVision(args []string) int {
 	fs := flag.NewFlagSet("vision", flag.ExitOnError)
 	jsonOut := fs.Bool("json", false, "print as JSON")
 	last := fs.Bool("last", false, "show the previous pass without taking a new one")
+	readLabels := fs.Bool("read-labels", false, "read the words inside each detected control (slow: a round trip per box)")
 	region := fs.String("region", "", "narrow to x,y,w,h in desktop coordinates")
 	windowID := fs.String("window-id", "", "target the window with this ephemeral id (see `director windows`)")
 	title := fs.String("window-title", "", "target the window whose title contains this")
@@ -24,7 +25,7 @@ func runVision(args []string) int {
 	processID := fs.Int("process", 0, "target this process's window")
 	_ = fs.Parse(flagsFirst(args))
 
-	p := service.VisionPayload{Last: *last, Target: windowref.Selector{
+	p := service.VisionPayload{Last: *last, ReadLabels: *readLabels, Target: windowref.Selector{
 		EphemeralID: *windowID, Title: *title,
 		Application: *application, ProcessID: uint32(*processID),
 	}}
