@@ -41,16 +41,36 @@ import (
 //
 // It must never be read the other way round. "The last reading was sufficient" is not a claim
 // about the current screen and may not stand in for one.
-func (r *Runtime) moreEvidenceIsWorthBuying() bool {
+// evidencePurchase is what a cycle decided to buy, and why.
+//
+// Two fields rather than a boolean because the caller cannot otherwise tell a repair from
+// ordinary curiosity, and the two want different passes. See the Read field.
+type evidencePurchase struct {
+	// Buy is whether another pass is worth its cost at all.
+	Buy bool
+	// Read is whether THIS purchase must carry the reading budget.
+	//
+	// Set only for the bounded repair a semantically silent screen earns, and never for
+	// ignorance — which is unbounded, recurs on every sample, and would therefore make
+	// reading continuous. The distinction is the whole point: see moreEvidenceIsWorthBuying.
+	Read bool
+}
+
+func (r *Runtime) moreEvidenceIsWorthBuying() evidencePurchase {
 	if r == nil || r.observations == nil {
-		return true
+		return evidencePurchase{Buy: true}
 	}
 	p := r.observations.placeHere()
 	if !p.Placed {
 		// IGNORANCE, NOT AN ANSWER. No session running, no memory, or nothing settled
 		// yet. None of those says the current reading is good enough.
-		return true
+		//
+		// It buys a look and NOT a reading. This arm is unbounded — an unplaced reading
+		// is unplaced on every sample — so setting Read here is exactly the continuous
+		// OCR the budget below exists to refuse.
+		return evidencePurchase{Buy: true}
 	}
+
 	// NeedAnswer: the conservative middle. Passive watching would decline more often and
 	// acting would demand more, and this gate serves whatever the session is for — which it
 	// cannot see from here. Choosing the stricter of the two it might be would spend on
@@ -88,11 +108,33 @@ func (r *Runtime) moreEvidenceIsWorthBuying() bool {
 	// a Place, a plan or an input. It is a spending record.
 	//
 	// Deleting the budget must fail TestOneSilentScreenBuysOneRepair.
-	if sem.State == observe.StateSilent && !r.mayRepairNow() {
-		return false
+	silent := sem.State == observe.StateSilent
+	if silent && !r.mayRepairNow() {
+		return evidencePurchase{}
 	}
-	return observe.EscalationOf(observe.NeedAnswer, structural, sem,
+	worth := observe.EscalationOf(observe.NeedAnswer, structural, sem,
 		r.incompleteFor(p)).Worth()
+	// AND THE REPAIR IS ALLOWED TO ANSWER THE QUESTION IT WAS BOUGHT FOR.
+	//
+	// A semantically silent screen buys one pass, once. Whether that one pass could READ
+	// used to be decided somewhere else entirely — `req.ReadLabels`, the session's
+	// LabelEvery cadence, which knows nothing about repairs. So the single expensive token
+	// bought BECAUSE structured perception could not say which state this is had roughly a
+	// 1-in-LabelEvery chance of performing the reading that is the only thing that could
+	// say. The rest of the time it was spent blind and the screen stayed nameless until it
+	// changed.
+	//
+	// Measured on Epic Games Launcher, whose accessibility tree exposes one element: the
+	// detector finds 31 controls on every pass, deterministically, and a pass carrying the
+	// reading budget names eight of them — "Store", "Library", "Unreal Engine", "Buy Now".
+	// The sensing was never the problem. The repair simply could not use it.
+	//
+	// So Read rides on the repair and on nothing else. This is not "OCR more often": it is
+	// the same one bounded purchase per settled screen state, spent on a pass capable of
+	// answering. Ordinary sampling is untouched and still follows LabelEvery.
+	//
+	// Deleting this must fail TestTheSemanticRepairCanReadWhatItWasBoughtToRead.
+	return evidencePurchase{Buy: worth, Read: worth && silent}
 }
 
 // mayRepairNow claims this settled screen's one semantic repair, and reports whether it was

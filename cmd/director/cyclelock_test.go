@@ -62,7 +62,7 @@ func TestTheSensorGateDoesNotReenterTheCycleLock(t *testing.T) {
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
 	done := make(chan bool, 1)
-	go func() { done <- rt.moreEvidenceIsWorthBuying() }()
+	go func() { done <- rt.moreEvidenceIsWorthBuying().Buy }()
 	select {
 	case <-done:
 	case <-time.After(5 * time.Second):

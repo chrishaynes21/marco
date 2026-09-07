@@ -72,20 +72,20 @@ func TestTheAmbientSessionAsksForTheQuietCadence(t *testing.T) {
 // Provenance.OnlyDescribesPixels.
 func TestTheSensorGateSpendsWhenItDoesNotKnow(t *testing.T) {
 	// A Runtime with no observation registry at all knows nothing.
-	if !(&Runtime{}).moreEvidenceIsWorthBuying() {
+	if !(&Runtime{}).moreEvidenceIsWorthBuying().Buy {
 		t.Error("a Director with nothing watching declined to spend on extra evidence.\n" +
 			"That is ignorance about the reading, not a reading that says it has " +
 			"enough — and a gate that cannot tell them apart silently ends the " +
 			"experiment it gates.")
 	}
-	if !(*Runtime)(nil).moreEvidenceIsWorthBuying() {
+	if !(*Runtime)(nil).moreEvidenceIsWorthBuying().Buy {
 		t.Error("a nil Runtime declined to spend")
 	}
 
 	// AND THE CASE THE FIRST TWO CANNOT REACH: a registry that exists and has settled on
 	// nothing. This is the ordinary state during startup and between sessions, it returns an
 	// unplaced Place, and it is the branch a mutation slipped past until this line existed.
-	if !(&Runtime{observations: &observationRegistry{}}).moreEvidenceIsWorthBuying() {
+	if !(&Runtime{observations: &observationRegistry{}}).moreEvidenceIsWorthBuying().Buy {
 		t.Error("a Director whose registry has settled on nothing declined to spend.\n" +
 			"An unplaced reading is Marco not knowing where it is, not a reading that " +
 			"says it has seen enough.")

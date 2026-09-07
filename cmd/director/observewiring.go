@@ -395,10 +395,19 @@ func (s *liveSampler) request(req observesession.SampleRequest) observation.Requ
 	// all mean Marco does not know whether the reading suffices, and those keep the pass.
 	//
 	// Deleting this must fail TestASufficientSampleDoesNotAskForPixels.
+	// AND A REPAIR MAY READ EVEN WHEN THIS IS NOT A SCHEDULED LABEL SAMPLE.
+	//
+	// `buy.Read` is set only for the one bounded pass a semantically silent screen earns.
+	// Without it that pass was capable of reading only when the unrelated LabelEvery cadence
+	// happened to land on the same sample, so the token bought because Marco could not say
+	// which state this is was usually spent on a look that could not tell it. Ordinary
+	// samples are unchanged and still follow `req.ReadLabels`.
+	//
+	// `s.labels` still gates both: no reader, no reading.
 	out := observation.Request{}
-	if s.rt.moreEvidenceIsWorthBuying() {
+	if buy := s.rt.moreEvidenceIsWorthBuying(); buy.Buy {
 		out = observation.WithVision(nil)
-		if s.labels && req.ReadLabels {
+		if s.labels && (buy.Read || req.ReadLabels) {
 			out = observation.WithPixels(nil)
 		}
 	}

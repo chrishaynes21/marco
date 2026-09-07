@@ -5,6 +5,9 @@ import (
 	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
+	"github.com/chaynes-simpleclouds/marco/internal/director/observesession"
+	"github.com/chaynes-simpleclouds/marco/internal/director/perception/windowref"
+	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 )
 
 // WHEN A READING DESCRIBES AN INTERFACE AND CANNOT SAY WHICH STATE IT IS.
@@ -175,6 +178,135 @@ func TestBuyingPerceptionGrantsNothing(t *testing.T) {
 			t.Errorf("the perception budget reaches %s. Deciding to look harder is not "+
 				"permission to do anything, and this gate is inside the perception "+
 				"cycle where none of that may be reached.", forbidden)
+		}
+	}
+}
+
+// THE REPAIR MAY READ WHAT IT WAS BOUGHT TO READ.
+//
+// # The defect
+//
+// A semantically silent screen earns one bounded pass per settled screen state. Whether that
+// pass could READ was decided somewhere else entirely — `req.ReadLabels`, the session's
+// LabelEvery cadence, which knows nothing about repairs and is not asking a semantic question.
+// So the one expensive token bought BECAUSE structured perception could not say which state
+// this is had roughly a 1-in-LabelEvery chance of performing the reading that is the only
+// thing that could say. The rest of the time it was spent blind.
+//
+// Measured on Epic Games Launcher, whose accessibility tree exposes ONE element: fourteen
+// vision passes produced 31 structural controls every time, byte-identical, and four passes
+// carrying the reading budget named eight of them — "Store", "Library", "Unreal Engine",
+// "Buy Now" — identically each time. Neither sensor was unstable and neither was waiting for
+// the other: `labelsOver` reads inside an accepted control's own box on the SAME captured
+// image. The naming path was already same-pass. The repair simply could not use it.
+//
+// # Why this test enters through the sampler
+//
+// Because the bug lived in the seam. Both halves were correct alone: the budget spends once
+// per settled screen, and the request nests pixels inside the gate. A test of either would
+// have passed on the broken build — and every existing test of this gate calls it directly,
+// which is the same shape as the cycle-lock defect. So this drives a REAL registry with a
+// REAL session through the production `request`, and asserts its premises rather than
+// assuming them.
+func TestTheSemanticRepairCanReadWhatItWasBoughtToRead(t *testing.T) {
+	g, store := watchedRegistry(t)
+	watchNow(t, g, store, "epicgameslauncher")
+	rt := &Runtime{observations: g}
+
+	// PREMISES, asserted. If the reading is not placed the gate returns at ignorance and
+	// never reaches the repair; if it can say which state it is, no repair is bought at
+	// all. Either way this test would pass without exercising the arm it is about.
+	p := g.placeHere()
+	if !p.Placed {
+		t.Fatal("nothing is placed, so the gate returns at the ignorance arm and this " +
+			"test proves nothing about repairs")
+	}
+	if observe.SemanticSufficiencyOf(p).Enough() {
+		t.Fatal("the reading can say which state it is, so it buys no repair and this " +
+			"test proves nothing")
+	}
+
+	s := &liveSampler{rt: rt, labels: true}
+	// NOT a scheduled label sample. This is the whole point: the repair must not depend on
+	// the cadence landing on the same sample.
+	ordinary := observesession.SampleRequest{
+		Window:     windowref.Ref{ID: directorapi.WindowID("hwnd:1")},
+		ReadLabels: false,
+	}
+
+	first := s.request(ordinary)
+	if !first.Includes(directorapi.SourceVision) {
+		t.Fatal("the silent screen's one repair bought no visual pass at all")
+	}
+	if !first.Includes(directorapi.SourceOCR) {
+		t.Error("the repair bought for semantic silence cannot read.\n" +
+			"It is spent on a pass incapable of answering the question it was bought " +
+			"for, and the screen stays nameless until it changes. On Epic that is the " +
+			"difference between 31 anonymous boxes and `button \"Buy Now\"`.")
+	}
+
+	// AND IT IS STILL ONE PURCHASE. The reading rides on the repair; it does not remove
+	// the bound. Every later ordinary sample on the same settled screen must be free.
+	for i := 0; i < 12; i++ {
+		again := s.request(ordinary)
+		if again.Includes(directorapi.SourceOCR) {
+			t.Fatalf("sample %d read again on one unchanged screen. That is continuous "+
+				"OCR, which is the expense the budget exists to refuse.", i+2)
+		}
+		if again.Includes(directorapi.SourceVision) {
+			t.Fatalf("sample %d bought a second inference on one unchanged screen", i+2)
+		}
+	}
+}
+
+// IGNORANCE BUYS A LOOK AND NEVER A READING.
+//
+// The other arm of the same gate, and the one that would turn this fix into "OCR on every
+// sample". An unplaced reading is unplaced again next sample and the one after — it is
+// unbounded by construction, so a reading budget attached to it never stops. Only the
+// bounded repair may read.
+//
+// Deleting the distinction must fail this.
+// EVERY ignorant branch is driven, because they are separate returns and a mutation that
+// teaches one of them to read is invisible to a test that only reaches another. A first
+// draft of this test used `&Runtime{}` alone, which returns at `observations == nil` — and a
+// mutation setting Read on the `!p.Placed` arm survived it. That is the same branch, and the
+// same escape, that TestTheSensorGateSpendsWhenItDoesNotKnow already had to name out loud.
+func TestIgnoranceBuysALookAndNeverAReading(t *testing.T) {
+	ordinary := observesession.SampleRequest{
+		Window:     windowref.Ref{ID: directorapi.WindowID("hwnd:1")},
+		ReadLabels: false,
+	}
+	for _, ignorant := range []struct {
+		what string
+		rt   *Runtime
+	}{
+		{"a Director with nothing watching", &Runtime{}},
+		{"a nil Director", nil},
+		{"a registry that has settled on nothing",
+			&Runtime{observations: &observationRegistry{}}},
+	} {
+		s := &liveSampler{rt: ignorant.rt, labels: true}
+		for i := 0; i < 20; i++ {
+			got := s.request(ordinary)
+			if !got.Includes(directorapi.SourceVision) {
+				t.Fatalf("%s: sample %d declined the visual pass while knowing nothing",
+					ignorant.what, i+1)
+			}
+			if got.Includes(directorapi.SourceOCR) {
+				t.Fatalf("%s: sample %d read labels out of ignorance. Ignorance recurs "+
+					"on every sample, so this is the continuous OCR the whole design "+
+					"refuses — and it is what a repair-shaped fix turns into if the "+
+					"two arms are conflated.", ignorant.what, i+1)
+			}
+		}
+		// AND A SCHEDULED LABEL SAMPLE STILL READS, unchanged: the cadence is not what
+		// moved.
+		scheduled := ordinary
+		scheduled.ReadLabels = true
+		if !s.request(scheduled).Includes(directorapi.SourceOCR) {
+			t.Errorf("%s: an ordinary scheduled label sample stopped reading; "+
+				"LabelEvery behaviour was supposed to be untouched", ignorant.what)
 		}
 	}
 }

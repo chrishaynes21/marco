@@ -677,3 +677,55 @@ than as extra sensors on a working one. Closed for the first two by
 Two of the three instruments used here had to be corrected mid-investigation, and one reported bug
 turned out to be a misreading of correct output. A diagnostic that decides nothing still decides
 what gets investigated.
+
+## Finding 12 — the sensors were never the problem
+
+39B's question was whether Marco can recover semantics from an application that exposes none.
+It can, and it already could: the whole gap was that the pass capable of doing it was almost
+never bought.
+
+Epic Games Launcher, unoccluded and foregrounded, `1` accessibility element:
+
+```
+10 detect-only passes   31 structural controls each, BYTE-IDENTICAL
+ 4 reading passes       the same 12 labels, same boxes, same confidences
+```
+
+```
+button  "Buy Now"          menu "Store"          menu "Library"
+menu    "Unreal Engine"    menu "Fab"            button "Gift"
+menu    "Hogwarts Legacy"  menu "Definitely Not Fried Chicke"
+text    "Remnant - Ultimate Edition"
+text    "Sale ends 9/17/2026 at 8:00 AM"
+```
+
+Zero bounds drift, zero class variance, zero missed detections across fourteen passes. Set
+against what the World actually held during ordinary watching — six anonymous shapes at 12%
+presence, flickering — this falsified three hypotheses at once, each of which would have been an
+expensive wrong turn:
+
+| hypothesis | what it would have built | verdict |
+| --- | --- | --- |
+| the detector is unstable | tracking, persistence, geometry tolerance | false — 10/10 identical |
+| OCR and vision must be made to coincide | cross-sample correspondence | false — naming is same-pass |
+| provenance is refusing the labels | a quarantine exception | false — that is standalone OCR |
+
+`labelsOver` reads inside an accepted control's own box on the same captured image. There was no
+association to build. The 12% was the escalation budget: one repair per settled screen state,
+spent on a pass that could only read if the unrelated `LabelEvery` cadence happened to land on
+the same sample. Fixed by [[ADR-129-a-repair-may-read-what-it-was-bought-to-read]].
+
+### Method note, again
+
+The measurement that settled this could not be taken with the tools that existed —
+`director vision` could report every candidate and could not buy a reading, so an
+accessibility-blind application printed 43 refusals reading `nothing readable inside a
+non-structural class`, which looks exactly like a detector that finds shapes and no words. One
+flag changed the diagnosis. Three of this project's four "built correctly, wired to nothing"
+defects were in this subsystem; the fourth was a confidence floor above the model's entire
+operating range.
+
+And one caveat learned the hard way: targeting a pass by window removes the focus-stealing
+problem but **not** occlusion. A pass reporting `application: epicgameslauncher` returned
+`"00:35.323"` and `"RECORDS WORLD"` — a Trackmania race timer, captured at Epic's rectangle,
+under Epic's name. Read the labels, not just the counters.
