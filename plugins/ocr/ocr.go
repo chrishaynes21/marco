@@ -6,6 +6,7 @@ import (
 	"image"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -36,11 +37,60 @@ type ocrEngine interface {
 type tesseract struct{ bin string }
 
 func newTesseract() ocrEngine {
-	bin := strings.TrimSpace(os.Getenv("MARCO_TESSERACT"))
-	if bin == "" {
-		bin = "tesseract"
+	return tesseract{bin: findTesseract()}
+}
+
+// findTesseract is where the binary is, in the order a person would expect.
+//
+// # The defect this closes
+//
+// Tesseract was installed at the standard Windows location and Marco reported OCR
+// unavailable, because the lookup was `$MARCO_TESSERACT` or the bare name on PATH — and the
+// usual Windows installer does not put itself on PATH. The capability was present and
+// unreachable, which is the same shape as a vision plugin built without its backend and a
+// runtime shipped at the wrong version: nothing was missing, nothing was broken, and the
+// product behaved as though the feature did not exist.
+//
+// # The order, and why each rung
+//
+//	$MARCO_TESSERACT   what somebody said explicitly always wins
+//	PATH               the ordinary answer on macOS, Linux, and a Windows shell set up for it
+//	standard locations a normal Windows install, which is where it actually was
+//
+// Falls back to the bare name so the failure, when there is one, is still the error a person
+// can act on — `exec: "tesseract": executable file not found` names the thing to install.
+//
+// Deleting the standard-location search must fail TestTesseractIsFoundWhereWindowsInstallsIt.
+func findTesseract() string {
+	if bin := strings.TrimSpace(os.Getenv("MARCO_TESSERACT")); bin != "" {
+		return bin
 	}
-	return tesseract{bin: bin}
+	if p, err := exec.LookPath("tesseract"); err == nil {
+		return p
+	}
+	for _, p := range tesseractLocations() {
+		if fi, err := os.Stat(p); err == nil && !fi.IsDir() {
+			return p
+		}
+	}
+	return "tesseract"
+}
+
+// tesseractLocations are where an ordinary install puts it.
+//
+// Built from the environment's own program directories rather than hard-coded drive letters,
+// because "C:\Program Files" is a default and not a fact.
+func tesseractLocations() []string {
+	var out []string
+	for _, key := range []string{"ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA"} {
+		if dir := os.Getenv(key); dir != "" {
+			out = append(out, filepath.Join(dir, "Tesseract-OCR", "tesseract.exe"))
+		}
+	}
+	return append(out,
+		"/usr/local/bin/tesseract",
+		"/opt/homebrew/bin/tesseract",
+	)
 }
 
 // Words pipes the image to `tesseract stdin stdout tsv` and parses the TSV. PSM 3 (full
