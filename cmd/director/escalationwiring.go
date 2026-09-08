@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
@@ -56,8 +57,30 @@ type evidencePurchase struct {
 	Read bool
 }
 
+// noteEscalation records the last purchase decision for the diagnostic. Its own mutex, never
+// Runtime.mu: this is reached from inside the perception cycle's lock.
+func (r *Runtime) noteEscalation(format string, args ...any) {
+	if r == nil {
+		return
+	}
+	r.escalationMu.Lock()
+	r.escalation = fmt.Sprintf(format, args...)
+	r.escalationMu.Unlock()
+}
+
+// lastEscalation is the sentence noteEscalation left.
+func (r *Runtime) lastEscalation() string {
+	if r == nil {
+		return ""
+	}
+	r.escalationMu.Lock()
+	defer r.escalationMu.Unlock()
+	return r.escalation
+}
+
 func (r *Runtime) moreEvidenceIsWorthBuying() evidencePurchase {
 	if r == nil || r.observations == nil {
+		r.noteEscalation("nothing is watching, so ignorance buys a look")
 		return evidencePurchase{Buy: true}
 	}
 	p := r.observations.placeHere()
@@ -68,6 +91,7 @@ func (r *Runtime) moreEvidenceIsWorthBuying() evidencePurchase {
 		// It buys a look and NOT a reading. This arm is unbounded — an unplaced reading
 		// is unplaced on every sample — so setting Read here is exactly the continuous
 		// OCR the budget below exists to refuse.
+		r.noteEscalation("nothing is placed yet, so ignorance buys a look and not a reading")
 		return evidencePurchase{Buy: true}
 	}
 
@@ -110,6 +134,18 @@ func (r *Runtime) moreEvidenceIsWorthBuying() evidencePurchase {
 	// Deleting the budget must fail TestOneSilentScreenBuysOneRepair.
 	silent := sem.State == observe.StateSilent
 	if silent && !r.mayRepairNow() {
+		// THE TWO REFUSALS ARE DIFFERENT FACTS. `mayRepairNow` says no both when the
+		// budget for this epoch is spent and when there is no settled epoch to budget
+		// against at all, and those have opposite remedies — the first is the bound
+		// working, the second is a screen that never held still long enough to be worth
+		// buying evidence for. Reported apart because one reading cannot tell them apart.
+		_, state := r.observations.currentEpoch()
+		why := "the repair for this settled screen is already spent"
+		if state == "" {
+			why = "no screen state has settled, so there is no epoch to budget against"
+		}
+		r.noteEscalation("structurally %s, semantically %s; %s",
+			structural.State, sem.State, why)
 		return evidencePurchase{}
 	}
 	worth := observe.EscalationOf(observe.NeedAnswer, structural, sem,
@@ -134,6 +170,8 @@ func (r *Runtime) moreEvidenceIsWorthBuying() evidencePurchase {
 	// answering. Ordinary sampling is untouched and still follows LabelEvery.
 	//
 	// Deleting this must fail TestTheSemanticRepairCanReadWhatItWasBoughtToRead.
+	r.noteEscalation("structurally %s, semantically %s; buy=%t read=%t",
+		structural.State, sem.State, worth, worth && silent)
 	return evidencePurchase{Buy: worth, Read: worth && silent}
 }
 

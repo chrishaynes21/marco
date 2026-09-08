@@ -337,6 +337,14 @@ type InputStats struct {
 	// being offered looks exactly like one that was never perceived, and the whole point of
 	// the lease is that those are different — see visualLease.
 	VisualLease string `json:"visual_lease,omitempty"`
+	// Escalation is why the last evidence-purchase decision went the way it did: the
+	// structural and semantic verdicts, and whether a pass and a reading were bought.
+	//
+	// Reported because the decision is otherwise invisible. "No pixel controls were on
+	// offer" has several causes with different fixes — the screen never settled, the repair
+	// was already spent, or the reading was judged unnecessary — and they are
+	// indistinguishable from the World alone.
+	Escalation string `json:"escalation,omitempty"`
 }
 
 // PointerAttribution is one press and what it was decided to have landed on.

@@ -334,6 +334,9 @@ func renderObservationSession(raw json.RawMessage) string {
 	// is how a click on a perceived control came to be explained by numbers that were each
 	// true and together wrong. One press, its candidates smallest-first, and the reason —
 	// so a reader can see that the thing somebody pressed was never in the running.
+	if why := v.Stats.Shadow.Input.Escalation; why != "" {
+		fmt.Fprintf(&b, "Evidence purchase: %s\n", why)
+	}
 	if why := v.Stats.Shadow.Input.VisualLease; why != "" {
 		fmt.Fprintf(&b, "Visual evidence: %s\n", why)
 	}

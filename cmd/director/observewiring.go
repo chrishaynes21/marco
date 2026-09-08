@@ -318,6 +318,7 @@ func (s *liveSampler) Sample(ctx context.Context, req observesession.SampleReque
 		// The lease's own account rides with the offer it shaped. Set after Stats()
 		// because the sampler owns the lease and the producer owns the tallies.
 		st.VisualLease = s.leaseWhy
+		st.Escalation = s.rt.lastEscalation()
 		sample.Shadow.InputStats = &st
 		// THE admission context. What this inference's RAW detections say the screen looks
 		// like, handed to the producer so an ambiguous key can be read as navigation while

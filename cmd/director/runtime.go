@@ -203,6 +203,11 @@ type Runtime struct {
 	// already holds `mu`, and `sync.Mutex` is not reentrant.
 	repaired   string
 	repairedMu sync.Mutex
+	// escalation is why the last evidence-purchase decision went the way it did, for the
+	// diagnostic only. Its own mutex: the gate is asked from inside the perception cycle's
+	// lock, and taking Runtime.mu here is the reentrancy that stopped every session once.
+	escalation   string
+	escalationMu sync.Mutex
 	// learned is the ring of durable knowledge changes, fed by the store's own committed
 	// writes so a person can be told what Marco now knows. See learningfeed.go.
 	learned     learningFeed
