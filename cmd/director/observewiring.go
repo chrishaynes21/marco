@@ -650,7 +650,15 @@ func (s *liveSampler) pushActionables(world directorapi.WorldState, now time.Tim
 		}
 		// A control someone can aim at, or the one holding the keyboard's attention — the
 		// two ways an input event acquires a target.
-		if !el.Role.Clickable() && !el.Focused {
+		//
+		// ATTRIBUTABLE, NOT CLICKABLE. This set answers "what could the person have pressed",
+		// and `Clickable` answers "what may Marco press itself" — a narrower question about
+		// authority that has no business narrowing an observation. While they were the same
+		// predicate, a human click on a perceived `menu "Library"` resolved to the enclosing
+		// window, because RoleMenu is not something Marco would press unprompted.
+		//
+		// Nothing here becomes executable: see ElementRole.PointerAttributable.
+		if !el.Role.PointerAttributable() && !el.Focused {
 			continue
 		}
 		found = append(found, el)

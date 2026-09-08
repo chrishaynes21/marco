@@ -228,6 +228,38 @@ func (r ElementRole) Clickable() bool {
 	return false
 }
 
+// PointerAttributable reports whether a press inside an element of this role can be said to
+// have landed ON that element.
+//
+// # Why this is not Clickable
+//
+// Clickable answers "may Marco treat this as a target for a click it performs itself", which is
+// a question about AUTHORITY and is conservative on purpose: seeing something classified as a
+// menu is not permission to press it. This answers "could this explain where a person's finger
+// went", which is a question about BELIEF, and the evidence is different — the human already
+// pressed it, and Marco is only trying to say what they pressed.
+//
+// Conflating the two cost a live experiment. On an application whose accessibility tree offers
+// one window, the detector found `menu "Library"` with current bounds, a person clicked it, and
+// the press was attributed to the enclosing window because RoleMenu is not Clickable. Nothing
+// had rejected the pixel evidence; the candidate set was simply narrower than human observation
+// requires. See [[ADR-130-watching-is-not-permission-to-press]].
+//
+// It grants nothing. A role admitted here is still not executable, still not Actionable, and
+// still gets no authority — this predicate has exactly one consumer, the candidate set a human
+// press is resolved against, and the resolver already prefers the SMALLEST containing element,
+// so an enclosing container wins only when nothing more specific claims the point.
+func (r ElementRole) PointerAttributable() bool {
+	if r.Clickable() || roleInteractive(r) {
+		return true
+	}
+	// A MENU. Not clickable — Marco will not press a container of its own accord — and yet
+	// already on NameablePlaintext, which is this project's existing, reviewed judgement that
+	// a menu is a control whose name is safe to keep. A role Marco may NAME as a control is a
+	// role a person may be said to have pressed.
+	return r == RoleMenu
+}
+
 // Navigable reports whether this role names something a user goes TO rather than something they
 // operate. A list item, tree item or tab is a destination; a button, checkbox or combo box is a
 // control.

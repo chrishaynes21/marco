@@ -314,6 +314,47 @@ type InputStats struct {
 	// PointerResolved is placed presses that DID name a control. The positive half, so a
 	// reader can tell "resolution never works here" from "it worked and this one missed".
 	PointerResolved int `json:"pointer_resolved,omitempty"`
+	// PointerAttributions is how the most recent presses were resolved, one record each.
+	//
+	// # Why the tallies above are not enough
+	//
+	// They say how often resolution succeeded and never what it decided. When a click on a
+	// perceived `menu "Library"` was attributed to the enclosing window instead, the tallies
+	// read `0 landed on nothing` — technically true, and it took a code trace to discover
+	// that the thing the person actually pressed had never been a candidate. Four diagnoses
+	// in this subsystem have now been reconstructed from aggregates and one of them was
+	// wrong. A reader should be able to see one press and its candidates.
+	//
+	// Transient diagnostic evidence. Bounded, session-local, written to nothing durable, and
+	// carrying no absolute desktop coordinate: the position is the same window-relative one
+	// the event itself already carries, and a candidate's SIZE is what explains why the
+	// smallest containing control won. See PointerAttribution.
+	PointerAttributions []PointerAttribution `json:"pointer_attributions,omitempty"`
+}
+
+// PointerAttribution is one press and what it was decided to have landed on.
+type PointerAttribution struct {
+	// At is the window-relative position, 0..1 on each axis — never a desktop pixel.
+	At PointerAt `json:"at"`
+	// Candidates are the offered controls that contained the press, SMALLEST FIRST, which
+	// is the order the resolver applies. Empty means nothing on offer contained it.
+	Candidates []AttributionCandidate `json:"candidates,omitempty"`
+	// Chosen indexes Candidates, or -1 when nothing was attributed.
+	Chosen int `json:"chosen"`
+	// Why the decision went the way it did, in the resolver's own words.
+	Why string `json:"why,omitempty"`
+}
+
+// AttributionCandidate is one control that contained a press.
+//
+// Role and the ADMITTED label only — an empty Label means the name was withheld, which is the
+// label gate working rather than a failure to find one. Width and height are sizes, not
+// positions: they locate nothing and they are the whole reason one candidate beat another.
+type AttributionCandidate struct {
+	Role  string `json:"role"`
+	Label string `json:"label,omitempty"`
+	W     int    `json:"w"`
+	H     int    `json:"h"`
 }
 
 // Observed reports whether the producer was actually running.

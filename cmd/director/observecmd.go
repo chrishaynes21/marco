@@ -328,6 +328,28 @@ func renderObservationSession(raw json.RawMessage) string {
 			in.PointerResolved, in.PointerUnnamed, in.PointerUnresolved,
 			in.ControlsOffered)
 	}
+	// AND WHAT EACH RECENT PRESS ACTUALLY RESOLVED TO.
+	//
+	// The tallies above say how often resolution succeeded and never what it decided, which
+	// is how a click on a perceived control came to be explained by numbers that were each
+	// true and together wrong. One press, its candidates smallest-first, and the reason —
+	// so a reader can see that the thing somebody pressed was never in the running.
+	for _, a := range v.Stats.Shadow.Input.PointerAttributions {
+		fmt.Fprintf(&b, "  press at %.3f,%.3f of the window — %s\n", a.At.X, a.At.Y, a.Why)
+		if len(a.Candidates) == 0 {
+			fmt.Fprintf(&b, "      no candidate contained it\n")
+		}
+		for i, c := range a.Candidates {
+			mark, name := " ", "(name withheld)"
+			if i == a.Chosen {
+				mark = ">"
+			}
+			if c.Label != "" {
+				name = "\"" + c.Label + "\""
+			}
+			fmt.Fprintf(&b, "    %s %-11s %-24s %dx%d\n", mark, c.Role, name, c.W, c.H)
+		}
+	}
 
 	// The target provenance guard's verdict over the session.
 	//

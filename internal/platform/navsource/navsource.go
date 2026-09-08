@@ -151,6 +151,9 @@ type Source struct {
 	// actionable elements a press can be resolved against. Guarded by mu and read only from
 	// the worker, like everything the hook must never touch. See SetActionables.
 	controls actionables
+	// attributions is the bounded per-press diagnostic record. Worker-side like `controls`,
+	// guarded by mu, and transient: see MaxPointerAttributions.
+	attributions []observe.PointerAttribution
 	// owned is whether Marco's own surface held the foreground, as last confirmed.
 	owned ownerContext
 
@@ -405,15 +408,24 @@ func (s *Source) handlePointer(e rawEvent) {
 	// on the plaintext allowlist, so only an explicit Learn licence admits it. Reporting that
 	// as "landed on nothing" reads as a geometry or coordinate-space fault and sends the
 	// reader hunting for one.
+	candidates := s.controls.containing(e.x, e.y, e.at)
 	target := s.controls.under(e.x, e.y, e.at)
+	why := ""
 	switch {
 	case target == nil:
 		s.stats.PointerUnresolved++
+		why = "nothing on offer contained the press"
+		if len(s.controls.items) == 0 {
+			why = "no controls were on offer"
+		}
 	case !target.Named():
 		s.stats.PointerUnnamed++
+		why = "the smallest control containing the press; its name is withheld"
 	default:
 		s.stats.PointerResolved++
+		why = "the smallest control containing the press"
 	}
+	s.recordAttribution(where, candidates, target != nil, why)
 	// Never conditional. A pointer press means the same thing whatever the screen looks
 	// like — the ambiguity that flag exists for is a KEY meaning two things, and a click
 	// has only ever meant one.
@@ -423,6 +435,35 @@ func (s *Source) handlePointer(e rawEvent) {
 	// failing — a stale index, a press between controls, no index at all — costs the
 	// enrichment and never the event. Interpretation failure is not capture failure.
 	s.sub.add(observe.NavPoint, e.at, false, where, target)
+}
+
+// MaxPointerAttributions bounds the per-press diagnostic record.
+//
+// Small on purpose. This answers "what did the last press resolve to and what else was in the
+// running", which a person reads one at a time; a session-long log of every click would be a
+// different thing with different privacy questions.
+const MaxPointerAttributions = 8
+
+// recordAttribution keeps one press's decision for the diagnostic.
+//
+// Worker-side, like everything that touches the control index. Nothing here is durable, nothing
+// reaches semantic memory, and the labels are already the admitted form.
+func (s *Source) recordAttribution(at observe.PointerAt, candidates []Actionable,
+	resolved bool, why string) {
+
+	rec := observe.PointerAttribution{At: at, Chosen: -1, Why: why}
+	if resolved && len(candidates) > 0 {
+		rec.Chosen = 0
+	}
+	for _, c := range candidates {
+		rec.Candidates = append(rec.Candidates, observe.AttributionCandidate{
+			Role: c.Role, Label: c.Label, W: c.W, H: c.H,
+		})
+	}
+	s.attributions = append(s.attributions, rec)
+	if len(s.attributions) > MaxPointerAttributions {
+		s.attributions = s.attributions[len(s.attributions)-MaxPointerAttributions:]
+	}
 }
 
 func (s *Source) ignore(r IgnoreReason) {
@@ -449,6 +490,12 @@ func (s *Source) Stats() Stats {
 	// the question a reader asks is "was anything on offer", and the newest answer is the
 	// one that matters.
 	out.ControlsOffered = len(s.controls.items)
+	// COPIED, for the same reason Actionables copies: a reader ranges over this while the
+	// worker keeps resolving presses into it.
+	if len(s.attributions) > 0 {
+		out.PointerAttributions = make([]observe.PointerAttribution, len(s.attributions))
+		copy(out.PointerAttributions, s.attributions)
+	}
 	return out
 }
 
@@ -535,25 +582,40 @@ func (a actionables) fresh(t time.Time) bool {
 
 // under resolves the smallest actionable containing an absolute desktop point, at event time.
 func (a actionables) under(x, y int32, at time.Time) *observe.SemanticTarget {
+	c := a.containing(x, y, at)
+	if len(c) == 0 {
+		return nil
+	}
+	return &observe.SemanticTarget{Role: c[0].Role, Label: c[0].Label}
+}
+
+// containing is every offered control that contained an absolute desktop point, SMALLEST
+// FIRST.
+//
+// One rule, two readers. `under` takes the head of this list and the diagnostic reports the
+// whole of it, so what a report shows is the decision that was made rather than a second
+// implementation of it that might disagree — which is exactly how a click on a perceived
+// control came to be explained by aggregate tallies that were individually true and together
+// misleading.
+//
+// Smallest wins because the most specific thing containing a press is what the person pressed:
+// an enclosing window contains every point on itself and explains nothing.
+func (a actionables) containing(x, y int32, at time.Time) []Actionable {
 	if !a.fresh(at) {
 		return nil
 	}
-	best := -1
-	for i, c := range a.items {
+	var out []Actionable
+	for _, c := range a.items {
 		if c.W <= 0 || c.H <= 0 {
 			continue
 		}
 		if int(x) < c.X || int(y) < c.Y || int(x) >= c.X+c.W || int(y) >= c.Y+c.H {
 			continue
 		}
-		if best == -1 || c.W*c.H < a.items[best].W*a.items[best].H {
-			best = i
-		}
+		out = append(out, c)
 	}
-	if best == -1 {
-		return nil
-	}
-	return &observe.SemanticTarget{Role: a.items[best].Role, Label: a.items[best].Label}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].W*out[i].H < out[j].W*out[j].H })
+	return out
 }
 
 // focused is the control holding the keyboard's attention, when the last inference knew.
