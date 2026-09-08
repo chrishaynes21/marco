@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -82,7 +83,7 @@ func pressAndRead(t *testing.T, s *liveSampler, press func(x, y int32)) *observe
 		before := src.Stats().Classified
 		s.pushNavContext(&observe.ShadowSample{Ran: true, TargetProven: true},
 			directorapi.Rect{X: 100, Y: 200, Width: 400, Height: 300}, time.Now())
-		s.pushActionables(settingsWorld(), time.Now())
+		s.pushActionables(context.Background(), settingsWorld(), directorapi.Window{}, 0, time.Now())
 		press(200, 320)
 		for i := 0; i < 500 && src.Stats().Classified <= before; i++ {
 			time.Sleep(time.Millisecond)

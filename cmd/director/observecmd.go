@@ -334,6 +334,9 @@ func renderObservationSession(raw json.RawMessage) string {
 	// is how a click on a perceived control came to be explained by numbers that were each
 	// true and together wrong. One press, its candidates smallest-first, and the reason —
 	// so a reader can see that the thing somebody pressed was never in the running.
+	if why := v.Stats.Shadow.Input.VisualLease; why != "" {
+		fmt.Fprintf(&b, "Visual evidence: %s\n", why)
+	}
 	for _, a := range v.Stats.Shadow.Input.PointerAttributions {
 		fmt.Fprintf(&b, "  press at %.3f,%.3f of the window — %s\n", a.At.X, a.At.Y, a.Why)
 		if len(a.Candidates) == 0 {
@@ -347,7 +350,12 @@ func renderObservationSession(raw json.RawMessage) string {
 			if c.Label != "" {
 				name = "\"" + c.Label + "\""
 			}
-			fmt.Fprintf(&b, "    %s %-11s %-24s %dx%d\n", mark, c.Role, name, c.W, c.H)
+			held := ""
+			if c.Leased {
+				held = "  [current visual evidence]"
+			}
+			fmt.Fprintf(&b, "    %s %-11s %-24s %dx%d%s\n", mark, c.Role, name,
+				c.W, c.H, held)
 		}
 	}
 

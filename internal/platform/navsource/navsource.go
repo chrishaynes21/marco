@@ -457,7 +457,7 @@ func (s *Source) recordAttribution(at observe.PointerAt, candidates []Actionable
 	}
 	for _, c := range candidates {
 		rec.Candidates = append(rec.Candidates, observe.AttributionCandidate{
-			Role: c.Role, Label: c.Label, W: c.W, H: c.H,
+			Role: c.Role, Label: c.Label, W: c.W, H: c.H, Leased: c.Leased,
 		})
 	}
 	s.attributions = append(s.attributions, rec)
@@ -563,6 +563,11 @@ type Actionable struct {
 	Role, Label string
 	// Focused says the keyboard's attention was on this control at the inference.
 	Focused bool
+	// Leased says this control reached the offer on still-current visual evidence from an
+	// earlier acquisition rather than on this one — the sensor that sees it did not run, and
+	// a cheap present-tense check said the scene it was observed in is still on screen.
+	// Diagnostic only: resolution treats a leased control exactly like any other.
+	Leased bool
 }
 
 // actionables is the worker-side index of what a press can be resolved against.

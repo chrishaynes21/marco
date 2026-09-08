@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -112,7 +113,7 @@ func TestAValidInferenceOffersActionablesToTheProducer(t *testing.T) {
 
 	// Passive: the button's name crosses, the list item's does not.
 	s.pushNavContext(sh, frame, time.Now())
-	s.pushActionables(world, time.Now())
+	s.pushActionables(context.Background(), world, directorapi.Window{}, 0, time.Now())
 	press(200, 320) // inside the list item
 	waitClassified(t, src, 1)
 	got := sub.Drain()
@@ -127,7 +128,7 @@ func TestAValidInferenceOffersActionablesToTheProducer(t *testing.T) {
 	// Under the demonstration licence, the one control the person aims at may carry its
 	// name — shape-filtered exactly as every admitted label is.
 	s.nameActivatedTargets = true
-	s.pushActionables(world, time.Now())
+	s.pushActionables(context.Background(), world, directorapi.Window{}, 0, time.Now())
 	press(200, 320)
 	waitClassified(t, src, 2)
 	got = sub.Drain()
@@ -185,7 +186,7 @@ func TestADefaultDirectorGivesThePointerAFrame(t *testing.T) {
 		"e1": {Role: directorapi.RoleButton, Label: "Save", Visible: true, Confidence: 0.9,
 			Bounds: directorapi.Rect{X: 150, Y: 250, Width: 200, Height: 40}},
 	}}
-	s.pushActionables(world, time.Now())
+	s.pushActionables(context.Background(), world, directorapi.Window{}, 0, time.Now())
 	press(200, 270)
 	waitClassified(t, src, 2)
 	got := sub.Drain()
@@ -299,7 +300,7 @@ func TestWhichControlsAreOfferedDoesNotDependOnMapOrder(t *testing.T) {
 	}
 
 	offered := func() []navsource.Actionable {
-		s.pushActionables(world, time.Now())
+		s.pushActionables(context.Background(), world, directorapi.Window{}, 0, time.Now())
 		return s.rt.navSource.Actionables()
 	}
 	first := offered()
@@ -343,13 +344,13 @@ func TestWhichControlsAreOfferedDoesNotDependOnMapOrder(t *testing.T) {
 			Bounds: directorapi.Rect{X: 10, Y: 20, Width: 100, Height: 18},
 		}
 	}
-	s.pushActionables(tied, time.Now())
+	s.pushActionables(context.Background(), tied, directorapi.Window{}, 0, time.Now())
 	settled := s.rt.navSource.Actionables()
 	if len(settled) != MaxActionables {
 		t.Fatalf("%d tied actionable(s) offered, want the bound", len(settled))
 	}
 	for run := 0; run < 20; run++ {
-		s.pushActionables(tied, time.Now())
+		s.pushActionables(context.Background(), tied, directorapi.Window{}, 0, time.Now())
 		again := s.rt.navSource.Actionables()
 		for i := range again {
 			if again[i] != settled[i] {

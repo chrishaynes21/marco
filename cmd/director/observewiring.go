@@ -69,6 +69,13 @@ func (t *liveTarget) Acquire(ctx context.Context, s windowref.Selector) (windowr
 // nowhere in this file.
 type liveSampler struct {
 	rt *Runtime
+	// lease is still-current visual evidence from an earlier acquisition, and leaseWhy the
+	// sentence a diagnostic prints for it. Session-scoped and written to nothing durable:
+	// see visualLease.
+	lease    *visualLease
+	leaseWhy string
+	// leaseDropped is the last reason a lease ENDED, kept after leaseWhy has moved on.
+	leaseDropped string
 	// labels says whether this Director can read text inside detected controls at all.
 	labels bool
 	// nav is this session's navigation subscription, nil when no source is available.
@@ -308,6 +315,9 @@ func (s *liveSampler) Sample(ctx context.Context, req observesession.SampleReque
 			}
 		}
 		sample.Shadow = s.ensureShadow(sample.Shadow)
+		// The lease's own account rides with the offer it shaped. Set after Stats()
+		// because the sampler owns the lease and the producer owns the tallies.
+		st.VisualLease = s.leaseWhy
 		sample.Shadow.InputStats = &st
 		// THE admission context. What this inference's RAW detections say the screen looks
 		// like, handed to the producer so an ambiguous key can be read as navigation while
@@ -328,7 +338,7 @@ func (s *liveSampler) Sample(ctx context.Context, req observesession.SampleReque
 		s.pushNavContext(sample.Shadow, pinned.Bounds, time.Now())
 		// And what that window OFFERED, in the same breath and under the same freshness
 		// rules, so the next click can be resolved to the control it lands on.
-		s.pushActionables(world, time.Now())
+		s.pushActionables(ctx, world, pinned, req.Window.Generation, time.Now())
 	} else if s.rt.navUnavailable != "" {
 		sample.Shadow = s.ensureShadow(sample.Shadow)
 		sample.Shadow.InputStats = &observe.InputStats{Unavailable: s.rt.navUnavailable}
@@ -617,7 +627,8 @@ func (s *liveSampler) mayNameTargets() bool {
 // stamped, stale under the producer's own TTL.
 //
 // Deleting this call must fail TestAValidInferenceOffersActionablesToTheProducer.
-func (s *liveSampler) pushActionables(world directorapi.WorldState, now time.Time) {
+func (s *liveSampler) pushActionables(ctx context.Context, world directorapi.WorldState,
+	window directorapi.Window, generation uint64, now time.Time) {
 	if s.rt == nil || s.rt.navSource == nil {
 		return
 	}
@@ -663,6 +674,9 @@ func (s *liveSampler) pushActionables(world directorapi.WorldState, now time.Tim
 		}
 		found = append(found, el)
 	}
+	// AND STILL-CURRENT VISUAL EVIDENCE, when this acquisition did not buy the sensor that
+	// produced it. A sensor sitting out is not a thing disappearing; see visualLease.
+	found = s.withLease(ctx, found, window, generation, now)
 	sort.Slice(found, func(i, j int) bool { return earlierOnScreen(found[i], found[j]) })
 
 	items := make([]navsource.Actionable, 0, len(found))
@@ -673,6 +687,7 @@ func (s *liveSampler) pushActionables(world directorapi.WorldState, now time.Tim
 			Label: observe.AdmittedTargetLabel(el.Role, s.mayNameTargets(), el.Label,
 				el.Confidence),
 			Focused: el.Focused,
+			Leased:  el.Attributes[leaseAttribute] == true,
 		})
 		if len(items) >= MaxActionables {
 			break

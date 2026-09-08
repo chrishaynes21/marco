@@ -330,6 +330,13 @@ type InputStats struct {
 	// the event itself already carries, and a candidate's SIZE is what explains why the
 	// smallest containing control won. See PointerAttribution.
 	PointerAttributions []PointerAttribution `json:"pointer_attributions,omitempty"`
+	// VisualLease says what became of still-current visual evidence on this acquisition:
+	// whether it was renewed, borrowed, or dropped and why.
+	//
+	// Reported because its absence is invisible. A pixel-derived control that quietly stops
+	// being offered looks exactly like one that was never perceived, and the whole point of
+	// the lease is that those are different — see visualLease.
+	VisualLease string `json:"visual_lease,omitempty"`
 }
 
 // PointerAttribution is one press and what it was decided to have landed on.
@@ -355,6 +362,10 @@ type AttributionCandidate struct {
 	Label string `json:"label,omitempty"`
 	W     int    `json:"w"`
 	H     int    `json:"h"`
+	// Leased says this candidate reached the offer on still-current visual evidence from an
+	// earlier acquisition rather than on the one that preceded the press. It changes nothing
+	// about resolution and exists so a reader can tell which evidence explained a click.
+	Leased bool `json:"leased,omitempty"`
 }
 
 // Observed reports whether the producer was actually running.

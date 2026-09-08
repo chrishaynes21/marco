@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"reflect"
 	"testing"
 	"time"
@@ -52,7 +53,7 @@ func TestAHumanClickOnAPerceivedMenuIsAttributedToIt(t *testing.T) {
 		Bounds: directorapi.Rect{X: 150, Y: 250, Width: 200, Height: 20}})
 
 	s.pushNavContext(&observe.ShadowSample{Ran: true, TargetProven: true}, clickFrame, time.Now())
-	s.pushActionables(world, time.Now())
+	s.pushActionables(context.Background(), world, directorapi.Window{}, 0, time.Now())
 	press(200, 255) // inside the menu, and inside the window
 	waitClassified(t, s.rt.navSource, 1)
 
@@ -87,7 +88,7 @@ func TestInertContentCannotExplainAClick(t *testing.T) {
 
 		s.pushNavContext(&observe.ShadowSample{Ran: true, TargetProven: true},
 			clickFrame, time.Now())
-		s.pushActionables(world, time.Now())
+		s.pushActionables(context.Background(), world, directorapi.Window{}, 0, time.Now())
 		press(200, 255)
 		waitClassified(t, s.rt.navSource, 1)
 
@@ -151,7 +152,7 @@ func TestOnePressIsExplainedByItsOwnRecord(t *testing.T) {
 		Bounds: directorapi.Rect{X: 150, Y: 250, Width: 200, Height: 20}})
 
 	s.pushNavContext(&observe.ShadowSample{Ran: true, TargetProven: true}, clickFrame, time.Now())
-	s.pushActionables(world, time.Now())
+	s.pushActionables(context.Background(), world, directorapi.Window{}, 0, time.Now())
 	press(200, 255)
 	waitClassified(t, s.rt.navSource, 1)
 	_ = sub.Drain()
