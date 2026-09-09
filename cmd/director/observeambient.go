@@ -95,6 +95,17 @@ type ambientObserver struct {
 	promotion    ambient.Policy
 	noticedEdges int
 	promoted     int
+	// crossings is what became of each noticed crossing, by application and outcome.
+	//
+	// `noticedEdges` counts only the crossings that BECAME candidates, so every other
+	// outcome was indistinguishable from never having happened — a leg with no attributed
+	// action, one with several, and an endpoint Marco could not describe all left the same
+	// silence. Measured on an accessibility-blind application: 3 settled screens, 10 moves
+	// noticed and 0 candidates, with nothing anywhere saying which door they left by.
+	//
+	// Counts only, keyed by application. No subject id, no control name, no coordinate, no
+	// read text — the same boundary the rest of this view holds. See recordCrossing.
+	crossings map[string]map[string]int
 	// lastLedgerSession is which watching session the previous crossing belonged to.
 	lastLedgerSession observe.SessionID
 	samples           int
@@ -876,6 +887,17 @@ func (a *ambientObserver) view() service.AmbientView {
 	// says whether anything on this desktop is becoming permanent.
 	out.Learning = a.promotion.Enabled
 	out.Noticed, out.Learned = a.noticedEdges, a.promoted
+	// COPIED, because the observer keeps writing it while whoever asked is rendering it.
+	if len(a.crossings) > 0 {
+		out.Crossings = make(map[string]map[string]int, len(a.crossings))
+		for app, by := range a.crossings {
+			copied := make(map[string]int, len(by))
+			for outcome, n := range by {
+				copied[outcome] = n
+			}
+			out.Crossings[app] = copied
+		}
+	}
 	// WHAT THE AFFORDANCE SWEEP SAW AND REFUSED. Copied rather than shared, because the map
 	// keeps being written while whoever asked is rendering it.
 	out.AffordancesVisible = a.affordancesVisible
@@ -1303,4 +1325,44 @@ func (a *ambientObserver) pollEvery() time.Duration {
 		return burstInterval
 	}
 	return a.attention
+}
+
+// The outcomes one noticed crossing can have, in the order `noticed` asks them.
+//
+// They are recorded AT the production return sites rather than derived afterwards, for the
+// reason the escalation note is: a reporting layer that re-asked the questions would be a second
+// implementation of the policy, free to agree with the code while disagreeing with the run.
+const (
+	// crossingNotHuman is Marco's own work, which is never evidence of a habit.
+	crossingNotHuman = "not_human"
+	// crossingNoAction is a crossing nothing was attributed to. The screen changed and
+	// nobody can say what changed it — a movement rather than a relationship.
+	crossingNoAction = "action_count_zero"
+	// crossingManyActions is a leg carrying several actions: a menu opened and an item
+	// chosen inside it, arriving somewhere in one transition. Splitting it would invent two
+	// relationships that were never separately observed.
+	crossingManyActions = "action_count_multiple"
+	// crossingSourceUnusable and crossingDestinationUnusable are ends that are neither a
+	// Place Marco knows nor a shape it can compare — nothing an edge could point at.
+	crossingSourceUnusable      = "source_without_subject_or_shape"
+	crossingDestinationUnusable = "destination_without_subject_or_shape"
+	// crossingCandidate is the affirmative case, counted for the same reason the refusals
+	// are: a distribution with no denominator says nothing.
+	crossingCandidate = "candidate_constructed"
+)
+
+// recordCrossing counts one outcome against one application.
+//
+// Application only. Which screen, which control and what it said are exactly the things this
+// view does not carry, and a diagnostic is not a reason to start.
+func (a *ambientObserver) recordCrossing(application, outcome string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.crossings == nil {
+		a.crossings = map[string]map[string]int{}
+	}
+	if a.crossings[application] == nil {
+		a.crossings[application] = map[string]int{}
+	}
+	a.crossings[application][outcome]++
 }

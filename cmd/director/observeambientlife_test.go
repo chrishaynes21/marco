@@ -223,6 +223,12 @@ func TestWatchingFromOnToOffAndGone(t *testing.T) {
 		// 38D.6. How many bounded active-navigation windows were entered and how many
 		// polls ran inside one. Two counts; nothing off anybody's screen.
 		"bursts": true, "burst_polls": true,
+		// 39E. What became of each noticed crossing: counts, keyed by APPLICATION and by
+		// an outcome from `noticed`'s own closed vocabulary — "action_count_zero",
+		// "source_without_subject_or_shape". An application name is already carried here
+		// and the outcomes are Marco's words, never a screen's: no subject id, no control
+		// name, no coordinate, no read text. See ADR-133.
+		"crossings": true,
 	}
 
 	for k := range fields {

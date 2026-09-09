@@ -47,6 +47,7 @@ import (
 // Deleting the provenance check must fail TestMarcosOwnWorkIsNotEvidenceOfAHabit.
 func (a *ambientObserver) noticed(s ambient.Step, sameSession bool) {
 	if s.By != ambient.ByHuman {
+		a.recordCrossing(s.Application, crossingNotHuman)
 		return
 	}
 	store, ok := a.rt.watchedStore()
@@ -63,6 +64,11 @@ func (a *ambientObserver) noticed(s ambient.Step, sameSession bool) {
 	// not exist. So it is not candidate evidence, and explicit Learn remains the way to keep
 	// it.
 	if len(s.Did) != 1 {
+		outcome := crossingManyActions
+		if len(s.Did) == 0 {
+			outcome = crossingNoAction
+		}
+		a.recordCrossing(s.Application, outcome)
 		return
 	}
 	act := s.Did[0]
@@ -70,9 +76,11 @@ func (a *ambientObserver) noticed(s ambient.Step, sameSession bool) {
 	from := endOf(s.From, s.FromShape)
 	to := endOf(s.To, s.ToShape)
 	if from.Subject == "" && from.Shape == nil {
+		a.recordCrossing(s.Application, crossingSourceUnusable)
 		return
 	}
 	if to.Subject == "" && to.Shape == nil {
+		a.recordCrossing(s.Application, crossingDestinationUnusable)
 		return
 	}
 
@@ -147,6 +155,7 @@ func (a *ambientObserver) noticed(s ambient.Step, sameSession bool) {
 	if err := store.RememberWatched(folded); err != nil {
 		return
 	}
+	a.recordCrossing(s.Application, crossingCandidate)
 	a.mu.Lock()
 	a.noticedEdges++
 	a.mu.Unlock()

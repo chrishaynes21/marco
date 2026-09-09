@@ -241,6 +241,24 @@ func printStatus(st service.StatusPayload) {
 	} else {
 		fmt.Printf("Learning: no\n")
 	}
+	// AND WHERE THE CROSSINGS THAT BECAME NOTHING WENT.
+	//
+	// `relationships seen` counts only the crossings that became candidates, so every other
+	// outcome read as though it had not happened. A leg nobody acted on, one carrying several
+	// actions, and an end Marco could not describe are three problems with three remedies and
+	// they were one silence — measured at 10 moves and 0 candidates on one application, with
+	// nothing saying which door they left by.
+	//
+	// Totalled across applications, because the question a reader asks first is which failure
+	// dominates their desktop rather than which application has it.
+	if totals := crossingTotals(st.Watching.Crossings); len(totals) > 0 {
+		fmt.Printf("Crossings:\n")
+		for _, o := range crossingOrder {
+			if n := totals[o]; n > 0 {
+				fmt.Printf("  %-34s %d\n", o, n)
+			}
+		}
+	}
 	// AND WHAT THE AFFORDANCE SWEEP MADE OF WHAT IT COULD SEE.
 	//
 	// Printed only when something was looked at, because a zero line on a desktop nobody has
@@ -569,4 +587,29 @@ func waitForExit(pid int, grace time.Duration) (bool, string) {
 		time.Sleep(50 * time.Millisecond)
 	}
 	return false, fmt.Sprintf("process %d is still running after %s", pid, grace)
+}
+
+// crossingOrder is the order `noticed` asks its questions, so a reader sees the funnel in the
+// order production walks it rather than alphabetically.
+var crossingOrder = []string{
+	crossingCandidate, crossingNoAction, crossingManyActions,
+	crossingSourceUnusable, crossingDestinationUnusable, crossingNotHuman,
+}
+
+// crossingTotals sums the per-application counts.
+//
+// It does not know the outcomes: it adds up whatever the production sites recorded, so a new
+// outcome appears here without this function being told about it. Only the ORDER above is
+// written down, and an unknown outcome still totals correctly even if it prints last.
+func crossingTotals(by map[string]map[string]int) map[string]int {
+	if len(by) == 0 {
+		return nil
+	}
+	out := map[string]int{}
+	for _, outcomes := range by {
+		for outcome, n := range outcomes {
+			out[outcome] += n
+		}
+	}
+	return out
 }

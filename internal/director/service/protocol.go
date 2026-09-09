@@ -2098,6 +2098,16 @@ type AmbientView struct {
 	// should be able to read; which three is a question for the store.
 	Noticed int `json:"noticed,omitempty"`
 	Learned int `json:"learned,omitempty"`
+	// Crossings is what became of every noticed crossing, by application and outcome.
+	//
+	// `Noticed` counts only the ones that became candidates, so every other outcome looked
+	// identical to nothing having happened. A crossing nobody acted on, one carrying several
+	// actions, and an endpoint Marco could not describe are three different problems with
+	// three different remedies, and they were one silence.
+	//
+	// Counts and an application name. No subject id, no control name, no coordinate, no read
+	// text — the same boundary the rest of this view holds.
+	Crossings map[string]map[string]int `json:"crossings,omitempty"`
 	// Candidates is how many relationships the durable ledger currently holds evidence about,
 	// promoted or not. The number that must track how many DIFFERENT things somebody does,
 	// never how long Marco watched.
