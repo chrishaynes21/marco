@@ -2108,6 +2108,17 @@ type AmbientView struct {
 	// Counts and an application name. No subject id, no control name, no coordinate, no read
 	// text — the same boundary the rest of this view holds.
 	Crossings map[string]map[string]int `json:"crossings,omitempty"`
+	// AffordanceFunnel is where every tallied control went on the way to durable memory, by
+	// application and outcome.
+	//
+	// `AffordancesAdmitted` says how many controls a sweep was willing to name RIGHT NOW;
+	// `AffordancesStored` says how many became durable. Between them sat three gates and no
+	// way to tell which one everything died at — working conservatism and an unreachable
+	// gate read identically.
+	//
+	// Counts and an application name. The outcomes are observe's closed vocabulary; never a
+	// control's name, its bounds, or the words read inside it.
+	AffordanceFunnel map[string]map[string]int `json:"affordance_funnel,omitempty"`
 	// Candidates is how many relationships the durable ledger currently holds evidence about,
 	// promoted or not. The number that must track how many DIFFERENT things somebody does,
 	// never how long Marco watched.

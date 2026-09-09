@@ -86,6 +86,9 @@ type ambientLook struct {
 	// Nothing here carries a position, an id or an ordering, and nothing here says where
 	// activating any of it would lead. See [[ADR-123]].
 	Offers []observe.StructureSignature
+	// AffordanceFunnel is where every tallied control went on the way to durable memory,
+	// by outcome. Counts only; the account the write path itself produced.
+	AffordanceFunnel map[string]int
 	// Readings, Agreeing, Visits and Settled are the SETTLEMENT ARITHMETIC for the screen
 	// this reading landed on, carried for the diagnostics and read by nothing that decides.
 	//
@@ -149,7 +152,8 @@ func (r *Runtime) ambientLook(application string) ambientLook {
 	// have had time to recur.
 	//
 	// Deleting this must fail TestWatchingAndLearningRemembersWhatAScreenOffers.
-	out.Offers = observe.TargetsToRecord(ev.shadow, ev.app, memory, th)
+	out.Offers, out.AffordanceFunnel = observe.TargetsToRecordExplained(
+		ev.shadow, ev.app, memory, th)
 	// THE SETTLEMENT ARITHMETIC FOR THIS SCREEN, read from the session's own tallies. A read
 	// and a report: see ambientLook.Agreeing.
 	if st, ok := observe.StateOf(ev.shadow, ev.shadow.CurrentState); ok {

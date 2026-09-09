@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
 	"github.com/chaynes-simpleclouds/marco/internal/director/service"
 	"github.com/chaynes-simpleclouds/marco/internal/platform/homelock"
 	"github.com/chaynes-simpleclouds/marco/internal/winctx"
@@ -253,11 +254,17 @@ func printStatus(st service.StatusPayload) {
 	// dominates their desktop rather than which application has it.
 	if totals := crossingTotals(st.Watching.Crossings); len(totals) > 0 {
 		fmt.Printf("Crossings:\n")
-		for _, o := range crossingOrder {
-			if n := totals[o]; n > 0 {
-				fmt.Printf("  %-34s %d\n", o, n)
-			}
-		}
+		printFunnel(totals, crossingOrder)
+	}
+	// AND WHERE EVERY TALLIED CONTROL WENT ON THE WAY TO DURABLE MEMORY.
+	//
+	// `Affordances` above says how many controls a sweep was willing to name right now and how
+	// many became durable. Between those two numbers sat three gates and no way to tell which
+	// one everything died at: one durable affordance against 512 established Places read
+	// identically as working conservatism and as a gate nothing reaches.
+	if totals := crossingTotals(st.Watching.AffordanceFunnel); len(totals) > 0 {
+		fmt.Printf("Affordance funnel:\n")
+		printFunnel(totals, affordanceOrder)
 	}
 	// AND WHAT THE AFFORDANCE SWEEP MADE OF WHAT IT COULD SEE.
 	//
@@ -612,4 +619,36 @@ func crossingTotals(by map[string]map[string]int) map[string]int {
 		}
 	}
 	return out
+}
+
+// affordanceOrder is the order TargetsToRecordExplained's gates are asked.
+var affordanceOrder = []string{
+	observe.AffordanceRecordable, observe.AffordanceNotRecurrent,
+	observe.AffordanceStateHasNoPlace, observe.AffordanceStateNotSettled,
+	observe.AffordanceAlreadyCounted, observe.AffordanceCeilingReached,
+}
+
+// printFunnel renders one funnel, known outcomes first and anything else after.
+//
+// It prints outcomes it was never told about rather than dropping them: a reporting layer that
+// silently omitted a new production outcome would be worse than one that ordered it oddly, and
+// the reason these funnels exist is that a decision nobody printed is a decision nobody has.
+func printFunnel(totals map[string]int, order []string) {
+	printed := map[string]bool{}
+	for _, o := range order {
+		if n := totals[o]; n > 0 {
+			fmt.Printf("  %-38s %d\n", o, n)
+			printed[o] = true
+		}
+	}
+	rest := make([]string, 0, len(totals))
+	for o := range totals {
+		if !printed[o] && totals[o] > 0 {
+			rest = append(rest, o)
+		}
+	}
+	sort.Strings(rest)
+	for _, o := range rest {
+		fmt.Printf("  %-38s %d\n", o, totals[o])
+	}
 }

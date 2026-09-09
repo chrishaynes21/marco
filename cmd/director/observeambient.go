@@ -106,6 +106,11 @@ type ambientObserver struct {
 	// Counts only, keyed by application. No subject id, no control name, no coordinate, no
 	// read text — the same boundary the rest of this view holds. See recordCrossing.
 	crossings map[string]map[string]int
+	// affordanceFunnel is where every tallied control went on the way to durable memory, by
+	// application and outcome. The store held ONE durable affordance against 512 Places and
+	// tens of thousands of admitted controls, and nothing said whether that was working
+	// conservatism or a gate nothing reaches. Counts only. See TargetsToRecordExplained.
+	affordanceFunnel map[string]map[string]int
 	// lastLedgerSession is which watching session the previous crossing belonged to.
 	lastLedgerSession observe.SessionID
 	samples           int
@@ -605,6 +610,10 @@ func (a *ambientObserver) record(application string, look ambientLook, now time.
 	// AND THE SCREEN ITSELF, before what it offers — a control is scoped to a Place, so there
 	// has to be one to scope it to. See settlePlace for the measured gap this closes.
 	a.settlePlace(application, look)
+	// WHERE EVERY TALLIED CONTROL WENT, recorded before the licence is asked. This is an
+	// account of what perception decided, not of what was written: a Director that is
+	// watching without learning still answers "why is nothing recordable here".
+	a.recordAffordanceFunnel(application, look.AffordanceFunnel)
 	a.rememberOffers(application, look)
 	// AND WHAT BECAME OF THIS READING, for the diagnostics. After the decisions, never
 	// before them, and read by nothing that makes one. See recognition.go.
@@ -888,6 +897,16 @@ func (a *ambientObserver) view() service.AmbientView {
 	out.Learning = a.promotion.Enabled
 	out.Noticed, out.Learned = a.noticedEdges, a.promoted
 	// COPIED, because the observer keeps writing it while whoever asked is rendering it.
+	if len(a.affordanceFunnel) > 0 {
+		out.AffordanceFunnel = make(map[string]map[string]int, len(a.affordanceFunnel))
+		for app, by := range a.affordanceFunnel {
+			copied := make(map[string]int, len(by))
+			for outcome, n := range by {
+				copied[outcome] = n
+			}
+			out.AffordanceFunnel[app] = copied
+		}
+	}
 	if len(a.crossings) > 0 {
 		out.Crossings = make(map[string]map[string]int, len(a.crossings))
 		for app, by := range a.crossings {
@@ -1365,4 +1384,26 @@ func (a *ambientObserver) recordCrossing(application, outcome string) {
 		a.crossings[application] = map[string]int{}
 	}
 	a.crossings[application][outcome]++
+}
+
+// recordAffordanceFunnel folds one reading's account into the running totals.
+//
+// Application and counts. The outcomes are observe's own closed vocabulary; a control's name,
+// its bounds and the words read inside it are exactly what this view does not carry, and a
+// diagnostic is not a reason to start.
+func (a *ambientObserver) recordAffordanceFunnel(application string, funnel map[string]int) {
+	if len(funnel) == 0 {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.affordanceFunnel == nil {
+		a.affordanceFunnel = map[string]map[string]int{}
+	}
+	if a.affordanceFunnel[application] == nil {
+		a.affordanceFunnel[application] = map[string]int{}
+	}
+	for outcome, n := range funnel {
+		a.affordanceFunnel[application][outcome] += n
+	}
 }

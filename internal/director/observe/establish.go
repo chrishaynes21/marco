@@ -481,19 +481,74 @@ func SettledAffordanceFor(t AffordanceTally) bool { return settledAffordance(t) 
 func TargetsToRecord(t ShadowTotals, application string, m Memory,
 	th HypothesisThresholds) []StructureSignature {
 
+	sigs, _ := TargetsToRecordExplained(t, application, m, th)
+	return sigs
+}
+
+// The outcomes one tallied control can have on the way to durable memory.
+//
+// Counted in CONTROLS rather than states, because the question they exist to answer is where
+// thousands of admitted controls went — so a state refused before its contents are considered
+// contributes all of the controls it was holding.
+//
+// A settled state holding no affordances at all is a real exit and is deliberately absent: it
+// contributes nothing to count, and inventing a zero-valued outcome for it would put a number in
+// the report that is always the same.
+const (
+	// AffordanceRecordable is the affirmative case. Counted for the same reason the refusals
+	// are: a distribution without a denominator says nothing.
+	AffordanceRecordable = "affordance_recordable"
+	// AffordanceStateNotSettled is a screen still changing shape. Its contents may be a
+	// transition frame or a page half-drawn.
+	AffordanceStateNotSettled = "state_not_settled"
+	// AffordanceStateHasNoPlace is a settled screen that resolves to no durable Place. A
+	// target's signature carries the Place it was seen in, so there is nowhere to record it.
+	AffordanceStateHasNoPlace = "state_has_no_durable_place"
+	// AffordanceNotRecurrent is a control seen too few times on a settled state, or one whose
+	// kind the readings disagreed about. See settledAffordance.
+	AffordanceNotRecurrent = "affordance_not_recurrent"
+	// AffordanceAlreadyCounted is the same control at the same Place, reached twice in one
+	// pass — a screen visited twice in one session contributes one target, not two.
+	AffordanceAlreadyCounted = "affordance_already_counted"
+	// AffordanceCeilingReached is what the per-acquisition bound dropped.
+	AffordanceCeilingReached = "affordance_ceiling_reached"
+)
+
+// TargetsToRecordExplained is TargetsToRecord and an account of where everything else went.
+//
+// # Why the account is produced here
+//
+// Because this is where the decisions are made. A reader asking why 7,982 admitted controls
+// produced one durable affordance has at least three candidate answers with different remedies —
+// nothing settled, nothing resolved to a Place, nothing recurred — and from the outside they are
+// one silence. The same argument the crossing funnel rests on: a caller that re-derived these
+// counts would be a second implementation of the policy, free to agree with the code and
+// disagree with the run.
+//
+// It decides nothing and changes nothing. `TargetsToRecord` is this function with the account
+// dropped, so there is one traversal and one set of gates.
+func TargetsToRecordExplained(t ShadowTotals, application string, m Memory,
+	th HypothesisThresholds) ([]StructureSignature, map[string]int) {
+
 	if m == nil {
-		return nil
+		return nil, nil
 	}
+	funnel := map[string]int{}
 	// One entry per place-and-label, so a screen visited twice in one session contributes one
 	// target rather than two identical ones.
 	seen := map[string]bool{}
 	var out []StructureSignature
 	for _, st := range t.States {
-		if !st.Settled || len(st.Affordances) == 0 {
+		if len(st.Affordances) == 0 {
+			continue
+		}
+		if !st.Settled {
+			funnel[AffordanceStateNotSettled] += len(st.Affordances)
 			continue
 		}
 		cp, ok := placeOfState(t, application, st.ID, m, th)
 		if !ok || cp.Subject == "" {
+			funnel[AffordanceStateHasNoPlace] += len(st.Affordances)
 			continue
 		}
 		labels := make([]string, 0, len(st.Affordances))
@@ -501,23 +556,27 @@ func TargetsToRecord(t ShadowTotals, application string, m Memory,
 			labels = append(labels, label)
 		}
 		sort.Strings(labels)
-		for _, label := range labels {
+		for i, label := range labels {
 			if !settledAffordance(st.Affordances[label]) {
+				funnel[AffordanceNotRecurrent]++
 				continue
 			}
 			key := cp.Subject + "\x00" + label
 			if seen[key] {
+				funnel[AffordanceAlreadyCounted]++
 				continue
 			}
 			seen[key] = true
 			out = append(out, TargetSignature(cp.Subject, label,
 				st.Affordances[label].Kind))
+			funnel[AffordanceRecordable]++
 			if len(out) >= MaxAffordancesPerPlace*maxPlacesPerAcquisition {
-				return out
+				funnel[AffordanceCeilingReached] += len(labels) - i - 1
+				return out, funnel
 			}
 		}
 	}
-	return out
+	return out, funnel
 }
 
 // maxPlacesPerAcquisition bounds how many screens one reading may acquire for at once.

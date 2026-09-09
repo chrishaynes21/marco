@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -159,5 +160,38 @@ func TestTheCrossingReportDoesNotReAskTheQuestions(t *testing.T) {
 	})
 	if got["something_new"] != 5 || got[crossingCandidate] != 1 {
 		t.Errorf("totals %v lost an outcome the reporter did not recognise", got)
+	}
+}
+
+// THE REPORT PRINTS OUTCOMES IT WAS NEVER TOLD ABOUT.
+//
+// Both funnels are rendered through one function, and it holds only an ORDER, never a
+// membership list. A reporting layer with a closed list would silently omit a future production
+// outcome — production would record it faithfully and nobody would ever see it, which is the
+// exact failure these funnels were built to end.
+func TestTheFunnelReportDoesNotHoldAClosedList(t *testing.T) {
+	out := captureStdout(t, func() {
+		printFunnel(map[string]int{
+			crossingCandidate:        3,
+			"an_outcome_added_later": 7,
+			crossingNoAction:         5,
+		}, crossingOrder)
+	})
+	for _, want := range []string{crossingCandidate, crossingNoAction, "an_outcome_added_later"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the report dropped %q:\n%s", want, out)
+		}
+	}
+	// The known ones lead, in the order production asks them, so the funnel reads as a funnel.
+	if strings.Index(out, crossingCandidate) > strings.Index(out, "an_outcome_added_later") {
+		t.Errorf("an unrecognised outcome was printed before the known ones:\n%s", out)
+	}
+	// AND A ZERO IS NOT PRINTED. A line that is always there and always zero is noise a
+	// reader learns to skip, which is how the one that matters gets skipped too.
+	quiet := captureStdout(t, func() {
+		printFunnel(map[string]int{crossingCandidate: 0}, crossingOrder)
+	})
+	if strings.TrimSpace(quiet) != "" {
+		t.Errorf("a zero outcome was printed:\n%s", quiet)
 	}
 }

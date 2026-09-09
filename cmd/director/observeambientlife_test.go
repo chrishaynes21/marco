@@ -229,6 +229,11 @@ func TestWatchingFromOnToOffAndGone(t *testing.T) {
 		// and the outcomes are Marco's words, never a screen's: no subject id, no control
 		// name, no coordinate, no read text. See ADR-133.
 		"crossings": true,
+		// 40A. Where every tallied control went on the way to durable memory: counts,
+		// keyed by APPLICATION and by an outcome from observe's own closed vocabulary —
+		// "state_not_settled", "affordance_not_recurrent". Never the control's name, its
+		// bounds, or the words read inside it. See ADR-134.
+		"affordance_funnel": true,
 	}
 
 	for k := range fields {
