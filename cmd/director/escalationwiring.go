@@ -224,3 +224,34 @@ func (r *Runtime) incompleteFor(p observe.Place) time.Duration {
 	}
 	return now.Sub(*r.incompleteSince)
 }
+
+// reopenRepair returns the current epoch's semantic repair to the budget.
+//
+// # Why an epoch can go stale without its NAME changing
+//
+// The budget is keyed on the segmenter's settled screen state, which is structural: it is
+// derived from the fused world, and on an application whose accessibility tree exposes a single
+// window that signature barely moves. Measured on Epic Games Launcher — a human navigation
+// repainted 32.5% of the window, then 24.1%, and `ScreenStateID` did not change once. So the
+// only sensor that could tell those screens apart was gated behind a discriminator that could
+// not see they were different, and the application went blind for the rest of the session.
+//
+// The caller establishes that the previously repaired scene is no longer the visible one, from
+// CURRENT pixel evidence that has settled. This does no more than return the token: the next
+// eligible acquisition claims it in the ordinary way, once, through mayRepairNow.
+//
+// # What this is not
+//
+// It mints no Place, changes no screen signature, touches no durable identity and creates no
+// graph endpoint. It says one thing: the answer bought for the previous scene does not describe
+// the current one. See [[ADR-132-a-repaired-answer-can-stop-describing-the-screen]].
+//
+// Deleting this must fail TestASettledNewSceneReopensTheRepair.
+func (r *Runtime) reopenRepair() {
+	if r == nil {
+		return
+	}
+	r.repairedMu.Lock()
+	r.repaired = ""
+	r.repairedMu.Unlock()
+}

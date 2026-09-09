@@ -84,6 +84,14 @@ func (s *liveSampler) withLease(ctx context.Context, found []*directorapi.Elemen
 		return found
 	}
 	if s.lease == nil {
+		if s.settledIntoANewScene(ctx, window) {
+			// The previously repaired answer does not describe what is on screen. The
+			// token goes back; the ordinary gate claims it, once.
+			s.rt.reopenRepair()
+			s.leaseWhy = "the screen settled into a different scene, so the previous " +
+				"repair no longer answers it — one repair is available again"
+			return found
+		}
 		// SAID OUT LOUD, because silence here is the case that matters. An acquisition
 		// that offered nothing pixel-derived and holds no lease is indistinguishable, from
 		// the outside, from a lease that was taken and dropped — and the first time this
@@ -181,10 +189,74 @@ func (s *liveSampler) leaseStillCurrent(ctx context.Context, window directorapi.
 	}
 	// Meaningful change, or a scene still in motion. Either way the picture that grounded
 	// these Targets is not the picture on screen, and they stop being current immediately.
+	//
+	// THE NEW PICTURE IS KEPT AS A CANDIDATE, and nothing is concluded from it yet. One
+	// frame that differs is equally a navigation, a video and a banner; what separates them
+	// is whether it SETTLES. See settledIntoANewScene.
+	s.sceneCandidate = &now
 	return s.dropLease(res.Reason)
 }
 
 func (s *liveSampler) dropLease(why string) ([]directorapi.Element, bool) {
 	s.lease, s.leaseWhy, s.leaseDropped = nil, why, why
 	return nil, false
+}
+
+// settledIntoANewScene reports whether the screen has come to rest on a picture that is not the
+// one the previous semantic repair answered.
+//
+// # Why settling is the discriminator, and a percentage is not
+//
+// One frame that differs is equally a navigation, a playing video, a rotating banner and a page
+// half-loaded. Measured on Epic, a real navigation moved 32.5% of the region and 24.1% on the
+// next — but so would artwork on a store page. A threshold that admitted the first would admit
+// the others and rebuy an expensive inference forever, which is the expense this whole design
+// refuses.
+//
+// What separates them is whether the new picture STAYS. `visualstate.Watch` already draws that
+// line for actions, in a tight loop of captures 120ms apart; this draws the same line across
+// ordinary acquisitions, where the captures are already being taken. A navigation is stable by
+// the next reading. A video is not.
+//
+// So: the frame that ended the lease is kept as a candidate and asserts nothing. If the next
+// reading matches the candidate, the screen has settled somewhere new. If it does not, the
+// candidate is replaced and nothing is concluded — churn can do that indefinitely without ever
+// buying anything.
+//
+// It reports a belief about what is CURRENTLY visible and establishes no identity: no Place, no
+// screen signature, no graph endpoint. Its only consequence is that one bounded repair becomes
+// claimable again.
+func (s *liveSampler) settledIntoANewScene(ctx context.Context, window directorapi.Window) bool {
+	if s.sceneCandidate == nil || s.rt == nil || s.rt.visual == nil {
+		return false
+	}
+	if s.sceneCandidate.Region != window.Bounds {
+		// A different rectangle cannot settle into the same scene, and comparing across
+		// two of them is the thing visualstate.Compare refuses outright.
+		s.sceneCandidate = nil
+		return false
+	}
+	now, err := s.rt.visual.Capture(ctx, window.Bounds, window)
+	if err != nil {
+		// Unknown, and unknown concludes nothing. The candidate is dropped rather than
+		// held: a scene nobody could photograph has not been shown to have settled.
+		s.sceneCandidate = nil
+		return false
+	}
+	res, err := s.rt.visual.Compare(*s.sceneCandidate, now)
+	if err != nil {
+		s.sceneCandidate = nil
+		return false
+	}
+	switch res.Kind {
+	case visualstate.ChangeIdentical, visualstate.ChangeMinor:
+		// SETTLED. The picture that replaced the repaired one is still the picture, so
+		// this is a screen and not a frame of something moving.
+		s.sceneCandidate = nil
+		return true
+	}
+	// STILL MOVING. Replace the candidate and conclude nothing — this arm is what stops a
+	// video from rebuying an inference on every acquisition for as long as it plays.
+	s.sceneCandidate = &now
+	return false
 }

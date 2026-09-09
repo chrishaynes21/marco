@@ -12,6 +12,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
 	"github.com/chaynes-simpleclouds/marco/internal/director/observesession"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/observation"
+	"github.com/chaynes-simpleclouds/marco/internal/director/perception/providers/visualstate"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/windowref"
 	"github.com/chaynes-simpleclouds/marco/internal/platform/navsource"
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
@@ -74,6 +75,9 @@ type liveSampler struct {
 	// see visualLease.
 	lease    *visualLease
 	leaseWhy string
+	// sceneCandidate is the picture that ended the last lease, held while it is decided
+	// whether the screen has SETTLED there or is merely moving. See settledIntoANewScene.
+	sceneCandidate *visualstate.Snapshot
 	// leaseDropped is the last reason a lease ENDED, kept after leaseWhy has moved on.
 	leaseDropped string
 	// labels says whether this Director can read text inside detected controls at all.
