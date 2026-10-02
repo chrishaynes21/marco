@@ -404,12 +404,26 @@ func (v *Verifier) verifyNavigation(a directorapi.SemanticAction,
 
 	var ev []directorapi.Evidence
 
-	if bt, at := windowTitle(before), windowTitle(after); bt != "" && at != "" && bt != at {
-		ev = append(ev, directorapi.Evidence{
-			Kind: "window_title_changed", Observed: true, Weight: 0.85,
-			Detail: fmt.Sprintf("the view changed from %q to %q", bt, at),
-			Source: directorapi.SourceWindowSystem,
-		})
+	// THE WINDOW THE KEYSTROKE WENT TO, called something else now.
+	//
+	// Not the foreground's title before and after, which is a question about which window is
+	// in front rather than about what the navigated one did. These verbs name no control — they
+	// address "the focused context" — so the subject is the window that held focus when the
+	// action was sent, looked up again by the same id afterwards. At weight 0.85 the unscoped
+	// comparison was alone sufficient, so anything arriving in front during the settle delay
+	// proved a navigation. See targetWindowTitle for the measured case on the click path.
+	subjectID, known := focusedWindowID(before)
+	if known {
+		scope := directorapi.ResolvedTarget{WindowID: subjectID}
+		bt, hadBefore := targetWindowTitle(before, scope)
+		at, hasAfter := targetWindowTitle(after, scope)
+		if hadBefore && hasAfter && bt != at {
+			ev = append(ev, directorapi.Evidence{
+				Kind: "window_title_changed", Observed: true, Weight: 0.85,
+				Detail: fmt.Sprintf("the view changed from %q to %q", bt, at),
+				Source: directorapi.SourceWindowSystem,
+			})
+		}
 	}
 	// Content replacement: how many of the elements that were there are still there. A
 	// refresh that reloads the same page keeps the title and replaces the tree, and

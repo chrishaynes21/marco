@@ -431,16 +431,6 @@ func labelOf(w directorapi.WorldState, id directorapi.ElementID) string {
 	return string(id)
 }
 
-func windowTitle(w directorapi.WorldState) string {
-	if win, ok := w.FocusedWindow(); ok {
-		return win.Title
-	}
-	if len(w.Windows) > 0 {
-		return w.Windows[0].Title
-	}
-	return ""
-}
-
 // withinTolerance reports whether two rectangles agree to within a few pixels.
 // Window managers adjust for invisible borders, drop shadows and snapping, so
 // demanding an exact match would fail every real move.
@@ -575,17 +565,21 @@ func (v *Verifier) changeEvidence(target directorapi.ResolvedTarget,
 	}
 
 	// A dialog or new window appearing.
-	if len(after.Windows) > len(before.Windows) {
+	// A window appearing IN THE APPLICATION THAT WAS ACTED ON — a dialog the control opened.
+	// Scoped deliberately; see appearedInTargetsApplication.
+	if win, ok := appearedInTargetsApplication(before, after, target); ok {
 		ev = append(ev, directorapi.Evidence{
 			Kind: "window_appeared", Observed: true, Weight: 0.8,
-			Detail: fmt.Sprintf("a new window appeared (%d → %d)",
-				len(before.Windows), len(after.Windows)),
+			Detail: fmt.Sprintf("a new %s window appeared (%q)", win.Application, win.Title),
 			Source: directorapi.SourceWindowSystem,
 		})
 	}
 
-	// The window's title changing — navigation, a document opening, a mode switch.
-	if bt, at := windowTitle(before), windowTitle(after); bt != "" && at != "" && bt != at {
+	// THE TARGET'S OWN window being called something else — navigation, a document opening, a
+	// mode switch. The same window, renamed; not a different window arriving in front of it.
+	bt, hadBefore := targetWindowTitle(before, target)
+	at, hasAfter := targetWindowTitle(after, target)
+	if hadBefore && hasAfter && bt != at {
 		ev = append(ev, directorapi.Evidence{
 			Kind: "window_title_changed", Observed: true, Weight: 0.75,
 			Detail: fmt.Sprintf("the window title changed from %q to %q", bt, at),
@@ -705,4 +699,85 @@ func stateChangedNearby(target directorapi.ResolvedTarget,
 			strings.Join(named, " and "))
 	}
 	return n, strings.Join(named, " and ")
+}
+
+// targetWindowTitle is the title of the window the action was AIMED AT.
+//
+// # Why not the foreground's title
+//
+// Because the foreground's title answers "what is in front now", and comparing that before and
+// after an
+// action asks whether the desktop is pointing somewhere else — not whether the window that was
+// acted on did anything. The two differ whenever something else takes the foreground, which on a
+// real desktop is a notification, a chat window, an indexer opening a progress dialog, or the
+// person alt-tabbing during the settle delay.
+//
+// Found by dogfooding `click Details` against the acceptance fixture while the editor stole
+// focus mid-request:
+//
+//	COMPLETED: the window title changed from "Marco Fixture" to "marco - Visual Studio Code"
+//	[result] performed            (oracle: details_presses 0, second_view false)
+//
+// The button was never pressed. At weight 0.75 that one signal is alone sufficient, so any
+// foreground change verified whatever Marco had just done.
+//
+// Returns false when the target names no window, or when that window is not in the snapshot.
+// No evidence is the right answer there: falling back to the foreground is the defect.
+func targetWindowTitle(w directorapi.WorldState, t directorapi.ResolvedTarget) (string, bool) {
+	if t.WindowID == "" {
+		return "", false
+	}
+	win, ok := w.Window(t.WindowID)
+	if !ok || win.Title == "" {
+		return "", false
+	}
+	return win.Title, true
+}
+
+// appearedInTargetsApplication reports whether a window appeared that belongs to the application
+// the action was aimed at.
+//
+// The same scoping argument as [targetWindowTitle], through the window COUNT. `window_appeared`
+// compared the number of windows on the whole desktop, so a background program opening one of its
+// own was read as the consequence of a click in somebody else's — at weight 0.8, alone sufficient.
+//
+// A dialog the clicked control opened is the strongest ordinary evidence a click worked, and it
+// belongs to the application that was clicked. That is the signal worth keeping, and it is the
+// only one this reports.
+func appearedInTargetsApplication(before, after directorapi.WorldState,
+	t directorapi.ResolvedTarget) (directorapi.Window, bool) {
+
+	owner, ok := before.Window(t.WindowID)
+	if !ok || owner.Application == "" {
+		return directorapi.Window{}, false
+	}
+	had := make(map[directorapi.WindowID]bool, len(before.Windows))
+	for _, w := range before.Windows {
+		had[w.ID] = true
+	}
+	for _, w := range after.Windows {
+		if !had[w.ID] && w.Application == owner.Application {
+			return w, true
+		}
+	}
+	return directorapi.Window{}, false
+}
+
+// focusedWindowID is the window an untargeted action was sent to.
+//
+// Two sources, because a snapshot may carry either: the window system's notion of the active
+// window, and the per-window Focused flag. It does NOT fall back to "the first window in the
+// list", which is what the deleted windowTitle helper did — a positional guess right often
+// enough to hide the absence of an answer, and the thing that let an unrelated program's title
+// stand in for the subject's.
+func focusedWindowID(w directorapi.WorldState) (directorapi.WindowID, bool) {
+	if win, ok := w.FocusedWindow(); ok {
+		return win.ID, true
+	}
+	for _, win := range w.Windows {
+		if win.Focused {
+			return win.ID, true
+		}
+	}
+	return "", false
 }

@@ -133,6 +133,15 @@ guards grows.** It derives its names from `outcome.All` now, and so does the har
   `[result] ` says the vocabulary's word. Two spellings of one fact, left alone: the header is the
   Director's sentence and the result line is protocol.
 
+## Related
+
+The same family, found the same way — an independent oracle printed beside Marco's verdict:
+[[ADR-136-evidence-must-be-about-the-thing-that-was-acted-on]], where another program taking the
+foreground was being read as proof that a button had been pressed. And the 2026-10-02 amendment to
+[[ADR-007-no-progress-no-repetition]], which is the other half of why `failed` matters here: it
+was not only the wrong word, it was the word that made Marco press the button a second time
+itself.
+
 ## Enforced by
 
 - `TestTheDirectorsVerdictSurvivesTheCrossing` — every terminal `CommandState` round-trips to a
