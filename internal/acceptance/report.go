@@ -148,10 +148,30 @@ func (r Result) Reached(phase string) bool {
 // `policy` is genuinely absent from a successful run's phases and that is not a gap in the report:
 // it is only timed when there is a decision to make. So authority reads "not reached" on an action
 // nothing had to be weighed about, which is the honest reading.
-func (r Result) Grounded() (bool, string)   { return r.rung("resolve") }
-func (r Result) Authorised() (bool, string) { return r.rung("policy") }
-func (r Result) Executed() (bool, string)   { return r.rung("runtime_execute") }
-func (r Result) Verified() (bool, string)   { return r.rung("verify") }
+func (r Result) Grounded() (bool, string) { return r.rung("resolve") }
+func (r Result) Executed() (bool, string) { return r.rung("runtime_execute") }
+func (r Result) Verified() (bool, string) { return r.rung("verify") }
+
+// Authorised reports whether the policy gate let the action through.
+//
+// # Why this is inferred rather than read
+//
+// `trace.PhasePolicy` exists and has a deadline, and NOTHING TIMES IT — so the phase trace never
+// contains it and reading it like the others reported `not reached` on every action, including ones
+// that had plainly executed. That is the same defect as mis-spelling `runtime_execute`: a report
+// accusing a rung that was never the problem, which is worse than a report that stays quiet.
+//
+// What can be known for certain is the pipeline's own order: nothing reaches execution without
+// passing the policy gate first. So execution having happened IS authority having been granted, and
+// that is said as an inference rather than dressed up as a reading.
+//
+// Before execution there is genuinely nothing to report, and it says so.
+func (r Result) Authorised() (bool, string) {
+	if r.Reached("runtime_execute") {
+		return true, "inferred: nothing executes without passing the policy gate"
+	}
+	return false, "not reached (the policy phase is not separately timed)"
+}
 
 // Performed reports whether the product said the thing happened.
 //
