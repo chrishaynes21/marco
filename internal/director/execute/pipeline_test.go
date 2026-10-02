@@ -603,10 +603,23 @@ func TestWrongCandidateRejected(t *testing.T) {
 		obs("uia:2", directorapi.RoleText, "EXPLORER", rect(68, 35, 51, 35)),
 		obs("uia:3", directorapi.RoleTab, "Explorer (Ctrl+Shift+E)", rect(0, 35, 48, 48)),
 	)
+	// THE AFTER-WORLD SHOWS THE TAB HAVING OPENED, which is what clicking a tab does.
+	//
+	// It used to differ from `before` only by focus landing on the tab, and that was enough to
+	// verify — focus-on-target weighed 0.85. It no longer is, deliberately: taking focus is how
+	// a control responds to being clicked and says nothing about whether the click did anything
+	// (see verify.WeightDelivered, and the acceptance against a button built to do nothing).
+	//
+	// So the fixture gains the consequence it always implied. The CLAIM of this test is
+	// unchanged and is about resolution — the actionable tab must outrank the inert exact-label
+	// text — and a world in which the click had no effect was never the world it meant to
+	// describe.
 	after := scene(t0.Add(time.Second), nil,
 		obs("uia:1", directorapi.RoleWindow, "Code", rect(0, 0, 1200, 800)),
 		obs("uia:2", directorapi.RoleText, "EXPLORER", rect(68, 35, 51, 35)),
-		focused(obs("uia:3", directorapi.RoleTab, "Explorer (Ctrl+Shift+E)", rect(0, 35, 48, 48))),
+		selectedObs(focused(obs("uia:3", directorapi.RoleTab, "Explorer (Ctrl+Shift+E)",
+			rect(0, 35, 48, 48)))),
+		obs("uia:4", directorapi.RoleTreeItem, "src", rect(0, 90, 240, 22)),
 	)
 	h := newHarness(before, after)
 

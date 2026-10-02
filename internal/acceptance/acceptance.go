@@ -369,20 +369,34 @@ func (h *Harness) Front() {
 		// MARCO'S OWN ANSWER, not a private one. `marco active` reads the foreground through
 		// the same platform surface the Director's guard uses, so the harness and Marco
 		// cannot disagree about which window leads.
-		if front, _ := h.run(h.marcoBin(), "active"); strings.Contains(
-			strings.ToLower(front), FixtureApp) {
+		if strings.Contains(strings.ToLower(h.foreground()), FixtureApp) {
 			return
 		}
 		time.Sleep(150 * time.Millisecond)
 	}
 
-	front, _ := h.run(h.marcoBin(), "active")
-	blocker := strings.TrimSpace(lastLine(front))
-	h.t.Skipf("the fixture could not take the foreground within %s; %q still leads.\n\n"+
-		"Acceptance performs real input, so it will not run while another window is in "+
-		"front — a full-screen application holds the foreground against everything, and "+
-		"proceeding would send keystrokes into it.\n\n"+
-		"Close or minimise %s and run again.", foregroundWait, blocker, blocker)
+	// WHY IT COULD NOT, IN THE WORDS OF WHAT WAS ACTUALLY SEEN.
+	//
+	// Three different states used to produce one sentence, and one of them produced a sentence
+	// that named nothing at all: `"" still leads … Close or minimise  and run again`. Telling
+	// somebody to close nothing is worse than telling them nothing, because it reads as a bug
+	// in the thing reporting it.
+	switch front := strings.TrimSpace(h.foreground()); {
+	case front == "":
+		h.t.Skipf("the fixture could not take the foreground within %s, and NOTHING holds it "+
+			"— Marco reports no foreground application at all.\n\n"+
+			"That is a real desktop state rather than a blocked one: a session whose focus "+
+			"has gone nowhere, a virtual-desktop switch, or a machine somebody has walked "+
+			"away from. Input would go nowhere, or somewhere surprising when they come "+
+			"back, so acceptance refuses rather than guessing.\n\n"+
+			"Click any ordinary window and run again.", foregroundWait)
+	default:
+		h.t.Skipf("the fixture could not take the foreground within %s; %q still leads.\n\n"+
+			"Acceptance performs real input, so it will not run while another window is in "+
+			"front — a full-screen application holds the foreground against everything, and "+
+			"proceeding would send keystrokes into it.\n\n"+
+			"Close or minimise %s and run again.", foregroundWait, front, front)
+	}
 }
 
 // Do asks Marco to do something, through the entrance a person uses.
@@ -634,3 +648,20 @@ func lastLine(s string) string {
 }
 
 var _ = fmt.Sprintf
+
+// foreground is the application Marco says is in front, empty when it cannot say.
+//
+// # Why this asks Marco rather than Windows
+//
+// Because the claim that matters is "Marco believes the fixture leads", and Marco's belief is what
+// its own foregroundGuard will check before it emits anything. A harness that read the foreground
+// itself could be satisfied while the guard was not, and then every refusal would look like a
+// Marco defect.
+//
+// Empty is a real answer and a distinct one: it means no window holds the foreground, which is a
+// state a desktop genuinely reaches. See Front for why that is reported differently from "something
+// else is in the way".
+func (h *Harness) foreground() string {
+	out, _ := h.run(h.marcoBin(), "active")
+	return lastLine(out)
+}

@@ -10,14 +10,25 @@
 // click that landed on a disabled control, on a window that moved a moment earlier,
 // or on nothing at all. Replaying what was done proves only that it was done.
 //
-// Evidence is weighted rather than counted. "Focus moved to the element I clicked"
-// is close to proof; "the number of elements changed" is a hint. Collapsing them
-// into a boolean would make a strong verdict and a weak one indistinguishable to the
-// caller deciding whether to retry.
+// Evidence is weighted rather than counted. "The application now says Saved" is close to proof;
+// "the number of elements changed" is a hint. Collapsing them into a boolean would make a strong
+// verdict and a weak one indistinguishable to the caller deciding whether to retry.
+//
+// And the weights divide along one line, which is the line the paragraph above draws:
+//
+//	DELIVERED   the action reached the control Marco aimed at
+//	EFFECTIVE   the application then did what was asked
+//
+// Evidence of delivery — focus landing on the thing that was clicked — is real, is worth recording,
+// and is never sufficient, because it is the control responding to being clicked rather than to
+// what the click was for. See [WeightDelivered]. This paragraph used to say that focus landing on
+// the target was "close to proof", which contradicted the one above it; the code agreed with the
+// wrong half, and an acceptance against a button built to do nothing found it.
 package verify
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 )
@@ -43,6 +54,26 @@ type Verifier struct {
 
 // New returns a Verifier with the default thresholds.
 func New() *Verifier { return &Verifier{MinConfidence: 0.5, BoundsTolerance: 12} }
+
+// WeightDelivered is what evidence of DELIVERY is worth: real, and never sufficient.
+//
+// # The distinction this constant exists to hold
+//
+//	DELIVERED   the action reached the control Marco aimed at
+//	EFFECTIVE   the application then did what was asked
+//
+// The first is about Marco and is worth knowing: it is what separates "the button did nothing"
+// from "Marco clicked the wrong thing", and those send a reader to two different places. The second
+// is what the word "verified" means to everybody who reads it.
+//
+// Deliberately below `MinConfidence`, and that is the whole of its job. Evidence at this weight
+// corroborates anything else and concludes nothing on its own — so an action whose only trace is
+// that it was delivered comes back unverified, with its delivery recorded.
+//
+// It is also deliberately below the point where two such signals combine past the threshold:
+// `conclude` adds a second signal as `conf + (1-conf)*0.4*w`, so two hints at this weight reach
+// 0.48 and still refuse. Two mechanical consequences of a click are not one effect.
+const WeightDelivered = 0.4
 
 // Verify judges one executed action.
 func (v *Verifier) Verify(action directorapi.Action, target directorapi.ResolvedTarget,
@@ -101,7 +132,31 @@ func (v *Verifier) verifyClick(a directorapi.ClickAction, target directorapi.Res
 		})
 	}
 
-	// Focus landing ON the element that was clicked is near-proof.
+	// Focus landing ON the element that was clicked proves DELIVERY, not effect.
+	//
+	// # Why this is weighted below the threshold
+	//
+	// Because taking focus is how a control responds to BEING CLICKED. It says the click
+	// reached the thing Marco aimed at — which is genuinely valuable, and is the best evidence
+	// there is against the wrong-target failure this package exists to catch — and it says
+	// nothing whatever about whether the application then did anything.
+	//
+	// It was 0.85, above MinConfidence, so it could conclude on its own. The consequence,
+	// found by the real-desktop acceptance harness on its first run against a button built to
+	// accept a press and do nothing: Marco clicked, focus landed, Marco reported `performed`
+	// with verification ok, and an independent oracle confirmed the application had not acted.
+	// Every inert button in every application verified — a failed validation, a swallowed
+	// exception, a control that is enabled and does nothing.
+	//
+	// This package's own documentation already said so, and the weight disagreed with it:
+	// "What is explicitly not verification: that the click was sent … All three are true of a
+	// click that landed on a disabled control."
+	//
+	// So it is DEMOTED rather than removed. Below MinConfidence it cannot carry a verdict
+	// alone; beside any real signal it still corroborates, which is what keeps a genuine click
+	// as easy to confirm as it was.
+	//
+	// Deleting the demotion must fail TestAClickThatOnlyTookFocusIsNotVerified.
 	if after.Cursor.Over != nil {
 		_ = after.Cursor.Over // cursor position is not evidence; see the package doc
 	}
@@ -109,8 +164,9 @@ func (v *Verifier) verifyClick(a directorapi.ClickAction, target directorapi.Res
 	switch {
 	case afterFocus != "" && afterFocus == target.ElementID:
 		ev = append(ev, directorapi.Evidence{
-			Kind: "focus_on_target", Observed: true, Weight: 0.85,
-			Detail: "keyboard focus is now on the element that was clicked",
+			Kind: "focus_on_target", Observed: true, Weight: WeightDelivered,
+			Detail: "keyboard focus is now on the element that was clicked, which shows " +
+				"the click was delivered there and not that it had an effect",
 			Source: directorapi.SourceAccessibility,
 		})
 	case beforeFocus != afterFocus:
@@ -138,6 +194,51 @@ func (v *Verifier) verifyClick(a directorapi.ClickAction, target directorapi.Res
 			Kind: "window_title_changed", Observed: true, Weight: 0.75,
 			Detail: fmt.Sprintf("the window title changed from %q to %q", bt, at),
 			Source: directorapi.SourceWindowSystem,
+		})
+	}
+
+	// THE APPLICATION SAYING SOMETHING DIFFERENT.
+	//
+	// # Why this was missing, and what it cost
+	//
+	// A label whose text changed is the commonest way software reports an outcome: a status
+	// line, a validation message, a count, a filename, a mode. Before this, none of it was
+	// evidence — a click that made an application say "Saved" produced exactly the same
+	// verdict as one that made it say nothing, because the only things gathered were a menu
+	// opening, focus, a window count, a window title, the target's own state, the target
+	// vanishing, and a drifting element count.
+	//
+	// It surfaced when delivery was demoted: a click that genuinely changed a status line
+	// stopped verifying, which would have traded false success for false failure. The two
+	// changes are one change — Marco has to stop accepting the click's own echo AND start
+	// reading what the application answers.
+	//
+	// # Why it compares elements that exist in both worlds
+	//
+	// Because that is what "it said something different" means. An element appearing or
+	// vanishing is already covered above; this is the same control, still there, now saying
+	// something else — which no amount of tree churn produces on its own.
+	//
+	// # Why a small number of changed labels is worth more than many
+	//
+	// A response to an action touches one or two labels. An application repainting, loading, or
+	// filling a list touches many, and the existing reasoning about `element_count_changed`
+	// already says that volume of change is a hint rather than a finding. Same argument, same
+	// shape, so the two cannot disagree about one screen.
+	//
+	// The known limit, stated rather than guarded against: a clock or a counter in the same
+	// window changes one label without being caused by anything Marco did. That hazard is
+	// exactly the one `window_title_changed` has always carried at 0.75, and the answer is the
+	// same — the settle stage's noise floor, not a clock detector in here, which would be this
+	// package guessing at what text means.
+	if n, detail := saidSomethingDifferent(target, before, after); n > 0 {
+		weight, kind := 0.7, "text_changed"
+		if n > maxTargetedTextChanges {
+			weight, kind = 0.35, "text_churn"
+		}
+		ev = append(ev, directorapi.Evidence{
+			Kind: kind, Observed: true, Weight: weight, Detail: detail,
+			Source: directorapi.SourceAccessibility,
 		})
 	}
 
@@ -462,4 +563,68 @@ func enabledWord(b bool) string {
 		return "enabled"
 	}
 	return "disabled"
+}
+
+// maxTargetedTextChanges is how many labels may change before it reads as churn rather than as an
+// answer.
+//
+// Two. A control responding to an action says one thing — "Saved", "3 items", an error — and
+// occasionally two, when a status line and a count move together. Beyond that the application is
+// repainting, and the existing `element_count_changed` reasoning already treats that volume of
+// change as a hint.
+const maxTargetedTextChanges = 2
+
+// saidSomethingDifferent counts the labels that exist in both worlds and now read differently.
+//
+// # Scoped to the target's own window
+//
+// Because a notification in another application is not this application answering. The world holds
+// every window Marco observed, and a verifier that read all of them would accept a chat message
+// arriving as proof that a button worked.
+//
+// The target's own element is excluded: its state is covered by `targetStateChanged`, and counting
+// it twice would let one fact carry two pieces of evidence.
+//
+// Returns the count and a sentence naming at most two of them, because a reason is read by a person
+// and "11 labels changed" tells them less than the first two do.
+func saidSomethingDifferent(target directorapi.ResolvedTarget,
+	before, after directorapi.WorldState) (int, string) {
+
+	window := target.WindowID
+	if window == "" {
+		if el, ok := after.Element(target.ElementID); ok {
+			window = el.WindowID
+		}
+	}
+
+	n := 0
+	var named []string
+	for id, now := range after.Elements {
+		if id == target.ElementID {
+			continue
+		}
+		if window != "" && now.WindowID != window {
+			continue
+		}
+		was, ok := before.Element(id)
+		if !ok {
+			// Appearing is not saying something different; it is covered above.
+			continue
+		}
+		if was.Label == now.Label {
+			continue
+		}
+		n++
+		if len(named) < 2 {
+			named = append(named, fmt.Sprintf("%q → %q", was.Label, now.Label))
+		}
+	}
+	if n == 0 {
+		return 0, ""
+	}
+	detail := "the application now says " + strings.Join(named, " and ")
+	if n > len(named) {
+		detail = fmt.Sprintf("%d labels changed, including %s", n, strings.Join(named, " and "))
+	}
+	return n, detail
 }
