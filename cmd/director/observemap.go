@@ -76,7 +76,31 @@ func (r *Runtime) Map(q service.ObserveMap) service.MapView {
 	}
 
 	out.Places, out.Edges = mapAround(top, here, mapNeighbourhood)
-	out.KnownPlaces, out.KnownEdges = len(top.Subjects), len(top.Relationships)
+	// THE HEADLINE COUNTS, AND THEY COUNT WHAT THEY SAY THEY COUNT.
+	//
+	// `Topology.Subjects` is every durable subject for the application — Places, the
+	// controls grounded in them, and structural groups — because the planner needs to
+	// resolve an endpoint id of any kind. Reading its length as a number of PLACES is a
+	// category error, and it was measured at twenty times over: a real store holding 7
+	// Chrome places and 238 Chrome controls reported `245 places`.
+	//
+	// That number is not a harmless label. It read as a graph far larger than the
+	// neighbourhood this same function draws, and the gap between "245 places" and an
+	// empty map sent an investigation after an emptiness that was not there.
+	//
+	// So the counts are split and each is derived from the subject kind rather than from
+	// the length of a list that mixes them.
+	//
+	// Deleting the kind check must fail TestTheMapCountsPlacesAndControlsApart.
+	out.KnownEdges = len(top.Relationships)
+	for _, s := range top.Subjects {
+		switch s.Structure.Subject {
+		case observe.SubjectState:
+			out.KnownPlaces++
+		case observe.SubjectTarget:
+			out.KnownControls++
+		}
+	}
 	if here != "" {
 		out.Reachable = r.reachableFrom(application, top, here)
 	}

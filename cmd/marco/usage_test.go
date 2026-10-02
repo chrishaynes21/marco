@@ -151,3 +151,62 @@ func headings(sections map[string][]string) []string {
 	}
 	return out
 }
+
+// THE FIRST THING `marco help` SAYS IS WHAT MARCO IS FOR.
+//
+// # What was wrong, and why it was the top market blocker
+//
+// An audit of the product read the whole surface a new user meets and found that `marco help` did
+// not contain the word "observe" at all, and that its opening line described a macro recorder:
+// `marco learn "log into facebook"`. Meanwhile the Director could already perform thirty-three
+// verified semantic actions against whatever was on screen, needing no play, no demonstration and
+// nothing learned first — and nothing anywhere told anybody so.
+//
+// A capability a person cannot discover has no value to them. This holds the two properties the
+// listing now has to have, over whatever wording it carries:
+//
+//	saying what you want comes FIRST, and names no prerequisite
+//	watching is offered at all
+//
+// It deliberately does not assert the prose. What it asserts is order and presence, because those
+// are the two things that were wrong and the two a rewording could silently undo.
+func TestHelpLeadsWithSayingWhatYouWant(t *testing.T) {
+	var b strings.Builder
+	usage(&b)
+	text := b.String()
+
+	// `do` IS THE FIRST VERB OFFERED. Not merely present — first. It was present before, on
+	// the fourth line of a section headed by the recorder, which is how it read as a way to
+	// replay something you had already taught.
+	first := regexp.MustCompile(`(?m)^\s+marco (\S+)`).FindStringSubmatch(text)
+	if first == nil {
+		t.Fatal("the help offers no verbs at all")
+	}
+	if first[1] != "do" {
+		t.Errorf("the first verb `marco help` offers is %q.\n\n"+
+			"Saying what you want is the product and it needs no setup; a listing that "+
+			"leads with anything else tells a new person the first thing they must do is "+
+			"teach Marco something.", first[1])
+	}
+
+	// AND WATCHING IS MENTIONED. It was absent entirely — the headline capability of the
+	// learning half, undiscoverable from the only surface a new person reads.
+	if !strings.Contains(text, "marco observe") {
+		t.Error("`marco help` does not mention `marco observe`. Watching is a real " +
+			"capability and a person who cannot find it does not have it.")
+	}
+
+	// AND THE LEAD DOES NOT REQUIRE ANYTHING FIRST. The first section must not tell somebody
+	// to record, learn or register before they can ask for something.
+	lead := text
+	if i := strings.Index(text, "\nPlays"); i > 0 {
+		lead = text[:i]
+	}
+	for _, prerequisite := range []string{"record it once", "teach it first", "learn it first"} {
+		if strings.Contains(lead, prerequisite) {
+			t.Errorf("the opening section says %q. `marco do \"click Save\"` works on a "+
+				"screen Marco has never seen, with nothing learned and nothing "+
+				"remembered.", prerequisite)
+		}
+	}
+}

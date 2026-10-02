@@ -165,6 +165,12 @@ type ambientObserver struct {
 	// can tell a first write from the idempotent ones after it. Bounded by how many screens
 	// somebody visits while watching, and cleared with the trace.
 	establishedHere map[string]bool
+	// noted is every Place this RUN of watching has already counted as a visit.
+	//
+	// Cleared when watching starts, and deliberately NOT per observation session: the unit
+	// `RememberedSubject.Sessions` has to be is a stretch of somebody's attention, and an
+	// ambient session is twenty seconds of Marco's bookkeeping. See notePlace.
+	noted map[string]bool
 }
 
 // The bounds ambient watching runs under, and every one of them is a refusal to be greedy.
@@ -216,6 +222,10 @@ func (r *Runtime) EnableAmbient() service.AmbientView {
 	a.bursts, a.burstPolls, a.burstUntil = 0, 0, time.Time{}
 	a.lastInput, a.inputSeen = time.Time{}, 0
 	a.establishedHere = nil
+	// AND THE VISITS THIS RUN HAS COUNTED. Turning watching off and on again is a second
+	// occasion — the person came back — so the set is cleared with the rest of what belongs
+	// to one run of attention. See notePlace for why the unit is a run and not a session.
+	a.noted = nil
 	// COUNTED HERE, not inside the goroutine. A count the loop increments when it happens
 	// to be scheduled is a count a caller can read as zero while a supervisor is starting,
 	// and "how many observers are there" must be answerable the instant this returns.
@@ -610,6 +620,20 @@ func (a *ambientObserver) record(application string, look ambientLook, now time.
 	// AND THE SCREEN ITSELF, before what it offers — a control is scoped to a Place, so there
 	// has to be one to scope it to. See settlePlace for the measured gap this closes.
 	a.settlePlace(application, look)
+	// AND THAT MARCO FOUND A PLACE IT ALREADY KNEW, once per run of watching.
+	//
+	// The number this feeds was written at creation and incremented by nothing, so every
+	// durable Place in every real store said "seen on 1 visit" for ever. It is the one figure
+	// that distinguishes a Place Marco keeps finding from one it saw once, which makes it the
+	// figure any judgement about recognition has to rest on.
+	//
+	// It credits the Place THIS READING RESOLVED, which is a Place Marco already recognised:
+	// `look` was taken before `settlePlace` ran, so a screen established a moment ago carries
+	// no subject here and is credited on the next reading instead. That is the right way round
+	// — the count means "I found this again", and the reading that created it found nothing.
+	//
+	// Deleting this call must fail TestWatchingAndLearningCountsReturningToAPlace.
+	a.notePlace(application, look)
 	// WHERE EVERY TALLIED CONTROL WENT, recorded before the licence is asked. This is an
 	// account of what perception decided, not of what was written: a Director that is
 	// watching without learning still answers "why is nothing recordable here".
@@ -942,6 +966,41 @@ func (a *ambientObserver) view() service.AmbientView {
 
 	if store, ok := a.rt.watchedStore(); ok && application != "" {
 		out.Candidates = len(store.Watched(application))
+	}
+
+	// AND WHAT THE STORE ACTUALLY HOLDS, beside what this session did to it.
+	//
+	// # Why an all-time figure belongs on a session view
+	//
+	// Because every other number here is session-scoped and the reader has no way to know
+	// that. `AffordancesStored` counts the controls this run of attention made durable, and
+	// `RememberTargetsSeen` returns only what was NEW — so a second sweep of a screen Marco
+	// already knows reports nought, correctly.
+	//
+	// Read beside an all-time Place count from a different surface, that produced a sentence
+	// nobody intended: `1 durable affordance against 512 established Places`. The store at
+	// that moment held 500 affordances and 12 Places. Both figures were right and the
+	// comparison was meaningless, because the two had different denominators and neither
+	// said so.
+	//
+	// So the denominator travels with the figure, in the one place somebody reads them
+	// together. Counts only, by subject kind, over every application — no id, no label, no
+	// word read off a screen.
+	//
+	// Deleting this must fail TestWatchingSaysWhatTheStoreHoldsBesideWhatItJustLearned.
+	if memory, ok := a.rt.durableMemory(); ok {
+		if lister, ok := memory.(interface {
+			Subjects() []observe.RememberedSubject
+		}); ok {
+			for _, s := range lister.Subjects() {
+				switch s.Structure.Subject {
+				case observe.SubjectState:
+					out.RememberedPlaces++
+				case observe.SubjectTarget:
+					out.RememberedAffordances++
+				}
+			}
+		}
 	}
 
 	out.Recognition = recognitionReport(steps)

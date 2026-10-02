@@ -379,6 +379,28 @@ type PlaceNamer interface {
 	ObserveSemanticName(application, id, name string, from EvidenceSource) error
 }
 
+// PlaceVisitor records that a Place the store already holds was recognised again.
+//
+// # Why this is the narrowest interface in the file
+//
+// Because the fact it carries is the narrowest one durable memory holds: a Place Marco already
+// knows has been found on a separate occasion. It takes a subject ID the caller has ALREADY
+// resolved through `Recall` — never a signature — so the store performs no second identity
+// comparison and cannot credit a visit to a neighbouring place. The same contract
+// `RememberRelationships` states for its endpoints.
+//
+// It is separate from `PlaceStore` for the reason every interface here is separate: a caller
+// holding this can increment a counter and can do nothing else. There is no method on it that
+// could create a subject, name one, judge one, or remove one.
+type PlaceVisitor interface {
+	// NoteVisit counts one separate occasion on which this subject was recognised.
+	//
+	// Refuses an id the store does not hold. An OCCASION rather than a reading: the caller owes
+	// the discipline that makes the number mean something, because a counter incremented per
+	// sample would climb all afternoon and say nothing about returning.
+	NoteVisit(application, id string) error
+}
+
 // SettledPlaceNameFor exposes the recurrence rule for tests and diagnostics.
 //
 // The rule itself stays unexported and single-sited; this is a window onto it, so a test can hold

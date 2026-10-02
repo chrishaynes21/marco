@@ -294,12 +294,26 @@ func isActName(s string) bool {
 }
 
 func usage(w io.Writer) {
-	fmt.Fprint(w, `marco — a sentence-driven automation language and an assistant that learns.
+	fmt.Fprint(w, `marco — tell your computer what you want done.
 
-Assistant (learn by demonstration, then run by name):
-  marco do "<name>"        run a play; if unknown, record it once and remember
-  marco stop               stop whatever is running — a play, a Director command, both
-  marco press <key>        press a key or chord (e.g. enter, ctrl+c, control shift esc)
+Say what you want — no setup, and nothing taught in advance:
+  marco do "click Save"            do it to whatever is on screen now
+  marco do "go back"               33 actions, chosen against the real control
+  marco do "click search and type hello"       several things, in order
+  marco stop                       stop whatever is running, from anywhere
+
+  Marco looks at the screen, works out which control you meant, does it through a
+  verified action, and tells you whether it worked. It refuses honestly when it
+  cannot find what you described. Set $MARCO_RESOLVER to be understood however you
+  phrase it — see "marco director status" for whether one is configured.
+
+Watching (optional, and off until you ask):
+  marco observe            watch how I use my computer and keep up with where I am
+  marco observe learn      and remember the shape of it: places, and the ways between
+  marco observe status     what it is watching and what it has remembered
+
+Plays — name something once, ask for it by name after that:
+  marco do "<name>"        run a play you saved
   marco learn "<name>"     record/overwrite a play by demonstration
   marco simplify "<name>"  re-simplify a saved play as far as it goes
   marco ui                 open the control center (all plays, bindings, help) in a browser
@@ -310,6 +324,7 @@ Assistant (learn by demonstration, then run by name):
   marco active             print the foreground app (context)
   marco forget "<name>"    delete a play
   marco rename "old" to "new"  rename a play
+  marco press <key>        press a key or chord (e.g. enter, ctrl+c, control shift esc)
   marco secret set|list|rm <name>   manage stored passwords (OS credential store)
 
 Run Marco programs:

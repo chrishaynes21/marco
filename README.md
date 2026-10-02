@@ -1,14 +1,69 @@
 # marco
 
-**Marco is a sentence-driven automation language and a computer assistant that
-learns what you show it.** You name a command in plain words — *"log into
-Facebook"*, *"start Sea of Thieves"* — and Marco runs it. If it doesn't know
-how, it asks you to show it once, watches what you do, and keeps it as a clean,
-editable program so next time it just does it.
+**Tell your computer what you want done.**
 
-Underneath is a small language where every line reads like English and the
-runtime drives the real machine (keystrokes, mouse, screen) through a
-host-FFI boundary that plays nicely with other languages.
+```
+$ marco do "click Save"
+[result] performed
+```
+
+That is the whole of it. Nothing to record, nothing to teach it first, nothing
+remembered in advance: Marco looks at what is on screen, works out which control
+you meant, does it through a verified semantic action, and tells you whether it
+worked.
+
+```
+$ marco do "go back"
+$ marco do "click search and type hello"
+$ marco do "expand the Downloads folder"
+$ marco stop                              # from anywhere, at any time
+```
+
+There are **33 actions** — invoke, select, expand, collapse, check, choose, copy,
+paste, undo, back, forward, refresh, submit, confirm, dismiss, maximize… — and
+Marco never guesses which one. It names *what you meant*, then picks the
+implementation at run time from what the real control can actually do: a button
+with an Invoke pattern is pressed without the pointer going anywhere near it. If
+it can't find what you described, it says so rather than clicking something
+nearby.
+
+Every command ends in one of six words, and *"performed"* means Marco looked
+again and confirmed it: **performed · clarify · refused · unavailable ·
+cancelled · failed**.
+
+### Say it however you like
+
+The built-in reading is deterministic and offline, and it is deliberately narrow.
+Point `$MARCO_RESOLVER` at a resolver plugin and Marco understands the phrasings
+it doesn't know — *"would you hit the save button for me"* — by mapping them onto
+those same 33 actions:
+
+```sh
+# a LOCAL model, nothing leaves the machine (needs Ollama running)
+go -C plugins/llama build -o llama . && export MARCO_RESOLVER=$PWD/plugins/llama/llama
+```
+
+The plugin is only ever asked *what the sentence meant*. **It is never told what
+is on your screen** — not a label, not a window title, not what Marco remembers.
+It answers with one action and a description, and Marco resolves that description
+itself, locally, against a screen it observed. `marco director status` says
+whether one is configured.
+
+### It can also watch, and learn the shape of your computer
+
+Off until you ask for it, and a separate agreement from attention:
+
+```sh
+marco observe            # keep up with where I am: which app, which screen, what changed
+marco observe learn      # and remember it: places, and the ways between them
+marco observe status      # what it has seen, and what it has written down
+```
+
+What this builds is a map, not a macro: *this place, that action, that place*.
+It is additive — `marco do` needs none of it — and it is how Marco comes to know
+where things are rather than only what is in front of it right now.
+
+### And you can name something to ask for it later
 
 ```
 $ marco learn "log into facebook"
@@ -17,17 +72,19 @@ Show me how to "log into facebook". Do it now, then press F12 when finished.
 …you click through the login, typing {{fb-password}} for the password, press F12…
 Learned "log into facebook" (anywhere) → routes/global/log-into-facebook.marco
 
-$ marco plays
-Known plays:
-  log into facebook            Recorded · Ready · anywhere
-
 $ marco do "log into facebook"
-[route] log into facebook
 [result] performed
 ```
 
-Or say it: the overlay (`.\overlay.cmd`) takes the same words typed or spoken,
-and one **stop** — said, typed, or the leader key — ends whatever is running.
+Underneath all of it is a small language where every line reads like English, and
+a runtime that drives the real machine (keystrokes, mouse, screen) through a
+host-FFI boundary that plays nicely with other languages. **Every effect Marco has
+on your computer is legal Marco source** — there is one door, and nothing else
+can reach the desktop.
+
+Or say it out loud: the overlay (`.\overlay.cmd`) takes the same words typed or
+spoken, and one **stop** — said, typed, or the leader key — ends whatever is
+running.
 
 ---
 
@@ -39,7 +96,16 @@ Build the CLI (Go 1.26+):
 go build -o marco ./cmd/marco
 ```
 
-Show Marco a **play** once, then run it by name:
+Then just ask for something:
+
+```sh
+marco do "click Save"            # against whatever is in front of you
+marco do "go back"
+marco director status            # what Marco can see, and how much it can read
+```
+
+Only when you want the *same* thing by the *same* name every time is there
+anything to set up. Show Marco a **play** once, then run it by name:
 
 ```sh
 marco learn "open inventory"     # record clicks/keys; press F12 to finish

@@ -701,28 +701,72 @@ func (s *Store) EstablishPlace(application string,
 	return id, nil
 }
 
-// NoteSession records that a subject was seen again, without changing what is known.
+// NoteVisit records that a subject was recognised on a separate occasion.
 //
-// Bounded by construction: it updates a counter on an existing record and never creates one, so
-// merely observing something familiar can never grow the store.
-func (s *Store) NoteSession(application string, sig observe.StructureSignature) {
+// # What this is for, and the defect it replaces
+//
+// `RememberedSubject.Sessions` is the one number that answers "has Marco ever found this place
+// again" — which is the question the whole durable half exists to be able to answer yes to. It was
+// written in exactly one place, at creation, as `Sessions: 1`.
+//
+// The only thing that could ever increment it was `NoteSession`, and `NoteSession` had **one
+// caller in the repository and it was a unit test**. So every subject in every real store read
+// `sessions: 1` for ever, `DescribeSubject` told every person "seen on 1 visit" about a screen
+// they had visited fifty times, and nothing anywhere could distinguish a place Marco recognises
+// daily from one it saw once and never again. A complete mechanism production never invoked, for
+// the sixth recorded time — and this one was load-bearing for a measurement.
+//
+// # Why it takes an id and not a signature
+//
+// `NoteSession` took a `StructureSignature` and re-ran `CompareStructure` over every subject to
+// find its match. That is a SECOND identity decision, in a place entitled to none: the caller has
+// already resolved this reading through `Recall`, which is the canonical test, and a store that
+// matched again could credit a visit to a different subject than the one the session is standing
+// on. It is the same rule `RememberRelationships` states for its endpoints — the caller resolves,
+// the store checks existence and refuses otherwise — and there is now one identity test rather
+// than two spellings of one.
+//
+// # What it may do, which is almost nothing
+//
+// Increment a counter on a record that already exists. It cannot create a subject, cannot touch
+// `Knowledge`, `Called`, `Semantic` or `Structure`, and refuses an id the store does not hold. So
+// recognising something familiar can never grow the store and can never change what is known
+// about it.
+//
+// An OCCASION, not a reading. The caller owes the once-per-occasion discipline — see the
+// watching supervisor's `noted` set, and the note there on why a 20-second observation session is
+// not an occasion.
+func (s *Store) NoteVisit(application, id string) error {
 	if s == nil {
-		return
+		return fmt.Errorf("semanticmemory: no store")
+	}
+	if strings.TrimSpace(id) == "" {
+		return fmt.Errorf("semanticmemory: no subject was named")
 	}
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.unavailable != "" {
-		return
+		reason := s.unavailable
+		s.mu.Unlock()
+		return fmt.Errorf("semanticmemory: not writing: %s", reason)
 	}
+	found := -1
 	for i, r := range s.subjects {
-		if !strings.EqualFold(r.Application, application) {
-			continue
-		}
-		if observe.CompareStructure(sig, r.Structure) == observe.MatchSame {
-			s.subjects[i].Sessions++
-			return
+		if r.ID == id && strings.EqualFold(r.Application, application) {
+			found = i
+			break
 		}
 	}
+	if found < 0 {
+		s.mu.Unlock()
+		return fmt.Errorf("semanticmemory: %s holds no subject %s", application, id)
+	}
+	s.subjects[found].Sessions++
+	snapshot := s.snapshotLocked()
+	s.mu.Unlock()
+	// NOTHING IS ANNOUNCED. Recognising a place again is not learning, and a feed that said
+	// otherwise would fire for every screen somebody revisits — which is the argument
+	// `EstablishPlace` already makes for its own early return.
+	return save(s.path, snapshot)
 }
 
 // upsert replaces the knowledge for a kind, or adds it.

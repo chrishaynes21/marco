@@ -35,10 +35,35 @@ type Observer func(ctx context.Context) (directorapi.WorldState, error)
 // Director believing its own intentions, which is precisely the failure mode this
 // milestone exists to rule out.
 type Pipeline struct {
-	Observe  Observer
-	Intent   func(string) directorapi.Intent
-	Resolver *target.Resolver
-	Planner  *plan.Planner
+	Observe Observer
+	Intent  func(string) directorapi.Intent
+	// Interpret, when set, is consulted for a request the deterministic Intent parser could
+	// not classify. Optional: without it the pipeline behaves exactly as it did before, which
+	// is how a Director with no model configured stays unaffected.
+	//
+	// # Why it is beside Intent rather than instead of it
+	//
+	// Because the offline parser is AUTHORITATIVE where it answers. It is deterministic,
+	// offline, free and instant, and "click Save" has one correct reading that needs no model
+	// at all. A model consulted first would make a settled request depend on a subprocess, a
+	// network and somebody's API key — and would occasionally read it differently.
+	//
+	// So the order is fixed and not configurable: parse, and only if that produced
+	// `IntentUnknown`, interpret. See parseWith.
+	//
+	// # Why this one carries a context when Intent does not
+	//
+	// Because it is the only part of parsing that can block. `Intent` is a pure function over a
+	// string; this may run a subprocess that reaches a network, and `stop` has to be able to
+	// reach it. A parse that could not be cancelled would hold a Director command open with
+	// nothing to show for it.
+	//
+	// It returns `(Intent, bool)` rather than an error: "nothing interpreted this" is the
+	// ordinary answer when no plugin is configured, and the pipeline's response is the same in
+	// every case — keep the deterministic reading, and the sentence it refuses with.
+	Interpret func(context.Context, string) (directorapi.Intent, bool)
+	Resolver  *target.Resolver
+	Planner   *plan.Planner
 	// Goals expands a high-level goal into a program. Optional: without it the
 	// pipeline behaves exactly as it did before, which is how a caller that has not
 	// opted in stays unaffected.
@@ -225,7 +250,51 @@ func (p *Pipeline) Handle(ctx context.Context, request string) Outcome {
 	defer env.Clear()
 	colls := pctx.EnsureCollections()
 	defer colls.Clear()
-	return p.handleParsed(ctx, request, p.Intent(request), pctx)
+	return p.handleParsed(ctx, request, p.parseWith(ctx)(request), pctx)
+}
+
+// parseWith is the reading of a request: deterministic first, interpreted only where that failed.
+//
+// # Why this is a closure over ctx rather than a method
+//
+// Because the one consumer that cannot take a context is `program.Decompose`, which accepts a
+// `func(string) Intent` and is called from two places that both HAVE a context. Threading a
+// context through `Decompose` would change a signature thirty-two test call sites depend on and
+// buy nothing: the context is already in scope everywhere the parse is actually performed, so
+// capturing it here puts cancellation exactly where it is needed and changes no other signature.
+//
+// That matters more than it sounds. A `context.Background()` invented at this boundary would be a
+// parse that `stop` cannot reach, which is the same defect
+// TestNothingThatCanReachTheWalkerInventsItsOwnContext exists for one layer down.
+//
+// # The order, and why a deterministic reading always wins
+//
+// `IntentUnknown` is the parser's own statement that it could not classify the input — a real
+// outcome rather than an error, and the ONLY state in which asking something else is justified.
+// Every other kind is a reading the offline parser is entitled to make, and overriding one with a
+// model's opinion would make a settled request non-deterministic for no gain.
+//
+// An interpretation that declines leaves the deterministic Intent exactly as it was, including its
+// `Ambiguity` sentence — so a person is told what Marco could not understand, by the thing that
+// could not understand it.
+//
+// Deleting the IntentUnknown condition — consulting the interpreter for every request — must fail
+// TestADeterministicReadingIsNeverReinterpreted.
+func (p *Pipeline) parseWith(ctx context.Context) func(string) directorapi.Intent {
+	return func(request string) directorapi.Intent {
+		in := p.Intent(request)
+		if p.Interpret == nil || in.Kind != directorapi.IntentUnknown {
+			return in
+		}
+		if out, ok := p.Interpret(ctx, request); ok {
+			return out
+		}
+		// NOTHING INTERPRETED IT, so the refusal is the parser's own and says so. The
+		// deterministic sentence names the small vocabulary it knows, which is the honest
+		// account when no model answered — and a message invented here would claim a model
+		// had an opinion about this request when none did.
+		return in
+	}
 }
 
 // handleParsed is the single-step pipeline, entered with an already-parsed intent.

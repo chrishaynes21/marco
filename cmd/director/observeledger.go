@@ -292,6 +292,65 @@ func (a *ambientObserver) callPlaces(application string, look ambientLook) {
 	a.rt.callPlaces(application, look.Names)
 }
 
+// notePlace counts this run of attention as one occasion on which Marco recognised a Place.
+//
+// # What makes an OCCASION, and why it is not an observation session
+//
+// `RememberedSubject.Sessions` is meant to answer "has Marco found this place again" — which is
+// the difference between a screen somebody visits daily and one they saw once. For that to be true
+// the unit has to be a stretch of a person's attention, not a slice of Marco's bookkeeping.
+//
+// An ambient observation session is twenty seconds. Counting one of those would make the number
+// climb all afternoon on one unchanged screen, which is precisely the growth
+// `package ambient`'s own opening note exists to forbid — and it would read as "seen on 847
+// visits" about a screen somebody never left.
+//
+// So the unit is one RUN of watching: from the moment somebody turns attention on to the moment
+// they turn it off. `noted` is the set already credited in this run, cleared when watching starts,
+// so a Place is counted once however many sessions pass over it. Turning watching off and on again
+// is a second occasion, which is the honest reading — the person came back.
+//
+// # Watching alone counts nothing
+//
+// It is a durable write, so it asks the same single gate every other ambient durable write asks,
+// at the write, through the same promotion boundary. Watch alone recognises the Place, reports it,
+// and records nothing.
+//
+// Deleting the policy check must fail TestWatchingAloneCountsNoVisit; deleting the `noted` guard
+// must fail TestOneRunOfWatchingIsOneVisit.
+func (a *ambientObserver) notePlace(application string, look ambientLook) {
+	subject := look.Place.Subject
+	if subject == "" || !a.policy().Enabled {
+		return
+	}
+	a.mu.Lock()
+	if a.noted == nil {
+		a.noted = map[string]bool{}
+	}
+	if a.noted[subject] {
+		a.mu.Unlock()
+		return
+	}
+	a.noted[subject] = true
+	a.mu.Unlock()
+
+	memory, ok := a.rt.durableMemory()
+	if !ok {
+		return
+	}
+	places, _ := memory.(observe.PlaceStore)
+	if places == nil {
+		return
+	}
+	p := promotion{
+		licence: ambientPromotionLicence(), application: application, places: places,
+	}
+	// A failure loses a count, not a Place. It is not retried in this run: the guard above is
+	// what makes the number mean "occasions" rather than "attempts", and a retry loop would
+	// hand a broken store one increment per sample.
+	_ = p.visit(subject)
+}
+
 // endOf describes one end of an observed step for the ledger.
 func endOf(key string, shape *ambient.Shape) observe.WatchedEnd {
 	if ambient.Recognised(key) {

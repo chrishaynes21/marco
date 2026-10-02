@@ -37,6 +37,11 @@ type request struct {
 	Input  string   `json:"input"`
 	Routes []string `json:"routes"`
 	App    string   `json:"app"` // foreground app name, context for converse
+	// Interpret, when present, asks WHAT THE SENTENCE MEANT rather than which saved route
+	// it named. Selected by the field rather than by Mode, because that is how the engine
+	// asks — a question identified by a field can be added without every existing plugin
+	// having to know a new mode word. See interpret.go.
+	Interpret *interpretRequest `json:"interpret"`
 }
 
 type response struct {
@@ -61,6 +66,12 @@ func main() {
 	cfg := loadConfig()
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.Timeout)
 	defer cancel()
+	// WHAT DID THE SENTENCE MEAN, asked first because it is identified by a field rather than
+	// by a mode word, and a request carrying it is never also a route question.
+	if req.Interpret != nil {
+		emitSemantic(interpret(ctx, cfg, req.Input, req.Interpret.Verbs))
+		return
+	}
 	if req.Mode == "converse" {
 		emitDecision(converse(ctx, cfg, req))
 		return

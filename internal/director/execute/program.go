@@ -137,7 +137,7 @@ func (p *Pipeline) HandleProgram(ctx context.Context, request string) ProgramOut
 		return out
 	}
 
-	prog, err := program.Decompose(request, p.Intent)
+	prog, err := program.Decompose(request, p.parseWith(ctx))
 	if err != nil {
 		return ProgramOutcome{
 			Program: prog,
@@ -507,7 +507,7 @@ func (p *Pipeline) HandleRequest(ctx context.Context, request string) Outcome {
 		return p.Handle(ctx, request)
 	}
 
-	prog, err := program.Decompose(request, p.Intent)
+	prog, err := program.Decompose(request, p.parseWith(ctx))
 	if err != nil {
 		// The whole request is refused, and nothing ran. Reported as a failure with
 		// the reason rather than as a clarification, because the problem is not that

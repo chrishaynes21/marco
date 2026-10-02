@@ -8,10 +8,23 @@
 // that may use whatever SDK it likes — same "play nicely with other languages"
 // boundary as the bridge host.
 //
-// Protocol (one JSON object each way, over the plugin's stdio):
+// Protocol (one JSON object each way, over the plugin's stdio). There are two questions, and a
+// plugin may answer either or both — the field it is asked by says which:
 //
+//	WHICH PLAY DID THEY MEAN
 //	→ {"input":"fire up sea of thieves","routes":["start-sea-of-thieves","open-chest"]}
 //	← {"route":"start-sea-of-thieves"}      (empty route = no match)
+//
+//	WHAT DID THAT SENTENCE MEAN                                        (see interpret.go)
+//	→ {"input":"shut that pop-up","interpret":{"verbs":["invoke","dismiss",…]}}
+//	← {"semantic":{"kind":"dismiss"}}       (no "semantic" = no interpretation)
+//
+// The second question is ADDITIVE and was added without a protocol version: a plugin that only
+// knows the first sees one unrecognised field, answers `{"route":""}`, and the caller correctly
+// reads that as "nothing interpreted it". Neither question is ever asked with the other's field
+// present, so no plugin has to decide which it was being asked.
+//
+// Neither question is ever told what is on screen. See the note on Interpret.
 //
 // The plugin path comes from $MARCO_RESOLVER. Unset → deterministic only.
 package resolver

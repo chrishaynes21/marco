@@ -166,7 +166,11 @@ func TestRepeatedObservationDoesNotGrowTheStore(t *testing.T) {
 			confirmed(observe.PossibleSettingsLikeState)); err != nil {
 			t.Fatalf("Remember %d: %v", i, err)
 		}
-		s.NoteSession("unknown-game", settingsSignature())
+		// Through the id the store already holds, which is the only way a visit may be
+		// recorded — see NoteVisit on why a signature is not acceptable here.
+		for _, sub := range s.Subjects() {
+			_ = s.NoteVisit("unknown-game", sub.ID)
+		}
 	}
 	if got := s.Count(); got != 1 {
 		t.Fatalf("%d subjects after 200 observations of one screen, want 1", got)

@@ -30,13 +30,44 @@ func parseSemantic(in directorapi.Intent, raw string) (directorapi.Intent, bool)
 	if !ok {
 		return in, false
 	}
+	// DeterministicConfidence: slightly below a literal "click X". The semantic reading is
+	// the better one, and it is still an interpretation of words that could have meant
+	// something else — "check the log file" is a plausible request to look at something.
+	return SemanticIntent(in, req, DeterministicConfidence), true
+}
+
+// DeterministicConfidence is what the phrase reader claims for a semantic reading.
+//
+// Diagnostic only: nothing in the pipeline gates on `Intent.Confidence`, and this exists so a
+// trace can say which reading produced a step rather than so a threshold can be tuned.
+const DeterministicConfidence = 0.85
+
+// SemanticIntent builds the Intent for one semantic request. THE one construction site.
+//
+// # Why this is a function and not inlined where it was
+//
+// Because there is now a second producer of semantic requests — a model-backed interpreter, for
+// the phrasings `uiact.Parse` declines — and the one thing that must not happen is two ways of
+// turning a [uiact.Request] into an [directorapi.Intent]. Two spellings of one construction is one
+// construction with two futures, and the one nobody edits is the one that goes wrong quietly.
+//
+// So an interpreter contributes a `uiact.Request` and nothing else. It cannot reach the fields
+// below, cannot set a Verb of its own, cannot attach a second target, and cannot build a query
+// shape the phrase reader could not have built — not because it is forbidden to, but because the
+// only thing it is given to say is `{Kind, Target, Ordinal, Deictic}` and this is what that
+// becomes.
+//
+// `in` carries the Raw input and is otherwise the zero intent. `confidence` is the producer's own
+// claim about its reading and is diagnostic.
+//
+// Deleting a caller's use of this — building a semantic Intent anywhere else — must fail
+// TestEverySemanticIntentIsBuiltInOnePlace.
+func SemanticIntent(in directorapi.Intent, req uiact.Request,
+	confidence float64) directorapi.Intent {
 
 	in.Kind = directorapi.IntentAct
 	in.Verb = SemanticVerb
-	// Slightly below a literal "click X". The semantic reading is the better one, and
-	// it is still an interpretation of words that could have meant something else —
-	// "check the log file" is a plausible request to look at something.
-	in.Confidence = 0.85
+	in.Confidence = confidence
 	in.Parameters = map[string]any{SemanticKindParam: string(req.Kind)}
 	if req.Ordinal > 0 {
 		in.Parameters[SemanticOrdinalParam] = req.Ordinal
@@ -65,7 +96,7 @@ func parseSemantic(in directorapi.Intent, raw string) (directorapi.Intent, bool)
 			Query: &directorapi.ElementQuery{Focused: &focused},
 		}}
 	}
-	return in, true
+	return in
 }
 
 // SemanticKindOf reads the verb back out of an intent.

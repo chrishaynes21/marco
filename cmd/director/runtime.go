@@ -654,10 +654,29 @@ func NewRuntime(bridgePath string, maxNodes int, dryRun bool, g *actiongraph.Fil
 		panic("director: the effects executor reached the pipeline without a foreground guard")
 	}
 	rt.pipeline = &execute.Pipeline{
-		Observe:  observe,
-		Intent:   intent.New().Parse,
-		Resolver: target.NewResolver(),
-		Planner:  plan.New(),
+		Observe: observe,
+		Intent:  intent.New().Parse,
+		// AND THE READING FOR EVERYTHING THAT PARSER DECLINES.
+		//
+		// The deterministic parser is narrow by design and says so at its own definition:
+		// three verbs, and an input it does not recognise becomes `IntentUnknown` rather
+		// than a guess. That was the right call and it left the Director able to perform
+		// thirty-three verified semantic verbs and able to understand almost nothing.
+		//
+		// `interpret.New()` is nil unless `$MARCO_RESOLVER` names a plugin, so a Director
+		// with no model configured gets a nil field and behaves exactly as before. Wiring
+		// something that always declines would make "no model here" and "it did not
+		// understand you" the same answer, and only one of them is about the request.
+		//
+		// What is wired is an INTERPRETER, not an agent: one sentence in, one typed
+		// operation out, checked against the vocabulary the ladders implement. Everything
+		// after it — grounding against a fresh world, policy, confirmation, legal Marco,
+		// verification — is the path it already was.
+		//
+		// Deleting this must fail TestTheDirectorConsultsTheInterpreterForAPhraseItCannotParse.
+		Interpret: interpretIntent(),
+		Resolver:  target.NewResolver(),
+		Planner:   plan.New(),
 		// Policy, plus what the capability packs declare about the applications they
 		// serve. A contributed rule may only NARROW a decision — see
 		// internal/director/policy/contributed.go — so adding a pack can make the

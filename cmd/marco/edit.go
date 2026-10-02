@@ -2367,9 +2367,12 @@ async function mapRead(){
     if(!box) return;
     const places=m.places||[], edges=m.edges||[], reach=m.reachable||[];
     show('gbox', !!m.available && (places.length>0 || m.known_places>0));
+    // PLACES, WAYS AND CONTROLS, counted apart. They are three different things and the
+    // single number that used to be here added them up under the word "places".
     document.getElementById('gcount').textContent =
       m.known_places ? (m.known_places+' place'+(m.known_places==1?'':'s')+', '+
-        (m.known_edges||0)+' connection'+(m.known_edges==1?'':'s')) : '';
+        (m.known_edges||0)+' connection'+(m.known_edges==1?'':'s')+
+        (m.known_controls ? ', '+m.known_controls+' control'+(m.known_controls==1?'':'s') : '')) : '';
     // THE NEIGHBOURHOOD, as connections rather than as a list of names. An edge is the unit
     // of what Marco learns, so it is the unit the map draws: FROM, what you did, TO. Never
     // "origin" and "arrival" — those are the machinery's words and a person read them and

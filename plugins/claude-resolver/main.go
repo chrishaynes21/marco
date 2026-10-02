@@ -31,6 +31,10 @@ import (
 type request struct {
 	Input  string   `json:"input"`
 	Routes []string `json:"routes"`
+	// Interpret, when present, asks WHAT THE SENTENCE MEANT rather than which saved route it
+	// named. See interpret.go — and note that it is never accompanied by routes, so a plugin
+	// never has to decide which question it was asked.
+	Interpret *interpretRequest `json:"interpret"`
 }
 
 type response struct {
@@ -42,6 +46,11 @@ func main() {
 	var req request
 	if json.Unmarshal([]byte(line), &req) != nil {
 		emit("")
+		return
+	}
+	// WHICH QUESTION THIS IS, decided by the field that was sent.
+	if req.Interpret != nil {
+		emitSemantic(interpret(req.Input, req.Interpret.Verbs))
 		return
 	}
 	emit(resolve(req))

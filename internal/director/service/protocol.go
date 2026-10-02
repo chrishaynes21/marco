@@ -1173,10 +1173,21 @@ type MapView struct {
 	// somebody can act on.
 	Places []MapPlace `json:"places,omitempty"`
 	Edges  []MapEdge  `json:"edges,omitempty"`
-	// KnownPlaces and KnownEdges are the whole graph, as counts. So somebody watching the map
-	// grow can see it grow without being shown all of it.
-	KnownPlaces int `json:"known_places,omitempty"`
-	KnownEdges  int `json:"known_edges,omitempty"`
+	// KnownPlaces, KnownControls and KnownEdges are the whole graph, as counts. So somebody
+	// watching the map grow can see it grow without being shown all of it.
+	//
+	// THREE NUMBERS BECAUSE THERE ARE THREE KINDS OF THING, and the one that used to be here
+	// counted all of them under the name of one. Durable memory holds Places, the controls
+	// grounded in them, and the ways between Places; a store with 12 Places and 500 controls
+	// reported `512 places`, which is both wrong and wrong in the direction that makes the
+	// graph look finished.
+	//
+	// A control is not a lesser Place. It is what a Place OFFERS, it carries no edges, and
+	// nothing plans over it — so adding the two together produces a number that answers no
+	// question anybody has.
+	KnownPlaces   int `json:"known_places,omitempty"`
+	KnownControls int `json:"known_controls,omitempty"`
+	KnownEdges    int `json:"known_edges,omitempty"`
 	// Reachable is where the canonical planner says Marco could get to from here.
 	Reachable []MapReach `json:"reachable,omitempty"`
 }
@@ -2135,10 +2146,31 @@ type AmbientView struct {
 	//
 	// Counts and ROLE NAMES only. The refused text is exactly what the gate exists to
 	// withhold, and a diagnostic carrying it would be a copy of the thing being refused.
+	//
+	// ALL FOUR ARE SESSION-SCOPED, and `AffordancesStored` counts only what was NEW — a sweep
+	// of a screen Marco already knows adds nothing to it, correctly. See RememberedPlaces for
+	// why that has to be said out loud.
 	AffordancesVisible  int            `json:"affordances_visible,omitempty"`
 	AffordancesAdmitted int            `json:"affordances_admitted,omitempty"`
 	AffordancesWithheld map[string]int `json:"affordances_withheld,omitempty"`
 	AffordancesStored   int            `json:"affordances_stored,omitempty"`
+	// RememberedPlaces and RememberedAffordances are what durable memory holds ALL TIME,
+	// across every application.
+	//
+	// # Why the denominator travels with the figure
+	//
+	// Every other count on this view is session-scoped, and nothing used to say so. Read
+	// beside an all-time Place count taken from another surface, the pair produced
+	// `1 durable affordance against 512 established Places` — while the store held 500
+	// affordances and 12 Places. Both numbers were correct; the comparison was not, because
+	// one was "new in the last five minutes" and the other was "ever", and neither was
+	// labelled.
+	//
+	// A figure whose scope a reader has to infer is a figure that will eventually be read
+	// against one of the other kind. These two exist so that comparison can be made in one
+	// place and be true.
+	RememberedPlaces      int `json:"remembered_places,omitempty"`
+	RememberedAffordances int `json:"remembered_affordances,omitempty"`
 	// NamingProduced and NamingAbsent are whether a reading could say where it was, and why
 	// not when it could not.
 	//

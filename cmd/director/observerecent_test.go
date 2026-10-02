@@ -223,6 +223,10 @@ func TestObserveCannotMakeItsOwnEvidenceDurable(t *testing.T) {
 	// through. It writes one word against an identity the store already holds — a smaller
 	// operation than establishing, and still not one an unlicensed promotion may perform.
 	refused("named a place it recognised", watching.call("subj_whatever", "Mouse"))
+	// AND THE VISIT DOOR. One counter on an identity the store already holds — the smallest
+	// operation on this object, and the reason it is still licensed is that it is still a
+	// durable write: watching alone must leave the file untouched, including its numbers.
+	refused("counted a visit to a place", watching.visit("subj_whatever"))
 	// AND NOTHING REACHED THE STORE.
 	if n := len(subjectsIn(store, recentApp)); n != 0 {
 		t.Errorf("%d place(s) were established by an unlicensed promotion", n)

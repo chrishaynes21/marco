@@ -217,6 +217,24 @@ func printStatus(st service.StatusPayload) {
 		fmt.Printf("Active command: none\n")
 	}
 
+	// AND HOW MUCH OF WHAT SOMEBODY TYPES MARCO CAN READ, printed either way.
+	//
+	// Without this, "I only understand click, focus, move, repeat and text editing so far" and
+	// "the interpreter was consulted and had no reading" are the same sentence to a person —
+	// and the remedy for the first is to set `$MARCO_RESOLVER`, while the remedy for the second
+	// is to say it differently. A capability whose absence is invisible is one nobody turns on.
+	//
+	// The PATH, because it is a thing the person set and the thing they would check. Never a
+	// key, a model name or a prompt.
+	//
+	// Deleting either arm must fail TestStatusSaysWhetherMarcoCanReadPlainRequests.
+	if interpreterConfigured() {
+		fmt.Printf("Understanding: plain requests, via %s\n", interpreterPath())
+	} else {
+		fmt.Printf("Understanding: the built-in phrasings only " +
+			"(set $MARCO_RESOLVER for plain requests)\n")
+	}
+
 	// WATCHING IS PART OF THE SELF-REPORT, always, and printed even when the answer is no.
 	//
 	// A status command that mentioned ambient observation only while it was running would
@@ -272,8 +290,20 @@ func printStatus(st service.StatusPayload) {
 	// watched yet is noise. The withheld count is the important half: an application that
 	// teaches Marco nothing because there was nothing to learn and one whose every control
 	// was refused by the label gate read identically without it.
+	// EVERY FIGURE SAYS WHOSE IT IS.
+	//
+	// The three on this line are THIS SESSION's, and `remembered` counts only what was new —
+	// so a sweep of a screen Marco already knows reports nought, correctly. Unlabelled, that
+	// nought was read against an all-time Place count from another surface and produced
+	// `1 durable affordance against 512 established Places` about a store holding 500
+	// affordances and 12 Places.
+	//
+	// So the session line says "this session" and the store's own totals are printed under
+	// it, where the comparison a reader is going to make anyway is the true one.
+	//
+	// Deleting either scope word must fail TestTheStatusLinesSayWhichScopeEachCountIs.
 	if st.Watching.AffordancesVisible > 0 {
-		fmt.Printf("Affordances: %d actionable, %d admitted, %d remembered\n",
+		fmt.Printf("Affordances this session: %d actionable, %d admitted, %d newly remembered\n",
 			st.Watching.AffordancesVisible, st.Watching.AffordancesAdmitted,
 			st.Watching.AffordancesStored)
 		roles := make([]string, 0, len(st.Watching.AffordancesWithheld))
@@ -284,6 +314,17 @@ func printStatus(st service.StatusPayload) {
 		for _, role := range roles {
 			fmt.Printf("  withheld: %d %s\n", st.Watching.AffordancesWithheld[role], role)
 		}
+	}
+
+	// AND WHAT THE STORE HOLDS ALL TIME, in the one place the session figures are read.
+	//
+	// Places and controls are counted APART, because they are different kinds of thing and the
+	// number that added them together was reported under the name of one of them.
+	if st.Watching.RememberedPlaces > 0 || st.Watching.RememberedAffordances > 0 {
+		fmt.Printf("Remembered all time: %d place%s, %d control%s\n",
+			st.Watching.RememberedPlaces, countSuffix(st.Watching.RememberedPlaces),
+			st.Watching.RememberedAffordances,
+			countSuffix(st.Watching.RememberedAffordances))
 	}
 
 	// AND WHETHER A READING COULD SAY WHERE IT WAS. The evidence-density number: settlement
@@ -651,4 +692,12 @@ func printFunnel(totals map[string]int, order []string) {
 	for _, o := range rest {
 		fmt.Printf("  %-38s %d\n", o, totals[o])
 	}
+}
+
+// countSuffix is the plural "s" for a count, so a status line reads as a sentence.
+func countSuffix(n int) string {
+	if n == 1 {
+		return ""
+	}
+	return "s"
 }

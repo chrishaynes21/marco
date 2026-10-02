@@ -134,6 +134,36 @@ func (p promotion) call(subject, name string) error {
 	return namer.ObserveSemanticName(p.application, subject, name, observe.FromStructure)
 }
 
+// visit records that Marco recognised a Place it already holds, on a separate occasion.
+//
+// # Why it hangs off EstablishPlaces
+//
+// Because it is a fact about a Place and about nothing else, exactly as `call` is: one counter on
+// an identity the store already holds. A person who agreed that Marco may make screens
+// recognisable agreed to the part that says it recognised one again. It needs no walk, no edge, no
+// goal, no control name and no desktop input.
+//
+// # It cannot mint anything
+//
+// `NoteVisit` refuses an id the store does not hold, and the only id reaching here is one `Recall`
+// resolved through the canonical identity test. There is no path from this function to a new
+// subject, to a judgement, or to anything a person said.
+//
+// Deleting the licence check must fail TestWatchingAloneCountsNoVisit.
+func (p promotion) visit(subject string) error {
+	if !p.licence.EstablishPlaces {
+		return errNotLicensed{want: "establish a place"}
+	}
+	if subject == "" {
+		return nil
+	}
+	visitor, ok := p.places.(observe.PlaceVisitor)
+	if !ok {
+		return nil
+	}
+	return visitor.NoteVisit(p.application, subject)
+}
+
 // relate makes the transitions durable, so a candidate has a relationship to belong to.
 //
 // # Why this is part of route evidence rather than a fourth permission
