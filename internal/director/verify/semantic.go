@@ -212,18 +212,50 @@ func (v *Verifier) verifySelection(target directorapi.ResolvedTarget,
 		if b, ok := before.Element(target.ElementID); ok {
 			wasSelected = b.Selected
 		}
-		weight := 0.95
-		detail := fmt.Sprintf("%q is now %s", target.Label, selectedWord(want))
+		// THE PROVIDER'S WORD ABOUT ITS OWN STATE, at the weight that word is worth.
+		//
+		// It was 0.95 — alone-sufficient — and the measurement above is why it is not. The
+		// same class as focus landing on a clicked control: the layer that performed the
+		// action is not the sole witness that it worked.
+		weight := WeightDelivered
+		detail := fmt.Sprintf("%q reports itself %s", target.Label, selectedWord(want))
 		if wasSelected == want {
 			// It already held the requested state before the action. That is not proof
 			// the action did anything, and reporting it as such would verify a no-op.
-			weight, detail = 0.5, fmt.Sprintf("%q is %s, as it already was",
+			weight = WeightDelivered / 2
+			detail = fmt.Sprintf("%q is %s, as it already was",
 				target.Label, selectedWord(want))
 		}
-		return conclude([]directorapi.Evidence{{
+		ev := []directorapi.Evidence{{
 			Kind: "selection_state", Observed: true, Weight: weight, Detail: detail,
 			Source: directorapi.SourceAccessibility,
-		}}, v.MinConfidence, "the selection did not change")
+		}}
+		// AND WHAT THE REST OF THE APPLICATION DID ABOUT IT.
+		//
+		// A selection that changed a status line, revealed a panel or moved a count is
+		// corroborated by something other than the control's own opinion, and verifies. One
+		// that changed nothing else cannot be confirmed — which is a true and useful thing to
+		// say, and is what a correct provider produces for a selection with no side effect
+		// just as much as a lying one does.
+		//
+		// `targetStateChanged` is deliberately NOT included: for a selection it reports the
+		// same fact as the evidence above, and counting it twice would let one self-report
+		// carry two pieces of evidence past the threshold.
+		ev = append(ev, v.changeEvidence(target, before, after)...)
+
+		res := conclude(ev, v.MinConfidence, "")
+		if res.Success {
+			return res
+		}
+		// INCONCLUSIVE, NOT FAILED. The selection may well have happened; the application
+		// simply did not say anything that proves it. Claiming it did not happen is as wrong
+		// as claiming it did, and the service already keeps UNVERIFIED as its own outcome for
+		// exactly this difference.
+		res.Inconclusive = true
+		res.Reason = fmt.Sprintf("%q reports itself %s and nothing else changed to confirm "+
+			"it, so the selection could not be independently verified",
+			target.Label, selectedWord(want))
+		return res
 	}
 	return directorapi.VerificationResult{
 		Success: false, Confidence: 0.9,

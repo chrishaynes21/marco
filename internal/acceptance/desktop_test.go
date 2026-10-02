@@ -132,14 +132,49 @@ func TestDesktopAcceptance(t *testing.T) {
 	//
 	// Selecting is not invoking, and the fixture keeps them apart: a selection moves
 	// `selected` and presses nothing.
+	// # What this asserts, and why it is not "the selection happened"
+	//
+	// It cannot be. Measured on this provider, with the pattern driven by hand:
+	//
+	//	SelectionItemPattern.Select(Beta)
+	//	  child     IsSelected     = true
+	//	  container GetSelection() = "Beta"
+	//	  application SelectedItem = null
+	//
+	// Both accessibility witnesses report a selection the application does not have, so no
+	// amount of work inside Marco makes `selected == "Beta"` true here. Asserting it would be
+	// asserting that somebody else's provider is correct.
+	//
+	// What Marco OWES is the invariant this whole suite exists for: either the thing happened,
+	// or Marco did not claim it did. That is assertable, it is Marco's own responsibility, and
+	// it fails loudly if Marco ever goes back to reporting `performed` on a selection nothing
+	// corroborated.
+	//
+	// It also passes the day a provider behaves — if the oracle agrees, the first arm holds.
 	t.Run("selection/select Beta", func(t *testing.T) {
 		h.Restart(false)
 		r := h.Do("select Beta")
 
 		got := h.Oracle()
-		if got.Selected != "Beta" {
-			t.Errorf("selected is %q, want \"Beta\"%s",
-				got.Selected, r.Report(oracleVerdict(got.Selected == "Beta")))
+		switch {
+		case got.Selected == "Beta":
+			// The provider and the application agree. Then Marco must have said so.
+			if !r.Performed() {
+				t.Errorf("the selection really happened and Marco did not report it%s",
+					r.Report("agrees"))
+			}
+		case r.Performed():
+			t.Errorf("MARCO CLAIMED A SELECTION THAT DID NOT HAPPEN.\n\n"+
+				"The application has no selection and Marco reported performed. "+
+				"Accessibility selection state is not independent proof of application "+
+				"state on this provider, and the control's own word must not carry a "+
+				"verdict on its own.%s",
+				r.Report("DISAGREES — selected=\"\" after a reported selection"))
+		default:
+			t.Logf("UNVERIFIABLE-PROVIDER: Marco delivered the selection and honestly "+
+				"declined to confirm it (%s · %s). The application reports no selection; "+
+				"the child and its container both report one.",
+				r.Outcome(), r.FailureStage())
 		}
 		if got.SavePresses+got.CancelPresses+got.DetailsPresses != 0 {
 			t.Errorf("a selection pressed something: %s", got.Summary())

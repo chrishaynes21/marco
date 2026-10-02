@@ -160,3 +160,126 @@ func evidenceOf(res directorapi.VerificationResult) string {
 	}
 	return out
 }
+
+// ── a provider's word about its own state ─────────────────────────────────────
+
+// A SELECTION NOBODY CORROBORATED IS NOT A VERIFIED SELECTION.
+//
+// # The measurement that earned this
+//
+// On a WinForms ListBox, driven through real-desktop acceptance with an independent oracle reading
+// the application's own SelectedItem:
+//
+//	SelectionItemPattern.Select(Beta)
+//	  child     IsSelected     = true
+//	  container GetSelection() = "Beta"
+//	  application SelectedItem = null     ← nothing was selected
+//
+// Both accessibility witnesses reported a selection the application did not have. Marco believed
+// them and said `performed`.
+//
+// So the provider's report of its OWN state belongs in the same class as focus landing on a clicked
+// control: real evidence, worth recording, and not sufficient on its own. It is the same principle
+// already applied to delivery — the layer that performed the action is not the sole witness that it
+// worked — and the decision taken from the measurement is that a false claim of success is worse
+// than an occasional unverifiable successful selection.
+//
+// Deleting the demotion must fail this.
+func TestASelectionNobodyCorroboratedIsNotVerified(t *testing.T) {
+	// Two worlds identical except that the item now reports itself selected. That is exactly
+	// what the lying provider produces, and exactly what a correct provider produces on a
+	// control whose selection changes nothing else — which is why the answer is "cannot
+	// confirm" rather than "did not happen".
+	before := scene(t0, nil,
+		obs("uia:1", directorapi.RoleList, "Items", rect(10, 10, 200, 80)),
+		obs("uia:2", directorapi.RoleListItem, "Beta", rect(12, 30, 196, 14)),
+	)
+	after := scene(t0.Add(time.Second), nil,
+		obs("uia:1", directorapi.RoleList, "Items", rect(10, 10, 200, 80)),
+		withSelected(obs("uia:2", directorapi.RoleListItem, "Beta", rect(12, 30, 196, 14))),
+	)
+
+	id := idOf(before, "Beta")
+	target := directorapi.ResolvedTarget{ElementID: id, Label: "Beta"}
+	res := New().Verify(directorapi.SemanticAction{
+		Kind: directorapi.SemanticSelect, Target: directorapi.ElementReference{ID: id},
+	}, target, before, after)
+
+	if res.Success {
+		t.Errorf("a selection reported only by the control itself verified at %.2f.\n\n"+
+			"Measured on a real provider: the child said selected, the container agreed, and "+
+			"the application had no selection. The provider's word about its own state is not "+
+			"independent proof of it.\n\nevidence: %s", res.Confidence, evidenceOf(res))
+	}
+	// AND IT IS INCONCLUSIVE, NOT FAILED. "I asked for it and cannot confirm" is different
+	// information from "it did not happen", and the difference decides whether a person tries
+	// again. The service already keeps UNVERIFIED as its own outcome for exactly this.
+	if !res.Inconclusive {
+		t.Errorf("an unconfirmable selection came back as a failure rather than as "+
+			"inconclusive. The selection may well have happened; claiming it did not is as "+
+			"wrong as claiming it did.\n\nreason: %q", res.Reason)
+	}
+	// AND THE EVIDENCE IS KEPT. It is what distinguishes this from a control that refused.
+	if !hasKind(res, "selection_state") {
+		t.Errorf("the control's own report was discarded rather than demoted: %s",
+			evidenceOf(res))
+	}
+}
+
+// AND A SELECTION THAT CHANGED SOMETHING STILL VERIFIES.
+//
+// The other half, and the reason this is a demotion rather than a refusal to verify selection at
+// all: when selecting an item actually did something — a status line, a detail panel, a count —
+// the world corroborates it and the verdict is reached. A fix that made every correct selection
+// unverifiable would trade one error for a worse one.
+func TestASelectionTheWorldCorroboratesStillVerifies(t *testing.T) {
+	before := scene(t0, nil,
+		obs("uia:1", directorapi.RoleList, "Items", rect(10, 10, 200, 80)),
+		obs("uia:2", directorapi.RoleListItem, "Beta", rect(12, 30, 196, 14)),
+		obs("uia:3", directorapi.RoleText, "Nothing selected", rect(10, 100, 200, 20)),
+	)
+	after := scene(t0.Add(time.Second), nil,
+		obs("uia:1", directorapi.RoleList, "Items", rect(10, 10, 200, 80)),
+		withSelected(obs("uia:2", directorapi.RoleListItem, "Beta", rect(12, 30, 196, 14))),
+		obs("uia:3", directorapi.RoleText, "Selected: Beta", rect(10, 100, 200, 20)),
+	)
+
+	id := idOf(before, "Beta")
+	target := directorapi.ResolvedTarget{ElementID: id, Label: "Beta"}
+	res := New().Verify(directorapi.SemanticAction{
+		Kind: directorapi.SemanticSelect, Target: directorapi.ElementReference{ID: id},
+	}, target, before, after)
+
+	if !res.Success {
+		t.Errorf("a selection the application visibly responded to did not verify (%.2f, %q). "+
+			"Demoting the provider's self-report must not make real selections "+
+			"unconfirmable.\n\nevidence: %s", res.Confidence, res.Reason, evidenceOf(res))
+	}
+}
+
+// AND A CONTROL THAT REFUSED IS STILL A FAILURE.
+//
+// Unchanged, and worth holding: an item that does NOT report the requested state is a different
+// answer from one that does and cannot be corroborated. The first is "it did not happen"; the
+// second is "I cannot tell".
+func TestAnItemThatDidNotTakeTheSelectionStillFails(t *testing.T) {
+	before := scene(t0, nil,
+		obs("uia:1", directorapi.RoleList, "Items", rect(10, 10, 200, 80)),
+		obs("uia:2", directorapi.RoleListItem, "Beta", rect(12, 30, 196, 14)),
+	)
+	after := scene(t0.Add(time.Second), nil,
+		obs("uia:1", directorapi.RoleList, "Items", rect(10, 10, 200, 80)),
+		obs("uia:2", directorapi.RoleListItem, "Beta", rect(12, 30, 196, 14)),
+	)
+
+	id := idOf(before, "Beta")
+	target := directorapi.ResolvedTarget{ElementID: id, Label: "Beta"}
+	res := New().Verify(directorapi.SemanticAction{
+		Kind: directorapi.SemanticSelect, Target: directorapi.ElementReference{ID: id},
+	}, target, before, after)
+
+	if res.Success || res.Inconclusive {
+		t.Errorf("an item that never reported itself selected came back as %v/%v; it is a "+
+			"plain failure", res.Success, res.Inconclusive)
+	}
+}

@@ -100,6 +100,29 @@ func idle(at time.Time, selected, path string) directorapi.WorldState {
 	)
 }
 
+// unselected is the window BEFORE anything is picked: the item is not selected and Rename is
+// disabled, which is what a file manager does — you cannot rename what you have not chosen.
+//
+// It exists because the select step used to be given the SAME world either side, with the file
+// already selected. That made `select Alpha.txt` a no-op, and it verified anyway: the
+// already-in-that-state weight was exactly MinConfidence, so a request that did nothing passed the
+// threshold while the comment beside the weight said doing so "would verify a no-op". The third
+// weight in that package to disagree with its own documentation.
+//
+// The claim of this test is unchanged and is about a demonstration becoming a reusable procedure.
+// A world where selecting changed nothing was never the world it meant to describe.
+func unselected(at time.Time, name, path string) directorapi.WorldState {
+	rename := obs("uia:rename", directorapi.RoleButton, "Rename", "", "AppBarButton",
+		rect(400, 8, 90, 30))
+	no := false
+	rename.Enabled = &no
+	return desktop(at,
+		obs("uia:win", directorapi.RoleWindow, "work", "", "CabinetWClass", rect(0, 0, 900, 700)),
+		file("uia:item", name, path),
+		rename,
+	)
+}
+
 // renaming is the same window with the in-place editor open on the item.
 //
 // The item stays SELECTED and loses FOCUS, which is what Explorer does: the editor takes
@@ -269,8 +292,8 @@ func TestADemonstratedRenameBecomesAProcedureThatRunsOnAnotherFile(t *testing.T)
 	const alpha = `C:\work\Alpha.txt`
 	// Two worlds per request: the one it plans against and the one it verifies against.
 	d := newDirector(t,
-		// select Alpha.txt
-		idle(t1, "Alpha.txt", alpha),
+		// select Alpha.txt — nothing chosen yet, and Rename is disabled until something is
+		unselected(t1, "Alpha.txt", alpha),
 		idle(t1.Add(1*time.Second), "Alpha.txt", alpha),
 		// click Rename → the editor opens and takes focus
 		idle(t1.Add(2*time.Second), "Alpha.txt", alpha),

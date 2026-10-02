@@ -121,16 +121,9 @@ func (v *Verifier) Verify(action directorapi.Action, target directorapi.Resolved
 func (v *Verifier) verifyClick(a directorapi.ClickAction, target directorapi.ResolvedTarget,
 	before, after directorapi.WorldState) directorapi.VerificationResult {
 
-	var ev []directorapi.Evidence
-
-	// A menu opening is the clearest signal there is, and it is what clicking a menu
-	// item does — the case that motivated putting menu detection first.
-	if opened, detail := menuOpened(before, after); opened {
-		ev = append(ev, directorapi.Evidence{
-			Kind: "menu_opened", Observed: true, Weight: 0.9, Detail: detail,
-			Source: directorapi.SourceAccessibility,
-		})
-	}
+	// WHAT THE APPLICATION DID, independent of how the action was delivered. Shared with
+	// every other verifier that needs to ask the same question — see changeEvidence.
+	ev := v.changeEvidence(target, before, after)
 
 	// Focus landing ON the element that was clicked proves DELIVERY, not effect.
 	//
@@ -178,96 +171,12 @@ func (v *Verifier) verifyClick(a directorapi.ClickAction, target directorapi.Res
 		})
 	}
 
-	// A dialog or new window appearing.
-	if len(after.Windows) > len(before.Windows) {
-		ev = append(ev, directorapi.Evidence{
-			Kind: "window_appeared", Observed: true, Weight: 0.8,
-			Detail: fmt.Sprintf("a new window appeared (%d → %d)",
-				len(before.Windows), len(after.Windows)),
-			Source: directorapi.SourceWindowSystem,
-		})
-	}
-
-	// The window's title changing — navigation, a document opening, a mode switch.
-	if bt, at := windowTitle(before), windowTitle(after); bt != "" && at != "" && bt != at {
-		ev = append(ev, directorapi.Evidence{
-			Kind: "window_title_changed", Observed: true, Weight: 0.75,
-			Detail: fmt.Sprintf("the window title changed from %q to %q", bt, at),
-			Source: directorapi.SourceWindowSystem,
-		})
-	}
-
-	// THE APPLICATION SAYING SOMETHING DIFFERENT.
-	//
-	// # Why this was missing, and what it cost
-	//
-	// A label whose text changed is the commonest way software reports an outcome: a status
-	// line, a validation message, a count, a filename, a mode. Before this, none of it was
-	// evidence — a click that made an application say "Saved" produced exactly the same
-	// verdict as one that made it say nothing, because the only things gathered were a menu
-	// opening, focus, a window count, a window title, the target's own state, the target
-	// vanishing, and a drifting element count.
-	//
-	// It surfaced when delivery was demoted: a click that genuinely changed a status line
-	// stopped verifying, which would have traded false success for false failure. The two
-	// changes are one change — Marco has to stop accepting the click's own echo AND start
-	// reading what the application answers.
-	//
-	// # Why it compares elements that exist in both worlds
-	//
-	// Because that is what "it said something different" means. An element appearing or
-	// vanishing is already covered above; this is the same control, still there, now saying
-	// something else — which no amount of tree churn produces on its own.
-	//
-	// # Why a small number of changed labels is worth more than many
-	//
-	// A response to an action touches one or two labels. An application repainting, loading, or
-	// filling a list touches many, and the existing reasoning about `element_count_changed`
-	// already says that volume of change is a hint rather than a finding. Same argument, same
-	// shape, so the two cannot disagree about one screen.
-	//
-	// The known limit, stated rather than guarded against: a clock or a counter in the same
-	// window changes one label without being caused by anything Marco did. That hazard is
-	// exactly the one `window_title_changed` has always carried at 0.75, and the answer is the
-	// same — the settle stage's noise floor, not a clock detector in here, which would be this
-	// package guessing at what text means.
-	if n, detail := saidSomethingDifferent(target, before, after); n > 0 {
-		weight, kind := 0.7, "text_changed"
-		if n > maxTargetedTextChanges {
-			weight, kind = 0.35, "text_churn"
-		}
-		ev = append(ev, directorapi.Evidence{
-			Kind: kind, Observed: true, Weight: weight, Detail: detail,
-			Source: directorapi.SourceAccessibility,
-		})
-	}
-
-	// The target's own state changing: a checkbox ticking, a tab becoming selected.
+	// The target.s own state changing: a checkbox ticking, a tab becoming selected. Appended
+	// here rather than shared, because for a verb whose whole subject IS that state — select,
+	// check, expand — it would be the same fact counted twice.
 	if changed, detail := targetStateChanged(target.ElementID, before, after); changed {
 		ev = append(ev, directorapi.Evidence{
 			Kind: "target_state_changed", Observed: true, Weight: 0.8, Detail: detail,
-			Source: directorapi.SourceAccessibility,
-		})
-	}
-
-	// The target disappearing — a dialog dismissed by its own OK button.
-	if _, wasThere := before.Element(target.ElementID); wasThere {
-		if _, stillThere := after.Element(target.ElementID); !stillThere {
-			ev = append(ev, directorapi.Evidence{
-				Kind: "target_gone", Observed: true, Weight: 0.7,
-				Detail: "the element that was clicked is no longer present",
-				Source: directorapi.SourceAccessibility,
-			})
-		}
-	}
-
-	// The weakest signal, and deliberately weak: the element set changed. It is
-	// suggestive on its own and corroborating alongside anything else, but a busy
-	// application changes its tree constantly for reasons unrelated to the click.
-	if d := len(after.Elements) - len(before.Elements); d != 0 {
-		ev = append(ev, directorapi.Evidence{
-			Kind: "element_count_changed", Observed: true, Weight: 0.35,
-			Detail: fmt.Sprintf("the number of elements changed by %+d", d),
 			Source: directorapi.SourceAccessibility,
 		})
 	}
@@ -627,4 +536,173 @@ func saidSomethingDifferent(target directorapi.ResolvedTarget,
 		detail = fmt.Sprintf("%d labels changed, including %s", n, strings.Join(named, " and "))
 	}
 	return n, detail
+}
+
+// changeEvidence is what the APPLICATION did, independent of how the action was delivered.
+//
+// # Why this is shared
+//
+// Because "did the world change, and how much" is the same question whatever verb was asked for,
+// and it used to be answered only inside `verifyClick`. Every other verifier read one specific
+// signal — a node's expanded flag, an item's selected flag — and had no way to see that the
+// application had also said "Saved", revealed a panel or opened a window.
+//
+// That asymmetry is what let a selection verify on the control's own word: there was nothing else
+// for it to be weighed against. Extracted verbatim rather than rewritten, so `verifyClick` behaves
+// exactly as it did and the weights stay in one place.
+//
+// # What is deliberately NOT here
+//
+// `focus_on_target` and `focus_changed`, because focus is a fact about DELIVERY and belongs to the
+// verb that caused it — see WeightDelivered.
+//
+// `targetStateChanged`, because for several verbs it reports the very fact being verified. A
+// selection verified partly by "the target's selected state changed" would be one self-report
+// carrying two pieces of evidence past the threshold. `verifyClick` appends it itself, where a
+// checkbox ticking after a click genuinely is a separate effect.
+func (v *Verifier) changeEvidence(target directorapi.ResolvedTarget,
+	before, after directorapi.WorldState) []directorapi.Evidence {
+
+	var ev []directorapi.Evidence
+
+	// A menu opening is the clearest signal there is, and it is what clicking a menu item
+	// does — the case that motivated putting menu detection first.
+	if opened, detail := menuOpened(before, after); opened {
+		ev = append(ev, directorapi.Evidence{
+			Kind: "menu_opened", Observed: true, Weight: 0.9, Detail: detail,
+			Source: directorapi.SourceAccessibility,
+		})
+	}
+
+	// A dialog or new window appearing.
+	if len(after.Windows) > len(before.Windows) {
+		ev = append(ev, directorapi.Evidence{
+			Kind: "window_appeared", Observed: true, Weight: 0.8,
+			Detail: fmt.Sprintf("a new window appeared (%d → %d)",
+				len(before.Windows), len(after.Windows)),
+			Source: directorapi.SourceWindowSystem,
+		})
+	}
+
+	// The window's title changing — navigation, a document opening, a mode switch.
+	if bt, at := windowTitle(before), windowTitle(after); bt != "" && at != "" && bt != at {
+		ev = append(ev, directorapi.Evidence{
+			Kind: "window_title_changed", Observed: true, Weight: 0.75,
+			Detail: fmt.Sprintf("the window title changed from %q to %q", bt, at),
+			Source: directorapi.SourceWindowSystem,
+		})
+	}
+
+	// THE APPLICATION SAYING SOMETHING DIFFERENT — a status line, a validation message, a
+	// count, a filename, a mode. The commonest way software reports an outcome, and for a long
+	// time not evidence at all: a click that made an application say "Saved" produced exactly
+	// the verdict of one that made it say nothing.
+	//
+	// Graded by volume, because a response to an action touches one or two labels and an
+	// application repainting touches many — the same reasoning `element_count_changed` already
+	// applies to the same screen. See saidSomethingDifferent for the known limit.
+	if n, detail := saidSomethingDifferent(target, before, after); n > 0 {
+		weight, kind := 0.7, "text_changed"
+		if n > maxTargetedTextChanges {
+			weight, kind = 0.35, "text_churn"
+		}
+		ev = append(ev, directorapi.Evidence{
+			Kind: kind, Observed: true, Weight: weight, Detail: detail,
+			Source: directorapi.SourceAccessibility,
+		})
+	}
+
+	// ANOTHER CONTROL CHANGING STATE BECAUSE OF WHAT WAS DONE.
+	//
+	// A Rename button becoming enabled once something is selected; a Save button enabling once a
+	// form is valid; a checkbox clearing because a mode changed. The application responding
+	// through a control other than the one that was acted on — which was invisible here, the same
+	// way a changed label was until it was added.
+	//
+	// `targetStateChanged` has read exactly these three facts about the TARGET all along; this is
+	// the same question asked of its neighbours, excluding the target so one fact cannot be
+	// counted twice. Graded by volume for the reason everything else here is.
+	if n, detail := stateChangedNearby(target, before, after); n > 0 {
+		weight, kind := 0.7, "state_changed"
+		if n > maxTargetedTextChanges {
+			weight, kind = 0.35, "state_churn"
+		}
+		ev = append(ev, directorapi.Evidence{
+			Kind: kind, Observed: true, Weight: weight, Detail: detail,
+			Source: directorapi.SourceAccessibility,
+		})
+	}
+
+	// The target disappearing — a dialog dismissed by its own OK button.
+	if _, wasThere := before.Element(target.ElementID); wasThere {
+		if _, stillThere := after.Element(target.ElementID); !stillThere {
+			ev = append(ev, directorapi.Evidence{
+				Kind: "target_gone", Observed: true, Weight: 0.7,
+				Detail: "the element that was acted on is no longer present",
+				Source: directorapi.SourceAccessibility,
+			})
+		}
+	}
+
+	// The weakest signal, and deliberately weak: the element set changed. Suggestive on its own
+	// and corroborating alongside anything else, but a busy application changes its tree
+	// constantly for reasons unrelated to the action.
+	if d := len(after.Elements) - len(before.Elements); d != 0 {
+		ev = append(ev, directorapi.Evidence{
+			Kind: "element_count_changed", Observed: true, Weight: 0.35,
+			Detail: fmt.Sprintf("the number of elements changed by %+d", d),
+			Source: directorapi.SourceAccessibility,
+		})
+	}
+	return ev
+}
+
+// stateChangedNearby counts controls OTHER than the target whose reported state changed.
+//
+// The same three facts `targetStateChanged` reads — selected, value, enabled — asked of the
+// target's neighbours. A control becoming enabled is one of the clearest things an application can
+// say about an action: it is why a file manager's Rename lights up once something is chosen.
+//
+// Scoped to the target's own window, and the target itself excluded, for the reasons
+// `saidSomethingDifferent` gives: another application responding is not this one answering, and
+// one fact must not carry two pieces of evidence.
+func stateChangedNearby(target directorapi.ResolvedTarget,
+	before, after directorapi.WorldState) (int, string) {
+
+	window := target.WindowID
+	if window == "" {
+		if el, ok := after.Element(target.ElementID); ok {
+			window = el.WindowID
+		}
+	}
+
+	n := 0
+	var named []string
+	for id := range after.Elements {
+		if id == target.ElementID {
+			continue
+		}
+		if now, ok := after.Element(id); !ok || (window != "" && now.WindowID != window) {
+			continue
+		}
+		if _, ok := before.Element(id); !ok {
+			continue
+		}
+		changed, detail := targetStateChanged(id, before, after)
+		if !changed {
+			continue
+		}
+		n++
+		if len(named) < 2 {
+			named = append(named, detail)
+		}
+	}
+	if n == 0 {
+		return 0, ""
+	}
+	if n > len(named) {
+		return n, fmt.Sprintf("%d controls changed state, including %s", n,
+			strings.Join(named, " and "))
+	}
+	return n, strings.Join(named, " and ")
 }
