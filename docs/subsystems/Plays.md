@@ -286,7 +286,7 @@ parses it, and it did not change with the vocabulary. What did change is the unk
 now the single prefix `"no play matches "` (`cmd/marco/panicstop.go`, `cmd/marco/bind.go`) with the
 overlay's suppression constant `noPlayMatches` moved to match (`TestTheUnknownCommandErrorIsOnePrefix`
 and `plugins/overlay/acts_test.go`). It now has a companion, `"[result] "`, which says what BECAME
-of the invocation in one of six words — see [[Invocation]] for both lines and why neither can be
+of the invocation in one of seven words — see [[Invocation]] for both lines and why neither can be
 derived from the other.
 
 The view IDENTIFIERS in the control centre did not move either: the tab a person reads says

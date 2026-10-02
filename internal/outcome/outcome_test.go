@@ -63,11 +63,21 @@ func TestEveryOutcomeSurvivesTheWire(t *testing.T) {
 	}
 }
 
-// TestTheSixWordsAreAClosedSet — a seventh word is a product decision, so it may not arrive by
+// TestTheWordsAreAClosedSet — a seventh word is a product decision, so it may not arrive by
 // accident. This test is the place that decision has to be made.
-func TestTheSixWordsAreAClosedSet(t *testing.T) {
-	if len(All) != 6 {
-		t.Fatalf("there are now %d outcomes. Six is the product vocabulary; adding one means "+
+// TestTheWordsAreAClosedSet is the deliberate-change gate on the vocabulary.
+//
+// It read `!= 6` and said "change this test deliberately or not at all". It was changed
+// deliberately, once, to admit `unverified`. The bill that came with it is the argument for
+// keeping the gate: FIVE surfaces had to be taught the word before the suite was green again —
+// cmd/marco's crossing, the Activity page's word map AND its CSS, the HUD's sentence, its glyph
+// and its colour. A sixth, the glyph test itself, had been naming its six by hand and said nothing
+// at all; it walks All now.
+//
+// That is what an eighth word costs, and why the number is asserted rather than derived.
+func TestTheWordsAreAClosedSet(t *testing.T) {
+	if len(All) != 7 {
+		t.Fatalf("there are now %d outcomes. Seven is the product vocabulary; adding one means "+
 			"every surface must render it, so change this test deliberately or not at all", len(All))
 	}
 	seen := map[Outcome]bool{}
@@ -77,7 +87,7 @@ func TestTheSixWordsAreAClosedSet(t *testing.T) {
 		}
 		seen[o] = true
 	}
-	for _, want := range []Outcome{Performed, Clarify, Refused, Unavailable, Cancelled, Failed} {
+	for _, want := range []Outcome{Performed, Clarify, Refused, Unavailable, Cancelled, Unverified, Failed} {
 		if !seen[want] {
 			t.Fatalf("%q is not in All, so a surface walking All would silently never render it", want)
 		}

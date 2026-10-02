@@ -1502,6 +1502,7 @@ const editPage = `<!doctype html><html><head><meta charset="utf-8"><title>MARCO<
  .out.refused{color:var(--amber);border-color:#3a3018}
  .out.unavailable{color:var(--dim)}
  .out.cancelled{color:var(--dim)}
+ .out.unverified{color:var(--amber);border-color:#3a3018;border-style:dashed}
  .out.failed{color:var(--err);border-color:#3a1e1e}
  #scrim{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10;display:none}
  #scrim.on{display:block}
@@ -3449,10 +3450,11 @@ function doOpenPlay(){ if(OPEN) doPlay(OPEN); }
 // keeps no list of its own: a second record of what Marco has done is exactly the thing this
 // campaign has been removing everywhere else.
 //
-// Deleting the outcome class must fail TestActivityRendersTheSixOutcomeWords.
+// Deleting the outcome class must fail TestActivityRendersEveryOutcomeWord.
 const OUTWORD={
   performed:'performed', clarify:'clarify', refused:'refused',
-  unavailable:'unavailable', cancelled:'cancelled', failed:'failed',
+  unavailable:'unavailable', cancelled:'cancelled', unverified:'unverified',
+  failed:'failed',
 };
 async function loadActivity(){
   const box=document.getElementById('activity');

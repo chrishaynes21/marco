@@ -15,6 +15,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/diagnostics"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/timeline"
 	"github.com/chaynes-simpleclouds/marco/internal/director/service"
+	"github.com/chaynes-simpleclouds/marco/internal/outcome"
 	"github.com/chaynes-simpleclouds/marco/internal/platform/theaterhost"
 	"github.com/chaynes-simpleclouds/marco/internal/runtime"
 )
@@ -153,16 +154,22 @@ func runDirector(args []string) {
 
 // Exit codes, because the overlay dispatches this as a process and a status line is
 // not something a script can branch on.
+//
+// These are the shared alphabet, not three numbers of their own. They used to be literals here
+// and literals again in [outcome]; the two agreed, and the only thing holding them together was
+// that one person wrote both. Now exitOfCommandState below can hand back any of the seven codes
+// and outcomeOfDirectorExit reads them with the same table.
 const (
-	// exitOK — the command completed and was verified.
-	exitOK = 0
-	// exitNotVerified — the Director ran and reported something other than success.
-	// The phrase WAS handled; there is nothing to fall back to.
-	exitNotVerified = 1
-	// exitUnavailable — the Director could not be reached at all. This is the only
-	// code on which a caller should try its legacy path, because it is the only one
-	// where the phrase was never delivered.
-	exitUnavailable = 3
+	// exitOK — the command completed and arrival was verified.
+	exitOK = outcome.ExitPerformed
+	// exitNotVerified — the Director ran it and it went wrong. The phrase WAS handled; there is
+	// nothing to fall back to. NOT the code for "delivered, unconfirmed" — that is
+	// outcome.ExitUnverified, and the difference is whether a caller may safely retry.
+	exitNotVerified = outcome.ExitFailed
+	// exitUnavailable — the Director could not be reached at all. This is the only code on which
+	// a caller should try its legacy path, because it is the only one where the phrase was never
+	// delivered.
+	exitUnavailable = outcome.ExitUnavailable
 )
 
 // directorDir is where the Director keeps its endpoint and graph.
@@ -273,18 +280,15 @@ func directorSubmit(phrase string, jsonMode bool) int {
 				fmt.Printf("  %d. %s\n", cand.Index, cand.Label)
 			}
 		}
-		return exitNotVerified
+		return outcome.ExitClarify
 
 	case res.Outcome != nil:
 		out := res.Outcome
 		fmt.Printf("%s: %s\n", strings.ToUpper(string(out.State)), out.Message)
 		if out.CompletedActions > 0 {
-			fmt.Printf("(%d action(s) performed)\n", out.CompletedActions)
+			fmt.Println(actionsLine(out.State, out.CompletedActions))
 		}
-		if out.State == service.CommandCompleted {
-			return exitOK
-		}
-		return exitNotVerified
+		return exitOfCommandState(out.State)
 	}
 	fmt.Fprintln(os.Stderr, "marco: the Director returned nothing")
 	return exitNotVerified
@@ -1014,4 +1018,76 @@ func directorPrintJSON(v any) int {
 		return 1
 	}
 	return 0
+}
+
+// exitOfCommandState is the ONE place a Director verdict becomes a process exit code.
+//
+// # What it replaced
+//
+// `return exitNotVerified` for everything that was not CommandCompleted. The Director
+// distinguishes nine states; a person running `marco do` was told two of them. The other seven
+// arrived as the single word `failed`, including three that are not failures at all:
+//
+//	unverified  the click landed and nothing corroborated it      -> said "failed"
+//	cancelled   the person pressed the stop key                   -> said "failed"
+//	blocked     a door declined, by policy, on purpose            -> said "failed"
+//
+// And a fourth that is not even an ending: a CLARIFICATION_REQUIRED printed its question, listed
+// its candidates, and then announced `failed` about the request it was still waiting to be told
+// about. Every one of those words already existed in the vocabulary and nothing reached them.
+//
+// # Why pending and running are failures here
+//
+// Because this function is only called on a terminal response, so seeing either means the service
+// answered a finished command with an unfinished state — Marco being wrong about itself. There is
+// no honest word for that other than `failed`, and inventing one would be describing a bug as a
+// feature.
+func exitOfCommandState(s service.CommandState) int {
+	switch s {
+	case service.CommandCompleted:
+		return outcome.ExitPerformed
+	case service.CommandUnverified:
+		return outcome.ExitUnverified
+	case service.CommandCancelled:
+		return outcome.ExitCancelled
+	case service.CommandBlocked:
+		// Refused by policy. The whole reason the vocabulary separates `refused` from `failed`
+		// is so that a person can tell "Marco would not" from "Marco could not".
+		return outcome.ExitRefused
+	}
+	// CommandFailed, CommandTimedOut, CommandInternalError, and anything a later version of the
+	// service adds. A state this does not know is reported as a failure rather than guessed at:
+	// the one reading that is never a false claim of success.
+	return outcome.ExitFailed
+}
+
+// actionsLine says what the completed-action count MEANS, given how the command ended.
+//
+// It used to be one format string for every ending: `(%d action(s) performed)`. Under an
+// UNVERIFIED header that produced three statements that cannot all be true —
+//
+//	UNVERIFIED: "Beta" reports itself selected and nothing else changed to confirm it
+//	(1 action(s) performed)
+//	[result] failed
+//
+// — one line saying it could not be confirmed, the next saying it was performed, and the third
+// saying it was not. The count was never wrong; what it counted was steps that RAN, and only a
+// completed command may read that as "performed".
+//
+// For an ending that stopped early the count is still worth printing, and it is the opposite of
+// reassurance: it says how much of the world already changed before Marco gave up.
+func actionsLine(s service.CommandState, n int) string {
+	noun := "actions"
+	if n == 1 {
+		noun = "action"
+	}
+	switch s {
+	case service.CommandCompleted:
+		return fmt.Sprintf("(%d %s performed)", n, noun)
+	case service.CommandUnverified:
+		return fmt.Sprintf("(%d %s delivered, not confirmed)", n, noun)
+	case service.CommandCancelled:
+		return fmt.Sprintf("(%d %s performed before it was stopped)", n, noun)
+	}
+	return fmt.Sprintf("(%d %s performed before it stopped)", n, noun)
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/invoke"
 	"github.com/chaynes-simpleclouds/marco/internal/mlog"
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
+	"github.com/chaynes-simpleclouds/marco/internal/outcome"
 	"github.com/chaynes-simpleclouds/marco/internal/plays"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
 	"github.com/chaynes-simpleclouds/marco/internal/stopsignal"
@@ -37,7 +38,7 @@ import (
 // `--source` records how intent arrived so an acceptance run can prove routing. Nothing here or in
 // `invoke.Decide` reads it to decide anything. Typing and speaking are transport differences.
 
-// Outcome is what happened, in the six words every surface can render.
+// Outcome is what happened, in the words every surface can render.
 //
 // # Why an exit code was not enough
 //
@@ -46,58 +47,45 @@ import (
 // play whose Screen guard refused caught its own failure, logged it, and returned nil — so the
 // process exited 0 while nothing had happened. The overlay had three words for all of it and
 // picked them by exit code, so "Marco refused", "you cancelled" and "it worked" all rendered `ok`.
-type Outcome string
+//
+// # Why these are aliases now
+//
+// Because this file held the FOURTH copy of the set. [outcome] exists to end exactly that — its
+// own note says "One package, imported by all three" — and the overlay's note recorded what was
+// still outstanding: "What is STILL hand-matched is the PRODUCER: cmd/marco/intake.go prints the
+// tag with a literal format string, in the root module, where nothing compares it to anything."
+// It is no longer hand-matched. The words, their exit codes and the wire line now have one
+// definition and a compiler owns the agreement, which is what made adding the seventh a one-line
+// change here instead of a four-file one somebody could do three quarters of.
+type Outcome = outcome.Outcome
 
+// The names this package has always used, bound to the one set. Each doc comment lives on the
+// constant in [outcome] now, so there is one place to read what a word means.
+//
+// OutcomePerformed in particular: nothing else may claim it — see [[ADR-070]], finishing is not
+// arriving — and OutcomeUnverified is the word for the gap that claim leaves open.
 const (
-	// OutcomePerformed means it ran AND arrival was positively verified. Nothing else may
-	// claim this word — see [[ADR-070]]: finishing is not arriving.
-	OutcomePerformed Outcome = "performed"
-	// OutcomeClarify means Director asked something and is waiting.
-	OutcomeClarify Outcome = "clarify"
-	// OutcomeRefused means Marco declined, or was not permitted: the door said no, a guard
-	// did not recognise the place, an edge would not verify.
-	OutcomeRefused Outcome = "refused"
-	// OutcomeUnavailable means the request was never delivered — nothing tried it.
-	OutcomeUnavailable Outcome = "unavailable"
-	// OutcomeCancelled means somebody stopped it.
-	OutcomeCancelled Outcome = "cancelled"
-	// OutcomeFailed means it was tried and it went wrong.
-	OutcomeFailed Outcome = "failed"
+	OutcomePerformed   = outcome.Performed
+	OutcomeClarify     = outcome.Clarify
+	OutcomeRefused     = outcome.Refused
+	OutcomeUnavailable = outcome.Unavailable
+	OutcomeCancelled   = outcome.Cancelled
+	OutcomeUnverified  = outcome.Unverified
+	OutcomeFailed      = outcome.Failed
 )
 
-// Exit is the process code for an outcome.
+// Outcome.Exit, the wire prefix and the announcement all come from [outcome] now.
 //
-// `exitUnavailable` (3) keeps the meaning it already had — "never delivered, a caller may try
-// something else" — because plugins/overlay already reads exactly that. The rest are distinct so
-// that a front-end which can only see an exit code still cannot mistake a refusal for a success.
-func (o Outcome) Exit() int {
-	switch o {
-	case OutcomePerformed:
-		return exitOK
-	case OutcomeUnavailable:
-		return exitUnavailable
-	case OutcomeClarify:
-		return 4
-	case OutcomeRefused:
-		return 5
-	case OutcomeCancelled:
-		return 6
-	default:
-		return exitNotVerified
-	}
-}
-
-// resultPrefix is the wire line a front-end reads to know what happened.
+// What stood here was a second switch over the same words returning the same codes, and a second
+// copy of the `[result] ` literal under a comment observing that nothing would fail to compile if
+// either side drifted. The comment was accurate, which is the argument against keeping the
+// arrangement it described rather than for documenting it.
 //
-// Beside `[route] `, which says WHICH play resolved and is deliberately unchanged. This one says
-// what became of it. Both are protocol, not user text; plugins/overlay matches these literals and
-// the two sides ship as separate Go modules, so nothing would fail to compile if either drifted.
-//
-// Changing this literal must fail TestTheOutcomeIsAnnouncedOnTheWire.
-const resultPrefix = "[result] "
+// Changing the literal must fail TestTheOutcomeIsAnnouncedOnTheWire.
+const resultPrefix = outcome.ResultPrefix
 
 // announce publishes the outcome for whatever is reading this process's stdout.
-func announce(o Outcome) { fmt.Printf("%s%s\n", resultPrefix, o) }
+func announce(o Outcome) { outcome.Announce(os.Stdout, o) }
 
 // tracePrefix is the cross-surface routing trace, printed only when asked for.
 //
@@ -372,12 +360,30 @@ var (
 )
 
 // outcomeOfDirectorExit reads what `marco director` reports back into the shared vocabulary.
+//
+// It is the inverse of exitOfCommandState, and the two are only correct together: a Director
+// verdict that reaches a truthful exit code and is then read back as the wrong word is still a
+// lie. TestTheDirectorsVerdictSurvivesTheCrossing walks every terminal state through BOTH halves
+// for that reason, and TestNoTwoVerdictsShareAnExitCode is why its passing means anything —
+// without it, two states could share a code and the inverse would be right about one of them.
+//
+// The default stays `failed` deliberately. An exit code this does not recognise came from a build
+// that knows a word this one does not, and the only reading of an unknown code that is never a
+// false claim of success is a failure.
 func outcomeOfDirectorExit(code int) Outcome {
 	switch code {
-	case exitOK:
+	case outcome.ExitPerformed:
 		return OutcomePerformed
-	case exitUnavailable:
+	case outcome.ExitUnavailable:
 		return OutcomeUnavailable
+	case outcome.ExitClarify:
+		return OutcomeClarify
+	case outcome.ExitRefused:
+		return OutcomeRefused
+	case outcome.ExitCancelled:
+		return OutcomeCancelled
+	case outcome.ExitUnverified:
+		return OutcomeUnverified
 	default:
 		return OutcomeFailed
 	}

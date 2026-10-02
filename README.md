@@ -27,9 +27,9 @@ with an Invoke pattern is pressed without the pointer going anywhere near it. If
 it can't find what you described, it says so rather than clicking something
 nearby.
 
-Every command ends in one of six words, and *"performed"* means Marco looked
+Every command ends in one of seven words, and *"performed"* means Marco looked
 again and confirmed it: **performed · clarify · refused · unavailable ·
-cancelled · failed**.
+cancelled · unverified · failed**.
 
 ### Say it however you like
 
@@ -146,7 +146,7 @@ can look, and it can ask you.
 **"stop"** always means stop. It reaches whatever is running before anything else
 looks at it, from any entrance.
 
-Every command tells you what became of it, in one of six words:
+Every command tells you what became of it, in one of seven words:
 
 | | |
 |---|---|
@@ -155,10 +155,16 @@ Every command tells you what became of it, in one of six words:
 | **refused** | Marco declined, or wasn't allowed — a question you answered no to, a screen it didn't recognise |
 | **unavailable** | nothing took the request at all. This is the only time Marco offers to learn it |
 | **cancelled** | you stopped it |
+| **unverified** | Marco did it and could not confirm it landed. Not a failure — and not a reason to run it again |
 | **failed** | it was tried and it went wrong |
 
 *"Refused" and "failed" are different on purpose, and neither is "performed".* A
-play that finished every step but didn't get you where you asked is not a success.
+play that finished every step but did not get you where you asked is not a success.
+
+*"Unverified" is the one worth knowing about.* Some controls will not tell Marco
+the truth about themselves, so now and then Marco does a thing and cannot prove
+it. It says so instead of guessing either way — and it does not suggest you try
+again, because the thing may already be done.
 
 ### The interactive loop
 

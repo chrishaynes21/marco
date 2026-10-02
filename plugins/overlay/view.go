@@ -701,7 +701,7 @@ func drawArgSuggestion(dst *ebiten.Image, names []string, x, y float64) {
 // StrokeLine and FillRect only, which is why there is no circle: those two primitives are
 // the ones this file has always used and the ones proven to render on every backend.
 //
-// Deleting an arm must fail TestEverySixOutcomeHasItsOwnGlyph.
+// Deleting an arm must fail TestEveryOutcomeHasItsOwnGlyph.
 func drawResultIcon(dst *ebiten.Image, cx, cy float64, out string, col color.RGBA) {
 	c := aText(col)
 	x, y := float32(cx), float32(cy)
@@ -718,15 +718,23 @@ func drawResultIcon(dst *ebiten.Image, cx, cy float64, out string, col color.RGB
 		vector.StrokeLine(dst, x-4, y, x+4, y, 1.6, c, true)
 	case outcome.Cancelled: // filled square — somebody stopped it
 		vector.FillRect(dst, x-3, y-3, 6, 6, c, true)
+	case outcome.Unverified: // a BROKEN check — it was done and the proof is missing
+		// The same two strokes as Performed with the join left open, so a glance reads "almost
+		// that" rather than a different kind of thing entirely. Which is the truth of it.
+		vector.StrokeLine(dst, x-4, y, x-2, y+2, 1.6, c, true)
+		vector.StrokeLine(dst, x, y+2, x+4, y-4, 1.6, c, true)
 	case outcome.Failed: // cross — it was tried and it went wrong
 		vector.StrokeLine(dst, x-3, y-3, x+3, y+3, 1.6, c, true)
 		vector.StrokeLine(dst, x-3, y+3, x+3, y-3, 1.6, c, true)
 	}
 }
 
-// resultColor separates the three things a glance has to tell apart: it happened, it did
-// not happen and that is fine, it went wrong. A refusal is deliberately NOT the error
-// colour — Marco declining is a correct answer, not a fault.
+// resultColor separates the four things a glance has to tell apart: it happened, it did
+// not happen and that is fine, it happened and Marco cannot prove it, it went wrong. A
+// refusal is deliberately NOT the error colour — Marco declining is a correct answer, not a
+// fault — and `unverified` is deliberately not the error colour either, for a stronger
+// reason: it is the success colour pulled halfway to idle. Something DID happen, and the
+// glance should not send anybody to undo it or to do it again.
 func resultColor(out string) color.RGBA {
 	switch outcome.Outcome(out) {
 	case outcome.Performed:
@@ -735,6 +743,8 @@ func resultColor(out string) color.RGBA {
 		return th.listen // the same colour as "Marco is waiting to hear from you"
 	case outcome.Cancelled, outcome.Refused, outcome.Unavailable:
 		return th.idle
+	case outcome.Unverified:
+		return lerp(th.run, th.idle, 0.5)
 	case outcome.Failed:
 		return th.errc
 	}

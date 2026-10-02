@@ -3,6 +3,8 @@ package acceptance
 import (
 	"fmt"
 	"strings"
+
+	"github.com/chaynes-simpleclouds/marco/internal/outcome"
 )
 
 // What a failed acceptance tells an agent, and why it is composed rather than collected.
@@ -175,28 +177,40 @@ func (r Result) Authorised() (bool, string) {
 
 // Performed reports whether the product said the thing happened.
 //
-// The six-word vocabulary, read off the output a person sees rather than off an internal state, so
-// a result that reads "performed" to the harness is one that read "performed" to them.
-func (r Result) Performed() bool {
-	return strings.Contains(r.Output, "[result] performed")
+// Read off the output a person sees rather than off an internal state, so a result that reads
+// "performed" to the harness is one that read "performed" to them.
+func (r Result) Performed() bool { return r.said(outcome.Performed) }
+
+// Unverified reports the ending that is neither: Marco delivered the request and could not
+// corroborate it. An acceptance case must be able to tell this from a failure, because for a
+// provider that lies about its own state it is the CORRECT answer and the case should pass on it.
+func (r Result) Unverified() bool { return r.said(outcome.Unverified) }
+
+// said is the one wire read, so a word added to the vocabulary cannot be invisible to the harness.
+func (r Result) said(o outcome.Outcome) bool {
+	return strings.Contains(r.Output, outcome.Line(o))
 }
 
 // Refused reports whether Marco declined rather than failing at it. Different facts, and the
 // product keeps them apart in one word each.
 func (r Result) Refused() bool {
-	return strings.Contains(r.Output, "[result] refused") ||
-		strings.Contains(r.Output, "[result] clarify")
+	return r.said(outcome.Refused) || r.said(outcome.Clarify)
 }
 
 // Cancelled reports whether the Audience stopped it.
-func (r Result) Cancelled() bool { return strings.Contains(r.Output, "[result] cancelled") }
+func (r Result) Cancelled() bool { return r.said(outcome.Cancelled) }
 
 // Outcome is the one word the product ended on.
+//
+// It walks [outcome.All] rather than listing the words. It used to list them, and the list went
+// stale the moment the vocabulary grew: every selection case started reporting "(no result word)"
+// — the harness could not see an ending the product was printing right in front of it. A harness
+// that cannot name an outcome accuses the wrong stage, so this is the one read it must not
+// hand-copy.
 func (r Result) Outcome() string {
-	for _, w := range []string{"performed", "clarify", "refused", "unavailable",
-		"cancelled", "failed"} {
-		if strings.Contains(r.Output, "[result] "+w) {
-			return w
+	for _, o := range outcome.All {
+		if r.said(o) {
+			return string(o)
 		}
 	}
 	return "(no result word)"

@@ -145,10 +145,11 @@ func TestDesktopAcceptance(t *testing.T) {
 	// amount of work inside Marco makes `selected == "Beta"` true here. Asserting it would be
 	// asserting that somebody else's provider is correct.
 	//
-	// What Marco OWES is the invariant this whole suite exists for: either the thing happened,
-	// or Marco did not claim it did. That is assertable, it is Marco's own responsibility, and
-	// it fails loudly if Marco ever goes back to reporting `performed` on a selection nothing
-	// corroborated.
+	// What Marco OWES is narrower than provider correctness and wider than "did not lie": the
+	// thing happened and Marco said so, or it could not be confirmed and Marco said THAT. Both
+	// false claims fail here — `performed` on nothing, and `failed` on something it delivered.
+	// The second arm matters as much as the first: this case passed while Marco reported `failed`
+	// on a click it had landed, because "did not claim performed" was satisfied by the other lie.
 	//
 	// It also passes the day a provider behaves — if the oracle agrees, the first arm holds.
 	t.Run("selection/select Beta", func(t *testing.T) {
@@ -170,11 +171,22 @@ func TestDesktopAcceptance(t *testing.T) {
 				"state on this provider, and the control's own word must not carry a "+
 				"verdict on its own.%s",
 				r.Report("DISAGREES — selected=\"\" after a reported selection"))
-		default:
-			t.Logf("UNVERIFIABLE-PROVIDER: Marco delivered the selection and honestly "+
-				"declined to confirm it (%s · %s). The application reports no selection; "+
-				"the child and its container both report one.",
+		case r.Unverified():
+			t.Logf("UNVERIFIABLE-PROVIDER: Marco delivered the selection and said so without "+
+				"claiming it arrived (%s · %s). The application reports no selection; the "+
+				"child and its container both report one.",
 				r.Outcome(), r.FailureStage())
+		default:
+			// The other false claim. `failed` is wrong here for a reason that has nothing to
+			// do with this fixture: Marco DID put the click on the control, and the obvious
+			// response to being told something failed is to do it again. A retry of a
+			// delivered action is a second effect in the world, and the actions worth
+			// verifying are the ones worth not doing twice.
+			t.Errorf("Marco delivered the selection and reported %q.\n\n"+
+				"It did not happen as far as anyone can prove, and it did not go wrong "+
+				"either. `unverified` is the word for that; %q invites a retry of "+
+				"something that may already have taken effect.%s",
+				r.Outcome(), r.Outcome(), r.Report("DISAGREES"))
 		}
 		if got.SavePresses+got.CancelPresses+got.DetailsPresses != 0 {
 			t.Errorf("a selection pressed something: %s", got.Summary())
@@ -229,23 +241,42 @@ func TestDesktopAcceptance(t *testing.T) {
 	//
 	// Cancel reaches a command, and the honest report of a partly-done sequence is partly
 	// done. Attempted on a multi-step request because a single action is over before a stop
-	// can arrive — and if the timing does not hold, that is recorded rather than failed:
-	// a flaky race asserted as a requirement is a suite nobody trusts.
+	// can arrive.
+	//
+	// WHAT IS A REQUIREMENT HERE AND WHAT IS A RACE. The timing is a race and stays recorded
+	// rather than asserted: whether the stop lands inside step 1, between the steps, or after
+	// the whole thing finished is not Marco's to control. What Marco owes in every one of
+	// those outcomes is the right WORD, and that is not a race at all.
+	//
+	// So the branches are read off the oracle, which knows what actually happened, and each
+	// one asserts the word that goes with it. The case used to log all three as
+	// UNSUPPORTED-TIMING, which is how it sat green for a run in which Marco typed nothing,
+	// pressed nothing, and told the person who had just pressed stop that their request had
+	// FAILED — measured, and the reason program.go now reads ctx.Err() after each step.
 	t.Run("stop/during a sequence", func(t *testing.T) {
 		h.Restart(false)
 		r := h.DoAndStop(`type Marco into the Name field and click Save`)
 
 		got := h.Oracle()
 		switch {
+		case got.SavePresses > 0:
+			// The whole sequence beat the stop. Then nothing was cancelled and the ordinary
+			// verdict applies — this is the one branch where `performed` is correct.
+			t.Logf("TIMING: the request completed before the stop reached it (%s). oracle: %s",
+				r.Outcome(), got.Summary())
 		case r.Cancelled():
-			t.Logf("stopped: %s", got.Summary())
-		case got.SavePresses == 0:
-			t.Logf("UNSUPPORTED-TIMING: the stop arrived after the request finished its "+
-				"first step and before the second; reported as %q. oracle: %s",
-				r.Trace.State(), got.Summary())
+			t.Logf("stopped, and said so (%s): %s", r.Outcome(), got.Summary())
 		default:
-			t.Logf("UNSUPPORTED-TIMING: the request completed before the stop could "+
-				"reach it. oracle: %s", got.Summary())
+			// Save was never pressed, so the stop prevented the second step. Whether it
+			// landed inside step 1 or between the two, the request ended because somebody
+			// stopped it, and `cancelled` is the only honest word for that.
+			t.Errorf("THE STOP WORKED AND MARCO DID NOT SAY SO.\n\n"+
+				"Save was never pressed, so the stop reached the request and prevented "+
+				"the rest of it. Marco reported %q. `failed` sends somebody to debug a "+
+				"request that did exactly what they asked, and it is the one word that "+
+				"invites a retry of a half-done sequence.\n  name field: %q\n"+
+				"  oracle: %s%s",
+				r.Outcome(), got.Name, got.Summary(), r.Report("stop"))
 		}
 	})
 

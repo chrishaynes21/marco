@@ -127,6 +127,9 @@ matched a second time.
 and a few spellings of each). One definition, shared by the intake, the overlay and the Director's
 own phrase routing. It acts on what is already running and is never ordinary text.
 
-**Outcome** — what became of one invocation, in six words: `performed`, `clarify`, `refused`,
-`unavailable`, `cancelled`, `failed`. Announced on the `[result] ` wire line. `performed` means it
-ran *and* arrival was verified; nothing less may claim it.
+**Outcome** — what became of one invocation, in seven words: `performed`, `clarify`, `refused`,
+`unavailable`, `cancelled`, `unverified`, `failed`. Announced on the `[result] ` wire line.
+`performed` means it ran *and* arrival was verified; nothing less may claim it. `unverified` is the
+other half of that rule — delivered, unconfirmed — and is not `failed`, because `failed` invites a
+retry of something that may already be done
+([[ADR-135-a-delivered-action-is-not-a-failed-one]]).

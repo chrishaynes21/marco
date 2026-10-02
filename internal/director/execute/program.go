@@ -282,6 +282,39 @@ func (p *Pipeline) RunProgram(ctx context.Context, prog program.Program,
 		stepOut := p.runStep(ctx, step.Phrase, step.Operation, pctx)
 		out.Steps = append(out.Steps, stepOut)
 
+		// A STOP THAT ARRIVED MID-STEP IS THE REASON FOR WHATEVER THE STEP SAID.
+		//
+		// The check at the top of this loop catches a stop that lands BETWEEN steps. This
+		// one catches the window inside one: the operation was in flight when the context
+		// died, it came back with an error its own cancellation produced, and reading that
+		// error as the step's verdict tells somebody who just pressed stop that their
+		// request failed. Measured on a real desktop: `type Marco into the Name field and
+		// click Save`, stopped during the typing — nothing typed, Save never pressed,
+		// reported as `failed`. That is the one word that invites a retry, offered to the
+		// one person who should not be nudged to run a half-done sequence again.
+		//
+		// Narrow on purpose, three ways. A step that SUCCEEDED is left alone, because the
+		// next iteration's check reports it as stopped before the FOLLOWING step, which is
+		// the more precise sentence. A clarification is left alone because it is not an
+		// ending. And the step's own account is kept in the message, so a genuine failure
+		// that happened to coincide with a stop is relabelled, never erased.
+		//
+		// The same rule as [[ADR-070]]-era cancellation handling elsewhere in Marco: when
+		// the context is gone, the cancellation is the cause, and reporting the downstream
+		// symptom sends a person to fix something that was never wrong. Enforced by
+		// TestAStopDuringAStepIsCancelledNotFailed, with
+		// TestAnUncancelledStepFailureIsStillAFailure holding the other side.
+		if ctx.Err() != nil && stepOut.Status != directorapi.ResultDone &&
+			stepOut.Status != directorapi.ResultNeedsClarification {
+			out.Program.Status = program.StatusStopped
+			out.Status = directorapi.ResultCancelled
+			out.StoppedAt = i + 1
+			out.Message = fmt.Sprintf("stopped during step %d of %d (%s): %s",
+				i+1, total, step.Phrase, stepOut.Message)
+			p.reportStep(prog, step, i+1, total, "stopped", stepOut.Message)
+			return out
+		}
+
 		switch stepOut.Status {
 		case directorapi.ResultDone:
 			out.Completed++

@@ -1,28 +1,40 @@
 // Package outcome is the one vocabulary for what became of an invocation.
 //
-// # Six words, and they are a closed set
+// # Seven words, and they are a closed set
 //
-// Marco reports what happened in exactly six words. The set is small on purpose: a front end that
-// can render six things renders all of them, and a person who learns six words has learned the
-// whole vocabulary. Adding a seventh is a product decision, not a convenience.
+// Marco reports what happened in exactly seven words. The set is small on purpose: a front end
+// that can render seven things renders all of them, and a person who learns seven words has
+// learned the whole vocabulary. Adding an eighth is a product decision, not a convenience.
 //
 //	performed    it was done, and — where a Play could be checked — checked
 //	clarify      Marco asked something and is waiting to be told
 //	refused      Marco declined, or was not permitted
 //	unavailable  it was never delivered; NOTHING tried it
 //	cancelled    somebody stopped it
+//	unverified   Marco delivered it and could not confirm it arrived
 //	failed       it was tried and it went wrong
 //
 // The distinctions that earn their place are `refused` versus `failed` — declining is not the same
-// as breaking — and `unavailable` versus both, because "nothing tried this" is the only outcome
-// after which offering to learn the thing makes any sense.
+// as breaking — `unavailable` versus both, because "nothing tried this" is the only outcome after
+// which offering to learn the thing makes any sense, and `unverified` versus `failed`, which was
+// the seventh and is the subject of [[ADR-135-a-delivered-action-is-not-a-failed-one]].
+//
+// # Why `unverified` was worth a seventh word
+//
+// Because the vocabulary could already say "I will not claim that happened" and had no way to say
+// "it happened and I cannot prove it", so the two shared `failed` — and they call for opposite
+// responses. `failed` invites a retry. Retrying a request Marco already delivered acts on the
+// world a second time, and the actions worth verifying are exactly the ones worth not doing
+// twice. Measured: `select Beta` put the click on the list item, the item reported itself
+// selected, no independent evidence agreed, and Marco correctly declined `performed` — then told
+// the person it had failed.
 //
 // # Why this is a package rather than a constant in cmd/marco
 //
 // Because it was in cmd/marco, and the overlay had its own copy.
 //
 // `cmd/marco` printed `[result] performed`. `plugins/overlay` matched the literal `"[result] "` and
-// kept a parallel set of six lowercase words to compare against. They agreed, and nothing made
+// kept a parallel set of the same lowercase words to compare against. They agreed, and nothing made
 // them agree: the two ship as SEPARATE GO MODULES, so either could have been edited alone and the
 // build would have stayed green. The comment on the old constant said so out loud — "nothing would
 // fail to compile if either drifted" — which is an accurate description of a duplicate, written
@@ -39,7 +51,7 @@
 //
 // # This is protocol, not user text
 //
-// [ResultPrefix] and the six words go over a pipe between processes. They are matched, not read.
+// [ResultPrefix] and the seven words go over a pipe between processes. They are matched, not read.
 // The sentences a person actually sees are built from them by whichever surface is doing the
 // telling — the HUD says "ran: open the test", the control centre says something else — and those
 // sentences are presentation, which is why they are not here.
@@ -67,6 +79,12 @@ const (
 	Unavailable Outcome = "unavailable"
 	// Cancelled is somebody having stopped it.
 	Cancelled Outcome = "cancelled"
+	// Unverified is the request having been DELIVERED, with its arrival unconfirmed.
+	//
+	// Not a failure and not a success: the attempt reached the target and the evidence afterwards
+	// was not enough to say it took. A surface should say so plainly and must NOT invite a retry —
+	// see the package note above.
+	Unverified Outcome = "unverified"
 	// Failed is it having been tried, and gone wrong.
 	Failed Outcome = "failed"
 )
@@ -74,8 +92,8 @@ const (
 // All is the closed set, in the order a person would meet them.
 //
 // Exported so a test can walk every word rather than naming three of them and trusting the rest,
-// and so a surface can prove it renders all six.
-var All = []Outcome{Performed, Clarify, Refused, Unavailable, Cancelled, Failed}
+// and so a surface can prove it renders all of them.
+var All = []Outcome{Performed, Clarify, Refused, Unavailable, Cancelled, Unverified, Failed}
 
 // Process exit codes.
 //
@@ -91,6 +109,9 @@ const (
 	ExitClarify     = 4
 	ExitRefused     = 5
 	ExitCancelled   = 6
+	// ExitUnverified is numbered last because it was added last, and it is distinct from
+	// ExitFailed for the same reason the word is: a caller reading only the code must not retry.
+	ExitUnverified = 7
 )
 
 // Exit is the process code for an outcome.
@@ -106,15 +127,17 @@ func (o Outcome) Exit() int {
 		return ExitRefused
 	case Cancelled:
 		return ExitCancelled
+	case Unverified:
+		return ExitUnverified
 	default:
 		return ExitFailed
 	}
 }
 
-// Valid reports whether s is one of the six.
+// Valid reports whether s is one of the seven.
 func Valid(s string) bool { _, ok := Parse(s); return ok }
 
-// Parse reads one of the six words. It is deliberately exact: no trimming of surrounding rubbish,
+// Parse reads one of the seven words. It is deliberately exact: no trimming of surrounding rubbish,
 // no case folding, no prefix matching. A surface that received something else received something
 // else, and guessing which word was meant is how a refusal becomes a success.
 func Parse(s string) (Outcome, bool) {
@@ -146,7 +169,7 @@ func Line(o Outcome) string { return ResultPrefix + string(o) }
 // stdout also carries the play's own logging. A caller streams its child's output through this and
 // keeps the last true answer.
 //
-// It requires the WHOLE line after the prefix to be one of the six. A line that begins with the
+// It requires the WHOLE line after the prefix to be one of the seven. A line that begins with the
 // prefix and continues with something unrecognised is not a partial result to be salvaged; it is a
 // disagreement between two builds, and the honest reading of it is "no result was announced".
 func FromLine(line string) (Outcome, bool) {

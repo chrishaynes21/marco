@@ -115,12 +115,12 @@ func (r childRun) offersLearn() bool {
 
 // statusLine is the one-line HUD status for an outcome.
 //
-// This is PRESENTATION, and it is the HUD's alone. The six words are protocol; these six
-// sentences are the ambient surface's voice, sitting on the same line that says "running:
+// This is PRESENTATION, and it is the HUD's alone. The words are protocol; these sentences
+// are the ambient surface's voice, sitting on the same line that says "running:
 // X" a moment earlier, which is why they read as a continuation of it rather than as six
-// nouns. Another surface rendering the same six words says something else, and should.
+// nouns. Another surface rendering the same words says something else, and should.
 //
-// Every one of the six must produce its own sentence — a missing arm would collapse two
+// Every word must produce its own sentence — a missing arm would collapse two
 // genuinely different endings onto one line, which is the whole defect this vocabulary
 // removed. Enforced by TestTheHudRendersEveryOutcomeInTheSet.
 func statusLine(o outcome.Outcome, disp string) string {
@@ -135,6 +135,11 @@ func statusLine(o outcome.Outcome, disp string) string {
 		return "unavailable: " + disp
 	case outcome.Cancelled:
 		return "cancelled: " + disp
+	case outcome.Unverified:
+		// Deliberately not "may have ran" or anything hedging about the ATTEMPT. The attempt
+		// is not in doubt; the arrival is. And it does not end in "— try again", which is the
+		// one suggestion this ending must never make.
+		return "did: " + disp + " — could not confirm it"
 	default:
 		return "failed: " + disp
 	}

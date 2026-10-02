@@ -124,10 +124,10 @@ func TestTheLearnOfferNeedsBothHalves(t *testing.T) {
 	}
 }
 
-// TestEverySixOutcomeHasItsOwnStatusLine keeps the HUD from saying "ran" about something
+// TestEveryOutcomeHasItsOwnStatusLine keeps the HUD from saying "ran" about something
 // that did not run. The wording is checked loosely — the words a person reads may be
 // reworded — but the six must not collapse onto fewer lines.
-func TestEverySixOutcomeHasItsOwnStatusLine(t *testing.T) {
+func TestEveryOutcomeHasItsOwnStatusLine(t *testing.T) {
 	// Walked from outcome.All rather than from a list written out here. A list would be a
 	// seventh place the six words are recorded, and the whole point of the shared package is
 	// that there is one — a word added to the vocabulary and not to the HUD must fail HERE,
@@ -145,20 +145,31 @@ func TestEverySixOutcomeHasItsOwnStatusLine(t *testing.T) {
 	}
 }
 
-// TestEverySixOutcomeHasItsOwnGlyph is structural, because the thing it protects cannot be
+// TestEveryOutcomeHasItsOwnGlyph is structural, because the thing it protects cannot be
 // drawn in a test: drawResultIcon needs a live graphics context.
 //
 // The history row is the one place a person looks to find out whether the thing happened,
 // and it used to draw the same green check for a play that worked and a play the door
 // REFUSED. So every outcome must have its own arm in both the glyph and the colour switch;
 // a missing arm draws nothing at all, silently.
-func TestEverySixOutcomeHasItsOwnGlyph(t *testing.T) {
+// TestEveryOutcomeHasItsOwnGlyph walks the SET, not a list of names.
+//
+// It used to name its six, which made it silent on the seventh: `unverified` was added to
+// [outcome.All], the HUD drew nothing for it, and this test passed. That is the same shape as the
+// promotion-licence test that let a mutation survive — a guard that enumerates by hand stops
+// guarding the moment the thing it guards grows.
+//
+// Deriving the names from outcome.All means adding an eighth word fails here until somebody draws
+// it. Which is the point: a word that renders as nothing is worse than no word.
+func TestEveryOutcomeHasItsOwnGlyph(t *testing.T) {
 	data, err := readFileString("view.go")
 	if err != nil {
 		t.Fatalf("read view.go: %v", err)
 	}
-	names := []string{"outcome.Performed", "outcome.Clarify", "outcome.Refused",
-		"outcome.Unavailable", "outcome.Cancelled", "outcome.Failed"}
+	var names []string
+	for _, o := range outcome.All {
+		names = append(names, "outcome."+strings.ToUpper(string(o)[:1])+string(o)[1:])
+	}
 	for _, fn := range []string{"func drawResultIcon", "func resultColor"} {
 		body := funcBody(data, fn)
 		if body == "" {
@@ -170,7 +181,7 @@ func TestEverySixOutcomeHasItsOwnGlyph(t *testing.T) {
 			}
 		}
 		// And it must switch on the typed vocabulary, not on loose strings that no
-		// compiler checks against the six.
+		// compiler checks against the set.
 		for _, stale := range []string{`case "ok"`, `case "canceled"`} {
 			if strings.Contains(body, stale) {
 				t.Errorf("%s still matches the old three-word vocabulary: %s", fn, stale)

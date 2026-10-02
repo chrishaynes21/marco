@@ -186,7 +186,7 @@ the leader key would then offer to cancel the cancellation.
 This is the intake's half of one stop, not the whole of it — [[34F-legacy-marco-product-audit]]
 §14 and its Phase 3 still own the rest.
 
-## The six outcomes
+## The seven outcomes
 
 An exit code was not enough, because three genuinely different things all came back as success. A
 Play the door **declined** returned nil ("you said no" is not an error). A **cancelled** local
@@ -201,12 +201,19 @@ it, and returned nil. So the process exited 0 and every front end reading an exi
 | `refused` | Marco declined or was not permitted — a door, a guard, an edge that would not verify | 5 |
 | `unavailable` | the request was never delivered; nothing tried it | 3 |
 | `cancelled` | somebody stopped it | 6 |
+| `unverified` | Marco delivered it and could not confirm it arrived | 7 |
 | `failed` | it was tried and it went wrong | 1 |
 
 `performed` may not be claimed by anything less: finishing is not arriving
 ([[ADR-070-one-production-body-and-the-caller-brings-the-verification]]). `unavailable` keeps the
 meaning and the code (3) it already had — *"never delivered, a caller may try something else"* —
 because `plugins/overlay` already read exactly that.
+
+`unverified` was the seventh and the only one added since
+([[ADR-135-a-delivered-action-is-not-a-failed-one]]). Refusing to claim success left nowhere to
+put "it happened and I cannot prove it" except `failed`, and those two call for OPPOSITE
+responses: `failed` invites a retry, and retrying a request Marco already delivered acts on the
+world a second time. The actions worth verifying are exactly the ones worth not doing twice.
 
 ### The wire
 
@@ -215,7 +222,7 @@ Three prefixes on stdout, all protocol rather than user text:
 | line | says | when |
 |---|---|---|
 | `[route] ` | WHICH Play these words became | a Play was authorized and is about to run |
-| `[result] ` | what BECAME of the invocation — one of the six | every invocation, always |
+| `[result] ` | what BECAME of the invocation — one of the seven | every invocation, always |
 | `[intake] ` | source, decision, play-or-phrase, and which rule fired | only with `MARCO_TRACE_INTAKE=1` |
 
 `[route] ` is unchanged on purpose: it answers *"what did these words become"* and `[result] `

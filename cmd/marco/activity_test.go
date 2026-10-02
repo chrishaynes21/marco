@@ -53,11 +53,15 @@ func noHistory(t *testing.T) {
 //
 // Mutation: delete the ActionBlocked arm. `blocked` then reads as `failed`, and the assertion that
 // a refusal is not a failure goes red.
-func TestActivityRendersTheSixOutcomeWords(t *testing.T) {
+func TestActivityRendersEveryOutcomeWord(t *testing.T) {
 	for status, want := range map[directorapi.ActionStatus]outcome.Outcome{
-		directorapi.ActionSucceeded:  outcome.Performed,
-		directorapi.ActionFailed:     outcome.Failed,
-		directorapi.ActionUnverified: outcome.Failed,
+		directorapi.ActionSucceeded: outcome.Performed,
+		directorapi.ActionFailed:    outcome.Failed,
+		// Delivered, unconfirmed. This expected `failed` until the engine stopped saying it:
+		// director.go collapsed every non-completed state into one exit code, so the honest
+		// reading for this surface WAS `failed` and this line recorded that faithfully. Both
+		// now carry the Director's own verdict across.
+		directorapi.ActionUnverified: outcome.Unverified,
 		directorapi.ActionCancelled:  outcome.Cancelled,
 		directorapi.ActionBlocked:    outcome.Refused,
 		directorapi.ActionPending:    outcome.Unavailable,
@@ -68,7 +72,7 @@ func TestActivityRendersTheSixOutcomeWords(t *testing.T) {
 			t.Errorf("%s became %q, want %q", status, got, want)
 		}
 		if !outcome.Valid(string(got)) {
-			t.Errorf("%s became %q, which is not one of the six", status, got)
+			t.Errorf("%s became %q, which is not in the vocabulary", status, got)
 		}
 	}
 	// A status nobody here knows still lands inside the vocabulary rather than blank.

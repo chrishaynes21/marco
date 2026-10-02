@@ -181,20 +181,24 @@ func activityWhat(en service.HistoryEntry) string {
 
 // activityOutcome reads one action's ending into the ONE vocabulary.
 //
-// # Why `unverified` is `failed` here
+// # Why `unverified` is its own word here now
 //
-// Because that is already the engine's reading of it, and a second reading would be a second
-// account. `cmd/marco/director.go` returns `exitNotVerified` for anything that is not
-// `CommandCompleted`, and `outcomeOfDirectorExit` in intake.go maps that exit to `failed`. So a
-// person who ran a phrase from the command line and a person looking at this list see the same
-// word for the same action. Calling it `performed` here would be this surface deciding, on its
-// own, that an unconfirmed action counts as done — which is the claim outcome.Performed exists to
-// refuse.
+// It used to be `failed`, and the reason given was sound at the time: that was already the
+// engine's reading of it, and a second reading would have been a second account. `director.go`
+// returned exitNotVerified for anything that was not CommandCompleted, so the command line said
+// `failed` too, and the two surfaces agreed.
+//
+// They agreed on the wrong word. The engine now says `unverified` — exitOfCommandState keeps the
+// Director's verdict all the way across — so this reads it straight through. The constraint the
+// old note was defending still holds and is worth restating: calling it `performed` here would be
+// this surface deciding on its own that an unconfirmed action counts as done, which is the claim
+// outcome.Performed exists to refuse. `unverified` refuses it too, without also claiming the
+// opposite.
 //
 // A status this does not recognise falls back to the entry's own Success flag rather than to a
 // guess, so a status added upstream reads as failed rather than as a blank.
 //
-// Deleting the ActionBlocked arm must fail TestActivityRendersTheSixOutcomeWords.
+// Deleting the ActionBlocked arm must fail TestActivityRendersEveryOutcomeWord.
 func activityOutcome(en service.HistoryEntry) outcome.Outcome {
 	switch directorapi.ActionStatus(en.Status) {
 	case directorapi.ActionSucceeded:
@@ -209,7 +213,11 @@ func activityOutcome(en service.HistoryEntry) outcome.Outcome {
 		// It never reached an ending. Nothing delivered a verdict, which is what `unavailable`
 		// means — not that it went wrong.
 		return outcome.Unavailable
-	case directorapi.ActionFailed, directorapi.ActionUnverified:
+	case directorapi.ActionUnverified:
+		// Delivered, unconfirmed. Not `failed`: the obvious response to "that failed" is to do
+		// it again, and this one may already have happened.
+		return outcome.Unverified
+	case directorapi.ActionFailed:
 		return outcome.Failed
 	}
 	if en.Success {
