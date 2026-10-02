@@ -6,7 +6,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
+	"time"
 )
 
 // The second question on the one plugin boundary, and the compatibility it must not break.
@@ -184,4 +186,68 @@ func TestInterpretHonoursACancelledContext(t *testing.T) {
 	if _, ok := Interpret(ctx, "shut that popup", []string{"dismiss"}); ok {
 		t.Error("a cancelled interpretation produced a reading")
 	}
+}
+
+// hanging is a plugin that reads the request and never answers.
+//
+// Not a crash, not a malformed reply, not a refusal: the failure mode a model actually has. A cold
+// local model, a saturated GPU, a network that accepted the connection and stopped — all of them
+// look like this from here.
+const hanging = `package main
+import ("bufio";"os";"time")
+func main(){
+	bufio.NewReader(os.Stdin).ReadString('\n')
+	time.Sleep(10 * time.Minute)
+	_ = os.Stdout
+}`
+
+// A PLUGIN THAT HANGS BECOMES A DETERMINISTIC REFUSAL.
+//
+// # Why this is one of the properties that must hold before any model is trusted
+//
+// Because the whole arrangement rests on one rule: NO MODEL FAILURE MAY BECOME PERMISSION TO
+// GUESS. A declining plugin and a malformed answer are already held elsewhere; this is the one
+// that costs real time, and it is the one a model is most likely to do.
+//
+// The subprocess is KILLED rather than left behind — `exec.CommandContext` with a deadline — so a
+// Director that interpreted a thousand requests against a stuck model does not accumulate a
+// thousand stuck processes.
+func TestAHangingPluginBecomesADeterministicRefusal(t *testing.T) {
+	t.Setenv("MARCO_RESOLVER", buildPlugin(t, hanging))
+	// Shortened so the property is testable at all; see the note on InterpretTimeout.
+	prior := InterpretTimeout
+	InterpretTimeout = 700 * time.Millisecond
+	t.Cleanup(func() { InterpretTimeout = prior })
+
+	start := time.Now()
+	got, ok := Interpret(context.Background(), "shut that popup", []string{"dismiss"})
+	took := time.Since(start)
+
+	if ok {
+		t.Errorf("a plugin that never answered produced a reading: %+v", got)
+	}
+	if took > 5*time.Second {
+		t.Errorf("the interpretation waited %s on a hanging plugin; the timeout did not "+
+			"bound it", took.Round(time.Millisecond))
+	}
+	// AND THE PROCESS IS GONE. A stuck model must not leak a process per request.
+	if n := countProcesses(t, "plugin.exe"); n > 0 {
+		t.Errorf("%d plugin process(es) are still running after the timeout", n)
+	}
+}
+
+// countProcesses is how many copies of one image are running, or -1 when it cannot be asked.
+func countProcesses(t *testing.T, image string) int {
+	t.Helper()
+	out, err := exec.Command("tasklist", "/FI", "IMAGENAME eq "+image, "/NH").Output()
+	if err != nil {
+		return -1
+	}
+	n := 0
+	for _, line := range strings.Split(string(out), "\n") {
+		if strings.Contains(line, image) {
+			n++
+		}
+	}
+	return n
 }

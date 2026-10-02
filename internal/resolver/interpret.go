@@ -95,7 +95,12 @@ const MaxOrdinal = 10
 // Generous rather than tight: a local model on a cold cache is slow, and interpreting a sentence
 // happens before anything touches the desktop, so the cost of waiting is a person waiting rather
 // than a half-finished action.
-const InterpretTimeout = 20 * time.Second
+//
+// A VARIABLE rather than a constant purely so a test can shorten it. "A plugin that hangs becomes
+// a deterministic refusal" is one of the properties that must hold before any model is trusted, and
+// at twenty seconds it is a property nobody would run. Production never reassigns it — the same
+// seam, and the same justification, as `dialPerformer` and `pendingQuestion`.
+var InterpretTimeout = 20 * time.Second
 
 // Interpret asks the plugin what one sentence meant, reporting false when nothing did.
 //

@@ -158,6 +158,41 @@ func (v *Verifier) verifySelection(target directorapi.ResolvedTarget,
 				target.Label),
 		}
 	}
+	// ── A MEASURED LIMITATION, RECORDED RATHER THAN WORKED AROUND ────────────────
+	//
+	// ACCESSIBILITY SELECTION STATE IS NOT AN INDEPENDENT PROOF OF APPLICATION STATE ON ALL
+	// PROVIDERS.
+	//
+	// Measured on a WinForms ListBox through real-desktop acceptance, with an independent oracle
+	// reading the application's own `SelectedItem`:
+	//
+	//	SelectionItemPattern.Select(Beta)
+	//	  child     IsSelected      = true
+	//	  container GetSelection()  = "Beta"
+	//	  application SelectedItem  = null      ← nothing was selected
+	//
+	//	invoke/click on the same item
+	//	  child     IsSelected      = true
+	//	  application SelectedItem  = "Beta"    ← both agree
+	//
+	// So the provider reports a selection the application does not have, AT EVERY LEVEL the
+	// accessibility model exposes. The container is the authority on its own selection and it
+	// agrees with the child, which is why reading it would buy nothing — that hypothesis was
+	// tested live and falsified, and the code for it was deliberately not written.
+	//
+	// The consequence for this function: `el.Selected == want` can be true of a selection that
+	// did not happen, and nothing available here can tell. The weight below is therefore an
+	// overstatement on such a provider, and it is left as it is ON PURPOSE — the alternative is
+	// to stop reporting any selection as verified anywhere, which trades a rare false success
+	// for a common false negative. Which of those two errors to prefer is a product decision and
+	// has not been made.
+	//
+	// Not special-cased by provider, by control class or by application, and `Select` is NOT
+	// quietly substituted with a click: the Audience asked to select, and when substituting a
+	// mechanism is semantically safe is a separate question nobody has answered.
+	//
+	// Held by the acceptance case `selection/select_Beta`, which is left FAILING rather than
+	// marked expected, so this stays visible.
 	if el.Selected == want {
 		wasSelected := false
 		if b, ok := before.Element(target.ElementID); ok {

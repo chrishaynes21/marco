@@ -2,6 +2,7 @@ package execute
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -230,3 +231,76 @@ func TestEveryClauseOfAProgramGetsTheSameReading(t *testing.T) {
 // cover this phrasing, the tests that rely on it being declined must fail loudly rather than
 // quietly stop testing anything.
 const unparseable = "would you hit the save button for me"
+
+// A STOPPED REQUEST IS CANCELLED, NOT MISUNDERSTOOD.
+//
+// # The defect, measured end to end
+//
+// `marco stop` while a model was thinking produced:
+//
+//	FAILED: I only understand click, focus, move, repeat and text editing so far
+//	[result] failed
+//
+// The interpretation was genuinely cancelled — the plugin's subprocess was killed and the request
+// returned early — so the mechanism worked. What was wrong was the SENTENCE. A person who pressed
+// stop was told to say it differently, about a phrase that was never the problem.
+//
+// The cause is structural rather than careless: when the interpreter declines, `parseWith` keeps
+// the deterministic reading and its refusal, which is right for every other way an interpretation
+// can decline — no plugin, a malformed answer, an unknown verb — and wrong for exactly one.
+// Cancellation is not a property of the request.
+//
+// The product already has the word. `handleParsed` turns `IntentStop` into `ResultCancelled`, so
+// this adds no vocabulary and no concept.
+//
+// Deleting the ctx.Err() check must fail this.
+func TestAStoppedRequestIsCancelledAndNotMisunderstood(t *testing.T) {
+	h := newHarness(scene(t0, nil, menuBar()...))
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// An interpreter that declines BECAUSE it was cancelled, which is what a killed plugin
+	// subprocess produces.
+	h.pipeline.Interpret = func(c context.Context, _ string) (directorapi.Intent, bool) {
+		<-c.Done()
+		return directorapi.Intent{}, false
+	}
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		cancel()
+	}()
+
+	out := h.pipeline.Handle(ctx, unparseable)
+
+	if out.Status != directorapi.ResultCancelled {
+		t.Errorf("a stopped request came back as %s (%q), want cancelled.\n\n"+
+			"The deterministic parser's refusal is a true sentence about a phrase nobody "+
+			"read, and the wrong one for somebody who pressed stop — it sends them to "+
+			"rephrase a request that was never the problem.", out.Status, out.Message)
+	}
+	if strings.Contains(out.Message, "I only understand") {
+		t.Errorf("the message is the parser's vocabulary list: %q", out.Message)
+	}
+	if len(h.actuator.clicks) != 0 || len(h.operations.ops) != 0 {
+		t.Errorf("a stopped request still acted: %d clicks, %d operations",
+			len(h.actuator.clicks), len(h.operations.ops))
+	}
+}
+
+// AND AN ORDINARY DECLINE IS STILL A FAILURE TO UNDERSTAND.
+//
+// The other side, and the reason the check is on the context rather than on the decline: a plugin
+// that simply had no reading, or none configured at all, leaves the parser's own refusal exactly
+// where it was. Only a cancelled request is reported as cancelled.
+func TestAnUncancelledDeclineKeepsTheParsersRefusal(t *testing.T) {
+	h := newHarness(scene(t0, nil, menuBar()...))
+	h.pipeline.Interpret = func(context.Context, string) (directorapi.Intent, bool) {
+		return directorapi.Intent{}, false
+	}
+	out := h.pipeline.Handle(context.Background(), unparseable)
+	if out.Status == directorapi.ResultCancelled {
+		t.Error("a decline with a live context was reported as a cancellation")
+	}
+	if out.Status != directorapi.ResultNeedsClarification {
+		t.Errorf("status = %s (%q)", out.Status, out.Message)
+	}
+}

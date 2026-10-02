@@ -289,6 +289,31 @@ func (p *Pipeline) parseWith(ctx context.Context) func(string) directorapi.Inten
 		if out, ok := p.Interpret(ctx, request); ok {
 			return out
 		}
+		// A STOPPED REQUEST IS CANCELLED, NOT MISUNDERSTOOD.
+		//
+		// # Why this is checked here and on the context
+		//
+		// Every other way an interpretation declines is a fact about the REQUEST — no plugin
+		// configured, a verb outside the vocabulary, a malformed answer, nothing to read — and
+		// for all of those the parser's own refusal is the honest sentence. Cancellation is the
+		// one decline that is a fact about the PERSON: they pressed stop.
+		//
+		// Measured end to end against a slow interpreter. `marco stop` killed the plugin and
+		// the request came back early, so the mechanism worked perfectly — and the person was
+		// told "I only understand click, focus, move, repeat and text editing so far", which
+		// sends them to rephrase a request that was never the problem.
+		//
+		// The product already has the word: `handleParsed` turns IntentStop into
+		// ResultCancelled. No new vocabulary, no new concept, and nothing changes for a decline
+		// with a live context.
+		//
+		// Deleting the ctx.Err() check must fail
+		// TestAStoppedRequestIsCancelledAndNotMisunderstood.
+		if ctx.Err() != nil {
+			return directorapi.Intent{
+				Kind: directorapi.IntentStop, Raw: request, Confidence: 1,
+			}
+		}
 		// NOTHING INTERPRETED IT, so the refusal is the parser's own and says so. The
 		// deterministic sentence names the small vocabulary it knows, which is the honest
 		// account when no model answered — and a message invented here would claim a model
