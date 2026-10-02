@@ -266,6 +266,9 @@ namespace MarcoFixture
         [DllImport("user32.dll")]
         private static extern bool SetForegroundWindow(IntPtr h);
 
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetForegroundWindow();
+
         /// <summary>Comes to the front when the harness asks, and reports that it did.</summary>
         ///
         /// The acknowledgement matters: the harness has to be able to WAIT for the foreground
@@ -293,6 +296,31 @@ namespace MarcoFixture
             SetForegroundWindow(Handle);
             TopMost = false;
             Activate();
+
+            // AND THE CASE WHERE NOTHING HOLDS THE FOREGROUND AT ALL.
+            //
+            // # Why this fallback exists, measured
+            //
+            // The dance above works when an ordinary window is in front: it takes the foreground
+            // from it. It does NOT work when the foreground is empty — `SetForegroundWindow`
+            // returns without effect and `marco active` keeps reporting nothing.
+            //
+            // That state is one the harness CREATES. Killing a fixture that held the foreground
+            // leaves nothing holding it, so the next run could not start: the fixture raised
+            // itself, acknowledged the request, and stayed behind. An acceptance system that can
+            // only run once without somebody clicking a window is not an unattended one, which is
+            // the whole point of it.
+            //
+            // A restore from minimised activates from inside the owning process, which is where
+            // the rights live. It is the fixture doing it to its own window — no other window is
+            // touched, minimised or rearranged.
+            if (GetForegroundWindow() != Handle)
+            {
+                WindowState = FormWindowState.Minimized;
+                WindowState = FormWindowState.Normal;
+                Activate();
+                SetForegroundWindow(Handle);
+            }
 
             try
             {
