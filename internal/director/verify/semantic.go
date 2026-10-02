@@ -182,10 +182,24 @@ func (v *Verifier) verifySelection(target directorapi.ResolvedTarget,
 	//
 	// The consequence for this function: `el.Selected == want` can be true of a selection that
 	// did not happen, and nothing available here can tell. The weight below is therefore an
-	// overstatement on such a provider, and it is left as it is ON PURPOSE — the alternative is
-	// to stop reporting any selection as verified anywhere, which trades a rare false success
-	// for a common false negative. Which of those two errors to prefer is a product decision and
-	// has not been made.
+	// overstatement on such a provider.
+	//
+	// # The decision has been made, and implementing it is deliberately not here
+	//
+	// DECIDED: Marco should NOT claim a verified selection when the only evidence is
+	// accessibility selection state. It may still perform `Select`; the honest outcome is
+	// "action delivered; selection could not be independently verified" rather than `performed`.
+	// A false claim of success is worse than an occasional unverifiable successful one.
+	//
+	// So the remaining choice is only WHERE that lands in the result vocabulary — an
+	// unverified-but-delivered outcome is `Inconclusive` here, and what a person should be shown
+	// for it is the same open question as the `cancelled`-reads-as-`failed` collapse in
+	// `cmd/marco/activity.go`. Both are vocabulary, and they should be settled together rather
+	// than one verb at a time.
+	//
+	// Left unchanged for now ON PURPOSE: the language front end was prioritised ahead of it, and
+	// changing a verdict for every provider on the strength of one measured liar is the kind of
+	// edit that wants its own run of the acceptance suite rather than a spare moment.
 	//
 	// Not special-cased by provider, by control class or by application, and `Select` is NOT
 	// quietly substituted with a click: the Audience asked to select, and when substituting a
