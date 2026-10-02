@@ -23,13 +23,26 @@ import (
 //
 // Watching the pixels answers exactly that question and nothing more:
 //
-//	identical       → nothing happened; a retry cannot double-apply
+//	identical       → nothing VISIBLE happened; the delivery gate has the last word
 //	minor_change    → noise; the structural guard still decides
 //	meaningful      → something happened; a retry might do it twice
 //	still_changing  → something is happening RIGHT NOW; wait, do not retry
 //
 // The principle the guard exists to protect, restated because every branch here has to
 // honour it: FAILURE TO CONFIRM IS NOT PROOF THAT NOTHING HAPPENED.
+//
+// # What this file can and cannot decide
+//
+// It answers one question — what did the pixels do — and the two Allow arms below say only
+// that nothing visible followed. They used to say "nothing happened", which is the
+// inference the principle above forbids, and the measured counterexample is a button
+// that counts its presses and writes a label already holding the value it would be set
+// to: zero pixels differ and the press was real.
+//
+// Whether anything happened is settled downstream, by evidence of DELIVERY rather than of
+// change — see [verify.Delivered] and the 2026-10-02 amendment to
+// [[ADR-007-no-progress-no-repetition]]. An Allow here is a permission the pixels do not
+// object to, not a finding that the action never landed.
 
 // RegionWatcher observes whether a region of the screen changed.
 //
@@ -123,7 +136,7 @@ func visualRetryVerdict(change RegionChange, structuralChanged bool) RetryVerdic
 	case change.Identical:
 		return RetryVerdict{Allow: true,
 			Reason: "the region is pixel-for-pixel what it was and the world is unchanged, " +
-				"so nothing happened and repeating it cannot double-apply"}
+				"so nothing visible followed"}
 	}
 
 	// Neither identical nor meaningfully changed: minor noise, unchanged structure.

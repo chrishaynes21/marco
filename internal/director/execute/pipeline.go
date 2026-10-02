@@ -542,6 +542,27 @@ func (p *Pipeline) handleParsed(ctx context.Context, request string, parsed dire
 		verdict.Allow = false
 		verdict.Reason = "an edit that could not be confirmed is not repeated, because repeating it may apply it twice"
 	}
+	// NOR IS AN ACTION SOMETHING SAYS ALREADY ARRIVED, whatever the world did.
+	//
+	// The same argument as the edit carve-out above, generalised to the evidence rather than to
+	// one family of verbs. The unchanged-world guard reasons that nothing can have happened, and
+	// that inference is unsound — an application may act on a press while moving nothing a
+	// screen can show. Measured against the acceptance fixture: Save pressed a second time set
+	// the status label to the value it already held, so not one pixel and not one element
+	// differed, the retry fired, and the application counted both presses for one request.
+	//
+	// Delivery evidence answers what the retry actually turns on — see [verify.Delivered]. A
+	// retry recovers a click that MISSED; a click that reached its control has nothing to
+	// recover, and re-observing an unchanged world finds the same control in the same place.
+	//
+	// It deliberately does not require the verification to be inconclusive. A click that landed
+	// and did nothing observable is a FAILED verification, and that is precisely the case that
+	// was pressing twice.
+	if verdict.Allow && verify.Delivered(record.Verification) {
+		verdict.Allow = false
+		verdict.Reason = "something says the action already reached its target, so repeating it " +
+			"could apply it twice"
+	}
 	if !record.Success && record.Execution.Performed && verdict.Allow {
 		add("recover", "verification failed — re-observing and re-resolving once", true)
 		out.Retried = true
@@ -567,15 +588,27 @@ func (p *Pipeline) handleParsed(ctx context.Context, request string, parsed dire
 		}
 	}
 
-	// An action that visibly changed something but could not be confirmed is
-	// UNVERIFIED, not failed. Reporting it as a failure invites the caller to do it
-	// again, which is exactly the double-application the retry guard prevents.
-	if !record.Success && record.Execution.Performed && changed(record) &&
-		record.Status == directorapi.ActionFailed {
+	// An action that could not be confirmed, but which something says HAPPENED, is
+	// UNVERIFIED rather than failed. Reporting it as a failure invites the caller to do
+	// it again, which is exactly the double-application the retry guard just refused —
+	// the same second press, performed by the person instead of by Marco.
+	//
+	// Two things count as "something says it happened", and they are different facts:
+	//
+	//	the world changed    something followed the action, just not a confirmation
+	//	it was delivered     the action reached the control Marco aimed at
+	//
+	// The second was missing, and it is the one that matters most here, because an action
+	// that landed and changed nothing observable is the case where "failed" is both wrong
+	// and most tempting: there is genuinely nothing to see. Measured on the acceptance
+	// fixture, Save pressed a second time counted the press, changed not one pixel, and
+	// was reported as a failure. See [[ADR-135-a-delivered-action-is-not-a-failed-one]].
+	if !record.Success && record.Execution.Performed &&
+		record.Status == directorapi.ActionFailed &&
+		(changed(record) || verify.Delivered(record.Verification)) {
 		record.Status = directorapi.ActionUnverified
 		record.Verification.Inconclusive = true
-		record.FailureReason = "the screen changed but not in a way that confirms the action; " +
-			"not retrying, because repeating it could apply it twice"
+		record.FailureReason = reasonDeliveredNotConfirmed(changed(record))
 		add("verify", record.FailureReason, false)
 	}
 
@@ -1307,4 +1340,20 @@ func firstParent(explicit, inferred *actiongraph.NodeID) *actiongraph.NodeID {
 		return explicit
 	}
 	return inferred
+}
+
+// reasonDeliveredNotConfirmed says WHICH of the two things is known, because they send a reader
+// somewhere different.
+//
+// "The screen changed but not in a way that confirms it" points at verification: something
+// happened and Marco could not read it. "It reached the control and nothing visibly followed"
+// points at the application: the press arrived and the program did nothing a screen can show.
+// One sentence for both would have been a sentence that fits neither.
+func reasonDeliveredNotConfirmed(worldChanged bool) string {
+	if worldChanged {
+		return "the screen changed but not in a way that confirms the action; " +
+			"not retrying, because repeating it could apply it twice"
+	}
+	return "the action reached its target and nothing visibly followed, so it cannot be " +
+		"confirmed; not retrying, because repeating it could apply it twice"
 }

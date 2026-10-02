@@ -20,7 +20,9 @@ import (
 // that asymmetry.
 
 func TestAnIdenticalRegionAndUnchangedWorldPermitARetry(t *testing.T) {
-	// The only combination that PROVES nothing happened. Everything else is a guess,
+	// The only combination in which the PIXELS object to nothing. It does not prove the action
+	// never landed — a press can be real and invisible, which is why verify.Delivered has the
+	// last word downstream (ADR-007, amended 2026-10-02). Everything else here is a guess,
 	// and a guess is not a licence to repeat a non-idempotent action.
 	v := visualRetryVerdict(RegionChange{Valid: true, Identical: true}, false)
 	if !v.Allow {

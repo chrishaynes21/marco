@@ -227,7 +227,7 @@ func (v *Verifier) verifySelection(target directorapi.ResolvedTarget,
 				target.Label, selectedWord(want))
 		}
 		ev := []directorapi.Evidence{{
-			Kind: "selection_state", Observed: true, Weight: weight, Detail: detail,
+			Kind: EvidenceSelectionState, Observed: true, Weight: weight, Detail: detail,
 			Source: directorapi.SourceAccessibility,
 		}}
 		// AND WHAT THE REST OF THE APPLICATION DID ABOUT IT.

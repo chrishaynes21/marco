@@ -157,7 +157,7 @@ func (v *Verifier) verifyClick(a directorapi.ClickAction, target directorapi.Res
 	switch {
 	case afterFocus != "" && afterFocus == target.ElementID:
 		ev = append(ev, directorapi.Evidence{
-			Kind: "focus_on_target", Observed: true, Weight: WeightDelivered,
+			Kind: EvidenceFocusOnTarget, Observed: true, Weight: WeightDelivered,
 			Detail: "keyboard focus is now on the element that was clicked, which shows " +
 				"the click was delivered there and not that it had an effect",
 			Source: directorapi.SourceAccessibility,
