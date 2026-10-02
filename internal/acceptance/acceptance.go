@@ -593,19 +593,28 @@ type State struct {
 	Read bool `json:"-"`
 	// Hwnd is the fixture window's own handle, so a perception read can be scoped to THIS
 	// window. Not a hint about content — see the note in Fixture.Write.
-	Hwnd           int64  `json:"hwnd"`
-	Title          string `json:"title"`
-	Name           string `json:"name"`
-	Notes          string `json:"notes"`
-	Remember       bool   `json:"remember"`
-	Selected       string `json:"selected"`
-	Status         string `json:"status"`
-	Detail         string `json:"detail"`
-	SecondView     bool   `json:"second_view"`
-	SavePresses    int    `json:"save_presses"`
-	CancelPresses  int    `json:"cancel_presses"`
-	DetailsPresses int    `json:"details_presses"`
-	Stubborn       bool   `json:"stubborn"`
+	Hwnd              int64  `json:"hwnd"`
+	Title             string `json:"title"`
+	Name              string `json:"name"`
+	Notes             string `json:"notes"`
+	Remember          bool   `json:"remember"`
+	Selected          string `json:"selected"`
+	Status            string `json:"status"`
+	Detail            string `json:"detail"`
+	DocumentsExpanded bool   `json:"documents_expanded"`
+	// ExpandEvents and CollapseEvents are how many times the application itself was told.
+	//
+	// They exist because a UIA-driven collapse does not tell it: the node collapses, its
+	// children leave the accessibility tree, and `AfterCollapse` never fires. An oracle that
+	// reported the managed property alone would then call a correct Marco broken — so these
+	// make "the application never heard about it" distinguishable from "it did not happen".
+	ExpandEvents   int  `json:"expand_events"`
+	CollapseEvents int  `json:"collapse_events"`
+	SecondView     bool `json:"second_view"`
+	SavePresses    int  `json:"save_presses"`
+	CancelPresses  int  `json:"cancel_presses"`
+	DetailsPresses int  `json:"details_presses"`
+	Stubborn       bool `json:"stubborn"`
 }
 
 // Unchanged reports whether nothing the fixture tracks has moved.

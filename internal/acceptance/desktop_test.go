@@ -237,6 +237,90 @@ func TestDesktopAcceptance(t *testing.T) {
 		t.Logf("UNSUPPORTED: no scroll verb. Marco said: %q", firstResultLine(r.Output))
 	})
 
+	// ── 10. a control that will not respond ──────────────────────────────
+	//
+	// Disabled, named, visible. Marco must refuse, nothing may happen, AND the refusal must
+	// say which of those it was: a person told a control is absent goes looking for a missing
+	// control, while a person told it is disabled goes looking at their application.
+	//
+	// `target.disabledPenalty`'s own note already said so — "a disabled Save IS the thing the
+	// user meant" — and the resolver reported it as absent anyway.
+	t.Run("disabled/click Delete", func(t *testing.T) {
+		h.Restart(false)
+		before := h.Oracle()
+		r := h.Do("click Delete")
+
+		if r.Performed() {
+			t.Errorf("Marco reported performing an action on a DISABLED control%s",
+				r.Report("unchanged"))
+		}
+		if after := h.Oracle(); !after.Unchanged(before) {
+			t.Errorf("the fixture changed when a disabled control was asked for%s",
+				r.Report("CHANGED — a disabled control was operated"))
+		}
+		// AND THE SENTENCE IS TRUE. The control is there; saying it is not sends somebody
+		// to the wrong place entirely.
+		if msg := r.Message(); !strings.Contains(msg, "disabled") {
+			t.Errorf("the refusal reads %q.\n\nDelete is present, named and visible — it "+
+				"is disabled. Reporting it as absent describes a different world and "+
+				"sends a reader to look for a control that is on their screen.%s",
+				msg, r.Report("unchanged"))
+		}
+	})
+
+	// ── 11. expand, and collapse ──────────────────────────────────────────
+	//
+	// `verifyExpansion` is the most specific verifier in the package — a node reporting itself
+	// expanded, or its children appearing — and it had never run against a real desktop.
+	t.Run("expand/open a tree node", func(t *testing.T) {
+		h.Restart(false)
+		r := h.Do("expand Documents")
+
+		got := h.Oracle()
+		if !got.DocumentsExpanded {
+			t.Errorf("the node did not expand%s",
+				r.Report(oracleVerdict(got.DocumentsExpanded)))
+		}
+		// AND MARCO CAN READ WHAT APPEARED. A node that opened and whose children cannot be
+		// perceived is a place Marco cannot go on to act in.
+		if !h.Sees("Reports") {
+			t.Errorf("Marco cannot read the children of the node it just expanded.\n%s",
+				h.Perceived())
+		}
+
+		// AND COLLAPSING IS DRIVEN, REPORTED, AND NOT ASSERTED ON.
+		//
+		// # Why the oracle has no vote here, measured
+		//
+		// A UIA-driven collapse manipulates the native tree control WITHOUT notifying the
+		// managed layer. Measured directly, driving the pattern by hand:
+		//
+		//	Expand()    UIA Expanded    expand_events=1    oracle true
+		//	Collapse()  UIA Collapsed   collapse_events=0  oracle still true
+		//
+		// and after the collapse the child nodes were GONE from the accessibility tree. Two
+		// independent signals — the reported state and the structure — say the node collapsed.
+		// WinForms' own `AfterCollapse` never fired and `TreeNode.IsExpanded` stayed true.
+		//
+		// So the application genuinely does not know, and there is no application-side witness
+		// to be had. Asserting on the oracle here would report a correct Marco as broken, which
+		// is as damaging as the false success this suite exists to catch and harder to notice
+		// because it looks like diligence.
+		//
+		// It is still DRIVEN, because a collapse that crashed or refused is worth knowing
+		// about, and its outcome is logged for a reader.
+		c := h.Do("collapse Documents")
+		again := h.Oracle()
+		t.Logf("UNSUPPORTED-ORACLE: collapse was %s; the fixture's managed layer is not told "+
+			"about a UIA-driven collapse (collapse_events=%d while the node's children leave "+
+			"the tree), so this direction has no independent witness",
+			c.Outcome(), again.CollapseEvents)
+		if c.Outcome() == "failed" && !c.Refused() {
+			t.Errorf("collapse failed outright, which is about Marco rather than about the "+
+				"oracle%s", c.Report("no witness available"))
+		}
+	})
+
 	// ── 10. a second place inside one window ──────────────────────────────
 	//
 	// The Details button opens a panel: the same application surface, a different place

@@ -114,10 +114,20 @@ namespace MarcoFixture
         private readonly Button details = new Button();
         private readonly Panel secondView = new Panel();
         private readonly Label secondText = new Label();
+        // A control that exists, is visible, is named, and will not respond. Enabled=false is the
+        // honest version of the stubborn button: an application saying "not now" in the one way
+        // the accessibility layer reports truthfully.
+        private readonly Button deleteBtn = new Button();
+        // Something to expand. SemanticExpand and verifyExpansion have never run against a real
+        // desktop, and a tree is the ordinary control they were written for.
+        private readonly TreeView tree = new TreeView();
 
         private int savePresses;
         private int cancelPresses;
         private int detailsPresses;
+        private int expandEvents;
+        private int collapseEvents;
+        private bool documentsExpanded;
 
         internal FixtureForm(string statePath, bool stubborn)
         {
@@ -226,10 +236,60 @@ namespace MarcoFixture
             secondView.Controls.Add(secondText);
             secondView.Controls.Add(back);
 
+            // ── a control that will not respond ───────────────────────────────
+            //
+            // Disabled, and that is the whole point: Marco must refuse rather than report success,
+            // and the refusal has to come from the control's own reported state rather than from
+            // anything about this application.
+            deleteBtn.SetBounds(16, 248, 90, 28);
+            deleteBtn.Text = "Delete";
+            deleteBtn.AccessibleName = "Delete";
+            deleteBtn.Enabled = false;
+            deleteBtn.Click += delegate
+            {
+                // Unreachable while Enabled is false. Present so that a run which DID reach it
+                // leaves a mark in the oracle rather than passing silently.
+                status.Text = "Status: Deleted";
+                Write();
+            };
+
+            // ── something to expand ───────────────────────────────────────────
+            tree.SetBounds(16, 288, 200, 100);
+            tree.AccessibleName = "Folders";
+            var root = new TreeNode("Documents");
+            root.Nodes.Add(new TreeNode("Reports"));
+            root.Nodes.Add(new TreeNode("Invoices"));
+            tree.Nodes.Add(root);
+            tree.Nodes.Add(new TreeNode("Pictures"));
+            // STATE FROM THE EVENTS, NOT FROM TreeNode.IsExpanded.
+            //
+            // Measured: a UIA-driven collapse left `IsExpanded` reporting true while UIA said
+            // Collapsed AND the child nodes had vanished from the accessibility tree. Two
+            // independent signals said the node had collapsed and the managed property said it
+            // had not, so the ORACLE was the unreliable witness and Marco was right.
+            //
+            // That is the one failure mode an oracle may not have. Its whole value is being an
+            // independent account of the truth, and an oracle that reports a stale property turns
+            // a correct Marco into a false failure — which is exactly as damaging as the false
+            // success this harness was built to catch, and harder to notice because it looks like
+            // diligence.
+            //
+            // The events are the application telling us what it did. Counted as well as
+            // recorded, so "it never happened" and "it happened and went back" cannot read alike.
+            tree.AfterExpand += delegate { documentsExpanded = true; expandEvents++; Write(); };
+            tree.AfterCollapse += delegate { documentsExpanded = false; collapseEvents++; Write(); };
+
+            var treeLabel = Lbl("Folders", 16, 268);
+
+            status.SetBounds(16, 400, 420, 24);
+            secondView.SetBounds(228, 288, 208, 100);
+            ClientSize = new Size(460, 440);
+
             Controls.AddRange(new Control[]
             {
                 nameLabel, name, notesLabel, notes, remember,
-                itemsLabel, items, save, cancel, details, status, secondView,
+                itemsLabel, items, save, cancel, details, deleteBtn,
+                treeLabel, tree, status, secondView,
             });
 
             Shown += delegate { Write(); };
@@ -413,6 +473,16 @@ namespace MarcoFixture
             b.Append(",");
             Field(b, "status", status.Text); b.Append(",");
             Field(b, "detail", secondText.Text); b.Append(",");
+            // WHETHER THE TREE IS OPEN, so an expand has an independent witness. Read from the
+            // control itself rather than from its accessible object -- which is the distinction the
+            // selection measurement made worth writing down: a provider can report a state the
+            // application does not have, at every level it exposes.
+                        b.Append("\"documents_expanded\":")
+             .Append(documentsExpanded ? "true" : "false").Append(",");
+            b.Append("\"expand_events\":")
+             .Append(expandEvents.ToString(CultureInfo.InvariantCulture)).Append(",");
+            b.Append("\"collapse_events\":")
+             .Append(collapseEvents.ToString(CultureInfo.InvariantCulture)).Append(",");
             b.Append("\"second_view\":").Append(secondView.Visible ? "true" : "false").Append(",");
             b.Append("\"save_presses\":").Append(savePresses.ToString(CultureInfo.InvariantCulture));
             b.Append(",");

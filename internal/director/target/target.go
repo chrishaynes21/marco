@@ -88,10 +88,37 @@ func (r *Resolver) Resolve(w *directorapi.WorldState, q directorapi.ElementQuery
 	// The world was good enough to answer, and the answer is no. Only now is a
 	// discovery attempt justified, and only now would "there is no Save button" be
 	// an honest thing to say.
+	//
+	// EXCEPT WHEN THE THING WAS FOUND AND REFUSED, which is a different sentence.
+	//
+	// `disabledPenalty`'s own note already says what is owed here — "a disabled Save IS the
+	// thing the user meant, and reporting 'Save is greyed out' requires finding it first" — and
+	// the explanation below said the opposite: it reported a control the resolver had plainly
+	// matched, scored and rejected as not being there at all.
+	//
+	// Measured by real-desktop acceptance against a named, visible, disabled button:
+	//
+	//	Resolving "Delete" → ABSENT
+	//	  nothing matching "Delete" is present in the observed window
+	//	  considered 26:
+	//	    0.68  button  Delete  REJECTED: disabled
+	//
+	// Both halves of that are produced here, and they contradict each other. A person told the
+	// control is absent goes looking for a missing control; a person told it is disabled goes
+	// looking at why their application will not let them, which is the true answer and a
+	// completely different place to look.
+	//
+	// It stays ABSENT as a STATUS. Nothing usable was found, every caller that branches on the
+	// status is right to treat it as nothing-to-act-on, and a new status would be a vocabulary
+	// change for a sentence. What changes is that the sentence describes what was seen.
 	res := directorapi.Resolution{
 		Status:      directorapi.ResolutionAbsent,
 		Candidates:  candidates,
 		Explanation: fmt.Sprintf("nothing matching %s is present in the observed window", describe(q)),
+	}
+	if why := rejectedMatch(candidates); why != "" {
+		res.Explanation = fmt.Sprintf("%s is %s, so it cannot be acted on", describe(q), why)
+		return res
 	}
 	if r.Discovery != nil {
 		if plan := r.Discovery.Plan(w, q); !plan.Empty() {
@@ -611,4 +638,39 @@ func normalise(s string) string {
 // when a bulk action hit the wrong control.
 func (r *Resolver) Rank(w *directorapi.WorldState, q directorapi.ElementQuery) []directorapi.TargetCandidate {
 	return r.rank(w, q)
+}
+
+// rejectedMatch names why a control the resolver FOUND cannot be acted on, or "".
+//
+// # Which rejections count, and why not all of them
+//
+// Only the ones that are facts about the CONTROL: it is disabled, it is not on screen, it is not
+// interactive. Each of those means "the thing you named is there and will not respond", which is a
+// true and useful sentence.
+//
+// "label does not match" is excluded, and that exclusion is the whole correctness of this function:
+// every element in the window carries it, so counting it would turn "nothing matching Save is
+// present" into "Save's label does not match" about a window with no Save in it at all.
+//
+// "wrong kind of control" is excluded for a narrower reason: it fires when a query asked for a role
+// and something else wore the label, and the honest answer there is still that what was asked for
+// is not present.
+//
+// The BEST-SCORING such candidate wins, because the resolver has already ranked them and the one it
+// ranked first is the one it would have acted on. Ties are broken by the order the ranking produced,
+// which is deterministic.
+func rejectedMatch(candidates []directorapi.TargetCandidate) string {
+	// A fact about the control rather than about the match.
+	aboutTheControl := map[string]bool{
+		"disabled":                   true,
+		"not visible on screen":      true,
+		"not an interactive control": true,
+	}
+	for _, c := range candidates {
+		if c.Rejected == "" || !aboutTheControl[c.Rejected] {
+			continue
+		}
+		return c.Rejected
+	}
+	return ""
 }
