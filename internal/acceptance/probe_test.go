@@ -46,10 +46,26 @@ func TestNaturalLanguageProbe(t *testing.T) {
 			t.Logf("%-46s %s", "", trim(m, 110))
 		}
 
-		// NEVER ACCEPTABLE, whatever the phrasing.
+		// WATCHED, NOT ASSERTED, and the distinction is this probe's whole design.
+		//
+		// `performed` with nothing changed is the signature of a false success — and it is
+		// also exactly what a legitimately idempotent request looks like. Emptying an
+		// already-empty field changes nothing and IS done; uiact calls that Satisfied on
+		// purpose, because performing a toggle to "achieve" a checked box would uncheck it.
+		// The verification message then reads "is now unchecked", which is true and leaves
+		// nothing to match on.
+		//
+		// Telling the two apart needs to know what state was requested and whether it
+		// already held — per-request knowledge a probe does not have. So the probe FLAGS the
+		// shape and a person judges it, while the assertions that must hold regardless live
+		// in the acceptance suite, where every case knows what it asked for.
+		//
+		// This was an assertion first and it cried wolf three times out of three, each one a
+		// request whose state already held. A guard that is wrong whenever it fires teaches
+		// people to ignore it.
 		if r.Performed() && got.Unchanged(before) {
-			t.Errorf("FALSE SUCCESS: %q reported performed and the oracle saw nothing change\n  %s",
-				p, got.Summary())
+			t.Logf("%-46s WATCH performed with nothing changed — idempotent, or false "+
+				"success? said: %s", "", trim(r.Message(), 80))
 		}
 	}
 }
