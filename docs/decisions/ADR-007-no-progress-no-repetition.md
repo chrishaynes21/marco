@@ -62,6 +62,10 @@ recovering from *"the target moved or the screen changed under us"* — and it w
 when the screen had not changed. If nothing moved, re-observing finds the same target in the same
 place and re-delivers the same action.
 
+The other direction is [[ADR-137-a-thin-reading-is-not-an-answer]]: a look that failed BEFORE
+acting is worth repeating, because nothing can have been double-applied. Same word, opposite
+risk.
+
 **So the retry now turns on DELIVERY evidence rather than on world change.** `verify.Delivered`
 reports whether anything says the action reached the control Marco aimed at — keyboard focus
 sitting on the clicked element, a control's own word about its selection — and an action that

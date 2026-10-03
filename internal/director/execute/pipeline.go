@@ -488,6 +488,42 @@ func (p *Pipeline) handleParsed(ctx context.Context, request string, parsed dire
 	out.Policy = decision
 	// The variable, if any, learns whether its query still finds its object.
 	p.recordVariableOutcome(varName, res)
+
+	// A THIN READING IS NOT AN ANSWER. Look once more before refusing.
+	//
+	// Measured: twelve identical requests to one window, nothing changing between them, gave
+	// nine successes and two refusals saying "the application exposed only containers and no
+	// content". The same window answered nine times, so the thin reading was a timing artefact —
+	// the tree caught mid-population — and one request in six was refused because of it.
+	//
+	// Only the UNOBSERVABLE verdict. The resolver already separates "the world was never capable
+	// of answering" from "the world could see and the answer is no", and target.go notes that the
+	// second is the only point at which "there is no Save button" is honest. Re-asking that one
+	// would cost an observation to be told the same thing.
+	//
+	// # Why a second look is free here and is not free after acting
+	//
+	// Because nothing has happened yet. A resolution that failed sent no click and pressed no
+	// key; the desktop does not know Marco looked. That is the exact opposite of the retry a few
+	// lines below, which had to be narrowed because repeating a DELIVERED action applies it
+	// twice. The two sit close together on purpose:
+	//
+	//	before acting   a failed look is worth repeating; nothing can be double-applied
+	//	after acting    a failed confirmation is not, because the action may have landed
+	//
+	// One more look, not a loop.
+	if status != "" && res != nil && res.Status == directorapi.ResolutionUnobservable {
+		add("observe", "the reading did not represent the window — looking again before refusing", true)
+		if fresh, oerr := p.observeTraced(ctx); oerr == nil {
+			world = fresh
+			out.World = &world
+			built, decision, res, status, msg, diag = p.prepareTraced(ctx, request, world,
+				out.Intent, false, add)
+			out.Binding, out.Resolution, out.Policy = diag, res, decision
+			p.recordVariableOutcome(varName, res)
+		}
+	}
+
 	if status != "" {
 		out.Status = status
 		out.Message = msg
