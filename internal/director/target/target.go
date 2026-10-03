@@ -199,6 +199,12 @@ func resolved(w *directorapi.WorldState, q directorapi.ElementQuery, best direct
 		if n, ok := el.Attributes["native_id"].(string); ok {
 			target.NativeID = n
 		}
+		// WHAT THE CONTROL WAS LIKE, carried forward with the choice. The capability
+		// ladder needs the patterns and the state, and this is the one place that has
+		// them — a second lookup later would be a second observation of a world that
+		// had already moved. See directorapi.ControlFacts for what went wrong without
+		// them.
+		target.Control = directorapi.FactsOf(el)
 	}
 	return directorapi.Resolution{
 		Status:      directorapi.ResolutionResolved,

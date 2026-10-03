@@ -265,14 +265,23 @@ func TestExpandingAnAlreadyExpandedNodeDoesNothing(t *testing.T) {
 }
 
 func TestAnUnknownStateIsNotTreatedAsSatisfied(t *testing.T) {
-	// The dangerous direction. A control whose state could not be read must be ACTED
-	// on, not assumed to be right already — otherwise "check that box" silently does
-	// nothing whenever the provider is quiet.
+	// The dangerous direction. A control whose state could not be read must not be assumed
+	// to be right already — otherwise "check that box" silently does nothing whenever the
+	// provider is quiet.
+	//
+	// THE CLAIM IS UNCHANGED AND THE ASSERTION MOVED. This used to also require the resolve
+	// to SUCCEED, on the reasoning that such a control "must be ACTED on". There were only
+	// two options in view then, and the one it rejected was the right one to reject; but the
+	// one it chose turned out to be worse than a third:
+	//
+	//	satisfied   silently does nothing and claims success   — what this test forbids
+	//	flip it     may do the OPPOSITE of what was asked      — what it used to require
+	//	refuse      says it cannot tell, and does nothing       — what happens now
+	//
+	// Measured: `untick remember me` against a box whose ToggleState had not been reported
+	// ticked it. See unknownstate_test.go and [[ADR-006-unknown-is-not-false]].
 	target := control(uiact.PatternToggle) // Checked is nil
-	c, err := uiact.Resolve(directorapi.SemanticCheck, target)
-	if err != nil {
-		t.Fatalf("resolve: %v", err)
-	}
+	c, _ := uiact.Resolve(directorapi.SemanticCheck, target)
 	if c.Satisfied {
 		t.Fatal("an unreadable state was treated as already correct")
 	}

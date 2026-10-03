@@ -475,6 +475,9 @@ func resolveRef(observe execute.Observer, ref directorapi.ElementReference) (dir
 		return directorapi.ResolvedTarget{
 			ElementID: el.ID, WindowID: el.WindowID, Point: el.ClickPoint(),
 			Role: el.Role, Label: el.Label, NativeID: native, Confidence: el.Confidence,
+			// The same facts the Director's own resolver records, from the same
+			// builder, so a re-resolution cannot disagree with the resolution.
+			Control: directorapi.FactsOf(el),
 		}, nil
 	}
 	if ref.Query != nil {

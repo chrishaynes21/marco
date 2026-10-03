@@ -206,6 +206,19 @@ func TargetFrom(rt directorapi.ResolvedTarget, el *directorapi.Element) Target {
 		Enabled:   true,
 		HasBounds: rt.Point != directorapi.Point{},
 	}
+	// WHAT THE RESOLVER ALREADY RECORDED, which in production is the only source there is.
+	//
+	// The element lookup below is the richer path and is used where a caller has the world in
+	// hand. It was the ONLY path, through an optional Executor.Elements field that was never
+	// wired in production — so every semantic action arrived here with no patterns, no state
+	// and Enabled defaulted to true, and the three decisions those feed were all being made on
+	// no evidence. See directorapi.ControlFacts.
+	if c := rt.Control; c != nil {
+		t.Enabled = c.Enabled
+		t.Offscreen = c.Offscreen
+		t.Patterns, t.PatternsKnown = c.Patterns, c.PatternsKnown
+		t.Expanded, t.Checked, t.Selected = c.Expanded, c.Checked, c.Selected
+	}
 	if el == nil {
 		return t
 	}
@@ -428,9 +441,24 @@ func Resolve(kind directorapi.SemanticActionKind, t Target) (Choice, error) {
 		return c, nil
 	}
 
+	// WHETHER A FLIP CAN BE TRUSTED TO REACH THE REQUESTED STATE. See blindFlipIsUnsafe.
+	state, namesState := destinationState(kind, t)
+	blind := namesState && state == nil && blindFlipIsUnsafe(kind)
+
 	for _, r := range Ladder(kind) {
 		if r.Mechanism == MechRefuse {
 			break
+		}
+		// A verb that names a destination, performed through a mechanism that only flips,
+		// against a control whose state nobody could read. Recorded as a rejection like any
+		// other unavailable rung, so a bottomed-out ladder still says what was tried.
+		if blind && !directional(kind, r.Mechanism) {
+			c.Rejected = append(c.Rejected, Rejection{
+				Mechanism: r.Mechanism, Detail: r.Detail,
+				Why: "it flips the control, and nothing could read whether it is already " +
+					stateWord(kind),
+			})
+			continue
 		}
 		if r.available != nil {
 			ok, why := r.available(t)
@@ -446,8 +474,29 @@ func Resolve(kind directorapi.SemanticActionKind, t Target) (Choice, error) {
 	}
 
 	c.Refused, c.Mechanism = true, MechRefuse
-	c.Reason = refusalReason(kind, c.Rejected)
+	// WHICH REFUSAL THIS IS. "nothing here can do that" sends somebody to look for another
+	// way; "I could not read the control state" sends them to look at the control. Only the
+	// blind case gets the second sentence, and only when it is what actually stopped it.
+	if blind && !anyDirectional(kind) {
+		c.Reason = unreadableState(kind, t)
+	} else {
+		c.Reason = refusalReason(kind, c.Rejected)
+	}
 	return c, fmt.Errorf("uiact: %s", c.Reason)
+}
+
+// anyDirectional reports whether this verb has any rung that sets rather than flips.
+//
+// It decides which sentence a refusal gets. A checkbox has none, so an unreadable one is always
+// explained by the state; a tree node has one, so a refusal there is about the node not offering
+// the pattern and the state is a secondary detail.
+func anyDirectional(kind directorapi.SemanticActionKind) bool {
+	for _, r := range Ladder(kind) {
+		if r.Mechanism != MechRefuse && directional(kind, r.Mechanism) {
+			return true
+		}
+	}
+	return false
 }
 
 // refusalReason explains a bottomed-out ladder in terms of what was tried.
@@ -503,4 +552,132 @@ func alreadySatisfied(kind directorapi.SemanticActionKind, t Target) (bool, stri
 		}
 	}
 	return false, ""
+}
+
+// A DESTINATION IS NOT A DIRECTION.
+//
+// Six verbs name a state to end up in — check, uncheck, expand, collapse, select, deselect — and
+// some of the mechanisms that perform them FLIP whatever state the control is in instead of
+// setting the one that was asked for. A flip only reaches a named destination from a known
+// starting point, so performing one of these through a flip with the current state UNREADABLE can
+// move the world the opposite way to the request.
+//
+// Measured on a checkbox whose ToggleState had not been reported yet:
+//
+//	untick remember me   remember false -> TRUE   (reported unverified)
+//
+// `alreadySatisfied` could not tell the box was already unchecked, the ladder reached
+// `TogglePattern.Toggle()`, and asked to turn something off Marco turned it on. See
+// [[ADR-006-unknown-is-not-false]], whose whole subject is that "the failure is always in the
+// unsafe direction, because Unknown arises exactly when something has gone wrong".
+
+// destinationState is the state a verb names, and whether it names one at all.
+//
+// nil with ok=true is the dangerous case: the verb names a state and the provider did not report
+// it. Verbs that name no state — invoke, copy, back — are not affected by any of this.
+func destinationState(kind directorapi.SemanticActionKind, t Target) (state *bool, names bool) {
+	switch kind {
+	case directorapi.SemanticExpand, directorapi.SemanticCollapse:
+		return t.Expanded, true
+	case directorapi.SemanticCheck, directorapi.SemanticUncheck:
+		return t.Checked, true
+	case directorapi.SemanticSelect, directorapi.SemanticDeselect:
+		return t.Selected, true
+	}
+	return nil, false
+}
+
+// stateWord is what the unreadable state is called, for the sentence a person reads.
+func stateWord(kind directorapi.SemanticActionKind) string {
+	switch kind {
+	case directorapi.SemanticExpand, directorapi.SemanticCollapse:
+		return "expanded"
+	case directorapi.SemanticCheck, directorapi.SemanticUncheck:
+		return "checked"
+	case directorapi.SemanticSelect, directorapi.SemanticDeselect:
+		return "selected"
+	}
+	return "in that state"
+}
+
+// directional reports whether performing kind through mech reaches the requested state REGARDLESS
+// of the state the control started in.
+//
+// This is a fact about each platform call, not a preference:
+//
+//	ExpandCollapse(hwnd, id, bool expand)   takes the direction as an argument  → directional
+//	SelectionItem.Select / RemoveFromSelection                                  → directional
+//	TogglePattern.Toggle()                  takes no argument at all            → a flip
+//	invoke, click on a checkbox or a disclosure arrow                           → a flip
+//
+// A plain click counts as directional for `select` because clicking an item selects it rather
+// than flipping it — which is the same reason `deselect` deliberately has no click rung, as its
+// ladder entry already explains.
+//
+// Everything not listed names no destination state, so the question does not arise and the answer
+// is yes: there is no opposite direction to go in.
+func directional(kind directorapi.SemanticActionKind, mech Mechanism) bool {
+	switch kind {
+	case directorapi.SemanticExpand, directorapi.SemanticCollapse:
+		return mech == MechPattern
+	case directorapi.SemanticCheck, directorapi.SemanticUncheck:
+		// UIA gives a checkbox no directed setter. That is why an unreadable one cannot be
+		// set at all rather than being set by the best available guess.
+		return false
+	case directorapi.SemanticSelect:
+		return mech == MechPattern || mech == MechClick
+	case directorapi.SemanticDeselect:
+		return mech == MechPattern
+	}
+	return true
+}
+
+// unreadableState is the refusal sentence for a destination nobody can aim at.
+//
+// It names the control, the state that could not be read, and what that costs — because "I could
+// not read it" and "nothing here can do that" are different problems with different remedies, and
+// the old behaviour reported neither.
+func unreadableState(kind directorapi.SemanticActionKind, t Target) string {
+	what := "this control"
+	if t.Label != "" {
+		what = fmt.Sprintf("%q", t.Label)
+	}
+	return fmt.Sprintf("%s does not report whether it is %s, and the only way to %s it here "+
+		"flips whatever state it is in — so it could just as easily do the opposite",
+		what, stateWord(kind), kind.Describe())
+}
+
+// blindFlipIsUnsafe reports whether an unreadable state is an ANOMALY for this verb, rather than
+// the ordinary condition of the controls it applies to.
+//
+// # Why this is not every destination verb
+//
+// It was, in the first version of this guard, and two existing tests caught what that cost.
+//
+// `Expanded` is read from `ExpandCollapsePattern`'s own state property, so a control without that
+// pattern has no state to report — structurally, always, not as a timing artefact. For
+// expand/collapse, "the state is unknown" and "there is no directional mechanism" are therefore
+// the SAME condition, and refusing on it would delete the invoke and click rungs the ladder
+// deliberately provides for trees that expose no expansion support. That is a capability the
+// design chose on purpose, against a misdirection that is visible and reversible: a node closes
+// when you asked it to open.
+//
+// `Checked` is different in both halves. The state and the mechanism arrive through separate
+// channels — the reported pattern list and the element's states — so they can disagree, and the
+// measured defect is exactly that disagreement: `PatternToggle` reported while ToggleState had
+// not arrived yet. And the misdirection is neither visible nor reversible in the same way,
+// because the verbs are the ones that address mute, autosave, notifications and every other
+// setting somebody asks to be turned off.
+//
+// So the guard goes where the harm is silent and the refusal is rare, and not where the refusal
+// would be permanent and the harm obvious.
+//
+// `Selected` never arrives nil — [TargetFrom] gives it a real false, deliberately — so select and
+// deselect never reach this question at all.
+func blindFlipIsUnsafe(kind directorapi.SemanticActionKind) bool {
+	switch kind {
+	case directorapi.SemanticCheck, directorapi.SemanticUncheck:
+		return true
+	}
+	return false
 }
