@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/chaynes-simpleclouds/marco/internal/activate"
 	"github.com/chaynes-simpleclouds/marco/internal/director/marcoexec"
 	"github.com/chaynes-simpleclouds/marco/internal/director/uiact"
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
@@ -104,6 +105,26 @@ func (e *Executor) executeSemantic(ctx context.Context, a directorapi.SemanticAc
 
 	for i, op := range ops {
 		if _, err := e.Operations.Do(ctx, op); err != nil {
+			// A CAPABILITY REFUSAL IS NOT AN OUTAGE, and its text is not a sentence.
+			//
+			// The accessibility host marks "this control does not offer that" with an
+			// `unsupported:` prefix, for the Director to recognise and fall back on. Nothing
+			// translated it, so the contract string reached a person verbatim:
+			//
+			//	marco do "open Documents"
+			//	FAILED: unsupported: the control does not implement InvokePattern
+			//
+			// Every word of that is somebody else's vocabulary, and none of it says what was
+			// asked or which control it was asked of. The ladder's own refusals are written
+			// for a person; this failure happens one step later — the rung was available, the
+			// operation was attempted, the host declined — so it had no sentence of its own.
+			//
+			// Only this contract is rewritten. A bridge that died or a control that vanished
+			// is an outage whose text is the only account of what went wrong, and tidying it
+			// into a sentence about the verb would throw away the diagnosis.
+			if activate.Unsupported(err.Error()) {
+				return out, fmt.Errorf("%s", refusedByControl(a.Kind, target))
+			}
 			// WHICH step of a two-step lowering failed matters: a context menu whose
 			// focus succeeded and whose chord failed left focus moved, and a caller that
 			// retried blindly would move it again.
@@ -148,4 +169,18 @@ func semanticDetail(a directorapi.SemanticAction, out uiact.Outcome) string {
 			len(out.Choice.Rejected)))
 	}
 	return strings.Join(parts, " · ")
+}
+
+// refusedByControl is Marco's own sentence for "this control does not offer that action".
+//
+// It names the control and what was asked, which the host's contract string does neither of. The
+// "%sed" construction is borrowed from uiact.Resolve's disabled refusal rather than reinvented,
+// so "open" reads as "opened" and "close" as "closed" in both places.
+func refusedByControl(kind directorapi.SemanticActionKind, t uiact.Target) string {
+	what := "this control"
+	if t.Label != "" {
+		what = fmt.Sprintf("%q", t.Label)
+	}
+	return fmt.Sprintf("%s cannot be %sed — the application offers no way to do that to it",
+		what, strings.TrimSuffix(string(kind), "e"))
 }
