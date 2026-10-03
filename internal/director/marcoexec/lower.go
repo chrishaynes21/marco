@@ -248,6 +248,13 @@ func (o Operation) control() (string, error) {
 		}
 		fields = append(fields, "Value "+v)
 	}
+	if o.Kind == KindScroll {
+		w, err := Quote(o.Scroll)
+		if err != nil {
+			return "", err
+		}
+		fields = append(fields, "Where "+w)
+	}
 	if o.MaxNodes > 0 {
 		fields = append(fields, fmt.Sprintf("MaxNodes %d", o.MaxNodes))
 	}

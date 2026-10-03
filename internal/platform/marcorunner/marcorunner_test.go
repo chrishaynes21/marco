@@ -67,6 +67,13 @@ func everyOperation() []marcoexec.Operation {
 		{Kind: marcoexec.KindSelect, Element: "42.7.3"},
 		{Kind: marcoexec.KindDeselect, Element: "42.7.3"},
 		{Kind: marcoexec.KindScrollIntoView, Element: "42.7.3"},
+		// Every destination, not one of them: the lowering writes the word into the
+		// generated source, so a value the compiler would reject is a value this test is
+		// the only thing standing between and a runtime failure.
+		{Kind: marcoexec.KindScroll, Element: "42.7.3", Scroll: "top"},
+		{Kind: marcoexec.KindScroll, Element: "42.7.3", Scroll: "bottom"},
+		{Kind: marcoexec.KindScroll, Element: "42.7.3", Scroll: "page_up"},
+		{Kind: marcoexec.KindScroll, Element: "42.7.3", Scroll: "page_down"},
 	}
 }
 

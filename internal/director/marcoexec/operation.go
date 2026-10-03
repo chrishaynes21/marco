@@ -19,6 +19,7 @@ package marcoexec
 
 import (
 	"fmt"
+	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 	"strings"
 )
 
@@ -65,6 +66,9 @@ const (
 	KindSelect         Kind = "select"
 	KindDeselect       Kind = "deselect"
 	KindScrollIntoView Kind = "scroll_into_view"
+	// KindScroll moves a region's VIEW. Where it goes is Operation.Scroll, a closed set
+	// Validate refuses anything outside.
+	KindScroll Kind = "scroll"
 )
 
 // controlKinds are the operations that act on one control, named by the accessibility
@@ -84,6 +88,7 @@ var controlKinds = map[Kind]string{
 	KindSelect:         "Accessibility's Select",
 	KindDeselect:       "Accessibility's Deselect",
 	KindScrollIntoView: "Accessibility's ScrollIntoView",
+	KindScroll:         "Accessibility's Scroll",
 }
 
 // ControlKind reports whether a kind acts on one accessibility control.
@@ -165,6 +170,12 @@ type Operation struct {
 	Called   string `json:"called,omitempty"`
 	Value    string `json:"value,omitempty"`
 	MaxNodes int    `json:"max_nodes,omitempty"`
+	// Scroll is where a KindScroll should move the view: one of the four values
+	// [directorapi.ScrollWhere] defines. A string because this crosses a process boundary
+	// into the host as JSON, and closed by Validate rather than by the type system —
+	// which is the only place a cross-process enum can be closed. Nothing downstream may
+	// treat an unrecognised value as a direction.
+	Scroll string `json:"scroll,omitempty"`
 }
 
 // Secret reports whether this operation carries credential material.
@@ -313,6 +324,8 @@ func (o Operation) Describe() string {
 		return "deselect " + o.Element
 	case KindScrollIntoView:
 		return "scroll " + o.Element + " into view"
+	case KindScroll:
+		return "scroll the view " + o.Scroll
 	}
 	return string(o.Kind)
 }
@@ -350,6 +363,18 @@ func (o Operation) Validate() error {
 				// and asks a live desktop to interpret a typo.
 				return fmt.Errorf("marcoexec: %q is not a navigation meaning", in)
 			}
+		}
+	case KindScroll:
+		// THE ONE PLACE A CROSS-PROCESS ENUM CAN BE CLOSED.
+		//
+		// The destination is typed all the way down to here and becomes a JSON string at
+		// the host boundary, where no Go type can hold it. So this is the gate: an
+		// unrecognised value is refused rather than passed on for the host to interpret,
+		// because a host left to guess which way "sideways" means is a moving view
+		// nobody asked for. See [directorapi.ScrollWhere].
+		if !directorapi.ScrollWhere(o.Scroll).Known() {
+			return fmt.Errorf(
+				"marcoexec: %q is not somewhere Marco can scroll a view", o.Scroll)
 		}
 	case KindTypeSecret:
 		if strings.TrimSpace(o.SecretRef) == "" {

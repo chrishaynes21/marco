@@ -124,6 +124,11 @@ const (
 	PatternSelectionItem  = "selectionitem"
 	PatternValue          = "value"
 	PatternScrollItem     = "scrollitem"
+	// PatternScroll is a region whose VIEW can be moved. One letter of difference from
+	// PatternScrollItem and the opposite meaning: that one is "this control can be brought
+	// into a view", this one is "this view can be moved". Measured on one desktop snapshot:
+	// 346 controls reported scrollitem and 2 reported scroll.
+	PatternScroll = "scroll"
 )
 
 // Target is everything the ladder knows about the control it must act on.
@@ -352,6 +357,15 @@ type Choice struct {
 	Detail string `json:"detail"`
 	// Chord is the chord a keyboard mechanism will send. Empty otherwise.
 	Chord string `json:"chord,omitempty"`
+	// Scroll is where a Scroll request means to take the view — request detail the
+	// lowering needs that is not a fact about the control, which is the same reason Chord
+	// sits here. Set by the executor from the action before lowering, because Resolve is
+	// given the verb and the target rather than the whole request.
+	//
+	// Forgetting to set it cannot pass silently: marcoexec.Validate refuses a scroll
+	// operation whose destination is not one of the four, so an unset one fails loudly at
+	// the boundary instead of reaching a host with nowhere to go.
+	Scroll directorapi.ScrollWhere `json:"scroll,omitempty"`
 	// Rejected are the stronger rungs that were unavailable, strongest first.
 	Rejected []Rejection `json:"rejected,omitempty"`
 	// Satisfied is set when the control is already in the requested state, so the

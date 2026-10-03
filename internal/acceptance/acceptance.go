@@ -611,6 +611,12 @@ type State struct {
 	ExpandEvents   int  `json:"expand_events"`
 	CollapseEvents int  `json:"collapse_events"`
 	SecondView     bool `json:"second_view"`
+	// LinesTopIndex is the first visible row of the scrollable list, from the control's own
+	// TopIndex rather than from any accessibility reading of it — the independent channel for
+	// a view movement. LinesCount is how many rows there are, so a case can say what the
+	// bottom IS without hard-coding it.
+	LinesTopIndex  int  `json:"lines_top_index"`
+	LinesCount     int  `json:"lines_count"`
 	SavePresses    int  `json:"save_presses"`
 	CancelPresses  int  `json:"cancel_presses"`
 	DetailsPresses int  `json:"details_presses"`

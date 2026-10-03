@@ -182,6 +182,20 @@ func Ladder(kind directorapi.SemanticActionKind) []Rung {
 			pattern(PatternScrollItem, "ask the container to bring the item into view"),
 			refuseRung(),
 		}
+	case directorapi.SemanticScroll:
+		// One rung and a refusal, for the reason the note above gives and which still
+		// holds. What changed is that a DESTINATION is not an amount: the pattern moves
+		// the view to a boundary, or by the application's own page, and reports where it
+		// ended up — so there is something to verify against.
+		//
+		// Deliberately no wheel, no PageUp/PageDown chord, no scrollbar drag. Each is a
+		// different mechanism with its own targeting and its own verification question —
+		// where does the wheel go, which nested region takes it, what did a chord move —
+		// and a region with no scroll capability is refused honestly instead.
+		return []Rung{
+			pattern(PatternScroll, "ask the region to move its view"),
+			refuseRung(),
+		}
 
 	// ── selection and clipboard ──────────────────────────────────────────────
 

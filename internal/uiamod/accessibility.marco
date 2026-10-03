@@ -47,6 +47,21 @@ this exports Toggle.    // flip a two-state control; result is { State }
 this exports Select.    // make a control the selection among its siblings
 this exports Deselect.  // remove it from the selection
 this exports ScrollIntoView. // bring a control into view without moving the pointer
+this exports Scroll.    // move a scrollable region's VIEW; result is { Percent }
+
+// Scroll and ScrollIntoView are one letter apart and opposite.
+//
+// ScrollIntoView takes a CONTROL and brings it into whatever view holds it: the caller knows what
+// it wants to see and not where that is. Scroll takes a REGION and moves its view to a boundary,
+// or by the application's own page — the caller knows where it wants to go and not what is there.
+//
+// Where is one of four words and nothing else: "top", "bottom", "page_up", "page_down". The host
+// FAILS on anything else rather than choosing a direction, for the same reason every structural
+// action here fails instead of substituting input: a view that moved somewhere nobody asked for
+// is indistinguishable from one that moved where they did.
+//
+// Deliberately no wheel and no PageUp chord. Both are input aimed somewhere, with their own
+// questions about which nested region receives them, and neither reports where the view ended up.
 
 // A control to act on, named in one of two ways.
 //
@@ -68,3 +83,4 @@ this's Element is a text.   // the accessibility source's own id for the control
 this's Name is a text.      // the control's label, resolved against what is on screen now
 this's Value is a text.     // the new value, for SetValue
 this's MaxNodes is a number. // bound on the tree walk; omit for the host's default
+this's Where is a text.    // where Scroll should take the view: top, bottom, page_up, page_down

@@ -144,6 +144,13 @@ namespace MarcoUia
         public string Expanded = "";
         public string Checked = "";
 
+        /// <summary>How far down a scrollable region currently is, 0-100, as text.
+        ///
+        /// Empty for every control that is not a scrollable region, and empty is not zero for
+        /// the same reason Expanded's is not false: a region sitting at the top and a region
+        /// nobody can read are different facts, and only one of them can verify a scroll.</summary>
+        public string ScrollPercent = "";
+
         // Resource is the object BEHIND this control, when one could be established and
         // trusted. Null for almost everything — a button has no file behind it, and a
         // control that pretended otherwise would hand the Director a fiction to act on.
@@ -418,6 +425,58 @@ namespace MarcoUia
             catch (Exception e) { return "the control refused to scroll into view: " + e.Message; }
         }
 
+        /// <summary>Moves a scrollable region.s VIEW, to a boundary or by one
+        /// application-defined page.
+        ///
+        /// Four destinations and nothing else. "top" and "bottom" are ABSOLUTE and go through
+        /// SetScrollPercent, which lands on the boundary whatever was in between; "page_up" and
+        /// "page_down" go through ScrollVertical with the pattern.s own LargeDecrement and
+        /// LargeIncrement, which are the APPLICATION.S notion of a page rather than a count of
+        /// wheel notches nobody chose.
+        ///
+        /// Anything else FAILS. A host left to interpret a direction it does not know would move
+        /// the view somewhere the person did not ask for, and a view that moved wrongly is
+        /// indistinguishable from one that moved rightly.
+        ///
+        /// The resulting vertical position goes back in percent, because the caller needs to
+        /// verify the effect rather than trust this method returning without an exception —
+        /// accepting a call is not evidence that the view moved.</summary>
+        public static string Scroll(IntPtr hwnd, string runtimeId, string where, int maxNodes,
+            out string percent)
+        {
+            percent = "";
+            AutomationElement found;
+            string problem = Locate(hwnd, runtimeId, maxNodes, out found);
+            if (problem.Length > 0) return problem;
+
+            object pattern;
+            if (!found.TryGetCurrentPattern(ScrollPattern.Pattern, out pattern))
+                return "unsupported: the control does not implement ScrollPattern";
+            var sp = (ScrollPattern)pattern;
+            if (!sp.Current.VerticallyScrollable)
+                return "unsupported: the region does not scroll vertically";
+            try
+            {
+                switch (where)
+                {
+                    case "top":
+                        sp.SetScrollPercent(ScrollPattern.NoScroll, 0); break;
+                    case "bottom":
+                        sp.SetScrollPercent(ScrollPattern.NoScroll, 100); break;
+                    case "page_up":
+                        sp.ScrollVertical(ScrollAmount.LargeDecrement); break;
+                    case "page_down":
+                        sp.ScrollVertical(ScrollAmount.LargeIncrement); break;
+                    default:
+                        return "Accessibility cannot scroll to \"" + where + "\"";
+                }
+                percent = sp.Current.VerticalScrollPercent.ToString(
+                    System.Globalization.CultureInfo.InvariantCulture);
+                return "";
+            }
+            catch (Exception e) { return "the region refused to scroll: " + e.Message; }
+        }
+
         /// <summary>Finds the element, sharing the walk that Focus, SetValue and
         /// GetValue all need. One implementation so "the element is gone" means the same
         /// thing to all three.</summary>
@@ -600,6 +659,7 @@ namespace MarcoUia
             SelectionItemPattern.IsSelectedProperty,
             TogglePattern.ToggleStateProperty,
             ExpandCollapsePattern.ExpandCollapseStateProperty,
+            ScrollPattern.VerticalScrollPercentProperty,
 
             // The pattern-availability properties, which are what the Director's
             // capability ladder reads.
@@ -969,6 +1029,19 @@ namespace MarcoUia
                 // must act rather than conclude it is already done.
                 if (ts == ToggleState.On) n.Checked = "true";
                 else if (ts == ToggleState.Off) n.Checked = "false";
+            }
+
+            // A scrollable region's position, for the same reason a toggle's state is read: the
+            // Director has to be able to verify "the view is at the top" without a second walk.
+            object vpct = read(el, ScrollPattern.VerticalScrollPercentProperty);
+            if (vpct is double)
+            {
+                double p = (double)vpct;
+                // UIA reports -1 for "no vertical scrolling here", which is an ABSENCE and must
+                // not round to 0 — that would make an unscrollable control look like one
+                // already at the top.
+                if (p >= 0) n.ScrollPercent = p.ToString(
+                    System.Globalization.CultureInfo.InvariantCulture);
             }
 
             object expand = read(el, ExpandCollapsePattern.ExpandCollapseStateProperty);

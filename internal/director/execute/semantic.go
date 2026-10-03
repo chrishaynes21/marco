@@ -90,6 +90,8 @@ func (e *Executor) executeSemantic(ctx context.Context, a directorapi.SemanticAc
 		return out, nil
 	}
 
+	// The request's own detail, carried to the lowering. See uiact.Choice.Scroll.
+	choice.Scroll = a.Scroll
 	ops, err := uiact.Lower(a.Kind, choice, target)
 	if err != nil {
 		return out, err

@@ -280,28 +280,19 @@ func TestDesktopAcceptance(t *testing.T) {
 		}
 	})
 
-	// ── 9. an unsupported verb is recorded, not worked around ─────────────
+	// ── 9. scrolling moved out, because it stopped being unsupported ──────
 	//
-	// `ScrollAction` exists in the API and nothing in production builds one, so there is no
-	// verb for "scroll down" to become. The suite says so. It does NOT add a verb to make
-	// itself pass, and it does not assert a refusal message, because the point is the gap
-	// rather than its wording.
-	t.Run("unsupported/scroll down", func(t *testing.T) {
-		h.Restart(false)
-		before := h.Oracle()
-		r := h.Do("scroll down")
-
-		if r.Performed() {
-			t.Errorf("Marco reported performing a scroll. There is no scroll verb: "+
-				"directorapi.ScrollAction exists and nothing builds one, so this should "+
-				"be impossible%s", r.Report("—"))
-		}
-		if after := h.Oracle(); !after.Unchanged(before) {
-			t.Errorf("the fixture changed during an unsupported request%s",
-				r.Report("CHANGED"))
-		}
-		t.Logf("UNSUPPORTED: no scroll verb. Marco said: %q", firstResultLine(r.Output))
-	})
+	// A case here asserted that `scroll down` could not be performed: "ScrollAction exists in
+	// the API and nothing in production builds one, so there is no verb for 'scroll down' to
+	// become. The suite says so. It does NOT add a verb to make itself pass."
+	//
+	// That held for as long as it was true. Scroll was then earned the way the comment implied
+	// it would have to be — by someone genuinely trying to use a long document and finding the
+	// obvious request impossible, not by a backlog — and the case became a test asserting the
+	// absence of a feature that exists. See [[ADR-140-scrolling-is-a-destination-not-an-amount]].
+	//
+	// Its coverage lives in scroll_test.go now, against a scrollable region the fixture grew
+	// for the purpose, with the list's own TopIndex as the independent witness.
 
 	// ── 10. a control that will not respond ──────────────────────────────
 	//

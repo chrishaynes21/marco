@@ -108,6 +108,20 @@ namespace MarcoFixture
         private readonly TextBox notes = new TextBox();
         private readonly CheckBox remember = new CheckBox();
         private readonly ListBox items = new ListBox();
+
+        // A SCROLLABLE REGION, so a view movement has somewhere to happen and an independent
+        // witness when it does.
+        //
+        // A long ListBox rather than a text box: TopIndex is the managed control's own answer to
+        // "where is the view", which is exactly the kind of oracle this fixture exists to provide
+        // -- read from the control and not from its accessible object. The selection measurement
+        // is why that distinction is written down here: a provider can report a state the
+        // application does not have.
+        private readonly ListBox lines = new ListBox();
+
+        // lastTopIndex is what the state file last reported, so the poll below writes on CHANGE
+        // rather than on every tick.
+        private int lastTopIndex = -1;
         private readonly Button save = new Button();
         private readonly Button cancel = new Button();
         private readonly Label status = new Label();
@@ -178,6 +192,15 @@ namespace MarcoFixture
             items.TabIndex = 3;
             items.Items.AddRange(new object[] { "Alpha", "Beta", "Gamma" });
             items.SelectedIndexChanged += delegate { Write(); };
+
+            // 200 rows in a 76px box: a view that must scroll, and far enough that a page step
+            // and a jump to an end are plainly different outcomes.
+            lines.SetBounds(300, 120, 140, 76);
+            lines.AccessibleName = "Lines";
+            lines.TabIndex = 9;
+            for (int i = 1; i <= 200; i++)
+                lines.Items.Add("Row " + i.ToString(CultureInfo.InvariantCulture));
+            lines.SelectedIndexChanged += delegate { Write(); };
 
             save.SetBounds(90, 212, 90, 28);
             save.Text = "Save";
@@ -283,12 +306,12 @@ namespace MarcoFixture
 
             status.SetBounds(16, 400, 420, 24);
             secondView.SetBounds(228, 288, 208, 100);
-            ClientSize = new Size(460, 440);
+            ClientSize = new Size(620, 440);
 
             Controls.AddRange(new Control[]
             {
                 nameLabel, name, notesLabel, notes, remember,
-                itemsLabel, items, save, cancel, details, deleteBtn,
+                itemsLabel, items, lines, save, cancel, details, deleteBtn,
                 treeLabel, tree, status, secondView,
             });
 
@@ -321,6 +344,25 @@ namespace MarcoFixture
             raiser.Interval = 150;
             raiser.Tick += delegate { Raise(statePath + ".raise"); };
             raiser.Start();
+
+            // A VIEW MOVEMENT HAS NO EVENT, so the oracle is polled for this one fact.
+            //
+            // WinForms raises nothing when a ListBox scrolls -- no selection changes, no
+            // property notifies -- so a state file written only on the events the other
+            // controls raise would report the view where it was before the scroll. That is a
+            // STALE oracle, which is worse than a missing one: it disagrees with Marco while
+            // looking like independent ground truth. Measured exactly that way before this
+            // existed, with UIA reporting 0% -> 100% while the file still said top_index 0.
+            //
+            // Compared rather than written every tick, so the file changes when the view does
+            // and a reader can tell the difference.
+            var viewWatch = new Timer();
+            viewWatch.Interval = 100;
+            viewWatch.Tick += delegate
+            {
+                if (lines.TopIndex != lastTopIndex) { lastTopIndex = lines.TopIndex; Write(); }
+            };
+            viewWatch.Start();
         }
 
         [DllImport("user32.dll")]
@@ -472,6 +514,12 @@ namespace MarcoFixture
             Field(b, "selected", items.SelectedItem == null ? "" : items.SelectedItem.ToString());
             b.Append(",");
             Field(b, "status", status.Text); b.Append(",");
+            // WHERE THE SCROLLABLE VIEW IS, from the control's own TopIndex rather than from any
+            // accessibility reading of it -- the independent channel for a view movement.
+            b.Append("\"lines_top_index\":")
+             .Append(lines.TopIndex.ToString(CultureInfo.InvariantCulture)).Append(",");
+            b.Append("\"lines_count\":")
+             .Append(lines.Items.Count.ToString(CultureInfo.InvariantCulture)).Append(",");
             Field(b, "detail", secondText.Text); b.Append(",");
             // WHETHER THE TREE IS OPEN, so an expand has an independent witness. Read from the
             // control itself rather than from its accessible object -- which is the distinction the

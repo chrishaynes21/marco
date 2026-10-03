@@ -254,7 +254,11 @@ func TestASingleClauseRequestTakesTheUnchangedPath(t *testing.T) {
 
 func TestARejectedRequestRunsNothing(t *testing.T) {
 	h := newHarness(menuDismissed()...)
-	out := h.pipeline.HandleRequest(context.Background(), "click File and scroll down")
+	// "scroll down" was the unsupported clause here until Scroll was implemented
+	// (ADR-140). A bare pointer move replaces it because it is unsupported as a program
+	// step by DECISION rather than by omission, so this example cannot expire the next
+	// time a capability lands — see the note on the sibling test in internal/director/program.
+	out := h.pipeline.HandleRequest(context.Background(), "click File and move the mouse to 100,200")
 
 	if out.Status == directorapi.ResultDone {
 		t.Fatal("a request with an unsupported step succeeded")
@@ -263,7 +267,7 @@ func TestARejectedRequestRunsNothing(t *testing.T) {
 		t.Fatalf("clicked %v for a rejected request — validation must precede execution",
 			h.actuator.clicks)
 	}
-	if !strings.Contains(out.Message, "scroll") {
+	if !strings.Contains(out.Message, "move") {
 		t.Fatalf("message = %q, want it to name the unsupported operation", out.Message)
 	}
 }

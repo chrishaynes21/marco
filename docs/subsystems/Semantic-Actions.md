@@ -20,10 +20,19 @@ source_paths:
 
 # Semantic Actions
 
-The action vocabulary: **33 verbs**, from six originally — expand, collapse, toggle, check,
+The action vocabulary: **34 verbs**, from six originally — expand, collapse, toggle, check,
 select, choose, invoke, open, close, dismiss, submit, confirm, cancel, refresh,
-back/forward, next/previous, undo/redo, copy/cut/paste, scroll_here, show_context_menu,
+back/forward, next/previous, undo/redo, copy/cut/paste, scroll_here, scroll, show_context_menu,
 maximize/minimize/restore, pin/unpin.
+
+`scroll` is the only one added since the vocabulary was written down, and the only one whose
+argument is not a control: it carries a typed DESTINATION — top, bottom, one page up, one page
+down — and a request for it names no control at all. It was earned by somebody trying to navigate
+a long document in an unfamiliar application rather than taken off a backlog, which is the bar
+[[ADR-140-scrolling-is-a-destination-not-an-amount]] records for the next one.
+
+It is also the only verb WITHHELD from the model-backed interpreter, because an interpretation
+cannot express a destination — see `SemanticActionKind.Interpretable`.
 
 ## The central idea
 

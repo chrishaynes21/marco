@@ -289,6 +289,9 @@ func inScope(w *directorapi.WorldState, el *directorapi.Element, q directorapi.E
 	if q.Focused != nil && el.Focused != *q.Focused {
 		return false
 	}
+	if q.Scrollable != nil && el.Actions().Scrollable != *q.Scrollable {
+		return false
+	}
 	if q.NativeID != "" && nativeIDOf(el) != q.NativeID {
 		// Exact, and the only query field that is. A derived control — an inline editor
 		// the previous step opened — cannot be named any other way: two controls in the
@@ -345,6 +348,12 @@ func score(el *directorapi.Element, q directorapi.ElementQuery) directorapi.Targ
 
 	s := text
 
+	// THE ONE YOU ARE IN, preferred rather than required. See ElementQuery.PreferFocused.
+	if q.PreferFocused && el.Focused {
+		c.Signals["focused"] = 1
+		s *= 1.5
+	}
+
 	// Role, when asked for. A request that names a kind of control means it.
 	if q.Role != "" {
 		if el.Role == q.Role {
@@ -363,8 +372,24 @@ func score(el *directorapi.Element, q directorapi.ElementQuery) directorapi.Targ
 	// forced: what can be done to a candidate gates how good a match it is, rather
 	// than merely adding to it.
 	acts := el.Actions()
+	// ASKED-FOR CAPABILITY IS NOT INERTNESS.
+	//
+	// inertPenalty is for scenery: a heading or a static label that matches the words and
+	// cannot be operated. A scrollable CONTAINER is inert by role for the same reason a list
+	// is — you operate its items, not it — and that is the right answer for a click and the
+	// wrong one for a scroll, which operates the container itself.
+	//
+	// Measured: the WinForms fixture's 200-row list scored 0.6 on a capability query, took the
+	// penalty for being a container, and fell under MinScore — so a request to scroll the only
+	// scrollable thing in the window resolved to nothing at all, with no rejected candidate to
+	// explain it.
+	//
+	// Narrow on purpose: the exemption applies only when the query ASKED for the capability
+	// this element has. A scrollable pane that merely matches somebody's words is still
+	// scenery for a click.
+	asked := q.Scrollable != nil && *q.Scrollable && acts.Scrollable
 	switch {
-	case !acts.Interactive:
+	case !acts.Interactive && !asked:
 		s *= inertPenalty
 		c.Signals["inert"] = inertPenalty
 	case !acts.ClickableByBounds:

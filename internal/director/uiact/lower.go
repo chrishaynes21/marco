@@ -48,7 +48,11 @@ func Lower(kind directorapi.SemanticActionKind, c Choice, t Target) ([]marcoexec
 			// programming error, not a user-facing one, and it must not become a click.
 			return nil, fmt.Errorf("uiact: %s has no pattern operation to lower to", kind)
 		}
-		return []marcoexec.Operation{control(k)}, nil
+		op := control(k)
+		// The destination travels with the operation, not with the control. An empty one
+		// is refused by marcoexec.Validate rather than defaulted here.
+		op.Scroll = string(c.Scroll)
+		return []marcoexec.Operation{op}, nil
 
 	case MechInvoke:
 		return []marcoexec.Operation{control(marcoexec.KindInvoke)}, nil
@@ -120,6 +124,8 @@ func patternKind(kind directorapi.SemanticActionKind) (marcoexec.Kind, bool) {
 		return marcoexec.KindDeselect, true
 	case directorapi.SemanticScrollHere:
 		return marcoexec.KindScrollIntoView, true
+	case directorapi.SemanticScroll:
+		return marcoexec.KindScroll, true
 	}
 	return "", false
 }

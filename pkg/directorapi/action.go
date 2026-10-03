@@ -152,6 +152,31 @@ type ElementQuery struct {
 	// target for an editing request with no named control: "type hello" and "undo
 	// that" both mean the control the user is already in.
 	Focused *bool `json:"focused,omitempty"`
+	// PreferFocused RANKS the focused candidate first instead of filtering to it.
+	//
+	// The difference from Focused matters: a filter refuses when the thing you are in is not
+	// a candidate, and a preference falls through to the others. "Scroll down" means the
+	// region you are in when you are in one, and the only region there is when you are not —
+	// measured on two surfaces that answer differently. Notepad's editor both scrolls and
+	// holds focus; the WinForms fixture's focus starts in a text field that does not scroll
+	// while exactly one list does, and filtering on focus refused a request with one obvious
+	// answer.
+	//
+	// When several candidates remain and none is focused they tie, and a tie is AMBIGUOUS —
+	// which is the honest answer for "scroll down" in a window with two independently
+	// scrollable regions and no cursor in either.
+	PreferFocused bool `json:"prefer_focused,omitempty"`
+	// Scrollable constrains the search to controls that expose a SCROLLING capability —
+	// a region whose view can be moved, not a control that can be brought into one.
+	//
+	// It exists because "scroll down" names no control and must not pretend "down" is a
+	// label. Measured on Notepad, which exposes three scrollable regions — the document,
+	// the tab strip and an unlabelled pane — so a query for "something scrollable" alone
+	// is genuinely ambiguous and this is paired with Focused to mean the region the
+	// person is actually in.
+	//
+	// A pointer so "do not care" stays expressible, like Enabled and Visible.
+	Scrollable *bool `json:"scrollable,omitempty"`
 
 	// Near, when set, prefers candidates close to this point — the backing for "the
 	// one on the left" and for disambiguating by where the user is looking.
@@ -186,7 +211,19 @@ func (q *ElementQuery) Constrained() bool {
 		// query gets. Enabled and Visible are deliberately NOT here: they narrow a
 		// search but describe nothing on their own, and "the enabled one" is not a
 		// request anybody makes.
-		q.Focused != nil
+		q.Focused != nil ||
+		// Scrollable IS here, and the line between it and Enabled is how many controls
+		// have the capability. Nearly everything is enabled; almost nothing scrolls —
+		// measured at 3 of 59 elements in Notepad and 1 of 25 in the WinForms fixture,
+		// against 346 of 348 for the scrollITEM capability it is one letter from. "The
+		// region that scrolls" is a description, and where more than one answers it the
+		// resolver's ambiguity path asks rather than guessing.
+		//
+		// This said the opposite until it was measured: the first version paired
+		// Scrollable with a Focused filter and kept it out of here, and a scroll in a
+		// window whose focus was elsewhere refused with "the request did not describe
+		// anything specific enough to look for".
+		q.Scrollable != nil
 }
 
 // Direction is a spatial relationship between elements.

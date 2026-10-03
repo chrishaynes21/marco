@@ -225,13 +225,24 @@ func TestTheInterpreterIsNeverToldWhatIsOnTheScreen(t *testing.T) {
 	if gotInput != "reload the page" {
 		t.Errorf("the plugin was sent %q", gotInput)
 	}
-	// THE VERBS ARE THE VOCABULARY, exactly, and nothing else is sent at all.
-	if len(gotVerbs) != len(directorapi.SemanticVocabulary) {
-		t.Fatalf("the plugin was sent %d verbs against a vocabulary of %d",
-			len(gotVerbs), len(directorapi.SemanticVocabulary))
+	// THE VERBS ARE THE VOCABULARY, in order, and nothing else is sent at all.
+	//
+	// Minus the ones an answer cannot finish saying — see directorapi.Interpretable, which
+	// withholds a verb whose meaning needs a field the reply has no room for. The claim here
+	// is unchanged and is about what the plugin RECEIVES: the input, the verbs, and nothing
+	// about anybody's screen.
+	want := make([]string, 0, len(directorapi.SemanticVocabulary))
+	for _, k := range directorapi.SemanticVocabulary {
+		if k.Interpretable() {
+			want = append(want, string(k))
+		}
 	}
-	for i, k := range directorapi.SemanticVocabulary {
-		if gotVerbs[i] != string(k) {
+	if len(gotVerbs) != len(want) {
+		t.Fatalf("the plugin was sent %d verbs against %d interpretable ones",
+			len(gotVerbs), len(want))
+	}
+	for i, k := range want {
+		if gotVerbs[i] != k {
 			t.Errorf("verb %d is %q, want %q", i, gotVerbs[i], k)
 		}
 	}

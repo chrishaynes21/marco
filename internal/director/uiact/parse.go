@@ -34,6 +34,11 @@ type Request struct {
 	// which is the reference resolver's job. Passing "this" through as a target would
 	// search the desktop for a control called "this".
 	Deictic bool
+	// Scroll is where the view should go, for the Scroll verb. Typed for the same reason
+	// Deictic is a flag: "top" and "down" are not control labels, and carrying them
+	// through as a target would send the resolver looking for one. Empty for every other
+	// verb.
+	Scroll directorapi.ScrollWhere
 }
 
 // verbPhrases maps the words a person says to the verb they mean.
@@ -144,6 +149,14 @@ func Parse(phrase string) (Request, bool) {
 	}
 	s := strings.ToLower(original)
 
+	// SCROLLING FIRST, because "scroll to" is also the scroll-here verb and would win the
+	// longest-prefix match below. "scroll to the top" is a destination for the view;
+	// "scroll to the Downloads folder" is a control to bring into it, and only the exact
+	// phrases here are the first kind. Measured before this existed: "scroll to the top"
+	// resolved as scroll_here and reported `nothing matching "top" is present`.
+	if where, ok := scrollPhrases[s]; ok {
+		return Request{Kind: directorapi.SemanticScroll, Scroll: where}, true
+	}
 	if kind, ok := wholePhrases[s]; ok {
 		return Request{Kind: kind}, true
 	}
@@ -243,4 +256,46 @@ func cleanTarget(s string) (string, bool) {
 		return "", true
 	}
 	return s, false
+}
+
+// scrollPhrases are the ways people say where they want the view to go.
+//
+// Whole phrases only, and matched before the verb table, because every one of them starts with
+// words that mean something else on their own: "scroll to" is the scroll-here verb, and "up" and
+// "down" are directions no control is called.
+//
+// Deliberately not generated from the four canonical strings in the mandate. Those are the
+// MEANINGS; these are the phrasings, and a table that only held the canonical four would be a
+// capability nobody could reach by accident. It is also deliberately not open-ended: the
+// model-backed interpreter cannot help here — it answers with a verb and a target phrase and has
+// nowhere to put a destination — so this table is the whole of what Marco understands, and that
+// is a reason to be generous with real phrasings and strict about inventing them.
+var scrollPhrases = map[string]directorapi.ScrollWhere{
+	"scroll to the top": directorapi.ScrollTop, "scroll to top": directorapi.ScrollTop,
+	"scroll up to the top": directorapi.ScrollTop, "scroll all the way up": directorapi.ScrollTop,
+	"go to the top": directorapi.ScrollTop, "jump to the top": directorapi.ScrollTop,
+	"scroll to the top of the document": directorapi.ScrollTop,
+	"go to the top of the document":     directorapi.ScrollTop,
+	"scroll to the top of the page":     directorapi.ScrollTop,
+
+	"scroll to the bottom": directorapi.ScrollBottom, "scroll to bottom": directorapi.ScrollBottom,
+	"scroll down to the bottom":            directorapi.ScrollBottom,
+	"scroll all the way down":              directorapi.ScrollBottom,
+	"go to the bottom":                     directorapi.ScrollBottom,
+	"jump to the bottom":                   directorapi.ScrollBottom,
+	"scroll to the bottom of the document": directorapi.ScrollBottom,
+	"go to the bottom of the document":     directorapi.ScrollBottom,
+	"scroll to the bottom of the page":     directorapi.ScrollBottom,
+
+	"scroll down": directorapi.ScrollPageDown, "page down": directorapi.ScrollPageDown,
+	"scroll down a bit":    directorapi.ScrollPageDown,
+	"scroll down a page":   directorapi.ScrollPageDown,
+	"scroll down one page": directorapi.ScrollPageDown,
+	"scroll a page down":   directorapi.ScrollPageDown,
+
+	"scroll up": directorapi.ScrollPageUp, "page up": directorapi.ScrollPageUp,
+	"scroll up a bit":    directorapi.ScrollPageUp,
+	"scroll up a page":   directorapi.ScrollPageUp,
+	"scroll up one page": directorapi.ScrollPageUp,
+	"scroll a page up":   directorapi.ScrollPageUp,
 }

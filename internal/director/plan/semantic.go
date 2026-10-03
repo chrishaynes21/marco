@@ -28,8 +28,24 @@ func (p *Planner) semanticPlan(in Input) (directorapi.Plan, error) {
 		return directorapi.Plan{}, fmt.Errorf("no semantic action in the request")
 	}
 
-	action := directorapi.SemanticAction{Kind: kind, Ordinal: intent.SemanticOrdinalOf(in.Intent)}
+	action := directorapi.SemanticAction{
+		Kind: kind, Ordinal: intent.SemanticOrdinalOf(in.Intent),
+		Scroll: intent.SemanticScrollOf(in.Intent),
+	}
 	described := "the focused control"
+
+	// A SCROLL WITH NOWHERE TO GO IS NOT A SCROLL.
+	//
+	// The destination is typed and comes from a closed set, so an empty one means either
+	// nothing read a destination or something offered one nobody implements. The
+	// model-backed interpreter is the realistic source: it answers with a verb and a
+	// target phrase and has nowhere to put a destination, so a model that reads "scroll
+	// somehow" produces exactly this. Defaulting to a direction would move the view
+	// somewhere nobody asked for.
+	if kind == directorapi.SemanticScroll && !action.Scroll.Known() {
+		return directorapi.Plan{}, fmt.Errorf(
+			"say which way to scroll — up, down, to the top or to the bottom")
+	}
 
 	// A verb that names a control needs one resolved. A verb that does not — undo,
 	// refresh, back — must NOT be given one: pointing "refresh" at whatever the
@@ -38,7 +54,14 @@ func (p *Planner) semanticPlan(in Input) (directorapi.Plan, error) {
 		len(in.Intent.Targets) > 0) {
 		target, err := elementTarget(in)
 		if err != nil {
-			if kind.NeedsTarget() {
+			// NEEDING A REGION IS NOT THE SAME AS NEEDING TO BE TOLD ONE.
+			//
+			// Scroll's NeedsTarget is false because asking "which control?" would be
+			// noise — nobody names the region they are scrolling. But it cannot be
+			// performed without one either, and proceeding with no target would send
+			// a scroll at the focused context, which for scroll means whatever
+			// happens to hold focus rather than something that scrolls.
+			if kind.NeedsTarget() || kind == directorapi.SemanticScroll {
 				return directorapi.Plan{}, err
 			}
 		} else {

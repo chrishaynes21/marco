@@ -82,6 +82,15 @@ const (
 	// entirely about visibility, and the reason an offscreen element is a legitimate
 	// target rather than a missing one.
 	SemanticScrollHere SemanticActionKind = "scroll_here"
+	// SemanticScroll moves a scrollable region's VIEW, rather than bringing one control into
+	// it. Where it goes is [ScrollWhere] on the action — a destination or a one-page step —
+	// and it is the only semantic verb whose argument is not a control.
+	//
+	// Distinct from SemanticScrollHere on purpose: "bring this into view" needs to know which
+	// control, and "go to the top" needs to know which region. Earned on Windows Notepad,
+	// where a 70-line document made "scroll to the top" the obvious request and nothing could
+	// read it. See [[ADR-140-scrolling-is-a-destination-not-an-amount]].
+	SemanticScroll SemanticActionKind = "scroll"
 
 	// ── Selection and clipboard ──────────────────────────────────────────────
 
@@ -149,7 +158,7 @@ const (
 var SemanticVocabulary = []SemanticActionKind{
 	SemanticInvoke, SemanticSelect, SemanticDeselect, SemanticExpand, SemanticCollapse,
 	SemanticToggle, SemanticCheck, SemanticUncheck, SemanticChoose, SemanticOpen,
-	SemanticClose, SemanticShowContextMenu, SemanticScrollHere,
+	SemanticClose, SemanticShowContextMenu, SemanticScrollHere, SemanticScroll,
 	SemanticSelectAll, SemanticCopy, SemanticCut, SemanticPaste,
 	SemanticUndo, SemanticRedo,
 	SemanticBack, SemanticForward, SemanticNext, SemanticPrevious, SemanticRefresh,
@@ -226,6 +235,7 @@ var semanticPhrases = map[SemanticActionKind]string{
 	SemanticClose:           "close",
 	SemanticShowContextMenu: "show the context menu for",
 	SemanticScrollHere:      "scroll to",
+	SemanticScroll:          "scroll",
 	SemanticSelectAll:       "select everything",
 	SemanticCopy:            "copy",
 	SemanticCut:             "cut",
@@ -309,12 +319,19 @@ type SemanticAction struct {
 	Window *WindowReference `json:"window,omitempty"`
 	// Ordinal is which one, for Choose ("the second result"). 0 means unspecified.
 	Ordinal int `json:"ordinal,omitempty"`
+	// Where the view should go, for Scroll. Empty for every other kind.
+	Scroll ScrollWhere `json:"scroll,omitempty"`
 }
 
 func (SemanticAction) ActionType() ActionType { return ActionSemantic }
 
 // Describe renders the action for a log, a confirmation or a trace.
 func (a SemanticAction) Describe() string {
+	// Scroll says where it is going. Without this every scroll renders as the bare word and a
+	// history of four different requests reads as four identical ones.
+	if a.Kind == SemanticScroll && a.Scroll.Known() {
+		return a.Scroll.Describe()
+	}
 	phrase := a.Kind.Describe()
 	if a.Kind.WindowLevel() {
 		if a.Window != nil && a.Window.Description != "" {
@@ -330,3 +347,96 @@ func (a SemanticAction) Describe() string {
 
 // Targeted reports whether this action carries a usable target.
 func (a SemanticAction) Targeted() bool { return a.Target.Resolvable() }
+
+// ScrollWhere is WHERE a scroll request means to go, as semantics rather than as an amount.
+//
+// # One field, four values, no invalid combinations
+//
+// A destination and a direction are the same question answered two ways — "go to the end" and "go
+// one page further" both say where to end up — so they share one typed field. The alternative, a
+// destination field beside a direction field, makes "top AND one page down" expressible and then
+// needs a rule forbidding it. There is nothing here to forbid.
+//
+// It is an enum and not a phrase. The executor switches on these constants; it never reads a
+// label the user typed. "top" is not a control name, "down" is not a control name, and the whole
+// reason this type exists is that letting either become one is how a magic string gets into a
+// mechanism decision.
+//
+// Vertical only. Horizontal scrolling is a separate capability with its own grounding question
+// (which axis did they mean?) and nothing has asked for it yet.
+type ScrollWhere string
+
+const (
+	// ScrollTop and ScrollBottom are ABSOLUTE: the view ends up at the boundary, whatever it
+	// took to get there. Verifiable against the position the pattern reports.
+	ScrollTop    ScrollWhere = "top"
+	ScrollBottom ScrollWhere = "bottom"
+	// ScrollPageUp and ScrollPageDown are RELATIVE by one APPLICATION-DEFINED page — the
+	// application's own notion of a page, not a count of wheel notches nobody chose. Verified
+	// by the position moving the right way, or by it already being at that boundary.
+	ScrollPageUp   ScrollWhere = "page_up"
+	ScrollPageDown ScrollWhere = "page_down"
+)
+
+// ScrollWheres is the closed set, for the tests that walk every value rather than naming two.
+var ScrollWheres = []ScrollWhere{ScrollTop, ScrollBottom, ScrollPageUp, ScrollPageDown}
+
+// Known reports whether w is one of the four.
+func (w ScrollWhere) Known() bool {
+	for _, v := range ScrollWheres {
+		if v == w {
+			return true
+		}
+	}
+	return false
+}
+
+// Absolute reports whether this names a boundary to land on rather than a step to take.
+//
+// The two are performed by different pattern calls and verified by different questions, so every
+// consumer needs to tell them apart and none of them should do it by listing the constants again.
+func (w ScrollWhere) Absolute() bool { return w == ScrollTop || w == ScrollBottom }
+
+// Describe renders the request for a person.
+func (w ScrollWhere) Describe() string {
+	switch w {
+	case ScrollTop:
+		return "scroll to the top"
+	case ScrollBottom:
+		return "scroll to the bottom"
+	case ScrollPageUp:
+		return "scroll up one page"
+	case ScrollPageDown:
+		return "scroll down one page"
+	}
+	return "scroll"
+}
+
+// StateScrollPercent is how far down a scrollable region currently is, 0–100.
+//
+// Three-valued like the other control states: absent means the provider did not report a scroll
+// position, which is not the same as reporting zero. A region sitting at the top and a region
+// nobody can read are different facts, and the second must never verify a scroll.
+const StateScrollPercent = "scroll_percent"
+
+// Interpretable reports whether a model-backed reading can express this verb COMPLETELY.
+//
+// # Why a verb can be unofferable
+//
+// An interpretation is `{kind, target, ordinal, deictic}` and nothing else — see
+// internal/resolver. A verb whose meaning needs something that answer has no field for cannot be
+// finished by a model, and offering it anyway is a trap rather than a courtesy: the model picks
+// it, the missing part is missing, and the request refuses — while a weaker reading it COULD have
+// completed never gets offered.
+//
+// Measured the day Scroll landed. `scroll` needs a destination, the answer has nowhere to put one,
+// and the model immediately began choosing it for anything starting with the word:
+//
+//	"scroll the Save button into view"  →  scroll, no destination  →  refused
+//
+// Before `scroll` existed the same phrase read as `scroll_here` with the target "Save", which is
+// exactly right. One unofferable verb cost a performable one.
+//
+// This lives on the kind rather than in the interpreter because it is a fact about the VERB —
+// what it needs in order to mean anything — and the same fact decides it everywhere.
+func (k SemanticActionKind) Interpretable() bool { return k != SemanticScroll }

@@ -18,6 +18,11 @@ const (
 	// EvidenceSelectionState is a control's own word about whether it is selected. Measured
 	// against a live provider that said yes while the application held no selection at all.
 	EvidenceSelectionState = "selection_state"
+	// EvidenceScrollAccepted is a scrollable region having TAKEN the scroll call. It says the
+	// request arrived and nothing about where the view ended up, which is why a scroll whose
+	// position cannot be read is inconclusive AND is not repeated: repeating a delivered page
+	// scroll moves two pages.
+	EvidenceScrollAccepted = "scroll_accepted"
 )
 
 // Delivered reports whether a verification result holds evidence that the action REACHED its
@@ -50,7 +55,7 @@ func Delivered(r directorapi.VerificationResult) bool {
 			continue
 		}
 		switch e.Kind {
-		case EvidenceFocusOnTarget, EvidenceSelectionState:
+		case EvidenceFocusOnTarget, EvidenceSelectionState, EvidenceScrollAccepted:
 			return true
 		}
 	}

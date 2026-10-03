@@ -73,7 +73,16 @@ func TestASequenceResolvesLaterTargetsNowhereAtPlanningTime(t *testing.T) {
 func TestAnUnsupportedOperationRejectsTheWholeRequest(t *testing.T) {
 	// Not "runs the supported part". Doing three quarters of something the user did
 	// not ask for is worse than doing none of it, and there is no undo.
-	_, err := program.Decompose("click Save and scroll down", parse())
+	//
+	// The second clause used to be "scroll down", which was unsupported when this was
+	// written and is not any more — see ADR-140. The CLAIM is unchanged.
+	//
+	// A bare pointer move is the replacement because it is unsupported as a PROGRAM STEP
+	// by decision rather than by omission: `supportedVerbs` admits move_window and not a
+	// mouse move, and that is not waiting for anybody to implement it. An example chosen
+	// from the not-yet-built pile expires the moment somebody builds it, which is how
+	// this test and its sibling in execute both broke on one commit.
+	_, err := program.Decompose("click Save and move the mouse to 100,200", parse())
 	if err == nil {
 		t.Fatal("a request with an unsupported step was accepted")
 	}

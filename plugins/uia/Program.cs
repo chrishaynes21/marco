@@ -102,6 +102,8 @@ namespace MarcoUia
                     return StructuralReply(input, "deselect");
                 case "scrollintoview":
                     return StructuralReply(input, "scrollintoview");
+                case "scroll":
+                    return StructuralReply(input, "scroll");
                 case "available":
                     // Reported by attempting the cheapest real operation rather than
                     // by assuming: the Director needs to know it can degrade
@@ -234,6 +236,7 @@ namespace MarcoUia
             w.Field("Patterns", string.Join(",", n.Patterns.ToArray())); w.Sep();
             w.Field("Expanded", n.Expanded); w.Sep();
             w.Field("Checked", n.Checked); w.Sep();
+            w.Field("ScrollPercent", n.ScrollPercent); w.Sep();
             w.Field("Depth", n.Depth);
             // The object behind the control, when one was established. OMITTED entirely
             // when there is none, which is almost every control: a reader must be able to
@@ -356,6 +359,11 @@ namespace MarcoUia
                     problem = Focuser.Select(hwnd, id, false, maxNodes); break;
                 case "scrollintoview":
                     problem = Focuser.ScrollIntoView(hwnd, id, maxNodes); break;
+                case "scroll":
+                    // Where comes from the Control set, like Value does for setvalue. An
+                    // empty or unknown one FAILS in Scroll rather than defaulting here.
+                    problem = Focuser.Scroll(hwnd, id, JsonReader.Str(input, "Where"),
+                        maxNodes, out state); break;
                 default:
                     return Failed("Accessibility has no action \"" + what + "\"");
             }

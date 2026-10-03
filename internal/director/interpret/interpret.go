@@ -125,8 +125,14 @@ func (i *Interpreter) Intent(ctx context.Context, request string) (directorapi.I
 	if i == nil || i.ask == nil {
 		return directorapi.Intent{}, false
 	}
+	// ONLY THE VERBS AN ANSWER CAN FINISH SAYING. See directorapi.Interpretable: a verb whose
+	// meaning needs something the answer has no field for arrives unperformable every time, and
+	// offering it crowds out a reading the model could have completed.
 	verbs := make([]string, 0, len(directorapi.SemanticVocabulary))
 	for _, k := range directorapi.SemanticVocabulary {
+		if !k.Interpretable() {
+			continue
+		}
 		verbs = append(verbs, string(k))
 	}
 

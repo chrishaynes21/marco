@@ -42,6 +42,19 @@ type Actionability struct {
 	// slider, a checkbox. The capability a type or toggle needs.
 	Settable bool `json:"settable"`
 
+	// Scrollable is whether its VIEW can be moved — a document, a long list, a pane
+	// with more in it than fits. The capability a scroll needs, and the one that is
+	// not derivable from a role: a list that scrolls and a list that does not are the
+	// same kind of control, and only the provider knows which this is.
+	//
+	// It earns a place beside the other four because without it a scrollable
+	// CONTAINER affords nothing. Measured: the WinForms fixture's 200-row list is not
+	// invokable, focusable, selectable or settable — its ITEMS are — so Any() was
+	// false and the resolver rejected it as "not an interactive control" for a request
+	// to scroll the only scrollable thing in the window. Notepad worked by accident of
+	// its editor being a text field, which made it Settable.
+	Scrollable bool `json:"scrollable"`
+
 	// ClickableByBounds is whether there is somewhere real to aim. An element can be
 	// perfectly interactive and still have no on-screen rectangle — scrolled out of
 	// view, or reported by a source that knows it exists but not where. Clicking
@@ -90,7 +103,7 @@ type Actionability struct {
 // AFFORDANCE, not capability: it says the interface presents something operable, which is a
 // different question from whether Marco can operate it. See Actuable.
 func (a Actionability) Any() bool {
-	return a.Invokable || a.Focusable || a.Selectable || a.Settable
+	return a.Invokable || a.Focusable || a.Selectable || a.Settable || a.Scrollable
 }
 
 // Targetable reports whether the element can be acted on right now: it affords
@@ -172,11 +185,15 @@ func (e *Element) Actions() Actionability {
 	}
 	r := e.Role
 	a := Actionability{
-		Enabled:           e.Enabled,
-		Interactive:       roleInteractive(r),
-		Invokable:         roleInvokable(r),
-		Selectable:        roleSelectable(r),
-		Settable:          roleSettable(r),
+		Enabled:     e.Enabled,
+		Interactive: roleInteractive(r),
+		Invokable:   roleInvokable(r),
+		Selectable:  roleSelectable(r),
+		Settable:    roleSettable(r),
+		// FROM THE PROVIDER, not from the role: two lists of the same kind differ only
+		// in whether their contents overflow, and the application is the only thing
+		// that knows. Read through the same patterns list the capability ladder reads.
+		Scrollable:        reportsScrolling(e),
 		ClickableByBounds: !e.Bounds.Empty() && e.Visible && !e.Offscreen,
 		// FROM PROVENANCE, because it is a fact about the evidence rather than about
 		// the role. An element that only a camera saw affords whatever its shape
@@ -284,4 +301,23 @@ func (w *WorldState) SeenOnlyByPixels() bool {
 		}
 	}
 	return affording > 0
+}
+
+// reportsScrolling reports whether the provider said this region's view can be moved.
+//
+// Whole-token comparison, because the capability one letter away means the opposite: `scroll` is
+// "this view can be moved" and `scrollitem` is "this control can be brought into a view". On one
+// desktop snapshot 2 elements reported the first and 346 the second, so a substring test would
+// make almost everything look scrollable.
+func reportsScrolling(e *Element) bool {
+	facts := FactsOf(e)
+	if facts == nil || !facts.PatternsKnown {
+		return false
+	}
+	for _, p := range facts.Patterns {
+		if p == "scroll" {
+			return true
+		}
+	}
+	return false
 }

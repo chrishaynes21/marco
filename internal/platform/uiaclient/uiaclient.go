@@ -125,6 +125,9 @@ type wireElement struct {
 	// that did nothing report success.
 	Expanded string `json:"Expanded"`
 	Checked  string `json:"Checked"`
+	// ScrollPercent is how far down a scrollable region is, 0-100, as text. Empty when the
+	// provider reported no vertical scrolling — which is not the same as zero.
+	ScrollPercent string `json:"ScrollPercent"`
 
 	// Resource is the object behind this control, when the bridge could establish one.
 	//
@@ -387,6 +390,12 @@ func attributesOf(e wireElement) map[string]any {
 	}
 	if b, ok := triState(e.Checked); ok {
 		attrs["checked"] = b
+	}
+	// Carried as the TEXT the bridge sent, parsed where it is compared. A number parsed
+	// here would have to choose a value for "not reported", and there isn't one — see
+	// directorapi.StateScrollPercent.
+	if e.ScrollPercent != "" {
+		attrs[directorapi.StateScrollPercent] = e.ScrollPercent
 	}
 	return attrs
 }

@@ -65,6 +65,13 @@ func (v *Verifier) verifySemantic(a directorapi.SemanticAction, target directora
 
 	case directorapi.SemanticScrollHere:
 		return v.verifyScrolledIntoView(target, before, after)
+
+	case directorapi.SemanticScroll:
+		// A view movement, judged by where the view ended up rather than by whether
+		// anything else on screen changed — a scroll changes the scroll position and
+		// frequently nothing else, which the open-ended verification reads as "nothing
+		// observably changed". See verifyScroll.
+		return v.verifyScroll(a.Scroll, target, before, after)
 	}
 
 	// Everything else — invoke, open, submit, confirm, paste, copy, next — has an
