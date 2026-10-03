@@ -51,6 +51,24 @@ func (v *Verifier) verifyEdit(a directorapi.EditAction, target directorapi.Resol
 	switch a.Operation {
 	case "set_text":
 		if el.Value == a.Text {
+			// AND WHAT IT COST, when it cost something.
+			//
+			// set_text replaces the whole value — that is the planner's deliberate split
+			// between "type"/"write"/"put" and "add"/"append" — so a control that already
+			// held text has had it thrown away. Measured on Notepad: four `type` requests
+			// in a row took a document from 11 characters to 43 to 3 to 2, each time
+			// reported as "the control contains …" with no mention of what went.
+			//
+			// Quiet in the ordinary case, which is an empty field, and quiet when the
+			// value did not actually change — announcing those would train a reader to
+			// skip the one sentence that matters. Silent too when the before-value could
+			// not be read: claiming "nothing was replaced" from an absent control is the
+			// unknown-as-false mistake [[ADR-006-unknown-is-not-false]] is about.
+			if beforeValue != "" && beforeValue != el.Value {
+				return editVerdict(true, 0.95, "value_matches",
+					fmt.Sprintf("the control contains %q, replacing %q",
+						el.Value, beforeValue))
+			}
 			return editVerdict(true, 0.95, "value_matches",
 				fmt.Sprintf("the control contains %q", el.Value))
 		}

@@ -310,10 +310,26 @@ func parseForEach(in directorapi.Intent, raw string) (directorapi.Intent, bool) 
 	}
 	rest := strings.TrimSpace(s[len(words[0]):])
 	restWords := strings.Fields(strings.ToLower(rest))
-	if _, _, quantified := parseQuantity(restWords); !quantified {
+	_, afterQuantity, quantified := parseQuantity(restWords)
+	if !quantified {
 		// No quantifier: not a collection. "Click the results" stays singular and gets
 		// the ordinary resolution — which will ask, if it is ambiguous, rather than
 		// acting on all of them.
+		return in, false
+	}
+	// A BARE QUANTIFIER IS NOT A SET OF THINGS, so this parser must not keep the phrase.
+	//
+	// "select all" has the shape of an iteration — an iterable verb, then a quantifier — and
+	// names no members at all. It is also one of the most ordinary requests anybody makes of a
+	// computer, and Marco already implements it: the edit planner maps it to SelectAll, one
+	// line below this call. Claiming it here reported "say what to act on" about a phrase the
+	// next parser reads correctly, which is what a person actually saw on Notepad.
+	//
+	// The distinction is whether members were NAMED. A phrase that named them and was
+	// misunderstood ("click every selected widget-thing") IS a collection request, and keeping
+	// it to explain why is right — this parser is the only one with anything useful to say
+	// about it. A phrase that named none was never ours.
+	if !namesMembers(afterQuantity) {
 		return in, false
 	}
 
@@ -426,4 +442,19 @@ func firstNonBlankString(vals ...string) string {
 		}
 	}
 	return ""
+}
+
+// namesMembers reports whether anything is left that could name a kind of member.
+//
+// Articles carry no meaning here, the same way parseCollectionPhrase strips them. What matters is
+// whether a word survives them: "every selected item" names members, "all" does not.
+func namesMembers(words []string) bool {
+	for _, w := range words {
+		switch strings.Trim(w, ".,") {
+		case "", "the", "a", "an", "of", "them":
+		default:
+			return true
+		}
+	}
+	return false
 }
