@@ -48,6 +48,27 @@ func (v *Verifier) verifyEdit(a directorapi.EditAction, target directorapi.Resol
 		beforeValue = b.Value
 	}
 
+	// A CONTROL THAT CANNOT REPORT ITS VALUE HAS NOT REPORTED AN EMPTY ONE.
+	//
+	// Measured on Character Map, whose search field is present, enabled, and exposes no
+	// ValuePattern — so the provider answers "" for it whatever it holds. Comparing that to
+	// the intended text read a mismatch and said `failed`, which is the word that invites
+	// somebody to type it again into a field that may already have it.
+	//
+	// Told apart by whether the control exposes a value capability at all, which the
+	// resolution carries. A control that reports its value and reports it empty genuinely is
+	// empty, and an edit that left it that way genuinely failed. A resolution that recorded no
+	// capabilities says nothing either way and must not excuse the edit — that is the opposite
+	// mistake, and it would make every failed edit inconclusive on any path that does not
+	// record the facts. [[ADR-006-unknown-is-not-false]], for the fourth time.
+	if unreadableValue(target) {
+		return directorapi.VerificationResult{
+			Inconclusive: true,
+			Reason: fmt.Sprintf("%q does not report its contents, so the edit could not be "+
+				"checked — it may well have gone in", target.Label),
+		}
+	}
+
 	switch a.Operation {
 	case "set_text":
 		if el.Value == a.Text {
@@ -129,4 +150,26 @@ func editVerdict(ok bool, confidence float64, kind, detail string) directorapi.V
 		}},
 		Reason: detail,
 	}
+}
+
+// unreadableValue reports whether the target cannot report its contents at all.
+//
+// Positively, from a recorded capability list: the control was resolved, the provider said which
+// patterns it has, and a value capability is not among them. Anything less is NOT this case —
+// a resolution with no facts recorded, or one whose provider reports no pattern list, says
+// nothing about readability and leaves the ordinary comparison in place.
+//
+// Only the absence of a VALUE capability counts. A control may be unreadable for other reasons,
+// but those are not knowable from here and guessing at them would excuse real failures.
+func unreadableValue(target directorapi.ResolvedTarget) bool {
+	c := target.Control
+	if c == nil || !c.PatternsKnown {
+		return false
+	}
+	for _, p := range c.Patterns {
+		if p == "value" {
+			return false
+		}
+	}
+	return true
 }
