@@ -9,6 +9,7 @@
 package planner
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/edit"
@@ -97,8 +98,18 @@ func Parse(phrase string) (Plan, bool) {
 	}
 
 	// Replacing a selection. "replace that with hello".
+	//
+	// THE BEFORE-PART IS NOT DECORATION. This read `strings.Cut(rest, " with ")` and threw
+	// the before-part away, so "replace milk with oat milk" became "replace the selection
+	// with oat milk" — and with nothing selected, replacing an empty selection inserts at the
+	// caret. Measured on Notepad: it prepended "oat milk" to the document, left "milk" alone,
+	// and reported `performed`.
+	//
+	// Only the deictic forms are accepted, because only they genuinely mean the selection.
+	// Named text is refused by [WhyNot], since nothing in Marco can search for text in order
+	// to select it.
 	if rest, ok := cut(s, "replace "); ok {
-		if _, after, found := strings.Cut(rest, " with "); found {
+		if before, after, found := strings.Cut(rest, " with "); found && meansTheSelection(before) {
 			text, _, commit := splitTextAndTarget(after, phrase)
 			if text != "" {
 				return Plan{Operation: edit.ReplaceSelection{Value: text}, Commit: commit}, true
@@ -233,4 +244,43 @@ func cut(s, prefix string) (string, bool) {
 		return strings.TrimSpace(strings.TrimPrefix(s, prefix)), true
 	}
 	return "", false
+}
+
+// selectionWords are the ways a person refers to what is already selected.
+//
+// A closed list, because the whole point is that these are the ONLY things "replace X with Y" can
+// mean to Marco. Anything else in that slot names text, and naming text is what Marco cannot act
+// on — see [WhyNot].
+var selectionWords = map[string]bool{
+	"that": true, "this": true, "it": true, "the selection": true, "the selected text": true,
+	"what is selected": true, "the highlighted text": true,
+}
+
+// meansTheSelection reports whether the before-part of a replace refers to the selection.
+func meansTheSelection(before string) bool {
+	return selectionWords[strings.TrimSpace(strings.Trim(before, `"'`))]
+}
+
+// WhyNot explains a phrase the edit planner recognises the SHAPE of and cannot perform.
+//
+// It exists so a refusal can say what is missing instead of falling through to the parser's
+// vocabulary list. "I only understand click, focus, move, repeat and text editing" is a true
+// sentence about a phrase nobody read, and the wrong one for somebody who asked for a replace in
+// words Marco understood perfectly well.
+//
+// Narrow on purpose: it speaks only about shapes it recognises, and says nothing about phrases
+// that are some other parser's business.
+func WhyNot(phrase string) (string, bool) {
+	s := strings.TrimSpace(strings.ToLower(phrase))
+	s = strings.TrimRight(s, " .!?,")
+	rest, ok := cut(s, "replace ")
+	if !ok {
+		return "", false
+	}
+	before, _, found := strings.Cut(rest, " with ")
+	if !found || meansTheSelection(before) {
+		return "", false
+	}
+	return fmt.Sprintf("I can replace the selected text, but I cannot search for %q to select "+
+		"it — select it first and say \"replace that with …\"", strings.TrimSpace(before)), true
 }

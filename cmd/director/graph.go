@@ -480,6 +480,21 @@ func resolveRef(observe execute.Observer, ref directorapi.ElementReference) (dir
 			Control: directorapi.FactsOf(el),
 		}, nil
 	}
+	// THE SOURCE'S OWN ID, before the description.
+	//
+	// The Director's element id can change between the observation that resolved the target
+	// and the one the executor takes before acting; the source's id does not. Trying the
+	// description first threw away an exact answer in favour of one that can tie — measured
+	// as "2 controls match that about equally well" in a window with exactly one candidate.
+	//
+	// Exact, so it cannot pick the wrong control: no match means no match, and the
+	// description still gets its turn below.
+	if ref.NativeID != "" {
+		res := target.NewResolver().Resolve(&w, directorapi.ElementQuery{NativeID: ref.NativeID})
+		if res.Status == directorapi.ResolutionResolved {
+			return *res.Target, nil
+		}
+	}
 	if ref.Query != nil {
 		res := target.NewResolver().Resolve(&w, *ref.Query)
 		if res.Status == directorapi.ResolutionResolved {

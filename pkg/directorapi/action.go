@@ -73,6 +73,23 @@ type ElementReference struct {
 	Query *ElementQuery `json:"query,omitempty"`
 	Point *Point        `json:"point,omitempty"`
 
+	// NativeID is the SOURCE's own identifier for the control — a UIA RuntimeId, a DOM id
+	// — recorded when the target was resolved, so a later step can find the same control
+	// again even if the Director's own element id has changed between observations.
+	//
+	// It exists because that happens. The plan carries an ElementID, the executor observes
+	// afresh before acting, and when fusion assigns a different id to the same control the
+	// reference falls through to the descriptive Query — which, for a request that named no
+	// control, can match more than one thing and refuse. Measured as "the target could not
+	// be found again: 2 controls match that about equally well" against a window the host
+	// reported exactly ONE candidate in.
+	//
+	// Not a stored handle and not durable: it is set by a resolution in this request and
+	// read moments later in the same one. Nothing persists it, for the reason
+	// ElementQuery.NativeID gives — a query built from a remembered id is the stale handle
+	// the whole design refuses.
+	NativeID string `json:"native_id,omitempty"`
+
 	// CoordinateLocked marks this reference as inherently positional. Required
 	// before Point is used, and it makes the action ineligible for semantic repeat
 	// in a different window or app.
@@ -166,6 +183,18 @@ type ElementQuery struct {
 	// which is the honest answer for "scroll down" in a window with two independently
 	// scrollable regions and no cursor in either.
 	PreferFocused bool `json:"prefer_focused,omitempty"`
+	// Editable constrains the search to controls that can HOLD TEXT.
+	//
+	// It exists for the same reason Scrollable does: an edit with no named control describes
+	// its target by what it can do rather than by what it is called. Paired with PreferFocused
+	// it means "the field I am typing in, or the only field there is" — measured on Notepad,
+	// where focus sat on an unlabelled pane and the one editable control in the window was
+	// refused because Focused was a filter rather than a preference.
+	//
+	// Derived from affordance rather than from a pattern, deliberately. A control can be
+	// typable without exposing a value API — Character Map's search field is — and the
+	// question here is which control could hold text at all, not how the text would get in.
+	Editable *bool `json:"editable,omitempty"`
 	// Scrollable constrains the search to controls that expose a SCROLLING capability —
 	// a region whose view can be moved, not a control that can be brought into one.
 	//
@@ -219,6 +248,10 @@ func (q *ElementQuery) Constrained() bool {
 		// region that scrolls" is a description, and where more than one answers it the
 		// resolver's ambiguity path asks rather than guessing.
 		//
+		// Editable is here on the same argument and from the same measurement: one of
+		// Notepad's 59 elements can hold text, and two of the fixture's 25. "The field"
+		// is a description.
+		q.Editable != nil ||
 		// This said the opposite until it was measured: the first version paired
 		// Scrollable with a Focused filter and kept it out of here, and a scroll in a
 		// window whose focus was elsewhere refused with "the request did not describe

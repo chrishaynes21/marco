@@ -644,7 +644,22 @@ func (p *Pipeline) handleParsed(ctx context.Context, request string, parsed dire
 		(changed(record) || verify.Delivered(record.Verification)) {
 		record.Status = directorapi.ActionUnverified
 		record.Verification.Inconclusive = true
-		record.FailureReason = reasonDeliveredNotConfirmed(changed(record))
+		// A SPECIFIC FINDING OUTRANKS THE GENERAL SENTENCE.
+		//
+		// This used to overwrite the reason unconditionally, which threw away whatever
+		// verification had actually determined. Measured: a replace that inserted instead
+		// of replacing reported "nothing was selected, so there was nothing to replace",
+		// and the person was shown "the screen changed but not in a way that confirms the
+		// action" instead — strictly less than Marco knew.
+		//
+		// The STATUS still changes, and should: a positive finding that the effect did not
+		// occur is still a delivered action, and `failed` would invite a retry that
+		// inserts the text a second time. What changes is only the word for it.
+		if record.Verification.Reason != "" {
+			record.FailureReason = record.Verification.Reason
+		} else {
+			record.FailureReason = reasonDeliveredNotConfirmed(changed(record))
+		}
 		add("verify", record.FailureReason, false)
 	}
 

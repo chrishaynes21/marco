@@ -292,6 +292,9 @@ func inScope(w *directorapi.WorldState, el *directorapi.Element, q directorapi.E
 	if q.Scrollable != nil && el.Actions().Scrollable != *q.Scrollable {
 		return false
 	}
+	if q.Editable != nil && el.Actions().Settable != *q.Editable {
+		return false
+	}
 	if q.NativeID != "" && nativeIDOf(el) != q.NativeID {
 		// Exact, and the only query field that is. A derived control — an inline editor
 		// the previous step opened — cannot be named any other way: two controls in the

@@ -27,6 +27,22 @@ const (
 func parseEdit(in directorapi.Intent, raw string) (directorapi.Intent, bool) {
 	p, ok := planner.Parse(raw)
 	if !ok {
+		// A SHAPE THE PLANNER RECOGNISED AND CANNOT PERFORM gets its own sentence.
+		//
+		// "Replace milk with oat milk" is an edit request in words Marco understands; what
+		// it cannot do is find "milk" in order to select it. Falling through from here
+		// reaches the verb switch and ends in "I only understand click, focus, move,
+		// repeat and text editing" — a true sentence about a phrase nobody read, and the
+		// wrong one for somebody whose phrasing was fine.
+		//
+		// Claimed with IntentUnknown rather than returning false, so this message stands
+		// instead of the vocabulary list. The model-backed interpreter still gets its turn
+		// — parseWith consults it precisely when the reading is IntentUnknown — so this is
+		// the sentence a person sees only when nothing else could read the phrase either.
+		if why, refused := planner.WhyNot(raw); refused {
+			in.Kind, in.Ambiguity = directorapi.IntentUnknown, why
+			return in, true
+		}
 		return in, false
 	}
 
@@ -69,15 +85,24 @@ func parseEdit(in directorapi.Intent, raw string) (directorapi.Intent, bool) {
 		return in, true
 	}
 
-	// No named control means the FOCUSED one — which is what "type hello" and "undo
-	// that" mean, and is a real target rather than a missing one. Stated explicitly as
-	// a deictic reference with a Focused query, because the resolver needs something
-	// to look for: an empty query would either match everything or be rejected as
-	// describing nothing, and neither is what the user said.
+	// No named control means THE FIELD YOU ARE TYPING IN — or, when the cursor is not in
+	// one, the only field there is.
+	//
+	// Focus is a PREFERENCE over controls that can hold text, not a filter over everything.
+	// It was a filter, and on Notepad that refused the one editable control in the window
+	// because focus sat on an unlabelled pane — which is where focus sits after a window is
+	// activated, after a dialog closes, and often when an application opens. The person was
+	// told "that is not an interactive control" about scenery they had not mentioned.
+	//
+	// The protection that mattered is kept by the pairing: where several controls can hold
+	// text and the cursor is in none of them, nothing distinguishes them and the resolver's
+	// ambiguity path asks. Typing into a guess puts the words somewhere nobody was looking.
 	in.Targets = []directorapi.ReferenceExpression{{
-		Phrase: "the focused control",
+		Phrase: "the field",
 		Kind:   directorapi.ReferenceDeictic,
-		Query:  &directorapi.ElementQuery{Focused: focusedTrue()},
+		Query: &directorapi.ElementQuery{
+			Editable: focusedTrue(), PreferFocused: true,
+		},
 	}}
 	return in, true
 }

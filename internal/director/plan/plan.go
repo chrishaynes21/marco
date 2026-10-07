@@ -320,7 +320,11 @@ func elementTarget(in Input) (directorapi.ElementReference, error) {
 	}
 	t := in.Resolution.Target
 	return directorapi.ElementReference{
-		ID:          t.ElementID,
+		ID: t.ElementID,
+		// The source's own id travels with the choice, so execution can find the same
+		// control when the Director's element id has moved under it. See
+		// directorapi.ElementReference.NativeID.
+		NativeID:    t.NativeID,
 		Query:       t.Query,
 		Description: describeTarget(in),
 	}, nil

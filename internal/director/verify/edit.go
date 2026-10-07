@@ -111,7 +111,39 @@ func (v *Verifier) verifyEdit(a directorapi.EditAction, target directorapi.Resol
 		return editVerdict(false, 0.85, "value_not_appended",
 			fmt.Sprintf("the control contains %q, which does not end with the appended text", el.Value))
 
-	case "undo", "redo", "insert_text", "replace_selection", "paste_clipboard", "press_enter":
+	case "replace_selection":
+		// A REPLACE THAT ONLY ADDED CHARACTERS REPLACED NOTHING.
+		//
+		// Replacing an empty selection inserts at the caret, the value changes, and a
+		// verdict that checks only "did it change" calls that done. Measured on Notepad
+		// with nothing selected: "oat milk" was prepended to the document, "milk" was left
+		// alone, and the result was reported as performed.
+		//
+		// The selection is not in the World State, but one thing about it is knowable from
+		// arithmetic alone:
+		//
+		//	nothing selected    after = before with text inserted → len grows by exactly len(text)
+		//	something selected  that run is gone                  → len grows by LESS than that
+		//
+		// So a growth of exactly len(text) means the selection was empty. Sound rather than
+		// heuristic, and it needs no access to the selection.
+		//
+		// Confined to this operation: undo, redo, paste and Enter promise nothing about
+		// removing anything, and an insertion is the ordinary outcome for all of them.
+		if el.Value == beforeValue {
+			return editVerdict(false, 0.7, "value_unchanged",
+				fmt.Sprintf("replace left the value unchanged at %q, so it had no effect",
+					beforeValue))
+		}
+		if len(el.Value) == len(beforeValue)+len(a.Text) {
+			return editVerdict(false, 0.8, "nothing_replaced",
+				fmt.Sprintf("%q was inserted rather than replacing anything — nothing was "+
+					"selected, so there was nothing to replace", a.Text))
+		}
+		return editVerdict(true, 0.7, "value_changed",
+			fmt.Sprintf("the value changed from %q to %q", beforeValue, el.Value))
+
+	case "undo", "redo", "insert_text", "paste_clipboard", "press_enter":
 		// Verified by CHANGE, because the exact result is not predictable from the
 		// request: the caret and the selection are not part of the World State, and an
 		// undo depends on the application's own history. Weaker evidence, reported as
