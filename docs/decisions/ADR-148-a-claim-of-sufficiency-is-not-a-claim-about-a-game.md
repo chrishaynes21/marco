@@ -73,9 +73,20 @@ now self-reporting rather than silent.
 
 Off by default, in the same family as `$MARCO_SHADOW_VISION` and `$MARCO_SHADOW_CADENCE`, and
 for the reason given in `shadowwiring.go`: the activation surface for an experiment is one a
-person sets when they start the service they are experimenting with. With it set, the live run
-went from 1 inference in 78 looks to **130 in 322**, and the interface belief received 130 real
-looks instead of one.
+person sets when they start the service they are experimenting with.
+
+> **CORRECTION.** This section originally read "the live run went from 1 inference in 78 looks
+> to **130 in 322**, and the interface belief received 130 real looks instead of one". The
+> second number was false and so was the claim about the belief. This switch removes ONE of two
+> gates in series: the request's own source set is the other, and the vision provider is opt-in
+> on it, so 116 of those 130 "inferences" were a detector nobody asked — 0ms each, no
+> detections, each one then reported as an inference that could not prove its window. The run
+> performed six. See [[ADR-149-an-experiment-asks-its-own-detector]], which fixes the cause and
+> measures the same surface at 55 inferences in 55 slots.
+>
+> The decision below stands and the reasoning above it is unaffected. What this records is that
+> a number published by this ADR was produced by a path that was not running, and that the
+> report said UNGATED the whole time.
 
 ### What is NOT decided
 

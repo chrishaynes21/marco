@@ -43,6 +43,17 @@ type ShadowSample struct {
 	// Ran reports whether an inference actually happened this cycle. False for a slot the
 	// cadence gate skipped — which is not a failure, and must not be counted as one.
 	Ran bool `json:"ran"`
+	// Unrequested says the slot was taken and the detector was never ASKED, because the
+	// request carried no pixel source.
+	//
+	// Its own fact, because for a while it was none of the others. A provider nobody asked
+	// returns instantly with no observations and no provenance, and that arrived here as an
+	// inference that ran and could not prove which window it looked at — so the experiment
+	// reported 122 inferences and 116 provenance failures on a run that performed six
+	// inferences and failed none. Three different findings, one appearance: the detector was
+	// never asked, the detector ran and found nothing, the detector ran and its evidence was
+	// disqualified. See [[ADR-006-unknown-is-not-false]].
+	Unrequested bool `json:"unrequested,omitempty"`
 	// Unavailable explains why nothing ran, when the reason is not simply "not due".
 	Unavailable string `json:"unavailable,omitempty"`
 	// TargetProven reports whether the experiment can show its evidence describes the same
@@ -182,6 +193,11 @@ type ShadowTotals struct {
 	// paced. Held apart because the two have opposite remedies: one is the gate working,
 	// the other is the experiment being starved by a claim about different evidence.
 	Declined int `json:"declined,omitempty"`
+	// Unrequested is the subset of Skipped where the slot was taken and the detector was
+	// never asked, because the request carried no pixel source. Its own number because it
+	// is the one skip a reader would otherwise read as the experiment working: it looks
+	// like an inference, it is counted like a cadence skip, and it is neither.
+	Unrequested int `json:"unrequested,omitempty"`
 	// Gate describes the policy the experiment ran behind, so a report can never leave a
 	// reader guessing which configuration produced its numbers.
 	Gate string `json:"gate,omitempty"`
@@ -343,9 +359,18 @@ func (t *ShadowTotals) Observe(sample Sample) {
 
 // interfaceLookFrom says what this sample gave the interface watch a chance to see.
 //
-// Four outcomes, kept apart: no detector was configured, the detector could not run, the
-// cadence gate held it back, or it ran and described the screen. Only the last is evidence,
-// and only the last may move a belief.
+// Six outcomes, kept apart: no detector was configured, the detector could not run, the
+// cadence gate held it back, nobody asked it, it ran and cannot say which window it
+// described, or it ran and described THIS screen. Only the last is evidence, and only the
+// last may move a belief.
+//
+// The two added here are the two a live run produced and a replay never can. A replay hands
+// every look a frame from a recording whose provenance was settled when it was recorded; live,
+// most looks were a provider nobody asked, and a belief that folded those in reported "no
+// shaded regions were proposed this look" — an empty SCREEN — for three minutes in front of a
+// menu. An unproven look is the same mistake with a different cause: the pixels were real and
+// cannot be shown to be pixels of the window in question, which is not evidence that the
+// window was empty. See [[ADR-006-unknown-is-not-false]].
 func interfaceLookFrom(sample Sample) InterfaceLook {
 	look := InterfaceLook{Sequence: sample.Sequence, At: sample.Timestamp}
 	switch {
@@ -353,8 +378,13 @@ func interfaceLookFrom(sample Sample) InterfaceLook {
 		look.Why = "no detector is configured"
 	case sample.Shadow.Unavailable != "":
 		look.Why = sample.Shadow.Unavailable
+	case sample.Shadow.Unrequested:
+		look.Why = "the detector was never asked: this slot's request carried no pixel source"
 	case !sample.Shadow.Ran:
 		look.Why = "the detector sat out this slot"
+	case !sample.Shadow.TargetProven:
+		look.Why = "the detector cannot show which window it looked at, so what it found " +
+			"is not evidence about this one"
 	default:
 		look.Observed = true
 		look.Regions = sample.Shadow.Regions
@@ -416,6 +446,9 @@ func (t *ShadowTotals) add(s ShadowSample, structure StructuralView) {
 		t.Skipped++
 		if s.Declined {
 			t.Declined++
+		}
+		if s.Unrequested {
+			t.Unrequested++
 		}
 		return
 	}

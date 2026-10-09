@@ -40,6 +40,21 @@ func shadowSampleFor(detector string, unavailable string, cycle observation.Cycl
 	}
 
 	out := cycle.Shadow[0]
+
+	// NOBODY ASKED, so nothing ran. Before every other classification below, because an
+	// outcome from a provider that was never asked carries no observations, no provenance
+	// and no timing — and each of those absences reads, further down, as a finding about
+	// the screen rather than a finding about the request.
+	//
+	// It reached here as Ran=true with TargetProven=false: an inference that happened and
+	// could not say which window it described. A live Trackmania run reported 122 inferences
+	// and 116 provenance failures on six actual inferences, and the belief reported an empty
+	// screen for three minutes in front of a menu. The cause is fixed in shadow.Provider;
+	// this is the line that stops the appearance from being manufacturable at all.
+	if out.State == observation.StateNotRequested {
+		return &observe.ShadowSample{Detector: detector, Unrequested: true}
+	}
+
 	s := &observe.ShadowSample{Detector: detector, Roles: map[string]int{}}
 
 	// A skipped slot carries no evidence and is not a failure. Distinguished from a failed

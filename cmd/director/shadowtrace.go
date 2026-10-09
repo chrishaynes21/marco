@@ -136,6 +136,14 @@ func (t *shadowTrace) record(s *observe.ShadowSample, generation uint64) {
 		slot.Outcome, slot.Reason = slotFailed, truncateReason(s.Unavailable, maxReason)
 	case !s.Ran:
 		slot.Outcome = slotSkipped
+		// WHICH KIND of skip. The cadence pacing itself and a detector nobody asked are
+		// the same absence of evidence and completely different findings, and a trace
+		// whose job is "why was there no evidence" that cannot tell them apart answers
+		// its own question wrongly. The outcome set stays closed; the reason carries it.
+		if s.Unrequested {
+			slot.Reason = "the request carried no pixel source, so the detector was " +
+				"never asked"
+		}
 	case !s.TargetProven:
 		slot.Outcome = slotUnproven
 	default:

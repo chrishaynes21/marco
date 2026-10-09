@@ -204,6 +204,43 @@ than calling itself cadence pacing, every sample names the policy it ran behind,
 `$MARCO_SHADOW_UNGATED` collects the evidence the policy decision will need.
 [[ADR-148-a-claim-of-sufficiency-is-not-a-claim-about-a-game]].
 
+## What a live game session actually measures
+
+Numbers from `director observe-game --application trackmania`, 240s at a 500ms interval with
+the detector ungated and a 1s cadence, through the production sampler. They are here because
+every earlier figure on this page came from a recording, and three of the defects that mattered
+most were invisible to one.
+
+| | |
+| --- | --- |
+| slots offered / real inferences | 55 / 55 |
+| unproven, failed, never-asked | 0, 0, 0 |
+| detections / nameable | 316 / 268 |
+| inference latency | median 1972ms, p95 2326ms |
+| authoritative samples in 240s | 55 (the inference blocks the cycle) |
+| track matching | 47 joined at mean IoU 0.92, 7 separated at mean IoU 0.41 |
+| longest-lived candidate | seen in 47 of 55 looks, one episode, persistent |
+| screen-state transitions | 40, every one unattributed |
+| physical input events received | 0 |
+
+Three things that follow from it, and are not interpretations of a screenshot:
+
+**Candidate identity survives successive observations.** One track was matched in 47 of 55
+consecutive looks as a single episode at mean IoU 0.92, while 7 low-overlap observations were
+separated rather than merged. That is the question [[ADR-147-the-interface-in-front-of-a-session-is-a-shadow-belief]]
+set, answered live.
+
+**The belief abstains, and two independent signals agree about why.** Status stayed `unknown`
+with *"no list has been seen handing a mark between its members (2 candidates watched over 55
+frames)"*, and the navigation producer independently reported 55 consecutive inferences with no
+input. Nobody navigated; the belief said so from the screen side and the input side at once, and
+`entries_known_complete` was false throughout.
+
+**The transition signal is dominated by detector instability.** 40 transitions across 55
+inferences, with the degenerate single-pane reading re-entered 19 times and most tracks sitting
+at confidence 0.16–0.19 against a 0.15 floor. Anything that wrote a transition down because the
+screen appeared to change would mostly be recording flicker.
+
 ## Decisions
 
 - [[ADR-010-passive-observation-cannot-execute]]
@@ -211,6 +248,10 @@ than calling itself cadence pacing, every sample names the policy it ran behind,
   watching now, as a belief it can be asked about
 - [[ADR-148-a-claim-of-sufficiency-is-not-a-claim-about-a-game]] — why the detector ran once in
   seventy-eight looks against a real game, and what now says so
+- [[ADR-149-an-experiment-asks-its-own-detector]] — and why the switch that was meant to
+  fix that removed one of two gates in series: a provider nobody asked, counted as an
+  inference that could not prove its window, and a belief that read an empty screen off
+  a look that never happened
 - [[ADR-111-a-demonstration-takes-the-slot-from-watching]] — watching yields the one observation
   slot to a demonstration, and `marco observe --follow` reports what durable memory COMMITTED
 - [[ADR-093-observe-is-attention-not-recording]] — `marco observe` is the ambient lifecycle:

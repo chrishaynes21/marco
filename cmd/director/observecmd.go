@@ -786,6 +786,10 @@ func renderShadow(b *strings.Builder, s observe.ShadowTotals) {
 			fmt.Fprintf(b, "; %d declined because the primary reading claimed to be "+
 				"sufficient", s.Declined)
 		}
+		if s.Unrequested > 0 {
+			fmt.Fprintf(b, "; %d never asked — the request carried no pixel source",
+				s.Unrequested)
+		}
 		b.WriteString("\n")
 		renderShadowGate(b, s)
 		return
@@ -796,6 +800,16 @@ func renderShadow(b *strings.Builder, s observe.ShadowTotals) {
 		fmt.Fprintf(b, "               %d of those skips were DECLINED because the primary "+
 			"reading claimed to be sufficient;\n", s.Declined)
 		b.WriteString("               that is not the cadence pacing itself\n")
+	}
+	if s.Unrequested > 0 {
+		// The number that used to be invisible, and the one that made every other
+		// number on this panel wrong. Printed ahead of latency and detections
+		// deliberately: both of those are per-inference, and a reader who does not know
+		// how many "inferences" were a detector nobody asked cannot read either.
+		fmt.Fprintf(b, "               %d of those slots were NEVER ASKED — the slot was "+
+			"taken and the request\n", s.Unrequested)
+		b.WriteString("               carried no pixel source, so the detector looked " +
+			"at nothing\n")
 	}
 	renderShadowGate(b, s)
 	if s.ProvenanceFailures > 0 {

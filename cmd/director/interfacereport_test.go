@@ -38,7 +38,10 @@ func interfaceMenuSample(seq int, rows, marked int) observe.Sample {
 		Timestamp:        time.Unix(1760000000, 0).Add(time.Duration(seq) * 500 * time.Millisecond),
 		WindowGeneration: 1,
 		Shadow: &observe.ShadowSample{
-			Detector: "screenparser", Ran: true, Regions: regions,
+			// TargetProven, because an inference that cannot say which window its
+			// pixels came from has not described this screen. A fixture without it
+			// models a look production refuses.
+			Detector: "screenparser", Ran: true, TargetProven: true, Regions: regions,
 			Detections: len(regions), LatencyMS: 900,
 		},
 	}

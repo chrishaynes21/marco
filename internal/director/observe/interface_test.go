@@ -41,7 +41,12 @@ func menuSample(seq int, n, marked int) observe.Sample {
 		Sequence:         seq,
 		Timestamp:        sampleEpoch.Add(time.Duration(seq) * 500 * time.Millisecond),
 		WindowGeneration: 1,
-		Shadow:           &observe.ShadowSample{Detector: "test", Ran: true, Regions: regions},
+		// TargetProven, because that is what a real look is. A detector that cannot
+		// say which window its pixels came from has not described THIS screen, and
+		// the fixture would be modelling a look the production path refuses.
+		Shadow: &observe.ShadowSample{
+			Detector: "test", Ran: true, TargetProven: true, Regions: regions,
+		},
 	}
 }
 
@@ -64,7 +69,9 @@ func sampleBlank(seq int) observe.Sample {
 		Sequence:         seq,
 		Timestamp:        sampleEpoch.Add(time.Duration(seq) * 500 * time.Millisecond),
 		WindowGeneration: 1,
-		Shadow:           &observe.ShadowSample{Detector: "test", Ran: true},
+		Shadow: &observe.ShadowSample{
+			Detector: "test", Ran: true, TargetProven: true,
+		},
 	}
 }
 

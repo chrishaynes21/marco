@@ -209,6 +209,31 @@ func (p *Provider) ObserveTargeted(ctx context.Context,
 	}
 	defer p.release()
 
+	// THE EXPERIMENT ASKS FOR WHAT THE EXPERIMENT NEEDS.
+	//
+	// The inner provider is opt-in on its own source: vision looks at nothing unless the
+	// request names it. The request arriving here is the AUTHORITATIVE cycle's, and its
+	// Include list is the authoritative purchase decision — so a reading that claimed to be
+	// sufficient produced a request with no pixel source, and this provider's inner returned
+	// StateNotRequested instantly, having looked at nothing.
+	//
+	// That is a SECOND gate, and it is the one $MARCO_SHADOW_UNGATED does not remove.
+	// Measured live on Trackmania with the switch set: 116 of 122 counted "inferences" were
+	// a provider nobody asked, each one 0ms, each one reported as an inference that could not
+	// prove which window it looked at. The experiment reported that it ran 122 times. It ran
+	// six.
+	//
+	// Two independent decisions were sharing one channel. This provider already owns its
+	// purchase decision — the cadence above and the policy above that — and the request's
+	// source set is not it.
+	//
+	// It CANNOT widen the authoritative cycle: req is a value and the slice is copied, so
+	// nothing fusion reads is affected by this line.
+	//
+	// Deleting this must fail TestTheExperimentAsksItsOwnDetectorForPixels.
+	req.Include = append(append([]observation.Source(nil), req.Include...),
+		p.inner.Sources()...)
+
 	started := p.now()
 	out := p.inner.ObserveTargeted(ctx, req)
 	elapsed := p.now().Sub(started)

@@ -20,10 +20,17 @@ rem
 rem   MARCO_SHADOW_UNGATED  the purchase policy declines an inference whenever the primary
 rem                         reading claims to be sufficient. On a game it always claims that
 rem                         — accessibility exposes a window and a pane — so the only sensor
-rem                         that can see the menu is declined. Measured live on Trackmania:
-rem                         ONE inference in 78 looks with the gate on, 130 in 322 with it
-rem                         off. The session report names the policy so no number from this
-rem                         script can be read as if it came from the default one.
+rem                         that can see the menu is declined. The session report names
+rem                         the policy, so no number from this script can be read as if
+rem                         it had come from the default one.
+rem
+rem                         ON THE NUMBERS THAT USED TO BE HERE. This block cited "1
+rem                         inference in 78 looks gated, 130 in 322 ungated". The second
+rem                         number was wrong, and the switch was not doing what it said:
+rem                         the request's own source set is a SECOND gate this variable
+rem                         does not touch, so 116 of those 130 were a detector nobody
+rem                         asked, 0ms each. ADR-149. Fixed, and now measured at 55
+rem                         inferences in 55 slots, 0 unproven, median ~2.0s.
 rem
 rem   MARCO_HOME            an isolated store. Nothing here should touch the real one.
 rem
@@ -52,6 +59,14 @@ if not exist "plugins\vision\vision.exe" (
 )
 
 set "MARCO_HOME=%LOCALAPPDATA%\marco-liveiface"
+rem THE RUN RECORDS ITSELF. A session that has to be watched live to be read is a session
+rem whose evidence depends on somebody being at the keyboard at the right moment, and the
+rem thing being tested here is the half a person has to do by hand. These two files are the
+rem whole record: every slot and what became of it, and the session's final answer.
+set "WATCH_OUT=%LOCALAPPDATA%\marco-liveiface\runs"
+if not exist "%WATCH_OUT%" mkdir "%WATCH_OUT%"
+set "MARCO_SHADOW_TRACE=%WATCH_OUT%\slots.jsonl"
+if exist "%MARCO_SHADOW_TRACE%" del "%MARCO_SHADOW_TRACE%"
 set "MARCO_SHADOW_VISION=screenparser"
 if "%MARCO_SHADOW_CADENCE%"=="" set "MARCO_SHADOW_CADENCE=1s"
 set "MARCO_SHADOW_UNGATED=1"
@@ -91,6 +106,16 @@ if errorlevel 1 (
 echo.
 echo Navigate the menu. Ctrl-C stops watching; the session stops on its own.
 echo.
+echo   An inference costs about two seconds, so hold each selection for ~5s:
+echo     1. sit still on a menu for ~25s        does one candidate survive many looks
+echo     2. move the selection 4-5 times slowly is a mark handed between members
+echo     3. open a submenu, pause ~20s          does the belief follow a real change
+echo     4. leave menus for the last ~60s       is the belief LOST for the right reason
+echo.
+echo   Nothing is injected. Keyboard and controller are both fine - but note which you
+echo   used: the navigation producer hooks keyboard and mouse only, so a gamepad is
+echo   invisible to it by construction and reads as a player who pressed nothing.
+echo.
 
 set /a LOOPS=%SECS%/2
 for /l %%i in (1,1,%LOOPS%) do (
@@ -99,6 +124,14 @@ for /l %%i in (1,1,%LOOPS%) do (
   ping -n 3 127.0.0.1 >nul
 )
 
+echo.
+director.exe observation-session observe_1 --json > "%WATCH_OUT%\final.json" 2>&1
+echo.
+echo The run recorded itself:
+echo     %MARCO_SHADOW_TRACE%
+echo         every slot offered and what became of it
+echo     %WATCH_OUT%\final.json
+echo         the session's own final answer
 echo.
 echo The session is over. The Director is still running on this script's isolated home,
 echo so run this script again to watch another one, or stop it with:

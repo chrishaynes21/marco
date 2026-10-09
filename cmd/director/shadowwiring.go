@@ -65,6 +65,21 @@ const shadowCadenceEnv = "MARCO_SHADOW_CADENCE"
 // This is the switch that lets the experiment be RUN on such a surface so the decision can be
 // made on evidence — opt-in, off by default, and reported on every sample so no number can be
 // read without knowing which policy produced it.
+//
+// # It removed one of two gates, and that is the lesson
+//
+// The policy is asked in TWO places, and this variable reaches only one of them. The other is
+// the observation request's own source set — `observewiring.go` asks the same policy whether to
+// put vision in `Include`, and the vision provider is opt-in on exactly that. So with this set,
+// the provider claimed its slot, called its detector, and the detector returned in 0ms having
+// been asked for nothing: 116 of 122 counted inferences on the first live run, every one of
+// them then reported as an inference that could not prove its window. The report said UNGATED
+// throughout, which is the worst thing a switch can say while being wrong.
+//
+// The repair is in shadow.Provider, which now asks its own detector for its own sources rather
+// than inheriting a decision about the authoritative sensors — see ADR-149. What belongs HERE
+// is the warning: a switch named after a policy must account for every place that policy is
+// consulted, and "the gate is removed" is a claim about a system, not about a line.
 const shadowUngatedEnv = "MARCO_SHADOW_UNGATED"
 
 // shadowUngated reports whether the experiment was asked to ignore the purchase policy.

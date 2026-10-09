@@ -133,6 +133,13 @@ func (s *ShadowSample) Structure() StructuralView {
 		if s.Detector == "" {
 			return StructuralView{Why: "no structural detector is configured"}
 		}
+		if s.Unrequested {
+			// NOT the cadence. "It paced itself" and "nobody asked it" are different
+			// facts about different layers, and only one of them is the gate working.
+			return StructuralView{
+				Why: s.Detector + " was never asked: this frame's request carried no " +
+					"pixel source"}
+		}
 		return StructuralView{Why: s.Detector + " sat this frame out"}
 	case !s.TargetProven:
 		return StructuralView{
