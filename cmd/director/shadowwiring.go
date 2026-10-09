@@ -43,6 +43,81 @@ const shadowVisionEnv = "MARCO_SHADOW_VISION"
 // shadowCadenceEnv overrides the shadow sampling cadence.
 const shadowCadenceEnv = "MARCO_SHADOW_CADENCE"
 
+// shadowUngatedEnv runs the experiment on its cadence even where the primary reading claims to
+// be sufficient.
+//
+// # Why this exists
+//
+// The purchase policy declines an inference on a positive statement that the current reading
+// suffices, which is correct and measured for a desktop: ScreenParser added nothing to a
+// healthy Settings page and cost ~1s a frame to add it. On a GAME it is the wrong answer to
+// the right question. Accessibility exposes a window and a pane, `SufficiencyOf` reports that
+// as content reached, and the detector — the only sensor that can see the menu at all — is
+// declined for the rest of the epoch. Measured live on Trackmania: ONE inference in 78 looks.
+//
+// So the two questions are not the same question. "Did accessibility describe this window"
+// cannot answer "can anything see which entry is highlighted", and
+// [[ADR-102-a-detector-earns-its-place-where-perception-fails]] is about the ABSENCE of better
+// evidence, which a claim of structural sufficiency does not establish on a surface that has
+// no accessibility tree to be sufficient about.
+//
+// Changing that policy is a product decision with a measured cost, and it is not made here.
+// This is the switch that lets the experiment be RUN on such a surface so the decision can be
+// made on evidence — opt-in, off by default, and reported on every sample so no number can be
+// read without knowing which policy produced it.
+const shadowUngatedEnv = "MARCO_SHADOW_UNGATED"
+
+// shadowUngated reports whether the experiment was asked to ignore the purchase policy.
+func shadowUngated() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(shadowUngatedEnv))) {
+	case "", "0", "no", "false", "off":
+		return false
+	}
+	return true
+}
+
+// attachShadowGate puts the experiment behind the purchase policy, unless asked not to.
+//
+// A method rather than three lines inside newRuntime so the decision can be entered by a test
+// holding a real shadow provider. Without that, the one line that makes $MARCO_SHADOW_UNGATED
+// mean anything would be the kind nothing checks: everything still builds, every number is
+// still correct, and the switch quietly does nothing.
+//
+// Deleting this must fail TestTheSwitchDecidesWhetherThePolicyIsAttached. Deleting its CALL
+// from NewRuntime is not caught by anything — see ADR-148; what catches it instead is that
+// the session report then says UNGATED on every ordinary desktop session.
+func (r *Runtime) attachShadowGate() {
+	if r == nil || r.shadowVision == nil {
+		return
+	}
+	if gate := r.shadowGate(); gate != nil {
+		r.shadowVision.WhenWorthIt(gate)
+	}
+}
+
+// shadowGate is the purchase policy the experiment should run behind, or nil for none.
+func (r *Runtime) shadowGate() func() bool {
+	if shadowUngated() {
+		return nil
+	}
+	return func() bool { return r.moreEvidenceIsWorthBuying().Buy }
+}
+
+// shadowGateNote describes the policy a provider is ACTUALLY running behind.
+//
+// Taken from the provider rather than from the environment on purpose. Asking the environment
+// describes the configuration somebody intended; asking the provider describes the system that
+// produced the numbers, and when one line at the composition root goes missing those are
+// different systems. This way the report says UNGATED on an ordinary desktop session, loudly,
+// instead of quietly attributing an ungated run to the default policy.
+func shadowGateNote(gated bool) string {
+	if gated {
+		return "declines a slot when the primary reading claims to be sufficient"
+	}
+	return "UNGATED — it runs on its cadence even where the primary reading claims to be " +
+		"sufficient (set by $" + shadowUngatedEnv + ", or by nothing having attached a policy)"
+}
+
 // shadowMaxLabels and shadowMaxScreenTexts bound one experimental label pass. See the note at
 // the assignment for the arithmetic.
 const (

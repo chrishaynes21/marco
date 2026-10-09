@@ -83,6 +83,50 @@ A consumer that polled and diffed two snapshots would own its own idea of when a
 this argument for the whole event stream; the same applies here. A look that changes nothing
 says so.
 
+### A look nobody took is not an empty screen
+
+Found by preparing a live run rather than by a test, and it is the difference between a replay
+and a Director. Replaying a recording, every look carries a frame. Live, the shadow cadence
+lets an inference start every two seconds while the session samples twice a second — so three
+looks in four bring nothing at all, and the first version folded those in as evidence of an
+empty screen. The belief would have flapped to `unknown` three looks in four and the tracker
+would never have accumulated. [[ADR-006-unknown-is-not-false]], at the exact place a recording
+cannot show it.
+
+So a look says whether it was taken. Four outcomes are kept apart — no detector configured, the
+detector could not run, the cadence gate held it back, and it ran and described the screen — and
+only the last may move a belief. A look that brought nothing marks the belief **stale** and says
+how long it has been unconfirmed and which sample it still rests on; past ten such looks the
+belief is dropped, with the reason, because holding it longer would be a claim about a screen
+nobody has looked at. Ten is the order of what it costs to earn one (`selection.MinObservations`):
+a belief is held no longer than it took to acquire.
+
+The detector running and finding nothing is the other case entirely, and it still means
+`unknown` immediately. That is evidence about the screen.
+
+### When the answer changed
+
+A bounded journal of the looks at which the belief was different, each with its sample and its
+time. Not a log of looks — that would be a record of the sampling rate. It exists because a
+client polling at its own rate would otherwise report what it happened to catch, and the
+question a live session has to answer is what the Director emitted and when.
+
+### What this evidence is allowed to do
+
+The line the session report used to print — *"this evidence cannot reach belief, planning,
+policy or input"* — was wider than the rule the code holds, and two of its four nouns were
+already false in this build: `observe.Hypotheses` is derived from these totals, and a plan reads
+the relationships those hypotheses support. A boundary printed wider than the one enforced
+teaches the reader the wrong rule and makes perception look unusable to the agent that owns it.
+
+The rule that holds is narrower and stronger:
+
+> **No authority over belief** — fusion cannot read any of this. It MAY inform hypotheses and
+> proposed actions. It can never authorize an effect, and it can never prove one happened.
+
+Which is what matters for games, where accessibility evidence does not exist: the alternative
+reading would mean building perception the Director is forbidden to use.
+
 ## What this is not
 
 It is not learning. Nothing is remembered across sessions and no relationship is recorded.
@@ -111,3 +155,14 @@ person. See [[Hypotheses]].
   everything downstream keeps working and quietly believes nothing.
 - `TestAShadedRegionKeepsItsShadingOnTheWayToASession` (`cmd/director`) — the join through a
   map of `any`, which is the kind that fails silently.
+- `TestASkippedSlotIsNotAnEmptyScreen` — the live cadence, one inference in four samples, still
+  settling on a list. The shape the first version could not have survived.
+- `TestAnUnconfirmedBeliefSaysItIsStale`, `TestABeliefNobodyConfirmsIsEventuallyDropped` — the
+  age of a belief, and the end of one.
+- `TestAMenuGoingAwayIsNotTheSameAsNobodyLooking` — both sides of the distinction in one test.
+- `TestASessionSaysWhenItsAnswerChanged` — the journal, and that it is a journal of changes
+  rather than of looks.
+- `TestTheSessionReportSaysWhatItIsLookingAt`, `TestAStaleBeliefSaysSoInTheReport`,
+  `TestTheReportStatesTheBoundaryItActuallyHolds` (`cmd/director`) — the surface a person
+  reads while they navigate, including that it never prints the entries as a count of what the
+  menu has.

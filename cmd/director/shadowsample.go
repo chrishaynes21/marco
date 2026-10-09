@@ -49,6 +49,10 @@ func shadowSampleFor(detector string, unavailable string, cycle observation.Cycl
 		out.State == observation.StateEmpty &&
 		strings.Contains(out.Reason, "shadow slot skipped")
 	if skipped {
+		// AND WHICH KIND OF SKIP. A slot the cadence paced and a slot the purchase policy
+		// declined are different facts with opposite remedies, and they read identically
+		// until this line existed.
+		s.Declined = strings.Contains(out.Reason, shadow.DeclinedReason)
 		return s
 	}
 	s.Ran = true

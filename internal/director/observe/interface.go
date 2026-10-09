@@ -3,6 +3,7 @@ package observe
 import (
 	"fmt"
 	"image"
+	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/selection"
 )
@@ -68,9 +69,23 @@ type InterfaceBelief struct {
 	// Because is the evidence the status rests on, in words.
 	Because string `json:"because"`
 	// Observations is how many looks this belief is built from, and After is how many it
-	// took before a list could be named at all.
+	// took before a list could be named at all. Both count looks that CARRIED EVIDENCE: a
+	// slot the detector sat out is not a look at anything.
 	Observations int `json:"observations"`
 	After        int `json:"identified_after,omitempty"`
+
+	// Sample and At are the look this belief rests on — not necessarily the look that just
+	// happened.
+	Sample int       `json:"sample,omitempty"`
+	At     time.Time `json:"at,omitzero"`
+	// Stale says nothing has confirmed this belief since. A belief that is merely
+	// unconfirmed must not read like one that was just seen, and on a live Director most
+	// looks bring nothing: the shadow cadence lets an inference start every two seconds
+	// while the session samples twice a second, so three looks in four are a property of
+	// the cadence rather than of the screen.
+	Stale bool `json:"stale,omitempty"`
+	// Unconfirmed is how many consecutive looks have brought no evidence at all.
+	Unconfirmed int `json:"looks_unconfirmed,omitempty"`
 }
 
 // InterfaceChange is what moved since the previous observation.
@@ -91,6 +106,50 @@ type InterfaceChange struct {
 	Why string `json:"why"`
 }
 
+// InterfaceLook is one chance to see, offered to the watch whether or not anything was seen.
+//
+// Observed is the field the type exists for. A detector that sat out its slot has not reported
+// an empty screen, and folding the two together would make a sampling cadence look like a menu
+// that keeps vanishing — [[ADR-006-unknown-is-not-false]], at the point where a live Director
+// differs from a replay most sharply: replaying a recording, every look carries a frame.
+type InterfaceLook struct {
+	Sequence int
+	At       time.Time
+	Observed bool
+	// Why says what happened instead, when nothing was observed.
+	Why string
+	// Regions is what the detector proposed. Empty WITH Observed true is evidence about an
+	// empty screen; empty with Observed false is no evidence at all.
+	Regions []ShadowRegion
+}
+
+// InterfaceMoment is a look at which the belief changed, kept so a session can say WHEN.
+//
+// A journal rather than a counter because the question a live session has to answer is "what
+// did it emit, and when" — and a client that polled for the current belief and wrote down what
+// it saw would be reporting its own polling rate.
+type InterfaceMoment struct {
+	Sample int             `json:"sample"`
+	At     time.Time       `json:"at,omitzero"`
+	Status InterfaceStatus `json:"status"`
+	// Selected is the entry index, or -1.
+	Selected int    `json:"selected"`
+	Stale    bool   `json:"stale,omitempty"`
+	Why      string `json:"why"`
+}
+
+// maxInterfaceMoments bounds the journal. The most recent are kept: a long session's early
+// moments are a history, and what a reader is looking at is what just happened.
+const maxInterfaceMoments = 64
+
+// interfaceForgetLooks is how many consecutive looks may bring nothing before the belief is
+// dropped rather than merely marked stale.
+//
+// The same order as the number of looks it takes to earn one (selection.MinObservations): a
+// belief is held no longer than it cost to acquire. Past that the honest answer is that nobody
+// has looked lately — which is still not the answer that the menu has gone.
+const interfaceForgetLooks = 10
+
 // interfaceGrid is the integer space normalised regions are judged in.
 //
 // The grouping and tracking rules are geometric and were written against pixels. Regions
@@ -105,7 +164,11 @@ type InterfaceWatch struct {
 	reader  *selection.Reader
 	belief  InterfaceBelief
 	change  InterfaceChange
+	// looks counts the looks that carried evidence; missed counts the consecutive ones
+	// since that have carried none.
 	looks   int
+	missed  int
+	moments []InterfaceMoment
 }
 
 // NewInterfaceWatch starts one, believing nothing.
@@ -123,13 +186,18 @@ func NewInterfaceWatch() *InterfaceWatch {
 // Regions WITHOUT shading are dropped rather than defaulted: a region nobody measured and a
 // region measured as black must not look alike, and a zero would read as the darkest thing
 // on screen.
-func (w *InterfaceWatch) Observe(regions []ShadowRegion) {
+func (w *InterfaceWatch) Observe(look InterfaceLook) {
+	if !look.Observed {
+		w.unconfirmed(look)
+		return
+	}
 	w.looks++
+	w.missed = 0
 	before := w.belief
 
 	var boxes []image.Rectangle
 	var shades []selection.Shade
-	for _, r := range regions {
+	for _, r := range look.Regions {
 		if len(r.Shade) != selection.Features {
 			continue
 		}
@@ -140,8 +208,8 @@ func (w *InterfaceWatch) Observe(regions []ShadowRegion) {
 		w.settle(before, InterfaceBelief{
 			Status: InterfaceUnknown, Selected: -1, Reading: "insufficient_evidence",
 			Because:      "no shaded regions were proposed this look",
-			Observations: w.looks,
-		})
+			Observations: w.looks, Sample: look.Sequence, At: look.At,
+		}, "")
 		return
 	}
 
@@ -161,13 +229,14 @@ func (w *InterfaceWatch) Observe(regions []ShadowRegion) {
 	next := InterfaceBelief{
 		Selected: -1, Reading: "insufficient_evidence",
 		Because: why, Observations: w.looks, After: w.tracker.IdentifiedAt(),
+		Sample: look.Sequence, At: look.At,
 	}
 	if !ok {
 		next.Status = InterfaceUnknown
 		if n := qualifyingLists(w.tracker); n > 1 {
 			next.Status = InterfaceAmbiguous
 		}
-		w.settle(before, next)
+		w.settle(before, next, "")
 		return
 	}
 
@@ -190,11 +259,50 @@ func (w *InterfaceWatch) Observe(regions []ShadowRegion) {
 		next.SelectedWhere = unscaleRect(kept[res.Row].Bounds)
 	}
 	next.Because = why + "; reading: " + res.Why
-	w.settle(before, next)
+	w.settle(before, next, "")
+}
+
+// unconfirmed folds a look that brought no evidence.
+//
+// The belief is KEPT and marked, not replaced. Nothing was seen, so nothing contradicts it;
+// what changed is only its age, and that is the part a consumer has to be told. Past
+// interfaceForgetLooks it is dropped — with the reason, so "nobody has looked lately" cannot
+// be read as "the screen is empty".
+func (w *InterfaceWatch) unconfirmed(look InterfaceLook) {
+	w.missed++
+	before := w.belief
+	why := look.Why
+	if why == "" {
+		why = "nothing was observed this look"
+	}
+
+	next := before
+	next.Stale = true
+	next.Unconfirmed = w.missed
+	if w.missed >= interfaceForgetLooks {
+		// Unconditionally, including when the belief is already unknown: the reason has to
+		// keep saying that nobody has looked. The first version only rewrote the belief on
+		// the way down, so the look after a drop replaced "dropped for want of evidence"
+		// with the ordinary stale line and the drop became unexplainable.
+		w.settle(before, InterfaceBelief{
+			Status: InterfaceUnknown, Selected: -1, Reading: "insufficient_evidence",
+			Observations: w.looks, Stale: true, Unconfirmed: w.missed,
+			Sample: before.Sample, At: before.At,
+			Because: fmt.Sprintf("no evidence has been observed for %d look(s): %s",
+				w.missed, why),
+		}, why)
+		return
+	}
+	next.Because = fmt.Sprintf("%s (unconfirmed for %d look(s); the evidence under this "+
+		"belief is sample %d)", why, w.missed, before.Sample)
+	w.settle(before, next, why)
 }
 
 // settle records the new belief and what moved to get to it.
-func (w *InterfaceWatch) settle(before, next InterfaceBelief) {
+//
+// quiet is what to say when nothing moved: a look that brought no evidence still has something
+// to report about itself.
+func (w *InterfaceWatch) settle(before, next InterfaceBelief, quiet string) {
 	c := InterfaceChange{From: before.Selected, To: next.Selected}
 	switch {
 	case before.Status != next.Status:
@@ -220,8 +328,22 @@ func (w *InterfaceWatch) settle(before, next InterfaceBelief) {
 	}
 	if c.Why == "" {
 		c.Why = "nothing changed"
+		if quiet != "" {
+			c.Why = quiet
+		}
 	}
 	w.belief, w.change = next, c
+	// Journalled only when something actually moved. A moment per look would be a record of
+	// the sampling rate; what a reader needs is the times the answer was different.
+	if c.InterfaceChanged || c.SelectionMoved || len(w.moments) == 0 {
+		w.moments = append(w.moments, InterfaceMoment{
+			Sample: next.Sample, At: next.At, Status: next.Status,
+			Selected: next.Selected, Stale: next.Stale, Why: c.Why,
+		})
+		if len(w.moments) > maxInterfaceMoments {
+			w.moments = w.moments[len(w.moments)-maxInterfaceMoments:]
+		}
+	}
 }
 
 // Belief is what the session currently thinks it is looking at.
@@ -229,6 +351,11 @@ func (w *InterfaceWatch) Belief() InterfaceBelief { return w.belief }
 
 // Change is what moved at the most recent look.
 func (w *InterfaceWatch) Change() InterfaceChange { return w.change }
+
+// Moments is the bounded journal of looks at which the answer was different.
+func (w *InterfaceWatch) Moments() []InterfaceMoment {
+	return append([]InterfaceMoment(nil), w.moments...)
+}
 
 // qualifyingLists counts the candidates that behave like one being used.
 func qualifyingLists(t *selection.Tracker) int {

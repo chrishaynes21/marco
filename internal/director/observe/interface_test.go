@@ -2,6 +2,7 @@ package observe_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
 )
@@ -38,8 +39,32 @@ func menuSample(seq int, n, marked int) observe.Sample {
 	})
 	return observe.Sample{
 		Sequence:         seq,
+		Timestamp:        sampleEpoch.Add(time.Duration(seq) * 500 * time.Millisecond),
 		WindowGeneration: 1,
 		Shadow:           &observe.ShadowSample{Detector: "test", Ran: true, Regions: regions},
+	}
+}
+
+// sampleEpoch gives the looks a clock, so a journal entry can be checked for carrying one.
+var sampleEpoch = time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)
+
+// sampleSkipped is a slot the cadence gate held the detector back on: a look nobody took.
+func sampleSkipped(seq int) observe.Sample {
+	return observe.Sample{
+		Sequence:         seq,
+		Timestamp:        sampleEpoch.Add(time.Duration(seq) * 500 * time.Millisecond),
+		WindowGeneration: 1,
+		Shadow:           &observe.ShadowSample{Detector: "test"},
+	}
+}
+
+// sampleBlank is a look the detector DID take, at a screen with nothing on it.
+func sampleBlank(seq int) observe.Sample {
+	return observe.Sample{
+		Sequence:         seq,
+		Timestamp:        sampleEpoch.Add(time.Duration(seq) * 500 * time.Millisecond),
+		WindowGeneration: 1,
+		Shadow:           &observe.ShadowSample{Detector: "test", Ran: true},
 	}
 }
 
@@ -158,4 +183,209 @@ func TestASessionThatSawNoListSaysSoRatherThanGuessing(t *testing.T) {
 	if totals.Interface.Because == "" {
 		t.Error("an abstention must say why")
 	}
+}
+
+// ── what a live Director does differently from a replay ───────────────────────
+//
+// Replaying a recording, every look carries a frame. Live, the shadow cadence lets an
+// inference start every two seconds while the session samples twice a second, so three looks
+// in four bring nothing at all. The first live run of this path would have spent its whole
+// length flapping between provisional and unknown.
+
+// liveCadence drives totals the way the live loop does: one look in `every` carries evidence
+// and the rest are slots the cadence gate held back.
+func liveCadence(t *observe.ShadowTotals, seq *int, every int, marked []int) {
+	for _, m := range marked {
+		*seq++
+		t.Observe(menuSample(*seq, 6, m))
+		for range every - 1 {
+			*seq++
+			t.Observe(sampleSkipped(*seq))
+		}
+	}
+}
+
+func TestASkippedSlotIsNotAnEmptyScreen(t *testing.T) {
+	var totals observe.ShadowTotals
+	seq := 0
+	// Exactly the live shape: 1 inference in 4 samples, a mark that moves between members.
+	liveCadence(&totals, &seq, 4, []int{-1, -1, -1, -1, -1, -1,
+		0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3})
+
+	b := totals.Interface
+	if b.Status != observe.InterfaceProvisional {
+		t.Fatalf("at a live cadence the session never settled on a list: %q (%s)",
+			b.Status, b.Because)
+	}
+	// The belief rests on the last look that SAW something, and says so.
+	if b.Sample == 0 || b.Sample > seq {
+		t.Errorf("a belief must name the look it rests on, got sample %d of %d", b.Sample, seq)
+	}
+	if b.At.IsZero() {
+		t.Error("a belief must say when the evidence under it was observed")
+	}
+	// And the looks it counts are the ones that carried evidence, not the slots.
+	if b.Observations >= seq {
+		t.Errorf("%d observations out of %d samples: skipped slots were counted as looks",
+			b.Observations, seq)
+	}
+}
+
+func TestAnUnconfirmedBeliefSaysItIsStale(t *testing.T) {
+	var totals observe.ShadowTotals
+	seq := 0
+	liveCadence(&totals, &seq, 1, []int{-1, -1, -1, -1, -1, -1,
+		0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3})
+	if totals.Interface.Status != observe.InterfaceProvisional {
+		t.Fatalf("precondition: no list was identified (%s)", totals.Interface.Because)
+	}
+	seen := totals.Interface.Sample
+
+	// Two slots nobody looked at. The belief is kept — nothing contradicted it — but it must
+	// not read like one that was just confirmed.
+	for range 2 {
+		seq++
+		totals.Observe(sampleSkipped(seq))
+	}
+	b := totals.Interface
+	if b.Status != observe.InterfaceProvisional {
+		t.Errorf("a look nobody took withdrew the belief: %q (%s)", b.Status, b.Because)
+	}
+	if !b.Stale {
+		t.Error("a belief nothing has confirmed must say it is stale")
+	}
+	if b.Unconfirmed != 2 {
+		t.Errorf("unconfirmed for 2 looks, reported %d", b.Unconfirmed)
+	}
+	if b.Sample != seen {
+		t.Errorf("the belief moved its own evidence forward: sample %d, saw %d", b.Sample, seen)
+	}
+	if totals.Changed.Why == "" {
+		t.Error("a look that saw nothing must still say what happened")
+	}
+}
+
+func TestABeliefNobodyConfirmsIsEventuallyDropped(t *testing.T) {
+	var totals observe.ShadowTotals
+	seq := 0
+	liveCadence(&totals, &seq, 1, []int{-1, -1, -1, -1, -1, -1,
+		0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3})
+	if totals.Interface.Status != observe.InterfaceProvisional {
+		t.Fatalf("precondition: no list was identified (%s)", totals.Interface.Because)
+	}
+	// Long enough that holding on would be a claim about a screen nobody has looked at.
+	for range 20 {
+		seq++
+		totals.Observe(sampleSkipped(seq))
+	}
+	b := totals.Interface
+	if b.Status != observe.InterfaceUnknown {
+		t.Fatalf("a belief held through 20 looks at nothing: %q (%s)", b.Status, b.Because)
+	}
+	if b.Selected >= 0 {
+		t.Error("a dropped belief cannot still name a selected entry")
+	}
+	if b.Because == "" {
+		t.Fatal("dropping a belief must say why")
+	}
+	// And the reason must be that nobody looked — not that the screen was empty.
+	if !containsAll(b.Because, "no", "evidence") {
+		t.Errorf("the reason reads as an empty screen rather than an unobserved one: %q",
+			b.Because)
+	}
+}
+
+func TestAMenuGoingAwayIsNotTheSameAsNobodyLooking(t *testing.T) {
+	// THE distinction, both sides in one test. The detector running and finding nothing is
+	// evidence about the screen; the detector not running is evidence about the Director.
+	gone := func(blank bool) observe.InterfaceBelief {
+		var totals observe.ShadowTotals
+		seq := 0
+		liveCadence(&totals, &seq, 1, []int{-1, -1, -1, -1, -1, -1,
+			0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3})
+		if totals.Interface.Status != observe.InterfaceProvisional {
+			t.Fatalf("precondition: no list was identified (%s)", totals.Interface.Because)
+		}
+		for range 3 {
+			seq++
+			if blank {
+				totals.Observe(sampleBlank(seq))
+			} else {
+				totals.Observe(sampleSkipped(seq))
+			}
+		}
+		return totals.Interface
+	}
+	if got := gone(true); got.Status != observe.InterfaceUnknown {
+		t.Errorf("the detector looked and saw an empty screen; the belief survived as %q (%s)",
+			got.Status, got.Because)
+	}
+	if got := gone(false); got.Status != observe.InterfaceProvisional || !got.Stale {
+		t.Errorf("nobody looked, and the belief was treated as refuted: %q stale=%v (%s)",
+			got.Status, got.Stale, got.Because)
+	}
+}
+
+func TestASessionSaysWhenItsAnswerChanged(t *testing.T) {
+	var totals observe.ShadowTotals
+	seq := 0
+	liveCadence(&totals, &seq, 4, []int{-1, -1, -1, -1, -1, -1,
+		0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3})
+
+	moments := totals.InterfaceMoments
+	if len(moments) < 2 {
+		t.Fatalf("a session must be able to say when its answer changed; %d moment(s)",
+			len(moments))
+	}
+	// A journal of changes, not of looks. One entry per sample would be a record of the
+	// sampling rate.
+	//
+	// Checked by ADJACENCY rather than by length, because length cannot see it: the journal
+	// is capped, and a mutation that recorded every single look still produced fewer entries
+	// than there were samples once the cap trimmed it. Two consecutive entries that say the
+	// same thing are the actual defect, and they survive the cap.
+	for i := 1; i < len(moments); i++ {
+		a, b := moments[i-1], moments[i]
+		if a.Status == b.Status && a.Selected == b.Selected && a.Stale == b.Stale {
+			t.Errorf("moments %d and %d say the same thing (%s, entry %d): the journal is "+
+				"logging looks, not changes", i-1, i, b.Status, b.Selected)
+			break
+		}
+	}
+	if len(moments) >= seq {
+		t.Errorf("%d moments for %d samples: the journal is logging looks, not changes",
+			len(moments), seq)
+	}
+	for i, m := range moments {
+		if m.Why == "" {
+			t.Errorf("moment %d says nothing about what changed", i)
+		}
+		if m.At.IsZero() {
+			t.Errorf("moment %d carries no time, so nothing can be said about when", i)
+		}
+	}
+	// Monotonic in the looks they came from, so a reader can lay them on a timeline.
+	for i := 1; i < len(moments); i++ {
+		if moments[i].At.Before(moments[i-1].At) {
+			t.Errorf("moment %d is older than moment %d", i, i-1)
+		}
+	}
+}
+
+// containsAll is a small helper so a reason can be checked for saying the right KIND of thing
+// without pinning its wording.
+func containsAll(s string, parts ...string) bool {
+	for _, p := range parts {
+		found := false
+		for i := 0; i+len(p) <= len(s); i++ {
+			if s[i:i+len(p)] == p {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
 }

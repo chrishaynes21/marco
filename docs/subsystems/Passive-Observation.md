@@ -184,11 +184,33 @@ are all of them, and it never claims one can be pressed.
 The pixel evidence under it is two numbers per region, measured by the vision provider where
 the frame still exists and carried along with the geometry. A session cannot see.
 
+**A look nobody took is not an empty screen.** Live, the shadow cadence lets an inference start
+every two seconds while the session samples twice a second, so most looks bring nothing. Those
+mark the belief **stale** — unconfirmed for N looks, still resting on sample M — and after ten
+of them it is dropped with that as the reason. A detector that ran and found nothing is the
+other case, and that means `unknown` at once. A bounded journal records the looks at which the
+answer was different, with their times, so a report says what the session emitted rather than
+what a client caught while polling.
+
+**What it is allowed to do.** No authority over belief: fusion cannot read any of it. It MAY
+inform hypotheses and proposed actions — it already does, since `observe.Hypotheses` is derived
+from these totals. It can never authorize an effect and can never prove one happened. The
+session report used to print a wider claim than that, and the wider claim was false.
+
+**On a game the detector has to be allowed to run at all.** The purchase policy declines an
+inference whenever the primary reading claims to be sufficient, and on a game it always claims
+that. Measured live: one inference in 78 looks. A declined slot now says it was declined rather
+than calling itself cadence pacing, every sample names the policy it ran behind, and
+`$MARCO_SHADOW_UNGATED` collects the evidence the policy decision will need.
+[[ADR-148-a-claim-of-sufficiency-is-not-a-claim-about-a-game]].
+
 ## Decisions
 
 - [[ADR-010-passive-observation-cannot-execute]]
 - [[ADR-147-the-interface-in-front-of-a-session-is-a-shadow-belief]] — the screen it is
   watching now, as a belief it can be asked about
+- [[ADR-148-a-claim-of-sufficiency-is-not-a-claim-about-a-game]] — why the detector ran once in
+  seventy-eight looks against a real game, and what now says so
 - [[ADR-111-a-demonstration-takes-the-slot-from-watching]] — watching yields the one observation
   slot to a demonstration, and `marco observe --follow` reports what durable memory COMMITTED
 - [[ADR-093-observe-is-attention-not-recording]] — `marco observe` is the ambient lifecycle:

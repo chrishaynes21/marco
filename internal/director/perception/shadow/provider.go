@@ -202,10 +202,10 @@ func (p *Provider) ObserveTargeted(ctx context.Context,
 	// Deleting this must fail TestASufficientReadingDoesNotBuyAnInference.
 	if p.worth != nil && !p.worth() {
 		atomic.AddInt64(&p.stats.SkippedUnneeded, 1)
-		return p.skipped(req)
+		return p.skipped(req, DeclinedReason)
 	}
 	if !p.claim() {
-		return p.skipped(req)
+		return p.skipped(req, "cadence "+p.cadence.String())
 	}
 	defer p.release()
 
@@ -253,12 +253,22 @@ func (p *Provider) release() {
 // StateEmpty with a reason, not a failure: it did not fail, it was not asked. Reporting a skip
 // as a failure would put the experiment's own cadence into a diagnostic as though something
 // were wrong, and would make the real failures impossible to find.
-func (p *Provider) skipped(req observation.Request) observation.ProviderOutcome {
+// DeclinedReason is why a slot was not taken when the primary reading claimed sufficiency.
+//
+// A CONSTANT because a reader downstream has to be able to tell this apart from a cadence skip,
+// and for a long time it could not: both outcomes said "cadence", so every slot the purchase
+// policy declined was counted and reported as the gate doing its ordinary pacing. On a game
+// that is the difference between "the experiment is sampling" and "the experiment has been
+// switched off by a claim about a different kind of evidence" — measured on Trackmania, where
+// one inference ran in 78 looks and the report called the other 77 cadence skips.
+const DeclinedReason = "the primary reading claimed to be sufficient"
+
+func (p *Provider) skipped(req observation.Request, why string) observation.ProviderOutcome {
 	out := observation.ProviderOutcome{
 		Source:    directorapi.SourceVision,
 		Scope:     directorapi.ScopeTarget,
 		State:     observation.StateEmpty,
-		Reason:    "shadow slot skipped: cadence " + p.cadence.String(),
+		Reason:    "shadow slot skipped: " + why,
 		StartedAt: p.now(),
 	}
 	out.FinishedAt = out.StartedAt
@@ -267,6 +277,14 @@ func (p *Provider) skipped(req observation.Request) observation.ProviderOutcome 
 	}
 	return out
 }
+
+// Gated reports whether a purchase policy is attached.
+//
+// Exists so a report can describe what this provider is ACTUALLY doing rather than re-deriving
+// it from the configuration that was supposed to have been applied. The two are not the same
+// claim: one line forgotten at the composition root makes the second one a lie, and a lie
+// about which policy produced a number is worse than no number.
+func (p *Provider) Gated() bool { return p.worth != nil }
 
 // WhenWorthIt gates inference on whether more evidence is worth buying.
 //

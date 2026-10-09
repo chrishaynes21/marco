@@ -777,12 +777,27 @@ func renderShadow(b *strings.Builder, s observe.ShadowTotals) {
 		return
 	}
 	if !s.Observed() {
-		fmt.Fprintf(b, "  never ran    %d slots offered, all skipped by cadence\n",
-			s.Opportunities)
+		// NOT "all skipped by cadence". It said that whatever the cause, and on a game the
+		// cause is the other one: the purchase policy declining every slot because the
+		// primary reading claims to be sufficient. One sentence that was always wrong
+		// about the interesting case.
+		fmt.Fprintf(b, "  never ran    %d slot(s) offered, none taken", s.Opportunities)
+		if s.Declined > 0 {
+			fmt.Fprintf(b, "; %d declined because the primary reading claimed to be "+
+				"sufficient", s.Declined)
+		}
+		b.WriteString("\n")
+		renderShadowGate(b, s)
 		return
 	}
 	fmt.Fprintf(b, "  inferences   %d of %d slots   skipped %d   failures %d\n",
 		s.Inferences, s.Opportunities, s.Skipped, s.Failures)
+	if s.Declined > 0 {
+		fmt.Fprintf(b, "               %d of those skips were DECLINED because the primary "+
+			"reading claimed to be sufficient;\n", s.Declined)
+		b.WriteString("               that is not the cadence pacing itself\n")
+	}
+	renderShadowGate(b, s)
 	if s.ProvenanceFailures > 0 {
 		fmt.Fprintf(b, "  provenance   %d inference(s) could not prove they observed the "+
 			"session's window generation\n", s.ProvenanceFailures)
@@ -810,11 +825,106 @@ func renderShadow(b *strings.Builder, s observe.ShadowTotals) {
 		"uncomparable %d\n", c.RoleDisagreement, c.GeometryDisagreement, c.Uncomparable)
 	fmt.Fprintf(b, "  gain         %d shadow-only NAMEABLE observations authoritative "+
 		"perception did not supply\n", c.ShadowOnlyNameable)
+	renderInterface(b, s)
 	renderShadowStates(b, s)
 	renderShadowTracks(b, s)
 	renderInputProducer(b, s.Input)
-	b.WriteString("  authority    NONE — this evidence cannot reach belief, planning, " +
-		"policy or input\n")
+	// What this evidence may and may not do, stated precisely.
+	//
+	// It used to say the evidence "cannot reach belief, planning, policy or input", and
+	// two of those four were already false in this build: hypotheses are derived from
+	// these totals, and the relationships they support are what a plan reads. A boundary
+	// printed wider than the one the code holds teaches the reader the wrong rule and
+	// makes perception look unusable to the agent that owns it.
+	b.WriteString("  authority    NONE over belief — fusion cannot read any of this.\n")
+	b.WriteString("               It MAY inform hypotheses and proposed actions. It can " +
+		"never authorize\n")
+	b.WriteString("               an effect, and it can never prove one happened.\n")
+}
+
+// renderShadowGate names the purchase policy the numbers above were produced under.
+//
+// Printed because the same detector on the same screen produces results two orders of
+// magnitude apart depending on it, and nothing else in the report lets a reader tell which
+// one they are holding.
+func renderShadowGate(b *strings.Builder, s observe.ShadowTotals) {
+	if s.Gate == "" {
+		return
+	}
+	fmt.Fprintf(b, "  gate         %s\n", s.Gate)
+}
+
+// renderInterface reports what the session believes it is looking at RIGHT NOW.
+//
+// Printed from the live state rather than recomputed, so what a reader sees is what the
+// Director would answer if something asked it — the whole reason the belief is a field.
+func renderInterface(b *strings.Builder, s observe.ShadowTotals) {
+	i := s.Interface
+	fmt.Fprintf(b, "  interface    %s", i.Status)
+	if i.Stale {
+		fmt.Fprintf(b, "  ·  STALE — nothing has confirmed it for %d look(s)", i.Unconfirmed)
+	}
+	b.WriteString("\n")
+	if i.Status == observe.InterfaceProvisional {
+		w := i.Where
+		fmt.Fprintf(b, "               a list at %.0f..%.0f%% across, %.0f..%.0f%% down; "+
+			"%d entr%s found\n",
+			w.X*100, (w.X+w.Width)*100, w.Y*100, (w.Y+w.Height)*100,
+			i.Entries, plural(i.Entries, "y", "ies"))
+		// NEVER printed as a count of what the menu has. See InterfaceBelief.Complete.
+		b.WriteString("               those entries are NOT known to be all of it\n")
+	}
+	switch {
+	case i.Selected >= 0:
+		fmt.Fprintf(b, "               entry %d is selected (%s)\n", i.Selected, i.Reading)
+	default:
+		fmt.Fprintf(b, "               no entry could be read (%s)\n", i.Reading)
+	}
+	if i.Observations > 0 {
+		fmt.Fprintf(b, "               built from %d look(s) that carried evidence", i.Observations)
+		if i.After > 0 {
+			fmt.Fprintf(b, "; a list was first named after %d", i.After)
+		}
+		if i.Sample > 0 {
+			fmt.Fprintf(b, "; resting on sample %d", i.Sample)
+		}
+		b.WriteString("\n")
+	}
+	if i.Because != "" {
+		fmt.Fprintf(b, "               because: %s\n", i.Because)
+	}
+	if s.Changed.Why != "" {
+		fmt.Fprintf(b, "               since the last look: %s\n", s.Changed.Why)
+	}
+	// The journal, most recent last and bounded for a terminal. Its point is that a reader
+	// polling this report at their own rate still sees every answer the session emitted.
+	if m := s.InterfaceMoments; len(m) > 0 {
+		shown := m
+		if len(shown) > 8 {
+			shown = shown[len(shown)-8:]
+		}
+		fmt.Fprintf(b, "               %d moment(s) where the answer changed", len(m))
+		if len(shown) < len(m) {
+			fmt.Fprintf(b, ", last %d", len(shown))
+		}
+		b.WriteString(":\n")
+		for _, mo := range shown {
+			sel := "none"
+			if mo.Selected >= 0 {
+				sel = fmt.Sprintf("entry %d", mo.Selected)
+			}
+			fmt.Fprintf(b, "                 sample %-4d %-12s %-8s %s\n",
+				mo.Sample, mo.Status, sel, mo.Why)
+		}
+	}
+}
+
+// plural picks a suffix without pretending to know English.
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return one
+	}
+	return many
 }
 
 // renderInputProducer reports what the navigation producer did, in semantic terms only.

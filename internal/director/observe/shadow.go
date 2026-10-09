@@ -31,6 +31,15 @@ package observe
 type ShadowSample struct {
 	// Detector names the experiment, so a report can never be read as authoritative.
 	Detector string `json:"detector"`
+	// Gate describes the purchase policy this slot was offered under. Carried on every
+	// sample so a report can say which configuration produced its numbers; a run whose
+	// policy nobody recorded is a measurement of an unknown system.
+	Gate string `json:"gate,omitempty"`
+	// Declined says the slot was not taken because the primary reading claimed to be
+	// sufficient — which is not the cadence pacing itself, and on a surface with no
+	// accessibility tree is the difference between an experiment that is sampling and one
+	// that has been switched off by a claim about other evidence.
+	Declined bool `json:"declined,omitempty"`
 	// Ran reports whether an inference actually happened this cycle. False for a slot the
 	// cadence gate skipped — which is not a failure, and must not be counted as one.
 	Ran bool `json:"ran"`
@@ -158,6 +167,10 @@ type ShadowTotals struct {
 	// they are fields rather than something a caller recomputes.
 	Interface InterfaceBelief `json:"interface"`
 	Changed   InterfaceChange `json:"interface_changed"`
+	// InterfaceMoments is the bounded journal of looks at which that answer was different,
+	// so a report can say what the session emitted and when rather than what a client
+	// happened to catch while polling.
+	InterfaceMoments []InterfaceMoment `json:"interface_moments,omitempty"`
 	// watch carries the belief between looks. Unexported: a reader of a session gets the
 	// answer, never the machinery that produced it.
 	watch *InterfaceWatch
@@ -165,6 +178,13 @@ type ShadowTotals struct {
 	Opportunities int `json:"opportunities"`
 	Inferences    int `json:"inferences"`
 	Skipped       int `json:"skipped"`
+	// Declined is the subset of Skipped the purchase policy refused rather than the cadence
+	// paced. Held apart because the two have opposite remedies: one is the gate working,
+	// the other is the experiment being starved by a claim about different evidence.
+	Declined int `json:"declined,omitempty"`
+	// Gate describes the policy the experiment ran behind, so a report can never leave a
+	// reader guessing which configuration produced its numbers.
+	Gate string `json:"gate,omitempty"`
 	// ProvenanceFailures counts inferences that ran but could not be shown to describe the
 	// authoritative cycle's window. Held apart from failures: the experiment worked, it just
 	// observed a world that had already moved on.
@@ -295,12 +315,15 @@ func (t *ShadowTotals) Observe(sample Sample) {
 	if t.watch == nil {
 		t.watch = NewInterfaceWatch()
 	}
-	if sample.Shadow != nil {
-		t.watch.Observe(sample.Shadow.Regions)
-	} else {
-		t.watch.Observe(nil)
-	}
+	// A look the detector did not take is not a look at an empty screen. The live cadence
+	// lets an inference start every two seconds against a session sampling twice a second,
+	// so most looks bring nothing — and folding those in as absence made the belief flap
+	// to unknown three looks in four and kept the tracker from ever accumulating.
+	//
+	// Deleting this must fail TestASessionAnswersWhatItIsLookingAt.
+	t.watch.Observe(interfaceLookFrom(sample))
 	t.Interface, t.Changed = t.watch.Belief(), t.watch.Change()
+	t.InterfaceMoments = t.watch.Moments()
 	if sample.Shadow != nil {
 		t.add(*sample.Shadow, structure)
 		return
@@ -318,6 +341,27 @@ func (t *ShadowTotals) Observe(sample Sample) {
 	t.EvictedAssociations = t.tracker.EvictedAssociations
 }
 
+// interfaceLookFrom says what this sample gave the interface watch a chance to see.
+//
+// Four outcomes, kept apart: no detector was configured, the detector could not run, the
+// cadence gate held it back, or it ran and described the screen. Only the last is evidence,
+// and only the last may move a belief.
+func interfaceLookFrom(sample Sample) InterfaceLook {
+	look := InterfaceLook{Sequence: sample.Sequence, At: sample.Timestamp}
+	switch {
+	case sample.Shadow == nil:
+		look.Why = "no detector is configured"
+	case sample.Shadow.Unavailable != "":
+		look.Why = sample.Shadow.Unavailable
+	case !sample.Shadow.Ran:
+		look.Why = "the detector sat out this slot"
+	default:
+		look.Observed = true
+		look.Regions = sample.Shadow.Regions
+	}
+	return look
+}
+
 // Add folds one experimental sample, segmenting from the detector's own regions.
 //
 // Retained for the paths that genuinely have only a detector record — replay of a stored
@@ -330,6 +374,9 @@ func (t *ShadowTotals) add(s ShadowSample, structure StructuralView) {
 	}
 	if s.Unavailable != "" {
 		t.Unavailable = s.Unavailable
+	}
+	if s.Gate != "" {
+		t.Gate = s.Gate
 	}
 	t.Opportunities++
 	if t.tracker == nil {
@@ -367,6 +414,9 @@ func (t *ShadowTotals) add(s ShadowSample, structure StructuralView) {
 	t.publishScreenModel()
 	if !s.Ran {
 		t.Skipped++
+		if s.Declined {
+			t.Declined++
+		}
 		return
 	}
 	t.Inferences++

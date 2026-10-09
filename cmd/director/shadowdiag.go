@@ -142,7 +142,11 @@ func (r shadowReport) render(w *strings.Builder) {
 		c.RoleDisagreement, c.GeometryDisagreement))
 	w.WriteString(fmt.Sprintf("  compared     %d cycles   uncomparable %d\n",
 		r.ComparedCycles, r.UncomparableCycles))
-	// The last word, every time.
-	w.WriteString("  authority    NONE — this evidence cannot reach belief, planning, " +
-		"policy or input\n")
+	// The last word, every time — and the precise one. "Cannot reach planning" was false
+	// in this build: hypotheses are derived from these totals and a plan reads the
+	// relationships they support. The rule that actually holds is narrower and stronger.
+	w.WriteString("  authority    NONE over belief — fusion cannot read any of this.\n")
+	w.WriteString("               It MAY inform hypotheses and proposed actions. It can " +
+		"never authorize\n")
+	w.WriteString("               an effect, and it can never prove one happened.\n")
 }

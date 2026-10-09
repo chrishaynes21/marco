@@ -520,7 +520,10 @@ func NewRuntime(bridgePath string, maxNodes int, dryRun bool, g *actiongraph.Fil
 		// Provenance.OnlyDescribesPixels, which denies on evidence and never on absence.
 		//
 		// Deleting this must fail TestASufficientReadingDoesNotBuyAnInference.
-		rt.shadowVision.WhenWorthIt(func() bool { return rt.moreEvidenceIsWorthBuying().Buy })
+		// AND THE POLICY IS NAMED WHEREVER ITS NUMBERS GO — derived at the sample from
+		// the same function rather than stored here, so there is no second place the two
+		// could come to disagree. See shadowGate and attachShadowGate.
+		rt.attachShadowGate()
 		sources = append(sources, rt.shadowVision)
 	}
 	// The navigation observer. Deliberately NOT a perception provider: it observes the

@@ -237,6 +237,15 @@ func (s *liveSampler) Sample(ctx context.Context, req observesession.SampleReque
 	// four indistinguishable explanations and the report offers no way to choose between them.
 	if sh := sample.Shadow; sh != nil && s.rt.shadowVision != nil {
 		sh.Labels = shadowLabelBudget(s.rt.shadowVision)
+		// AND WHICH PURCHASE POLICY IT RAN BEHIND.
+		//
+		// A run whose policy nobody recorded is a measurement of an unknown system. The
+		// numbers from an experiment that declines on a sufficient reading and one that
+		// does not are not comparable, and on a surface with no accessibility tree they
+		// differ by two orders of magnitude.
+		//
+		// Deleting this must fail TestTheGateNoteTravelsWithTheSample.
+		sh.Gate = shadowGateNote(s.rt.shadowVision.Gated())
 	}
 	// What the interface said about itself this cycle, as closed-vocabulary concepts.
 	//
