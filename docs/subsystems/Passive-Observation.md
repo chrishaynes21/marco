@@ -287,6 +287,9 @@ should be wider, narrower or time-based is a question for `rejected_with_input` 
 - [[ADR-151-a-screen-that-changed-for-one-frame-did-not-change]] — a change needs a
   second look agreeing with it; a dropout is not a journey; and both error directions
   of that decision are counted, including the refusals that may have been real
+- [[ADR-152-slow-discovery-fast-tracking]] — the measurement: reading a nine-entry
+  menu's shade costs 597us against a 1972ms inference. The design, the existing rule that
+  shapes it, and the one number still missing
 - [[ADR-111-a-demonstration-takes-the-slot-from-watching]] — watching yields the one observation
   slot to a demonstration, and `marco observe --follow` reports what durable memory COMMITTED
 - [[ADR-093-observe-is-attention-not-recording]] — `marco observe` is the ambient lifecycle:

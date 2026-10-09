@@ -112,9 +112,13 @@ echo     2. move the selection 4-5 times slowly is a mark handed between members
 echo     3. open a submenu, pause ~20s          does the belief follow a real change
 echo     4. leave menus for the last ~60s       is the belief LOST for the right reason
 echo.
-echo   Nothing is injected. Keyboard and controller are both fine - but note which you
-echo   used: the navigation producer hooks keyboard and mouse only, so a gamepad is
-echo   invisible to it by construction and reads as a player who pressed nothing.
+echo   Nothing is injected. Keyboard and CONTROLLER are both observed now, and every
+echo   observation says which device it came from. If a device was not watched the
+echo   report says so by name - it will never report quiet as yours.
+echo.
+echo   The run reports, per device: inputs observed, menu identification, selected
+echo   entries, confirmed changes, refusals the flicker gate made, latency, and
+echo   whether the belief was lost when the menu went away.
 echo.
 
 set /a LOOPS=%SECS%/2
@@ -126,12 +130,18 @@ for /l %%i in (1,1,%LOOPS%) do (
 
 echo.
 director.exe observation-session observe_1 --json > "%WATCH_OUT%\final.json" 2>&1
+rem AND THE ONE NUMBER ADR-152 IS MISSING: what a window capture costs, apart from the
+rem inference. `director vision` prints capture and detect separately, and this is the only
+rem moment a real menu is in front of the machine. One look, read-only.
+director.exe vision --application "%APP%" > "%WATCH_OUT%\capture-cost.txt" 2>&1
 echo.
 echo The run recorded itself:
 echo     %MARCO_SHADOW_TRACE%
 echo         every slot offered and what became of it
 echo     %WATCH_OUT%\final.json
 echo         the session's own final answer
+echo     %WATCH_OUT%\capture-cost.txt
+echo         what a capture costs apart from the inference - see ADR-152
 echo.
 echo The session is over. The Director is still running on this script's isolated home,
 echo so run this script again to watch another one, or stop it with:
