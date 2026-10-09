@@ -257,7 +257,14 @@ func TestAConsumerThatFellBehindLosesEventsVisibly(t *testing.T) {
 func TestTheControllersOwnCodesCannotCrossTheBoundary(t *testing.T) {
 	// Source is the whole exported surface. A new entry here is not automatically wrong,
 	// but it has to be argued for in a diff that touches this list.
-	allowed := map[string]bool{"Source": true}
+	//
+	// Subscription was added on 2026-10-09, with the argument. It is an opaque buffer: its
+	// only exported methods are Drain, which returns []observe.InputEvent, and Peek, which
+	// returns a count. It carries no field a caller can read, and `add` — the one thing
+	// that puts a value in it — is unexported, so nothing outside this package can place
+	// anything in the record. The assertion below is what holds that, by shape rather than
+	// by review.
+	allowed := map[string]bool{"Source": true, "Subscription": true}
 
 	fset := token.NewFileSet()
 	entries, err := os.ReadDir(".")
@@ -281,6 +288,53 @@ func TestTheControllersOwnCodesCannotCrossTheBoundary(t *testing.T) {
 			if !allowed[ts.Name.Name] {
 				t.Errorf("%s exports type %s; the only value that may leave this "+
 					"package is observe.InputEvent", name, ts.Name.Name)
+			}
+			return true
+		})
+	}
+}
+
+// And an exported type on that list may not have exported FIELDS.
+//
+// The list above admits a type by name, which is not the same as admitting its contents: a
+// `Subscription` that grew a `Buttons []uint16` would pass it while carrying the platform's own
+// word straight out of the package. Source has always been in this position; Subscription makes
+// it two, so the rule is asserted rather than assumed.
+func TestAnExportedTypeHereCarriesNothingReadable(t *testing.T) {
+	fset := token.NewFileSet()
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatalf("reading the package: %v", err)
+	}
+	for _, e := range entries {
+		name := e.Name()
+		if !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		f, err := parser.ParseFile(fset, name, nil, 0)
+		if err != nil {
+			t.Fatalf("parsing %s: %v", name, err)
+		}
+		ast.Inspect(f, func(n ast.Node) bool {
+			ts, ok := n.(*ast.TypeSpec)
+			if !ok || !ts.Name.IsExported() {
+				return true
+			}
+			st, ok := ts.Type.(*ast.StructType)
+			if !ok || st.Fields == nil {
+				return true
+			}
+			for _, fld := range st.Fields.List {
+				for _, id := range fld.Names {
+					if id.IsExported() {
+						t.Errorf("%s: %s.%s is exported. An exported type here is a "+
+							"handle, not a record: the only value that may be READ "+
+							"out of this package is observe.InputEvent, and a field "+
+							"is how the platform's own button word leaves without "+
+							"anyone writing a method for it", name, ts.Name.Name,
+							id.Name)
+					}
+				}
 			}
 			return true
 		})

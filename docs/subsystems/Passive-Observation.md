@@ -241,6 +241,35 @@ inferences, with the degenerate single-pane reading re-entered 19 times and most
 at confidence 0.16–0.19 against a 0.15 floor. Anything that wrote a transition down because the
 screen appeared to change would mostly be recording flicker.
 
+## What the two findings above became
+
+**Both were fixed as general causes, not as applications**, and both are measured rather than
+assumed.
+
+A screen change is now a proposal that a second consecutive look has to agree with
+([[ADR-151-a-screen-that-changed-for-one-frame-did-not-change]]). The confidence floor was NOT
+raised: the menu entries sit in the same 0.16–0.19 band as the fluctuation, so a floor that
+removed one would remove the other. What separates them is persistence. A single unreadable
+frame is a dropout carried as uncertainty on the pending change rather than a pair of
+transitions through `state_unknown`, and the navigation observed on it is kept — the press that
+changes a screen lands before the frame that shows it. The gate reports both of its error
+directions, and the report prints the unflattering one: refusals that a deliberate press
+preceded, named as the gate's own error rate.
+
+The Director now watches a controller
+([[ADR-150-silence-is-not-evidence-about-a-device-nobody-watched]]), reusing the read-only
+`padsource` adapter the capture work already had — the Windows backend binds `XInputGetState`
+and not `XInputSetState`, so there is no setter to call. Every observation carries which
+hardware it came from, and the question that matters is answerable: a session may report its
+quiet as the PLAYER's only when every device in the vocabulary was watched, available and
+present. A controller nobody plugged in says so, and a Director with no pad observer prints
+`NOT WATCHED: controller`.
+
+**Still not measured:** a live run with real controller navigation. Latency is the reason it
+matters — at ~2.0s a look, a change needs two looks, so Marco can follow a menu somebody moves
+through every few seconds and cannot follow one they move through quickly. Whether the window
+should be wider, narrower or time-based is a question for `rejected_with_input` on a real run.
+
 ## Decisions
 
 - [[ADR-010-passive-observation-cannot-execute]]
@@ -252,6 +281,12 @@ screen appeared to change would mostly be recording flicker.
   fix that removed one of two gates in series: a provider nobody asked, counted as an
   inference that could not prove its window, and a belief that read an empty screen off
   a look that never happened
+- [[ADR-150-silence-is-not-evidence-about-a-device-nobody-watched]] — the Director
+  watches a controller, every observation says which hardware it came from, and a
+  session cannot report quiet as the player's unless it watched every device
+- [[ADR-151-a-screen-that-changed-for-one-frame-did-not-change]] — a change needs a
+  second look agreeing with it; a dropout is not a journey; and both error directions
+  of that decision are counted, including the refusals that may have been real
 - [[ADR-111-a-demonstration-takes-the-slot-from-watching]] — watching yields the one observation
   slot to a demonstration, and `marco observe --follow` reports what durable memory COMMITTED
 - [[ADR-093-observe-is-attention-not-recording]] — `marco observe` is the ambient lifecycle:

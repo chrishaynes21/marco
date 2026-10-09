@@ -185,10 +185,28 @@ func TestATwoStepWalkLeavesTwoDurableEdges(t *testing.T) {
 			shadow.Crossings)
 	}
 	// Both were recovered ACROSS an unplaceable frame, which is the case that was failing.
-	if got.Relationships.Bridged < 2 {
-		t.Errorf("bridged=%d, want 2; the edges were expected to be recovered across the "+
-			"transition frames, so this fixture is no longer exercising that path",
-			got.Relationships.Bridged)
+	// AND THE TRANSITION FRAMES DID NOT BECOME A JOURNEY.
+	//
+	// This used to assert `Bridged >= 2`: each half-rendered frame produced A → unknown and
+	// unknown → B, and the pairing rule recovered A → B from the two. The confirmation gate
+	// changes where that work happens rather than whether it happens — a single unreadable
+	// frame is now uncertainty carried on the pending change, so A → B is recorded directly
+	// and there is nothing left to bridge.
+	//
+	// Which is strictly better, and the assertion follows the guarantee: the walk is the two
+	// edges and NOT four, with no excursion into the unplaceable state. The pairing rule
+	// keeps its own direct coverage in internal/director/observe/bridge_test.go, where the
+	// crossings are supplied rather than produced — it is still reached by a gap long enough
+	// for the screen to genuinely have been lost.
+	for _, c := range shadow.Crossings {
+		if c.From == observe.ScreenStateUnknown || c.To == observe.ScreenStateUnknown {
+			t.Errorf("the walk crossed into the unplaceable state: %+v\nOne unreadable "+
+				"frame between two readable ones is a dropout, not a screen somebody "+
+				"visited.", shadow.Crossings)
+		}
+	}
+	if n := len(shadow.Crossings); n != 2 {
+		t.Errorf("the walk is %d crossing(s), want exactly 2: %+v", n, shadow.Crossings)
 	}
 
 	// And every place on the route is durable, including the one in the middle.

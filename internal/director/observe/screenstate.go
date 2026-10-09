@@ -1017,11 +1017,108 @@ type pendingComposition struct {
 }
 
 // ScreenSegmenter assigns each valid inference to a session-local screen state.
+// StabilityLooks is how many consecutive inferences a new placement needs before it counts as
+// a CHANGE of screen rather than a fluctuation in what the detector found.
+//
+// # Why a change needs confirming at all
+//
+// Measured live: 55 inferences over four minutes of a real game produced FORTY transitions,
+// with the degenerate single-pane reading re-entered nineteen times. The screen did not change
+// forty times. Most of those pairs are one inference in which a low-confidence detection
+// dropped out and came back — the detector's own instability, arriving at this layer as a
+// semantic event, and then at any learning layer as causal evidence.
+//
+// # Why TWO and not a higher confidence floor
+//
+// Because raising the floor until the false transitions disappear removes the real ones with
+// them: the detections sit at 0.16–0.19 against a 0.15 threshold, and the menu entries are
+// among them. The fluctuation is not low confidence, it is low PERSISTENCE, and persistence is
+// what this measures. Two consecutive looks is the smallest claim that cannot be made by one
+// frame — the same rule the selection reader already applies to a mark that moved.
+//
+// The cost is honest and bounded: a confirmed change is reported one inference later than it
+// happened, and a screen that genuinely changed and changed back inside two looks is not seen.
+// Both are measured rather than assumed — see ScreenSegmenter.Flicker.
+const StabilityLooks = 2
+
+// pendingChange is a divergence that has not yet earned the name of a transition.
+type pendingChange struct {
+	to    ScreenStateID
+	looks int
+	// first is the inference at which the divergence began, so a confirmed change can say
+	// WHEN it happened rather than when it was believed.
+	first int
+	// inputs is the navigation observed from the divergence onwards.
+	//
+	// Accumulated rather than taken from the confirming look: the press that caused a change
+	// arrives before the frame that shows it, so taking the confirming look's inputs would
+	// attribute every change to whatever the player did one look too late.
+	inputs []InputEvent
+	// unknown counts unplaceable looks seen while this change was pending — the explicit
+	// uncertainty between a before and an after, kept rather than collapsed.
+	unknown int
+}
+
+// FlickerStats is what the confirmation gate refused, and how much of it might have been real.
+//
+// # Why two numbers and not one
+//
+// A rejected change with no navigation before it is almost certainly the detector: nothing
+// happened, nobody did anything, and a box went missing for one frame. A rejected change that
+// a deliberate press preceded is a candidate MISS — the screen may really have changed and
+// changed back faster than the gate can see.
+//
+// They are counted apart because they are the two error directions of the same decision, and a
+// gate reporting only the first would be reporting its successes.
+type FlickerStats struct {
+	// Proposed is every divergence the gate considered.
+	Proposed int `json:"proposed,omitempty"`
+	// Confirmed is the divergences that became transitions.
+	Confirmed int `json:"confirmed,omitempty"`
+	// Rejected is the divergences that went away before they were confirmed.
+	Rejected int `json:"rejected,omitempty"`
+	// RejectedWithInput is the subset of Rejected that was a real screen, and that
+	// navigation preceded. These are the candidate MISSED transitions, and the number that
+	// decides whether the window is right.
+	//
+	// A refused proposal to the unplaceable state is excluded, and the distinction is the
+	// whole value of this number: an unreadable frame between two readable ones is a
+	// dropout the gate correctly stepped over, and counting those here would bury the
+	// handful of real misses under one per dropped frame. They are Dropouts instead.
+	RejectedWithInput int `json:"rejected_with_input,omitempty"`
+	// Dropouts is refused proposals to the unplaceable state: frames nobody could read that
+	// resolved without the screen having changed.
+	//
+	// Not an error and not a miss. It is the count of times the gate's whole purpose was
+	// served — a gap crossed without inventing a journey into nowhere and back out of it.
+	Dropouts int `json:"dropouts,omitempty"`
+	// Delayed is confirmed changes that took more than the minimum to confirm, which is a
+	// screen that took its time rather than one the gate nearly refused.
+	Delayed int `json:"delayed,omitempty"`
+	// Window is the stability requirement these numbers were produced under, so a figure
+	// cannot be read without the rule that made it.
+	Window int `json:"window,omitempty"`
+}
+
 type ScreenSegmenter struct {
 	states  []*ScreenState
 	pending []*pendingComposition
 	current ScreenStateID
 	next    int
+
+	// change is the divergence currently being confirmed, nil when the screen is settled.
+	change *pendingChange
+	// lastInputs is the navigation observed on the PREVIOUS inference.
+	//
+	// One look of history, and it is load-bearing. The press that causes a screen to change
+	// lands on the sample before the one that shows the new screen — very often on the
+	// half-rendered frame in between, which is unplaceable. Without this, the gate attributes
+	// the change to whatever the player did one look too late, which on a menu is the NEXT
+	// press. One look and no more: a dwell full of presses that changed nothing must not all
+	// become the cause of the change that eventually happened.
+	lastInputs []InputEvent
+	// Flicker is the confirmation gate's own account.
+	Flicker FlickerStats
 
 	transitions map[[2]ScreenStateID]*transitionRecord
 	// unsettled is how many inferences IN A ROW have been unplaceable, right now.
@@ -1361,18 +1458,111 @@ func (g *ScreenSegmenter) Observe(n int, regions []ShadowRegion,
 	}
 	st.Inferences++
 	st.LastInference = n
-	// A state re-entered after anything else — including an unplaceable transition — begins a
-	// new episode. Conservative on purpose: the screen may well have stayed put behind an
-	// unknown frame, but claiming it did would be inventing continuity Marco cannot see.
-	if g.current != id {
-		st.Episodes++
-	}
 	st.creditTerms(admissibleTerms(sem))
-	g.note(g.current, id, inputs)
-	g.current = id
-	// AFTER the note, which is what reads the run this placement ends.
+	// PROPOSED, not recorded. A placement that differs from the settled screen is a
+	// candidate change until a second look agrees with it; see propose and StabilityLooks.
+	//
+	// Deleting the gate must fail TestOneFlickeringInferenceIsNotAScreenChange.
+	g.propose(n, id, inputs)
+	// AFTER the proposal, which reads the PREVIOUS look's inputs.
+	g.lastInputs = inputs
 	g.unsettled = 0
 	return id
+}
+
+// propose puts a divergence through the confirmation gate.
+//
+// The ONE place g.current moves and the one place a transition is noted. Everything about
+// stability is here, so a future reader looking for "why did the screen not change" has one
+// function to read rather than a condition spread across three call sites.
+func (g *ScreenSegmenter) propose(n int, id ScreenStateID, inputs []InputEvent) {
+	// The first placement of a session is not a change. There is nothing to have changed
+	// from, and recording one would make every session open with a transition out of
+	// nowhere.
+	if g.current == "" {
+		g.current = id
+		g.settle(id)
+		g.discard(false)
+		return
+	}
+	if id == g.current {
+		// Home again. Whatever was pending never established itself.
+		g.discard(true)
+		return
+	}
+	if g.change != nil && g.change.to == id {
+		g.change.looks++
+		g.change.inputs = boundInputs(MergeInputs(g.change.inputs, inputs))
+	} else {
+		// A different candidate replaces the old one, and the old one is refused. Two
+		// unstable readings in a row are not a journey through the first of them.
+		g.discard(true)
+		g.Flicker.Proposed++
+		g.Flicker.Window = StabilityLooks
+		g.change = &pendingChange{
+			to: id, looks: 1, first: n,
+			// The preceding look's navigation as well as this one's. See lastInputs.
+			inputs: boundInputs(MergeInputs(g.lastInputs, inputs)),
+		}
+	}
+	if g.change.looks < StabilityLooks {
+		return
+	}
+	if g.change.looks > StabilityLooks {
+		g.Flicker.Delayed++
+	}
+	g.note(g.current, id, g.change.inputs)
+	g.current = id
+	g.settle(id)
+	g.Flicker.Confirmed++
+	g.change = nil
+}
+
+// settle begins a new episode for a state that has just become the current screen.
+//
+// Moved off the per-inference path deliberately. An episode used to begin whenever a placement
+// differed from the last one, so the nineteen re-entries of a flickering state were nineteen
+// episodes — and presence ratios are computed against them, which made a stable element look
+// bursty because the SCREEN was being re-entered, not because the element went anywhere.
+func (g *ScreenSegmenter) settle(id ScreenStateID) {
+	if st := g.state(id); st != nil {
+		st.Episodes++
+	}
+}
+
+// discard drops the pending change, counting it as refused when asked.
+//
+// `refused` is false only where there was never a claim to refuse — the first placement of a
+// session. Everywhere else a pending change that goes away is a measurement, and the input that
+// preceded it decides which KIND: noise, or a change too fast for the window.
+func (g *ScreenSegmenter) discard(refused bool) {
+	if g.change == nil {
+		return
+	}
+	if refused {
+		g.Flicker.Rejected++
+		switch {
+		case g.change.to == ScreenStateUnknown:
+			g.Flicker.Dropouts++
+		case len(g.change.inputs) > 0:
+			g.Flicker.RejectedWithInput++
+		}
+	}
+	g.change = nil
+}
+
+// Pending is the change being confirmed right now: the candidate, how many looks agree with
+// it, and how many looks during it could not be read at all.
+//
+// Exposed so a report can say the screen is CHANGING rather than implying it is settled, and
+// say how much of the change it could actually see. The uncertainty is the thing being
+// preserved; hiding it would make the gate a smoother that silently lagged, and keeping the
+// unreadable count unexposed would make it state nothing reads.
+func (g *ScreenSegmenter) Pending() (ScreenStateID, int, int) {
+	if g == nil || g.change == nil {
+		return "", 0, 0
+	}
+	return g.change.to, g.change.looks, g.change.unknown
 }
 
 // creditTerms records this inference's semantic evidence against the state it was seen in.
@@ -1563,10 +1753,44 @@ func (g *ScreenSegmenter) state(id ScreenStateID) *ScreenState {
 // transitions those branches record. It assigns no identity: the sample stays unknown, which is
 // the honest description of a frame that could not be read.
 func (g *ScreenSegmenter) unplaced(inputs []InputEvent) ScreenStateID {
-	g.note(g.current, ScreenStateUnknown, inputs)
-	g.current = ScreenStateUnknown
+	// THE SAME GATE. One unreadable frame between two readable ones is not a journey to
+	// nowhere and back: it is uncertainty, and it belongs on the pending change rather than
+	// in the transition table. Losing the screen for a WHILE is a real event and still
+	// recorded — it just has to last as long as any other change to be believed.
+	g.unknownLook(inputs)
+	g.lastInputs = inputs
 	g.unsettled++
 	return ScreenStateUnknown
+}
+
+// unknownLook folds one unplaceable inference into the gate.
+//
+// It does not reset a pending change, and that is the point: a candidate change interrupted by
+// a frame nobody could read is still a candidate, and the frames that could not be read are
+// counted on it as the explicit uncertainty between the before and the after.
+func (g *ScreenSegmenter) unknownLook(inputs []InputEvent) {
+	if g.change != nil && g.change.to != ScreenStateUnknown {
+		g.change.unknown++
+		// AND ITS NAVIGATION. The frame could not be read; what the player did during it
+		// was observed by an entirely different producer and is not in doubt. Dropping it
+		// here is how the press that caused a change gets attributed to the next one.
+		g.change.inputs = boundInputs(MergeInputs(g.change.inputs, inputs))
+		return
+	}
+	g.propose(0, ScreenStateUnknown, inputs)
+}
+
+// boundInputs keeps an accumulating window from growing without limit.
+//
+// The gate holds navigation across several looks, and a held direction key can deliver dozens
+// of events per look. MaxBufferedInputs is the same bound the producer's own retention uses;
+// keeping the LATEST is right because the press nearest the change is the one most likely to
+// have caused it.
+func boundInputs(in []InputEvent) []InputEvent {
+	if len(in) <= MaxBufferedInputs {
+		return in
+	}
+	return in[len(in)-MaxBufferedInputs:]
 }
 
 func (g *ScreenSegmenter) note(from, to ScreenStateID, inputs []InputEvent) {

@@ -43,6 +43,12 @@ func TestAnInputEventCannotCarryText(t *testing.T) {
 			// navsource_test.go's TestRawKeyIdentityCannotCrossTheBoundary.
 			//
 			// Not a general permission for bools: the next one argues for itself here.
+		case reflect.TypeOf(observe.NavDevice("")):
+			// Widened a third time, for InputEvent.Device: three words saying which
+			// hardware was observed, so the system can say what an absence of input
+			// MEANS rather than asserting the player sat still. It holds no key, code or
+			// name, and the closed-vocabulary assertion lives in navsource_test.go's
+			// TestRawKeyIdentityCannotCrossTheBoundary, which also keeps it to three.
 		case reflect.TypeOf(&observe.SemanticTarget{}):
 			// Widened a second time, deliberately, for InputEvent.Target — the
 			// goal-centric milestone's one privacy change. A target carries what the

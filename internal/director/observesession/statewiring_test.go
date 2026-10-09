@@ -33,7 +33,11 @@ func (s *alternatingSampler) Sample(_ context.Context,
 		Region: observe.Region{X: 0.02, Y: 0.86, Width: 0.19, Height: 0.10},
 	}
 	regions := []observe.ShadowRegion{hud}
-	if s.calls%2 == 1 {
+	// TWO LOOKS EACH, because a change of screen now has to survive a second look
+	// before it is a change at all (StabilityLooks). An alternation one sample long is
+	// indistinguishable from the detector instability that gate exists to refuse, and
+	// a real screen does not exist for one inference and vanish.
+	if (s.calls-1)/2%2 == 0 {
 		for i, y := range []float64{0.437, 0.480, 0.520, 0.562} {
 			regions = append(regions, observe.ShadowRegion{
 				Role: "button", Nameable: true, Confidence: 0.4 + float64(i)*0.01,

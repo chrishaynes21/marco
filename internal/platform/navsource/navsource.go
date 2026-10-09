@@ -342,7 +342,7 @@ func (s *Source) handle(e rawEvent) {
 	if intent == observe.NavConfirm {
 		target = s.controls.focused(e.at)
 	}
-	s.sub.add(intent, e.at, conditional, observe.PointerAt{}, target)
+	s.sub.add(intent, e.at, conditional, observe.PointerAt{}, target, observe.DeviceKeyboard)
 }
 
 // handlePointer turns a pointer press into a placed navigation, or refuses it.
@@ -434,7 +434,7 @@ func (s *Source) handlePointer(e rawEvent) {
 	// beside it from evidence that was already on this side of the boundary. Resolution
 	// failing — a stale index, a press between controls, no index at all — costs the
 	// enrichment and never the event. Interpretation failure is not capture failure.
-	s.sub.add(observe.NavPoint, e.at, false, where, target)
+	s.sub.add(observe.NavPoint, e.at, false, where, target, observe.DeviceMouse)
 }
 
 // MaxPointerAttributions bounds the per-press diagnostic record.
@@ -486,6 +486,31 @@ func (s *Source) Stats() Stats {
 	}
 	out.Dropped = int(s.drops.Load())
 	out.Unavailable = s.why
+	// WHAT THIS PRODUCER WAS WATCHING, named. Without it a reader has one `received` count
+	// and no way to know which devices it covers, which is how four minutes of controller
+	// navigation came to be reported as a player who pressed nothing.
+	//
+	// One record per device THIS source observes. It says nothing about a controller, and
+	// that silence is the point: InputStats.Unobserved names a device with no record at
+	// all, so a Director that never wired a pad source reports the gap rather than
+	// inheriting this producer's confidence.
+	//
+	// Received and Classified are not split per device here. The hook counters are shared
+	// and splitting them would mean a second set of increments on the hook path for a
+	// number no decision reads; what every decision reads is Observable(), and these two
+	// devices are observable together or not at all.
+	installed := s.why == ""
+	for _, d := range []observe.NavDevice{observe.DeviceKeyboard, observe.DeviceMouse} {
+		rec := observe.DeviceObservation{
+			Device: d, Watched: true, Unavailable: s.why, Present: installed,
+			Received: out.Received, Classified: out.Classified, Dropped: out.Dropped,
+		}
+		if !installed {
+			rec.Why = "no hook is installed, so nothing from this device can be seen"
+		}
+		out.Devices = append(out.Devices, rec)
+	}
+	// Deleting the loop above must fail TestTheProducerNamesTheDevicesItWatches.
 	// What the producer currently has to resolve against. A snapshot rather than a tally:
 	// the question a reader asks is "was anything on offer", and the newest answer is the
 	// one that matters.
@@ -813,7 +838,7 @@ type Subscription struct {
 const MaxPending = 256
 
 func (u *Subscription) add(intent observe.NavIntent, at time.Time, conditional bool,
-	where observe.PointerAt, target *observe.SemanticTarget) {
+	where observe.PointerAt, target *observe.SemanticTarget, device observe.NavDevice) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	if u.closed || len(u.buf) >= MaxPending {
@@ -827,6 +852,7 @@ func (u *Subscription) add(intent observe.NavIntent, at time.Time, conditional b
 		Conditional: conditional,
 		Where:       where,
 		Target:      target,
+		Device:      device,
 	})
 }
 

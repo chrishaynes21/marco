@@ -840,6 +840,7 @@ func renderShadow(b *strings.Builder, s observe.ShadowTotals) {
 	fmt.Fprintf(b, "  gain         %d shadow-only NAMEABLE observations authoritative "+
 		"perception did not supply\n", c.ShadowOnlyNameable)
 	renderInterface(b, s)
+	renderFlicker(b, s.Flicker, s.Changing, s.ChangingLooks, s.ChangingUnreadable)
 	renderShadowStates(b, s)
 	renderShadowTracks(b, s)
 	renderInputProducer(b, s.Input)
@@ -958,7 +959,13 @@ func renderInputProducer(b *strings.Builder, in observe.InputStats) {
 		return
 	}
 	if in.Received == 0 {
+		// NOT "nobody pressed anything". That sentence was printed for four minutes of a
+		// live game session in which the player navigated a menu with a controller the
+		// Director was not watching, beside 40 transitions it could not attribute. What
+		// the producer knows is that IT saw nothing; what the player did is a different
+		// claim, and it needs every device to have been watched.
 		b.WriteString("  navigation   no physical input reached the producer this session\n")
+		renderWatchedDevices(b, in)
 		return
 	}
 	fmt.Fprintf(b, "  navigation   %d intents from %d events   %d ignored   %d dropped\n",
@@ -991,6 +998,100 @@ func renderInputProducer(b *strings.Builder, in observe.InputStats) {
 	if in.Dropped > 0 {
 		fmt.Fprintf(b, "               %d event(s) were shed by the bounded hook queue; "+
 			"the correlation below is thinner than what the player did\n", in.Dropped)
+	}
+	renderWatchedDevices(b, in)
+}
+
+// renderWatchedDevices says which hardware the counters above cover.
+//
+// Printed on every path through the producer section, including the one that reports
+// plenty of activity: a session with 400 keystrokes and an unwatched pad is still a
+// session that cannot say the player did not use a pad. The claim being qualified is not
+// "there was no input" but "this is what the player did", and both readings are wrong in
+// the same way.
+//
+// Deleting this must fail TestTheReportSaysWhichDevicesItWatched.
+func renderWatchedDevices(b *strings.Builder, in observe.InputStats) {
+	if len(in.Devices) == 0 {
+		// A producer that named no devices at all. Older traces and replays have this
+		// shape, and silence about the question is not an answer to it.
+		b.WriteString("               (this producer did not say which devices it watched)\n")
+		return
+	}
+	watched := make([]string, 0, len(in.Devices))
+	for _, d := range in.Devices {
+		if d.Observable() {
+			watched = append(watched, string(d.Device))
+		}
+	}
+	sort.Strings(watched)
+	if len(watched) > 0 {
+		fmt.Fprintf(b, "               watched: %s\n", strings.Join(watched, ", "))
+	}
+	for _, d := range in.Devices {
+		if d.Observable() {
+			continue
+		}
+		why := d.Why
+		if why == "" {
+			why = d.Unavailable
+		}
+		if why == "" {
+			why = "it was not observed"
+		}
+		fmt.Fprintf(b, "               NOT WATCHED: %s — %s\n", d.Device, why)
+	}
+	if !in.CanAttributeSilence() {
+		fmt.Fprintf(b, "               %s\n", in.SilenceMeans())
+	}
+}
+
+// renderFlicker reports what the screen-change confirmation gate refused.
+//
+// Printed beside the transitions because a transition count cannot be read without it.
+// Forty transitions in fifty-five inferences is either a very busy player or a detector
+// dropping boxes, and the two have nothing in common except the number.
+//
+// Both error directions, deliberately. A gate that reported only the fluctuations it
+// removed would be reporting its successes; the refusals a deliberate press preceded are
+// the ones its window might be wrong about.
+//
+// Deleting this must fail TestTheSessionReportsWhatTheFlickerGateRefused.
+func renderFlicker(b *strings.Builder, f observe.FlickerStats, changing observe.ScreenStateID,
+	looks, unreadable int) {
+
+	if f.Proposed == 0 && changing == "" {
+		return
+	}
+	fmt.Fprintf(b, "  changes      %d confirmed of %d proposed   %d refused as "+
+		"fluctuation\n", f.Confirmed, f.Proposed, f.Rejected)
+	if f.Window > 0 {
+		fmt.Fprintf(b, "               a change is believed after %d consecutive look(s); "+
+			"one look is not a change\n", f.Window)
+	}
+	if f.Dropouts > 0 {
+		fmt.Fprintf(b, "               %d gap(s) crossed without inventing a journey into "+
+			"nowhere and back\n", f.Dropouts)
+	}
+	if f.RejectedWithInput > 0 {
+		// THE MISS DIRECTION, and it is printed whether or not it is flattering.
+		fmt.Fprintf(b, "               %d refusal(s) had navigation before them and may "+
+			"have been REAL changes\n", f.RejectedWithInput)
+		b.WriteString("               too fast for the window to confirm; this is the " +
+			"gate's own error rate\n")
+	}
+	if f.Delayed > 0 {
+		fmt.Fprintf(b, "               %d change(s) took longer than the window to settle\n", f.Delayed)
+	}
+	if changing != "" {
+		fmt.Fprintf(b, "               CHANGING NOW — %s, agreed by %d look(s) so far\n",
+			changing, looks)
+		if unreadable > 0 {
+			// The uncertainty between the before and the after, named. A change Marco
+			// half watched is a different claim from one it watched.
+			fmt.Fprintf(b, "               %d look(s) during this change could not be "+
+				"placed at all\n", unreadable)
+		}
 	}
 }
 

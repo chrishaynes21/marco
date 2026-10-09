@@ -198,8 +198,14 @@ func TestAnUnplaceableTransitionCountsAgainstNobody(t *testing.T) {
 // If each menu episode minted a fresh state, every state would have exactly one episode, no
 // state would ever recur, and state-local presence would be a more elaborate way of saying
 // nothing. Recurrence is what makes the model worth having.
+// NOTE ON THE FIXTURE. The screens are supplied TWICE EACH, because a change of screen now
+// has to survive a second look before it is a change at all — see StabilityLooks. The claim
+// this test makes is unchanged and the fixture is now a screen rather than a frame: a real
+// menu does not exist for one inference and vanish, and the alternation this used to supply
+// was indistinguishable from the detector instability the gate exists to refuse.
 func TestAScreenThatReturnsResumesItsOwnStateIdentity(t *testing.T) {
-	totals := fold(gameplay(), menu(), gameplay(), menu())
+	totals := fold(gameplay(), gameplay(), menu(), menu(), gameplay(), gameplay(),
+		menu(), menu())
 
 	if len(totals.States) != 2 {
 		var ids []observe.ScreenStateID
@@ -210,16 +216,16 @@ func TestAScreenThatReturnsResumesItsOwnStateIdentity(t *testing.T) {
 			"recognised as the one it already discovered", len(totals.States), ids)
 	}
 	for _, s := range totals.States {
-		if s.Inferences != 2 || s.Episodes != 2 {
-			t.Errorf("state %s: %d inferences over %d episodes, want 2 over 2",
+		if s.Inferences != 4 || s.Episodes != 2 {
+			t.Errorf("state %s: %d inferences over %d episodes, want 4 over 2",
 				s.ID, s.Inferences, s.Episodes)
 		}
 	}
 
 	row := topRow(t, totals)
 	st := stateOf(t, row)
-	if st.Seen != 2 || st.Eligible != 2 {
-		t.Errorf("state-local %d/%d, want 2/2 across both episodes", st.Seen, st.Eligible)
+	if st.Seen != 4 || st.Eligible != 4 {
+		t.Errorf("state-local %d/%d, want 4/4 across both episodes", st.Seen, st.Eligible)
 	}
 }
 
@@ -256,7 +262,12 @@ func TestStructurallyDifferentPanelsStayDifferentStates(t *testing.T) {
 // segment identically no matter what tracking has concluded — including when the tracker is
 // carrying a long, unrelated history.
 func TestStateIdentityDoesNotDependOnTracking(t *testing.T) {
-	plain := fold(gameplay(), menu(), gameplay(), menu())
+	// Twice each, for the reason given on Part 19: a change of screen has to survive a
+	// second look.
+	screens := []observe.ShadowSample{
+		gameplay(), gameplay(), menu(), menu(), gameplay(), gameplay(), menu(), menu(),
+	}
+	plain := fold(screens...)
 
 	// The same four screens, reached after a pile of unrelated tracks has accumulated.
 	var noise []observe.ShadowSample
@@ -264,7 +275,7 @@ func TestStateIdentityDoesNotDependOnTracking(t *testing.T) {
 		x := 0.05 + float64(i)*0.12
 		noise = append(noise, valid(det("button", x, 0.05, 0.03, 0.02)))
 	}
-	loaded := fold(append(noise, gameplay(), menu(), gameplay(), menu())...)
+	loaded := fold(append(noise, screens...)...)
 
 	menuState := func(totals observe.ShadowTotals) observe.ScreenState {
 		t.Helper()
@@ -285,8 +296,8 @@ func TestStateIdentityDoesNotDependOnTracking(t *testing.T) {
 			"unrelated tracks — state identity is reading tracking",
 			a.Inferences, a.Episodes, b.Inferences, b.Episodes)
 	}
-	if a.Inferences != 2 || a.Episodes != 2 {
-		t.Errorf("menu state %d inferences over %d episodes, want 2 over 2",
+	if a.Inferences != 4 || a.Episodes != 2 {
+		t.Errorf("menu state %d inferences over %d episodes, want 4 over 2",
 			a.Inferences, a.Episodes)
 	}
 }
@@ -331,8 +342,14 @@ func TestAGameplayElementIsPersistentInTheGameplayState(t *testing.T) {
 }
 
 // Part 5/26. Transitions are counted, and never interpreted.
+// NOTE ON THE FIXTURE. The screens are supplied TWICE EACH, because a change of screen now
+// has to survive a second look before it is a change at all — see StabilityLooks. The claim
+// this test makes is unchanged and the fixture is now a screen rather than a frame: a real
+// menu does not exist for one inference and vanish, and the alternation this used to supply
+// was indistinguishable from the detector instability the gate exists to refuse.
 func TestScreenTransitionsAreCountedWithoutBeingNamed(t *testing.T) {
-	totals := fold(gameplay(), menu(), gameplay(), menu(), gameplay())
+	totals := fold(gameplay(), gameplay(), menu(), menu(), gameplay(), gameplay(),
+		menu(), menu(), gameplay(), gameplay())
 
 	var total int
 	for _, tr := range totals.Transitions {

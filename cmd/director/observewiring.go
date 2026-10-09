@@ -15,6 +15,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/providers/visualstate"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/windowref"
 	"github.com/chaynes-simpleclouds/marco/internal/platform/navsource"
+	"github.com/chaynes-simpleclouds/marco/internal/platform/padsource"
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 )
 
@@ -84,6 +85,10 @@ type liveSampler struct {
 	labels bool
 	// nav is this session's navigation subscription, nil when no source is available.
 	nav *navsource.Subscription
+	// pad is this session's controller subscription, nil when none was available. Separate
+	// from nav because the two producers are separate; merged at the point the sample is
+	// built, in time order, so a correlation sees one stream of what the player did.
+	pad *padsource.Subscription
 	// nameActivatedTargets is the licence under which an activatable control's name may
 	// travel on a semantic target — the ONE control the person's own input landed on.
 	//
@@ -321,12 +326,28 @@ func (s *liveSampler) Sample(ctx context.Context, req observesession.SampleReque
 	// the shape of failure this repository has already made twice.
 	if s.rt.navSource != nil {
 		st := s.rt.navSource.Stats()
+		// BOTH producers, merged in time order. Keyboard and mouse arrive on the hook
+		// subscription and the controller on the poller's; a correlation asks "what did
+		// the player do before this changed", and that question has one answer across
+		// every device they touched.
+		//
+		// Deleting the pad drain must fail TestTheSampleCarriesWhatThePlayerDidOnEitherDevice.
+		var in []observe.InputEvent
 		if s.nav != nil {
-			if in := s.nav.Drain(); len(in) > 0 {
-				sample.Shadow = s.ensureShadow(sample.Shadow)
-				sample.Shadow.Inputs = in
-			}
+			in = s.nav.Drain()
 		}
+		if s.pad != nil {
+			in = observe.MergeInputs(in, s.pad.Drain())
+		}
+		if len(in) > 0 {
+			sample.Shadow = s.ensureShadow(sample.Shadow)
+			sample.Shadow.Inputs = in
+		}
+		// WHICH DEVICES THAT ACCOUNT COVERS. Without this the keyboard hook's silence is
+		// reported as the player's, which is the defect this whole piece exists to remove.
+		//
+		// Deleting this must fail TestTheReportNamesEveryDeviceItDidNotWatch.
+		st = s.padStats(st)
 		sample.Shadow = s.ensureShadow(sample.Shadow)
 		// The lease's own account rides with the offer it shaped. Set after Stats()
 		// because the sampler owns the lease and the producer owns the tallies.
@@ -477,6 +498,14 @@ func (r *Runtime) newObservationSampler(clock observesession.Clock) observesessi
 	if r.navSource != nil {
 		s.nav = r.navSource.Open(clock.Now())
 	}
+	// The same clock, deliberately. Two subscriptions on two bases would attribute a press
+	// to whichever transition was nearest in a drifting frame of reference, and the drift
+	// between a hook and a 125Hz poll is exactly the scale a menu press lives at.
+	//
+	// Deleting this must fail TestASessionSubscribesToTheController.
+	if r.padSource != nil {
+		s.pad = r.padSource.Open(clock.Now())
+	}
 	return s
 }
 
@@ -486,6 +515,10 @@ func (s *liveSampler) detachNavigation() {
 		s.rt.navSource.CloseSession(s.nav)
 	}
 	s.nav = nil
+	if s.rt != nil && s.rt.padSource != nil && s.pad != nil {
+		s.rt.padSource.CloseSession(s.pad)
+	}
+	s.pad = nil
 }
 
 // realClock is time, for production.

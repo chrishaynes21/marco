@@ -40,7 +40,11 @@ func (s *accessibleSampler) Sample(_ context.Context,
 		Identity: "hud", Role: "icon", Confidence: 0.9,
 		Region: observe.Region{X: 0.02, Y: 0.86, Width: 0.19, Height: 0.10},
 	}}
-	if s.calls%2 == 1 {
+	// TWO LOOKS EACH, because a change of screen now has to survive a second look
+	// before it is a change at all (StabilityLooks). An alternation one sample long is
+	// indistinguishable from the detector instability that gate exists to refuse, and
+	// a real screen does not exist for one inference and vanish.
+	if (s.calls-1)/2%2 == 0 {
 		for i, y := range []float64{0.437, 0.480, 0.520, 0.562} {
 			entities = append(entities, observe.EntitySnapshot{
 				Identity: observe.Digest(string(rune('a' + i))), Role: "button",
@@ -123,7 +127,11 @@ func (s *skippingDetectorSampler) Sample(_ context.Context,
 		Identity: "hud", Role: "icon",
 		Region: observe.Region{X: 0.02, Y: 0.86, Width: 0.19, Height: 0.10},
 	}}
-	if s.calls%2 == 1 {
+	// TWO LOOKS EACH, because a change of screen now has to survive a second look
+	// before it is a change at all (StabilityLooks). An alternation one sample long is
+	// indistinguishable from the detector instability that gate exists to refuse, and
+	// a real screen does not exist for one inference and vanish.
+	if (s.calls-1)/2%2 == 0 {
 		for i, y := range []float64{0.437, 0.480, 0.520, 0.562} {
 			entities = append(entities, observe.EntitySnapshot{
 				Identity: observe.Digest(string(rune('a' + i))), Role: "button",

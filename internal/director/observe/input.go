@@ -1,5 +1,10 @@
 package observe
 
+import (
+	"sort"
+	"strings"
+)
+
 // Watching what the player did, without watching what the player typed.
 //
 // # Why this exists
@@ -69,6 +74,50 @@ func (n NavIntent) Known() bool {
 
 // NavIntents returns the vocabulary.
 func NavIntents() []NavIntent { return append([]NavIntent{}, navIntents...) }
+
+// NavDevice is the kind of hardware an observation came from, from a closed vocabulary.
+//
+// # Why provenance has to travel
+//
+// Because silence is the answer this record gives most often, and silence means nothing
+// without knowing what was listening. A live four-minute game session reported `received: 0,
+// unavailable: ""` — "navigation observation is working and nobody pressed anything" — while
+// the only producer wired was a keyboard and mouse hook and the player's hands were on a
+// controller. The sentence was not a lie about the keyboard; it was a claim about the PLAYER
+// that nothing in the system was entitled to make.
+//
+// So a device is on the event, and the devices that were being watched are on the stats, and
+// the question "can this session's quiet be read as nobody pressing anything" is answerable
+// rather than assumed. See DeviceObservation.
+//
+// # Why it is three words and not a device name
+//
+// The same reason NavIntent is a meaning rather than a key. "A controller" is what a
+// correlation needs; which pad, which vendor, which slot are binding details, and a field that
+// could hold a product string is a field that will eventually hold something else. Checked on
+// admission like every other vocabulary here.
+type NavDevice string
+
+const (
+	DeviceKeyboard   NavDevice = "keyboard"
+	DeviceMouse      NavDevice = "mouse"
+	DeviceController NavDevice = "controller"
+)
+
+var navDevices = []NavDevice{DeviceKeyboard, DeviceMouse, DeviceController}
+
+// Known reports whether a device is in the closed vocabulary.
+func (d NavDevice) Known() bool {
+	for _, k := range navDevices {
+		if k == d {
+			return true
+		}
+	}
+	return false
+}
+
+// NavDevices returns the vocabulary.
+func NavDevices() []NavDevice { return append([]NavDevice{}, navDevices...) }
 
 // PointerAt is a normalised, window-relative pointer position.
 type PointerAt struct {
@@ -141,6 +190,12 @@ type InputEvent struct {
 	// may cross here and under which licences; admitting it widened the type allowlist in
 	// TestRawKeyIdentityCannotCrossTheBoundary, deliberately and reviewed as such.
 	Target *SemanticTarget `json:"target,omitempty"`
+	// Device is the hardware this observation came from, empty when the producer did not
+	// say. See NavDevice: a closed vocabulary of three words, checked on admission.
+	//
+	// Empty is not a defect and not a fourth device — it is a producer that did not state
+	// one, and it is treated as unattributed rather than guessed.
+	Device NavDevice `json:"device,omitempty"`
 }
 
 // admissibleInputs filters a batch down to the closed vocabulary.
@@ -175,6 +230,13 @@ func admissibleInputs(in []InputEvent) []InputEvent {
 				e.Target = &t
 			}
 		}
+		// The device word, admitted the same way: NavDevice's underlying type is a string,
+		// so a platform layer could construct one holding anything. An unrecognised word is
+		// CLEARED and the event kept — provenance is an attribution and losing it is not
+		// losing the observation, exactly as with Target above.
+		if !e.Device.Known() {
+			e.Device = ""
+		}
 		out = append(out, e)
 		if len(out) >= MaxBufferedInputs {
 			break
@@ -182,6 +244,37 @@ func admissibleInputs(in []InputEvent) []InputEvent {
 	}
 	return out
 }
+
+// MergeInputs combines two producers' observations into one time-ordered stream.
+//
+// # Why the merge is here and not in either producer
+//
+// Because neither producer can do it: a keyboard hook knows nothing about a controller poller
+// and the reverse, and a correlation asks one question — what did the player do before this
+// changed — whose answer spans every device they touched. Putting the merge in the consumer's
+// own package is also what keeps the ORDER a property of this type rather than of whichever
+// producer happened to be drained second.
+//
+// Stable on equal timestamps, so two devices reporting the same millisecond keep the order
+// they were drained in rather than being shuffled by the sort.
+func MergeInputs(a, b []InputEvent) []InputEvent {
+	switch {
+	case len(a) == 0:
+		return b
+	case len(b) == 0:
+		return a
+	}
+	out := make([]InputEvent, 0, len(a)+len(b))
+	out = append(out, a...)
+	out = append(out, b...)
+	sort.SliceStable(out, func(i, j int) bool { return out[i].AtMS < out[j].AtMS })
+	return out
+}
+
+// AdmissibleInputsForTest exposes the admission filter, which is where the closed vocabularies
+// on an input event are actually enforced. Exported for the tests that assert the enforcement
+// rather than the declaration: a typed field whose words are never checked is a convention.
+func AdmissibleInputsForTest(in []InputEvent) []InputEvent { return admissibleInputs(in) }
 
 // MaxTargetLabelLength bounds a semantic target's label — generous for a control's name and
 // far too small for captured content, like MaxScreenNameLength.
@@ -337,6 +430,13 @@ type InputStats struct {
 	// being offered looks exactly like one that was never perceived, and the whole point of
 	// the lease is that those are different — see visualLease.
 	VisualLease string `json:"visual_lease,omitempty"`
+	// Devices is what each producer was doing, one record per device source wired.
+	//
+	// THE FIELD THAT MAKES SILENCE READABLE. Every other counter here is about events that
+	// happened; this one is about the devices that could have produced them, and it is the
+	// only thing standing between "nobody pressed anything" and "nothing was watching the
+	// thing they pressed". See DeviceObservation.
+	Devices []DeviceObservation `json:"devices,omitempty"`
 	// Escalation is why the last evidence-purchase decision went the way it did: the
 	// structural and semantic verdicts, and whether a pass and a reading were bought.
 	//
@@ -345,6 +445,90 @@ type InputStats struct {
 	// was already spent, or the reading was judged unnecessary — and they are
 	// indistinguishable from the World alone.
 	Escalation string `json:"escalation,omitempty"`
+}
+
+// DeviceObservation is what one device source did, and whether its silence is evidence.
+//
+// Four states a producer can be in, and only the last makes quiet meaningful:
+//
+//   - not wired at all — no record appears, and Unobserved names the device;
+//   - wired and Unavailable — the platform cannot read it in this process;
+//   - wired, available, and the hardware is not there — a controller nobody plugged in;
+//   - wired, available, present — and NOW zero events means zero presses.
+//
+// The third is the one that cost a live run: a controller source reporting zero on a machine
+// with no pad attached is indistinguishable from a player sitting still, and reporting it as
+// the latter puts a fabricated fact ("they pressed nothing") next to a real screen change.
+type DeviceObservation struct {
+	Device NavDevice `json:"device"`
+	// Watched says a producer for this device was running during the session.
+	Watched bool `json:"watched"`
+	// Unavailable explains why this device cannot be observed here, empty when it can.
+	Unavailable string `json:"unavailable,omitempty"`
+	// Present says the hardware was there to be read. For a hook-based device this is
+	// whether the hook is installed; for a polled controller it is whether one answered.
+	Present bool `json:"present"`
+	// Why qualifies Present when it is false, in Marco's own words. Never a device name.
+	Why string `json:"why,omitempty"`
+
+	Received   int `json:"received"`
+	Classified int `json:"classified"`
+	Dropped    int `json:"dropped,omitempty"`
+}
+
+// Observable reports whether this device's silence is EVIDENCE that nothing was pressed.
+func (d DeviceObservation) Observable() bool {
+	return d.Watched && d.Unavailable == "" && d.Present
+}
+
+// Unobserved names every device in the vocabulary whose silence proves nothing.
+//
+// A device with no record at all counts: not being wired is the strongest form of not being
+// observed, and it is the form that is easiest to forget, because nothing reports it.
+func (s InputStats) Unobserved() []NavDevice {
+	seen := make(map[NavDevice]bool, len(s.Devices))
+	var out []NavDevice
+	for _, d := range s.Devices {
+		seen[d.Device] = true
+		if !d.Observable() {
+			out = append(out, d.Device)
+		}
+	}
+	for _, d := range navDevices {
+		if !seen[d] {
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
+// CanAttributeSilence reports whether no observed input may be read as no input.
+//
+// True only when every device in the vocabulary was watched, available and present. The
+// vocabulary rather than the wired set, deliberately: a session that never wired a controller
+// has not established anything about controllers, and asking only the producers that exist is
+// how a system comes to answer a question nobody could answer.
+func (s InputStats) CanAttributeSilence() bool { return len(s.Unobserved()) == 0 }
+
+// SilenceMeans says, in one sentence, what an absence of observed input supports.
+func (s InputStats) SilenceMeans() string {
+	un := s.Unobserved()
+	if len(un) == 0 {
+		return "every device was watched, so no observed input means no input"
+	}
+	words := make([]string, 0, len(un))
+	for _, d := range un {
+		words = append(words, string(d))
+	}
+	return "no observed input says nothing about the player: " +
+		strings.Join(words, ", ") + " " + wasWere(len(un)) + " not observed"
+}
+
+func wasWere(n int) string {
+	if n == 1 {
+		return "was"
+	}
+	return "were"
 }
 
 // PointerAttribution is one press and what it was decided to have landed on.
@@ -394,6 +578,16 @@ func (s InputStats) IgnoredTotal() int {
 // underlying type is a string, so a platform layer could construct one holding anything.
 func admissibleStats(in InputStats) InputStats {
 	out := in
+	out.Devices = nil
+	for _, d := range in.Devices {
+		// A producer that named a device outside the vocabulary has said nothing
+		// admissible about any device, so the record is dropped rather than carried with
+		// an unrecognised word in a reported field.
+		if !d.Device.Known() {
+			continue
+		}
+		out.Devices = append(out.Devices, d)
+	}
 	out.Ignored = nil
 	for r, n := range in.Ignored {
 		if !r.Known() {

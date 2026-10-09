@@ -101,6 +101,16 @@ type Source struct {
 	held      map[observe.NavIntent]bool
 	connected bool
 	dropped   int
+	// sub is the open observation session's buffer, nil when nothing is watching. See
+	// session.go; it exists because the Director drains on its own tick rather than
+	// reading a channel.
+	sub *Subscription
+	// received and classified are this producer's own counters, in the same terms
+	// navsource reports. A POLLED source has no "received" in the hook sense, so received
+	// counts polls that found a connected pad — the number whose zero means "nothing was
+	// there to read" rather than "nobody pressed anything".
+	received   int
+	classified int
 
 	stop chan struct{}
 	done chan struct{}
@@ -147,22 +157,34 @@ func (s *Source) Start(ctx context.Context) {
 	s.mu.Lock()
 	s.started = time.Now()
 	s.mu.Unlock()
+	s.mu.Lock()
 	s.stop = make(chan struct{})
 	s.done = make(chan struct{})
-	go s.run(ctx)
+	stop, done := s.stop, s.done
+	s.mu.Unlock()
+	go s.run(ctx, stop, done)
 }
 
 // Stop ends polling and closes the event stream.
+//
+// Idempotent, and that is not politeness. A Director's Close is reachable from a shutdown
+// request, from a signal handler and from a test's cleanup, and a second call used to panic on
+// a closed channel — a crash during shutdown, which is the moment least likely to be noticed
+// and most likely to be blamed on something else.
 func (s *Source) Stop() {
-	if s.stop == nil {
+	s.mu.Lock()
+	stop, done := s.stop, s.done
+	s.stop, s.done = nil, nil
+	s.mu.Unlock()
+	if stop == nil {
 		return
 	}
-	close(s.stop)
-	<-s.done
+	close(stop)
+	<-done
 }
 
-func (s *Source) run(ctx context.Context) {
-	defer close(s.done)
+func (s *Source) run(ctx context.Context, stop, done chan struct{}) {
+	defer close(done)
 	defer close(s.events)
 	t := time.NewTicker(PollInterval)
 	defer t.Stop()
@@ -170,7 +192,7 @@ func (s *Source) run(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-s.stop:
+		case <-stop:
 			return
 		case <-t.C:
 			s.sample(s.backend.poll())
@@ -180,9 +202,16 @@ func (s *Source) run(ctx context.Context) {
 
 // sample turns one poll into whatever edges it represents.
 func (s *Source) sample(p padSnapshot) {
+	wall := time.Now()
 	s.mu.Lock()
 	s.connected = p.connected
-	at := time.Since(s.started).Milliseconds()
+	if p.connected {
+		// A poll that reached a pad. Counted because its ZERO is the fact that matters:
+		// a source polling an empty slot reports no presses forever and looks exactly
+		// like a player sitting still.
+		s.received++
+	}
+	at := wall.Sub(s.started).Milliseconds()
 	now := intentsHeld(p)
 	var pressed []observe.NavIntent
 	for _, i := range observe.NavIntents() {
@@ -191,11 +220,21 @@ func (s *Source) sample(p padSnapshot) {
 		}
 	}
 	s.held = now
+	s.classified += len(pressed)
+	sub := s.sub
 	s.mu.Unlock()
 
 	for _, i := range pressed {
+		// THE OBSERVATION SESSION, first. A full channel drops; a session's buffer is
+		// what the Director correlates against, and losing a press there would put a
+		// screen change next to no cause at all.
+		//
+		// Deleting this must fail TestAnOpenSessionReceivesWhatThePlayerPressed.
+		if sub != nil {
+			sub.add(i, wall)
+		}
 		select {
-		case s.events <- observe.InputEvent{Intent: i, AtMS: at}:
+		case s.events <- observe.InputEvent{Intent: i, AtMS: at, Device: observe.DeviceController}:
 		default:
 			s.mu.Lock()
 			s.dropped++

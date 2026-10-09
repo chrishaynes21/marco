@@ -74,7 +74,19 @@ func TestRawKeyIdentityCannotCrossTheBoundary(t *testing.T) {
 	for i := 0; i < rt.NumField(); i++ {
 		f := rt.Field(i)
 		lower := strings.ToLower(f.Name)
+		// ONE exemption from the name rule, for this exact field AND this exact type.
+		//
+		// `device` is on the forbidden list because a field by that name is the natural
+		// place for a device name, a handle or a vendor string. InputEvent.Device is a
+		// NavDevice: one of three words, checked on admission, and the closed-vocabulary
+		// assertion below is what keeps it that way. The exemption is pinned to the pair,
+		// so `Device string`, `DeviceID`, or a second field containing "device" all still
+		// fail here.
+		exempt := f.Name == "Device" && f.Type == reflect.TypeOf(observe.NavDevice(""))
 		for _, bad := range forbidden {
+			if exempt && bad == "device" {
+				continue
+			}
 			if strings.Contains(lower, bad) {
 				t.Errorf("observe.InputEvent.%s looks like a physical-input identity. "+
 					"Passive discovery may remember what the user MEANT, never which "+
@@ -112,16 +124,57 @@ func TestRawKeyIdentityCannotCrossTheBoundary(t *testing.T) {
 		//     via the walk below.
 		//   - It is optional and an enrichment. Nothing anywhere requires it for capture,
 		//     and TestOneClickSurvivesFailedSemanticResolution holds that direction.
+		//
+		// Widened a THIRD time on 2026-10-09, to admit observe.NavDevice for
+		// InputEvent.Device, and it is the widening with the sharpest argument for it:
+		//
+		//   - Without it the record cannot say which hardware an observation came from,
+		//     and the system therefore cannot say what its SILENCE means. Measured live:
+		//     four minutes of a game session reported `received: 0, unavailable: ""` —
+		//     "observation is working and nobody pressed anything" — while the only
+		//     producer wired was a keyboard and mouse hook. The claim was about the
+		//     PLAYER and nothing in the system was entitled to make it.
+		//   - It is three words — keyboard, mouse, controller — and carries no key, code,
+		//     button, rune or name. `up` from an arrow key and `up` from a d-pad differ
+		//     here only in which plastic was observed, which is the whole point and is
+		//     strictly less than the intent already says.
+		//   - The vocabulary is asserted closed and asserted SMALL immediately below, so
+		//     this cannot grow into a device-name field one constant at a time.
 		switch f.Type {
 		case reflect.TypeOf(observe.NavIntent("")),
 			reflect.TypeOf(int64(0)),
 			reflect.TypeOf(observe.PointerAt{}),
 			reflect.TypeOf(false),
-			reflect.TypeOf(&observe.SemanticTarget{}):
+			reflect.TypeOf(&observe.SemanticTarget{}),
+			reflect.TypeOf(observe.NavDevice("")):
 		default:
 			t.Errorf("observe.InputEvent.%s is a %s, which is outside the closed set of "+
 				"shapes allowed to cross the semantic boundary", f.Name, f.Type)
 		}
+	}
+
+	// AND THE VOCABULARY STAYS SMALL. This is the real protection on Device: the type is a
+	// string underneath, so what stops it holding a vendor name is that there are three
+	// words and a membership check. A fourth would be a design decision; a fourth that
+	// named a product would be the thing the field was exempted from being.
+	devices := observe.NavDevices()
+	if len(devices) != 3 {
+		t.Errorf("NavDevice has %d words: %v.\nIt is exempted from the name rule above on "+
+			"the grounds that it is three kinds of plastic. Growing it is how that "+
+			"exemption stops being true.", len(devices), devices)
+	}
+	for _, d := range devices {
+		switch d {
+		case observe.DeviceKeyboard, observe.DeviceMouse, observe.DeviceController:
+		default:
+			t.Errorf("NavDevice %q is not one of the three hardware kinds", d)
+		}
+		if len(string(d)) > 16 {
+			t.Errorf("NavDevice %q is long enough to be a name rather than a kind", d)
+		}
+	}
+	if observe.NavDevice("xbox 360 controller (slot 1)").Known() {
+		t.Error("a device NAME passes the vocabulary check; admission is not closed")
 	}
 }
 

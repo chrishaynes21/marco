@@ -44,6 +44,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/oshost"
 	"github.com/chaynes-simpleclouds/marco/internal/platform/marcorunner"
 	"github.com/chaynes-simpleclouds/marco/internal/platform/navsource"
+	"github.com/chaynes-simpleclouds/marco/internal/platform/padsource"
 	"github.com/chaynes-simpleclouds/marco/internal/platform/uiaclient"
 	"github.com/chaynes-simpleclouds/marco/internal/platform/winprovider"
 	"github.com/chaynes-simpleclouds/marco/internal/runtime"
@@ -242,7 +243,12 @@ type Runtime struct {
 	// navSource observes the player's NAVIGATION — closed-vocabulary intents, never keys.
 	// Held here so an observation session can subscribe for its lifetime and detach when
 	// it ends; retention is session-bounded, never Director-lifetime.
-	navSource      *navsource.Source
+	navSource *navsource.Source
+	// padSource observes a controller, nil when none could be built. padUnavailable says
+	// why, and it travels into a session's device records: a missing producer must read as
+	// a device nobody watched, never as a player who pressed nothing.
+	padSource      *padsource.Source
+	padUnavailable string
 	navUnavailable string
 	// lastWatched is the newest world an observation SESSION fused, held for the
 	// perception surfaces.
@@ -531,6 +537,31 @@ func NewRuntime(bridgePath string, maxNodes int, dryRun bool, g *actiongraph.Fil
 	// the collector would put it one wiring mistake away from fusion. It is held on the
 	// runtime and read only by an observation session that subscribed.
 	rt.navSource, rt.navUnavailable = navsource.New()
+	// THE CONTROLLER, beside it and for the same reason. A hook cannot see a gamepad —
+	// XInput is a poll — so a Director with only navsource wired is a Director that reports
+	// a player on a pad as a player sitting still. See padwiring.go.
+	//
+	// NOTHING CATCHES THE DELETION OF THIS LINE, and that is recorded rather than papered
+	// over: no test can enter NewRuntime holding a controller, because getting here needs an
+	// accessibility bridge, a window tracker and a plugin host. Same position as the shadow
+	// gate's attachment in ADR-148.
+	//
+	// What catches it instead is that the omission is LOUD. With no pad source every
+	// session's device records name the controller as unwatched, the report prints
+	// "NOT WATCHED: controller", and InputStats.CanAttributeSilence goes false — so a
+	// Director that forgot to wire this cannot quietly report a player on a pad as a player
+	// who pressed nothing. TestAControllerNobodyWiredIsLoudRatherThanSilent pins that
+	// mechanism, and TestTheSampleSaysWhichDevicesWereWatched pins it through the real
+	// sampler.
+	rt.padSource, rt.padUnavailable = newPadSource()
+	// Polled for the Director's whole life rather than per session.
+	//
+	// Not laziness: Start closes the event channel when the poller exits, so a source is
+	// single-use and a per-session Start/Stop would write to a closed channel on the second
+	// session. The cost of leaving it running is one XInputGetState every 8ms, which on an
+	// empty slot is a few microseconds — four orders of magnitude from the detector this
+	// same file gates behind an environment variable.
+	rt.startPadSource(context.Background())
 	collector := providers.NewCollector(sources...)
 	engine := fusion.NewEngine()
 	history := observation.NewHistory(observation.DefaultHistory)
@@ -1109,6 +1140,11 @@ func (r *Runtime) Close() {
 		// be the kind of leak nobody notices until the keyboard misbehaves.
 		_ = r.navSource.Close()
 	}
+	// AND THE CONTROLLER POLLER. A ticker goroutine reading XInput for a Director that has
+	// gone is the same class of leak with a quieter symptom.
+	//
+	// Deleting this must fail TestShuttingDownStopsWatchingTheController.
+	r.stopPadSource()
 	// AND AMBIENT WATCHING STOPS WITH THE DIRECTOR.
 	//
 	// A supervisor goroutine that outlived its Runtime would go on sampling a desktop for a

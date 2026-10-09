@@ -82,11 +82,15 @@ func TestAMeaningfulChangeProducesATransition(t *testing.T) {
 	sparse := []observe.ShadowRegion{
 		{Role: "icon", Region: observe.Region{X: 0.02, Y: 0.86, Width: 0.19, Height: 0.10}},
 	}
-	// Twice: the first sighting of a composition a known screen already explains is held
-	// rather than judged, and recurrence promotes it. That is the segmenter's own rule and
-	// this test must not pretend otherwise.
+	// Three times, and the two reasons are different rules stacked. First: the first
+	// sighting of a composition a known screen already explains is HELD rather than judged,
+	// and recurrence promotes it. Second: once promoted, the change out of the menu is a
+	// proposal that needs a second look agreeing with it before it is a transition — see
+	// StabilityLooks. So the screen is identified on look 3 and the change confirmed on
+	// look 4, and a fixture that supplied fewer would be asserting the old rule.
 	g.Observe(2, sparse, nil, observe.SemanticEvidence{})
-	other := g.Observe(3, sparse, nil, observe.SemanticEvidence{})
+	g.Observe(3, sparse, nil, observe.SemanticEvidence{})
+	other := g.Observe(4, sparse, nil, observe.SemanticEvidence{})
 
 	if other == menuState {
 		t.Fatalf("a four-row menu and a bare HUD were read as the same screen (%s)", menuState)

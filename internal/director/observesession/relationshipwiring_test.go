@@ -111,8 +111,12 @@ func (s *topologySampler) Sample(_ context.Context,
 	// The third screen replaces B on alternate cycles, so A branches to two destinations.
 	toC := s.thirdScreen && s.cycles%2 == 0
 
+	// Phases 6 AND 7 return to screen A. It used to be phase 6 alone, which under the
+	// confirmation gate is a single look and therefore a fluctuation rather than a
+	// return — so the A -> B -> A cycle this test is about never closed. Two looks is
+	// what a screen somebody navigated back to actually looks like.
 	switch s.phase() {
-	case 2, 3, 6:
+	case 2, 3, 6, 7:
 		regions = append(regions, screenRegions(0.414, 0.06)...)
 		sh.Semantic = observe.SemanticEvidence{
 			Terms:    []observe.InterfaceTerm{observe.TermSettings, observe.TermControls},

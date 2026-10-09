@@ -198,9 +198,29 @@ type ShadowTotals struct {
 	// is the one skip a reader would otherwise read as the experiment working: it looks
 	// like an inference, it is counted like a cadence skip, and it is neither.
 	Unrequested int `json:"unrequested,omitempty"`
+	// Changing is the screen change being confirmed right now, empty when settled, and
+	// ChangingLooks how many looks agree with it so far.
+	//
+	// The uncertainty, kept visible. A gate that hid this would be a smoother that silently
+	// lagged, and a reader asking "what am I looking at" deserves "something else, once"
+	// rather than the old answer repeated with confidence.
+	Changing      ScreenStateID `json:"changing,omitempty"`
+	ChangingLooks int           `json:"changing_looks,omitempty"`
+	// ChangingUnreadable is how many looks during the pending change could not be placed
+	// at all — the explicit uncertainty between the before and the after, reported rather
+	// than smoothed away.
+	ChangingUnreadable int `json:"changing_unreadable,omitempty"`
 	// Gate describes the policy the experiment ran behind, so a report can never leave a
 	// reader guessing which configuration produced its numbers.
 	Gate string `json:"gate,omitempty"`
+	// Flicker is the screen-change confirmation gate's own account: how many divergences
+	// were proposed, how many became transitions, how many went away first, and how many of
+	// those a deliberate press preceded.
+	//
+	// Reported beside the transitions rather than instead of them, because a transition
+	// count on its own cannot be read. Forty transitions is either a busy player or an
+	// unstable detector, and only this says which.
+	Flicker FlickerStats `json:"flicker,omitzero"`
 	// ProvenanceFailures counts inferences that ran but could not be shown to describe the
 	// authoritative cycle's window. Held apart from failures: the experiment worked, it just
 	// observed a world that had already moved on.
@@ -500,6 +520,10 @@ func (t *ShadowTotals) publishScreenModel() {
 	t.States = t.tracker.States()
 	t.Transitions = t.tracker.Transitions()
 	t.Crossings = t.tracker.Crossings()
+	// The gate's account travels with the transitions it produced. Deleting this must fail
+	// TestTheSessionReportsWhatTheFlickerGateRefused.
+	t.Flicker = t.tracker.states.Flicker
+	t.Changing, t.ChangingLooks, t.ChangingUnreadable = t.tracker.states.Pending()
 	t.EvictedCrossings = t.tracker.states.EvictedCrossings
 	t.Groups = Groups(t.Tracks, t.States)
 	t.Evicted = t.tracker.Evicted
