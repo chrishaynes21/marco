@@ -186,10 +186,30 @@ advertisement or the animating HUD — real visible changes in genuinely regular
 [[ADR-145-a-chosen-thing-is-one-that-differs]] records why that must not be solved with a rule
 about where menus live.
 
+## Which list is being used
+
+[[ADR-146-the-active-interface-is-the-one-handing-a-mark-around]]. A hundred frames of
+Trackmania, through the production detector, grouping, the tracker and the reader:
+
+```
+named        a list at y 447..868, holding 7 of the 9 annotated entries
+rejected     the heads-up display, on its 26 frames marking several members at once
+identified   after 61 observations, about four seconds at the capture rate
+abstained    60 frames, every one of them before identification
+read         38 of 38 frames after identification, ZERO confident errors
+```
+
+The heads-up display had MORE exclusive frames than the menu and seven times the transfers.
+Nothing about a single frame separates them; only exclusivity over time does.
+
+Two of the nine entries are missing because grouping puts them in their own candidates, not
+because the tracker lost them.
+
 ## Status
 
-Capture complete; reader v1 measured; discovery measured. Not proven: none-selected
-recognition, any boundary case, and telling a live list from a busy screen.
+Capture complete; reader v1 measured; discovery measured; active-interface identification
+measured. Not proven: none-selected recognition, any boundary case, durable memory of what was
+found, and any relationship between an observed input and a selection change.
 
 ## Enforced by
 

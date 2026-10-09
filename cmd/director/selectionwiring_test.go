@@ -62,3 +62,34 @@ func TestSuppliedRowsAreHarnessOnly(t *testing.T) {
 		}
 	}
 }
+
+// TestTheActiveInterfaceIsDecidedByEvidenceNotByPlace guards the line this milestone turns on.
+//
+// The tracker must not learn where menus tend to be. If a coordinate, a game's name or the
+// annotation's own answer reached it, "identify the active interface" would collapse into
+// looking the answer up, and the measurement would mean nothing.
+func TestTheActiveInterfaceIsDecidedByEvidenceNotByPlace(t *testing.T) {
+	b, err := os.ReadFile("../../internal/director/perception/selection/active.go")
+	if err != nil {
+		t.Fatalf("reading the tracker: %v", err)
+	}
+	body := string(b)
+	for _, forbidden := range []string{
+		"0.439", "0.494", "0.550", "0.606", "0.661", "0.717", "0.772", "0.828", "0.896",
+		"0.4545", "trackmania", "rocketleague", "annotation", "RESUME", "EXIT",
+	} {
+		if strings.Contains(body, forbidden) {
+			t.Errorf("active.go contains %q — the active interface must be decided by "+
+				"what was observed, not by where a menu was last time", forbidden)
+		}
+	}
+	// And the controller log must not reach it either: an input is evidence about a
+	// player, not about what is drawn, and letting it label visual state would make the
+	// measurement circular.
+	for _, forbidden := range []string{"InputEvent", "NavIntent", "padsource", "input.jsonl"} {
+		if strings.Contains(body, forbidden) {
+			t.Errorf("active.go references %q — controller observations must not "+
+				"manufacture visual selection labels", forbidden)
+		}
+	}
+}

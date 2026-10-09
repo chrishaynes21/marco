@@ -167,6 +167,10 @@ func runReadSelection(args []string) int {
 		}
 	}
 	var discovery struct{ frames, proposed, rows, found, missing, extra int }
+	// The tracker decides WHICH list is being used. Until it has evidence the reader is
+	// not asked anything, because a reading taken from the wrong list is not a reading.
+	tracker := selection.NewTracker()
+	abstained := 0
 
 	proposed := map[int][]image.Rectangle{}
 	if *boxesPath != "" {
@@ -210,6 +214,8 @@ func runReadSelection(args []string) int {
 			if _, ok := proposed[fr.Index]; !ok {
 				continue // this frame was not put through perception
 			}
+			// Discovery is scored on everything grouping offered, BEFORE the tracker
+			// narrows it. The two stages fail differently and must not share a column.
 			discovery.frames++
 			discovery.proposed += len(proposed[fr.Index])
 			discovery.rows += len(rows)
@@ -229,6 +235,23 @@ func runReadSelection(args []string) int {
 			}
 			discovery.found += len(covered)
 			discovery.missing += len(entryYs) - len(covered)
+
+			tracker.Observe(img, rows)
+			if live, _, ok := tracker.Active(); ok {
+				var kept []selection.Row
+				for _, row := range rows {
+					if row.Bounds.In(live.Inset(-2)) {
+						kept = append(kept, row)
+					}
+				}
+				rows = kept
+			} else {
+				// No evidence yet about which list is live. Asking the reader anyway is
+				// how the previous measurement reached 0%: it answered confidently from
+				// an advertisement.
+				abstained++
+				rows = nil
+			}
 		}
 		rowsSeen = append(rowsSeen, len(rows))
 		res := reader.Read(img, rows)
@@ -312,6 +335,30 @@ func runReadSelection(args []string) int {
 	}
 	if discovery.frames > 0 {
 		n := float64(discovery.frames)
+		fmt.Printf("\nACTIVE INTERFACE\n")
+		if live, why, ok := tracker.Active(); ok {
+			inside := 0
+			for _, y := range entryYs {
+				if yy := y * 1080; yy >= float64(live.Min.Y) && yy <= float64(live.Max.Y) {
+					inside++
+				}
+			}
+			fmt.Printf("  named a list at y %d..%d, holding %d of %d annotated entries\n",
+				live.Min.Y, live.Max.Y, inside, len(entryYs))
+			fmt.Printf("  because: %s\n", why)
+			fmt.Printf("  identified after %d observations; abstained on %d frames\n",
+				tracker.IdentifiedAt(), abstained)
+		} else {
+			fmt.Printf("  ABSTAINED throughout (%d frames)\n  because: %s\n", abstained, why)
+		}
+		for _, e := range tracker.Evidence() {
+			mark := " "
+			if e.Qualifies {
+				mark = "*"
+			}
+			fmt.Printf("  %s y %4d..%-4d %s\n", mark, e.Bounds.Min.Y, e.Bounds.Max.Y, e)
+		}
+		fmt.Println()
 		fmt.Printf("\nENTRY DISCOVERY over %d frames put through perception\n", discovery.frames)
 		fmt.Printf("  regions proposed        %6.1f per frame\n", float64(discovery.proposed)/n)
 		fmt.Printf("  rows after grouping     %6.1f per frame\n", float64(discovery.rows)/n)
