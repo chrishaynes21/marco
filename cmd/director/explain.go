@@ -179,6 +179,12 @@ var valued = map[string]bool{
 	// several. Caught by this table's own test the first time the command ran, which is the
 	// fifth time and the reason the test walks every FlagSet rather than a list.
 	"-title": true, "--title": true,
+	// `capture-game-session`'s three. Caught by this table's own test the moment the
+	// command's flags were declared, which is the sixth time and the reason the walk reads
+	// the source rather than a list somebody maintains beside it.
+	"-session": true, "--session": true,
+	"-seconds": true, "--seconds": true,
+	"-fps": true, "--fps": true,
 	"-question": true, "--question": true,
 	// `rehearse --step 2 --live`. A fourth instance of the same silence, found while
 	// testing the command that could not be invoked at all: without this, the reorder

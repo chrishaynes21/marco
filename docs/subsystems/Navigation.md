@@ -7,9 +7,10 @@ depends_on:
   - passive-observation
 used_by:
   - passive-observation
-updated: 2026-08-09
+updated: 2026-10-08
 source_paths:
   - internal/platform/navsource
+  - internal/platform/padsource
   - internal/director/observe/input.go
   - internal/director/observe/screenstate.go
   - cmd/director/observewiring.go
@@ -141,11 +142,23 @@ nothing, or nothing was listening — and this is what separates them. The CLI p
 
 ## Not built, deliberately
 
-- **Controller / gamepad.** There is no XInput or GameInput infrastructure in the repository to
-  reuse, so this would be new platform code rather than a normalisation of existing plumbing.
-  Keyboard alone proves the loop. If added: emit edges, never held state, and keep button masks
-  inside the adapter — after normalisation, downstream correlation must not be able to tell which
-  device produced an intent.
+- **Controller / gamepad — built 2026-10-08, and NOT wired to the Director.**
+  `internal/platform/padsource` reads XInput and emits `observe.InputEvent` under exactly the
+  conditions this section set out before it existed: press edges and never held state, the
+  platform's button word confined to the backend, and a record in which a d-pad `down` and a
+  stick `down` are indistinguishable. `TestTheControllersOwnCodesCannotCrossTheBoundary`
+  asserts the exported surface by name so a raw-bits type cannot be added quietly.
+
+  Its one consumer is `director capture-game-session`, which records evidence for
+  [[Experiment-023-menu-selection-state]]. **Nothing in the production pipeline subscribes to
+  it**, and that is deliberate rather than an oversight: a controller observation path feeding
+  planning is a bigger decision than an experiment should make on its own, and this repository
+  has eight recorded cases of mechanisms that production never invoked — the way to not become
+  the ninth is to say out loud who the consumer is.
+
+  It is a poll, not a hook, so none of the hook-pump rules in the section below apply to it;
+  XInput has no callback and a slow consumer costs a sample rather than the desktop's input.
+  `XInputSetState` — the only call that could actuate anything — is not bound.
 - **Pointer.** `NavPoint` is in the vocabulary with its admission rules enforced (a position may
   ride only on a pointer intent, and is zeroed on every other) and **no producer behind it**.
   `director.exe` installs no mouse hook, and a click would additionally need window-relative

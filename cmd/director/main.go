@@ -165,6 +165,11 @@ func main() {
 		// Collects CANDIDATE frames into a scratch directory. It cannot approve anything
 		// and cannot write into a corpus — see capturefixture.go.
 		os.Exit(runCaptureFixture(os.Args[2:]))
+	case "capture-game-session":
+		// Frames BESIDE observed navigation intents, on one measured clock. Injects
+		// nothing, approves nothing, and states nothing about what is selected — that is
+		// annotation and it is a person's job. See capturegamesession.go.
+		os.Exit(runCaptureGameSession(os.Args[2:]))
 	case "benchmark-vision":
 		// --fixture runs the frozen-corpus harness; a bare session id scores a
 		// completed observation session. Different questions, same verb.

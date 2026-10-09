@@ -62,11 +62,25 @@ unfalsifiable; the corpus as it stands is exactly that, which is why
 
 So: **open the menu and walk the highlight down every entry and back**, a few frames per
 entry, without activating anything. Annotate it with `selected` spans in `sequence.json`
-beside the `present` ones. Two entries chosen in one frame and an entry chosen while declared
-absent are both refused by `SequenceTruth.Validate`.
+beside the `present` ones, and set `selection_read` — including when the answer is that nothing
+is chosen, which is a real state and not a gap. Two entries chosen in one frame, an entry
+chosen while declared absent, and spans declared without the read flag are all refused by
+`SequenceTruth.Validate`.
 
 One sequence of this kind is worth more than more frames of a held-open menu, and it is the
 single capture that unblocks menu-search work.
+
+Capture it with the sibling command, which records **what the player did** beside the frames:
+
+```sh
+director capture-game-session --application rocketleague --session rocketleague-menu-steps
+```
+
+Frames and observed navigation intents land on one measured clock, in a private scratch
+directory. It records; it does not annotate. [[Experiment-023-menu-selection-state]] says what
+one session has to contain — held selection, movement both ways, boundary behaviour,
+pointer-driven deselection, and transitional frames — and why the brightness measurement that
+found this gap must not become the acceptance criterion.
 
 ## 2. Privacy review — the step that cannot be automated
 
