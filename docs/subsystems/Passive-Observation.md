@@ -10,9 +10,10 @@ depends_on:
 used_by:
   - vision
   - game-packs
-updated: 2026-08-12
+updated: 2026-10-09
 source_paths:
   - internal/director/observe
+  - internal/director/observe/interface.go
   - internal/director/observesession
   - internal/director/learn
   - cmd/director/observecmd.go
@@ -168,9 +169,26 @@ watch — I lost sight of that window"* — so the product's headline loop could
 command line. Ambient now stands aside for a Learn, exactly as Light Mode does, and takes the slot
 back afterwards.
 
+## What interface is in front of it
+
+A session folds a belief about the screen it is watching NOW, beside the totals it accumulates
+about the session as a whole: which list is being used, what is chosen in it, and what changed
+since the last look. [[ADR-147-the-interface-in-front-of-a-session-is-a-shadow-belief]].
+
+It is SHADOW evidence and it is folded with the rest of it, for the reason player input is:
+putting it on the authoritative sample would make it something fusion could reach, and "a menu
+is open and Settings is selected" is not something Marco should be able to believe its way into
+acting on. It is `provisional`, `ambiguous` or `unknown`, it never claims the entries it found
+are all of them, and it never claims one can be pressed.
+
+The pixel evidence under it is two numbers per region, measured by the vision provider where
+the frame still exists and carried along with the geometry. A session cannot see.
+
 ## Decisions
 
 - [[ADR-010-passive-observation-cannot-execute]]
+- [[ADR-147-the-interface-in-front-of-a-session-is-a-shadow-belief]] — the screen it is
+  watching now, as a belief it can be asked about
 - [[ADR-111-a-demonstration-takes-the-slot-from-watching]] — watching yields the one observation
   slot to a demonstration, and `marco observe --follow` reports what durable memory COMMITTED
 - [[ADR-093-observe-is-attention-not-recording]] — `marco observe` is the ambient lifecycle:

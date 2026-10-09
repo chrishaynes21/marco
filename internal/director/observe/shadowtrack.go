@@ -86,6 +86,18 @@ type ShadowRegion struct {
 	// region is still tracked, still counted toward whether the window was read, and still
 	// reported. One consumer reads it, and it is the durable place signature.
 	Kind directorapi.KindEvidence `json:"kind_evidence,omitempty"`
+	// Shade is two numbers describing how this region is painted: its overall level and
+	// the level of its brightest quarter.
+	//
+	// Carried because a session cannot see. Regions reach here as geometry, and the one
+	// question an interface hypothesis turns on — does one row of this list look unlike
+	// its neighbours — cannot be asked of a rectangle. Measured where the pixels still
+	// exist, by the same function that reads it downstream.
+	//
+	// It is two floats over a rectangle a detector already proposed. There is nowhere in
+	// it for a label, a word or a screen coordinate to hide, which is the same trade
+	// [[Navigation]] makes for key codes.
+	Shade []float64 `json:"shade,omitempty"`
 }
 
 const (

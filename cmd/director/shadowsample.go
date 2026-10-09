@@ -89,6 +89,7 @@ func shadowSampleFor(detector string, unavailable string, cycle observation.Cycl
 				// exactly how a window.s own buttons ended up deciding
 				// whether Settings Home was the same place twice.
 				Chrome: chrome[el.Raw.NativeID],
+				Shade:  shadeOf(el.Raw.Attributes),
 			})
 		}
 	}
@@ -234,4 +235,21 @@ func (r *Runtime) shadowDetectorName() string {
 		return ""
 	}
 	return shadowVisionRequested()
+}
+
+// shadeOf reads the two shading numbers a detector's provider measured, if it measured any.
+//
+// Attributes are a map of anything, so this is written to return nothing rather than a pair
+// of zeros when the numbers are absent: a region nobody measured and a region measured as
+// black must not look alike downstream.
+func shadeOf(attrs map[string]any) []float64 {
+	if attrs == nil {
+		return nil
+	}
+	mean, okM := attrs["shade_mean"].(float64)
+	top, okT := attrs["shade_top"].(float64)
+	if !okM || !okT {
+		return nil
+	}
+	return []float64{mean, top}
 }

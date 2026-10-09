@@ -12,6 +12,7 @@ import (
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/capture"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/observation"
+	"github.com/chaynes-simpleclouds/marco/internal/director/perception/selection"
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 )
 
@@ -670,6 +671,19 @@ func (p *Provider) observations(ctx context.Context, results []Detection, img ca
 
 	for i, a := range accepted {
 		el := p.element(a.detection, a.class, a.box, window, img, a.image, frame)
+		// Two numbers describing how this region is SHADED, measured here because this is
+		// the last place the pixels exist. What reaches an observation session is
+		// geometry; a session that wanted to know whether one row of a list looks unlike
+		// its neighbours would otherwise have to re-capture the screen to find out.
+		//
+		// Neither number can carry a label, a word or a coordinate — they are a mean and
+		// a bright-quarter mean over a rectangle the detector already proposed. The same
+		// function measures them as reads them downstream, so a live reading and a
+		// reading from a recording are the same measurement.
+		if sh := selection.Measure(source, a.image); sh != (selection.Shade{}) {
+			el.Attributes["shade_mean"] = sh[0]
+			el.Attributes["shade_top"] = sh[1]
+		}
 		if pos, ok := positions[i]; ok {
 			for k, v := range pos {
 				el.Attributes[k] = v

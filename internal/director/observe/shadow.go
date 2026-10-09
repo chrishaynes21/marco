@@ -153,6 +153,15 @@ type ShadowTotals struct {
 	Detector    string `json:"detector"`
 	Unavailable string `json:"unavailable,omitempty"`
 
+	// Interface is what the session currently believes it is looking at, and Changed is
+	// what moved at the last look. Both are rendered from the live state, which is why
+	// they are fields rather than something a caller recomputes.
+	Interface InterfaceBelief `json:"interface"`
+	Changed   InterfaceChange `json:"interface_changed"`
+	// watch carries the belief between looks. Unexported: a reader of a session gets the
+	// answer, never the machinery that produced it.
+	watch *InterfaceWatch
+
 	Opportunities int `json:"opportunities"`
 	Inferences    int `json:"inferences"`
 	Skipped       int `json:"skipped"`
@@ -273,6 +282,25 @@ func (t *ShadowTotals) Observe(sample Sample) {
 	structure := StructureOf(sample)
 	t.Structure = structure.Source
 	t.StructureWhy = structure.Why
+	// What interface is in front of the session, updated every look.
+	//
+	// Folded HERE, with the rest of the shadow evidence, because that is exactly what it
+	// is made of: regions a detector proposed and two numbers describing how each is
+	// painted. Putting it on the authoritative sample would make it something fusion
+	// could reach, and "a menu is open and Settings is selected" is not something Marco
+	// should be able to believe its way into acting on — the same argument this file
+	// already makes for player input.
+	//
+	// Deleting this must fail TestASessionAnswersWhatItIsLookingAt.
+	if t.watch == nil {
+		t.watch = NewInterfaceWatch()
+	}
+	if sample.Shadow != nil {
+		t.watch.Observe(sample.Shadow.Regions)
+	} else {
+		t.watch.Observe(nil)
+	}
+	t.Interface, t.Changed = t.watch.Belief(), t.watch.Change()
 	if sample.Shadow != nil {
 		t.add(*sample.Shadow, structure)
 		return

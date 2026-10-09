@@ -93,3 +93,28 @@ func TestTheActiveInterfaceIsDecidedByEvidenceNotByPlace(t *testing.T) {
 		}
 	}
 }
+
+// TestAShadedRegionKeepsItsShadingOnTheWayToASession is the other half of that link.
+//
+// The provider measures; this reads the measurement into the region a session sees. Between
+// them is a map of `any`, which is exactly the kind of join that fails silently: a renamed
+// key, a float that arrived as something else, and every interface hypothesis downstream
+// believes nothing for a reason nobody can see.
+func TestAShadedRegionKeepsItsShadingOnTheWayToASession(t *testing.T) {
+	got := shadeOf(map[string]any{"shade_mean": 61.5, "shade_top": 204.0, "label": "x"})
+	if len(got) != 2 || got[0] != 61.5 || got[1] != 204.0 {
+		t.Fatalf("the measurement did not survive the attribute map: %v", got)
+	}
+	// A region nobody measured and a region measured as black must not look alike: a
+	// zero would read as the darkest thing on screen.
+	for _, attrs := range []map[string]any{
+		nil,
+		{},
+		{"shade_mean": 61.5}, // half a measurement is not one
+		{"shade_mean": "61.5", "shade_top": "204"}, // arrived as text
+	} {
+		if got := shadeOf(attrs); got != nil {
+			t.Errorf("%v should yield no measurement, got %v", attrs, got)
+		}
+	}
+}

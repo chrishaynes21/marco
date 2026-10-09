@@ -139,16 +139,33 @@ type Tracker struct {
 // NewTracker begins watching, knowing nothing.
 func NewTracker() *Tracker { return &Tracker{identifiedAt: -1} }
 
-// Observe takes one frame's grouped rows and updates what is known about each list.
+// Observe takes one frame.s grouped rows and updates what is known about each list.
 func (t *Tracker) Observe(img image.Image, rows []Row) {
+	shades := make([]Shade, len(rows))
+	for i, r := range rows {
+		shades[i] = Measure(img, r.Bounds)
+	}
+	t.ObserveShades(rows, shades)
+}
+
+// ObserveShades is the same, for a caller that already measured.
+//
+// The live path measures where the frame is and carries numbers from there, so this is the
+// door it comes in by. Order matches rows.
+func (t *Tracker) ObserveShades(rows []Row, shades []Shade) {
+	if len(shades) != len(rows) {
+		return
+	}
 	t.frames++
 	byGroup := map[int][]image.Rectangle{}
+	shadeOf := map[int][]Shade{}
 	order := []int{}
-	for _, r := range rows {
+	for i, r := range rows {
 		if _, ok := byGroup[r.Group]; !ok {
 			order = append(order, r.Group)
 		}
 		byGroup[r.Group] = append(byGroup[r.Group], r.Bounds)
+		shadeOf[r.Group] = append(shadeOf[r.Group], shades[i])
 	}
 	// One candidate per group per frame. Grouping emits several stacks whose extents
 	// overlap — interleaved rows of different widths cover much the same rectangle — so
@@ -163,7 +180,7 @@ func (t *Tracker) Observe(img image.Image, rows []Row) {
 			// tracker can learn. The reader still judges such rows on their own.
 			continue
 		}
-		if c := t.update(img, members, used); c != nil {
+		if c := t.update(members, shadeOf[g], used); c != nil {
 			used[c] = true
 		}
 	}
@@ -178,7 +195,7 @@ func (t *Tracker) Observe(img image.Image, rows []Row) {
 }
 
 // update folds one frame's view of one list into whatever is already known about it.
-func (t *Tracker) update(img image.Image, members []image.Rectangle, used map[*candidate]bool) *candidate {
+func (t *Tracker) update(members []image.Rectangle, shades []Shade, used map[*candidate]bool) *candidate {
 	ext := extent(members)
 	c := t.match(ext, used)
 	if c == nil {
@@ -197,11 +214,11 @@ func (t *Tracker) update(img image.Image, members []image.Rectangle, used map[*c
 
 	descs := make([]desc, len(c.rows))
 	have := make([]bool, len(c.rows))
-	for i, m := range members {
+	for i := range members {
 		if mapped[i] < 0 {
 			continue
 		}
-		descs[mapped[i]] = describe(img, m)
+		descs[mapped[i]] = shades[i]
 		have[mapped[i]] = true
 	}
 

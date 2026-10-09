@@ -178,12 +178,20 @@ func (r *Reader) Reset() {
 
 // Read judges one frame against the candidate rows it is given.
 func (r *Reader) Read(img image.Image, rows []Row) Result {
-	if len(rows) == 0 {
-		return Result{Outcome: Insufficient, Row: -1, Why: "no candidate rows"}
-	}
-	descs := make([]desc, len(rows))
+	descs := make([]Shade, len(rows))
 	for i, row := range rows {
-		descs[i] = describe(img, row.Bounds)
+		descs[i] = Measure(img, row.Bounds)
+	}
+	return r.ReadShades(rows, descs)
+}
+
+// ReadShades is the same, for a caller that already measured.
+//
+// The live observation path measures where the frame is and carries numbers onward, so this
+// is the door it comes in by. Order matches rows.
+func (r *Reader) ReadShades(rows []Row, descs []Shade) Result {
+	if len(rows) == 0 || len(descs) != len(rows) {
+		return Result{Outcome: Insufficient, Row: -1, Why: "no candidate rows"}
 	}
 
 	winner, why, departing := r.candidate(rows, descs)
@@ -460,7 +468,7 @@ func (r *Reader) remember(descs []desc, asserted int) {
 // Features is how many numbers describe a row.
 const Features = 2
 
-// desc describes one row: its overall level, and the level of its brightest quarter.
+// Shade describes one row: its overall level, and the level of its brightest quarter.
 //
 // Two numbers, and the second earned its place by a measured failure. The mean alone was
 // enough for a filled bar, which repaints most of a row, and useless for a selection drawn by
@@ -473,7 +481,19 @@ const Features = 2
 // The brightest quarter is the general form of "what is drawn on this row", and it moves for
 // all three shapes a selection takes: a bright fill raises it, brightened text raises it, and
 // a dark fill lowers it. Neither number assumes which direction means chosen.
-type desc [Features]float64
+type Shade [Features]float64
+
+// desc is the internal spelling, kept so the reasoning above reads as it was written.
+type desc = Shade
+
+// Measure computes a row.s shade from pixels.
+//
+// Exported because the live observation path cannot carry frames: a detector runs where the
+// image is, and what reaches a session is geometry. Two numbers per region ride along with
+// it — no pixels, no text, nothing a label could hide in — and the tracker downstream works
+// from those. One definition, used by both, so a reading taken live and a reading taken from
+// a recording are the same measurement.
+func Measure(img image.Image, b image.Rectangle) Shade { return describe(img, b) }
 
 func describe(img image.Image, b image.Rectangle) desc {
 	b = b.Intersect(img.Bounds())
