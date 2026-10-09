@@ -73,7 +73,7 @@ succeeding. [[Learned-Plays]] is the note; ADRs 023–032 are the constraints.
 - [[Goals]] — outcome descriptions expanded through hand-written procedures
 - [[Semantic-Actions]] — 33 verbs, lowered by capability ladder at execution time
 - [[Collections]] — bounded semantic queries, re-run every iteration
-- [[Control-Flow]] — waits, conditions, cancellation
+- [[Control-Flow]] — waits, conditions, cancellation, and the bounded search that is a wait with a move in it
 - [[Editing]] — semantic text entry
 
 **Being asked**
@@ -110,6 +110,22 @@ rest constrain specific subsystems.
 See [[Roadmap]]. In short: the vision detector's class vocabulary is the blocking
 constraint on everything downstream of perception, and the benchmark cannot currently
 score it, because there is no nameable-role coverage metric.
+
+Beside that, the Director can now **look for something that is not in front of it** — one bounded
+pattern, scrolling, built as a shared capability rather than as desktop text machinery
+([[ADR-143-a-search-is-a-wait-with-a-move-in-it]]). The second pattern is a game's menu, and it
+is deliberately not built: stepping a highlight commits nothing, stepping a list selection may
+commit a choice, and telling those apart is what [[Vision]] and [[Game-Packs]] are for. That is
+the join between this work and the reason the project exists.
+
+What stands between here and there turned out to be evidence rather than code
+([[ADR-144-the-corpus-must-say-which-entry-is-chosen]]). In a menu, selection is the only thing
+that changes, so it is the progress signal that keeps a search bounded — and the corpus could
+not express it. It can now; what it lacks is **one capture** of a highlight being walked
+through a menu. Capturing is read-only and safe to do on a machine in use. Stepping a menu for
+real is the half that needs an isolated environment, and on Windows 11 Home there is no
+software-only way to build one — Sandbox and Hyper-V are Pro features, and Home cannot host an
+RDP session.
 
 ## Milestone records
 

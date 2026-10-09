@@ -39,12 +39,34 @@ Useful sequences, 10–30 frames each:
 | gameplay, **camera moving** | screen-relative HUD vs world-relative geometry — the one that separates a real detector from a texture tracker |
 | menu opening | transition handling |
 | menu stable | true structure, densely |
+| menu **stepped through** | which entry is chosen, and that the choice MOVES — see below |
 | menu closing | disappearance |
 | overlay appears / remains / disappears | temporal recall |
 | no interface at all | pure false-positive measurement |
 
 **Play normally.** Do not script the game to produce fixtures — a corpus of synthetic
 interactions measures the script.
+
+### The stepped-through menu, and why it is its own row
+
+The other menu rows are about a panel arriving, being there, and leaving. A menu somebody is
+moving through changes in none of those ways: the panel and every entry are present in every
+frame, and the only thing that moves is which entry is chosen.
+
+That makes it the one sequence a menu search can be measured on. A search that steps through a
+menu is bounded by [[ADR-143-a-search-is-a-wait-with-a-move-in-it]]'s rule that an unchanged
+view is not a place that was searched — and in a menu the selection *is* the change. Capture a
+sequence where it never moves and a detector that always answers "the first entry" is
+unfalsifiable; the corpus as it stands is exactly that, which is why
+[[ADR-144-the-corpus-must-say-which-entry-is-chosen]] exists.
+
+So: **open the menu and walk the highlight down every entry and back**, a few frames per
+entry, without activating anything. Annotate it with `selected` spans in `sequence.json`
+beside the `present` ones. Two entries chosen in one frame and an entry chosen while declared
+absent are both refused by `SequenceTruth.Validate`.
+
+One sequence of this kind is worth more than more frames of a held-open menu, and it is the
+single capture that unblocks menu-search work.
 
 ## 2. Privacy review — the step that cannot be automated
 

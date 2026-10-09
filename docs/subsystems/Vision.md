@@ -9,7 +9,7 @@ used_by:
   - fusion
   - passive-observation
   - game-packs
-updated: 2026-08-09
+updated: 2026-10-08
 source_paths:
   - internal/director/perception/providers/vision
   - internal/platform/visionclient
@@ -132,6 +132,8 @@ the second is decided from provenance.
 - [[ADR-017-structure-earns-a-name-text-never-earns-structure]] — structure earns a name; text
   never earns structure. The role/nameability/OCR-eligibility table lives there.
 - [[ADR-003-evidence-authority-by-source]]
+- [[ADR-144-the-corpus-must-say-which-entry-is-chosen]] — the corpus must be able to say which
+  entry is chosen, and to admit when it cannot
 
 ## Related experiments
 
@@ -189,6 +191,24 @@ it is fed live is the open question. The governing rule:
 
 What remains is the evidence. Producing it is [[Vision-Corpus-Workflow]], and its one
 irreducibly human step is deciding that a picture of the user's screen may be committed.
+
+**The corpus cannot yet say which entry is chosen, found 2026-10-08**
+([[ADR-144-the-corpus-must-say-which-entry-is-chosen]]). Sixteen region kinds, every one of
+them a shape; nothing anywhere expresses **state**. The pause frames show the chosen entry
+unmistakably — a pale filled button against three dark blue ones — and the highlight never
+moves across all nine, so a detector answering "always the first entry" is unfalsifiable here.
+
+This is the measurement failing to reach the next decision again, in a new place. A menu is the
+search pattern after scrolling ([[ADR-143-a-search-is-a-wait-with-a-move-in-it]]), and in a
+menu the panel and every entry are present in every frame — selection is the *only* thing that
+changes, so it is the progress signal that keeps such a search bounded. `sequence.json` now
+carries `selected` spans beside `present` ones, with three-valued coverage so an unannotated
+sequence withholds a metric instead of scoring zero, and the bench prints that coverage beside
+every sequence.
+
+The fix is not code. It is **one capture**: the menu open, the highlight walked down every
+entry and back, nothing activated. Capturing is read-only and safe on a machine somebody is
+using; it is stepping the menu *for real* that needs the isolated environment.
 
 ## Validated by
 

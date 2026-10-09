@@ -87,17 +87,71 @@ func (s Span) Covers(index int) bool { return index >= s.From && index <= s.To }
 // Len is how many frames the span covers.
 func (s Span) Len() int { return s.To - s.From + 1 }
 
-// TrackTruth declares when one identity is on screen.
+// TrackTruth declares when one identity is on screen, and when it is the chosen one.
 type TrackTruth struct {
 	Identity string `json:"identity"`
 	// Present are the spans the identity is visible in. Everything outside them, within
 	// the sequence, is asserted absent.
 	Present []Span `json:"present"`
+	// Selected are the spans this identity is the CHOSEN ONE OF ITS SIBLINGS in.
+	//
+	// The word is `observe.Selected`'s, deliberately, rather than a third spelling of a
+	// state the tree already names: a highlighted menu entry and a list's chosen row are
+	// the same claim seen through two providers, and a corpus that called it "highlighted"
+	// would need a translation nobody would maintain.
+	//
+	// # Why presence alone cannot describe a menu
+	//
+	// Everything above this field is about a thing ARRIVING or LEAVING. That is the right
+	// model for a panel that fades in, and the wrong one for a menu somebody is moving
+	// through: the panel and every entry are present in every frame, so presence intervals
+	// describe nine frames of a held-open pause menu as perfectly static — which is true,
+	// and useless. The only thing that changes is which entry is chosen.
+	//
+	// That matters beyond annotation tidiness. A search that steps through a menu is bound
+	// by ADR-143's rule that an unchanged view is not a place that was searched. In a menu
+	// the selection IS the change, so without it every step looks like a view with nowhere
+	// to go, and the search would report that it had looked everywhere while sitting on
+	// the first entry. A corpus that cannot say where the selection is cannot measure a
+	// menu search at all.
+	//
+	// # Unannotated is not unselected
+	//
+	// Selection is scoped to the SEQUENCE, not to the track: if no track here declares a
+	// selected span, this sequence says nothing about selection and a metric over it must
+	// refuse rather than report zero. If any track declares one, selection is annotated
+	// throughout, and an identity outside its spans is asserted NOT chosen. The same
+	// distinction Present draws between a declared absence and an unwritten one, one level
+	// up — see ADR-006, unknown is not false. Read it through Selection().
+	//
+	// Sequence-level rather than per-frame on purpose. FrameTruth could carry a flag per
+	// region, and then nine frames would each restate a fact this file already holds — a
+	// second source of truth about one thing, which Shape's own comment refuses for
+	// exactly this reason.
+	//
+	// No schema bump. A schema-2 file written before this field is read correctly as one
+	// that does not annotate selection, which is precisely what it is; the bump rule
+	// exists to stop a file being MISREAD, and mode-versus-intervals could be, where this
+	// cannot.
+	Selected []Span `json:"selected,omitempty"`
 }
 
 // PresentAt reports whether the identity is declared visible at a frame index.
 func (t TrackTruth) PresentAt(index int) bool {
 	for _, s := range t.Present {
+		if s.Covers(index) {
+			return true
+		}
+	}
+	return false
+}
+
+// SelectedAt reports whether the identity is declared the chosen sibling at a frame index.
+//
+// False here means one of two different things, and the caller cannot tell them apart from
+// this method alone: not chosen, or nobody said. Ask the sequence through Selection() first.
+func (t TrackTruth) SelectedAt(index int) bool {
+	for _, s := range t.Selected {
 		if s.Covers(index) {
 			return true
 		}
@@ -141,6 +195,18 @@ type SequenceTruth struct {
 	Sequence string       `json:"sequence"`
 	Tracks   []TrackTruth `json:"tracks"`
 	Note     string       `json:"note,omitempty"`
+	// SelectionRead records that somebody looked at selection across this sequence and
+	// wrote down what they saw — including, where that is the answer, that nothing was
+	// chosen.
+	//
+	// Without it "no track declares a selected span" has two readings and the file cannot
+	// tell them apart: nobody looked, or somebody looked and there was no highlight. The
+	// corpus contains a real instance of the second, which is what forced this field —
+	// `pause-close` shows the pause menu at full opacity with all four entries identical
+	// and no glyph, the state Rocket League leaves a menu in when the pointer takes over
+	// from the controller. Annotating that as "unannotated" would throw away a measured
+	// fact, and annotating it as a chosen entry would invent one.
+	SelectionRead bool `json:"selection_read,omitempty"`
 }
 
 // Track returns the declaration for one identity.
@@ -151,6 +217,82 @@ func (s SequenceTruth) Track(identity string) (TrackTruth, bool) {
 		}
 	}
 	return TrackTruth{}, false
+}
+
+// SelectionCoverage says what a sequence is able to tell anyone about selection.
+//
+// Three values because there are three states and collapsing the first two is the mistake
+// this type exists to prevent: a sequence that never mentions selection and a sequence whose
+// selection never moves look identical to any metric that only counts matches, and they are
+// opposite findings. One is a gap in the corpus; the other is a property of the scene.
+type SelectionCoverage int
+
+const (
+	// SelectionUnannotated — nobody wrote selection down here. A selection metric over
+	// this sequence has no truth to compare against and must be withheld, not zeroed.
+	SelectionUnannotated SelectionCoverage = iota
+	// SelectionNone — selection WAS read, and nothing is chosen. A real answer, and the
+	// one that makes "always say the first entry" a falsifiable claim rather than a free
+	// pass. Distinct from unannotated by `SelectionRead` alone, which is the whole reason
+	// that field exists.
+	SelectionNone
+	// SelectionStill — selection is annotated and stays on one identity throughout. Enough
+	// to score "did the detector see which one is chosen", and NOT enough to score a menu
+	// search, which is judged on noticing the selection move.
+	SelectionStill
+	// SelectionMoves — selection is annotated and passes between identities. The only
+	// coverage that can measure stepping through a menu.
+	SelectionMoves
+)
+
+func (c SelectionCoverage) String() string {
+	switch c {
+	case SelectionNone:
+		return "none-chosen"
+	case SelectionStill:
+		return "still"
+	case SelectionMoves:
+		return "moves"
+	}
+	return "unannotated"
+}
+
+// Measurable reports whether a selection metric over this sequence means anything.
+//
+// The one question a scorer should ask. Everything but `unannotated` has a truth to compare
+// against, including `none-chosen`, where the correct detection is no highlight at all.
+func (c SelectionCoverage) Measurable() bool { return c != SelectionUnannotated }
+
+// Selection reports what this sequence can say about the chosen sibling.
+func (s SequenceTruth) Selection() SelectionCoverage {
+	holders := 0
+	for _, t := range s.Tracks {
+		if len(t.Selected) > 0 {
+			holders++
+		}
+	}
+	switch {
+	case holders == 0 && !s.SelectionRead:
+		return SelectionUnannotated
+	case holders == 0:
+		return SelectionNone
+	case holders == 1:
+		return SelectionStill
+	}
+	return SelectionMoves
+}
+
+// SelectedAt names the identity declared chosen at a frame index.
+//
+// The second return is false when nothing is chosen there, which — as everywhere in this
+// file — is only a claim at all once Selection() says the sequence annotates selection.
+func (s SequenceTruth) SelectedAt(index int) (string, bool) {
+	for _, t := range s.Tracks {
+		if t.SelectedAt(index) {
+			return t.Identity, true
+		}
+	}
+	return "", false
 }
 
 // Shape summarises the sequence for a report: the distinct track shapes it contains.
@@ -191,26 +333,82 @@ func (s SequenceTruth) Validate(frames int) []error {
 		}
 		seen[t.Identity] = true
 
-		prev := -1
-		for _, sp := range t.Present {
-			switch {
-			case sp.From > sp.To:
-				out = append(out, fmt.Errorf("sequence %s track %q: span [%d,%d] runs "+
-					"backwards", s.Sequence, t.Identity, sp.From, sp.To))
-			case sp.From < 0 || sp.To >= frames:
-				out = append(out, fmt.Errorf("sequence %s track %q: span [%d,%d] falls "+
-					"outside the sequence's %d frames", s.Sequence, t.Identity,
-					sp.From, sp.To, frames))
-			case sp.From <= prev:
-				// Ordered and disjoint, so "present frames" is a plain sum and the
-				// absent complement is unambiguous.
-				out = append(out, fmt.Errorf("sequence %s track %q: span [%d,%d] overlaps "+
-					"or precedes the one before it; spans must be ordered and disjoint",
-					s.Sequence, t.Identity, sp.From, sp.To))
+		out = append(out, s.checkSpans(t.Identity, "present", t.Present, frames)...)
+		out = append(out, s.checkSpans(t.Identity, "selected", t.Selected, frames)...)
+
+		// A thing that is not on screen cannot be the chosen one of its siblings. The two
+		// statements would both be in the file, and a scorer reading one would disagree
+		// with a scorer reading the other — the same shape of contradiction
+		// CheckAnnotations exists to refuse between this file and the frames.
+		for _, sp := range t.Selected {
+			for i := sp.From; i <= sp.To; i++ {
+				if i < 0 || i >= frames || t.PresentAt(i) {
+					continue
+				}
+				out = append(out, fmt.Errorf("sequence %s track %q: selected at frame %d, "+
+					"where it is declared absent", s.Sequence, t.Identity, i))
+				break
 			}
-			if sp.To > prev {
-				prev = sp.To
+		}
+	}
+
+	// Writing down a chosen entry IS reading selection. A file that does one without
+	// claiming the other reports `unannotated` from Selection() while plainly holding an
+	// annotation, so the metric would be withheld over evidence that exists.
+	if !s.SelectionRead {
+		for _, t := range s.Tracks {
+			if len(t.Selected) > 0 {
+				out = append(out, fmt.Errorf("sequence %s track %q: declares selected "+
+					"spans while the sequence does not set selection_read; set it, or "+
+					"the annotation is not counted as read", s.Sequence, t.Identity))
 			}
+		}
+	}
+
+	// One chosen sibling, which is what the word means. Two annotated at once is not a
+	// scene anybody photographed; it is an editing slip, and letting the first one win
+	// would silently decide which.
+	for i := 0; i < frames; i++ {
+		var holders []string
+		for _, t := range s.Tracks {
+			if t.SelectedAt(i) {
+				holders = append(holders, t.Identity)
+			}
+		}
+		if len(holders) > 1 {
+			out = append(out, fmt.Errorf("sequence %s: frame %d declares %d identities "+
+				"selected at once (%s); only one sibling is the chosen one",
+				s.Sequence, i, len(holders), strings.Join(holders, ", ")))
+		}
+	}
+	return out
+}
+
+// checkSpans holds the rules every interval list obeys, whichever field it came from.
+//
+// Shared rather than written twice: presence and selection are the same vocabulary, and two
+// copies of these four checks would drift the first time one was fixed.
+func (s SequenceTruth) checkSpans(identity, field string, spans []Span, frames int) []error {
+	var out []error
+	prev := -1
+	for _, sp := range spans {
+		switch {
+		case sp.From > sp.To:
+			out = append(out, fmt.Errorf("sequence %s track %q: %s span [%d,%d] runs "+
+				"backwards", s.Sequence, identity, field, sp.From, sp.To))
+		case sp.From < 0 || sp.To >= frames:
+			out = append(out, fmt.Errorf("sequence %s track %q: %s span [%d,%d] falls "+
+				"outside the sequence's %d frames", s.Sequence, identity, field,
+				sp.From, sp.To, frames))
+		case sp.From <= prev:
+			// Ordered and disjoint, so "present frames" is a plain sum and the absent
+			// complement is unambiguous.
+			out = append(out, fmt.Errorf("sequence %s track %q: %s span [%d,%d] overlaps "+
+				"or precedes the one before it; spans must be ordered and disjoint",
+				s.Sequence, identity, field, sp.From, sp.To))
+		}
+		if sp.To > prev {
+			prev = sp.To
 		}
 	}
 	return out

@@ -157,15 +157,24 @@ func runOneV2(corpus visionbench.V2Corpus, b visionbench.Backend,
 
 	// Mode is printed beside every sequence. Two sequences whose temporal numbers were
 	// produced by different questions must never be read as one column of like values.
-	fmt.Printf("  %-24s %-14s %5s %5s %5s %5s %7s %7s %7s %7s\n",
-		"SEQUENCE", "SHAPE", "DETS", "TP", "FP", "FN", "PREC", "RECALL", "T-PREC", "T-REC")
+	//
+	// SEL is the same discipline applied to selection: `unannotated` is a statement about
+	// this corpus, not about any detector, and it is printed rather than left blank so that
+	// nobody reads a future selection score as a measurement over sequences that never said
+	// which entry was chosen.
+	fmt.Printf("  %-24s %-14s %-12s %5s %5s %5s %5s %7s %7s %7s %7s\n",
+		"SEQUENCE", "SHAPE", "SEL", "DETS", "TP", "FP", "FN", "PREC", "RECALL", "T-PREC", "T-REC")
 	for _, seq := range sequences {
 		sub := corpus.Subset(func(s string) bool { return s == seq })
 		sm := visionbench.EvaluateTruthModes(byFrame, corpus.Bounds, sub, corpus.Modes)
 		// `sub` is one FrameTruth per frame, so its length is the sequence's frame count.
 		mode := corpus.Modes[seq].Shape(len(sub))
-		fmt.Printf("  %-24s %-14s %5d %5d %5d %5d %6.0f%% %6.0f%% %6.0f%% %6.0f%%",
-			seq, mode, sm.Detections, sm.TruePos, sm.FalsePos,
+		// Deleting this must fail TestTheBenchReportsSelectionCoverageBesideEverySequence,
+		// here. ADR-144: a sequence that never said which entry was chosen must say so on
+		// the line its numbers are read from.
+		sel := corpus.Modes[seq].Selection()
+		fmt.Printf("  %-24s %-14s %-12s %5d %5d %5d %5d %6.0f%% %6.0f%% %6.0f%% %6.0f%%",
+			seq, mode, sel, sm.Detections, sm.TruePos, sm.FalsePos,
 			sm.TruthRegions-sm.Matched,
 			sm.Precision*100, sm.Recall*100,
 			sm.TemporalPrecision*100, sm.TemporalRecall*100)
