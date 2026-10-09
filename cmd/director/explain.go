@@ -185,6 +185,12 @@ var valued = map[string]bool{
 	"-session": true, "--session": true,
 	"-seconds": true, "--seconds": true,
 	"-fps": true, "--fps": true,
+	// `read-selection`'s three.
+	"-annotations": true, "--annotations": true,
+	"-segments": true, "--segments": true,
+	"-limit": true, "--limit": true,
+	"-rows": true, "--rows": true,
+	"-row-height": true, "--row-height": true,
 	"-question": true, "--question": true,
 	// `rehearse --step 2 --live`. A fourth instance of the same silence, found while
 	// testing the command that could not be invoked at all: without this, the reorder

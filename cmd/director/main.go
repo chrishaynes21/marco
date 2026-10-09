@@ -165,6 +165,11 @@ func main() {
 		// Collects CANDIDATE frames into a scratch directory. It cannot approve anything
 		// and cannot write into a corpus — see capturefixture.go.
 		os.Exit(runCaptureFixture(os.Args[2:]))
+	case "read-selection":
+		// Runs the visual selection reader over a captured session and scores it against
+		// an annotation, keeping confident-wrong apart from declined. Reads only; see
+		// selectionread.go.
+		os.Exit(runReadSelection(os.Args[2:]))
 	case "capture-game-session":
 		// Frames BESIDE observed navigation intents, on one measured clock. Injects
 		// nothing, approves nothing, and states nothing about what is selected — that is

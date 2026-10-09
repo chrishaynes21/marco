@@ -1,17 +1,18 @@
 ---
 type: experiment
-status: planned
+status: complete
 date: 2026-10-08
 backend:
   - undecided
 game: rocket-league
 fixture: .tmp/game-capture-review
-result: pending
+result: selection-is-deviation-not-a-highlight-style
 supersedes: []
 source_paths:
   - cmd/director/capturegamesession.go
   - internal/platform/padsource
   - internal/director/visionbench/temporaltruth.go
+  - internal/director/perception/selection
 ---
 
 # Experiment 023 — menu selection state
@@ -91,9 +92,54 @@ relationship between an input and a selection transition; only then is stepping 
 real on the table, and that is the point at which an isolated machine stops being a
 convenience. Observing a person play needs no isolation at all.
 
+## What the capture found
+
+One 60-second Trackmania session, 900 frames at a measured 15.0 fps, 31 controller intents,
+zero dropped frames. The first 36 frames showed an account screen and were removed; the
+sanitized working copy is 864 frames with original indices and timestamps preserved, and the
+original was deleted. It is private and unpromoted.
+
+Five of the six conditions are present. **Boundary behaviour is not, and cannot be**: this
+menu wraps in both directions, so every input produces a transition. Nor is a stable
+none-selected state — what first looked like one turned out to be EXIT, chosen in a second
+visual style.
+
+| finding | consequence |
+|---|---|
+| eight entries use a filled bar with inverted text | selection can be a region's appearance |
+| EXIT uses brighter text and no bar | selection cannot be defined by one style |
+| every transition is exactly one blended frame | a momentary absent cue is not an absent selection |
+| a one-frame flicker with no input near it | per-frame confidence is not confidence |
+| the menu wraps both ways | navigation topology must be learned, not assumed |
+| no stable none-selected frame | none-selected recognition cannot be validated yet |
+
+## What the reader achieves
+
+[[ADR-145-a-chosen-thing-is-one-that-differs]] is the design. Measured over all 864 frames,
+rows supplied by the harness:
+
+```
+on annotated selections    98.8% correct   0.7% confidently wrong   0.5% declined
+on annotated transitions   88.6% correctly unsure, 4 claimed a selection
+none-selected              UNVALIDATED — no examples exist in this session
+```
+
+All six confident wrong answers are the same mechanism in the same place: entering EXIT, the
+reader is two frames late, and during the lag the DEPARTING entry's residual brightness makes
+it the spatial outlier. Two of the six literally report "unlike its siblings" about the entry
+the selection has just left.
+
+Cross-renderer, on the Rocket League pause corpus, which nothing in the reader was tuned
+against: **8 of 9 correct, zero confidently wrong**, one declined — the first frame, which is
+a change from nothing and waits for confirmation like any other.
+
+End to end, with rows found from pixels rather than supplied, 8% correct. Locating the rows is
+the limiting component and is a perception problem; see the ADR.
+
 ## Status
 
-Planned. The recorder and the schema exist and are tested; no session has been captured.
+Capture complete, reader v1 built and measured. Not yet proven: none-selected recognition, any
+boundary case, and row finding.
 
 ## Enforced by
 
