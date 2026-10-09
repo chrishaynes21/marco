@@ -80,6 +80,8 @@ func runReadSelection(args []string) int {
 	givenRows := fs.String("rows", "", "harness only: groups of normalised row centres, "+
 		"groups separated by | and centres by , (e.g. 0.44,0.49|0.90)")
 	rowHeight := fs.Float64("row-height", 0.03, "harness only: normalised height of a supplied row")
+	boxesPath := fs.String("boxes", "", "regions proposed by perception, as JSONL "+
+		"{\"frame\":n,\"boxes\":[[x,y,w,h],...]}; grouped into rows by selection.GroupRows")
 	segments := fs.Int("segments", 3, "contiguous segments to report separately")
 	limit := fs.Int("limit", 0, "stop after this many frames (0 = all)")
 	_ = fs.Parse(flagsFirst(args))
@@ -144,6 +146,37 @@ func runReadSelection(args []string) int {
 	}
 	fmt.Println()
 
+	// Transition latency: once the annotation says the selection HAS moved, how many
+	// frames pass before the reader says so. Reported because the honest way to stop
+	// being confidently wrong during a transition is to become uncertain, and the
+	// dishonest way is to wait longer — and those two look identical in an accuracy
+	// column. Only this number separates them.
+	var latencies []int
+	pendingSince, pendingY := -1, -1.0
+
+	// The distinct selected positions across the whole annotation are the menu's entries.
+	// Discovery is scored against them, and scored SEPARATELY from reading: a system that
+	// cannot find the rows and a system that cannot read them fail in the same column
+	// otherwise, and they need different work.
+	var entryYs []float64
+	seenY := map[float64]bool{}
+	for _, iv := range ann.Intervals {
+		if iv.State == "selected" && !seenY[iv.Y] {
+			seenY[iv.Y] = true
+			entryYs = append(entryYs, iv.Y)
+		}
+	}
+	var discovery struct{ frames, proposed, rows, found, missing, extra int }
+
+	proposed := map[int][]image.Rectangle{}
+	if *boxesPath != "" {
+		proposed, err = readBoxes(*boxesPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "director: %v\n", err)
+			return 1
+		}
+	}
+
 	reader := selection.New()
 	segSize := (len(frames) + *segments - 1) / *segments
 	segs := make([]tally, *segments)
@@ -165,10 +198,37 @@ func runReadSelection(args []string) int {
 			box = b
 		}
 		var rows []selection.Row
-		if *givenRows != "" {
+		switch {
+		case *boxesPath != "":
+			rows = selection.GroupRows(proposed[fr.Index])
+		case *givenRows != "":
 			rows = suppliedRows(*givenRows, *rowHeight, b, box)
-		} else {
+		default:
 			rows = selection.FindRows(img, box)
+		}
+		if *boxesPath != "" {
+			if _, ok := proposed[fr.Index]; !ok {
+				continue // this frame was not put through perception
+			}
+			discovery.frames++
+			discovery.proposed += len(proposed[fr.Index])
+			discovery.rows += len(rows)
+			covered := map[float64]bool{}
+			for _, row := range rows {
+				c := float64(row.Bounds.Min.Y+row.Bounds.Max.Y) / 2 / float64(b.Dy())
+				matched := false
+				for _, y := range entryYs {
+					if absf(c-y) <= 0.028 {
+						covered[y] = true
+						matched = true
+					}
+				}
+				if !matched {
+					discovery.extra++
+				}
+			}
+			discovery.found += len(covered)
+			discovery.missing += len(entryYs) - len(covered)
 		}
 		rowsSeen = append(rowsSeen, len(rows))
 		res := reader.Read(img, rows)
@@ -176,6 +236,20 @@ func runReadSelection(args []string) int {
 		t, ok := truth[fr.Index]
 		if !ok {
 			continue
+		}
+		// A new annotated selection starts the clock; the reader agreeing stops it.
+		if t.state == "selected" {
+			if t.y != pendingY {
+				pendingY, pendingSince = t.y, n
+			}
+			if pendingSince >= 0 && res.Outcome == selection.Selected {
+				c := float64(rows[res.Row].Bounds.Min.Y+rows[res.Row].Bounds.Max.Y) /
+					2 / float64(b.Dy())
+				if absf(c-t.y) <= 0.028 {
+					latencies = append(latencies, n-pendingSince)
+					pendingSince = -1
+				}
+			}
 		}
 		seg := &segs[min(n/segSize, *segments-1)]
 		switch {
@@ -235,6 +309,27 @@ func runReadSelection(args []string) int {
 	if all.truthUncertain > 0 {
 		fmt.Printf("On annotated transitions: %.1f%% correctly unsure, %d claimed a selection\n",
 			pct(all.correctlyUnsure, all.truthUncertain), all.confidentOnTransition)
+	}
+	if discovery.frames > 0 {
+		n := float64(discovery.frames)
+		fmt.Printf("\nENTRY DISCOVERY over %d frames put through perception\n", discovery.frames)
+		fmt.Printf("  regions proposed        %6.1f per frame\n", float64(discovery.proposed)/n)
+		fmt.Printf("  rows after grouping     %6.1f per frame\n", float64(discovery.rows)/n)
+		fmt.Printf("  entries found           %6.1f of %d per frame (%.0f%%)\n",
+			float64(discovery.found)/n, len(entryYs),
+			pct(discovery.found, discovery.frames*len(entryYs)))
+		fmt.Printf("  entries missing         %6.1f per frame\n", float64(discovery.missing)/n)
+		fmt.Printf("  rows matching no entry  %6.1f per frame\n\n", float64(discovery.extra)/n)
+	}
+	if len(latencies) > 0 {
+		sort.Ints(latencies)
+		var sum int
+		for _, l := range latencies {
+			sum += l
+		}
+		fmt.Printf("Transition latency over %d changes: median %d frames, mean %.1f, worst %d\n",
+			len(latencies), latencies[len(latencies)/2],
+			float64(sum)/float64(len(latencies)), latencies[len(latencies)-1])
 	}
 	// Said plainly rather than left to be inferred from a zero.
 	fmt.Printf("NoneSelected: emitted %d times. This session annotates NO none-selected frames,\n"+
@@ -330,4 +425,37 @@ func readAnnotations(path string) (annotation, error) {
 		return annotation{}, fmt.Errorf("%s: no intervals", path)
 	}
 	return a, nil
+}
+
+// readBoxes loads regions another system proposed, per frame.
+func readBoxes(path string) (map[int][]image.Rectangle, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	out := map[int][]image.Rectangle{}
+	sc := bufio.NewScanner(f)
+	sc.Buffer(make([]byte, 1<<22), 1<<22)
+	for sc.Scan() {
+		if strings.TrimSpace(sc.Text()) == "" {
+			continue
+		}
+		var row struct {
+			Frame int     `json:"frame"`
+			Boxes [][]int `json:"boxes"`
+		}
+		if err := json.Unmarshal(sc.Bytes(), &row); err != nil {
+			return nil, err
+		}
+		var rs []image.Rectangle
+		for _, b := range row.Boxes {
+			if len(b) != 4 {
+				continue
+			}
+			rs = append(rs, image.Rect(b[0], b[1], b[0]+b[2], b[1]+b[3]))
+		}
+		out[row.Frame] = rs
+	}
+	return out, sc.Err()
 }

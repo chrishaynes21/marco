@@ -116,9 +116,24 @@ const (
 	// HoldFrames bounds how long a settled selection survives unreadable frames. Past it
 	// the reader stops claiming it, because an old observation is not a current one.
 	HoldFrames = 6
+	// MinAbsolute is how far a row must differ in plain luminance, not just in robust
+	// units, before the difference counts as a cue.
+	//
+	// Normalising by a spread alone is not enough, and the failure is sharp: a tight
+	// group of near-identical rows has almost no spread, so the floor does the dividing
+	// and a difference of two units scores higher than a menu bar of a hundred and
+	// twenty. Measured, that handed the answer to a heads-up display whose rows happen to
+	// be evenly spaced. A selection is something a person can SEE.
+	MinAbsolute = 8.0
 	// MinSpread floors the robust scale so a perfectly uniform set of rows cannot make an
 	// arbitrarily small difference look like an infinite deviation.
 	MinSpread = 1.5
+	// FadeRatio is how much of its previous distance from baseline a row must keep to be
+	// treated as still carrying a cue. Below it the cue is dying, not arriving.
+	FadeRatio = 0.7
+	// FadeFloor is the distance below which fading is not worth testing, so ordinary
+	// flicker in a row that is barely deviating cannot read as a fade.
+	FadeFloor = 4.0
 )
 
 // Reader carries the little history the temporal half needs.
@@ -135,10 +150,19 @@ const (
 // passed — only because newer unselected samples displaced them.
 type Reader struct {
 	baseline [][]desc // per row, recent descriptions from frames in which it was not claimed
-	asserted int      // the row currently being claimed, or -1
-	pending  int      // a candidate not yet confirmed, or -1
-	pendingN int      // how many frames it has held
-	unread   int      // consecutive frames with no usable winner
+	// lastDev is each row's distance from its own baseline on the previous frame.
+	//
+	// Kept because magnitude alone cannot tell an arriving cue from a departing one, and
+	// the measured failures were all departing ones. When an entry loses the selection
+	// its text stays brighter than its neighbours' for a frame: that is unlike its
+	// siblings AND away from its own baseline, so both kinds of evidence name the entry
+	// the selection has just left. What separates them is that one is growing and the
+	// other is dying.
+	lastDev  []float64
+	asserted int // the row currently being claimed, or -1
+	pending  int // a candidate not yet confirmed, or -1
+	pendingN int // how many frames it has held
+	unread   int // consecutive frames with no usable winner
 }
 
 // New builds a reader with no history.
@@ -148,7 +172,7 @@ func New() *Reader { return &Reader{asserted: -1, pending: -1} }
 // see — a different window, a different screen — so that stale levels cannot be compared
 // against fresh ones.
 func (r *Reader) Reset() {
-	r.baseline = nil
+	r.baseline, r.lastDev = nil, nil
 	r.asserted, r.pending, r.pendingN, r.unread = -1, -1, 0, 0
 }
 
@@ -162,29 +186,92 @@ func (r *Reader) Read(img image.Image, rows []Row) Result {
 		descs[i] = describe(img, row.Bounds)
 	}
 
-	winner, why := r.candidate(rows, descs)
+	winner, why, departing := r.candidate(rows, descs)
+	// Recorded AFTER the judgement, so this frame is compared with the one before it.
+	dev := make([]float64, len(descs))
+	for i := range descs {
+		dev[i] = r.deviation(descs, i)
+	}
 	// Remembered with the claim that was standing when the frame was read, so a row's
 	// baseline is built only from frames in which it was not the chosen one.
 	r.remember(descs, r.asserted)
-	return r.settle(winner, why)
+	r.lastDev = dev
+	return r.settle(winner, why, departing)
+}
+
+// deviation is how far a row stands from its own unselected baseline, on whichever of its
+// features says so most loudly. Zero when there is not yet a baseline to compare against.
+func (r *Reader) deviation(descs []desc, i int) float64 {
+	if len(r.baseline) != len(descs) || i < 0 || i >= len(descs) ||
+		len(r.baseline[i]) < MinBaseline {
+		return 0
+	}
+	var worst float64
+	for f := range Features {
+		past := make([]float64, len(r.baseline[i]))
+		for j, d := range r.baseline[i] {
+			past[j] = d[f]
+		}
+		if v := math.Abs(descs[i][f] - median(past)); v > worst {
+			worst = v
+		}
+	}
+	return worst
 }
 
 // candidate finds the row this FRAME points at, before any history of decisions is applied.
-func (r *Reader) candidate(rows []Row, descs []desc) (int, string) {
+func (r *Reader) candidate(rows []Row, descs []desc) (int, string, bool) {
 	spatial, spatialWhy := r.spatialOutlier(rows, descs)
-	temporal, temporalWhy := r.temporalOutlier(descs)
+	temporal, temporalWhy, temporalReady := r.temporalOutlier(descs)
+
+	// A candidate whose cue is DYING is the row the selection is leaving, not the row it
+	// has arrived at. Refusing it is what turns a confident wrong answer into honest
+	// uncertainty, and it costs nothing on a settled selection, whose distance from
+	// baseline holds steady rather than shrinking.
+	fading := func(i int) bool {
+		if i < 0 || len(r.lastDev) != len(descs) {
+			return false
+		}
+		now, before := r.deviation(descs, i), r.lastDev[i]
+		return before > FadeFloor && now < before*FadeRatio
+	}
+
+	// Before there is any baseline, being unlike one's siblings is the only evidence
+	// there is.
+	if !temporalReady {
+		if spatial >= 0 {
+			return spatial, spatialWhy, false
+		}
+		return -1, "no row stands out from its siblings, and there is no history yet", false
+	}
 
 	switch {
-	case spatial >= 0 && temporal >= 0 && spatial != temporal:
-		// One row is unlike its siblings and a DIFFERENT one just moved. Something is
+	case spatial >= 0 && spatial == temporal && fading(spatial):
+		return -1, "its cue is fading, so this is the row the selection is leaving", true
+	case temporal >= 0 && spatial < 0 && fading(temporal):
+		return -1, "its cue is fading, so this is the row the selection is leaving", true
+	case spatial >= 0 && temporal >= 0 && spatial == temporal:
+		return spatial, spatialWhy + ", and away from its own unselected level", false
+	case spatial >= 0 && temporal >= 0:
+		// One row is unlike its siblings and a DIFFERENT one has moved. Something is
 		// mid-change; neither claim is safe.
-		return -1, "two different rows carry the two kinds of evidence"
+		return -1, "two different rows carry the two kinds of evidence", false
 	case spatial >= 0:
-		return spatial, spatialWhy
+		// Unlike its siblings, but NOT away from its own unselected level — so it looks
+		// like this because of what it is, or because of what it just stopped being.
+		//
+		// This is the measured EXIT failure. Leaving an entry, its text stays brighter
+		// than its neighbours' for a frame while the chosen one's cue has not yet
+		// established, and spatial evidence alone then names the entry the selection has
+		// just LEFT. Six confident wrong answers, all this, all in the same place.
+		// Residual appearance is not current selection.
+		return -1, "unlike its siblings but not away from its own level; residual, not current", false
 	case temporal >= 0:
-		return temporal, temporalWhy
+		// Away from its own level with no siblings to compare against: a row standing
+		// apart from the stack, which is the only evidence it can ever offer.
+		return temporal, temporalWhy, false
 	}
-	return -1, "no row stands out from its siblings or from its own recent level"
+	return -1, "no row stands out from its siblings or from its own unselected level", false
 }
 
 // spatialOutlier finds the one row unlike the others in its group.
@@ -194,6 +281,7 @@ func (r *Reader) spatialOutlier(rows []Row, descs []desc) (int, string) {
 		groups[row.Group] = append(groups[row.Group], i)
 	}
 	rowScore := make([]float64, len(descs))
+	rowAbs := make([]float64, len(descs))
 	for _, members := range groups {
 		if len(members) < 3 {
 			// Two rows cannot say which of them is the odd one out, and one cannot say
@@ -211,14 +299,22 @@ func (r *Reader) spatialOutlier(rows []Row, descs []desc) (int, string) {
 			mid := median(vals)
 			scale := math.Max(mad(vals, mid), MinSpread)
 			for _, m := range members {
-				if s := math.Abs(descs[m][f]-mid) / scale; s > rowScore[m] {
+				d := math.Abs(descs[m][f] - mid)
+				if s := d / scale; s > rowScore[m] {
 					rowScore[m] = s
+				}
+				if d > rowAbs[m] {
+					rowAbs[m] = d
 				}
 			}
 		}
 	}
 	best, bestScore, runnerUp := -1, 0.0, 0.0
 	for i, s := range rowScore {
+		// A difference nobody could see is not a cue, however unusual it is.
+		if rowAbs[i] < MinAbsolute {
+			continue
+		}
 		switch {
 		case s > bestScore:
 			best, runnerUp, bestScore = i, bestScore, s
@@ -246,16 +342,17 @@ func (r *Reader) spatialOutlier(rows []Row, descs []desc) (int, string) {
 //
 // The deviation is absolute, deliberately. Nothing here assumes a chosen thing gets brighter;
 // a menu that marks its choice with a dark fill deviates downwards and reads the same way.
-func (r *Reader) temporalOutlier(descs []desc) (int, string) {
+func (r *Reader) temporalOutlier(descs []desc) (int, string, bool) {
 	if len(r.baseline) != len(descs) {
-		return -1, ""
+		return -1, "", false
 	}
 	for i := range descs {
 		if len(r.baseline[i]) < MinBaseline {
-			return -1, ""
+			return -1, "", false
 		}
 	}
 	rowScore := make([]float64, len(descs))
+	rowAbs := make([]float64, len(descs))
 	for f := range Features {
 		devs := make([]float64, len(descs))
 		for i := range descs {
@@ -268,13 +365,20 @@ func (r *Reader) temporalOutlier(descs []desc) (int, string) {
 		mid := median(devs)
 		scale := math.Max(mad(devs, mid), MinSpread)
 		for i := range devs {
-			if s := math.Abs(devs[i]-mid) / scale; s > rowScore[i] {
+			d := math.Abs(devs[i] - mid)
+			if s := d / scale; s > rowScore[i] {
 				rowScore[i] = s
+			}
+			if d > rowAbs[i] {
+				rowAbs[i] = d
 			}
 		}
 	}
 	best, bestScore, runnerUp := -1, 0.0, 0.0
 	for i, s := range rowScore {
+		if rowAbs[i] < MinAbsolute {
+			continue
+		}
 		switch {
 		case s > bestScore:
 			best, runnerUp, bestScore = i, bestScore, s
@@ -283,16 +387,25 @@ func (r *Reader) temporalOutlier(descs []desc) (int, string) {
 		}
 	}
 	if best < 0 || bestScore < TemporalK || runnerUp > bestScore*SpatialRunnerUp {
-		return -1, ""
+		return -1, "", true
 	}
-	return best, "away from its own unselected level, while its neighbours are not"
+	return best, "away from its own unselected level, while its neighbours are not", true
 }
 
 // settle turns this frame's candidate into an answer, using what was decided before.
-func (r *Reader) settle(winner int, why string) Result {
+func (r *Reader) settle(winner int, why string, departing bool) Result {
 	if winner < 0 {
 		r.pending, r.pendingN = -1, 0
 		r.unread++
+		if departing {
+			// Holding is for a frame that could not be READ. This frame was read, and
+			// what it says is that the selection is leaving the row being claimed.
+			// Continuing to claim it would be the reader insisting on a thing it has
+			// just watched end — which is precisely the measured failure, six confident
+			// wrong answers all naming the entry the selection had moved off.
+			r.asserted = -1
+			return Result{Outcome: Insufficient, Row: -1, Why: why}
+		}
 		if r.asserted >= 0 && r.unread <= HoldFrames {
 			return Result{Outcome: Selected, Row: r.asserted,
 				Why: "unreadable this frame; still claiming the settled selection"}

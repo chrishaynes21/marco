@@ -136,10 +136,60 @@ a change from nothing and waits for confirmation like any other.
 End to end, with rows found from pixels rather than supplied, 8% correct. Locating the rows is
 the limiting component and is a perception problem; see the ADR.
 
+## What the production perception stack emitted
+
+`plugins/vision` built with `-tags onnxvision`, the vendored ScreenParser model at its native
+1280 input, run over frames of both games. No new perception was written.
+
+| | Trackmania | Rocket League |
+|---|---|---|
+| regions proposed per frame | 131.7 | 13.2 |
+| menu entries among them | 7 of 9, scored 0.05–0.16 | 4 of 4, scored 0.25–0.43 |
+| class | `menu` / `text` | `button` |
+
+At its DEFAULT confidence the detector finds **zero** Trackmania menu entries: it reports the
+medal times, the track title and the advertisement. The rows are there, two to three times
+below threshold, and the last two entries are absent at any threshold. Rocket League's crisper
+buttons are found comfortably. OCR was not available — tesseract is not installed on this
+machine — so no text evidence contributed.
+
+## Gate A — selection truth
+
+Passed. The six confident wrong answers were one mechanism: entering EXIT, the departing
+entry's residual brightness satisfied both kinds of evidence. Recognising a **fading** cue, and
+refusing to fall back on the held selection when one is seen, removed all six.
+
+```
+                       before        after
+confidently wrong      6             0
+correct                98.8%         99.2%
+transitions unsure     88.6%         97.1%
+transition latency     median 0, worst 3   median 0, worst 2
+```
+
+Latency did not grow, which is what distinguishes this from hiding transitions behind delay.
+
+## Gate B — unassisted discovery
+
+Partly. Discovery works; deciding which list is live does not.
+
+```
+                          entries found    selection read
+Rocket League, end to end     100%          8 of 9, 0 wrong
+Trackmania, end to end        100%          0% — see below
+Trackmania, rows supplied      n/a          99.2%, 0 wrong
+```
+
+On Rocket League the whole pipeline runs with nothing supplied. On Trackmania the nine entries
+are found on every frame, and the reader then picks a deviant row from the rotating
+advertisement or the animating HUD — real visible changes in genuinely regular lists.
+[[ADR-145-a-chosen-thing-is-one-that-differs]] records why that must not be solved with a rule
+about where menus live.
+
 ## Status
 
-Capture complete, reader v1 built and measured. Not yet proven: none-selected recognition, any
-boundary case, and row finding.
+Capture complete; reader v1 measured; discovery measured. Not proven: none-selected
+recognition, any boundary case, and telling a live list from a busy screen.
 
 ## Enforced by
 

@@ -221,6 +221,40 @@ func TestAConfirmedChangeIsAccepted(t *testing.T) {
 	}
 }
 
+func TestAFadingCueIsNotTheCurrentSelection(t *testing.T) {
+	// The measured failure, and the whole of Gate A.
+	//
+	// When an entry loses the selection its appearance does not snap back: for a frame it
+	// is still unlike its neighbours AND still away from its own baseline, so both kinds
+	// of evidence name the row the selection has just LEFT. Magnitude cannot separate
+	// them. Direction can — a cue that is dying is not a cue that is arriving.
+	//
+	// The second half matters as much: having become unsure, the reader must not fall
+	// back on "it was this a moment ago". That hold is for a frame it could not READ, and
+	// this frame it read perfectly well.
+	r := selection.New()
+	rows := rowsFor(5)
+	// A row that has been claimed since the first frame has never been OBSERVED
+	// unclaimed, so it has no baseline and no temporal evidence exists about it. Let the
+	// menu sit unselected first, which is also what a reader joining a live screen sees.
+	for range 6 {
+		r.Read(draw([]int{60, 60, 60, 60, 60}), rows)
+	}
+	for range 8 {
+		r.Read(draw([]int{60, 220, 60, 60, 60}), rows)
+	}
+	// Row 1's bar is gone; it keeps a residue, brighter than its neighbours but far less
+	// than it was. Nothing else has arrived yet.
+	got := r.Read(draw([]int{60, 95, 60, 60, 60}), rows)
+	if got.Outcome == selection.Selected && got.Row == 1 {
+		t.Fatalf("a fading cue is not a current selection (%s)", got.Why)
+	}
+	if got.Outcome != selection.Insufficient {
+		t.Fatalf("want insufficient while the selection is leaving, got %v (%s)",
+			got.Outcome, got.Why)
+	}
+}
+
 func TestTwoRowsDeviatingTogetherIsUnreadable(t *testing.T) {
 	// What a blend looks like from here: the departing entry still carries something and
 	// the arriving one carries something, and neither claim is safe.
@@ -317,5 +351,161 @@ func TestADetachedRowIsNotTreatedAsASibling(t *testing.T) {
 	}
 	if len(groups) < 2 {
 		t.Errorf("a row after a wide gap should start a new group, got %d group(s)", len(groups))
+	}
+}
+
+func TestTheListIsFoundAmongUnrelatedProposals(t *testing.T) {
+	// What the production detector actually hands over: on one measured frame, 135
+	// regions of which seven were menu rows. The list is a small, highly regular minority
+	// of a large, irregular pile, and that regularity is the only thing distinguishing it.
+	var boxes []image.Rectangle
+	for i := range 6 {
+		y := 400 + i*60
+		boxes = append(boxes, image.Rect(100, y, 900, y+50))
+	}
+	boxes = append(boxes,
+		image.Rect(1000, 120, 1500, 460), // an advertisement
+		image.Rect(40, 30, 180, 70),      // a HUD label
+		image.Rect(1600, 900, 1900, 1000),
+		image.Rect(300, 90, 800, 140),
+	)
+
+	rows := selection.GroupRows(boxes)
+	if len(rows) < 6 {
+		t.Fatalf("the six-row stack should be found, got %d rows", len(rows))
+	}
+	for i, r := range rows[:6] {
+		if r.Group != 0 {
+			t.Errorf("row %d is not in the stack's group", i)
+		}
+		if r.Bounds.Min.X != 100 {
+			t.Errorf("row %d is not one of the stack's rows: %v", i, r.Bounds)
+		}
+	}
+}
+
+func TestAnEntrySetApartIsOfferedWithNoSiblings(t *testing.T) {
+	// A menu's last entry is often separated by a wider gap. It must still reach the
+	// reader — in a group of its own, so the reader judges it against its own past rather
+	// than against rows it does not resemble. Dropping it is how EXIT becomes invisible.
+	var boxes []image.Rectangle
+	for i := range 5 {
+		y := 400 + i*60
+		boxes = append(boxes, image.Rect(100, y, 900, y+50))
+	}
+	boxes = append(boxes, image.Rect(100, 790, 900, 840)) // off the beat, same width
+
+	rows := selection.GroupRows(boxes)
+	var lone int
+	for _, r := range rows {
+		if r.Group != 0 {
+			lone++
+		}
+	}
+	if lone == 0 {
+		t.Fatal("the entry set apart from the stack was dropped instead of offered alone")
+	}
+}
+
+func TestRepeatedProposalsDoNotBecomeAList(t *testing.T) {
+	// Detectors propose the same region several times. A list whose every row appears
+	// twice has a pitch of zero and no structure at all.
+	var boxes []image.Rectangle
+	for i := range 5 {
+		y := 400 + i*60
+		boxes = append(boxes, image.Rect(100, y, 900, y+50))
+		boxes = append(boxes, image.Rect(102, y+2, 898, y+48))
+	}
+	rows := selection.GroupRows(boxes)
+	if len(rows) > 6 {
+		t.Errorf("duplicates were not collapsed: %d rows for a five-row menu", len(rows))
+	}
+}
+
+func TestADifferenceNobodyCouldSeeIsNotACue(t *testing.T) {
+	// Normalising by spread alone is not enough. A tight group of near-identical rows has
+	// almost no spread, so the floor does the dividing and a difference of six units out
+	// of two hundred scores as high as a menu bar of a hundred and twenty.
+	//
+	// Measured consequence: offered every regular stack on a real frame, the reader
+	// handed the answer to a heads-up display whose evenly spaced rows wobbled slightly.
+	// A selection is something a person can SEE.
+	r := selection.New()
+	got := settle(t, r, []int{60, 60, 66, 60, 60}, 4)
+	if got.Outcome == selection.Selected {
+		t.Fatalf("a six-unit difference is not a selection cue, got row %d (%s)",
+			got.Row, got.Why)
+	}
+	// And the same arrangement with a difference anyone would see still reads.
+	r2 := selection.New()
+	seen := settle(t, r2, []int{60, 60, 200, 60, 60}, 4)
+	if seen.Outcome != selection.Selected || seen.Row != 2 {
+		t.Fatalf("a visible difference is still a cue, got %v row %d (%s)",
+			seen.Outcome, seen.Row, seen.Why)
+	}
+}
+
+func TestARowIsNotDiscardedAsADuplicateOfItsOwnLabel(t *testing.T) {
+	// Measured on the production detector: it proposes a row AND the caption drawn inside
+	// it, caption first. The caption is wholly contained, so a deduplicator that keeps
+	// whatever it saw first discards the row. Every one of Rocket League's four menu rows
+	// vanished that way — the stack was in the proposals and grouping threw it out before
+	// looking at it.
+	var boxes []image.Rectangle
+	for i := range 5 {
+		y := 400 + i*60
+		boxes = append(boxes, image.Rect(300, y+12, 600, y+38)) // the caption, first
+		boxes = append(boxes, image.Rect(100, y, 900, y+50))    // the row that holds it
+	}
+	rows := selection.GroupRows(boxes)
+	if len(rows) < 5 {
+		t.Fatalf("the five-row stack should survive, got %d", len(rows))
+	}
+	for i, row := range rows[:5] {
+		if row.Bounds.Dx() < 700 {
+			t.Errorf("row %d is the caption (%dpx wide), not the row that contains it",
+				i, row.Bounds.Dx())
+		}
+	}
+}
+
+func TestEveryListIsOfferedBecauseOnlyEvidenceCanSayWhichIsLive(t *testing.T) {
+	// A screen holds more than one list. On the measured Trackmania frame the heads-up
+	// display's medal panel is six evenly spaced rows — as regular as the menu, and
+	// smaller. Offering only the largest stack picked the wrong pile and entry discovery
+	// came out at 4%; offering every stack took it to 100%.
+	//
+	// There is no general rule for which list a person means, and inventing one would be
+	// guessing. The reader decides by evidence instead, within a group, and a list nobody
+	// is choosing from simply has no deviant row.
+	var boxes []image.Rectangle
+	for i := range 6 { // a big list
+		y := 400 + i*60
+		boxes = append(boxes, image.Rect(100, y, 900, y+50))
+	}
+	for i := range 5 { // a smaller one elsewhere, just as regular
+		y := 100 + i*22
+		boxes = append(boxes, image.Rect(1200, y, 1400, y+18))
+	}
+
+	rows := selection.GroupRows(boxes)
+	groups := map[int]int{}
+	for _, r := range rows {
+		groups[r.Group]++
+	}
+	if len(groups) < 2 {
+		t.Fatalf("both lists should be offered, got %d group(s) over %d rows",
+			len(groups), len(rows))
+	}
+	var wide, narrow int
+	for _, r := range rows {
+		if r.Bounds.Dx() > 500 {
+			wide++
+		} else {
+			narrow++
+		}
+	}
+	if wide < 6 || narrow < 5 {
+		t.Errorf("want both stacks intact, got %d wide and %d narrow rows", wide, narrow)
 	}
 }

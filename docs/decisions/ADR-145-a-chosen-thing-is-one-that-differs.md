@@ -2,6 +2,7 @@
 type: decision
 status: accepted
 date: 2026-10-09
+updated: 2026-10-09
 affects:
   - perception
   - vision
@@ -80,6 +81,33 @@ refuses every one-frame artefact.
 Holding is **bounded**. After enough unreadable frames the reader stops claiming the old
 selection, because an old observation is not a current one.
 
+### A fading cue is not a current selection
+
+Added 2026-10-09, after the first measurement. Six confident wrong answers, all one mechanism:
+leaving an entry, its text stays brighter than its neighbours' for a frame while the arriving
+entry's cue has not yet established. That is unlike its siblings AND away from its own
+baseline, so **both** kinds of evidence name the entry the selection has just left. Magnitude
+cannot separate them; direction can. A row whose distance from baseline is collapsing is
+losing the selection, not holding it.
+
+And having become unsure that way, the reader must **not** fall back on the previous claim.
+Holding is for a frame that could not be read; this frame was read, and what it says is that
+the selection is leaving. Continuing to claim it is the reader insisting on a thing it has
+just watched end.
+
+Result: six confident wrong answers became six honest declines, correctness unchanged, and
+**transition latency unchanged** — median 0 frames, worst 3. That last number is the point: the
+dishonest way to stop being wrong during a transition is to wait longer, and only latency
+separates the two.
+
+### A difference nobody could see is not a cue
+
+Normalising by a robust spread is not enough on its own. A tight group of near-identical rows
+has almost no spread, so the floor does the dividing and a six-unit wobble scores as high as a
+bar of a hundred and twenty. Offered every regular stack on a real frame, the reader handed
+the answer to a heads-up display. A cue must also clear an absolute threshold: a selection is
+something a person can see.
+
 ### Three answers, and NoneSelected requires evidence
 
 ```
@@ -102,13 +130,26 @@ The reader is handed candidate regions. Where they come from — perception, a l
 an accessibility tree — is the caller's business, and keeping it out is what stops one game's
 geometry leaking in.
 
-`FindRows` exists so the reader can be measured from pixels alone, and **it is the weak half**.
-Measured on the same session: with rows supplied, 98.8% correct and 0.7% confidently wrong;
-with rows found by `FindRows`, 8% correct. A list's rows and the letterforms drawn inside them
-are both real changes in brightness, and an over-segmented list is just as regular as a
-correct one, so regularity alone cannot choose between them. Locating rows is a perception
-problem and belongs to [[Perception]] and [[Vision]], which have far better evidence than a
-luminance profile.
+`FindRows` exists so the reader can be measured from pixels alone, and **it is the weak half**:
+8% correct end to end against 98.8% with rows supplied. A list's rows and the letterforms
+drawn inside them are both real changes in brightness, and an over-segmented list is just as
+regular as a correct one, so a luminance profile alone cannot choose between them.
+
+So `GroupRows` takes the regions **the production detector already proposed** and asks only
+which of them form a list — the same repeating-structure rule, applied to arrangement rather
+than to pixels. Two things it learned from real detector output:
+
+**A row contains its caption, and the caption arrives first.** The detector proposes both; a
+deduplicator keeping whatever it saw first discards the row as a duplicate of its own label.
+Every one of Rocket League's four menu rows vanished that way — the stack was in the proposals
+and grouping threw it out before looking. The container is the candidate.
+
+**Every list is offered, not the largest.** A screen holds more than one: the measured
+Trackmania frame's medal panel is six evenly spaced rows, as regular as the menu and smaller,
+and choosing "the biggest regular stack" picked the wrong pile. Entry discovery went from 4%
+to 100% by refusing to choose. There is no general rule for which list a person means, and
+inventing one would be guessing — but the reader already decides by evidence, within a group,
+and a list nobody is choosing from has no deviant row.
 
 ## Enforced by
 
@@ -132,3 +173,22 @@ reader tested only on the recording it was built from learns that recording.
 - `TestTheSelectionReaderIsReachable`, `TestSuppliedRowsAreHarnessOnly` (`cmd/director`) — the
   door, and the line between harness input and the reader. The second greps the package for
   either measured game's coordinates and vocabulary.
+
+## What this does not solve
+
+Discovery is no longer the bottleneck. **Telling which list is live is.**
+
+Run end to end on Trackmania — production detector, then grouping, then the reader — entry
+discovery is 100% and selection reading is 0%. The reader picks a deviant row from the
+advertisement panel, which rotates, or from the heads-up display, which animates. Those are
+real visible changes in genuinely regular lists; nothing distinguishes them from a menu except
+that nobody is choosing from them.
+
+On Rocket League the same pipeline works completely (100% discovery, 8 of 9 read, zero
+confident errors), and the only reason is that its pause screen has little else moving on it.
+
+This is a different problem from the one it replaces, and it should not be solved by a rule
+about where menus live or what they look like. The honest shape of it: a list being navigated
+shows selection moving BETWEEN ITS OWN MEMBERS over time, one at a time, while an animating
+advertisement does not. That is a judgement about a group's history rather than a frame, and
+nothing has measured it yet.
