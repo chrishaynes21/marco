@@ -134,6 +134,34 @@ func (e *Editor) perform(ctx context.Context, t providers.Target, op Operation, 
 		}
 		return e.deliver(ctx, t, o.Value, out)
 
+	case ReplaceText:
+		// FINDING THE TEXT IS A SEARCH OVER A VALUE ALREADY IN HAND.
+		//
+		// The editor reads the control before it writes one — see AppendText for why —
+		// and that read is the whole of what "find milk" needs. No new perception, no
+		// screen search, and the result is predictable in advance, which is what lets
+		// expectedValue check this exactly rather than by change.
+		if !beforeKnown {
+			return fmt.Errorf("the control's contents could not be read, so %q could not "+
+				"be looked for", o.Old)
+		}
+		switch n := strings.Count(before, o.Old); n {
+		case 0:
+			return fmt.Errorf("%q does not appear in the text", o.Old)
+		case 1:
+			// The one unambiguous case. Written through the value API because the whole
+			// new value is known; there is deliberately no keyboard fallback, since
+			// reaching one run of text by keystrokes means navigating to it, and a
+			// mis-navigation would overwrite something else.
+			return e.setValue(ctx, t, strings.Replace(before, o.Old, o.New, 1), out)
+		default:
+			// AMBIGUITY IS NOT PERMISSION TO GUESS. "Milk" in a grocery list is exactly
+			// the word that appears twice, and replacing the first would change a line
+			// the person was not looking at.
+			return fmt.Errorf("%q appears %d times, so there is no way to tell which one "+
+				"you mean", o.Old, n)
+		}
+
 	case InsertText:
 		if err := e.ensureFocus(ctx, t, out); err != nil {
 			return err
@@ -472,6 +500,13 @@ func expectedValue(op Operation, before string, beforeKnown bool) string {
 	case AppendText:
 		if beforeKnown {
 			return before + o.Value
+		}
+	case ReplaceText:
+		// Exactly predictable, and the only operation here that is predictable because
+		// something was SEARCHED rather than merely read. Unambiguous replacements only:
+		// perform refuses the other counts, so reaching here means exactly one match.
+		if beforeKnown && strings.Count(before, o.Old) == 1 {
+			return strings.Replace(before, o.Old, o.New, 1)
 		}
 	}
 	return ""

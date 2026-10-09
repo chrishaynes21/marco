@@ -959,7 +959,36 @@ func classify(out execute.Outcome) (CommandState, ResponseType) {
 }
 
 // completedActions is how many desktop actions a command actually performed.
+// completedActions is HOW MANY THINGS WERE DONE TO THE PERSON'S COMPUTER.
+//
+// The one line of output that answers it ("1 action performed"), and it was wrong for every
+// request that did more than one thing. Measured on the task that earned this:
+//
+//	marco do "add milk, eggs and bread, then change milk to oat milk"
+//	[1/2] add milk, eggs and bread — verified
+//	[2/2] change milk to oat milk — verified
+//	COMPLETED: 2 of 2 steps verified
+//	(1 action performed)
+//
+// Two edits reached the document and the report said one. Not a false success — the outcome
+// above it was right — but the number exists precisely so somebody can tell what happened
+// without reading a trace, and a program and a collection were both invisible to it.
+//
+// A program's steps are themselves Outcomes and may be programs or replays in turn, so the
+// count recurses over whatever actually ran rather than over whatever was planned. A collection
+// reports its own completed iterations for the same reason the replay arm does: the iteration
+// records live there, not in this Outcome's Record.
 func completedActions(out execute.Outcome) int {
+	if out.Program != nil {
+		n := 0
+		for i := range out.Program.Steps {
+			n += completedActions(out.Program.Steps[i])
+		}
+		return n
+	}
+	if out.Collection != nil {
+		return out.Collection.Completed
+	}
 	if out.Replay != nil {
 		return out.Replay.Completed
 	}

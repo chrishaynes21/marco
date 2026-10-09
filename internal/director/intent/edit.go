@@ -1,6 +1,7 @@
 package intent
 
 import (
+	"github.com/chaynes-simpleclouds/marco/internal/director/edit"
 	"github.com/chaynes-simpleclouds/marco/internal/director/edit/planner"
 	"github.com/chaynes-simpleclouds/marco/internal/director/values"
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
@@ -14,6 +15,8 @@ import (
 const (
 	EditOperation = "operation"
 	EditCommit    = "commit"
+	// EditFind is the text a replace looks for. See directorapi.EditAction.Find.
+	EditFind = "find"
 )
 
 // parseEdit recognises an editing instruction, reporting false when the phrase is
@@ -27,22 +30,6 @@ const (
 func parseEdit(in directorapi.Intent, raw string) (directorapi.Intent, bool) {
 	p, ok := planner.Parse(raw)
 	if !ok {
-		// A SHAPE THE PLANNER RECOGNISED AND CANNOT PERFORM gets its own sentence.
-		//
-		// "Replace milk with oat milk" is an edit request in words Marco understands; what
-		// it cannot do is find "milk" in order to select it. Falling through from here
-		// reaches the verb switch and ends in "I only understand click, focus, move,
-		// repeat and text editing" — a true sentence about a phrase nobody read, and the
-		// wrong one for somebody whose phrasing was fine.
-		//
-		// Claimed with IntentUnknown rather than returning false, so this message stands
-		// instead of the vocabulary list. The model-backed interpreter still gets its turn
-		// — parseWith consults it precisely when the reading is IntentUnknown — so this is
-		// the sentence a person sees only when nothing else could read the phrase either.
-		if why, refused := planner.WhyNot(raw); refused {
-			in.Kind, in.Ambiguity = directorapi.IntentUnknown, why
-			return in, true
-		}
 		return in, false
 	}
 
@@ -52,6 +39,11 @@ func parseEdit(in directorapi.Intent, raw string) (directorapi.Intent, bool) {
 	in.Parameters = map[string]any{EditOperation: string(p.Operation.ID())}
 	if p.Commit {
 		in.Parameters[EditCommit] = true
+	}
+	// The text a replace looks FOR, beside the text it puts in. Carried as its own
+	// parameter because the operation needs both and Text is already the one going in.
+	if r, isReplace := p.Operation.(edit.ReplaceText); isReplace {
+		in.Parameters[EditFind] = r.Old
 	}
 	if t, ok := p.Operation.(interface{ Text() string }); ok {
 		in.Text = t.Text()

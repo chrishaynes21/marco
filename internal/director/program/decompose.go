@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/chaynes-simpleclouds/marco/internal/director/edit/planner"
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 )
 
@@ -70,8 +71,29 @@ func Decompose(request string, parse func(string) directorapi.Intent) (Program, 
 //
 // Order matters: " and then " must be tried before " and " and before " then ", or a
 // single conjunction becomes two empty clauses.
+//
+// The comma forms are listed because people write them: "add milk, eggs and bread, then change
+// milk to oat milk". Without ", then " the comma is not part of the cut, so it stays on the end
+// of the first clause and becomes part of what gets typed.
 var separators = []string{
-	" and then ", " then ", ", and ", " and ", "; ", ", ",
+	", and then ", " and then ", ", then ", " then ", ", and ", " and ", "; ", ", ",
+}
+
+// fragment is a piece of the request with the separator that was cut from in front of it.
+//
+// THE SEPARATOR IS PART OF THE PERSON'S TEXT until something proves it was a conjunction.
+// Rejoining with a hard-coded " and " rewrote it: "add milk, eggs and bread" came back as "add
+// milk and eggs and bread", because the comma was cut as a separator and restored as the wrong
+// word. The document then held a grocery list nobody had written.
+//
+// This is the quietest class of defect this project has: no step fails, nothing refuses, and the
+// text that lands is a plausible version of what was asked for. It is only visible by reading
+// the result against the request character for character.
+type fragment struct {
+	text string
+	// sep is what was removed from in front of text, verbatim, and is put back exactly when
+	// the fragment turns out to be the tail of the clause before it rather than a new one.
+	sep string
 }
 
 // Split breaks a request into ordered clauses.
@@ -80,20 +102,28 @@ var separators = []string{
 // is one instruction whose TEXT contains "and", and splitting it would type "hello"
 // and then fail to understand "goodbye". So a split is refused when it would cut
 // inside a quoted run, and a clause that does not begin with a verb-like word is
-// rejoined to the one before it.
+// rejoined to the one before it — with the separator it was cut on, not a substitute.
 func Split(request string) []string {
-	parts := []string{request}
+	frags := []fragment{{text: request}}
 	for _, sep := range separators {
-		var next []string
-		for _, p := range parts {
-			next = append(next, splitOutsideQuotes(p, sep)...)
+		var next []fragment
+		for _, f := range frags {
+			for i, p := range splitOutsideQuotes(f.text, sep) {
+				// The first piece keeps whatever preceded the fragment it came from;
+				// every later one was preceded by this separator.
+				cut := f.sep
+				if i > 0 {
+					cut = sep
+				}
+				next = append(next, fragment{text: p, sep: cut})
+			}
 		}
-		parts = next
+		frags = next
 	}
 
 	var out []string
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
+	for _, f := range frags {
+		p := strings.TrimSpace(f.text)
 		p = strings.TrimSuffix(p, ".")
 		if p == "" {
 			continue
@@ -102,7 +132,7 @@ func Split(request string) []string {
 		// before it. "type hello and goodbye" splits to ["type hello", "goodbye"],
 		// and "goodbye" is not an instruction — it is the rest of the text.
 		if len(out) > 0 && !startsLikeInstruction(p) {
-			out[len(out)-1] = out[len(out)-1] + " and " + p
+			out[len(out)-1] = out[len(out)-1] + f.sep + p
 			continue
 		}
 		out = append(out, p)
@@ -203,12 +233,35 @@ var instructionStarters = map[string]bool{
 	"scroll": true, "drag": true, "close": true, "delete": true, "rename": true,
 }
 
+// starters is instructionStarters UNION the editing vocabulary, built once.
+//
+// THE HAND LIST WAS A SECOND COPY OF A FACT THAT ALREADY EXISTED, and it drifted. "Change" became
+// a legal way to ask for a replacement; this file did not know the word; and "add milk, eggs and
+// bread, then change milk to oat milk" rejoined into one instruction that appended the words
+// "then change milk to oat milk" to the document. The list's own comment had predicted the shape
+// of the failure — "harmless, because resolution then fails" — and it was not harmless, because
+// the clause it swallowed was text and the step it joined was an append.
+//
+// Taking the union means a new editing phrasing teaches the splitter by existing. The hand list
+// stays for the verbs that are not edits (click, focus, move) and for the deliberate entries
+// naming instructions the Director does not implement.
+var starters = func() map[string]bool {
+	m := make(map[string]bool, len(instructionStarters)+16)
+	for w := range instructionStarters {
+		m[w] = true
+	}
+	for _, w := range planner.Verbs() {
+		m[w] = true
+	}
+	return m
+}()
+
 func startsLikeInstruction(clause string) bool {
 	fields := strings.Fields(strings.ToLower(clause))
 	if len(fields) == 0 {
 		return false
 	}
-	return instructionStarters[strings.Trim(fields[0], `".,!?`)]
+	return starters[strings.Trim(fields[0], `".,!?`)]
 }
 
 // unprovable are the operations whose effect the World Model genuinely cannot see.

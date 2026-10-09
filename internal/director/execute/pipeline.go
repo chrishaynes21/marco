@@ -10,6 +10,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/memory"
 	"github.com/chaynes-simpleclouds/marco/internal/director/plan"
 	"github.com/chaynes-simpleclouds/marco/internal/director/program"
+	"github.com/chaynes-simpleclouds/marco/internal/director/search"
 	"github.com/chaynes-simpleclouds/marco/internal/director/target"
 	"github.com/chaynes-simpleclouds/marco/internal/director/trace"
 	"github.com/chaynes-simpleclouds/marco/internal/director/values"
@@ -63,7 +64,13 @@ type Pipeline struct {
 	// every case — keep the deterministic reading, and the sentence it refuses with.
 	Interpret func(context.Context, string) (directorapi.Intent, bool)
 	Resolver  *target.Resolver
-	Planner   *plan.Planner
+	// Searcher looks for a target that the reading in front of Marco does not contain.
+	//
+	// Optional: without one the pipeline behaves exactly as it did before, refusing an absent
+	// target with the resolver's own sentence. Consulted at ONE point — a resolution that came
+	// back `absent`, which is the only status that means "read, and not here". See look.go.
+	Searcher *search.Searcher
+	Planner  *plan.Planner
 	// Goals expands a high-level goal into a program. Optional: without it the
 	// pipeline behaves exactly as it did before, which is how a caller that has not
 	// opted in stays unaffected.
@@ -524,9 +531,45 @@ func (p *Pipeline) handleParsed(ctx context.Context, request string, parsed dire
 		}
 	}
 
+	// A TARGET THAT IS NOT IN THE READING MAY STILL BE ON THE SCREEN. Go and look.
+	//
+	// `absent` is the one status that means the window was read well enough to answer and the
+	// thing is not in it — which is exactly the finding that licenses looking somewhere else
+	// rather than refusing. See look.go for why `unobservable`, immediately above, does not
+	// earn a search: moving the view would be looking harder at something Marco cannot read.
+	//
+	// Nothing has happened to the desktop yet, so the search is still in the cheap half of the
+	// pipeline — but it is not free the way a second look is: it SCROLLS, which the person can
+	// see. That is why it is bounded, why the move set is closed, and why the view goes back
+	// when it finds nothing.
+	//
+	// When it finds something the pipeline carries on with the reading the thing was seen in,
+	// which is the continuation the whole thing is for: the step that could not resolve a
+	// moment ago resolves now, and the request proceeds without the person being asked to
+	// break it into pieces.
+	var searched *search.Result
+	if status != "" && res != nil && res.Status == directorapi.ResolutionAbsent {
+		if found, sres := p.lookElsewhere(ctx, out.Intent, add); found != nil {
+			world = *found
+			out.World = &world
+			built, decision, res, status, msg, diag = p.prepareTraced(ctx, request, world,
+				out.Intent, false, add)
+			out.Binding, out.Resolution, out.Policy = diag, res, decision
+			p.recordVariableOutcome(varName, res)
+		} else {
+			searched = sres
+		}
+	}
+
 	if status != "" {
 		out.Status = status
 		out.Message = msg
+		// The search's own sentence, when it has a stronger one. "Nothing matching X is
+		// present in the observed window" is true of one reading; "not anywhere scrolling
+		// could reach" is what was actually established, and the person paid for it.
+		if refusal := searchRefusal(targetPhrase(out.Intent), searched); refusal != "" {
+			out.Message = refusal
+		}
 		return out
 	}
 	out.Plan = built

@@ -9,9 +9,10 @@ used_by:
   - programs
   - goals
   - collections
-updated: 2026-08-06
+updated: 2026-10-08
 source_paths:
   - internal/director/wait
+  - internal/director/search
   - internal/director/execute
 ---
 
@@ -34,6 +35,22 @@ throughout the Director; the remaining sleeps are enumerated in [[director-waits
 
 Unknown is never converted to Unsatisfied. See [[ADR-006-unknown-is-not-false]]. Verification
 **defers** instead of retrying when it cannot establish an answer.
+
+## Searching is this loop with a move in it
+
+A wait looks at the same place repeatedly and waits for the place to change. A **search** replaces
+the pause with a bounded change to what can be seen, and is otherwise the same machinery: the
+same conditions, the same three values, the same Unknown gate, the same hard bound.
+
+It adds one answer a wait has no need for. `exhausted` means every place the pattern could reach
+was looked at **and read**, and is the only thing that licenses saying a control is not there —
+a single failed look only says "not in this reading". A place that could not be read makes the
+answer `unreadable` instead, because that place is one the thing could have been in.
+
+The moves a search may make are a **closed set**, because it makes them without being asked:
+today, a semantic scroll and nothing else. The view goes back when nothing was found.
+
+See [[ADR-143-a-search-is-a-wait-with-a-move-in-it]].
 
 ## Cancellation
 
@@ -60,15 +77,17 @@ clipboard, so an interrupted Director cannot leave a key stuck down or a clipboa
 - [[Programs]] — waits gate steps
 - [[Collections]] — the pause and the lock
 - [[Editing]] — borrows the clipboard, never takes it
+- [[Perception]] — what a search looks THROUGH; it observes by the same path a command does
 
 ## Decisions
 
+- [[ADR-143-a-search-is-a-wait-with-a-move-in-it]]
 - [[ADR-006-unknown-is-not-false]]
 - [[ADR-007-no-progress-no-repetition]]
 
 ## Validated by
 
-- `internal/director/wait/*` unit tests
+- `internal/director/wait/*` and `internal/director/search` unit tests, all non-actuating
 - `director wait`, `director trace`
 
 ## Known gaps

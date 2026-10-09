@@ -9,7 +9,6 @@
 package planner
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/edit"
@@ -60,7 +59,7 @@ func Parse(phrase string) (Plan, bool) {
 	}
 
 	// Clearing. "clear the search box", "empty the field".
-	for _, verb := range []string{"clear ", "empty "} {
+	for _, verb := range clearVerbs {
 		if rest, ok := cut(s, verb); ok {
 			return Plan{Operation: edit.ClearText{}, Target: cleanTarget(rest)}, true
 		}
@@ -68,7 +67,7 @@ func Parse(phrase string) (Plan, bool) {
 
 	// Entering text. The quoted form is preferred and unambiguous; the unquoted form
 	// needs a separator word to know where the text ends and the target begins.
-	for _, verb := range []string{"type ", "enter ", "write ", "put "} {
+	for _, verb := range setVerbs {
 		rest, ok := cut(s, verb)
 		if !ok {
 			continue
@@ -85,7 +84,7 @@ func Parse(phrase string) (Plan, bool) {
 	}
 
 	// Appending. "add world to the note", "append world".
-	for _, verb := range []string{"add ", "append "} {
+	for _, verb := range appendVerbs {
 		rest, ok := cut(s, verb)
 		if !ok {
 			continue
@@ -97,7 +96,8 @@ func Parse(phrase string) (Plan, bool) {
 		return Plan{Operation: edit.AppendText{Value: text}, Target: target, Commit: commit}, true
 	}
 
-	// Replacing a selection. "replace that with hello".
+	// Replacing one run of text with another. "Replace that with hello", "change milk to oat
+	// milk". See [replaceForms] for the spellings and the collision they accept.
 	//
 	// THE BEFORE-PART IS NOT DECORATION. This read `strings.Cut(rest, " with ")` and threw
 	// the before-part away, so "replace milk with oat milk" became "replace the selection
@@ -105,19 +105,125 @@ func Parse(phrase string) (Plan, bool) {
 	// caret. Measured on Notepad: it prepended "oat milk" to the document, left "milk" alone,
 	// and reported `performed`.
 	//
-	// Only the deictic forms are accepted, because only they genuinely mean the selection.
-	// Named text is refused by [WhyNot], since nothing in Marco can search for text in order
-	// to select it.
-	if rest, ok := cut(s, "replace "); ok {
-		if before, after, found := strings.Cut(rest, " with "); found && meansTheSelection(before) {
+	// So the before-part decides which of two operations this is, and the words decide it —
+	// not whatever happens to be selected at the time. A deictic form means the selection;
+	// anything else NAMES TEXT and becomes a search.
+	for _, f := range replaceForms {
+		rest, ok := cut(s, f.verb)
+		if !ok {
+			continue
+		}
+		if before, after, found := strings.Cut(rest, f.joiner); found {
 			text, _, commit := splitTextAndTarget(after, phrase)
 			if text != "" {
-				return Plan{Operation: edit.ReplaceSelection{Value: text}, Commit: commit}, true
+				if meansTheSelection(before) {
+					return Plan{
+						Operation: edit.ReplaceSelection{Value: text},
+						Commit:    commit,
+					}, true
+				}
+				// NAMED TEXT IS A SEARCH. The before-part used to be discarded here,
+				// which turned "replace milk with oat milk" into a request about
+				// whatever happened to be selected — and with nothing selected that
+				// inserted at the caret and reported success. It then refused, honestly,
+				// while nothing in Marco could search for text. Now it can: the editor
+				// reads the control before writing it, and a search over that value is
+				// the whole of what finding "milk" means. See edit.ReplaceText.
+				//
+				// The ORIGINAL case is kept, not the lower-cased one: the text to find is
+				// the person's own, and matching is case-sensitive on purpose.
+				old := originalRun(phrase, before)
+				if old == "" {
+					return Plan{}, false
+				}
+				return Plan{
+					Operation: edit.ReplaceText{Old: old, New: text},
+					Commit:    commit,
+				}, true
 			}
 		}
 	}
 
 	return Plan{}, false
+}
+
+// The verb prefixes, hoisted out of Parse so the package can say what it claims.
+//
+// They were inline literals, and that made this package's vocabulary unreadable from outside —
+// which is how the request splitter came to be a second, drifting copy of it. See [Verbs].
+var (
+	clearVerbs  = []string{"clear ", "empty "}
+	setVerbs    = []string{"type ", "enter ", "write ", "put "}
+	appendVerbs = []string{"add ", "append "}
+)
+
+// wholePhraseVerbs are the first words of the phrases Parse matches whole.
+//
+// Listed rather than derived from the switch because a switch on a string is not enumerable;
+// the drift this guards against is caught by a test that parses each phrase in the switch and
+// checks its first word is here.
+var wholePhraseVerbs = []string{
+	"undo", "redo", "select", "copy", "paste", "press", "hit", "submit", "commit",
+}
+
+// Verbs is every first word this package claims, for callers that need to recognise an editing
+// instruction without parsing one.
+//
+// # Two lists, one fact
+//
+// The request splitter decides whether a clause is a new instruction or the tail of the previous
+// one's text, and it did so from a hand-maintained list of forty words. That list is a second
+// definition of this vocabulary, and it drifted the moment "change milk to oat milk" became a
+// legal phrasing: the splitter did not know the word, so "add milk, eggs and bread, then change
+// milk to oat milk" rejoined into ONE instruction that appended the words "then change milk to
+// oat milk" to the document.
+//
+// The splitter cannot simply ask this package "is this a phrase you parse?" — "goodbye" is the
+// tail of "type hello and goodbye", and a parser permissive enough to be useful would read it as
+// a target. What it needs is narrower and is exactly what this answers: does the clause BEGIN
+// with a word that starts an edit. Derived from the same literals Parse reads, so a new phrasing
+// teaches the splitter by existing.
+func Verbs() []string {
+	out := make([]string, 0, 16)
+	for _, group := range [][]string{clearVerbs, setVerbs, appendVerbs} {
+		for _, v := range group {
+			out = append(out, strings.TrimSpace(v))
+		}
+	}
+	for _, f := range replaceForms {
+		out = append(out, strings.TrimSpace(f.verb))
+	}
+	return append(out, wholePhraseVerbs...)
+}
+
+// replaceForms are the ways a person asks for one run of text to become another.
+//
+// "Change A to B" is the phrasing the task actually arrived in — "add a short grocery list, then
+// change milk to oat milk" — and it means the same thing as "replace A with B". Both are listed
+// rather than one being normalised into the other because the joiner differs, and a verb that
+// paired with the wrong joiner ("change milk with oat milk") would read as something nobody said.
+//
+// # The collision, and why claiming the phrase is still the right call
+//
+// "Change A to B" has a second honest reading: SET THAT CONTROL TO THAT VALUE — "change the font
+// to Arial", which means pick Arial in a combo box, not find the letters "the font" in a
+// document. Nothing in Marco expresses that today, so the phrase is unclaimed and this reading
+// takes it.
+//
+// What makes that acceptable rather than a guess is the shape of being wrong. "The font" is not
+// in the document, so edit.ReplaceText refuses by name — *"the font" does not appear in the
+// text* — and the person learns precisely what was looked for. A guess that can only fail
+// honestly is not the kind of guess ambiguity is not permission to make; a guess that could
+// change text nobody pointed at would be.
+//
+// When the other reading exists, the discriminator is already available and is not a word list:
+// a before-part that appears in the focused control's value is text, and one that names a
+// control in the window is a control. Both facts are in hand at execution time. Until then there
+// is one reading, and it is this one.
+var replaceForms = []struct{ verb, joiner string }{
+	{"replace ", " with "},
+	{"change ", " to "},
+	{"change ", " into "},
 }
 
 // separators are the words that mark where entered text stops and the control begins.
@@ -261,26 +367,24 @@ func meansTheSelection(before string) bool {
 	return selectionWords[strings.TrimSpace(strings.Trim(before, `"'`))]
 }
 
-// WhyNot explains a phrase the edit planner recognises the SHAPE of and cannot perform.
+// originalRun recovers a span's ORIGINAL case from the phrase the person typed.
 //
-// It exists so a refusal can say what is missing instead of falling through to the parser's
-// vocabulary list. "I only understand click, focus, move, repeat and text editing" is a true
-// sentence about a phrase nobody read, and the wrong one for somebody who asked for a replace in
-// words Marco understood perfectly well.
+// Parsing works on a lower-cased copy, which is right for recognising verbs and wrong for text
+// the user is naming: "replace Jon with Jonathan" is looking for "Jon", and searching for "jon"
+// would either miss it or match something they did not point at. So the span is located
+// case-insensitively and returned as they wrote it.
 //
-// Narrow on purpose: it speaks only about shapes it recognises, and says nothing about phrases
-// that are some other parser's business.
-func WhyNot(phrase string) (string, bool) {
-	s := strings.TrimSpace(strings.ToLower(phrase))
-	s = strings.TrimRight(s, " .!?,")
-	rest, ok := cut(s, "replace ")
-	if !ok {
-		return "", false
+// Empty when the span cannot be found in the original, which cannot happen for a span taken from
+// the lower-cased copy of the same string — and if it somehow does, the caller declines rather
+// than guessing at the case.
+func originalRun(phrase, lowered string) string {
+	lowered = strings.TrimSpace(lowered)
+	if lowered == "" {
+		return ""
 	}
-	before, _, found := strings.Cut(rest, " with ")
-	if !found || meansTheSelection(before) {
-		return "", false
+	i := strings.Index(strings.ToLower(phrase), lowered)
+	if i < 0 {
+		return ""
 	}
-	return fmt.Sprintf("I can replace the selected text, but I cannot search for %q to select "+
-		"it — select it first and say \"replace that with …\"", strings.TrimSpace(before)), true
+	return phrase[i : i+len(lowered)]
 }

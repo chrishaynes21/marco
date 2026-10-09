@@ -9,7 +9,7 @@ depends_on:
 used_by:
   - goals
   - programs
-updated: 2026-08-06
+updated: 2026-10-08
 source_paths:
   - internal/director/edit
   - internal/director/execute/edit.go
@@ -38,10 +38,27 @@ Paste-based strategies save and restore the clipboard, on every exit path includ
 cancellation. A person's clipboard is theirs; an automation tool that eats it is a tool
 people stop trusting. See [[Control-Flow]].
 
+## Finding text by what it says
+
+`ReplaceText{Old, New}` searches the value the editor has already read. It needs no new
+perception — the editor reads a control's contents before writing them, so finding "milk" is a
+string search over a value in hand. Found once, it is replaced; found nowhere or more than once,
+it refuses and says which. See [[ADR-141-finding-text-by-what-it-says]].
+
+This is the only operation here whose result is **predictable in advance**, which makes it the
+only one verified against a computed string rather than a weaker property of one. Everything
+else depends on a caret, a selection or an application's undo history, none of which the World
+Model observes.
+
 ## Verification, and why a failed edit is not retried
 
 An edit that could not be confirmed is **not repeated**, because repeating it may apply it
 twice. This is [[ADR-007-no-progress-no-repetition]] in its most concrete form.
+
+Two measured failures shape the arms. A `replace_selection` that grew the value by exactly the
+length of the new text replaced **nothing** — the selection was empty and the text was inserted
+at the caret — and a `set_text` whose control exposes no value pattern reads back empty whatever
+it holds, which is inconclusive rather than failed. [[ADR-006-unknown-is-not-false]].
 
 ## Responsibilities
 
@@ -60,6 +77,7 @@ twice. This is [[ADR-007-no-progress-no-repetition]] in its most concrete form.
 
 ## Decisions
 
+- [[ADR-141-finding-text-by-what-it-says]]
 - [[ADR-007-no-progress-no-repetition]]
 - [[ADR-006-unknown-is-not-false]]
 - [[ADR-005-legal-marco-only]]

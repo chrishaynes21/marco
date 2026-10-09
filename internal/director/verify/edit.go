@@ -2,6 +2,7 @@ package verify
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 )
@@ -44,8 +45,9 @@ func (v *Verifier) verifyEdit(a directorapi.EditAction, target directorapi.Resol
 	}
 
 	var beforeValue string
+	var beforeKnown bool
 	if b, ok := before.Elements[target.ElementID]; ok && b != nil {
-		beforeValue = b.Value
+		beforeValue, beforeKnown = b.Value, true
 	}
 
 	// A CONTROL THAT CANNOT REPORT ITS VALUE HAS NOT REPORTED AN EMPTY ONE.
@@ -142,6 +144,52 @@ func (v *Verifier) verifyEdit(a directorapi.EditAction, target directorapi.Resol
 		}
 		return editVerdict(true, 0.7, "value_changed",
 			fmt.Sprintf("the value changed from %q to %q", beforeValue, el.Value))
+
+	case "replace_text":
+		// THE ONE EDIT WHOSE RESULT IS KNOWN IN ADVANCE.
+		//
+		// Every other operation in this switch is checked against a weaker property —
+		// "ends with", "is empty", "changed at all" — because the exact value depends on
+		// a selection or a history the World Model cannot see. A replace depends on
+		// neither: the value before, the run looked for, and the run put in determine
+		// the value after exactly. So the verdict compares against a computed string
+		// rather than a property of one, which is the strongest evidence this package
+		// can offer about anything.
+		//
+		// It also closes the hole that made this operation necessary. "Replace milk with
+		// oat milk" once prepended "oat milk" and reported performed; a value that
+		// merely CONTAINS "oat milk" still does, and so does one that contains it twice.
+		// Only the computed value distinguishes them.
+		//
+		// Note what is NOT checked: that "milk" is gone. It is not — "oat milk" contains
+		// it. A verdict built on the old text's absence would fail every replace whose
+		// replacement extends the word it replaces, which is the commonest kind.
+		if !beforeKnown {
+			return directorapi.VerificationResult{
+				Inconclusive: true,
+				Reason: fmt.Sprintf("the control's contents before the replace were not "+
+					"observed, so there is no way to say what %q should have become",
+					a.Find),
+			}
+		}
+		if !strings.Contains(beforeValue, a.Find) {
+			// The executor refuses this case, so reaching it means the two reads
+			// disagree — the thing looked for was not in the value the world recorded.
+			// Reported as a failure rather than quietly passed: the person asked about
+			// text that, by this evidence, was not there.
+			return editVerdict(false, 0.8, "search_text_absent",
+				fmt.Sprintf("%q does not appear in %q, so nothing could have been "+
+					"replaced", a.Find, beforeValue))
+		}
+		if want := strings.Replace(beforeValue, a.Find, a.Text, 1); el.Value == want {
+			return editVerdict(true, 0.95, "value_matches_computed_replacement",
+				fmt.Sprintf("%q became %q, so the control now contains %q",
+					a.Find, a.Text, el.Value))
+		}
+		return editVerdict(false, 0.9, "value_is_not_the_replacement",
+			fmt.Sprintf("the control contains %q, not the %q it would hold if %q had been "+
+				"replaced with %q", el.Value,
+				strings.Replace(beforeValue, a.Find, a.Text, 1), a.Find, a.Text))
 
 	case "undo", "redo", "insert_text", "paste_clipboard", "press_enter":
 		// Verified by CHANGE, because the exact result is not predictable from the

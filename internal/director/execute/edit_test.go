@@ -167,9 +167,9 @@ func TestEveryOperationNameMapsToAnOperation(t *testing.T) {
 	for _, id := range []edit.OperationID{
 		edit.OpSetText, edit.OpAppendText, edit.OpInsertText, edit.OpReplaceSelection,
 		edit.OpClearText, edit.OpCopySelection, edit.OpPasteClipboard, edit.OpSelectAll,
-		edit.OpUndo, edit.OpRedo, edit.OpPressEnter,
+		edit.OpUndo, edit.OpRedo, edit.OpPressEnter, edit.OpReplaceText,
 	} {
-		op, err := operationFor(string(id), "x")
+		op, err := operationFor(string(id), "x", "y")
 		if err != nil {
 			t.Fatalf("%s does not map: %v", id, err)
 		}
@@ -268,5 +268,39 @@ func TestAFailedEditStopsTheSequenceBeforeTheNextOne(t *testing.T) {
 	}
 	if bad.called != 1 {
 		t.Fatalf("editor ran %d times — a failed edit must not be followed by another", bad.called)
+	}
+}
+
+// TestAReplaceWithNothingToLookForIsRefused guards the last gate before the document.
+//
+// An EMPTY search string matches at position zero of every value, so strings.Replace with one
+// inserts at the front and returns a changed string — which is, character for character, the
+// defect that made edit.ReplaceText necessary: "oat milk" prepended, "milk" untouched,
+// `performed`.
+//
+// The planner will not produce one and the plan will not carry one, so this is a guard on a
+// path nothing currently takes. It is tested here because operationFor is where a string
+// vocabulary crosses into a real edit of somebody's text, and the cost of being wrong on the
+// far side of that line is a silently mangled document.
+func TestAReplaceWithNothingToLookForIsRefused(t *testing.T) {
+	if _, err := operationFor(string(edit.OpReplaceText), "oat milk", ""); err == nil {
+		t.Error("a replace with an empty search string was accepted; it would insert at the " +
+			"start of the value and report a change")
+	}
+}
+
+// TestAReplaceCarriesBothRuns — the operation needs the old text and the new one, and they
+// arrive as two separate parameters precisely so neither can stand in for the other.
+func TestAReplaceCarriesBothRuns(t *testing.T) {
+	op, err := operationFor(string(edit.OpReplaceText), "oat milk", "milk")
+	if err != nil {
+		t.Fatalf("operationFor: %v", err)
+	}
+	r, isReplace := op.(edit.ReplaceText)
+	if !isReplace {
+		t.Fatalf("got %T, want edit.ReplaceText", op)
+	}
+	if r.Old != "milk" || r.New != "oat milk" {
+		t.Errorf("looks for %q and puts in %q; want %q and %q", r.Old, r.New, "milk", "oat milk")
 	}
 }

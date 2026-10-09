@@ -40,6 +40,8 @@ const (
 	OpUndo             OperationID = "undo"
 	OpRedo             OperationID = "redo"
 	OpPressEnter       OperationID = "press_enter"
+	// OpReplaceText swaps one run of text for another, found by its content.
+	OpReplaceText OperationID = "replace_text"
 )
 
 // Operation is a semantic edit: a statement about the text state the user wants.
@@ -246,4 +248,40 @@ func truncate(s string, n int) string {
 		return s
 	}
 	return s[:n-3] + "..."
+}
+
+// ReplaceText swaps one run of text for another, found by what it says.
+//
+// # Why this is its own operation
+//
+// The same argument [AppendText] makes, one step further. Appending needs the current value read
+// before it can be written; replacing needs it read AND searched, and both decisions belong at
+// execution time against the value that is really there. A planner expressing this as
+// SetText(computed) would be deciding what the document contains before anything observed it.
+//
+// # What it earned its place with
+//
+// A real task: "change milk to oat milk". Before this existed the planner read `replace A with B`
+// by discarding A, so the request became "replace the selection with B" — and with nothing
+// selected it inserted at the caret and reported success. The refusal that replaced that false
+// success said the honest thing at the time: nothing in Marco could search for text in order to
+// select it. This is that capability, and the refusal now comes from the search rather than from
+// its absence.
+//
+// # It does not guess which one
+//
+// Old appearing more than once is AMBIGUOUS and refuses. "Replace milk with oat milk" in a list
+// containing milk twice has two readings and no way to choose; acting on the first would change
+// text the person was not looking at. Appearing zero times refuses too, naming what was looked
+// for — see Editor.perform.
+type ReplaceText struct{ Old, New string }
+
+func (o ReplaceText) ID() OperationID { return OpReplaceText }
+
+// Text is the text going IN, which is what the TextOperation contract means everywhere else:
+// what a caller redacts, counts and verifies against.
+func (o ReplaceText) Text() string { return o.New }
+
+func (o ReplaceText) Description() string {
+	return fmt.Sprintf("replace %q with %q", truncate(o.Old, 20), truncate(o.New, 20))
 }

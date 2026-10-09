@@ -1,6 +1,9 @@
 package directorapi
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // ActionType names a kind of action. String-typed so plans serialise readably and a
 // skill can contribute an action type without a Go enum change.
@@ -523,6 +526,11 @@ type EditAction struct {
 	Operation string `json:"operation"`
 	// Text is what the operation is about, for the operations that carry text.
 	Text string `json:"text,omitempty"`
+	// Find is the text an operation looks FOR, as against the Text it puts in. Only
+	// replace_text carries one, and it is the person's own words in their own case: the
+	// search is case-sensitive, because "Jon" and "jon" are different runs of text and
+	// matching either would change something nobody pointed at.
+	Find string `json:"find,omitempty"`
 }
 
 func (EditAction) ActionType() ActionType { return ActionEdit }
@@ -534,6 +542,8 @@ func (a EditAction) Describe() string {
 		return "clear " + describeTarget(a.Target)
 	case "append_text":
 		return "add text to " + describeTarget(a.Target)
+	case "replace_text":
+		return fmt.Sprintf("replace %q with %q in %s", a.Find, a.Text, describeTarget(a.Target))
 	case "undo":
 		return "undo the last edit"
 	case "redo":

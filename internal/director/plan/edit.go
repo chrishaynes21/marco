@@ -28,6 +28,13 @@ func (p *Planner) editPlan(in Input) (directorapi.Plan, error) {
 	}
 
 	action := directorapi.EditAction{Target: target, Operation: op, Text: in.Intent.Text}
+	// The text a replace looks FOR travels beside the text it puts in. Carried through
+	// rather than recomputed: the person's own words in their own case, because the
+	// search is case-sensitive and a planner that normalised them would be deciding
+	// which run of text they meant.
+	if find, _ := in.Intent.Parameters[intent.EditFind].(string); find != "" {
+		action.Find = find
+	}
 
 	steps := []directorapi.PlanStep{{
 		Index:     0,
@@ -39,7 +46,7 @@ func (p *Planner) editPlan(in Input) (directorapi.Plan, error) {
 			Type:        directorapi.ConditionElementValue,
 			Query:       target.Query,
 			Value:       expectedText(op, in.Intent.Text),
-			Description: describeExpectation(op, in.Intent.Text),
+			Description: describeExpectation(action),
 		}},
 	}}
 
@@ -74,7 +81,7 @@ func (p *Planner) editPlan(in Input) (directorapi.Plan, error) {
 // editRisk grades an operation by what it can destroy.
 func editRisk(op string) directorapi.RiskLevel {
 	switch op {
-	case "set_text", "clear_text", "replace_selection":
+	case "set_text", "clear_text", "replace_selection", "replace_text":
 		// These REPLACE what was there. The old value is gone unless the application
 		// has an undo, which is not something the Director may assume.
 		return directorapi.RiskMedium
@@ -99,7 +106,8 @@ func expectedText(op, text string) string {
 	return ""
 }
 
-func describeExpectation(op, text string) string {
+func describeExpectation(a directorapi.EditAction) string {
+	op, text := a.Operation, a.Text
 	switch op {
 	case "set_text":
 		return fmt.Sprintf("the control contains %q", text)
@@ -107,6 +115,11 @@ func describeExpectation(op, text string) string {
 		return "the control is empty"
 	case "append_text":
 		return fmt.Sprintf("the control ends with %q", text)
+	case "replace_text":
+		// Named in both halves on purpose. The expectation a replace has to be held to is
+		// that THAT run of text became THIS one — not that the value changed, which is
+		// what an insert at the caret also does.
+		return fmt.Sprintf("%q is replaced with %q", a.Find, text)
 	}
 	return "the control's text changed"
 }

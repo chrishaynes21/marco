@@ -25,7 +25,12 @@ type TextEditor interface {
 // An unrecognised name fails LOUDLY: a plan naming an operation the executor does not
 // have is a bug in the planner, and quietly substituting the nearest thing would turn
 // it into a wrong edit in the user's document.
-func operationFor(name, text string) (edit.Operation, error) {
+//
+// `find` is the text a replace looks for, which only replace_text carries. It is a
+// separate parameter from `text` rather than folded into it because an operation that
+// searches needs BOTH, and overloading `text` to mean "the old one, sometimes" is
+// exactly how "replace milk with oat milk" came to discard the word milk.
+func operationFor(name, text, find string) (edit.Operation, error) {
 	switch edit.OperationID(name) {
 	case edit.OpSetText:
 		return edit.SetText{Value: text}, nil
@@ -35,6 +40,14 @@ func operationFor(name, text string) (edit.Operation, error) {
 		return edit.InsertText{Value: text}, nil
 	case edit.OpReplaceSelection:
 		return edit.ReplaceSelection{Value: text}, nil
+	case edit.OpReplaceText:
+		if find == "" {
+			// Nothing to look for. An empty search string matches at every position,
+			// so a replace built from one would insert at the start and report
+			// success — which is precisely the defect this operation exists to end.
+			return nil, fmt.Errorf("a replace must say what text to look for")
+		}
+		return edit.ReplaceText{Old: find, New: text}, nil
 	case edit.OpClearText:
 		return edit.ClearText{}, nil
 	case edit.OpCopySelection:
@@ -65,7 +78,7 @@ func (e *Executor) executeEdit(ctx context.Context, a directorapi.EditAction) (s
 			"editing text needs an editor; refusing to fall back to typing, " +
 				"which cannot be verified and would ignore the control's own value API")
 	}
-	op, err := operationFor(a.Operation, a.Text)
+	op, err := operationFor(a.Operation, a.Text, a.Find)
 	if err != nil {
 		return "", err
 	}

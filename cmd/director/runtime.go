@@ -33,6 +33,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/timeline"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/windowref"
 	"github.com/chaynes-simpleclouds/marco/internal/director/plan"
+	"github.com/chaynes-simpleclouds/marco/internal/director/search"
 	"github.com/chaynes-simpleclouds/marco/internal/director/semanticmemory"
 	"github.com/chaynes-simpleclouds/marco/internal/director/service"
 	"github.com/chaynes-simpleclouds/marco/internal/director/target"
@@ -653,6 +654,25 @@ func NewRuntime(bridgePath string, maxNodes int, dryRun bool, g *actiongraph.Fil
 		// few lines above and there is no supported configuration without it.
 		panic("director: the effects executor reached the pipeline without a foreground guard")
 	}
+	// The executor, built BEFORE the pipeline because two things need it: the pipeline
+	// performs the plan with it, and the searcher moves the view with it. Both must be the
+	// same object — a search that reached the desktop by any other route would be outside the
+	// foreground guard and outside the lowering record.
+	directorEffects := &execute.Executor{
+		Actuator: rt.effects,
+		Focus:    rt.effects,
+		Resolve: func(ref directorapi.ElementReference) (directorapi.ResolvedTarget, error) {
+			return resolveRef(observe, ref)
+		},
+		Lowerings:    rt.lowerings,
+		Editor:       editor,
+		EditRecorder: rt.edits.record,
+		// The runner a semantic action.s chosen mechanism lowers into. Without it a
+		// semantic action fails rather than degrading to a click.
+		Operations:       rt.effects,
+		SemanticRecorder: rt.actions.record,
+	}
+
 	rt.pipeline = &execute.Pipeline{
 		Observe: observe,
 		Intent:  intent.New().Parse,
@@ -725,20 +745,30 @@ func NewRuntime(bridgePath string, maxNodes int, dryRun bool, g *actiongraph.Fil
 		// capture cannot set a value even though the executor behind it can.
 		ControlValues: rt.effects,
 		Clipboard:     rt.effects,
-		Executor: &execute.Executor{
-			Actuator: rt.effects,
-			Focus:    rt.effects,
-			Resolve: func(ref directorapi.ElementReference) (directorapi.ResolvedTarget, error) {
-				return resolveRef(observe, ref)
-			},
-			Lowerings:    rt.lowerings,
-			Editor:       editor,
-			EditRecorder: rt.edits.record,
-			// The runner a semantic action.s chosen mechanism lowers into. Without it a
-			// semantic action fails rather than degrading to a click.
-			Operations:       rt.effects,
-			SemanticRecorder: rt.actions.record,
-		},
+		Executor:      directorEffects,
+		// LOOKING SOMEWHERE ELSE, when the reading in front of Marco does not contain what
+		// was asked for. Consulted at one point in the pipeline — a resolution that came
+		// back `absent` — and bounded, closed and reversible by construction; see
+		// internal/director/search.
+		//
+		// It observes through `observe`, the same collector, fusion and identity a command
+		// uses, and it moves through the same guarded executor the plan does. A
+		// search that had its own route to either would be a second Director with weaker
+		// rules.
+		//
+		// Deleting this must fail TestTheDirectorLooksForATargetThatIsNotInTheReading,
+		// in internal/director/execute, and TestThePipelineTheDirectorBuildsCarriesTheSearcher
+		// here.
+		Searcher: search.New(observe, func(ctx context.Context, m search.Move) error {
+			out, err := directorEffects.Execute(ctx, m.Action)
+			if err != nil {
+				return err
+			}
+			if !out.Performed {
+				return fmt.Errorf("%s: %s", m.Phrase, reasonOr(out.Error, "it did not happen"))
+			}
+			return nil
+		}),
 	}
 	return rt, nil
 }
@@ -1120,4 +1150,13 @@ func (r *Runtime) HandleClarified(ctx context.Context, phrase string,
 	r.finishTrace(t, string(out.Status))
 	r.pauseProgram(phrase, out)
 	return out
+}
+
+// reasonOr is the host's own words, or a stand-in when it offered none. A move that reported
+// "it did not happen" and nothing else is still better than an empty sentence.
+func reasonOr(detail, fallback string) string {
+	if detail != "" {
+		return detail
+	}
+	return fallback
 }
