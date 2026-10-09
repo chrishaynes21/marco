@@ -5,9 +5,12 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"image"
 	"image/png"
 	"os"
 	"path/filepath"
+	"sort"
+	"sync"
 	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
@@ -83,7 +86,53 @@ type gameSession struct {
 	Frames      int    `json:"frames"`
 	Inputs      int    `json:"inputs"`
 	DroppedIn   int    `json:"dropped_inputs"`
-	Controller  string `json:"controller"`
+	// DroppedFrames is captures that were never written, because the encoders were behind
+	// or a write failed. A gap somebody can count, rather than a timeline that stretched.
+	DroppedFrames int `json:"dropped_frames"`
+	// AchievedFPS is what the recording actually managed, from its own timestamps.
+	//
+	// Separate from the requested rate and printed beside it, because the two have been
+	// different by a factor of three and the requested one is an intention. A reader
+	// deciding whether this session can show a transition needs the measured number.
+	AchievedFPS float64 `json:"achieved_fps"`
+	Controller  string  `json:"controller"`
+}
+
+// achievedFPS is the rate the recording actually ran at, from the frames' own times.
+func achievedFPS(frames []gameFrame) float64 {
+	if len(frames) < 2 {
+		return 0
+	}
+	span := frames[len(frames)-1].AtMS - frames[0].AtMS
+	if span <= 0 {
+		return 0
+	}
+	return float64(len(frames)-1) * 1000 / float64(span)
+}
+
+// How the encoders are bounded.
+//
+// Three workers against an 89ms encode is about 34 frames per second of throughput, well
+// clear of any rate the capture side can feed them. The queue is small on purpose: each
+// pending frame holds a full 1920x1080 image, about 8MB, so eight of them plus the three in
+// flight is roughly 90MB — a bound worth having on a machine that has already killed
+// processes for memory during a test run.
+const (
+	encodeWorkers = 3
+	encodeQueue   = 8
+)
+
+// encodeFrame writes one frame, closing the file whatever happens.
+func encodeFrame(enc png.Encoder, path string, img image.Image) error {
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	if err := enc.Encode(f, img); err != nil {
+		_ = f.Close()
+		return err
+	}
+	return f.Close()
 }
 
 func runCaptureGameSession(args []string) int {
@@ -155,8 +204,48 @@ func runCaptureGameSession(args []string) int {
 	start := time.Now()
 	deadline := start.Add(time.Duration(*seconds) * time.Second)
 
-	var frames []gameFrame
+	// Encoding runs OFF the capture clock, which is the difference between a usable
+	// recording and a useless one.
+	//
+	// Measured on this machine against a real 1920x1080 Rocket League frame: 476ms to
+	// encode at Go's default compression, about 130ms to capture. A recorder that encodes
+	// inline therefore runs at about 1.6 frames per second whatever it was asked for — and
+	// it reports that honestly, because the times are measured, which is how this was
+	// caught. But a menu selection changes faster than 600ms, so every transition would
+	// fall between two frames and the recording could not answer the question it exists
+	// for.
+	//
+	// png.BestSpeed costs 89ms for about 20% more bytes, and moving it onto workers takes
+	// it off the clock altogether. What is left is the capture cost.
+	type pending struct {
+		frame gameFrame
+		img   image.Image
+	}
+	queue := make(chan pending, encodeQueue)
+	var encMu sync.Mutex
+	var written []gameFrame
+	var encodeErrs []error
+	var wg sync.WaitGroup
+	for range encodeWorkers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			enc := png.Encoder{CompressionLevel: png.BestSpeed}
+			for p := range queue {
+				err := encodeFrame(enc, filepath.Join(dir, filepath.FromSlash(p.frame.File)), p.img)
+				encMu.Lock()
+				if err != nil {
+					encodeErrs = append(encodeErrs, err)
+				} else {
+					written = append(written, p.frame)
+				}
+				encMu.Unlock()
+			}
+		}()
+	}
+
 	var inputs []gameInput
+	captured, droppedFrames := 0, 0
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
@@ -194,30 +283,37 @@ func runCaptureGameSession(args []string) int {
 			<-ticker.C
 			continue
 		}
-		index := len(frames)
+		index := captured
 		rel := filepath.ToSlash(filepath.Join("frames", fmt.Sprintf("%s-%04d.png", *session, index)))
-		f, err := os.Create(filepath.Join(dir, filepath.FromSlash(rel)))
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "director: %v\n", err)
-			break
-		}
-		err = png.Encode(f, img.Image)
-		_ = f.Close()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "director: encoding frame %d: %v\n", index, err)
-			break
-		}
 		b := img.Image.Bounds()
-		frames = append(frames, gameFrame{
-			Index: index, File: rel, AtMS: at,
-			Width: b.Dx(), Height: b.Dy(),
-			WindowGeneration: v.Ref.Generation,
-		})
+		p := pending{
+			frame: gameFrame{
+				Index: index, File: rel, AtMS: at,
+				Width: b.Dx(), Height: b.Dy(),
+				WindowGeneration: v.Ref.Generation,
+			},
+			img: img.Image,
+		}
+		select {
+		case queue <- p:
+			captured++
+		default:
+			// The encoders are behind. A dropped frame is an honest gap in a record
+			// whose times are measured; blocking here would stretch the interval
+			// instead, which hides the problem inside data that still looks regular.
+			droppedFrames++
+		}
 		if index%*fps == 0 {
-			fmt.Printf("  %6dms: %d frames, %d inputs\n", at, len(frames), len(inputs))
+			fmt.Printf("  %6dms: %d frames, %d inputs\n", at, captured, len(inputs))
 		}
 		<-ticker.C
 	}
+	close(queue)
+	wg.Wait()
+	// Written in capture order. The workers finish out of order and that is fine for
+	// files, but a log whose lines were not in time order would invite somebody to read
+	// adjacency as sequence.
+	sort.Slice(written, func(i, j int) bool { return written[i].Index < written[j].Index })
 
 	pads.Stop()
 	// Whatever the controller reported after the last frame still belongs to the session.
@@ -233,11 +329,13 @@ func runCaptureGameSession(args []string) int {
 			"Times are milliseconds from the first frame, measured rather than scheduled.",
 		StartedUTC:  start.UTC().Format(time.RFC3339),
 		RequestedMS: int(interval.Milliseconds()),
-		Frames:      len(frames), Inputs: len(inputs),
-		DroppedIn:  pads.Dropped(),
-		Controller: controllerNote(pads, len(inputs)),
+		Frames:      len(written), Inputs: len(inputs),
+		DroppedIn:     pads.Dropped(),
+		DroppedFrames: droppedFrames + len(encodeErrs),
+		AchievedFPS:   achievedFPS(written),
+		Controller:    controllerNote(pads, len(inputs)),
 	}
-	if err := writeSessionRecord(dir, meta, frames, inputs); err != nil {
+	if err := writeSessionRecord(dir, meta, written, inputs); err != nil {
 		fmt.Fprintf(os.Stderr, "director: writing the session: %v\n", err)
 		return 1
 	}
@@ -245,7 +343,11 @@ func runCaptureGameSession(args []string) int {
 	if lost != "" {
 		fmt.Printf("\nStopped early: %s\n", lost)
 	}
-	fmt.Printf("\n%d frame(s), %d input(s), all marked captured_private.\n", len(frames), len(inputs))
+	fmt.Printf("\n%d frame(s) at %.1f fps measured, %d input(s), all marked captured_private.\n",
+		len(written), meta.AchievedFPS, len(inputs))
+	if meta.DroppedFrames > 0 {
+		fmt.Printf("%d frame(s) were dropped because the encoders fell behind.\n", meta.DroppedFrames)
+	}
 	if pads.Dropped() > 0 {
 		fmt.Printf("%d input(s) were dropped because the recorder fell behind.\n", pads.Dropped())
 	}

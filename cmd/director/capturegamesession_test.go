@@ -119,6 +119,32 @@ func TestTheThreeLogsAreSeparateDocuments(t *testing.T) {
 	}
 }
 
+// TestTheSessionReportsTheRateItAchievedNotTheOneItWasAsked is the third way a capture can
+// look valid and mislead.
+//
+// Measured on a real Rocket League window: encoding a 1920x1080 frame at Go's default
+// compression costs 476ms against about 130ms to capture, so the first version of this
+// command ran at 1.6 frames per second when asked for 5. The times were honest — they are
+// measured — but a reader skimming `requested_frame_interval_ms` would have concluded the
+// recording could show a menu transition, and it could not.
+func TestTheSessionReportsTheRateItAchievedNotTheOneItWasAsked(t *testing.T) {
+	ten := []gameFrame{{Index: 0, AtMS: 0}, {Index: 1, AtMS: 100}, {Index: 2, AtMS: 200}}
+	if got := achievedFPS(ten); got < 9.9 || got > 10.1 {
+		t.Errorf("three frames 100ms apart is 10 fps, got %.2f", got)
+	}
+	slow := []gameFrame{{Index: 0, AtMS: 0}, {Index: 1, AtMS: 725}, {Index: 2, AtMS: 1400}}
+	if got := achievedFPS(slow); got > 2 {
+		t.Errorf("the rate the original defect produced must not read as fast, got %.2f", got)
+	}
+	// Degenerate inputs must not invent a rate. A session that captured one frame has no
+	// measurable rate, and reporting one would be the same class of fiction.
+	for _, c := range [][]gameFrame{nil, {{Index: 0, AtMS: 0}}, {{AtMS: 5}, {AtMS: 5}}} {
+		if got := achievedFPS(c); got != 0 {
+			t.Errorf("%v has no measurable rate, got %.2f", c, got)
+		}
+	}
+}
+
 // TestFrameTimesAreReadFromTheClockNotTheSchedule guards the defect this command was written
 // to avoid repeating.
 //
@@ -137,6 +163,39 @@ func TestFrameTimesAreReadFromTheClockNotTheSchedule(t *testing.T) {
 	}
 	if strings.Contains(s, "time.Duration(i) * *interval") {
 		t.Error("a frame time derived from the schedule is a fiction; measure it")
+	}
+	// And encoding stays off the clock. Inline encoding is what held the recorder to 1.6
+	// fps, and it is a one-line regression away: png.Encode in the capture loop.
+	if !strings.Contains(s, "CompressionLevel: png.BestSpeed") {
+		t.Error("default PNG compression costs 476ms a frame here and governs the rate")
+	}
+	if !strings.Contains(s, "queue <- p:") {
+		t.Error("frames must be handed to encoder workers, not encoded on the capture clock")
+	}
+}
+
+// TestAFullEncoderQueueDropsRatherThanStretchingTheTimeline is the choice behind the bound.
+//
+// Blocking on a full queue would keep every frame and silently lengthen the interval, so the
+// record would still look regular while no longer describing when anything happened. A
+// dropped frame is a gap somebody can count, and the session says how many.
+func TestAFullEncoderQueueDropsRatherThanStretchingTheTimeline(t *testing.T) {
+	src, err := os.ReadFile("capturegamesession.go")
+	if err != nil {
+		t.Fatalf("reading the command: %v", err)
+	}
+	s := string(src)
+	if !strings.Contains(s, "droppedFrames++") {
+		t.Error("a frame that could not be queued must be counted")
+	}
+	if !strings.Contains(s, `DroppedFrames int `) {
+		t.Error("the session record must carry the dropped count; an uncounted gap is a lie")
+	}
+	// The bound itself: an unbounded queue holds 8MB per pending frame and this machine
+	// has killed processes for memory during a test run.
+	if encodeQueue <= 0 || encodeQueue > 32 {
+		t.Errorf("encodeQueue = %d; it bounds roughly %dMB of pending frames",
+			encodeQueue, encodeQueue*8)
 	}
 }
 
