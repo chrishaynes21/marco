@@ -11,6 +11,7 @@ import (
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
 	"github.com/chaynes-simpleclouds/marco/internal/director/observesession"
+	"github.com/chaynes-simpleclouds/marco/internal/director/perception/capture"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/observation"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/providers/visualstate"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/windowref"
@@ -79,6 +80,11 @@ type liveSampler struct {
 	// sceneCandidate is the picture that ended the last lease, held while it is decided
 	// whether the screen has SETTLED there or is merely moving. See settledIntoANewScene.
 	sceneCandidate *visualstate.Snapshot
+	// track is the FAST visual path: it reads the mark inside the last discovery's geometry
+	// on its own clock, because the observation cycle is 2.6s and twelve controller presses
+	// fit inside two of them. Nil on a Director with no experimental detector, because a
+	// discovery is the only thing that gives it geometry. See trackwiring.go.
+	track *fastTracker
 	// leaseDropped is the last reason a lease ENDED, kept after leaseWhy has moved on.
 	leaseDropped string
 	// labels says whether this Director can read text inside detected controls at all.
@@ -253,6 +259,41 @@ func (s *liveSampler) Sample(ctx context.Context, req observesession.SampleReque
 		//
 		// Deleting this must fail TestTheSampleCarriesGeometryTheDetectorCouldNotName.
 		sh.Shapes = shadowShapes(s.rt.shadowVision, pinned.Bounds)
+		// THE FAST LOOKS TAKEN SINCE THE LAST SAMPLE, then the geometry for the next
+		// ones. Drained BEFORE the handover, deliberately: the looks being drained were
+		// read against the PREVIOUS discovery's rectangles, and handing over first would
+		// relabel them as reads of geometry they never saw.
+		//
+		// Deleting the drain must fail TestTheFastLooksRideOnTheSample.
+		sh.Track = s.track.Drain()
+		// AND THE LIVENESS CHECK THE TRACKER CANNOT MAKE FOR ITSELF.
+		//
+		// Here because this is the layer that holds the window under the lock. The
+		// tracker runs on its own goroutine and must not read `Runtime.pinnedWindow`;
+		// taking the lock instead would stall it for the whole cycle, which is the rate
+		// it exists to beat. So the check happens once per cycle, where the data already
+		// is, and the refusal travels to the belief as a look rather than as a silence.
+		//
+		// Deleting this must fail TestAMovedWindowStopsTheFastPathReadingItsGeometry.
+		if d := s.track.geometry(); d != nil {
+			switch {
+			case d.window != pinned.ID:
+				s.track.invalidate(d, "a different window is in front now")
+			case d.generation != 0 && d.generation != req.Window.Generation:
+				s.track.invalidate(d, "the window was replaced since the geometry "+
+					"was found")
+			case capture.Moved(pinned.Bounds, d.bounds):
+				s.track.invalidate(d, "the window moved since the geometry was found")
+			}
+		}
+		// A sparse inference leaves the previous geometry in place rather than clearing
+		// it, and observe.TrackStaleness decides when old geometry stops being usable.
+		// That judgement belongs to the belief, which is what the freshness is relative
+		// to, not to the thing holding the camera.
+		if d := discoveryFrom(req.Sequence, sample.Timestamp, sh, pinned,
+			req.Window.Generation); d != nil {
+			s.track.discovered(d)
+		}
 		// AND WHICH PURCHASE POLICY IT RAN BEHIND.
 		//
 		// A run whose policy nobody recorded is a measurement of an unknown system. The
@@ -517,6 +558,20 @@ func (r *Runtime) newObservationSampler(clock observesession.Clock) observesessi
 	if r.padSource != nil {
 		s.pad = r.padSource.Open(clock.Now())
 	}
+	// THE FAST VISUAL PATH, started with the session and stopped with it.
+	//
+	// It ticks on its own clock rather than on the cycle, which is the whole point: a
+	// ScreenParser inference runs inside the cycle it was offered in, so the measured cycle
+	// was 2.6s against a configured 500ms and twelve presses arrived inside two cycles. A
+	// read taken once per cycle would not be fast.
+	//
+	// nil unless the experimental detector is configured — nothing else produces a
+	// discovery, and a capture loop with no geometry to read would be a capture loop for
+	// nothing. Every call site below is a no-op on nil.
+	//
+	// Deleting this must fail TestASessionStartsTheFastVisualPath.
+	s.track = newFastTracker(r)
+	s.track.Start()
 	return s
 }
 
@@ -530,6 +585,13 @@ func (s *liveSampler) detachNavigation() {
 		s.rt.padSource.CloseSession(s.pad)
 	}
 	s.pad = nil
+	// The capture loop stops with the session. A ticker that outlived its session would go
+	// on photographing a region of somebody's desktop with nothing left to report it to,
+	// which is the thing `visualstate`'s own area bound exists to prevent the shape of.
+	//
+	// Deleting this must fail TestEndingASessionStopsTheFastVisualPath.
+	s.track.Stop()
+	s.track = nil
 }
 
 // realClock is time, for production.

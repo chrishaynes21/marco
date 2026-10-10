@@ -85,6 +85,17 @@ type InterfaceBelief struct {
 	// happened.
 	Sample int       `json:"sample,omitempty"`
 	At     time.Time `json:"at,omitzero"`
+	// Tracked says the SELECTION was read by a fast look over remembered geometry rather
+	// than by the discovery that identified the list.
+	//
+	// The field that stops a fast observation being read as contemporaneous with an old
+	// discovery, which [[ADR-152-slow-discovery-fast-tracking]] names as the defect to
+	// avoid. TrackedAt is when those pixels were read; At is when the geometry was found;
+	// TrackedAfterMS is the gap, stated rather than left to be subtracted.
+	Tracked        bool      `json:"selection_from_tracking,omitempty"`
+	TrackedAt      time.Time `json:"selection_read_at,omitzero"`
+	TrackedAfterMS int64     `json:"selection_read_after_ms,omitempty"`
+
 	// Stale says nothing has confirmed this belief since. A belief that is merely
 	// unconfirmed must not read like one that was just seen, and on a live Director most
 	// looks bring nothing: the shadow cadence lets an inference start every two seconds
@@ -205,10 +216,22 @@ type InterfaceWatch struct {
 	// looks counts the looks that carried evidence; missed counts the consecutive ones
 	// since that have carried none; empty counts the consecutive ones that saw the screen
 	// and found nothing shaded on it.
-	looks   int
-	missed  int
-	empty   int
-	moments []InterfaceMoment
+	looks  int
+	missed int
+	empty  int
+	// tracking is the fast path's own account. Unexported for the reason the belief is: a
+	// reader of a session gets the answer, never the machinery.
+	tracking TrackingStats
+	// trackedThisLook says a fast read confirmed this belief during the interval the next
+	// look covers. Cleared by every look, set by Track.
+	//
+	// It exists because of what happens without it. The fast reads for an interval are
+	// folded first, then the cycle's own look — and on the cycle the detector sat out, that
+	// look is "nothing was observed", which marked the belief stale and overwrote the
+	// reason the fast read had just written. A belief being confirmed four times a second
+	// by pixels was reporting itself as unconfirmed.
+	trackedThisLook bool
+	moments         []InterfaceMoment
 }
 
 // NewInterfaceWatch starts one, believing nothing.
@@ -227,8 +250,10 @@ func NewInterfaceWatch() *InterfaceWatch {
 // region measured as black must not look alike, and a zero would read as the darkest thing
 // on screen.
 func (w *InterfaceWatch) Observe(look InterfaceLook) {
+	tracked := w.trackedThisLook
+	w.trackedThisLook = false
 	if !look.Observed {
-		w.unconfirmed(look)
+		w.unconfirmed(look, tracked)
 		return
 	}
 	w.looks++
@@ -302,6 +327,10 @@ func (w *InterfaceWatch) Observe(look InterfaceLook) {
 
 	next.Status = InterfaceProvisional
 	next.Where = unscaleRect(live)
+	// A DISCOVERY'S READING IS NOT A TRACKED ONE. Left set, the belief would keep claiming
+	// its selection came from a fast look long after a slow one replaced it — and the two
+	// timestamps would describe a read that is no longer the one being reported.
+	next.Tracked, next.TrackedAt, next.TrackedAfterMS = false, time.Time{}, 0
 
 	var kept []selection.Row
 	var keptShades []selection.Shade
@@ -362,7 +391,9 @@ func (w *InterfaceWatch) emptyLook(before InterfaceBelief, look InterfaceLook) {
 		next := before
 		next.Stale = true
 		next.Empty = w.empty
-		next.Sample, next.At = look.Sequence, look.At
+		// Sample and At are NOT moved. They name the evidence this belief rests on, and
+		// a bare look is not evidence for it — the same rule `unconfirmed` follows, and
+		// the reason its message can say which sample to go and look at.
 		next.Because = fmt.Sprintf("a look saw the screen and found nothing shaded on it "+
 			"(%d of the %d it takes to give up; the evidence under this belief is "+
 			"sample %d)", w.empty, interfaceEmptyLooks, before.Sample)
@@ -384,7 +415,21 @@ func (w *InterfaceWatch) emptyLook(before InterfaceBelief, look InterfaceLook) {
 // what changed is only its age, and that is the part a consumer has to be told. Past
 // interfaceForgetLooks it is dropped — with the reason, so "nobody has looked lately" cannot
 // be read as "the screen is empty".
-func (w *InterfaceWatch) unconfirmed(look InterfaceLook) {
+func (w *InterfaceWatch) unconfirmed(look InterfaceLook, tracked bool) {
+	// A FAST READ IS A CONFIRMATION, JUST NOT A DISCOVERY.
+	//
+	// The detector sat this slot out; the pixels did not. Marking the belief stale here
+	// would report a belief confirmed four times a second as unconfirmed, and letting
+	// `missed` grow would have interfaceForgetLooks drop a belief the fast path is actively
+	// holding up. What it does NOT do is count as a look that carried structural evidence —
+	// `looks` is untouched, because how much looking identified the list is the discovery's
+	// number.
+	//
+	// Deleting this must fail TestAFastReadMovesTheMarkInsideAKnownList.
+	if tracked && w.belief.Status == InterfaceProvisional {
+		w.missed = 0
+		return
+	}
 	w.missed++
 	before := w.belief
 	why := look.Why

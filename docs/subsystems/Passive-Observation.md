@@ -284,6 +284,10 @@ should be wider, narrower or time-based is a question for `rejected_with_input` 
 - [[ADR-150-silence-is-not-evidence-about-a-device-nobody-watched]] — the Director
   watches a controller, every observation says which hardware it came from, and a
   session cannot report quiet as the player's unless it watched every device
+- [[ADR-152-slow-discovery-fast-tracking]] — built. ScreenParser discovers the rows;
+  a 250ms ticker off the observation cycle re-reads which one holds the mark. Only a
+  discovery may identify a list; a fast read may only move the mark inside one, and says
+  so with two timestamps
 - [[ADR-153-a-blackout-is-not-a-destination]] — `state_unknown` can no longer be
   confirmed as the screen in front of a session. An unreadable run is uncertainty, then an
   expiry of the belief; one bare look no longer destroys an interface belief either

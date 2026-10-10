@@ -854,6 +854,7 @@ func renderShadow(b *strings.Builder, s observe.ShadowTotals) {
 	fmt.Fprintf(b, "  gain         %d shadow-only NAMEABLE observations authoritative "+
 		"perception did not supply\n", c.ShadowOnlyNameable)
 	renderInterface(b, s)
+	renderTracking(b, s.Tracking)
 	renderFlicker(b, s.Flicker, s.Changing, s.ChangingLooks, s.ChangingUnreadable)
 	renderShadowStates(b, s)
 	renderShadowTracks(b, s)
@@ -920,6 +921,16 @@ func renderInterface(b *strings.Builder, s observe.ShadowTotals) {
 	switch {
 	case i.Selected >= 0:
 		fmt.Fprintf(b, "               entry %d is selected (%s)\n", i.Selected, i.Reading)
+		// AND WHETHER A FAST READ SAID SO, with how long after the discovery.
+		//
+		// A fast observation presented as contemporaneous with an old discovery is the
+		// defect ADR-152 names by name. One line stops a reader doing it by accident.
+		//
+		// Deleting this must fail TestTheReportSaysWhenASelectionWasTracked.
+		if i.Tracked {
+			fmt.Fprintf(b, "               read by a FAST look %dms after the list was "+
+				"found, not by the discovery\n", i.TrackedAfterMS)
+		}
 	default:
 		fmt.Fprintf(b, "               no entry could be read (%s)\n", i.Reading)
 	}
@@ -1072,6 +1083,76 @@ func renderWatchedDevices(b *strings.Builder, in observe.InputStats) {
 	if !in.CanAttributeSilence() {
 		fmt.Fprintf(b, "               %s\n", in.SilenceMeans())
 	}
+}
+
+// renderTracking reports what the FAST visual path did, and mostly why it did not.
+//
+// The achieved cadence rather than the configured one, because the slow path asked for 500ms
+// and got 2.6s and nobody could tell from a report. Every refusal by name, because "tracking
+// produced no readings" has five causes that send a reader to five different places.
+//
+// Deleting this must fail TestTheReportSaysWhatTheFastPathRead.
+func renderTracking(b *strings.Builder, t observe.TrackingStats) {
+	if t.Offered == 0 {
+		return
+	}
+	fmt.Fprintf(b, "  tracking     %d fast look(s)   %d read   %d selection move(s)\n",
+		t.Offered, t.Read, t.Moves)
+	if c := t.Cadence(); c > 0 {
+		fmt.Fprintf(b, "               one every %s, MEASURED — capture %.0fms mean, "+
+			"%dms worst\n", c.Round(time.Millisecond), t.MeanCaptureMS(), t.MaxCaptureMS)
+	}
+	if t.Read > 0 {
+		fmt.Fprintf(b, "               reading the rows costs %.0fµs\n", t.MeanReadUS())
+	}
+	// EVERY REFUSAL BY NAME. A fast path that reported only its successes would be
+	// reporting its successes.
+	if t.NoBelief > 0 {
+		fmt.Fprintf(b, "               %d look(s) had no identified list to track inside; "+
+			"only a discovery may name one\n", t.NoBelief)
+	}
+	if t.Stale > 0 {
+		fmt.Fprintf(b, "               %d refused: the geometry was older than %s\n",
+			t.Stale, observe.TrackStaleness)
+	}
+	if t.Elsewhere > 0 {
+		fmt.Fprintf(b, "               %d refused: the rows were not in the watched "+
+			"list\n", t.Elsewhere)
+	}
+	if t.Unmeasured > 0 {
+		fmt.Fprintf(b, "               %d refused: no row could be measured\n",
+			t.Unmeasured)
+	}
+	if t.Refused > 0 {
+		fmt.Fprintf(b, "               %d refused before the pixels were read\n",
+			t.Refused)
+		for _, why := range countedReasons(t.RefusedWhy) {
+			fmt.Fprintf(b, "                 %s\n", why)
+		}
+	}
+	b.WriteString("               a fast read may MOVE the mark; it may never identify " +
+		"a list\n")
+}
+
+// countedReasons renders a reason histogram in a stable order, each with its count.
+//
+// Not sortedCounts, which already exists next door and returns the KEYS alone — this needs the
+// numbers, because "the window moved 40 times" and "the window moved once" are different
+// findings about the same reason.
+func countedReasons(m map[string]int) []string {
+	if len(m) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	out := make([]string, 0, len(keys))
+	for _, k := range keys {
+		out = append(out, fmt.Sprintf("%d x %s", m[k], k))
+	}
+	return out
 }
 
 // renderFlicker reports what the screen-change confirmation gate refused.

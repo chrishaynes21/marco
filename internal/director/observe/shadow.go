@@ -80,6 +80,14 @@ type ShadowSample struct {
 	// detected is not proof that it is a menu entry. See shape.go.
 	Shapes []ShadowShape `json:"shapes,omitempty"`
 
+	// Track is the FAST visual reads taken since the previous sample, in order.
+	//
+	// A list rather than one, because they happen on their own clock and several fit inside
+	// one observation cycle — which is the entire point: a ScreenParser inference blocks the
+	// cycle it runs in, so a cycle is 2.6s and twelve controller presses fit inside two of
+	// them. See track.go.
+	Track []TrackLook `json:"track,omitempty"`
+
 	// Inputs is the navigation observed since the previous sample, as closed-vocabulary
 	// intents — never keys and never text; see input.go.
 	//
@@ -252,6 +260,11 @@ type ShadowTotals struct {
 	// reading an empty term set as a fact about the application.
 	Labels ShadowLabels `json:"labels,omitzero"`
 
+	// Tracking is what the fast visual path did, and mostly a list of reasons it did not.
+	// Reported beside the detector's own numbers because the two answer different halves of
+	// "how often did Marco know what was selected".
+	Tracking TrackingStats `json:"tracking,omitzero"`
+
 	MedianMS int64 `json:"median_ms"`
 	P95MS    int64 `json:"p95_ms"`
 	MaxMS    int64 `json:"max_ms"`
@@ -373,9 +386,26 @@ func (t *ShadowTotals) Observe(sample Sample) {
 	// to unknown three looks in four and kept the tracker from ever accumulating.
 	//
 	// Deleting this must fail TestASessionAnswersWhatItIsLookingAt.
+	// THE FAST LOOKS FIRST, because they happened first.
+	//
+	// They were taken during the interval that just ended, on their own clock, while this
+	// cycle's expensive inference was still running. Folding them after this cycle's
+	// discovery would present reads of an older arrangement as the most recent thing the
+	// session saw — which is the one defect ADR-152 names by name.
+	//
+	// They cannot identify anything, cannot change which list is watched, and cannot change
+	// how many entries it has. See InterfaceWatch.Track.
+	//
+	// Deleting this must fail TestAFastReadMovesTheMarkInsideAKnownList.
+	if sample.Shadow != nil {
+		for _, look := range sample.Shadow.Track {
+			t.watch.Track(look)
+		}
+	}
 	t.watch.Observe(interfaceLookFrom(sample))
 	t.Interface, t.Changed = t.watch.Belief(), t.watch.Change()
 	t.InterfaceMoments = t.watch.Moments()
+	t.Tracking = t.watch.Tracking()
 	if sample.Shadow != nil {
 		t.add(*sample.Shadow, structure)
 		return

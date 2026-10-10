@@ -9,17 +9,22 @@ source_paths:
   - internal/director/perception/selection/selection.go
   - internal/director/perception/selection/cost_test.go
   - internal/director/perception/providers/visualstate/provider.go
+  - internal/director/observe/track.go
+  - cmd/director/trackwiring.go
 ---
 
 # ADR-152 — slow discovery, fast tracking: the measurement and the shape
 
 ## Status of this ADR
 
-**The measurement is a result. The architecture is a design, and it is NOT built.** This ADR
-records what was measured, what the existing parts already allow, which existing rule shapes
-the answer, and the one number still missing. It is written down rather than built because the
-missing number decides the cadence, and because unwired code that production never invokes is
-the failure this repository has recorded eight times.
+**Built.** It was written as a design with one number missing; the number was measured on a real
+game ([[Experiment-024-watching-a-player-navigate-a-real-menu]]) and the path was then built on
+it. The section below the measurement describes what exists; "What was still missing" records
+what the number turned out to be.
+
+The authority half — what a fast read may conclude — is in `internal/director/observe/track.go`;
+the pixels half is in `cmd/director/trackwiring.go`. Everything this ADR said the look must
+carry, it carries.
 
 ## Context
 
@@ -105,22 +110,102 @@ look is a confirmation of an existing belief and never an identification of a ne
 is the same shape as the authority boundary the whole subsystem rests on: a cheap sensor may
 update a value, never establish a structure.
 
-## What is still missing
+## What was still missing, and what it turned out to be
 
-**The capture cost, for an envelope-sized region, on this machine.** It is the only number that
-decides whether tracking runs every sample, every other sample, or on demand. The instrument
-exists: `director vision --application <game>` prints `capture` and `detect` apart, so one live look at a
-real menu produces it. Until then the arithmetic has one measured term and one unmeasured one,
-and the cadence cannot be chosen honestly.
+**The capture cost.** Measured live on Trackmania, through `director vision --application`:
 
-That measurement needs a game with a menu in front of it, which is the same thing the live test
-in [[ADR-151-a-screen-that-changed-for-one-frame-did-not-change]] needs. Both come from one
-run.
+| | |
+| --- | --- |
+| capture, full 1920×1080 window | **24ms** (32–39ms on repeat reads) |
+| detect (ScreenParser) | 1.05–1.25s |
+| construct | 0–1ms |
+
+Capture is **~2% of a look**, and more favourable than this ADR assumed: at 24ms for the WHOLE
+window the envelope is needed to honour `MaxRegionArea`, not to afford tracking. So the cadence
+was chosen from the other side of the arithmetic — `DefaultTrackInterval = 250ms` spends under
+a tenth of the machine on this and leaves the rest to the game, which is the condition an
+experiment a player is not supposed to notice has to meet.
+
+**And a second number the same run produced, which changed the shape of the build.** The
+observation cycle measured **2.6s against a configured 500ms**, with 360 late samples, because a
+ScreenParser inference runs synchronously inside the cycle it was offered in. A tracking read
+taken once per cycle would therefore be taken once per 2.6 seconds, and the fast path would not
+be fast.
+
+So tracking runs on **its own ticker**, off the observation cycle. That is what "without
+blocking on ScreenParser" has to mean on this machine, and it is the one thing this ADR did not
+anticipate.
+
+## What the build added that the design did not have
+
+**The achieved cadence is reported, never the configured one.** `TrackingStats.Cadence()` is
+computed from the timestamps of the looks that happened. The slow path asked for 500ms and got
+2.6s and no report said so; that is not allowed to happen twice.
+
+**Every refusal has its own number.** "Tracking produced no readings" has five causes that send
+a reader to five different places — nothing identified a list, the geometry went stale, the rows
+were not the list's, no row could be measured, the sampler refused before the pixels were read —
+and one counter for all of them would answer none of them.
+
+**A fast read counts as a confirmation of the belief, and never as a look that carried
+structural evidence.** Without the first half, a belief being confirmed four times a second by
+pixels reported itself as unconfirmed, because the cycle the detector sat out marked it stale
+immediately afterwards. Without the second, `Observations` and `identified_after` would grow
+with reads that identified nothing.
+
+**The liveness check is the sampler's, not the ticker's.** The ticker runs on its own goroutine
+and `Runtime.pinnedWindow` is written under `Runtime.mu`; reading it from the ticker is a data
+race, and taking the lock instead would stall the ticker for the whole 2.6s cycle — at exactly
+the rate it exists to beat. So the sampler, which already holds the lock and already knows the
+window, calls `invalidate` when the window moved or was replaced, and the refusal travels to the
+belief as a look rather than as a silence. The cost is a gap of up to one cycle, bounded on the
+other side by `TrackStaleness`, and it is written down on the type rather than papered over.
+
+**It does not run on an ordinary Director.** A discovery is the only thing that gives this path
+geometry and only the experimental detector produces one, so `newFastTracker` returns nil
+without it. `visualstate` refuses an oversized region because *"watching screens continuously is
+what this avoids"*; the same caution applies to watching a small one for nothing.
+
+## What is still NOT established
+
+**That a tracked selection follows a real player's navigation.** Nothing in
+Experiment-024 observed a selection at all, because the detector's geometry never arrived —
+which is [[ADR-154-geometry-is-evidence-even-when-the-words-are-not]]'s problem, fixed
+separately. The tests below drive the fast path through the production composition with painted
+pixels; they do not establish that it tracks a menu somebody is moving through.
+
+**The envelope capture cost.** 24ms is the whole window. The envelope is smaller and has not
+been measured on its own, so `MeanCaptureMS` in a live report is the number to read, not an
+estimate taken from here.
+
+**Whether the shared reader is right.** The fast path and the slow path feed ONE
+`selection.Reader`, so a row's baseline is built from both. That is deliberate — a separate
+reader would start from nothing every time a discovery refreshed — but the two measure the same
+rows through two different capture paths, and whether that pollutes a baseline is unmeasured.
 
 ## Enforced by
 
 - `TestReadingAMenusShadeIsCheapAgainstAnInference` (`internal/director/perception/selection`) —
   the premise of the whole architecture, as an order-of-magnitude bound rather than a number.
+- `TestAFastReadMovesTheMarkInsideAKnownList` — the positive case, with both timestamps and the
+  gap between them asserted.
+- `TestATrackedLookCannotIdentifyAList` — twenty perfectly good fast reads at a session that
+  never ran a discovery identify nothing.
+- `TestAFastReadChangesOnlyTheMark` — status, where the list is, its entry count, how much
+  looking identified it: all the discovery's, all untouched.
+- `TestAFastReadAgainstStaleGeometryIsRefused`,
+  `TestAFastReadOfTheWrongPartOfTheScreenIsRefused`,
+  `TestAFastLookWithNothingMeasurableIsNotAReading`,
+  `TestASamplerRefusalArrivesWithItsReason` — the four refusals, each counted by name.
+- `TestManyPressesBetweenTwoLooksAreNotManySelections` — the measured burst, holding both
+  claims: the intermediate marks are seen, and a selection is never invented per press.
+- `TestTheSessionReportsTheCadenceItAchieved` — from the clock, not the configuration.
+- `TestASlowLookClearsTheTrackedMarker` — the inverse defect.
+- `TestASessionStartsTheFastVisualPath`, `TestEndingASessionStopsTheFastVisualPath`,
+  `TestADirectorWithNoDetectorStartsNoCaptureLoop`, `TestTheFastLooksRideOnTheSample`,
+  `TestAMovedWindowStopsTheFastPathReadingItsGeometry` (`cmd/director`) — through the
+  composition production uses, including that the reads happen at all.
+- `TestTheReportSaysWhatTheFastPathRead`, `TestTheReportSaysWhenASelectionWasTracked`.
 - `TestTheSameFrameReadsTheSameShade` — determinism, which is what makes a fast re-read
   comparable with a slow one rather than merely adjacent to it.
 - `TestGeometryOffTheFrameReadsAsNothing` — the freshness half: no reading and nothing
