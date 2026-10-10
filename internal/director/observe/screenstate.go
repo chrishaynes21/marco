@@ -1992,6 +1992,30 @@ func (g *ScreenSegmenter) Crossings() []Crossing {
 }
 
 // States returns the discovered states, most-observed first.
+// copyCounts copies a name tally, returning nil for nil so an absent map stays absent.
+func copyCounts(in map[string]int) map[string]int {
+	if in == nil {
+		return nil
+	}
+	out := make(map[string]int, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
+}
+
+// copyAffordances copies what a state offered.
+func copyAffordances(in map[string]AffordanceTally) map[string]AffordanceTally {
+	if in == nil {
+		return nil
+	}
+	out := make(map[string]AffordanceTally, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
+}
+
 func (g *ScreenSegmenter) States() []ScreenState {
 	out := make([]ScreenState, 0, len(g.states))
 	for _, st := range g.states {
@@ -2010,6 +2034,17 @@ func (g *ScreenSegmenter) States() []ScreenState {
 			c.Compositions[k] = seen.n
 		}
 		c.Terms, c.TermEpisodes = copyTerms(st.Terms), copyTerms(st.TermEpisodes)
+		// AND THE OTHER TWO TALLIES, which were aliased for as long as they have
+		// existed — the comment above states the rule and two of the four maps were
+		// breaking it.
+		//
+		// Found by `go test -race`: a session's fold writes PlaceNames and Affordances in
+		// creditTerms while `ambientLook` reads the published snapshot on another
+		// goroutine, through TargetsToRecordExplained. A map read concurrently with a
+		// write is not a stale read, it is undefined behaviour — and this is the path a
+		// grounded highlight takes while a session is running.
+		c.PlaceNames = copyCounts(st.PlaceNames)
+		c.Affordances = copyAffordances(st.Affordances)
 		c.sum, c.n, c.termEpisode = nil, 0, nil
 		c.compositions = nil
 		out = append(out, c)
