@@ -133,10 +133,46 @@ driver loop in `learnSession`. The two observable differences are both consequen
 above rather than new policy: a cancel applied at the boundary now writes the same account line
 the eager path wrote, and a cancel that lost to a save no longer withdraws that save's request.
 
-**The rest of `cmd/director` is not audited for races.** This fixes the ten reports that existed.
-`go test -race` is still not part of the documented gate — `go build ./... && go test ./...` is —
-and making it one is a separate decision with its own cost, because the race build is roughly
-four times slower on this package.
+**The rest of `cmd/director` is not audited for races.** `go test -race` is still not part of the
+documented gate — `go build ./... && go test ./...` is — and making it one is a separate decision
+with its own cost, because the race build is roughly four times slower on this package. Looking
+once found one more thing (below); that is not a clean bill of health.
+
+## What the verification run then found: a leaked session, not a coordinator
+
+With the fix in, the ten reports became one, and it was not this type:
+
+```
+Write by goroutine 603:   authorizedRegistry()            rehearsedrywiring_test.go:268
+Read  by goroutine 601:   (*observationRegistry).start()  observeregistry.go:157
+                          (*learnPasses).viaRegistry()
+                          learn.(*Coordinator).pass() → step() → Advance()
+                          (*learnSession).start.func1()
+            created at:   TestOneAcquisitionRequestServesBothSurfaces
+```
+
+The variable is the package-level `sessionClock`. It is **assigned once at init in production**;
+the only writers anywhere are eleven test helpers that swap it for a dry clock. So this is a
+test-fixture race, and the two sides of it are:
+
+- **A session a test started outlived the test.** `learnSession.start` runs the driver on its own
+  goroutine and nothing in the tree joins it, so a test that starts a session and returns leaves
+  it advancing through every test that runs after it. This is also why the original ten reports
+  were scattered across five unrelated tests: the race was always a leaked driver colliding with
+  whatever was running at the time.
+- **Three tests replaced the fixture's pass seam instead of wrapping it.** Returning a bare
+  `learnPasses` sent those sessions down `viaRegistry` — the real registry, the real sampler, the
+  real clock — which is not what any test on that page is about.
+
+Fixed in test code only: `learnRuntime` stops what it starts, and the seam is extracted as
+`learnFixturePasses` so a test that needs to capture WHICH selector was handed over wraps it.
+`go test -race ./cmd/director` then reports zero.
+
+**The underlying shape is still there in production.** Nothing joins a learn driver, so a caller
+that starts a session and walks away leaks a goroutine until the phase settles or the context is
+cancelled. In production that caller is the Director process, which does cancel on shutdown, so it
+is a test hazard today rather than a product one — written down because the next test to start a
+session will hit it again.
 
 ## Enforced by
 

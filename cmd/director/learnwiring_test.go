@@ -40,29 +40,48 @@ func learnRuntime(t *testing.T) *Runtime {
 	store, _ := semanticmemory.Open(filepath.Join(t.TempDir(), "memory.json"))
 	g := newObservationRegistry().withMemory(store)
 	rt := &Runtime{observations: g, learn: &learnSession{}}
+	// A SESSION A TEST STARTS IS A GOROUTINE THAT OUTLIVES THE TEST.
+	//
+	// learnSession.start runs the driver on its own goroutine and nothing in the tree joins
+	// it, so a test that starts a session and returns leaves it advancing through every test
+	// that runs after it. Found by `go test -race` on 2026-10-10: a driver leaked from
+	// TestOneAcquisitionRequestServesBothSurfaces was inside a pass reading the package-level
+	// `sessionClock` while a later test's fixture reassigned it — a test-fixture race, since
+	// production assigns that variable once at init and only test helpers ever swap it.
+	//
+	// stop() cancels the session context, which unparks the pass seam below and lets the driver
+	// reach a settled phase and return. A no-op when no session was started.
+	t.Cleanup(func() { _, _ = rt.learn.stop() })
 	// The pass seam substitutes the DESKTOP and nothing else. A pass that observes nothing
 	// is enough for every question on this page: these are about which lifecycle the panel
 	// drives, not about what a session concludes — that is held elsewhere, against real
 	// evidence, by the establishment and walk tests.
-	rt.passesFor = func(sel windowref.Selector) learn.Passes {
-		p := &learnPasses{rt: rt, selector: sel}
-		p.run = func(ctx context.Context, _ observe.Bounds, _ observesession.Episode) (
-			observesession.Result, error) {
-
-			// A pass IN FLIGHT: it watches until something ends it, which is the
-			// state every button on this page is pressed during. A seam that
-			// returned at once would let the session run to a refusal in
-			// microseconds, and each test below would be pressing its button at a
-			// session that had already finished.
-			<-ctx.Done()
-			var res observesession.Result
-			res.Stats.SamplesTaken = 4
-			res.Session.Application = "testapp"
-			return res, nil
-		}
-		return p
-	}
+	rt.passesFor = func(sel windowref.Selector) learn.Passes { return learnFixturePasses(rt, sel) }
 	return rt
+}
+
+// learnFixturePasses is the fixture's pass seam, extracted so a test that needs to see WHICH
+// selector was handed over can WRAP it instead of replacing it.
+//
+// Replacing it silently moves that one test onto `viaRegistry` — the real registry, the real
+// sampler and the real clock — which is not what any test on this page is about, and is how the
+// leaked driver above came to be reading `sessionClock` during other tests.
+func learnFixturePasses(rt *Runtime, sel windowref.Selector) learn.Passes {
+	p := &learnPasses{rt: rt, selector: sel}
+	p.run = func(ctx context.Context, _ observe.Bounds, _ observesession.Episode) (
+		observesession.Result, error) {
+
+		// A pass IN FLIGHT: it watches until something ends it, which is the state every
+		// button on this page is pressed during. A seam that returned at once would let
+		// the session run to a refusal in microseconds, and each test below would be
+		// pressing its button at a session that had already finished.
+		<-ctx.Done()
+		var res observesession.Result
+		res.Stats.SamplesTaken = 4
+		res.Session.Application = "testapp"
+		return res, nil
+	}
+	return p
 }
 
 // newLearnMemory is a store with nothing in it.
@@ -144,7 +163,7 @@ func TestStartingFromMarcosOwnSurfaceWaitsForSomethingElse(t *testing.T) {
 	var handed windowref.Selector
 	rt.passesFor = func(sel windowref.Selector) learn.Passes {
 		handed = sel
-		return &learnPasses{rt: rt, selector: sel}
+		return learnFixturePasses(rt, sel)
 	}
 
 	got, err := rt.Learn(context.Background(),
@@ -183,7 +202,7 @@ func TestANamedWindowIsNotWaitedFor(t *testing.T) {
 	var handed windowref.Selector
 	rt.passesFor = func(sel windowref.Selector) learn.Passes {
 		handed = sel
-		return &learnPasses{rt: rt, selector: sel}
+		return learnFixturePasses(rt, sel)
 	}
 
 	if _, err := rt.LearnSession(context.Background(), service.ObserveLearn{
@@ -1277,7 +1296,7 @@ func TestOneAcquisitionRequestServesBothSurfaces(t *testing.T) {
 	var handed windowref.Selector
 	rt.passesFor = func(sel windowref.Selector) learn.Passes {
 		handed = sel
-		return &learnPasses{rt: rt, selector: sel}
+		return learnFixturePasses(rt, sel)
 	}
 	if _, err := rt.LearnSession(context.Background(), service.ObserveLearn{
 		Name: "open mouse settings", Surface: true,
