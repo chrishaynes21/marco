@@ -242,6 +242,17 @@ func (s *liveSampler) Sample(ctx context.Context, req observesession.SampleReque
 	// four indistinguishable explanations and the report offers no way to choose between them.
 	if sh := sample.Shadow; sh != nil && s.rt.shadowVision != nil {
 		sh.Labels = shadowLabelBudget(s.rt.shadowVision)
+		// AND THE GEOMETRY IT KEPT WITHOUT BEING ABLE TO NAME IT.
+		//
+		// Beside the label budget because it is the other half of the same account: the
+		// budget says why a region has no name, and this says that the region is still
+		// there. Experiment-024 measured the cost of only having the first — 150 seconds
+		// of a player navigating a menu the session could not name, because ~70 `text`
+		// boxes a frame were discarded at the readability gate before selection.Measure
+		// could ask how any of them was painted.
+		//
+		// Deleting this must fail TestTheSampleCarriesGeometryTheDetectorCouldNotName.
+		sh.Shapes = shadowShapes(s.rt.shadowVision, pinned.Bounds)
 		// AND WHICH PURCHASE POLICY IT RAN BEHIND.
 		//
 		// A run whose policy nobody recorded is a measurement of an unknown system. The

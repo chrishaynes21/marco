@@ -428,6 +428,11 @@ func sampleFromSlot(s shadowreplay.Slot) observe.ShadowSample {
 	// ahead of one: three of the four outcomes return early, and the player kept playing
 	// through every one of them.
 	out.Inputs, out.InputStats, out.Semantic = s.Inputs, s.InputStats, s.Semantic
+	// Unnamed geometry travels with the navigation and ahead of the switch, for the reason
+	// the recorder writes it there: the detector kept it on this pass whatever the switch
+	// decides the pass was, and a replay that dropped it would hand the belief a different
+	// screen from the one production handed it.
+	out.Shapes = s.Shapes
 	switch s.Outcome {
 	case "skipped":
 		return out

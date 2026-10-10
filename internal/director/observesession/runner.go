@@ -448,7 +448,22 @@ func (s *Stats) foldProvenance(sample observe.Sample) {
 			s.RefusedProviders = map[string]string{}
 		}
 		if _, seen := s.RefusedProviders[p.Name]; !seen {
-			s.RefusedProviders[p.Name] = p.Reason
+			// A REFUSAL WITHOUT A REASON IS NOT A REPORT.
+			//
+			// Measured in Experiment-024: a four-minute session reported
+			// `refused_providers: {ocr: ""}` beside 2317 quarantined observations. The
+			// words had been read, refused, and the refusal said nothing — so from the
+			// report it was impossible to tell a missing engine from an engine whose
+			// evidence did not describe the window.
+			//
+			// ProviderOutcome.Reason is only filled when the CALL went wrong. A
+			// provenance refusal is the opposite case: the call succeeded, produced
+			// evidence, and could not show which window the evidence was about. The two
+			// generations are the whole of the answer and this is the only place both are
+			// in scope, so the sentence is composed here rather than invented upstream.
+			//
+			// Deleting this must fail TestARefusedProviderSaysWhyItWasRefused.
+			s.RefusedProviders[p.Name] = provenanceReason(p)
 		}
 	}
 	if refusedThisSample {
@@ -468,6 +483,32 @@ func appendProven(m map[string][]uint64, name string, gen uint64) map[string][]u
 	}
 	m[name] = append(m[name], gen)
 	return m
+}
+
+// provenanceReason says, in a sentence, why a provider's evidence was refused.
+//
+// Composed from what the guard actually compared, because the alternative is what a live
+// session printed before this existed: a named provider, a quarantine count, and an empty
+// string. Three different situations arrive here — a provider that never declares a target at
+// all, one whose target is a different window generation, and one that failed outright — and
+// they send a reader to three different places.
+func provenanceReason(p observe.ProviderSummary) string {
+	if p.Reason != "" {
+		return p.Reason
+	}
+	switch {
+	case p.Observed == 0 && p.Expected == 0:
+		return "it established no target, and this cycle pinned none either"
+	case p.Observed == 0:
+		return fmt.Sprintf("it cannot say which window it observed; this cycle was "+
+			"pinned to generation %d. A provider outside the targeted interface "+
+			"establishes nothing, and nothing is assumed on its behalf", p.Expected)
+	case p.Observed != p.Expected:
+		return fmt.Sprintf("it observed generation %d and this cycle was pinned to %d: "+
+			"two different windows, so nothing could be compared", p.Observed, p.Expected)
+	default:
+		return fmt.Sprintf("the guard refused generation %d", p.Observed)
+	}
 }
 
 // Runner performs one session.

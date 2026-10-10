@@ -144,6 +144,13 @@ type Slot struct {
 	Detections int                    `json:"detections,omitempty"`
 	Reason     string                 `json:"reason,omitempty"`
 	Regions    []observe.ShadowRegion `json:"regions,omitempty"`
+	// Shapes is the geometry this slot kept without being able to name it.
+	//
+	// Recorded in full for the same reason Inputs is: a replay that reconstructed a slot
+	// without it would hand the belief a different screen from the one production handed it,
+	// and would then disagree with production for a reason that has nothing to do with what
+	// was being measured. It is the largest thing on a slot — a dense game screen keeps ~70.
+	Shapes []observe.ShadowShape `json:"shapes,omitempty"`
 	// Inputs is the navigation observed during this slot, as closed-vocabulary intents.
 	//
 	// Recorded for EVERY outcome, not only valid ones. A slot the cadence gate declined

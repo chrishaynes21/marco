@@ -158,6 +158,49 @@ func shadowSampleFor(detector string, unavailable string, cycle observation.Cycl
 	return s
 }
 
+// shadowShapes reads the geometry the experiment's last pass kept rather than discarded.
+//
+// Through Inner().LastDiagnostics(), exactly as shadowLabelBudget does and for the same
+// reason: these are the vision provider's own records, and a second copy travelling through
+// the observation protocol would be one more thing to keep in step. The cadence gate
+// guarantees the pass being read is this cycle's — a provider still working when the next slot
+// arrives skips that slot rather than queueing.
+//
+// The desktop rectangles become window-relative normalised regions here, where the frame is
+// still in scope, so nothing downstream ever holds a screen coordinate.
+//
+// NOT gated on TargetProven, which looks like a gap and is not. The single consumer is the
+// interface belief, and interfaceLookFrom refuses an unproven look outright, so geometry from
+// a frame that cannot prove its window reaches no judgement. What the ungated count buys is a
+// report that can say the detector kept seventy rectangles on a cycle whose provenance failed
+// — which is a finding about provenance, and is invisible if the number is suppressed.
+func shadowShapes(p *shadow.Provider, frame directorapi.Rect) []observe.ShadowShape {
+	if p == nil || frame.Width <= 0 || frame.Height <= 0 {
+		return nil
+	}
+	inner, ok := p.Inner().(*vision.Provider)
+	if !ok {
+		return nil
+	}
+	kept := inner.LastDiagnostics().Shapes
+	if len(kept) == 0 {
+		return nil
+	}
+	out := make([]observe.ShadowShape, 0, len(kept))
+	for _, sh := range kept {
+		out = append(out, observe.ShadowShape{
+			Region:     observe.RelativeTo(sh.Box, frame),
+			Confidence: sh.Confidence,
+			// Copied rather than aliased: the provider reuses its scratch slice every
+			// pass, and a session that held a reference would be reporting whatever the
+			// detector looked at most recently.
+			Shade: append([]float64(nil), sh.Shade...),
+			Read:  sh.Read,
+		})
+	}
+	return out
+}
+
 // shadowLabelBudget reads the experiment's last pass for where its reading budget went.
 //
 // Reaching through Inner() rather than threading counters back through the outcome: the

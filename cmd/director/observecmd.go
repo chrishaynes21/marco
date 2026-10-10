@@ -820,6 +820,20 @@ func renderShadow(b *strings.Builder, s observe.ShadowTotals) {
 		s.MedianMS, s.P95MS, s.MaxMS)
 	fmt.Fprintf(b, "  detections   %d total   %d nameable   %d unmapped\n",
 		s.Detections, s.Nameable, s.Unknown)
+	// UNNAMED GEOMETRY ON ITS OWN LINE, never added to the one above.
+	//
+	// The warning this repair was authorised under, kept answerable in the report: a region
+	// being detected is not proof that it is a menu entry. A reader who saw one number
+	// could not tell a screen of twenty named buttons from a screen of seventy nameless
+	// rectangles, and those call for opposite conclusions.
+	//
+	// Deleting this must fail TestTheReportCountsUnnamedGeometryApart.
+	if s.Shapes > 0 {
+		fmt.Fprintf(b, "  geometry     %d region(s) kept WITHOUT a name   %d measurable\n",
+			s.Shapes, s.ShapesShaded)
+		b.WriteString("               a rectangle is not a menu entry; it is what makes " +
+			"the question askable\n")
+	}
 	if len(s.Roles) > 0 {
 		roles := make([]string, 0, len(s.Roles))
 		for k := range s.Roles {
@@ -888,6 +902,20 @@ func renderInterface(b *strings.Builder, s observe.ShadowTotals) {
 			i.Entries, plural(i.Entries, "y", "ies"))
 		// NEVER printed as a count of what the menu has. See InterfaceBelief.Complete.
 		b.WriteString("               those entries are NOT known to be all of it\n")
+		// AND HOW MANY OF THEM HAVE A NAME. A list assembled out of unnamed geometry is a
+		// real belief and a weaker one, and a reader told "entry 3 of 9 is selected" who
+		// has to go hunting to learn that none of the nine has a name has been misled by
+		// omission.
+		//
+		// Deleting this must fail TestTheReportSaysWhenAListHasNoNames.
+		if i.FromShapes > 0 {
+			fmt.Fprintf(b, "               %d of them are geometry nobody could name",
+				i.FromShapes)
+			if i.FromShapes == i.Entries {
+				b.WriteString(" — ALL of them")
+			}
+			b.WriteString("\n")
+		}
 	}
 	switch {
 	case i.Selected >= 0:

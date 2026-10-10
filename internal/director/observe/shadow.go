@@ -75,6 +75,11 @@ type ShadowSample struct {
 	// Bounded by the detector.s own output; nothing raw, no labels, no screen coordinates.
 	Regions []ShadowRegion `json:"regions,omitempty"`
 
+	// Shapes are rectangles the detector proposed and nobody could name, with how each is
+	// painted. Counted and reported APART from Detections, all the way out: a region being
+	// detected is not proof that it is a menu entry. See shape.go.
+	Shapes []ShadowShape `json:"shapes,omitempty"`
+
 	// Inputs is the navigation observed since the previous sample, as closed-vocabulary
 	// intents — never keys and never text; see input.go.
 	//
@@ -231,6 +236,17 @@ type ShadowTotals struct {
 	Nameable   int            `json:"nameable"`
 	Roles      map[string]int `json:"roles,omitempty"`
 	Unknown    int            `json:"unknown"`
+
+	// Shapes is how much unnamed geometry the session preserved, and ShapesShaded how much
+	// of it could actually be measured.
+	//
+	// Separate from Detections on purpose and forever. The repair that produced this
+	// channel was authorised with the warning attached: preserving seventy unreadable
+	// rectangles could increase ambiguity rather than resolve it. A single number mixing
+	// named structure with unnamed geometry is how that would happen without anybody
+	// noticing, so the report prints both and the belief says which it was built from.
+	Shapes       int `json:"shapes,omitempty"`
+	ShapesShaded int `json:"shapes_shaded,omitempty"`
 
 	// Labels is where the session's whole scoped-reading budget went. Read it before
 	// reading an empty term set as a fact about the application.
@@ -408,6 +424,14 @@ func interfaceLookFrom(sample Sample) InterfaceLook {
 	default:
 		look.Observed = true
 		look.Regions = sample.Shadow.Regions
+		// AND THE GEOMETRY NOBODY COULD NAME, on the same look rather than a second one.
+		//
+		// One look is one moment. Handing the named structure and the unnamed geometry to
+		// the belief as two looks would make a single frame read as two observations of
+		// the screen, which is exactly the arithmetic the flicker gate was built to stop.
+		//
+		// Deleting this must fail TestAListOfUnnamedRowsCanStillBeWatched.
+		look.Shapes = sample.Shadow.Shapes
 	}
 	return look
 }
@@ -462,6 +486,16 @@ func (t *ShadowTotals) add(s ShadowSample, structure StructuralView) {
 	// zero screens while its tracker held several: the model existed and nothing copied it
 	// out. Deleting this call must fail TestAnAccessibleApplicationProducesScreens.
 	t.publishScreenModel()
+	// Unnamed geometry, counted on EVERY slot that carried any — including ones the
+	// detector sat out, which carry none, and therefore add nothing. Above the `!s.Ran`
+	// return for the same reason the input account is: what a slot carried is a fact about
+	// the slot, and a count that stopped at the cadence gate would describe the gate.
+	for _, sh := range s.Shapes {
+		t.Shapes++
+		if sh.Shaded() {
+			t.ShapesShaded++
+		}
+	}
 	if !s.Ran {
 		t.Skipped++
 		if s.Declined {

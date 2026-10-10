@@ -284,6 +284,10 @@ should be wider, narrower or time-based is a question for `rejected_with_input` 
 - [[ADR-150-silence-is-not-evidence-about-a-device-nobody-watched]] — the Director
   watches a controller, every observation says which hardware it came from, and a
   session cannot report quiet as the player's unless it watched every device
+- [[ADR-154-geometry-is-evidence-even-when-the-words-are-not]] — the detector was
+  discarding ~70 rectangles a frame because nobody could read them, and the selection
+  reader needs the rectangles and none of their words. Kept on the experiment's instance,
+  counted apart from named structure, and never able to become a control
 - [[ADR-151-a-screen-that-changed-for-one-frame-did-not-change]] — a change needs a
   second look agreeing with it; a dropout is not a journey; and both error directions
   of that decision are counted, including the refusals that may have been real

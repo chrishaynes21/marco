@@ -253,6 +253,24 @@ func newShadowProvider(detector vision.Detector, cap capture.WindowCapture,
 	inner.Reader = reader
 	inner.Labels.MaxLabels = shadowMaxLabels
 	inner.Labels.MaxScreenTexts = shadowMaxScreenTexts
+	// AND THE GEOMETRY OF WHAT IT COULD NOT READ.
+	//
+	// On the EXPERIMENT'S instance only. The authoritative provider is a different object
+	// with different thresholds and this flag unset, so its text acceptance and everything
+	// fusion does with it are exactly as they were — which is the condition this repair was
+	// authorised under.
+	//
+	// What it buys, measured in Experiment-024: on a real Trackmania menu the detector
+	// returns ~70 boxes a frame, ~all of them `text`, and a `text` box nobody could read was
+	// discarded before selection.Measure could ask how it was shaded. The session therefore
+	// could not name a list across 150 seconds of a player navigating one.
+	//
+	// It cannot reach belief. Shapes travel on the provider's Diagnostics, never in the
+	// observation stream, and this provider is additionally wrapped in a shadow.Provider
+	// whose evidence the collector routes to Cycle.Shadow.
+	//
+	// Deleting this must fail TestTheExperimentKeepsGeometryItCannotRead.
+	inner.KeepUnreadableShapes = true
 
 	return shadow.NewProvider(inner, cadence)
 }

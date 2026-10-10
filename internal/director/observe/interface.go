@@ -60,6 +60,13 @@ type InterfaceBelief struct {
 	// Complete is always false and says so in the payload, so a reader counting entries
 	// has to pass the field that tells them not to.
 	Complete bool `json:"entries_known_complete"`
+	// FromShapes is how many of those entries are rectangles nobody could name.
+	//
+	// The warning this field exists to keep answerable: a detected region is not proof of a
+	// menu entry, and a list assembled entirely out of unnamed geometry is a weaker claim
+	// than one assembled out of named controls — even though the mark on it reads the same
+	// way. Equal to Entries means nothing in this list has a name.
+	FromShapes int `json:"entries_from_unnamed_geometry,omitempty"`
 	// Selected is the chosen entry, counted from the top, or -1 when the reader declined.
 	Selected int `json:"selected"`
 	// SelectedWhere is that entry's region, so a caller never has to index anything.
@@ -121,6 +128,13 @@ type InterfaceLook struct {
 	// Regions is what the detector proposed. Empty WITH Observed true is evidence about an
 	// empty screen; empty with Observed false is no evidence at all.
 	Regions []ShadowRegion
+	// Shapes is geometry the detector proposed and could not name, from the SAME look.
+	//
+	// It is folded into the grouping beside the named regions, because the grouping's
+	// question is about arrangement and arrangement does not need a word. What it must
+	// never do is let a belief claim more than unnamed geometry can support, which is why
+	// the belief counts how many of its entries came from here. See shape.go.
+	Shapes []ShadowShape
 }
 
 // InterfaceMoment is a look at which the belief changed, kept so a session can say WHEN.
@@ -197,12 +211,34 @@ func (w *InterfaceWatch) Observe(look InterfaceLook) {
 
 	var boxes []image.Rectangle
 	var shades []selection.Shade
+	// unnamed holds the boxes that came from shapes, so the belief can say how much of what
+	// it is about has a name. A set rather than a parallel slice: grouping reorders and
+	// discards, and an index into the input would not survive it.
+	unnamed := map[image.Rectangle]bool{}
 	for _, r := range look.Regions {
 		if len(r.Shade) != selection.Features {
 			continue
 		}
 		boxes = append(boxes, scaleRegion(r.Region))
 		shades = append(shades, selection.Shade{r.Shade[0], r.Shade[1]})
+	}
+	// THE UNNAMED GEOMETRY, after the named structure and on equal terms within the
+	// grouping. Equal terms is the point: the grouping asks whether these rectangles are
+	// arranged like a list and whether one of them is painted unlike its neighbours, and
+	// neither question has ever needed a word. What it does not get is equal standing in
+	// the ANSWER — see FromShapes.
+	//
+	// Unshaded shapes are dropped here exactly as unshaded regions are. A rectangle with no
+	// measurement cannot say whether it holds the mark, and defaulting it to zero would
+	// make "nobody measured this" read as "this is the darkest row on screen".
+	for _, sh := range look.Shapes {
+		if !sh.Shaded() {
+			continue
+		}
+		b := scaleRegion(sh.Region)
+		boxes = append(boxes, b)
+		shades = append(shades, selection.Shade{sh.Shade[0], sh.Shade[1]})
+		unnamed[b] = true
 	}
 	if len(boxes) == 0 {
 		w.settle(before, InterfaceBelief{
@@ -252,6 +288,11 @@ func (w *InterfaceWatch) Observe(look InterfaceLook) {
 		}
 	}
 	next.Entries = len(kept)
+	for _, r := range kept {
+		if unnamed[r.Bounds] {
+			next.FromShapes++
+		}
+	}
 	res := w.reader.ReadShades(kept, keptShades)
 	next.Reading = string(res.Outcome)
 	if res.Outcome == selection.Selected && res.Row >= 0 && res.Row < len(kept) {
@@ -259,6 +300,16 @@ func (w *InterfaceWatch) Observe(look InterfaceLook) {
 		next.SelectedWhere = unscaleRect(kept[res.Row].Bounds)
 	}
 	next.Because = why + "; reading: " + res.Why
+	// AND WHAT THE LIST IS MADE OF, in the sentence a person reads.
+	//
+	// A belief whose entries are all unnamed geometry is a real belief and a weaker one,
+	// and the difference has to survive into prose — a reader who sees "entry 3 of 9 is
+	// selected" and has to go looking for a count to discover that none of the nine has a
+	// name has been told something misleading by omission.
+	if next.FromShapes > 0 {
+		next.Because += fmt.Sprintf("; %d of %d entries are geometry nobody could name",
+			next.FromShapes, next.Entries)
+	}
 	w.settle(before, next, "")
 }
 

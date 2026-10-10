@@ -176,7 +176,8 @@ refused five of those wobbles and confirmed one.
 ## What this experiment decided
 
 1. Preserve unreadable text geometry for shadow analysis, with provenance, and keep it
-   distinguishable from named structure — ADR-154.
+   distinguishable from named structure —
+   [[ADR-154-geometry-is-evidence-even-when-the-words-are-not]].
 2. Separate slow discovery from fast tracking, off the cycle that ScreenParser blocks —
    [[ADR-152-slow-discovery-fast-tracking]].
 3. A blackout is uncertainty or expiry, never a confirmed destination — ADR-153.

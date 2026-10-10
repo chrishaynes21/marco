@@ -182,6 +182,10 @@ type Diagnostics struct {
 	Timings     Timings              `json:"timings"`
 	// Grids is what the geometry pass made of the accepted slots.
 	Grids []GridSummary `json:"grids,omitempty"`
+	// Shapes is non-structural geometry this pass kept rather than discarded, present only
+	// on an instance with KeepUnreadableShapes set. NOT observations and not reachable by
+	// fusion — see shape.go.
+	Shapes []Shape `json:"shapes,omitempty"`
 	// Classes counts what was seen, by class, so a reader can tell "the model found
 	// nothing" from "the model found forty things this build has no word for".
 	Classes map[string]int `json:"classes,omitempty"`
@@ -239,6 +243,13 @@ type Provider struct {
 	ProviderName string
 	// Classes, when set, is passed to the detector as a hint.
 	Classes []string
+	// KeepUnreadableShapes preserves the GEOMETRY of `text` regions nobody could read.
+	//
+	// OFF by default, and set on the SHADOW instance only (see newShadowProvider), so the
+	// authoritative provider's text acceptance and fusion's rules are untouched by it. The
+	// kept rectangles never become observations: they travel on Diagnostics, which is a
+	// channel fusion does not read. shape.go holds the argument and the measurement.
+	KeepUnreadableShapes bool
 
 	mu    sync.Mutex
 	last  Diagnostics
@@ -254,6 +265,9 @@ type Provider struct {
 	// candidates is every detection and what became of it, for the diagnostics. Reset per
 	// pass beside `classes`, and read by nothing that decides anything.
 	candidates []Candidate
+	// shapes is this pass's kept non-structural geometry, reset beside the two above. It
+	// leaves this struct only by being copied onto Diagnostics.
+	shapes []Shape
 }
 
 // New builds a provider over a detector and a capture source.
@@ -424,6 +438,7 @@ func (p *Provider) Look(ctx context.Context, req observation.Request) (
 	diag.Counters = p.counters
 	diag.Classes = p.classes
 	diag.Candidates = p.candidates
+	diag.Shapes = p.shapes
 	diag.Grids = grids
 	diag.Timings.Construct = time.Since(buildStart)
 	diag.Timings.Total = time.Since(started)
@@ -477,7 +492,7 @@ func (p *Provider) observations(ctx context.Context, results []Detection, img ca
 	readText bool) ([]observation.Observation, []GridSummary) {
 
 	p.counters = Counters{}
-	p.classes, p.candidates = map[string]int{}, nil
+	p.classes, p.candidates, p.shapes = map[string]int{}, nil, nil
 	imageBounds := img.Image.Bounds()
 	area := float64(imageBounds.Dx() * imageBounds.Dy())
 
@@ -558,6 +573,22 @@ func (p *Provider) observations(ctx context.Context, results []Detection, img ca
 		// the OCR rule, and it is here because a detector that reports text is a second
 		// way of producing the same evidence, not a licence to promote it.
 		if !class.Structural() {
+			// THE GEOMETRY IS KEPT BEFORE ITS WORDS DECIDE ANYTHING.
+			//
+			// Above the readability branching on purpose: whether a shape survives must
+			// not depend on the label budget, which bought a reading on roughly one
+			// sample in six on the measured session. Geometry that existed only on
+			// those samples would be a cadence rather than a signal.
+			//
+			// `text` only. An `image` region has no rows in it by construction, and
+			// measuring one would invite exactly the reading shape.go refuses — that a
+			// rectangle is a menu entry because something was found there.
+			//
+			// Deleting this must fail TestAnUnreadableTextRegionKeepsItsGeometry.
+			if p.KeepUnreadableShapes && class == ClassText {
+				p.keepShape(desktop, r.Confidence, source, box,
+					observation.Normalize(r.Text) != "")
+			}
 			if observation.Normalize(r.Text) == "" {
 				// A TEXT region the detector could not read itself. It is real
 				// structure — something WROTE something here — and the scoped reader
@@ -574,10 +605,19 @@ func (p *Provider) observations(ctx context.Context, results []Detection, img ca
 					})
 					continue
 				}
-				// A non-structural class with nothing readable in it. There is no
-				// evidence here to report: "an image is at these coordinates" is not
-				// something anything downstream can use.
+				// A non-structural class with nothing readable in it. It is still
+				// refused AS EVIDENCE — no element, no role, no actionability — and
+				// the counter is unchanged, because what was refused is unchanged.
+				//
+				// What the reason says changed, because on a shape-keeping instance
+				// the old wording was false: the words were lost and the rectangle
+				// was not. A diagnostic that reported a discard where a shape was
+				// kept would make the new channel unfindable from the report.
 				p.counters.RejectedUnreadable++
+				if p.KeepUnreadableShapes && class == ClassText {
+					refuse("nothing readable inside it; geometry kept as a shape")
+					continue
+				}
 				refuse("nothing readable inside a non-structural class")
 				continue
 			}

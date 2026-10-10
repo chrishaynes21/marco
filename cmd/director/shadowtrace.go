@@ -90,6 +90,18 @@ type tracedSlot struct {
 	// OCR output; the privacy rule does not relax because a field is called a reason.
 	Reason  string                 `json:"reason,omitempty"`
 	Regions []observe.ShadowRegion `json:"regions,omitempty"`
+	// Shapes is the geometry this slot kept without being able to name it.
+	//
+	// RECORDED IN FULL, not as a count, because a replay that reconstructed a slot without
+	// its shapes would feed the tracker a different screen from the one production fed it —
+	// and the whole purpose of this trace is that production and replay are the same
+	// measurement. A count would make the two diverge silently, which is the failure mode
+	// this repository has recorded as "two lists, one fact".
+	//
+	// It is the largest thing on a slot: a dense game screen keeps ~70. At the trace bound
+	// that is a diagnostic file of tens of megabytes on a long run, which is the cost of
+	// being able to replay one.
+	Shapes []observe.ShadowShape `json:"shapes,omitempty"`
 	// Inputs is the navigation observed during this slot: closed-vocabulary intents,
 	// session-relative times, and no key identity — see internal/director/observe/input.go.
 	//
@@ -130,6 +142,9 @@ func (t *shadowTrace) record(s *observe.ShadowSample, generation uint64) {
 		// Before the outcome switch, deliberately: the navigation is real whatever became
 		// of the screen evidence, and three of the four outcomes below return early.
 		Inputs: s.Inputs, InputStats: s.InputStats, Semantic: s.Semantic,
+		// And the unnamed geometry, for the same reason in the same place: the detector
+		// kept it on this pass whatever the outcome switch decides the pass was.
+		Shapes: s.Shapes,
 	}
 	switch {
 	case s.Unavailable != "":
