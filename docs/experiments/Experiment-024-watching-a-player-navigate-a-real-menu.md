@@ -160,7 +160,7 @@ would have had the same two readings. The gate's own error rate was one refusal-
 
 A change was **confirmed into `state_unknown`** during the hold-still phase. A detector blackout
 lasting two looks becomes a semantic transition. A one-frame dropout is carried as uncertainty;
-a two-second one is not. The decision is recorded as ADR-153 when the repair lands.
+a two-second one is not. See [[ADR-153-a-blackout-is-not-a-destination]].
 
 ## Two flaws in the protocol, not in Marco
 
@@ -180,7 +180,8 @@ refused five of those wobbles and confirmed one.
    [[ADR-154-geometry-is-evidence-even-when-the-words-are-not]].
 2. Separate slow discovery from fast tracking, off the cycle that ScreenParser blocks —
    [[ADR-152-slow-discovery-fast-tracking]].
-3. A blackout is uncertainty or expiry, never a confirmed destination — ADR-153.
+3. A blackout is uncertainty or expiry, never a confirmed destination —
+   [[ADR-153-a-blackout-is-not-a-destination]].
 
 Those three ADRs are written with the repair, each naming the test that holds it. This record
 is the evidence they rest on and deliberately predates them.

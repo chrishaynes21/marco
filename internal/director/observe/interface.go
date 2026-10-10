@@ -93,6 +93,13 @@ type InterfaceBelief struct {
 	Stale bool `json:"stale,omitempty"`
 	// Unconfirmed is how many consecutive looks have brought no evidence at all.
 	Unconfirmed int `json:"looks_unconfirmed,omitempty"`
+	// Empty is how many consecutive looks DID see the screen and found nothing shaded on it.
+	//
+	// Separate from Unconfirmed because they are different evidence and have different
+	// consequences: nothing was looked at, against something was looked at and was bare.
+	// One number for both would make a detector that keeps dropping out indistinguishable
+	// from a menu that keeps closing.
+	Empty int `json:"looks_with_nothing_on_screen,omitempty"`
 }
 
 // InterfaceChange is what moved since the previous observation.
@@ -164,6 +171,23 @@ const maxInterfaceMoments = 64
 // has looked lately — which is still not the answer that the menu has gone.
 const interfaceForgetLooks = 10
 
+// interfaceEmptyLooks is how many consecutive looks may SEE the screen and find nothing
+// shaded on it before the belief is given up.
+//
+// Two, and it is the same persistence rule the screen-change gate uses rather than a second
+// policy: one look is not enough for a claim one look cannot make. Measured in
+// Experiment-024, during fifty seconds in which the player held still and the screen did not
+// change, the detector reported 29 → 0 → 13 → 13 → 18 → 0 → 0 → 1 → 1 → 1 → 0 admitted
+// regions. A belief that a single zero destroyed would have been destroyed four times on an
+// unchanging screen, and each destruction is a semantic change to unknown that nothing
+// observed.
+//
+// It is deliberately NOT interfaceForgetLooks. These two absences are different evidence: a
+// look that brought nothing has established nothing about the screen
+// ([[ADR-006-unknown-is-not-false]]), while a look that saw the screen and found nothing on it
+// is evidence that there is nothing there — weaker than ten looks' worth, stronger than none.
+const interfaceEmptyLooks = 2
+
 // interfaceGrid is the integer space normalised regions are judged in.
 //
 // The grouping and tracking rules are geometric and were written against pixels. Regions
@@ -179,9 +203,11 @@ type InterfaceWatch struct {
 	belief  InterfaceBelief
 	change  InterfaceChange
 	// looks counts the looks that carried evidence; missed counts the consecutive ones
-	// since that have carried none.
+	// since that have carried none; empty counts the consecutive ones that saw the screen
+	// and found nothing shaded on it.
 	looks   int
 	missed  int
+	empty   int
 	moments []InterfaceMoment
 }
 
@@ -241,13 +267,11 @@ func (w *InterfaceWatch) Observe(look InterfaceLook) {
 		unnamed[b] = true
 	}
 	if len(boxes) == 0 {
-		w.settle(before, InterfaceBelief{
-			Status: InterfaceUnknown, Selected: -1, Reading: "insufficient_evidence",
-			Because:      "no shaded regions were proposed this look",
-			Observations: w.looks, Sample: look.Sequence, At: look.At,
-		}, "")
+		w.emptyLook(before, look)
 		return
 	}
+	// Something measurable was seen, so whatever run of bare looks was accumulating is over.
+	w.empty = 0
 
 	// Grouping works on boxes alone, so the shades are carried alongside by position.
 	rows := selection.GroupRows(boxes)
@@ -311,6 +335,47 @@ func (w *InterfaceWatch) Observe(look InterfaceLook) {
 			next.FromShapes, next.Entries)
 	}
 	w.settle(before, next, "")
+}
+
+// emptyLook folds a look that SAW the screen and found nothing shaded on it.
+//
+// # Why one of these does not end a belief
+//
+// Because the detector blinks. Experiment-024 watched a player hold still for fifty seconds in
+// front of an unchanging menu while the detector reported 29 → 0 → 13 → 13 → 18 → 0 → 0 → 1 →
+// 1 → 1 → 0 admitted regions. Under the previous rule each of those zeros replaced a
+// provisional belief with `unknown` immediately — four semantic changes to a state that nothing
+// observed, on a screen that did not change.
+//
+// So the same persistence rule the screen-change gate applies is applied here: a bare look is
+// UNCERTAINTY, and only a second consecutive one is evidence the list has gone.
+// [[ADR-153-a-blackout-is-not-a-destination]].
+//
+// It is not a higher threshold on anything. The first bare look is reported, counted, and
+// visible in the belief as Empty; what it does not do is destroy a belief built from ten.
+func (w *InterfaceWatch) emptyLook(before InterfaceBelief, look InterfaceLook) {
+	w.empty++
+	// Held only while there IS something to hold. A belief that was already unknown has
+	// nothing to protect, and keeping the first bare look quiet there would suppress the
+	// ordinary reason an unknown interface is unknown.
+	if before.Status == InterfaceProvisional && w.empty < interfaceEmptyLooks {
+		next := before
+		next.Stale = true
+		next.Empty = w.empty
+		next.Sample, next.At = look.Sequence, look.At
+		next.Because = fmt.Sprintf("a look saw the screen and found nothing shaded on it "+
+			"(%d of the %d it takes to give up; the evidence under this belief is "+
+			"sample %d)", w.empty, interfaceEmptyLooks, before.Sample)
+		w.settle(before, next, "a look found nothing on the screen")
+		return
+	}
+	w.settle(before, InterfaceBelief{
+		Status: InterfaceUnknown, Selected: -1, Reading: "insufficient_evidence",
+		Because: fmt.Sprintf("%d consecutive look(s) saw the screen and found nothing "+
+			"shaded on it", w.empty),
+		Empty:        w.empty,
+		Observations: w.looks, Sample: look.Sequence, At: look.At,
+	}, "")
 }
 
 // unconfirmed folds a look that brought no evidence.

@@ -61,8 +61,12 @@ func TestTheReportPrintsTheGatesOwnErrorRate(t *testing.T) {
 	if !strings.Contains(out, "gate's own error rate") {
 		t.Errorf("the report does not name those as the gate's error:\n%s", out)
 	}
-	if !strings.Contains(out, "without inventing a journey") {
-		t.Errorf("the report does not report the dropouts it stepped over:\n%s", out)
+	// The wording changed with ADR-153: `state_unknown` is no longer a destination, so a
+	// dropout is no longer a refused proposal to it. The number means the same thing to a
+	// reader — how much of the session Marco could not read — and the line now says that
+	// directly instead of describing the refusal of a journey nobody can propose.
+	if !strings.Contains(out, "carried as uncertainty") {
+		t.Errorf("the report does not report the looks it could not place:\n%s", out)
 	}
 }
 
@@ -110,5 +114,44 @@ func shadowOf(regions []observe.ShadowRegion) observe.ShadowSample {
 	return observe.ShadowSample{
 		Detector: "screenparser", Ran: true, TargetProven: true,
 		Regions: regions, Detections: len(regions), LatencyMS: 900,
+	}
+}
+
+// A SESSION THAT STOPPED KNOWING WHERE THE PLAYER WAS HAS TO SAY SO.
+//
+// `state_unknown` used to be a destination, so a blackout appeared in the transition table and
+// a reader could see it there. It cannot be one any more — [[ADR-153-a-blackout-is-not-a-destination]] — which means this
+// report is the ONLY place the event appears at all. A session that lost track would otherwise
+// be indistinguishable from one that never did.
+//
+// Deleting the expiry lines in renderFlicker must fail this.
+func TestTheReportSaysWhenItStoppedKnowingWhereYouAre(t *testing.T) {
+	var b strings.Builder
+	renderFlicker(&b, observe.FlickerStats{
+		Proposed: 4, Confirmed: 2, Rejected: 2, Window: 2,
+		Dropouts: 9, Expired: 2, LongestBlackout: 6, ChangesLostToBlackout: 1,
+	}, "", 0, 0)
+	out := b.String()
+
+	if !strings.Contains(out, "STOPPED KNOWING") {
+		t.Errorf("a session that twice gave up on knowing which screen was in front of "+
+			"it does not say so:\n%s", out)
+	}
+	if !strings.Contains(out, "longest blackout 6") {
+		t.Errorf("the report does not say how long the worst blackout was; expiry alone "+
+			"cannot tell four seconds from four minutes:\n%s", out)
+	}
+	if !strings.Contains(out, "no adjacency is recorded") {
+		t.Error("the report reports an expiry without saying what was NOT recorded. A " +
+			"reader has to be able to tell this from a change into nowhere, which is " +
+			"exactly what it used to be")
+	}
+	// And the detector's loss is not presented as the gate's.
+	if !strings.Contains(out, "still being confirmed when the screen went dark") {
+		t.Errorf("a candidate lost to a blackout is not reported:\n%s", out)
+	}
+	if strings.Contains(out, "gate's own error rate") {
+		t.Error("a session with no refusals that navigation preceded printed the gate's " +
+			"error rate anyway; a change nobody could judge is the detector's loss")
 	}
 }

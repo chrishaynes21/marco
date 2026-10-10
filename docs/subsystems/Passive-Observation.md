@@ -284,6 +284,9 @@ should be wider, narrower or time-based is a question for `rejected_with_input` 
 - [[ADR-150-silence-is-not-evidence-about-a-device-nobody-watched]] — the Director
   watches a controller, every observation says which hardware it came from, and a
   session cannot report quiet as the player's unless it watched every device
+- [[ADR-153-a-blackout-is-not-a-destination]] — `state_unknown` can no longer be
+  confirmed as the screen in front of a session. An unreadable run is uncertainty, then an
+  expiry of the belief; one bare look no longer destroys an interface belief either
 - [[ADR-154-geometry-is-evidence-even-when-the-words-are-not]] — the detector was
   discarding ~70 rectangles a frame because nobody could read them, and the selection
   reader needs the rectangles and none of their words. Kept on the experiment's instance,

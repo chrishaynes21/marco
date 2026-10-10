@@ -1081,17 +1081,44 @@ type FlickerStats struct {
 	// navigation preceded. These are the candidate MISSED transitions, and the number that
 	// decides whether the window is right.
 	//
-	// A refused proposal to the unplaceable state is excluded, and the distinction is the
-	// whole value of this number: an unreadable frame between two readable ones is a
-	// dropout the gate correctly stepped over, and counting those here would bury the
-	// handful of real misses under one per dropped frame. They are Dropouts instead.
+	// Unreadable looks cannot land here, and the distinction is the whole value of this
+	// number: a gap between two readable frames is a dropout the gate stepped over, and
+	// counting those here would bury the handful of real misses under one per dropped frame.
+	// They are Dropouts, and a change lost to a long blackout is ChangesLostToBlackout.
 	RejectedWithInput int `json:"rejected_with_input,omitempty"`
-	// Dropouts is refused proposals to the unplaceable state: frames nobody could read that
-	// resolved without the screen having changed.
+	// Dropouts is looks that could not be placed at all and were carried as uncertainty.
 	//
 	// Not an error and not a miss. It is the count of times the gate's whole purpose was
 	// served — a gap crossed without inventing a journey into nowhere and back out of it.
+	//
+	// It used to count REFUSED PROPOSALS to the unplaceable state, which is a sentence that
+	// can no longer be written: `state_unknown` is not a destination any more. See
+	// [[ADR-153-a-blackout-is-not-a-destination]]. The number means the same thing it always
+	// meant to a reader — how much of the session Marco could not read — and now counts it
+	// directly instead of counting the gate's refusals of it.
 	Dropouts int `json:"dropouts,omitempty"`
+	// Expired is how many times the session STOPPED CLAIMING to know which screen was in
+	// front of it, because it had been unable to read one for StatePromotionCount looks.
+	//
+	// A blackout that long might have contained a screen. The old behaviour confirmed a
+	// transition INTO the unplaceable state and then another one out of it — measured live
+	// in Experiment-024, where a two-look detector blackout became a semantic change into a
+	// state that does not exist. Expiry is the honest answer: not "you went nowhere", but
+	// "I no longer know where you are".
+	Expired int `json:"expired,omitempty"`
+	// LongestBlackout is the longest run of consecutive unplaceable looks in the session.
+	//
+	// Reported because Expired alone cannot say whether the screen was unreadable for four
+	// seconds or four minutes, and those are different findings about the detector.
+	LongestBlackout int `json:"longest_blackout,omitempty"`
+	// ChangesLostToBlackout is pending changes that were still being confirmed when the
+	// belief expired.
+	//
+	// Held apart from RejectedWithInput deliberately. A candidate the gate refused is the
+	// gate's own error rate; a candidate nobody could judge because the screen went dark is
+	// the detector's, and mixing them would make the window look wrong for a reason that has
+	// nothing to do with the window.
+	ChangesLostToBlackout int `json:"changes_lost_to_blackout,omitempty"`
 	// Delayed is confirmed changes that took more than the minimum to confirm, which is a
 	// screen that took its time rather than one the gate nearly refused.
 	Delayed int `json:"delayed,omitempty"`
@@ -1476,6 +1503,24 @@ func (g *ScreenSegmenter) Observe(n int, regions []ShadowRegion,
 // stability is here, so a future reader looking for "why did the screen not change" has one
 // function to read rather than a condition spread across three call sites.
 func (g *ScreenSegmenter) propose(n int, id ScreenStateID, inputs []InputEvent) {
+	// A BLACKOUT IS NOT A DESTINATION.
+	//
+	// `state_unknown` is the id of an inference nobody could place. It is not a screen: it
+	// produces no hypothesis, can never be a durable subject, and nothing downstream can do
+	// anything with it. For a while it could nonetheless be CONFIRMED as the screen the
+	// session was on — two consecutive unreadable frames and the gate recorded a semantic
+	// transition into a state that does not exist, then another one back out of it.
+	// Experiment-024 measured one, during fifty seconds in which the screen did not change.
+	//
+	// Refused here, structurally, rather than at the one call site that used to do it: a
+	// rule enforced at its callers is a rule a future caller will not know about. An
+	// unreadable look becomes uncertainty, and a long run of them expires the belief —
+	// unknownLook, and [[ADR-153-a-blackout-is-not-a-destination]].
+	//
+	// Deleting this must fail TestABlackoutIsNeverAConfirmedTransition.
+	if id == ScreenStateUnknown {
+		return
+	}
 	// The first placement of a session is not a change. There is nothing to have changed
 	// from, and recording one would make every session open with a transition out of
 	// nowhere.
@@ -1541,10 +1586,11 @@ func (g *ScreenSegmenter) discard(refused bool) {
 	}
 	if refused {
 		g.Flicker.Rejected++
-		switch {
-		case g.change.to == ScreenStateUnknown:
-			g.Flicker.Dropouts++
-		case len(g.change.inputs) > 0:
+		// Every refused candidate is a real screen now, because the unplaceable one can
+		// no longer be a candidate at all — see propose. So the only question left is
+		// whether a deliberate press preceded it, which is what makes it a candidate
+		// MISS rather than noise.
+		if len(g.change.inputs) > 0 {
 			g.Flicker.RejectedWithInput++
 		}
 	}
@@ -1769,15 +1815,62 @@ func (g *ScreenSegmenter) unplaced(inputs []InputEvent) ScreenStateID {
 // a frame nobody could read is still a candidate, and the frames that could not be read are
 // counted on it as the explicit uncertainty between the before and the after.
 func (g *ScreenSegmenter) unknownLook(inputs []InputEvent) {
-	if g.change != nil && g.change.to != ScreenStateUnknown {
+	// The run INCLUDING this look. g.unsettled is incremented by the caller afterwards, so
+	// the count here is the one before it.
+	run := g.unsettled + 1
+	g.Flicker.Dropouts++
+	if run > g.Flicker.LongestBlackout {
+		g.Flicker.LongestBlackout = run
+	}
+	if g.change != nil {
 		g.change.unknown++
 		// AND ITS NAVIGATION. The frame could not be read; what the player did during it
 		// was observed by an entirely different producer and is not in doubt. Dropping it
 		// here is how the press that caused a change gets attributed to the next one.
 		g.change.inputs = boundInputs(MergeInputs(g.change.inputs, inputs))
+	}
+	// PAST THE POINT WHERE A GAP COULD HAVE BEEN A SCREEN, the belief expires.
+	//
+	// The bound is StatePromotionCount and is not a number chosen here. The architecture
+	// already draws this exact line — "One sighting is a transition frame; a second is a
+	// screen" — and the crossing bridge already uses it for the same judgement: a run
+	// shorter than that asserts nothing segmentation does not already assert, and a run at
+	// least that long might have contained a screen that simply never recurred.
+	//
+	// Below the bound the belief is KEPT and the uncertainty is carried, which is what lets
+	// a change seen through a gap still be recorded as the one change it was. At the bound
+	// the honest answer stops being "you are still on A" and becomes "I do not know where
+	// you are" — and that is an expiry, not a journey.
+	if run >= StatePromotionCount {
+		g.expire()
+	}
+}
+
+// expire stops the session claiming to know which screen is in front of it.
+//
+// NOT a transition. No crossing is written, no adjacency is recorded, and `state_unknown` does
+// not become the current screen — there simply is no current screen until something readable
+// arrives, at which point propose treats it as a first placement and records no change out of
+// nowhere.
+//
+// That loses a real A → B that happened entirely inside a long blackout, and losing it is
+// correct: Marco could not see for several looks, so it cannot say B followed A rather than B
+// following C following A. A recorded adjacency across an unobserved interval is an invented
+// one, which is the line the bridge's own bound was drawn at.
+func (g *ScreenSegmenter) expire() {
+	if g.current == "" {
 		return
 	}
-	g.propose(0, ScreenStateUnknown, inputs)
+	if g.change != nil {
+		// Counted on the blackout rather than as a refusal. A candidate nobody could
+		// judge because the screen went dark is not the gate getting it wrong, and
+		// folding it into the gate's error rate would make the window look wrong for a
+		// reason that has nothing to do with the window.
+		g.Flicker.ChangesLostToBlackout++
+	}
+	g.discard(false)
+	g.current = ""
+	g.Flicker.Expired++
 }
 
 // boundInputs keeps an accumulating window from growing without limit.

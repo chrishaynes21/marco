@@ -1088,7 +1088,7 @@ func renderWatchedDevices(b *strings.Builder, in observe.InputStats) {
 func renderFlicker(b *strings.Builder, f observe.FlickerStats, changing observe.ScreenStateID,
 	looks, unreadable int) {
 
-	if f.Proposed == 0 && changing == "" {
+	if f.Proposed == 0 && changing == "" && f.Expired == 0 && f.Dropouts == 0 {
 		return
 	}
 	fmt.Fprintf(b, "  changes      %d confirmed of %d proposed   %d refused as "+
@@ -1098,8 +1098,29 @@ func renderFlicker(b *strings.Builder, f observe.FlickerStats, changing observe.
 			"one look is not a change\n", f.Window)
 	}
 	if f.Dropouts > 0 {
-		fmt.Fprintf(b, "               %d gap(s) crossed without inventing a journey into "+
-			"nowhere and back\n", f.Dropouts)
+		fmt.Fprintf(b, "               %d look(s) could not be placed at all, carried as "+
+			"uncertainty\n", f.Dropouts)
+	}
+	// THE BLACKOUT, AND WHAT IT DID TO THE BELIEF RATHER THAN TO THE GRAPH.
+	//
+	// Experiment-024 confirmed a transition into `state_unknown` during fifty seconds in
+	// which the screen did not change. `state_unknown` is not a screen, so the report is now
+	// the only place that event appears at all — and it has to appear, or a session that
+	// stopped knowing where the player was would look like one that never lost track.
+	//
+	// Deleting this must fail TestTheReportSaysWhenItStoppedKnowingWhereYouAre.
+	if f.Expired > 0 {
+		fmt.Fprintf(b, "               %d time(s) it STOPPED KNOWING which screen was in "+
+			"front of it\n", f.Expired)
+		fmt.Fprintf(b, "               longest blackout %d look(s); a gap that long might "+
+			"have held a screen\n", f.LongestBlackout)
+		b.WriteString("               not a change to nowhere — no adjacency is recorded " +
+			"across an interval nobody saw\n")
+	}
+	if f.ChangesLostToBlackout > 0 {
+		// Printed apart from the gate's error rate, because it is the DETECTOR's.
+		fmt.Fprintf(b, "               %d change(s) were still being confirmed when the "+
+			"screen went dark\n", f.ChangesLostToBlackout)
 	}
 	if f.RejectedWithInput > 0 {
 		// THE MISS DIRECTION, and it is printed whether or not it is flattering.
