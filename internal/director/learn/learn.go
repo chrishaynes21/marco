@@ -508,14 +508,15 @@ type Coordinator struct {
 	// waitingSince is when the current question was first put.
 	waitingSince time.Time
 
+	// s is the session as it stands, and it is OWNED: see control. Everything above it is
+	// written once by New and the With* builders before anything is driving, and everything
+	// from here down is written only by the goroutine holding the state for a step.
 	s Session
-	// cancelled is set by Cancel and checked at every phase boundary, so a cancel that lands
-	// mid-pass takes effect the moment the pass returns rather than being overwritten by it.
-	cancelled bool
-	// finished is set by Finish: the person has said the demonstration is over. Kept apart
-	// from `cancelled` because they are opposite instructions — one abandons the evidence
-	// and one is the reason the evidence exists.
-	finished bool
+	// ctl is the only part of this type two goroutines may touch — the two decisions a person
+	// can make while a pass is running, and the snapshot Session hands out. It holds what
+	// `cancelled` and `finished` used to be: plain bools with no mutex, which the race
+	// detector found on 2026-10-10 and which meant a cancel could be lost entirely.
+	ctl control
 	// rehearsal asks Marco to try each edge itself. Off by default — see WithRehearsal.
 	rehearsal bool
 	// topology is the durable edge counts as they stood before the discovery pass.
@@ -542,9 +543,16 @@ func New(name string, passes Passes, memory observe.Memory, b Bounds) *Coordinat
 		th: observe.DefaultHypothesisThresholds(),
 		s:  Session{Name: strings.TrimSpace(name), Phase: WaitingForDemonstration},
 	}
+	// The only constructor, and so the only place the handover machinery is set up. A zero
+	// control cannot be waited on, which is why this is not optional.
+	c.ctl.idle.L = &c.ctl.mu
 	if err := CheckName(name); err != nil {
 		c.refuse(NameNotUsable, err.Error())
 	}
+	// Published before anybody can ask: a name Marco cannot use is already refused by here,
+	// and the caller reads that through Session like every other outcome.
+	c.ctl.published = c.s.clone()
+	c.ctl.settled = c.s.Phase.Settled()
 	return c
 }
 
@@ -584,9 +592,18 @@ func (c *Coordinator) WithGrounding(g Grounding) *Coordinator { c.ground = g; re
 // `do Downloads's Open …` — an actor and a verb. Both are validated against Marco's naming rules
 // by the CALLER, where those rules live; the coordinator only carries them and only uses them at
 // save time. A learn attempt that fails must not leave the user's word attached to anything.
+// THE ONE BUILDER THAT WRITES THE SESSION, so it is the one that has to republish it. The
+// others install collaborators; this one puts two words where a surface reads them, and
+// `learnSession.start` reads Session() straight after the builder chain to tell the person what
+// the play will be called before they demonstrate anything.
+//
+// Deleting the republish must fail TestTheNameAPlayWillHaveIsPublishedBeforeAnybodyDemonstrates.
 func (c *Coordinator) WithPlayName(actor, verb string) *Coordinator {
 	c.actor, c.verb = actor, verb
 	c.s.Actor, c.s.Verb = actor, verb
+	c.ctl.mu.Lock()
+	c.ctl.published = c.s.clone()
+	c.ctl.mu.Unlock()
 	return c
 }
 
@@ -610,25 +627,65 @@ func (c *Coordinator) WithPlayName(actor, verb string) *Coordinator {
 // not skip anything downstream. The pass returns as usual and the ordinary pipeline runs — the
 // destination is established, the demonstration is built, the candidate is assessed — because the
 // alternative would be a second, shorter implementation of everything after capture.
+// # Where it runs
+//
+// On the person's goroutine, while the capture pass it is ending runs on another — the normal
+// case rather than the exceptional one, because "I am done" is said while Marco is watching. So
+// it records the decision, ends the pass, and leaves the account line to whichever goroutine owns
+// the session state: the step at its next boundary, or this one if no step is running. See
+// control.
+//
+// Idempotent. Saying it twice is one decision, and saying it to a settled attempt is nothing.
 func (c *Coordinator) Finish() {
-	if c.s.Phase.Settled() || c.finished {
+	c.ctl.mu.Lock()
+	if c.ctl.finished || c.ctl.settled {
+		c.ctl.mu.Unlock()
 		return
 	}
-	c.finished = true
-	c.note("you said that was the whole demonstration")
+	c.ctl.finished = true
+	mine := !c.ctl.stepping
+	if mine {
+		c.ctl.stepping = true
+	}
+	c.ctl.mu.Unlock()
+	if mine {
+		// Nobody else is there, so this goroutine writes the account line and publishes.
+		// BEFORE the callback below rather than after, so the window where this goroutine
+		// owns the state contains no call out of the package — a step that wanted the
+		// state would otherwise wait on somebody else's code.
+		c.release()
+	}
+	// Outside the lock either way, because ending the pass is the thing the person actually
+	// asked for and it must not wait for a step boundary. Passes.Finish ends a pass running on
+	// another goroutine and does its own synchronising.
+	//
+	// Deleting the unconditional call must fail
+	// TestFinishDuringAPassEndsTheCaptureAtOnceAndIsRecordedOnce.
 	if c.passes != nil {
 		c.passes.Finish()
 	}
 }
 
 // Finished reports whether the person has said the demonstration is over.
-func (c *Coordinator) Finished() bool { return c.finished }
+func (c *Coordinator) Finished() bool {
+	c.ctl.mu.Lock()
+	defer c.ctl.mu.Unlock()
+	return c.ctl.finished
+}
 
 // WithClock replaces the clock the answer bound is measured against.
 func (c *Coordinator) WithClock(now func() time.Time) *Coordinator { c.now = now; return c }
 
-// Session returns the current state.
-func (c *Coordinator) Session() Session { return c.s }
+// Session returns the state as it stood at the last step boundary.
+//
+// A SNAPSHOT, not a view: a deep copy published under control's lock. Safe to call from any
+// goroutine at any time, including during a pass, and what comes back will not change underneath
+// the caller. See Session.clone for what it copies and what it shares.
+func (c *Coordinator) Session() Session {
+	c.ctl.mu.Lock()
+	defer c.ctl.mu.Unlock()
+	return c.ctl.published
+}
 
 // Cancel ends the attempt.
 //
@@ -636,16 +693,49 @@ func (c *Coordinator) Session() Session { return c.s }
 // a capture in a later session, and no play is written. The in-flight pass is stopped by the
 // caller cancelling the context it passed to Advance — this only makes the decision durable for
 // the phases that come after.
+// # Where it runs, and why it does not block
+//
+// On the goroutine of whoever asked, while the pass being cancelled runs on another. It never
+// waits for that pass: taking a lock the pass held would mean cancellation waiting on the thing
+// it is cancelling, for up to the length of a watch. So it records the decision under control's
+// own lock and the step applies it at its boundary — which is what the old comment on the
+// `cancelled` field claimed and, with no synchronisation at all, did not have.
+//
+// What a caller sees immediately is the published phase: Cancelled, from the moment this returns.
+// The authoritative transition and the withdrawal happen on whichever goroutine owns the session
+// state, and if nothing owns it this one does them itself before returning — a session nobody is
+// advancing any more would otherwise never apply its own cancellation.
+//
+// Idempotent, and it never un-settles a finished attempt: a cancel that lost a race with a
+// successful save leaves the save alone. See applyCancel.
 func (c *Coordinator) Cancel() {
-	c.cancelled = true
-	if c.s.Phase.Settled() {
+	c.ctl.mu.Lock()
+	if c.ctl.cancelled {
+		c.ctl.mu.Unlock()
 		return
 	}
-	c.s.Phase, c.s.Question = Cancelled, nil
-	c.note("cancelled by the user")
-	// A pending request is withdrawn, or the next ordinary session would arm a capture for a
-	// route nobody is learning any more.
-	c.withdraw()
+	c.ctl.cancelled = true
+	switch {
+	case c.ctl.settled:
+		// Nothing to end, and nothing to withdraw from under it.
+		c.ctl.cancelApplied = true
+		c.ctl.mu.Unlock()
+		return
+	case c.ctl.stepping:
+		// A step owns the state. It applies this at its boundary; the published snapshot
+		// says Cancelled now, so nobody reading in between is told the demonstration is
+		// still running.
+		c.ctl.published.Phase, c.ctl.published.Question = Cancelled, nil
+		c.ctl.settled = true
+		c.ctl.mu.Unlock()
+		return
+	}
+	c.ctl.stepping = true
+	c.ctl.mu.Unlock()
+	// Nobody else is there, so this goroutine is the one that applies it. Through release,
+	// because release is where a deferred decision is applied too and there must be exactly
+	// one place that does it.
+	c.release()
 }
 
 // Advance performs the next step and returns the session.
@@ -653,10 +743,19 @@ func (c *Coordinator) Cancel() {
 // One step per call, and a call may block for the length of a pass. A phase that is Waiting is
 // not advanced by time — the user has to answer a question first — and calling anyway is a no-op
 // rather than a wasted pass.
+// A step OWNS the session state from here until it returns, and nothing else reads or writes it
+// in that window; the two things a person can say arrive through control instead and are applied
+// at this boundary. See control.
 func (c *Coordinator) Advance(ctx context.Context) Session {
-	if c.cancelled || c.s.Phase.Settled() {
-		return c.s
+	if !c.claim() {
+		return c.Session()
 	}
+	c.step(ctx)
+	return c.release()
+}
+
+// step is one phase's worth of work, on the state this goroutine owns.
+func (c *Coordinator) step(ctx context.Context) {
 	switch c.s.Phase {
 	case WaitingForDemonstration, EstablishingStart:
 		c.establishStart(ctx)
@@ -690,11 +789,6 @@ func (c *Coordinator) Advance(ctx context.Context) Session {
 	case Lowering:
 		c.lower()
 	}
-	if c.cancelled && !c.s.Phase.Settled() {
-		c.s.Phase = Cancelled
-		c.withdraw()
-	}
-	return c.s
 }
 
 // ── the phases ────────────────────────────────────────────────────────────────
@@ -714,7 +808,7 @@ func (c *Coordinator) awaitSubject(ctx context.Context) bool {
 		return false
 	}
 	if err := c.passes.AwaitSubject(ctx); err != nil {
-		if c.cancelled || ctx.Err() != nil {
+		if c.stopped() || ctx.Err() != nil {
 			// The person stopped waiting, or the attempt was cancelled. Not a refusal
 			// about the evidence, and Advance's own cancellation handling says so.
 			return false
@@ -1197,7 +1291,7 @@ func (c *Coordinator) rehearse(ctx context.Context) {
 		return
 	}
 	a, err := c.tail.Rehearse(ctx)
-	if c.cancelled {
+	if c.stopped() {
 		return
 	}
 	if err != nil {
@@ -1488,7 +1582,7 @@ func boolWord(b bool) string {
 // pass runs one bounded observation and reports whether the session may continue.
 func (c *Coordinator) pass(ctx context.Context, d time.Duration) (observesession.Result, bool) {
 	res, err := c.passes.Observe(ctx, d)
-	if c.cancelled {
+	if c.stopped() {
 		return res, false
 	}
 	if err != nil {

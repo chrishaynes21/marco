@@ -291,6 +291,11 @@ should be wider, narrower or time-based is a question for `rejected_with_input` 
 - [[ADR-153-a-blackout-is-not-a-destination]] — `state_unknown` can no longer be
   confirmed as the screen in front of a session. An unreadable run is uncertainty, then an
   expiry of the belief; one bare look no longer destroys an interface belief either
+- [[ADR-155-a-learn-session-has-one-owner]] — a learn step owns the session state start to
+  finish; the two things a person can say while a pass is running arrive through a small
+  synchronised box and are applied at the step's boundary, or by the caller when no step is
+  there. `Session()` returns a snapshot. No lock is ever held across a pass, because
+  cancellation that waits on the thing being cancelled is not cancellation
 - [[ADR-154-geometry-is-evidence-even-when-the-words-are-not]] — the detector was
   discarding ~70 rectangles a frame because nobody could read them, and the selection
   reader needs the rectangles and none of their words. Kept on the experiment's instance,
@@ -365,22 +370,17 @@ should be wider, narrower or time-based is a question for `rejected_with_input` 
   targeted session — see [[director-accessibility-targeting]].
 - Durable storage, fixture export and event streaming are **not built**, deliberately:
   nothing should become durable while the classifier was wrong.
-- **`learn.Coordinator` has no synchronisation, and a cancel can be lost.** Found 2026-10-09
-  by `go test -race`, while race-checking the fast visual path's new goroutine; unrelated to
-  it and pre-existing since 2026-08-19.
-
-  `learnSession.start` runs `Coordinator.Advance` on its own goroutine while the caller may
-  reach `Coordinator.Cancel` or `Finish` from another. The `cancelled` and `finished` fields
-  are plain bools with no mutex anywhere on the type, and the comment beside `cancelled` names
-  the exact cross-goroutine read: *"checked at every phase boundary, so a cancel that lands
-  mid-pass takes effect the moment the pass returns"*. An unguarded read is not guaranteed to
-  observe the write at all, so **`director learn --cancel` is not guaranteed to stop a
-  demonstration**. `go test -race ./cmd/director` reports ten races across five tests, all of
-  them this.
-
-  Not fixed here. It needs a decision — a mutex on the type, an atomic pair, or making the
-  phase boundary a channel receive — and that decision belongs with Learn rather than with
-  observation. The plain suite is green and always was: this is invisible without `-race`.
+- ~~`learn.Coordinator` has no synchronisation, and a cancel can be lost.~~ **Fixed
+  2026-10-10**, [[ADR-155-a-learn-session-has-one-owner]]. Found 2026-10-09 by `go test
+  -race` while race-checking the fast visual path's new goroutine; unrelated to it and
+  pre-existing since 2026-08-19. Ten races across five `cmd/director` tests, every one of
+  them `Cancel` or `Finish` against `Advance` on plain bools with no mutex anywhere on the
+  type, which meant **`director learn --cancel` was not guaranteed to stop a demonstration**.
+- **`go test -race` is not part of the gate.** The documented gate is `go build ./... && go
+  test ./...`, and the one time the race build was run it found the defect above, which the
+  plain suite had been green over for seven weeks. Making it part of the gate is its own
+  decision: it is roughly four times slower on `cmd/director`, which is already the slowest
+  package. Until then, run it when adding a goroutine.
 
 ## Milestone record
 
