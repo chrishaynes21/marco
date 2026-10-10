@@ -10,7 +10,9 @@ import (
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/providers/ocr"
+	"github.com/chaynes-simpleclouds/marco/internal/director/perception/providers/vision"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/providers/visualstate"
+	"github.com/chaynes-simpleclouds/marco/internal/director/perception/windowref"
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 )
 
@@ -388,4 +390,68 @@ func TestAWalkerStartsNoCaptureLoopNobodyWillStop(t *testing.T) {
 			"tree will ever stop it, and it captures a region of the desktop four " +
 			"times a second")
 	}
+}
+
+// A SPARSE INFERENCE DOES NOT THROW AWAY USABLE GEOMETRY.
+//
+// The measured shape of the live run: during 150 seconds of navigation the detector admitted
+// nothing on 56 of 72 looks and a single row on the other 16. If every sparse inference cleared
+// the discovery, the fast path would have had geometry for a few seconds in four minutes — and
+// the staleness bound, not the detector's good luck, is what should decide when old rectangles
+// stop being usable.
+func TestASparseInferenceLeavesThePreviousGeometryInPlace(t *testing.T) {
+	rt := trackingRuntime(t)
+	live := rt.newObservationSampler(sessionClock).(*liveSampler)
+	defer live.detachNavigation()
+
+	req := sampleRequest()
+	if _, err := live.Sample(context.Background(), req); err != nil {
+		t.Fatalf("Sample: %v", err)
+	}
+	first := live.track.geometry()
+	if first == nil {
+		t.Fatal("the first cycle discovered nothing")
+	}
+
+	// A detector that finds one row, and then one that finds none at all. Neither is a
+	// list, and neither is a reason to forget where the list was.
+	for _, dets := range [][]vision.Detection{unreadableMenuFixture()[:1], nil} {
+		rt2 := visionShadowRuntime(t, dets, nil, paintedFixtureCapture{generation: 1})
+		sparse := discoveryFrom(req.Sequence+1, time.Now(),
+			mustSample(t, rt2).Shadow, pinnedAsWindow(windowRef1), 1)
+		if sparse != nil {
+			t.Errorf("%d detection(s) produced a discovery with %d row(s); one "+
+				"rectangle is not a list and a mark inside a list of one is not a "+
+				"question", len(dets), len(sparse.rows))
+		}
+	}
+
+	// And the sampler left the original in place rather than clearing it.
+	req.Sequence++
+	rt.pinnedWindow = &windowRef1
+	if _, err := live.Sample(context.Background(), req); err != nil {
+		t.Fatalf("Sample: %v", err)
+	}
+	if d := live.track.geometry(); d == nil {
+		t.Error("the geometry was cleared. observe.TrackStaleness is what decides when " +
+			"old rectangles stop being usable, not whether one inference happened to " +
+			"be sparse")
+	}
+}
+
+// pinnedAsWindow is the window a pinned reference describes, the way activeWindow builds it.
+func pinnedAsWindow(r windowref.Ref) directorapi.Window {
+	return directorapi.Window{ID: r.ID, Application: r.Application, Bounds: r.Bounds}
+}
+
+// mustSample runs one cycle on a runtime and returns the sample.
+func mustSample(t *testing.T, rt *Runtime) observe.Sample {
+	t.Helper()
+	live := rt.newObservationSampler(sessionClock).(*liveSampler)
+	defer live.detachNavigation()
+	s, err := live.Sample(context.Background(), sampleRequest())
+	if err != nil {
+		t.Fatalf("Sample: %v", err)
+	}
+	return s
 }

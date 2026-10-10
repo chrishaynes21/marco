@@ -205,6 +205,10 @@ rows through two different capture paths, and whether that pollutes a baseline i
   `TestADirectorWithNoDetectorStartsNoCaptureLoop`, `TestTheFastLooksRideOnTheSample`,
   `TestAMovedWindowStopsTheFastPathReadingItsGeometry` (`cmd/director`) — through the
   composition production uses, including that the reads happen at all.
+- `TestASparseInferenceLeavesThePreviousGeometryInPlace` — the measured shape of the live run
+  was 0 or 1 admitted rows for 150 seconds; clearing the geometry on each of those would have
+  left the fast path with nothing for almost all of it.
+- `TestAWalkerStartsNoCaptureLoopNobodyWillStop` — a ticker nobody stops.
 - `TestTheReportSaysWhatTheFastPathRead`, `TestTheReportSaysWhenASelectionWasTracked`.
 - `TestTheSameFrameReadsTheSameShade` — determinism, which is what makes a fast re-read
   comparable with a slow one rather than merely adjacent to it.
