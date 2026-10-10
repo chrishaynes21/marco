@@ -365,6 +365,22 @@ should be wider, narrower or time-based is a question for `rejected_with_input` 
   targeted session — see [[director-accessibility-targeting]].
 - Durable storage, fixture export and event streaming are **not built**, deliberately:
   nothing should become durable while the classifier was wrong.
+- **`learn.Coordinator` has no synchronisation, and a cancel can be lost.** Found 2026-10-09
+  by `go test -race`, while race-checking the fast visual path's new goroutine; unrelated to
+  it and pre-existing since 2026-08-19.
+
+  `learnSession.start` runs `Coordinator.Advance` on its own goroutine while the caller may
+  reach `Coordinator.Cancel` or `Finish` from another. The `cancelled` and `finished` fields
+  are plain bools with no mutex anywhere on the type, and the comment beside `cancelled` names
+  the exact cross-goroutine read: *"checked at every phase boundary, so a cancel that lands
+  mid-pass takes effect the moment the pass returns"*. An unguarded read is not guaranteed to
+  observe the write at all, so **`director learn --cancel` is not guaranteed to stop a
+  demonstration**. `go test -race ./cmd/director` reports ten races across five tests, all of
+  them this.
+
+  Not fixed here. It needs a decision — a mutex on the type, an atomic pair, or making the
+  phase boundary a channel receive — and that decision belongs with Learn rather than with
+  observation. The plain suite is green and always was: this is invisible without `-race`.
 
 ## Milestone record
 
