@@ -44,7 +44,12 @@ cd /d "%~dp0"
 set "APP=%~1"
 if "%APP%"=="" set "APP=trackmania"
 set "SECS=%~2"
-if "%SECS%"=="" set "SECS=120"
+rem THE PROTOCOL BELOW HAS SIX PHASES AND THE LAST ONE HAS TO OUTLIVE A CONSTANT.
+rem An interface belief survives interfaceForgetLooks = 10 looks that bring nothing
+rem before it is dropped, and a look costs about two seconds, so "the menu is closed"
+rem needs 30s+ of looking at nothing to show the belief being LOST rather than merely
+rem going stale. 240s divides into the six phases with that one long enough.
+if "%SECS%"=="" set "SECS=240"
 
 if not exist "director.exe" (
   echo watch-interface: no director.exe. Build it first:
@@ -67,6 +72,23 @@ set "WATCH_OUT=%LOCALAPPDATA%\marco-liveiface\runs"
 if not exist "%WATCH_OUT%" mkdir "%WATCH_OUT%"
 set "MARCO_SHADOW_TRACE=%WATCH_OUT%\slots.jsonl"
 if exist "%MARCO_SHADOW_TRACE%" del "%MARCO_SHADOW_TRACE%"
+rem AND WHEN EACH PHASE BEGAN, which is what makes the two regimes separable.
+rem The gate confirms a change on a second agreeing look, so slow navigation and fast
+rem navigation are the two cases it must be judged on separately — and a trace of a run
+rem that mixed them answers neither. Wall clock here maps onto the trace's at_ms,
+rem which is measured from this Director's start: the session line below is the anchor.
+set "PHASELOG=%WATCH_OUT%\phases.txt"
+if exist "%PHASELOG%" del "%PHASELOG%"
+rem AND EVERY TICK'S ANSWER, not just the last one. The loop below already asks the
+rem session what it believes every two seconds and prints it to a screen that is then
+rem cleared. The final aggregate cannot answer "how many changes were confirmed WHILE
+rem the player was moving fast", because it is one number for the whole run; the
+rem per-tick answers can. One JSON object per line, and phases.txt says which tick
+rem each phase started after, so the two files index each other.
+set "TICKLOG=%WATCH_OUT%\ticks.jsonl"
+if exist "%TICKLOG%" del "%TICKLOG%"
+set "TICKTMP=%WATCH_OUT%\tick.tmp"
+set /a TICKN=0
 set "MARCO_SHADOW_VISION=screenparser"
 if "%MARCO_SHADOW_CADENCE%"=="" set "MARCO_SHADOW_CADENCE=1s"
 set "MARCO_SHADOW_UNGATED=1"
@@ -95,6 +117,11 @@ ping -n 2 127.0.0.1 >nul
 goto wait
 
 :ready
+rem THE TRACE'S CLOCK STARTS WITH THIS PROCESS, NOT WITH THE SESSION. slots.jsonl stamps
+rem at_ms from the Director's own start, and the phases below are wall clock, so one of the
+rem two needs an anchor or they cannot be laid over each other. This is the anchor: the
+rem readiness poll just succeeded, so the serve process is at most one poll old.
+>>"%PHASELOG%" echo serve-ready -- %DATE% %TIME%
 echo.
 director.exe observe-game --application "%APP%" --duration %SECS%s --interval 500ms
 if errorlevel 1 (
@@ -103,30 +130,90 @@ if errorlevel 1 (
   director.exe shutdown >nul 2>&1
   exit /b 1
 )
+>>"%PHASELOG%" echo session -- %DATE% %TIME%
 echo.
-echo Navigate the menu. Ctrl-C stops watching; the session stops on its own.
+echo Nothing is injected. Keyboard and CONTROLLER are both observed now, and every
+echo observation says which device it came from. If a device was not watched the report
+echo says so BY NAME - it will never report quiet as yours.
 echo.
-echo   An inference costs about two seconds, so hold each selection for ~5s:
-echo     1. sit still on a menu for ~25s        does one candidate survive many looks
-echo     2. move the selection 4-5 times slowly is a mark handed between members
-echo     3. open a submenu, pause ~20s          does the belief follow a real change
-echo     4. leave menus for the last ~60s       is the belief LOST for the right reason
+echo This run is a protocol, not a browse. The script tells you what to do and for how
+echo long, and writes down when each phase began, because the confirmation gate has to
+echo be judged separately on slow navigation and on fast navigation - a run that mixed
+echo them answers neither question.
 echo.
-echo   Nothing is injected. Keyboard and CONTROLLER are both observed now, and every
-echo   observation says which device it came from. If a device was not watched the
-echo   report says so by name - it will never report quiet as yours.
+echo   Follow the banner, and nothing else. What the session believes is written to a
+echo   file rather than to this window - a forty-line report that changes every two
+echo   seconds is unreadable by somebody who is also playing a game.
 echo.
-echo   The run reports, per device: inputs observed, menu identification, selected
-echo   entries, confirmed changes, refusals the flicker gate made, latency, and
-echo   whether the belief was lost when the menu went away.
-echo.
+ping -n 6 127.0.0.1 >nul
 
-set /a LOOPS=%SECS%/2
-for /l %%i in (1,1,%LOOPS%) do (
-  cls
-  director.exe observation-session observe_1
-  ping -n 3 127.0.0.1 >nul
-)
+rem Each loop is one ~2s tick. The shares are of the whole run, so any --duration keeps
+rem the same shape; only the last phase has a floor to defend (see the note above).
+set /a T1=%SECS%*20/100/2
+set /a T2=%SECS%*20/100/2
+set /a T3=%SECS%*12/100/2
+set /a T4=%SECS%*13/100/2
+set /a T5=%SECS%*10/100/2
+set /a T6=%SECS%*25/100/2
+
+rem ASKS: does one candidate survive many looks as ONE thing, or does it flicker?
+call :phase %T1% "1 of 6   HOLD STILL" "Open a menu. Leave the selection alone. Touch nothing."
+rem ASKS: is a mark handed between members, and is each move confirmed?
+call :phase %T2% "2 of 6   MOVE SLOWLY" "One press about every 5 seconds."
+rem ASKS: how many real changes does a two-look gate MISS at speed? The point of the run.
+call :phase %T3% "3 of 6   MOVE FAST" "Several presses as fast as you like, then stop."
+rem ASKS: is direction observed, or only that something moved?
+call :phase %T4% "4 of 6   REVERSE" "Back up slowly, the way you came."
+rem ASKS: does a wrap read as one move, or as a jump to a different interface?
+call :phase %T5% "5 of 6   WRAP" "Go off the end of the list so it wraps around."
+rem ASKS: is the belief LOST, for the right reason, and when?
+call :phase %T6% "6 of 6   CLOSE THE MENU" "Close it and leave it closed. Do not navigate."
+goto done
+
+:phase
+rem %1 ticks  %2 banner  %3 instruction
+rem TICKN is the tick count so far, so the phase is pinned to a line number in ticks.jsonl
+rem rather than to a wall clock somebody has to trust.
+>>"%PHASELOG%" echo %~2 -- %DATE% %TIME% -- begins after tick %TICKN%
+rem ONE TICK PER CALL, because the countdown has to be read back inside the loop and a
+rem for-block cannot do that without delayed expansion — which would eat an exclamation mark
+rem in any instruction somebody writes here later.
+for /l %%i in (1,1,%~1) do call :tick %%i %~1 "%~2" "%~3"
+exit /b 0
+
+:tick
+rem %1 this tick  %2 ticks in the phase  %3 banner  %4 instruction
+rem
+rem THE SESSION REPORT IS NOT PRINTED HERE, DELIBERATELY. It is forty lines, it changes every
+rem two seconds, and in the first run of this protocol it pushed the only thing the operator
+rem needed — what to do next — off the top of the screen. The operator's job and the
+rem diagnostic's output are two audiences; the diagnostic goes to a file, where it can be read
+rem by someone who is not simultaneously playing a game.
+set /a LEFT=(%~2-%~1+1)*2
+cls
+echo.
+echo.
+echo        ##################################################################
+echo        ##                                                              ##
+echo        ##   %~3
+echo        ##                                                              ##
+echo        ##   %~4
+echo        ##                                                              ##
+echo        ##   about %LEFT%s left in this phase
+echo        ##                                                              ##
+echo        ##################################################################
+echo.
+echo.
+echo          use the CONTROLLER - nothing is injected, Marco only watches
+echo          tick %TICKN% recorded
+director.exe observation-session observe_1 --json > "%TICKTMP%" 2>nul
+type "%TICKTMP%" >> "%TICKLOG%"
+set /a TICKN+=1
+ping -n 3 127.0.0.1 >nul
+exit /b 0
+
+:done
+>>"%PHASELOG%" echo end -- %DATE% %TIME%
 
 echo.
 director.exe observation-session observe_1 --json > "%WATCH_OUT%\final.json" 2>&1
@@ -134,6 +221,7 @@ rem AND THE ONE NUMBER ADR-152 IS MISSING: what a window capture costs, apart fr
 rem inference. `director vision` prints capture and detect separately, and this is the only
 rem moment a real menu is in front of the machine. One look, read-only.
 director.exe vision --application "%APP%" > "%WATCH_OUT%\capture-cost.txt" 2>&1
+if exist "%TICKTMP%" del "%TICKTMP%"
 echo.
 echo The run recorded itself:
 echo     %MARCO_SHADOW_TRACE%
@@ -142,6 +230,10 @@ echo     %WATCH_OUT%\final.json
 echo         the session's own final answer
 echo     %WATCH_OUT%\capture-cost.txt
 echo         what a capture costs apart from the inference - see ADR-152
+echo     %TICKLOG%
+echo         what the session believed at every tick, one JSON object per line
+echo     %PHASELOG%
+echo         when each phase began, so slow and fast navigation can be read apart
 echo.
 echo The session is over. The Director is still running on this script's isolated home,
 echo so run this script again to watch another one, or stop it with:

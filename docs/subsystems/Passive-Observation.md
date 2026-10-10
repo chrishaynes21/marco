@@ -331,6 +331,9 @@ should be wider, narrower or time-based is a question for `rejected_with_input` 
 - [[Experiment-011-two-level-identity-against-real-software]]
 - [[Experiment-012-why-explorer-cannot-be-pointed-at]]
 - [[Experiment-013-one-sample-in-ninety-one]]
+- [[Experiment-024-watching-a-player-navigate-a-real-menu]] — the first run with a
+  player navigating a real menu by controller. The presses were observed; the menu was
+  not. Why, measured.
 
 ## Validated by
 

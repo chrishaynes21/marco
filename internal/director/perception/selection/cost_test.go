@@ -22,7 +22,7 @@ import (
 // cgo — so it can be measured here, deterministically, at the size a real frame is.
 //
 // What this does NOT measure is the window capture that would feed it. That is a platform call
-// and is measured live by `director vision --diagnose`, which prints capture and detect apart.
+// and is measured live by `director vision`, which prints capture and detect apart.
 // The arithmetic the architecture rests on is capture + this, against 2.0s.
 
 // shadedFrame is a 1920x1080 image with a menu-shaped band of brighter rows, which is roughly

@@ -87,6 +87,14 @@ be three, or time-based rather than look-based, is a question for `RejectedWithI
 controller-navigated run — which is the measurement this ADR makes collectable and does not
 itself have.
 
+That run cannot be a browse. The gate has to be judged separately on slow navigation and on
+fast navigation — at ~2.0s a look it will behave differently in the two regimes, and an
+aggregate over a session that mixed them answers neither. So `watch-interface.cmd` is a timed
+six-phase protocol (hold still, slow, fast, reverse, wrap, closed) that writes `phases.txt`
+beside the slot trace, and the trace's `at_ms` is anchored to the same Director start, so each
+phase's slots can be read apart. The miss count itself is only measurable because a controller
+is now observed: presses seen in a phase against changes confirmed in it.
+
 **The reader is not changed.** The forty transitions are not a failure of the selection reader:
 they are the live pipeline feeding unstable candidates into a reader that performed well on
 stable supplied geometry. Those sources stay isolated.
