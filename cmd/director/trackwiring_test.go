@@ -360,3 +360,32 @@ func TestTheReportSaysWhenASelectionWasTracked(t *testing.T) {
 		t.Error("the report does not say which look produced the selection")
 	}
 }
+
+// A walker built when no session is running must not leave a ticker behind.
+//
+// `walker()` falls back to `newWalkerSampler`, and nothing ever detaches what that returns —
+// the registry only stops a SESSION's sampler. A capture loop nobody stops goes on
+// photographing a region of a desktop with nothing left to report it to.
+//
+// Deleting the Stop in newWalkerSampler must fail this.
+func TestAWalkerStartsNoCaptureLoopNobodyWillStop(t *testing.T) {
+	rt := trackingRuntime(t)
+
+	// The precondition that makes the test mean something: an ordinary SESSION sampler on
+	// this runtime does start a ticker, so a walker's not having one is a decision rather
+	// than an accident of the configuration.
+	session := rt.newObservationSampler(sessionClock).(*liveSampler)
+	if session.track == nil || session.track.stop == nil {
+		t.Fatal("this runtime starts no tracker for a session either, so the test would " +
+			"pass for the wrong reason")
+	}
+	session.detachNavigation()
+
+	walker := rt.newWalkerSampler().(*liveSampler)
+	defer walker.detachNavigation()
+	if walker.track != nil {
+		t.Error("a walker's sampler is holding a fast visual tracker. Nothing in the " +
+			"tree will ever stop it, and it captures a region of the desktop four " +
+			"times a second")
+	}
+}

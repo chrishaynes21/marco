@@ -204,7 +204,7 @@ func (r *Runtime) walker(live bool) (*rehearse.Live, error) {
 	}
 
 	if smp == nil {
-		smp = r.newObservationSampler(sessionClock)
+		smp = r.newWalkerSampler()
 	}
 	out := rehearse.NewLive(sessionClock, tgt, smp, memory).
 		WithActuator(marco, recorder, live).
@@ -239,6 +239,32 @@ func (r *Runtime) walker(live bool) (*rehearse.Live, error) {
 				WithRunner(marco))
 	}
 	return out, nil
+}
+
+// newWalkerSampler builds a sampler for a walker that has no session to borrow one from.
+//
+// # A WALKER IS NOT A SESSION, AND NOTHING DETACHES THIS ONE
+//
+// The registry stops a session's sampler however the session ends. A walker built on this path
+// outlives the function that made it and nobody calls `detachNavigation` on it — so it must not
+// start anything that has to be stopped, and the fast visual path is a ticker. A ticker nobody
+// stops goes on photographing a region of somebody's desktop with no session left to report it
+// to, which is the shape of thing `visualstate`'s own area bound exists to prevent.
+//
+// The navigation subscription on this path is the same shape of leak and PREDATES this: a
+// rehearsal with no prior session keeps a hook subscription open, against the rule that
+// navigation retention is session-bounded. Written down rather than fixed, because fixing it
+// needs the walker's lifetime and this function does not have it.
+//
+// A function rather than four lines inline, so the rule can be tested by entering it. Deleting
+// the Stop must fail TestAWalkerStartsNoCaptureLoopNobodyWillStop.
+func (r *Runtime) newWalkerSampler() observesession.Sampler {
+	smp := r.newObservationSampler(sessionClock)
+	if l, ok := smp.(*liveSampler); ok {
+		l.track.Stop()
+		l.track = nil
+	}
+	return smp
 }
 
 // rehearsalViewOf is the safe outward shape of one whole attempt.
