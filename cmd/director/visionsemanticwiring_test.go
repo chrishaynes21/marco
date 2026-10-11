@@ -164,6 +164,17 @@ func visionShadowRuntime(t *testing.T, dets []vision.Detection,
 	t.Helper()
 	// shadowDetectorName reads this; without it the sampler builds no shadow record at all.
 	t.Setenv("MARCO_SHADOW_VISION", "screenparser")
+	// AND THE DETECTOR IS THE DISCOVERY SOURCE FOR THESE FIXTURES.
+	//
+	// The default path proposes structure from the frame, and these fixtures are
+	// detector fixtures: the painted capture draws a ground and ONE lit row, so the
+	// nine rows every test here reasons about exist only as detections. Left on the
+	// default, the tests would keep passing on the proposer's rectangles while
+	// claiming to measure the detector's - green about a channel they no longer touch.
+	//
+	// A test that wants the pixel path says so instead; see
+	// TestPixelsAreTheDefaultDiscoveryPath.
+	t.Setenv("MARCO_SHADOW_DISCOVERY", "model")
 
 	rt := &Runtime{engine: stubEngine{}}
 	prov := newShadowProvider(fixtureDetector{results: dets}, cap, rt.activeWindow, reader,

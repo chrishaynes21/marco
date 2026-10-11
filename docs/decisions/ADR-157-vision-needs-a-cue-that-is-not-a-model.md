@@ -144,6 +144,48 @@ identifies nothing at all; at ~1.3s and faster it identifies the list and reads 
 So the frame path into the engine should be considered as a REPLACEMENT for the inference on the
 discovery path, not an addition beside it.
 
+### Addendum, 2026-10-10 — it is now the default discovery path, in production
+
+Authorised explicitly, on the cadence evidence above, with the condition that the change be
+reversible, measured, and use ONE shared frame capture.
+
+**Where it went.** Into `vision.Provider`, because that is where the frame already is. The
+provider captures a window, hands the pixels to a detector, and already keeps a channel of
+geometry nobody could name — `Shapes`, which reaches the interface belief through
+`shadowShapes`. The proposer is a second SOURCE for that channel on the same captured frame.
+No second screenshot pipeline exists, and none was created.
+
+**It runs BEFORE the detector**, so a pass whose inference fails or is unavailable still carries
+the geometry it could see. That is the point of not depending on one model: an ONNX backend that
+is not built answers "no model loaded" to everything.
+
+**`$MARCO_SHADOW_DISCOVERY`** selects `pixels` (default), `model` (the previous behaviour
+exactly) or `both`. An environment variable rather than a constant so a run can be reproduced
+and a regression bisected without a rebuild. An unrecognised value falls back to the default: a
+perception path must not refuse to start over a typo in a diagnostic switch.
+
+**Pixels mode does not also keep the detector's discards**, and that gate is load-bearing rather
+than tidy. The proposer has already described the frame; keeping the detector's rectangles too
+gives grouping two proposals for every row, and two boxes a few pixels apart define a pitch of
+nearly zero — measured to split a correctly-discovered six-row list into one partial stack and
+three strays.
+
+**Every pass reports what discovery cost**, as `Timings.Structure` beside `Timings.Detect`, and
+how many shapes it kept. The cadence argument is only honest if the number is measured per pass
+rather than quoted from a benchmark, and it is also what would reveal the proposer becoming
+expensive on some screen nobody tested. Measured through the production sampler on a drawn menu:
+5 shapes in 26–31ms.
+
+**What this does NOT establish.** That a live session is better. Every number in this ADR comes
+from drawn fixtures or from replaying a recording. A Director now carries pixel-proposed geometry
+through the sampler to the belief, with a detector that finds nothing, and whether that produces
+a better interpretation of a live game is a question only a live run can answer.
+
+One consequence worth stating: several existing tests had to declare `model` mode, because they
+are detector fixtures — a painted ground with one lit row, where the nine rows they reason about
+exist only as detections. Left on the default they would have kept passing on the proposer's
+rectangles while claiming to measure the detector's.
+
 ### Open gaps, with numbers
 
 - **A ground-changing highlight on a translucent panel over a scene loses the marked row AND its

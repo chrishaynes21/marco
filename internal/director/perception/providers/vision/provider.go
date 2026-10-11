@@ -161,7 +161,12 @@ func (c Counters) Total() int {
 
 // Timings records where the time went, so "vision is slow" can be attributed.
 type Timings struct {
-	Capture   time.Duration `json:"capture"`
+	Capture time.Duration `json:"capture"`
+	// Structure is what the model-free proposer cost on this pass, and it is reported
+	// beside Detect on purpose: the choice of discovery path is a cadence decision and
+	// the two numbers are the decision. Measured at about 37ms against a 976ms median
+	// inference, which is why pixels are the default.
+	Structure time.Duration `json:"structure,omitempty"`
 	Detect    time.Duration `json:"detect"`
 	Construct time.Duration `json:"construct"`
 	Total     time.Duration `json:"total"`
@@ -169,17 +174,21 @@ type Timings struct {
 
 // Diagnostics is one vision pass, described.
 type Diagnostics struct {
-	Backend     string               `json:"backend"`
-	Model       string               `json:"model,omitempty"`
-	Available   bool                 `json:"available"`
-	Unavailable string               `json:"unavailable,omitempty"`
-	WindowID    directorapi.WindowID `json:"window_id,omitempty"`
-	Application string               `json:"application,omitempty"`
-	Region      *directorapi.Rect    `json:"region,omitempty"`
-	ImageSize   string               `json:"image_size,omitempty"`
-	Transform   string               `json:"transform,omitempty"`
-	Counters    Counters             `json:"counters"`
-	Timings     Timings              `json:"timings"`
+	Backend string `json:"backend"`
+	// StructureShapes is how many rectangles the model-free proposer kept on this
+	// pass. Zero on a pass that did not run it, which is the fallback mode and not
+	// a screen with nothing on it.
+	StructureShapes int                  `json:"structure_shapes,omitempty"`
+	Model           string               `json:"model,omitempty"`
+	Available       bool                 `json:"available"`
+	Unavailable     string               `json:"unavailable,omitempty"`
+	WindowID        directorapi.WindowID `json:"window_id,omitempty"`
+	Application     string               `json:"application,omitempty"`
+	Region          *directorapi.Rect    `json:"region,omitempty"`
+	ImageSize       string               `json:"image_size,omitempty"`
+	Transform       string               `json:"transform,omitempty"`
+	Counters        Counters             `json:"counters"`
+	Timings         Timings              `json:"timings"`
 	// Grids is what the geometry pass made of the accepted slots.
 	Grids []GridSummary `json:"grids,omitempty"`
 	// Shapes is non-structural geometry this pass kept rather than discarded, present only
@@ -250,6 +259,15 @@ type Provider struct {
 	// kept rectangles never become observations: they travel on Diagnostics, which is a
 	// channel fusion does not read. shape.go holds the argument and the measurement.
 	KeepUnreadableShapes bool
+
+	// Discovery selects where this pass's non-semantic geometry comes from: proposed
+	// from the frame, kept from the detector's discards, or both. See
+	// structureshapes.go, which holds the measurement that made pixels the default.
+	//
+	// Only meaningful on an instance with KeepUnreadableShapes set, because that is the
+	// instance with a shapes channel at all - the authoritative provider has none and
+	// this changes nothing about it.
+	Discovery DiscoveryMode
 
 	mu    sync.Mutex
 	last  Diagnostics
@@ -407,6 +425,24 @@ func (p *Provider) Look(ctx context.Context, req observation.Request) (
 	diag.ImageSize = fmt.Sprintf("%dx%d", b.Dx(), b.Dy())
 	diag.Transform = img.Transform.String()
 
+	// ONE PASS, ONE SET OF SHAPES. Cleared here, at the start of the pass that will
+	// fill it, rather than inside observations() partway through.
+	p.shapes = nil
+
+	// STRUCTURE FROM THE FRAME, before the detector runs on the same pixels.
+	//
+	// Before, so that a pass whose inference fails or is unavailable still carries the
+	// geometry it could see. That is the whole point of not depending on one model: an
+	// ONNX backend that is not built answers "no model loaded" to everything, and until
+	// now that left the engine unable to propose a rectangle at all.
+	//
+	// Deleting this must fail TestPixelsAreTheDefaultDiscoveryPath.
+	if p.KeepUnreadableShapes && p.Discovery.proposesFromPixels() {
+		took, kept := p.proposeStructure(source, img.Transform)
+		diag.Timings.Structure = took
+		diag.StructureShapes = kept
+	}
+
 	detectStart := time.Now()
 	results, err := p.detector.Detect(ctx, Input{Image: source, Classes: p.Classes})
 	diag.Timings.Detect = time.Since(detectStart)
@@ -492,7 +528,12 @@ func (p *Provider) observations(ctx context.Context, results []Detection, img ca
 	readText bool) ([]observation.Observation, []GridSummary) {
 
 	p.counters = Counters{}
-	p.classes, p.candidates, p.shapes = map[string]int{}, nil, nil
+	// SHAPES ARE NOT RESET HERE. They are reset at the top of the pass instead, because
+	// the frame-proposal cue runs before the detector does - so that a pass whose
+	// inference fails still carries the geometry it could see. Resetting here wiped
+	// every proposal on the way past, and the symptom was a provider whose diagnostics
+	// reported five kept shapes while the sample carried none.
+	p.classes, p.candidates = map[string]int{}, nil
 	imageBounds := img.Image.Bounds()
 	area := float64(imageBounds.Dx() * imageBounds.Dy())
 
@@ -585,7 +626,13 @@ func (p *Provider) observations(ctx context.Context, results []Detection, img ca
 			// rectangle is a menu entry because something was found there.
 			//
 			// Deleting this must fail TestAnUnreadableTextRegionKeepsItsGeometry.
-			if p.KeepUnreadableShapes && class == ClassText {
+			// AND ONLY WHEN THE MODEL IS A DISCOVERY SOURCE. On the default
+			// pixels-first path the proposer has already described this frame,
+			// and keeping the detector's rectangles as well would hand grouping
+			// two proposals for every row - which is measured to split a stack,
+			// because two boxes a few pixels apart define a pitch of nearly zero.
+			if p.KeepUnreadableShapes && class == ClassText &&
+				p.Discovery.keepsModelGeometry() {
 				p.keepShape(desktop, r.Confidence, source, box,
 					observation.Normalize(r.Text) != "")
 			}
@@ -614,7 +661,8 @@ func (p *Provider) observations(ctx context.Context, results []Detection, img ca
 				// was not. A diagnostic that reported a discard where a shape was
 				// kept would make the new channel unfindable from the report.
 				p.counters.RejectedUnreadable++
-				if p.KeepUnreadableShapes && class == ClassText {
+				if p.KeepUnreadableShapes && class == ClassText &&
+					p.Discovery.keepsModelGeometry() {
 					refuse("nothing readable inside it; geometry kept as a shape")
 					continue
 				}

@@ -136,6 +136,22 @@ set /a TICKN=0
 set "MARCO_SHADOW_VISION=screenparser"
 if "%MARCO_SHADOW_CADENCE%"=="" set "MARCO_SHADOW_CADENCE=1s"
 set "MARCO_SHADOW_UNGATED=1"
+rem WHERE THE GEOMETRY COMES FROM. Pixels is the default in the Director itself now, so
+rem this is not setting it - it is RECORDING it, because a run whose configuration nobody
+rem wrote down is a measurement of an unknown system, and this one moved.
+rem
+rem   pixels  structure proposed from the captured frame, no model.          DEFAULT
+rem   model   only the detector's own discarded geometry, which is what
+rem           Experiment-024 and -025 measured. The way to reproduce them.
+rem   both    for comparing the two on one session. More false structure
+rem           than either, and measured to split a list it had found.
+rem
+rem Measured on 864 real frames of this game's pause menu: the detector path put the menu in
+rem front of grouping on 42 looks of 107, the pixel path on 864 of 864, and the pixel path
+rem costs ~37ms against the inference's 976ms median - which is the cadence that made
+rem selection tracking impossible in the first place. ADR-157.
+if "%MARCO_SHADOW_DISCOVERY%"=="" set "MARCO_SHADOW_DISCOVERY=pixels"
+echo Discovery path: %MARCO_SHADOW_DISCOVERY% (set MARCO_SHADOW_DISCOVERY=model to reproduce an older run)
 set "DIRECTOR_VISION=%CD%\plugins\vision\vision.exe"
 if not exist "%MARCO_HOME%" mkdir "%MARCO_HOME%"
 

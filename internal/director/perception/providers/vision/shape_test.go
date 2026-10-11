@@ -66,6 +66,13 @@ func shapeProvider(t *testing.T, d vision.Detector, keep bool) *vision.Provider 
 	}
 	p := vision.New(d, &paintedCapture{band: menuBand()}, win.active)
 	p.KeepUnreadableShapes = keep
+	// THE DETECTOR'S OWN DISCARDED GEOMETRY is what this file is about, so it says so.
+	//
+	// The default discovery path proposes structure from the frame instead, and these
+	// tests would then pass on the proposer's rectangles while claiming to measure the
+	// detector's - a test that still goes green about a channel it is no longer
+	// exercising. Naming the mode keeps each subject its own.
+	p.Discovery = vision.DiscoveryModel
 	return p
 }
 

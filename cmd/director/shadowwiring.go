@@ -271,6 +271,16 @@ func newShadowProvider(detector vision.Detector, cap capture.WindowCapture,
 	//
 	// Deleting this must fail TestTheExperimentKeepsGeometryItCannotRead.
 	inner.KeepUnreadableShapes = true
+	// AND WHERE THAT GEOMETRY COMES FROM: proposed from the frame, or kept from the
+	// detector's discards. Pixels by default, because they are measured to find the
+	// menu this detector misses and to cost 37ms against its 976ms median -- and the
+	// cadence that made selection tracking impossible was set by the inference. ONNX
+	// stays as a fallback, selected by $MARCO_SHADOW_DISCOVERY, so a run can be
+	// reproduced and a regression bisected without a rebuild. See
+	// vision/structureshapes.go and ADR-157.
+	//
+	// Deleting this must fail TestPixelsAreTheDefaultDiscoveryPath.
+	inner.Discovery = vision.DiscoveryFromEnv()
 
 	return shadow.NewProvider(inner, cadence)
 }
