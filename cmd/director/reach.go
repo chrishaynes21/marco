@@ -147,8 +147,23 @@ func (r *Runtime) Reach(q service.ObserveReach) (service.ReachView, error) {
 	plan := observe.PlanToGoal(goal.Subject, current, top, r.plannableEdges(application, top))
 	out.Satisfied = plan.Satisfied
 	out.Refusal = string(plan.Refusal)
-	for _, s := range plan.Steps {
-		out.Steps = append(out.Steps, service.ReachStepView{From: s.From, To: s.To})
+	for i, s := range plan.Steps {
+		step := service.ReachStepView{From: s.From, To: s.To}
+		// AND WHAT THAT STEP WAS OBSERVED BEING TAKEN FROM, off the plan's own
+		// approaches rather than re-read here. A chain of screens with nothing to say
+		// about which of nine rows each is entered from is not a route through a menu,
+		// and this is the surface on which a person can check that Marco kept the
+		// evidence rather than counting it. See observe.Approach.
+		//
+		// Deleting this must fail TestTheDiagnosticSaysWhichEntryAStepWasTakenFrom.
+		if i < len(plan.Approaches) {
+			a := plan.Approaches[i]
+			step.Entry, step.Entries = a.Entry, a.Entries
+			step.Support, step.Of = a.Support, a.Of
+			step.Moves = len(a.Moves)
+			step.SelectionRefusal = string(a.Refusal)
+		}
+		out.Steps = append(out.Steps, step)
 	}
 	// AND WHY THIS ROUTE AND NOT ANOTHER, from the planner's own comparison.
 	//

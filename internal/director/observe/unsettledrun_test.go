@@ -34,7 +34,8 @@ func segmentOver(frames [][]observe.ShadowRegion) *observe.ShadowTracker {
 	for _, regions := range frames {
 		k.Observe(
 			&observe.ShadowSample{Ran: true, TargetProven: true, Regions: regions},
-			observe.StructuralView{Source: observe.StructureFused, Regions: regions})
+			observe.StructuralView{Source: observe.StructureFused, Regions: regions},
+			observe.SelectionAt{})
 	}
 	return &k
 }

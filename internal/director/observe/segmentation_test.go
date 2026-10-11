@@ -75,7 +75,7 @@ func segWalk(g *observe.ScreenSegmenter, n *int,
 	var out []observe.ScreenStateID
 	for range times {
 		*n++
-		out = append(out, g.Observe(*n, readings, nil, sem))
+		out = append(out, g.Observe(*n, readings, nil, sem, observe.SelectionAt{}))
 	}
 	return out
 }
@@ -396,7 +396,7 @@ func TestAScreenThatKeptSayingWhatItWasSettlesThroughItsWobble(t *testing.T) {
 	// Three readings, three histograms, one destination — the shape the live trace showed.
 	for _, texts := range []int{14, 15, 16} {
 		n++
-		last = g.Observe(n, pageLike(9, 2, texts), nil, says("Mouse"))
+		last = g.Observe(n, pageLike(9, 2, texts), nil, says("Mouse"), observe.SelectionAt{})
 	}
 	if last == observe.ScreenStateUnknown {
 		t.Fatal("the readings were not placed at all, so this proves nothing about settling")
@@ -430,7 +430,7 @@ func TestAWobblingScreenIsRememberedAsAShapeItActuallyHad(t *testing.T) {
 	shapes := []int{14, 15, 16}
 	for _, texts := range shapes {
 		n++
-		last = g.Observe(n, pageLike(9, 2, texts), nil, says("Mouse"))
+		last = g.Observe(n, pageLike(9, 2, texts), nil, says("Mouse"), observe.SelectionAt{})
 	}
 	_, st := settledIn(&g, last)
 	if st.Roles == nil {
@@ -467,7 +467,7 @@ func TestAScreenWhoseKindsChangeDoesNotSettleThroughCoherence(t *testing.T) {
 			})
 		}
 		n++
-		id := g.Observe(n, regions, nil, says("Mouse"))
+		id := g.Observe(n, regions, nil, says("Mouse"), observe.SelectionAt{})
 		if i > 0 {
 			last = id
 		}
@@ -489,7 +489,7 @@ func TestAScreenWhoseKindsChangeDoesNotSettleThroughCoherence(t *testing.T) {
 func TestOneReadingNeverSettlesHoweverWellNamed(t *testing.T) {
 	var g observe.ScreenSegmenter
 	n := 1
-	id := g.Observe(n, pageLike(9, 2, 14), nil, says("Mouse"))
+	id := g.Observe(n, pageLike(9, 2, 14), nil, says("Mouse"), observe.SelectionAt{})
 	if id == observe.ScreenStateUnknown {
 		return // not placed at all is a stronger version of the same refusal
 	}
@@ -527,7 +527,7 @@ func TestAMinorityWordStopsAWobblingStateSettling(t *testing.T) {
 			word = "System"
 		}
 		n++
-		last = g.Observe(n, pageLike(9, 2, texts), nil, says(word))
+		last = g.Observe(n, pageLike(9, 2, texts), nil, says(word), observe.SelectionAt{})
 	}
 	if last == observe.ScreenStateUnknown {
 		t.Skip("the readings were not placed, so this proves nothing")
@@ -567,7 +567,7 @@ func TestAWordSeenOnceCannotSettleAWobblingScreen(t *testing.T) {
 			sem = says("Mouse")
 		}
 		n++
-		last = g.Observe(n, pageLike(9, 2, texts), nil, sem)
+		last = g.Observe(n, pageLike(9, 2, texts), nil, sem, observe.SelectionAt{})
 	}
 	if last == observe.ScreenStateUnknown {
 		t.Skip("the readings were not placed, so this proves nothing")
@@ -593,7 +593,7 @@ func TestWithNoDestinationSettlementIsUnchanged(t *testing.T) {
 	var last observe.ScreenStateID
 	for _, texts := range []int{14, 15, 16} {
 		n++
-		last = g.Observe(n, pageLike(9, 2, texts), nil, none)
+		last = g.Observe(n, pageLike(9, 2, texts), nil, none, observe.SelectionAt{})
 	}
 	if last == observe.ScreenStateUnknown {
 		t.Skip("the readings were not placed, so this proves nothing")
@@ -605,7 +605,7 @@ func TestWithNoDestinationSettlementIsUnchanged(t *testing.T) {
 	// AND THE CONTROL: repeat one composition and it settles, as it always has.
 	for range 2 {
 		n++
-		last = g.Observe(n, pageLike(9, 2, 14), nil, none)
+		last = g.Observe(n, pageLike(9, 2, 14), nil, none, observe.SelectionAt{})
 	}
 	if settled, _ := settledIn(&g, last); !settled {
 		t.Error("a repeated composition with no claim stopped settling, which would be " +

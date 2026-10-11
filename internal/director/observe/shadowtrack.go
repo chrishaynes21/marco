@@ -375,7 +375,13 @@ func (k *ShadowTracker) Crossings() []Crossing { return k.states.Crossings() }
 // Returns immediately for anything that is not a valid observation of the session's window.
 // A slot nothing looked at, a failed inference and an unproven target are all UNKNOWN, and
 // unknown must never be recorded as "the element was not there".
-func (k *ShadowTracker) Observe(s *ShadowSample, structure StructuralView) {
+//
+// `sel` is what the interface watch believed was selected on THIS look, passed in rather than
+// read out: this package's screen model and its selection reader are two independent accounts
+// of the same pixels, and the one that compares compositions must not be able to reach into
+// the one that reads a mark. It is carried no further than the segmenter's own one-look
+// history. See SelectionAt.
+func (k *ShadowTracker) Observe(s *ShadowSample, structure StructuralView, sel SelectionAt) {
 	if s == nil {
 		s = &ShadowSample{}
 	}
@@ -512,7 +518,7 @@ func (k *ShadowTracker) Observe(s *ShadowSample, structure StructuralView) {
 	// identity and into a track's role, and from there into the durable store — where it
 	// would outlive every session that could have contradicted it. See roleShaped.
 	regions := admissibleRegions(structure.Regions)
-	state := k.states.Observe(n, regions, inputs, s.Semantic)
+	state := k.states.Observe(n, regions, inputs, s.Semantic, sel)
 	if state != before {
 		// The change consumed them. Held otherwise, so the next change is credited with the
 		// whole run rather than with its final keystroke.

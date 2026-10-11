@@ -125,6 +125,135 @@ func (s SelectionTransition) String() string {
 		where, s.From, s.To, s.Entries, s.Count, s.Prompted, s.Unprompted)
 }
 
+// MaxDurableSelectionSteps bounds how many moves one durable edge remembers.
+//
+// Twenty-four. A nine-entry list walked with up and down produces sixteen adjacent pairs and
+// two more if it wraps, so this is above a real pause menu with room to spare. Past it a list
+// whose mark jumps anywhere from anywhere is not a menu, and the dropped counter says so
+// rather than the record growing.
+const MaxDurableSelectionSteps = 24
+
+// SelectionStep is one observed move of the mark within a list, as durable memory keeps it.
+//
+// # Why this is a separate type from SelectionTransition
+//
+// Because the durable side must not be able to carry what the session side carries. A
+// SelectionTransition holds a normalised rectangle and a session-local screen id, and neither
+// survives a restart with any meaning: the state is renumbered next run, and a second durable
+// identity for a list Marco already recognises by its subject would be a weaker answer to a
+// question the subject already settles.
+//
+// So the durable record is an entry, an entry count and two counters. The split is structural
+// rather than a matter of remembering to strip fields — the same reason NavSequence exists
+// beside TargetedSequence.
+//
+// # What it still does not claim
+//
+// Which key produces the move. The attribution says a directional press was observed within
+// the window before the move was SEEN, and deliberately not which direction: the count a
+// selection reader is handed is a count, so that an input can never predict the visual outcome
+// it is being correlated with. A chain of these is therefore a route Marco can DESCRIBE and
+// not one it can perform, and that gap is named in the subsystem note rather than papered over.
+type SelectionStep struct {
+	// From and To are the entry indices either side of the move, counted from the top, and
+	// Entries how many the list had. All three, because "entry 3" means nothing except
+	// against a stable count of them.
+	From    int `json:"from"`
+	To      int `json:"to"`
+	Entries int `json:"entries"`
+	// Observations is how often the move was seen, Prompted how often a directional press
+	// was attributable to it. Itemised and never netted, like every other pair here.
+	Observations int `json:"observations"`
+	Prompted     int `json:"prompted,omitempty"`
+}
+
+// String renders one row of the table a report prints.
+func (s SelectionStep) String() string {
+	return fmt.Sprintf("entry %d->%d of %d: %d seen, %d prompted",
+		s.From, s.To, s.Entries, s.Observations, s.Prompted)
+}
+
+// SelectionStepsFrom projects this session's moves on ONE screen onto the durable shape.
+//
+// Keyed on the session-local state so the caller joins them to the edge whose ORIGIN that
+// screen is. Moves the session could not place are deliberately not included: a move on an
+// unknown screen is real evidence about a list and says nothing about which screen a route
+// would start from, and attaching it to an edge would guess exactly that.
+//
+// Deleting the state check must fail TestAnUnplacedMoveIsNotEvidenceAboutAnEdge.
+func SelectionStepsFrom(in []SelectionTransition, state ScreenStateID) []SelectionStep {
+	if state == "" || state == ScreenStateUnknown {
+		return nil
+	}
+	var out []SelectionStep
+	for _, st := range in {
+		if st.State != state || st.Count <= 0 {
+			continue
+		}
+		out = append(out, SelectionStep{
+			From: st.From, To: st.To, Entries: st.Entries,
+			Observations: st.Count, Prompted: st.Prompted,
+		})
+		if len(out) >= MaxDurableSelectionSteps {
+			break
+		}
+	}
+	sortSelectionSteps(out)
+	return out
+}
+
+// sortSelectionSteps orders moves so two readings of one session produce one file.
+func sortSelectionSteps(out []SelectionStep) {
+	sort.SliceStable(out, func(a, b int) bool {
+		if out[a].Entries != out[b].Entries {
+			return out[a].Entries < out[b].Entries
+		}
+		if out[a].From != out[b].From {
+			return out[a].From < out[b].From
+		}
+		return out[a].To < out[b].To
+	})
+}
+
+// foldSelectionSteps merges one session's moves into a durable set, bounded.
+//
+// Additive on the counters and set-union on the identity, which is the rule RememberedRelationship
+// already applies to intents and runs. The bound lives here rather than at the caller so every
+// path into the store obeys it.
+func foldSelectionSteps(into, from []SelectionStep) ([]SelectionStep, int) {
+	dropped := 0
+	for _, add := range from {
+		if add.Observations <= 0 || add.Entries <= 0 || add.From < 0 || add.To < 0 {
+			continue
+		}
+		if add.From == add.To {
+			// Not a move. A record of the mark staying where it was would read as
+			// evidence that a direction exists from a row to itself.
+			continue
+		}
+		found := false
+		for i := range into {
+			if into[i].From == add.From && into[i].To == add.To &&
+				into[i].Entries == add.Entries {
+				into[i].Observations += add.Observations
+				into[i].Prompted += add.Prompted
+				found = true
+				break
+			}
+		}
+		if found {
+			continue
+		}
+		if len(into) >= MaxDurableSelectionSteps {
+			dropped++
+			continue
+		}
+		into = append(into, add)
+	}
+	sortSelectionSteps(into)
+	return into, dropped
+}
+
 // selectionKey is a move's identity: which list, on which screen, between which entries.
 type selectionKey struct {
 	state   ScreenStateID

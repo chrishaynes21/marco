@@ -51,9 +51,9 @@ func TestTwoRichScreensWithDifferentCompositionsStaySeparate(t *testing.T) {
 	editor := richScreen(128, "list_item", 0.0, 0.1, 0.6, 0.8)
 	settings := richScreen(128, "checkbox", 0.3, 0.1, 0.6, 0.8)
 
-	a := g.Observe(1, editor, nil, observe.SemanticEvidence{})
-	g.Observe(2, settings, nil, observe.SemanticEvidence{})
-	b := g.Observe(3, settings, nil, observe.SemanticEvidence{})
+	a := g.Observe(1, editor, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
+	g.Observe(2, settings, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
+	b := g.Observe(3, settings, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
 
 	if a == b {
 		t.Fatalf("128 list items and 128 checkboxes were read as the same screen (%s).\n"+
@@ -76,9 +76,9 @@ func TestTwoRichScreensWithDifferentArrangementsStaySeparate(t *testing.T) {
 	sidebar := richScreen(96, "list_item", 0.0, 0.1, 0.2, 0.8)
 	fullWidth := richScreen(96, "list_item", 0.0, 0.1, 0.95, 0.8)
 
-	a := g.Observe(1, sidebar, nil, observe.SemanticEvidence{})
-	g.Observe(2, fullWidth, nil, observe.SemanticEvidence{})
-	b := g.Observe(3, fullWidth, nil, observe.SemanticEvidence{})
+	a := g.Observe(1, sidebar, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
+	g.Observe(2, fullWidth, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
+	b := g.Observe(3, fullWidth, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
 
 	if a == b {
 		t.Errorf("the same controls in a narrow sidebar and across the whole window were "+
@@ -95,14 +95,14 @@ func TestARichScreenSurvivesTheChurnALiveTreeProduces(t *testing.T) {
 	var g observe.ScreenSegmenter
 
 	base := richScreen(128, "list_item", 0.0, 0.1, 0.6, 0.8)
-	first := g.Observe(1, base, nil, observe.SemanticEvidence{})
+	first := g.Observe(1, base, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
 
 	for i := 2; i <= 12; i++ {
 		churned := richScreen(128+(i%7)-3, "list_item", 0.0, 0.1, 0.6, 0.8)
 		churned = append(churned, observe.ShadowRegion{
 			Role: "text", Region: observe.Region{X: 0.5, Y: 0.95, Width: 0.1, Height: 0.02},
 		})
-		if got := g.Observe(i, churned, nil, observe.SemanticEvidence{}); got != first {
+		if got := g.Observe(i, churned, nil, observe.SemanticEvidence{}, observe.SelectionAt{}); got != first {
 			t.Fatalf("sample %d: a live tree gaining and losing a few nodes became a new "+
 				"screen (%s then %s). Nothing would ever recur", i, first, got)
 		}
@@ -126,9 +126,9 @@ func TestTheDiscriminationBoundaryAtAccessibilityScale(t *testing.T) {
 		b := append([]observe.ShadowRegion{}, a[:shared]...)
 		b = append(b, richScreen(128-shared, "checkbox", 0.3, 0.1, 0.6, 0.8)...)
 
-		first := g.Observe(1, a, nil, observe.SemanticEvidence{})
-		g.Observe(2, b, nil, observe.SemanticEvidence{})
-		second := g.Observe(3, b, nil, observe.SemanticEvidence{})
+		first := g.Observe(1, a, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
+		g.Observe(2, b, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
+		second := g.Observe(3, b, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
 
 		same := first == second
 		if same {

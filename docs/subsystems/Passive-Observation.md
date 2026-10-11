@@ -387,6 +387,12 @@ it refuses those looks. Visible is fine; in front is not.
   labels a transfer the shading already proved, is given as a count with no direction so it
   cannot predict the outcome it is correlated with, and two lists that both answer stay
   ambiguous
+- [[ADR-160-activating-an-entry-is-not-moving-the-mark]] — moving a highlight is not opening a
+  menu, so a confirmed screen change now records which entry the origin was pointing at, as its
+  own hypothesis kind with its own subject. The evidence crosses the durable boundary with the
+  moves observed inside that list, and a planned route carries an approach per step: the row it
+  was taken from and the chain of observed moves that reaches it. It still cannot say which key
+  produces a move, which is the next thing a taught "open the third entry" needs
 - [[ADR-159-a-move-of-the-mark-is-a-transition-too]] — a screen transition is two whole
   compositions, and navigating a menu changes neither, so the thing a menu mostly does left
   nothing behind. A move of the mark between two entries of a grounded list is now retained and
@@ -502,6 +508,13 @@ it refuses those looks. Visible is fine; in front is not.
   while still in front is not detected, because being in front is all the platform is asked.
   Not-in-front is the condition under which the pixels **can** be somebody else's; it is not
   proof of occlusion, and occlusion without a focus change remains invisible here.
+- **The Trackmania corpus cannot validate the activation half at all.** It is 864 frames of one
+  pause menu and the screen never changes, so there is no activation to observe:
+  `0 change(s) over 0 observation(s)`, which the replay now says in those words. That is a fact
+  about the recording, not about the evidence - and it means the first claim of
+  [[ADR-160-activating-an-entry-is-not-moving-the-mark]] rests on synthetic fixtures until a
+  recording exists that walks a menu AND opens something. A capture that enters a submenu and
+  returns is the smallest thing that would settle it.
 - **A mark that DWELLS on one row breaks exclusivity, and the obvious repair is worse.** On a
   frame where exclusivity was not established, the baseline rule teaches every present member
   that its current look is its unselected level — including the member that was selected. On a
@@ -568,6 +581,18 @@ it refuses those looks. Visible is fine; in front is not.
   identity — through `structure.Propose` and `ShadowTotals.Observe`, which is the call the live
   cycle makes. What it still cannot establish is anything about the live application: a replay
   measures how well Marco interprets a recording.
+- **A durable chain of moves cannot say which key produces one.** The selection reader is handed
+  a COUNT of directional intents and never a direction, so that an input can never predict the
+  visual outcome it is being correlated with -
+  [[ADR-158-the-active-list-is-the-one-that-responds]]'s rule, which
+  [[ADR-160-activating-an-entry-is-not-moving-the-mark]] deliberately does not touch. The
+  consequence is exact: an approach is a route Marco can DESCRIBE and not one it can perform. It
+  can say "the mark was seen going entry 1 to 2 to 3, and the change was observed with entry 3
+  selected"; it cannot say "press down twice". **This is the next thing needed for a taught
+  "open the third entry".** The honest way to close it is a join made OUTSIDE the watch - the
+  input log already records every admitted event against its sample - so the direction is
+  attached after the pixels have spoken rather than before. Not done here because it touches the
+  trust boundary ADR-158 drew on purpose.
 - **A session on the pixels discovery path segments no screens.** `StructuralView.Regions` comes
   from named detections and the structure proposer names nothing, so on the default discovery
   path the screen model is one vacuous state that any composition with no named roles matches.

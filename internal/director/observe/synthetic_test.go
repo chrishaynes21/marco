@@ -34,7 +34,7 @@ func observeRun(t *testing.T, runs ...map[string]int) (ScreenState, bool) {
 	var g ScreenSegmenter
 	var id ScreenStateID
 	for i, r := range runs {
-		id = g.Observe(i+1, composition(r), nil, SemanticEvidence{})
+		id = g.Observe(i+1, composition(r), nil, SemanticEvidence{}, SelectionAt{})
 	}
 	for _, st := range g.States() {
 		if st.ID == id {

@@ -79,6 +79,15 @@ const (
 	// moving a mark is not opening anything, which is the distinction [[ADR-159]] exists to
 	// keep.
 	PossibleSelectionTransition HypothesisKind = "possible_selection_transition"
+	// PossibleEntryActivation is a screen change observed while a known entry of a
+	// grounded list was the selected one.
+	//
+	// The other half of using a menu, and deliberately a DIFFERENT kind from the one above
+	// it. Moving a highlight is not opening a menu: one says the selected entry changed
+	// and the screen did not, the other says the screen changed and names the row it was
+	// pointing at while it did. A route needs both and must never substitute one for the
+	// other — see activation.go.
+	PossibleEntryActivation HypothesisKind = "possible_entry_activation"
 )
 
 // SubjectKind says what a hypothesis is about.
@@ -389,6 +398,8 @@ func Hypotheses(t ShadowTotals, th HypothesisThresholds) []Hypothesis {
 	out = append(out, selectionSequences(t, th)...)
 	// Deleting this must fail TestAMoveOfTheMarkBecomesAHypothesis.
 	out = append(out, selectionMoves(t, th)...)
+	// Deleting this must fail TestActivatingAnEntryIsItsOwnKindOfTransition.
+	out = append(out, entryActivations(t, th)...)
 
 	sort.SliceStable(out, func(i, j int) bool {
 		if rank(out[i].Status) != rank(out[j].Status) {
@@ -1104,6 +1115,139 @@ func selectionMoves(t ShadowTotals, th HypothesisThresholds) []Hypothesis {
 			Validation: fmt.Sprintf("from entry %d on that screen, press the direction "+
 				"that should reach entry %d and check the mark arrives there. Nothing "+
 				"observed so far establishes that it would", st.From, st.To),
+		})
+	}
+	return out
+}
+
+// entryActivations reports screen changes observed while a known entry was selected.
+//
+// # Why this is not transitionActions with an extra sentence
+//
+// Because the two rest on independent evidence and are refused independently.
+// `transitionActions` asks what was PRESSED before a change, from the input producer. This asks
+// what the origin screen was POINTING AT while it changed, from the shading. A screen that
+// changes on `confirm` with nothing readable selected produces the first and not the second; a
+// screen that changes with entry 3 selected and no attributable press produces the second and
+// not the first. Folding them into one hypothesis would make a reader unable to tell which half
+// was missing — and the missing half is exactly what a route cannot be built without.
+//
+// It is also a different SUBJECT. A move of the mark carries the same screen on both sides,
+// because the screen did not change; this carries two, because it did. That is how a reader
+// tells the claims apart without reading the Kind.
+//
+// # Why a dominant selection and not every selection seen
+//
+// Because an edge whose origin was pointing somewhere different every time is a change that
+// happens whatever is selected, and naming nine rows as nine hypotheses would bury the one case
+// worth having. The best-supported row is named and the rest contest it, which is the shape
+// `competing` already gives the navigation generator.
+func entryActivations(t ShadowTotals, th HypothesisThresholds) []Hypothesis {
+	var out []Hypothesis
+	for _, tr := range t.Transitions {
+		if tr.Count < th.MinNavigationObservations {
+			continue
+		}
+		best, ok := DominantSelection(tr.SelectedBefore)
+		if !ok {
+			continue
+		}
+		// Support is measured against the observations that COULD have carried a
+		// selection, not against every observation of the edge. A change seen forty times
+		// while the detector was quiet for thirty-eight of them is not weak evidence about
+		// a row — it is two observations, and the ratio has to say so.
+		readable := tr.Count - tr.SelectedUnknown
+		if readable < th.MinNavigationObservations {
+			continue
+		}
+		if float64(best.Count)/float64(readable) < th.MinNavigationSupport {
+			continue
+		}
+		toState := stateByID(t, tr.To)
+		support := []Evidence{{
+			Source: FromStructure, Support: best.Count, Of: readable,
+			Statement: fmt.Sprintf("entry %d of a %d-entry list was the selected one at "+
+				"the last look before %d of the %d observations of this change that "+
+				"could read a selection at all, measured in the shading with no input "+
+				"consulted", best.Entry, best.Entries, best.Count, readable),
+		}}
+		// THE PRESS, where there was one, as a SECOND and independent source. A change
+		// with a row selected and a confirm observed before it is the strongest thing this
+		// layer can say; the two halves are still reported separately, because either can
+		// be present without the other.
+		if intent, n := tr.Dominant(); intent != "" {
+			support = append(support, Evidence{
+				Source: FromNavigation, Support: n, Of: tr.Count,
+				Statement: fmt.Sprintf("%q was also observed before %d of this change's "+
+					"%d observations", intent, n, tr.Count),
+			})
+		}
+		if toState.Episodes > 1 {
+			support = append(support, Evidence{
+				Source: FromRecurrence, Support: toState.Episodes,
+				Statement: fmt.Sprintf("the destination screen recurred %d separate times",
+					toState.Episodes),
+			})
+		}
+
+		var contra []Evidence
+		// THE control evidence: the same change with nothing readable pointing anywhere.
+		// An edge seen ten times with a row selected on two is mostly a change that
+		// happens with no selection at all, and a generator reporting only the two would
+		// have deleted its own counter-example.
+		if tr.SelectedUnknown > 0 {
+			contra = append(contra, Evidence{
+				Source: FromStructure, Support: tr.SelectedUnknown, Of: tr.Count,
+				Statement: fmt.Sprintf("the same change happened %d of %d time(s) with "+
+					"no readable selection on the origin at all — no list identified, "+
+					"the mark unread, or a belief nothing had confirmed since",
+					tr.SelectedUnknown, tr.Count),
+			})
+		}
+		// AND THE OTHER ROWS. A change seen from three different entries is not evidence
+		// about any one of them, and this is where that shows.
+		for _, other := range tr.SelectedBefore {
+			if other == best {
+				continue
+			}
+			contra = append(contra, Evidence{
+				Source: FromStructure, Support: other.Count, Of: readable,
+				Statement: fmt.Sprintf("the same change was also seen with entry %d of "+
+					"%d selected, %d time(s)", other.Entry, other.Entries, other.Count),
+			})
+		}
+
+		out = append(out, Hypothesis{
+			Kind: PossibleEntryActivation,
+			Subject: Subject{
+				// TWO references, because the screen DID change. The contrast with
+				// SubjectSelection, which carries one on both sides, is the whole
+				// distinction this kind exists to keep.
+				Kind: SubjectTransition, Ref: string(tr.From), To: string(tr.To),
+				Fingerprint: Fingerprint{
+					Roles: copyRoles(toState.Roles), Terms: termsOf(toState, th),
+					TermsKnown: toState.TermObservations > 0, Recurrence: tr.Count,
+				},
+				// The entries ride in the selection subject even though the subject kind
+				// is a transition: it is the one place in this type that can say WHICH
+				// row, and a reader of either kind finds it in the same field. From and
+				// To are the SAME row, because nothing here observed the mark moving —
+				// the screen changed under it.
+				Selection: &SelectionSubject{
+					From: best.Entry, To: best.Entry, Entries: best.Entries,
+				},
+			},
+			Episodes:     tr.Count,
+			Unattributed: tr.SelectedUnknown,
+			Observed: fmt.Sprintf("this screen became another %d time(s), and entry %d of "+
+				"a %d-entry list was the selected one before %d of them",
+				tr.Count, best.Entry, best.Entries, best.Count),
+			Support: support, Contradictions: contra,
+			Status: classify(readable, support, contra, th),
+			Validation: fmt.Sprintf("put the mark on entry %d of that list deliberately, "+
+				"confirm, and check the same screen follows. Nothing observed so far "+
+				"establishes that it would: the row was selected while the screen "+
+				"changed, which is not the same as the row having opened it", best.Entry),
 		})
 	}
 	return out

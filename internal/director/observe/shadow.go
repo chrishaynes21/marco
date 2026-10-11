@@ -584,8 +584,17 @@ func (t *ShadowTotals) Observe(sample Sample) {
 	//
 	// Deleting this must fail TestTheSessionRetainsTheMovesTheMarkMade.
 	t.groundSelectionMoves()
+	// WHAT THE SCREEN WAS POINTING AT on this look, on its way to the screen model.
+	//
+	// Read off the belief that was just published rather than recomputed, so the selection
+	// a transition is recorded with is the same value every diagnostic prints. Refused when
+	// it is stale or the active list is ambiguous — see SelectionAtFrom, which is the one
+	// place that decides what counts.
+	//
+	// Deleting this must fail TestAChangeRecordsWhatWasSelectedWhenItHappened.
+	sel := SelectionAtFrom(t.Interface)
 	if sample.Shadow != nil {
-		t.add(*sample.Shadow, structure)
+		t.add(*sample.Shadow, structure, sel)
 		return
 	}
 	// No experiment at all — the ordinary Director. The screen model is still built,
@@ -595,7 +604,7 @@ func (t *ShadowTotals) Observe(sample Sample) {
 	if t.tracker == nil {
 		t.tracker = &ShadowTracker{}
 	}
-	t.tracker.Observe(nil, structure)
+	t.tracker.Observe(nil, structure, sel)
 	t.publishScreenModel()
 	t.EvictedStates = t.tracker.states.EvictedStates
 	t.EvictedAssociations = t.tracker.EvictedAssociations
@@ -724,9 +733,14 @@ func interfaceLookFrom(sample Sample) InterfaceLook {
 //
 // Retained for the paths that genuinely have only a detector record — replay of a stored
 // shadow trace, and the shadow diagnostics. Production goes through Observe.
-func (t *ShadowTotals) Add(s ShadowSample) { t.add(s, s.Structure()) }
+//
+// No selection travels with it, and the zero value is the honest answer rather than a
+// shortcut: this path never runs the interface watch, so every change it records counts as
+// one with nothing readable selected. A path that passed a selection it had not read would be
+// inventing activation evidence out of an empty belief.
+func (t *ShadowTotals) Add(s ShadowSample) { t.add(s, s.Structure(), SelectionAt{}) }
 
-func (t *ShadowTotals) add(s ShadowSample, structure StructuralView) {
+func (t *ShadowTotals) add(s ShadowSample, structure StructuralView, sel SelectionAt) {
 	if s.Detector != "" {
 		t.Detector = s.Detector
 	}
@@ -752,7 +766,7 @@ func (t *ShadowTotals) add(s ShadowSample, structure StructuralView) {
 	// cannot be wired up separately, forgotten, or left without a consumer — the failure
 	// [[Wiring-Tests]] documents first. Deleting it fails
 	// TestTheProductionSessionPathSegmentsScreenStates at the runner level.
-	t.tracker.Observe(&s, structure)
+	t.tracker.Observe(&s, structure, sel)
 	// The producer's own account, folded BEFORE the skipped-slot return.
 	//
 	// Deliberately: drops happen when the machine is busy, which is when slots get skipped,

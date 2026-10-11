@@ -49,7 +49,7 @@ func TestScreenIdentitySurvivesHarmlessVariation(t *testing.T) {
 	var g observe.ScreenSegmenter
 
 	base := menuRows(0.437)
-	first := g.Observe(1, base, nil, observe.SemanticEvidence{})
+	first := g.Observe(1, base, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
 
 	// The same screen, jittered: sub-cell movement, different confidences, a label read
 	// this time and not last.
@@ -58,7 +58,7 @@ func TestScreenIdentitySurvivesHarmlessVariation(t *testing.T) {
 		jittered[i].Confidence = 0.91
 		jittered[i].Nameable = true
 	}
-	again := g.Observe(2, jittered, nil, observe.SemanticEvidence{})
+	again := g.Observe(2, jittered, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
 
 	if first != again {
 		t.Fatalf("a few pixels of jitter made a new screen: %s then %s.\n"+
@@ -78,7 +78,7 @@ func TestScreenIdentitySurvivesHarmlessVariation(t *testing.T) {
 func TestAMeaningfulChangeProducesATransition(t *testing.T) {
 	var g observe.ScreenSegmenter
 
-	menuState := g.Observe(1, menuRows(0.437), nil, observe.SemanticEvidence{})
+	menuState := g.Observe(1, menuRows(0.437), nil, observe.SemanticEvidence{}, observe.SelectionAt{})
 	sparse := []observe.ShadowRegion{
 		{Role: "icon", Region: observe.Region{X: 0.02, Y: 0.86, Width: 0.19, Height: 0.10}},
 	}
@@ -88,9 +88,9 @@ func TestAMeaningfulChangeProducesATransition(t *testing.T) {
 	// proposal that needs a second look agreeing with it before it is a transition — see
 	// StabilityLooks. So the screen is identified on look 3 and the change confirmed on
 	// look 4, and a fixture that supplied fewer would be asserting the old rule.
-	g.Observe(2, sparse, nil, observe.SemanticEvidence{})
-	g.Observe(3, sparse, nil, observe.SemanticEvidence{})
-	other := g.Observe(4, sparse, nil, observe.SemanticEvidence{})
+	g.Observe(2, sparse, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
+	g.Observe(3, sparse, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
+	other := g.Observe(4, sparse, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
 
 	if other == menuState {
 		t.Fatalf("a four-row menu and a bare HUD were read as the same screen (%s)", menuState)

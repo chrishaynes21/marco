@@ -91,6 +91,20 @@ func runReach(args []string) int {
 	if len(v.Steps) > 0 {
 		for i, s := range v.Steps {
 			fmt.Printf("  step %d: %s → %s\n", i+1, s.From, s.To)
+			// THE SELECTION HALF OF THE STEP, on its own line. A menu route whose
+			// steps name only two screens cannot be checked by a person at all:
+			// "state_3 → state_8" is the same text whether Marco remembered which
+			// row it opens from or forgot.
+			switch {
+			case s.Entries > 0:
+				fmt.Printf("          with entry %d of %d selected "+
+					"(%d of %d readable observation(s), %d observed "+
+					"move(s) in that list)\n",
+					s.Entry, s.Entries, s.Support, s.Of, s.Moves)
+			case s.SelectionRefusal != "":
+				fmt.Printf("          no entry known for this step (%s)\n",
+					s.SelectionRefusal)
+			}
 		}
 		// WHY THIS ONE. A route somebody is about to watch happen is owed a reason, and it
 		// is the planner's own reason rather than a sentence written beside it.

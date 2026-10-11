@@ -39,7 +39,8 @@ func BenchmarkTrackAssignmentAtAccessibilityScale(b *testing.B) {
 	for i := range 80 {
 		s := screens[i%len(screens)]
 		k.Observe(&observe.ShadowSample{Ran: true, TargetProven: true, Regions: s},
-			observe.StructuralView{Source: observe.StructureFused, Regions: s})
+			observe.StructuralView{Source: observe.StructureFused, Regions: s},
+			observe.SelectionAt{})
 	}
 	b.Logf("tracker holds %d tracks (bound %d), evicted %d",
 		len(k.Tracks()), observe.MaxActiveTracks, k.Evicted)
@@ -49,7 +50,8 @@ func BenchmarkTrackAssignmentAtAccessibilityScale(b *testing.B) {
 	b.ResetTimer()
 	for b.Loop() {
 		k.Observe(&observe.ShadowSample{Ran: true, TargetProven: true, Regions: frame},
-			observe.StructuralView{Source: observe.StructureFused, Regions: frame})
+			observe.StructuralView{Source: observe.StructureFused, Regions: frame},
+			observe.SelectionAt{})
 	}
 }
 
@@ -69,7 +71,8 @@ func TestBothScreensOfASessionEarnTheirOwnStructure(t *testing.T) {
 		for range times {
 			n++
 			k.Observe(&observe.ShadowSample{Ran: true, TargetProven: true, Regions: regions},
-				observe.StructuralView{Source: observe.StructureFused, Regions: regions})
+				observe.StructuralView{Source: observe.StructureFused, Regions: regions},
+				observe.SelectionAt{})
 		}
 	}
 	for range 2 {

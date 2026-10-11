@@ -134,11 +134,17 @@ is not the limit there; the perception is, and
 
 - **Nothing durable.** No `RememberedRelationship`, no topology edge, no goal. A session-local
   ledger and a hypothesis, which is where [[ADR-158-the-active-list-is-the-one-that-responds]]
-  stopped and one layer further on.
-- **Nothing executable.** A retained move licenses no actuation and is not a step.
+  stopped and one layer further on. **Superseded** by
+  [[ADR-160-activating-an-entry-is-not-moving-the-mark]], which carries these moves across the
+  durable boundary on the edge whose origin they happened on.
+- **Nothing executable.** A retained move licenses no actuation and is not a step. Still true
+  after ADR-160: a durable chain of moves says the mark was seen travelling, never which key
+  sent it.
 - **No activation transition.** "With entry 3 selected, confirm arrived at another screen" is a
   different and equally necessary claim — moving a highlight is not opening a menu — and it is
-  not made here.
+  not made here. **Made in**
+  [[ADR-160-activating-an-entry-is-not-moving-the-mark]], as its own hypothesis kind with its
+  own subject, so that the two can never be substituted for one another.
 
 ## Enforced by
 

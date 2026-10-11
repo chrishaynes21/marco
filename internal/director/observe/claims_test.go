@@ -183,7 +183,7 @@ func TestAClaimReachesTheScreenStateThroughTheSegmenter(t *testing.T) {
 	}
 	var last observe.ScreenStateID
 	for i := range 3 {
-		last = g.Observe(i+1, pageLike(9, 2, 14), nil, sem)
+		last = g.Observe(i+1, pageLike(9, 2, 14), nil, sem, observe.SelectionAt{})
 	}
 	if last == observe.ScreenStateUnknown {
 		t.Fatal("the readings were not placed, so this proves nothing")

@@ -40,7 +40,7 @@ func darkenableScreen(n int, y0 float64) []observe.ShadowRegion {
 func settleOn(g *observe.ScreenSegmenter, from int, c []observe.ShadowRegion, k int) int {
 	n := from
 	for range k {
-		g.Observe(n, c, nil, observe.SemanticEvidence{})
+		g.Observe(n, c, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
 		n++
 	}
 	return n
@@ -55,7 +55,7 @@ func settleOn(g *observe.ScreenSegmenter, from int, c []observe.ShadowRegion, k 
 func dark(g *observe.ScreenSegmenter, from int, a []observe.ShadowRegion, k int) int {
 	n := from
 	for i := range k {
-		g.Observe(n, a[:i+1], nil, observe.SemanticEvidence{})
+		g.Observe(n, a[:i+1], nil, observe.SemanticEvidence{}, observe.SelectionAt{})
 		n++
 	}
 	return n
@@ -131,12 +131,12 @@ func TestAShortGapStillRecordsTheChangeItSaw(t *testing.T) {
 	press := []observe.InputEvent{{Intent: observe.NavDown, AtMS: 10,
 		Device: observe.DeviceController}}
 
-	g.Observe(1, a, nil, observe.SemanticEvidence{})
-	g.Observe(2, a, nil, observe.SemanticEvidence{})
+	g.Observe(1, a, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
+	g.Observe(2, a, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
 	// The press, then the half-rendered frame it produced, then the new screen.
-	g.Observe(3, a[:1], press, observe.SemanticEvidence{})
-	g.Observe(4, b, nil, observe.SemanticEvidence{})
-	g.Observe(5, b, nil, observe.SemanticEvidence{})
+	g.Observe(3, a[:1], press, observe.SemanticEvidence{}, observe.SelectionAt{})
+	g.Observe(4, b, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
+	g.Observe(5, b, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
 
 	trs := g.Transitions()
 	if len(trs) != 1 {
@@ -168,11 +168,11 @@ func TestAChangeLostToABlackoutIsNotTheGatesError(t *testing.T) {
 	press := []observe.InputEvent{{Intent: observe.NavDown, AtMS: 10,
 		Device: observe.DeviceController}}
 
-	g.Observe(1, a, nil, observe.SemanticEvidence{})
-	g.Observe(2, a, nil, observe.SemanticEvidence{})
+	g.Observe(1, a, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
+	g.Observe(2, a, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
 	// One look of B — a candidate, not yet confirmed — and then the screen goes dark for
 	// long enough that nobody can ever say whether it stayed.
-	g.Observe(3, b, press, observe.SemanticEvidence{})
+	g.Observe(3, b, press, observe.SemanticEvidence{}, observe.SelectionAt{})
 	dark(&g, 4, a, 2)
 
 	if g.Flicker.ChangesLostToBlackout != 1 {

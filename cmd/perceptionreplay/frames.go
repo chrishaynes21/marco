@@ -140,6 +140,9 @@ type frameResult struct {
 	// refused, reported beside it rather than subtracted from it.
 	Moves                       []observe.SelectionTransition
 	MovesUnplaced, MovesDropped int
+	// Changes is the screen transitions themselves, so the activation evidence on each one
+	// can be reported rather than only counted. See reportActivations.
+	Changes []observe.ScreenTransition
 	// States and Transitions are how much SCREEN model formed. Reported because on the
 	// pixels discovery path the honest answer is expected to be very little - segmentation
 	// reads named roles and the proposer names nothing - and a reader has to be able to
@@ -315,6 +318,7 @@ func replayFrames(dir string, stride, limit int, verbose bool) (frameResult, err
 	r.Latencies = responseLatencies(totals.InterfaceMoments, inputs, base)
 	r.MovesUnplaced, r.MovesDropped = totals.SelectionMovesUnplaced, totals.SelectionMovesDropped
 	r.States, r.Transitions = len(totals.States), len(totals.Transitions)
+	r.Changes = totals.Transitions
 	r.Hypotheses = observe.Hypotheses(totals, observe.DefaultHypothesisThresholds())
 	reportFrames(r, ann)
 	return r, nil
@@ -441,6 +445,13 @@ func reportFrames(r frameResult, ann *annotationFile) {
 	}
 
 	reportRetained(r)
+	// AND THE OTHER HALF OF USING A MENU, and whether any of it would outlive the session.
+	//
+	// Separate sections because they are separate claims: the mark moved, the screen changed
+	// while a row was marked, and a route could be built. A report that printed one number
+	// for all three would be the collapse ADR-160 exists to prevent.
+	reportActivations(r)
+	reportRoute(r)
 
 	fmt.Printf("\n  belief              %s, selected %d, reading %s\n",
 		r.Belief.Status, r.Belief.Selected, r.Belief.Reading)
@@ -542,6 +553,131 @@ func readJSONL[T any](path string) ([]T, error) {
 // know tomorrow. They are different questions, and until this change the second had no answer
 // at all: a person walking down a menu left behind a transfer count and nothing a route could
 // be built from.
+// reportActivations says what each screen change was observed being taken from.
+//
+// The other half of using a menu, and the half a route needs: moving a highlight is not opening
+// a menu. Reported as its own section rather than folded into the move table, because the two
+// are different claims and a reader must not be able to mistake one for the other.
+//
+// A zero here on this corpus is EXPECTED and is said out loud, which is the point of printing it
+// at all: the pixels discovery path segments no screens, so there is nothing for a selection to
+// be recorded against. That is a fact about segmentation, not about the activation evidence.
+func reportActivations(r frameResult) {
+	var withSelection, unknown, observations int
+	for _, tr := range r.Changes {
+		observations += tr.Count
+		unknown += tr.SelectedUnknown
+		withSelection += len(tr.SelectedBefore)
+	}
+	var acts []observe.Hypothesis
+	for _, h := range r.Hypotheses {
+		if h.Kind == observe.PossibleEntryActivation {
+			acts = append(acts, h)
+		}
+	}
+	fmt.Printf("  activations         %d change(s) over %d observation(s); %d distinct "+
+		"selection(s) recorded,\n                      %d observation(s) with nothing "+
+		"readable selected; %d hypothes(es)\n",
+		len(r.Changes), observations, withSelection, unknown, len(acts))
+	if len(r.Changes) == 0 {
+		fmt.Printf("                      (no screen changed, so there is nothing a row " +
+			"could have been\n                      selected before — see the screen " +
+			"model line above)\n")
+		return
+	}
+	for i, tr := range r.Changes {
+		if i >= 6 {
+			fmt.Printf("    ... and %d more\n", len(r.Changes)-i)
+			break
+		}
+		fmt.Printf("    %-10s -> %-10s %2d seen, selected %v, %d unreadable\n",
+			tr.From, tr.To, tr.Count, tr.SelectedBefore, tr.SelectedUnknown)
+	}
+	for _, h := range acts {
+		fmt.Printf("    [%s] %s\n", h.Status, h.Observed)
+	}
+}
+
+// reportRoute asks whether any of this would survive the session and be usable.
+//
+// # Why the replay runs the durable path rather than reporting the session
+//
+// Because "the graph received the evidence" and "a route could be built from it" are different
+// claims, and the second is the one a reusable macro needs. The durable boundary refuses an
+// edge whose endpoints are not both recognised — which on this corpus is every edge, and saying
+// so with the reason is the whole value of the line.
+//
+// No store is opened and nothing is written. RelationshipsFrom is pure given a Memory, and the
+// one here recognises nothing on purpose: this measures what the SESSION offers the durable
+// side, not what a store would do with it.
+func reportRoute(r frameResult) {
+	obs, report := observe.RelationshipsFrom(
+		observe.ShadowTotals{
+			Transitions: r.Changes, SelectionTransitions: r.Moves,
+		},
+		r.Hypotheses, "replay", nothingRecognised{}, observe.Continuity{})
+	fmt.Printf("  durable edges       %d offered, %d session-local", len(obs),
+		report.SessionLocal)
+	if why := report.Why(); why != "no cause recorded" {
+		fmt.Printf(" (%s)", why)
+	}
+	fmt.Printf("\n")
+	var withEntry, withMoves int
+	for _, o := range obs {
+		if len(o.Evidence.SelectedBefore) > 0 {
+			withEntry++
+		}
+		if len(o.Evidence.Moves) > 0 {
+			withMoves++
+		}
+	}
+	if len(obs) > 0 {
+		fmt.Printf("                      %d carry a selected entry, %d carry observed "+
+			"moves of the mark\n", withEntry, withMoves)
+		return
+	}
+	fmt.Printf("                      (so no plan over this session could name an entry: " +
+		"a durable edge\n                      needs both endpoints recognised, and " +
+		"nothing here is)\n")
+}
+
+// nothingRecognised is a Memory that recognises nothing, which is the honest stand-in.
+//
+// The replay has no store and must not acquire one — it would be a file handle in a diagnostic.
+// Refusing every recall measures exactly what the question is: how much of this session is
+// OFFERED to the durable side, before any store decides.
+type nothingRecognised struct{}
+
+func (nothingRecognised) Recall(string, observe.StructureSignature) observe.Recollection {
+	return observe.Recollection{Verdict: observe.MatchDifferent}
+}
+
+func (nothingRecognised) Remember(string, observe.StructureSignature,
+	observe.SemanticKnowledge) error {
+	return nil
+}
+
+func (nothingRecognised) RememberRelationships(string,
+	[]observe.RelationshipObservation) (observe.RelationshipUpdate, error) {
+	return observe.RelationshipUpdate{}, nil
+}
+
+func (nothingRecognised) Topology(string) observe.Topology { return observe.Topology{} }
+
+func (nothingRecognised) RememberLearning(string, observe.RelationshipRef,
+	observe.LearningRequest) error {
+	return nil
+}
+
+func (nothingRecognised) RememberFollowUp(string, observe.RelationshipRef,
+	observe.LearningRequest) error {
+	return nil
+}
+
+func (nothingRecognised) FulfilLearning(string, observe.RelationshipRef, int) error {
+	return nil
+}
+
 func reportRetained(r frameResult) {
 	fmt.Printf("\n  screen model        %d states, %d transitions\n", r.States, r.Transitions)
 	if r.States == 0 {

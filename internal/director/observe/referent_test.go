@@ -25,7 +25,8 @@ func watching(t *testing.T) (observe.LiveGeometry, observe.StructuralGroup, obse
 	show := func(regions []observe.ShadowRegion, times int) {
 		for range times {
 			k.Observe(&observe.ShadowSample{Ran: true, TargetProven: true, Regions: regions},
-				observe.StructuralView{Source: observe.StructureFused, Regions: regions})
+				observe.StructuralView{Source: observe.StructureFused, Regions: regions},
+				observe.SelectionAt{})
 		}
 	}
 	for range 2 {

@@ -1458,6 +1458,24 @@ type OutcomeView struct {
 type ReachStepView struct {
 	From string `json:"from"`
 	To   string `json:"to"`
+	// Entry and Entries are the row the origin was observed pointing at when this change
+	// happened, and how many the list had. Zero when none was ever read, which is the
+	// ordinary case for a screen that does not change out of a list at all.
+	//
+	// CORRELATION, never a precondition: the row was marked while the screen changed. See
+	// observe.Approach, which is where the claim is spelled out and where this comes from.
+	Entry   int `json:"entry,omitempty"`
+	Entries int `json:"entries,omitempty"`
+	// Support and Of are how many of this edge's readable observations had that row
+	// selected. `3 of 4` and `3 of 12` are different claims.
+	Support int `json:"support,omitempty"`
+	Of      int `json:"of,omitempty"`
+	// Moves is how many moves of the mark have been observed inside that list — what a
+	// route would have to get the mark there with.
+	Moves int `json:"observed_moves,omitempty"`
+	// SelectionRefusal is why no row is known for this step, in
+	// observe.ApproachRefusal's closed vocabulary.
+	SelectionRefusal string `json:"selection_refusal,omitempty"`
 }
 
 // ObservePoint asks for the desktop rectangles of what Marco currently means.

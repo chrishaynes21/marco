@@ -89,6 +89,25 @@ type RelationshipEvidence struct {
 	// and the field is deliberately plural and counted rather than singular and canonical:
 	// three different runs before the same change is evidence that there is no one way.
 	Sequences []NavSequence `json:"sequences,omitempty"`
+	// SelectedBefore is what the ORIGIN screen was pointing at when the change was seen,
+	// and SelectedUnknown how often nothing readable was.
+	//
+	// The projection of ScreenTransition.SelectedBefore, and a different claim from every
+	// field above: those say what was PRESSED, this says which row was marked while it
+	// happened. It is what makes a route able to say "the third entry" instead of only
+	// "this screen became that one" — see activation.go.
+	SelectedBefore  []SelectedEntry `json:"selected_before,omitempty"`
+	SelectedUnknown int             `json:"selected_unknown,omitempty"`
+	// Moves is what the mark was observed doing INSIDE the origin's list during the
+	// sessions that saw this change.
+	//
+	// Not evidence for the change, and stored on the edge anyway. The reason is the
+	// question a route has to answer: an edge whose origin needed entry 3 selected is only
+	// usable if something is known about getting the mark to entry 3, and the moves that
+	// establish that happened on the origin screen — before the change, in the same list.
+	// Joining them here is what lets a plan carry an approach rather than a bare
+	// precondition. See ApproachOf.
+	Moves []SelectionStep `json:"selection_moves,omitempty"`
 }
 
 // Empty reports whether there is nothing here worth remembering.
@@ -153,6 +172,19 @@ type RememberedRelationship struct {
 	// DroppedSequences counts distinct orders refused at the bound, so a capped set never
 	// reads as a complete one.
 	DroppedSequences int `json:"dropped_sequences,omitempty"`
+	// SelectedBefore, SelectedUnknown and Moves are what the origin screen was pointing at
+	// when this change was observed, and what the mark was seen doing in that list.
+	//
+	// THE THING THAT MAKES A MENU ROUTE POSSIBLE, and the newest durable evidence here: an
+	// edge that knows only "A became B" cannot be taught as "open the third entry". See
+	// RelationshipEvidence for what each one claims, which is correlation in every case.
+	SelectedBefore  []SelectedEntry `json:"selected_before,omitempty"`
+	SelectedUnknown int             `json:"selected_unknown,omitempty"`
+	Moves           []SelectionStep `json:"selection_moves,omitempty"`
+	// DroppedSelections and DroppedMoves count what the bounds refused, for the same
+	// reason DroppedSequences does: a capped set must never read as a complete one.
+	DroppedSelections int `json:"dropped_selections,omitempty"`
+	DroppedMoves      int `json:"dropped_selection_moves,omitempty"`
 	// FollowUp is what the user said when asked for a SECOND example, nil when never asked.
 	//
 	// Held apart from Learning rather than overwriting it: the first request was fulfilled
@@ -173,7 +205,8 @@ func (r RememberedRelationship) Evidence() RelationshipEvidence {
 	return RelationshipEvidence{
 		Observations: r.Observations, Preceded: r.Preceded,
 		Unattributed: r.Unattributed, ConditionalOnly: r.ConditionalOnly,
-		Sequences: r.Sequences,
+		Sequences: r.Sequences, SelectedBefore: r.SelectedBefore,
+		SelectedUnknown: r.SelectedUnknown, Moves: r.Moves,
 	}
 }
 
@@ -202,6 +235,17 @@ func (r *RememberedRelationship) Fold(e RelationshipEvidence) {
 	for _, seq := range e.Sequences {
 		r.foldSequence(seq)
 	}
+	// THE SELECTION EVIDENCE, through the same shared bound rather than a second copy of
+	// it. Both are additive on the counters and set-union on the identity, exactly like the
+	// intents above, and both report what the bound refused.
+	//
+	// Deleting either must fail TestADurableEdgeRemembersWhatWasSelected.
+	r.SelectedUnknown += e.SelectedUnknown
+	var dropped int
+	r.SelectedBefore, dropped = foldSelected(r.SelectedBefore, e.SelectedBefore)
+	r.DroppedSelections += dropped
+	r.Moves, dropped = foldSelectionSteps(r.Moves, e.Moves)
+	r.DroppedMoves += dropped
 	sort.Slice(r.Sequences, func(i, j int) bool {
 		if r.Sequences[i].Count != r.Sequences[j].Count {
 			return r.Sequences[i].Count > r.Sequences[j].Count
@@ -507,6 +551,17 @@ func RelationshipsFrom(t ShadowTotals, hs []Hypothesis, application string, m Me
 				// store's sequence type has nowhere to put a target, so a label read
 				// off a screen cannot outlive the session by riding an edge.
 				Sequences: PlainSequences(tr.Sequences),
+				// WHAT THE ORIGIN WAS POINTING AT, and what the mark was seen doing
+				// in that list on the way. The moves are joined on tr.From — the
+				// screen this change STARTS from — because that is the list a route
+				// would have to move the mark in. Ones the session could not place
+				// are excluded by SelectionStepsFrom rather than guessed at.
+				//
+				// Deleting this must fail
+				// TestADurableEdgeRemembersWhatWasSelected.
+				SelectedBefore:  tr.SelectedBefore,
+				SelectedUnknown: tr.SelectedUnknown,
+				Moves:           SelectionStepsFrom(t.SelectionTransitions, tr.From),
 			},
 		})
 	}
@@ -584,6 +639,25 @@ func DescribeRelationship(r RememberedRelationship, from, to RememberedSubject) 
 	if r.DroppedSequences > 0 {
 		out = append(out, fmt.Sprintf("further distinct sequences were seen and not kept: %d",
 			r.DroppedSequences))
+	}
+	// WHAT WAS SELECTED, said out loud beside the navigation. A record nobody can read is
+	// a record nobody will check, and this is the half a person would most want to query:
+	// "which row does that open from?"
+	for _, sel := range r.SelectedBefore {
+		out = append(out, fmt.Sprintf("selected on the origin before: entry %d of %d, "+
+			"%d/%d observation(s)",
+			sel.Entry, sel.Entries, sel.Count, r.Observations))
+	}
+	if r.SelectedUnknown > 0 {
+		out = append(out, fmt.Sprintf("no readable selection on the origin: %d/%d",
+			r.SelectedUnknown, r.Observations))
+	}
+	for _, m := range r.Moves {
+		out = append(out, "observed move of the mark on the origin: "+m.String())
+	}
+	if r.DroppedSelections > 0 || r.DroppedMoves > 0 {
+		out = append(out, fmt.Sprintf("further selections and moves were seen and not "+
+			"kept: %d and %d", r.DroppedSelections, r.DroppedMoves))
 	}
 	out = append(out, "causal claim: none. This records that the change was observed and "+
 		"what was seen around it, not that any of it caused the change or would reproduce it")

@@ -44,7 +44,7 @@ func twoCompositions() (a, b []observe.ShadowRegion) {
 func walkScreens(g *observe.ScreenSegmenter, seq ...[]observe.ShadowRegion) []observe.ScreenStateID {
 	out := make([]observe.ScreenStateID, 0, len(seq))
 	for i, r := range seq {
-		out = append(out, g.Observe(i+1, r, nil, observe.SemanticEvidence{}))
+		out = append(out, g.Observe(i+1, r, nil, observe.SemanticEvidence{}, observe.SelectionAt{}))
 	}
 	return out
 }
@@ -106,14 +106,14 @@ func TestAConfirmedChangeKeepsTheNavigationThatPrecededIt(t *testing.T) {
 	a, b := twoCompositions()
 	var g observe.ScreenSegmenter
 
-	g.Observe(1, a, nil, observe.SemanticEvidence{})
-	g.Observe(2, a, nil, observe.SemanticEvidence{})
+	g.Observe(1, a, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
+	g.Observe(2, a, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
 	// The press, on the last look of the old screen.
 	g.Observe(3, a, []observe.InputEvent{{Intent: observe.NavConfirm, AtMS: 300}},
-		observe.SemanticEvidence{})
+		observe.SemanticEvidence{}, observe.SelectionAt{})
 	// The new screen appears, then holds. Nothing is pressed on either look.
-	g.Observe(4, b, nil, observe.SemanticEvidence{})
-	g.Observe(5, b, nil, observe.SemanticEvidence{})
+	g.Observe(4, b, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
+	g.Observe(5, b, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
 
 	trs := g.Transitions()
 	if len(trs) != 1 {
@@ -159,13 +159,13 @@ func TestAChangeSeenThroughAGapIsOneChange(t *testing.T) {
 	a, b := twoCompositions()
 	var g observe.ScreenSegmenter
 
-	g.Observe(1, a, nil, observe.SemanticEvidence{})
-	g.Observe(2, a, nil, observe.SemanticEvidence{})
+	g.Observe(1, a, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
+	g.Observe(2, a, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
 	// The press rides on the half-rendered frame, which is where a real one lands.
 	g.Observe(3, a[:1], []observe.InputEvent{{Intent: observe.NavConfirm, AtMS: 300}},
-		observe.SemanticEvidence{})
-	g.Observe(4, b, nil, observe.SemanticEvidence{})
-	g.Observe(5, b, nil, observe.SemanticEvidence{})
+		observe.SemanticEvidence{}, observe.SelectionAt{})
+	g.Observe(4, b, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
+	g.Observe(5, b, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
 
 	trs := g.Transitions()
 	if len(trs) != 1 {
@@ -190,13 +190,13 @@ func TestAChangeTooFastToConfirmIsCountedAsACandidateMiss(t *testing.T) {
 	a, b := twoCompositions()
 	var g observe.ScreenSegmenter
 
-	g.Observe(1, a, nil, observe.SemanticEvidence{})
-	g.Observe(2, a, nil, observe.SemanticEvidence{})
+	g.Observe(1, a, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
+	g.Observe(2, a, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
 	g.Observe(3, a, []observe.InputEvent{{Intent: observe.NavConfirm, AtMS: 300}},
-		observe.SemanticEvidence{})
+		observe.SemanticEvidence{}, observe.SelectionAt{})
 	// B for exactly one look, then back. Real or not, the gate cannot tell — and it says so.
-	g.Observe(4, b, nil, observe.SemanticEvidence{})
-	g.Observe(5, a, nil, observe.SemanticEvidence{})
+	g.Observe(4, b, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
+	g.Observe(5, a, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
 
 	if len(g.Transitions()) != 0 {
 		t.Fatalf("a one-look change was recorded: %+v", g.Transitions())
@@ -222,7 +222,7 @@ func TestAScreenBeingConfirmedSaysItIsChanging(t *testing.T) {
 		t.Errorf("a settled screen reports a pending change %s/%d", to, looks)
 	}
 
-	g.Observe(3, b, nil, observe.SemanticEvidence{})
+	g.Observe(3, b, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
 	to, looks, _ := g.Pending()
 	if to == "" || looks != 1 {
 		t.Errorf("mid-change the segmenter reports %s/%d, want a candidate with one look.\n"+
@@ -230,7 +230,7 @@ func TestAScreenBeingConfirmedSaysItIsChanging(t *testing.T) {
 			to, looks)
 	}
 
-	g.Observe(4, b, nil, observe.SemanticEvidence{})
+	g.Observe(4, b, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
 	if to, looks, _ := g.Pending(); to != "" || looks != 0 {
 		t.Errorf("after confirmation a change is still pending: %s/%d", to, looks)
 	}
@@ -266,15 +266,15 @@ func TestAnUnreadableFrameDuringAChangeDoesNotRestartIt(t *testing.T) {
 	a, b := twoCompositions()
 	var g observe.ScreenSegmenter
 
-	g.Observe(1, a, nil, observe.SemanticEvidence{})
-	g.Observe(2, a, nil, observe.SemanticEvidence{})
+	g.Observe(1, a, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
+	g.Observe(2, a, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
 	// The new screen appears: one look.
-	g.Observe(3, b, nil, observe.SemanticEvidence{})
+	g.Observe(3, b, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
 	// A half-rendered frame, carrying the press the player made during it.
 	g.Observe(4, a[:1], []observe.InputEvent{{Intent: observe.NavConfirm, AtMS: 400}},
-		observe.SemanticEvidence{})
+		observe.SemanticEvidence{}, observe.SelectionAt{})
 	// And the new screen again. That is the SECOND look at b, not the first.
-	g.Observe(5, b, nil, observe.SemanticEvidence{})
+	g.Observe(5, b, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
 
 	trs := g.Transitions()
 	if len(trs) != 1 {
@@ -306,12 +306,12 @@ func TestAChangeRemembersHowMuchOfItCouldNotBeRead(t *testing.T) {
 	a, b := twoCompositions()
 	var g observe.ScreenSegmenter
 
-	g.Observe(1, a, nil, observe.SemanticEvidence{})
-	g.Observe(2, a, nil, observe.SemanticEvidence{})
-	g.Observe(3, b, nil, observe.SemanticEvidence{})
+	g.Observe(1, a, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
+	g.Observe(2, a, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
+	g.Observe(3, b, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
 
 	// An unreadable frame in the middle of the change.
-	g.Observe(4, a[:1], nil, observe.SemanticEvidence{})
+	g.Observe(4, a[:1], nil, observe.SemanticEvidence{}, observe.SelectionAt{})
 	to, looks, unreadable := g.Pending()
 	if to == "" {
 		t.Fatalf("the change was abandoned across one unreadable frame (looks=%d)", looks)
@@ -322,7 +322,7 @@ func TestAChangeRemembersHowMuchOfItCouldNotBeRead(t *testing.T) {
 			"carry it reads as one Marco watched the whole of.", unreadable)
 	}
 
-	g.Observe(5, b, nil, observe.SemanticEvidence{})
+	g.Observe(5, b, nil, observe.SemanticEvidence{}, observe.SelectionAt{})
 	if n := len(g.Transitions()); n != 1 {
 		t.Fatalf("%d transitions, want 1: %+v", n, g.Transitions())
 	}

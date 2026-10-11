@@ -101,7 +101,7 @@ func TestAKeyboardIntentCannotSmuggleACoordinate(t *testing.T) {
 	s := withInput([]observe.InputEvent{{
 		Intent: observe.NavConfirm, Where: observe.PointerAt{X: 0.5, Y: 0.5},
 	}}, hudOnly()...)
-	k.Observe(&s, s.Structure())
+	k.Observe(&s, s.Structure(), observe.SelectionAt{})
 	// Nothing to assert on the transition yet; the guarantee is that admission zeroed it,
 	// which the JSON of a later transition would otherwise carry. Exercised via the
 	// vocabulary test above; here we simply prove admission does not panic or retain.

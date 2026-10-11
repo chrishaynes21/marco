@@ -78,7 +78,7 @@ func TestASensorAppearingIsNotAScreenChanging(t *testing.T) {
 	// rich, primary, rich, primary — the alternation an ordinary session produces, because
 	// the gate answers from the previous settled reading and that answer keeps flipping.
 	for i, rich := range []bool{true, true, false, false, true, false, false} {
-		id := g.Observe(i+1, readingOfOnePage(rich), nil, observe.SemanticEvidence{})
+		id := g.Observe(i+1, readingOfOnePage(rich), nil, observe.SemanticEvidence{}, observe.SelectionAt{})
 		if id == observe.ScreenStateUnknown {
 			continue
 		}
@@ -118,10 +118,10 @@ func TestReplacingWhatIsOnThePageIsStillAScreenChanging(t *testing.T) {
 		}
 		return out
 	}
-	a := g.Observe(1, readingOfOnePage(false), nil, observe.SemanticEvidence{})
-	g.Observe(2, readingOfOnePage(false), nil, observe.SemanticEvidence{})
-	g.Observe(3, other(), nil, observe.SemanticEvidence{})
-	b := g.Observe(4, other(), nil, observe.SemanticEvidence{})
+	a := g.Observe(1, readingOfOnePage(false), nil, observe.SemanticEvidence{}, observe.SelectionAt{})
+	g.Observe(2, readingOfOnePage(false), nil, observe.SemanticEvidence{}, observe.SelectionAt{})
+	g.Observe(3, other(), nil, observe.SemanticEvidence{}, observe.SelectionAt{})
+	b := g.Observe(4, other(), nil, observe.SemanticEvidence{}, observe.SelectionAt{})
 
 	if a == observe.ScreenStateUnknown || b == observe.ScreenStateUnknown {
 		t.Fatalf("a screen seen twice never settled: %q then %q", a, b)
@@ -152,8 +152,8 @@ func TestAScreenOnlyADetectorCouldDescribeIsStillOneScreen(t *testing.T) {
 		}
 		return out
 	}
-	a := g.Observe(1, hud(), nil, observe.SemanticEvidence{})
-	b := g.Observe(2, hud(), nil, observe.SemanticEvidence{})
+	a := g.Observe(1, hud(), nil, observe.SemanticEvidence{}, observe.SelectionAt{})
+	b := g.Observe(2, hud(), nil, observe.SemanticEvidence{}, observe.SelectionAt{})
 	if a == observe.ScreenStateUnknown || a != b {
 		t.Fatalf("a window only a detector could describe produced %q then %q.\n"+
 			"The filter prefers a structural account where there is one; where there is "+

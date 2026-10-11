@@ -836,6 +836,23 @@ type ScreenTransition struct {
 	// when the evidence identified it. The durable topology folds these down to plain
 	// NavSequence; only a licensed demonstration's candidate keeps them.
 	Sequences []TargetedSequence `json:"sequences,omitempty"`
+	// SelectedBefore is what was selected on the ORIGIN screen at the last look before this
+	// change, one entry per distinct selection, with how often it was that one.
+	//
+	// The other half of using a menu, and a different claim from every field above. Those
+	// say what was PRESSED before the change; this says what the screen was POINTING AT
+	// while it was. "Screen A became screen B four times, three of them with entry 3 of 9
+	// selected" is the first thing in this subsystem that could become "open the third
+	// row" — and it is still a correlation, which is why it is named for what was observed
+	// rather than for what it would take. See activation.go.
+	SelectedBefore []SelectedEntry `json:"selected_before,omitempty"`
+	// SelectedUnknown counts observations whose origin look had no readable selection —
+	// no list identified, the mark unread, or a belief nothing had confirmed since.
+	//
+	// The control evidence, beside the positives rather than implied by subtraction. An
+	// edge seen ten times with a row selected on two of them is mostly a change that
+	// happens with nothing readable pointing anywhere.
+	SelectedUnknown int `json:"selected_unknown,omitempty"`
 }
 
 // NavSequence is one observed order of navigation before a change, and how often it recurred.
@@ -955,6 +972,9 @@ type transitionRecord struct {
 	conditionalOnly int
 	preceded        map[NavIntent]int
 	sequences       []TargetedSequence
+	// selected is what was selected on the origin at the last look before each observation
+	// of this change. See activation.go.
+	selected selectedTally
 	// unsettledRun is the LONGEST run of unplaceable inferences seen immediately before
 	// this change. Only ever set when the change came FROM the unknown state.
 	unsettledRun int
@@ -1057,6 +1077,14 @@ type pendingChange struct {
 	// unknown counts unplaceable looks seen while this change was pending — the explicit
 	// uncertainty between a before and an after, kept rather than collapsed.
 	unknown int
+	// selected is what was selected at the last look BEFORE the divergence began.
+	//
+	// Captured at the proposal and never refreshed, for the reason `inputs` is accumulated
+	// from the divergence onwards rather than taken from the confirming look: by the time
+	// the change confirms, the pixels being read are the NEW screen's, and whatever list
+	// the watch has found on them is not the list the person was pointing at. One look of
+	// history, which is the same single look lastInputs keeps and for the same reason.
+	selected SelectionAt
 }
 
 // FlickerStats is what the confirmation gate refused, and how much of it might have been real.
@@ -1144,6 +1172,15 @@ type ScreenSegmenter struct {
 	// press. One look and no more: a dwell full of presses that changed nothing must not all
 	// become the cause of the change that eventually happened.
 	lastInputs []InputEvent
+	// lastSelection is what was selected on the PREVIOUS look, for the same reason
+	// lastInputs keeps the previous look's navigation: the look a change is first seen on
+	// is already showing the new screen, so the selection read on it belongs to the
+	// destination and not to the row that was activated.
+	//
+	// Updated on EVERY look including unplaceable ones, because what the interface watch
+	// could read is a fact about the pixels and does not depend on the segmenter placing
+	// them. See Observe.
+	lastSelection SelectionAt
 	// Flicker is the confirmation gate's own account.
 	Flicker FlickerStats
 
@@ -1289,7 +1326,19 @@ func (p MatchProfile) Overlaps() bool {
 // found absent in the state it was minting. TestStateIdentityDoesNotDependOnTracking is what
 // holds this open.
 func (g *ScreenSegmenter) Observe(n int, regions []ShadowRegion,
-	inputs []InputEvent, sem SemanticEvidence) ScreenStateID {
+	inputs []InputEvent, sem SemanticEvidence, sel SelectionAt) ScreenStateID {
+
+	// THE PREVIOUS LOOK'S SELECTION, taken before this one replaces it, and the only value
+	// a proposal below is allowed to use. A parameter rather than something read out of the
+	// watch: screen evidence and selection evidence come from different places and fail
+	// independently, and a segmenter that fetched the belief itself would be judging the
+	// freshness of a value it has no way to judge.
+	//
+	// Assigned here rather than at the bottom so every branch that gives up early — and
+	// there are six of them, all routed through `unplaced` — still advances it. What the
+	// watch could read is a fact about the pixels, not about whether they were placeable.
+	before := g.lastSelection
+	g.lastSelection = sel
 
 	sig := NewScreenSignature(regions)
 	f := sig.features()
@@ -1490,7 +1539,7 @@ func (g *ScreenSegmenter) Observe(n int, regions []ShadowRegion,
 	// candidate change until a second look agrees with it; see propose and StabilityLooks.
 	//
 	// Deleting the gate must fail TestOneFlickeringInferenceIsNotAScreenChange.
-	g.propose(n, id, inputs)
+	g.propose(n, id, inputs, before)
 	// AFTER the proposal, which reads the PREVIOUS look's inputs.
 	g.lastInputs = inputs
 	g.unsettled = 0
@@ -1502,7 +1551,9 @@ func (g *ScreenSegmenter) Observe(n int, regions []ShadowRegion,
 // The ONE place g.current moves and the one place a transition is noted. Everything about
 // stability is here, so a future reader looking for "why did the screen not change" has one
 // function to read rather than a condition spread across three call sites.
-func (g *ScreenSegmenter) propose(n int, id ScreenStateID, inputs []InputEvent) {
+func (g *ScreenSegmenter) propose(n int, id ScreenStateID, inputs []InputEvent,
+	before SelectionAt) {
+
 	// A BLACKOUT IS NOT A DESTINATION.
 	//
 	// `state_unknown` is the id of an inference nobody could place. It is not a screen: it
@@ -1548,6 +1599,11 @@ func (g *ScreenSegmenter) propose(n int, id ScreenStateID, inputs []InputEvent) 
 			to: id, looks: 1, first: n,
 			// The preceding look's navigation as well as this one's. See lastInputs.
 			inputs: boundInputs(MergeInputs(g.lastInputs, inputs)),
+			// The preceding look's SELECTION, and only it. See pendingChange.selected.
+			//
+			// Deleting this must fail
+			// TestAChangeRecordsWhatWasSelectedWhenItHappened.
+			selected: before,
 		}
 	}
 	if g.change.looks < StabilityLooks {
@@ -1556,7 +1612,7 @@ func (g *ScreenSegmenter) propose(n int, id ScreenStateID, inputs []InputEvent) 
 	if g.change.looks > StabilityLooks {
 		g.Flicker.Delayed++
 	}
-	g.note(g.current, id, g.change.inputs)
+	g.note(g.current, id, g.change.inputs, g.change.selected)
 	g.current = id
 	g.settle(id)
 	g.Flicker.Confirmed++
@@ -1886,7 +1942,7 @@ func boundInputs(in []InputEvent) []InputEvent {
 	return in[len(in)-MaxBufferedInputs:]
 }
 
-func (g *ScreenSegmenter) note(from, to ScreenStateID, inputs []InputEvent) {
+func (g *ScreenSegmenter) note(from, to ScreenStateID, inputs []InputEvent, sel SelectionAt) {
 	if from == "" || from == to {
 		return
 	}
@@ -1922,6 +1978,15 @@ func (g *ScreenSegmenter) note(from, to ScreenStateID, inputs []InputEvent) {
 		g.transitions[k] = rec
 	}
 	rec.count++
+	// WHAT THE ORIGIN SCREEN WAS POINTING AT when this change began, which is a different
+	// question from what was pressed before it and is answered from different evidence.
+	//
+	// Folded on every observation including the ones with nothing readable, because the
+	// times a change happened with no selection at all are what the positives have to be
+	// weighed against. See activation.go.
+	//
+	// Deleting this must fail TestAChangeRecordsWhatWasSelectedWhenItHappened.
+	rec.selected.fold(sel)
 	// How long Marco could not say where the user was, immediately before this change.
 	// The LONGEST such run this edge has ever crossed — see ScreenTransition.UnsettledRun.
 	if from == ScreenStateUnknown && g.unsettled > rec.unsettledRun {
@@ -2069,6 +2134,8 @@ func (g *ScreenSegmenter) Transitions() []ScreenTransition {
 		t := ScreenTransition{
 			From: k[0], To: k[1], Count: rec.count, Unattributed: rec.unattributed,
 			ConditionalOnly: rec.conditionalOnly, UnsettledRun: rec.unsettledRun,
+			SelectedBefore:  rec.selected.publish(),
+			SelectedUnknown: rec.selected.unknown,
 		}
 		if len(rec.preceded) > 0 {
 			t.Preceded = make(map[NavIntent]int, len(rec.preceded))

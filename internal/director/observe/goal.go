@@ -145,6 +145,24 @@ type GoalPlan struct {
 	Steps []RelationshipRef `json:"steps,omitempty"`
 	// Refusal is why there is no plan, in the closed vocabulary.
 	Refusal PlanRefusal `json:"refusal,omitempty"`
+	// Approaches is, per step and aligned with Steps, the row the origin was observed
+	// pointing at when that change happened and the moves of the mark seen inside that
+	// list.
+	//
+	// # Why this is on the plan and not fetched beside it
+	//
+	// Because it is part of what the route IS. A chain of screens with nothing to say about
+	// which of nine rows each one is entered from is not a route through a menu, and a
+	// caller that had to assemble the selection half itself would be a second reader of the
+	// same topology — which is how two descriptions of one route appear. The planner has
+	// the graph open already.
+	//
+	// It carries no authority and claims no requirement: see Approach, where both are
+	// spelled out. Empty when the plan has no steps.
+	//
+	// Deleting the ApproachesFor call must fail
+	// TestAPlannedRouteCarriesWhatEachStepWasSelectedFrom.
+	Approaches []Approach `json:"approaches,omitempty"`
 	// Rank is WHY this route was chosen over the others, in the evidence classes the
 	// comparison is made of. Present whenever there are steps.
 	//
@@ -302,6 +320,10 @@ func PlanToGoal(goal, current string, top Topology, grade EdgeGrade) GoalPlan {
 		return out
 	}
 	out.Steps, out.Rank = winner.Steps, *winner
+	// AND WHAT EACH STEP WAS OBSERVED BEING TAKEN FROM. Read off the same topology the
+	// route was planned over, once the route is settled, so an approach can never describe
+	// a step the plan did not choose.
+	out.Approaches = ApproachesFor(out.Steps, top)
 	return out
 }
 
