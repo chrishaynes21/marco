@@ -216,7 +216,12 @@ const interfaceEmptyLooks = 2
 // arrive window-relative and normalised, so they are scaled into a fixed grid rather than
 // against any particular window size — which also means a belief does not change merely
 // because somebody resized a window.
-const interfaceGrid = 10000
+// Exported as InterfaceGrid for the replay's grouping diagnostic, which has to print the
+// geometry the grouping was actually given. See BoxesForLook for why that matters.
+const interfaceGrid = InterfaceGrid
+
+// InterfaceGrid is interfaceGrid, for a diagnostic outside this package.
+const InterfaceGrid = 10000
 
 // InterfaceWatch folds shadow regions into a belief about the interface, look by look.
 type InterfaceWatch struct {
@@ -256,16 +261,228 @@ type InterfaceWatch struct {
 	// across looks in TIME rather than in observations.
 	navDebt time.Duration
 	navAt   time.Time
-	moments []InterfaceMoment
+	// lookAt is when the previous look was taken and interval the gap to the one before
+	// it, so a press can be attributed over a window at least as long as the gap between
+	// the looks that could have seen the response. See window().
+	lookAt   time.Time
+	interval time.Duration
+	moments  []InterfaceMoment
+	// pending is the moves the mark has made since somebody last drained them, and
+	// pendingDropped how many the bound refused. See TakeSelectionMoves.
+	pending        []SelectionMove
+	pendingDropped int
+	// heldWhere, heldEntries and heldEntry are the list the mark was last SEEN in and
+	// which entry of it; heldGap how many looks have brought no reading since. See
+	// noteMove, which is the only thing that touches them.
+	heldWhere   Region
+	heldEntries int
+	heldEntry   int
+	heldGap     int
+}
+
+// MaxPendingSelectionMoves bounds how many moves the watch holds between drains.
+//
+// Generous, because the caller drains every cycle and a cycle can produce one slow move and
+// one per fast read. It exists so an uncollected watch grows a counter rather than a slice.
+const MaxPendingSelectionMoves = 64
+
+// MaxUnreadBetweenSightings is how many unread looks a held sighting survives.
+//
+// The mark is not read on every look, and a move is the gap between two sightings — so this is
+// the point at which "the mark was on entry 2 and is now on entry 4" stops being an
+// observation and becomes an inference about what happened in between. Past it the earlier
+// sighting is dropped and the next one starts a fresh hold, which costs one move and keeps the
+// record about what was seen.
+//
+// Four. On the 864-frame Trackmania corpus every single move the mark made was seen within one
+// unread look of its predecessor, so this bound is never reached there; it is set above the
+// measurement rather than at it because the measurement comes from a recording sampled every
+// 66ms, and a live session's cadence is far coarser. A value of 0 would discard the
+// reader-declines-on-arrival look that every real move passes through — which is the whole
+// reason this is a gap and not a diff.
+//
+// # NOTHING EXERCISES THIS BOUND, and that is worth stating rather than implying
+//
+// Three fixtures were built to reach it and none could. To pass four unread looks the selection
+// has to be unreadable while the list stays identified, and the only way to arrange that is
+// several members marked at once — which runs straight into the measured dwell defect
+// ('s TestAMarkThatDwellsIsStillRefusedAsShared): a run of shared frames teaches
+// every member that its current look is its unselected level, and the reader then cannot read
+// anything again. So there is no readable sighting on the far side of any blackout long enough
+// to test this.
+//
+// It is therefore a safety net on a path the current reader cannot take. It stays because the
+// code it guards reads "the mark was last seen on entry 2" and that claim has to expire
+// somewhere; it is NOT verified, and if the dwell defect is ever repaired this is the first
+// thing that becomes testable.
+const MaxUnreadBetweenSightings = 4
+
+// SelectionMove is one observed move of the mark from one entry of the identified list to
+// another.
+//
+// # Why the watch emits these rather than letting a reader diff the belief
+//
+// Because most of the moves happen where a poller cannot see them. ADR-152's fast path reads
+// the mark several times per cycle over remembered geometry, so between two beliefs a caller
+// could observe, the mark may have moved four times — and a consumer that diffed what it
+// happened to catch would be recording its own polling rate, which is the argument
+// InterfaceMoment already makes for being a journal.
+//
+// # What it is NOT
+//
+// It is not a transition in any graph, and it carries no screen. The watch has no idea which
+// screen it is looking at; grounding one of these is somebody else's job, and it is done
+// where the screen model lives. See [SelectionTransition].
+type SelectionMove struct {
+	// Where is the list the move was seen in, window-relative and normalised, and Entries
+	// how many entries were found in it. Between them, the only identity a list has.
+	//
+	// BOTH are part of it, and the entry count is the half that is easy to drop. "Entry 3"
+	// means nothing except against a stable count of entries: a list that gained a row
+	// between two looks has renumbered everything below it, so a move recorded across that
+	// boundary would name two rows that are not the two the mark was on.
+	Where   Region
+	Entries int
+	// From and To are the entry indices either side of the move, counted from the top.
+	//
+	// Both are real entries. A mark appearing out of nothing, or going unreadable, is not a
+	// move between two of them, and recording those as moves from or to -1 would put a
+	// reading failure in the same table as an observation.
+	From, To int
+	// Prompted says a directional navigation intent was observed within MaxResponseLatency
+	// of this move being SEEN.
+	//
+	// THE INPUT LABELS A MOVE; IT NEVER CREATES ONE, which is ADR-158's rule and is enforced
+	// here by construction: this field is set on a move the shading already proved, and no
+	// amount of pressing produces a SelectionMove.
+	//
+	// False means NO PRESS WAS ATTRIBUTABLE, which is not the same claim as "nobody pressed
+	// anything". At a coarse cadence the window can close between looks. Both readings are
+	// carried forward rather than resolved here; see SelectionTransition.Unprompted.
+	Prompted bool
+	// Tracked says a fast look saw this move rather than a discovery, and At is when those
+	// pixels were read.
+	//
+	// Kept because the two are different evidence: a discovery found the list and measured
+	// it, a fast read measured a list somebody else found up to a cycle earlier.
+	Tracked bool
+	// FromUnnamed is how many of the list's entries were geometry nobody could name, at the
+	// look this move was seen on. Equal to Entries means nothing in the list has a name.
+	FromUnnamed int
+	// Gap is how many looks brought no reading between the two sightings this move is the
+	// difference between.
+	//
+	// Zero is the mark being read on consecutive looks. One is the ordinary case for a real
+	// move, because the reader declines on the look a mark arrives — for that one look the
+	// row it left has not been seen unmarked yet, so nothing is exclusive. Larger values are
+	// weaker evidence and are carried rather than hidden: a sighting four looks after the
+	// last one leaves room for a move nobody saw.
+	Gap    int
+	Sample int
+	At     time.Time
+}
+
+// TakeSelectionMoves drains the moves seen since the last drain, with how many the bound
+// dropped.
+//
+// A DRAIN and not a journal, because the one caller that grounds these has to see each move
+// exactly once. A reader that re-read the same list would count one move again on every look,
+// and a graph built from that would read a mark that moved once as a list being navigated
+// furiously for as long as the session lasted.
+func (w *InterfaceWatch) TakeSelectionMoves() ([]SelectionMove, int) {
+	moves, dropped := w.pending, w.pendingDropped
+	w.pending, w.pendingDropped = nil, 0
+	return moves, dropped
+}
+
+// noteMove records a move between the last entry the mark was SEEN on and this one.
+//
+// # Why this is not a diff of two consecutive beliefs
+//
+// Because measured against a real reading, consecutive beliefs almost never show a move. The
+// selection reader declines on the look a mark arrives, which is the honest answer — the row
+// it left has not been seen unmarked yet, so for one look two rows stand out and nothing is
+// exclusive. On a scripted five-row walk the belief reads
+//
+//	entry 3, entry 3, unreadable, entry 4, entry 4
+//
+// and a rule comparing neighbours sees two changes, neither of them between two entries. It
+// recorded nothing at all from fourteen moves.
+//
+// So the question asked here is the one a person would ask: WHERE WAS THE MARK LAST SEEN, and
+// where is it now. The unreadable looks in between are carried on the move as its Gap rather
+// than deleted, because a sighting four looks after the last one is weaker evidence than one
+// on the very next look and a reader has to be able to tell.
+//
+// # What resets it
+//
+// Any change to the list the belief is about. A different envelope, a different entry count, or
+// no identified list at all, and the held sighting is dropped rather than carried across: "the
+// mark was on entry 2" is a fact about one list, and applying it to the next one would invent a
+// move out of two unrelated readings. Each of those is its own case below.
+func (w *InterfaceWatch) noteMove(_, next InterfaceBelief) {
+	if next.Status != InterfaceProvisional {
+		// No list is identified, so there is nothing for a mark to be an entry OF.
+		w.heldEntry, w.heldGap = -1, 0
+		w.heldWhere, w.heldEntries = Region{}, 0
+		return
+	}
+	if next.Where != w.heldWhere || next.Entries != w.heldEntries {
+		// A DIFFERENT LIST, or the same one renumbered. "Entry 3" means nothing except
+		// against a stable count of entries: a list that gained a row has renumbered
+		// everything below it.
+		w.heldWhere, w.heldEntries = next.Where, next.Entries
+		w.heldEntry, w.heldGap = next.Selected, 0
+		return
+	}
+	if next.Selected < 0 {
+		// The mark was not read this look. Not a move to nowhere — an unread look, and
+		// the only thing it changes is how good the next sighting's evidence is.
+		w.heldGap++
+		if w.heldGap > MaxUnreadBetweenSightings {
+			w.heldEntry = -1
+		}
+		return
+	}
+	from, gap := w.heldEntry, w.heldGap
+	w.heldEntry, w.heldGap = next.Selected, 0
+	if from < 0 || from == next.Selected {
+		return
+	}
+	if len(w.pending) >= MaxPendingSelectionMoves {
+		w.pendingDropped++
+		return
+	}
+	at, sample := next.At, next.Sample
+	if next.Tracked {
+		at = next.TrackedAt
+	}
+	w.pending = append(w.pending, SelectionMove{
+		Where: next.Where, Entries: next.Entries,
+		From: from, To: next.Selected, Gap: gap,
+		// THE WINDOW AS IT STANDS AT THIS MOMENT, which is the moment the move was
+		// CONFIRMED and not the moment it was made. The selection reader refuses a row
+		// it has seen once, so a move is confirmed a look or two after the mark
+		// arrived — and measured at a 2s cadence that costs almost all of the
+		// attribution: seventeen moves, one attributed. The fix is to carry the look
+		// at which the change was first SEEN out of the reader, which is a change to
+		// the reader's interface and is not made here. Recorded as a known gap in
+		// docs/subsystems/Passive-Observation.md.
+		Prompted:    w.navDebt > 0,
+		Tracked:     next.Tracked,
+		FromUnnamed: next.FromShapes,
+		Sample:      sample, At: at,
+	})
 }
 
 // NewInterfaceWatch starts one, believing nothing.
 func NewInterfaceWatch() *InterfaceWatch {
 	return &InterfaceWatch{
-		tracker: selection.NewTracker(),
-		reader:  selection.New(),
-		belief:  InterfaceBelief{Status: InterfaceUnknown, Selected: -1, Reading: "insufficient_evidence"},
-		change:  InterfaceChange{From: -1, To: -1, Why: "nothing observed yet"},
+		tracker:   selection.NewTracker(),
+		reader:    selection.New(),
+		heldEntry: -1,
+		belief:    InterfaceBelief{Status: InterfaceUnknown, Selected: -1, Reading: "insufficient_evidence"},
+		change:    InterfaceChange{From: -1, To: -1, Why: "nothing observed yet"},
 	}
 }
 
@@ -329,14 +546,7 @@ func (w *InterfaceWatch) Observe(look InterfaceLook) {
 	// timestamps would describe a read that is no longer the one being reported.
 	next.Tracked, next.TrackedAt, next.TrackedAfterMS = false, time.Time{}, 0
 
-	var kept []selection.Row
-	var keptShades []selection.Shade
-	for i, r := range rows {
-		if r.Bounds.In(live.Inset(-2)) {
-			kept = append(kept, r)
-			keptShades = append(keptShades, rowShades[i])
-		}
-	}
+	kept, keptShades := entriesInside(rows, rowShades, live)
 	next.Entries = len(kept)
 	for _, r := range kept {
 		if unnamed[r.Bounds] {
@@ -518,6 +728,20 @@ func (w *InterfaceWatch) settle(before, next InterfaceBelief, quiet string) {
 			c.Why = quiet
 		}
 	}
+	// WHERE THE MARK WAS LAST SEEN, on every settle and not only the ones that moved it.
+	//
+	// Unconditional because the bookkeeping is about looks that brought NO reading as much
+	// as about the ones that did: a look where the selection stays unread has to age the
+	// held sighting, and a look where the identified list changes has to drop it. Called
+	// only when the belief's own selection index changed, it would do neither — and the
+	// index is unchanged on exactly the looks that matter here.
+	//
+	// This is also the one place every move passes through: the fast path and the discovery
+	// path both settle here, and a record kept on either alone would miss most of a live
+	// session's moves.
+	//
+	// Deleting this must fail TestEveryMoveOfTheMarkIsOfferedForGrounding.
+	w.noteMove(before, next)
 	w.belief, w.change = next, c
 	// Journalled only when something actually moved. A moment per look would be a record of
 	// the sampling rate; what a reader needs is the times the answer was different.
@@ -660,21 +884,122 @@ const MaxResponseLatency = 400 * time.Millisecond
 // its producer's own start, and joining those two numbers is a recorded trap. Subtracting one
 // look's time from another's is safe, and that is all this does.
 func (w *InterfaceWatch) navRecent(look InterfaceLook) bool {
+	// A LOOK'S OWN INTERVAL, remembered before anything uses it. The window a press opens
+	// is at least as long as the gap between the looks that could see the response.
+	if !look.At.IsZero() {
+		if !w.lookAt.IsZero() {
+			w.interval = look.At.Sub(w.lookAt)
+		}
+		w.lookAt = look.At
+	}
 	if look.Navs > 0 {
-		w.navDebt = MaxResponseLatency
-		w.navAt = look.At
+		w.Navigated(look.At, look.Navs)
 		return true
 	}
+	return w.navOpen(look.At)
+}
+
+// Navigated opens the response window from a slot that carried directional navigation.
+//
+// # Why this is reachable from outside the watch
+//
+// Because the DETECTOR'S CADENCE must not decide whether a press is attributable.
+// `InterfaceLook.Navs` is only read on a look that was OBSERVED, and live, an inference starts
+// about every two seconds against a session sampling twice a second — so three slots in four
+// bring no look at all. A press made during one of those slots never opened the window, while
+// the fast reads taken during that same slot are exactly the ones that saw the mark move.
+//
+// Navigation evidence and screen evidence fail independently, which is the argument
+// `ShadowTotals.add` already makes for folding the input account above its own early return.
+// This is the same argument one layer in.
+//
+// The count is a count, for the reason InterfaceLook.Navs is: which direction was pressed must
+// not reach anything that reads a mark, or the input could predict the outcome it is being
+// correlated with.
+//
+// Deleting the call site in ShadowTotals.Observe must fail
+// TestAPressDuringASkippedSlotStillAttributesTheMoveItExplains.
+func (w *InterfaceWatch) Navigated(at time.Time, n int) {
+	if n <= 0 {
+		return
+	}
+	w.navDebt = w.window()
+	w.navAt = at
+}
+
+// window is how long a press stays attributable: the latency bound, or the gap between looks,
+// whichever is longer.
+//
+// # The half of ADR-158 that was written down and not implemented
+//
+// It says the attributable interval is "the gap since the last look OR the latency bound,
+// whichever is longer", and gives the reason: a look's own interval is right when looks are far
+// apart, because the press and the repaint are then both inside one look. The code only ever
+// set the bound. At the recording's own 66ms that is invisible — the window spans six looks
+// either way — and at a coarse cadence it is the whole difference.
+//
+// Measured, on the same 864 frames reprocessed at two rates. The gap between a press and the
+// look at which the mark was first SEEN somewhere else:
+//
+//	every 66ms    4 moves, 128ms to 504ms      3 of 4 inside the 400ms bound
+//	every 660ms   2 moves, 544ms and 1992ms    0 of 2 inside it
+//
+// The menu repaints just as fast either way. What changes is when Marco next looks, and a
+// response cannot be seen before the look that sees it. A window shorter than the sampling
+// interval attributes nothing at a live cadence, which is where every move will come from.
+//
+// # Why it is bounded above
+//
+// Because past some gap a look's interval stops licensing anything: if Marco last looked a
+// minute ago, "something was pressed during that minute and the mark is now elsewhere" is not
+// an attribution, it is a coincidence with a long name. TrackStaleness is the existing answer
+// to how old an observation may be and still describe the same arrangement, and reusing it
+// keeps one bound rather than inventing a second.
+func (w *InterfaceWatch) window() time.Duration {
+	// THE INTERVAL AND THE REPAINT, not whichever is larger.
+	//
+	// They are consecutive, not alternative. The press happened somewhere inside the
+	// interval the look covers — the producer drains per cycle and says nothing about
+	// where in it — and the screen then takes up to the latency bound to show it. So the
+	// response may become visible as late as one whole interval plus one repaint after
+	// the window opened.
+	//
+	// Measured, and the arithmetic is unforgiving: with the window set to the interval
+	// ALONE, at a 2s cadence it expires at the exact instant the next look is taken, and
+	// 0 of 26 transfers were attributed on a fixture where every single one of them was
+	// the look after a press. A window equal to the gap it has to span reaches nothing.
+	if w.interval <= 0 {
+		return MaxResponseLatency
+	}
+	if span := w.interval + MaxResponseLatency; span < TrackStaleness {
+		return span
+	}
+	// Past this a look's interval stops licensing anything: if Marco last looked a
+	// minute ago, "something was pressed during that minute and the mark is now
+	// elsewhere" is not an attribution, it is a coincidence with a long name.
+	return TrackStaleness
+}
+
+// navOpen reports whether the response window is still open at this moment, ageing the debt by
+// the time since it was last refreshed or read.
+//
+// Separated from navRecent so a FAST look can age the window without claiming to carry input
+// evidence. A TrackLook has no navigation on it at all — the producer drains per cycle and a
+// fast read is not a cycle — so for the tracking path the only honest question is whether the
+// window a slow look opened is still open by the time these pixels were read.
+func (w *InterfaceWatch) navOpen(at time.Time) bool {
 	if w.navDebt <= 0 {
 		return false
 	}
 	// A look with no time cannot age anything; treat it as no elapsed time rather than as
-	// a jump to the epoch, which would expire the window on the first such look.
-	if !look.At.IsZero() && !w.navAt.IsZero() {
-		if elapsed := look.At.Sub(w.navAt); elapsed > 0 {
+	// a jump to the epoch, which would expire the window on the first such look. Nor may
+	// time run backwards: the fast reads for an interval are folded before that interval's
+	// own look, so an out-of-order timestamp is ordinary and must not rewind the clock.
+	if !at.IsZero() && !w.navAt.IsZero() {
+		if elapsed := at.Sub(w.navAt); elapsed > 0 {
 			w.navDebt -= elapsed
+			w.navAt = at
 		}
-		w.navAt = look.At
 	}
 	return w.navDebt > 0
 }
@@ -776,3 +1101,78 @@ func unscaleRect(b image.Rectangle) Region {
 		Height: float64(b.Dy()) / interfaceGrid,
 	}
 }
+
+// BoxesForLook is the rectangles a look offers the grouping, with its shading dropped.
+//
+// Exported beside GroupedForLook and for the same reason: a diagnostic that rebuilt what the
+// grouping is given would be a second opinion about the tracker's input, and this repository
+// has a memory note about exactly that ("two lists, one fact"). A replay whose input differs
+// from production's input measures the replay.
+func BoxesForLook(look InterfaceLook) []image.Rectangle {
+	if !look.Observed {
+		return nil
+	}
+	boxes, _, _ := measurableBoxes(look)
+	return boxes
+}
+
+// entriesInside is the rows of the identified list, IN VISUAL ORDER, with their shading.
+//
+// # Why the sort is not cosmetic
+//
+// Because `Selected` is documented as the chosen entry "counted from the top", and without this
+// it was not. GroupRows returns the stack's members top to bottom and then appends the aligned
+// strays — a menu's last entry, set apart by a wider gap — in the order deduplication left
+// them, which is largest-area first. Any list with a stray therefore handed the reader a
+// sequence in which position 6 was somewhere in the middle of the screen.
+//
+// Measured on 864 frames of a real pause menu, against labels naming which of nine entries was
+// selected: the belief read a nine-entry list on 139 frames and named the right ordinal on
+// NONE of them. The reading was not wrong about which rectangle was marked; it was wrong about
+// which entry that rectangle was, which is the only form of the answer a route can use.
+//
+// One statement of it, called from the discovery path and the tracking path, because two copies
+// of "which rows belong to this list" is how the fast path and the slow path come to disagree
+// about where the mark is.
+func entriesInside(rows []selection.Row, shades []selection.Shade,
+	live image.Rectangle) ([]selection.Row, []selection.Shade) {
+
+	type entry struct {
+		row   selection.Row
+		shade selection.Shade
+	}
+	var in []entry
+	for i, r := range rows {
+		if !r.Bounds.In(live.Inset(-2)) {
+			continue
+		}
+		var sh selection.Shade
+		if i < len(shades) {
+			sh = shades[i]
+		}
+		in = append(in, entry{r, sh})
+	}
+	sort.SliceStable(in, func(a, b int) bool {
+		ay := in[a].row.Bounds.Min.Y + in[a].row.Bounds.Max.Y
+		by := in[b].row.Bounds.Min.Y + in[b].row.Bounds.Max.Y
+		if ay != by {
+			return ay < by
+		}
+		return in[a].row.Bounds.Min.X < in[b].row.Bounds.Min.X
+	})
+	outRows := make([]selection.Row, 0, len(in))
+	outShades := make([]selection.Shade, 0, len(in))
+	for _, e := range in {
+		outRows = append(outRows, e.row)
+		outShades = append(outShades, e.shade)
+	}
+	return outRows, outShades
+}
+
+// NavWindowOpenForTest reports whether a press would still be attributable at this moment.
+//
+// The window is internal state with no reader — the only consumer is noteMove, which asks about
+// "now". A test about the window's BOUND cannot go through a move, because the thing under test
+// is precisely that no move is attributed, and an absence has too many possible causes to be
+// evidence on its own.
+func NavWindowOpenForTest(w *InterfaceWatch, at time.Time) bool { return w.navOpen(at) }

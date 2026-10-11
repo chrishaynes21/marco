@@ -33,6 +33,7 @@ import (
 	"fmt"
 	"image"
 	"image/png"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -44,18 +45,16 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/structure"
 )
 
-// navLookbackMS is how long a press stays RELEVANT to a frame, in milliseconds.
+// THE REPLAY NO LONGER OWNS A RESPONSE WINDOW.
 //
-// Physical, not a number of frames. A menu repaints a fixed couple of hundred
-// milliseconds after a press whatever rate the recorder ran at, so a window counted in
-// frames means 132ms on this recording and 4.6s on a live cycle - and the first is too
-// short to see the response while the second is long enough to credit an unrelated one.
+// It had one: a 400ms lookback, deciding for itself which frames a press was still relevant
+// to. It was the right number and it was a second copy of a rule production also holds, which
+// is how this repository's worst class of defect begins - a spectest that passed while
+// production refused the same play, because two statements of one rule drifted.
 //
-// 400ms covers a menu animation and stays well inside the ~1.3s at which this corpus
-// still identifies a list. It is the replay's number: production gets the same question
-// answered by its own cycle length, since a cycle drains the inputs that happened during
-// it.
-const navLookbackMS = 400
+// The inputs are now handed to ShadowTotals as the InputEvents they are, on the slot they
+// happened during, and `observe.MaxResponseLatency` answers the question in exactly one place.
+// A replay whose input differs from production's input measures the replay.
 
 // frameRecord is one line of frames.jsonl, as capture-game-session writes it.
 //
@@ -115,18 +114,43 @@ type frameResult struct {
 	// and LabelledFrames how many frames carried a label to check against.
 	CoveredSelected, LabelledFrames int
 	// WithSelection is frames where the belief named an entry; CorrectSelection those
-	// where the named row sat at the labelled row's height.
+	// where the named ENTRY's own region sat at the labelled row's height.
 	WithSelection, CorrectSelection int
+	// SameEntryCount is frames where the identified list had as many entries as the
+	// annotation describes, and CorrectOrdinal those where it also named the same one,
+	// counted from the top.
+	//
+	// THE SCORE A ROUTE WOULD DEPEND ON, and the only one that cannot be satisfied by a
+	// rectangle that happens to overlap. "Move the mark to entry 5" is meaningless if the
+	// list Marco is reading has four entries and the menu has nine.
+	SameEntryCount, CorrectOrdinal int
 	// ProposeMS and DecodeMS are measured cost, summed.
 	ProposeMS, DecodeMS int64
 	Belief              observe.InterfaceBelief
 	Candidates          []observe.InterfaceCandidate
 	Identified          int
 	Inputs              int
-	// NavsSeen is the directional intents the replay actually attributed to a
-	// frame. Below Inputs by the non-directional ones, and a replay that joined
-	// nothing reports zero here rather than looking like a session nobody played.
+	// NavsSeen is the directional intents the replay actually handed to a slot. Below
+	// Inputs by the non-directional ones, and a replay that joined nothing reports zero
+	// here rather than looking like a session nobody played.
 	NavsSeen int
+	// Moves is what the session RETAINED about the mark: every move it was seen making
+	// between two entries of one list, which is the evidence a navigation route would be
+	// built from. MovesUnplaced and MovesDropped are what the grounding and the bounds
+	// refused, reported beside it rather than subtracted from it.
+	Moves                       []observe.SelectionTransition
+	MovesUnplaced, MovesDropped int
+	// States and Transitions are how much SCREEN model formed. Reported because on the
+	// pixels discovery path the honest answer is expected to be very little - segmentation
+	// reads named roles and the proposer names nothing - and a reader has to be able to
+	// tell that from a bug.
+	States, Transitions int
+	// Hypotheses is what the session would say about all of it.
+	Hypotheses []observe.Hypothesis
+	// Latencies is how long after a press the mark was first SEEN somewhere else, in
+	// milliseconds, one entry per move. The measurement behind
+	// observe.MaxResponseLatency, which until now was an assumption.
+	Latencies []int64
 }
 
 // replayFrames reprocesses a recording's pixels through the structure proposer and the
@@ -159,7 +183,16 @@ func replayFrames(dir string, stride, limit int, verbose bool) (frameResult, err
 		}
 	}
 
-	watch := observe.NewInterfaceWatch()
+	// THE PRODUCTION ACCUMULATOR, not a bare interface watch.
+	//
+	// It was a watch, which answered the question that mattered then: can pixels read this
+	// menu. The question now is what a session KEEPS once it has, and the keeping happens in
+	// ShadowTotals.Observe - the call the live cycle makes. A replay that skipped it would be
+	// measuring a belief nothing downstream ever sees, and the selection ledger, the screen
+	// model and the attribution window would all be exercised by tests alone.
+	var totals observe.ShadowTotals
+	labelRows := ann.labelledRows()
+	pitch := labelledPitch(labelRows)
 	// A deterministic clock seeded from the recording's own measured offsets, so a replay
 	// run twice gives byte-identical belief timestamps.
 	base := time.Unix(1700000000, 0).UTC()
@@ -196,22 +229,25 @@ func replayFrames(dir string, stride, limit int, verbose bool) (frameResult, err
 		// moved yet when that frame was taken. A press is RECENT for a while, so one
 		// press can be recent for several consecutive fine-grained frames - which is
 		// exactly what a single coarse look would have covered on its own.
-		navs := 0
-		for j := nextInput; j < len(inputs); j++ {
-			if inputs[j].AtMS > fr.AtMS {
-				break
+		// THE PRESSES THAT HAPPENED DURING THIS FRAME'S SLOT, consumed once each.
+		//
+		// A CONSUMING WALK, where this used to keep a 400ms lookback of its own. The
+		// lookback existed because the tracker once counted its window in observations
+		// and needed a replay-side correction; the window is a duration now, held in
+		// observe.MaxResponseLatency, and it is applied to these events by the same code
+		// that applies it live. A press belongs to the slot it happened in, exactly as
+		// the input producer delivers it.
+		var slot []observe.InputEvent
+		for nextInput < len(inputs) && inputs[nextInput].AtMS <= fr.AtMS {
+			in := inputs[nextInput]
+			nextInput++
+			intent := observe.NavIntent(in.Intent)
+			switch intent {
+			case observe.NavUp, observe.NavDown, observe.NavLeft, observe.NavRight:
+				r.NavsSeen++
 			}
-			if fr.AtMS-inputs[j].AtMS > navLookbackMS {
-				// Too old for this frame, and for every frame after it.
-				nextInput = j + 1
-				continue
-			}
-			switch inputs[j].Intent {
-			case "up", "down", "left", "right":
-				navs++
-			}
+			slot = append(slot, observe.InputEvent{Intent: intent, AtMS: in.AtMS})
 		}
-		r.NavsSeen += navs
 		t1 := time.Now()
 		res := structure.Propose(img, opt)
 		r.ProposeMS += time.Since(t1).Milliseconds()
@@ -220,18 +256,21 @@ func replayFrames(dir string, stride, limit int, verbose bool) (frameResult, err
 		// THE PIXELS ARE MEASURED HERE, which is the whole point of replaying at this
 		// level: shading comes from the frame through the production measurement, not
 		// from whatever a previous detector happened to record.
-		look := observe.InterfaceLook{
-			Sequence: fr.Index,
-			At:       base.Add(time.Duration(fr.AtMS) * time.Millisecond),
-			Observed: true,
-			Shapes:   shapesFrom(img, res.Candidates),
-			Navs:     navs,
-		}
-		if sizes := observe.GroupedForLook(look); len(sizes) > 0 && sizes[0] >= minUsableStack {
+		shapes := shapesFrom(img, res.Candidates)
+		at := base.Add(time.Duration(fr.AtMS) * time.Millisecond)
+		if sizes := observe.GroupedForLook(observe.InterfaceLook{
+			Observed: true, Shapes: shapes,
+		}); len(sizes) > 0 && sizes[0] >= minUsableStack {
 			r.Grouped++
 		}
-		watch.Observe(look)
-		b := watch.Belief()
+		totals.Observe(observe.Sample{
+			Sequence: fr.Index, Timestamp: at, WindowGeneration: 1,
+			Shadow: &observe.ShadowSample{
+				Detector: "structure-proposer", Ran: true, TargetProven: true,
+				Front: observe.FrontTarget, Shapes: shapes, Inputs: slot,
+			},
+		})
+		b := totals.Interface
 
 		state, y, labelled := ann.labelAt(fr.Index)
 		if labelled && state == "selected" {
@@ -242,8 +281,24 @@ func replayFrames(dir string, stride, limit int, verbose bool) (frameResult, err
 		}
 		if b.Selected >= 0 {
 			r.WithSelection++
-			if labelled && state == "selected" && nearHeight(b.Where, y) {
-				r.CorrectSelection++
+			if labelled && state == "selected" {
+				// THE SCORE THAT MATTERS: did Marco point at the row the labels
+				// say was selected, and not at its neighbour. Against the named
+				// ENTRY's own region, at half the labelled pitch.
+				if namesRow(b.SelectedWhere, y, pitch) {
+					r.CorrectSelection++
+				}
+				// AND WHETHER THE LIST IT READ IS SHAPED LIKE THE MENU AT ALL.
+				// Reported separately because a list with the right number of
+				// entries can still be the wrong list, and on this corpus
+				// frequently is: a six-row group plus three strays inside its
+				// envelope counts nine.
+				if b.Entries == len(labelRows) {
+					r.SameEntryCount++
+					if b.Selected == ordinalOf(labelRows, y) {
+						r.CorrectOrdinal++
+					}
+				}
 			}
 		}
 		if verbose {
@@ -253,9 +308,14 @@ func replayFrames(dir string, stride, limit int, verbose bool) (frameResult, err
 		}
 	}
 
-	r.Belief = watch.Belief()
+	r.Belief = totals.Interface
 	r.Identified = r.Belief.After
-	r.Candidates = watch.Candidates()
+	r.Candidates = totals.Candidates
+	r.Moves = totals.SelectionTransitions
+	r.Latencies = responseLatencies(totals.InterfaceMoments, inputs, base)
+	r.MovesUnplaced, r.MovesDropped = totals.SelectionMovesUnplaced, totals.SelectionMovesDropped
+	r.States, r.Transitions = len(totals.States), len(totals.Transitions)
+	r.Hypotheses = observe.Hypotheses(totals, observe.DefaultHypothesisThresholds())
 	reportFrames(r, ann)
 	return r, nil
 }
@@ -307,20 +367,38 @@ func coversHeight(cands []structure.Candidate, y float64, b image.Rectangle) boo
 	return false
 }
 
-// nearHeight reports whether a believed region sits at the labelled row's height.
+// namesRow reports whether a believed entry's region is the labelled row and not its
+// neighbour.
 //
-// The belief's region is normalised window-relative, which is the same space the label's y is
-// in, so this is a direct comparison. The tolerance is the believed row's own height: naming a
-// row means naming it to within its own extent, and anything tighter would be scoring the
-// label's precision rather than the reader's.
-func nearHeight(where observe.Region, y float64) bool {
-	if where.Height <= 0 {
+// # The tolerance is half the LABELLED pitch, and that is the whole point
+//
+// What replaced it was three row-heights wide and centred below the row, so a believed region
+// could name a row two places away and score. Worse, it was being handed the identified LIST's
+// envelope rather than the named ENTRY's, and a list spanning three quarters of the screen
+// contains every labelled row there is. The measurement reported 154 of 155 for two
+// experiments. Scored against the named entry at this tolerance it is a small fraction of that.
+//
+// Half the pitch is the only tolerance that means anything here: a region is on this row
+// exactly when it is closer to this row than to the one above or below. Tighter would score the
+// annotation's eyeballed centres; looser cannot distinguish neighbours, which is the one
+// distinction a navigation route is made of.
+func namesRow(where observe.Region, y, pitch float64) bool {
+	if where.Height <= 0 || pitch <= 0 {
 		return false
 	}
-	return where.Y-where.Height <= y && y <= where.Y+where.Height*2
+	return math.Abs(where.Y+where.Height/2-y) <= pitch/2
+}
+
+// labelledPitch is the spacing of the annotation's own rows, or 0 when it has too few to say.
+func labelledPitch(rows []float64) float64 {
+	if len(rows) < 2 {
+		return 0
+	}
+	return (rows[len(rows)-1] - rows[0]) / float64(len(rows)-1)
 }
 
 func reportFrames(r frameResult, ann *annotationFile) {
+	labelRows := ann.labelledRows()
 	fmt.Printf("\n%s\n", strings.Repeat("=", 78))
 	fmt.Printf("REPLAY %s   (L0: the original pixels)\n", r.Name)
 	fmt.Printf("%s\n", strings.Repeat("=", 78))
@@ -350,11 +428,19 @@ func reportFrames(r frameResult, ann *annotationFile) {
 		fmt.Printf("  discovery           %d of %d labelled frames had a proposal covering\n"+
 			"                      the selected row (%.0f%%)\n",
 			r.CoveredSelected, r.LabelledFrames, pct(r.CoveredSelected, r.LabelledFrames))
-		fmt.Printf("  selection read      %d frames named an entry; %d of those matched the\n"+
-			"                      labelled row's height\n", r.WithSelection, r.CorrectSelection)
+		fmt.Printf("  selection read      %d frames named an entry; %d of those named THE\n"+
+			"                      labelled row, to within half its pitch (%.0f%%)\n",
+			r.WithSelection, r.CorrectSelection,
+			pct(r.CorrectSelection, r.WithSelection))
+		// THE HARD SCORE, and the one a route depends on.
+		fmt.Printf("  entry named         %d of those were read in a list with the same %d\n"+
+			"                      entries the labels describe; %d named the same entry\n",
+			r.SameEntryCount, len(labelRows), r.CorrectOrdinal)
 	} else {
 		fmt.Printf("  no annotations, so discovery and selection are unscored here\n")
 	}
+
+	reportRetained(r)
 
 	fmt.Printf("\n  belief              %s, selected %d, reading %s\n",
 		r.Belief.Status, r.Belief.Selected, r.Belief.Reading)
@@ -365,9 +451,12 @@ func reportFrames(r frameResult, ann *annotationFile) {
 		return
 	}
 	fmt.Printf("  candidates          %d\n", len(r.Candidates))
-	fmt.Printf("    %-5s %-6s %-6s %-5s %-5s %-6s %-5s %-7s %-22s %s\n",
-		"rows", "frames", "judged", "excl", "quiet", "unread", "moves",
-		"holders", "where y..y (x,w)", "verdict")
+	// SHARED IS IN THE TABLE, and it was not. The real menu on this corpus is refused
+	// for having too many frames with more than one member marked, and the column that
+	// says so was the one column missing - so the refusal read as unexplained.
+	fmt.Printf("    %-5s %-6s %-6s %-5s %-5s %-5s %-6s %-5s %-6s %-6s %-7s %-22s %s\n",
+		"rows", "frames", "judged", "excl", "shar", "quiet", "unread", "moves", "prompt",
+		"unprom", "holders", "where y..y (x,w)", "verdict")
 	for _, c := range r.Candidates {
 		verdict := "refused"
 		if c.Qualifies {
@@ -375,9 +464,20 @@ func reportFrames(r frameResult, ann *annotationFile) {
 		}
 		where := fmt.Sprintf("%.3f..%.3f (%.3f,%.3f)",
 			c.Where.Y, c.Where.Y+c.Where.Height, c.Where.X, c.Where.Width)
-		fmt.Printf("    %-5d %-6d %-6d %-5d %-5d %-6d %-5d %-7d %-22s %s\n",
-			c.Members, c.Frames, c.Judged, c.Exclusive, c.Quiet,
-			c.Unreadable, c.Transfers, c.Holders, where, verdict)
+		fmt.Printf("    %-5d %-6d %-6d %-5d %-5d %-5d %-6d %-5d %-6d %-6d %-7d %-22s %s\n",
+			c.Members, c.Frames, c.Judged, c.Exclusive, c.Shared, c.Quiet,
+			c.Unreadable, c.Transfers, c.Prompted, c.Unprompted, c.Holders, where,
+			verdict)
+		// AND WHY, per candidate. The aggregate below says five candidates fell short
+		// of something; it cannot say that the one list a person was actually using
+		// fell short of exactly one requirement by eleven frames.
+		if len(c.Unmet) > 0 && c.Transfers > 0 {
+			var why []string
+			for _, u := range c.Unmet {
+				why = append(why, fmt.Sprintf("%s %d/%d", u.Requirement, u.Have, u.Want))
+			}
+			fmt.Printf("          unmet: %s\n", strings.Join(why, "   "))
+		}
 	}
 	shortfall := map[string]int{}
 	for _, c := range r.Candidates {
@@ -434,4 +534,219 @@ func readJSONL[T any](path string) ([]T, error) {
 		out = append(out, v)
 	}
 	return out, nil
+}
+
+// reportRetained prints what the session KEPT about the mark, and what it refused to keep.
+//
+// The belief below it says what Marco is looking at right now; this says what it would still
+// know tomorrow. They are different questions, and until this change the second had no answer
+// at all: a person walking down a menu left behind a transfer count and nothing a route could
+// be built from.
+func reportRetained(r frameResult) {
+	fmt.Printf("\n  screen model        %d states, %d transitions\n", r.States, r.Transitions)
+	if r.States == 0 {
+		// EXPECTED on this path, and said rather than left as a zero. Segmentation
+		// reads named roles; the structure proposer names nothing. So a move is grounded
+		// in the LIST that was independently seen to respond, and the screen it sat on
+		// is honestly unknown.
+		fmt.Printf("                      (none: segmentation reads named roles and the " +
+			"proposer names\n                      nothing, so every move below is " +
+			"grounded in its list alone)\n")
+	}
+	reportLatencies(r.Latencies)
+	fmt.Printf("  moves retained      %d distinct, %d observations",
+		len(r.Moves), observationsIn(r.Moves))
+	if r.MovesUnplaced > 0 || r.MovesDropped > 0 {
+		fmt.Printf("   (%d unplaced, %d dropped)", r.MovesUnplaced, r.MovesDropped)
+	}
+	fmt.Printf("\n")
+	if len(r.Moves) == 0 {
+		return
+	}
+	fmt.Printf("    %-10s %-7s %-6s %-7s %-7s %s\n",
+		"state", "entry", "seen", "prompted", "unprom", "of")
+	for i, m := range r.Moves {
+		if i >= 12 {
+			fmt.Printf("    ... and %d more\n", len(r.Moves)-i)
+			break
+		}
+		state := string(m.State)
+		if state == "" {
+			state = "unplaced"
+		}
+		fmt.Printf("    %-10s %-7s %-6d %-7d %-7d %d\n", state,
+			fmt.Sprintf("%d->%d", m.From, m.To), m.Count, m.Prompted, m.Unprompted,
+			m.Entries)
+	}
+	// AND WHAT THE HYPOTHESIS LAYER MADE OF IT, because the ledger is not the product.
+	// Nothing downstream reads the ledger; a route would ask the hypotheses.
+	var sel []observe.Hypothesis
+	for _, h := range r.Hypotheses {
+		if h.Kind == observe.PossibleSelectionTransition {
+			sel = append(sel, h)
+		}
+	}
+	fmt.Printf("  hypotheses          %d of %d are selection transitions\n",
+		len(sel), len(r.Hypotheses))
+	byStatus := map[observe.HypothesisStatus]int{}
+	for _, h := range sel {
+		byStatus[h.Status]++
+	}
+	for _, st := range []observe.HypothesisStatus{observe.StatusSupported,
+		observe.StatusContested, observe.StatusTentative} {
+		if byStatus[st] > 0 {
+			fmt.Printf("    %-10s %d\n", st, byStatus[st])
+		}
+	}
+	if len(sel) > 0 {
+		fmt.Printf("    first: %s\n", trim(sel[0].Observed, 72))
+	}
+}
+
+// observationsIn totals how many times the retained moves were seen.
+func observationsIn(in []observe.SelectionTransition) int {
+	n := 0
+	for _, m := range in {
+		n += m.Count
+	}
+	return n
+}
+
+// responseLatencies measures how long after a press the mark was first seen somewhere else.
+//
+// # Why this is measured and not assumed
+//
+// Because observe.MaxResponseLatency is the one number in the attribution rule that was
+// chosen rather than observed: 400ms, as "how long after a press a screen may still be
+// repainting it". Everything downstream of it — which list is the active one, and therefore
+// every move retained about that list — moves when it moves, and a number nobody checked is
+// a number that will eventually be wrong on somebody's application.
+//
+// # What it measures, exactly
+//
+// The gap between a directional press and the next look at which the belief reported the mark
+// on a DIFFERENT entry of the same list. Not the repaint: the repaint is invisible here, and
+// what matters for attribution is when the move became VISIBLE TO MARCO, which includes the
+// recorder's own sampling. A press with no move after it inside the search horizon contributes
+// nothing, because its absence is not a latency.
+//
+// The horizon is deliberately far wider than the bound under test. A measurement clipped at
+// the value it is supposed to be validating would confirm it by construction.
+func responseLatencies(moments []observe.InterfaceMoment, inputs []inputRecord,
+	base time.Time) []int64 {
+
+	const horizonMS = 3000
+	var presses []int64
+	for _, in := range inputs {
+		switch observe.NavIntent(in.Intent) {
+		case observe.NavUp, observe.NavDown, observe.NavLeft, observe.NavRight:
+			presses = append(presses, in.AtMS)
+		}
+	}
+	// Every look at which the mark was seen on a different entry than the time before.
+	var sightings []int64
+	last := -1
+	for _, m := range moments {
+		if m.Status != observe.InterfaceProvisional || m.Selected < 0 {
+			continue
+		}
+		if last >= 0 && m.Selected != last {
+			sightings = append(sightings, m.At.Sub(base).Milliseconds())
+		}
+		last = m.Selected
+	}
+	var out []int64
+	for _, seen := range sightings {
+		// The NEAREST press before it. A move is attributable to the last thing the
+		// person did, not to the first.
+		best := int64(-1)
+		for _, at := range presses {
+			if at <= seen && seen-at <= horizonMS && (best < 0 || at > best) {
+				best = at
+			}
+		}
+		if best >= 0 {
+			out = append(out, seen-best)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
+}
+
+// reportLatencies prints the distribution beside the bound it is a measurement of.
+func reportLatencies(in []int64) {
+	if len(in) == 0 {
+		fmt.Printf("  response latency    no move followed a press closely enough to " +
+			"measure\n")
+		return
+	}
+	at := func(pct int) int64 {
+		i := (len(in) * pct) / 100
+		if i >= len(in) {
+			i = len(in) - 1
+		}
+		return in[i]
+	}
+	within := 0
+	for _, v := range in {
+		if time.Duration(v)*time.Millisecond <= observe.MaxResponseLatency {
+			within++
+		}
+	}
+	fmt.Printf("  response latency    %d moves measured: min %dms, median %dms, "+
+		"p90 %dms, max %dms\n", len(in), in[0], at(50), at(90), in[len(in)-1])
+	fmt.Printf("                      %d of %d fall within MaxResponseLatency (%s)\n",
+		within, len(in), observe.MaxResponseLatency)
+}
+
+// labelledRows is the list the ANNOTATION describes: one normalised centre per distinct
+// labelled entry, top to bottom.
+//
+// # Why this exists
+//
+// Because "the named row sat at the labelled row's height" turned out to be almost unfalsifiable
+// and nobody noticed for two experiments. It was scored against the identified LIST's bounding
+// box rather than the named entry's own region, and the list in question spanned three quarters
+// of the screen — so the labelled row was inside it whatever the reader said. The measurement
+// reported 154 of 155 while the reader was, by the stricter test below, right about a third of
+// the time.
+//
+// So the score is now taken against the thing a route would actually use: the ORDINAL of the
+// entry, among the entries the list has. That cannot be satisfied by a loose rectangle, and it
+// cannot be satisfied at all by a list with the wrong number of entries — which is the defect
+// the loose version was hiding.
+//
+// Derived from the annotation alone. Nothing here reaches the perception under test.
+func (a *annotationFile) labelledRows() []float64 {
+	if a == nil {
+		return nil
+	}
+	var ys []float64
+	for _, iv := range a.Intervals {
+		if iv.State != "selected" {
+			continue
+		}
+		known := false
+		for _, y := range ys {
+			if math.Abs(y-iv.Y) < 0.01 {
+				known = true
+				break
+			}
+		}
+		if !known {
+			ys = append(ys, iv.Y)
+		}
+	}
+	sort.Float64s(ys)
+	return ys
+}
+
+// ordinalOf is which entry of the labelled list a labelled height is, or -1.
+func ordinalOf(rows []float64, y float64) int {
+	for i, at := range rows {
+		if math.Abs(at-y) < 0.01 {
+			return i
+		}
+	}
+	return -1
 }

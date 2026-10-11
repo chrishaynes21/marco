@@ -260,15 +260,14 @@ func (w *InterfaceWatch) Track(look TrackLook) {
 		shadeFor[b] = shades[i]
 	}
 	live := scaleRegion(w.belief.Where)
-	var kept []selection.Row
-	var keptShades []selection.Shade
-	for _, r := range rows {
-		if !r.Bounds.In(live.Inset(-2)) {
-			continue
-		}
-		kept = append(kept, r)
-		keptShades = append(keptShades, shadeFor[r.Bounds])
+	ordered := make([]selection.Shade, len(rows))
+	for i, r := range rows {
+		ordered[i] = shadeFor[r.Bounds]
 	}
+	// THE SAME ROWS, IN THE SAME ORDER, as the discovery path. A fast read that numbered
+	// the entries differently would move the mark to a different row than the one the
+	// discovery had just reported it on, with nothing in either report saying so.
+	kept, keptShades := entriesInside(rows, ordered, live)
 	// CANDIDATE IDENTITY. Rows that do not land inside the list this belief is about are
 	// geometry about a different part of the screen, and reading them would move a mark
 	// inside a list they are not in.
@@ -307,6 +306,16 @@ func (w *InterfaceWatch) Track(look TrackLook) {
 	if next.Selected != before.Selected {
 		t.Moves++
 	}
+	// THE RESPONSE WINDOW, AGED TO THESE PIXELS, before the move this look may have just
+	// seen is recorded against it.
+	//
+	// A fast read carries no navigation of its own — the producer drains per cycle and this
+	// is not a cycle — so the only honest question is whether the window a slow look opened
+	// is still open now. Without this the debt is aged only by slow looks, which live are
+	// seconds apart, and a move read 1.5s after a press would be credited to it.
+	//
+	// Deleting this must fail TestAFastMoveLongAfterThePressIsNotPrompted.
+	w.navOpen(look.At)
 	// The belief was confirmed by pixels, so it is not stale and the forget counter does
 	// not advance. See InterfaceWatch.trackedThisLook.
 	next.Stale, next.Unconfirmed, next.Empty = false, 0, 0

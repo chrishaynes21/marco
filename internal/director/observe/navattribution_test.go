@@ -107,7 +107,20 @@ func navWalk(n int, pressed observe.NavIntent) []navSample {
 			a = (a + 1) % 5
 			intents = append(intents, pressed)
 		}
-		if i >= 8 && i%4 == 0 {
+		// LIST B MOVES ON ITS OWN CLOCK, and that clock has to actually be its own.
+		//
+		// It was every fourth observation against a press every third, which at a 2s
+		// cadence coincided often enough to matter the moment the attribution window
+		// was corrected to span the look after a press as well as the look it was made
+		// on — see InterfaceWatch.window(). B then answered about two thirds of its own
+		// moves by coincidence, the two lists came within a factor of two of each other
+		// on share, and the belief went ambiguous. Which is the rule working: two lists
+		// that both appear to respond must stay ambiguous.
+		//
+		// So B moves two observations after each press rather than one. That is outside
+		// the window by construction, which is what "its own schedule" has to mean for
+		// this fixture to separate anything at all.
+		if i >= 8 && i%3 == 2 {
 			b = (b + 1) % 5
 		}
 		out = append(out, navSample{markA: a, markB: b, intents: intents})

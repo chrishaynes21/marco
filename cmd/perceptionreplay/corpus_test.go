@@ -113,11 +113,46 @@ func TestTheRealMenuCorpusStillReadsAsAMenu(t *testing.T) {
 	if r.WithSelection == 0 {
 		t.Errorf("the belief never named an entry across %d frames", r.Frames)
 	}
-	if r.WithSelection > 0 && r.CorrectSelection*10 < r.WithSelection*9 {
-		t.Errorf("the belief named an entry on %d frames and only %d matched the "+
-			"labelled row (%.0f%%). Below 90%% the reading is not worth having",
-			r.WithSelection, r.CorrectSelection,
-			100*float64(r.CorrectSelection)/float64(r.WithSelection))
+	// THE FLOOR IS THE MEASUREMENT, and the measurement is not good.
+	//
+	// # What this used to assert, and why it passed
+	//
+	// It asserted 90%, and it passed at 99% for two experiments, and the 99% was an
+	// artefact of the score. `nearHeight` was handed the identified LIST's envelope rather
+	// than the named ENTRY's region — and the list in question spanned three quarters of
+	// the screen, so every labelled row on the frame was inside it. The tolerance was also
+	// three row-heights wide. Between them, a reading could name a row two places away,
+	// in a list that was not the menu, and score.
+	//
+	// Scored against the named entry at half the labelled pitch — a region is on this row
+	// exactly when it is nearer this row than its neighbours — the same corpus gives:
+	//
+	//	every 10th frame   19 of 38 named the labelled row   50%
+	//	every frame        43 of 189                         23%
+	//
+	// So 90% was never achieved and is kept here as the TARGET, failed, rather than
+	// quietly lowered. The floors below are set at what is actually measured, so the next
+	// change has to beat it; the gap to the target is the work, and it is recorded in
+	// [[Experiment-026-the-same-menu-seen-from-pixels]] and the subsystem note.
+	const (
+		wantNamed   = 38
+		wantMatched = 19
+		targetRate  = 0.90
+	)
+	if r.WithSelection < wantNamed {
+		t.Errorf("the belief named an entry on %d frames, against %d measured. Fewer "+
+			"readings is a regression even when the ones that remain are right",
+			r.WithSelection, wantNamed)
+	}
+	if r.CorrectSelection < wantMatched {
+		t.Errorf("%d of %d named entries were the labelled row, against %d of %d "+
+			"measured. This is a ratchet: the floor is the last measurement",
+			r.CorrectSelection, r.WithSelection, wantMatched, wantNamed)
+	}
+	if rate := float64(r.CorrectSelection) / float64(max(r.WithSelection, 1)); rate >= targetRate {
+		t.Errorf("the reading now matches the labelled row %.0f%% of the time, which "+
+			"clears the %.0f%% target. Raise the floors in this test and say so in the "+
+			"experiment record", 100*rate, 100*targetRate)
 	}
 
 	t.Logf("real corpus, every 10th frame: %d frames, discovery %d/%d, grouping %d/%d, "+

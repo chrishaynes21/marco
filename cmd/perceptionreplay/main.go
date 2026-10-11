@@ -69,6 +69,8 @@ func main() {
 			"rather than a shadow trace (L1)")
 	stride := flag.Int("stride", 1, "with -frames, reprocess every Nth frame")
 	limit := flag.Int("limit", 0, "with -frames, stop after N frames (0 = all)")
+	inspect := flag.Int("inspect", -1,
+		"print the grouping of one frame index against the labelled rows, and stop")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "usage: perceptionreplay [-v] <run directory>...\n\n"+
 			"Replays each run's slots.jsonl through the production interface watch and\n"+
@@ -82,6 +84,13 @@ func main() {
 
 	var results []result
 	for _, dir := range flag.Args() {
+		if *inspect >= 0 {
+			if err := inspectFrame(dir, *inspect); err != nil {
+				fmt.Fprintf(os.Stderr, "perceptionreplay: %s: %v\n", dir, err)
+				os.Exit(1)
+			}
+			continue
+		}
 		if *frames {
 			if _, err := replayFrames(dir, *stride, *limit, *verbose); err != nil {
 				fmt.Fprintf(os.Stderr, "perceptionreplay: %s: %v\n", dir, err)

@@ -115,23 +115,73 @@ func stack(boxes []image.Rectangle, taken map[int]bool) []int {
 			if !alike(boxes[i], boxes[j]) {
 				continue
 			}
-			members := []int{i}
-			want := centreY(boxes[i]) + pitch
-			for k := j; k < len(boxes); k++ {
-				if taken[k] || !alike(boxes[i], boxes[k]) {
-					continue
-				}
-				if math.Abs(centreY(boxes[k])-want) <= pitchTolerance*pitch {
-					members = append(members, k)
-					want += pitch
-				}
-			}
-			if len(members) > len(best) {
+			if members := run(boxes, taken, i, j, pitch); len(members) > len(best) {
 				best = members
 			}
 		}
 	}
 	return best
+}
+
+// run walks the beat one seed pair sets, and returns the members found on it.
+//
+// # Each row is compared to the one ABOVE it, not to the seed
+//
+// That is the whole of what this function changed, and the measurement behind it is specific.
+// On a frame of a real pause menu whose nine entries were every one proposed and every one
+// surviving deduplication, the run found FOUR and stopped. The rows are not identical: this
+// menu's panel is drawn slanted, so each row's left edge sits about half a per cent of the
+// frame further left than the one above it. Adjacent rows are well inside the alignment
+// tolerance. The sixth row is not — against the SEED.
+//
+// So comparing every member to the seed made the test stricter the longer the run got, and a
+// list could never be longer than the distance over which its own styling stayed still. On
+// this corpus that capped it at four rows of nine, which is why entry reading measured zero.
+//
+// Comparing neighbours is also what a list IS: each row looks like the row above it. The seed
+// keeps one veto, on HEIGHT, because height is what makes a row a row and an unchecked chain of
+// neighbourly comparisons would be free to walk from a menu entry to a panel.
+//
+// # Two variants were tried here and are not here
+//
+// SKIPPING AN EMPTY BEAT, so an unreadable row would not end the run. It is the obvious
+// companion to the above and it made things worse, measurably: with up to two consecutive
+// beats skippable, a nine-member progression formed across the ENTIRE frame on the menu's own
+// pitch, picking up an unrelated box every second or third beat, and it beat the menu's six on
+// size. The menu's rows were then consumed by it. Without skipping, the same frame's largest
+// run IS the menu. A looser matcher in a field of two hundred proposals finds more
+// coincidences than structure.
+//
+// BOUNDING THE PITCH against the members' own height — "rows of a list are adjacent" — to
+// exclude those coincidences instead. On the real menu the ratio is 1.07 and the coincidences
+// ran from 2.1 to 34.9, so it separates them cleanly there. It also broke every drawn fixture:
+// a proposal is often the TEXT LINE inside a row rather than the row, and text is much shorter
+// than its row, so a legitimate list of text lines has a ratio of three or four. Discovery on
+// the desktop fixture went from six rows to none. The ratio is a fact about what perception
+// proposed, not about the list.
+func run(boxes []image.Rectangle, taken map[int]bool, i, j int, pitch float64) []int {
+	members := []int{i}
+	prev := i
+	want := centreY(boxes[i]) + pitch
+	for k := j; k < len(boxes); k++ {
+		if taken[k] {
+			continue
+		}
+		if math.Abs(centreY(boxes[k])-want) > pitchTolerance*pitch {
+			continue
+		}
+		if !alike(boxes[prev], boxes[k]) {
+			continue
+		}
+		// THE SEED'S ONE VETO. A chain of neighbours must not drift in scale.
+		if relDiff(float64(boxes[i].Dy()), float64(boxes[k].Dy())) > stackTolerance {
+			continue
+		}
+		members = append(members, k)
+		prev = k
+		want += pitch
+	}
+	return members
 }
 
 func stackPitch(boxes []image.Rectangle, members []int) float64 {
@@ -181,6 +231,13 @@ func alike(a, b image.Rectangle) bool {
 
 // centreX is a rectangle's horizontal midpoint.
 func centreX(r image.Rectangle) float64 { return float64(r.Min.X+r.Max.X) / 2 }
+
+// Dedupe is dedupe, for the replay's grouping diagnostic.
+//
+// Exported rather than reimplemented: the question the diagnostic asks is what the grouping was
+// GIVEN, and a second copy of this filter would eventually answer a different question. See
+// observe.BoxesForLook, which exists for the same reason one layer out.
+func Dedupe(boxes []image.Rectangle) []image.Rectangle { return dedupe(boxes) }
 
 // dedupe drops regions that substantially repeat one already kept.
 //

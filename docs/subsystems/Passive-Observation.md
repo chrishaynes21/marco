@@ -387,6 +387,12 @@ it refuses those looks. Visible is fine; in front is not.
   labels a transfer the shading already proved, is given as a count with no direction so it
   cannot predict the outcome it is correlated with, and two lists that both answer stay
   ambiguous
+- [[ADR-159-a-move-of-the-mark-is-a-transition-too]] — a screen transition is two whole
+  compositions, and navigating a menu changes neither, so the thing a menu mostly does left
+  nothing behind. A move of the mark between two entries of a grounded list is now retained and
+  reported as its own hypothesis kind, with the observed change, the attributed input and the
+  unclaimed causation in three different places; the screen is provenance rather than identity,
+  because the pixels discovery path segments none
 - [[ADR-157-vision-needs-a-cue-that-is-not-a-model]] — every piece of geometry in Marco came
   from one learned detector in a plugin the default build leaves inert, so grouping and
   selection could see only what it proposed. Replaying a real session measured the cost: the
@@ -510,22 +516,65 @@ it refuses those looks. Visible is fine; in front is not.
   `TestAMarkThatDwellsIsStillRefusedAsShared`, which asserts the defect so a future repair has
   to confront the cost.
 - ~~An input's attribution window is counted in observations, which is not the same thing at two
-  cadences.~~ **Fixed 2026-10-10**, [[ADR-158-the-active-list-is-the-one-that-responds]]. It is
-  `observe.MaxResponseLatency`, a duration, in one named place: the attributable interval is the
-  gap since the last look OR 400ms, whichever is longer. Carried as a decaying debt rather than a
-  timestamp comparison, because a look's absolute time and an `InputEvent`'s producer-relative
-  `AtMS` must never be joined. The replay's special case is gone.
+  cadences.~~ **Fixed 2026-10-10**, [[ADR-158-the-active-list-is-the-one-that-responds]], and
+  **corrected twice on 2026-10-11** in that ADR's addendum. It is `observe.MaxResponseLatency`,
+  a duration, in one named place. Three things were wrong after the first fix: the replay kept a
+  400ms lookback of its OWN, which compounded with the watch's debt to about 800ms and is what
+  made the corpus resolve at all; the window was the interval OR the bound rather than the
+  interval AND the repaint, which set to the interval alone expires at the exact instant the
+  next look is taken (0 of 26 transfers attributed on a fixture where every one was the look
+  after a press); and navigation was only read on a look the detector took, so live, where three
+  slots in four bring no look, most presses never opened the window at all.
+- **A move is attributed when the reader CONFIRMS it, which is a look or two after it happened.**
+  The selection reader refuses a row it has seen once, so the mark arriving and the mark being
+  readable are different looks. Measured at a 2s cadence: **seventeen moves retained, one
+  attributed.** No defensible window reaches that far, and widening one until it did would be
+  metric-chasing. The fix is to carry the look at which the change was first SEEN out of the
+  reader, which is a change to its interface. **This is the first thing to check in a supervised
+  live session**, because at a live cadence it is the difference between graph evidence and none.
+- **Responding was compared as a TALLY and is now compared as a share.** A list that moves on its
+  own schedule collects attributed moves in proportion to how often it moves — with presses
+  spread through a session, the fraction of any list's moves landing inside a window is roughly
+  the fraction of the session the windows cover. On the real corpus the menu answered 3 of its 7
+  moves and an unrelated list 5 of its 31; the tally rule picked the second. Corrected, with the
+  arithmetic, in ADR-158's addendum.
+- **The selection reading was scored against the wrong rectangle for two experiments, and the
+  real figure is a quarter of what was reported.** `nearHeight` asks whether a believed region
+  sits at a labelled row's height, and was handed the identified LIST's envelope rather than the
+  named ENTRY's region. The list on the Trackmania corpus spans three quarters of the screen, so
+  every labelled row was inside it; the tolerance was also three row-heights wide. Reported: 154
+  of 155 (99%). Scored against the named entry at half the labelled pitch: **43 of 189 (23%)**.
+  No aggregate could have caught it — `discovery 829/829` and `grouping 864/864` were both true
+  throughout, because the first counts proposals covering the row and the second counts frames
+  producing a stack, and neither says the stack is the menu. `cmd/perceptionreplay -inspect
+  <frame>` exists now for exactly that question. Full account in
+  [[Experiment-026-the-same-menu-seen-from-pixels]]'s correction.
+- **The menu groups as six of its nine entries, and the ordinal is still never right.** Two
+  defects in `stack` are fixed — every candidate member was compared to the SEED, which on a
+  slanted panel makes the test stricter the longer the run grows, and a drawn fixture's
+  equal-width rows hide it because `alike` returns on similar widths before reaching the
+  alignment test. A third, in `InterfaceBelief.Selected`, is fixed too: it is documented as the
+  entry "counted from the top" and was an index into grouping's emission order, which appends
+  strays last. What remains is that the list the belief reads is still not the menu often enough
+  to name an entry correctly, and 138 frames reading a nine-entry list name the right ordinal on
+  none of them.
 - **Structure from pixels is not in the live path.** [[ADR-157-vision-needs-a-cue-that-is-not-a-model]]
   measures 92% row discovery on 20 drawn screens with no model and no accessibility, and a
   session cannot use any of it: the frame lives inside the vision provider, which is a plugin,
   so the engine has no pixels at sample time. Giving it some is its own change, with its own
   provenance and privacy questions.
-- **No recording carries pixels.** The replay in `cmd/perceptionreplay` reads L1 — the
-  detector's own output — which is enough to exercise grouping, tracking, the reader and the
-  belief. It cannot test a change to the detector, to admission, or to how shading is measured,
-  because those stages PRODUCED L1. Those need L0: frames, inputs and window identity, recorded
-  during a supervised session. Until that exists, every change upstream of L1 is measurable only
-  against drawn fixtures.
+- ~~No recording carries pixels.~~ **Resolved**: `cmd/perceptionreplay -frames` reads L0 — a
+  `capture-game-session` recording's PNGs, its inputs on the same measured clock, and its window
+  identity — through `structure.Propose` and `ShadowTotals.Observe`, which is the call the live
+  cycle makes. What it still cannot establish is anything about the live application: a replay
+  measures how well Marco interprets a recording.
+- **A session on the pixels discovery path segments no screens.** `StructuralView.Regions` comes
+  from named detections and the structure proposer names nothing, so on the default discovery
+  path the screen model is one vacuous state that any composition with no named roles matches.
+  Selection moves are therefore grounded in the LIST that was independently seen to respond, with
+  the screen honestly unknown — see [[ADR-159-a-move-of-the-mark-is-a-transition-too]]. Giving
+  segmentation an unnamed-geometry cue would reach cross-session identity and durable memory, so
+  it is its own decision rather than a widening.
 - **A mark that never moves cannot be seen at all.** A member's baseline is built only from
   frames in which it was not marked, so a permanently lit row never establishes one and is
   skipped from the judgement. Correct for the rule's purpose and surprising enough to have

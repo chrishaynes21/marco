@@ -606,35 +606,87 @@ func (t *Tracker) active() (int, string) {
 // Abstains in every case where the evidence is not decisive, and the cases are named rather
 // than collapsed into one silence, because they call for different responses: nobody pressed
 // anything, nobody's presses landed anywhere, or two lists both answered.
+//
+// # Why the comparison is a SHARE and not a count
+//
+// Because a count systematically favours whichever list moves most, and it does so by
+// coincidence rather than by evidence. A list whose mark moves on its own schedule collects
+// attributed moves in proportion to how often it moves: with presses spread over a session,
+// the share of any list's moves that happen to land inside a response window is roughly the
+// share of the session the windows cover, whatever that list is doing.
+//
+// Measured on 864 frames of a real pause menu, with the response window applied once at its
+// stated bound:
+//
+//	the menu      3 of its 7 moves attributed   43%
+//	the panel     5 of its 31 moves attributed  16%   <-- wins on COUNT
+//
+// 31 presses over 57 seconds and a 400ms window cover about 22% of the session, so the panel's
+// 16% is at or below what coincidence alone produces and the menu's 43% is twice it. The count
+// rule picked the panel. The share rule picks the menu, and it does so for a reason that holds
+// at any session length rather than on this recording.
+//
+// The minimum count stays, and has to: a list with one move and one attribution has a share of
+// 100% and has been seen responding once.
 func (t *Tracker) responding(passing []int) (int, string) {
-	best, second, bestAt := 0, 0, -1
+	// THE MOST RESPONSIVE AND THE NEXT MOST, by share, carrying both terms so the margin
+	// can be compared without floating point.
+	bestAt, secondAt := -1, -1
 	for _, i := range passing {
-		n := t.cands[i].prompted
+		if t.cands[i].prompted < MinTransfers {
+			continue
+		}
 		switch {
-		case n > best:
-			best, second, bestAt = n, best, i
-		case n > second:
-			second = n
+		case bestAt < 0 || t.moreResponsive(i, bestAt):
+			bestAt, secondAt = i, bestAt
+		case secondAt < 0 || t.moreResponsive(i, secondAt):
+			secondAt = i
 		}
 	}
-	switch {
-	case best < MinTransfers:
+	if bestAt < 0 {
 		// Nothing was attributable. Either no navigation was observed at all — a
 		// session with no input source, or a person who pressed nothing — or the
 		// presses never coincided with a mark moving anywhere.
 		return -1, ""
-	case best < NavMargin*second || (second > 0 && best == second):
+	}
+	second, secondOf := 0, 0
+	if secondAt >= 0 {
+		second, secondOf = t.cands[secondAt].prompted, t.cands[secondAt].moves
+	}
+	c := t.cands[bestAt]
+	// THE MARGIN, as a cross-multiplied comparison of two shares. NavMargin times as
+	// responsive, not NavMargin times as many attributions.
+	if secondAt >= 0 && c.prompted*secondOf < NavMargin*second*c.moves {
 		// More than one list answered. This is the case that must stay ambiguous: it
 		// is exactly when picking would be guessing.
 		return -1, ""
 	}
-	c := t.cands[bestAt]
 	return bestAt, fmt.Sprintf("one of %d qualifying lists responds to navigation: "+
-		"%d of its %d transfers followed an observed input, against %d for the next "+
-		"(%s)", len(passing), c.prompted, c.moves, second,
+		"%d of its %d transfers followed an observed input, against %d of %d for the "+
+		"next (%s)", len(passing), c.prompted, c.moves, second, secondOf,
 		Evidence{Rows: len(c.rows), Frames: c.seen, Exclusive: c.excl,
 			Shared: c.shared, Quiet: c.quiet, Unreadable: c.unreadable,
 			Transfers: c.moves, Holders: len(c.holders)}.String())
+}
+
+// moreResponsive reports whether candidate i answered navigation a larger SHARE of the times
+// its mark moved than candidate j did.
+//
+// Cross-multiplied rather than divided: these are small integers and a float comparison here
+// would make the answer depend on rounding at exactly the margin where the rule abstains. Ties
+// on share are broken by the larger number of attributions, so a list seen responding ten
+// times out of twenty beats one seen responding once out of two — more evidence for the same
+// share is more evidence.
+func (t *Tracker) moreResponsive(i, j int) bool {
+	a, b := t.cands[i], t.cands[j]
+	if a.moves <= 0 || b.moves <= 0 {
+		return a.prompted > b.prompted
+	}
+	left, right := a.prompted*b.moves, b.prompted*a.moves
+	if left != right {
+		return left > right
+	}
+	return a.prompted > b.prompted
 }
 
 // IdentifiedAt is the observation on which a single list first qualified, or -1.

@@ -69,6 +69,16 @@ const (
 	// PossibleSelectionSequence is an ordered run, such as two moves and a confirm, that
 	// preceded a change.
 	PossibleSelectionSequence HypothesisKind = "possible_selection_sequence"
+	// PossibleSelectionTransition is the mark observed moving between two entries of one
+	// list, with navigation observed before it.
+	//
+	// The smallest useful thing a menu does, and the one every kind above it misses. A
+	// screen transition is keyed on two whole compositions, and moving a highlight changes
+	// neither of them — so a person walking down a menu produced nothing any of these could
+	// describe. This is deliberately NOT a screen transition and must never be read as one:
+	// moving a mark is not opening anything, which is the distinction [[ADR-159]] exists to
+	// keep.
+	PossibleSelectionTransition HypothesisKind = "possible_selection_transition"
 )
 
 // SubjectKind says what a hypothesis is about.
@@ -87,7 +97,32 @@ const (
 	//
 	// It carries no provider handle. See [[ADR-068-the-theater-is-the-durable-semantic-world]].
 	SubjectTarget SubjectKind = "target"
+	// SubjectSelection is a move of the mark WITHIN one list, from one entry to another.
+	//
+	// Its own kind rather than a state_transition with extra fields, because the two make
+	// different claims and a reader must not be able to mistake one for the other. A state
+	// transition says one screen became another. This says the screen did NOT change and
+	// something inside it did — which is why `Ref` and `To` are the SAME screen here, and
+	// why the entries live in [Subject.Selection] rather than in those two fields.
+	SubjectSelection SubjectKind = "selection"
 )
+
+// SelectionSubject is which entries of which list a selection subject concerns.
+//
+// Indices and a count, and deliberately nothing else. Entry 3 is the third row from the top;
+// it is not "Training", not a label, not a target, and not anything a route could name. A
+// later layer may learn that a row with a certain name sits at index 3 on a certain screen,
+// and this one would be wrong to pretend it already had.
+type SelectionSubject struct {
+	// From and To are the entry indices either side of the move, counted from the top.
+	From int `json:"from_entry"`
+	To   int `json:"to_entry"`
+	// Entries is how many entries the list was seen to have. Part of the identity: "entry
+	// 3" means nothing except against a stable count of them.
+	Entries int `json:"entries"`
+	// FromUnnamed is how many of those entries were geometry nobody could name.
+	FromUnnamed int `json:"entries_from_unnamed_geometry,omitempty"`
+}
 
 // Subject is the thing a hypothesis concerns.
 //
@@ -111,6 +146,9 @@ type Subject struct {
 	To string `json:"session_ref_to,omitempty"`
 	// Fingerprint describes the subject generically.
 	Fingerprint Fingerprint `json:"fingerprint"`
+	// Selection is which entries of which list a SubjectSelection concerns, and nil for
+	// every other kind.
+	Selection *SelectionSubject `json:"selection,omitempty"`
 }
 
 // Fingerprint describes a subject without naming it or its session.
@@ -349,6 +387,8 @@ func Hypotheses(t ShadowTotals, th HypothesisThresholds) []Hypothesis {
 	out = append(out, transitionActions(t, th)...)
 	out = append(out, reversiblePlaces(t, th)...)
 	out = append(out, selectionSequences(t, th)...)
+	// Deleting this must fail TestAMoveOfTheMarkBecomesAHypothesis.
+	out = append(out, selectionMoves(t, th)...)
 
 	sort.SliceStable(out, func(i, j int) bool {
 		if rank(out[i].Status) != rank(out[j].Status) {
@@ -954,6 +994,129 @@ func selectionSequences(t ShadowTotals, th HypothesisThresholds) []Hypothesis {
 		}
 	}
 	return out
+}
+
+// selectionMoves reports the mark observed moving between two entries of one list.
+//
+// # The three claims, kept apart and in this order
+//
+// This is the generator where collapsing them would be easiest and worst, so each lands in a
+// different place in the output:
+//
+//	THE OBSERVED CHANGE    Observed and the structural support. The mark was on entry 2 and
+//	                       then on entry 3, measured in the pixels by the exclusivity rule
+//	                       with no input consulted.
+//	THE ATTRIBUTED INPUT   the navigation support. A directional intent was observed within
+//	                       MaxResponseLatency before the move was SEEN. Temporal association.
+//	THE CONFIRMED EFFECT   Validation, which is a sentence about what a PERSON could do. It
+//	                       is not claimed, not counted, and has no field.
+//
+// # Why an unattributed move contests rather than being quietly dropped
+//
+// Because it is the control evidence, exactly as `Unattributed` is for a screen transition,
+// and it has two readings that call for opposite responses: the mark moved on its own, or the
+// cadence was too coarse to attribute the press that moved it. Both are stated in the
+// contradiction rather than resolved here, because this layer cannot tell them apart and a
+// generator that picked one would be guessing in the direction that flatters it.
+//
+// The consequence is that most real moves are `contested`, and that is the honest reading of
+// evidence this thin. A clean `supported` here means every observation of that one move had a
+// press attributable to it.
+func selectionMoves(t ShadowTotals, th HypothesisThresholds) []Hypothesis {
+	var out []Hypothesis
+	for _, st := range t.SelectionTransitions {
+		if st.Count < th.MinNavigationObservations {
+			continue
+		}
+		// A move nobody could ever attribute is not evidence about navigation at all.
+		// Reporting it as a navigation hypothesis with zero support would fill the
+		// record with the behaviour of animated panels.
+		if st.Prompted < 1 {
+			continue
+		}
+		where := string(st.State)
+		if where == "" {
+			where = "a screen the session could not place"
+		}
+		support := []Evidence{{
+			Source: FromStructure, Support: st.Count,
+			Statement: fmt.Sprintf("the mark was seen on entry %d and then on entry %d of "+
+				"a %d-entry list, %d time(s), measured in the shading with no input "+
+				"consulted", st.From, st.To, st.Entries, st.Count),
+		}, {
+			Source: FromNavigation, Support: st.Prompted, Of: st.Count,
+			Statement: fmt.Sprintf("a directional press was observed within %s of %d of "+
+				"those %d moves being seen", MaxResponseLatency, st.Prompted, st.Count),
+		}}
+		if st.FromUnnamed > 0 {
+			// THE WARNING ADR-157 ATTACHED TO THE SHAPES CHANNEL, carried this far. A
+			// mark moving between two unnamed rectangles reads exactly like a mark
+			// moving between two named controls, and the claim is weaker.
+			support = append(support, Evidence{
+				Source: FromStructure, Support: st.FromUnnamed, Of: st.Entries,
+				Statement: fmt.Sprintf("%d of the list's %d entries are geometry nobody "+
+					"could name", st.FromUnnamed, st.Entries),
+			})
+		}
+
+		var contra []Evidence
+		if st.Unprompted > 0 {
+			contra = append(contra, Evidence{
+				Source: FromNavigation, Support: st.Unprompted, Of: st.Count,
+				Statement: fmt.Sprintf("the same move was seen %d time(s) with no press "+
+					"attributable to it. That is evidence against a press being what "+
+					"moved the mark, and it is also what a sampling cadence too coarse "+
+					"to attribute one looks like; nothing here can tell the two apart",
+					st.Unprompted),
+			})
+		}
+		if st.State == "" {
+			contra = append(contra, Evidence{
+				Source: FromStructure,
+				Statement: "the screen this list was on could not be placed, so the move " +
+					"is not attached to anywhere a route could start from",
+			})
+		}
+
+		out = append(out, Hypothesis{
+			Kind: PossibleSelectionTransition,
+			Subject: Subject{
+				// THE SAME REFERENCE BOTH SIDES, because the screen did not change.
+				// That is the whole difference between this and a state transition,
+				// and a reader has to be able to see it without reading the Kind.
+				Kind: SubjectSelection, Ref: string(st.State), To: string(st.State),
+				Fingerprint: Fingerprint{
+					Envelope: regionPtr(st.Where), Members: st.Entries,
+					Recurrence: st.Count,
+				},
+				Selection: &SelectionSubject{
+					From: st.From, To: st.To, Entries: st.Entries,
+					FromUnnamed: st.FromUnnamed,
+				},
+			},
+			Episodes:     st.Count,
+			Unattributed: st.Unprompted,
+			Observed: fmt.Sprintf("on %s, the mark moved from entry %d to entry %d of a "+
+				"%d-entry list %d time(s); %d of those followed a directional press",
+				where, st.From, st.To, st.Entries, st.Count, st.Prompted),
+			Support: support, Contradictions: contra,
+			Status: classify(st.Count, support, contra, th),
+			Validation: fmt.Sprintf("from entry %d on that screen, press the direction "+
+				"that should reach entry %d and check the mark arrives there. Nothing "+
+				"observed so far establishes that it would", st.From, st.To),
+		})
+	}
+	return out
+}
+
+// regionPtr is the envelope a fingerprint carries, which is a pointer so that "no envelope"
+// and "an envelope at the origin" are different answers.
+func regionPtr(r Region) *Region {
+	if r == (Region{}) {
+		return nil
+	}
+	copied := r
+	return &copied
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────

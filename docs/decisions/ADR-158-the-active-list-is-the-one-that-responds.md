@@ -147,3 +147,102 @@ navigation was reaching, which is the thing that had to be known first.
 - `TestTheRealMenuCorpusStillReadsAsAMenu` (`cmd/perceptionreplay`) — the measurement above on
   the real recording, skipped when the private frames are absent.
 - Mutation-gated 8/8 across the rule and its wiring.
+
+---
+
+## Addendum, 2026-10-11 — the margin, the window, and what the rule actually compares
+
+Three corrections, and the first undoes the result reported above.
+
+### 1. The resolution of this corpus rested on the window being applied twice
+
+The replay kept a 400ms lookback of its own, marking every frame within 400ms of a press as
+carrying navigation. Each of those frames then RESET the watch's debt to another 400ms, so the
+effective window ran to about 800ms after the press. That was never the rule; it was two copies
+of one rule compounding, which is this repository's recorded worst failure mode.
+
+The inputs are now handed to `ShadowTotals` as the `InputEvent`s they are, on the slot they
+happened during, and the window is applied once. The replay owns no response window at all.
+
+Applied once, this corpus is **ambiguous**:
+
+| | menu | the other list |
+| --- | --- | --- |
+| transfers seen | 7 | 31 |
+| attributed | 3 | 5 |
+
+So the sentence above — "the rule resolves this corpus; it is not established as robust" — was
+too generous. It did not resolve this corpus either.
+
+### 2. Responding is a SHARE, not a tally
+
+The comparison above picked the list with more attributed transfers, and that systematically
+rewards whichever list moves most — by coincidence rather than by evidence. With presses spread
+through a session, the fraction of any list's moves that happen to land inside a response window
+is roughly the fraction of the session the windows cover, whatever that list is doing.
+
+31 presses over 57 seconds and a 400ms window cover about 22% of this recording. So:
+
+	the menu      3 of its 7 moves attributed    43%   — twice coincidence
+	the other     5 of its 31 moves attributed   16%   — at or below it
+
+The tally rule picked the second. It is now a cross-multiplied comparison of shares, with
+`MinTransfers` kept as a floor so that one move out of one cannot win on 100%, and `NavMargin`
+unchanged at a factor of two. The share rule picks the menu, and does so for a reason that holds
+at any session length rather than on this recording.
+
+### 3. The window is the interval AND the repaint, not whichever is larger
+
+This ADR says the attributable interval is "the gap since the last look OR the latency bound,
+whichever is longer" and gives the right reason. The code only ever set the bound, which at the
+recording's own 66ms is invisible — 400ms spans six looks either way — and at a live cadence is
+the whole thing.
+
+Both halves are needed and they are CONSECUTIVE rather than alternative. The press happened
+somewhere inside the interval the look covers, and the screen then takes up to the repaint time
+to show it, so the response may become visible as late as one whole interval plus one repaint
+after the window opened. Set to the interval alone it expires at the exact instant the next look
+is taken: on a fixture where every transfer was the look after a press, **0 of 26 were
+attributed**. With the interval plus the repaint, 26 of 26.
+
+Bounded above by `TrackStaleness`, reusing the existing answer to how old an observation may be
+and still describe the same arrangement rather than inventing a second number. Past it, "something
+was pressed during the last minute and the mark is now elsewhere" is a coincidence with a long
+name.
+
+### And navigation now reaches the window on a slot the detector sat out
+
+`InterfaceLook.Navs` is only read on a look that was OBSERVED. Live, an inference starts about
+every two seconds against a session sampling twice a second, so three slots in four bring no look
+at all — and a press made during one of those never opened the window, while the fast reads taken
+during that same slot are exactly the ones that saw the mark move. `InterfaceWatch.Navigated` is
+called on every slot that carried input and was not taken behind another window.
+
+### What is still not attributed, and why
+
+A move is recorded when the selection reader CONFIRMS a new row, and it refuses a row it has seen
+once — so a move is confirmed a look or two after the mark arrived. Measured at a 2s cadence:
+**seventeen moves retained, one of them attributed.** No defensible window reaches that far, and
+widening one until it did would be exactly the kind of metric-chasing this ADR exists to avoid.
+
+The fix is to carry the look at which the change was first SEEN out of the reader, which is a
+change to the reader's interface and is not made here. It is the first thing to check in a
+supervised live session, because at a live cadence it is the difference between graph evidence
+and none.
+
+## Enforced by (addendum)
+
+- `TestTheMostResponsiveListWinsNotTheBusiest` (`selection`) — the share rule, on a fixture
+  where the busy list WOULD win on a tally, with that precondition asserted so the test cannot
+  pass by the fixture drifting.
+- `TestTwoEquallyResponsiveListsStayAmbiguous` — the case that must not be resolved, preserved
+  across the change, and asserted on the ABSTENTION REASON so it cannot pass by nothing having
+  been seen.
+- `TestAPressStaysAttributableAcrossACoarseCadence` (`observe`) — the window, measured on the
+  CANDIDATE's attribution, which is where it does its work.
+- `TestAPressIsNotAttributableAcrossAnUnboundedGap` — the upper bound, with a control assertion
+  so it cannot pass against a window of zero.
+- `TestALongListWhoseStyleDriftsIsStillOneList` and
+  `TestAChainOfNeighboursCannotDriftIntoADifferentScale` (`selection`) — the grouping repair that
+  made any of this reach a real menu, and the veto that stops a chain of neighbours walking from
+  a row to a panel.

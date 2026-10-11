@@ -308,9 +308,28 @@ type ShadowTotals struct {
 	// telling them apart meant regrouping the run's geometry afterwards with a script that
 	// was not the production rule. These are the production rule's own counters.
 	Candidates []InterfaceCandidate `json:"interface_candidates,omitempty"`
+	// SelectionTransitions is every move the mark was seen making between two entries of
+	// one list, grounded in the screen it happened on where the session could place one.
+	//
+	// The smaller half of the graph, and the half a menu mostly produces: a screen
+	// transition is two whole compositions, and navigating a menu changes neither of them
+	// until the moment somebody activates an entry. See [SelectionTransition].
+	SelectionTransitions []SelectionTransition `json:"selection_transitions,omitempty"`
+	// SelectionMovesUnplaced is how many of those were recorded with no screen state, and
+	// SelectionMovesDropped how many never reached the ledger at all.
+	//
+	// Reported rather than subtracted, for the reason Behind and FrontUnclear are: a table
+	// quietly assembled from a third of the moves, under a heading claiming all of them,
+	// describes a different session than the one that ran.
+	SelectionMovesUnplaced int `json:"selection_moves_unplaced,omitempty"`
+	SelectionMovesDropped  int `json:"selection_moves_dropped,omitempty"`
 	// watch carries the belief between looks. Unexported: a reader of a session gets the
 	// answer, never the machinery that produced it.
 	watch *InterfaceWatch
+	// selection accumulates the grounded moves, and movesDropped what the watch's own
+	// bound refused before they reached it. Unexported for the reason watch is.
+	selection    selectionLedger
+	movesDropped int
 
 	Opportunities int `json:"opportunities"`
 	Inferences    int `json:"inferences"`
@@ -525,6 +544,24 @@ func (t *ShadowTotals) Observe(sample Sample) {
 	// how many entries it has. See InterfaceWatch.Track.
 	//
 	// Deleting this must fail TestAFastReadMovesTheMarkInsideAKnownList.
+	// WHAT THE PERSON DID DURING THIS SLOT, whether or not the detector took its look, and
+	// BEFORE the fast reads that slot's navigation may explain.
+	//
+	// Both halves of that matter and both were wrong before this. `interfaceLookFrom` reads
+	// navigation only on a look that was OBSERVED, so live — where an inference starts about
+	// every two seconds against a session sampling twice a second — a press made during one
+	// of the three slots in four that bring no look never opened the attribution window at
+	// all. And the fast reads for an interval are folded first, so opening the window only on
+	// this cycle's own look would leave the reads that actually SAW the mark move judged
+	// against a window that had not opened yet.
+	//
+	// Not from a look behind another window: those presses are about that window, and the
+	// pixels are already refused for the same reason.
+	//
+	// Deleting this must fail TestAPressDuringASkippedSlotStillAttributesTheMoveItExplains.
+	if sample.Shadow != nil && sample.Shadow.Front != FrontOther {
+		t.watch.Navigated(sample.Timestamp, directionalIntents(sample.Shadow.Inputs))
+	}
 	if sample.Shadow != nil {
 		for _, look := range sample.Shadow.Track {
 			t.watch.Track(look)
@@ -536,6 +573,17 @@ func (t *ShadowTotals) Observe(sample Sample) {
 	t.Tracking = t.watch.Tracking()
 	// Deleting this must fail TestTheSessionSaysWhyEachCandidateWasRefused.
 	t.Candidates = t.watch.Candidates()
+	// THE MOVES THE MARK MADE, grounded in the screen the session was on WHILE THEY WERE
+	// SEEN — which is the state published at the end of the previous cycle and not the one
+	// this cycle is about to settle on. A move seen on the way out of a menu belongs to the
+	// menu.
+	//
+	// Above the shadow fold for the reason the input account is above the cadence gate: the
+	// moves are a fact about the looks that were taken, and a session with no detector
+	// record still took them.
+	//
+	// Deleting this must fail TestTheSessionRetainsTheMovesTheMarkMade.
+	t.groundSelectionMoves()
 	if sample.Shadow != nil {
 		t.add(*sample.Shadow, structure)
 		return
@@ -551,6 +599,48 @@ func (t *ShadowTotals) Observe(sample Sample) {
 	t.publishScreenModel()
 	t.EvictedStates = t.tracker.states.EvictedStates
 	t.EvictedAssociations = t.tracker.EvictedAssociations
+}
+
+// groundSelectionMoves drains the watch's moves and attributes each to a screen.
+//
+// # Which screen, and why it is the one from before the fold
+//
+// The moves were seen during the interval these looks cover, so the screen they happened on is
+// the one the session had settled on at the END OF THE PREVIOUS CYCLE. The state this cycle is
+// about to confirm is where the session is going, not where the mark was.
+//
+// # Why a pending change unplaces them
+//
+// Because during one, which screen is in front is precisely what the session cannot say. The
+// change gate takes StabilityLooks observations to confirm, and throughout them the current
+// state is still the old one while the looks are being placed somewhere else. Crediting the
+// mark's movement to the screen being left would attach a menu's rows to the screen it opened
+// onto, confidently and durably.
+//
+// Unplaced is not dropped. The move was observed, the list it happened in was independently
+// established, and only the screen is unknown — which is [[ADR-006-unknown-is-not-false]] at
+// the one point where a graph is tempted to throw a measurement away for want of a label.
+func (t *ShadowTotals) groundSelectionMoves() {
+	if t.watch == nil {
+		return
+	}
+	moves, dropped := t.watch.TakeSelectionMoves()
+	t.movesDropped += dropped
+	if len(moves) == 0 && dropped == 0 {
+		return
+	}
+	state := t.CurrentState
+	if t.Changing != "" {
+		state = ""
+	}
+	for _, m := range moves {
+		t.selection.fold(state, m)
+	}
+	t.SelectionTransitions = t.selection.publish()
+	t.SelectionMovesUnplaced = t.selection.unplaced
+	// Assigned, never accumulated: the ledger's own eviction count is cumulative, and
+	// adding it again on every look would turn one refused move into one per cycle.
+	t.SelectionMovesDropped = t.movesDropped + t.selection.evicted
 }
 
 // interfaceLookFrom says what this sample gave the interface watch a chance to see.
