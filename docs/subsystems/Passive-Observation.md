@@ -496,13 +496,25 @@ it refuses those looks. Visible is fine; in front is not.
   while still in front is not detected, because being in front is all the platform is asked.
   Not-in-front is the condition under which the pixels **can** be somebody else's; it is not
   proof of occlusion, and occlusion without a focus change remains invisible here.
-- **An input's attribution window is counted in observations, which is not the same thing at
-  two cadences.** `NavWindow` is 2 observations: 132ms on a 66ms recording and 4.6s on a live
-  cycle, against a menu repaint that takes a fixed couple of hundred milliseconds whatever the
-  rate. The replay compensates with a physical 400ms lookback and production does not need one,
-  because a cycle drains the inputs that happened during it — but the constant is a statement
-  about cadence pretending to be a statement about observations, and a future fast path will
-  meet it again.
+- **A mark that DWELLS on one row breaks exclusivity, and the obvious repair is worse.** On a
+  frame where exclusivity was not established, the baseline rule teaches every present member
+  that its current look is its unselected level — including the member that was selected. On a
+  synthetic five-row list, exclusivity collapses somewhere between a dwell of 6 and 8
+  observations: at dwell 10 it reports 0 exclusive frames, 198 shared and no transfers at all.
+  Declining to teach the frame's most conspicuous member repaired that completely and cost 88%
+  of the selection reads on 864 real frames (155 frames naming an entry fell to 19, identified
+  after slipped from look 28 to 294); narrowing it to members with no baseline did not recover
+  them. It needs a discriminator that is not frame-local brightness. **Varying the rows'
+  brightness does NOT avoid it** — that was the guess and the measurement disproved it — so why
+  the real corpus does not exhibit it is not yet understood. Recorded by
+  `TestAMarkThatDwellsIsStillRefusedAsShared`, which asserts the defect so a future repair has
+  to confront the cost.
+- ~~An input's attribution window is counted in observations, which is not the same thing at two
+  cadences.~~ **Fixed 2026-10-10**, [[ADR-158-the-active-list-is-the-one-that-responds]]. It is
+  `observe.MaxResponseLatency`, a duration, in one named place: the attributable interval is the
+  gap since the last look OR 400ms, whichever is longer. Carried as a decaying debt rather than a
+  timestamp comparison, because a look's absolute time and an `InputEvent`'s producer-relative
+  `AtMS` must never be joined. The replay's special case is gone.
 - **Structure from pixels is not in the live path.** [[ADR-157-vision-needs-a-cue-that-is-not-a-model]]
   measures 92% row discovery on 20 drawn screens with no model and no accessibility, and a
   session cannot use any of it: the frame lives inside the vision provider, which is a plugin,

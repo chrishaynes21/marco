@@ -59,7 +59,7 @@ func shadesWithMark(n, marked int) []selection.Shade {
 // panel does not go away while the menu is used.
 type step struct {
 	markA, markB int // -1 for no mark in that list
-	navs         int
+	navRecent    bool
 }
 
 func feedTwoLists(t *testing.T, steps []step) *selection.Tracker {
@@ -70,7 +70,7 @@ func feedTwoLists(t *testing.T, steps []step) *selection.Tracker {
 		rowsB := listRows(1, 5, 900, 100)
 		shA := shadesWithMark(5, s.markA)
 		shB := shadesWithMark(5, s.markB)
-		tr.ObserveNavigated(append(rowsA, rowsB...), append(shA, shB...), s.navs)
+		tr.ObserveNavigated(append(rowsA, rowsB...), append(shA, shB...), s.navRecent)
 	}
 	return tr
 }
@@ -85,15 +85,15 @@ func walk(n int) []step {
 		// NOT marked, so nothing can be judged until every row has been quiet a few
 		// times. Leaving this out makes every early frame unreadable and the test
 		// measures the warm-up instead of the rule.
-		navs := 0
+		navRecent := false
 		if i >= 8 && i%3 == 0 {
 			a = (a + 1) % 5
-			navs = 1
+			navRecent = true
 		}
 		if i >= 8 && i%4 == 0 {
 			b = (b + 1) % 5
 		}
-		out = append(out, step{markA: a, markB: b, navs: navs})
+		out = append(out, step{markA: a, markB: b, navRecent: navRecent})
 	}
 	return out
 }
@@ -149,13 +149,13 @@ func TestTwoListsThatBothRespondStayAmbiguous(t *testing.T) {
 	var steps []step
 	a, b := 0, 0
 	for i := range 60 {
-		navs := 0
+		navRecent := false
 		if i >= 8 && i%3 == 0 {
 			a = (a + 1) % 5
 			b = (b + 1) % 5
-			navs = 1
+			navRecent = true
 		}
-		steps = append(steps, step{markA: a, markB: b, navs: navs})
+		steps = append(steps, step{markA: a, markB: b, navRecent: navRecent})
 	}
 	tr := feedTwoLists(t, steps)
 
@@ -184,7 +184,7 @@ func TestTwoListsThatBothRespondStayAmbiguous(t *testing.T) {
 func TestWithNoInputObservedTwoListsStayAmbiguous(t *testing.T) {
 	steps := walk(60)
 	for i := range steps {
-		steps[i].navs = 0
+		steps[i].navRecent = false
 	}
 	tr := feedTwoLists(t, steps)
 
@@ -216,7 +216,7 @@ func TestNavigationAloneNamesNothing(t *testing.T) {
 	// Both lists hold still. The person navigates throughout.
 	var steps []step
 	for range 60 {
-		steps = append(steps, step{markA: 2, markB: 4, navs: 1})
+		steps = append(steps, step{markA: 2, markB: 4, navRecent: true})
 	}
 	tr := feedTwoLists(t, steps)
 
@@ -237,24 +237,27 @@ func TestNavigationAloneNamesNothing(t *testing.T) {
 	}
 }
 
-// A press that lands between two observations is still attributed to the move it caused.
+// The caller's recency judgement is what decides attribution, and nothing else here.
 //
-// NavWindow exists for this: the press and the repaint fall in the same observation or in
-// consecutive ones depending on where the cadence lands, and a window of one observation would
-// miss a real response about half the time.
-func TestAResponseOneObservationLateIsStillAttributed(t *testing.T) {
-	// Input on observation i, mark moves on i+1. Nothing else moves.
+// The tracker used to carry its own decay, counted in observations. The case that justified it —
+// a press on one look whose response appears on the next — is a question about elapsed time, so
+// it moved to the layer that has a clock. What is left to test here is that this package honours
+// the answer it is given, including for a transfer on a look that carries no press of its own.
+//
+// See observe's TestAResponseWithinTheLatencyBoundIsStillAttributed for the decay itself.
+func TestAttributionFollowsTheCallersRecencyJudgement(t *testing.T) {
+	// The mark moves on observations that carry no press, and the caller says the press
+	// is still recent anyway — which is exactly what a 66ms cadence produces.
 	var steps []step
 	a := 0
 	for i := range 60 {
-		navs := 0
-		if i >= 8 && i%4 == 0 {
-			navs = 1
-		}
+		pressed := i >= 8 && i%4 == 0
 		if i >= 9 && i%4 == 1 {
 			a = (a + 1) % 5
 		}
-		steps = append(steps, step{markA: a, markB: 3, navs: navs})
+		// Recent on the press AND on the look after it.
+		recent := pressed || (i >= 9 && i%4 == 1)
+		steps = append(steps, step{markA: a, markB: 3, navRecent: recent})
 	}
 	tr := feedTwoLists(t, steps)
 
@@ -266,9 +269,58 @@ func TestAResponseOneObservationLateIsStillAttributed(t *testing.T) {
 			t.Fatalf("the fixture's mark never moved: %s", e)
 		}
 		if e.Prompted == 0 {
-			t.Errorf("%d transfers, all one observation after a press, and none was "+
-				"attributed: %s. NavWindow is meant to cover exactly this",
-				e.Transfers, e)
+			t.Errorf("%d transfers, every one of them on a look the caller called "+
+				"recent, and none was attributed: %s", e.Transfers, e)
+		}
+	}
+}
+
+// A MARK THAT DWELLS BREAKS EXCLUSIVITY. This records the defect, it does not bless it.
+//
+// On a list of near-identical rows, a mark that stays put for about ten observations poisons
+// its own baseline — the opening frames are unreadable, an unreadable frame teaches every
+// present member that its current look is its unselected level, and the selected row learns its
+// SELECTED level. From then on it reads as marked whenever the mark leaves it, so every later
+// frame has two marked members and is refused as shared.
+//
+// It is asserted here as it IS, not as it should be, for one reason: the obvious repair was
+// implemented, measured, and cost 88% of the selection reads on 864 real frames (155 frames
+// naming an entry fell to 19, identification slipped from look 28 to 294). A future attempt
+// needs to beat that, and will only know to try if the current behaviour is written down.
+//
+// If this test starts FAILING because the numbers improved, that is the good outcome: check the
+// real-frame corpus has not regressed, then raise the expectations here.
+func TestAMarkThatDwellsIsStillRefusedAsShared(t *testing.T) {
+	for _, dwell := range []int{3, 10, 30} {
+		tr := selection.NewTracker()
+		mark := 0
+		for i := range 240 {
+			if i >= 12 && i%dwell == 0 {
+				mark = (mark + 1) % 5
+			}
+			tr.ObserveNavigated(listRows(0, 5, 100, 100), shadesWithMark(5, mark), false)
+		}
+		for _, e := range tr.Evidence() {
+			t.Logf("dwell %-2d: %d exclusive, %d shared, %d quiet, %d transfers",
+				dwell, e.Exclusive, e.Shared, e.Quiet, e.Transfers)
+			if dwell <= 3 {
+				// The case that works: a mark moving every few observations.
+				if e.Exclusive < 200 || e.Transfers < 60 {
+					t.Errorf("dwell %d used to give 218 exclusive frames and 72+ "+
+						"transfers and now gives %d and %d. This is the case that "+
+						"WORKS; losing it is a regression",
+						dwell, e.Exclusive, e.Transfers)
+				}
+				continue
+			}
+			// The case that does not. Recorded, with the repair's cost in the comment.
+			if e.Exclusive > 0 || e.Transfers > 0 {
+				t.Errorf("dwell %d now reports %d exclusive frames and %d transfers "+
+					"where it reported none. If this is a real improvement, re-run "+
+					"the real-frame corpus (155 frames naming an entry, 154 matching, "+
+					"identified after 28) and raise this expectation",
+					dwell, e.Exclusive, e.Transfers)
+			}
 		}
 	}
 }

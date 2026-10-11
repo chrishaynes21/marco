@@ -70,19 +70,28 @@ With no input evidence anywhere the behaviour is exactly what it was before this
 session whose input half is missing must not have its silence read as "nobody navigated, so pick
 either".
 
-### Why the window is counted in observations, and where that was wrong
+### The window is a duration, in one named place
 
-`NavWindow` is 2 **observations**, because a press and the repaint land in the same observation
-or in consecutive ones depending on where the cadence falls, and a window of one would miss a
-real response about half the time.
+`observe.MaxResponseLatency` is 400ms: how long after a press a screen may still be repainting
+it. Beyond that, a mark that moves is moving for its own reasons.
 
-That reasoning does not transfer to the replay, and assuming it did cost a measurement. A menu
-repaints a fixed couple of hundred milliseconds after a press, whatever rate the recorder ran
-at; two observations is 132ms on a 66ms recording and 4.6s on a live cycle. At 132ms the mark
-had not moved yet, and only **4 of the menu's 31 transfers** were credited. So the replay joins
-on a physical 400ms lookback instead, and one press can be recent for several consecutive
-fine-grained frames — which is what a single coarse look would have covered on its own.
-Production needs no such number: a cycle drains the inputs that happened during it.
+It replaced a window counted in OBSERVATIONS, which looked cadence-independent and was the
+opposite — 132ms when frames are 66ms apart and 4.6s when the cycle is 2.3s, against a repaint
+that takes the same couple of hundred milliseconds either way. The short end credited 4 of a real
+menu's 31 transfers; the long end would credit an unrelated list's moves to the person.
+
+The attributable interval is the gap since the last look OR the latency bound, whichever is
+longer, and each covers a case the other cannot. A look's own interval is right when looks are
+far apart: at 2.3s the press and the repaint are both inside one look, and the sample's inputs
+ARE that interval's inputs because the producer drains per cycle. The bound is right when looks
+are close together: at 66ms the response shows up five or six looks later and would otherwise be
+attributed to nothing.
+
+It is carried as a decaying debt rather than a timestamp comparison, because the two clocks here
+must not be mixed: a look carries an absolute time and an `InputEvent` carries milliseconds from
+its producer's own start, and joining those two numbers is a recorded trap. Subtracting one
+look's time from another's is safe, and that is all it does. The replay needs no special case
+any more.
 
 ## Consequences
 
@@ -121,7 +130,14 @@ navigation was reaching, which is the thing that had to be known first.
 - `TestWithNoInputObservedTwoListsStayAmbiguous` — the pre-existing behaviour, preserved.
 - `TestNavigationAloneNamesNothing` — **the invariant**: sixty observations of navigation with
   no visual change names nothing, because an input cannot manufacture an outcome.
-- `TestAResponseOneObservationLateIsStillAttributed` — what `NavWindow` is for.
+- `TestAttributionFollowsTheCallersRecencyJudgement` — this package honours the recency
+  answer it is given, including for a transfer on a look carrying no press of its own.
+- `TestAResponseWithinTheLatencyBoundIsStillAttributed` (`observe`) — the same press and
+  the same repaint, sampled at 66ms and at 2.3s, are both attributed. The test that
+  replaced a window counted in observations.
+- `TestAMoveLongAfterThePressIsNotAttributed` — the other side of the bound, without
+  which every move a panel makes on its own schedule belongs to whoever last touched
+  the controller.
 - `TestObservedNavigationReachesTheBeliefAndNamesTheActiveList` (`observe`) — the wiring,
   through `ShadowTotals.Observe`, which is the call the live cycle makes. The rule can be
   perfect while nothing tells it what the person did; that is the shape of eight recorded cases

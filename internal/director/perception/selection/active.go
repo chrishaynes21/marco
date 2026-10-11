@@ -82,15 +82,6 @@ const (
 	// MemberMatch is how far apart two rows' centres may be, as a fraction of the
 	// candidate's height, and still be the same member.
 	MemberMatch = 0.25
-	// NavWindow is how many observations a navigation input stays RECENT for, when
-	// deciding whether a transfer followed one.
-	//
-	// Two, not one. The press and the repaint can land in the same observation or in
-	// consecutive ones depending on where the cadence falls, and a window of one would
-	// attribute a real response to nothing roughly half the time. Expressed in
-	// OBSERVATIONS rather than milliseconds on purpose: the same code has to behave the
-	// same whether it is fed a 66ms recording or a 2.3s live cycle.
-	NavWindow = 2
 	// NavMargin is how far the leading candidate must out-evidence the next one on
 	// input-attributed transfers before it is named the active list. Twice as many,
 	// because a factor of two is a difference a coincidence does not easily produce
@@ -250,9 +241,17 @@ type Tracker struct {
 	cands        []*candidate
 	frames       int
 	identifiedAt int
-	// navRecent counts down the observations for which a navigation input is still
-	// recent. See NavWindow.
-	navRecent int
+	// navRecent says a navigation input is close enough in TIME to this observation
+	// for a transfer seen now to be attributable to it.
+	//
+	// Decided by the caller and not here, because the bound is a duration and this
+	// package has no clock. It held the decay itself and counted in OBSERVATIONS, which
+	// looked cadence-independent and is the opposite: two observations is 132ms on a
+	// 66ms recording and 4.6s on a 2.3s live cycle, against a menu repaint that takes a
+	// fixed couple of hundred milliseconds whatever the sampling rate. The short end
+	// credited 4 of a real menu's 31 transfers; the long end would credit an unrelated
+	// list's.
+	navRecent bool
 }
 
 // NewTracker begins watching, knowing nothing.
@@ -277,28 +276,28 @@ func (t *Tracker) Observe(img image.Image, rows []Row) {
 // pressed anything". With no input evidence anywhere, two competing lists stay ambiguous,
 // which is what they were before this existed.
 func (t *Tracker) ObserveShades(rows []Row, shades []Shade) {
-	t.ObserveNavigated(rows, shades, 0)
+	t.ObserveNavigated(rows, shades, false)
 }
 
-// ObserveNavigated takes one frame's rows and how many navigation inputs the interval
-// leading to it carried.
+// ObserveNavigated takes one frame's rows and whether the person was navigating recently
+// enough for a transfer seen now to be attributable to it.
 //
-// `navs` is a COUNT OF OBSERVED INTENTS and nothing more: no key identity, no device, no
-// direction. Direction is deliberately not used — knowing that "down" was pressed and that
-// the mark moved down would let the input predict the outcome, and an outcome that was
-// predicted is not an outcome that was observed. All this asks is whether the person was
-// navigating at all while a list handed its mark along.
-func (t *Tracker) ObserveNavigated(rows []Row, shades []Shade, navs int) {
+// `navRecent` is ONE BIT and nothing more: no key identity, no device, no direction, not even
+// a count. Direction is deliberately absent — knowing that "down" was pressed and that the
+// mark moved down would let the input predict the outcome, and an outcome that was predicted
+// is not an outcome that was observed. All this asks is whether the person was navigating at
+// all while a list handed its mark along.
+//
+// WHAT "RECENTLY ENOUGH" MEANS IS THE CALLER'S, and deliberately so. It is a statement about
+// how long a screen takes to repaint after a press, which is a duration; this package sees
+// frames and has no clock. See observe.MaxResponseLatency.
+func (t *Tracker) ObserveNavigated(rows []Row, shades []Shade, navRecent bool) {
 	if len(shades) != len(rows) {
 		return
 	}
 	// BEFORE the frame is folded, so a transfer seen on THIS observation can be
-	// attributed to an input observed in the interval that produced it.
-	if navs > 0 {
-		t.navRecent = NavWindow
-	} else if t.navRecent > 0 {
-		t.navRecent--
-	}
+	// attributed to an input the caller judged recent enough to have caused it.
+	t.navRecent = navRecent
 	t.frames++
 	byGroup := map[int][]image.Rectangle{}
 	shadeOf := map[int][]Shade{}
@@ -383,7 +382,7 @@ func (t *Tracker) update(members []image.Rectangle, shades []Shade, used map[*ca
 		if c.last >= 0 && marked[0] != c.last {
 			c.moves++
 			// Labelled, not caused. See Evidence.Prompted.
-			if t.navRecent > 0 {
+			if t.navRecent {
 				c.prompted++
 			} else {
 				c.unprompted++
@@ -398,6 +397,35 @@ func (t *Tracker) update(members []image.Rectangle, shades []Shade, used map[*ca
 
 	// Baselines take only frames in which a member was NOT marked, the same rule the
 	// reader uses and for the same reason.
+	//
+	// KNOWN GAP, MEASURED AND LEFT ALONE. On a frame where exclusivity was NOT
+	// established - quiet, shared, or too few members judged - this teaches every present
+	// member that whatever it looked like is its UNSELECTED level, including the member
+	// that was in fact selected. On a list of near-identical rows that poisons the
+	// selected row's baseline during the opening frames, and from then on it reads as
+	// marked whenever the mark LEAVES it, so every later frame has two marked members and
+	// is refused as shared. Measured on a synthetic five-row list, by how long the mark
+	// dwells on a row:
+	//
+	//	dwell 1 or 3    218 exclusive of 240, 217 transfers
+	//	dwell 10          0 exclusive, 198 shared, 0 transfers
+	//	dwell 30          0 exclusive,  63 shared, 0 transfers
+	//
+	// THE OBVIOUS FIX WAS TRIED AND REJECTED ON EVIDENCE. Declining to teach the frame's
+	// most conspicuous member on a non-exclusive frame repaired all of that -- 0 shared
+	// at every dwell -- and cost 88% of the selection reads on 864 real frames: 155
+	// frames naming an entry fell to 19, and identification slipped from look 28 to 294.
+	// Narrowing it to members with no baseline yet did not recover them.
+	//
+	// The reason is the difference between the fixtures and a screen. A drawn list has
+	// five identical rows and one bright one, so the brightest member of an unreadable
+	// frame IS the selected one. A real list's rows differ in weight, colour and content,
+	// so the brightest row is usually just the brightest row -- and withholding its
+	// samples starves a baseline that was needed, on a game where most frames are
+	// unreadable anyway.
+	//
+	// So the defect is real and its only known repair is worse. It needs a discriminator
+	// that is not frame-local brightness. Recorded in Passive-Observation.md.
 	for i := range c.rows {
 		if !have[i] || (len(marked) == 1 && marked[0] == i) {
 			continue

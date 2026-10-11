@@ -251,7 +251,12 @@ type InterfaceWatch struct {
 	// reason the fast read had just written. A belief being confirmed four times a second
 	// by pixels was reporting itself as unconfirmed.
 	trackedThisLook bool
-	moments         []InterfaceMoment
+	// navDebt is how much of the response window is still open, and navAt the look it
+	// was last refreshed at. Together they carry "the person pressed something recently"
+	// across looks in TIME rather than in observations.
+	navDebt time.Duration
+	navAt   time.Time
+	moments []InterfaceMoment
 }
 
 // NewInterfaceWatch starts one, believing nothing.
@@ -300,7 +305,7 @@ func (w *InterfaceWatch) Observe(look InterfaceLook) {
 		rowShades[i] = shadeFor[r.Bounds]
 	}
 	// Deleting the look.Navs argument must fail TestTheActiveListIsTheOneThatRespondsToNavigation.
-	w.tracker.ObserveNavigated(rows, rowShades, look.Navs)
+	w.tracker.ObserveNavigated(rows, rowShades, w.navRecent(look))
 
 	live, why, ok := w.tracker.Active()
 	next := InterfaceBelief{
@@ -617,6 +622,61 @@ func GroupedForLook(look InterfaceLook) []int {
 	}
 	sort.Sort(sort.Reverse(sort.IntSlice(out)))
 	return out
+}
+
+// MaxResponseLatency is how long after a press a screen may still be repainting it.
+//
+// THE ONE LATENCY ASSUMPTION IN THE ATTRIBUTION, named and in one place. A menu animates for a
+// couple of hundred milliseconds after a directional press; beyond that, a mark that moves is
+// moving for its own reasons.
+//
+// It replaced a window counted in OBSERVATIONS, which looked cadence-independent and was the
+// opposite. Two observations is 132ms when the frames are 66ms apart and 4.6s when the cycle is
+// 2.3s, against a repaint that takes the same couple of hundred milliseconds either way. The
+// short end credited 4 of a real menu's 31 transfers; the long end would credit an unrelated
+// list's moves to the person.
+//
+// 400ms is deliberately generous for an animation and well inside the ~1.3s cadence at which a
+// list is still identifiable at all, so the bound cannot quietly become "any time this session".
+const MaxResponseLatency = 400 * time.Millisecond
+
+// navRecent reports whether the person was navigating recently enough that a transfer seen on
+// this look could be the response.
+//
+// # Why the interval is the gap since the last look, OR the latency bound
+//
+// Both, whichever is longer, and each covers a case the other cannot.
+//
+// A look's own interval is the right window when looks are far apart: at a 2.3s cadence the
+// press and the repaint are both inside one look, and the sample's inputs ARE the inputs of
+// that interval, because the producer drains per cycle. Nothing needs carrying forward.
+//
+// The latency bound is the right window when looks are close together: at 66ms the press lands
+// on one look and the mark has not moved yet, so the response shows up five or six looks later.
+// Without the bound those transfers are attributed to nothing.
+//
+// Expressed as a decaying debt rather than a timestamp comparison, because the two clocks here
+// must not be mixed: a look carries an absolute time and an InputEvent carries milliseconds from
+// its producer's own start, and joining those two numbers is a recorded trap. Subtracting one
+// look's time from another's is safe, and that is all this does.
+func (w *InterfaceWatch) navRecent(look InterfaceLook) bool {
+	if look.Navs > 0 {
+		w.navDebt = MaxResponseLatency
+		w.navAt = look.At
+		return true
+	}
+	if w.navDebt <= 0 {
+		return false
+	}
+	// A look with no time cannot age anything; treat it as no elapsed time rather than as
+	// a jump to the epoch, which would expire the window on the first such look.
+	if !look.At.IsZero() && !w.navAt.IsZero() {
+		if elapsed := look.At.Sub(w.navAt); elapsed > 0 {
+			w.navDebt -= elapsed
+		}
+		w.navAt = look.At
+	}
+	return w.navDebt > 0
 }
 
 // InterfaceCandidate is one list the tracker watched, and what it observed about it.

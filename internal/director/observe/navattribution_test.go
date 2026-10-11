@@ -47,9 +47,19 @@ func twoListSample(seq int, at time.Time, s navSample) observe.Sample {
 	var shapes []observe.ShadowShape
 	for _, l := range lists {
 		for row := range 5 {
-			shade := []float64{60, 90}
+			// ROWS THAT DIFFER FROM EACH OTHER, like a real list.
+			//
+			// A fixture of five IDENTICAL rows runs into a measured defect in the
+			// baseline rule - see selection's TestAMarkThatDwellsIsStillRefusedAsShared -
+			// where a mark that sits still poisons its own baseline and every later frame
+			// is refused as shared. A real menu's rows differ in weight and content, and
+			// on the 864-frame corpus that difference is what keeps the measurement
+			// working. So these differ too, and this file tests attribution rather than
+			// re-testing that defect.
+			base := 50 + float64(row)*9
+			shade := []float64{base, base + 30}
 			if row == l.mark {
-				shade = []float64{210, 240}
+				shade = []float64{base + 150, base + 180}
 			}
 			shapes = append(shapes, observe.ShadowShape{
 				Region: observe.Region{
@@ -199,5 +209,136 @@ func TestWithNothingPressedTheBeliefStaysAmbiguous(t *testing.T) {
 	if totals.Interface.Selected >= 0 {
 		t.Errorf("entry %d is named from two indistinguishable lists and no input "+
 			"evidence: %s", totals.Interface.Selected, totals.Interface.Because)
+	}
+}
+
+// A response that arrives within the latency bound is still attributed, at any cadence.
+//
+// THE TEST THAT REPLACED A CONSTANT COUNTED IN OBSERVATIONS. `NavWindow` was 2 observations,
+// which is 132ms when frames are 66ms apart and 4.6s when the cycle is 2.3s - against a menu
+// repaint that takes the same couple of hundred milliseconds either way. The short end credited
+// 4 of a real menu's 31 transfers and the long end would credit an unrelated list's.
+//
+// So the window is a duration now, and these two cases are the whole of why: the same press and
+// the same repaint, sampled fast and sampled slow, must both be attributed. The schedule is in
+// LOOKS and the cadence only sets the clock, so the two cases differ in nothing else.
+func TestAResponseWithinTheLatencyBoundIsStillAttributed(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		interval time.Duration
+		// press and move are the looks, modulo cycle, that carry a press and show the
+		// mark in its new place. Their gap times the interval is the repaint latency.
+		cycle, press, move int
+	}{{
+		// 66ms apart, like the recorded corpus: a ~200ms repaint is three looks on,
+		// and the old two-observation window could not reach it.
+		//
+		// A six-look cycle, which keeps the mark moving often enough to stay inside
+		// the dwell the measurement supports. Exclusivity collapses somewhere between
+		// a dwell of 6 and 8 observations on a synthetic list — see selection's
+		// TestAMarkThatDwellsIsStillRefusedAsShared — and that defect is recorded
+		// there rather than re-tested here, because this case is about attribution.
+		name:     "fast sampling, the repaint is three looks later",
+		interval: 66 * time.Millisecond, cycle: 6, press: 0, move: 3,
+	}, {
+		// 2.3s apart, the measured live cadence: the press and the repaint are both
+		// inside one look, and nothing needs carrying forward.
+		name:     "live cadence, press and repaint inside one look",
+		interval: 2300 * time.Millisecond, cycle: 4, press: 1, move: 1,
+	}} {
+		t.Run(tc.name, func(t *testing.T) {
+			w := observe.NewInterfaceWatch()
+			base := time.Unix(1760000000, 0)
+			mark, pressed := 0, 0
+			for i := range 240 {
+				at := base.Add(time.Duration(i) * tc.interval)
+				navs := 0
+				// Quiet first, so every row learns its own unselected level.
+				if i >= 12 {
+					if i%tc.cycle == tc.press {
+						navs = 1
+						pressed++
+					}
+					if i%tc.cycle == tc.move {
+						mark = (mark + 1) % 5
+					}
+				}
+				w.Observe(lookOfTwoLists(i+1, at, mark, 3, navs))
+			}
+			if pressed < 3 {
+				t.Fatalf("the fixture pressed %d times; it is not testing attribution",
+					pressed)
+			}
+			cand := biggestMover(w)
+			if cand.Transfers == 0 {
+				t.Fatalf("no transfer was observed at all: %s", w.Belief().Because)
+			}
+			if cand.Prompted == 0 {
+				t.Errorf("%d transfers at a %s cadence with the repaint %d look(s) "+
+					"after the press, and none was attributed. The bound is %s",
+					cand.Transfers, tc.interval, tc.move-tc.press,
+					observe.MaxResponseLatency)
+			}
+			t.Logf("%d transfers, %d attributed, %d presses",
+				cand.Transfers, cand.Prompted, pressed)
+		})
+	}
+}
+
+// biggestMover is the left-hand list's candidate, by transfers.
+func biggestMover(w *observe.InterfaceWatch) observe.InterfaceCandidate {
+	var out observe.InterfaceCandidate
+	for _, c := range w.Candidates() {
+		if c.Where.X < 0.4 && c.Transfers > out.Transfers {
+			out = c
+		}
+	}
+	return out
+}
+
+// And a mark that moves LONG after the last press is not attributed to it.
+//
+// The other side of the bound, and the one that keeps this honest: without an upper limit, every
+// move a panel makes on its own schedule gets credited to whatever the person last pressed, and
+// the rule would name any list on any session where somebody touched the controller once.
+func TestAMoveLongAfterThePressIsNotAttributed(t *testing.T) {
+	w := observe.NewInterfaceWatch()
+	base := time.Unix(1760000000, 0)
+	mark := 0
+	for i := range 120 {
+		at := base.Add(time.Duration(i) * 500 * time.Millisecond)
+		navs := 0
+		// One press, early, and then nothing for the rest of the session.
+		if i == 20 {
+			navs = 1
+		}
+		// The mark starts moving five seconds after that press — far outside the bound.
+		if i >= 30 && i%4 == 0 {
+			mark = (mark + 1) % 5
+		}
+		w.Observe(lookOfTwoLists(i+1, at, mark, 3, navs))
+	}
+	for _, c := range w.Candidates() {
+		if c.Where.X >= 0.4 {
+			continue
+		}
+		if c.Transfers == 0 {
+			t.Fatal("the fixture's mark never moved")
+		}
+		if c.Prompted > 1 {
+			t.Errorf("%d of %d transfers were credited to a single press %s earlier. "+
+				"The bound is %s, and without it every move a panel makes on its own "+
+				"schedule belongs to whoever last touched the controller",
+				c.Prompted, c.Transfers, 5*time.Second, observe.MaxResponseLatency)
+		}
+	}
+}
+
+// lookOfTwoLists builds the same two-list look foldNav builds, without the sample wrapper.
+func lookOfTwoLists(seq int, at time.Time, markA, markB, navs int) observe.InterfaceLook {
+	s := twoListSample(seq, at, navSample{markA: markA, markB: markB})
+	return observe.InterfaceLook{
+		Sequence: seq, At: at, Observed: true,
+		Shapes: s.Shadow.Shapes, Navs: navs,
 	}
 }
