@@ -598,6 +598,48 @@ func reportActivations(r frameResult) {
 	}
 }
 
+// reportBindings says how much of this session can name a direction, and why the rest cannot.
+//
+// # Why the four refusals are printed and not netted
+//
+// Because they call for opposite responses, and the corpus is the place that distinction gets
+// measured rather than argued. `unattributed` is the sampling cadence or a quiet player;
+// `ambiguous_press` is several directions inside one window; `contradicted` is the evidence
+// genuinely disagreeing; `thin_evidence` is a binding on its way to being usable. A single
+// "2 of 17 bound" would make all four look like the same shortfall.
+func reportBindings(r frameResult) {
+	bySupport := map[observe.BindingSupport]int{}
+	named, ambiguous, unknown, prompted := 0, 0, 0, 0
+	for _, m := range r.Moves {
+		bySupport[m.Support()]++
+		for _, d := range m.Directions {
+			named += d.Count
+		}
+		ambiguous += m.DirectionAmbiguous
+		unknown += m.DirectionUnknown
+		prompted += m.Prompted
+	}
+	fmt.Printf("  directions          %d of %d prompted observation(s) named one "+
+		"direction", named, prompted)
+	if ambiguous > 0 || unknown > 0 {
+		fmt.Printf(" (%d several, %d unrecoverable)", ambiguous, unknown)
+	}
+	fmt.Printf("\n")
+	for _, st := range []observe.BindingSupport{
+		observe.BindingRepeated, observe.BindingThin, observe.BindingContradicted,
+		observe.BindingAmbiguous, observe.BindingUnattributed,
+	} {
+		if bySupport[st] > 0 {
+			fmt.Printf("    %-16s %d move(s)\n", st, bySupport[st])
+		}
+	}
+	if bySupport[observe.BindingRepeated] == 0 && len(r.Moves) > 0 {
+		fmt.Printf("                      (so no chain over this session is one anybody " +
+			"could be asked to\n                      take: a route can name the rows " +
+			"and not a single control)\n")
+	}
+}
+
 // reportRoute asks whether any of this would survive the session and be usable.
 //
 // # Why the replay runs the durable path rather than reporting the session
@@ -622,7 +664,7 @@ func reportRoute(r frameResult) {
 		fmt.Printf(" (%s)", why)
 	}
 	fmt.Printf("\n")
-	var withEntry, withMoves int
+	var withEntry, withMoves, withDirection int
 	for _, o := range obs {
 		if len(o.Evidence.SelectedBefore) > 0 {
 			withEntry++
@@ -630,10 +672,18 @@ func reportRoute(r frameResult) {
 		if len(o.Evidence.Moves) > 0 {
 			withMoves++
 		}
+		for _, m := range o.Evidence.Moves {
+			if m.Support().Usable() {
+				withDirection++
+				break
+			}
+		}
 	}
 	if len(obs) > 0 {
 		fmt.Printf("                      %d carry a selected entry, %d carry observed "+
-			"moves of the mark\n", withEntry, withMoves)
+			"moves of the mark,\n                      %d carry a move with a "+
+			"direction repeated evidence supports\n",
+			withEntry, withMoves, withDirection)
 		return
 	}
 	fmt.Printf("                      (so no plan over this session could name an entry: " +
@@ -699,8 +749,8 @@ func reportRetained(r frameResult) {
 	if len(r.Moves) == 0 {
 		return
 	}
-	fmt.Printf("    %-10s %-7s %-6s %-7s %-7s %s\n",
-		"state", "entry", "seen", "prompted", "unprom", "of")
+	fmt.Printf("    %-10s %-7s %-6s %-7s %-7s %-4s %-7s %s\n",
+		"state", "entry", "seen", "prompted", "unprom", "of", "press", "support")
 	for i, m := range r.Moves {
 		if i >= 12 {
 			fmt.Printf("    ... and %d more\n", len(r.Moves)-i)
@@ -710,10 +760,19 @@ func reportRetained(r frameResult) {
 		if state == "" {
 			state = "unplaced"
 		}
-		fmt.Printf("    %-10s %-7s %-6d %-7d %-7d %d\n", state,
+		// AND WHICH DIRECTION WAS OBSERVED BEFORE IT, which is the difference between a
+		// chain Marco can describe and one anybody could be asked to take.
+		press := "-"
+		if best, ok := observe.DominantDirection(m.Directions); ok {
+			press = fmt.Sprintf("%s:%d", best.Intent, best.Count)
+		}
+		fmt.Printf("    %-10s %-7s %-6d %-7d %-7d %-4d %-7s %s\n", state,
 			fmt.Sprintf("%d->%d", m.From, m.To), m.Count, m.Prompted, m.Unprompted,
-			m.Entries)
+			m.Entries, press, m.Support())
 	}
+	// THE DIRECTION ACCOUNT FOR THE WHOLE SESSION, because the table is bounded and the
+	// question "can this corpus name a control at all" is about the total.
+	reportBindings(r)
 	// AND WHAT THE HYPOTHESIS LAYER MADE OF IT, because the ledger is not the product.
 	// Nothing downstream reads the ledger; a route would ask the hypotheses.
 	var sel []observe.Hypothesis

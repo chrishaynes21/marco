@@ -1059,6 +1059,24 @@ func selectionMoves(t ShadowTotals, th HypothesisThresholds) []Hypothesis {
 			Statement: fmt.Sprintf("a directional press was observed within %s of %d of "+
 				"those %d moves being seen", MaxResponseLatency, st.Prompted, st.Count),
 		}}
+		// WHICH DIRECTION WAS OBSERVED, as its own piece of evidence rather than folded
+		// into the press count above. They are different claims: that one says a press was
+		// attributable, this one says which word it was, and it was joined to the move
+		// afterwards by when alone. See binding.go.
+		//
+		// Deleting this must fail TestAMoveHypothesisNamesTheDirectionAndNotTheEffect.
+		if best, ok := DominantDirection(st.Directions); ok {
+			stmt := fmt.Sprintf("%s was the only direction observed in the window before "+
+				"%d of those %d moves were seen", best.Intent, best.Count, st.Count)
+			if best.Conditional > 0 {
+				stmt += fmt.Sprintf("; %d of those rested entirely on keys that are only "+
+					"navigation in context", best.Conditional)
+			}
+			support = append(support, Evidence{
+				Source: FromNavigation, Support: best.Count, Of: st.Count,
+				Statement: stmt,
+			})
+		}
 		if st.FromUnnamed > 0 {
 			// THE WARNING ADR-157 ATTACHED TO THE SHAPES CHANNEL, carried this far. A
 			// mark moving between two unnamed rectangles reads exactly like a mark
@@ -1088,6 +1106,42 @@ func selectionMoves(t ShadowTotals, th HypothesisThresholds) []Hypothesis {
 					"is not attached to anywhere a route could start from",
 			})
 		}
+		// AND WHAT IS WRONG WITH THE DIRECTION EVIDENCE, itemised, because the three
+		// failures call for different responses: several directions in one window is a
+		// cadence or a person, two directions across observations is the evidence
+		// genuinely disagreeing, and a press this layer could not recover is a refusal it
+		// makes on purpose.
+		//
+		// Deleting this must fail TestAContradictedDirectionIsReportedAsContradicted.
+		if len(st.Directions) > 1 {
+			var words []string
+			for _, d := range st.Directions {
+				words = append(words, d.String())
+			}
+			contra = append(contra, Evidence{
+				Source: FromNavigation, Support: st.Directions[1].Count, Of: st.Count,
+				Statement: "the same move followed more than one direction (" +
+					strings.Join(words, ", ") + "), which is evidence against any one " +
+					"of them being what moved the mark",
+			})
+		}
+		if st.DirectionAmbiguous > 0 {
+			contra = append(contra, Evidence{
+				Source: FromNavigation, Support: st.DirectionAmbiguous, Of: st.Count,
+				Statement: fmt.Sprintf("%d of those observations had more than one "+
+					"direction in the window, so no single one can be named for them",
+					st.DirectionAmbiguous),
+			})
+		}
+		if st.DirectionUnknown > 0 {
+			contra = append(contra, Evidence{
+				Source: FromNavigation, Support: st.DirectionUnknown, Of: st.Count,
+				Statement: fmt.Sprintf("%d had a press the attribution found and this "+
+					"layer could not recover — observed after the move was seen, or in a "+
+					"session with no clock. Refused rather than guessed at",
+					st.DirectionUnknown),
+			})
+		}
 
 		out = append(out, Hypothesis{
 			Kind: PossibleSelectionTransition,
@@ -1108,16 +1162,41 @@ func selectionMoves(t ShadowTotals, th HypothesisThresholds) []Hypothesis {
 			Episodes:     st.Count,
 			Unattributed: st.Unprompted,
 			Observed: fmt.Sprintf("on %s, the mark moved from entry %d to entry %d of a "+
-				"%d-entry list %d time(s); %d of those followed a directional press",
-				where, st.From, st.To, st.Entries, st.Count, st.Prompted),
+				"%d-entry list %d time(s); %d of those followed a directional press "+
+				"(%s)", where, st.From, st.To, st.Entries, st.Count, st.Prompted,
+				DescribeDirections(st.Directions, st.DirectionAmbiguous,
+					st.DirectionUnknown)),
 			Support: support, Contradictions: contra,
-			Status: classify(st.Count, support, contra, th),
-			Validation: fmt.Sprintf("from entry %d on that screen, press the direction "+
-				"that should reach entry %d and check the mark arrives there. Nothing "+
-				"observed so far establishes that it would", st.From, st.To),
+			Status:     classify(st.Count, support, contra, th),
+			Validation: validateMove(st),
 		})
 	}
 	return out
+}
+
+// validateMove is the test that would turn one candidate binding into a verified one.
+//
+// Named rather than generic exactly where the evidence allows it. "Press the direction that
+// should reach entry 4" is the only honest sentence when nothing was attributed; once one
+// direction has been observed every time, the sentence a person can actually act on is "press
+// down" — and the difference between the two is the whole gain of this milestone, so it has to
+// show up where a person reads the hypothesis rather than only in a counter.
+//
+// It stays a VALIDATION and never an instruction to Marco. Nothing reads this field and acts;
+// it is the experiment a person or a rehearsal would run, which is where the third claim —
+// pressing it arrives there — would finally be earned.
+func validateMove(st SelectionTransition) string {
+	best, ok := DominantDirection(st.Directions)
+	if !ok || !st.Support().Usable() {
+		return fmt.Sprintf("from entry %d on that screen, press the direction that should "+
+			"reach entry %d and check the mark arrives there. Nothing observed so far "+
+			"establishes that it would, and nothing observed so far even says which "+
+			"direction to try (%s)", st.From, st.To, st.Support())
+	}
+	return fmt.Sprintf("from entry %d on that screen, press %s and check the mark arrives "+
+		"at entry %d. %s was observed before %d of the %d times this move was seen, and "+
+		"nothing has pressed it on purpose to find out whether it is what moves the mark",
+		st.From, best.Intent, st.To, best.Intent, best.Count, st.Count)
 }
 
 // entryActivations reports screen changes observed while a known entry was selected.

@@ -117,6 +117,11 @@ moves that were SEEN, and a gap in them is reported as a gap.
   rule, which this does not touch. **A chain of moves is therefore a route Marco can DESCRIBE
   and not one it can perform**, and that is the next thing needed for a taught "open the third
   entry". It is recorded as a known gap rather than papered over.
+  **CLOSED by [[ADR-161-a-direction-is-joined-to-a-move-after-the-pixels]]**, which joins the
+  direction AFTER the move exists, outside anything that reads a mark, and keeps ADR-158's
+  count-only input to the watch exactly as it was. A hop can now name a direction; what still
+  has nowhere to be recorded is that pressing it ARRIVES — which needs a rehearsal, and is the
+  third claim ADR-159's table has always left empty.
 - **It authorises nothing.** An approach is a reading of remembered observation exactly like the
   plan it hangs off. Every edge still earns execution through its own rehearsal and its own yes.
 - **It claims no requirement.** An approach that read `SelectedBefore` as a precondition would be

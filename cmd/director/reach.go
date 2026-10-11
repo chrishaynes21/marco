@@ -161,6 +161,14 @@ func (r *Runtime) Reach(q service.ObserveReach) (service.ReachView, error) {
 			step.Entry, step.Entries = a.Entry, a.Entries
 			step.Support, step.Of = a.Support, a.Of
 			step.Moves = len(a.Moves)
+			// AND WHAT IS KNOWN ABOUT PRESSING THEM. A route that names the row and
+			// cannot name a single control is non-executable, and saying so is the
+			// point: the gap between Moves and Bound is exactly how far this step is
+			// from being something a person could be shown.
+			//
+			// Deleting this must fail TestTheDiagnosticSaysWhichDirectionsAreKnown.
+			step.Bound = a.Bound
+			step.Bindings = a.Bindings()
 			step.SelectionRefusal = string(a.Refusal)
 		}
 		out.Steps = append(out.Steps, step)

@@ -482,6 +482,10 @@ type ShadowTotals struct {
 	// Read this BEFORE reading an empty correlation as a finding.
 	Input InputStats `json:"input_producer,omitzero"`
 
+	// presses is the recent directional presses, by slot, for the join in
+	// groundSelectionMoves. Unexported and session-local: the only thing that reads it is
+	// the one function that already holds a move the shading proved. See binding.go.
+	presses pressLedger
 	// InputLog is every admitted input event this session, in order, with the context known
 	// when each was banked — kept whether or not any later layer could interpret it.
 	// Attribution buffers expire and captures gate; this does neither. See inputlog.go.
@@ -561,6 +565,16 @@ func (t *ShadowTotals) Observe(sample Sample) {
 	// Deleting this must fail TestAPressDuringASkippedSlotStillAttributesTheMoveItExplains.
 	if sample.Shadow != nil && sample.Shadow.Front != FrontOther {
 		t.watch.Navigated(sample.Timestamp, directionalIntents(sample.Shadow.Inputs))
+		// AND WHICH DIRECTIONS THOSE WERE, in a ledger the watch cannot read.
+		//
+		// THE WHOLE TRUST BOUNDARY IS THESE TWO LINES. The same gate, the same moment,
+		// the same events — and the watch gets a COUNT while the ledger gets the words,
+		// so an input can still never predict the visual outcome it is correlated with.
+		// The ledger is read in groundSelectionMoves below, which runs on moves the watch
+		// has already emitted from the shading alone. See binding.go for the ordering.
+		//
+		// Deleting this must fail TestAMoveRemembersWhichDirectionWasObservedBeforeIt.
+		t.presses.bank(sample.Timestamp, sample.Shadow.Inputs)
 	}
 	if sample.Shadow != nil {
 		for _, look := range sample.Shadow.Track {
@@ -643,7 +657,13 @@ func (t *ShadowTotals) groundSelectionMoves() {
 		state = ""
 	}
 	for _, m := range moves {
-		t.selection.fold(state, m)
+		// THE JOIN, and it happens HERE rather than inside the watch because the move
+		// has to exist first. `m` was produced from the shading with no direction
+		// consulted; `attribute` then asks the input record which direction was
+		// observed in the window the watch already decided this move was prompted by.
+		// Perception establishes the transition, and only then is input associated
+		// with it — [[ADR-158-the-active-list-is-the-one-that-responds]] unweakened.
+		t.selection.fold(state, m, t.presses.attribute(m))
 	}
 	t.SelectionTransitions = t.selection.publish()
 	t.SelectionMovesUnplaced = t.selection.unplaced

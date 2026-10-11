@@ -110,10 +110,36 @@ type SelectionTransition struct {
 	// tell six moves over a session from six in one second.
 	First int `json:"first,omitempty"`
 	Last  int `json:"last,omitempty"`
+	// Directions are the directions attributed to this move's observations, one entry per
+	// distinct direction, and DirectionAmbiguous and DirectionUnknown the observations no
+	// single direction could be named for.
+	//
+	// A THIRD CLAIM, after the move and after the press, and it is deliberately the last
+	// thing to arrive: a direction is joined to a move the shading already proved, by when
+	// alone, outside anything that reads a mark. See binding.go for the order and for why
+	// there is no field here for a direction that was verified.
+	//
+	// The three counters partition Prompted exactly — every observation with a press
+	// attributable to it named one direction, named several, or lost the slot behind it —
+	// and TestEveryPromptedObservationIsAccountedFor holds that.
+	Directions []DirectionCount `json:"directions,omitempty"`
+	// DirectionAmbiguous counts observations whose window held MORE THAN ONE direction, so
+	// naming one would invent the half that was not observed.
+	DirectionAmbiguous int `json:"direction_ambiguous,omitempty"`
+	// DirectionUnknown counts observations the watch found a press for whose slot this
+	// layer could not recover — a press observed after the move was seen, or a session with
+	// no clock. Counted rather than silently folded into the ambiguous ones: they are
+	// different situations, and one of them is a refusal this layer makes on purpose.
+	DirectionUnknown int `json:"direction_unknown,omitempty"`
 }
 
 // Attributed is how many of this move's observations had a press attributable to them.
 func (s SelectionTransition) Attributed() int { return s.Prompted }
+
+// Support is what this move's direction evidence amounts to, in the closed vocabulary.
+func (s SelectionTransition) Support() BindingSupport {
+	return BindingSupportOf(s.Directions, s.DirectionAmbiguous, s.DirectionUnknown)
+}
 
 // String renders one row of the table a report prints.
 func (s SelectionTransition) String() string {
@@ -121,8 +147,9 @@ func (s SelectionTransition) String() string {
 	if where == "" {
 		where = "unplaced"
 	}
-	return fmt.Sprintf("%s entry %d->%d of %d: %d seen, %d prompted, %d unprompted",
-		where, s.From, s.To, s.Entries, s.Count, s.Prompted, s.Unprompted)
+	return fmt.Sprintf("%s entry %d->%d of %d: %d seen, %d prompted, %d unprompted; %s",
+		where, s.From, s.To, s.Entries, s.Count, s.Prompted, s.Unprompted,
+		DescribeDirections(s.Directions, s.DirectionAmbiguous, s.DirectionUnknown))
 }
 
 // MaxDurableSelectionSteps bounds how many moves one durable edge remembers.
@@ -147,13 +174,13 @@ const MaxDurableSelectionSteps = 24
 // rather than a matter of remembering to strip fields — the same reason NavSequence exists
 // beside TargetedSequence.
 //
-// # What it still does not claim
+// # What it claims about the direction, and what it still does not
 //
-// Which key produces the move. The attribution says a directional press was observed within
-// the window before the move was SEEN, and deliberately not which direction: the count a
-// selection reader is handed is a count, so that an input can never predict the visual outcome
-// it is being correlated with. A chain of these is therefore a route Marco can DESCRIBE and
-// not one it can perform, and that gap is named in the subsystem note rather than papered over.
+// It names the directions that were OBSERVED before the move was seen, as candidates with their
+// own counters and their own uncertainty — see binding.go, which added them and keeps the join
+// strictly after the pixels. What it does not claim is that pressing one of them produces the
+// move. That needs the press performed deliberately and the outcome checked, which is a
+// rehearsal, and there is deliberately nowhere here to record one.
 type SelectionStep struct {
 	// From and To are the entry indices either side of the move, counted from the top, and
 	// Entries how many the list had. All three, because "entry 3" means nothing except
@@ -165,12 +192,32 @@ type SelectionStep struct {
 	// was attributable to it. Itemised and never netted, like every other pair here.
 	Observations int `json:"observations"`
 	Prompted     int `json:"prompted,omitempty"`
+	// Directions are the directions attributed to those observations, Ambiguous the ones
+	// whose window held several, and Unknown the ones whose press could not be recovered.
+	//
+	// The durable half of the candidate binding. It crosses the boundary because that is the
+	// whole point: a chain of moves nobody can name a direction for is a route Marco can
+	// describe and not one anybody could be asked to take, and the naming has to survive the
+	// session that observed it or every restart starts again.
+	Directions []DirectionCount `json:"directions,omitempty"`
+	Ambiguous  int              `json:"direction_ambiguous,omitempty"`
+	Unknown    int              `json:"direction_unknown,omitempty"`
+}
+
+// Support is what this step's direction evidence amounts to, in the closed vocabulary.
+//
+// The SAME function the session-local transition calls, deliberately: two copies of the
+// classification is how a session comes to report `repeated` about a move the store calls
+// `thin`.
+func (s SelectionStep) Support() BindingSupport {
+	return BindingSupportOf(s.Directions, s.Ambiguous, s.Unknown)
 }
 
 // String renders one row of the table a report prints.
 func (s SelectionStep) String() string {
-	return fmt.Sprintf("entry %d->%d of %d: %d seen, %d prompted",
-		s.From, s.To, s.Entries, s.Observations, s.Prompted)
+	return fmt.Sprintf("entry %d->%d of %d: %d seen, %d prompted; %s",
+		s.From, s.To, s.Entries, s.Observations, s.Prompted,
+		DescribeDirections(s.Directions, s.Ambiguous, s.Unknown))
 }
 
 // SelectionStepsFrom projects this session's moves on ONE screen onto the durable shape.
@@ -193,6 +240,14 @@ func SelectionStepsFrom(in []SelectionTransition, state ScreenStateID) []Selecti
 		out = append(out, SelectionStep{
 			From: st.From, To: st.To, Entries: st.Entries,
 			Observations: st.Count, Prompted: st.Prompted,
+			// AND WHICH DIRECTION WAS OBSERVED BEFORE EACH, copied rather than
+			// re-derived. A durable chain of hops nobody can name a direction for
+			// is exactly what ADR-160 left behind.
+			//
+			// Deleting this must fail TestADurableStepRemembersWhichDirectionWasPressed.
+			Directions: append([]DirectionCount{}, st.Directions...),
+			Ambiguous:  st.DirectionAmbiguous,
+			Unknown:    st.DirectionUnknown,
 		})
 		if len(out) >= MaxDurableSelectionSteps {
 			break
@@ -237,6 +292,14 @@ func foldSelectionSteps(into, from []SelectionStep) ([]SelectionStep, int) {
 				into[i].Entries == add.Entries {
 				into[i].Observations += add.Observations
 				into[i].Prompted += add.Prompted
+				// ACCUMULATED, so a binding gets stronger across sessions
+				// rather than being replaced by the newest reading. The
+				// dropped count is discarded here and not at the caller: a
+				// direction past the bound means the vocabulary leaked, and
+				// the caller already counts dropped steps for the same edge.
+				into[i].Directions, _ = foldDirections(into[i].Directions, add.Directions)
+				into[i].Ambiguous += add.Ambiguous
+				into[i].Unknown += add.Unknown
 				found = true
 				break
 			}
@@ -248,6 +311,10 @@ func foldSelectionSteps(into, from []SelectionStep) ([]SelectionStep, int) {
 			dropped++
 			continue
 		}
+		// THROUGH THE SAME VOCABULARY CHECK as a merge, rather than taken as given. A
+		// first sighting of a move must not be the way a `confirm` gets into a field that
+		// only ever holds a direction.
+		add.Directions, _ = foldDirections(nil, add.Directions)
 		into = append(into, add)
 	}
 	sortSelectionSteps(into)
@@ -271,8 +338,13 @@ type selectionLedger struct {
 	unplaced int
 }
 
-// fold records one move against one screen, which may be unknown.
-func (l *selectionLedger) fold(state ScreenStateID, m SelectionMove) {
+// fold records one move against one screen, which may be unknown, with the direction the input
+// record independently offered for it.
+//
+// `att` arrives as an argument rather than being looked up here, and that is the trust boundary
+// in the shape of a signature: this ledger cannot reach a press, so a direction can only ever
+// be handed to it by a caller that already had the move. See binding.go.
+func (l *selectionLedger) fold(state ScreenStateID, m SelectionMove, att navAttribution) {
 	if m.From < 0 || m.To < 0 || m.From == m.To || m.Entries <= 0 {
 		return
 	}
@@ -308,9 +380,60 @@ func (l *selectionLedger) fold(state ScreenStateID, m SelectionMove) {
 	if m.Tracked {
 		row.Tracked++
 	}
+	// THE DIRECTION, folded only where a press was attributable at all. The three
+	// branches partition Prompted exactly, which is what makes the record checkable:
+	// every prompted observation named one direction, named several, or lost its slot.
+	//
+	// Deleting this must fail TestAMoveRemembersWhichDirectionWasObservedBeforeIt.
+	switch {
+	case att.ambiguous:
+		row.DirectionAmbiguous++
+	case att.unknown:
+		row.DirectionUnknown++
+	case att.intent != "":
+		row.foldDirection(att)
+	}
 	if m.FromUnnamed > row.FromUnnamed {
 		row.FromUnnamed = m.FromUnnamed
 	}
+}
+
+// foldDirection records one attribution against this move.
+//
+// # Where the vocabulary is enforced, and why not here
+//
+// In `pressLedger.bank`, which admits only the four directional intents, so `attribute` cannot
+// return anything else and a check here would be a second answer to a settled question. An
+// earlier version had one; the mutation gate showed that deleting it changed no outcome, which
+// is this repository's own recorded "unreachable discriminator". The check that DOES earn its
+// place is in `foldDirections`, on the way into the durable store, where the slice arrives from
+// a caller rather than from this package — see TestOnlyADirectionCanBeTheDirectionOfAMove.
+//
+// Bounded by the vocabulary rather than by a policy: a fifth distinct direction cannot exist,
+// so the bound is a check that something upstream is still filtering. An attribution past it is
+// dropped into DirectionUnknown, which is the honest place for a press this layer could not
+// account for.
+func (s *SelectionTransition) foldDirection(att navAttribution) {
+	for i := range s.Directions {
+		if s.Directions[i].Intent == att.intent {
+			s.Directions[i].Count++
+			if att.conditional {
+				s.Directions[i].Conditional++
+			}
+			sortDirections(s.Directions)
+			return
+		}
+	}
+	if len(s.Directions) >= MaxDirectionsPerMove {
+		s.DirectionUnknown++
+		return
+	}
+	add := DirectionCount{Intent: att.intent, Count: 1}
+	if att.conditional {
+		add.Conditional = 1
+	}
+	s.Directions = append(s.Directions, add)
+	sortDirections(s.Directions)
 }
 
 // publish copies the ledger out, most-seen first, deterministically.

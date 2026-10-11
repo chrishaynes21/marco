@@ -29,12 +29,13 @@ import (
 //   - It is not authority. Every edge still earns execution through its own rehearsal and its
 //     own yes, and an approach is a reading of remembered observation exactly like the plan it
 //     hangs off. `PlanToGoal`'s note applies here unchanged.
-//   - It is not executable. A SelectionStep says the mark was seen going from entry 1 to entry
-//     2; it does not say which key did that, because the selection reader is handed a COUNT of
-//     directional intents and never a direction — so an input can never predict the visual
-//     outcome it is being correlated with. A chain of moves is therefore a route Marco can
-//     DESCRIBE and not one it can perform. That gap is the next thing needed for a taught
-//     "open the third entry", and it is named in the subsystem note rather than papered over.
+//   - It is not executable, and the reason has MOVED rather than gone away. A SelectionStep now
+//     names the directions that were OBSERVED before each move — see binding.go, which joins
+//     them after the pixels and never before — so a chain can say "down, then down". What no
+//     part of this establishes is that pressing down from entry 1 ARRIVES at entry 2: that
+//     needs the press performed deliberately and the outcome checked, which is a rehearsal.
+//     `Performable` reports whether a chain has a direction for every hop, which is the absence
+//     of a known gap and not the presence of a verification.
 //   - It is not a requirement. `SelectedBefore` is a correlation: the row was marked while the
 //     screen changed. An approach that read it as a precondition would be claiming the change
 //     needs that row, which nothing observed establishes.
@@ -104,7 +105,18 @@ type Approach struct {
 	// Moves is every move of the mark observed inside that list, as evidence a chain can be
 	// assembled from. Present even when no chain is wanted, because "what do you know about
 	// this list" is a question worth being able to answer.
+	//
+	// Each one now names the directions observed before it, which is what lets a plan say
+	// not only which row a step goes from but what was being pressed while the mark
+	// travelled there. See binding.go.
 	Moves []SelectionStep `json:"moves,omitempty"`
+	// Bound is how many of those moves name a direction repeated evidence stands behind.
+	//
+	// Reported BESIDE the move count rather than instead of it, because the gap between them
+	// is the thing a reader has to see: `6 observed moves, 2 of them bound` is a list Marco
+	// has watched and largely cannot name the controls of, and a bare "6 moves" reads the
+	// same as six it could.
+	Bound int `json:"bound_moves,omitempty"`
 	// Refusal is why no row is known, when none is. Empty means Entry means something.
 	Refusal ApproachRefusal `json:"refusal,omitempty"`
 }
@@ -123,7 +135,21 @@ func (a Approach) Describe() string {
 		out += fmt.Sprintf("; %d observation(s) had nothing readable selected", a.Unknown)
 	}
 	if len(a.Moves) > 0 {
-		out += fmt.Sprintf("; %d observed move(s) of the mark in that list", len(a.Moves))
+		out += fmt.Sprintf("; %d observed move(s) of the mark in that list, %d of them "+
+			"with a direction repeated evidence supports", len(a.Moves), a.Bound)
+	}
+	return out
+}
+
+// Bindings renders what is known about pressing each observed move, one line each.
+//
+// The inspection surface for the candidate bindings, and it exists for the reason the entry
+// line on `director reach` exists: a field nothing renders is a field that quietly stops being
+// filled, and this repository has eight recorded cases of exactly that.
+func (a Approach) Bindings() []string {
+	out := make([]string, 0, len(a.Moves))
+	for _, m := range a.Moves {
+		out = append(out, m.String())
 	}
 	return out
 }
@@ -138,6 +164,15 @@ func ApproachOf(rel RememberedRelationship) Approach {
 		Step:    RelationshipRef{From: rel.From, To: rel.To},
 		Unknown: rel.SelectedUnknown,
 		Moves:   append([]SelectionStep{}, rel.Moves...),
+	}
+	// HOW MANY OF THOSE MOVES COULD BE PRESSED, counted where the moves are read rather
+	// than by a caller that would have to know the rule.
+	//
+	// Deleting this must fail TestAPlannedRouteSaysWhichMovesHaveADirection.
+	for _, m := range a.Moves {
+		if m.Support().Usable() {
+			a.Bound++
+		}
 	}
 	best, ok := DominantSelection(rel.SelectedBefore)
 	if !ok {

@@ -545,6 +545,9 @@ it refuses those looks. Visible is fine; in front is not.
   metric-chasing. The fix is to carry the look at which the change was first SEEN out of the
   reader, which is a change to its interface. **This is the first thing to check in a supervised
   live session**, because at a live cadence it is the difference between graph evidence and none.
+  Since [[ADR-161-a-direction-is-joined-to-a-move-after-the-pixels]] it costs more than a
+  counter: an unattributed move can never name a direction, so the lag now leaves the chain
+  unnamed exactly where a live session would produce it.
 - **Responding was compared as a TALLY and is now compared as a share.** A list that moves on its
   own schedule collects attributed moves in proportion to how often it moves — with presses
   spread through a session, the fraction of any list's moves landing inside a window is roughly
@@ -581,18 +584,26 @@ it refuses those looks. Visible is fine; in front is not.
   identity — through `structure.Propose` and `ShadowTotals.Observe`, which is the call the live
   cycle makes. What it still cannot establish is anything about the live application: a replay
   measures how well Marco interprets a recording.
-- **A durable chain of moves cannot say which key produces one.** The selection reader is handed
-  a COUNT of directional intents and never a direction, so that an input can never predict the
-  visual outcome it is being correlated with -
-  [[ADR-158-the-active-list-is-the-one-that-responds]]'s rule, which
-  [[ADR-160-activating-an-entry-is-not-moving-the-mark]] deliberately does not touch. The
-  consequence is exact: an approach is a route Marco can DESCRIBE and not one it can perform. It
-  can say "the mark was seen going entry 1 to 2 to 3, and the change was observed with entry 3
-  selected"; it cannot say "press down twice". **This is the next thing needed for a taught
-  "open the third entry".** The honest way to close it is a join made OUTSIDE the watch - the
-  input log already records every admitted event against its sample - so the direction is
-  attached after the pixels have spoken rather than before. Not done here because it touches the
-  trust boundary ADR-158 drew on purpose.
+- **A chain of moves names a direction and still cannot say that pressing it ARRIVES.**
+  [[ADR-161-a-direction-is-joined-to-a-move-after-the-pixels]] closed the half
+  [[ADR-160-activating-an-entry-is-not-moving-the-mark]] named: a `SelectionStep` now carries the
+  directions OBSERVED before each move, joined after the pixels and outside anything that reads a
+  mark, with `BindingSupport` saying in five words what the evidence amounts to. The watch's
+  inputs are unchanged - it still takes a COUNT of directional intents, so an input still cannot
+  predict the visual outcome it is being correlated with, which is
+  [[ADR-158-the-active-list-is-the-one-that-responds]]'s rule.
+  What remains empty is the third claim: pressing `down` from entry 1 arrives at entry 2. It is
+  empty on purpose, because it needs the press performed deliberately and the outcome checked,
+  which is a rehearsal and not a passive observation. So a chain with a direction on every hop is
+  a route Marco could be ASKED to take and still not one it has been shown able to take. **The
+  next thing needed for a taught "open the third entry" is a verified binding, and that is a
+  rehearsal rather than more observation.** On the real corpus both retained moves name `down`
+  and both read `thin_evidence`, which is one observation each.
+- **A binding never says which DEVICE pressed it.** The meaning crosses (`down`) and the hardware
+  does not, which matters to whoever eventually performs one: a controller button is not
+  reachable through a keyboard FFI. `InputLog` retains the device beside every admitted event, so
+  the join exists to be made when something exists that would use it. Deliberate scope, recorded
+  in ADR-161 rather than discovered later.
 - **A session on the pixels discovery path segments no screens.** `StructuralView.Regions` comes
   from named detections and the structure proposer names nothing, so on the default discovery
   path the screen model is one vacuous state that any composition with no named roles matches.

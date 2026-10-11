@@ -10,6 +10,13 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/service"
 )
 
+// bindingsShown bounds the candidate bindings one step prints.
+//
+// Four. A nine-entry list has sixteen adjacent pairs, and the question a person reads this to
+// answer is whether Marco can name a control for the list at all — not to audit every hop,
+// which is what the JSON view carries in full.
+const bindingsShown = 4
+
 // `director reach "open mouse settings"` — the goal-centric question, asked out loud.
 //
 //	director reach                      # what outcomes has Marco learned here
@@ -99,11 +106,23 @@ func runReach(args []string) int {
 			case s.Entries > 0:
 				fmt.Printf("          with entry %d of %d selected "+
 					"(%d of %d readable observation(s), %d observed "+
-					"move(s) in that list)\n",
-					s.Entry, s.Entries, s.Support, s.Of, s.Moves)
+					"move(s) in that list, %d with a known direction)\n",
+					s.Entry, s.Entries, s.Support, s.Of, s.Moves, s.Bound)
 			case s.SelectionRefusal != "":
 				fmt.Printf("          no entry known for this step (%s)\n",
 					s.SelectionRefusal)
+			}
+			// THE CANDIDATE BINDINGS, which are the difference between a route
+			// Marco can describe and one anybody could be asked to take. Bounded,
+			// because a nine-row list has sixteen adjacent pairs and the question
+			// a person is asking here is "does it know how to press this at all".
+			for i, line := range s.Bindings {
+				if i >= bindingsShown {
+					fmt.Printf("          ... and %d more observed "+
+						"move(s)\n", len(s.Bindings)-bindingsShown)
+					break
+				}
+				fmt.Printf("          move: %s\n", line)
 			}
 		}
 		// WHY THIS ONE. A route somebody is about to watch happen is owed a reason, and it

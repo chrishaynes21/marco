@@ -1473,6 +1473,19 @@ type ReachStepView struct {
 	// Moves is how many moves of the mark have been observed inside that list — what a
 	// route would have to get the mark there with.
 	Moves int `json:"observed_moves,omitempty"`
+	// Bound is how many of those moves name a direction repeated evidence stands behind.
+	//
+	// BESIDE Moves rather than instead of it. `6 observed, 2 bound` is a list Marco has
+	// watched and largely cannot name the controls of, and a bare move count reads exactly
+	// the same as six it could name.
+	Bound int `json:"bound_moves,omitempty"`
+	// Bindings is one line per observed move: the entries either side, how often it was
+	// seen, and the direction evidence in observe.BindingSupport's closed vocabulary.
+	//
+	// CANDIDATES, every one of them. A direction here was observed before the mark moved and
+	// has never been pressed on purpose to find out whether it is what moved it — see
+	// observe.DirectionCount, where the absence of a verified field is deliberate.
+	Bindings []string `json:"bindings,omitempty"`
 	// SelectionRefusal is why no row is known for this step, in
 	// observe.ApproachRefusal's closed vocabulary.
 	SelectionRefusal string `json:"selection_refusal,omitempty"`
