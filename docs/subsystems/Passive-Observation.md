@@ -381,6 +381,12 @@ it refuses those looks. Visible is fine; in front is not.
   proposed, accepted, refused, by reason. The decision rested on a `considered 77, rejected
   76` reading taken by hand after the run, because `detections 0` could not distinguish a
   detector that saw nothing from one that refused everything it saw
+- [[ADR-157-vision-needs-a-cue-that-is-not-a-model]] — every piece of geometry in Marco came
+  from one learned detector in a plugin the default build leaves inert, so grouping and
+  selection could see only what it proposed. Replaying a real session measured the cost: the
+  menu was a groupable list on about ten looks of 107. A model-free proposer now finds structure
+  in pixels in the engine, with two classical cues and no dependencies — and is not yet wired
+  into the live path
 - [[ADR-156-a-refusal-is-a-measurement]] — the tracker had computed, on every look of every
   session, exactly why each candidate list was refused, and nothing ever read it. One caller
   used `Tracker.Evidence()`, to count how many returned true. Now reported per candidate with
@@ -484,6 +490,17 @@ it refuses those looks. Visible is fine; in front is not.
   while still in front is not detected, because being in front is all the platform is asked.
   Not-in-front is the condition under which the pixels **can** be somebody else's; it is not
   proof of occlusion, and occlusion without a focus change remains invisible here.
+- **Structure from pixels is not in the live path.** [[ADR-157-vision-needs-a-cue-that-is-not-a-model]]
+  measures 92% row discovery on 20 drawn screens with no model and no accessibility, and a
+  session cannot use any of it: the frame lives inside the vision provider, which is a plugin,
+  so the engine has no pixels at sample time. Giving it some is its own change, with its own
+  provenance and privacy questions.
+- **No recording carries pixels.** The replay in `cmd/perceptionreplay` reads L1 — the
+  detector's own output — which is enough to exercise grouping, tracking, the reader and the
+  belief. It cannot test a change to the detector, to admission, or to how shading is measured,
+  because those stages PRODUCED L1. Those need L0: frames, inputs and window identity, recorded
+  during a supervised session. Until that exists, every change upstream of L1 is measurable only
+  against drawn fixtures.
 - **A mark that never moves cannot be seen at all.** A member's baseline is built only from
   frames in which it was not marked, so a permanently lit row never establishes one and is
   skipped from the judgement. Correct for the rule's purpose and surprising enough to have

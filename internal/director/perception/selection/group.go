@@ -143,10 +143,44 @@ func stackPitch(boxes []image.Rectangle, members []int) float64 {
 }
 
 // alike reports whether two regions could be rows of one list.
+//
+// # Height, and then ALIGNMENT rather than width
+//
+// Width similarity was the horizontal test, and it encoded an assumption about where geometry
+// comes from: the learned detector proposes a box per row at the row's full width, so a menu's
+// rows all measure the same. Anything that finds text instead proposes the extent of the WORDS,
+// and the words in a list are of different lengths — "MAP" against "OPTIONS" differ by 83%,
+// against a tolerance of 35%.
+//
+// Measured, on a drawn six-entry settings list whose every row was correctly proposed as a text
+// line: the stack came out EMPTY. Discovery was complete and grouping refused all of it, so the
+// tracker never saw a candidate and the belief reported insufficient evidence — which is
+// indistinguishable, in the report, from having seen nothing at all.
+//
+// What a list actually shares is a common edge and a regular pitch. Left-aligned is the usual
+// case and centred is common in games, so either satisfies this; the tolerance is half a row's
+// height, which is tight enough to separate two adjacent columns and loose enough for the
+// ragged left edge of an indented sub-item.
+//
+// Width is NOT merely dropped. A pair whose widths are similar is still alike by the old test,
+// so full-width row boxes from the detector group exactly as they did; alignment is an
+// additional way to be alike, not a replacement. That is what keeps the existing corpus — a
+// measured Trackmania frame where the list is seven rows in a pile of 135 — scoring as before.
 func alike(a, b image.Rectangle) bool {
-	return relDiff(float64(a.Dy()), float64(b.Dy())) <= stackTolerance &&
-		relDiff(float64(a.Dx()), float64(b.Dx())) <= stackTolerance
+	if relDiff(float64(a.Dy()), float64(b.Dy())) > stackTolerance {
+		return false
+	}
+	if relDiff(float64(a.Dx()), float64(b.Dx())) <= stackTolerance {
+		return true
+	}
+	tol := 0.5 * math.Max(float64(a.Dy()), float64(b.Dy()))
+	leftAligned := math.Abs(float64(a.Min.X-b.Min.X)) <= tol
+	centred := math.Abs(centreX(a)-centreX(b)) <= tol
+	return leftAligned || centred
 }
+
+// centreX is a rectangle's horizontal midpoint.
+func centreX(r image.Rectangle) float64 { return float64(r.Min.X+r.Max.X) / 2 }
 
 // dedupe drops regions that substantially repeat one already kept.
 //
