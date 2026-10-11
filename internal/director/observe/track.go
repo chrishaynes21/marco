@@ -316,6 +316,19 @@ func (w *InterfaceWatch) Track(look TrackLook) {
 	//
 	// Deleting this must fail TestAFastMoveLongAfterThePressIsNotPrompted.
 	w.navOpen(look.At)
+	// AND THE FAST PATH BANKS THE MOMENT TOO, which is the half that matters live: most of
+	// a live session's moves are seen here, several times per cycle, and a move dated only
+	// by the slow looks is dated to the wrong second.
+	//
+	// AFTER navOpen AND NOT BEFORE IT, which is not a tidiness: noteSettling snapshots
+	// whether the window was open when the pixels moved, and before the line above the
+	// window is the one a slow look opened, unaged by the gap since. Placed earlier, a
+	// press two seconds before a fast read was credited with the move — caught by
+	// TestAFastMoveLongAfterThePressIsNotPrompted, which is the test that already existed
+	// for exactly this mistake one layer down.
+	//
+	// Deleting this must fail TestAFastReadDatesAMoveFromWhenThePixelsMoved.
+	w.noteSettling(res, look.At)
 	// The belief was confirmed by pixels, so it is not stale and the forget counter does
 	// not advance. See InterfaceWatch.trackedThisLook.
 	next.Stale, next.Unconfirmed, next.Empty = false, 0, 0

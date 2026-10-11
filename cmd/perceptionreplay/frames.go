@@ -77,15 +77,22 @@ type inputRecord struct {
 
 // annotationFile is a recording's labels, when it has any.
 type annotationFile struct {
-	Session    string `json:"session"`
-	Provenance string `json:"provenance"`
-	Intervals  []struct {
-		From  int     `json:"from"`
-		To    int     `json:"to"`
-		State string  `json:"state"`
-		Entry string  `json:"entry"`
-		Y     float64 `json:"y"`
-	} `json:"intervals"`
+	Session    string               `json:"session"`
+	Provenance string               `json:"provenance"`
+	Intervals  []annotationInterval `json:"intervals"`
+}
+
+// annotationInterval is one run of frames the labels agree about.
+//
+// Named rather than anonymous because the confirmation measurement walks these in order to
+// find where one labelled row gave way to the next, and an anonymous struct cannot be passed
+// to a function that does.
+type annotationInterval struct {
+	From  int     `json:"from"`
+	To    int     `json:"to"`
+	State string  `json:"state"`
+	Entry string  `json:"entry"`
+	Y     float64 `json:"y"`
 }
 
 // labelAt returns the state and the selected row's normalised centre for a frame index.
@@ -154,6 +161,16 @@ type frameResult struct {
 	// milliseconds, one entry per move. The measurement behind
 	// observe.MaxResponseLatency, which until now was an assumption.
 	Latencies []int64
+	// Trace is what the belief said on every scored frame, and Score and Confirmations
+	// what that comes to when counted against the labels.
+	//
+	// Kept whole rather than accumulated into counters because the questions that matter
+	// are about sequences — how long after the pixels changed did the belief agree, and
+	// what did it say in between — and a counter cannot answer those. See score.go for
+	// why coverage and accuracy are never divided by each other.
+	Trace         []frameObservation
+	Score         selectionScore
+	Confirmations []confirmation
 }
 
 // replayFrames reprocesses a recording's pixels through the structure proposer and the
@@ -304,6 +321,20 @@ func replayFrames(dir string, stride, limit int, verbose bool) (frameResult, err
 				}
 			}
 		}
+		// AND THE WHOLE FRAME'S ANSWER, for the scoring pass. Recorded for every
+		// frame and not only the labelled ones, so the scorer rather than this loop
+		// decides what counts — one place that knows the denominators.
+		obs := frameObservation{
+			Index: fr.Index, AtMS: fr.AtMS, Status: string(b.Status),
+			Reading: b.Because, Selected: b.Selected, Entries: b.Entries,
+			ListTop: b.Where.Y, ListBottom: b.Where.Y + b.Where.Height,
+		}
+		if b.Selected >= 0 {
+			obs.NamedY = b.SelectedWhere.Y + b.SelectedWhere.Height/2
+			obs.NamedHeight = b.SelectedWhere.Height
+		}
+		r.Trace = append(r.Trace, obs)
+
 		if verbose {
 			fmt.Printf("  frame %-5d %-12s sel %-3d  cands %-3d  label %-10s %s\n",
 				fr.Index, b.Status, b.Selected, len(res.Candidates), state,
@@ -320,6 +351,8 @@ func replayFrames(dir string, stride, limit int, verbose bool) (frameResult, err
 	r.States, r.Transitions = len(totals.States), len(totals.Transitions)
 	r.Changes = totals.Transitions
 	r.Hypotheses = observe.Hypotheses(totals, observe.DefaultHypothesisThresholds())
+	r.Score = scoreSelection(r.Trace, ann)
+	r.Confirmations = confirmations(r.Trace, ann)
 	reportFrames(r, ann)
 	return r, nil
 }
@@ -432,10 +465,21 @@ func reportFrames(r frameResult, ann *annotationFile) {
 		fmt.Printf("  discovery           %d of %d labelled frames had a proposal covering\n"+
 			"                      the selected row (%.0f%%)\n",
 			r.CoveredSelected, r.LabelledFrames, pct(r.CoveredSelected, r.LabelledFrames))
-		fmt.Printf("  selection read      %d frames named an entry; %d of those named THE\n"+
-			"                      labelled row, to within half its pitch (%.0f%%)\n",
-			r.WithSelection, r.CorrectSelection,
-			pct(r.CorrectSelection, r.WithSelection))
+		// TWO POPULATIONS, AND THE PERCENTAGE IS GONE.
+		//
+		// WithSelection counts every frame the belief named something on, labelled or
+		// not; CorrectSelection counts only labelled frames. A ratio between them is a
+		// ratio between different populations, and printing one here was read — by its
+		// own author, in a written report — as an accuracy when it is neither an accuracy
+		// nor a coverage. Both counts are kept, because the regression floors in
+		// corpus_test.go are set on them and a ratchet must not be silently re-based; the
+		// percentage that cannot be formed from them is not printed, and the section below
+		// prints both rates against their own denominators.
+		fmt.Printf("  selection read      %d frame(s) named an entry (of all %d replayed);\n"+
+			"                      %d naming(s) on a LABELLED frame were the labelled\n"+
+			"                      row, to within half its pitch. Different denominators:\n"+
+			"                      see the coverage and accuracy section below\n",
+			r.WithSelection, r.Frames, r.CorrectSelection)
 		// THE HARD SCORE, and the one a route depends on.
 		fmt.Printf("  entry named         %d of those were read in a list with the same %d\n"+
 			"                      entries the labels describe; %d named the same entry\n",
@@ -443,6 +487,9 @@ func reportFrames(r frameResult, ann *annotationFile) {
 	} else {
 		fmt.Printf("  no annotations, so discovery and selection are unscored here\n")
 	}
+
+	// THE SPLIT, before anything derived from it.
+	reportSelectionScore(r.Score, r.Confirmations)
 
 	reportRetained(r)
 	// AND THE OTHER HALF OF USING A MENU, and whether any of it would outlive the session.
@@ -748,6 +795,30 @@ func reportRetained(r frameResult) {
 	fmt.Printf("\n")
 	if len(r.Moves) == 0 {
 		return
+	}
+	// HOW LATE THE READER WAS, on the moves themselves and in the session's own terms —
+	// no labels involved, which is what makes this the number a LIVE session can report.
+	//
+	// The ground-truth confirmation lag above measures the same delay against the
+	// annotation and is the better measurement; this one exists because a live session has
+	// no annotation, and a number that only exists offline cannot tell anybody that a live
+	// cadence is costing the attribution.
+	var dated, undated int
+	var lateMS int64
+	for _, m := range r.Moves {
+		dated += m.Dated
+		undated += m.Count - m.Dated
+		lateMS += m.ConfirmLateMS
+	}
+	if dated > 0 {
+		fmt.Printf("    confirmed late    %d of %d observation(s) could say when the "+
+			"pixels moved;\n                      mean %dms between the pixels "+
+			"moving and the reader agreeing\n",
+			dated, dated+undated, lateMS/int64(dated))
+	} else {
+		fmt.Printf("    confirmed late    none of %d observation(s) could say when the "+
+			"pixels moved,\n                      so every one of them is dated from "+
+			"its confirmation\n", undated)
 	}
 	fmt.Printf("    %-10s %-7s %-6s %-7s %-7s %-4s %-7s %s\n",
 		"state", "entry", "seen", "prompted", "unprom", "of", "press", "support")

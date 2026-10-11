@@ -10,10 +10,12 @@ depends_on:
 used_by:
   - vision
   - game-packs
-updated: 2026-10-09
+updated: 2026-10-11
 source_paths:
   - internal/director/observe
   - internal/director/observe/interface.go
+  - internal/director/perception/selection/selection.go
+  - cmd/perceptionreplay/score.go
   - internal/director/observesession
   - internal/director/learn
   - cmd/director/observecmd.go
@@ -538,16 +540,54 @@ it refuses those looks. Visible is fine; in front is not.
   next look is taken (0 of 26 transfers attributed on a fixture where every one was the look
   after a press); and navigation was only read on a look the detector took, so live, where three
   slots in four bring no look, most presses never opened the window at all.
-- **A move is attributed when the reader CONFIRMS it, which is a look or two after it happened.**
-  The selection reader refuses a row it has seen once, so the mark arriving and the mark being
-  readable are different looks. Measured at a 2s cadence: **seventeen moves retained, one
-  attributed.** No defensible window reaches that far, and widening one until it did would be
-  metric-chasing. The fix is to carry the look at which the change was first SEEN out of the
-  reader, which is a change to its interface. **This is the first thing to check in a supervised
-  live session**, because at a live cadence it is the difference between graph evidence and none.
-  Since [[ADR-161-a-direction-is-joined-to-a-move-after-the-pixels]] it costs more than a
-  counter: an unattributed move can never name a direction, so the lag now leaves the chain
-  unnamed exactly where a live session would produce it.
+- ~~A move is attributed when the reader CONFIRMS it, which is a look or two after it happened.~~
+  **Fixed 2026-10-11**, [[ADR-162-coverage-and-accuracy-are-different-failures]]. The reader now
+  reports which row a frame POINTED AT without publishing it (`selection.Result.Provisional`),
+  and the watch banks the moment plus whether the response window was open then. A move carries
+  `FirstSeen` beside `At` and `Prompted` is decided as of the sighting. The published reading is
+  byte-identical, which is what makes the addition incapable of regressing coverage or accuracy.
+  Three things are worth keeping from how it went:
+  - **The earlier answer REPLACES the later one.** Dating a move from its confirmation did not
+    only lose attributions, it invented them: a press made AFTER the mark arrived opened a window
+    still open when the reader agreed, so the press was credited with an outcome it cannot have
+    caused — the input predicting the outcome, reachable through the clock rather than the data
+    path. An `or` would have kept it.
+  - **The snapshot must be taken after the window is aged to those pixels.** Placed before
+    `navOpen` on the fast path, a press two seconds earlier was credited. Caught by the
+    pre-existing `TestAFastMoveLongAfterThePressIsNotPrompted`.
+  - **On the real corpus it changes nothing**, because one look there is 66ms and the window is
+    400ms. The repair is for the live cadence, where the same one look is two seconds; drawn as
+    `TestAPressBeforeThePixelsMovedSurvivesALateConfirmation`.
+- **Coverage and accuracy were one number, and the number was neither.** `43 of 189 (23%)` was
+  reported as "selection reading at 23%" and ranked as a reader problem. The two counts did not
+  share a denominator — one was over every frame, the other over labelled frames — so their ratio
+  is a ratio between populations. Taken apart in
+  [[ADR-162-coverage-and-accuracy-are-different-failures]], the same corpus says:
+  **coverage 185 of 829 (22%)**, of which **637 frames identified no list at all** and 7 had a
+  list with no readable row; **accuracy 43 of 185 (23%)**, of which **0 were off by a neighbour**
+  and 139 of 142 wrong namings had the labelled row outside the list being read. Handed a list
+  containing the labelled row the reader names it **43 of 46 (93%)**, which clears the 90%
+  target. So the reader is not the bottleneck at either end: it costs 7 frames of coverage out of
+  829 and no neighbour confusions at all.
+- **The list the belief reads is usually not the menu, and that is now the measured bottleneck.**
+  138 of 185 namings over the full corpus came from one candidate — a band `y 0.280..0.335`, five
+  and a half percent of the screen tall, nine "rows" in it — which got none right. It also happens
+  to carry nine rows, which is how it satisfied the `entry named ... same 9 entries the labels
+  describe` score that was documented as the one "that cannot be satisfied by a rectangle that
+  happens to overlap". A list with the right number of entries can be any list at all. **A
+  geometry filter was deliberately not added**: a row five pixels tall is not a row somebody reads
+  text in, but saying so is the appearance assumption `selection.Tracker` exists to refuse, and
+  the one previous human-scale floor cost 88% of the selection reads. It needs its own decision
+  and a second corpus.
+- **Over the full corpus the belief ends `ambiguous`; at every tenth frame it does not.** The
+  responding share is 0.83 for the menu against 0.55 for a four-row sliver at `y 0.104..0.131`,
+  a ratio of 1.5 against the required `NavMargin` of 2. Not explained, not tuned.
+- **Only 4 of 33 labelled row changes were ever named correctly, and 103 frames inside those gaps
+  named some other row.** The ground-truth confirmation lag measures from the frame the labels put
+  the new row in place, which is what the press-based latency cannot do — press-to-belief is the
+  game's repaint plus Marco's delay and cannot separate them. **A gap spent silent is a slower
+  answer; a gap spent naming the row the selection has left is a wrong one**, and the retained
+  moves alone cannot tell them apart.
 - **Responding was compared as a TALLY and is now compared as a share.** A list that moves on its
   own schedule collects attributed moves in proportion to how often it moves — with presses
   spread through a session, the fraction of any list's moves landing inside a window is roughly
@@ -564,7 +604,11 @@ it refuses those looks. Visible is fine; in front is not.
   throughout, because the first counts proposals covering the row and the second counts frames
   producing a stack, and neither says the stack is the menu. `cmd/perceptionreplay -inspect
   <frame>` exists now for exactly that question. Full account in
-  [[Experiment-026-the-same-menu-seen-from-pixels]]'s correction.
+  [[Experiment-026-the-same-menu-seen-from-pixels]]'s correction. **And the repair was not held in
+  place by anything** until 2026-10-11: the mutation gate put the envelope back and every floor in
+  the corpus test still passed. `selectionScore.NamedAsTallAsList` is the guard — an entry is not
+  half a list — with `TestANamingAsTallAsItsListIsReported` as the case it must fire on, because a
+  corpus assertion that a counter is zero is also satisfied by a deleted counter.
 - **The menu groups as six of its nine entries, and the ordinal is still never right.** Two
   defects in `stack` are fixed — every candidate member was compared to the SEED, which on a
   slanted panel makes the test stricter the longer the run grows, and a drawn fixture's
@@ -573,7 +617,10 @@ it refuses those looks. Visible is fine; in front is not.
   entry "counted from the top" and was an index into grouping's emission order, which appends
   strays last. What remains is that the list the belief reads is still not the menu often enough
   to name an entry correctly, and 138 frames reading a nine-entry list name the right ordinal on
-  none of them.
+  none of them. **Cause established 2026-10-11**: those 138 frames are not the menu at all, they
+  are a nine-row sliver at `y 0.280..0.335` — see the coverage and accuracy entries above and
+  [[ADR-162-coverage-and-accuracy-are-different-failures]]. The menu's own readings, 43 of them,
+  are right 43 times.
 - **Structure from pixels is not in the live path.** [[ADR-157-vision-needs-a-cue-that-is-not-a-model]]
   measures 92% row discovery on 20 drawn screens with no model and no accessibility, and a
   session cannot use any of it: the frame lives inside the vision provider, which is a plugin,

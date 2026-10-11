@@ -110,6 +110,16 @@ type SelectionTransition struct {
 	// tell six moves over a session from six in one second.
 	First int `json:"first,omitempty"`
 	Last  int `json:"last,omitempty"`
+	// Dated is how many of this move's observations could say when the pixels moved, and
+	// ConfirmLateMS the total delay between the pixels moving and the reader agreeing.
+	//
+	// A SUM AND A COUNT and not a mean, so a reader can see both halves: a mean alone cannot
+	// distinguish one badly delayed sighting from six slightly delayed ones, and the
+	// difference decides whether the cadence or the reader is the thing to look at. Dated is
+	// below Count whenever a sighting could not be placed, which is the ordinary case for
+	// the look a list is first identified on.
+	Dated         int   `json:"dated,omitempty"`
+	ConfirmLateMS int64 `json:"confirm_late_ms,omitempty"`
 	// Directions are the directions attributed to this move's observations, one entry per
 	// distinct direction, and DirectionAmbiguous and DirectionUnknown the observations no
 	// single direction could be named for.
@@ -379,6 +389,12 @@ func (l *selectionLedger) fold(state ScreenStateID, m SelectionMove, att navAttr
 	}
 	if m.Tracked {
 		row.Tracked++
+	}
+	// HOW LATE THE READER WAS, measured rather than assumed. Folded here because this is
+	// the one place every observation of a move passes through.
+	if !m.FirstSeen.IsZero() {
+		row.Dated++
+		row.ConfirmLateMS += m.ConfirmedAfterMS
 	}
 	// THE DIRECTION, folded only where a press was attributable at all. The three
 	// branches partition Prompted exactly, which is what makes the record checkable:

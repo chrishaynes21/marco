@@ -457,12 +457,32 @@ type navAttribution struct {
 // direction banked long after the mark moved. Such a session reports every prompted observation
 // as `direction_unknown`, which is what TestASessionWithNoClockNamesNoDirectionAndSaysSo asserts.
 //
+// # Which moment the move is dated from
+//
+// When the PIXELS moved, where the watch could say — SelectionMove.FirstSeen — and only its
+// confirmation when nothing could. The same moment the watch now decides Prompted at, which is
+// what keeps the two in lockstep: dating the direction from the confirmation while Prompted was
+// decided from the sighting would let a move arrive prompted with no slot at or before it to
+// attribute, and the three counters would stop partitioning Prompted.
+//
 // Deleting either refusal must fail TestAPressObservedAfterAMoveIsNotItsDirection.
 func (p *pressLedger) attribute(m SelectionMove) navAttribution {
 	if !m.Prompted {
 		// The watch found nothing attributable. The move is Unprompted and already
 		// counted as such, and a direction here would be evidence the watch refused.
 		return navAttribution{}
+	}
+	// THE MOMENT THE MOVE WAS MADE, and only its confirmation when nothing dated it.
+	//
+	// The same moment Prompted is now decided at, which is what keeps the two in lockstep:
+	// the slot that made Prompted true is the most recent directional slot at or before
+	// this instant, so scanning to this instant reproduces the watch's decision instead of
+	// restating its policy. Dating the direction from the confirmation while Prompted was
+	// decided from the sighting would let a move be prompted with no slot to attribute it
+	// to, and the three counters would stop partitioning Prompted.
+	when := m.At
+	if !m.FirstSeen.IsZero() {
+		when = m.FirstSeen
 	}
 	best := -1
 	var bestAt time.Time
@@ -474,13 +494,17 @@ func (p *pressLedger) attribute(m SelectionMove) navAttribution {
 		// or before a real one and a zero slot is skipped outright. An earlier version
 		// guarded the move separately; the mutation gate showed that deleting the guard
 		// changed no outcome, which makes it a second answer to a settled question.
-		if s.at.IsZero() || m.At.IsZero() || s.at.After(m.At) {
+		//
+		// `when` and not m.At, so a move the pixels dated is refused on the moment it
+		// was MADE. The refusal is unchanged by that: a clockless move has a zero
+		// FirstSeen too, so `when` falls back to a zero At and this line still refuses.
+		if s.at.IsZero() || when.IsZero() || s.at.After(when) {
 			continue
 		}
 		// The CEILING `window()` clamps to, not a second latency policy. Past it a
 		// press stops licensing anything: "something was pressed in the last three
 		// seconds and the mark is now elsewhere" is a coincidence with a long name.
-		if m.At.Sub(s.at) > TrackStaleness {
+		if when.Sub(s.at) > TrackStaleness {
 			continue
 		}
 		// THE LATEST QUALIFYING SLOT BY TIME, not the last one appended. Slots arrive in

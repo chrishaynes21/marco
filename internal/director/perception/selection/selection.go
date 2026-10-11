@@ -92,6 +92,47 @@ type Result struct {
 	Row int
 	// Why is a short account for a person reading a trace.
 	Why string
+
+	// Provisional names the row THIS FRAME pointed at, when that row is not the one being
+	// published. -1 when the frame pointed at nothing, and -1 on the frame a row is
+	// confirmed, because a confirmed row is published rather than provisional.
+	//
+	// # What it is for, and the one thing it must never be used for
+	//
+	// A change of winner is not published until a second frame agrees, which is correct
+	// and costs a frame of latency on every real move. The cost is not in the answer — the
+	// answer is right either way — it is in the TIME the answer carries: a consumer that
+	// records when it was told has recorded the confirmation, not the change, and anything
+	// that joins a move to a cause over a window is then systematically late by the
+	// confirmation delay.
+	//
+	// So this field says when the pixels moved, for a consumer that needs the timing. It
+	// is NOT a selection. Reading it as one re-admits every failure ConfirmFrames exists
+	// to refuse: the measured blend lasts exactly one frame and names the row the selection
+	// is LEAVING, so a provisional sighting is wrong about as often as it is right.
+	//
+	// The safe use is the narrow one, and it is narrow by arithmetic rather than by
+	// convention: a consumer keeps the moment a provisional row APPEARED, and reads it only
+	// once that same row is published. A provisional sighting that is never confirmed is
+	// then never read by anything — and a blend, which names a different row, cannot
+	// contribute its moment to the row that follows it, because a different row resets the
+	// moment.
+	//
+	// Enforced by TestAProvisionalSightingNeverBecomesAReading and
+	// TestABlendDoesNotLendItsMomentToTheRowThatFollowsIt.
+	Provisional int
+	// ProvisionalN is how many consecutive frames have pointed at Provisional. 0 when
+	// Provisional is -1.
+	ProvisionalN int
+}
+
+// reading is the one place a Result is built.
+//
+// Because Provisional is an INDEX, and the zero value of an index is a valid row. A Result
+// written as a literal anywhere else would say "row 0 is settling" by omission, on every frame
+// that said nothing at all — and row 0 is a real row with a real entry on it.
+func reading(outcome Outcome, row int, why string) Result {
+	return Result{Outcome: outcome, Row: row, Why: why, Provisional: -1}
 }
 
 // Tuning. Deliberately few, and none of them a colour, a coordinate or a style.
@@ -191,7 +232,7 @@ func (r *Reader) Read(img image.Image, rows []Row) Result {
 // is the door it comes in by. Order matches rows.
 func (r *Reader) ReadShades(rows []Row, descs []Shade) Result {
 	if len(rows) == 0 || len(descs) != len(rows) {
-		return Result{Outcome: Insufficient, Row: -1, Why: "no candidate rows"}
+		return reading(Insufficient, -1, "no candidate rows")
 	}
 
 	winner, why, departing := r.candidate(rows, descs)
@@ -412,24 +453,24 @@ func (r *Reader) settle(winner int, why string, departing bool) Result {
 			// just watched end — which is precisely the measured failure, six confident
 			// wrong answers all naming the entry the selection had moved off.
 			r.asserted = -1
-			return Result{Outcome: Insufficient, Row: -1, Why: why}
+			return reading(Insufficient, -1, why)
 		}
 		if r.asserted >= 0 && r.unread <= HoldFrames {
-			return Result{Outcome: Selected, Row: r.asserted,
-				Why: "unreadable this frame; still claiming the settled selection"}
+			return reading(Selected, r.asserted,
+				"unreadable this frame; still claiming the settled selection")
 		}
 		if r.asserted >= 0 {
 			// Held as long as is honest. An old observation is not a current one.
 			r.asserted = -1
-			return Result{Outcome: Insufficient, Row: -1,
-				Why: "unreadable for too long to keep claiming the previous selection"}
+			return reading(Insufficient, -1,
+				"unreadable for too long to keep claiming the previous selection")
 		}
-		return Result{Outcome: Insufficient, Row: -1, Why: why}
+		return reading(Insufficient, -1, why)
 	}
 	r.unread = 0
 	if winner == r.asserted {
 		r.pending, r.pendingN = -1, 0
-		return Result{Outcome: Selected, Row: winner, Why: why}
+		return reading(Selected, winner, why)
 	}
 	// A different row. Every measured transition blends for exactly one frame, so a
 	// change is not asserted until a second frame agrees.
@@ -440,10 +481,16 @@ func (r *Reader) settle(winner int, why string, departing bool) Result {
 	}
 	if r.pendingN >= ConfirmFrames {
 		r.asserted, r.pending, r.pendingN = winner, -1, 0
-		return Result{Outcome: Selected, Row: winner, Why: why}
+		return reading(Selected, winner, why)
 	}
-	return Result{Outcome: Insufficient, Row: -1,
-		Why: "a different row this frame; waiting for it to be confirmed"}
+	// THE ONE FRAME THAT REPORTS A PROVISIONAL ROW, and it reports it alongside an answer
+	// that still says nothing. Outcome and Row are untouched by the field beside them: a
+	// caller that ignores Provisional sees exactly what it saw before this field existed,
+	// which is what makes the addition impossible to regress coverage or accuracy with.
+	out := reading(Insufficient, -1,
+		"a different row this frame; waiting for it to be confirmed")
+	out.Provisional, out.ProvisionalN = winner, r.pendingN
+	return out
 }
 
 // remember adds this frame's levels to the baseline of every row that was not being claimed.

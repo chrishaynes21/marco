@@ -11,6 +11,7 @@ supersedes: []
 source_paths:
   - internal/director/perception/structure/structure.go
   - cmd/perceptionreplay/frames.go
+  - cmd/perceptionreplay/score.go
   - internal/director/perception/selection/group.go
 ---
 
@@ -266,3 +267,89 @@ look at which the mark was first SEEN somewhere else, on this corpus:
 
 The menu repaints just as fast either way. What changes is when Marco next looks. See
 [[ADR-158-the-active-list-is-the-one-that-responds]]'s addendum.
+
+## Second correction, 2026-10-11: 23% was two numbers, and the reader is not either of them
+
+The correction above produced one figure — **43 of 189 named the labelled row (23%)** — and that
+figure was then written up as *"selection reading at 23% against a 90% target"*, ranked third in
+a list of priorities, under a recommendation to work on the reader. All three of those were
+wrong, and the user's reply is what caught it:
+
+> it says the selection reader names an entry in 43/189 observations (23%), but later says those
+> readings are mostly wrong about which row. Those are very different failure modes.
+
+### The counts did not share a denominator
+
+`WithSelection` counted every frame the belief named something on, labelled or not.
+`CorrectSelection` counted only labelled frames. Their ratio is a ratio between two populations
+and is neither a coverage nor an accuracy. The coincidence that coverage on this corpus is ALSO
+22% is what let the single figure survive being looked at.
+
+`cmd/perceptionreplay/score.go` now scores from a per-frame trace, with every number carrying
+its own denominator and the wrong namings partitioned by cause. Full reasoning in
+[[ADR-162-coverage-and-accuracy-are-different-failures]].
+
+### What the corpus actually says
+
+| | all 864 frames | every 10th frame |
+| --- | --- | --- |
+| **coverage** — labelled frames naming an entry | **185 of 829 (22%)** | 38 of 83 (46%) |
+| of the rest: no list was identified | **637** | 28 |
+| of the rest: a list, and no readable row in it | **7** | 17 |
+| **accuracy** — namings that were the labelled row | **43 of 185 (23%)** | 19 of 38 (50%) |
+| of the wrong ones: off by a NEIGHBOUR | **0** | 0 |
+| of the wrong ones: the labelled row outside the list | **139 of 142** | 18 of 19 |
+| **the reader alone** — handed a list containing the row | **43 of 46 (93%)** | **19 of 20 (95%)** |
+
+Signed offsets from the labelled row, in labelled pitches: `-7:3  -4:2  -3:48  -2:89  +0:43`. A
+spike, not a spread — which is the shape of a wrong list and not of a reader that cannot separate
+neighbours.
+
+### Three findings
+
+**Coverage is lost to list identification.** 637 of 829 labelled frames had no identified list,
+so the reader was never asked. The reader's own contribution to lost coverage is **7 frames out
+of 829**.
+
+**Accuracy is lost to reading the wrong list.** Zero neighbour confusions. 138 of the 185
+namings came from one candidate: a band `y 0.280..0.335`, five and a half percent of the screen
+tall, with nine "rows" in it, which got none right. Handed a list that contained the row, the
+reader clears the 90% target.
+
+**The nine-entry coincidence was satisfying the hardest-looking score.** `entry named 138 of
+those were read in a list with the same 9 entries the labels describe; 0 named the same entry`
+was documented here as the score "that cannot be satisfied by a rectangle that happens to
+overlap". It was satisfied entirely by that sliver, which happens to carry nine rows. A list
+with the right number of entries can be any list at all.
+
+### And the repair to the scoring was not held in place by anything
+
+The mutation gate put the list envelope back where the entry region belongs — the exact defect
+this experiment's first correction found — and **every floor in
+`TestTheRealMenuCorpusStillReadsAsAMenu` still passed.** `selectionScore.NamedAsTallAsList` is
+the guard now (an entry is not half a list), with `TestANamingAsTallAsItsListIsReported` as the
+case it must fire on, because an assertion that a counter is zero is also satisfied by a deleted
+counter.
+
+### The confirmation lag, measured against the labels for the first time
+
+The response-latency table above starts from a PRESS, which is the game's repaint plus Marco's
+confirmation delay and cannot separate them. The annotation says which frame the new row was
+selected on, so the lag can be measured from there:
+
+| | |
+| --- | --- |
+| labelled changes of row | 33 |
+| ever named correctly | **4** |
+| never named | **29** |
+| lag when named (min / median / max) | 0ms / 67ms / 400ms — 1, 2, 7 frames |
+| frames inside those gaps naming some OTHER row | **103** |
+
+One frame of confirmation delay at this cadence, which is well inside the 400ms window — so
+`FirstSeen` ([[ADR-162-coverage-and-accuracy-are-different-failures]]) changes no number on this
+corpus, and is not expected to. It is a repair for the live cadence, where the same one look is
+two seconds.
+
+The 103 is the part worth keeping: **a gap spent silent is a slower answer, and a gap spent
+naming the row the selection has left is a wrong one.** The retained moves cannot tell them
+apart.

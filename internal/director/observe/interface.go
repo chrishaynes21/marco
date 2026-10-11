@@ -261,6 +261,12 @@ type InterfaceWatch struct {
 	// across looks in TIME rather than in observations.
 	navDebt time.Duration
 	navAt   time.Time
+	// settlingRow, settlingAt and settlingPrompted are the row the reader is waiting to
+	// confirm, when it was FIRST pointed at, and whether the response window was open at
+	// that moment. See noteSettling, which is the only thing that writes them.
+	settlingRow      int
+	settlingAt       time.Time
+	settlingPrompted bool
 	// lookAt is when the previous look was taken and interval the gap to the one before
 	// it, so a press can be attributed over a window at least as long as the gap between
 	// the looks that could have seen the response. See window().
@@ -350,7 +356,8 @@ type SelectionMove struct {
 	// reading failure in the same table as an observation.
 	From, To int
 	// Prompted says a directional navigation intent was observed within MaxResponseLatency
-	// of this move being SEEN.
+	// of this move being SEEN — of FirstSeen where the pixels could date it, and of At
+	// where they could not.
 	//
 	// THE INPUT LABELS A MOVE; IT NEVER CREATES ONE, which is ADR-158's rule and is enforced
 	// here by construction: this field is set on a move the shading already proved, and no
@@ -380,6 +387,29 @@ type SelectionMove struct {
 	Gap    int
 	Sample int
 	At     time.Time
+	// FirstSeen is when the pixels FIRST pointed at To, which is a look or more before At.
+	//
+	// # Two times for one move, and why neither is enough alone
+	//
+	// At is when the reader agreed. A change of winner is not published until a second
+	// look confirms it, which refuses every one-frame blend and is correct — but it means
+	// the time on this move is the time of the confirmation, not of the change. Anything
+	// that joins a move to a cause over a window is then late by the confirmation delay,
+	// and measured at a live 2s cadence that delay is larger than the whole window.
+	//
+	// FirstSeen is when the change happened, as nearly as pixels can say. It is NOT a
+	// weaker reading of the same thing: the move is still only recorded on confirmation,
+	// and a provisional sighting that was never confirmed produces nothing at all. What
+	// the field adds is the moment, for the two consumers that need a moment — whether a
+	// press was attributable, and which direction was in the window.
+	//
+	// Zero when the sighting could not be dated, which is the ordinary case for the look a
+	// list is first identified on. Every consumer falls back to At.
+	FirstSeen time.Time
+	// ConfirmedAfterMS is At minus FirstSeen, stated rather than left to be subtracted —
+	// the same reason TrackedAfterMS is stated. It is the measurement of the confirmation
+	// delay, which was an assumption until this field existed.
+	ConfirmedAfterMS int64
 }
 
 // TakeSelectionMoves drains the moves seen since the last drain, with how many the bound
@@ -433,6 +463,16 @@ func (w *InterfaceWatch) noteMove(_, next InterfaceBelief) {
 		// everything below it.
 		w.heldWhere, w.heldEntries = next.Where, next.Entries
 		w.heldEntry, w.heldGap = next.Selected, 0
+		// THE BANKED MOMENT IS NOT RESET HERE, and an earlier version did reset it.
+		//
+		// A settling row is an INDEX into one list, so the obvious thing is to drop it
+		// with the held sighting. The mutation gate showed that deleting the reset
+		// changed no outcome, and the reason is worth keeping: a move is only ever
+		// emitted on a look that found the SAME list as the look before it, and on such
+		// a look the reader's indices are already the new list's. The one guard that
+		// does the work is in settlingOf, which refuses a moment banked for a different
+		// row whatever made it stale — a precondition on the lookup rather than three
+		// places remembering to clear it.
 		return
 	}
 	if next.Selected < 0 {
@@ -457,32 +497,84 @@ func (w *InterfaceWatch) noteMove(_, next InterfaceBelief) {
 	if next.Tracked {
 		at = next.TrackedAt
 	}
+	// WHEN THE PIXELS MOVED, AND WHETHER A PRESS EXPLAINS IT AS OF THEN.
+	//
+	// The fallback is the old behaviour exactly: an undated sighting leaves the move dated
+	// at its confirmation and judged by the window as it stands now, which is what every
+	// move did before FirstSeen existed.
+	prompted := w.navDebt > 0
+	firstSeen, lateMS := time.Time{}, int64(0)
+	if seenAt, seenPrompted, known := w.settlingOf(next.Selected); known {
+		firstSeen, prompted = seenAt, seenPrompted
+		if !at.IsZero() && at.After(seenAt) {
+			lateMS = at.Sub(seenAt).Milliseconds()
+		}
+	}
 	w.pending = append(w.pending, SelectionMove{
 		Where: next.Where, Entries: next.Entries,
 		From: from, To: next.Selected, Gap: gap,
-		// THE WINDOW AS IT STANDS AT THIS MOMENT, which is the moment the move was
-		// CONFIRMED and not the moment it was made. The selection reader refuses a row
-		// it has seen once, so a move is confirmed a look or two after the mark
-		// arrived — and measured at a 2s cadence that costs almost all of the
-		// attribution: seventeen moves, one attributed. The fix is to carry the look
-		// at which the change was first SEEN out of the reader, which is a change to
-		// the reader's interface and is not made here. Recorded as a known gap in
-		// docs/subsystems/Passive-Observation.md.
-		Prompted:    w.navDebt > 0,
+		// THE WINDOW AS IT STOOD WHEN THE PIXELS MOVED, where they could be dated.
+		//
+		// It used to be the window as it stood at the CONFIRMATION, which is a look or
+		// more later: the reader refuses a row it has seen once. That dated every move
+		// late, and at a live 2s cadence the delay is larger than the whole window. The
+		// repair is `selection.Result.Provisional` — the reader now says which row this
+		// frame pointed at without publishing it, and the watch banks the moment. See
+		// noteSettling for why a provisional sighting can carry a time and nothing else,
+		// and settlingOf for why the earlier answer REPLACES this one rather than being
+		// or-ed with it.
+		Prompted:    prompted,
 		Tracked:     next.Tracked,
 		FromUnnamed: next.FromShapes,
 		Sample:      sample, At: at,
+		FirstSeen: firstSeen, ConfirmedAfterMS: lateMS,
 	})
+}
+
+// settlingOf is when the pixels first pointed at this row, and whether the window was open
+// then, for a row the reader has just CONFIRMED.
+//
+// # Why the window is REPLACED rather than widened
+//
+// Because the two answers disagree in both directions and the earlier one is the right one.
+// A press 300ms before the pixels moved is attributable and was being missed, because by the
+// time the reader agreed the window had closed — that is the gap this repairs. But a press
+// that landed AFTER the pixels had already moved was being CREDITED, because the window it
+// opened was still open when the reader agreed. That one is the input claiming a move it
+// cannot have caused, and it is the same refusal the press ledger already makes one layer
+// down: a slot later than the move is not its direction. Widening the test with an `or` would
+// have kept it.
+//
+// So a dated sighting answers on its own, and only an undated one falls back to the debt as it
+// stands now. Deleting the refusal must fail TestAPressAfterThePixelsMovedIsNotWhatMovedThem.
+//
+// # Why the row is checked here and nowhere else
+//
+// Because this is the lookup, and its contract is the moment for THIS row. An earlier version
+// also cleared the banked moment wherever the identified list changed; the mutation gate showed
+// those resets changed no outcome, because a move is only emitted on a look that found the same
+// list as the look before it. A precondition on the lookup covers a stale index whatever made
+// it stale, which three callers remembering to clear it does not.
+//
+// Deleting the row test must fail TestABankedMomentBelongsToOneRow.
+func (w *InterfaceWatch) settlingOf(row int) (at time.Time, prompted, known bool) {
+	// settlingRow >= 0 implies settlingAt is set: noteSettling refuses an undated sighting
+	// rather than banking one for this to reject.
+	if row < 0 || row != w.settlingRow {
+		return time.Time{}, false, false
+	}
+	return w.settlingAt, w.settlingPrompted, true
 }
 
 // NewInterfaceWatch starts one, believing nothing.
 func NewInterfaceWatch() *InterfaceWatch {
 	return &InterfaceWatch{
-		tracker:   selection.NewTracker(),
-		reader:    selection.New(),
-		heldEntry: -1,
-		belief:    InterfaceBelief{Status: InterfaceUnknown, Selected: -1, Reading: "insufficient_evidence"},
-		change:    InterfaceChange{From: -1, To: -1, Why: "nothing observed yet"},
+		tracker:     selection.NewTracker(),
+		reader:      selection.New(),
+		heldEntry:   -1,
+		settlingRow: -1,
+		belief:      InterfaceBelief{Status: InterfaceUnknown, Selected: -1, Reading: "insufficient_evidence"},
+		change:      InterfaceChange{From: -1, To: -1, Why: "nothing observed yet"},
 	}
 }
 
@@ -554,6 +646,10 @@ func (w *InterfaceWatch) Observe(look InterfaceLook) {
 		}
 	}
 	res := w.reader.ReadShades(kept, keptShades)
+	// WHEN THE PIXELS MOVED, banked before the reading is settled. See noteSettling.
+	//
+	// Deleting this must fail TestAMoveSaysWhenThePixelsMovedAndNotOnlyWhenItWasBelieved.
+	w.noteSettling(res, look.At)
 	next.Reading = string(res.Outcome)
 	if res.Outcome == selection.Selected && res.Row >= 0 && res.Row < len(kept) {
 		next.Selected = res.Row
@@ -863,6 +959,66 @@ func GroupedForLook(look InterfaceLook) []int {
 // 400ms is deliberately generous for an animation and well inside the ~1.3s cadence at which a
 // list is still identifiable at all, so the bound cannot quietly become "any time this session".
 const MaxResponseLatency = 400 * time.Millisecond
+
+// noteSettling banks the moment a row was first pointed at, for the move that may follow.
+//
+// # The whole of what provisional evidence is allowed to do
+//
+// It is allowed to carry a TIME. Nothing here touches the belief, the selection, the tracker or
+// the graph: a provisional row is not published, is not counted, and does not appear in any
+// report. What is kept is the moment it appeared and whether a press was attributable then —
+// and both are read only once that same row has been CONFIRMED by the reader, which is the
+// arithmetic that makes the narrow use safe rather than the convention.
+//
+// Three consequences follow from "only once that same row is confirmed", and they are the
+// reasons this is not a quiet re-admission of the one-frame blend:
+//
+//   - a provisional sighting that is never confirmed is never read by anything;
+//   - a blend names the row the selection is LEAVING, so it sets a DIFFERENT row here, and
+//     the row that follows it finds its own later moment rather than inheriting the blend's;
+//   - the published reading is byte-identical either way, so coverage and accuracy cannot
+//     move. TestTheProvisionalFieldChangesNoReading holds that on a whole session.
+//
+// The window is snapshotted rather than recomputed later. navDebt decays as looks arrive, so
+// asking "was it open then" after the fact would mean reconstructing a clock — and mixing a
+// look's absolute time with an input producer's own milliseconds is a recorded trap. Taking the
+// answer at the moment it is true needs no arithmetic at all.
+func (w *InterfaceWatch) noteSettling(res selection.Result, at time.Time) {
+	if at.IsZero() {
+		// A MOMENT WITH NO TIME IS NOT A MOMENT, refused on the way in rather than on
+		// the way out. A session with no clock can still point at rows, and banking
+		// one would store a row index against a zero time for settlingOf to reject
+		// later — two answers to one question. Refusing here makes the invariant
+		// settlingRow >= 0 implies settlingAt non-zero true by construction, which is
+		// why settlingOf no longer tests for it: the mutation gate showed the second
+		// test could not change an outcome.
+		return
+	}
+	if res.Provisional < 0 {
+		// Either this look published a row or it pointed at nothing. Neither is a new
+		// provisional sighting, and the banked one is LEFT STANDING: the look that
+		// confirms a row is the look after the one that proposed it, and clearing here
+		// would throw the moment away exactly when it is about to be read.
+		return
+	}
+	// A NEW ROW, OR A NEW RUN OF AGREEMENT ABOUT THE SAME ONE.
+	//
+	// The second half follows the reader rather than inventing a second policy, and without
+	// it the moment can go badly stale. The reader clears its pending candidate on any frame
+	// it cannot read — so "row 4, unreadable, unreadable, row 4, row 4" is, to the reader,
+	// one lapsed sighting and then a fresh one, and ProvisionalN says so by starting over at
+	// 1. Keeping the first moment would date the arrival from a sighting the reader had
+	// already given up on, which at a coarse cadence is seconds earlier and may have been a
+	// blend that went nowhere.
+	//
+	// Deleting the ProvisionalN test must fail
+	// TestALapsedSightingIsNotTheMomentOfALaterArrival.
+	if res.Provisional != w.settlingRow || res.ProvisionalN <= 1 {
+		w.settlingRow = res.Provisional
+		w.settlingAt = at
+		w.settlingPrompted = w.navDebt > 0
+	}
+}
 
 // navRecent reports whether the person was navigating recently enough that a transfer seen on
 // this look could be the response.
