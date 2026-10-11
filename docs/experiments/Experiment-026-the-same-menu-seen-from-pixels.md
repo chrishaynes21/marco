@@ -97,6 +97,27 @@ removing the small proposals let a much larger stack form across most of the scr
 A component metric improved and the pipeline regressed. It is off by default, with the
 measurement in the code.
 
+## The ambiguity, resolved by what the person pressed
+
+Added after the measurement above, and it is [[ADR-158-the-active-list-is-the-one-that-responds]].
+
+The input log was in the recording all along, on the same measured clock, and nothing consulted
+it. Splitting each candidate's transfers by whether a directional intent was observed just
+before the move was *seen* separates the two lists:
+
+| | before | after |
+| --- | --- | --- |
+| final belief | `ambiguous`, selected −1 | **`provisional`, selected 0** |
+| frames naming an entry | 148 | 155 |
+| named row matched the label | 147 | **154** |
+
+**The margin is thin: 6 attributed transfers against 3.** 31 presses in 57 seconds is not much
+evidence, and a different session could plausibly leave this ambiguous. The rule resolves this
+corpus; it is not established as robust.
+
+It is also inert at coarser cadences — reprocessed at ~660ms and ~1.3s only the menu qualifies,
+so there is nothing to disambiguate. That is the right shape.
+
 ## What still fails
 
 - **Precision: 204.7 proposals per frame** on a rendered game scene, against 71–100% of
@@ -113,6 +134,8 @@ measurement in the code.
 ## Next
 
 1. A frame path into the engine, so a session can use this at all. The cadence finding says to
-   do it as a replacement for the inference on the discovery path rather than beside it.
-2. Disambiguate competing lists by correlating the mark's movement with observed input.
+   do it as a replacement for the inference on the discovery path rather than beside it, with
+   ONNX kept as an optional fallback.
+2. ~~Disambiguate competing lists by correlating the mark's movement with observed input.~~
+   Done, [[ADR-158-the-active-list-is-the-one-that-responds]], on a thin margin.
 3. Then a live run, which is the only thing that can establish any of this in production.

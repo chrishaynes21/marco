@@ -147,6 +147,16 @@ type InterfaceLook struct {
 	// Regions is what the detector proposed. Empty WITH Observed true is evidence about an
 	// empty screen; empty with Observed false is no evidence at all.
 	Regions []ShadowRegion
+	// Navs is how many DIRECTIONAL navigation intents were observed in the interval
+	// this look covers.
+	//
+	// A count, not the intents. Which direction was pressed is deliberately not carried:
+	// knowing that "down" was pressed AND that a mark moved down would let the input
+	// predict the visual outcome, and an outcome that was predicted is not one that was
+	// observed. The selection tracker uses this only to ask whether the person was
+	// navigating at all while some list handed its mark along, which is what separates
+	// two lists that both genuinely behave like menus.
+	Navs int
 	// Shapes is geometry the detector proposed and could not name, from the SAME look.
 	//
 	// It is folded into the grouping beside the named regions, because the grouping's
@@ -289,7 +299,8 @@ func (w *InterfaceWatch) Observe(look InterfaceLook) {
 	for i, r := range rows {
 		rowShades[i] = shadeFor[r.Bounds]
 	}
-	w.tracker.ObserveShades(rows, rowShades)
+	// Deleting the look.Navs argument must fail TestTheActiveListIsTheOneThatRespondsToNavigation.
+	w.tracker.ObserveNavigated(rows, rowShades, look.Navs)
 
 	live, why, ok := w.tracker.Active()
 	next := InterfaceBelief{
@@ -635,6 +646,11 @@ type InterfaceCandidate struct {
 	// display does not.
 	Transfers int `json:"transfers"`
 	Holders   int `json:"holders"`
+	// Prompted and Unprompted split Transfers by whether navigation was observed just
+	// before the move was seen. The evidence that tells two real lists apart, and the
+	// input only ever labels a move the shading already proved.
+	Prompted   int `json:"prompted,omitempty"`
+	Unprompted int `json:"unprompted,omitempty"`
 	// Qualifies says this behaves like a list somebody is choosing from, and Unmet says
 	// precisely what it falls short of when it does not.
 	Qualifies bool                  `json:"qualifies"`
@@ -669,6 +685,7 @@ func (w *InterfaceWatch) Candidates() []InterfaceCandidate {
 			Exclusive: e.Exclusive, Shared: e.Shared, Quiet: e.Quiet,
 			Unreadable: e.Unreadable,
 			Transfers:  e.Transfers, Holders: e.Holders,
+			Prompted: e.Prompted, Unprompted: e.Unprompted,
 			Qualifies: e.Qualifies, Unmet: e.Unmet(),
 		})
 	}

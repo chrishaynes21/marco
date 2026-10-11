@@ -381,6 +381,12 @@ it refuses those looks. Visible is fine; in front is not.
   proposed, accepted, refused, by reason. The decision rested on a `considered 77, rejected
   76` reading taken by hand after the run, because `detections 0` could not distinguish a
   detector that saw nothing from one that refused everything it saw
+- [[ADR-158-the-active-list-is-the-one-that-responds]] — two REAL lists can both hand a mark
+  between their members, and geometry will never separate them. The one the navigation reaches
+  is the one whose mark moved while the person was pressing something. The input only ever
+  labels a transfer the shading already proved, is given as a count with no direction so it
+  cannot predict the outcome it is correlated with, and two lists that both answer stay
+  ambiguous
 - [[ADR-157-vision-needs-a-cue-that-is-not-a-model]] — every piece of geometry in Marco came
   from one learned detector in a plugin the default build leaves inert, so grouping and
   selection could see only what it proposed. Replaying a real session measured the cost: the
@@ -490,6 +496,13 @@ it refuses those looks. Visible is fine; in front is not.
   while still in front is not detected, because being in front is all the platform is asked.
   Not-in-front is the condition under which the pixels **can** be somebody else's; it is not
   proof of occlusion, and occlusion without a focus change remains invisible here.
+- **An input's attribution window is counted in observations, which is not the same thing at
+  two cadences.** `NavWindow` is 2 observations: 132ms on a 66ms recording and 4.6s on a live
+  cycle, against a menu repaint that takes a fixed couple of hundred milliseconds whatever the
+  rate. The replay compensates with a physical 400ms lookback and production does not need one,
+  because a cycle drains the inputs that happened during it — but the constant is a statement
+  about cadence pretending to be a statement about observations, and a future fast path will
+  meet it again.
 - **Structure from pixels is not in the live path.** [[ADR-157-vision-needs-a-cue-that-is-not-a-model]]
   measures 92% row discovery on 20 drawn screens with no model and no accessibility, and a
   session cannot use any of it: the frame lives inside the vision provider, which is a plugin,

@@ -44,6 +44,19 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/structure"
 )
 
+// navLookbackMS is how long a press stays RELEVANT to a frame, in milliseconds.
+//
+// Physical, not a number of frames. A menu repaints a fixed couple of hundred
+// milliseconds after a press whatever rate the recorder ran at, so a window counted in
+// frames means 132ms on this recording and 4.6s on a live cycle - and the first is too
+// short to see the response while the second is long enough to credit an unrelated one.
+//
+// 400ms covers a menu animation and stays well inside the ~1.3s at which this corpus
+// still identifies a list. It is the replay's number: production gets the same question
+// answered by its own cycle length, since a cycle drains the inputs that happened during
+// it.
+const navLookbackMS = 400
+
 // frameRecord is one line of frames.jsonl, as capture-game-session writes it.
 //
 // The tags are the contract with that writer, the same way slot's are with the shadow trace.
@@ -110,6 +123,10 @@ type frameResult struct {
 	Candidates          []observe.InterfaceCandidate
 	Identified          int
 	Inputs              int
+	// NavsSeen is the directional intents the replay actually attributed to a
+	// frame. Below Inputs by the non-directional ones, and a replay that joined
+	// nothing reports zero here rather than looking like a session nobody played.
+	NavsSeen int
 }
 
 // replayFrames reprocesses a recording's pixels through the structure proposer and the
@@ -128,6 +145,11 @@ func replayFrames(dir string, stride, limit int, verbose bool) (frameResult, err
 	}
 	inputs, _ := readJSONL[inputRecord](filepath.Join(dir, "input.jsonl"))
 	r.Inputs = len(inputs)
+	// THE RECORDING'S OTHER HALF, on the same measured clock. Sorted so the join
+	// below can walk it once: an input log written as events arrived is already in
+	// order, and a replay that assumed so without checking would silently drop the
+	// tail of a log some future writer buffered.
+	sort.Slice(inputs, func(i, j int) bool { return inputs[i].AtMS < inputs[j].AtMS })
 
 	var ann *annotationFile
 	if b, err := os.ReadFile(filepath.Join(dir, "annotations.json")); err == nil {
@@ -142,6 +164,7 @@ func replayFrames(dir string, stride, limit int, verbose bool) (frameResult, err
 	// run twice gives byte-identical belief timestamps.
 	base := time.Unix(1700000000, 0).UTC()
 	opt := structure.DefaultOptions()
+	nextInput := 0
 
 	for i, fr := range frames {
 		if stride > 1 && i%stride != 0 {
@@ -160,6 +183,35 @@ func replayFrames(dir string, stride, limit int, verbose bool) (frameResult, err
 		r.DecodeMS += time.Since(t0).Milliseconds()
 		r.Frames++
 
+		// WAS THE PERSON NAVIGATING AROUND WHEN THIS FRAME WAS TAKEN, joined on time.
+		//
+		// On time and never on the frame index, which is the trap the subsystem note
+		// records: a press carries one counter and a belief moment another, and the two
+		// are equal only when the inference blocks the cycle.
+		//
+		// A LOOKBACK AND NOT A CONSUMING WALK, and the measurement is the argument. A
+		// menu repaints a few hundred milliseconds after the press; this recording is
+		// sampled every 66ms. Attributing each press only to the frame that closes its
+		// own interval credited 4 of the menu's 31 transfers, because the mark had not
+		// moved yet when that frame was taken. A press is RECENT for a while, so one
+		// press can be recent for several consecutive fine-grained frames - which is
+		// exactly what a single coarse look would have covered on its own.
+		navs := 0
+		for j := nextInput; j < len(inputs); j++ {
+			if inputs[j].AtMS > fr.AtMS {
+				break
+			}
+			if fr.AtMS-inputs[j].AtMS > navLookbackMS {
+				// Too old for this frame, and for every frame after it.
+				nextInput = j + 1
+				continue
+			}
+			switch inputs[j].Intent {
+			case "up", "down", "left", "right":
+				navs++
+			}
+		}
+		r.NavsSeen += navs
 		t1 := time.Now()
 		res := structure.Propose(img, opt)
 		r.ProposeMS += time.Since(t1).Milliseconds()
@@ -173,6 +225,7 @@ func replayFrames(dir string, stride, limit int, verbose bool) (frameResult, err
 			At:       base.Add(time.Duration(fr.AtMS) * time.Millisecond),
 			Observed: true,
 			Shapes:   shapesFrom(img, res.Candidates),
+			Navs:     navs,
 		}
 		if sizes := observe.GroupedForLook(look); len(sizes) > 0 && sizes[0] >= minUsableStack {
 			r.Grouped++
@@ -271,7 +324,14 @@ func reportFrames(r frameResult, ann *annotationFile) {
 	fmt.Printf("\n%s\n", strings.Repeat("=", 78))
 	fmt.Printf("REPLAY %s   (L0: the original pixels)\n", r.Name)
 	fmt.Printf("%s\n", strings.Repeat("=", 78))
-	fmt.Printf("  frames reprocessed  %d   inputs in the recording %d\n", r.Frames, r.Inputs)
+	fmt.Printf("  frames reprocessed  %d   presses in the recording %d\n",
+		r.Frames, r.Inputs)
+	// Attributions and not presses: one press is recent for several consecutive
+	// fine-grained frames, so this exceeds the press count at a fast sampling rate
+	// and equals it at a coarse one. A zero here on a session somebody played is
+	// the tell that the join is broken.
+	fmt.Printf("  nav attributions    %d directional press-to-frame attributions\n",
+		r.NavsSeen)
 	if r.Frames == 0 {
 		return
 	}

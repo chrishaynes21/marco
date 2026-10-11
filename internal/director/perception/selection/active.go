@@ -82,6 +82,21 @@ const (
 	// MemberMatch is how far apart two rows' centres may be, as a fraction of the
 	// candidate's height, and still be the same member.
 	MemberMatch = 0.25
+	// NavWindow is how many observations a navigation input stays RECENT for, when
+	// deciding whether a transfer followed one.
+	//
+	// Two, not one. The press and the repaint can land in the same observation or in
+	// consecutive ones depending on where the cadence falls, and a window of one would
+	// attribute a real response to nothing roughly half the time. Expressed in
+	// OBSERVATIONS rather than milliseconds on purpose: the same code has to behave the
+	// same whether it is fed a 66ms recording or a 2.3s live cycle.
+	NavWindow = 2
+	// NavMargin is how far the leading candidate must out-evidence the next one on
+	// input-attributed transfers before it is named the active list. Twice as many,
+	// because a factor of two is a difference a coincidence does not easily produce
+	// while two lists that both genuinely respond will not clear it - and two lists that
+	// both respond is a case that must stay ambiguous.
+	NavMargin = 2
 )
 
 // Evidence is what has been observed about one candidate list.
@@ -102,6 +117,16 @@ type Evidence struct {
 	Unreadable int
 	// Transfers counts the mark moving from one member to a different one.
 	Transfers int
+	// Prompted and Unprompted split Transfers by whether a navigation input was
+	// observed within NavWindow observations before the move was SEEN.
+	//
+	// THE INPUT LABELS A TRANSFER; IT NEVER CREATES ONE. Both counters are increments
+	// of a move that was already measured in the pixels, and a candidate with no
+	// visually observed transfer has nothing for an input to be attributed to however
+	// much the person presses. That is the whole of what keeps this perception rather
+	// than inference from intent: an input cannot manufacture a visual outcome here,
+	// because it is only ever consulted about moves the shading already proved.
+	Prompted, Unprompted int
 	// Holders is how many distinct members have held the mark.
 	Holders int
 	// Qualifies says this candidate behaves like a list somebody is choosing from.
@@ -215,6 +240,8 @@ type candidate struct {
 	last       int // the member marked on the last exclusive frame, or -1
 	holders    map[int]bool
 	moves      int
+	prompted   int
+	unprompted int
 	stale      int
 }
 
@@ -223,6 +250,9 @@ type Tracker struct {
 	cands        []*candidate
 	frames       int
 	identifiedAt int
+	// navRecent counts down the observations for which a navigation input is still
+	// recent. See NavWindow.
+	navRecent int
 }
 
 // NewTracker begins watching, knowing nothing.
@@ -241,9 +271,33 @@ func (t *Tracker) Observe(img image.Image, rows []Row) {
 //
 // The live path measures where the frame is and carries numbers from there, so this is the
 // door it comes in by. Order matches rows.
+//
+// Equivalent to ObserveNavigated with no input observed, which is the honest default: a
+// caller that cannot say what the person did must not have its silence read as "nobody
+// pressed anything". With no input evidence anywhere, two competing lists stay ambiguous,
+// which is what they were before this existed.
 func (t *Tracker) ObserveShades(rows []Row, shades []Shade) {
+	t.ObserveNavigated(rows, shades, 0)
+}
+
+// ObserveNavigated takes one frame's rows and how many navigation inputs the interval
+// leading to it carried.
+//
+// `navs` is a COUNT OF OBSERVED INTENTS and nothing more: no key identity, no device, no
+// direction. Direction is deliberately not used — knowing that "down" was pressed and that
+// the mark moved down would let the input predict the outcome, and an outcome that was
+// predicted is not an outcome that was observed. All this asks is whether the person was
+// navigating at all while a list handed its mark along.
+func (t *Tracker) ObserveNavigated(rows []Row, shades []Shade, navs int) {
 	if len(shades) != len(rows) {
 		return
+	}
+	// BEFORE the frame is folded, so a transfer seen on THIS observation can be
+	// attributed to an input observed in the interval that produced it.
+	if navs > 0 {
+		t.navRecent = NavWindow
+	} else if t.navRecent > 0 {
+		t.navRecent--
 	}
 	t.frames++
 	byGroup := map[int][]image.Rectangle{}
@@ -328,6 +382,12 @@ func (t *Tracker) update(members []image.Rectangle, shades []Shade, used map[*ca
 		c.excl++
 		if c.last >= 0 && marked[0] != c.last {
 			c.moves++
+			// Labelled, not caused. See Evidence.Prompted.
+			if t.navRecent > 0 {
+				c.prompted++
+			} else {
+				c.unprompted++
+			}
 		}
 		c.last = marked[0]
 		c.holders[marked[0]] = true
@@ -448,6 +508,7 @@ func (c *candidate) evidence() Evidence {
 		Bounds: c.bounds, Rows: len(c.rows), Frames: c.seen,
 		Exclusive: c.excl, Shared: c.shared, Quiet: c.quiet, Unreadable: c.unreadable,
 		Transfers: c.moves, Holders: len(c.holders),
+		Prompted: c.prompted, Unprompted: c.unprompted,
 	}
 	e.Qualifies = len(e.Unmet()) == 0
 	return e
@@ -485,11 +546,67 @@ func (t *Tracker) active() (int, string) {
 				Shared: c.shared, Quiet: c.quiet, Unreadable: c.unreadable,
 				Transfers: c.moves, Holders: len(c.holders)}.String())
 	}
+	// SEVERAL LISTS QUALIFY, SO ASK WHICH ONE RESPONDS.
+	//
+	// Measured, on 864 real frames of a game's pause menu: the menu qualifies and so does
+	// the track-information panel beside it, because both genuinely hand a mark between
+	// their rows over time. Geometry cannot separate them and never will — both are real
+	// lists, and one of them is simply not the one being used.
+	//
+	// What separates them is that one of them responds. If the mark in a list moves while
+	// the person is navigating, and the mark in another moves on its own schedule, the
+	// first is the list the navigation is reaching.
+	//
+	// THE INPUT DOES NOT PROVE THE MOVE. Every transfer counted here was already measured
+	// in the pixels by the exclusivity rule above; the input only says which of several
+	// independently observed moves happened while somebody was pressing something. A list
+	// with no visually observed transfer cannot be chosen here at any amount of input,
+	// and an input with no visually observed transfer chooses nothing.
+	if i, why := t.responding(passing); i >= 0 {
+		return i, why
+	}
 	// Two lists both behaving like menus is not a reason to pick one. It is a reason to
 	// say so: picking would be guessing, and a guess that happens to be right teaches
 	// nothing about when to trust the next one.
-	return -1, fmt.Sprintf("%d lists each hand a mark between their members; "+
-		"the active one is not determined by this evidence", len(passing))
+	return -1, fmt.Sprintf("%d lists each hand a mark between their members, and what "+
+		"the person pressed does not single one of them out; the active one is "+
+		"not determined by this evidence", len(passing))
+}
+
+// responding names the candidate whose transfers followed observed navigation, or abstains.
+//
+// Abstains in every case where the evidence is not decisive, and the cases are named rather
+// than collapsed into one silence, because they call for different responses: nobody pressed
+// anything, nobody's presses landed anywhere, or two lists both answered.
+func (t *Tracker) responding(passing []int) (int, string) {
+	best, second, bestAt := 0, 0, -1
+	for _, i := range passing {
+		n := t.cands[i].prompted
+		switch {
+		case n > best:
+			best, second, bestAt = n, best, i
+		case n > second:
+			second = n
+		}
+	}
+	switch {
+	case best < MinTransfers:
+		// Nothing was attributable. Either no navigation was observed at all — a
+		// session with no input source, or a person who pressed nothing — or the
+		// presses never coincided with a mark moving anywhere.
+		return -1, ""
+	case best < NavMargin*second || (second > 0 && best == second):
+		// More than one list answered. This is the case that must stay ambiguous: it
+		// is exactly when picking would be guessing.
+		return -1, ""
+	}
+	c := t.cands[bestAt]
+	return bestAt, fmt.Sprintf("one of %d qualifying lists responds to navigation: "+
+		"%d of its %d transfers followed an observed input, against %d for the next "+
+		"(%s)", len(passing), c.prompted, c.moves, second,
+		Evidence{Rows: len(c.rows), Frames: c.seen, Exclusive: c.excl,
+			Shared: c.shared, Quiet: c.quiet, Unreadable: c.unreadable,
+			Transfers: c.moves, Holders: len(c.holders)}.String())
 }
 
 // IdentifiedAt is the observation on which a single list first qualified, or -1.

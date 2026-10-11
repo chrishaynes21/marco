@@ -90,6 +90,23 @@ func TestTheRealMenuCorpusStillReadsAsAMenu(t *testing.T) {
 			"navigated: %s", r.Frames, r.Belief.Because)
 	}
 
+	// THE INPUT HALF REACHED THE PERCEPTION. A recording of somebody navigating that
+	// attributes nothing has a broken join, and the symptom is a belief that abstains
+	// forever between two real lists while the presses sit unread on disk.
+	if r.NavsSeen == 0 {
+		t.Errorf("not one of the recording's %d presses was attributed to a frame. "+
+			"The clock join is broken, and nothing can tell the menu from the panel "+
+			"beside it without it", r.Inputs)
+	}
+
+	// AND THE BELIEF IS NOT LEFT AMBIGUOUS. Two real lists qualify on this recording --
+	// the menu and the track-information panel -- and geometry cannot separate them.
+	// What separates them is that one responds to navigation. If this regresses, the
+	// belief goes back to naming nothing on a session where it could name the right row.
+	if r.Belief.Status == "ambiguous" {
+		t.Errorf("the belief ends ambiguous: %s", r.Belief.Because)
+	}
+
 	// AND THE END-TO-END NUMBER. Frames on which the belief named an entry, and whether
 	// the row it named was the row the label named. The second is the one that makes the
 	// first worth anything: naming an entry often and wrongly is worse than abstaining.

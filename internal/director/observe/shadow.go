@@ -567,6 +567,22 @@ func (t *ShadowTotals) Observe(sample Sample) {
 // menu. An unproven look is the same mistake with a different cause: the pixels were real and
 // cannot be shown to be pixels of the window in question, which is not evidence that the
 // window was empty. See [[ADR-006-unknown-is-not-false]].
+// directionalIntents counts the observed intents that can move a mark within a list.
+//
+// Deliberately not WHICH direction, and deliberately not a map. The count is all the
+// selection tracker is given, so an input can never predict the visual outcome it is being
+// correlated with - see InterfaceLook.Navs.
+func directionalIntents(in []InputEvent) int {
+	n := 0
+	for _, e := range in {
+		switch e.Intent {
+		case NavUp, NavDown, NavLeft, NavRight:
+			n++
+		}
+	}
+	return n
+}
+
 func interfaceLookFrom(sample Sample) InterfaceLook {
 	look := InterfaceLook{Sequence: sample.Sequence, At: sample.Timestamp}
 	switch {
@@ -594,6 +610,14 @@ func interfaceLookFrom(sample Sample) InterfaceLook {
 	default:
 		look.Observed = true
 		look.Regions = sample.Shadow.Regions
+		// AND WHETHER THE PERSON WAS NAVIGATING while this look was taken.
+		//
+		// Directional intents only. A confirm or a back changes which screen is in
+		// front rather than which row is marked, so counting them would attribute a
+		// list's own transfer to an input that could not have caused it.
+		//
+		// Deleting this must fail TestTheActiveListIsTheOneThatRespondsToNavigation.
+		look.Navs = directionalIntents(sample.Shadow.Inputs)
 		// AND THE GEOMETRY NOBODY COULD NAME, on the same look rather than a second one.
 		//
 		// One look is one moment. Handing the named structure and the unnamed geometry to
