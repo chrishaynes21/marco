@@ -88,3 +88,62 @@ func TestTheTraceFormatIsTheReplayContract(t *testing.T) {
 		}
 	}
 }
+
+// gameFrameContract is every tag cmd/perceptionreplay reads from an L0 recording.
+//
+// Renaming one here is worse than renaming a trace tag. If `file` changes, every frame fails to
+// open; a failed open is treated as a sanitised gap, which is correct behaviour for a frame a
+// person removed on purpose; and the replay reports a recording of zero frames with no error
+// anywhere. A perception change measured against it reports no regression because it reports
+// nothing — while the recording it was supposed to be measured on sits on disk, 1.4GB of pixels
+// nobody read.
+var gameFrameContract = map[string]string{
+	"index":  "joins a frame to the input log and to any annotation; NEVER renumbered",
+	"file":   "where the pixels are",
+	"at_ms":  "the measured offset the belief's clock is rebuilt from",
+	"width":  "the frame's own resolution, for normalising geometry",
+	"height": "the same, vertically",
+	"window_generation": "which window epoch these pixels belong to; two generations " +
+		"are two different worlds",
+}
+
+// The L0 recording format is still what the replay reads.
+func TestTheRecordingFormatIsTheFrameReplayContract(t *testing.T) {
+	tags := map[string]bool{}
+	rt := reflect.TypeOf(gameFrame{})
+	for i := range rt.NumField() {
+		tag := rt.Field(i).Tag.Get("json")
+		if tag == "" || tag == "-" {
+			continue
+		}
+		tags[strings.Split(tag, ",")[0]] = true
+	}
+	for name, why := range gameFrameContract {
+		if !tags[name] {
+			t.Errorf("an L0 recording no longer carries %q (%s).\n"+
+				"cmd/perceptionreplay -frames reads that tag and cannot import this "+
+				"package. A missing `file` makes every frame unopenable, every "+
+				"failure look like a sanitised gap, and the replay report a "+
+				"recording of no frames -- silently. Every recording already on "+
+				"disk becomes unreplayable at the same moment.", name, why)
+		}
+	}
+
+	// AND THE INPUT LOG, which is the other half of the clock. Without it a recording
+	// cannot say what the person did, so nothing can be attributed to a press and the
+	// session answers a strictly smaller question than the one it was made for.
+	it := reflect.TypeOf(gameInput{})
+	want := map[string]bool{"intent": false, "at_ms": false}
+	for i := range it.NumField() {
+		tag := strings.Split(it.Field(i).Tag.Get("json"), ",")[0]
+		if _, ok := want[tag]; ok {
+			want[tag] = true
+		}
+	}
+	for tag, found := range want {
+		if !found {
+			t.Errorf("an L0 recording's input log no longer carries %q, so a replay "+
+				"cannot attribute a selection move to what the person pressed", tag)
+		}
+	}
+}

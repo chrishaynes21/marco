@@ -64,6 +64,11 @@ type slot struct {
 
 func main() {
 	verbose := flag.Bool("v", false, "print every look, not just the ones that changed something")
+	frames := flag.Bool("frames", false,
+		"replay the original PIXELS of a capture-game-session recording (L0), "+
+			"rather than a shadow trace (L1)")
+	stride := flag.Int("stride", 1, "with -frames, reprocess every Nth frame")
+	limit := flag.Int("limit", 0, "with -frames, stop after N frames (0 = all)")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "usage: perceptionreplay [-v] <run directory>...\n\n"+
 			"Replays each run's slots.jsonl through the production interface watch and\n"+
@@ -77,6 +82,13 @@ func main() {
 
 	var results []result
 	for _, dir := range flag.Args() {
+		if *frames {
+			if _, err := replayFrames(dir, *stride, *limit, *verbose); err != nil {
+				fmt.Fprintf(os.Stderr, "perceptionreplay: %s: %v\n", dir, err)
+				os.Exit(1)
+			}
+			continue
+		}
 		r, err := replay(dir, *verbose)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "perceptionreplay: %s: %v\n", dir, err)
