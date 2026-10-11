@@ -240,6 +240,16 @@ func (s *liveSampler) Sample(ctx context.Context, req observesession.SampleReque
 	// CLI — the previous attempt gave the report its own path and production never used it.
 	sample.Shadow = shadowSampleFor(s.rt.shadowDetectorName(), s.rt.shadowUnavailable,
 		cycle, pinned.Bounds)
+	// AND WHICH WINDOW WAS IN FRONT WHEN THE FRAME WAS TAKEN. Outside the detector
+	// block below because it is a fact about the capture and not about the
+	// experiment: a window capture can return the pixels of whatever is covering the
+	// target, under the target's own name, and no identity guard sees it. See
+	// frontness.go.
+	//
+	// Deleting this must fail TestTheSampleSaysWhichWindowWasInFront.
+	if sh := sample.Shadow; sh != nil {
+		sh.Front = s.rt.targetFrontness(ctx, req.Window)
+	}
 	// Where the scoped-reading budget went, from the detector's own diagnostic.
 	//
 	// Attached here because this is the only place the provider and the sample are both in
@@ -248,6 +258,14 @@ func (s *liveSampler) Sample(ctx context.Context, req observesession.SampleReque
 	// four indistinguishable explanations and the report offers no way to choose between them.
 	if sh := sample.Shadow; sh != nil && s.rt.shadowVision != nil {
 		sh.Labels = shadowLabelBudget(s.rt.shadowVision)
+		// AND WHAT BECAME OF THE DETECTOR'S OUTPUT, which is the other question a low
+		// detection count raises and the one the session could not answer. Experiment-024
+		// had to take a separate `director vision` reading after the run to learn that 76
+		// of 77 boxes were refused — a different screen at a different moment, under the
+		// run's central conclusion.
+		//
+		// Deleting this must fail TestTheSessionSaysWhereTheDetectorsOutputWent.
+		sh.Admission = shadowAdmission(s.rt.shadowVision)
 		// AND THE GEOMETRY IT KEPT WITHOUT BEING ABLE TO NAME IT.
 		//
 		// Beside the label budget because it is the other half of the same account: the

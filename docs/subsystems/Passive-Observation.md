@@ -270,6 +270,80 @@ matters — at ~2.0s a look, a change needs two looks, so Marco can follow a men
 through every few seconds and cannot follow one they move through quickly. Whether the window
 should be wider, narrower or time-based is a question for `rejected_with_input` on a real run.
 
+### Holding still cannot identify an interface, so the protocol no longer opens with it
+
+`watch-interface.cmd`'s six phases were reordered on 2026-10-10, before the next run rather
+than after it, because two findings from [[Experiment-024-watching-a-player-navigate-a-real-menu]]
+together made the old order unable to succeed:
+
+- The menu was legible for **slots 1–10 only**, 0–43s. Over the next 150s the detector admitted
+  nothing on 56 looks of 72.
+- A list is identified by being seen **handing a mark between its members**. `selection`'s rule
+  wants, of one candidate, 10 judged frames, 8 with exactly one member marked, ≥2 transfers and
+  ≥2 distinct holders. A screen nobody touches produces zero transfers.
+
+The legible window and the HOLD STILL phase were the same stretch of the run, so the one phase
+that could have afforded an identification was the one phase structurally incapable of
+producing one. `group_1` came out of that run with 24 members, 16 buttons and `episodes: 0` — a
+list, watched, never used.
+
+MOVE SLOWLY is now first and takes the largest share; HOLD STILL moved to phase 5, where it
+asks something it could not ask first: an interface that **has** been identified, and a mark
+nobody is moving — does the belief hold, and does the selection stay where it was put? Nothing
+about the detector or the gate changed here. This is a protocol defect, and it is recorded as a
+subsystem fact because the arithmetic that makes it one is in `selection/active.go`, not in the
+script.
+
+### The pause menu is not a list, and the map-selection screen is
+
+[[Experiment-025-the-menu-was-the-wrong-screen]] ran the reordered protocol and the acceptance
+test failed again, for an unrelated reason. Navigation was no longer blind — the menu was
+legible in every phase — and no list was ever identified, across 92 directional presses.
+
+As this detector sees it, the Trackmania **pause menu** is about five boxes at unrelated
+positions and sizes. Zero vertical stacks of three or more similar rectangles in 67 navigation
+looks, and neither a `possible_choice_group` nor a `possible_menu_like_state` formed in any of
+those phases. The rule needs a mark handed between the members of a list, and there was no list.
+
+The **map-selection screen** is the opposite, and the run only saw it because the operator
+exited the map by mistake in the last phase: 20.8 boxes a look against 4–5, and the only
+uniform list in the whole run — 8 rows, gaps 0.032–0.034, identical width, height and left
+edge. Director named it a choice group with nine seconds left on the clock, too late for the
+exit→maps transition to become a `possible_transition_action`.
+
+So `watch-interface.cmd` takes a third argument: `menu` keeps Experiment-025's protocol
+unchanged, because a baseline that gets edited is not a baseline, and `maps` is four phases
+pointed at the map list with it **already on screen** — slow, hold, reverse, fast, in that
+order.
+
+HOLD cannot come first in either protocol, and the second reason is stronger than the transfer
+one. A member's baseline is built only from frames in which that member was **not** marked, so
+a row lit from the first look never establishes one and is skipped from the judgement
+altogether. **A mark that has never moved is invisible to this tracker by construction.**
+
+### A frame can be of the wrong window with every identity guard satisfied
+
+Capturing by window avoids stealing focus from the thing being observed, and it is not
+occlusion-safe: Windows can return the pixels of whatever is covering the target, under the
+target's own name. Experiment-025 captured the Windows taskbar on one look of 107 — a dense row
+of icons across the bottom, a text field, eleven equal slivers — with `target_losses` at 0, the
+window generation unchanged and provenance resolved cleanly. All three of those are about
+window **identity**, and this is not an identity failure.
+
+The Director now asks which window is in front, per look, and a look taken behind another
+window carries no evidence: it is refused by the belief the same way an unprovable one is, and
+the session counts it. Three states and not two — `target`, `other`, and the honest
+`unknown` for a desktop nothing could resolve — because treating unknown as the target smuggles
+a covering window's pixels in as game evidence, while treating it as another window can discard
+an entire run and report the quiet as a finding. Same shape as [[ADR-006-unknown-is-not-false]].
+
+It cannot raise the window, take focus or re-capture. The observation path is passive by
+construction, and a resolver that could act would quietly repair the situation it exists to
+detect — the reason `trackerResolver` cannot acquire either.
+
+**The cost lands on the operator**, and the script says so: clicking the banner window to read
+it refuses those looks. Visible is fine; in front is not.
+
 ## Decisions
 
 - [[ADR-010-passive-observation-cannot-execute]]
@@ -290,7 +364,10 @@ should be wider, narrower or time-based is a question for `rejected_with_input` 
   so with two timestamps
 - [[ADR-153-a-blackout-is-not-a-destination]] — `state_unknown` can no longer be
   confirmed as the screen in front of a session. An unreadable run is uncertainty, then an
-  expiry of the belief; one bare look no longer destroys an interface belief either
+  expiry of the belief; one bare look no longer destroys an interface belief either.
+  **Addendum 2026-10-10**: that expiry is now stamped at the look that expired it rather than
+  at the evidence it gave up, and names the last look that brought any — the journal exists to
+  say *when* the answer changed, and on the belief's own fields `At` means something else
 - [[ADR-155-a-learn-session-has-one-owner]] — a learn step owns the session state start to
   finish; the two things a person can say while a pass is running arrive through a small
   synchronised box and are applied at the step's boundary, or by the caller when no step is
@@ -299,7 +376,16 @@ should be wider, narrower or time-based is a question for `rejected_with_input` 
 - [[ADR-154-geometry-is-evidence-even-when-the-words-are-not]] — the detector was
   discarding ~70 rectangles a frame because nobody could read them, and the selection
   reader needs the rectangles and none of their words. Kept on the experiment's instance,
-  counted apart from named structure, and never able to become a control
+  counted apart from named structure, and never able to become a control.
+  **Addendum 2026-10-10**: and the session now reports where the detector's output went —
+  proposed, accepted, refused, by reason. The decision rested on a `considered 77, rejected
+  76` reading taken by hand after the run, because `detections 0` could not distinguish a
+  detector that saw nothing from one that refused everything it saw
+- [[ADR-156-a-refusal-is-a-measurement]] — the tracker had computed, on every look of every
+  session, exactly why each candidate list was refused, and nothing ever read it. One caller
+  used `Tracker.Evidence()`, to count how many returned true. Now reported per candidate with
+  the requirements it falls short of, and the rule is stated once so the report cannot disagree
+  with the belief it explains
 - [[ADR-151-a-screen-that-changed-for-one-frame-did-not-change]] — a change needs a
   second look agreeing with it; a dropout is not a journey; and both error directions
   of that decision are counted, including the refusals that may have been real
@@ -381,6 +467,35 @@ should be wider, narrower or time-based is a question for `rejected_with_input` 
   plain suite had been green over for seven weeks. Making it part of the gate is its own
   decision: it is roughly four times slower on `cmd/director`, which is already the slowest
   package. Until then, run it when adding a goroutine.
+- ~~A session cannot say where its detector's output went.~~ **Fixed 2026-10-10**,
+  [[ADR-154-geometry-is-evidence-even-when-the-words-are-not]]'s addendum. `detections 0` had
+  two opposite explanations and the record held neither; Experiment-024's central finding
+  therefore rested on a separate reading taken after the run.
+- ~~A belief's expiry is timestamped at the evidence it gave up.~~ **Fixed 2026-10-10**,
+  [[ADR-153-a-blackout-is-not-a-destination]]'s addendum.
+- ~~A session reports a refusal it cannot explain.~~ **Fixed 2026-10-10**,
+  [[ADR-156-a-refusal-is-a-measurement]]. Five unrelated defects produced the same sentence —
+  nothing measurable, candidate churn, no visible mark, several marks at once, or a mark that
+  never moved — and telling them apart after Experiment-025 meant regrouping the run's own
+  geometry with a script that was not the production rule.
+- ~~A window capture can be of the wrong window with every guard satisfied.~~ **Fixed
+  2026-10-10**: frontness is asked per look and a look taken behind another window carries no
+  evidence. What is NOT fixed is the underlying hazard — a window that is merely *covered*
+  while still in front is not detected, because being in front is all the platform is asked.
+  Not-in-front is the condition under which the pixels **can** be somebody else's; it is not
+  proof of occlusion, and occlusion without a focus change remains invisible here.
+- **A mark that never moves cannot be seen at all.** A member's baseline is built only from
+  frames in which it was not marked, so a permanently lit row never establishes one and is
+  skipped from the judgement. Correct for the rule's purpose and surprising enough to have
+  wasted a whole phase of two experiments: a protocol cannot open by holding still, and a
+  screen whose selection never moves cannot be read by this path however long it is watched.
+- **A run's `at_ms` and a belief moment's `sample` are two different counters.** A press
+  carries how many *inferences* had run; a moment carries which *sample* it was folded at.
+  They were equal in Experiment-024 because the inference blocked the cycle, and
+  [[ADR-152-slow-discovery-fast-tracking]] decouples them on purpose — so any analysis that
+  joins a press to a selection move must join on TIME (`started_at` + `at_ms` against the
+  moment's absolute `at`), never on the two numbers. Not a defect in either field; a trap in
+  reading them together, recorded because the wrong join looks right.
 
 ## Milestone record
 

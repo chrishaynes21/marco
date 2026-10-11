@@ -28,6 +28,41 @@ package observe
 // Aggregate counts and bounded role tallies, never raw detections: a five-minute session at a
 // two-second cadence is 150 cycles, and retaining every box would make a session result grow
 // without bound for no diagnostic gain.
+// Frontness says whether the target was the window IN FRONT when a frame was taken.
+//
+// # Why a window capture needs this at all
+//
+// Capturing by window avoids stealing focus, and it is not occlusion-safe: on Windows it can
+// return the pixels of whatever is covering the target, under the target's own name. Window
+// identity does not detect it. Experiment-025 proved that the cheap way — one look of 107
+// captured the desktop taskbar while `target_losses` stayed 0 and provenance was clean. The
+// window was alive, was the right window, and the pixels were somebody else's.
+//
+// # Why three states and not a bool
+//
+// Because "nobody could say which window was in front" is not "another window was in front",
+// and collapsing them picks one of two bad failures. Treating unknown as the target smuggles a
+// covering window's pixels in as game evidence; treating unknown as another window can silently
+// discard an entire run and report quiet as a finding. Named apart, a run in which the question
+// could never be answered says so, which is the only honest outcome. The same reasoning as
+// [[ADR-006-unknown-is-not-false]].
+//
+// It does not prove occlusion: a window can be fully visible without being in front. It is the
+// condition under which the pixels CAN be somebody else's, and the one the platform answers
+// cheaply and now.
+type Frontness string
+
+const (
+	// FrontUnknown is the zero value: nothing resolvable was in front, or there was
+	// nothing to compare against.
+	FrontUnknown Frontness = ""
+	// FrontTarget means the window in front was the one being observed.
+	FrontTarget Frontness = "target"
+	// FrontOther means a different window was in front, so this frame is not evidence
+	// about the target.
+	FrontOther Frontness = "other"
+)
+
 type ShadowSample struct {
 	// Detector names the experiment, so a report can never be read as authoritative.
 	Detector string `json:"detector"`
@@ -40,6 +75,10 @@ type ShadowSample struct {
 	// accessibility tree is the difference between an experiment that is sampling and one
 	// that has been switched off by a claim about other evidence.
 	Declined bool `json:"declined,omitempty"`
+	// Front says whether the target was the window in front when this frame was taken.
+	// See Frontness: FrontOther means these pixels may belong to whatever was
+	// covering the target, and the look carries no evidence about it.
+	Front Frontness `json:"front,omitempty"`
 	// Ran reports whether an inference actually happened this cycle. False for a slot the
 	// cadence gate skipped — which is not a failure, and must not be counted as one.
 	Ran bool `json:"ran"`
@@ -107,6 +146,10 @@ type ShadowSample struct {
 	// of them look like.
 	Labels ShadowLabels `json:"labels,omitzero"`
 
+	// Admission is what the detector's own output became this inference: how many boxes it
+	// proposed, how many survived, and the reason each of the rest did not.
+	Admission ShadowAdmission `json:"admission,omitzero"`
+
 	// Semantic is what this inference's readable interface said about itself, as
 	// closed-vocabulary terms and counts — never text. See terms.go.
 	//
@@ -165,6 +208,67 @@ func (l *ShadowLabels) Add(o ShadowLabels) {
 // Attempted is how many readings were actually paid for.
 func (l ShadowLabels) Attempted() int { return l.Read + l.Unreadable + l.ScreenTexts }
 
+// ShadowAdmission is what the detector's own output became: proposed, kept, and why the rest
+// was not.
+//
+// Cumulative on the totals, per-inference on the sample — the same arrangement as
+// ShadowLabels, for the same reason.
+//
+// # The question this exists to answer
+//
+// A session reporting no structure has two completely different explanations and no way to
+// choose between them: the detector found nothing, or it found seventy boxes and refused every
+// one. [[Experiment-024-watching-a-player-navigate-a-real-menu]] had to answer that from a
+// SEPARATE `director vision` reading taken after the run — a different sample of a different
+// screen at a different moment — because the session's own record carried only what survived.
+// The run's central finding therefore rested on evidence the run did not contain.
+//
+// [[ADR-154-geometry-is-evidence-even-when-the-words-are-not]] makes it sharper rather than
+// moot. `Unreadable` still counts a text box whose words could not be read; what changed is
+// that its rectangle is now kept as a shape. So `Unreadable` high WITH shapes kept is the
+// repair working, `Unreadable` high with no shapes is the repair not reaching this path, and
+// `Proposed` near zero is neither — it is a detector that saw nothing, which is a finding about
+// the model or the capture and not about admission at all. One number cannot separate those
+// three, and the next live run is a test of exactly which one is happening.
+type ShadowAdmission struct {
+	// Proposed is how many detections the detector offered — the denominator every other
+	// field here is a share of.
+	Proposed int `json:"proposed,omitempty"`
+	// Accepted is how many became evidence.
+	Accepted int `json:"accepted,omitempty"`
+	// Unreadable is a mapped non-structural detection with nothing readable inside it. The
+	// dominant refusal on a game, and the one ADR-154 keeps the geometry of.
+	Unreadable int `json:"unreadable,omitempty"`
+	// UnknownClass is a class this build has no word for. Held apart from Unreadable
+	// because the two sent one investigation after a vocabulary gap that did not exist.
+	UnknownClass int `json:"unknown_class,omitempty"`
+	// Confidence, Geometry, Ceiling and StaleCapture are the remaining refusals: too
+	// uncertain, implausibly shaped, past the per-pass cap, and from pixels older than the
+	// pass that asked for them.
+	Confidence   int `json:"confidence,omitempty"`
+	Geometry     int `json:"geometry,omitempty"`
+	Ceiling      int `json:"ceiling,omitempty"`
+	StaleCapture int `json:"stale_capture,omitempty"`
+}
+
+// Add folds one inference's admission into the totals.
+func (a *ShadowAdmission) Add(o ShadowAdmission) {
+	a.Proposed += o.Proposed
+	a.Accepted += o.Accepted
+	a.Unreadable += o.Unreadable
+	a.UnknownClass += o.UnknownClass
+	a.Confidence += o.Confidence
+	a.Geometry += o.Geometry
+	a.Ceiling += o.Ceiling
+	a.StaleCapture += o.StaleCapture
+}
+
+// Refused is how many proposals did not become evidence.
+func (a ShadowAdmission) Refused() int {
+	return a.Unreadable + a.UnknownClass + a.Confidence + a.Geometry + a.Ceiling +
+		a.StaleCapture
+}
+
 // ShadowComparison counts how one cycle's experimental evidence related to what was believed.
 //
 // No category names a winner. `ShadowOnly` says the experiment reported structure belief did
@@ -195,6 +299,15 @@ type ShadowTotals struct {
 	// so a report can say what the session emitted and when rather than what a client
 	// happened to catch while polling.
 	InterfaceMoments []InterfaceMoment `json:"interface_moments,omitempty"`
+	// Candidates is every list the tracker watched and what it observed about each, so a
+	// refusal can be read as a measurement instead of a sentence.
+	//
+	// `Interface.Because` says how many candidates there were and how many frames they were
+	// watched over. That is the summary, and after Experiment-025 it was the whole account
+	// of a failed acceptance test: five different defects produce the same sentence, and
+	// telling them apart meant regrouping the run's geometry afterwards with a script that
+	// was not the production rule. These are the production rule's own counters.
+	Candidates []InterfaceCandidate `json:"interface_candidates,omitempty"`
 	// watch carries the belief between looks. Unexported: a reader of a session gets the
 	// answer, never the machinery that produced it.
 	watch *InterfaceWatch
@@ -256,9 +369,24 @@ type ShadowTotals struct {
 	Shapes       int `json:"shapes,omitempty"`
 	ShapesShaded int `json:"shapes_shaded,omitempty"`
 
+	// Behind is how many looks were taken while ANOTHER window was in front, and
+	// FrontUnclear how many could not be attributed either way.
+	//
+	// Reported rather than silently subtracted. A look refused for this reason did not
+	// observe an empty screen and did not fail; it observed something that is not the
+	// target. A session whose numbers are quietly built from 40 looks of 107 while
+	// reporting 107 is describing a different experiment than the one it ran, and
+	// Experiment-025 is on record as a run whose single bad frame was invisible.
+	Behind       int `json:"behind,omitempty"`
+	FrontUnclear int `json:"front_unclear,omitempty"`
+
 	// Labels is where the session's whole scoped-reading budget went. Read it before
 	// reading an empty term set as a fact about the application.
 	Labels ShadowLabels `json:"labels,omitzero"`
+
+	// Admission is where the detector's whole output went. Read it before reading a low
+	// detection count as a fact about the screen — see ShadowAdmission.
+	Admission ShadowAdmission `json:"admission,omitzero"`
 
 	// Tracking is what the fast visual path did, and mostly a list of reasons it did not.
 	// Reported beside the detector's own numbers because the two answer different halves of
@@ -406,6 +534,8 @@ func (t *ShadowTotals) Observe(sample Sample) {
 	t.Interface, t.Changed = t.watch.Belief(), t.watch.Change()
 	t.InterfaceMoments = t.watch.Moments()
 	t.Tracking = t.watch.Tracking()
+	// Deleting this must fail TestTheSessionSaysWhyEachCandidateWasRefused.
+	t.Candidates = t.watch.Candidates()
 	if sample.Shadow != nil {
 		t.add(*sample.Shadow, structure)
 		return
@@ -448,6 +578,16 @@ func interfaceLookFrom(sample Sample) InterfaceLook {
 		look.Why = "the detector was never asked: this slot's request carried no pixel source"
 	case !sample.Shadow.Ran:
 		look.Why = "the detector sat out this slot"
+	case sample.Shadow.Front == FrontOther:
+		// NOT evidence about this window, and not a statement about the screen
+		// either. Experiment-025 captured the Windows taskbar on one look with
+		// provenance clean and target_losses 0, because window capture returns the
+		// covering window's pixels under the target's name. Folding that into the
+		// belief teaches a tracker another application's layout as this one's.
+		//
+		// Deleting this must fail TestAFrameTakenBehindAnotherWindowIsNotGameEvidence.
+		look.Why = "another window was in front, so these pixels may belong to " +
+			"it rather than to the target"
 	case !sample.Shadow.TargetProven:
 		look.Why = "the detector cannot show which window it looked at, so what it found " +
 			"is not evidence about this one"
@@ -520,6 +660,18 @@ func (t *ShadowTotals) add(s ShadowSample, structure StructuralView) {
 	// detector sat out, which carry none, and therefore add nothing. Above the `!s.Ran`
 	// return for the same reason the input account is: what a slot carried is a fact about
 	// the slot, and a count that stopped at the cadence gate would describe the gate.
+	// WHICH WINDOW WAS IN FRONT, on every slot that could say. Above the `!s.Ran`
+	// return for the reason the shapes loop states.
+	//
+	// Deleting this must fail TestTheSessionCountsLooksTakenBehindAnotherWindow.
+	switch s.Front {
+	case FrontOther:
+		t.Behind++
+	case FrontUnknown:
+		if s.Ran {
+			t.FrontUnclear++
+		}
+	}
 	for _, sh := range s.Shapes {
 		t.Shapes++
 		if sh.Shaded() {
@@ -544,6 +696,8 @@ func (t *ShadowTotals) add(s ShadowSample, structure StructuralView) {
 	t.Nameable += s.Nameable
 	t.Unknown += s.Unknown
 	t.Labels.Add(s.Labels)
+	// Deleting this must fail TestTheSessionSaysWhereTheDetectorsOutputWent.
+	t.Admission.Add(s.Admission)
 	if len(s.Roles) > 0 {
 		if t.Roles == nil {
 			t.Roles = map[string]int{}

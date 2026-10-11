@@ -122,8 +122,41 @@ right answer — it produces an unconfirmed belief, and `interfaceForgetLooks` e
 inside two looks, so the window is not what suppresses fast navigation — the 2.6s effective
 sampling period is. That is [[ADR-152-slow-discovery-fast-tracking]]'s problem.
 
+## Addendum, 2026-10-10 — an expiry is reported at the look that expired it
+
+Found while writing down what the next live run would be asked to report, before running it.
+The protocol's last phase asks whether the interface belief is **lost, for the right reason, and
+when** — and the journal's answer to *when* was wrong.
+
+`InterfaceMoment` exists so a session can say when its answer changed. Every other belief field
+works the other way round: `Sample` and `At` name the **evidence under** the belief, and a
+merely-stale belief goes on naming it, which is what lets its message say which sample to go and
+look at. The expiry above inherited those fields from the belief it was replacing — so the
+moment recording "the interface went from provisional to unknown" carried the timestamp of the
+last look that saw something, which is `interfaceForgetLooks` looks earlier, and at the measured
+live cadence tens of seconds earlier. A reader laying the journal on a timeline would have put
+the loss where the last sighting was.
+
+A dropped belief rests on nothing, so those fields have no evidence to name and name the look
+that gave up instead — which is what `emptyLook`'s give-up path already did. The two are the
+same event with different evidence behind them and now read the same way.
+
+The sighting is not lost, it moves into the reason: *"no evidence has been observed for 10
+look(s): the detector sat out this slot (the last look that brought evidence was sample 18)"*.
+Both halves are needed, and for a reason this ADR already argues — a time alone cannot tell a
+detector that stopped from a menu nobody opened.
+
+A first attempt built that clause from the previous belief's `Sample`, which **ratcheted
+forward**: the expiry rewrites the belief every look after it fires, so by the end of a quiet
+phase the sentence was naming the look before the current one. The watch now remembers the last
+look that carried evidence itself. The test caught it; this is recorded because the defect was
+in the repair rather than in the original, and it is the kind that reads correct.
+
 ## Enforced by
 
+- `TestABeliefIsGivenUpAtTheLookThatGaveUpOnIt` — the expiry is stamped at the look that
+  expired it, not at the evidence it gave up and not at the end of the run, and the sighting it
+  gave up on is still named. Both halves mutation-checked.
 - `TestABlackoutIsNeverAConfirmedTransition` — no crossing or transition may have the
   unplaceable state as an endpoint, and the expiry is reported with its length.
 - `TestComingBackFromABlackoutIsNotAChange` — the adjacency across an unseen interval is not

@@ -1,6 +1,7 @@
 package observe_test
 
 import (
+	"strconv"
 	"testing"
 	"time"
 
@@ -301,6 +302,66 @@ func TestABeliefNobodyConfirmsIsEventuallyDropped(t *testing.T) {
 			b.Because)
 	}
 }
+
+// A belief is given up AT a look, and the journal has to say which one.
+//
+// Written because of what a live run is asked to report. The watch-interface protocol's last
+// phase asks whether the belief is lost, for the right reason, and WHEN — and the journal's
+// answer to "when" was the time of the last look that saw something, which at a live cadence
+// is tens of seconds before the belief was actually given up.
+//
+// The distinction being held: everywhere else a belief's Sample and At name the EVIDENCE under
+// it, and a stale belief goes on naming it — TestAnUnconfirmedBeliefSaysItIsStale is the test
+// that holds that. A dropped belief has no evidence under it, so those fields have nothing to
+// name but the look that gave up, and the reason carries the last thing seen instead.
+func TestABeliefIsGivenUpAtTheLookThatGaveUpOnIt(t *testing.T) {
+	var totals observe.ShadowTotals
+	seq := 0
+	liveCadence(&totals, &seq, 1, []int{-1, -1, -1, -1, -1, -1,
+		0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3})
+	if totals.Interface.Status != observe.InterfaceProvisional {
+		t.Fatalf("precondition: no list was identified (%s)", totals.Interface.Because)
+	}
+	sawLast, sawAt := totals.Interface.Sample, totals.Interface.At
+
+	// Long enough that the belief is given up well BEFORE the last look, so a stamp taken
+	// from either end of the run is distinguishable from the right one.
+	for range 30 {
+		seq++
+		totals.Observe(sampleSkipped(seq))
+	}
+	if totals.Interface.Status != observe.InterfaceUnknown {
+		t.Fatalf("precondition: the belief was not dropped (%s)", totals.Interface.Because)
+	}
+
+	var drop observe.InterfaceMoment
+	for _, m := range totals.InterfaceMoments {
+		if m.Status == observe.InterfaceUnknown {
+			drop = m
+		}
+	}
+	if drop.At.IsZero() {
+		t.Fatal("the belief was dropped and the journal has no moment for it")
+	}
+	if !drop.At.After(sawAt) {
+		t.Errorf("the drop is stamped %s, the time of the evidence it gave up (sample %d); "+
+			"a reader laying this on a timeline would put the loss where the last sighting was",
+			drop.At.Format(time.RFC3339Nano), sawLast)
+	}
+	if drop.Sample >= seq {
+		t.Errorf("the drop is stamped at sample %d of %d: it reads as having happened when "+
+			"the run ended rather than when the looks ran out", drop.Sample, seq)
+	}
+	// And the evidence it gave up is still recoverable, from the reason rather than the
+	// stamp — otherwise a detector that stopped and a menu nobody opened read alike.
+	if !containsAll(totals.Interface.Because, "sample", itoa(sawLast)) {
+		t.Errorf("a dropped belief must still say what it last saw; %q does not name sample %d",
+			totals.Interface.Because, sawLast)
+	}
+}
+
+// itoa keeps the assertion above about a NUMBER appearing rather than about a sentence.
+func itoa(n int) string { return strconv.Itoa(n) }
 
 func TestAMenuGoingAwayIsNotTheSameAsNobodyLooking(t *testing.T) {
 	// THE distinction, both sides in one test. The detector running and finding nothing is

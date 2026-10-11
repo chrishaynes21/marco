@@ -201,6 +201,40 @@ func shadowShapes(p *shadow.Provider, frame directorapi.Rect) []observe.ShadowSh
 	return out
 }
 
+// shadowAdmission reads the experiment's last pass for what became of the detector's output.
+//
+// Through Inner().LastDiagnostics(), exactly as shadowLabelBudget and shadowShapes do and for
+// the same reason: these are the vision provider's own counters, reset at the top of every
+// pass, and a second copy travelling through the observation protocol would be one more thing
+// to keep in step.
+//
+// NOT gated on TargetProven, for the reason shadowShapes states: a report that can say the
+// detector proposed seventy boxes on a cycle whose provenance failed is a finding about
+// provenance, and it is invisible if the number is suppressed.
+func shadowAdmission(p *shadow.Provider) observe.ShadowAdmission {
+	if p == nil {
+		return observe.ShadowAdmission{}
+	}
+	inner, ok := p.Inner().(*vision.Provider)
+	if !ok {
+		return observe.ShadowAdmission{}
+	}
+	c := inner.LastDiagnostics().Counters
+	return observe.ShadowAdmission{
+		// Counters.Total() is the sum of accepted and every refusal, which is the
+		// denominator this field means. Taken from the provider rather than recomputed
+		// here, so a refusal category added there cannot silently leave this out of date.
+		Proposed:     c.Total(),
+		Accepted:     c.Accepted,
+		Unreadable:   c.RejectedUnreadable,
+		UnknownClass: c.RejectedClass,
+		Confidence:   c.RejectedConfidence,
+		Geometry:     c.RejectedGeometry,
+		Ceiling:      c.RejectedCeiling,
+		StaleCapture: c.RejectedStaleCapture,
+	}
+}
+
 // shadowLabelBudget reads the experiment's last pass for where its reading budget went.
 //
 // Reaching through Inner() rather than threading counters back through the outcome: the

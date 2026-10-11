@@ -820,6 +820,55 @@ func renderShadow(b *strings.Builder, s observe.ShadowTotals) {
 		s.MedianMS, s.P95MS, s.MaxMS)
 	fmt.Fprintf(b, "  detections   %d total   %d nameable   %d unmapped\n",
 		s.Detections, s.Nameable, s.Unknown)
+	// WHERE THE DETECTOR'S OUTPUT WENT, directly under the count of what survived it.
+	//
+	// Under rather than beside, because the line above is the numerator and this is the
+	// denominator, and a reader who has the first without the second cannot tell a detector
+	// that saw nothing from one that refused everything it saw. Only when the detector was
+	// actually asked: zero proposals on a session with no vision plugin is not a refusal
+	// rate, and printing it as one would invent a finding.
+	//
+	// WHICH WINDOW THE FRAMES WERE OF. Printed before the detector's own numbers,
+	// because a count of looks taken while something else was in front changes how
+	// every number below it should be read - and because no other line in this report
+	// would reveal it: window identity was intact on the one Experiment-025 frame that
+	// captured the Windows taskbar.
+	//
+	// Deleting this must fail TestTheReportSaysHowManyLooksWereBehindAnotherWindow.
+	if s.Behind > 0 || s.FrontUnclear > 0 {
+		fmt.Fprintf(b, "  foreground   %d look(s) taken while ANOTHER window was in front\n",
+			s.Behind)
+		if s.FrontUnclear > 0 {
+			fmt.Fprintf(b, "               %d more could not be attributed either way\n",
+				s.FrontUnclear)
+		}
+		b.WriteString("               those carry no evidence about the target: a window\n")
+		b.WriteString("               capture can return the covering window's pixels\n")
+	}
+	// Deleting this must fail TestTheReportSaysWhereTheDetectorsOutputWent.
+	if a := s.Admission; a.Proposed > 0 {
+		fmt.Fprintf(b, "  admission    %d proposed   %d accepted   %d refused\n",
+			a.Proposed, a.Accepted, a.Refused())
+		if a.Refused() > 0 {
+			var why []string
+			for _, p := range []struct {
+				n int
+				s string
+			}{
+				{a.Unreadable, "nothing readable inside"},
+				{a.UnknownClass, "no word for the class"},
+				{a.Confidence, "too uncertain"},
+				{a.Geometry, "implausible shape"},
+				{a.Ceiling, "past the per-pass cap"},
+				{a.StaleCapture, "pixels older than the pass"},
+			} {
+				if p.n > 0 {
+					why = append(why, fmt.Sprintf("%d %s", p.n, p.s))
+				}
+			}
+			fmt.Fprintf(b, "               refused: %s\n", strings.Join(why, "   "))
+		}
+	}
 	// UNNAMED GEOMETRY ON ITS OWN LINE, never added to the one above.
 	//
 	// The warning this repair was authorised under, kept answerable in the report: a region
@@ -969,6 +1018,49 @@ func renderInterface(b *strings.Builder, s observe.ShadowTotals) {
 			}
 			fmt.Fprintf(b, "                 sample %-4d %-12s %-8s %s\n",
 				mo.Sample, mo.Status, sel, mo.Why)
+		}
+	}
+	renderCandidates(b, s.Candidates)
+}
+
+// What every candidate list was observed to do, and what it fell short of.
+//
+// EXPERIMENT-025 IS WHY THIS IS A TABLE. That run ended "no list has been seen handing a
+// mark between its members (8 candidates watched over 106 frames)" after ninety-two
+// directional presses at a menu. True, and it does not say which of five things went wrong:
+// nothing could be measured, candidate identity churned, no mark was ever visible, several
+// members were marked at once, or the mark never moved. Each has a different response, and
+// the first two are not about selection at all. Telling them apart afterwards meant
+// regrouping the run's geometry with a script that was not the production rule.
+//
+// The columns are the production rule's own counters. `judged` and not `frames` is what the
+// observation threshold is compared against, so both are shown: a wide gap between them is
+// a statement about the looks rather than about the list.
+//
+// Deleting the call to this must fail TestTheReportSaysWhyEachCandidateWasRefused.
+func renderCandidates(b *strings.Builder, cands []observe.InterfaceCandidate) {
+	if len(cands) == 0 {
+		return
+	}
+	fmt.Fprintf(b, "               %d candidate list(s) watched:\n", len(cands))
+	fmt.Fprintf(b, "                 %-5s %-6s %-6s %-5s %-6s %-5s %-6s %-5s %s\n",
+		"rows", "frames", "judged", "excl", "shared", "quiet", "unread", "moves",
+		"holders")
+	for _, c := range cands {
+		fmt.Fprintf(b, "                 %-5d %-6d %-6d %-5d %-6d %-5d %-6d %-5d %d\n",
+			c.Members, c.Frames, c.Judged, c.Exclusive, c.Shared, c.Quiet,
+			c.Unreadable, c.Transfers, c.Holders)
+		if c.Qualifies {
+			b.WriteString("                   ^ behaves like a list being chosen from\n")
+			continue
+		}
+		// THE REFUSAL, NAMED. Every requirement and not just the first: a candidate
+		// short on two counts is a different finding from one short on five, and "the
+		// mark never moved" beside "nothing could be measured" tells a reader which of
+		// the two to believe.
+		for _, u := range c.Unmet {
+			fmt.Fprintf(b, "                   needs %s %d, has %d - %s\n",
+				u.Requirement, u.Want, u.Have, u.Why)
 		}
 	}
 }

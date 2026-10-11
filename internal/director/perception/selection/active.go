@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image"
 	"math"
+	"sort"
 )
 
 // Which of the lists on a screen is the one being used.
@@ -111,6 +112,94 @@ func (e Evidence) String() string {
 	return fmt.Sprintf("rows %d, %d frames: %d exclusive, %d shared, %d quiet, "+
 		"%d unreadable, %d transfers among %d holders", e.Rows, e.Frames, e.Exclusive,
 		e.Shared, e.Quiet, e.Unreadable, e.Transfers, e.Holders)
+}
+
+// Judged is the frames this candidate could actually be assessed on.
+//
+// The threshold MinObservations is compared against THIS and not against Frames, and the
+// difference is the whole of [[ADR-006-unknown-is-not-false]]: a list the detector kept
+// finding and nobody could measure has been looked at many times and tested zero times. A
+// report that showed Frames alone would make a candidate look well-observed at the exact
+// moment it was not observed at all.
+func (e Evidence) Judged() int { return e.Frames - e.Unreadable }
+
+// Shortfall is one requirement a candidate does not meet, and by how much.
+type Shortfall struct {
+	// Requirement is a stable key, for a reader that is counting rather than reading.
+	Requirement string `json:"requirement"`
+	// Have and Want are the comparison that failed, in the units of that requirement.
+	Have int `json:"have"`
+	Want int `json:"want"`
+	// Why is the same thing for a person, in one clause.
+	Why string `json:"why"`
+}
+
+// Unmet lists every requirement this candidate falls short of, and is empty when it
+// qualifies.
+//
+// # Why this exists rather than a bool
+//
+// Experiment-025 watched a player make ninety-two directional presses at a menu and ended
+// with "no list has been seen handing a mark between its members (8 candidates watched over
+// 106 frames)". That sentence is true and it does not say which of five different things
+// went wrong, and the five call for completely different responses:
+//
+//	a candidate nobody could measure      -> a detector or capture finding
+//	a candidate watched for three frames  -> candidate identity is churning
+//	a candidate with no marked frames     -> no mark is visible in the shading at all
+//	a candidate with several marked at once -> this is a heads-up display, correctly refused
+//	marks but no transfer                 -> the mark is not moving, or members are not matched
+//
+// Reading them off the counters by hand is what had to be done after that run, from geometry
+// regrouped by somebody else's script. So the tracker says it.
+//
+// # Why the predicate lives here
+//
+// `candidate.qualifies` delegates to this, so there is exactly one statement of the rule.
+// The alternative — a reporting copy beside the deciding copy — is a rule that drifts, and
+// a report that disagrees with the decision it describes is worse than no report.
+func (e Evidence) Unmet() []Shortfall {
+	var out []Shortfall
+	judged := e.Judged()
+	if judged <= 0 {
+		return []Shortfall{{
+			Requirement: "judged_frames", Have: 0, Want: MinObservations,
+			Why: "no frame of this candidate could be judged at all",
+		}}
+	}
+	if judged < MinObservations {
+		out = append(out, Shortfall{
+			Requirement: "judged_frames", Have: judged, Want: MinObservations,
+			Why: "has not been watched long enough to have been tested",
+		})
+	}
+	if e.Exclusive < MinExclusive {
+		out = append(out, Shortfall{
+			Requirement: "exclusive_marks", Have: e.Exclusive, Want: MinExclusive,
+			Why: "too few frames had exactly one member standing out",
+		})
+	}
+	if e.Exclusive <= SharedPenalty*e.Shared {
+		out = append(out, Shortfall{
+			Requirement: "exclusive_over_shared", Have: e.Exclusive,
+			Want: SharedPenalty*e.Shared + 1,
+			Why: "several members stood out at once too often for one thing to be " +
+				"being chosen here",
+		})
+	}
+	if e.Transfers < MinTransfers {
+		out = append(out, Shortfall{
+			Requirement: "transfers", Have: e.Transfers, Want: MinTransfers,
+			Why: "the mark was never seen moving from one member to a different one",
+		})
+	}
+	if e.Holders < MinHolders {
+		out = append(out, Shortfall{
+			Requirement: "holders", Have: e.Holders, Want: MinHolders,
+			Why: "only one member has ever held the mark",
+		})
+	}
+	return out
 }
 
 // candidate is a tracked list.
@@ -329,31 +418,42 @@ func (t *Tracker) match(ext image.Rectangle, used map[*candidate]bool) *candidat
 }
 
 // Evidence reports what has been observed about every candidate, most convincing first.
+//
+// Most convincing first means: qualifying candidates, then the ones tested on the most
+// frames. Sorted here because this comment claimed an order the code did not produce, and a
+// report that shows the first few of a long list has to be showing the right few. No caller's
+// decision depends on the order — `active` scans all of them — so this is a reporting
+// guarantee only.
 func (t *Tracker) Evidence() []Evidence {
 	out := make([]Evidence, 0, len(t.cands))
 	for _, c := range t.cands {
-		out = append(out, Evidence{
-			Bounds: c.bounds, Rows: len(c.rows), Frames: c.seen,
-			Exclusive: c.excl, Shared: c.shared, Quiet: c.quiet, Unreadable: c.unreadable,
-			Transfers: c.moves, Holders: len(c.holders),
-			Qualifies: c.qualifies(),
-		})
+		out = append(out, c.evidence())
 	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Qualifies != out[j].Qualifies {
+			return out[i].Qualifies
+		}
+		return out[i].Judged() > out[j].Judged()
+	})
 	return out
 }
 
-func (c *candidate) qualifies() bool {
-	judged := c.seen - c.unreadable
-	if judged <= 0 {
-		return false
+// evidence is this candidate's record, verdict included.
+//
+// One builder for the decision and for the report, so the two cannot disagree. Frames where
+// several members stand out at once are evidence AGAINST — whatever is happening there, it is
+// not one thing being chosen — and Evidence.Unmet states that along with the rest.
+func (c *candidate) evidence() Evidence {
+	e := Evidence{
+		Bounds: c.bounds, Rows: len(c.rows), Frames: c.seen,
+		Exclusive: c.excl, Shared: c.shared, Quiet: c.quiet, Unreadable: c.unreadable,
+		Transfers: c.moves, Holders: len(c.holders),
 	}
-	return judged >= MinObservations &&
-		c.excl >= MinExclusive &&
-		// Frames where several members stand out at once are evidence AGAINST: whatever
-		// is happening there, it is not one thing being chosen.
-		c.excl > SharedPenalty*c.shared &&
-		c.moves >= MinTransfers && len(c.holders) >= MinHolders
+	e.Qualifies = len(e.Unmet()) == 0
+	return e
 }
+
+func (c *candidate) qualifies() bool { return c.evidence().Qualifies }
 
 // Active names the list being used, or abstains.
 //

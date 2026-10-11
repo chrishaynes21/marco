@@ -3,6 +3,7 @@ package observe
 import (
 	"fmt"
 	"image"
+	"sort"
 	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/selection"
@@ -219,6 +220,15 @@ type InterfaceWatch struct {
 	looks  int
 	missed int
 	empty  int
+	// seen is the sequence of the last look that carried evidence — the one `looks` last
+	// counted.
+	//
+	// Kept because a DROPPED belief has to be able to say what it last saw, and cannot read
+	// it off itself: the drop rewrites the belief's own Sample to the look it gave up at,
+	// and then goes on rewriting it every look after that, so a message built from the
+	// previous belief would ratchet forward and end up naming the look before this one. A
+	// test caught that on the first attempt at this.
+	seen int
 	// tracking is the fast path's own account. Unexported for the reason the belief is: a
 	// reader of a session gets the answer, never the machinery.
 	tracking TrackingStats
@@ -258,39 +268,10 @@ func (w *InterfaceWatch) Observe(look InterfaceLook) {
 	}
 	w.looks++
 	w.missed = 0
+	w.seen = look.Sequence
 	before := w.belief
 
-	var boxes []image.Rectangle
-	var shades []selection.Shade
-	// unnamed holds the boxes that came from shapes, so the belief can say how much of what
-	// it is about has a name. A set rather than a parallel slice: grouping reorders and
-	// discards, and an index into the input would not survive it.
-	unnamed := map[image.Rectangle]bool{}
-	for _, r := range look.Regions {
-		if len(r.Shade) != selection.Features {
-			continue
-		}
-		boxes = append(boxes, scaleRegion(r.Region))
-		shades = append(shades, selection.Shade{r.Shade[0], r.Shade[1]})
-	}
-	// THE UNNAMED GEOMETRY, after the named structure and on equal terms within the
-	// grouping. Equal terms is the point: the grouping asks whether these rectangles are
-	// arranged like a list and whether one of them is painted unlike its neighbours, and
-	// neither question has ever needed a word. What it does not get is equal standing in
-	// the ANSWER — see FromShapes.
-	//
-	// Unshaded shapes are dropped here exactly as unshaded regions are. A rectangle with no
-	// measurement cannot say whether it holds the mark, and defaulting it to zero would
-	// make "nobody measured this" read as "this is the darkest row on screen".
-	for _, sh := range look.Shapes {
-		if !sh.Shaded() {
-			continue
-		}
-		b := scaleRegion(sh.Region)
-		boxes = append(boxes, b)
-		shades = append(shades, selection.Shade{sh.Shade[0], sh.Shade[1]})
-		unnamed[b] = true
-	}
+	boxes, shades, unnamed := measurableBoxes(look)
 	if len(boxes) == 0 {
 		w.emptyLook(before, look)
 		return
@@ -445,18 +426,46 @@ func (w *InterfaceWatch) unconfirmed(look InterfaceLook, tracked bool) {
 		// keep saying that nobody has looked. The first version only rewrote the belief on
 		// the way down, so the look after a drop replaced "dropped for want of evidence"
 		// with the ordinary stale line and the drop became unexplainable.
+		//
+		// STAMPED WITH THE LOOK IT WAS GIVEN UP AT, not with the evidence it gave up.
+		// Elsewhere Sample and At name the evidence a belief rests on, and a belief that is
+		// merely stale keeps naming it — that is what makes its message able to say which
+		// sample to go and look at. A DROPPED belief rests on nothing, so there is no such
+		// look to name, and naming the old one puts the moment on the timeline at the time
+		// of the last thing seen rather than the time the answer changed. `emptyLook`'s
+		// give-up path already stamps the look; these two are the same event with different
+		// evidence behind them and must read the same way.
+		//
+		// Found by writing down what a live run would be asked to report: the protocol's
+		// last phase asks whether the belief is lost, for the right reason, and WHEN, and
+		// the journal's answer to "when" was up to tens of seconds early.
+		//
+		// Deleting this must fail TestABeliefIsGivenUpAtTheLookThatGaveUpOnIt.
 		w.settle(before, InterfaceBelief{
 			Status: InterfaceUnknown, Selected: -1, Reading: "insufficient_evidence",
 			Observations: w.looks, Stale: true, Unconfirmed: w.missed,
-			Sample: before.Sample, At: before.At,
-			Because: fmt.Sprintf("no evidence has been observed for %d look(s): %s",
-				w.missed, why),
+			Sample: look.Sequence, At: look.At,
+			// AND WHAT IT LAST SAW, because the two halves of the answer are the time it
+			// gave up and the evidence it gave up on, and a reader with only the first
+			// cannot tell a detector that stopped from a menu nobody opened.
+			Because: fmt.Sprintf("no evidence has been observed for %d look(s): %s%s",
+				w.missed, why, w.lastSeen()),
 		}, why)
 		return
 	}
 	next.Because = fmt.Sprintf("%s (unconfirmed for %d look(s); the evidence under this "+
 		"belief is sample %d)", why, w.missed, before.Sample)
 	w.settle(before, next, why)
+}
+
+// lastSeen names the last look that brought evidence, as a clause to hang on a reason, or
+// nothing at all when no look ever has — in which case there is no sighting to point at and a
+// sentence claiming one would be inventing it.
+func (w *InterfaceWatch) lastSeen() string {
+	if w.seen == 0 {
+		return " (no look has brought any evidence yet)"
+	}
+	return fmt.Sprintf(" (the last look that brought evidence was sample %d)", w.seen)
 }
 
 // settle records the new belief and what moved to get to it.
@@ -516,6 +525,154 @@ func (w *InterfaceWatch) Change() InterfaceChange { return w.change }
 // Moments is the bounded journal of looks at which the answer was different.
 func (w *InterfaceWatch) Moments() []InterfaceMoment {
 	return append([]InterfaceMoment(nil), w.moments...)
+}
+
+// measurableBoxes is every rectangle on a look that can take part in a selection reading,
+// with its shading, and which of them arrived without a name.
+//
+// ONE statement of this, used by Observe and by the replay diagnostic. It was inline in
+// Observe, and a diagnostic that rebuilt it would have been a second opinion about what the
+// tracker was given - which is the shape of "two lists, one fact" in this repository: a
+// spectest that passed while production refused the same play, because two copies of one rule
+// drifted. A replay whose input differs from production's input measures the replay.
+//
+// Regions WITHOUT shading are dropped rather than defaulted: a region nobody measured and a
+// region measured as black must not look alike, and a zero would read as the darkest thing on
+// screen.
+//
+// The unnamed geometry comes after the named structure and on equal terms within the grouping.
+// Equal terms is the point: the grouping asks whether these rectangles are arranged like a list
+// and whether one is painted unlike its neighbours, and neither question has ever needed a
+// word. What it does not get is equal standing in the ANSWER - see FromShapes.
+func measurableBoxes(look InterfaceLook) ([]image.Rectangle, []selection.Shade,
+	map[image.Rectangle]bool) {
+
+	var boxes []image.Rectangle
+	var shades []selection.Shade
+	// unnamed holds the boxes that came from shapes, so the belief can say how much of what
+	// it is about has a name. A set rather than a parallel slice: grouping reorders and
+	// discards, and an index into the input would not survive it.
+	unnamed := map[image.Rectangle]bool{}
+	for _, r := range look.Regions {
+		if len(r.Shade) != selection.Features {
+			continue
+		}
+		boxes = append(boxes, scaleRegion(r.Region))
+		shades = append(shades, selection.Shade{r.Shade[0], r.Shade[1]})
+	}
+	for _, sh := range look.Shapes {
+		if !sh.Shaded() {
+			continue
+		}
+		b := scaleRegion(sh.Region)
+		boxes = append(boxes, b)
+		shades = append(shades, selection.Shade{sh.Shade[0], sh.Shade[1]})
+		unnamed[b] = true
+	}
+	return boxes, shades, unnamed
+}
+
+// GroupedForLook reports the SIZE OF EVERY GROUP grouping proposes for one look, largest
+// first.
+//
+// Exported for the replay diagnostic, and it answers the first question about a failed run.
+// Experiment-025 reported "no list has been seen handing a mark between its members" after
+// ninety-two presses at a menu, and nothing said which stage actually failed. Grouping is
+// upstream of the one that spoke, and a session that cannot describe its output sends a reader
+// to the selection rule for what may be a grouping finding.
+//
+// Sizes rather than a count, because the shape of the distribution IS the finding. Twelve
+// groups of one and a group of three is a fragmented screen; one group of six is a menu. Both
+// render as "13 groups" and they are opposite diagnoses — and only one of them can be fixed by
+// the selection rule, because the tracker refuses any group below its minimum outright.
+//
+// It runs the same builder and the same GroupRows call Observe runs, and nothing else — no
+// belief, no tracker, no state.
+func GroupedForLook(look InterfaceLook) []int {
+	if !look.Observed {
+		return nil
+	}
+	boxes, _, _ := measurableBoxes(look)
+	if len(boxes) == 0 {
+		return nil
+	}
+	size := map[int]int{}
+	for _, g := range selection.GroupRows(boxes) {
+		size[g.Group]++
+	}
+	out := make([]int, 0, len(size))
+	for _, n := range size {
+		out = append(out, n)
+	}
+	sort.Sort(sort.Reverse(sort.IntSlice(out)))
+	return out
+}
+
+// InterfaceCandidate is one list the tracker watched, and what it observed about it.
+//
+// The tracker's own counters, renamed only where this package already has a word for the
+// thing. Nothing here is derived or re-judged: `Qualifies` and `Unmet` come from the same
+// predicate the decision uses, so a report cannot disagree with the belief it explains.
+type InterfaceCandidate struct {
+	// Where it sits, normalised and window-relative like every other region here.
+	Where Region `json:"where"`
+	// Members is how many rows the tracker knows this list to have.
+	Members int `json:"members"`
+	// Frames is how many observations it survived; Judged, how many of those it could
+	// actually be assessed on. The threshold is compared against Judged, and the gap
+	// between the two is a statement about the looks rather than about the list.
+	Frames int `json:"frames"`
+	Judged int `json:"judged"`
+	// Exclusive, Shared and Quiet are frames with exactly one member marked, with more
+	// than one, and with none. Unreadable is frames where too few members could be
+	// measured to say.
+	Exclusive  int `json:"exclusive"`
+	Shared     int `json:"shared"`
+	Quiet      int `json:"quiet"`
+	Unreadable int `json:"unreadable"`
+	// Transfers is the mark moving to a different member; Holders, how many distinct
+	// members have ever held it. These two are the claim a menu makes and a heads-up
+	// display does not.
+	Transfers int `json:"transfers"`
+	Holders   int `json:"holders"`
+	// Qualifies says this behaves like a list somebody is choosing from, and Unmet says
+	// precisely what it falls short of when it does not.
+	Qualifies bool                  `json:"qualifies"`
+	Unmet     []selection.Shortfall `json:"unmet,omitempty"`
+}
+
+// maxInterfaceCandidates bounds what the report carries.
+//
+// A tracker never prunes: a candidate whose extent stops matching anything simply stops being
+// updated, and a long session on a changing screen accumulates them. The belief's `Because`
+// states the total, so a truncated list cannot be mistaken for the whole one — and
+// Tracker.Evidence sorts qualifying candidates first, so the ones a reader needs are the ones
+// that survive the cut.
+const maxInterfaceCandidates = 12
+
+// Candidates is every list the tracker watched, most convincing first.
+//
+// Instrumentation, and deliberately nothing more. It reports the counters the classification
+// already keeps; it does not classify, re-measure, or offer a candidate a reader could act on.
+// A candidate here is not a control, not an affordance and not durable — the same line
+// ShadowShape holds.
+func (w *InterfaceWatch) Candidates() []InterfaceCandidate {
+	ev := w.tracker.Evidence()
+	if len(ev) > maxInterfaceCandidates {
+		ev = ev[:maxInterfaceCandidates]
+	}
+	out := make([]InterfaceCandidate, 0, len(ev))
+	for _, e := range ev {
+		out = append(out, InterfaceCandidate{
+			Where: unscaleRect(e.Bounds), Members: e.Rows,
+			Frames: e.Frames, Judged: e.Judged(),
+			Exclusive: e.Exclusive, Shared: e.Shared, Quiet: e.Quiet,
+			Unreadable: e.Unreadable,
+			Transfers:  e.Transfers, Holders: e.Holders,
+			Qualifies: e.Qualifies, Unmet: e.Unmet(),
+		})
+	}
+	return out
 }
 
 // qualifyingLists counts the candidates that behave like one being used.

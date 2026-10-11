@@ -136,8 +136,54 @@ tell a missing engine from an engine whose evidence did not describe the window.
 `provenanceReason` composes the sentence from the two generations the guard actually compared,
 and distinguishes "established no target" from "observed a different one".
 
+## Addendum, 2026-10-10 — a session can now say where the detector's output went
+
+Found while preparing the live run that is meant to test this decision, and it is a defect in
+the decision's own checkability rather than in the repair.
+
+This ADR rests on a number the session does not record. *"The detector finds about seventy
+boxes on this game's screens, nearly all classed `text`, and a `text` box it could not read
+itself is discarded"* — that came from two `director vision` readings taken by hand after
+Experiment-024 finished: `considered 77, accepted 1, rejected 76`. A different sample, of a
+different screen, at a different moment, under the run's central conclusion.
+
+The session's own record carried only what survived admission. So `detections 0` on a look had
+two explanations and no way to choose between them: the detector found nothing, or it found
+seventy boxes and refused every one. Those call for opposite conclusions, and the next run is
+specifically a test of which one is happening.
+
+`ShadowAdmission` now rides on the shadow sample beside `ShadowLabels`, accumulates onto the
+totals, and prints under the detections line:
+
+```
+  detections   0 total   0 nameable   0 unmapped
+  admission    76 proposed   0 accepted   76 refused
+               refused: 72 nothing readable inside   4 too uncertain
+```
+
+It carries counts the provider already computes and resets per pass; no behaviour changed, and
+nothing new crosses the privacy boundary — a refusal count names no window, no label and no
+text. It reaches the session the way the label budget does, through `Inner().LastDiagnostics()`
+at the one call site where the provider and the sample are both in scope.
+
+**This makes the decision's three outcomes distinguishable in one line**, which is what it
+could not do before:
+
+| what the run shows | what it means |
+| --- | --- |
+| `Unreadable` high, geometry kept | the repair is working |
+| `Unreadable` high, geometry 0 | the repair is not reaching this path |
+| `proposed` near 0 | neither — the detector saw nothing, which is a finding about the model or the capture and not about admission at all |
+
 ## Enforced by
 
+- `TestTheSessionSaysWhereTheDetectorsOutputWent` (`cmd/director`) — the admission account
+  reaches the sample through `liveSampler.Sample` AND is folded into the session through
+  `ShadowTotals.Observe`, on the measured fixture of nine unreadable rows. Both halves
+  mutation-checked, because a count attached to every sample that nothing accumulates is the
+  shape of eight recorded cases in this repository.
+- `TestTheReportSaysWhereTheDetectorsOutputWent` — it is printed, with the refusal kinds named
+  rather than summed, and a session nobody asked a detector prints no refusal rate at all.
 - `TestAnUnreadableTextRegionKeepsItsGeometry` — the case the repair exists for, with the
   counter asserted unchanged: what was refused as evidence has not changed at all.
 - `TestTheAuthoritativeProviderStillDiscardsUnreadableText` — the condition of the
