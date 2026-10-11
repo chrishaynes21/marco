@@ -143,6 +143,27 @@ type Options struct {
 	// DedupeOverlap is how much two proposals must overlap, as a share of the
 	// smaller, to be treated as one. See dedupe.
 	DedupeOverlap float64
+	// MinHeightFraction is how tall a proposal must be, as a share of the FRAME height,
+	// to be offered at all.
+	//
+	// THE ONLY HUMAN-SCALE ASSUMPTION IN THIS PACKAGE, and it is made on purpose.
+	// Measured on 864 real frames of a game's pause menu: a patch of scene 69x29 pixels
+	// across, in which four "rows" of about seven pixels each flickered one at a time,
+	// satisfied every requirement the selection rule has for a list being navigated --
+	// 54 exclusive frames, 3 transfers, 3 holders -- and qualified beside the real menu.
+	// Two lists qualifying is an abstention, so the belief went from naming the right
+	// entry to naming nothing, on evidence that was perfectly real and completely
+	// irrelevant.
+	//
+	// A row a person cannot read or point at is not an interface element, whatever it
+	// does over time. Expressed as a fraction rather than in pixels so it means the same
+	// thing on any monitor: 0.010 is about 11px at 1080p, below ordinary UI text and far
+	// above a scene artefact.
+	//
+	// It belongs here and not in the selection rule. This package decides what is worth
+	// offering as structure; the classification of a candidate list is the selection
+	// rule's and is untouched.
+	MinHeightFraction float64
 	// InkRadius is the neighbourhood, in working pixels, a pixel's background is estimated
 	// over for the contrast cue. About a glyph's height: smaller and a thick stroke is its
 	// own background, larger and a word sits inside its own estimate.
@@ -196,6 +217,14 @@ func DefaultOptions() Options {
 		MaxTextPixels:     20000,
 		MinLineAspect:     1.5,
 		DedupeOverlap:     0.5,
+		// OFF BY DEFAULT, and the measurement is why. See the field comment: it
+		// removed the 69x29 scene artefact it was built for and improved proposals
+		// per frame by 18% on 864 real frames, and the end-to-end result got WORSE --
+		// frames naming an entry fell from 148 to 12 and a THIRD list qualified,
+		// because removing the small proposals let a different and much larger stack
+		// form across most of the screen. A component metric improved and the
+		// pipeline regressed, so it stays available and unused.
+		MinHeightFraction: 0,
 		InkRadius:         7,
 		InkThreshold:      18,
 		InkCeiling:        0.25,
@@ -217,6 +246,9 @@ type Result struct {
 	Components int
 	// Rejected says why components did not become candidates.
 	TooSmall, TooLarge, TooThin, NotRectangular, UnmergedGlyphs int
+	// BelowHumanScale is proposals discarded as too short to be read or
+	// pointed at. See Options.MinHeightFraction.
+	BelowHumanScale int
 	// InkPixels is how much of the frame stood away from its local background,
 	// InkThreshold the level that decided it, and InkMarks the marks that came
 	// out of it. A frame with ink and no marks is a different finding from a
@@ -367,6 +399,20 @@ func Propose(img image.Image, opt Options) Result {
 			return a.Dx()*a.Dy() > b.Dx()*b.Dy()
 		}
 	})
+	// BELOW HUMAN SCALE. Counted rather than silently dropped: a screen whose every
+	// proposal is too small to point at is a finding about the capture resolution or
+	// about there being no interface in the frame.
+	if minH := opt.MinHeightFraction * float64(b.Dy()); minH > 0 {
+		kept := out[:0]
+		for _, c := range out {
+			if float64(c.Bounds.Dy()) < minH {
+				res.BelowHumanScale++
+				continue
+			}
+			kept = append(kept, c)
+		}
+		out = kept
+	}
 	out = dedupe(out, opt.DedupeOverlap)
 	if len(out) > opt.Max {
 		out = out[:opt.Max]

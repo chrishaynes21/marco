@@ -305,17 +305,19 @@ func reportFrames(r frameResult, ann *annotationFile) {
 		return
 	}
 	fmt.Printf("  candidates          %d\n", len(r.Candidates))
-	fmt.Printf("    %-5s %-6s %-6s %-5s %-6s %-5s %-6s %-5s %-7s %s\n",
-		"rows", "frames", "judged", "excl", "shared", "quiet", "unread", "moves",
-		"holders", "verdict")
+	fmt.Printf("    %-5s %-6s %-6s %-5s %-5s %-6s %-5s %-7s %-22s %s\n",
+		"rows", "frames", "judged", "excl", "quiet", "unread", "moves",
+		"holders", "where y..y (x,w)", "verdict")
 	for _, c := range r.Candidates {
 		verdict := "refused"
 		if c.Qualifies {
 			verdict = "IDENTIFIED"
 		}
-		fmt.Printf("    %-5d %-6d %-6d %-5d %-6d %-5d %-6d %-5d %-7d %s\n",
-			c.Members, c.Frames, c.Judged, c.Exclusive, c.Shared, c.Quiet,
-			c.Unreadable, c.Transfers, c.Holders, verdict)
+		where := fmt.Sprintf("%.3f..%.3f (%.3f,%.3f)",
+			c.Where.Y, c.Where.Y+c.Where.Height, c.Where.X, c.Where.Width)
+		fmt.Printf("    %-5d %-6d %-6d %-5d %-5d %-6d %-5d %-7d %-22s %s\n",
+			c.Members, c.Frames, c.Judged, c.Exclusive, c.Quiet,
+			c.Unreadable, c.Transfers, c.Holders, where, verdict)
 	}
 	shortfall := map[string]int{}
 	for _, c := range r.Candidates {

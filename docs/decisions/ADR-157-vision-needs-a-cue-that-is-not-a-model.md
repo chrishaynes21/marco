@@ -119,6 +119,31 @@ time; giving it some is its own change with its own provenance and privacy quest
 Marco cannot use any of this in a session — the capability is real and measured, and it is
 measured in tests.
 
+### Measured on real pixels, afterwards
+
+The claims above were made on drawn fixtures. [[Experiment-026-the-same-menu-seen-from-pixels]]
+reprocessed 864 real frames of the Trackmania menu Experiment-025 failed on, against that run's
+own L1 replay:
+
+| | old detector, live | this, on the same game's pixels |
+| --- | --- | --- |
+| grouping produced a usable stack | 42 of 107 looks (39%) | 864 of 864 (100%) |
+| a proposal covered the selected row | — | 829 of 829 labelled frames (100%) |
+| a list identified | never | after 28 looks |
+| frames naming an entry | 0 | 148, of which 147 matched the label |
+
+Scored against model-assisted labels, which are not independently validated.
+
+**And the cost reframes [[ADR-152-slow-discovery-fast-tracking]].** `Propose` is 37ms per
+1920×1080 frame; the ONNX inference that sets the live cadence has a 976ms median. The stage
+that made the cadence 2.3s — and therefore made selection tracking impossible, because a
+57-second session yields 25 looks and the rule needs 10 judged ones — is about 26× more
+expensive than the cue that outperforms it here. Reprocessing the same corpus at ~2.3s intervals
+identifies nothing at all; at ~1.3s and faster it identifies the list and reads entries.
+
+So the frame path into the engine should be considered as a REPLACEMENT for the inference on the
+discovery path, not an addition beside it.
+
 ### Open gaps, with numbers
 
 - **A ground-changing highlight on a translucent panel over a scene loses the marked row AND its
