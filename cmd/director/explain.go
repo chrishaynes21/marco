@@ -185,6 +185,9 @@ var valued = map[string]bool{
 	"-session": true, "--session": true,
 	"-seconds": true, "--seconds": true,
 	"-fps": true, "--fps": true,
+	// `capture-benchmark`'s own. It shares --application and --delay with the recorder
+	// above; this is the one flag only it has.
+	"-captures": true, "--captures": true,
 	// `read-selection`'s three.
 	"-annotations": true, "--annotations": true,
 	"-segments": true, "--segments": true,

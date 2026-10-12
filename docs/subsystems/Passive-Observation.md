@@ -971,7 +971,15 @@ it refuses those looks. Visible is fine; in front is not.
   looks, `visual_9` held 2 — and short-lived screens that appear in one demonstration and not
   the other are the shape of a load or a splash rather than a place.
   [[ADR-173-the-proposers-yield-is-not-what-separates-two-screens]]
-- **GDI acquisition is the unmeasured bottleneck, and measuring it needs authorisation.**
+- **GDI acquisition is the unmeasured bottleneck. The benchmark is BUILT and unrun.**
+  `director capture-benchmark --application <app>` times GetDC, the DC-and-bitmap setup, the
+  blit, GetDIBits and the cleanup separately over four configurations — today's per-frame
+  handles at full size, reused handles, a StretchBlt reduction at half size, and both — all
+  blitting the same source rectangle so a reduced capture cannot look faster for sampling less.
+  Timings, percentiles, failures, GDI handle counts, and one bit per frame saying whether the
+  buffer held anything, because a silently failed blit returns black. No pixels kept, nothing
+  written, nothing injected, bounded by a count and a wall clock. The owner starts it.
+- ~~GDI acquisition is the unmeasured bottleneck, and measuring it needs authorisation.~~
   Everything else in an observation is priced: conversion 2ms, resize ≤1ms, proposer 4.6–31.9ms.
   `capture` creates and destroys a DC and a bitmap every frame and allocates 8.3MB twice;
   hoisting those, or reducing during the blit so `GetDIBits` moves less, are the candidates. A

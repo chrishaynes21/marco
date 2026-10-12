@@ -123,7 +123,7 @@ every stage of an observation but one:
 | resize | ≤1.0ms | |
 | proposer | 31.9ms at 1920x1080, 4.6ms at 480x270 | |
 | PNG decode | 51ms | a RECORDING cost; a live observer pays none of it |
-| **GDI acquisition** | **unmeasured** | needs a real window, and therefore authorisation |
+| **GDI acquisition** | **unmeasured** | the benchmark is BUILT and unrun: `director capture-benchmark --application <app>` |
 
 At a 100ms budget that leaves **66ms** for acquisition at full resolution and **93ms** at a
 quarter — and a quarter-resolution observation keeps all seventeen click targets while losing
@@ -137,6 +137,30 @@ What it points at, from reading `capture`: a DC and a bitmap created and destroy
 8.3MB allocated twice per frame, and 8.3MB moved by `GetDIBits`. Hoisting the first two and
 reusing the buffers costs nothing in correctness; reducing DURING the blit is the only candidate
 that makes acquisition itself cheaper.
+
+### The benchmark that answers it, built and not started
+
+`director capture-benchmark` times `GetDC`, the DC-and-bitmap setup, the blit, `GetDIBits` and
+the cleanup separately, over four configurations that each differ from the previous by ONE thing:
+today's per-frame handles at full size, reused handles at full size, a `StretchBlt` reduction at
+half size, and both. Every configuration blits from the SAME source rectangle, taken once from
+the validated reference, so a reduced capture cannot look faster for having sampled less.
+
+It reports median, p95, max, throughput, failures, GDI handles before and after — and, per
+configuration, how many captures held any pixels at all. That last one is the guard against the
+result that would otherwise be most tempting: a blit that fails silently returns black, and a
+configuration that was faster because it returned nothing would read as an improvement.
+
+**It keeps no pixels.** One bit per frame leaves the buffer — whether it was non-empty — and the
+buffer is wiped before it is dropped. Nothing is written to disk, nothing is injected, no window
+is raised. Held by `TestTheAcquireBenchmarkKeepsNoPixels`, which reads the source and fails if a
+write, an encode, a hash or a print of the buffer ever appears.
+
+It is bounded twice, by `--captures` (≤400) and by a 30-second wall clock, and it refuses to
+start without `--application` so it cannot photograph whatever happened to be in front.
+
+**It has not been run.** The owner starts it, with the target window ready, as with the
+recording.
 
 ### The original open question, still open
 

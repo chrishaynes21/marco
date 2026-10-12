@@ -170,6 +170,15 @@ func main() {
 		// an annotation, keeping confident-wrong apart from declined. Reads only; see
 		// selectionread.go.
 		os.Exit(runReadSelection(os.Args[2:]))
+	case "capture-benchmark":
+		// WHAT AN ACQUISITION COSTS, stage by stage, on one window. Timings only: it
+		// injects nothing, activates nothing, and keeps no pixels. The single thing
+		// read out of a captured buffer is whether it held any byte at all, because a
+		// blit that fails silently returns black and a configuration that was faster
+		// for having returned nothing would read as an improvement.
+		//
+		// Bounded by --captures and by a hard wall clock. See capturebenchmark.go.
+		os.Exit(runCaptureBenchmark(os.Args[2:]))
 	case "capture-game-session":
 		// Frames BESIDE observed navigation intents, on one measured clock. Injects
 		// nothing, approves nothing, and states nothing about what is selected — that is
