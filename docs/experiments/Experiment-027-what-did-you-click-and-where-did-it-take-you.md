@@ -289,3 +289,48 @@ thrown away with the subscription that held it.
 How many presses this session actually lost is **not known and cannot now be established** — the
 counters did not exist when it was made. The next recording will say.
 
+## Second pass, 2026-10-12: the milestone, from the same recording
+
+The owner set a milestone rather than a metric:
+
+> I would aim for one offline, session-local learned route from this Rocket League recording. Not
+> cross-session memory yet. Not automatic execution. Just prove that Director can: stabilize
+> visual arrangements into distinguishable screen hypotheses; associate recorded clicks with
+> plausible visual targets; identify repeated screen transitions across both demonstrations;
+> produce an inspectable route with evidence and uncertainty attached.
+
+Four decisions came out of it, all measured on these 900 frames and none of them live:
+
+| | |
+|---|---|
+| [[ADR-171-an-arrangement-is-an-observation-and-a-screen-is-an-interpretation]] | 150 raw adjacent-frame changes became 22 promotions; **7 transitions happened exactly twice**, once per demonstration |
+| [[ADR-172-a-click-transition-is-a-source-a-target-and-a-destination]] | 10 learning units, **3 confirmed in both demonstrations**, 2 pairs that may be one control, 4 presses that changed nothing, 8 changes nobody pressed for |
+| [[ADR-173-the-proposers-yield-is-not-what-separates-two-screens]] | count normalisation measured and **rejected**: it would merge two consecutive steps of the route |
+| [[ADR-170-what-an-unnamed-arrangement-would-have-segmented]] | the measurement that started it |
+
+### All four of the milestone's clauses
+
+1. **Stabilise arrangements into distinguishable screens: YES.** 9 settled over 900 looks, 767
+   of which agreed with the standing screen.
+2. **Associate clicks with plausible visual targets: YES, with the ambiguity kept.** Every one of
+   17 presses landed inside a proposed region; 5 were inside more than one and all their
+   candidates survive; 12 target identities, and the pairs that might be one control are
+   reported rather than merged.
+3. **Identify repeated transitions across both demonstrations: YES.** Seven screen transitions
+   and three complete click transitions.
+4. **An inspectable route with evidence and uncertainty: YES**, and the uncertainty is in the
+   line rather than a footnote — a step says whether it was confirmed twice or seen once, whether
+   its target is one reading of several, whether another identity reached the same place, and
+   whether the change had no press behind it at all.
+
+### What is still not true
+
+- **Nine screens for four or five real ones.** `visual_5` held 8 looks and `visual_9` held 2;
+  both appear in one demonstration only. The yield explanation is refuted and nothing replaces
+  it.
+- **Only 3 of 10 units are confirmed twice**, and two more would be if the reported pairs are one
+  control each. Settling them needs a third demonstration or a visual comparison of the candidate
+  rectangles.
+- **Some steps are not click-caused.** Entering Free Play is a load completing, and the same
+  change was attributed in one run and not the other depending on how long it took.
+- **Nothing is durable, nothing is executable, and the live path calls none of it.**
