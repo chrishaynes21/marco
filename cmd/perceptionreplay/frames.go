@@ -592,21 +592,31 @@ func replayFrames(dir string, stride, limit int, verbose bool) (frameResult, err
 // how much of what it is about has no name.
 func shapesFrom(img image.Image, cands []structure.Candidate) []observe.ShadowShape {
 	b := img.Bounds()
-	w, h := float64(b.Dx()), float64(b.Dy())
-	if w <= 0 || h <= 0 {
-		return nil
-	}
-	out := make([]observe.ShadowShape, 0, len(cands))
+	// THE NORMALISATION IS observe.NormaliseRects, and it is not repeated here.
+	//
+	// The live observer folds the same proposals through the same arithmetic. Four
+	// divisions written in two places is how a replay stops measuring production, and
+	// this replay's whole value is that the two are the same code.
+	//
+	// It drops an area-less rectangle, which is why the candidates are filtered to match
+	// before the shading is measured: the shapes and the regions have to stay in step
+	// index for index.
+	kept := make([]image.Rectangle, 0, len(cands))
+	keptCands := make([]structure.Candidate, 0, len(cands))
 	for _, c := range cands {
-		sh := selection.Measure(img, c.Bounds)
+		if c.Bounds.Dx() <= 0 || c.Bounds.Dy() <= 0 {
+			continue
+		}
+		kept = append(kept, c.Bounds)
+		keptCands = append(keptCands, c)
+	}
+	regions := observe.NormaliseRects(b, kept)
+	out := make([]observe.ShadowShape, 0, len(regions))
+	for i, r := range regions {
+		sh := selection.Measure(img, keptCands[i].Bounds)
 		out = append(out, observe.ShadowShape{
-			Region: observe.Region{
-				X:      float64(c.Bounds.Min.X-b.Min.X) / w,
-				Y:      float64(c.Bounds.Min.Y-b.Min.Y) / h,
-				Width:  float64(c.Bounds.Dx()) / w,
-				Height: float64(c.Bounds.Dy()) / h,
-			},
-			Confidence: c.Contrast,
+			Region:     r,
+			Confidence: keptCands[i].Contrast,
 			Shade:      []float64{sh[0], sh[1]},
 		})
 	}

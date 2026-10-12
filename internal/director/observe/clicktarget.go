@@ -470,7 +470,13 @@ func sameRect(a, b Region) bool {
 // Every pending press that is not the one attributed is resolved here too — as INERT if it was
 // left behind by this change, so a press that did nothing is a recorded outcome and not a
 // silence.
-func (c *ClickTargets) Arrived(look int, t VisualTransition) {
+// It RETURNS the step it recorded, because the caller cannot work it out afterwards: two steps
+// can share a source and a destination and differ only in cause — `visual_3 → visual_4` was
+// measured as a click on one occasion and automatic on the other, when the load crossed the
+// attribution window one time and not the other. A caller that looked the step up by its
+// endpoints would publish the wrong cause for one of them, and the cause is the field that
+// decides whether anything may ever be pressed.
+func (c *ClickTargets) Arrived(look int, t VisualTransition) RouteStep {
 	best := -1
 	for i := range c.pending {
 		p := c.pending[i]
@@ -504,17 +510,18 @@ func (c *ClickTargets) Arrived(look int, t VisualTransition) {
 					"wait and verify rather than to press anything"
 			}
 		}
-		c.step(t.From, t.To, cause, "", look, gap, false, why)
+		st := c.step(t.From, t.To, cause, "", look, gap, false, why)
 		c.resolve(nil)
-		return
+		return st
 	}
 	p := c.pending[best]
 	c.note(p, t.To, look-p.Look)
-	c.step(p.Screen, t.To, CauseClick, p.Target, p.Look, look-p.Look, p.Ambiguous,
+	st := c.step(p.Screen, t.To, CauseClick, p.Target, p.Look, look-p.Look, p.Ambiguous,
 		"a press on a grounded target was followed by this change")
 	// ARRIVED BY CLICKING, which is what lets the next change be called automatic.
 	c.arrivedAt, c.arrivedWhere, c.hasArrived = look, t.To, true
 	c.resolve(&best)
+	return st
 }
 
 // resolve clears the pending presses, filing everything that was not attributed.
@@ -535,9 +542,21 @@ func (c *ClickTargets) resolve(attributed *int) {
 }
 
 // step records one occurrence of a route step, by cause.
+// step records one occurrence and returns THIS occurrence, not the accumulated row.
+//
+// This occurrence, because a caller publishing a change wants what just happened: the row's
+// count and its list of looks are the session's history, and handing those to somebody who
+// asked "what did that click do" would answer a different question.
 func (c *ClickTargets) step(from, to VisualScreenID, cause TransitionCause,
-	target VisualTargetID, look, gap int, ambiguous bool, why string) {
+	target VisualTargetID, look, gap int, ambiguous bool, why string) RouteStep {
 
+	this := RouteStep{
+		From: from, To: to, Cause: cause, Target: target, Count: 1,
+		Looks: []int{look}, Gaps: []int{gap}, Because: why,
+	}
+	if ambiguous {
+		this.Ambiguous = 1
+	}
 	for i := range c.steps {
 		x := &c.steps[i]
 		if x.From != from || x.To != to || x.Cause != cause || x.Target != target {
@@ -549,16 +568,10 @@ func (c *ClickTargets) step(from, to VisualScreenID, cause TransitionCause,
 		if ambiguous {
 			x.Ambiguous++
 		}
-		return
+		return this
 	}
-	st := RouteStep{
-		From: from, To: to, Cause: cause, Target: target, Count: 1,
-		Looks: []int{look}, Gaps: []int{gap}, Because: why,
-	}
-	if ambiguous {
-		st.Ambiguous = 1
-	}
-	c.steps = append(c.steps, st)
+	c.steps = append(c.steps, this)
+	return this
 }
 
 // note records one occurrence of a learning unit.

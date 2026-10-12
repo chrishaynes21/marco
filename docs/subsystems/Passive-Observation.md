@@ -360,6 +360,19 @@ it refuses those looks. Visible is fine; in front is not.
 ## Decisions
 
 - [[ADR-010-passive-observation-cannot-execute]]
+- [[ADR-178-the-fast-observer]] — the fast half of perception, built. It notices that the screen
+  CHANGED and what was clicked; the slow semantic path keeps its own cadence and says what the
+  screen IS. Its settle rule is derived from its OWN interval, because the rule was always a
+  duration (~200ms) and the count is how that is measured at a rate — and it REFUSES to start at
+  a cadence too coarse to damp, rather than clamping and observing at a rate whose results
+  nobody should trust. Three ways a look is not evidence, counted apart: no pixels, another
+  window in front, and the window's generation changing — the last gives up the standing claim
+  WITHOUT recording a transition, so no edge spans a window being replaced. Publication never
+  blocks. Measured over the recording: the fold itself is 0.05ms, a live look about 54.7ms, 18
+  a second against the ten needed, and it reproduces every offline conclusion exactly — nine
+  screens, the same look counts and settle points, 13/5/3 causes. A consumer 300ms behind drops
+  177 of 300 updates and changes neither the cadence nor the conclusions. It cannot act or
+  remember, and its own tests walk its imports to prove it
 - [[ADR-177-acquisition-is-a-frame-interval-not-a-cost]] — the measurement that overturned the
   one above. Acquisition is **16.7ms**, not ~130ms, and neither candidate optimisation moves it:
   handle reuse removes a 0.000ms stage, and a half-size `StretchBlt` costs in the blit exactly
@@ -1014,7 +1027,16 @@ it refuses those looks. Visible is fine; in front is not.
   proposed region at 480x270; the repeated-run correspondence falls from 5 steps to 2. So a
   perception-quality check has to ask about more than targets, and the resolution choice is a
   measured trade rather than a free win.
-- **The session-local screen model needs ≈10fps and the live path samples at ~3.8s.** Not a
+- **The fast observer exists and nothing in Director's live sampler calls it.** It is reached
+  only by `director observe-screen`, which the owner starts. Wiring it into the existing
+  observation cycle is a separate decision, and the cycle's own cadence is the one ADR-175 ruled
+  out — so the wiring must give the observer its own clock or not happen.
+  [[ADR-178-the-fast-observer]]
+- **18 looks a second is this machine, this window, one recording.** Not a claim about other
+  applications, other resolutions, or dialogs shorter than the ones measured.
+- ~~The session-local screen model needs ≈10fps and the live path samples at ~3.8s.~~
+  **Addressed by [[ADR-178-the-fast-observer]]**, which gives the model its own cadence rather
+  than changing the rule. The original finding stands: Not a
   tuning problem: measured at every rate and phase, the current rule discards screens it
   sampled, and the rule that recovers them produces a promotion every eight looks at the
   recording's own rate. Click attribution goes to zero before the screens do. The way out is a

@@ -39,6 +39,7 @@ package observe
 
 import (
 	"fmt"
+	"image"
 	"sort"
 	"time"
 )
@@ -117,6 +118,41 @@ type VisualArrangement struct {
 
 // Observed reports whether this look saw any structure at all.
 func (a VisualArrangement) Observed() bool { return a.Total > 0 }
+
+// NormaliseRects turns pixel rectangles into regions as fractions of the image they came from.
+//
+// # Why this is a function and not four divisions at each call site
+//
+// There are now two callers — the offline replay and the live observer — and they must agree
+// exactly, because the whole point of the replay is that it measures what production does. Four
+// divisions written twice is this repository's worst defect class: two statements of one rule,
+// drifting, with the measurement and the production path no longer the same arithmetic.
+//
+// The image's own origin is subtracted, because a sub-image's bounds do not start at zero and a
+// normalisation that assumed they did would place every region by however far the crop was
+// offset.
+//
+// A rectangle with no area is dropped rather than normalised to a point: it sits nowhere, and
+// ArrangeLook would discard it anyway.
+func NormaliseRects(b image.Rectangle, rects []image.Rectangle) []Region {
+	w, h := float64(b.Dx()), float64(b.Dy())
+	if w <= 0 || h <= 0 {
+		return nil
+	}
+	out := make([]Region, 0, len(rects))
+	for _, r := range rects {
+		if r.Dx() <= 0 || r.Dy() <= 0 {
+			continue
+		}
+		out = append(out, Region{
+			X:      float64(r.Min.X-b.Min.X) / w,
+			Y:      float64(r.Min.Y-b.Min.Y) / h,
+			Width:  float64(r.Dx()) / w,
+			Height: float64(r.Dy()) / h,
+		})
+	}
+	return out
+}
 
 // ArrangeLook summarises a look's regions as an arrangement.
 //
@@ -265,6 +301,13 @@ type VisualStability struct {
 	// Promotions is how many times a new arrangement replaced the standing screen, which
 	// is the transition count including the first settle.
 	Promotions int
+	// Interrupted is how many times the standing screen was given up because the thing
+	// being looked at changed — a window replaced, a generation gone.
+	//
+	// Counted because each one is a transition that could NOT be recorded, and a session
+	// with many of them is watching something that keeps being reacquired rather than
+	// something that keeps changing.
+	Interrupted int
 }
 
 // visualScreen is one minted screen and the arrangement that minted it.
@@ -510,6 +553,30 @@ func (v *VisualScreens) Walk() []VisualScreenID {
 	out := make([]VisualScreenID, len(v.walk))
 	copy(out, v.walk)
 	return out
+}
+
+// Interrupt gives up the standing screen WITHOUT recording a transition.
+//
+// # What this is for
+//
+// A window that was replaced, a generation that changed, a capture that came back as somebody
+// else's window. The looks on either side of that are of two different things, and the pair
+// between them is not a navigation anybody made.
+//
+// Giving up the claim is the whole of it. The screens already settled are KEPT, so coming back
+// to one of them is still a return rather than a new place — which is what makes a route
+// survive a window being reacquired. What does not survive is the edge: the next promotion has
+// nothing to come from, and `note` already refuses a transition whose origin is empty.
+//
+// It is not the same as a blank look. A blank look is a failure to SEE, and one of those must
+// not drop a claim — it takes a run of them. This is a statement that the thing being looked at
+// changed, which is a different fact and takes effect at once.
+func (v *VisualScreens) Interrupt() {
+	v.held, v.heldSig = "", VisualArrangement{}
+	v.pending, v.pendingRun = VisualArrangement{}, 0
+	v.blankRun = 0
+	v.didPromote = false
+	v.stats.Interrupted++
 }
 
 // Promoted reports the change the last folded look caused, if it caused one.

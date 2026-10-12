@@ -170,6 +170,15 @@ func main() {
 		// an annotation, keeping confident-wrong apart from declined. Reads only; see
 		// selectionread.go.
 		os.Exit(runReadSelection(os.Args[2:]))
+	case "observe-screen":
+		// THE FAST VISUAL OBSERVER, live and on its own cadence. It watches one
+		// window, folds arrangements into session-local screen hypotheses, and
+		// correlates the presses it observes with the changes that follow.
+		//
+		// It cannot act and cannot remember: internal/director/fastobserve walks its
+		// own imports to prove it. Bounded by --seconds; writes nothing. See
+		// observescreen.go.
+		os.Exit(runObserveScreen(os.Args[2:]))
 	case "capture-benchmark":
 		// WHAT AN ACQUISITION COSTS, stage by stage, on one window. Timings only: it
 		// injects nothing, activates nothing, and keeps no pixels. The single thing

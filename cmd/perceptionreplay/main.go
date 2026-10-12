@@ -69,6 +69,9 @@ func main() {
 			"rather than a shadow trace (L1)")
 	stride := flag.Int("stride", 1, "with -frames, reprocess every Nth frame")
 	limit := flag.Int("limit", 0, "with -frames, stop after N frames (0 = all)")
+	observer := flag.Bool("observer", false,
+		"with -frames, fold the recording through the PRODUCTION fast observer and "+
+			"measure what it sustains, with and without a consumer keeping up")
 	capturecost := flag.Bool("capturecost", false,
 		"with -frames, measure where an observation's time goes and what a smaller "+
 			"one keeps. Captures nothing from the screen")
@@ -98,6 +101,15 @@ func main() {
 			continue
 		}
 		if *frames {
+			if *observer {
+				for _, consume := range []bool{true, false} {
+					if err := reportObserverOverRecording(dir, *limit, consume); err != nil {
+						fmt.Fprintf(os.Stderr, "perceptionreplay: %s: %v\n", dir, err)
+						os.Exit(1)
+					}
+				}
+				continue
+			}
 			if *capturecost {
 				if err := reportCaptureCost(dir, *limit); err != nil {
 					fmt.Fprintf(os.Stderr, "perceptionreplay: %s: %v\n", dir, err)

@@ -371,24 +371,37 @@ func TestARepeatedNavigationIsCountedTwiceWithWhen(t *testing.T) {
 // An offline replay under `cmd/` may use them freely; the live path may not, and the day that
 // changes it changes with somebody deleting a line of this test on purpose.
 func TestAVisualScreenCannotReachDurableMemory(t *testing.T) {
-	// THE SESSION-LOCAL TIER, which is four files and no others.
+	// THE SESSION-LOCAL TIER, which is these files and no others.
 	//
-	// It grew once, on purpose and with this test failing first: clicktarget.go refers to
-	// visual screens because a click transition's source and destination ARE visual
-	// screens, and a target identity is the same kind of claim — session-local, geometric,
-	// and not something that may outlive the session that saw it. That is a widening of
-	// the tier, not a widening of what may become durable, and it is recorded in
-	// [[ADR-172-a-click-transition-is-a-source-a-target-and-a-destination]].
+	// It has grown twice, both times on purpose and both times with this test failing
+	// first — which is the point of it.
 	//
-	// The next addition should be as hard. If a file outside this list needs these names,
-	// the question to answer first is whether what it does with them can reach the store.
+	//  1. clicktarget.go, because a click transition's source and destination ARE visual
+	//     screens and a target identity is the same kind of claim: session-local,
+	//     geometric, and not something that may outlive the session that saw it.
+	//     [[ADR-172-a-click-transition-is-a-source-a-target-and-a-destination]]
+	//  2. `internal/director/fastobserve`, the fast local observer, because it is the
+	//     thing that FOLDS these looks live. It is a whole package rather than a file,
+	//     which is a bigger step than the first, so it carries its own boundary tests:
+	//     an import walk that fails if it can reach the durable store, the execution
+	//     pipeline or anything that can touch a desktop, and a source check that it
+	//     names no place establisher. [[ADR-178-the-fast-observer]]
+	//
+	// A widening of the TIER is not a widening of what may become durable, and the
+	// difference is the whole reason this list is worth keeping. The next addition should
+	// be as hard: if a file outside this list needs these names, the question to answer
+	// first is whether what it does with them can reach the store.
 	dir := filepath.Join("internal", "director", "observe")
+	fast := filepath.Join("internal", "director", "fastobserve")
 	allowed := map[string]bool{
-		filepath.Join(dir, "arrangement.go"):      true,
-		filepath.Join(dir, "arrangement_test.go"): true,
-		filepath.Join(dir, "clicktarget.go"):      true,
-		filepath.Join(dir, "clicktarget_test.go"): true,
-		filepath.Join(dir, "cause_test.go"):       true,
+		filepath.Join(dir, "arrangement.go"):       true,
+		filepath.Join(dir, "arrangement_test.go"):  true,
+		filepath.Join(dir, "clicktarget.go"):       true,
+		filepath.Join(dir, "clicktarget_test.go"):  true,
+		filepath.Join(dir, "cause_test.go"):        true,
+		filepath.Join(fast, "fastobserve.go"):      true,
+		filepath.Join(fast, "fastobserve_test.go"): true,
+		filepath.Join(fast, "boundary_test.go"):    true,
 	}
 	root := filepath.Join("..", "..", "..")
 	names := []string{

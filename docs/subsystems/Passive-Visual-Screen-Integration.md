@@ -16,7 +16,9 @@ source_paths:
 
 # Passive visual screen integration — a plan, not a wiring
 
-**Status: PROPOSED. Nothing in this note is built.** The owner asked for it as the fourth item of
+**Status: the OBSERVER is built — [[ADR-178-the-fast-observer]]. What remains proposed is
+wiring it into Director's own observation cycle, which is the part this note was written about
+and the part still not done.** The owner asked for it as the fourth item of
 a brief whose first three are done:
 
 > Once the offline representation is stable, connect session-local screen hypotheses to
