@@ -25,6 +25,20 @@ func rects(x float64, n int) []observe.Region {
 	return out
 }
 
+// cluster is n small rectangles inside one cell of the segmenter's grid, around (x, y).
+//
+// Small and tight on purpose: the question these answer is about how MANY rectangles a cell
+// holds, so every one of them has to land in the same cell however many there are.
+func cluster(n int, x, y float64) []observe.Region {
+	out := make([]observe.Region, 0, n)
+	for i := range n {
+		out = append(out, observe.Region{
+			X: x, Y: y + float64(i)*0.004, Width: 0.02, Height: 0.003,
+		})
+	}
+	return out
+}
+
 func look(t *testing.T, v *observe.VisualScreens, regions []observe.Region) observe.VisualScreenID {
 	t.Helper()
 	return v.Observe(observe.ArrangeLook(regions), time.Now())
@@ -473,5 +487,85 @@ func TestAnArrangementIsMadeOfRectanglesThatHaveAnArea(t *testing.T) {
 	// frame out of the screen model entirely.
 	if observe.ArrangeLook(nil).Observed() {
 		t.Error("an arrangement built from no regions reports itself as observed")
+	}
+}
+
+// Shape ignores how MANY rectangles there were; count does not.
+//
+// The owner's question about the proposer's varying yield:
+//
+//	I'd test whether arrangement similarity remains stable when the detector produces
+//	different numbers of regions on otherwise similar frames. But I wouldn't normalize away
+//	every count difference. Sometimes a genuine menu transition really does add or remove
+//	controls.
+//
+// Both halves are asserted here, because a normalisation that merged everything would answer
+// the first question by destroying the information the second one is about.
+//
+// Measured on the real recording the answer was NO for the pair it was asked about — `visual_1`
+// at 236 regions and `visual_6` at 400 differ by shape too — and normalising would have merged
+// `visual_3` with `visual_4`, which are two consecutive steps of the demonstrated route. So it
+// stays a measurement. See [[ADR-173-the-proposers-yield-is-not-what-separates-two-screens]].
+//
+// Deleting the division by Total must fail this.
+func TestShapeIgnoresHowManyRectanglesThereWere(t *testing.T) {
+	// THE YIELD VARIES AND THE DISTRIBUTION DOES NOT, which is the only fixture that
+	// isolates the question. Rectangles clustered in two cells of the grid, in equal
+	// shares, found sparsely and then densely.
+	//
+	// A column of rows does NOT isolate it: three rows and six rows of one column occupy
+	// different numbers of grid cells, so the distribution moves too and shape comes out
+	// lower than count rather than higher. That mistake is why this comment is here.
+	sparse := observe.ArrangeLook(append(cluster(2, 0.15, 0.15), cluster(2, 0.5, 0.5)...))
+	dense := observe.ArrangeLook(append(cluster(6, 0.15, 0.15), cluster(6, 0.5, 0.5)...))
+	if sparse.Total == dense.Total {
+		t.Fatal("the fixture does not vary the yield")
+	}
+	if len(sparse.Cells) != len(dense.Cells) {
+		t.Fatalf("the fixture varies the distribution too: %v against %v",
+			sparse.Cells, dense.Cells)
+	}
+	byShape := observe.ArrangementShapeSimilarity(sparse, dense)
+	byCount := observe.ArrangementSimilarity(sparse, dense)
+	if byShape <= byCount {
+		t.Errorf("shape %.3f is not above count %.3f for one column found at two "+
+			"yields; normalising is supposed to make exactly this case alike",
+			byShape, byCount)
+	}
+	// AND A GENUINE CHANGE OF LAYOUT IS STILL A CHANGE. The distribution moved, so no
+	// amount of normalising makes these one screen — which is the half that keeps the
+	// measurement worth taking.
+	elsewhere := observe.ArrangeLook(append(cluster(6, 0.85, 0.85), cluster(6, 0.5, 0.15)...))
+	if sim := observe.ArrangementShapeSimilarity(dense, elsewhere); sim >= observe.VisualScreenMatch {
+		t.Errorf("a left-hand column and a right-hand column scored %.3f by shape, "+
+			"against a threshold of %.2f. A normalisation that merged those would "+
+			"answer the yield question by destroying the route",
+			sim, observe.VisualScreenMatch)
+	}
+	// An unobserved arrangement is alike nothing, by shape as by count.
+	var empty observe.VisualArrangement
+	if sim := observe.ArrangementShapeSimilarity(empty, empty); sim != 0 {
+		t.Errorf("two empty arrangements scored %.3f by shape, want 0", sim)
+	}
+	if sim := observe.ArrangementShapeSimilarity(dense, empty); sim != 0 {
+		t.Errorf("an arrangement and nothing scored %.3f by shape, want 0", sim)
+	}
+}
+
+// A settled screen's arrangement can be read back, which is what the comparison above needs.
+func TestASettledScreensArrangementCanBeReadBack(t *testing.T) {
+	var v observe.VisualScreens
+	var id observe.VisualScreenID
+	for range observe.VisualSettleLooks {
+		id = look(t, &v, rects(0.1, 6))
+	}
+	got := v.Arrangement(id)
+	if got.Total != 6 {
+		t.Errorf("the settled screen's arrangement reports %d region(s), want 6. A "+
+			"measurement that compares two screens needs what each one IS",
+			got.Total)
+	}
+	if n := v.Arrangement("visual_nonexistent").Total; n != 0 {
+		t.Errorf("an unknown screen reports an arrangement of %d region(s)", n)
 	}
 }

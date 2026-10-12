@@ -162,6 +162,9 @@ type frameResult struct {
 	// screen it was made on and the one that followed it.
 	//
 	// Never durable. See observe/arrangement.go.
+	// Arrangement looks up a settled screen's stored arrangement, for the measurement
+	// that compares them against one another. Nil on a result nobody replayed.
+	Arrangement func(observe.VisualScreenID) observe.VisualArrangement
 	// Clicks is the learning units — source screen, visual target, destination screen —
 	// with the presses that changed nothing and the changes nobody pressed for reported
 	// beside them. Targets is every session-local control identity minted.
@@ -525,6 +528,7 @@ func replayFrames(dir string, stride, limit int, verbose bool) (frameResult, err
 	clicks.Close()
 	r.Clicks = clicks.Evidence()
 	r.Targets = clicks.Targets()
+	r.Arrangement = screens.Arrangement
 	r.VisualSeen = screens.Seen()
 	r.VisualTransitions = screens.Transitions()
 	r.VisualStability = screens.Stability()
@@ -565,6 +569,9 @@ func replayFrames(dir string, stride, limit int, verbose bool) (frameResult, err
 	reportVisualScreens(r)
 	reportClicks(r)
 	reportClickRoute(r)
+	if r.Arrangement != nil {
+		reportShapeVsCount(r, r.Arrangement)
+	}
 	return r, nil
 }
 

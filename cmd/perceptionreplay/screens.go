@@ -421,3 +421,53 @@ func reportClickRoute(r frameResult) {
 		at = steps[0].to
 	}
 }
+
+// reportShapeVsCount asks whether any two settled screens are one screen at two yields.
+//
+// The proposer finds a different number of rectangles on frames that look the same to a person,
+// and a comparison that counts them is sensitive to that. This prints, for every pair of settled
+// screens, the similarity BY COUNT (the rule the stabiliser uses) beside the similarity BY SHAPE
+// (each cell as a proportion of that arrangement's own total) — and names the pairs that would
+// be one screen under the second and are two under the first.
+//
+// A measurement. Nothing here changes what settled; the point is to find out what normalising
+// would cost and what it would buy before anybody puts it in the rule.
+func reportShapeVsCount(r frameResult, arr func(observe.VisualScreenID) observe.VisualArrangement) {
+	if len(r.VisualSeen) < 2 {
+		return
+	}
+	type pair struct {
+		a, b         observe.VisualScreenID
+		count, shape float64
+	}
+	var only []pair
+	var worst float64
+	for i := range r.VisualSeen {
+		for j := i + 1; j < len(r.VisualSeen); j++ {
+			a, b := r.VisualSeen[i].ID, r.VisualSeen[j].ID
+			c := observe.ArrangementSimilarity(arr(a), arr(b))
+			sh := observe.ArrangementShapeSimilarity(arr(a), arr(b))
+			if sh > worst {
+				worst = sh
+			}
+			if sh >= observe.VisualScreenMatch && c < observe.VisualScreenMatch {
+				only = append(only, pair{a, b, c, sh})
+			}
+		}
+	}
+	fmt.Printf("\n  --- MEASUREMENT: would normalising the proposal COUNT merge any screens? ---\n")
+	fmt.Printf("  highest shape-similarity between any two settled screens: %.3f "+
+		"(threshold %.2f)\n", worst, observe.VisualScreenMatch)
+	if len(only) == 0 {
+		fmt.Printf("  no pair of settled screens would merge under normalisation, so the\n")
+		fmt.Printf("  proposer's varying yield is NOT what is separating them here.\n")
+		return
+	}
+	fmt.Printf("  %d pair(s) would be ONE screen by shape and are two by count:\n", len(only))
+	for _, p := range only {
+		fmt.Printf("                      %-10s / %-10s  count %.3f  shape %.3f\n",
+			p.a, p.b, p.count, p.shape)
+	}
+	fmt.Printf("  Reported, not applied: a menu that genuinely gained a column also\n")
+	fmt.Printf("  changes its count, and normalising would merge that too.\n")
+}

@@ -174,6 +174,57 @@ func ArrangementSimilarity(a, b VisualArrangement) float64 {
 	return signatureSimilarity(a.features(), b.features())
 }
 
+// ArrangementShapeSimilarity compares two arrangements by SHAPE, ignoring how many rectangles
+// each holds.
+//
+// # What this is for, and why it is a measurement and not the rule
+//
+// The proposer's yield varies: `visual_1` settled at 236 regions and `visual_6` at 400 on one
+// recording, and the owner asked the right question about that —
+//
+//	I'd test whether arrangement similarity remains stable when the detector produces
+//	different numbers of regions on otherwise similar frames. But I wouldn't normalize away
+//	every count difference. Sometimes a genuine menu transition really does add or remove
+//	controls. The objective is to recognize persistent spatial structure while retaining
+//	meaningful differences.
+//
+// So: each cell's count is divided by the arrangement's own total before comparing, which makes
+// the comparison about WHERE the rectangles are distributed and not how many there were. Two
+// readings of one screen at different yields come out alike; a menu that genuinely gained a
+// column does not, because the distribution moved.
+//
+// `ArrangementSimilarity` — the one the stabiliser uses — is unchanged and still counts. This
+// exists so the difference between the two can be reported on a real recording before anybody
+// decides which belongs in the rule.
+func ArrangementShapeSimilarity(a, b VisualArrangement) float64 {
+	if !a.Observed() || !b.Observed() {
+		return 0
+	}
+	return signatureSimilarity(a.shape(), b.shape())
+}
+
+// shape is the arrangement as proportions of its own total.
+func (a VisualArrangement) shape() map[string]float64 {
+	f := make(map[string]float64, len(a.Cells))
+	if a.Total <= 0 {
+		return f
+	}
+	for k, v := range a.Cells {
+		f["cell:"+k] = float64(v) / float64(a.Total)
+	}
+	return f
+}
+
+// Arrangement is the stored arrangement of a settled screen, for the measurements that compare
+// them against each other.
+//
+// Exported for exactly that, and for nothing else: the stabiliser compares against its own
+// stored copy, and a caller that reconstructed a screen's identity from this would be a second
+// statement of what "the same screen" means.
+func (v *VisualScreens) Arrangement(id VisualScreenID) VisualArrangement {
+	return v.screenSig(id)
+}
+
 // VisualTransition is one observed change between two settled screens.
 type VisualTransition struct {
 	From  VisualScreenID `json:"from"`

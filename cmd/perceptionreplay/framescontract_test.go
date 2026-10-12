@@ -146,6 +146,17 @@ func TestAnL0RecordingReplaysThroughPerception(t *testing.T) {
 		t.Error("no session-local screen settled over 24 frames of five drawn rows, " +
 			"which do not move")
 	}
+	// AND A SETTLED SCREEN'S ARRANGEMENT CAN BE LOOKED UP. The measurement that asks
+	// whether two screens are one screen at two proposal yields needs what each one IS,
+	// and without the lookup it compares nothing against nothing and reports that the
+	// yield is not what separates them — which is the answer it gave on the real
+	// recording, and would then be giving for the wrong reason.
+	if r.Arrangement == nil {
+		t.Fatal("the replay exposes no way to read a settled screen's arrangement")
+	}
+	if n := r.Arrangement(r.VisualSeen[0].ID).Total; n == 0 {
+		t.Errorf("the first settled screen's arrangement reports %d region(s)", n)
+	}
 	// THE MARK MOVES in this fixture, so the belief has to get somewhere. This is the
 	// assertion that the shading was measured FROM THE PIXELS: a replay that handed the
 	// watch unshaded geometry would group these rows and report every candidate quiet.

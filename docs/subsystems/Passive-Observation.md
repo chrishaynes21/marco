@@ -354,6 +354,13 @@ it refuses those looks. Visible is fine; in front is not.
 ## Decisions
 
 - [[ADR-010-passive-observation-cannot-execute]]
+- [[ADR-173-the-proposers-yield-is-not-what-separates-two-screens]] — the suspicion that two
+  settled screens were one screen at two proposal yields, measured and REFUTED: `visual_1` at
+  236 regions and `visual_6` at 400 differ by shape as well as by count. And normalising the
+  count would merge `visual_3` with `visual_4`, which are two consecutive steps of the
+  demonstrated route joined by a confirmed transition and an attributed click — so it is
+  rejected on measurement rather than on taste. The highest shape-similarity between any two
+  settled screens is 0.695, which is the baseline a future attempt has to beat
 - [[ADR-172-a-click-transition-is-a-source-a-target-and-a-destination]] — the learning unit of a
   mouse demonstration. Every region that contained a press is kept, smallest first, and the
   smallest is a stated hypothesis rather than a decision; a change is attributed to the most
@@ -914,6 +921,12 @@ it refuses those looks. Visible is fine; in front is not.
   reachable through a keyboard FFI. `InputLog` retains the device beside every admitted event, so
   the join exists to be made when something exists that would use it. Deliberate scope, recorded
   in ADR-161 rather than discovered later.
+- **Nine settled screens for four or five real ones, and the proposer's yield is not why.**
+  Normalising the region count is measured and rejected: it would merge two consecutive steps of
+  the demonstrated route. What IS causing the extra screens is unexplained — `visual_5` held 8
+  looks, `visual_9` held 2 — and short-lived screens that appear in one demonstration and not
+  the other are the shape of a load or a splash rather than a place.
+  [[ADR-173-the-proposers-yield-is-not-what-separates-two-screens]]
 - **A session-local visual screen exists and nothing in the live path uses it.** The stabilised
   layer is built, measured and gated, and only the offline replay calls it. Wiring it into live
   observation is a separate decision from building it, and promoting one into a durable Place is
