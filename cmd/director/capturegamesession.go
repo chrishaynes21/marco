@@ -352,7 +352,14 @@ func runCaptureGameSession(args []string) int {
 	// recording and a useless one.
 	//
 	// Measured on this machine against a real 1920x1080 Rocket League frame: 476ms to
-	// encode at Go's default compression, about 130ms to capture. A recorder that encodes
+	// encode at Go's default compression.
+	//
+	// This comment also said "about 130ms to capture" for a long time, and that number
+	// was wrong — it is 16.7ms, measured stage by stage over 800 captures in
+	// [[ADR-177-acquisition-is-a-frame-interval-not-a-cost]], and it is a 60Hz frame
+	// interval rather than a cost. The wrong figure survived because the achieved rate
+	// below contradicted it and nobody noticed: 10.0 fps with capture inline cannot
+	// happen if a capture takes 130ms. A recorder that encodes
 	// inline therefore runs at about 1.6 frames per second whatever it was asked for — and
 	// it reports that honestly, because the times are measured, which is how this was
 	// caught. But a menu selection changes faster than 600ms, so every transition would

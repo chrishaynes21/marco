@@ -91,6 +91,10 @@ more, the design is wrong.
 
 ### The screen model gets its own cadence, and it is not the AI's
 
+**Affordable, measured: 50.5ms a look at full resolution, about twenty a second.** Nothing below
+needs building first.
+
+
 This is the part the measurement changed. The original plan was to fold the arrangement in the
 existing sampler's cycle. That cycle runs at the AI's rate, and at that rate this model does not
 work — so the plan is now the opposite:
@@ -123,22 +127,24 @@ every stage of an observation but one:
 | resize | ≤1.0ms | |
 | proposer | 31.9ms at 1920x1080, 4.6ms at 480x270 | |
 | PNG decode | 51ms | a RECORDING cost; a live observer pays none of it |
-| **GDI acquisition** | **unmeasured** | the benchmark is BUILT and unrun: `director capture-benchmark --application <app>` |
+| **GDI acquisition** | **16.7ms** | MEASURED. A 60Hz frame interval, not a cost — see below |
 
-At a 100ms budget that leaves **66ms** for acquisition at full resolution and **93ms** at a
-quarter — and a quarter-resolution observation keeps all seventeen click targets while losing
-three of five steps of route correspondence. The resolution choice is a trade, and /2 (79ms of
-headroom, 4 of 5 steps) is where the evidence points.
+**A full-resolution look costs 50.5ms — about twenty a second, against the ten the model needs.**
+Acquisition 16.7, conversion 2.1, proposer 31.7. It fits in half a 100ms budget and keeps route
+correspondence at its best measured value.
 
-What the measurement rules out: faster conversion, and a smaller observation making ACQUISITION
-cheaper. A reduction after the blit shrinks only the proposer's work.
+So the capture path needs **no change at all**:
+[[ADR-177-acquisition-is-a-frame-interval-not-a-cost]] measured the four configurations and both
+candidate optimisations buy nothing. Handle reuse removes a stage that costs 0.000ms; a half-size
+`StretchBlt` costs in the blit exactly what it saves in `GetDIBits`. The 16.7ms is a 60Hz frame
+interval — the blit waits for the compositor — so it is a **ceiling of ~60 looks a second**
+rather than a latency to optimise.
 
-What it points at, from reading `capture`: a DC and a bitmap created and destroyed every frame,
-8.3MB allocated twice per frame, and 8.3MB moved by `GetDIBits`. Hoisting the first two and
-reusing the buffers costs nothing in correctness; reducing DURING the blit is the only candidate
-that makes acquisition itself cheaper.
+**The resolution trade-off is retired.** Half resolution was worth considering only to buy
+headroom for an expensive acquisition. There is none to buy, so there is no reason to pay one of
+five route steps for it.
 
-### The benchmark that answers it, built and not started
+### The benchmark that answered it — RUN 2026-10-12
 
 `director capture-benchmark` times `GetDC`, the DC-and-bitmap setup, the blit, `GetDIBits` and
 the cleanup separately, over four configurations that each differ from the previous by ONE thing:
@@ -159,8 +165,9 @@ write, an encode, a hash or a print of the buffer ever appears.
 It is bounded twice, by `--captures` (≤400) and by a 30-second wall clock, and it refuses to
 start without `--application` so it cannot photograph whatever happened to be in front.
 
-**It has not been run.** The owner starts it, with the target window ready, as with the
-recording.
+**Run once, by the owner, against Rocket League.** 800 captures in all, 0 failures, every
+capture held pixels, no handles leaked. The result is
+[[ADR-177-acquisition-is-a-frame-interval-not-a-cost]].
 
 ### The original open question, still open
 

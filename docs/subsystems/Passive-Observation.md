@@ -360,6 +360,15 @@ it refuses those looks. Visible is fine; in front is not.
 ## Decisions
 
 - [[ADR-010-passive-observation-cannot-execute]]
+- [[ADR-177-acquisition-is-a-frame-interval-not-a-cost]] — the measurement that overturned the
+  one above. Acquisition is **16.7ms**, not ~130ms, and neither candidate optimisation moves it:
+  handle reuse removes a 0.000ms stage, and a half-size `StretchBlt` costs in the blit exactly
+  what it saves in `GetDIBits`. The display is 60Hz and the total is 16.745ms at 59.7 captures a
+  second on every configuration — the blit is waiting for the compositor, so it is a frame
+  interval and a ceiling, not a cost. A full-resolution look is 50.5ms, about twice the cadence
+  the model needs, so the capture path needs NO change and the resolution trade-off is retired.
+  ADR-176's elimination argument was sound and its conclusion wrong, because the number it
+  eliminated against was a comment rather than a measurement
 - [[ADR-176-the-time-is-in-the-acquisition-and-a-smaller-observation-keeps-the-clicks]] — where
   an observation's time goes, measured with no screen captured. Marco's own share of a capture —
   the BGRA conversion and its 8.3MB allocation — is **2ms**, about 1.6% of the ~130ms a capture
@@ -971,7 +980,18 @@ it refuses those looks. Visible is fine; in front is not.
   looks, `visual_9` held 2 — and short-lived screens that appear in one demonstration and not
   the other are the shape of a load or a splash rather than a place.
   [[ADR-173-the-proposers-yield-is-not-what-separates-two-screens]]
-- **GDI acquisition is the unmeasured bottleneck. The benchmark is BUILT and unrun.**
+- ~~GDI acquisition is the unmeasured bottleneck.~~ **MEASURED 2026-10-12 and it is not.**
+  200 captures per configuration against a real window: acquisition is **16.7ms**, not the
+  ~130ms a comment claimed. `GetDC`, the DC-and-bitmap setup and the cleanup are all 0.000ms;
+  `GetDIBits` is 0.947ms full-size and 0.000ms at half; the blit is 15.6ms and is the whole of
+  it. Reusing handles saves nothing (16.745 → 16.720ms) because the setup it removes already
+  cost nothing, and reducing during the blit saves nothing (16.747 → 16.452ms) because
+  `StretchBlt` costs what `GetDIBits` stops paying. The display is 60Hz and 1000/60 = 16.67ms —
+  the blit is waiting for the compositor, so this is a frame interval and a ~60 looks/second
+  CEILING rather than a latency to optimise. A full-resolution look costs 50.5ms all told, about
+  20 a second, against the ten the model needs. **The capture path needs no change.**
+  [[ADR-177-acquisition-is-a-frame-interval-not-a-cost]]
+- ~~GDI acquisition is the unmeasured bottleneck. The benchmark is BUILT and unrun.~~
   `director capture-benchmark --application <app>` times GetDC, the DC-and-bitmap setup, the
   blit, GetDIBits and the cleanup separately over four configurations — today's per-frame
   handles at full size, reused handles, a StretchBlt reduction at half size, and both — all
@@ -985,6 +1005,11 @@ it refuses those looks. Visible is fine; in front is not.
   hoisting those, or reducing during the blit so `GetDIBits` moves less, are the candidates. A
   direct measurement needs a real window and has not been run.
   [[ADR-176-the-time-is-in-the-acquisition-and-a-smaller-observation-keeps-the-clicks]]
+- ~~A smaller observation keeps the clicks and loses the route — so the resolution choice is a
+  trade.~~ **The trade is retired**: half resolution was only ever worth buying headroom for an
+  expensive acquisition, and the acquisition is 16.7ms. Full resolution fits in half the budget
+  and keeps all five route steps. The measurement stands and the dilemma does not.
+  [[ADR-177-acquisition-is-a-frame-interval-not-a-cost]]
 - **A smaller observation keeps the clicks and loses the route.** All 17 presses still land on a
   proposed region at 480x270; the repeated-run correspondence falls from 5 steps to 2. So a
   perception-quality check has to ask about more than targets, and the resolution choice is a
