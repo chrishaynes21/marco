@@ -60,6 +60,21 @@ const (
 	// double every press, and a release carries no meaning the press did not.
 	wmLButtonDown = 0x0201
 	wmRButtonDown = 0x0204
+
+	// AND THE BUTTON PRESSES THIS PACKAGE DECLINES, named so they can be COUNTED.
+	//
+	// Not admitted — nothing below offers them — and recognised on purpose, because the
+	// alternative is the question that cannot be answered: a person who says "I clicked
+	// more times than that" is describing either a producer that lost events or presses
+	// this producer was never going to treat as navigation, and a record with no number
+	// for the second cannot tell them apart.
+	//
+	// WM_MOUSEMOVE is still absent, and still deliberately. A move is not a press, there
+	// are tens of thousands of them in a minute, and counting them would be the pointer
+	// trail the note above refuses — a count of moves is a record of a hand moving.
+	wmMButtonDown = 0x0207
+	wmXButtonDown = 0x020B
+	wmMouseWheel  = 0x020A
 )
 
 type kbdllHookStruct struct {
@@ -98,6 +113,14 @@ type msg struct {
 var (
 	hookOffer  atomic.Pointer[func(rawEvent) bool]
 	hookActive atomic.Bool
+	// hookDeclined counts BUTTON presses the mouse callback saw and did not offer, and
+	// hookInjected those it discarded as not coming from a hand.
+	//
+	// Atomics for the same reason Source.drops is one: they are incremented ON THE HOOK
+	// THREAD, and a lock there is the single thing this design is arranged to avoid.
+	// Windows unhooks a low-level hook that overruns its timeout, and it does it silently.
+	hookDeclined atomic.Uint64
+	hookInjected atomic.Uint64
 )
 
 type winBackend struct {
@@ -114,11 +137,20 @@ func newBackend() backend { return &winBackend{} }
 
 func (b *winBackend) unavailable() string { return "" }
 
+// declined is what the mouse callback saw and would not offer.
+func (b *winBackend) declined() (presses, injected int) {
+	return int(hookDeclined.Load()), int(hookInjected.Load())
+}
+
 func (b *winBackend) start(offer func(rawEvent) bool) error {
 	b.done = make(chan struct{})
 	b.stopped = make(chan struct{})
 	b.ready = make(chan struct{})
 	hookOffer.Store(&offer)
+	// RESET WITH THE HOOK, because these are package counters and a second source in one
+	// process would otherwise inherit the first one's tally.
+	hookDeclined.Store(0)
+	hookInjected.Store(0)
 	hookActive.Store(true)
 
 	go func() {
@@ -290,8 +322,17 @@ func mouseProc(nCode int, wParam, lParam uintptr) uintptr {
 						pointer: true, down: true,
 						x: ms.pt.x, y: ms.pt.y, at: time.Now(),
 					})
+				} else {
+					hookInjected.Add(1)
 				}
 			}
+		case wmMButtonDown, wmXButtonDown, wmMouseWheel:
+			// SEEN, DECLINED, AND COUNTED. A middle click, a side button and a wheel
+			// notch are presses this producer does not treat as navigation, and a
+			// recording that did not count them could not answer the one question a
+			// person asks about their own demonstration: why is this fewer clicks
+			// than I made?
+			hookDeclined.Add(1)
 		}
 	}
 	ret, _, _ := procCallNextHookEx.Call(0, uintptr(nCode), wParam, lParam)

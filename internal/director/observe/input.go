@@ -382,6 +382,23 @@ type InputStats struct {
 	// Reported rather than hidden because the alternative to dropping is blocking a
 	// low-level keyboard hook, which is how Windows silently unhooks it.
 	Dropped int `json:"dropped_buffer_full"`
+	// PointerDeclined is BUTTON presses the platform callback saw and would not offer —
+	// a middle click, a side button, a wheel notch — and PointerInjected those it
+	// discarded as not coming from a hand.
+	//
+	// # Why these are not folded into Ignored
+	//
+	// Because they happen BEFORE the queue, on the callback itself, so `Received` never
+	// counted them and no refusal on this side could have. They are the difference
+	// between "the producer lost your presses" and "those presses were never
+	// navigation", and until they existed a recording had no account of that difference
+	// at all — which is the one question a person asks about a demonstration they made
+	// with their own hand: why is this fewer clicks than I made?
+	//
+	// A mouse MOVE is in neither, and the callback has no branch that sees one. A count
+	// of moves is a record of a hand moving.
+	PointerDeclined int `json:"pointer_declined,omitempty"`
+	PointerInjected int `json:"pointer_injected,omitempty"`
 	// Unavailable explains why no navigation can be observed at all, empty when it can.
 	Unavailable string `json:"unavailable,omitempty"`
 	// ControlsOffered is how many actionable controls the producer was last given to

@@ -10,6 +10,7 @@ import (
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
 	"github.com/chaynes-simpleclouds/marco/internal/platform/navsource"
+	"github.com/chaynes-simpleclouds/marco/internal/platform/padsource"
 )
 
 // Non-actuating: nothing here captures a window or reads a controller. What is tested is the
@@ -269,6 +270,14 @@ func TestAGameRecordingGivesThePointerAFrame(t *testing.T) {
 	if !strings.Contains(s, "Where: e.Where,") {
 		t.Error("the drain does not copy the event's position onto the record")
 	}
+	// AND THE SUBSCRIPTION IS DRAINED AFTER THE LOOP AS WELL AS INSIDE IT. The loop
+	// drains once an interval and then leaves, so a press made during the final frame
+	// was held in the subscription and thrown away with it — and the last press of a
+	// demonstration is the one that opened the thing being demonstrated.
+	if n := strings.Count(s, "navSub.Drain()"); n != 2 {
+		t.Errorf("the subscription is drained in %d place(s), want 2: once an interval "+
+			"inside the loop, and once after it for what the last interval held", n)
+	}
 }
 
 // TestEveryRecordedInputSaysItWasObserved is the one claim the record must never get wrong.
@@ -327,9 +336,19 @@ func TestTheSessionSaysWhatTheMouseHalfIsWorth(t *testing.T) {
 		t.Error("the note must read the refusal count. Without it a recorder that " +
 			"placed nothing reports a quiet session")
 	}
-	if !strings.Contains(s, "Pointer:                   pointerNote(navs, inputs),") {
+	if !strings.Contains(s, "pointerNote(navStats(navs), inputs),") {
 		t.Error("the note is computed and never stored, which is this repository's " +
 			"eighth-recorded failure: correct code nothing invokes")
+	}
+	// AND THE COUNTERS THEMSELVES, not only a sentence derived from one of them. The
+	// first real mouse recording held 17 presses against a person who said they had
+	// clicked many more times, and nothing in the file could settle it.
+	if !strings.Contains(s, `Navigation observe.InputStats `+"`"+`json:"navigation"`+"`") {
+		t.Error("the session record does not carry the producer's own counters, so a " +
+			"recording cannot explain its own total after the process exits")
+	}
+	if !strings.Contains(s, "Navigation:                navStats(navs),") {
+		t.Error("the counters are read and never stored")
 	}
 }
 
@@ -358,7 +377,7 @@ func TestTheMouseNoteTellsAQuietSessionFromADiscardedOne(t *testing.T) {
 	if got := sub.Peek(); got != 0 {
 		t.Fatalf("%d unplaceable press(es) reached the subscription", got)
 	}
-	note := pointerNote(s, nil)
+	note := pointerNote(s.Stats(), nil)
 	if !strings.Contains(note, "defect") {
 		t.Errorf("a session that refused every click reports %q. A reader cannot tell "+
 			"that from a session nobody clicked in, and the two have different "+
@@ -385,7 +404,7 @@ func TestTheMouseNoteTellsAQuietSessionFromADiscardedOne(t *testing.T) {
 			"record of what they clicked",
 			inputs[0].Where.X, inputs[0].Where.Y)
 	}
-	note = pointerNote(s, inputs)
+	note = pointerNote(s.Stats(), inputs)
 	if !strings.Contains(note, "1 press") {
 		t.Errorf("the note for a session with one recorded press reads %q", note)
 	}
@@ -394,5 +413,107 @@ func TestTheMouseNoteTellsAQuietSessionFromADiscardedOne(t *testing.T) {
 	if !strings.Contains(note, "NOT in this recording") {
 		t.Errorf("the note %q does not say that a press was lost. A session that "+
 			"placed some clicks and dropped others must say so", note)
+	}
+}
+
+// TestARecordingCanExplainItsOwnTotal is what the first real mouse recording could not do.
+//
+// # The measurement that forced this
+//
+// 900 frames of Rocket League, 17 pointer presses recorded, every one of them placed. The
+// person who made the demonstration said they had clicked many more times than that, and the
+// recording could not settle it: it carried a derived sentence about ONE refusal reason, and
+// the producer's own account — received, classified, refused by reason, dropped at the queue,
+// and the button presses the callback declined before the queue ever saw them — lived in memory
+// for the whole session and went away with the process.
+//
+// Four different things produce a total lower than the person remembers, and they need four
+// different responses:
+//
+//	a middle click or a wheel notch     not navigation here, and nothing is wrong
+//	an injected press                   not a hand; correctly refused
+//	a press outside the window          correctly refused
+//	an event dropped at the queue       a defect in Marco
+//
+// A recording that says only "17 presses" cannot distinguish any of them, and the person who
+// knows how many times they clicked is the one being told the number.
+func TestARecordingCanExplainItsOwnTotal(t *testing.T) {
+	one := []gameInput{{Intent: observe.NavPoint, Device: observe.DeviceMouse, Observed: true}}
+	for _, c := range []struct {
+		name string
+		st   observe.InputStats
+		want string
+	}{
+		{
+			"a button press the callback does not treat as navigation",
+			observe.InputStats{PointerDeclined: 9},
+			"middle click",
+		},
+		{
+			"a press that was not made by a hand",
+			observe.InputStats{PointerInjected: 4},
+			"injected",
+		},
+		{
+			"an event the classifier was too slow to take",
+			observe.InputStats{Dropped: 3},
+			"defect in Marco",
+		},
+		{
+			"a press outside the window",
+			observe.InputStats{Ignored: map[observe.IgnoreReason]int{
+				observe.IgnoreUnplaceablePointer: 6}},
+			"NOT in this recording",
+		},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			got := pointerNote(c.st, one)
+			if !strings.Contains(got, c.want) {
+				t.Errorf("the note for %s reads:\n\t%s\nand does not mention %q. "+
+					"Every one of these produces a total lower than the person "+
+					"remembers, and they are not the same problem",
+					c.name, got, c.want)
+			}
+		})
+	}
+	// AND A SESSION WITH NOTHING TO EXPLAIN SAYS SO PLAINLY, rather than listing four
+	// zeroes. A clean recording must read as clean.
+	clean := pointerNote(observe.InputStats{}, one)
+	for _, unwanted := range []string{"middle click", "injected", "defect", "NOT in this"} {
+		if strings.Contains(clean, unwanted) {
+			t.Errorf("a clean recording's note mentions %q:\n\t%s", unwanted, clean)
+		}
+	}
+	// And a platform with no producer is not a session where nobody clicked.
+	none := pointerNote(observe.InputStats{Unavailable: "no hook here"}, nil)
+	if !strings.Contains(none, "not watched") {
+		t.Errorf("a session with no mouse producer reports %q", none)
+	}
+}
+
+// TestTheCounterSaidTheControllerWasObservedWhenNobodyTouchedIt is the defect the first real
+// mouse recording exposed in passing.
+//
+// `controller: observed` appeared in a session of 17 mouse presses, two keyboard presses and no
+// controller connected, because the note took a count of ALL inputs. This subsystem exists to
+// keep exactly that straight: a quiet device, an unwatched device and somebody else's device are
+// three different facts, and [[ADR-150-silence-is-not-evidence-about-a-device-nobody-watched]] is
+// the decision that says so.
+func TestTheCounterSaidTheControllerWasObservedWhenNobodyTouchedIt(t *testing.T) {
+	pads := padsource.New()
+	mouseOnly := []gameInput{
+		{Intent: observe.NavPoint, Device: observe.DeviceMouse, Observed: true},
+		{Intent: observe.NavPause, Device: observe.DeviceKeyboard, Observed: true},
+	}
+	if got := controllerNote(pads, mouseOnly); got == "observed" {
+		t.Error("a session of mouse and keyboard presses reported the controller as " +
+			"observed. Nothing in it came from a controller, and a reader deciding " +
+			"whether the controller half of this recording is worth anything is " +
+			"told that it is")
+	}
+	withPad := append(mouseOnly,
+		gameInput{Intent: observe.NavDown, Device: observe.DeviceController, Observed: true})
+	if got := controllerNote(pads, withPad); got != "observed" {
+		t.Errorf("a session with a controller press reports the controller as %q", got)
 	}
 }

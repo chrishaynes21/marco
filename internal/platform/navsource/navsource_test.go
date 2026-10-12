@@ -18,6 +18,10 @@ import (
 type fakeBackend struct {
 	offer   func(rawEvent) bool
 	stopped bool
+	// declinedPresses and declinedInjected stand in for what the OS callback refused
+	// BEFORE the queue ever saw it. Settable because the real counters are incremented on
+	// the hook thread, which no test can reach.
+	declinedPresses, declinedInjected int
 }
 
 func (f *fakeBackend) unavailable() string { return "" }
@@ -26,6 +30,8 @@ func (f *fakeBackend) start(o func(rawEvent) bool) error {
 	return nil
 }
 func (f *fakeBackend) stop() { f.stopped = true }
+
+func (f *fakeBackend) declined() (int, int) { return f.declinedPresses, f.declinedInjected }
 
 func (f *fakeBackend) press(code uint16) {
 	f.offer(rawEvent{code: code, down: true, at: time.Now()})
@@ -619,6 +625,9 @@ func (unavailableBackend) unavailable() string             { return "no hook on 
 func (unavailableBackend) start(func(rawEvent) bool) error { return nil }
 func (unavailableBackend) stop()                           {}
 
+// declined is zero: a backend that is unavailable never saw a press to decline.
+func (unavailableBackend) declined() (int, int) { return 0, 0 }
+
 // READING THE ACTIONABLES CANNOT RACE THE CLASSIFIER.
 //
 // The slice a reading pushes is shared with the goroutine that resolves presses against it.
@@ -668,5 +677,44 @@ func TestReadingTheActionablesCannotRaceTheClassifier(t *testing.T) {
 		t.Errorf("a caller's edit reached the source's own list: it now says %q. The "+
 			"classifier resolves presses against that list from another goroutine.",
 			again[0].Label)
+	}
+}
+
+// What the CALLBACK refused reaches Stats, because nothing on this side could count it.
+//
+// A middle click, a side button and a wheel notch are presses the mouse callback sees and does
+// not offer; an injected press is not a hand. Both are discarded before the bounded queue, so
+// `Received` never saw them and no refusal in the ignore tally could describe them.
+//
+// They exist because a recording has to be able to explain its own total. The first real mouse
+// recording held 17 presses against a person who had clicked more times than that, and the four
+// things that cause the difference — not-navigation, injected, outside the window, dropped at
+// the queue — needed four different answers and had two counters between them.
+//
+// Deleting the backend read in Stats must fail this.
+func TestWhatTheCallbackRefusedReachesTheStats(t *testing.T) {
+	b := &fakeBackend{declinedPresses: 9, declinedInjected: 2}
+	s, _ := newWith(b)
+	defer func() { _ = s.Close() }()
+
+	st := s.Stats()
+	if st.PointerDeclined != 9 {
+		t.Errorf("the stats report %d declined press(es), want 9. Without it a person "+
+			"counting their own clicks against a recording has no account of the "+
+			"difference", st.PointerDeclined)
+	}
+	if st.PointerInjected != 2 {
+		t.Errorf("the stats report %d injected press(es), want 2", st.PointerInjected)
+	}
+	// AND THEY ARE NOT IN THE REFUSAL TALLY, which is about events that reached the
+	// worker. Folding them in would make `received` and `ignored` disagree by exactly
+	// these numbers, and a reader would have no way to see why.
+	if n := len(st.Ignored); n != 0 {
+		t.Errorf("the refusal tally has %d entr(ies) for events the worker never saw: %v",
+			n, st.Ignored)
+	}
+	if st.Received != 0 {
+		t.Errorf("the producer reports %d received event(s); a press the callback "+
+			"declined never reached the queue", st.Received)
 	}
 }

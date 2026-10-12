@@ -162,6 +162,22 @@ type gameSession struct {
 	// what for somebody who played with the keyboard, and must not look like one that
 	// could.
 	Keyboard string `json:"keyboard"`
+	// Navigation is the keyboard-and-mouse producer's own counters, whole.
+	//
+	// # Why the note below was not enough
+	//
+	// The first mouse recording made with this command held 17 presses, and the person who
+	// made it said they had clicked many more times than that. The record could not settle
+	// it. It carried a derived sentence about one refusal reason, and the producer's own
+	// account — how many events the hook received, how many it classified, how many it
+	// refused and why, how many the bounded queue dropped, how many button presses the
+	// callback declined as not navigation — existed in memory for the whole session and
+	// was thrown away when the process exited.
+	//
+	// So the counters go in whole. A recording that cannot explain its own total cannot be
+	// argued with, and the person who made the demonstration is the one who knows how many
+	// times they clicked.
+	Navigation observe.InputStats `json:"navigation"`
 	// Pointer is what the MOUSE half of this session is worth, and it is the number
 	// that separates "nobody clicked" from "every click was discarded". Those two
 	// produced an identical recording until the frame above was pushed: zero point
@@ -520,6 +536,17 @@ func runCaptureGameSession(args []string) int {
 	// adjacency as sequence.
 	sort.Slice(written, func(i, j int) bool { return written[i].Index < written[j].Index })
 
+	// AND WHATEVER THE KEYBOARD OR MOUSE REPORTED SINCE THE LAST DRAIN. The loop drains
+	// once an interval and then leaves, so a press made during the final frame was held in
+	// the subscription and thrown away with it. One press at the end of a demonstration is
+	// the one that opened the thing the person was demonstrating.
+	if navSub != nil {
+		for _, e := range navSub.Drain() {
+			inputs = append(inputs, gameInput{Intent: e.Intent, AtMS: e.AtMS,
+				Device: deviceOr(e.Device, observe.DeviceKeyboard),
+				Where:  e.Where, Observed: true})
+		}
+	}
 	pads.Stop()
 	// Whatever the controller reported after the last frame still belongs to the session.
 	for e := range pads.Events() {
@@ -551,9 +578,10 @@ func runCaptureGameSession(args []string) int {
 		CaptureFailures:           captureFailures,
 		FramesBehindAnotherWindow: behind,
 		AchievedFPS:               achievedFPS(written),
-		Controller:                controllerNote(pads, len(inputs)),
+		Controller:                controllerNote(pads, inputs),
 		Keyboard:                  keyboardNote(navWhy, inputs),
-		Pointer:                   pointerNote(navs, inputs),
+		Pointer:                   pointerNote(navStats(navs), inputs),
+		Navigation:                navStats(navs),
 		Actuation: "none; every input in this recording was OBSERVED from hardware. " +
 			"Nothing here can inject, and the controller reader does not bind the " +
 			"call that could. See gameInput.observed.",
@@ -600,17 +628,39 @@ func runCaptureGameSession(args []string) int {
 		fmt.Printf("NO INPUTS WERE OBSERVED. %s\n", meta.Controller)
 	}
 	fmt.Printf("Mouse: %s\n", meta.Pointer)
+	// THE PRODUCER'S OWN ACCOUNT, on the terminal and not only in the file. The person
+	// who just made the demonstration is the only one who knows how many times they
+	// clicked, and they are standing here now.
+	st := meta.Navigation
+	fmt.Printf("Input: %d event(s) received, %d classified, %d refused",
+		st.Received, st.Classified, total(st.Ignored))
+	for r, n := range st.Ignored {
+		fmt.Printf(" [%s %d]", r, n)
+	}
+	fmt.Println()
 	fmt.Printf("NOTHING is annotated and NOTHING is approved:\n  %s\n", dir)
 	return 0
 }
 
-// controllerNote says what the input half of this session is worth.
-func controllerNote(pads *padsource.Source, inputs int) string {
+// controllerNote says what the CONTROLLER half of this session is worth.
+//
+// # It said "observed" about a controller nobody touched
+//
+// It took a count of ALL inputs, so the first mouse recording — 17 mouse presses, two
+// keyboard, no controller connected — reported `controller: observed`. The device question
+// this subsystem exists to answer honestly is exactly that one: a quiet device and an
+// unwatched device are different facts, and so are a quiet device and somebody else's.
+//
+// Asked per device now, from the provenance every event already carries.
+func controllerNote(pads *padsource.Source, inputs []gameInput) string {
+	for _, in := range inputs {
+		if in.Device == observe.DeviceController {
+			return "observed"
+		}
+	}
 	switch {
 	case pads.Unavailable() != "":
 		return pads.Unavailable()
-	case inputs > 0:
-		return "observed"
 	case pads.Connected():
 		return "a controller was connected but nothing navigational was pressed"
 	}
@@ -703,15 +753,23 @@ func keyboardNote(unavailable string, inputs []gameInput) string {
 	return "watched, and nothing navigational was pressed on it"
 }
 
+// navStats is the producer's counters, or a zero record saying it was not watched.
+func navStats(navs *navsource.Source) observe.InputStats {
+	if navs == nil {
+		return observe.InputStats{Unavailable: "no keyboard or mouse producer on this platform"}
+	}
+	return navs.Stats()
+}
+
 // pointerNote says what the mouse half of this session is worth.
 //
 // Three outcomes, and they are three different problems. Presses recorded is the good one.
 // Presses REFUSED for want of a placeable window frame is a Marco defect — the one this
 // command carried until the frame was pushed — and must never read as a quiet session.
 // Nothing at all is a fact about the person, who may have used a controller.
-func pointerNote(navs *navsource.Source, inputs []gameInput) string {
-	if navs == nil {
-		return "not watched; no keyboard or mouse producer on this platform"
+func pointerNote(st observe.InputStats, inputs []gameInput) string {
+	if st.Unavailable != "" {
+		return "not watched: " + st.Unavailable
 	}
 	presses := 0
 	for _, in := range inputs {
@@ -719,19 +777,48 @@ func pointerNote(navs *navsource.Source, inputs []gameInput) string {
 			presses++
 		}
 	}
-	unplaceable := navs.Stats().Ignored[observe.IgnoreUnplaceablePointer]
+	unplaceable := st.Ignored[observe.IgnoreUnplaceablePointer]
+	// WHAT THE CALLBACK NEVER OFFERED, said in the same sentence as what it did.
+	//
+	// A middle click, a side button and a wheel notch are presses this producer does not
+	// treat as navigation, and an injected press is not a hand. Both are discarded before
+	// the queue, so they are invisible to every other number here — and they are the
+	// first explanation for a total lower than the person remembers.
+	aside := ""
+	if st.PointerDeclined > 0 {
+		aside += fmt.Sprintf(". %d further button press(es) were seen and are not "+
+			"navigation here: a middle click, a side button or a wheel notch",
+			st.PointerDeclined)
+	}
+	if st.PointerInjected > 0 {
+		aside += fmt.Sprintf(". %d press(es) were discarded as injected rather than "+
+			"made by a hand", st.PointerInjected)
+	}
+	if st.Dropped > 0 {
+		aside += fmt.Sprintf(". %d event(s) were dropped because the classifier fell "+
+			"behind, which is a defect in Marco", st.Dropped)
+	}
 	switch {
 	case presses > 0 && unplaceable > 0:
 		return fmt.Sprintf("%d press(es) recorded with a position; %d could not be "+
-			"placed inside the window and are NOT in this recording", presses, unplaceable)
+			"placed inside the window and are NOT in this recording", presses, unplaceable) + aside
 	case presses > 0:
 		return fmt.Sprintf("%d press(es) recorded with a position, each normalised "+
-			"against the rectangle its own frame was captured from", presses)
+			"against the rectangle its own frame was captured from", presses) + aside
 	case unplaceable > 0:
 		return fmt.Sprintf("NO press was recorded and %d were refused as unplaceable. "+
-			"That is a defect in the recorder, not a quiet session", unplaceable)
+			"That is a defect in the recorder, not a quiet session", unplaceable) + aside
 	}
-	return "watched, and nothing was pressed on it"
+	return "watched, and nothing was pressed on it" + aside
+}
+
+// total sums a refusal tally.
+func total(m map[observe.IgnoreReason]int) int {
+	n := 0
+	for _, v := range m {
+		n += v
+	}
+	return n
 }
 
 // navComponent names the keyboard producer, or says there was none.

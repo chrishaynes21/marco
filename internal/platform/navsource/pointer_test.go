@@ -296,3 +296,58 @@ func readSource(t *testing.T, name string) string {
 	}
 	return string(b)
 }
+
+// The presses the hook declines are COUNTED and never offered.
+//
+// Three message constants were added to the callback so a decline could be counted, and adding
+// a constant to that switch is the one edit that could turn this producer into something that
+// observes more than two presses. So: the three are named, and the case that names them does
+// nothing but increment.
+//
+// Structural, because the guarantee is the absence of a call on a thread no test can reach.
+func TestThePressesTheHookDeclinesAreCountedAndNotOffered(t *testing.T) {
+	src := readSource(t, "navsource_windows.go")
+	for _, want := range []string{"wmMButtonDown", "wmXButtonDown", "wmMouseWheel"} {
+		if !strings.Contains(src, want) {
+			t.Errorf("the callback does not name %s, so a press of it is invisible "+
+				"rather than counted", want)
+		}
+	}
+	const head = "case wmMButtonDown, wmXButtonDown, wmMouseWheel:"
+	i := strings.Index(src, head)
+	if i < 0 {
+		t.Fatal("the declining case is gone; a middle click is now uncounted")
+	}
+	// From the head of that case to the end of the function it is in. The declining case
+	// is the LAST one in the switch, so there is no following `case` to stop at, and what
+	// follows it in mouseProc is the chain call — which names neither the offer nor an
+	// event, so the two refusals below still mean what they say.
+	rest := src[i+len(head):]
+	if k := strings.Index(rest, "\nfunc "); k >= 0 {
+		rest = rest[:k]
+	}
+	if !strings.Contains(rest, "hookDeclined.Add(1)") {
+		t.Error("the declining case does not count what it declines, so a middle " +
+			"click is invisible rather than refused")
+	}
+	if strings.Contains(rest, "hookOffer") || strings.Contains(rest, "rawEvent{") {
+		t.Error("a press this producer declines reached the offer. Counting it is the " +
+			"whole point; admitting it would widen what a demonstration observes")
+	}
+	// AN INJECTED PRESS IS COUNTED TOO, and it is a different fact: not a press this
+	// producer declines, but a press that was not made by a hand. A recording that
+	// reported them together could not tell "you used the wheel" from "something else
+	// was driving the mouse".
+	if !strings.Contains(src, "hookInjected.Add(1)") {
+		t.Error("a press discarded as injected is not counted, so it is invisible " +
+			"rather than refused")
+	}
+	// AND BOTH ARE RESET WHEN THE HOOK IS INSTALLED. They are package counters, so a
+	// second source in one process would otherwise inherit the first one's tally and
+	// report a loss that belonged to another session.
+	for _, want := range []string{"hookDeclined.Store(0)", "hookInjected.Store(0)"} {
+		if !strings.Contains(src, want) {
+			t.Errorf("%s is missing, so these counters carry across sessions", want)
+		}
+	}
+}

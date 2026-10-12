@@ -113,6 +113,10 @@ type backend interface {
 	stop()
 	// unavailable explains why this platform produces nothing, empty when it works.
 	unavailable() string
+	// declined is BUTTON presses the platform callback saw and would not offer, and
+	// presses it discarded as injected. Both are losses the worker never hears about, so
+	// nothing downstream can count them and a recording cannot explain its own total.
+	declined() (presses, injected int)
 }
 
 // Source is the live producer of navigation intents.
@@ -173,6 +177,9 @@ func New() (*Source, string) { return newWith(newBackend()) }
 // that fed intents in would prove the plumbing and nothing about the guarantee.
 //
 // The synthetic source installs no hook and observes no real keyboard.
+// declined is nothing, for a backend with no callback to decline anything in.
+func (b *syntheticBackend) declined() (int, int) { return 0, 0 }
+
 func NewSynthetic() (*Source, func(code uint16, down bool)) {
 	b := &syntheticBackend{}
 	s, _ := newWith(b)
@@ -485,6 +492,13 @@ func (s *Source) Stats() Stats {
 		}
 	}
 	out.Dropped = int(s.drops.Load())
+	// WHAT THE CALLBACK ITSELF REFUSED, which no counter on this side could see.
+	//
+	// A middle click, a side button and a wheel notch are presses this producer does not
+	// treat as navigation; an injected press is not a hand. Both are discarded before the
+	// queue, so `Received` never saw them — and without these two a person counting their
+	// own clicks against a recording's total has no account of the difference.
+	out.PointerDeclined, out.PointerInjected = s.backend.declined()
 	out.Unavailable = s.why
 	// WHAT THIS PRODUCER WAS WATCHING, named. Without it a reader has one `received` count
 	// and no way to know which devices it covers, which is how four minutes of controller

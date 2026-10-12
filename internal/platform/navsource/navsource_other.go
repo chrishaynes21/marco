@@ -19,3 +19,7 @@ func (stubBackend) unavailable() string {
 
 func (stubBackend) start(func(rawEvent) bool) error { return nil }
 func (stubBackend) stop()                           {}
+
+// declined is zero because nothing is ever offered. Not "unknown": a platform with no hook
+// declines nothing, and reporting a refusal here would invent a loss.
+func (stubBackend) declined() (int, int) { return 0, 0 }

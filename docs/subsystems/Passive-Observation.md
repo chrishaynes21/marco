@@ -354,6 +354,15 @@ it refuses those looks. Visible is fine; in front is not.
 ## Decisions
 
 - [[ADR-010-passive-observation-cannot-execute]]
+- [[ADR-169-a-recording-that-could-not-explain-its-own-total]] — the first real mouse recording
+  held 17 presses and the person who made it had clicked more times than that. Four things cause
+  that difference and two of them were counted NOWHERE: a middle click or wheel notch, and a
+  press Windows marks as injected. Both happen on the callback, before the queue, so `Received`
+  never saw them. The callback counts them now, the session record carries the producer's
+  counters whole instead of a sentence derived from one of them, and the recorder prints them
+  when a run ends. Two defects found in the same reading: `controller: observed` in a session
+  with no controller in it, and a press made during the final frame thrown away with the
+  subscription that held it
 - [[ADR-168-a-mouse-demonstration-the-recorder-could-not-hold]] — `capture-game-session` could
   not record a mouse click. It opened a navigation subscription and never pushed the window
   rectangle a press is placed against, so every press was refused `unplaceable_pointer` and
@@ -494,10 +503,19 @@ it refuses those looks. Visible is fine; in front is not.
 
 ## Known gaps
 
-- **The mouse half of a recording has never been exercised live.** `capture-game-session` can
-  now place a press, write its position, and hand it back to perception, and every number
-  behind that is a drawn fixture or a synthetic producer. No session has been recorded with it.
-  [[ADR-168-a-mouse-demonstration-the-recorder-could-not-hold]]
+- **How many presses the first mouse recording lost is not known and cannot now be
+  established.** `rl-freeplay-1` holds 17, the person who made it had clicked more times, and
+  the counters that would separate "the producer lost them" from "those were never navigation"
+  did not exist when it was made. The next recording will say.
+  [[ADR-169-a-recording-that-could-not-explain-its-own-total]]
+- **A mouse demonstration cannot identify a list, and this is structural rather than a
+  defect.** The list machinery is keyed to a mark moving between entries under directional input
+  ([[ADR-158-the-active-list-is-the-one-that-responds]]); a mouse hands no mark along anything.
+  Measured on 900 real frames: `no list has been seen handing a mark between its members (115
+  candidates watched over 898 frames)`, with every press landing on a proposed region. So
+  click-target navigation depends on a different half of perception — region identity across
+  frames, and screen change — than directional navigation does.
+  [[Experiment-027-what-did-you-click-and-where-did-it-take-you]]
 - **A click in a GAME cannot resolve to a named target.** `observe.SemanticTarget` is resolved
   against an offered control index, which the live path fills from accessibility; a game has no
   accessibility tree, so the honest answer there is `no controls were on offer`. The replay
