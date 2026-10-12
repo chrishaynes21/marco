@@ -360,6 +360,15 @@ it refuses those looks. Visible is fine; in front is not.
 ## Decisions
 
 - [[ADR-010-passive-observation-cannot-execute]]
+- [[ADR-176-the-time-is-in-the-acquisition-and-a-smaller-observation-keeps-the-clicks]] — where
+  an observation's time goes, measured with no screen captured. Marco's own share of a capture —
+  the BGRA conversion and its 8.3MB allocation — is **2ms**, about 1.6% of the ~130ms a capture
+  was noted at, which rules out the cheap fix. The proposer is 31.9ms at full resolution and
+  4.6ms at a quarter. A reduced observation keeps **all 17 click targets down to 480x270** and
+  loses the route correspondence, 5 steps to 2 — a quality a check aimed only at targets would
+  have missed. And the ~130ms is not corroborated by the recording's own 10.0 fps with capture
+  inline, so acquisition is the one stage still unmeasured and the only one large enough to be
+  the bottleneck
 - [[ADR-175-no-settling-rule-survives-a-four-second-cadence]] — the settle rule was chosen
   against a 10fps recording and the live path samples at ~3.8s. Swept at every rate and every
   phase: at 3.8s the rule settles on 0–3 of nine screens while SAMPLING 5–6, so the screens were
@@ -962,6 +971,16 @@ it refuses those looks. Visible is fine; in front is not.
   looks, `visual_9` held 2 — and short-lived screens that appear in one demonstration and not
   the other are the shape of a load or a splash rather than a place.
   [[ADR-173-the-proposers-yield-is-not-what-separates-two-screens]]
+- **GDI acquisition is the unmeasured bottleneck, and measuring it needs authorisation.**
+  Everything else in an observation is priced: conversion 2ms, resize ≤1ms, proposer 4.6–31.9ms.
+  `capture` creates and destroys a DC and a bitmap every frame and allocates 8.3MB twice;
+  hoisting those, or reducing during the blit so `GetDIBits` moves less, are the candidates. A
+  direct measurement needs a real window and has not been run.
+  [[ADR-176-the-time-is-in-the-acquisition-and-a-smaller-observation-keeps-the-clicks]]
+- **A smaller observation keeps the clicks and loses the route.** All 17 presses still land on a
+  proposed region at 480x270; the repeated-run correspondence falls from 5 steps to 2. So a
+  perception-quality check has to ask about more than targets, and the resolution choice is a
+  measured trade rather than a free win.
 - **The session-local screen model needs ≈10fps and the live path samples at ~3.8s.** Not a
   tuning problem: measured at every rate and phase, the current rule discards screens it
   sampled, and the rule that recovers them produces a promotion every eight looks at the

@@ -227,13 +227,7 @@ func capture(x, y, w, h int) (*image.RGBA, error) {
 		return nil, fmt.Errorf("screen: GetDIBits failed")
 	}
 
-	// DIB is BGRA; convert to RGBA.
-	img := image.NewRGBA(image.Rect(0, 0, w, h))
-	for i := 0; i+3 < len(buf); i += 4 {
-		img.Pix[i+0] = buf[i+2] // R
-		img.Pix[i+1] = buf[i+1] // G
-		img.Pix[i+2] = buf[i+0] // B
-		img.Pix[i+3] = 255
-	}
-	return img, nil
+	// DIB is BGRA; convert to RGBA. Named rather than inline so the stage can be
+	// measured without a screen — see ConvertBGRA.
+	return ConvertBGRA(buf, w, h), nil
 }

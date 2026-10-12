@@ -18,6 +18,37 @@ import (
 	"strings"
 )
 
+// ConvertBGRA turns a top-down 32-bit DIB's bytes into an RGBA image.
+//
+// # Why this is a named function and not four lines inside capture
+//
+// It is a MEASURABLE STAGE of the capture path, and it was not measurable while it was inline.
+// The live observation work needs to know where a capture's time goes, and the honest way to
+// separate "obtaining the pixels" from "converting them" is to be able to run the second
+// without the first — which needs no screen at all, because the input is a buffer.
+//
+// What it does per 1920x1080 frame: allocates 8.3MB for the image and walks 2,073,600 pixels
+// writing four bytes each. That is the part of a capture that is this repository's own code
+// rather than the operating system's, and therefore the part that can be fixed here if the
+// measurement says it matters.
+//
+// The alpha is written as opaque rather than copied: a DIB section from GetDIBits has an
+// undefined alpha byte, and carrying it through produced transparent screenshots.
+func ConvertBGRA(buf []byte, w, h int) *image.RGBA {
+	img := image.NewRGBA(image.Rect(0, 0, w, h))
+	n := len(buf)
+	if m := len(img.Pix); m < n {
+		n = m
+	}
+	for i := 0; i+3 < n; i += 4 {
+		img.Pix[i+0] = buf[i+2] // R
+		img.Pix[i+1] = buf[i+1] // G
+		img.Pix[i+2] = buf[i+0] // B
+		img.Pix[i+3] = 255
+	}
+	return img
+}
+
 // ErrUnsupported is returned by New on platforms without a capture backend yet.
 var ErrUnsupported = errors.New("screen: not supported on this platform")
 

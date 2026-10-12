@@ -112,7 +112,33 @@ interval, so the damping is a DURATION and a replay at 10fps and a live observer
 identically. It must not be derived from the AI's interval, because that is the number the
 measurement rules out.
 
-### Where the fast observer gets its pixels is an open question
+### Where the fast observer gets its pixels — MEASURED, except the one stage that matters
+
+[[ADR-176-the-time-is-in-the-acquisition-and-a-smaller-observation-keeps-the-clicks]] priced
+every stage of an observation but one:
+
+| stage | median | note |
+|---|---|---|
+| BGRA→RGBA + allocation | **2.1ms** | Marco's own code. About 1.6% of a capture |
+| resize | ≤1.0ms | |
+| proposer | 31.9ms at 1920x1080, 4.6ms at 480x270 | |
+| PNG decode | 51ms | a RECORDING cost; a live observer pays none of it |
+| **GDI acquisition** | **unmeasured** | needs a real window, and therefore authorisation |
+
+At a 100ms budget that leaves **66ms** for acquisition at full resolution and **93ms** at a
+quarter — and a quarter-resolution observation keeps all seventeen click targets while losing
+three of five steps of route correspondence. The resolution choice is a trade, and /2 (79ms of
+headroom, 4 of 5 steps) is where the evidence points.
+
+What the measurement rules out: faster conversion, and a smaller observation making ACQUISITION
+cheaper. A reduction after the blit shrinks only the proposer's work.
+
+What it points at, from reading `capture`: a DC and a bitmap created and destroyed every frame,
+8.3MB allocated twice per frame, and 8.3MB moved by `GetDIBits`. Hoisting the first two and
+reusing the buffers costs nothing in correctness; reducing DURING the blit is the only candidate
+that makes acquisition itself cheaper.
+
+### The original open question, still open
 
 It must not be a second capture path. The existing capture is `screen`-backed, occlusion-unsafe
 and costs ~130ms a frame on this machine for a 1920x1080 window — which alone caps a fast

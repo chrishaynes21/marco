@@ -69,6 +69,9 @@ func main() {
 			"rather than a shadow trace (L1)")
 	stride := flag.Int("stride", 1, "with -frames, reprocess every Nth frame")
 	limit := flag.Int("limit", 0, "with -frames, stop after N frames (0 = all)")
+	capturecost := flag.Bool("capturecost", false,
+		"with -frames, measure where an observation's time goes and what a smaller "+
+			"one keeps. Captures nothing from the screen")
 	cadence := flag.Bool("cadence", false,
 		"with -frames, measure the screen model at several sampling rates and phases "+
 			"instead of replaying once")
@@ -95,6 +98,13 @@ func main() {
 			continue
 		}
 		if *frames {
+			if *capturecost {
+				if err := reportCaptureCost(dir, *limit); err != nil {
+					fmt.Fprintf(os.Stderr, "perceptionreplay: %s: %v\n", dir, err)
+					os.Exit(1)
+				}
+				continue
+			}
 			if *cadence {
 				if err := reportCadence(dir, *limit); err != nil {
 					fmt.Fprintf(os.Stderr, "perceptionreplay: %s: %v\n", dir, err)
