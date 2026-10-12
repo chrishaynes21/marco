@@ -138,6 +138,8 @@ type result struct {
 	// one six is a menu.
 	BiggestStack int
 	StackSizes   map[int]int
+	// Retired is how many candidates were dropped for not being found again.
+	Retired int
 	// Identified is the look on which a single list first qualified, or -1.
 	Identified int
 	// Selections is how many looks reported a selected entry at all.
@@ -245,6 +247,7 @@ func replay(dir string, verbose bool) (result, error) {
 	r.Identified = r.Belief.After
 	r.Moments = len(watch.Moments())
 	r.Candidates = watch.Candidates()
+	r.Retired = watch.RetiredCandidates()
 	for _, c := range r.Candidates {
 		for _, u := range c.Unmet {
 			r.Shortfalls[u.Requirement]++

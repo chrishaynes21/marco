@@ -78,3 +78,84 @@ func TestTheReportSaysWhichCandidateQualifiedFirstAndHowFarItWandered(t *testing
 			w.Belief().Because)
 	}
 }
+
+// The report says how many lists have been retired, and the belief names the one it is about.
+//
+// Both are wiring, and both are things no caller can work out for itself. A population being
+// pruned and one that was never crowded look identical from a count of the survivors; and an
+// extent is not an identity, so "is this still the list I was looking at" cannot be answered
+// from `Where`. [[ADR-164-a-list-is-the-same-list-when-its-rows-are]].
+//
+// Entered through NewInterfaceWatch and the Observe door a session uses, because a report built
+// by reaching past the production constructor has been built eight times in this repository and
+// never once invoked.
+//
+// Deleting either assignment must fail this.
+func TestTheReportSaysWhatWasRetiredAndWhichListTheBeliefIsAbout(t *testing.T) {
+	w := observe.NewInterfaceWatch()
+	base := time.Unix(1760000000, 0)
+	mark, seq := 0, 0
+	look := func(both bool) {
+		seq++
+		at := base.Add(time.Duration(seq) * 100 * time.Millisecond)
+		if seq >= 10 && seq%3 == 0 {
+			mark = (mark + 1) % 5
+		}
+		lk := lookOfTwoLists(seq, at, mark, 3, 1)
+		if !both {
+			// THE SECOND LIST GONE. It has its own left edge, over past the
+			// middle of the screen, so dropping it is a filter on position
+			// rather than a count.
+			var kept []observe.ShadowShape
+			for _, sh := range lk.Shapes {
+				if sh.Region.X < 0.5 {
+					kept = append(kept, sh)
+				}
+			}
+			lk.Shapes = kept
+		}
+		w.Observe(lk)
+	}
+	for range 120 {
+		look(true)
+	}
+	if w.RetiredCandidates() != 0 {
+		t.Fatalf("%d candidate(s) retired while every list was still on the screen",
+			w.RetiredCandidates())
+	}
+	b := w.Belief()
+	if b.Status != observe.InterfaceProvisional {
+		t.Fatalf("no list was identified, so the belief names nothing: %s", b.Because)
+	}
+	if b.ListID == 0 {
+		t.Error("the belief names no list. Whether this is still the list a caller was " +
+			"looking at is the tracker's answer to give, and a caller that has to " +
+			"infer it from the published extent gets 'no' every time a row is " +
+			"found a pixel lower")
+	}
+	id := b.ListID
+	var tracked bool
+	for _, c := range w.Candidates() {
+		if c.ID == id {
+			tracked = true
+		}
+	}
+	if !tracked {
+		t.Errorf("the belief is about list %d and no candidate in the report has that "+
+			"name, so the two cannot be read together", id)
+	}
+
+	// THE SECOND LIST GOES AWAY. lookOfTwoLists drops it when asked for fewer rows than
+	// it takes to be a stack, so nothing finds it again and it ages out.
+	for range 40 {
+		look(false)
+	}
+	if w.RetiredCandidates() == 0 {
+		t.Errorf("nothing was retired after 40 observations in which one of the two "+
+			"lists was never found again. A tracked list that is gone keeps its "+
+			"counters, publishes its extent, and is the population this rule had "+
+			"to bound: %s", w.Belief().Because)
+	}
+	t.Logf("belief about list %d, %d candidate(s) now tracked, %d retired",
+		id, len(w.Candidates()), w.RetiredCandidates())
+}

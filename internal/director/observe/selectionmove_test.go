@@ -537,13 +537,31 @@ func TestASelectionHypothesisClaimsAssociationAndNotCause(t *testing.T) {
 // making the first list vanish and a second appear leaves BOTH qualifying — the first one's
 // counters do not expire — so the belief goes ambiguous and retains nothing at all.
 //
-// What isolates the envelope is the same list MOVING. Its rows shift up by one pitch while its
-// entry count stays the same, so "entry 1" before and "entry 3" after are positions in two
-// different arrangements. The candidate still matches itself, so the belief stays provisional
-// throughout and the entry-count half of the guard never fires. Only the envelope says this is
-// not one list handing its mark along.
+// What isolates the envelope is the same list MOVING. Its rows shift up by one pitch, so
+// "entry 1" before and "entry 3" after are positions in two different arrangements, and the
+// candidate still matches itself, so the belief stays provisional throughout.
 //
-// Deleting `next.Where != w.heldWhere` from the guard in noteMove must fail this.
+// # The entry count moves too now, and that is a gap and not a weakening
+//
+// It used to be possible to hold the entry count fixed across the scroll, because a candidate's
+// members were fixed at birth and its extent was whatever group matched this frame. Under
+// identity by rows — [[ADR-164-a-list-is-the-same-list-when-its-rows-are]] — each member follows
+// the row it was found as, so after a one-pitch scroll four of the five members have followed
+// the row that was below them, the fifth is cold, and the row that has just come into view at
+// the top is a row no member can be. The published extent is the members', so that top row is
+// outside it and the belief reports four entries.
+//
+// Letting a candidate ADMIT the next row of its own list repairs exactly this, and was measured
+// and rejected in the same cycle: on 864 real frames the member set accreted to 27 members on a
+// nine-entry menu and the reader's conditional accuracy fell from 78% to 19%. So this fixture
+// now records the scroll as the case that WANTS growth, and the assertion below is checked with
+// both halves of the guard live.
+//
+// SO THIS NO LONGER PINS THE ENVELOPE TERM, and that was established by deleting it: with the
+// entry count moving too, `next.Entries != w.heldEntries` refuses the scroll on its own and the
+// mutant survives. The scroll assertion below is still worth keeping - it is the realistic case
+// and it must stay refused - but the envelope half needs a case where the count cannot cover
+// for it. That is TestAListThatDriftedRetainsNoMoveAcrossTheDrift.
 func TestAListThatScrolledRetainsNoMoveAcrossTheScroll(t *testing.T) {
 	var totals observe.ShadowTotals
 	base := time.Unix(1760000000, 0)
@@ -590,10 +608,13 @@ func TestAListThatScrolledRetainsNoMoveAcrossTheScroll(t *testing.T) {
 		t.Fatalf("the scroll lost the list altogether (%s), so the envelope guard is not "+
 			"what refused the move", totals.Interface.Because)
 	}
+	// NOT asserted equal any more; see the gap named above. Logged, because the number is
+	// the evidence for that gap and a silent change here is how a gap becomes invisible.
 	if got := totals.Interface.Entries; got != entries {
-		t.Fatalf("the list went from %d entries to %d across the scroll, so the "+
-			"entry-count guard would refuse this move too and the envelope half is "+
-			"untested", entries, got)
+		t.Logf("the list went from %d entries to %d across the scroll: four members "+
+			"followed the row below them, one went cold, and the row that came into "+
+			"view at the top is a row no member can be. The growth that would repair "+
+			"it accreted to 27 members on a nine-entry menu", entries, got)
 	}
 	for _, st := range totals.SelectionTransitions {
 		if was, seen := before[st.String()]; !seen || was != st.Count {
@@ -603,6 +624,208 @@ func TestAListThatScrolledRetainsNoMoveAcrossTheScroll(t *testing.T) {
 	}
 	t.Logf("%d moves before the scroll, %d after, %d entries throughout",
 		len(before), len(totals.SelectionTransitions), entries)
+}
+
+// A list that DRIFTED by less than a row is the same list, and a move within it is a move.
+//
+// # What this replaced, and why the old answer was wrong
+//
+// The guard used to compare the published EXTENT, and refused a move whenever it changed. A
+// list's extent is the extent of its rows, so a row found one pixel lower moves it: two
+// consecutive readings of a list nobody had touched compared unequal and the held sighting was
+// dropped. On 864 real frames that rule retained ONE move out of 31 presses.
+//
+// Identity is now something the tracker says rather than something a caller infers from
+// geometry - [[ADR-164-a-list-is-the-same-list-when-its-rows-are]] - so the guard asks it. A
+// drift of less than half a row leaves every member found as its own row, so the list keeps its
+// identity and its five entries, and entry 1 and entry 3 are positions in the SAME arrangement.
+//
+// This fixture asserts the extent really did move, so it cannot pass by the drift not happening.
+func TestAListThatDriftedIsStillTheSameList(t *testing.T) {
+	var totals observe.ShadowTotals
+	base := time.Unix(1760000000, 0)
+	seq := 0
+	feed := func(mark int, shift float64) {
+		seq++
+		sample := oneListSample(seq,
+			base.Add(time.Duration(seq)*100*time.Millisecond), mark, nil)
+		for i := range sample.Shadow.Shapes {
+			sample.Shadow.Shapes[i].Region.Y -= shift
+		}
+		totals.Observe(sample)
+	}
+	for range 14 {
+		feed(0, 0)
+	}
+	for range 12 {
+		for mark := range 5 {
+			for range 3 {
+				feed(mark, 0)
+			}
+		}
+	}
+	for range 4 {
+		feed(1, 0)
+	}
+	if totals.Interface.Status != observe.InterfaceProvisional {
+		t.Fatalf("no list was identified: %s", totals.Interface.Because)
+	}
+	entries, where := totals.Interface.Entries, totals.Interface.Where
+	id := totals.Interface.ListID
+	if id == 0 {
+		t.Fatal("the belief names no list, so nothing below is about its identity")
+	}
+
+	// THE DRIFT: a third of a row's height, less than half of it, so every member is still
+	// the same row found again. The mark is now on entry 3.
+	for range 6 {
+		feed(3, 0.027)
+	}
+	if totals.Interface.Where == where {
+		t.Fatalf("the published extent did not move across the drift (%v), so this says "+
+			"nothing about an extent that moves", where)
+	}
+	if got := totals.Interface.ListID; got != id {
+		t.Fatalf("the list went from id %d to %d across a drift of a third of a row. "+
+			"Every member is still found as its own row, so this is the same list and "+
+			"the identity has stopped surviving the thing it exists to survive", id, got)
+	}
+	if got := totals.Interface.Entries; got != entries {
+		t.Fatalf("the list went from %d entries to %d across the drift, so the "+
+			"entry-count term decides this and the identity term is untested",
+			entries, got)
+	}
+	var moved bool
+	for _, st := range totals.SelectionTransitions {
+		if st.From == 1 && st.To == 3 {
+			moved = true
+		}
+	}
+	if !moved {
+		t.Errorf("no move from entry 1 to entry 3 was retained across a drift of the "+
+			"whole list. It is the same list with the same entries, so the mark did "+
+			"move from one of its entries to another:\n%s",
+			totals.Interface.Because)
+	}
+	t.Logf("extent %v -> %v, list %d throughout, %d entries, %d transition(s)",
+		where, totals.Interface.Where, id, entries,
+		len(totals.SelectionTransitions))
+}
+
+// A move is NOT retained across two different lists, however alike they are.
+//
+// # Why this is the case that pins identity
+//
+// Because the two lists here have the same entry count and the same row heights, and differ
+// only in being somewhere else. The entry-count term cannot refuse this, and the extent term
+// that used to is gone. If the identity term went too, "the mark was on entry 1" - a fact about
+// a list that is no longer on the screen - would be carried into a reading of a different list
+// and offered to the graph as a move from entry 1 to entry 0. That is the contaminated
+// transition that candidate retirement exists to prevent, seen from the belief's end.
+//
+// It is also a fixture that only became possible with retirement. The comment on the scroll
+// test above records three attempts at a cross-list case, and the one that failed because "the
+// first one's counters do not expire" is this one: both lists qualified forever, the belief went
+// ambiguous, and nothing was retained to assert about. Candidates age out now, so the second
+// list becomes the sole qualifier and the question can actually be asked.
+//
+// # WHAT REFUSES IT IS NOT THE IDENTITY TERM, and that was established by deleting the term
+//
+// The mutant survives this test. A tracked list cannot be replaced seamlessly: while both
+// lists qualify the belief is AMBIGUOUS, and when the first retires before the second
+// qualifies it is UNKNOWN, so every change of published list passes through a status that
+// resets the held sighting on its own. The identity term is therefore unreachable as a reason
+// to reset - the same shape as the note "an unreachable discriminator", and worth saying here
+// rather than leaving a comment claiming a guard that nothing tests.
+//
+// The term earns its place in the other direction. It replaced a comparison of published
+// EXTENTS, and what it stops is resetting the held sighting when a list's rows are re-found a
+// pixel lower; `TestAListThatDriftedIsStillTheSameList` fails if the extent comparison is put
+// back. This test stays because the end-to-end guarantee is worth holding whatever enforces
+// it: if a future change makes a seamless swap possible, this is the test that notices.
+func TestAMoveIsNotRetainedAcrossTwoDifferentLists(t *testing.T) {
+	var totals observe.ShadowTotals
+	base := time.Unix(1760000000, 0)
+	seq := 0
+	feed := func(mark int, right bool) {
+		seq++
+		sample := oneListSample(seq,
+			base.Add(time.Duration(seq)*100*time.Millisecond), mark, nil)
+		if right {
+			// THE OTHER LIST: the same five rows at the same heights, in the other
+			// half of the screen. No row of it shares any width with a row of the
+			// first, so no member of either can be a row of the other.
+			for i := range sample.Shadow.Shapes {
+				sample.Shadow.Shapes[i].Region.X += 0.50
+			}
+		}
+		totals.Observe(sample)
+	}
+	walk := func(right bool, laps int) {
+		for range laps {
+			for mark := range 5 {
+				for range 3 {
+					feed(mark, right)
+				}
+			}
+		}
+	}
+	for range 14 {
+		feed(0, false)
+	}
+	walk(false, 12)
+	for range 4 {
+		feed(1, false)
+	}
+	if totals.Interface.Status != observe.InterfaceProvisional {
+		t.Fatalf("the first list was never identified: %s", totals.Interface.Because)
+	}
+	first := totals.Interface.ListID
+	// THE MARK IS PARKED ON ENTRY 1 of the first list, and the second list's walk starts
+	// at entry 0 and cycles upwards, so it produces 0->1, 1->2, 2->3, 3->4 and 4->0 and
+	// never 1->0. A move FROM entry 1 TO entry 0 can therefore only be the first list's
+	// last sighting carried into the second list's first one, which is the whole question.
+	for _, st := range totals.SelectionTransitions {
+		if st.From == 1 && st.To == 0 {
+			t.Fatalf("the first list already retained %s, so a move from entry 1 to "+
+				"entry 0 is not evidence of anything below", st)
+		}
+	}
+
+	// THE FIRST LIST GOES AWAY and the second appears. Long enough for the first to be
+	// retired: nothing finds it again, so it ages out and its evidence goes with it.
+	for range 40 {
+		feed(0, true)
+	}
+	walk(true, 12)
+	for range 4 {
+		feed(3, true)
+	}
+	if totals.Interface.Status != observe.InterfaceProvisional {
+		t.Fatalf("the second list was never identified, so nothing below is about a "+
+			"move across two lists: %s", totals.Interface.Because)
+	}
+	second := totals.Interface.ListID
+	if second == first {
+		t.Fatalf("both lists report the same identity %d, so there is only one list "+
+			"here and this fixture is not testing anything", first)
+	}
+	if got := totals.Interface.Entries; got != 5 {
+		t.Fatalf("the second list reports %d entries, not the 5 the first had. The two "+
+			"have to be alike in everything but place, or the entry-count term "+
+			"refuses the move and the identity term is untested", got)
+	}
+	for _, st := range totals.SelectionTransitions {
+		if st.From == 1 && st.To == 0 {
+			t.Errorf("retained %s across two different lists. The mark was last seen "+
+				"on entry 1 of list %d, which is no longer on the screen, and the "+
+				"first thing seen in list %d was its entry 0 - so this move is two "+
+				"unrelated readings joined by nothing but a held index",
+				st, first, second)
+		}
+	}
+	t.Logf("list %d -> list %d, 5 entries each, %d transition(s) retained in all",
+		first, second, len(totals.SelectionTransitions))
 }
 
 // A list that gains an entry has renumbered itself, and did not hand its mark along.

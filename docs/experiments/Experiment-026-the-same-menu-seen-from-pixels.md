@@ -451,3 +451,74 @@ wrong readings rather than adding right ones.
 
 **93 wrong-list frames remain at stride 1.** Responsiveness is necessary and not sufficient while
 the candidates are buckets, and the root cause is open.
+
+## Fourth correction, 2026-10-11: a list is the same list when its rows are
+
+The third correction found the failure boundary — belief publication — and left the cause open.
+The cause was candidate identity: candidates were matched across frames by whether their EXTENTS
+overlapped, normalised on the smaller area, so any group nested inside a tracked extent was taken
+for the same list. Every candidate that ever qualified had a hull spanning the whole screen.
+Full account in [[ADR-164-a-list-is-the-same-list-when-its-rows-are]].
+
+### What identity asks now
+
+Whether most of this frame's rows are rows this candidate already knows, in the places it knows
+them, counted as distinct members and tested against the SHORTER of the two rows so a nested
+sliver fails. The share is of THIS FRAME'S rows and not of the candidate's members, because a
+frame showing three rows of a six-row list is a dropout and a frame showing three rows it knows
+and nine it does not is a different structure.
+
+### The numbers, four cadences, against the end of the third correction
+
+| stride | | correct list | WRONG list | coverage | right | accuracy | reader alone |
+|---|---|---|---|---|---|---|---|
+| 1 | before | 45 of 829 | 96 | 135 | 43 | 32% | 43 of 46 (93%) |
+| 1 | **after** | **312 of 829** | **0** | 33 | 30 | **91%** | 30 of 31 (97%) |
+| 3 | before | 23 of 280 | 2 | 16 | 13 | 81% | 13 of 13 |
+| 3 | **after** | **63 of 280** | **0** | 8 | 1 | 12% | 1 of 4 |
+| 10 | before | 22 of 83 | 33 | 38 | 19 | 50% | 19 of 20 |
+| 10 | **after** | 0 | **0** | 0 | 0 | — | — |
+| 20 | before | 2 of 41 | 13 | 0 | 0 | — | — |
+| 20 | **after** | 0 | **0** | 0 | 0 | — | — |
+
+No candidate rehomes any more and every hull equals its extent. The signed-offset histogram went
+from a spike at −3 to `-1:3  +0:30  +3:1`, so the error moved from "the wrong list" to "a
+neighbour in the right list". Labelled changes of row ever named: 4 of 33 → 15 of 33, and
+retained graph-ready moves 2 → 3.
+
+### What it cost, and what it says about the old numbers
+
+Coverage fell 135 → 33 and right namings 43 → 30, while wrong namings fell 92 → 3. The lost
+coverage was the bucket's: handed an extent spanning the screen the reader could find some spike
+almost anywhere, and 92 of its 135 namings were wrong.
+
+Strides 10 and 20 identify nothing. What they identified before was not the menu — the only
+candidate that qualified at stride 10 had a final extent of y 0.078..0.355 and a hull of
+y 0.000..0.898 and had rehomed 21 times, where the menu is at y 0.528..0.857. Its 22 "correct"
+frames were it drifting across the menu on its way past. The gate test moved to every frame, and
+the coarse cadence has its own test asserting that it abstains with a readable shortfall.
+
+### Four repairs measured in this cycle, two kept
+
+| | correct list | coverage | right | reader alone |
+|---|---|---|---|---|
+| the bucket rule | 45 of 829 | 135 | 43 | 43 of 46 (93%) |
+| intersection over union | 6 of 829 | 86 | 44 | 44 of 51 (86%) |
+| a scale guard on overlap | 0 of 829 | 269 | 87 | 87 of 89 (98%) |
+| **row correspondence** | **312 of 829** | 33 | 30 | 30 of 31 (97%) |
+| row correspondence + member growth | 246 of 829 | 103 | 18 | 18 of 97 (19%) |
+
+Member growth accreted to 27 members on a nine-entry menu and is not in the tree. The dwell guard,
+retaken under real identity, reverses its earlier rejection — 318 correct-list frames and 38
+coverage at stride 1 — and is also not in the tree, because it makes a drawn list of identical
+rows unreadable and breaks twenty fixtures. It is the strongest open lead.
+
+### Where the work is now
+
+The reader. 279 of the 312 frames that published the right list named nothing, and on most of them
+the reader's own words are "no row stands out from its siblings or from its own unselected level"
+with six to eight rows of the right list in hand. And retained transitions are gated on ENTRY
+identity: a move survives only across two readings with the same frame-local entry count, which
+changes nearly every frame.
+
+Nothing in this correction is validated live.

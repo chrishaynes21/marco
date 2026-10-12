@@ -170,7 +170,8 @@ is defensible on this evidence.
 
 ### 3. The defect is recorded as a test that asserts it
 
-`TestANestedGroupIsStillFoldedIntoTheListAroundIt` asserts the CURRENT behaviour — a nested
+**Superseded 2026-10-11 by [[ADR-164-a-list-is-the-same-list-when-its-rows-are]], which
+repaired it.** That test asserted the CURRENT behaviour — a nested
 sliver is folded into the list around it, the hull grows, the extent becomes the sliver — with
 the table above in its comment. Same pattern as `TestAMarkThatDwellsIsStillRefusedAsShared`: a
 future repair has to confront what these two cost, and the number to beat is 45 of 829 on
@@ -235,8 +236,10 @@ So the proximate cause is repaired and the root cause is not. The root cause is 
   — the regression this must not cause, for a caller that cannot see input.
 - `internal/director/perception/selection` `TestTheSoleQualifierRuleStillRefusesAListThatNeverMoves`
   — input is necessary and not sufficient.
-- `internal/director/perception/selection` `TestANestedGroupIsStillFoldedIntoTheListAroundIt` —
-  the root defect, asserted, with both rejected repairs' numbers.
+- `internal/director/perception/selection` `TestANestedGroupIsNotTheListAroundIt` — the root
+  defect, which this ADR asserted and
+  [[ADR-164-a-list-is-the-same-list-when-its-rows-are]] repaired; the test now asserts the repair
+  and carries all four measurements.
 - `internal/director/perception/selection` `TestACandidateRecordsWhenItQualified` — and that it
   is the FIRST crossing, because that is the decision whenever one candidate qualifies alone.
 - `internal/director/observe` `TestTheReportSaysWhichCandidateQualifiedFirstAndHowFarItWandered`

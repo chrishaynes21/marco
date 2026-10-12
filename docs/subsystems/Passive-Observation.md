@@ -14,6 +14,7 @@ updated: 2026-10-11
 source_paths:
   - internal/director/observe
   - internal/director/observe/interface.go
+  - internal/director/observe/shadow.go
   - internal/director/perception/selection/selection.go
   - internal/director/perception/selection/active.go
   - cmd/perceptionreplay/score.go
@@ -571,8 +572,60 @@ it refuses those looks. Visible is fine; in front is not.
   containing the labelled row the reader names it **43 of 46 (93%)**, which clears the 90%
   target. So the reader is not the bottleneck at either end: it costs 7 frames of coverage out of
   829 and no neighbour confusions at all.
-- **No tracked candidate is a list. Every one that qualifies is a bucket, and both known repairs
-  are worse.** `Tracker.match` used `overlap`, which divides the intersection by the SMALLER
+- ~~No tracked candidate is a list; every one that qualifies is a bucket.~~ **Fixed 2026-10-11**,
+  [[ADR-164-a-list-is-the-same-list-when-its-rows-are]]. A list is now the same tracked list when
+  its ROWS correspond across observations — most of this frame's rows being rows the candidate
+  already knows, in the places it knows them, tested against the SHORTER of the two rows so the
+  test is scale-free and a nested sliver fails it. Candidates and members both age out, and their
+  evidence goes with them. Measured over 864 frames: **correct-list identification 45 → 312**,
+  **confidently wrong list 96 → 0**, and **no candidate rehomes at all, with every hull equal to
+  its extent** where before every qualifying candidate had a full-screen hull and 37–127
+  rehomings. Coverage fell 135 → 33 and right namings 43 → 30, with wrong namings 92 → 3, and
+  retained graph-ready moves went 2 → 3. The
+  surviving gaps from that work are the four entries below.
+- **The reader cannot read the list it is now handed, and that is the next bottleneck.** 279 of
+  the 312 frames that published the right list named nothing, and the reader's own words on most of
+  them are "no row stands out from its siblings or from its own unselected level" with six to
+  eight rows of the right list in hand. This was invisible while the published extent was a bucket
+  spanning the screen, because the reader could find some spike almost anywhere inside it — 135
+  namings of which 92 were wrong. A relaxation of the rule that decides which rows are inside the
+  list, from containment to "mostly inside", was measured here and reverted: worth 4 namings, and
+  no fixture could be built that it was load-bearing for. The replay reports `why silent` and `entries in hand` so the two
+  failures behind one silence stay apart: a reader that looked and found nothing, and a reader
+  given too few rows to have a middle. [[ADR-164-a-list-is-the-same-list-when-its-rows-are]]
+- **Retained graph-ready moves are gated on ENTRY identity, not list identity.** 3 of 864 frames
+  at stride 1, against 2 before. A move is retained only across two readings of the same list with the
+  same frame-local entry count, and `Selected` is an index into the rows this frame's detector
+  found inside the list — a count that changes nearly every frame, so the held sighting is dropped.
+  Comparing list IDENTITIES rather than published extents was measured and kept, and did not move
+  this number. The repair is to make an entry a member of the tracked list rather than an index
+  into one frame's rows. [[ADR-164-a-list-is-the-same-list-when-its-rows-are]]
+- **A list cannot grow, so a nine-entry menu is tracked as six or seven, and a scrolled list loses
+  the row that comes into view.** Letting a candidate admit a row where its own median pitch says
+  its next row goes — within `pitchTolerance`, not overlapping a member — was measured and
+  REJECTED: it accreted to 27 members on a nine-entry menu, taking correct-list identification to
+  246 and the reader's conditional accuracy to 19%. Recorded by
+  `TestAListThatScrolledRetainsNoMoveAcrossTheScroll`, which now logs the entry count it loses.
+  [[ADR-164-a-list-is-the-same-list-when-its-rows-are]]
+- **At a coarse cadence nothing is identified at all.** Strides 10 and 20 of this corpus now
+  abstain, naming `exclusive_over_shared 28/34` as the shortfall: at 660ms between looks the mark
+  has usually moved between them, and the real menu's candidate reaches 28 exclusive frames
+  against 11 shared. Production runs at about 2s a look. What the coarse cadence identified before
+  was not the menu — the only candidate that qualified had a final extent of y 0.078..0.355 and a
+  hull of y 0.000..0.898 and had rehomed 21 times, where the menu is at y 0.528..0.857 — so its
+  22 "correct" frames were a bucket drifting across the menu on its way past. Held by
+  `TestAtACoarseCadenceTheCorpusAbstains`, which asserts no wrong list and a readable shortfall.
+  [[ADR-164-a-list-is-the-same-list-when-its-rows-are]]
+- **The dwell guard is the strongest open lead and it is not in the tree.** Declining to teach the
+  frame's loudest member on a non-exclusive frame was rejected in an earlier cycle for costing 88%
+  of selection reads; that measurement was taken while candidates were buckets, and retaken under
+  identity by rows it goes the other way — correct list 261 → 318 and coverage 25 → 38 at stride
+  1, 63 → 117 and 8 → 39 at stride 3. It is still out, because it makes a DRAWN list of identical
+  rows unreadable (`dwell 3` falls from 218 exclusive frames to 0) and breaks twenty fixtures.
+  Narrowing it to members that already have a baseline did not help and the reason is not
+  understood. [[ADR-164-a-list-is-the-same-list-when-its-rows-are]]
+- **Superseded, kept for the measurements.** No tracked candidate was a list, and both geometric
+  repairs were worse: `Tracker.match` used `overlap`, which divides the intersection by the SMALLER
   area — right in grouping, where a row contains its label and the label is a duplicate of the
   row, and wrong here, because any group nested inside a tracked extent scores 1.0 and is taken
   for the same list. Measured over 864 frames with the new `Hull` and `Rehomed` diagnostics:
@@ -596,9 +649,11 @@ it refuses those looks. Visible is fine; in front is not.
   been doing load-bearing work in keeping the population down. **The untried idea is a MEMBERSHIP
   test** — are these the rows this candidate already knows, by position, which `memberAt` already
   asks — because it is behavioural rather than geometric. Recorded by
-  `TestANestedGroupIsStillFoldedIntoTheListAroundIt`, which asserts the defect so a future repair
-  has to confront what these two cost. The number to beat is 45 of 829 on correct-list
-  identification, not coverage or accuracy. [[ADR-163-a-list-that-qualifies-alone-is-not-the-one-being-used]]
+  `TestANestedGroupIsNotTheListAroundIt`, which now asserts the repair and carries all four
+  measurements, so the next change has to confront what these cost. The number to beat is 45 of 829 on correct-list
+  identification, not coverage or accuracy. Row correspondence is what that membership idea became,
+  and it reached 312 of 829. [[ADR-163-a-list-that-qualifies-alone-is-not-the-one-being-used]],
+  [[ADR-164-a-list-is-the-same-list-when-its-rows-are]]
 - ~~A list that qualifies alone is published with no comparison to anything.~~ **Fixed
   2026-10-11**, [[ADR-163-a-list-that-qualifies-alone-is-not-the-one-being-used]]. `Tracker.active`
   had four arms, and the one that fires when a single candidate qualifies asked nothing at all —

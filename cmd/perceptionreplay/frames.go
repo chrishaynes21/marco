@@ -112,6 +112,10 @@ func (a *annotationFile) labelAt(index int) (state string, y float64, ok bool) {
 type frameResult struct {
 	Name   string
 	Frames int
+	// Retired is how many tracked lists were dropped for not being found again. A
+	// population being pruned and one that was never crowded look the same from a count
+	// of the survivors.
+	Retired int
 	// Proposed is total candidates over all frames, and PerFrame the mean. The precision
 	// proxy: every false rectangle is a possible list member on every frame.
 	Proposed int
@@ -348,6 +352,7 @@ func replayFrames(dir string, stride, limit int, verbose bool) (frameResult, err
 	r.Belief = totals.Interface
 	r.Identified = r.Belief.After
 	r.Candidates = totals.Candidates
+	r.Retired = totals.RetiredCandidates
 	r.Moves = totals.SelectionTransitions
 	r.Latencies = responseLatencies(totals.InterfaceMoments, inputs, base)
 	r.MovesUnplaced, r.MovesDropped = totals.SelectionMovesUnplaced, totals.SelectionMovesDropped
@@ -516,7 +521,8 @@ func reportFrames(r frameResult, ann *annotationFile) {
 		fmt.Printf("  candidates          none were tracked\n")
 		return
 	}
-	fmt.Printf("  candidates          %d\n", len(r.Candidates))
+	fmt.Printf("  candidates          %d tracked, %d retired for not being found again\n",
+		len(r.Candidates), r.Retired)
 	// SHARED IS IN THE TABLE, and it was not. The real menu on this corpus is refused
 	// for having too many frames with more than one member marked, and the column that
 	// says so was the one column missing - so the refusal read as unexplained.

@@ -308,6 +308,9 @@ type ShadowTotals struct {
 	// telling them apart meant regrouping the run's geometry afterwards with a script that
 	// was not the production rule. These are the production rule's own counters.
 	Candidates []InterfaceCandidate `json:"interface_candidates,omitempty"`
+	// RetiredCandidates is how many tracked lists were dropped for not being found
+	// again, whose evidence went with them rather than into the next list at that place.
+	RetiredCandidates int `json:"retired_candidates,omitempty"`
 	// SelectionTransitions is every move the mark was seen making between two entries of
 	// one list, grounded in the screen it happened on where the session could place one.
 	//
@@ -587,6 +590,7 @@ func (t *ShadowTotals) Observe(sample Sample) {
 	t.Tracking = t.watch.Tracking()
 	// Deleting this must fail TestTheSessionSaysWhyEachCandidateWasRefused.
 	t.Candidates = t.watch.Candidates()
+	t.RetiredCandidates = t.watch.RetiredCandidates()
 	// THE MOVES THE MARK MADE, grounded in the screen the session was on WHILE THEY WERE
 	// SEEN — which is the state published at the end of the previous cycle and not the one
 	// this cycle is about to settle on. A move seen on the way out of a menu belongs to the

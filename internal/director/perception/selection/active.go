@@ -78,7 +78,43 @@ const (
 	MinHolders = 2
 	// CandidateMatch is how much two extents must overlap to be the same candidate seen
 	// again.
+	//
+	// NO LONGER CONSULTED FOR IDENTITY. Kept because it is the published bound of a rule
+	// this package used from the start, and because the measurement that retired it is
+	// worth a sentence where a reader will look for it: matching by extent made every
+	// candidate that ever qualified a bucket. See Tracker.match.
 	CandidateMatch = 0.5
+	// RowCorrespondence is what share of a frame's rows must be rows this candidate
+	// ALREADY KNOWS, counted as distinct members, for the frame to be the same list seen
+	// again. Half, because a detector routinely finds only part of a list.
+	RowCorrespondence = 0.5
+	// RowMatch is how far two rows' centres may be apart, as a fraction of the SHORTER of
+	// the two heights, and still be the same row found again.
+	//
+	// The shorter height is what makes this scale-free, and that is the whole point. A
+	// small group nested inside a tracked extent used to match it completely; measured
+	// against the smaller row it is a different row, because a sliver's rows are a
+	// fraction of a member's height from each other and most of a member's height from
+	// most members.
+	RowMatch = 0.5
+	// RowSideMatch is how much of the narrower row's width the two must share. A list
+	// beside another at the same heights is not the same list, and a rule that reads only
+	// centre heights cannot say so.
+	RowSideMatch = 0.5
+	// MaxUnmatched is how many observations a candidate may go without being found again
+	// before it is retired.
+	//
+	// IN OBSERVATIONS AND NOT IN TIME, unlike the response window, and the difference is
+	// real: a response latency is a fact about how long a screen takes to repaint, where
+	// this is a fact about the matching process - how many looks in a row failed to find
+	// this thing. Nothing about a candidate changes between looks that are not taken.
+	//
+	// It exists because the population was unbounded. Matching by extent kept it down by
+	// absorbing everything into a few buckets, which is the defect; matching by rows
+	// refuses far more, and an earlier experiment with a stricter rule accumulated
+	// candidates without bound and slowed the replay several times over. Retiring is the
+	// half of that trade this rule has to pay for itself.
+	MaxUnmatched = 30
 	// MemberMatch is how far apart two rows' centres may be, as a fraction of the
 	// candidate's height, and still be the same member.
 	MemberMatch = 0.25
@@ -95,7 +131,9 @@ const (
 // Kept and reported rather than reduced to a score, because "why this one" is a question
 // somebody will ask of a wrong answer, and a number cannot answer it.
 type Evidence struct {
-	// Bounds is where this candidate sits, which is also its identity over time.
+	// ID names this candidate for as long as it is tracked, and is never reused.
+	ID int
+	// Bounds is where this candidate sits. It is NOT its identity: see candidate.id.
 	Bounds image.Rectangle
 	Rows   int
 	// Frames is how many observations this candidate has survived.
@@ -240,6 +278,15 @@ func (e Evidence) Unmet() []Shortfall {
 
 // candidate is a tracked list.
 type candidate struct {
+	// id names this candidate for as long as it is tracked, and is never reused.
+	//
+	// A rectangle was doing this job and could not: callers asking "is this still the list
+	// I was looking at" compared published extents, and a list's extent moves whenever its
+	// rows are re-found a pixel lower. An identity that is decided by row correspondence
+	// has to be REPORTED as an identity, or every caller re-derives it from geometry and
+	// gets a different answer. Never reused, so a retired candidate cannot be mistaken for
+	// the one that takes its place.
+	id         int
 	bounds     image.Rectangle
 	rows       []image.Rectangle
 	baseline   [][]desc
@@ -249,6 +296,9 @@ type candidate struct {
 	quiet      int
 	unreadable int
 	last       int // the member marked on the last exclusive frame, or -1
+	// cold is how many observations each member has gone without being found again. A
+	// list's rows age for the same reason the list does; see forgetColdMembers.
+	cold       []int
 	holders    map[int]bool
 	moves      int
 	prompted   int
@@ -278,6 +328,12 @@ type Tracker struct {
 	// credited 4 of a real menu's 31 transfers; the long end would credit an unrelated
 	// list's.
 	navRecent bool
+	// nextID is the name the next candidate will be given. Monotonic, never reused.
+	nextID int
+	// retired counts candidates dropped for having gone MaxUnmatched observations
+	// without being found again. Reported, because a population that is being pruned and
+	// one that was never crowded look the same from a count of the survivors.
+	retired int
 	// navSeen says navigation has been observed at least once in this session.
 	//
 	// It decides whether responsiveness is a REQUIREMENT or merely a tie-break, which is
@@ -363,9 +419,7 @@ func (t *Tracker) ObserveNavigated(rows []Row, shades []Shade, navRecent bool) {
 			used[c] = true
 		}
 	}
-	for _, c := range t.cands {
-		c.stale++
-	}
+	t.age()
 	if t.identifiedAt < 0 {
 		if g, _ := t.active(); g >= 0 {
 			t.identifiedAt = t.frames
@@ -373,32 +427,141 @@ func (t *Tracker) ObserveNavigated(rows []Row, shades []Shade, navRecent bool) {
 	}
 }
 
+// age ages every candidate by one observation and retires the ones nothing has found again.
+//
+// # Why retiring is part of this repair and not a separate tidy-up
+//
+// Because the population was unbounded and nothing had noticed, and the reason nothing had
+// noticed is the defect itself: matching by extent absorbed almost everything into a handful
+// of buckets, so the count stayed small by being WRONG. Matching by rows refuses far more,
+// which is the point of it, and an earlier experiment with a stricter rule accumulated
+// candidates until the replay slowed several times over. A rule that refuses more has to say
+// what becomes of what it refused.
+//
+// # And it is where evidence preservation is enforced
+//
+// A retired candidate's evidence goes with it. It is not merged into whatever is tracked at
+// that place next, not consulted again, and not carried into the one that replaces it - the
+// struct is dropped and a later list at the same place starts from nothing and serves its full
+// MinObservations before it can be believed. That is the guarantee a bucket could not make: a
+// bucket's counters were a sum over unrelated rectangles, and the only thing keeping an old
+// list's transfers out of a new list's verdict was that nobody had asked.
+//
+// The cost is stated plainly: a list that goes away for MaxUnmatched observations and comes
+// back has to earn its verdict again. On a screen that genuinely changed - a submenu opening,
+// a menu closing - that is not a cost, it is the correct answer. On a list the detector simply
+// loses for a long stretch it is lost evidence, and `Retired` is reported so the cost is
+// countable rather than invisible.
+func (t *Tracker) age() {
+	kept := t.cands[:0]
+	for _, c := range t.cands {
+		c.stale++
+		if c.stale > MaxUnmatched {
+			t.retired++
+			continue
+		}
+		kept = append(kept, c)
+	}
+	// The tail holds pointers the slice no longer owns; nil them so a retired candidate's
+	// evidence is actually unreachable rather than merely unlisted.
+	for i := len(kept); i < len(t.cands); i++ {
+		t.cands[i] = nil
+	}
+	t.cands = kept
+}
+
+// Retired is how many candidates have been dropped for not being found again.
+func (t *Tracker) Retired() int { return t.retired }
+
 // update folds one frame's view of one list into whatever is already known about it.
 func (t *Tracker) update(members []image.Rectangle, shades []Shade, used map[*candidate]bool) *candidate {
 	ext := extent(members)
-	c := t.match(ext, used)
+	c := t.match(members, used)
 	if c == nil {
-		c = &candidate{bounds: ext, rows: members, last: -1, holders: map[int]bool{},
-			qualifiedAt: -1, hull: ext}
+		t.nextID++
+		c = &candidate{id: t.nextID, bounds: ext, rows: members, last: -1,
+			holders: map[int]bool{}, qualifiedAt: -1, hull: ext}
 		c.baseline = make([][]desc, len(members))
+		c.cold = make([]int, len(members))
 		t.cands = append(t.cands, c)
 	}
 	c.stale = 0
-	// RECORDED BEFORE THE BOUNDS MOVE, because the bounds are about to stop being
-	// evidence of anything: they are overwritten by this frame's extent and the previous
-	// value is gone. See Evidence.Hull.
-	if a, b := area(c.bounds), area(ext); a > 0 && b > 0 && (b*2 < a || b > a*2) {
-		c.rehomed++
-	}
-	c.hull = c.hull.Union(ext)
-	c.bounds = ext
 	// Members are matched by position, so a row the detector dropped this frame does not
 	// shift every baseline onto a neighbour.
+	//
+	// ATTRIBUTION IS TOLERANT AND GEOMETRY IS STRICT, and the two halves of that are
+	// separate statements for measured reasons.
+	//
+	// Attribution asks which member a row is so a shade can be scored against that
+	// member's baseline. It is `memberAt`: the nearest member, within MemberMatch of the
+	// list's own height. It has to stay tolerant because A SELECTED ROW IS REDRAWN. A game
+	// draws the entry the person is on with a highlight, and the detector returns a box of
+	// a different height for it — so the one row whose shade matters is the one least like
+	// the member it belongs to. Measured, with attribution made strict as well: the real
+	// menu's candidate recorded ONE transfer over 382 judged frames with 205 of them quiet,
+	// against 31 presses in the recording, and coverage fell to 20 of 829 frames. Strictness
+	// here does not refuse a wrong row, it refuses the selected one.
+	//
+	// Geometry is the other half. A member moves only to a row that `rowAt` called the same
+	// row — a scale-free test against the SHORTER of the two, not a nearest-within-a-
+	// fraction-of-the-whole — because a member that moves to wherever its nearest row was
+	// drags the list after it. Measured, with the tolerant rule moving members: published
+	// extents grew to 0.583..1.000 carrying twelve and thirteen entries where the menu has
+	// nine, the reader held a stale claim over 50 frames against 3, and its conditional
+	// accuracy fell from 93% to 51%. The bucket re-formed one member at a time.
+	//
+	// So a redrawn row is still read as its member, and it is not allowed to move it.
+	// EACH MEMBER RE-FOUND AS THE SAME ROW moves to where it was just seen, and this is
+	// what lets identity follow a list without becoming a bucket.
+	//
+	// Measured: frozen at birth, the real menu's candidate was matched on 389 of 864 frames
+	// and did not qualify until observation 833, because a list's detected rows drift — a
+	// row is found a few pixels lower, or with its label attached and so half as tall again
+	// — and correspondence against a rectangle from four hundred frames ago decays until
+	// the list stops being itself.
+	//
+	// It is still not a bucket, and the difference from matching by extent is the rate. A
+	// member may only move to a row that was already the same row — within RowMatch of its
+	// own height — so the list can migrate at most a fraction of a row per observation, and
+	// only by being continuously re-found all the way. An extent could be replaced outright
+	// by anything nested inside it, which is how a tracked list became a sliver in one frame.
+	for i := range c.cold {
+		c.cold[i]++
+	}
+	for _, m := range members {
+		if j := c.rowAt(m); j >= 0 {
+			c.rows[j] = m
+			c.cold[j] = 0
+		}
+	}
+	// AND THE LIST MAY GAIN AND LOSE ROWS, which is the rest of what it means for a
+	// candidate to have a lifecycle. See admit and forgetColdMembers.
+	// c.admit(members) EXPERIMENT DISABLED
+	c.forgetColdMembers()
+	// THE EXTENT IS THE MEMBERS', NOT THIS FRAME'S GROUP'S.
+	//
+	// It was the group's, and that is a second place the frame got to overwrite the list.
+	// Callers restrict the reader to rows inside the published extent, so on a frame where
+	// the detector found three rows of a nine-row menu the reader was handed three rows and
+	// could not read any of them: too few to have a middle to deviate from. Measured, with
+	// identity by rows and the extent still coming from the group, 263 of 315 published
+	// frames were unreadable for that reason.
+	//
+	// The members ARE the identity now, so their extent is the list's extent, and it does
+	// not shrink to whatever was found this time. RECORDED BEFORE IT MOVES, because the old
+	// value is about to be gone: a hull far larger than the extent, or a rehoming, is one
+	// tracked list that has been several different rectangles. See Evidence.Hull.
+	own := extent(c.rows)
+	if a, b := area(c.bounds), area(own); a > 0 && b > 0 && (b*2 < a || b > a*2) {
+		c.rehomed++
+	}
+	c.hull = c.hull.Union(own)
+	c.bounds = own
+
 	mapped := make([]int, len(members))
 	for i, m := range members {
 		mapped[i] = c.memberAt(m)
 	}
-
 	descs := make([]desc, len(c.rows))
 	have := make([]bool, len(c.rows))
 	for i := range members {
@@ -529,7 +692,228 @@ func (c *candidate) marked(descs []desc, have []bool) ([]int, bool) {
 	return out, true
 }
 
-// memberAt finds which of this candidate's known rows a region is, by position.
+// match finds the candidate already being tracked whose ROWS these rows are.
+//
+// # Why not the extent
+//
+// Because matching by extent made every tracked candidate a bucket. Measured on 864 real
+// frames, every candidate that ever qualified had a hull - the union of every extent it had
+// held - spanning the whole screen. `overlap` divides the intersection by the SMALLER area,
+// which is right in grouping, where a row contains its label and the label is a duplicate of
+// the row. Here it meant any group nested inside a tracked extent scored 1.0 and was taken for
+// the same list; the candidate's bounds were then overwritten by the nested extent, so a
+// tracked "list" was several different rectangles and every counter the decision reads was a
+// sum over unrelated things. Drifting was what EARNED a candidate its verdict: a bucket sees a
+// different member marked whenever it absorbs a different group.
+//
+// Two geometric repairs were tried on that corpus and both were rejected on measurement.
+// Intersection over union fragments the real menu, whose grouping genuinely varies between
+// three and seven rows frame to frame. A scale ratio on the extents improved coverage,
+// accuracy and the reader's own score while taking correct-list identification to ZERO.
+// [[ADR-164-a-list-is-the-same-list-when-its-rows-are]].
+//
+// # What this asks instead
+//
+// Whether these are the rows this candidate already knows, in the places it knows them. That
+// is a sharpened form of the question `memberAt` asks of a single row to attribute a mark,
+// which is why the idea was reachable at all: the member set is already the candidate's
+// identity for every other purpose, and only matching had been using a rectangle.
+//
+// # The asymmetry is deliberate
+//
+// The share is of THIS FRAME'S rows, not of the candidate's members. A frame showing three
+// rows of a six-row list is a detector dropout, which happens constantly and is accounted for
+// everywhere else in this file. A frame showing three rows the candidate knows and nine it
+// does not is a different structure - and that direction is the one that grows buckets, so it
+// is the direction the share refuses.
+//
+// # Best, not first
+//
+// The old rule returned the first extent that overlapped enough, which made the answer depend
+// on the order candidates happened to be created in. That order is frame order, and frame
+// order is the sampling cadence. Taking the most corresponding candidate instead is the same
+// answer at any stride.
+func (t *Tracker) match(members []image.Rectangle, used map[*candidate]bool) *candidate {
+	var best *candidate
+	bestN := 0
+	need := RowCorrespondence * float64(len(members))
+	for _, c := range t.cands {
+		if used[c] {
+			continue
+		}
+		// A floor of two distinct rows was written here beside the share and then
+		// removed: the mutation gate could not reach it. A group smaller than
+		// minStack is never offered to this tracker at all, so the smallest frame
+		// here has three rows and half of three already demands two.
+		if n := c.corresponding(members); float64(n) < need {
+			continue
+		} else if n > bestN {
+			best, bestN = c, n
+		}
+	}
+	return best
+}
+
+// corresponding counts how many DISTINCT rows of this candidate appear among `members`.
+//
+// Distinct, because the count is a correspondence and not a tally: a sliver's three rows all
+// landing in one member's neighbourhood is one row found again, not three, and counting them
+// three times is exactly how a nested group used to pass for the list around it.
+func (c *candidate) corresponding(members []image.Rectangle) int {
+	var seen int
+	hit := make([]bool, len(c.rows))
+	for _, m := range members {
+		if i := c.rowAt(m); i >= 0 && !hit[i] {
+			hit[i] = true
+			seen++
+		}
+	}
+	return seen
+}
+
+// admit takes in a row that is plainly the NEXT ROW of this list and was not a member yet.
+//
+// # Why a list has to be allowed to grow
+//
+// Because the member set was fixed at birth, and a list is first seen through whatever the
+// detector happened to find on one frame. On 864 real frames of a nine-entry menu the tracked
+// candidate carried between three and seven members and never more, so four of the nine
+// entries could not be read however well everything else worked: the published extent did not
+// contain them, and the reader is given the rows inside the extent. The same gap refuses a
+// list that SCROLLED - every row moves one pitch, every member follows the row that was below
+// it, and the row that has just come into view at the top is a row no member can be.
+//
+// # Why this is not how a bucket forms
+//
+// A bucket formed by absorbing whatever was nested inside a rectangle. This admits a row only
+// where the list's OWN regular spacing says its next row goes: one median pitch from the
+// nearest member, to within the tolerance grouping itself uses, and not sitting on top of a
+// member it would be a second copy of. Accreting the screen one row at a time would mean the
+// screen were periodic at this list's pitch all the way across, which is what it means for the
+// list to continue.
+//
+// The pitch is measured from the members, so it is the list's own measure and not a constant.
+func (c *candidate) admit(members []image.Rectangle) {
+	pitch := c.pitch()
+	if pitch <= 0 {
+		return
+	}
+	for _, m := range members {
+		if c.rowAt(m) >= 0 {
+			continue
+		}
+		near, d := -1, math.MaxFloat64
+		for i, k := range c.rows {
+			if v := math.Abs(centreY(k) - centreY(m)); v < d {
+				near, d = i, v
+			}
+		}
+		if near < 0 || math.Abs(d-pitch) > pitchTolerance*pitch {
+			continue
+		}
+		if overlap(c.rows[near], m) >= CandidateMatch {
+			continue
+		}
+		c.rows = append(c.rows, m)
+		c.baseline = append(c.baseline, nil)
+		c.cold = append(c.cold, 0)
+	}
+}
+
+// pitch is the median spacing between this candidate's members, taken in order down the screen.
+func (c *candidate) pitch() float64 {
+	if len(c.rows) < 2 {
+		return 0
+	}
+	ys := make([]float64, 0, len(c.rows))
+	for _, r := range c.rows {
+		ys = append(ys, centreY(r))
+	}
+	sort.Float64s(ys)
+	gaps := make([]float64, 0, len(ys)-1)
+	for i := 1; i < len(ys); i++ {
+		gaps = append(gaps, ys[i]-ys[i-1])
+	}
+	return median(gaps)
+}
+
+// forgetColdMembers drops members nothing has found again for MaxUnmatched observations.
+//
+// # Why members age as well as whole candidates
+//
+// Because a member that is never found again still decides things. Its rectangle is part of
+// the extent the belief publishes, so the list keeps claiming ground it no longer occupies and
+// the reader keeps being handed rows from there; its baseline is still consulted; and it is
+// still counted among the holders of the mark. A list that scrolled away from a row, or lost an
+// entry, would otherwise stay anchored to it for the rest of the session.
+//
+// AND BECAUSE ITS EVIDENCE MUST NOT TRANSFER. The baseline goes with the member, so a row that
+// appears at that place later is a new member with nothing yet learned about it rather than one
+// inheriting an unselected level measured from a row that is gone. That is the guarantee
+// Tracker.age makes for whole candidates, one level down - and here it needs saying twice,
+// because `last` and `holders` are INDICES into this slice. Renumbering without moving them
+// would compare this frame's member against a different row and read a transfer that nothing
+// moved, which is a false transition offered to the graph.
+//
+// A candidate is never reduced below minStack members this way: fewer than that is not a list
+// at all, and the honest end for one is to stop being found and be retired whole.
+func (c *candidate) forgetColdMembers() {
+	// How many may go at all, worked out before any do: a candidate reduced below minStack
+	// members is not a list, and the honest end for one is to stop being found and be
+	// retired whole. Counted here rather than tested inside the loop, where "how many are
+	// left" is not yet known and the obvious expression for it is wrong.
+	droppable := len(c.rows) - minStack
+	if droppable <= 0 {
+		return
+	}
+	keep := make([]image.Rectangle, 0, len(c.rows))
+	base := make([][]desc, 0, len(c.rows))
+	cold := make([]int, 0, len(c.rows))
+	moved := make(map[int]int, len(c.rows))
+	var dropped int
+	for i := range c.rows {
+		if c.cold[i] > MaxUnmatched && dropped < droppable {
+			dropped++
+			continue
+		}
+		moved[i] = len(keep)
+		keep = append(keep, c.rows[i])
+		base = append(base, c.baseline[i])
+		cold = append(cold, c.cold[i])
+	}
+	if len(keep) == len(c.rows) {
+		return
+	}
+	c.rows, c.baseline, c.cold = keep, base, cold
+	if c.last >= 0 {
+		if j, ok := moved[c.last]; ok {
+			c.last = j
+		} else {
+			// The member that was holding the mark is gone. The next exclusive frame
+			// starts a holding rather than continuing one, because there is nothing
+			// left for a transfer to be measured FROM.
+			c.last = -1
+		}
+	}
+	held := make(map[int]bool, len(c.holders))
+	for i := range c.holders {
+		if j, ok := moved[i]; ok {
+			held[j] = true
+		}
+	}
+	c.holders = held
+}
+
+// memberAt finds which member of this candidate a region should be SCORED AS, by position.
+//
+// Deliberately more tolerant than `rowAt`, and the comment in Tracker.update says why: the
+// selected row is redrawn, so the row whose shade decides everything is the row least like
+// the member it belongs to. Nearest member within a fraction of the list's own height.
+//
+// That fraction is of the LIST, which only became a local bound when the list's extent became
+// its members' extent. While the extent was whatever group matched this frame — up to the
+// whole screen — a quarter of it was most of the screen, and this rule attributed almost
+// anything to something.
 func (c *candidate) memberAt(r image.Rectangle) int {
 	h := float64(c.bounds.Dy())
 	if h <= 0 {
@@ -548,17 +932,38 @@ func (c *candidate) memberAt(r image.Rectangle) int {
 	return best
 }
 
-// match finds the candidate already being tracked at this extent.
-func (t *Tracker) match(ext image.Rectangle, used map[*candidate]bool) *candidate {
-	for _, c := range t.cands {
-		if used[c] {
+// rowAt finds which of this candidate's known rows is the same row as r, found again, or -1.
+//
+// Nearest by centre among those that could be it at all, so a row between two members goes to
+// the closer one rather than to whichever was declared first.
+func (c *candidate) rowAt(r image.Rectangle) int {
+	best, bestD := -1, math.MaxFloat64
+	for i, k := range c.rows {
+		if !sameRow(k, r) {
 			continue
 		}
-		if overlap(c.bounds, ext) >= CandidateMatch {
-			return c
+		if d := math.Abs(centreY(k) - centreY(r)); d < bestD {
+			best, bestD = i, d
 		}
 	}
-	return nil
+	return best
+}
+
+// sameRow reports whether two rectangles are one row of a list, seen twice.
+//
+// Both tolerances are fractions of the SMALLER of the two, which is what makes this refuse a
+// nested sliver: a rectangle inside another is not near its centre in units of its own height.
+func sameRow(a, b image.Rectangle) bool {
+	h := math.Min(float64(a.Dy()), float64(b.Dy()))
+	w := math.Min(float64(a.Dx()), float64(b.Dx()))
+	if h <= 0 || w <= 0 {
+		return false
+	}
+	if math.Abs(centreY(a)-centreY(b)) > RowMatch*h {
+		return false
+	}
+	in := a.Intersect(b)
+	return float64(in.Dx()) >= RowSideMatch*w
 }
 
 // Evidence reports what has been observed about every candidate, most convincing first.
@@ -589,7 +994,7 @@ func (t *Tracker) Evidence() []Evidence {
 // not one thing being chosen — and Evidence.Unmet states that along with the rest.
 func (c *candidate) evidence() Evidence {
 	e := Evidence{
-		Bounds: c.bounds, Rows: len(c.rows), Frames: c.seen,
+		ID: c.id, Bounds: c.bounds, Rows: len(c.rows), Frames: c.seen,
 		Exclusive: c.excl, Shared: c.shared, Quiet: c.quiet, Unreadable: c.unreadable,
 		Transfers: c.moves, Holders: len(c.holders),
 		Prompted: c.prompted, Unprompted: c.unprompted,
@@ -606,11 +1011,22 @@ func (c *candidate) qualifies() bool { return c.evidence().Qualifies }
 // The returned rectangle is where it is; callers restrict the reader to rows inside it. It is
 // a place rather than a group number because group numbers do not survive a frame.
 func (t *Tracker) Active() (image.Rectangle, string, bool) {
+	r, _, why, ok := t.ActiveList()
+	return r, why, ok
+}
+
+// ActiveList is the same answer with the list's IDENTITY beside its place.
+//
+// The place alone cannot answer "is this still the list I was looking at", and that question is
+// asked on every frame by the rule that decides whether the mark moved WITHIN one list. A list's
+// extent moves whenever one of its rows is found a pixel lower, so comparing extents answers
+// "no" to a list that never changed — measured, the whole 864-frame corpus retained one move.
+func (t *Tracker) ActiveList() (image.Rectangle, int, string, bool) {
 	i, why := t.active()
 	if i < 0 {
-		return image.Rectangle{}, why, false
+		return image.Rectangle{}, 0, why, false
 	}
-	return t.cands[i].bounds, why, true
+	return t.cands[i].bounds, t.cands[i].id, why, true
 }
 
 func (t *Tracker) active() (int, string) {

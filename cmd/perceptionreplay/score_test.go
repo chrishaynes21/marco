@@ -221,3 +221,80 @@ func TestTheConfirmationLagIsMeasuredFromTheLabelledChange(t *testing.T) {
 			c.Wrong)
 	}
 }
+
+// A frame that identified a list and named nothing says WHY, and how many rows it had in hand.
+//
+// # Why one counter was not enough
+//
+// `Unread` counts those frames and cannot say which failure they are, and the two it conflates
+// want opposite work: a reader that looked at the list and found nothing standing out has read it
+// correctly if nothing was selected, where a reader that could not assemble enough of a list to
+// have a middle has not read it at all. "No row stands out from its siblings" over three siblings
+// and the same sentence over nine are different facts.
+//
+// It became the question that mattered the moment the published extent stopped being a bucket.
+// Handed the whole screen the reader always found some spike - 135 namings on the real corpus, 92
+// of them wrong. Handed the list itself it goes quiet on nine frames in ten, and 235 of those 277
+// frames say "no row stands out from its siblings or from its own unselected level" with six to
+// eight rows of the right list in hand. [[ADR-164-a-list-is-the-same-list-when-its-rows-are]].
+//
+// The reason is lifted out of the belief's own prose rather than taken from a second field, for
+// the same reason the publishing arm is: a key that could disagree with the sentence a person
+// reads is a key that eventually does.
+func TestTheSilentFramesSayWhyInTheReadersOwnWords(t *testing.T) {
+	ann := scoreAnn()
+	// Three labelled frames with a list identified and nothing named: two for one reason
+	// with six rows in hand, one for another with three.
+	trace := []frameObservation{
+		{Index: 0, Status: "provisional", Selected: -1, Entries: 6,
+			Reading: "one list hands a mark around: rows 6; reading: no row " +
+				"stands out from its siblings; 6 of 6 entries are geometry"},
+		{Index: 1, Status: "provisional", Selected: -1, Entries: 6,
+			Reading: "one list hands a mark around: rows 6; reading: no row " +
+				"stands out from its siblings; 6 of 6 entries are geometry"},
+		{Index: 10, Status: "provisional", Selected: -1, Entries: 3,
+			Reading: "one list hands a mark around: rows 3; reading: unreadable " +
+				"this frame"},
+		// And one with no list at all, which is the OTHER population and must not
+		// appear here: the reader was never asked.
+		{Index: 20, Status: "unknown", Selected: -1, Entries: 0,
+			Reading: "no list has been seen handing a mark between its members"},
+	}
+	sc := scoreSelection(trace, ann)
+	if sc.Unread != 3 {
+		t.Fatalf("%d unread frame(s), want 3: a frame with no list identified is not a "+
+			"frame the reader was silent on", sc.Unread)
+	}
+	if sc.NoList != 1 {
+		t.Errorf("%d frame(s) with no list, want 1", sc.NoList)
+	}
+	var total int
+	for _, n := range sc.Silent {
+		total += n
+	}
+	if total != sc.Unread {
+		t.Errorf("the reasons account for %d of the %d silent frames; every one of them "+
+			"has an outcome and a partition that does not add up cannot be read",
+			total, sc.Unread)
+	}
+	if got := sc.Silent["no row stands out from its siblings"]; got != 2 {
+		t.Errorf("the reader's clause %q was counted %d time(s), want 2. The clause is "+
+			"lifted from the belief's own prose, so the whole sentence here means "+
+			"the lifting is broken: %v",
+			"no row stands out from its siblings", got, sc.Silent)
+	}
+	if got := sc.Silent["unreadable this frame"]; got != 1 {
+		t.Errorf("the reader's clause %q was counted %d time(s), want 1: %v",
+			"unreadable this frame", got, sc.Silent)
+	}
+	// AND HOW MANY ROWS IT HAD, which is the half that says whether the reader failed or
+	// was starved. Three siblings have no middle to deviate from.
+	if sc.SilentEntries[6] != 2 || sc.SilentEntries[3] != 1 {
+		t.Errorf("the rows in hand on the silent frames came out %v, want two frames "+
+			"with 6 and one with 3", sc.SilentEntries)
+	}
+	if sc.SilentEntries[0] != 0 {
+		t.Errorf("a frame with no list identified was counted among the rows the reader "+
+			"had in hand: %v", sc.SilentEntries)
+	}
+}

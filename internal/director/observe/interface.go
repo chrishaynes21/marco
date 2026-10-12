@@ -54,6 +54,13 @@ const (
 // InterfaceBelief is what the session currently believes it is looking at.
 type InterfaceBelief struct {
 	Status InterfaceStatus `json:"status"`
+	// ListID names the tracked list this belief is about, for as long as it is tracked,
+	// and is never reused.
+	//
+	// Reported because callers were deriving it from `Where`, and an extent is not an
+	// identity: a list whose rows are re-found a pixel lower publishes a different extent
+	// and is the same list. Whether it is the same list is the tracker's answer to give.
+	ListID int `json:"list_id,omitempty"`
 	// Where the list is, window-relative and normalised. Zero unless provisional.
 	Where Region `json:"where,omitzero"`
 	// Entries is how many candidate entries were found in it. NOT how many it has.
@@ -277,10 +284,12 @@ type InterfaceWatch struct {
 	// pendingDropped how many the bound refused. See TakeSelectionMoves.
 	pending        []SelectionMove
 	pendingDropped int
-	// heldWhere, heldEntries and heldEntry are the list the mark was last SEEN in and
+	// heldList, heldEntries and heldEntry are the list the mark was last SEEN in and
 	// which entry of it; heldGap how many looks have brought no reading since. See
 	// noteMove, which is the only thing that touches them.
-	heldWhere   Region
+	// heldList is the IDENTITY of the list the mark was last seen in, from the tracker,
+	// and heldEntries its entry count. Not its extent: see noteMove.
+	heldList    int
 	heldEntries int
 	heldEntry   int
 	heldGap     int
@@ -446,7 +455,7 @@ func (w *InterfaceWatch) TakeSelectionMoves() ([]SelectionMove, int) {
 //
 // # What resets it
 //
-// Any change to the list the belief is about. A different envelope, a different entry count, or
+// Any change to the list the belief is about. A different list, a different entry count, or
 // no identified list at all, and the held sighting is dropped rather than carried across: "the
 // mark was on entry 2" is a fact about one list, and applying it to the next one would invent a
 // move out of two unrelated readings. Each of those is its own case below.
@@ -454,14 +463,26 @@ func (w *InterfaceWatch) noteMove(_, next InterfaceBelief) {
 	if next.Status != InterfaceProvisional {
 		// No list is identified, so there is nothing for a mark to be an entry OF.
 		w.heldEntry, w.heldGap = -1, 0
-		w.heldWhere, w.heldEntries = Region{}, 0
+		w.heldList, w.heldEntries = 0, 0
 		return
 	}
-	if next.Where != w.heldWhere || next.Entries != w.heldEntries {
+	if next.ListID != w.heldList || next.Entries != w.heldEntries {
 		// A DIFFERENT LIST, or the same one renumbered. "Entry 3" means nothing except
 		// against a stable count of entries: a list that gained a row has renumbered
 		// everything below it.
-		w.heldWhere, w.heldEntries = next.Where, next.Entries
+		//
+		// THE FIRST TERM WAS THE PUBLISHED EXTENT, and comparing rectangles was wrong in
+		// the direction that costs everything. A list's extent is the extent of its rows,
+		// and a row found one pixel lower moves it — so two consecutive readings of a
+		// list nobody touched compare unequal, the held sighting is dropped, and no move
+		// is ever retained. Measured on 864 real frames: ONE retained move, from 31
+		// presses and a mark the reader followed through fourteen labelled changes.
+		//
+		// Identity is now something the tracker can say rather than something a caller
+		// infers from geometry, so this asks it. The entry-count term stays, because it
+		// answers the other question: the same list renumbered is not the same
+		// arrangement, and `TestAListThatRenumbersRetainsNoMove` holds that line.
+		w.heldList, w.heldEntries = next.ListID, next.Entries
 		w.heldEntry, w.heldGap = next.Selected, 0
 		// THE BANKED MOMENT IS NOT RESET HERE, and an earlier version did reset it.
 		//
@@ -616,7 +637,7 @@ func (w *InterfaceWatch) Observe(look InterfaceLook) {
 	// Deleting the look.Navs argument must fail TestTheActiveListIsTheOneThatRespondsToNavigation.
 	w.tracker.ObserveNavigated(rows, rowShades, w.navRecent(look))
 
-	live, why, ok := w.tracker.Active()
+	live, listID, why, ok := w.tracker.ActiveList()
 	next := InterfaceBelief{
 		Selected: -1, Reading: "insufficient_evidence",
 		Because: why, Observations: w.looks, After: w.tracker.IdentifiedAt(),
@@ -633,6 +654,7 @@ func (w *InterfaceWatch) Observe(look InterfaceLook) {
 
 	next.Status = InterfaceProvisional
 	next.Where = unscaleRect(live)
+	next.ListID = listID
 	// A DISCOVERY'S READING IS NOT A TRACKED ONE. Left set, the belief would keep claiming
 	// its selection came from a fast look long after a slow one replaced it — and the two
 	// timestamps would describe a read that is no longer the one being reported.
@@ -1166,6 +1188,10 @@ func (w *InterfaceWatch) navOpen(at time.Time) bool {
 // thing. Nothing here is derived or re-judged: `Qualifies` and `Unmet` come from the same
 // predicate the decision uses, so a report cannot disagree with the belief it explains.
 type InterfaceCandidate struct {
+	// ID names this tracked list for as long as it is tracked, and is never reused. It is
+	// what InterfaceBelief.ListID refers to, so the belief and the table can be read
+	// together.
+	ID int `json:"id,omitempty"`
 	// Where it sits, normalised and window-relative like every other region here.
 	Where Region `json:"where"`
 	// Members is how many rows the tracker knows this list to have.
@@ -1216,11 +1242,13 @@ type InterfaceCandidate struct {
 
 // maxInterfaceCandidates bounds what the report carries.
 //
-// A tracker never prunes: a candidate whose extent stops matching anything simply stops being
-// updated, and a long session on a changing screen accumulates them. The belief's `Because`
-// states the total, so a truncated list cannot be mistaken for the whole one — and
-// Tracker.Evidence sorts qualifying candidates first, so the ones a reader needs are the ones
-// that survive the cut.
+// A long session on a changing screen tracks more lists than a person will read about. The
+// belief's `Because` states the total, so a truncated list cannot be mistaken for the whole
+// one — and Tracker.Evidence sorts qualifying candidates first, so the ones a reader needs are
+// the ones that survive the cut.
+//
+// The tracker also retires candidates nothing has found again, and `Retired` counts them: a
+// population being pruned and one that was never crowded look identical from the survivors.
 const maxInterfaceCandidates = 12
 
 // Candidates is every list the tracker watched, most convincing first.
@@ -1237,6 +1265,7 @@ func (w *InterfaceWatch) Candidates() []InterfaceCandidate {
 	out := make([]InterfaceCandidate, 0, len(ev))
 	for _, e := range ev {
 		out = append(out, InterfaceCandidate{
+			ID:    e.ID,
 			Where: unscaleRect(e.Bounds), Members: e.Rows,
 			Frames: e.Frames, Judged: e.Judged(),
 			Exclusive: e.Exclusive, Shared: e.Shared, Quiet: e.Quiet,
@@ -1250,6 +1279,14 @@ func (w *InterfaceWatch) Candidates() []InterfaceCandidate {
 	}
 	return out
 }
+
+// RetiredCandidates is how many tracked lists have been dropped for not being found again.
+//
+// Reported rather than inferred, because retirement is the half of the identity rule that
+// nothing else can show: the survivors look the same whether the population is being pruned or
+// was never crowded, and a retired candidate's evidence is deliberately gone rather than
+// merged into whatever is tracked at that place next.
+func (w *InterfaceWatch) RetiredCandidates() int { return w.tracker.Retired() }
 
 // qualifyingLists counts the candidates that behave like one being used.
 func qualifyingLists(t *selection.Tracker) int {
@@ -1316,6 +1353,17 @@ func entriesInside(rows []selection.Row, shades []selection.Shade,
 		shade selection.Shade
 	}
 	var in []entry
+	// CONTAINED BY THE LIST, and a relaxation to "mostly inside" was tried and reverted.
+	//
+	// The reasoning for relaxing it was that a game draws the entry the person is on with a
+	// highlight, so the detector returns a larger box for it and the SELECTED row would be
+	// the one that pokes out of an extent that is actually the list's. That is a real shape
+	// of failure and it is not reachable here: under identity by rows a member moves to the
+	// row it was found as, so a row that grew a little is still that member and the extent
+	// grows with it. Measured on 864 real frames, the relaxation was worth 4 namings of 35,
+	// and no fixture could be built that it was load-bearing for — every swollen row that
+	// was mostly inside the list also still corresponded to its member.
+	// [[ADR-164-a-list-is-the-same-list-when-its-rows-are]].
 	for i, r := range rows {
 		if !r.Bounds.In(live.Inset(-2)) {
 			continue

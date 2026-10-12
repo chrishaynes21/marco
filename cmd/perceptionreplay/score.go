@@ -107,6 +107,28 @@ type selectionScore struct {
 	// points apart, which is the whole reason the single figure was misleading enough to
 	// be reported as a reader failure.
 	InsideNamed, InsideRight int
+	// Silent is why the reader said nothing, in the READER'S OWN WORDS, on the frames
+	// where a list was identified and no entry was named.
+	//
+	// `Unread` counts those frames and cannot say which failure they are, and the two it
+	// conflates want opposite work: a reader that looked at the list and found nothing
+	// standing out has read it correctly if nothing was selected, where a reader that could
+	// not assemble enough of a list to have a middle has not read it at all. Keyed on the
+	// outcome the reader published, so this cannot disagree with the belief.
+	//
+	// It became the question that mattered the moment the published extent stopped being a
+	// bucket: handed the whole screen the reader always found some spike, and handed the
+	// list itself it went quiet on nine frames in ten.
+	Silent map[string]int
+	// SilentEntries is how many entries the reader had in hand on those frames, as a
+	// histogram.
+	//
+	// THE OTHER HALF OF THE SAME QUESTION, and the half that turned out to matter. The
+	// reader is given the rows of THIS FRAME that fall inside the identified list, and a
+	// detector that found three rows of a nine-row menu leaves it three rows to find a
+	// middle in. "No row stands out from its siblings" over three siblings is not the same
+	// failure as the same sentence over nine, and the outcome alone cannot tell them apart.
+	SilentEntries map[int]int
 	// NamedAsTallAsList is how many namings were scored against a region at least half as
 	// tall as the whole list. An entry is not half a list, so any of these means the score
 	// is being computed against the wrong rectangle — see frameObservation.NamedHeight.
@@ -153,7 +175,8 @@ func rate(n, d int) float64 {
 
 // scoreSelection runs the whole session's trace against the labels.
 func scoreSelection(trace []frameObservation, ann *annotationFile) selectionScore {
-	s := selectionScore{Offsets: map[int]int{}, Lists: map[string]*listScore{}}
+	s := selectionScore{Offsets: map[int]int{}, Silent: map[string]int{},
+		SilentEntries: map[int]int{}, Lists: map[string]*listScore{}}
 	rows := ann.labelledRows()
 	pitch := labelledPitch(rows)
 	if pitch <= 0 {
@@ -174,6 +197,8 @@ func scoreSelection(trace []frameObservation, ann *annotationFile) selectionScor
 			switch f.Status {
 			case string(observe.InterfaceProvisional):
 				s.Unread++
+				s.Silent[readingClause(f.Reading)]++
+				s.SilentEntries[f.Entries]++
 			default:
 				s.NoList++
 			}
@@ -230,6 +255,25 @@ func scoreSelection(trace []frameObservation, ann *annotationFile) selectionScor
 		}
 	}
 	return s
+}
+
+// readingClause is the reader's own sentence, lifted out of the belief's prose.
+//
+// The prose is one line carrying the list's whole record and the reading together, which is
+// right for a person reading one frame and useless as a tally key. Taken from the prose rather
+// than from a second field, for the same reason the publishing arm is: a key that could
+// disagree with the sentence a person reads is a key that eventually does.
+func readingClause(because string) string {
+	const mark = "reading: "
+	i := strings.Index(because, mark)
+	if i < 0 {
+		return "(the belief named no reading)"
+	}
+	out := because[i+len(mark):]
+	if j := strings.Index(out, ";"); j >= 0 {
+		out = out[:j]
+	}
+	return strings.TrimSpace(out)
 }
 
 // confirmation is one labelled change of row, and how long the belief took to agree with it.
@@ -370,6 +414,31 @@ func reportSelectionScore(s selectionScore, confs []confirmation) {
 		"                      inside the list being read were right (%.0f%%)\n"+
 		"                      <-- what the reader does when handed the right list\n",
 		s.InsideRight, s.InsideNamed, rate(s.InsideRight, s.InsideNamed))
+	if len(s.Silent) > 0 {
+		keys := make([]string, 0, len(s.Silent))
+		for k := range s.Silent {
+			keys = append(keys, k)
+		}
+		sort.Slice(keys, func(i, j int) bool { return s.Silent[keys[i]] > s.Silent[keys[j]] })
+		fmt.Printf("    why silent        the reader's own outcome on the %d frame(s) that\n"+
+			"                      identified a list and named nothing:\n", s.Unread)
+		for _, k := range keys {
+			fmt.Printf("                      %-52s %d\n", trim(k, 52), s.Silent[k])
+		}
+		ns := make([]int, 0, len(s.SilentEntries))
+		for n := range s.SilentEntries {
+			ns = append(ns, n)
+		}
+		sort.Ints(ns)
+		var hist []string
+		for _, n := range ns {
+			hist = append(hist, fmt.Sprintf("%d:%d", n, s.SilentEntries[n]))
+		}
+		fmt.Printf("      entries in hand %s\n"+
+			"                      (how many rows of the list the detector found on\n"+
+			"                      those frames; three siblings have no middle)\n",
+			strings.Join(hist, "  "))
+	}
 	if s.Held > 0 {
 		fmt.Printf("    held over a gap   %d naming(s) repeated a previous claim on an\n"+
 			"                      unreadable frame; %d of those were right\n",

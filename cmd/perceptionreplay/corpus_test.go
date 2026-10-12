@@ -48,6 +48,75 @@ func corpusDir() string {
 	return ""
 }
 
+// At a coarse cadence this corpus identifies nothing, and that is the honest answer.
+//
+// # What this replaced
+//
+// Every tenth frame used to be the gate, and it ratcheted 22 correct-list frames of 83 and
+// allowed 33 wrong ones. Those 22 were not an identification. The only candidate that qualified
+// at that cadence was a five-row bucket whose final extent was y 0.078..0.355, whose hull —
+// the union of every extent it had ever held — was y 0.000..0.898, and which had changed area
+// by more than a factor of two 21 times. The menu is at y 0.528..0.857. It scored "correct" on
+// 22 frames and "wrong" on 33 by drifting across the menu on its way past.
+//
+// # Why nothing qualifies now
+//
+// Because a candidate has to be found again to accumulate anything, and at 660ms between looks
+// the mark has usually moved between them. The real menu's candidate reaches 28 exclusive
+// frames against 11 shared, and the exclusivity rule wants exclusive frames to outnumber shared
+// ones SharedPenalty-fold. So it falls one requirement short and says which — which is the
+// behaviour the brief asked for where the active list cannot be established.
+//
+// # What this test is for
+//
+// To stop that abstention quietly becoming a wrong answer again. It asserts no wrong list at
+// all, and that whatever the belief says, it names the requirement that fell short rather than
+// going silent. It does NOT assert that nothing is identified: identifying the menu here would
+// be an improvement and must not be a failure.
+func TestAtACoarseCadenceTheCorpusAbstains(t *testing.T) {
+	dir := corpusDir()
+	if dir == "" {
+		t.Skip("no local L0 recording found; set $MARCO_FRAME_CORPUS to run it.")
+	}
+	r, err := replayFrames(dir, 10, 0, false)
+	if err != nil {
+		t.Fatalf("replaying the local corpus: %v", err)
+	}
+	ls := r.Lists
+	if ls.Wrong > 0 {
+		t.Errorf("the belief was published about a structure that is not the menu on %d "+
+			"of %d labelled frames at this cadence. Abstaining is the answer here "+
+			"until a candidate behaves like the menu; a wrong list is wrong before "+
+			"the reader is consulted", ls.Wrong, ls.Labelled)
+	}
+	if ls.Correct > 0 {
+		t.Logf("the menu is now identified on %d of %d labelled frames at every tenth "+
+			"frame, which it was not. Raise this into an assertion and say so in "+
+			"the experiment record", ls.Correct, ls.Labelled)
+	}
+	// AND THE ABSTENTION HAS TO BE READABLE. "No list has been seen handing a mark" with
+	// no further detail is the sentence Experiment-025 ended on, and telling the five
+	// possible causes apart meant regrouping the run's geometry by hand afterwards.
+	if r.Identified < 0 && len(r.Candidates) == 0 {
+		t.Errorf("nothing was identified and no candidate was reported, so the "+
+			"abstention cannot be read: %s", r.Belief.Because)
+	}
+	var withShortfall int
+	for _, c := range r.Candidates {
+		if len(c.Unmet) > 0 {
+			withShortfall++
+		}
+	}
+	if r.Identified < 0 && withShortfall == 0 {
+		t.Errorf("%d candidate(s) were tracked, nothing was identified, and not one "+
+			"names a requirement it fell short of", len(r.Candidates))
+	}
+	t.Logf("every 10th frame: %d correct, %d wrong, %d none of %d labelled; identified "+
+		"after %d; %d candidate(s), %d naming a shortfall",
+		ls.Correct, ls.Wrong, ls.None, ls.Labelled, r.Identified, len(r.Candidates),
+		withShortfall)
+}
+
 func TestTheRealMenuCorpusStillReadsAsAMenu(t *testing.T) {
 	dir := corpusDir()
 	if dir == "" {
@@ -55,13 +124,24 @@ func TestTheRealMenuCorpusStillReadsAsAMenu(t *testing.T) {
 			"they are private and out of version control. Set $MARCO_FRAME_CORPUS to " +
 			"a capture-game-session directory to run it.")
 	}
-	// Every sixth frame: about 144 of 864, which is enough for the belief to identify a
-	// list and still runs in a few seconds. The full-corpus numbers live in ADR-157.
-	r, err := replayFrames(dir, 10, 0, false)
+	// EVERY FRAME, which takes about ninety seconds and is the point.
+	//
+	// It was every tenth, for speed, and that was affordable while a sampled run and a full
+	// one said roughly the same thing. They no longer do. Under identity by rows —
+	// [[ADR-164-a-list-is-the-same-list-when-its-rows-are]] — a candidate has to be found
+	// again to accumulate anything, and at every tenth frame this corpus gives the real menu
+	// 28 exclusive frames against 11 shared, which the exclusivity rule refuses. So the
+	// sampled run now identifies NOTHING, and a gate run there would ratchet an abstention.
+	//
+	// What the sampled run used to ratchet is in TestAtACoarseCadenceTheCorpusAbstains: a
+	// bucket whose hull spanned nine tenths of the screen, published on 55 frames and right
+	// about which list on 22 of them. Ninety seconds to measure the thing this whole effort
+	// is about is a trade worth making, and the alternative is a floor set on an artefact.
+	r, err := replayFrames(dir, 1, 0, false)
 	if err != nil {
 		t.Fatalf("replaying the local corpus: %v", err)
 	}
-	if r.Frames < 80 {
+	if r.Frames < 800 {
 		t.Fatalf("only %d frames reprocessed; the recording or the reader is wrong", r.Frames)
 	}
 
@@ -130,14 +210,24 @@ func TestTheRealMenuCorpusStillReadsAsAMenu(t *testing.T) {
 	//	every 10th frame   19 of 38 named the labelled row   50%
 	//	every frame        43 of 189                         23%
 	//
-	// So 90% was never achieved and is kept here as the TARGET, failed, rather than
-	// quietly lowered. The floors below are set at what is actually measured, so the next
-	// change has to beat it; the gap to the target is the work, and it is recorded in
-	// [[Experiment-026-the-same-menu-seen-from-pixels]] and the subsystem note.
+	// So 90% was never achieved and was kept here as the TARGET, failed, rather than
+	// quietly lowered.
+	//
+	// # IT IS ACHIEVED NOW, and the target moves rather than the floor
+	//
+	// Identity by rows takes the full corpus to 30 of 33 namings on the labelled row, 91%.
+	// What that cost is coverage: 135 frames named an entry before and 33 do, because the
+	// published extent used to be a bucket spanning the screen and the reader could find
+	// some spike inside it on almost any frame. 43 of those 135 were right. So the trade is
+	// 13 right answers for 89 wrong ones, and the wrong ones are the graph-corrupting half.
+	//
+	// The target is raised to 95% rather than retired, because the remaining 3 wrong
+	// namings in 33 are the reader missing by a row and that is a different piece of work
+	// from the coverage. Both are in [[Experiment-026-the-same-menu-seen-from-pixels]].
 	const (
-		wantNamed   = 38
-		wantMatched = 19
-		targetRate  = 0.90
+		wantNamed   = 35
+		wantMatched = 30
+		targetRate  = 0.95
 	)
 	if r.WithSelection < wantNamed {
 		t.Errorf("the belief named an entry on %d frames, against %d measured. Fewer "+
@@ -169,10 +259,10 @@ func TestTheRealMenuCorpusStillReadsAsAMenu(t *testing.T) {
 			"is vacuous. Either the trace is empty or the labels were not read")
 	}
 	const (
-		wantCovered  = 38
-		wantRight    = 19
-		wantReader   = 19
-		wantReaderOf = 20
+		wantCovered  = 33
+		wantRight    = 30
+		wantReader   = 30
+		wantReaderOf = 31
 		readerFloor  = 0.90
 	)
 	if sc.Named < wantCovered {
@@ -251,15 +341,31 @@ func TestTheRealMenuCorpusStillReadsAsAMenu(t *testing.T) {
 	}
 	// ── THE SHAPE OF THE ERROR, which is the diagnosis the next change rests on ────
 	//
-	// Every wrong naming measured here was a naming of the WRONG LIST, not of the wrong
-	// row in the right one: zero were off by a neighbour, and all but one had the
-	// labelled row outside the list being read entirely. That is what says the work is
-	// in disambiguation and not in the reader, and a change that quietly moves the
-	// errors into the reader must not pass as an improvement.
-	if sc.OffByOne != 0 {
-		t.Errorf("%d naming(s) were one row off. Zero were measured, and a neighbour "+
-			"confusion is a new class of error: half the labelled pitch is exactly "+
-			"the distinction a navigation route is made of", sc.OffByOne)
+	// Every wrong naming used to be a naming of the WRONG LIST rather than of the wrong row
+	// in the right one: zero off by a neighbour, 142 off by more, and 139 of those 142 with
+	// the labelled row outside the list being read entirely. That is what said the work was
+	// in disambiguation and not in the reader.
+	//
+	// THE ERRORS HAVE MOVED, which is what the work was for. Identity by rows leaves 3
+	// wrong namings in 33 against 142 in 185, and the signed-offset histogram went from a
+	// spike at -3 — a list starting three rows too low — to -1:3  +0:30  +3:1. So the
+	// residual error is now a neighbour confusion inside the right list, which is a
+	// smaller and different problem, and the ceiling below holds it where it is rather
+	// than letting it grow back.
+	//
+	// It is a CEILING and not an equality, because zero is no longer the measurement and
+	// pretending otherwise would fail every run. If it falls to zero, tighten it.
+	const allowOffByOne = 3
+	if sc.OffByOne > allowOffByOne {
+		t.Errorf("%d naming(s) were one row off, against %d measured. Half the labelled "+
+			"pitch is exactly the distinction a navigation route is made of, so a "+
+			"neighbour confusion is retained as a move between rows the mark never "+
+			"made", sc.OffByOne, allowOffByOne)
+	}
+	if sc.OffByOne < allowOffByOne {
+		t.Logf("%d naming(s) off by a neighbour, against %d measured. Lower the ceiling "+
+			"in this test and say so in the experiment record", sc.OffByOne,
+			allowOffByOne)
 	}
 	if wrong := sc.Named - sc.Right; wrong > 0 && sc.OutsideList < wrong-1 {
 		t.Errorf("%d of %d wrong namings had the labelled row outside the list being "+
@@ -288,9 +394,16 @@ func TestTheRealMenuCorpusStillReadsAsAMenu(t *testing.T) {
 		t.Errorf("the list score counted %d labelled frames and the selection score "+
 			"%d; they are the same population", ls.Labelled, sc.Labelled)
 	}
+	// THE NUMBER THIS CYCLE WAS ABOUT. 45 of 829 before identity by rows, and the 45 came
+	// from the one arm that consults input evidence while a bucket published the rest.
+	//
+	// allowWrongList is ZERO and that is an assertion, not a happy accident: a belief
+	// published about a structure that is not the menu is wrong before the reader is
+	// consulted, and every one of them is a candidate for a retained transition between
+	// rows the mark never visited. 147 of them at this cadence two commits ago.
 	const (
-		wantCorrectList = 22
-		allowWrongList  = 33
+		wantCorrectList = 312
+		allowWrongList  = 0
 	)
 	if ls.Correct < wantCorrectList {
 		t.Errorf("the belief was published about the labelled list on %d of %d "+
@@ -331,7 +444,7 @@ func TestTheRealMenuCorpusStillReadsAsAMenu(t *testing.T) {
 		}
 	}
 
-	t.Logf("real corpus, every 10th frame: %d frames, discovery %d/%d, grouping %d/%d, "+
+	t.Logf("real corpus, every frame: %d frames, discovery %d/%d, grouping %d/%d, "+
 		"identified after %d, named %d of which %d matched, %.1f proposals/frame",
 		r.Frames, r.CoveredSelected, r.LabelledFrames, r.Grouped, r.Frames,
 		r.Identified, r.WithSelection, r.CorrectSelection,
