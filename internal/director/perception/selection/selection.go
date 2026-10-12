@@ -69,6 +69,24 @@ type Row struct {
 	// A row alone in its group has no spatial evidence available, which is the honest
 	// description of EXIT and the reason the temporal half of this reader exists.
 	Group int
+	// ID is which ENTRY of a tracked list this row is, or zero when nothing can say.
+	//
+	// # Why the reader needs this and could not have it before
+	//
+	// A reader's only evidence about a row is how it compares with its own past, and its
+	// past has to be filed under something. It was filed under the row's position in the
+	// slice, which is not a thing that survives a frame: a detector that finds six rows
+	// and then seven has renumbered every row below the one it gained, so a position-filed
+	// history has to be thrown away whenever the count changes. On 864 real frames of one
+	// menu the count changed on most of them, and the reader said "no row stands out from
+	// its own unselected level" on 279 of the 312 frames where it was handed the right
+	// list.
+	//
+	// Zero means NO IDENTITY and is not an entry. A reader handed rows with no identities
+	// at all behaves exactly as it did, position-filed and dropped on a count change,
+	// because without an identity that is the only honest thing to do.
+	// [[ADR-165-an-entry-is-the-same-entry-when-nothing-says-otherwise]].
+	ID int
 }
 
 // Outcome is what the reader can say about a frame.
@@ -93,6 +111,16 @@ type Result struct {
 	// Why is a short account for a person reading a trace.
 	Why string
 
+	// ProvisionalEntry is the identity of the entry Provisional names, or zero. Same
+	// reason as Entry: a position does not survive a frame, and the caller that banks a
+	// provisional sighting looks it up again a frame or more later.
+	ProvisionalEntry int
+	// Entry is the identity of the entry Row names, or zero when the rows carried none.
+	//
+	// Row is a position in the slice the caller passed, and positions do not survive a
+	// frame. A caller that wants to know whether this is the SAME entry it was told about
+	// last time has to be told something that does; see Row.ID.
+	Entry int
 	// Provisional names the row THIS FRAME pointed at, when that row is not the one being
 	// published. -1 when the frame pointed at nothing, and -1 on the frame a row is
 	// confirmed, because a confirmed row is published rather than provisional.
@@ -190,8 +218,20 @@ const (
 // The samples here are therefore collected per row and never expire merely because time
 // passed — only because newer unselected samples displaced them.
 type Reader struct {
-	baseline [][]desc // per row, recent descriptions from frames in which it was not claimed
-	// lastDev is each row's distance from its own baseline on the previous frame.
+	// hist is recent descriptions of each row from frames in which it was not claimed,
+	// filed under the row's KEY: its entry identity where it has one, and otherwise its
+	// position in the slice, which is all there is to file under. See Row.ID.
+	hist map[int][]desc
+	// keyed says the rows the history was built from carried identities. A reader handed
+	// identified rows and then unidentified ones is being told about two different things,
+	// so the history is dropped rather than re-filed under positions it was never measured
+	// at.
+	keyed bool
+	// seen is how many rows the last frame had, used only in the unkeyed case, where a
+	// changed count means the caller is no longer describing the same rows and nothing
+	// can say which of them moved.
+	seen int
+	// lastDev is each row's distance from its own baseline on the previous frame, by key.
 	//
 	// Kept because magnitude alone cannot tell an arriving cue from a departing one, and
 	// the measured failures were all departing ones. When an entry loses the selection
@@ -199,22 +239,53 @@ type Reader struct {
 	// siblings AND away from its own baseline, so both kinds of evidence name the entry
 	// the selection has just left. What separates them is that one is growing and the
 	// other is dying.
-	lastDev  []float64
-	asserted int // the row currently being claimed, or -1
-	pending  int // a candidate not yet confirmed, or -1
+	lastDev  map[int]float64
+	asserted int // the KEY of the row being claimed, or 0
+	pending  int // the key of a candidate not yet confirmed, or 0
 	pendingN int // how many frames it has held
 	unread   int // consecutive frames with no usable winner
 }
 
 // New builds a reader with no history.
-func New() *Reader { return &Reader{asserted: -1, pending: -1} }
+func New() *Reader { return &Reader{hist: map[int][]desc{}} }
 
 // Reset forgets everything. Call it when the scene changed for a reason the reader cannot
 // see — a different window, a different screen — so that stale levels cannot be compared
 // against fresh ones.
 func (r *Reader) Reset() {
-	r.baseline, r.lastDev = nil, nil
-	r.asserted, r.pending, r.pendingN, r.unread = -1, -1, 0, 0
+	r.hist, r.lastDev = map[int][]desc{}, nil
+	r.keyed, r.seen = false, 0
+	r.asserted, r.pending, r.pendingN, r.unread = 0, 0, 0, 0
+}
+
+// keysOf names each row for the reader's own bookkeeping.
+//
+// An entry identity where there is one, and otherwise MINUS the position plus one, so that zero
+// always means "nothing names this row" and a history filed under a position can never be
+// mistaken for one filed under an identity. The sign is the cheap half of a guarantee that
+// would otherwise need a reset every time a caller changed its mind about naming rows.
+//
+// Mixed frames take the identities and leave the rest unnamed: a row nothing can identify has
+// no history to compare against and contributes no temporal evidence, which is the honest
+// answer rather than a guess at which row it is.
+func keysOf(rows []Row) ([]int, bool) {
+	var keyed bool
+	for _, row := range rows {
+		if row.ID != 0 {
+			keyed = true
+			break
+		}
+	}
+	out := make([]int, len(rows))
+	for i, row := range rows {
+		switch {
+		case keyed:
+			out[i] = row.ID
+		default:
+			out[i] = -(i + 1)
+		}
+	}
+	return out, keyed
 }
 
 // Read judges one frame against the candidate rows it is given.
@@ -235,30 +306,57 @@ func (r *Reader) ReadShades(rows []Row, descs []Shade) Result {
 		return reading(Insufficient, -1, "no candidate rows")
 	}
 
-	winner, why, departing := r.candidate(rows, descs)
+	keys, keyed := keysOf(rows)
+	// A HISTORY MEASURED UNDER POSITIONS IS NOT THIS FRAME'S HISTORY once the count has
+	// changed: the rows below the one that went missing are all at different indices, and
+	// nothing says which of them is which.
+	//
+	// Only in the unnamed case. A reader whose rows carry identities keeps each row's
+	// history under its own name, which is the whole decision. And a reader that is given
+	// identified rows after unidentified ones needs no reset either, because the two kinds
+	// of key cannot collide — see keysOf.
+	if !keyed && r.seen != len(rows) {
+		r.hist, r.lastDev = map[int][]desc{}, nil
+		r.asserted, r.pending, r.pendingN = 0, 0, 0
+	}
+	r.keyed, r.seen = keyed, len(rows)
+
+	winner, why, departing := r.candidate(rows, descs, keys)
 	// Recorded AFTER the judgement, so this frame is compared with the one before it.
-	dev := make([]float64, len(descs))
+	devs := make(map[int]float64, len(descs))
 	for i := range descs {
-		dev[i] = r.deviation(descs, i)
+		if keys[i] != 0 {
+			devs[keys[i]] = r.deviation(descs, keys, i)
+		}
 	}
 	// Remembered with the claim that was standing when the frame was read, so a row's
 	// baseline is built only from frames in which it was not the chosen one.
-	r.remember(descs, r.asserted)
-	r.lastDev = dev
-	return r.settle(winner, why, departing)
+	r.remember(descs, keys)
+	r.lastDev = devs
+	return r.settle(winner, keys, why, departing)
+}
+
+// hasHistory says whether this row has enough of its own unselected level to be judged
+// against it.
+func (r *Reader) hasHistory(keys []int, i int) bool {
+	if i < 0 || i >= len(keys) || keys[i] == 0 {
+		return false
+	}
+	return len(r.hist[keys[i]]) >= MinBaseline
 }
 
 // deviation is how far a row stands from its own unselected baseline, on whichever of its
 // features says so most loudly. Zero when there is not yet a baseline to compare against.
-func (r *Reader) deviation(descs []desc, i int) float64 {
-	if len(r.baseline) != len(descs) || i < 0 || i >= len(descs) ||
-		len(r.baseline[i]) < MinBaseline {
+func (r *Reader) deviation(descs []desc, keys []int, i int) float64 {
+	if i < 0 || i >= len(descs) || keys[i] == 0 ||
+		len(r.hist[keys[i]]) < MinBaseline {
 		return 0
 	}
+	hist := r.hist[keys[i]]
 	var worst float64
 	for f := range Features {
-		past := make([]float64, len(r.baseline[i]))
-		for j, d := range r.baseline[i] {
+		past := make([]float64, len(hist))
+		for j, d := range hist {
 			past[j] = d[f]
 		}
 		if v := math.Abs(descs[i][f] - median(past)); v > worst {
@@ -269,25 +367,46 @@ func (r *Reader) deviation(descs []desc, i int) float64 {
 }
 
 // candidate finds the row this FRAME points at, before any history of decisions is applied.
-func (r *Reader) candidate(rows []Row, descs []desc) (int, string, bool) {
+func (r *Reader) candidate(rows []Row, descs []desc, keys []int) (int, string, bool) {
 	spatial, spatialWhy := r.spatialOutlier(rows, descs)
-	temporal, temporalWhy, temporalReady := r.temporalOutlier(descs)
+	temporal, temporalWhy, temporalReady := r.temporalOutlier(descs, keys)
 
 	// A candidate whose cue is DYING is the row the selection is leaving, not the row it
 	// has arrived at. Refusing it is what turns a confident wrong answer into honest
 	// uncertainty, and it costs nothing on a settled selection, whose distance from
 	// baseline holds steady rather than shrinking.
 	fading := func(i int) bool {
-		if i < 0 || len(r.lastDev) != len(descs) {
+		if i < 0 || keys[i] == 0 {
 			return false
 		}
-		now, before := r.deviation(descs, i), r.lastDev[i]
+		before, ok := r.lastDev[keys[i]]
+		if !ok {
+			return false
+		}
+		now := r.deviation(descs, keys, i)
 		return before > FadeFloor && now < before*FadeRatio
 	}
 
 	// Before there is any baseline, being unlike one's siblings is the only evidence
 	// there is.
-	if !temporalReady {
+	//
+	// PER ROW AS WELL AS OVERALL, and the second half of that is a measured repair. The
+	// test used to be global: no temporal evidence anywhere, so take the spatial answer.
+	// Temporal evidence is now gathered from the rows that HAVE a history rather than
+	// refused unless every row does, which is most of what let the reader read at all —
+	// and it took this bypass away from the one row that needs it most.
+	//
+	// A row marked from the first look the reader ever gets of it has no unselected level
+	// and cannot acquire one, because the only frames it could learn from are frames in
+	// which it is marked. Without the bypass it is never published; not being published,
+	// it is not the standing claim; not being the standing claim, its selected level is
+	// filed as its unselected one; and from then on it and the row the mark moves to BOTH
+	// look deviant, so the temporal half abstains and the spatial half alone is refused as
+	// residual. Measured on a drawn fixture: a selection that was read in four looks was
+	// never read at all.
+	//
+	// So the bypass asks about the row in question rather than about the frame.
+	if !temporalReady || (spatial >= 0 && !r.hasHistory(keys, spatial)) {
 		if spatial >= 0 {
 			return spatial, spatialWhy, false
 		}
@@ -391,32 +510,46 @@ func (r *Reader) spatialOutlier(rows []Row, descs []desc) (int, string) {
 //
 // The deviation is absolute, deliberately. Nothing here assumes a chosen thing gets brighter;
 // a menu that marks its choice with a dark fill deviates downwards and reads the same way.
-func (r *Reader) temporalOutlier(descs []desc) (int, string, bool) {
-	if len(r.baseline) != len(descs) {
-		return -1, "", false
-	}
+func (r *Reader) temporalOutlier(descs []desc, keys []int) (int, string, bool) {
+	// THE ROWS THAT HAVE A HISTORY, and only those.
+	//
+	// It used to be every row or none: one row without MinBaseline samples and the whole
+	// frame offered no temporal evidence at all. On a real list that is the common case
+	// rather than the exception — a detector finds a row it had not found before, or a
+	// list gains one — and the cost is not a cautious answer but no answer. The tracker
+	// beside this reader has always compared the members it could judge and said how many
+	// they were; measured on the same 864 frames it found a mark on 261 of them while this
+	// said nothing on 279.
+	//
+	// minStack of them, which is the same floor the tracker uses and for the same reason:
+	// two rows have no middle for a third to stand out from.
+	judged := make([]int, 0, len(descs))
 	for i := range descs {
-		if len(r.baseline[i]) < MinBaseline {
-			return -1, "", false
+		if keys[i] != 0 && len(r.hist[keys[i]]) >= MinBaseline {
+			judged = append(judged, i)
 		}
+	}
+	if len(judged) < minStack {
+		return -1, "", false
 	}
 	rowScore := make([]float64, len(descs))
 	rowAbs := make([]float64, len(descs))
 	for f := range Features {
-		devs := make([]float64, len(descs))
-		for i := range descs {
-			past := make([]float64, len(r.baseline[i]))
-			for j, d := range r.baseline[i] {
+		devs := make([]float64, len(judged))
+		for k, i := range judged {
+			hist := r.hist[keys[i]]
+			past := make([]float64, len(hist))
+			for j, d := range hist {
 				past[j] = d[f]
 			}
-			devs[i] = descs[i][f] - median(past)
+			devs[k] = descs[i][f] - median(past)
 		}
 		mid := median(devs)
 		scale := math.Max(mad(devs, mid), MinSpread)
-		for i := range devs {
-			d := math.Abs(devs[i] - mid)
-			if s := d / scale; s > rowScore[i] {
-				rowScore[i] = s
+		for k, i := range judged {
+			d := math.Abs(devs[k] - mid)
+			if sc := d / scale; sc > rowScore[i] {
+				rowScore[i] = sc
 			}
 			if d > rowAbs[i] {
 				rowAbs[i] = d
@@ -424,7 +557,8 @@ func (r *Reader) temporalOutlier(descs []desc) (int, string, bool) {
 		}
 	}
 	best, bestScore, runnerUp := -1, 0.0, 0.0
-	for i, s := range rowScore {
+	for _, i := range judged {
+		s := rowScore[i]
 		if rowAbs[i] < MinAbsolute {
 			continue
 		}
@@ -442,9 +576,34 @@ func (r *Reader) temporalOutlier(descs []desc) (int, string, bool) {
 }
 
 // settle turns this frame's candidate into an answer, using what was decided before.
-func (r *Reader) settle(winner int, why string, departing bool) Result {
+func (r *Reader) settle(winner int, keys []int, why string, departing bool) Result {
+	// THE CLAIM IS A KEY AND THE ANSWER IS A POSITION, and translating between them is
+	// this function's other job. A key names an entry and survives a frame; a position
+	// names a slot in the slice the caller passed and does not.
+	at := func(key int) int {
+		if key == 0 {
+			return -1
+		}
+		for i, k := range keys {
+			if k == key {
+				return i
+			}
+		}
+		return -1
+	}
+	key := 0
+	if winner >= 0 {
+		key = keys[winner]
+	}
+	named := func(row int) Result {
+		out := reading(Selected, row, why)
+		if row >= 0 && row < len(keys) && r.keyed {
+			out.Entry = keys[row]
+		}
+		return out
+	}
 	if winner < 0 {
-		r.pending, r.pendingN = -1, 0
+		r.pending, r.pendingN = 0, 0
 		r.unread++
 		if departing {
 			// Holding is for a frame that could not be READ. This frame was read, and
@@ -452,36 +611,46 @@ func (r *Reader) settle(winner int, why string, departing bool) Result {
 			// Continuing to claim it would be the reader insisting on a thing it has
 			// just watched end — which is precisely the measured failure, six confident
 			// wrong answers all naming the entry the selection had moved off.
-			r.asserted = -1
+			r.asserted = 0
 			return reading(Insufficient, -1, why)
 		}
-		if r.asserted >= 0 && r.unread <= HoldFrames {
-			return reading(Selected, r.asserted,
-				"unreadable this frame; still claiming the settled selection")
+		held := at(r.asserted)
+		if held >= 0 && r.unread <= HoldFrames {
+			why = "unreadable this frame; still claiming the settled selection"
+			return named(held)
 		}
-		if r.asserted >= 0 {
+		if r.asserted != 0 && held < 0 {
+			// THE ENTRY IT WAS CLAIMING IS NOT IN THIS FRAME. There is no row to
+			// point at, and pointing at the position it used to be at would name
+			// whichever row has moved into that slot. An old observation is not a
+			// current one, and a position is not an entry.
+			r.asserted = 0
+			return reading(Insufficient, -1,
+				"the entry it was claiming is not among this frame's rows")
+		}
+		if r.asserted != 0 {
 			// Held as long as is honest. An old observation is not a current one.
-			r.asserted = -1
+			r.asserted = 0
 			return reading(Insufficient, -1,
 				"unreadable for too long to keep claiming the previous selection")
 		}
 		return reading(Insufficient, -1, why)
 	}
 	r.unread = 0
-	if winner == r.asserted {
-		r.pending, r.pendingN = -1, 0
-		return reading(Selected, winner, why)
+	if key == r.asserted {
+		r.pending, r.pendingN = 0, 0
+		return named(winner)
 	}
 	// A different row. Every measured transition blends for exactly one frame, so a
 	// change is not asserted until a second frame agrees.
-	if winner == r.pending {
+	if key == r.pending {
 		r.pendingN++
 	} else {
-		r.pending, r.pendingN = winner, 1
+		r.pending, r.pendingN = key, 1
 	}
 	if r.pendingN >= ConfirmFrames {
-		r.asserted, r.pending, r.pendingN = winner, -1, 0
-		return reading(Selected, winner, why)
+		r.asserted, r.pending, r.pendingN = key, 0, 0
+		return named(winner)
 	}
 	// THE ONE FRAME THAT REPORTS A PROVISIONAL ROW, and it reports it alongside an answer
 	// that still says nothing. Outcome and Row are untouched by the field beside them: a
@@ -490,27 +659,63 @@ func (r *Reader) settle(winner int, why string, departing bool) Result {
 	out := reading(Insufficient, -1,
 		"a different row this frame; waiting for it to be confirmed")
 	out.Provisional, out.ProvisionalN = winner, r.pendingN
+	if r.keyed {
+		out.ProvisionalEntry = key
+	}
 	return out
 }
 
-// remember adds this frame's levels to the baseline of every row that was not being claimed.
+// remember adds this frame's levels to the history of every row that was not being claimed.
 //
-// A changed row count means the caller is no longer describing the same thing, so the
-// baselines are dropped rather than re-indexed onto rows they were never measured from.
-func (r *Reader) remember(descs []desc, asserted int) {
-	if len(r.baseline) != len(descs) {
-		r.baseline = make([][]desc, len(descs))
-	}
+// Filed under the row's key, so a frame in which some other row was missing does not disturb
+// it. A row nothing can name contributes nothing: there is no honest place to file it.
+func (r *Reader) remember(descs []desc, keys []int) {
 	for i, v := range descs {
-		if i == asserted {
+		k := keys[i]
+		// NOR THE ROW BEING CONFIRMED. A row pending confirmation is one the reader
+		// has pointed at and not yet published, and filing its level as that row's
+		// UNSELECTED level is filing a selected sample. Measured: a drawn list's
+		// settled selection was asserted on one look and dropped on the next as a
+		// fading cue, because its own distance from its own baseline had shrunk by
+		// exactly the sample taken while it was pending.
+		//
+		// Bounded: a row is pending for at most ConfirmFrames looks. Excluding it for
+		// longer than that was tried — remembering AFTER settling, so the row is
+		// skipped on the look it is first pointed at as well — and it bought one right
+		// answer for ten NEIGHBOUR confusions on 864 real frames.
+		if k == 0 || k == r.asserted || k == r.pending {
 			continue
 		}
-		r.baseline[i] = append(r.baseline[i], v)
-		if len(r.baseline[i]) > BaselineSamples {
-			r.baseline[i] = r.baseline[i][len(r.baseline[i])-BaselineSamples:]
+		r.hist[k] = append(r.hist[k], v)
+		if len(r.hist[k]) > BaselineSamples {
+			r.hist[k] = r.hist[k][len(r.hist[k])-BaselineSamples:]
+		}
+	}
+	// AND THE NAMES THAT ARE NO LONGER USED ARE FORGOTTEN, so a session on a changing
+	// screen does not accumulate a history for every row it has ever seen. Bounded by what
+	// is on the screen rather than by what has been, which is the same thing candidate
+	// retirement does one level up.
+	if len(r.hist) > len(keys)*maxHistoryLists {
+		live := make(map[int]bool, len(keys))
+		for _, k := range keys {
+			live[k] = true
+		}
+		for k := range r.hist {
+			if !live[k] && k != r.asserted && k != r.pending {
+				delete(r.hist, k)
+			}
 		}
 	}
 }
+
+// maxHistoryLists is how many lists' worth of rows a reader may keep a history for before it
+// forgets the ones that are not on the screen.
+//
+// Not one, because a reader is handed the rows of one list at a time and a list whose rows the
+// detector is finding intermittently would otherwise lose the history of whichever rows were
+// missing from the last frame — which is the defect this filing exists to repair. Not unbounded,
+// because a session on a changing screen would keep every row it had ever seen.
+const maxHistoryLists = 4
 
 // Features is how many numbers describe a row.
 const Features = 2

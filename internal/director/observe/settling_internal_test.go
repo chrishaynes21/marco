@@ -36,13 +36,13 @@ func TestABankedMomentBelongsToOneRow(t *testing.T) {
 	//
 	// It used to test for a zero time itself. The test moved to noteSettling because a
 	// moment with no time is not a moment and storing one only to reject it later is two
-	// answers to one question — so settlingRow >= 0 now implies settlingAt is set, and
+	// answers to one question — so a banked entry now implies settlingAt is set, and
 	// that implication is what this asserts. A session with no clock really happens: it
 	// is the fixture that makes the press ledger report direction_unknown.
 	//
 	// Deleting the at.IsZero() refusal in noteSettling must fail this.
 	w.noteSettling(selection.Result{
-		Outcome: selection.Insufficient, Row: -1, Provisional: 2, ProvisionalN: 1,
+		Outcome: selection.Insufficient, Row: -1, Provisional: 2, ProvisionalEntry: 2, ProvisionalN: 1,
 	}, time.Time{})
 	if gotAt, _, known := w.settlingOf(2); known {
 		t.Errorf("a sighting with no clock was banked and reads back as known (%s). "+
@@ -53,7 +53,7 @@ func TestABankedMomentBelongsToOneRow(t *testing.T) {
 	// A press opens the window, then row 2 is pointed at and not published.
 	w.Navigated(at, 1)
 	w.noteSettling(selection.Result{
-		Outcome: selection.Insufficient, Row: -1, Provisional: 2, ProvisionalN: 1,
+		Outcome: selection.Insufficient, Row: -1, Provisional: 2, ProvisionalEntry: 2, ProvisionalN: 1,
 	}, at)
 
 	got, prompted, known := w.settlingOf(2)
@@ -95,11 +95,11 @@ func TestAPublishedLookLeavesTheBankedMomentStanding(t *testing.T) {
 	w := NewInterfaceWatch()
 	at := time.Unix(1760000000, 0)
 	w.noteSettling(selection.Result{
-		Outcome: selection.Insufficient, Row: -1, Provisional: 2, ProvisionalN: 1,
+		Outcome: selection.Insufficient, Row: -1, Provisional: 2, ProvisionalEntry: 2, ProvisionalN: 1,
 	}, at)
 	// The next look publishes row 2 and reports nothing provisional.
 	w.noteSettling(selection.Result{
-		Outcome: selection.Selected, Row: 2, Provisional: -1,
+		Outcome: selection.Selected, Row: 2, Provisional: -1, Entry: 2,
 	}, at.Add(100*time.Millisecond))
 
 	got, _, known := w.settlingOf(2)
@@ -135,9 +135,13 @@ func TestAnUndatedMoveIsJudgedByTheWindowAsItStands(t *testing.T) {
 	list := Region{X: 0.05, Y: 0.10, Width: 0.30, Height: 0.60}
 	// A belief about one list, with the mark on a given entry. Status must be provisional
 	// or noteMove drops the held sighting instead of comparing against it.
+	// The entry identities are what noteMove compares, and ListEntries is the list's own
+	// count rather than this frame's — both are what a move is recorded against now, so a
+	// belief built by hand has to carry them or there is no move to assert anything about.
 	belief := func(sel int, at time.Time) InterfaceBelief {
 		return InterfaceBelief{
 			Status: InterfaceProvisional, Where: list, Entries: 5,
+			ListEntries: 5, SelectedEntry: sel + 1, SelectedRank: sel,
 			Selected: sel, At: at, Sample: 1,
 		}
 	}

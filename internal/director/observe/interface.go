@@ -61,6 +61,24 @@ type InterfaceBelief struct {
 	// identity: a list whose rows are re-found a pixel lower publishes a different extent
 	// and is the same list. Whether it is the same list is the tracker's answer to give.
 	ListID int `json:"list_id,omitempty"`
+	// SelectedRank is where SelectedEntry sits among the list's own rows, counted from the
+	// top and starting at ZERO, and is meaningful only where SelectedEntry is non-zero.
+	// ListEntries is how many rows the list has.
+	//
+	// Entries, beside them, is how many rows the DETECTOR found inside the list this
+	// frame, which is a different number and moves constantly. These two are over the
+	// list's members, so they change only when the list itself does — which is what makes
+	// "entry 3 of 6" mean the same row from one look to the next.
+	SelectedRank int `json:"selected_rank,omitempty"`
+	ListEntries  int `json:"list_entries,omitempty"`
+	// SelectedEntry is the IDENTITY of the entry Selected names, or zero.
+	//
+	// Selected is a position among the rows this frame's detector found inside the list,
+	// and a position does not survive a frame: a detector that misses one row has
+	// renumbered every row below it. Anything that compares one reading with the next —
+	// whether the mark moved, whether it moved WITHIN one list — has to compare this
+	// instead. [[ADR-165-an-entry-is-the-same-entry-when-nothing-says-otherwise]].
+	SelectedEntry int `json:"selected_entry,omitempty"`
 	// Where the list is, window-relative and normalised. Zero unless provisional.
 	Where Region `json:"where,omitzero"`
 	// Entries is how many candidate entries were found in it. NOT how many it has.
@@ -268,10 +286,13 @@ type InterfaceWatch struct {
 	// across looks in TIME rather than in observations.
 	navDebt time.Duration
 	navAt   time.Time
-	// settlingRow, settlingAt and settlingPrompted are the row the reader is waiting to
-	// confirm, when it was FIRST pointed at, and whether the response window was open at
-	// that moment. See noteSettling, which is the only thing that writes them.
-	settlingRow      int
+	// settlingEntry, settlingAt and settlingPrompted are the ENTRY the reader is waiting
+	// to confirm, when it was FIRST pointed at, and whether the response window was open
+	// at that moment. See noteSettling, which is the only thing that writes them.
+	//
+	// An entry and not a row: the bank is read back a frame or more later, by which time a
+	// position names whichever row has moved into that slot.
+	settlingEntry    int
 	settlingAt       time.Time
 	settlingPrompted bool
 	// lookAt is when the previous look was taken and interval the gap to the one before
@@ -284,6 +305,8 @@ type InterfaceWatch struct {
 	// pendingDropped how many the bound refused. See TakeSelectionMoves.
 	pending        []SelectionMove
 	pendingDropped int
+	// heldRank is the rank the held entry had when it was seen, for the move's prose.
+	heldRank int
 	// heldList, heldEntries and heldEntry are the list the mark was last SEEN in and
 	// which entry of it; heldGap how many looks have brought no reading since. See
 	// noteMove, which is the only thing that touches them.
@@ -462,28 +485,29 @@ func (w *InterfaceWatch) TakeSelectionMoves() ([]SelectionMove, int) {
 func (w *InterfaceWatch) noteMove(_, next InterfaceBelief) {
 	if next.Status != InterfaceProvisional {
 		// No list is identified, so there is nothing for a mark to be an entry OF.
-		w.heldEntry, w.heldGap = -1, 0
+		w.heldEntry, w.heldRank, w.heldGap = 0, 0, 0
 		w.heldList, w.heldEntries = 0, 0
 		return
 	}
-	if next.ListID != w.heldList || next.Entries != w.heldEntries {
-		// A DIFFERENT LIST, or the same one renumbered. "Entry 3" means nothing except
-		// against a stable count of entries: a list that gained a row has renumbered
-		// everything below it.
+	if next.ListID != w.heldList || next.ListEntries != w.heldEntries {
+		// A DIFFERENT LIST, or the same one that has gained or lost a row.
 		//
-		// THE FIRST TERM WAS THE PUBLISHED EXTENT, and comparing rectangles was wrong in
-		// the direction that costs everything. A list's extent is the extent of its rows,
-		// and a row found one pixel lower moves it — so two consecutive readings of a
-		// list nobody touched compare unequal, the held sighting is dropped, and no move
-		// is ever retained. Measured on 864 real frames: ONE retained move, from 31
-		// presses and a mark the reader followed through fourteen labelled changes.
+		// BOTH TERMS USED TO BE FRAME-LOCAL AND BOTH WERE WRONG IN THE SAME DIRECTION.
+		// The first was the published EXTENT: a list's extent is the extent of its rows,
+		// and a row found one pixel lower moves it, so two readings of a list nobody had
+		// touched compared unequal. The second was `Entries`, how many rows the DETECTOR
+		// found inside the list this frame — which on 864 real frames took nine different
+		// values and changed on most frames. Between them the held sighting was dropped
+		// almost every look and three moves were retained from 31 presses.
 		//
-		// Identity is now something the tracker can say rather than something a caller
-		// infers from geometry, so this asks it. The entry-count term stays, because it
-		// answers the other question: the same list renumbered is not the same
-		// arrangement, and `TestAListThatRenumbersRetainsNoMove` holds that line.
-		w.heldList, w.heldEntries = next.ListID, next.Entries
-		w.heldEntry, w.heldGap = next.Selected, 0
+		// Both are now over the list itself. The identity is the tracker's answer, and the
+		// count is of the list's MEMBERS, which changes only when the list gains or loses
+		// one. That is the real renumbering, and it is the one this guard is for:
+		// `SelectedRank` is a position among the members, so a list that gained a row has
+		// moved every rank below it and a move recorded across that boundary would name
+		// two rows the mark was never on. `TestAListThatRenumbersRetainsNoMove` holds it.
+		w.heldList, w.heldEntries = next.ListID, next.ListEntries
+		w.heldEntry, w.heldRank, w.heldGap = next.SelectedEntry, next.SelectedRank, 0
 		// THE BANKED MOMENT IS NOT RESET HERE, and an earlier version did reset it.
 		//
 		// A settling row is an INDEX into one list, so the obvious thing is to drop it
@@ -496,18 +520,19 @@ func (w *InterfaceWatch) noteMove(_, next InterfaceBelief) {
 		// places remembering to clear it.
 		return
 	}
-	if next.Selected < 0 {
-		// The mark was not read this look. Not a move to nowhere — an unread look, and
-		// the only thing it changes is how good the next sighting's evidence is.
+	if next.SelectedEntry == 0 {
+		// The mark was not read this look, or was read on a row that is not an entry of
+		// this list. Not a move to nowhere — an unread look, and the only thing it
+		// changes is how good the next sighting's evidence is.
 		w.heldGap++
 		if w.heldGap > MaxUnreadBetweenSightings {
-			w.heldEntry = -1
+			w.heldEntry, w.heldRank = 0, 0
 		}
 		return
 	}
-	from, gap := w.heldEntry, w.heldGap
-	w.heldEntry, w.heldGap = next.Selected, 0
-	if from < 0 || from == next.Selected {
+	from, fromRank, gap := w.heldEntry, w.heldRank, w.heldGap
+	w.heldEntry, w.heldRank, w.heldGap = next.SelectedEntry, next.SelectedRank, 0
+	if from == 0 || from == next.SelectedEntry {
 		return
 	}
 	if len(w.pending) >= MaxPendingSelectionMoves {
@@ -525,15 +550,18 @@ func (w *InterfaceWatch) noteMove(_, next InterfaceBelief) {
 	// move did before FirstSeen existed.
 	prompted := w.navDebt > 0
 	firstSeen, lateMS := time.Time{}, int64(0)
-	if seenAt, seenPrompted, known := w.settlingOf(next.Selected); known {
+	if seenAt, seenPrompted, known := w.settlingOf(next.SelectedEntry); known {
 		firstSeen, prompted = seenAt, seenPrompted
 		if !at.IsZero() && at.After(seenAt) {
 			lateMS = at.Sub(seenAt).Milliseconds()
 		}
 	}
 	w.pending = append(w.pending, SelectionMove{
-		Where: next.Where, Entries: next.Entries,
-		From: from, To: next.Selected, Gap: gap,
+		// THE LIST'S OWN COUNT AND THE RANKS WITHIN IT, not this frame's. A move says
+		// "from entry 3 to entry 5 of a 6-entry list", and every number in that sentence
+		// has to be about the list rather than about one look at it.
+		Where: next.Where, Entries: next.ListEntries,
+		From: fromRank, To: next.SelectedRank, Gap: gap,
 		// THE WINDOW AS IT STOOD WHEN THE PIXELS MOVED, where they could be dated.
 		//
 		// It used to be the window as it stood at the CONFIRMATION, which is a look or
@@ -579,9 +607,9 @@ func (w *InterfaceWatch) noteMove(_, next InterfaceBelief) {
 //
 // Deleting the row test must fail TestABankedMomentBelongsToOneRow.
 func (w *InterfaceWatch) settlingOf(row int) (at time.Time, prompted, known bool) {
-	// settlingRow >= 0 implies settlingAt is set: noteSettling refuses an undated sighting
+	// settlingEntry >= 0 implies settlingAt is set: noteSettling refuses an undated sighting
 	// rather than banking one for this to reject.
-	if row < 0 || row != w.settlingRow {
+	if row == 0 || row != w.settlingEntry {
 		return time.Time{}, false, false
 	}
 	return w.settlingAt, w.settlingPrompted, true
@@ -590,12 +618,12 @@ func (w *InterfaceWatch) settlingOf(row int) (at time.Time, prompted, known bool
 // NewInterfaceWatch starts one, believing nothing.
 func NewInterfaceWatch() *InterfaceWatch {
 	return &InterfaceWatch{
-		tracker:     selection.NewTracker(),
-		reader:      selection.New(),
-		heldEntry:   -1,
-		settlingRow: -1,
-		belief:      InterfaceBelief{Status: InterfaceUnknown, Selected: -1, Reading: "insufficient_evidence"},
-		change:      InterfaceChange{From: -1, To: -1, Why: "nothing observed yet"},
+		tracker:       selection.NewTracker(),
+		reader:        selection.New(),
+		heldEntry:     -1,
+		settlingEntry: 0,
+		belief:        InterfaceBelief{Status: InterfaceUnknown, Selected: -1, Reading: "insufficient_evidence"},
+		change:        InterfaceChange{From: -1, To: -1, Why: "nothing observed yet"},
 	}
 }
 
@@ -661,6 +689,15 @@ func (w *InterfaceWatch) Observe(look InterfaceLook) {
 	next.Tracked, next.TrackedAt, next.TrackedAfterMS = false, time.Time{}, 0
 
 	kept, keptShades := entriesInside(rows, rowShades, live)
+	// EACH ROW NAMED AS AN ENTRY OF THE LIST, before the reader is asked anything. The
+	// reader's only evidence about a row is how it compares with its own past, and its past
+	// has to be filed under a name that survives a frame. Deleting this must fail
+	// TestTheReaderKeepsARowsHistoryWhenAnotherRowGoesMissing.
+	for i, id := range w.tracker.ActiveEntries(kept) {
+		kept[i].ID = id
+	}
+	ranks, listEntries := w.tracker.ActiveEntryRanks()
+	next.ListEntries = listEntries
 	next.Entries = len(kept)
 	for _, r := range kept {
 		if unnamed[r.Bounds] {
@@ -675,6 +712,8 @@ func (w *InterfaceWatch) Observe(look InterfaceLook) {
 	next.Reading = string(res.Outcome)
 	if res.Outcome == selection.Selected && res.Row >= 0 && res.Row < len(kept) {
 		next.Selected = res.Row
+		next.SelectedEntry = res.Entry
+		next.SelectedRank = ranks[res.Entry]
 		next.SelectedWhere = unscaleRect(kept[res.Row].Bounds)
 	}
 	next.Because = why + "; reading: " + res.Why
@@ -1011,7 +1050,7 @@ func (w *InterfaceWatch) noteSettling(res selection.Result, at time.Time) {
 		// the way out. A session with no clock can still point at rows, and banking
 		// one would store a row index against a zero time for settlingOf to reject
 		// later — two answers to one question. Refusing here makes the invariant
-		// settlingRow >= 0 implies settlingAt non-zero true by construction, which is
+		// settlingEntry >= 0 implies settlingAt non-zero true by construction, which is
 		// why settlingOf no longer tests for it: the mutation gate showed the second
 		// test could not change an outcome.
 		return
@@ -1035,8 +1074,8 @@ func (w *InterfaceWatch) noteSettling(res selection.Result, at time.Time) {
 	//
 	// Deleting the ProvisionalN test must fail
 	// TestALapsedSightingIsNotTheMomentOfALaterArrival.
-	if res.Provisional != w.settlingRow || res.ProvisionalN <= 1 {
-		w.settlingRow = res.Provisional
+	if res.ProvisionalEntry != w.settlingEntry || res.ProvisionalN <= 1 {
+		w.settlingEntry = res.ProvisionalEntry
 		w.settlingAt = at
 		w.settlingPrompted = w.navDebt > 0
 	}

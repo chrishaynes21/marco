@@ -421,6 +421,14 @@ func TestAFastMoveLongAfterThePressIsNotPrompted(t *testing.T) {
 			Generation: 1, Rows: rows, Shades: shadesFor(mark),
 		})
 	}
+	// AND THE TRACKING COUNTER SAW IT AS A MOVE. It counts a change of the ENTRY the mark
+	// is on, not of its position among the rows this look happened to find — a detector
+	// that misses one row shifts every position below it, and a counter reading positions
+	// reports a move nothing made.
+	if tr := watch.Tracking(); tr.Moves == 0 {
+		t.Errorf("the fast reads moved the mark and the tracking counter reports no "+
+			"move: %+v", tr)
+	}
 	moves, _ := watch.TakeSelectionMoves()
 	if len(moves) == 0 {
 		t.Fatalf("the fast read moved the mark and produced no move, so there is nothing "+
@@ -828,21 +836,25 @@ func TestAMoveIsNotRetainedAcrossTwoDifferentLists(t *testing.T) {
 		first, second, len(totals.SelectionTransitions))
 }
 
-// A list that gains an entry has renumbered itself, and did not hand its mark along.
+// A row that is not an entry of the list changes nothing, however it is numbered.
 //
-// # Why this needs its own fixture
+// # What this used to assert, and why it changed
 //
-// Because the obvious one — a row appearing above the list — moves the list's EXTENT as well as
-// its numbering, so the envelope half of the guard catches it and the entry-count half is never
-// consulted.
+// A row appearing BETWEEN two entries used to renumber the list: "entry 3" was a position among
+// the rows the detector found inside the list, so an interloper above it made entry 3 mean a
+// different row, and a move recorded across that boundary named two rows the mark was never on.
+// The guard against it compared the frame-local entry count.
 //
-// A row appearing BETWEEN two entries changes nothing about where the list is. It changes what
-// "entry 3" means, which is the whole claim. And it has to appear only AFTER the list has been
-// identified: an interloper present throughout stops the list qualifying at all, and the test
-// then passes because nothing was watching rather than because the guard held.
+// Entries are identified now — [[ADR-165-an-entry-is-the-same-entry-when-nothing-says-otherwise]]
+// — so an interloper renumbers NOTHING. It is one pitch from no member, so the list does not
+// admit it; it is nearer no member than that member's own row, so it is given no identity; and
+// a reading of it therefore names no entry at all. The honest assertion is now the stronger one:
+// a row the list does not contain cannot move the mark, cannot renumber what the mark is on, and
+// cannot be one end of a retained move.
 //
-// Deleting `next.Entries != w.heldEntries` from the guard in noteMove must fail this.
-func TestAListThatRenumbersRetainsNoMove(t *testing.T) {
+// Deleting the `at most one row per entry` rule in Tracker.ActiveEntries, so that an interloper
+// can take a real entry's identity, must fail this.
+func TestARowThatIsNotAnEntryChangesNothing(t *testing.T) {
 	var totals observe.ShadowTotals
 	base := time.Unix(1760000000, 0)
 	seq := 0
@@ -851,9 +863,14 @@ func TestAListThatRenumbersRetainsNoMove(t *testing.T) {
 		sample := oneListSample(seq,
 			base.Add(time.Duration(seq)*100*time.Millisecond), mark, nil)
 		if interloper {
+			// JUST ABOVE THE ROW THE MARK IS ON, which is what makes an
+			// identity being stolen visible. An interloper elsewhere in the
+			// list can take a row's name and nothing downstream notices,
+			// because the mark is not on that row.
 			sample.Shadow.Shapes = append(sample.Shadow.Shapes, observe.ShadowShape{
 				Region: observe.Region{
-					X: 0.05, Y: 0.10 + 0.090, Width: 0.20, Height: 0.022,
+					X: 0.05, Y: 0.10 + 3*0.120 - 0.030, Width: 0.20,
+					Height: 0.022,
 				},
 				Confidence: 0.3, Shade: []float64{44, 74},
 			})
@@ -871,30 +888,160 @@ func TestAListThatRenumbersRetainsNoMove(t *testing.T) {
 			}
 		}
 	}
+	// AND THE MARK PARKED, long enough that the move it made getting here is already
+	// counted. The walk above ends on its last entry, so the first look of the stretch
+	// below is a move that really happened — and a snapshot taken before it would read
+	// that move as something the interloper caused.
+	for range 6 {
+		feed(3, false)
+	}
 	if totals.Interface.Status != observe.InterfaceProvisional {
-		t.Fatalf("no list was identified, so the guard is not what refuses anything "+
-			"below: %s", totals.Interface.Because)
+		t.Fatalf("no list was identified, so nothing below is about an interloper: %s",
+			totals.Interface.Because)
 	}
 	before := len(totals.SelectionTransitions)
+	wasEntry, wasRank := totals.Interface.SelectedEntry, totals.Interface.SelectedRank
+	wasList := totals.Interface.ListEntries
+	if wasEntry == 0 {
+		t.Fatalf("the mark is on no entry before the interloper arrives, so this says "+
+			"nothing about what one changes: %s", totals.Interface.Because)
+	}
 
-	// NOW the numbering changes under a mark that never moves, each state held for
-	// three looks.
+	// NOW the interloper, each state held for three looks.
 	//
-	// HELD, because the selection reader refuses a row it has seen once. Alternating
-	// every look means the index is never confirmed, Selected stays unreadable, and
-	// nothing is recorded whether the guard is there or not — which is how the first
-	// version of this test survived its own gate.
+	// HELD, because the selection reader refuses a row it has seen once. Alternating every
+	// look means the index is never confirmed, nothing is recorded whether the guard is
+	// there or not, and that is how the first version of this test survived its own gate.
 	for i := range 60 {
 		feed(3, (i/3)%2 == 0)
 	}
 	if got := len(totals.SelectionTransitions); got != before {
-		var fresh []observe.SelectionTransition
-		for _, st := range totals.SelectionTransitions {
-			fresh = append(fresh, st)
-		}
-		t.Errorf("%d moves became %d while the mark sat on one row and only the "+
-			"numbering changed around it: %v", before, got, fresh)
+		t.Errorf("%d moves became %d while the mark sat on one row and a row that is "+
+			"not an entry came and went around it: %v", before, got,
+			totals.SelectionTransitions)
 	}
-	t.Logf("%d moves before the renumbering and %d after; entries seen: %d",
-		before, len(totals.SelectionTransitions), totals.Interface.Entries)
+	if got := totals.Interface.ListEntries; got != wasList {
+		t.Errorf("the list went from %d entries to %d. A row one pitch from no member "+
+			"is not the list's next row and must not join it", wasList, got)
+	}
+	if got := totals.Interface.SelectedEntry; got != wasEntry {
+		t.Errorf("the mark was on entry %d and is now on entry %d, with nothing moving "+
+			"but a row the list does not contain", wasEntry, got)
+	}
+	if got := totals.Interface.SelectedRank; got != wasRank {
+		t.Errorf("the mark was at rank %d and is now at rank %d; an interloper "+
+			"renumbered the list", wasRank, got)
+	}
+	// AND THE RANK IS THE ROW'S PLACE IN THE LIST, not whatever came out of a map that
+	// nothing filled. The walk leaves the mark on the fourth of five rows.
+	if wasRank != 3 {
+		t.Errorf("the mark is on the fourth row of the list and the belief puts it at "+
+			"rank %d, counting from zero at the top", wasRank)
+	}
+	t.Logf("%d moves before and after; entry %d at rank %d of %d throughout",
+		before, wasEntry, wasRank, wasList)
+}
+
+// A list that GAINS a row does not renumber what has already been learned.
+//
+// # The requirement this is for
+//
+// "Missing rows must not silently renumber learned graph transitions." A list may admit a row
+// where its own regular spacing says its next row goes, which is what lets a nine-entry menu be
+// tracked as nine rather than as the six the detector first found — and every rank below that
+// row moves when it joins. A transition already recorded says "from entry 3 to entry 4 of a
+// 5-entry list", and it has to go on meaning the rows it meant: it is a record of something
+// that was observed, not a live view of the list.
+//
+// # What is NOT asserted here, and why
+//
+// That no move straddles the change. It cannot: a reading is only published after
+// ConfirmFrames looks agree, so by the time a new entry is read the count has already settled
+// and the held sighting has been re-taken under it. `TestAListThatScrolledRetainsNoMoveAcrossTheScroll`
+// is what pins the count term in noteMove, where the member set loses a row rather than gains
+// one and the belief passes through an unreadable look.
+func TestAListThatGainsARowDoesNotRenumberWhatWasLearned(t *testing.T) {
+	var totals observe.ShadowTotals
+	base := time.Unix(1760000000, 0)
+	seq := 0
+	feed := func(mark int, extra bool) {
+		seq++
+		sample := oneListSample(seq,
+			base.Add(time.Duration(seq)*100*time.Millisecond), mark, nil)
+		if extra {
+			// ONE PITCH BELOW THE LAST ENTRY, which is where this list's own spacing
+			// says its next row goes. oneListSample puts five rows at 0.120 intervals
+			// from y 0.10, so the sixth belongs at 0.70.
+			sample.Shadow.Shapes = append(sample.Shadow.Shapes, observe.ShadowShape{
+				Region: observe.Region{
+					X: 0.05, Y: 0.70, Width: 0.30, Height: 0.080,
+				},
+				Confidence: 0.3, Shade: []float64{86, 116},
+			})
+		}
+		totals.Observe(sample)
+	}
+	for range 14 {
+		feed(0, false)
+	}
+	for range 12 {
+		for mark := range 5 {
+			for range 3 {
+				feed(mark, false)
+			}
+		}
+	}
+	for range 6 {
+		feed(3, false)
+	}
+	if totals.Interface.Status != observe.InterfaceProvisional {
+		t.Fatalf("no list was identified: %s", totals.Interface.Because)
+	}
+	learned := map[string]int{}
+	for _, st := range totals.SelectionTransitions {
+		learned[st.String()] = st.Count
+	}
+	if len(learned) == 0 {
+		t.Fatal("nothing was learned before the list grew, so nothing below could be " +
+			"renumbered")
+	}
+	wasList := totals.Interface.ListEntries
+
+	// THE SIXTH ROW ARRIVES, and the mark goes on being navigated afterwards.
+	for range 6 {
+		feed(3, true)
+	}
+	for range 12 {
+		for mark := range 5 {
+			for range 3 {
+				feed(mark, true)
+			}
+		}
+	}
+	if got := totals.Interface.ListEntries; got <= wasList {
+		t.Fatalf("the list still reports %d entries after a row arrived one pitch below "+
+			"its last one, so it never grew and nothing below is about a list that "+
+			"gained a row: %s", got, totals.Interface.Because)
+	}
+	now := map[string]int{}
+	for _, st := range totals.SelectionTransitions {
+		now[st.String()] = st.Count
+	}
+	for key, count := range learned {
+		got, ok := now[key]
+		if !ok {
+			t.Errorf("the transition %q was learned before the list gained a row and "+
+				"is gone. A record of something observed does not stop being "+
+				"true because the list it was seen in has changed since",
+				key)
+			continue
+		}
+		if got < count {
+			t.Errorf("the transition %q was seen %d time(s) and now reports %d",
+				key, count, got)
+		}
+	}
+	t.Logf("%d entries became %d; %d transition(s) learned before, %d after, all %d "+
+		"earlier ones intact", wasList, totals.Interface.ListEntries, len(learned),
+		len(now), len(learned))
 }

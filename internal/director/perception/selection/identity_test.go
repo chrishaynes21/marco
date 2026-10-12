@@ -2,6 +2,7 @@ package selection_test
 
 import (
 	"image"
+	"strings"
 	"testing"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/selection"
@@ -433,15 +434,22 @@ func TestARowThatOnlyLooselyMatchesAMemberDoesNotMoveIt(t *testing.T) {
 	}
 	was := tr.Evidence()[0].Bounds
 
-	// THREE OF THE LIST'S OWN ROWS, so the frame is this list, plus two rows 80 pixels
-	// below where the last two members are. Eighty is well inside a quarter of the
-	// list's height, which is what attribution allows, and well outside half a row's
-	// height, which is what being the same row allows.
+	// THREE OF THE LIST'S OWN ROWS, so the frame is this list, plus two rows that sit half
+	// a pitch below where the last two members are and are half their height.
+	//
+	// Half a pitch is well inside a quarter of the LIST's height, which is what attribution
+	// allows and what makes this a loose match; more than half the SHORTER row's height,
+	// which is what being the same row allows; and nowhere near a whole pitch, which is
+	// what being the list's next row allows. All three bounds matter: at six tenths of a
+	// pitch the first of them is the same row as the member below it, that member follows
+	// it up the screen, and the second is then exactly one pitch below where the member
+	// has just moved to and is admitted as the next row.
 	mixed := append([]selection.Row{}, list[:3]...)
 	for _, k := range list[3:] {
 		b := k.Bounds
 		mixed = append(mixed, selection.Row{
-			Bounds: b.Add(image.Pt(0, 80)), Group: 0,
+			Bounds: image.Rect(b.Min.X, b.Min.Y+50, b.Max.X, b.Min.Y+90),
+			Group:  0,
 		})
 	}
 	for i := range 12 {
@@ -667,6 +675,33 @@ func TestAMemberNothingFindsAgainIsForgotten(t *testing.T) {
 			"the holders are positions in a slice that has been renumbered under "+
 			"them", ev[0].Holders, ev[0].Rows)
 	}
+	// AND THE SURVIVORS STILL HAVE THEIR OWN NAMES. A forgetting rebuilds the member
+	// slice, and the names have to be carried across it: rows that all answer to the same
+	// name are rows nothing can tell apart, and the mark moving between them is invisible.
+	ranks, n := tr.ActiveEntryRanks()
+	if n == 0 {
+		t.Fatalf("no list is active after the forgetting, so nothing below is about its "+
+			"members' names: %v", tr.Evidence())
+	}
+	if len(ranks) != n {
+		t.Errorf("%d members share %d name(s) after a forgetting; every row of a list "+
+			"has its own", n, len(ranks))
+	}
+	if _, nameless := ranks[0]; nameless {
+		t.Error("a member has no name at all after a forgetting")
+	}
+	// AND THE SURVIVORS STILL HAVE THEIR OWN NAMES. A forgetting rebuilds the member
+	// slice, and the names have to be carried across it: rows that all answer to the same
+	// name are rows nothing can tell apart, and the mark moving between them is invisible.
+	if ranks, n := tr.ActiveEntryRanks(); n > 0 {
+		if len(ranks) != n {
+			t.Errorf("%d members share %d name(s) after a forgetting; every row of a "+
+				"list has its own", n, len(ranks))
+		}
+		if _, nameless := ranks[0]; nameless {
+			t.Error("a member has no name at all after a forgetting")
+		}
+	}
 	if got := ev[0].Transfers; got != moves {
 		t.Errorf("%d transfer(s) were recorded, up from %d, with the mark held still on "+
 			"one row across the observation that forgot two members. A transfer "+
@@ -792,5 +827,168 @@ func TestACandidateRecordsWhenItQualified(t *testing.T) {
 				"decision, because the arm that publishes a sole qualifier "+
 				"compares nothing", was, e.QualifiedAt)
 		}
+	}
+}
+
+// A row admitted above the others is rank zero, not rank last.
+//
+// Ranks are what a move is written down with — "from entry 3 to entry 4 of a 6-entry list" —
+// so they have to be the rows' places on the screen. Members are stored in the order they were
+// first seen, and a row admitted later is appended, so the order they are stored in is not the
+// order they are in. A list that gains a row at the TOP is the case where the two differ, and
+// it is the ordinary case for a list that scrolls.
+//
+// Deleting the sort in Tracker.ActiveEntryRanks must fail this.
+func TestARowAdmittedAboveTheOthersIsRankZero(t *testing.T) {
+	tr := selection.NewTracker()
+	// Four rows with a clear pitch, watched until they are a list somebody is using.
+	four := rowsAt(0, 4, 100, 300, 700)
+	for i := range 20 {
+		tr.ObserveNavigated(four, shadesWithMark(4, i%4), true)
+	}
+	ranks, n := tr.ActiveEntryRanks()
+	if n != 4 {
+		t.Fatalf("the active list has %d rows, want 4: %v", n, tr.Evidence())
+	}
+	var topEntry int
+	for id, rank := range ranks {
+		if rank == 0 {
+			topEntry = id
+		}
+	}
+	if topEntry == 0 {
+		t.Fatalf("no entry is at rank 0 among %v", ranks)
+	}
+
+	// A ROW ONE PITCH ABOVE THE FIRST, which is where this list's next row goes.
+	pitch := 100
+	above := append([]selection.Row{{
+		Bounds: four[0].Bounds.Add(image.Pt(0, -pitch)), Group: 0,
+	}}, four...)
+	for i := range 12 {
+		tr.ObserveNavigated(above, shadesWithMark(5, i%5), true)
+	}
+	ranks, n = tr.ActiveEntryRanks()
+	if n != 5 {
+		t.Fatalf("the list has %d rows after one arrived a pitch above it, want 5: %v",
+			n, tr.Evidence())
+	}
+	if ranks[topEntry] != 1 {
+		t.Errorf("the entry that was at the top is now at rank %d; a row joined above "+
+			"it, so it is the second row of the list. Ranks are places on the "+
+			"screen, and the members are stored in the order they were first seen",
+			ranks[topEntry])
+	}
+	var atTop int
+	for id, rank := range ranks {
+		if rank == 0 {
+			atTop = id
+		}
+	}
+	if atTop == topEntry {
+		t.Errorf("the entry at rank 0 is still %d, so the admitted row was ranked "+
+			"last rather than first", atTop)
+	}
+}
+
+// The rows that have a history are compared, even when one row has none.
+//
+// It used to be every row or none: one row without MinBaseline samples and the whole frame
+// offered no temporal evidence at all. On a real list that is the common case rather than the
+// exception — a detector finds a row it had not found before, or a list gains one — and the
+// cost is not a cautious answer but no answer.
+//
+// Restoring the all-or-nothing test in temporalOutlier must fail this.
+func TestARowWithNoHistoryDoesNotSilenceTheRest(t *testing.T) {
+	r := selection.New()
+	named := func(n, mark int) ([]selection.Row, []selection.Shade) {
+		var rows []selection.Row
+		var shades []selection.Shade
+		for i := range n {
+			base := 50 + float64(i)*9
+			sh := selection.Shade{base, base + 30}
+			if i == mark {
+				sh = selection.Shade{base + 150, base + 180}
+			}
+			rows = append(rows, selection.Row{
+				Bounds: image.Rect(100, 100+i*120, 400, 100+i*120+80),
+				Group:  0, ID: i + 1,
+			})
+			shades = append(shades, sh)
+		}
+		return rows, shades
+	}
+	for range 14 {
+		rows, shades := named(5, 0)
+		r.ReadShades(rows, shades)
+	}
+	var settled selection.Result
+	for range 4 {
+		rows, shades := named(5, 2)
+		settled = r.ReadShades(rows, shades)
+	}
+	if settled.Outcome != selection.Selected {
+		t.Fatalf("nothing settled on five rows, so a sixth proves nothing: %s (%s)",
+			settled.Outcome, settled.Why)
+	}
+
+	// A SIXTH ROW APPEARS, with no history of its own. ONE look, because after MinBaseline
+	// of them it has one and the all-or-nothing rule would be satisfied too.
+	rows, shades := named(6, 2)
+	settled = r.ReadShades(rows, shades)
+	if settled.Outcome != selection.Selected {
+		t.Errorf("a sixth row with no history of its own silenced a reading of the "+
+			"five that have one: %s (%s). The rows that can be judged are the "+
+			"rows to judge", settled.Outcome, settled.Why)
+	}
+	if settled.Entry != 3 {
+		t.Errorf("the reading names entry %d, want the third row's 3", settled.Entry)
+	}
+	// AND IT RESTS ON BOTH KINDS OF EVIDENCE. The all-or-nothing rule reaches the same
+	// answer here by a worse route: no temporal evidence at all, so the spatial half
+	// alone, which is the branch that exists for a list nothing is yet known about. The
+	// reason is the only thing that tells the two apart, and it is the reason a person
+	// reads.
+	if !strings.Contains(settled.Why, "away from its own unselected level") {
+		t.Errorf("the reading rests on %q. Five of the six rows have a history and the "+
+			"sixth does not, so the five are still the rows to judge", settled.Why)
+	}
+}
+
+// Two rows nearest the same member do not both answer to its name.
+//
+// A detector returns a row, and sometimes something else beside or beneath it. Both may be
+// nearer that member than any other, and only one of them is the entry — so the nearer is named
+// and the other is left unnamed, which is the honest answer rather than a guess. Naming both
+// would file two rows' levels under one history and let whichever was processed last take the
+// entry the mark is actually on.
+//
+// Deleting the `at most one row per entry` rule in Tracker.ActiveEntries must fail this.
+func TestTwoRowsNearestOneMemberDoNotBothTakeItsName(t *testing.T) {
+	tr := selection.NewTracker()
+	list := rowsAt(0, 5, 100, 100, 600)
+	for i := range 20 {
+		tr.ObserveNavigated(list, shadesWithMark(5, i%5), true)
+	}
+	if _, n := tr.ActiveEntryRanks(); n != 5 {
+		t.Fatalf("the active list has %d rows, want 5: %v", n, tr.Evidence())
+	}
+
+	// THE LIST'S OWN THIRD ROW, and a second rectangle a little above it. Both are nearer
+	// member 2 than any other member; the list's own row is nearer.
+	own := list[2]
+	near := selection.Row{
+		Bounds: own.Bounds.Add(image.Pt(0, -30)), Group: 0,
+	}
+	// THE LIST'S OWN ROW FIRST, so a rule that simply keeps whichever row it saw last
+	// answers with the other one. Order is the detector's and means nothing.
+	ids := tr.ActiveEntries([]selection.Row{own, near})
+	if ids[0] == 0 {
+		t.Errorf("the list's own row was left unnamed while another rectangle took its "+
+			"name: %v", ids)
+	}
+	if ids[1] != 0 {
+		t.Errorf("both rows answer to a name (%v); only one of them is the entry, and "+
+			"the nearer one is the only one anything can say that about", ids)
 	}
 }

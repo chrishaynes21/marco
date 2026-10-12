@@ -277,6 +277,17 @@ func (w *InterfaceWatch) Track(look TrackLook) {
 		t.Elsewhere++
 		return
 	}
+	// AND THE SAME NAMES. The rows are the same rows in the same order as the discovery's,
+	// and they have to carry the same entry identities too — the reader files a row's
+	// history under its name, and a fast look that handed it the same rows unnamed would
+	// be a different list to it. It is also what lets a move be recorded from a fast read
+	// at all: a move is between two ENTRIES, and a reading with no entry is not one of them.
+	//
+	// Deleting this must fail TestAFastMoveLongAfterThePressIsNotPrompted.
+	for i, id := range w.tracker.ActiveEntries(kept) {
+		kept[i].ID = id
+	}
+	ranks, _ := w.tracker.ActiveEntryRanks()
 
 	start := time.Now()
 	res := w.reader.ReadShades(kept, keptShades)
@@ -290,8 +301,11 @@ func (w *InterfaceWatch) Track(look TrackLook) {
 	// it. Status, Where, Entries, FromShapes, Observations and After are all untouched —
 	// they are the discovery's, and a tracking look is not a discovery.
 	next.Selected, next.SelectedWhere = -1, Region{}
+	next.SelectedEntry, next.SelectedRank = 0, 0
 	if res.Outcome == selection.Selected && res.Row >= 0 && res.Row < len(kept) {
 		next.Selected = res.Row
+		next.SelectedEntry = res.Entry
+		next.SelectedRank = ranks[res.Entry]
 		next.SelectedWhere = unscaleRect(kept[res.Row].Bounds)
 	}
 	next.Reading = string(res.Outcome)
@@ -303,7 +317,7 @@ func (w *InterfaceWatch) Track(look TrackLook) {
 	next.TrackedAfterMS = look.At.Sub(look.DiscoveredAt).Milliseconds()
 	next.Because = fmt.Sprintf("tracked: %s — read %dms after the list was found at "+
 		"sample %d", res.Why, next.TrackedAfterMS, look.Discovery)
-	if next.Selected != before.Selected {
+	if next.SelectedEntry != before.SelectedEntry {
 		t.Moves++
 	}
 	// THE RESPONSE WINDOW, AGED TO THESE PIXELS, before the move this look may have just

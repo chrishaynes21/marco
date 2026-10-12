@@ -14,6 +14,7 @@ updated: 2026-10-11
 source_paths:
   - internal/director/observe
   - internal/director/observe/interface.go
+  - internal/director/observe/track.go
   - internal/director/observe/shadow.go
   - internal/director/perception/selection/selection.go
   - internal/director/perception/selection/active.go
@@ -583,9 +584,35 @@ it refuses those looks. Visible is fine; in front is not.
   rehomings. Coverage fell 135 → 33 and right namings 43 → 30, with wrong namings 92 → 3, and
   retained graph-ready moves went 2 → 3. The
   surviving gaps from that work are the four entries below.
-- **The reader cannot read the list it is now handed, and that is the next bottleneck.** 279 of
+- ~~The reader cannot read the list it is now handed.~~ **Mostly fixed 2026-10-11**,
+  [[ADR-165-an-entry-is-the-same-entry-when-nothing-says-otherwise]]. The reader filed each row's
+  history under its POSITION in the slice it was handed, so a detector that found one row more or
+  fewer threw all of it away — and on this corpus the count takes nine different values and
+  changes on most frames. Filed under the row's ENTRY instead: coverage 33 → 100 frames, right
+  namings 30 → 78, and handed a list that contains the mark the reader is now right **78 times
+  out of 78**. Two more losses sat on top of it, both found with the `why silent` diagnostic:
+  temporal evidence was refused for the whole frame unless EVERY row had a baseline, and the
+  confirmation machinery's `asserted`/`pending` were positions too. 212 of 312 correct-list frames
+  still name nothing, and the reader's own word on most of them is that no row stands out from its
+  siblings or from its own unselected level — which is genuinely unreadable shading rather than
+  evidence lost in the pipeline.
+- **The remaining selection error is the list's EXTENT, not the reader.** All 22 confidently wrong
+  namings at stride 1 are frames where the labelled row is not inside the published list, so none
+  of them is a misreading. The menu is tracked as six or seven of its nine entries; letting a list
+  admit a row where its own pitch says its next row goes narrows that and does not close it, and
+  it costs 16 correct-list frames at stride 3.
+  [[ADR-165-an-entry-is-the-same-entry-when-nothing-says-otherwise]]
+- **A drawn list of identical rows is read once and then held, not re-read.** On the first look at
+  a newly marked row the claim still standing is the row the mark has just LEFT, so the arriving
+  row's own selected level is filed once as its unselected one, and from then on it sits closer to
+  its own baseline than it should. Three repairs were measured — remembering after settling,
+  skipping the row being confirmed, and a tighter fade guard — and each bought about one right
+  answer for ten extra NEIGHBOUR confusions on 864 real frames, which is the worst error a
+  navigation route can be built from. The pollution stays and the defect is open.
+  [[ADR-165-an-entry-is-the-same-entry-when-nothing-says-otherwise]]
+- **Superseded, kept for the measurement.** The reader could not read the list it was handed: 279 of
   the 312 frames that published the right list named nothing, and the reader's own words on most of
-  them are "no row stands out from its siblings or from its own unselected level" with six to
+  them were "no row stands out from its siblings or from its own unselected level" with six to
   eight rows of the right list in hand. This was invisible while the published extent was a bucket
   spanning the screen, because the reader could find some spike almost anywhere inside it — 135
   namings of which 92 were wrong. A relaxation of the rule that decides which rows are inside the
@@ -593,20 +620,27 @@ it refuses those looks. Visible is fine; in front is not.
   no fixture could be built that it was load-bearing for. The replay reports `why silent` and `entries in hand` so the two
   failures behind one silence stay apart: a reader that looked and found nothing, and a reader
   given too few rows to have a middle. [[ADR-164-a-list-is-the-same-list-when-its-rows-are]]
-- **Retained graph-ready moves are gated on ENTRY identity, not list identity.** 3 of 864 frames
-  at stride 1, against 2 before. A move is retained only across two readings of the same list with the
+- ~~Retained graph-ready moves are gated on ENTRY identity.~~ **Fixed 2026-10-11**,
+  [[ADR-165-an-entry-is-the-same-entry-when-nothing-says-otherwise]]. A move was retained only
+  across two readings with the same frame-local entry count, and `Selected` was an index into the
+  rows the detector found inside the list. Both are now the list's own: the entry's identity and
+  the list's member count. **3 → 11 retained moves** at stride 1, and labelled changes of row ever
+  named 15 → 22 of 33. Durable edges are still 0, and 11 of 864 frames is not a graph.
+- **Superseded, kept for the measurement.** Retained moves were gated on entry identity: 3 of 864
+  frames at stride 1, against 2 before. A move is retained only across two readings of the same list with the
   same frame-local entry count, and `Selected` is an index into the rows this frame's detector
   found inside the list — a count that changes nearly every frame, so the held sighting is dropped.
   Comparing list IDENTITIES rather than published extents was measured and kept, and did not move
   this number. The repair is to make an entry a member of the tracked list rather than an index
   into one frame's rows. [[ADR-164-a-list-is-the-same-list-when-its-rows-are]]
-- **A list cannot grow, so a nine-entry menu is tracked as six or seven, and a scrolled list loses
-  the row that comes into view.** Letting a candidate admit a row where its own median pitch says
-  its next row goes — within `pitchTolerance`, not overlapping a member — was measured and
-  REJECTED: it accreted to 27 members on a nine-entry menu, taking correct-list identification to
-  246 and the reader's conditional accuracy to 19%. Recorded by
-  `TestAListThatScrolledRetainsNoMoveAcrossTheScroll`, which now logs the entry count it loses.
-  [[ADR-164-a-list-is-the-same-list-when-its-rows-are]]
+- ~~A list cannot grow, so a nine-entry menu is tracked as six or seven.~~ **Fixed 2026-10-11**,
+  [[ADR-165-an-entry-is-the-same-entry-when-nothing-says-otherwise]]. Growth was measured and
+  rejected in ADR-164 for accreting to 27 members on a nine-entry menu — and that measurement
+  predates the repair to `forgetColdMembers`, whose guard against shrinking a candidate below
+  `minStack` was written as "how many are left to consider" rather than "how many may go", so it
+  dropped at most one member per observation. Growth was unbounded and aging nearly inert.
+  Retaken, the menu candidate holds at six members with no rehoming and growth removes 52 of the
+  63 confidently wrong readings. It still costs 16 correct-list frames at stride 3.
 - **At a coarse cadence nothing is identified at all.** Strides 10 and 20 of this corpus now
   abstain, naming `exclusive_over_shared 28/34` as the shortfall: at 660ms between looks the mark
   has usually moved between them, and the real menu's candidate reaches 28 exclusive frames

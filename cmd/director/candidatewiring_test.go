@@ -151,8 +151,12 @@ func TestTheSessionSaysWhyEachCandidateWasRefused(t *testing.T) {
 func TestAListWhoseMarkMovesIsIdentifiedFromGeometryAlone(t *testing.T) {
 	// Quiet frames first, because a member's baseline is built only from frames in which
 	// it was NOT marked, and then the mark walks the list.
+	//
+	// EVERY STEP HELD FOR TWO LOOKS, the last one included. The reader refuses a row it
+	// has seen once, so a walk whose final step is a single look ends on a frame that is
+	// still waiting for confirmation and the belief names no entry.
 	totals := observeMarks(t, []int{-1, -1, -1, -1, -1,
-		0, 0, 2, 2, 4, 4, 6, 6, 1, 1, 3, 3, 5, 5, 7})
+		0, 0, 2, 2, 4, 4, 6, 6, 1, 1, 3, 3, 5, 5, 7, 7})
 
 	if len(totals.Candidates) == 0 {
 		t.Fatal("no candidate was reported")

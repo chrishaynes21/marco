@@ -157,7 +157,7 @@ is not the limit there; the perception is, and
 - `TestEveryMoveOfTheMarkIsOfferedForGrounding` — including the moves only a FAST look saw,
   which live will be most of them.
 - `TestAListThatScrolledRetainsNoMoveAcrossTheScroll` — the envelope half of the identity guard.
-- `TestAListThatRenumbersRetainsNoMove` — the entry-count half.
+- `TestARowThatIsNotAnEntryChangesNothing` — the entry-count half.
 - `TestAPressDuringASkippedSlotStillAttributesTheMoveItExplains` — navigation reaches the window
   on a slot the detector sat out, which live is three slots in four.
 - `TestAFastMoveLongAfterThePressIsNotPrompted` — the other side of the window, on the path that

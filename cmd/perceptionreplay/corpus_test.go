@@ -213,20 +213,24 @@ func TestTheRealMenuCorpusStillReadsAsAMenu(t *testing.T) {
 	// So 90% was never achieved and was kept here as the TARGET, failed, rather than
 	// quietly lowered.
 	//
-	// # IT IS ACHIEVED NOW, and the target moves rather than the floor
+	// # IT WAS ACHIEVED, AND THEN TRADED FOR COVERAGE ON PURPOSE
 	//
-	// Identity by rows takes the full corpus to 30 of 33 namings on the labelled row, 91%.
-	// What that cost is coverage: 135 frames named an entry before and 33 do, because the
-	// published extent used to be a bucket spanning the screen and the reader could find
-	// some spike inside it on almost any frame. 43 of those 135 were right. So the trade is
-	// 13 right answers for 89 wrong ones, and the wrong ones are the graph-corrupting half.
+	// Identity by rows reached 30 of 33 namings on the labelled row, 91%, by abstaining on
+	// almost everything: the reader's history was filed under each row's POSITION in the
+	// slice it was handed, so a detector that found one row more or fewer threw all of it
+	// away, and on this corpus the count changes on most frames.
 	//
-	// The target is raised to 95% rather than retired, because the remaining 3 wrong
-	// namings in 33 are the reader missing by a row and that is a different piece of work
-	// from the coverage. Both are in [[Experiment-026-the-same-menu-seen-from-pixels]].
+	// Filing it under the row's ENTRY instead —
+	// [[ADR-165-an-entry-is-the-same-entry-when-nothing-says-otherwise]] — takes coverage
+	// from 33 to 100 and right namings from 30 to 78, at 78%. Every one of the 22 wrong
+	// ones is a frame where the labelled row is not inside the published list, and handed a
+	// list that does contain it the reader is now right 78 times out of 78.
+	//
+	// So the target stays at 95% and is failed on the whole population, which is the honest
+	// place for it: the gap is no longer the reader but the list's extent.
 	const (
-		wantNamed   = 35
-		wantMatched = 30
+		wantNamed   = 101
+		wantMatched = 78
 		targetRate  = 0.95
 	)
 	if r.WithSelection < wantNamed {
@@ -259,10 +263,10 @@ func TestTheRealMenuCorpusStillReadsAsAMenu(t *testing.T) {
 			"is vacuous. Either the trace is empty or the labels were not read")
 	}
 	const (
-		wantCovered  = 33
-		wantRight    = 30
-		wantReader   = 30
-		wantReaderOf = 31
+		wantCovered  = 100
+		wantRight    = 78
+		wantReader   = 78
+		wantReaderOf = 78
 		readerFloor  = 0.90
 	)
 	if sc.Named < wantCovered {
@@ -346,16 +350,20 @@ func TestTheRealMenuCorpusStillReadsAsAMenu(t *testing.T) {
 	// the labelled row outside the list being read entirely. That is what said the work was
 	// in disambiguation and not in the reader.
 	//
-	// THE ERRORS HAVE MOVED, which is what the work was for. Identity by rows leaves 3
-	// wrong namings in 33 against 142 in 185, and the signed-offset histogram went from a
-	// spike at -3 — a list starting three rows too low — to -1:3  +0:30  +3:1. So the
-	// residual error is now a neighbour confusion inside the right list, which is a
-	// smaller and different problem, and the ceiling below holds it where it is rather
-	// than letting it grow back.
+	// THE ERRORS HAVE MOVED, which is what the work was for. The signed-offset histogram
+	// went from a spike at -3 — a list starting three rows too low — to -1:1  +0:78  +1:20,
+	// so the residual error is a neighbour confusion inside the right list rather than a
+	// reading of the wrong list. Smaller, different, and the next piece of work.
 	//
 	// It is a CEILING and not an equality, because zero is no longer the measurement and
-	// pretending otherwise would fail every run. If it falls to zero, tighten it.
-	const allowOffByOne = 3
+	// pretending otherwise would fail every run. If it falls, tighten it.
+	//
+	// Twenty of them, up from three, and the three was measured while the reader was
+	// abstaining on nine frames in ten. Every one of the twenty is a frame where the
+	// labelled row is not inside the published list at all — `outside the list` below is
+	// 22 of 22 — so they are the extent's error and not the reader's, which is why the
+	// reader's own score is 78 of 78 on the same run.
+	const allowOffByOne = 20
 	if sc.OffByOne > allowOffByOne {
 		t.Errorf("%d naming(s) were one row off, against %d measured. Half the labelled "+
 			"pitch is exactly the distinction a navigation route is made of, so a "+

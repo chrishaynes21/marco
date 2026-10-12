@@ -522,3 +522,63 @@ identity: a move survives only across two readings with the same frame-local ent
 changes nearly every frame.
 
 Nothing in this correction is validated live.
+
+## Fifth correction, 2026-10-11: an entry is the same entry when nothing says otherwise
+
+The fourth correction gave a tracked list an identity and took correct active-list identification
+from 45 of 829 frames to 312, with no wrong publications. It left the reader naming an entry on 33
+of those 312 and three moves retained from 31 presses. Both numbers had one cause, and the
+reader's own code said so: its history was filed under each row's POSITION in the slice it was
+handed, and a changed row count meant the baselines were dropped. On this corpus the count takes
+nine different values and changes on most frames. Full account in
+[[ADR-165-an-entry-is-the-same-entry-when-nothing-says-otherwise]].
+
+### What identity is now, one level down
+
+A member of a tracked list has a name that is never reused, so forgetting a member renumbers
+nothing. The rows handed to the reader carry it, and the reader files each row's history, its
+previous deviation, its claim and its pending candidate under it. At most one row per entry, so
+two rows nearest the same member leaves the further one unnamed rather than guessing.
+
+### The numbers, four cadences, against the end of the fourth correction
+
+| stride | | correct list | WRONG list | coverage | right | accuracy | reader alone | moves |
+|---|---|---|---|---|---|---|---|---|
+| 1 | before | 312 | 0 | 33 | 30 | 91% | 30 of 31 (97%) | 3 |
+| 1 | **after** | 312 | **0** | **100** | **78** | 78% | **78 of 78 (100%)** | **11** |
+| 3 | before | 63 | 0 | 8 | 1 | 12% | 1 of 4 | 0 |
+| 3 | **after** | 47 | **0** | 9 | **9** | **100%** | 9 of 9 | 0 |
+| 10 | both | 0 | 0 | 0 | 0 | — | — | 0 |
+| 20 | both | 0 | 0 | 0 | 0 | — | — | 0 |
+
+Labelled changes of row ever named: 15 of 33 → 22 of 33. The error histogram is
+`-1:1  +0:78  +1:20`.
+
+### Where the error is now
+
+All 22 confidently wrong namings at stride 1 are frames where the labelled row is NOT inside the
+published list, and the reader is right 78 of 78 when it is. So the reader is no longer the
+bottleneck; the list's extent is. The menu is tracked as six or seven of its nine entries, and
+letting a list admit a row where its own pitch says its next row goes narrows that — removing 52
+of the 63 confidently wrong readings — at the cost of 16 correct-list frames at stride 3.
+
+212 of 312 correct-list frames still name nothing, and on most of them the reader's own word is
+that no row stands out from its siblings or from its own unselected level. That is genuinely
+unreadable shading, which is the distinction the silence diagnostics were built for.
+
+### Four repairs measured, three not kept
+
+| at stride 1 | coverage | right | wrong | off by one | reader alone |
+|---|---|---|---|---|---|
+| **kept** | 100 | 78 | 22 | 20 | 78 of 78 |
+| remembering after settling | 94 | 72 | 22 | 20 | 72 of 73 |
+| also skipping the pending row | 95 | 72 | 23 | 21 | 72 of 73 |
+| a tighter fade guard | 95 | 71 | 24 | 22 | 71 of 73 |
+
+All three attack the same real defect — the arriving row's selected level filed once as its
+unselected one — and each bought about one right answer for ten extra NEIGHBOUR confusions. A
+drawn list of identical rows is therefore read once and then held rather than re-read, which is
+open.
+
+Nothing in this correction is validated live, and at production cadence this corpus still
+identifies nothing.

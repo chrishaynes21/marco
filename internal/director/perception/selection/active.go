@@ -298,7 +298,27 @@ type candidate struct {
 	last       int // the member marked on the last exclusive frame, or -1
 	// cold is how many observations each member has gone without being found again. A
 	// list's rows age for the same reason the list does; see forgetColdMembers.
-	cold       []int
+	cold []int
+	// entry is each member's own identity, never reused within this candidate, and
+	// nextEntry the one the next member will be given.
+	//
+	// # Why an index was not enough
+	//
+	// Because a member's index is a position in a slice, and the slice changes. Forgetting
+	// a member renumbers every member after it, so "the mark was on entry 2" stops being
+	// about the same row — and `last`, `holders` and everything a caller is told have to be
+	// renumbered in lockstep or they quietly describe a different row. That renumbering was
+	// written, and a test had to be built to prove it did not invent a transfer nothing
+	// moved, which is a sign the design was wrong rather than that the renumbering was
+	// clever.
+	//
+	// It is also what the reader needs. A reader given rows by position loses its whole
+	// history whenever the count changes — six rows this frame and seven the next, and
+	// every baseline it has is dropped — and on 864 real frames that is most of them. An
+	// identity is the only thing that lets "this row's unselected level" survive a frame in
+	// which a different row was missing.
+	entry      []int
+	nextEntry  int
 	holders    map[int]bool
 	moves      int
 	prompted   int
@@ -483,6 +503,11 @@ func (t *Tracker) update(members []image.Rectangle, shades []Shade, used map[*ca
 			holders: map[int]bool{}, qualifiedAt: -1, hull: ext}
 		c.baseline = make([][]desc, len(members))
 		c.cold = make([]int, len(members))
+		c.entry = make([]int, len(members))
+		for i := range members {
+			c.nextEntry++
+			c.entry[i] = c.nextEntry
+		}
 		t.cands = append(t.cands, c)
 	}
 	c.stale = 0
@@ -536,7 +561,7 @@ func (t *Tracker) update(members []image.Rectangle, shades []Shade, used map[*ca
 	}
 	// AND THE LIST MAY GAIN AND LOSE ROWS, which is the rest of what it means for a
 	// candidate to have a lifecycle. See admit and forgetColdMembers.
-	// c.admit(members) EXPERIMENT DISABLED
+	c.admit(members)
 	c.forgetColdMembers()
 	// THE EXTENT IS THE MEMBERS', NOT THIS FRAME'S GROUP'S.
 	//
@@ -587,7 +612,11 @@ func (t *Tracker) update(members []image.Rectangle, shades []Shade, used map[*ca
 		c.quiet++
 	case len(marked) == 1:
 		c.excl++
-		if c.last >= 0 && marked[0] != c.last {
+		// BY IDENTITY AND NOT BY POSITION. `marked` is an index into this frame's view of
+		// the member slice; `last` is the entry the mark was on. Comparing the two as
+		// positions reads a transfer whenever the slice changed under them.
+		at := c.entry[marked[0]]
+		if c.last >= 0 && at != c.last {
 			c.moves++
 			// Labelled, not caused. See Evidence.Prompted.
 			if t.navRecent {
@@ -596,8 +625,8 @@ func (t *Tracker) update(members []image.Rectangle, shades []Shade, used map[*ca
 				c.unprompted++
 			}
 		}
-		c.last = marked[0]
-		c.holders[marked[0]] = true
+		c.last = at
+		c.holders[at] = true
 	default:
 		c.shared++
 	}
@@ -787,10 +816,14 @@ func (c *candidate) corresponding(members []image.Rectangle) int {
 //
 // A bucket formed by absorbing whatever was nested inside a rectangle. This admits a row only
 // where the list's OWN regular spacing says its next row goes: one median pitch from the
-// nearest member, to within the tolerance grouping itself uses, and not sitting on top of a
-// member it would be a second copy of. Accreting the screen one row at a time would mean the
-// screen were periodic at this list's pitch all the way across, which is what it means for the
-// list to continue.
+// nearest member, to within the tolerance grouping itself uses. Accreting the screen one row at
+// a time would mean the screen were periodic at this list's pitch all the way across, which is
+// what it means for the list to continue.
+//
+// A second test, that the row must not sit on top of the member it would duplicate, was written
+// here and removed: the mutation gate could not reach it. A row overlapping a member by half its
+// own area is the SAME ROW as that member by `sameRow`, and `rowAt` has already claimed it two
+// lines above.
 //
 // The pitch is measured from the members, so it is the list's own measure and not a constant.
 func (c *candidate) admit(members []image.Rectangle) {
@@ -811,12 +844,11 @@ func (c *candidate) admit(members []image.Rectangle) {
 		if near < 0 || math.Abs(d-pitch) > pitchTolerance*pitch {
 			continue
 		}
-		if overlap(c.rows[near], m) >= CandidateMatch {
-			continue
-		}
 		c.rows = append(c.rows, m)
 		c.baseline = append(c.baseline, nil)
 		c.cold = append(c.cold, 0)
+		c.nextEntry++
+		c.entry = append(c.entry, c.nextEntry)
 	}
 }
 
@@ -869,39 +901,37 @@ func (c *candidate) forgetColdMembers() {
 	keep := make([]image.Rectangle, 0, len(c.rows))
 	base := make([][]desc, 0, len(c.rows))
 	cold := make([]int, 0, len(c.rows))
-	moved := make(map[int]int, len(c.rows))
+	entry := make([]int, 0, len(c.rows))
+	gone := map[int]bool{}
 	var dropped int
 	for i := range c.rows {
 		if c.cold[i] > MaxUnmatched && dropped < droppable {
 			dropped++
+			gone[c.entry[i]] = true
 			continue
 		}
-		moved[i] = len(keep)
 		keep = append(keep, c.rows[i])
 		base = append(base, c.baseline[i])
 		cold = append(cold, c.cold[i])
+		entry = append(entry, c.entry[i])
 	}
 	if len(keep) == len(c.rows) {
 		return
 	}
-	c.rows, c.baseline, c.cold = keep, base, cold
-	if c.last >= 0 {
-		if j, ok := moved[c.last]; ok {
-			c.last = j
-		} else {
-			// The member that was holding the mark is gone. The next exclusive frame
-			// starts a holding rather than continuing one, because there is nothing
-			// left for a transfer to be measured FROM.
-			c.last = -1
-		}
+	c.rows, c.baseline, c.cold, c.entry = keep, base, cold, entry
+	// NOTHING IS RENUMBERED, because nothing is numbered by position. `last` and
+	// `holders` hold entry identities, so a member leaving the slice moves no other
+	// member's name and cannot turn this frame's reading into a transfer nothing made.
+	// All that is left is to forget the one that went.
+	if gone[c.last] {
+		// The member that was holding the mark is gone, so there is nothing for a
+		// transfer to be measured FROM and the next exclusive frame starts a holding
+		// rather than continuing one.
+		c.last = -1
 	}
-	held := make(map[int]bool, len(c.holders))
-	for i := range c.holders {
-		if j, ok := moved[i]; ok {
-			held[j] = true
-		}
+	for id := range gone {
+		delete(c.holders, id)
 	}
-	c.holders = held
 }
 
 // memberAt finds which member of this candidate a region should be SCORED AS, by position.
@@ -1205,6 +1235,91 @@ func (t *Tracker) moreResponsive(i, j int) bool {
 		return left > right
 	}
 	return a.prompted > b.prompted
+}
+
+// ActiveEntries names which ENTRY of the active list each of these rows is, or zero.
+//
+// # Why the tracker answers this and not the caller
+//
+// Because the member set is the list's identity, and only the tracker has it. A caller holding
+// a frame's rows and a published extent can say which rows are in the list; it cannot say which
+// of them is the entry it was told about last time, and the difference is everything the reader
+// needs. A reader whose history is filed under positions loses all of it whenever the detector
+// finds one row more or fewer. See Row.ID.
+//
+// # At most one row per entry
+//
+// Two rows nearest the same member is an ambiguity, not two sightings of one entry, and the
+// nearer of them is the one named. The other is left unnamed and contributes no history, which
+// is the honest answer: nothing here can say which of two rows is the entry.
+//
+// Tolerant, like attribution and for the same reason — a selected row is REDRAWN, so the one
+// row whose shade decides the reading is the row least like the member it belongs to. Naming it
+// does not move it; only Tracker.update does that, and only on a strict match.
+func (t *Tracker) ActiveEntries(rows []Row) []int {
+	out := make([]int, len(rows))
+	i, _ := t.active()
+	if i < 0 {
+		return out
+	}
+	c := t.cands[i]
+	nearest := make(map[int]int, len(rows))
+	closest := make(map[int]float64, len(rows))
+	for k, row := range rows {
+		m := c.memberAt(row.Bounds)
+		if m < 0 {
+			continue
+		}
+		d := math.Abs(centreY(c.rows[m]) - centreY(row.Bounds))
+		if _, seen := nearest[m]; !seen || d < closest[m] {
+			nearest[m], closest[m] = k, d
+		}
+	}
+	for m, k := range nearest {
+		out[k] = c.entry[m]
+	}
+	return out
+}
+
+// ActiveEntryRanks is where each entry of the active list sits among its rows, counted from
+// the top and starting at zero, and how many rows there are.
+//
+// Zero is a real rank, so a caller tells "rank 0" from "no rank" by whether it has an entry
+// identity at all. That keeps the number the same one a move was always recorded with.
+//
+// # Why a rank as well as an identity
+//
+// Because an identity is for deciding and a rank is for saying. "The mark moved from entry 3 to
+// entry 5 of a 6-entry list" is a sentence a person can check against their screen; the same
+// sentence with identities in it — entry 1 to entry 14 — is not. So the decision about whether
+// two readings are the same entry uses the identity, and what is written down for a person uses
+// the rank.
+//
+// # And the rank is over the list's MEMBERS, not over this frame's rows
+//
+// Which is the whole point. A rank among the rows the detector happened to find moves whenever
+// it misses one, so "entry 3" means a different row from one look to the next and a move
+// recorded across that boundary names two rows the mark was never on. A rank among the members
+// changes only when the list itself gains or loses one, which is rare and which
+// ActiveEntryRanks reports by returning the count beside it.
+func (t *Tracker) ActiveEntryRanks() (map[int]int, int) {
+	i, _ := t.active()
+	if i < 0 {
+		return nil, 0
+	}
+	c := t.cands[i]
+	order := make([]int, len(c.rows))
+	for k := range order {
+		order[k] = k
+	}
+	sort.SliceStable(order, func(a, b int) bool {
+		return centreY(c.rows[order[a]]) < centreY(c.rows[order[b]])
+	})
+	out := make(map[int]int, len(order))
+	for rank, k := range order {
+		out[c.entry[k]] = rank
+	}
+	return out, len(c.rows)
 }
 
 // IdentifiedAt is the observation on which a single list first qualified, or -1.

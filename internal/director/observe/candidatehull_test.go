@@ -159,3 +159,146 @@ func TestTheReportSaysWhatWasRetiredAndWhichListTheBeliefIsAbout(t *testing.T) {
 	t.Logf("belief about list %d, %d candidate(s) now tracked, %d retired",
 		id, len(w.Candidates()), w.RetiredCandidates())
 }
+
+// The reader keeps a row's history when another row goes missing.
+//
+// # THE CENTRAL PROPERTY of entry identity, and the measurement that forced it
+//
+// A reader's only evidence about a row is how it compares with its own past, and its past has
+// to be filed under something. It was filed under the row's POSITION in the slice it was handed,
+// and a position does not survive a frame: a detector that finds six rows and then five has
+// renumbered every row below the one it lost, so the whole history had to be thrown away. The
+// code said so plainly — "a changed row count means the caller is no longer describing the same
+// thing" — and that was the honest answer while nothing could say which row was which.
+//
+// Measured on 864 real frames of one menu, the count took nine different values and changed on
+// most frames. The reader said "no row stands out from its siblings or from its own unselected
+// level" on 279 of the 312 frames where it was handed the right list, and named an entry on 33.
+// Filing the history under the row's ENTRY instead took that to 100 named and 78 correct, with
+// the reader right 78 times out of 78 when the labelled row was inside the list it was given.
+// [[ADR-165-an-entry-is-the-same-entry-when-nothing-says-otherwise]].
+//
+// Entered through NewInterfaceWatch and the Observe door, because the thing being tested is
+// that the identities reach the reader at all.
+//
+// Deleting the ActiveEntries loop in foldLook must fail this.
+func TestTheReaderKeepsARowsHistoryWhenAnotherRowGoesMissing(t *testing.T) {
+	w := observe.NewInterfaceWatch()
+	base := time.Unix(1760000000, 0)
+	mark, seq := 0, 0
+	walking := true
+	// topGone drops the FIRST row of the left-hand list, which is the case stated plainly:
+	// three entries are detected, then the top one is not, and every remaining entry is at
+	// a different position in what the reader is handed while being the same entry.
+	//
+	// The first row and not a middle one, so the rows that remain are still the regular
+	// stack grouping requires — a gap in the middle is a different situation and would
+	// test grouping rather than the reader.
+	look := func(topGone bool) {
+		seq++
+		at := base.Add(time.Duration(seq) * 100 * time.Millisecond)
+		if walking && seq >= 10 && seq%3 == 0 {
+			mark = (mark + 1) % 5
+		}
+		lk := lookOfTwoLists(seq, at, mark, 3, 1)
+		if topGone {
+			var kept []observe.ShadowShape
+			var dropped bool
+			for _, sh := range lk.Shapes {
+				if !dropped && sh.Region.X < 0.5 {
+					dropped = true
+					continue
+				}
+				kept = append(kept, sh)
+			}
+			lk.Shapes = kept
+		}
+		w.Observe(lk)
+	}
+	for range 120 {
+		look(false)
+	}
+	// AND THE MARK PARKED on a row that is not the one about to go missing, so what is
+	// being tested is a history surviving a renumbering and not a mark being hidden.
+	walking = false
+	mark = 2
+	for range 6 {
+		look(false)
+	}
+	b := w.Belief()
+	if b.Status != observe.InterfaceProvisional || b.Selected < 0 {
+		t.Fatalf("nothing was read with every row present, so dropping one proves "+
+			"nothing: %s / %s", b.Status, b.Reading)
+	}
+	entry, rank, entries := b.SelectedEntry, b.SelectedRank, b.Entries
+	if rank == 0 {
+		t.Fatalf("the mark is on the top entry, which is the one about to go missing, "+
+			"so this would test a hidden mark rather than a renumbering (entry %d)",
+			entry)
+	}
+	if entry == 0 {
+		t.Fatal("the reading names no entry, so there is no identity for a history to " +
+			"be filed under")
+	}
+
+	// THE TOP ROW GOES MISSING. The mark is on the third entry and stays there; every row
+	// the reader is handed is one position further up than it was.
+	for range 6 {
+		look(true)
+	}
+	b = w.Belief()
+	if b.Entries >= entries {
+		t.Fatalf("the reader was handed %d rows and then %d, so no row went missing and "+
+			"this test asserts nothing", entries, b.Entries)
+	}
+	// AND THE LIST STILL SAYS HOW MANY ROWS IT HAS, which is not how many were found.
+	if b.ListEntries != entries {
+		t.Errorf("the list reports %d entries while one of its rows is undetected; it "+
+			"has %d, and only the detector saw fewer", b.ListEntries, entries)
+	}
+	if b.SelectedEntry != entry {
+		t.Errorf("the mark was on entry %d and the belief now says %d, with nothing "+
+			"moving but a row elsewhere in the list going undetected. An entry is "+
+			"the same entry when nothing says otherwise", entry, b.SelectedEntry)
+	}
+	if b.Selected < 0 {
+		t.Errorf("the reading was lost when a row the mark is not on went missing (%s). "+
+			"That is a history filed under a position rather than an entry: every "+
+			"row below the missing one is at a different index, so nothing the "+
+			"reader knows applies to it any more", b.Reading)
+	}
+	// AND A MOVE SEEN WHILE A ROW IS MISSING IS RECORDED AGAINST THE LIST, not against
+	// what the detector found. "From entry 2 to entry 3 of a 5-entry list" is a claim a
+	// person can check; the same move recorded as "of 4" describes a list that was never
+	// on the screen, and two readings taken while the count flickers between 4 and 5 are
+	// dropped rather than joined.
+	// THE COUNT FLICKERS, because the detector finds the top row on some looks and not
+	// others — which is what it does — while the LIST still has the rows it has. A rule
+	// that compares the count it was handed drops the held sighting on every other look
+	// and retains nothing.
+	walking = true
+	for i := range 36 {
+		look(i%2 == 0)
+	}
+	b = w.Belief()
+	if b.ListEntries != entries {
+		t.Errorf("the list reports %d entries with one of its rows undetected; it has "+
+			"%d, and the one the detector found is a different number", b.ListEntries,
+			entries)
+	}
+	moves, _ := w.TakeSelectionMoves()
+	if len(moves) == 0 {
+		t.Errorf("the mark moved %d times while the detector found the top row on some "+
+			"looks and not others, and not one move was retained. A count that "+
+			"changes with the detector drops the held sighting on every other "+
+			"look", 36/3)
+	}
+	for _, m := range moves {
+		if m.Entries != entries {
+			t.Errorf("a move was recorded in a %d-entry list; the list has %d entries "+
+				"and only the detector saw fewer", m.Entries, entries)
+		}
+	}
+	t.Logf("entry %d at rank %d survived %d rows becoming %d; %d move(s) retained, all "+
+		"in a %d-entry list", entry, rank, entries, b.Entries, len(moves), entries)
+}

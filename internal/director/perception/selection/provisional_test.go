@@ -2,6 +2,7 @@ package selection_test
 
 import (
 	"image"
+	"strings"
 	"testing"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/selection"
@@ -200,5 +201,128 @@ func TestAnUnreadableFrameNamesNoProvisionalRow(t *testing.T) {
 	}
 	if res.Provisional != -1 {
 		t.Errorf("an unreadable frame names provisional row %d, want -1", res.Provisional)
+	}
+}
+
+// rowsNamed builds `n` rows with entry identities, with one of them marked.
+//
+// `drop` removes the row at that position, which is what a detector does when it misses one.
+// The identities of the rows that remain do not change, which is the whole point.
+func rowsNamed(n, mark, drop int) ([]selection.Row, []selection.Shade) {
+	var rows []selection.Row
+	var shades []selection.Shade
+	for i := range n {
+		if i == drop {
+			continue
+		}
+		base := 50 + float64(i)*9
+		sh := selection.Shade{base, base + 30}
+		if i == mark {
+			sh = selection.Shade{base + 150, base + 180}
+		}
+		rows = append(rows, selection.Row{
+			Bounds: image.Rect(100, 100+i*120, 400, 100+i*120+80),
+			Group:  0, ID: i + 1,
+		})
+		shades = append(shades, sh)
+	}
+	return rows, shades
+}
+
+// A reader told nothing of entries still drops its history when the row count changes.
+//
+// THE OLD CONTRACT, KEPT EXACTLY WHERE NOTHING CAN NAME A ROW. A reader whose rows carry
+// identities files each row's history under its own name, so a frame in which some other row
+// was missing does not disturb it. A reader handed rows with no identities has only their
+// positions to file under, and a position does not survive a count change — the rows below the
+// one that went missing are all at different indices, and comparing them against a history
+// measured at those indices is comparing them against other rows.
+//
+// `cmd/director selection-read` is that caller: it reads one frame of a screen with no tracker
+// behind it, so there is nothing to name the rows. [[ADR-165-an-entry-is-the-same-entry-when-nothing-says-otherwise]].
+//
+// Keeping the history across a count change in the unnamed case must fail this.
+func TestAReaderToldNothingOfEntriesStillDropsItsHistoryOnACountChange(t *testing.T) {
+	r := selection.New()
+	// Five unnamed rows, with the mark settled on the third.
+	plain := func(n, mark int) ([]selection.Row, []selection.Shade) {
+		rows, shades := rowsNamed(n, mark, -1)
+		for i := range rows {
+			rows[i].ID = 0
+		}
+		return rows, shades
+	}
+	for range 14 {
+		rows, shades := plain(5, 0)
+		r.ReadShades(rows, shades)
+	}
+	var settled selection.Result
+	for range 4 {
+		rows, shades := plain(5, 2)
+		settled = r.ReadShades(rows, shades)
+	}
+	if settled.Outcome != selection.Selected {
+		t.Fatalf("nothing was settled on five unnamed rows, so a count change proves "+
+			"nothing: %s (%s)", settled.Outcome, settled.Why)
+	}
+	if settled.Entry != 0 {
+		t.Errorf("the reading names entry %d on rows that carry no identities",
+			settled.Entry)
+	}
+
+	// FOUR ROWS NOW. Nothing says which four, so nothing the reader knows applies.
+	rows, shades := plain(4, 2)
+	got := r.ReadShades(rows, shades)
+	if got.Outcome == selection.Selected && got.Why == settled.Why {
+		t.Errorf("the reader answered %q on four unnamed rows with a history measured "+
+			"on five. Without an identity there is nothing to say the third of four "+
+			"is the third of five", got.Why)
+	}
+}
+
+// A claim about an entry that has gone is not pointed at a row.
+//
+// The reader holds a settled claim across a look it could not read, because a detector blinks
+// and an unreadable frame is not evidence that the selection moved. The claim is an ENTRY, and
+// holding it means pointing a caller at the row that entry is — so when that entry is not among
+// this frame's rows there is no row to point at. Pointing at the position it used to occupy
+// would name whichever row has moved into that slot, which is the renumbering this whole
+// decision exists to stop.
+//
+// Deleting the `held < 0` branch in settle must fail this.
+func TestAClaimAboutAnEntryThatHasGoneIsNotPointedAtARow(t *testing.T) {
+	r := selection.New()
+	for range 14 {
+		rows, shades := rowsNamed(5, 0, -1)
+		r.ReadShades(rows, shades)
+	}
+	var settled selection.Result
+	for range 4 {
+		rows, shades := rowsNamed(5, 4, -1)
+		settled = r.ReadShades(rows, shades)
+	}
+	if settled.Outcome != selection.Selected || settled.Entry != 5 {
+		t.Fatalf("entry 5 was never settled, so its going missing proves nothing: "+
+			"%s entry %d (%s)", settled.Outcome, settled.Entry, settled.Why)
+	}
+
+	// THE ENTRY IT IS CLAIMING GOES MISSING, and nothing is marked among what is left.
+	rows, shades := rowsNamed(5, -1, 4)
+	got := r.ReadShades(rows, shades)
+	if got.Outcome == selection.Selected {
+		t.Errorf("the reader is still claiming a row (%d, entry %d) after the entry it "+
+			"had settled on stopped being among the rows it was given: %s",
+			got.Row, got.Entry, got.Why)
+	}
+	if got.Row >= 0 {
+		t.Errorf("the reader points at row %d with no entry to point at", got.Row)
+	}
+	// AND IT SAYS WHICH REFUSAL THIS IS. "Unreadable for too long" and "the entry is not
+	// here any more" are the same outcome and different facts, and the second is the one
+	// a person chasing a lost reading needs: the frame was perfectly readable and the row
+	// it was about has gone.
+	if !strings.Contains(got.Why, "not among this frame's rows") {
+		t.Errorf("the refusal reads %q, which does not say that the entry it was "+
+			"claiming is no longer among the rows it was given", got.Why)
 	}
 }
