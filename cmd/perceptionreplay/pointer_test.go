@@ -100,6 +100,14 @@ func TestAPointerPressReachesPerceptionWithItsPosition(t *testing.T) {
 			"the middle of a drawn row and one at bare background. Scoring both the "+
 			"same way is what a dropped position looks like", r.PointsOnAShape)
 	}
+	// AND EACH PRESS IS ASKED ABOUT THE SCREEN AROUND IT. Whether it changed is a fact
+	// about this fixture — the drawn rows never move, so it did not — but a press that
+	// is never asked produces no row here at all, and "no press was followed by a
+	// change" and "no press was looked at" read identically in the report.
+	if len(r.PressOutcomes) != 2 {
+		t.Errorf("%d press(es) were asked about the screen around them, want 2",
+			len(r.PressOutcomes))
+	}
 }
 
 // A press on nested regions is counted as ambiguous rather than resolved here.

@@ -6,7 +6,7 @@ backend:
   - structure
 game: rocketleague
 fixture: ".tmp/game-capture-review/rl-freeplay-1"
-result: every-press-landed-on-something-marco-found-and-no-screen-was-distinguished
+result: every-press-landed-on-something-marco-found-and-an-unnamed-arrangement-would-separate-the-screens
 supersedes: []
 source_paths:
   - cmd/director/capturegamesession.go
@@ -225,11 +225,44 @@ usable version depends on. The dependency chain for click-target navigation is:
 
 The middle rung is where the next work is, and the bottom rung is what blocks a route.
 
+### Asked again, of the arrangement alone
+
+The screen result above is what Marco BELIEVES. Because three of the four acceptance questions
+died on it, the same frames were then asked a different question: what would the segmenter have
+produced if every proposal carried a generic kind instead of none? Production's own signature,
+production's own similarity, production's own threshold, one token for everything so that only
+the ARRANGEMENT separates two frames. Full account in
+[[ADR-170-what-an-unnamed-arrangement-would-have-segmented]].
+
+```
+pixel screens       7 distinct arrangement(s), 150 change(s) between adjacent frames
+presses followed by
+a different screen  13 of 17
+Marco's own screen model on this recording is 1 state(s), 0 transition(s).
+```
+
+And the route is in it. The sub-sequence `#0 → #1`, `#1 → #2`, `#2 → #0` occurs at presses 2–4
+of BOTH demonstrations:
+
+| press | run 1 | run 2 |
+|---|---|---|
+| 1 | #0 → #1 | #0 → #0 |
+| 2 | #0 → #1 | #0 → #1 |
+| 3 | #1 → #2 | #1 → #2 |
+| 4 | #2 → #0 | #2 → #2 |
+| 5 | #3 → #0 | #2 → #0 |
+
+So the evidence a click-target route needs IS in these pixels, and Marco's current signature
+cannot see any of it. What the measurement also says is that the cue is noisy — 150
+adjacent-frame changes against seven screens — so the work is damping, not detection. That is a
+much better problem to have than the one this experiment started with.
+
 ## The owner's four acceptance questions, answered
 
 1. **"Did Marco distinguish the main menu, Play menu, Training menu, and Free Play
-   destination?" NO.** One state, zero transitions, for the structural reason above. Not a
-   Rocket League problem and not a recording problem.
+   destination?" NO — and the pixels it was given could have.** One state, zero transitions, for
+   the structural reason above. Not a Rocket League problem and not a recording problem: the
+   same frames, asked about arrangement alone, separate into seven and carry the route twice.
 2. **"Did it associate your observed inputs with visually confirmed selection changes and screen
    activations?" PARTLY — the press half only.** Every press is placed in the same coordinate
    space as the geometry of its own frame and every one landed on a proposed region. No selection

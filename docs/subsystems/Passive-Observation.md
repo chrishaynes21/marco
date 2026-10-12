@@ -354,6 +354,12 @@ it refuses those looks. Visible is fine; in front is not.
 ## Decisions
 
 - [[ADR-010-passive-observation-cannot-execute]]
+- [[ADR-170-what-an-unnamed-arrangement-would-have-segmented]] — the screen model is one
+  vacuous state on the pixels path, which killed three of four acceptance questions on the first
+  mouse demonstration. So the same frames were asked what the segmenter WOULD have produced if
+  unnamed geometry counted: seven screens, 13 of 17 presses followed by a different one, and the
+  route visible in both runs. A measurement with production's own arithmetic, labelled as one,
+  wired into nothing. The separation works; the noise is the design problem
 - [[ADR-169-a-recording-that-could-not-explain-its-own-total]] — the first real mouse recording
   held 17 presses and the person who made it had clicked more times than that. Four things cause
   that difference and two of them were counted NOWHERE: a middle click or wheel notch, and a
@@ -888,6 +894,15 @@ it refuses those looks. Visible is fine; in front is not.
   reachable through a keyboard FFI. `InputLog` retains the device beside every admitted event, so
   the join exists to be made when something exists that would use it. Deliberate scope, recorded
   in ADR-161 rather than discovered later.
+- **A session on the pixels discovery path segments no screens — and a MEASUREMENT now says the
+  pixels could carry it.** Asked of arrangement alone, with production's own signature,
+  similarity and threshold and one generic kind on every proposal, the 900-frame Rocket League
+  recording separates into **seven** screens with **13 of 17 presses followed by a different
+  one**, and the demonstrated route appears in both runs. Against Marco's actual `1 state, 0
+  transitions`. The cue is also noisy — 150 changes between adjacent frames — so the work is
+  damping rather than detection, and the durable half is still its own decision: an arrangement
+  of rectangles is a much weaker identity to make permanent than a composition of roles.
+  [[ADR-170-what-an-unnamed-arrangement-would-have-segmented]]
 - **A session on the pixels discovery path segments no screens.** `StructuralView.Regions` comes
   from named detections and the structure proposer names nothing, so on the default discovery
   path the screen model is one vacuous state that any composition with no named roles matches.

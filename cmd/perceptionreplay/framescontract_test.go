@@ -126,6 +126,14 @@ func TestAnL0RecordingReplaysThroughPerception(t *testing.T) {
 		t.Error("no frame produced a usable stack from five evenly spaced rows of one " +
 			"size, so either the proposals or the normalisation into the look is wrong")
 	}
+	// AND THE ARRANGEMENT MEASUREMENT RAN. It is collected per frame inside the same
+	// loop, so a replay that gathered no signatures reports no screens at all — and
+	// that is indistinguishable in the output from a recording the cue could not
+	// separate, which is the one conclusion it exists to support.
+	if len(r.PixelClusters) == 0 {
+		t.Error("the replay reports no pixel arrangements over 24 frames of drawn rows, " +
+			"so the measurement in screens.go was never reached")
+	}
 	// THE MARK MOVES in this fixture, so the belief has to get somewhere. This is the
 	// assertion that the shading was measured FROM THE PIXELS: a replay that handed the
 	// watch unshaded geometry would group these rows and report every candidate quiet.

@@ -156,6 +156,16 @@ type frameResult struct {
 	Candidates          []observe.InterfaceCandidate
 	Identified          int
 	Inputs              int
+	// PixelClusters is what an unnamed-geometry cue WOULD have segmented this recording
+	// into, PixelScreenChanges how often adjacent frames fell in different clusters, and
+	// PressOutcomes whether each press was followed by a different one.
+	//
+	// A MEASUREMENT AND NOT A BELIEF. Marco's own screen model is States/Transitions
+	// below, and on the pixels path that is one state and no transitions. See screens.go
+	// for why the question is worth asking separately.
+	PixelClusters      []screenCluster
+	PixelScreenChanges int
+	PressOutcomes      []pressOutcome
 	// PointsSeen is pointer presses the replay was given, PointsOnAShape those that
 	// landed inside at least one region the proposer found on that frame, and
 	// PointsAmbiguous those inside more than one.
@@ -250,6 +260,11 @@ func replayFrames(dir string, stride, limit int, verbose bool) (frameResult, err
 	base := time.Unix(1700000000, 0).UTC()
 	opt := structure.DefaultOptions()
 	nextInput := 0
+	// The arrangement measurement's inputs, gathered per frame and resolved once at the
+	// end. See screens.go: it is what an unnamed-geometry cue WOULD segment, and it is
+	// not what Marco believes.
+	var pixelSigs []observe.ScreenSignature
+	var pressFrames []int
 
 	for i, fr := range frames {
 		if stride > 1 && i%stride != 0 {
@@ -330,6 +345,15 @@ func replayFrames(dir string, stride, limit int, verbose bool) (frameResult, err
 		// Nothing here decides what was clicked. It counts whether an answer was
 		// possible.
 		scorePresses(slot, shapes, &r)
+		// AND WHAT THE ARRANGEMENT WOULD HAVE SAID, collected per frame and clustered
+		// once at the end: a greedy assignment needs the clusters that exist so far,
+		// and building them here would interleave the measurement with the belief.
+		pixelSigs = append(pixelSigs, pixelSignature(shapes))
+		for _, e := range slot {
+			if e.Intent == observe.NavPoint {
+				pressFrames = append(pressFrames, len(pixelSigs)-1)
+			}
+		}
 		at := base.Add(time.Duration(fr.AtMS) * time.Millisecond)
 		if sizes := observe.GroupedForLook(observe.InterfaceLook{
 			Observed: true, Shapes: shapes,
@@ -447,6 +471,16 @@ func replayFrames(dir string, stride, limit int, verbose bool) (frameResult, err
 		}
 	}
 
+	// THE MEASUREMENT, resolved. Greedy clustering needs every signature first, and a
+	// settle window of ten frames is one second at the rate this recording ran at —
+	// long enough for a menu to repaint and short enough that the next press has not
+	// happened yet. The presses in rl-freeplay-1 are 2.3 seconds apart at the closest.
+	const settleFrames = 10
+	per, clusters := clusterScreens(pixelSigs)
+	r.PixelClusters = clusters
+	r.PixelScreenChanges = screenChanges(per)
+	r.PressOutcomes = pressesAcrossScreens(pressFrames, per, settleFrames)
+
 	r.Belief = totals.Interface
 	r.Identified = r.Belief.After
 	r.Candidates = totals.Candidates
@@ -462,6 +496,7 @@ func replayFrames(dir string, stride, limit int, verbose bool) (frameResult, err
 	r.Confirmations = confirmations(r.Trace, ann)
 	r.Lists = scoreLists(r.Trace, ann)
 	reportFrames(r, ann)
+	reportScreens(r)
 	return r, nil
 }
 
