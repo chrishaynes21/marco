@@ -162,6 +162,9 @@ type frameResult struct {
 	// screen it was made on and the one that followed it.
 	//
 	// Never durable. See observe/arrangement.go.
+	// Walk is the screens in the order the session settled on them, which is where a
+	// repeated route is read from. Counts lose the order and occurrences interleave.
+	Walk []observe.VisualScreenID
 	// Arrangement looks up a settled screen's stored arrangement, for the measurement
 	// that compares them against one another. Nil on a result nobody replayed.
 	Arrangement func(observe.VisualScreenID) observe.VisualArrangement
@@ -528,6 +531,7 @@ func replayFrames(dir string, stride, limit int, verbose bool) (frameResult, err
 	clicks.Close()
 	r.Clicks = clicks.Evidence()
 	r.Targets = clicks.Targets()
+	r.Walk = screens.Walk()
 	r.Arrangement = screens.Arrangement
 	r.VisualSeen = screens.Seen()
 	r.VisualTransitions = screens.Transitions()
@@ -569,6 +573,10 @@ func replayFrames(dir string, stride, limit int, verbose bool) (frameResult, err
 	reportVisualScreens(r)
 	reportClicks(r)
 	reportClickRoute(r)
+	verdicts := classifyScreens(r)
+	reportTransients(r, verdicts)
+	reportRouteStability(r, verdicts)
+	reportTargetComparison(compareTargets(r))
 	if r.Arrangement != nil {
 		reportShapeVsCount(r, r.Arrangement)
 	}

@@ -126,6 +126,13 @@ func TestAPressBeforeALayoutChangeBecomesALearningUnit(t *testing.T) {
 	if len(r.VisualTransitions) == 0 {
 		t.Fatal("the layout change produced no transition")
 	}
+	// AND THE ORDER IS RECORDED. A repeated route is a repeated run in the walk, and no
+	// collection of transitions can reconstruct it: counts lose the order, and two
+	// pairs' occurrences interleave.
+	if len(r.Walk) < 2 {
+		t.Errorf("the replay recorded a walk of %d screen(s) over a recording that "+
+			"settled on two: %v", len(r.Walk), r.Walk)
+	}
 	// AND THE PRESS IS CORRELATED WITH IT, which is the learning unit.
 	e := r.Clicks
 	if len(e.Attributed) != 1 {

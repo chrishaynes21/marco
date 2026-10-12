@@ -40,6 +40,63 @@ import (
 	"sort"
 )
 
+// TransitionCause is WHY a screen changed, as far as the evidence goes.
+//
+// # Three kinds, and the third is the important one
+//
+// The owner's decision, after the first mouse demonstration exposed the gap:
+//
+//	I would allow the graph to represent both kinds of transitions explicitly.
+//
+//	  Click      a grounded target was clicked and a screen change followed
+//	  Automatic  screen changed without a newly attributable input
+//	  Unknown    evidence insufficient to establish the cause
+//
+//	The third category is especially important. Marco should be able to learn that
+//	something happened without pretending to know why.
+//
+// Rocket League forced it. Entering Free Play is a LOAD completing: the person clicks, a
+// loading screen appears, and the destination arrives with no further input. A planner that
+// assumed every edge needs an action would try to click its way through that — and would be
+// wrong about ordinary applications, not just games.
+//
+// But an unprompted change is not automatically a legitimate navigation either. An animation, a
+// splash and a segmentation artefact all look the same from here, which is why the third kind
+// exists rather than everything unattributed being called automatic.
+type TransitionCause string
+
+const (
+	// CauseClick is a change that followed a press on a grounded target.
+	CauseClick TransitionCause = "click"
+	// CauseAutomatic is a change with no attributable press that followed Marco's own
+	// ARRIVAL by click — the load-after-a-click shape, where waiting is the right
+	// response and clicking again is not.
+	CauseAutomatic TransitionCause = "automatic"
+	// CauseUnknown is a change with no press and no arrival to hang it on.
+	//
+	// Not a failure and not a lesser automatic: it is the honest answer, and it is the
+	// one that must never become an executable step. An animation, a splash screen and a
+	// segmentation artefact are all in here, and nothing in this layer can tell them
+	// apart.
+	CauseUnknown TransitionCause = "unknown"
+)
+
+// Executable reports whether a cause could ever license an action.
+//
+// Only a click, and only ever after a target is re-grounded on the screen in front of Marco.
+// This is a statement about the EVIDENCE and not a permission: nothing in this package can act,
+// and an automatic transition says to wait and verify rather than to press anything.
+func (c TransitionCause) Executable() bool { return c == CauseClick }
+
+// MaxArrivalToAutomaticLooks is how soon after arriving somewhere a further change may still be
+// called automatic.
+//
+// The same bound a press gets, deliberately: it is the same question asked one step along — how
+// long a consequence may take before it stops being a consequence — and a second number would
+// be a second rule to keep in step with the first. The gap is reported per occurrence, so an
+// automatic transition that took four seconds is visible as one.
+const MaxArrivalToAutomaticLooks = MaxPressToTransitionLooks
+
 // VisualTargetID is a session-local identity for a control somebody clicked.
 type VisualTargetID string
 
@@ -109,8 +166,40 @@ type ClickTransition struct {
 	Ambiguous int `json:"ambiguous,omitempty"`
 }
 
+// RouteStep is one observed change with its cause and its evidence.
+//
+// One type for all three causes rather than a list per cause, because the thing that reads this
+// has to walk a route through them: a step whose cause is automatic sits between two steps whose
+// cause is a click, and splitting them into separate collections makes the caller reassemble an
+// order the evidence already has.
+type RouteStep struct {
+	From  VisualScreenID  `json:"from"`
+	To    VisualScreenID  `json:"to"`
+	Cause TransitionCause `json:"cause"`
+	// Target is the control that was pressed, and it is EMPTY for every cause but a
+	// click. An automatic or unknown step with a target would be an invitation to press
+	// something nobody pressed.
+	Target VisualTargetID `json:"target,omitempty"`
+	Count  int            `json:"count"`
+	// Looks is when each occurrence happened — the press for a click, the change itself
+	// otherwise — and Gaps how long each took.
+	Looks []int `json:"looks,omitempty"`
+	Gaps  []int `json:"gaps,omitempty"`
+	// Ambiguous counts the occurrences whose target was one reading of several.
+	Ambiguous int `json:"ambiguous,omitempty"`
+	// Because says why this cause was assigned, in words, so a reader does not have to
+	// re-derive it from the numbers.
+	Because string `json:"because,omitempty"`
+}
+
 // ClickEvidence is everything the session can say about its presses and changes.
 type ClickEvidence struct {
+	// Steps is every observed change with its cause, most repeated first.
+	//
+	// The three causes together, because a route walks through all of them. Attributed
+	// below is the click-caused subset, kept because the learning unit is a thing in its
+	// own right and most of what reads this wants only those.
+	Steps []RouteStep `json:"steps,omitempty"`
 	// Attributed is the learning units, most repeated first.
 	Attributed []ClickTransition `json:"attributed,omitempty"`
 	// Inert is presses that were followed by no screen change inside the window. A real
@@ -180,8 +269,19 @@ type ClickTargets struct {
 	attributed   []ClickTransition
 	inert        []ClickObservation
 	unattributed []VisualTransition
+	steps        []RouteStep
 	blind        int
 	ambiguous    int
+
+	// arrivedAt is the look Marco last arrived somewhere BY A CLICK, and arrivedWhere
+	// the screen it arrived at.
+	//
+	// What separates automatic from unknown. A change out of a screen Marco clicked its
+	// way into, soon after, is the load-after-a-click shape; a change out of a screen it
+	// has merely been sitting on is something else, and this layer cannot say what.
+	arrivedAt    int
+	arrivedWhere VisualScreenID
+	hasArrived   bool
 }
 
 // Press folds one press: what it landed on, and which target that is.
@@ -350,11 +450,32 @@ func (c *ClickTargets) Arrived(look int, t VisualTransition) {
 		// usually has no input before it is evidence against reading the correlated
 		// ones as causes.
 		c.unattributed = append(c.unattributed, t)
+		// AUTOMATIC, OR UNKNOWN. The distinction is whether Marco got here by
+		// clicking: a change out of a screen it clicked its way into, soon after, is
+		// a load completing, and the right response to one is to WAIT. A change out of
+		// a screen it has merely been sitting on could be an animation, a splash or a
+		// segmentation artefact, and nothing here can tell those apart.
+		cause, why := CauseUnknown, "no press before it, and Marco did not click its "+
+			"way to this screen either"
+		gap := 0
+		if c.hasArrived && c.arrivedWhere == t.From {
+			if g := look - c.arrivedAt; g >= 0 && g <= MaxArrivalToAutomaticLooks {
+				cause, gap = CauseAutomatic, g
+				why = "no press before it, and it followed an arrival by click: " +
+					"the shape of a load completing, so the response is to " +
+					"wait and verify rather than to press anything"
+			}
+		}
+		c.step(t.From, t.To, cause, "", look, gap, false, why)
 		c.resolve(nil)
 		return
 	}
 	p := c.pending[best]
 	c.note(p, t.To, look-p.Look)
+	c.step(p.Screen, t.To, CauseClick, p.Target, p.Look, look-p.Look, p.Ambiguous,
+		"a press on a grounded target was followed by this change")
+	// ARRIVED BY CLICKING, which is what lets the next change be called automatic.
+	c.arrivedAt, c.arrivedWhere, c.hasArrived = look, t.To, true
 	c.resolve(&best)
 }
 
@@ -373,6 +494,33 @@ func (c *ClickTargets) resolve(attributed *int) {
 		c.inert = append(c.inert, c.pending[i])
 	}
 	c.pending = c.pending[:0]
+}
+
+// step records one occurrence of a route step, by cause.
+func (c *ClickTargets) step(from, to VisualScreenID, cause TransitionCause,
+	target VisualTargetID, look, gap int, ambiguous bool, why string) {
+
+	for i := range c.steps {
+		x := &c.steps[i]
+		if x.From != from || x.To != to || x.Cause != cause || x.Target != target {
+			continue
+		}
+		x.Count++
+		x.Looks = append(x.Looks, look)
+		x.Gaps = append(x.Gaps, gap)
+		if ambiguous {
+			x.Ambiguous++
+		}
+		return
+	}
+	st := RouteStep{
+		From: from, To: to, Cause: cause, Target: target, Count: 1,
+		Looks: []int{look}, Gaps: []int{gap}, Because: why,
+	}
+	if ambiguous {
+		st.Ambiguous = 1
+	}
+	c.steps = append(c.steps, st)
 }
 
 // note records one occurrence of a learning unit.
@@ -409,13 +557,24 @@ func (c *ClickTargets) Close() { c.resolve(nil) }
 // Evidence is everything the session can say, most repeated first.
 func (c *ClickTargets) Evidence() ClickEvidence {
 	out := ClickEvidence{
+		Steps:            make([]RouteStep, len(c.steps)),
 		Attributed:       make([]ClickTransition, len(c.attributed)),
 		Inert:            make([]ClickObservation, len(c.inert)),
 		Unattributed:     make([]VisualTransition, len(c.unattributed)),
 		Blind:            c.blind,
 		AmbiguousPresses: c.ambiguous,
 	}
+	copy(out.Steps, c.steps)
 	copy(out.Attributed, c.attributed)
+	sort.SliceStable(out.Steps, func(i, j int) bool {
+		if out.Steps[i].Count != out.Steps[j].Count {
+			return out.Steps[i].Count > out.Steps[j].Count
+		}
+		if out.Steps[i].From != out.Steps[j].From {
+			return out.Steps[i].From < out.Steps[j].From
+		}
+		return out.Steps[i].To < out.Steps[j].To
+	})
 	copy(out.Inert, c.inert)
 	copy(out.Unattributed, c.unattributed)
 	// THE PAIRS THAT MIGHT BE ONE CONTROL. Derived from the transitions rather than

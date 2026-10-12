@@ -145,6 +145,12 @@ lands in a slot the cadence gate declined.
 
 ## Related systems
 
+- [[Passive-Visual-Screen-Integration]] — the PROPOSED plan for connecting the session-local
+  visual screen to the live observation path, passive only. Not built, and it states the three
+  preconditions it should not be started under — the chief one being that the settle rule counts
+  looks and the live cadence is twelve times slower than the recording's, so three looks is
+  eleven seconds there and the damping would discard every real navigation.
+
 - [[Vision]] — one of two structural sources; see [[ADR-036-a-screen-is-a-composition-not-a-provider]]
 - [[Navigation]] — the input evidence that gives the state graph its edges
 - [[Perception]] — the pipeline, and the pinning gap below
@@ -354,6 +360,16 @@ it refuses those looks. Visible is fine; in front is not.
 ## Decisions
 
 - [[ADR-010-passive-observation-cannot-execute]]
+- [[ADR-174-three-kinds-of-transition-and-what-a-brief-screen-was]] — not every screen change is
+  caused by a click, and a planner that assumed one would fail on ordinary applications. Three
+  causes now: CLICK (a press on a grounded target), AUTOMATIC (no press, following Marco's own
+  arrival by click — a load completing, answered by waiting) and UNKNOWN (no press and no arrival
+  behind it, which is where an animation, a splash and a segmentation artefact all sit). Only a
+  click is `Executable()`, and the other two carry no target at all. Measured: 13 click, 5
+  automatic, 3 unknown. And a brief screen is EXPLAINED rather than deleted, with no duration
+  threshold anywhere: `visual_5` turned out to be a dialog that appeared by itself and was
+  dismissed with a click, `visual_8` is the loading state, and `visual_9` is genuinely
+  unexplained
 - [[ADR-173-the-proposers-yield-is-not-what-separates-two-screens]] — the suspicion that two
   settled screens were one screen at two proposal yields, measured and REFUTED: `visual_1` at
   236 regions and `visual_6` at 400 differ by shape as well as by count. And normalising the
@@ -921,6 +937,16 @@ it refuses those looks. Visible is fine; in front is not.
   reachable through a keyboard FFI. `InputLog` retains the device beside every admitted event, so
   the join exists to be made when something exists that would use it. Deliberate scope, recorded
   in ADR-161 rather than discovered later.
+- **The two demonstrations are not the same route end to end.** They share an identical
+  five-screen prefix (`visual_1 → 2 → 3 → 4 → 1`) and then diverge, because in the first one a
+  dialog appeared and was dismissed and in the second it did not. Collapsing it is not licensed:
+  somebody clicked on it. A fact about what the person did, not a defect in the reading.
+  [[ADR-174-three-kinds-of-transition-and-what-a-brief-screen-was]]
+- **A cause disagreement is not a route disagreement.** Two steps of the measured route were a
+  CLICK on one occasion and AUTOMATIC on the other, because the load took longer than the
+  attribution window. Anything planning over this has to treat the cause as per-occurrence
+  evidence rather than a property of the edge.
+  [[ADR-174-three-kinds-of-transition-and-what-a-brief-screen-was]]
 - **Nine settled screens for four or five real ones, and the proposer's yield is not why.**
   Normalising the region count is measured and rejected: it would merge two consecutive steps of
   the demonstrated route. What IS causing the extra screens is unexplained — `visual_5` held 8

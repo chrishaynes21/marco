@@ -291,6 +291,21 @@ func reportClicks(r frameResult) {
 		}
 		fmt.Println()
 	}
+	// ── BY CAUSE, which is what a planner would read ──
+	byCause := map[observe.TransitionCause]int{}
+	for _, st := range e.Steps {
+		byCause[st.Cause] += st.Count
+	}
+	fmt.Printf("  observed changes    %d click, %d automatic, %d unknown cause\n",
+		byCause[observe.CauseClick], byCause[observe.CauseAutomatic],
+		byCause[observe.CauseUnknown])
+	for _, st := range e.Steps {
+		if st.Cause == observe.CauseClick {
+			continue
+		}
+		fmt.Printf("                      %-10s -> %-10s  %-9s x%-2d at %v, %v look(s) "+
+			"after arriving\n", st.From, st.To, st.Cause, st.Count, st.Looks, st.Gaps)
+	}
 	if len(e.MaybeOneControl) > 0 {
 		fmt.Printf("  MAYBE ONE CONTROL   %d pair(s) of identities on one screen that led "+
 			"to the same place:\n", len(e.MaybeOneControl))
@@ -344,21 +359,9 @@ func reportClickRoute(r frameResult) {
 		}
 	}
 	// What is attributed, and what merely happened.
-	type step struct {
-		to      observe.VisualScreenID
-		target  observe.VisualTargetID
-		count   int
-		amb     int
-		pressed bool
-	}
-	outgoing := map[observe.VisualScreenID][]step{}
-	for _, a := range r.Clicks.Attributed {
-		outgoing[a.From] = append(outgoing[a.From], step{
-			to: a.To, target: a.Target, count: a.Count, amb: a.Ambiguous, pressed: true,
-		})
-	}
-	for _, t := range r.Clicks.Unattributed {
-		outgoing[t.From] = append(outgoing[t.From], step{to: t.To, count: t.Count})
+	outgoing := map[observe.VisualScreenID][]observe.RouteStep{}
+	for _, st := range r.Clicks.Steps {
+		outgoing[st.From] = append(outgoing[st.From], st)
 	}
 	// Which pairs two identities competed over, so a step can say so.
 	competing := map[string]bool{}
@@ -383,42 +386,46 @@ func reportClickRoute(r frameResult) {
 				"that was followed by a change\n", at)
 			return
 		}
-		// The best-evidenced step first: repeated over once-seen, pressed over not.
+		// The best-evidenced step first: executable over not, then repeated over
+		// once-seen. A click is preferred for READING, not because it is better
+		// evidence — an automatic step beside it is a real alternative and is printed.
 		sort.SliceStable(steps, func(i, j int) bool {
-			if steps[i].pressed != steps[j].pressed {
-				return steps[i].pressed
+			ei, ej := steps[i].Cause.Executable(), steps[j].Cause.Executable()
+			if ei != ej {
+				return ei
 			}
-			return steps[i].count > steps[j].count
+			return steps[i].Count > steps[j].Count
 		})
 		for i, st := range steps {
 			lead := "  -> "
 			if i > 0 {
 				lead = "   or "
 			}
-			switch {
-			case !st.pressed:
-				fmt.Printf("      %-10s%s%-10s  NO TARGET: the screen changed and "+
-					"nobody pressed for it (x%d)\n", at, lead, st.to, st.count)
+			note := "seen ONCE — not confirmed"
+			if st.Count > 1 {
+				note = fmt.Sprintf("confirmed in %d demonstrations", st.Count)
+			}
+			if st.Ambiguous > 0 {
+				note += "; the target is one reading of several"
+			}
+			if competing[string(at)+">"+string(st.To)] {
+				note += "; ANOTHER identity reached the same place, so these " +
+					"may be one control"
+			}
+			switch st.Cause {
+			case observe.CauseClick:
+				fmt.Printf("      %-10s%sCLICK  %-10s  via %-10s  (%s)\n",
+					at, lead, st.To, st.Target, note)
+			case observe.CauseAutomatic:
+				fmt.Printf("      %-10s%sWAIT   %-10s  no target: it arrived by "+
+					"itself after %v look(s)  (%s)\n",
+					at, lead, st.To, st.Gaps, note)
 			default:
-				note := ""
-				switch {
-				case st.count > 1:
-					note = fmt.Sprintf("confirmed in %d demonstrations", st.count)
-				default:
-					note = "seen ONCE — not confirmed"
-				}
-				if st.amb > 0 {
-					note += "; the target is one reading of several"
-				}
-				if competing[string(at)+">"+string(st.to)] {
-					note += "; ANOTHER identity reached the same place, so " +
-						"these may be one control"
-				}
-				fmt.Printf("      %-10s%s%-10s  via %-10s  (%s)\n",
-					at, lead, st.to, st.target, note)
+				fmt.Printf("      %-10s%s?      %-10s  CAUSE UNKNOWN — nothing may "+
+					"be executed here  (%s)\n", at, lead, st.To, note)
 			}
 		}
-		at = steps[0].to
+		at = steps[0].To
 	}
 }
 

@@ -388,6 +388,7 @@ func TestAVisualScreenCannotReachDurableMemory(t *testing.T) {
 		filepath.Join(dir, "arrangement_test.go"): true,
 		filepath.Join(dir, "clicktarget.go"):      true,
 		filepath.Join(dir, "clicktarget_test.go"): true,
+		filepath.Join(dir, "cause_test.go"):       true,
 	}
 	root := filepath.Join("..", "..", "..")
 	names := []string{

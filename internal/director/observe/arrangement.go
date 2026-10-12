@@ -312,6 +312,13 @@ type VisualScreens struct {
 	// thing a correlation needs is the PAIR, which the returned id alone cannot give.
 	promoted   VisualTransition
 	didPromote bool
+
+	// walk is the screens in the order they were settled on, first settle included.
+	//
+	// A session's own sequence, which no collection of transitions can reconstruct:
+	// counts lose the order, and the occurrences of two different pairs interleave. A
+	// route that repeats is a repeated run in HERE.
+	walk []VisualScreenID
 }
 
 // Observe folds one look and returns what screen it is a look AT.
@@ -406,6 +413,9 @@ func (v *VisualScreens) promote(a VisualArrangement) VisualScreenID {
 	v.held, v.heldSig = id, v.screenSig(id)
 	v.pending, v.pendingRun = VisualArrangement{}, 0
 	v.stats.Promotions++
+	if len(v.walk) < MaxVisualWalk {
+		v.walk = append(v.walk, id)
+	}
 	v.touch(id)
 	if from != "" && from != id {
 		v.note(from, id, v.look-v.pendingFrom)
@@ -453,6 +463,22 @@ func (v *VisualScreens) note(from, to VisualScreenID, unsettled int) {
 	v.transitions = append(v.transitions, VisualTransition{
 		From: from, To: to, Count: 1, Looks: []int{v.look}, Unsettled: unsettled,
 	})
+}
+
+// MaxVisualWalk bounds the recorded sequence.
+//
+// Long enough for a session of several demonstrations at a video rate — a promotion is a
+// settled change, not a frame — and bounded because nothing should grow without one.
+const MaxVisualWalk = 4096
+
+// Walk is the screens in the order they were settled on.
+//
+// The first settle is in it, because a route begins somewhere and a sequence that started at
+// the first CHANGE would be missing the screen the person started on.
+func (v *VisualScreens) Walk() []VisualScreenID {
+	out := make([]VisualScreenID, len(v.walk))
+	copy(out, v.walk)
+	return out
 }
 
 // Promoted reports the change the last folded look caused, if it caused one.
