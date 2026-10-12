@@ -15,7 +15,9 @@ source_paths:
   - internal/director/observe
   - internal/director/observe/interface.go
   - internal/director/perception/selection/selection.go
+  - internal/director/perception/selection/active.go
   - cmd/perceptionreplay/score.go
+  - cmd/perceptionreplay/listidentity.go
   - internal/director/observesession
   - internal/director/learn
   - cmd/director/observecmd.go
@@ -569,6 +571,54 @@ it refuses those looks. Visible is fine; in front is not.
   containing the labelled row the reader names it **43 of 46 (93%)**, which clears the 90%
   target. So the reader is not the bottleneck at either end: it costs 7 frames of coverage out of
   829 and no neighbour confusions at all.
+- **No tracked candidate is a list. Every one that qualifies is a bucket, and both known repairs
+  are worse.** `Tracker.match` used `overlap`, which divides the intersection by the SMALLER
+  area — right in grouping, where a row contains its label and the label is a duplicate of the
+  row, and wrong here, because any group nested inside a tracked extent scores 1.0 and is taken
+  for the same list. Measured over 864 frames with the new `Hull` and `Rehomed` diagnostics:
+  **every candidate that ever qualified had a hull spanning the whole screen**, and the four
+  qualifiers had changed area by more than a factor of two 37, 46, 101 and 127 times, against
+  0, 0, 0, 5, 6, 14, 87 and 108 for the eight that never qualified. So drifting is what EARNS a
+  candidate its verdict: a bucket sees "a different member marked" whenever it absorbs a
+  different group, which reads as a transfer among several holders.
+  Two repairs tried and rejected, scored against the labelled list's own extent:
+
+  | | correct list | coverage | accuracy | the reader alone |
+  |---|---|---|---|---|
+  | as it is | **45 of 829** | 185 | 43 (23%) | 43 of 46 (93%) |
+  | intersection over union | 6 of 829 | 86 | 44 (51%) | 44 of 51 (86%) |
+  | a scale guard on overlap | **0 of 829** | 269 | 87 (32%) | 87 of 89 (98%) |
+
+  Intersection over union fragments the real menu, whose grouping varies between three and seven
+  rows frame to frame, and identified nothing at all at two of four strides. The scale guard
+  improved three metrics while taking the one that matters to zero, identified nothing at strides
+  3 and 20, and accumulated candidates without bound — which says the nesting-tolerant match has
+  been doing load-bearing work in keeping the population down. **The untried idea is a MEMBERSHIP
+  test** — are these the rows this candidate already knows, by position, which `memberAt` already
+  asks — because it is behavioural rather than geometric. Recorded by
+  `TestANestedGroupIsStillFoldedIntoTheListAroundIt`, which asserts the defect so a future repair
+  has to confront what these two cost. The number to beat is 45 of 829 on correct-list
+  identification, not coverage or accuracy. [[ADR-163-a-list-that-qualifies-alone-is-not-the-one-being-used]]
+- ~~A list that qualifies alone is published with no comparison to anything.~~ **Fixed
+  2026-10-11**, [[ADR-163-a-list-that-qualifies-alone-is-not-the-one-being-used]]. `Tracker.active`
+  had four arms, and the one that fires when a single candidate qualifies asked nothing at all —
+  not another candidate, and not whether the person's navigation had ever reached it. Scored
+  against the labelled list's own extent over 864 frames:
+
+  | arm | frames | correct list | wrong list | named | right |
+  |---|---|---|---|---|---|
+  | `sole_qualifier` | 144 | **0** | **144** | 139 | **0** |
+  | `most_responsive` | 48 | **45** | 3 | 46 | **43** |
+
+  139 of the session's 185 readings came from the arm that compares nothing and not one named the
+  labelled row. It is also the DOMINANT publisher at every cadence — 144 of 864, 25 of 288, 55 of
+  87, 15 of 44 frames — with correctness of 0%, 92%, 40% and 13%, because first past the post
+  wins and which candidate gets there first depends on frame order. That is the stride
+  sensitivity, named. Both arms now require `prompted >= MinTransfers`, conditional on navigation
+  having been observed at all so a caller that cannot see input is unaffected. Effect: wrong-list
+  frames 147 → 96 at stride 1 and 13 → 0 at stride 20, with every correct reading preserved at
+  strides 1, 3 and 10; **93 wrong-list frames remain at stride 1**, because responsiveness is
+  necessary and not sufficient while the candidates are buckets.
 - **The list the belief reads is usually not the menu, and that is now the measured bottleneck.**
   138 of 185 namings over the full corpus came from one candidate — a band `y 0.280..0.335`, five
   and a half percent of the screen tall, nine "rows" in it — which got none right. It also happens
@@ -581,7 +631,11 @@ it refuses those looks. Visible is fine; in front is not.
   and a second corpus.
 - **Over the full corpus the belief ends `ambiguous`; at every tenth frame it does not.** The
   responding share is 0.83 for the menu against 0.55 for a four-row sliver at `y 0.104..0.131`,
-  a ratio of 1.5 against the required `NavMargin` of 2. Not explained, not tuned.
+  a ratio of 1.5 against the required `NavMargin` of 2. **Partly explained 2026-10-11**: that
+  four-row candidate is a bucket whose hull spans the whole screen and which rehomed 127 times,
+  so its six attributed transfers are not one list's transfers. What is still unexplained is why
+  the responsive arm never fires at all at strides 3, 10 and 20 — it needs two candidates to
+  qualify, and at coarse cadences only one does.
 - **Only 4 of 33 labelled row changes were ever named correctly, and 103 frames inside those gaps
   named some other row.** The ground-truth confirmation lag measures from the frame the labels put
   the new row in place, which is what the press-based latency cannot do — press-to-belief is the

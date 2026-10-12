@@ -12,6 +12,7 @@ source_paths:
   - internal/director/perception/structure/structure.go
   - cmd/perceptionreplay/frames.go
   - cmd/perceptionreplay/score.go
+  - cmd/perceptionreplay/listidentity.go
   - internal/director/perception/selection/group.go
 ---
 
@@ -353,3 +354,100 @@ two seconds.
 The 103 is the part worth keeping: **a gap spent silent is a slower answer, and a gap spent
 naming the row the selection has left is a wrong one.** The retained moves cannot tell them
 apart.
+
+## Third correction, 2026-10-11: which list, and the failure boundary
+
+The second correction established that the reader is right 93% of the time when the list it is
+handed contains the row the person is looking at. This traces where the wrong list comes from.
+Full account in [[ADR-163-a-list-that-qualifies-alone-is-not-the-one-being-used]].
+
+### The score had to become an identity
+
+"The labelled row is inside it" is satisfied by a candidate spanning the whole screen, and one
+on this corpus does exactly that — `y 0.059..1.000` with 21 "entries". So the published extent is
+now scored against the labelled list's own extent: at least six of the nine labelled rows inside
+it, and no more than 2.5 labelled pitches taller. Six and not nine because the menu groups as six
+of its nine entries here, and six rows of the menu is still the menu.
+
+### The failure boundary is PUBLICATION
+
+`Tracker.active` has four arms and they rest on different evidence. The replay reads the arm off
+the belief's own prose, so there is no second channel to disagree with it.
+
+| arm | frames | correct list | wrong list | named | right |
+|---|---|---|---|---|---|
+| `sole_qualifier` — one candidate qualifies, **nothing compared** | 144 | **0** | **144** | 139 | **0** |
+| `most_responsive` — several qualify, one out-responds | 48 | **45** | 3 | 46 | **43** |
+| `ambiguous` — several qualify, none out-responds | 623 | — | — | 0 | 0 |
+| `none_qualified` | 14 | — | — | 0 | 0 |
+
+**139 of the session's 185 readings came from the arm that compares nothing, and not one named
+the labelled row.** And that arm is the dominant publisher at every cadence, with correctness
+that is a coin flip:
+
+| stride | frames | identified after | sole arm (frames/correct/wrong) | responsive arm |
+|---|---|---|---|---|
+| 1 | 864 | 15 | 144 / 0 / 144 | 48 / 45 / 3 |
+| 3 | 288 | 55 | 25 / 23 / 2 | never fired |
+| 10 | 87 | 28 | 55 / 22 / 33 | never fired |
+| 20 | 44 | 25 | 15 / 2 / 13 | never fired |
+
+That is the stride sensitivity: first past the post wins, so the outcome is decided by whichever
+candidate crosses the bar first, which depends on frame order.
+
+### And underneath it, no tracked candidate is a list
+
+Two new diagnostics, neither recoverable from the existing table because a candidate's bounds are
+overwritten by every frame's extent:
+
+```
+rows frames excl moves prompt holders qual rehome where y..y      hull y..y      verdict
+6    863    483  18    15     6       162  46     0.581..0.944   0.000..1.000   IDENTIFIED
+5    853    386  34    5      5       15   101    0.000..1.000   0.000..1.000   IDENTIFIED
+4    790    97   11    6      3       213  127    0.104..0.131   0.000..1.000   IDENTIFIED
+3    471    13   3     0      3       615  37     0.104..0.131   0.026..0.907   IDENTIFIED
+```
+
+**Every candidate that ever qualified has a hull spanning the whole screen.** The four qualifiers
+rehomed 37–127 times; three of the eight that never qualified never rehomed at all. Drifting is
+what earns a candidate its verdict, because a bucket sees "a different member marked" whenever it
+absorbs a different group.
+
+The whole chain: the 5-row bucket qualified at observation **15** and was published alone for
+frames 50..196 — 144 wrong frames. The menu-shaped candidate qualified at **162**, so from frame
+197 two qualified and the responsive arm chose the menu, 15 of 18 attributed against 5 of 34 —
+correct for frames 200..247. A third bucket qualified at **213** with 6 of 11 attributed, a share
+of 0.55 against the menu's 0.83 and a ratio of 1.53 against the required 2 — ambiguous for the
+remaining 623 frames.
+
+### Two repairs to candidate identity, both rejected on measurement
+
+| | correct list | coverage | accuracy | the reader alone |
+|---|---|---|---|---|
+| as it is | **45 of 829** | 185 | 43 (23%) | 43 of 46 (93%) |
+| intersection over union | 6 of 829 | 86 | 44 (51%) | 44 of 51 (86%) |
+| a scale guard on overlap | **0 of 829** | 269 | 87 (32%) | 87 of 89 (98%) |
+
+The scale guard improved coverage, accuracy AND the reader's conditional score while taking
+correct-list identification to zero. **Three metrics improving while the one that matters
+collapses** is the whole reason the score had to become an identity, and it is the shape of the
+risk this experiment's own corpus has produced twice before.
+
+### What landed
+
+Both arms now require the same responsiveness evidence, conditional on navigation having been
+observed at all:
+
+| stride | wrong list | correct list | right namings | wrong namings |
+|---|---|---|---|---|
+| 1 | 147 → **96** | 45 → 45 | 43 → 43 | 142 → **92** |
+| 3 | 2 → 2 | 23 → 23 | 13 → 13 | 3 → 3 |
+| 10 | 33 → 33 | 22 → 22 | 19 → 19 | 19 → 19 |
+| 20 | 13 → **0** | 2 → 0 | 1 → 0 | 9 → **0** |
+
+Strictly fewer wrong-list publications and never more; every correct reading preserved at strides
+1, 3 and 10; one lost at stride 20. Accuracy at stride 1 goes 23% → 32% entirely by removing
+wrong readings rather than adding right ones.
+
+**93 wrong-list frames remain at stride 1.** Responsiveness is necessary and not sufficient while
+the candidates are buckets, and the root cause is open.

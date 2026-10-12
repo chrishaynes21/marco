@@ -269,6 +269,68 @@ func TestTheRealMenuCorpusStillReadsAsAMenu(t *testing.T) {
 			wrong-sc.OutsideList)
 	}
 
+	// ── WHICH LIST, SCORED AS AN IDENTITY ─────────────────────────────────────────
+	//
+	// The ratchet that matters most, and the one the numbers above cannot express. The
+	// reader is 95% accurate here when the list it is handed contains the row the person
+	// is looking at, so the question that decides everything downstream is which list
+	// gets handed to it — and "the labelled row is inside it" is too weak a test of
+	// that: a candidate spanning the whole screen satisfies it, and a measured candidate
+	// on this corpus does exactly that.
+	//
+	// WHY THIS IS NOT REDUNDANT WITH THE FLOORS ABOVE. Two repairs to candidate identity
+	// were tried and rejected on measurement, and BOTH improved coverage, accuracy and
+	// the reader's conditional score while taking correct-list identification from 45 of
+	// 829 to 6 and then to 0. A change that improves three metrics while collapsing the
+	// fourth looks like progress in every number this test used to assert.
+	ls := r.Lists
+	if ls.Labelled != sc.Labelled {
+		t.Errorf("the list score counted %d labelled frames and the selection score "+
+			"%d; they are the same population", ls.Labelled, sc.Labelled)
+	}
+	const (
+		wantCorrectList = 22
+		allowWrongList  = 33
+	)
+	if ls.Correct < wantCorrectList {
+		t.Errorf("the belief was published about the labelled list on %d of %d "+
+			"labelled frames, against %d measured. Every reading made about "+
+			"another list is wrong before the reader is consulted",
+			ls.Correct, ls.Labelled, wantCorrectList)
+	}
+	if ls.Wrong > allowWrongList {
+		t.Errorf("the belief was published about a structure that is NOT the menu on "+
+			"%d of %d labelled frames, against %d measured. This is the number to "+
+			"drive to zero: a reading from the wrong list is retained as a move "+
+			"between rows the mark never made, and nothing downstream knows",
+			ls.Wrong, ls.Labelled, allowWrongList)
+	}
+	if got := ls.Correct + ls.Wrong + ls.None; got != ls.Labelled {
+		t.Errorf("%d labelled frames split into %d correct + %d wrong + %d none = %d",
+			ls.Labelled, ls.Correct, ls.Wrong, ls.None, got)
+	}
+	// ── AND NO BELIEF IS PUBLISHED WITHOUT RESPONSIVENESS EVIDENCE ────────────────
+	//
+	// The sole-qualifier arm used to publish one qualifying candidate with no comparison
+	// to anything, including whether the person's navigation had ever reached it. Over
+	// 864 frames it named the wrong list on 144 of 144 frames and produced 139 of the
+	// session's 185 readings, not one of them right; the arm that consults input evidence
+	// was right on 45 of its 48. Both arms now require the same evidence.
+	//
+	// Asserted as a property of the whole session rather than of one frame: any arm may
+	// publish, and none may publish without having seen the list respond.
+	for _, b := range []publishBranch{branchSole, branchResponsive} {
+		bs := ls.ByBranch[b]
+		if bs == nil || bs.Frames == 0 {
+			continue
+		}
+		if bs.Correct == 0 && bs.Frames > 10 {
+			t.Errorf("the %s arm published %d belief(s) and not one was about the "+
+				"labelled list. An arm that is never right names the rule to "+
+				"look at", b, bs.Frames)
+		}
+	}
+
 	t.Logf("real corpus, every 10th frame: %d frames, discovery %d/%d, grouping %d/%d, "+
 		"identified after %d, named %d of which %d matched, %.1f proposals/frame",
 		r.Frames, r.CoveredSelected, r.LabelledFrames, r.Grouped, r.Frames,
@@ -283,4 +345,6 @@ func TestTheRealMenuCorpusStillReadsAsAMenu(t *testing.T) {
 		sc.InsideRight, sc.InsideNamed,
 		100*float64(sc.InsideRight)/float64(max(sc.InsideNamed, 1)),
 		sc.Named-sc.Right, sc.OutsideList, sc.OffByOne)
+	t.Logf("which list: %d correct, %d WRONG, %d none, of %d labelled frames",
+		ls.Correct, ls.Wrong, ls.None, ls.Labelled)
 }

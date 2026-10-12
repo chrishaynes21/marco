@@ -1196,6 +1196,22 @@ type InterfaceCandidate struct {
 	// precisely what it falls short of when it does not.
 	Qualifies bool                  `json:"qualifies"`
 	Unmet     []selection.Shortfall `json:"unmet,omitempty"`
+	// QualifiedAt is the observation this candidate first met every requirement, or -1.
+	//
+	// WHICH candidate got there first, as against Identified's WHEN. It matters because
+	// the tracker publishes a sole qualifier with no comparison to anything, so the order
+	// candidates cross the bar in IS the decision — and a report that cannot show that
+	// order cannot explain a wrong one.
+	QualifiedAt int `json:"qualified_at,omitempty"`
+	// Hull is the union of every extent this candidate has ever had, and Rehomed how many
+	// times that extent changed area by more than a factor of two.
+	//
+	// The temporal-identity diagnostic, and it cannot be recovered from Where: a
+	// candidate's bounds are overwritten by every frame's extent, so the table shows
+	// wherever it ended up. A hull far larger than the bounds is one tracked "list" that
+	// has been several different rectangles.
+	Hull    Region `json:"hull,omitzero"`
+	Rehomed int    `json:"rehomed,omitempty"`
 }
 
 // maxInterfaceCandidates bounds what the report carries.
@@ -1228,6 +1244,8 @@ func (w *InterfaceWatch) Candidates() []InterfaceCandidate {
 			Transfers:  e.Transfers, Holders: e.Holders,
 			Prompted: e.Prompted, Unprompted: e.Unprompted,
 			Qualifies: e.Qualifies, Unmet: e.Unmet(),
+			QualifiedAt: e.QualifiedAt,
+			Hull:        unscaleRect(e.Hull), Rehomed: e.Rehomed,
 		})
 	}
 	return out

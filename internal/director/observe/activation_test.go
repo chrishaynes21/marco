@@ -116,10 +116,25 @@ func activationRun(t *testing.T, row int) observe.ShadowTotals {
 		seq++
 		look(listScreen(seq, 0))
 	}
+	// THE WALK PRESSES A KEY WHEN IT MOVES THE MARK, and it did not.
+	//
+	// It got away with that because the tracker published a list that qualified alone
+	// without asking whether anybody's navigation had ever reached it. Scored on 864 real
+	// frames, that arm named the wrong list on 144 of 144 frames, so it now requires the
+	// same responsiveness evidence the several-candidates arm always did — and this
+	// fixture then described a list whose mark moves on its own schedule: 32 transfers,
+	// one of them attributable. Which is exactly what the new rule refuses.
+	//
+	// A person walking a menu presses a key each time the mark moves. The press belongs on
+	// the look that MOVES it, which is the first of each row's three.
 	for range 6 {
 		for mark := range 6 {
-			for range 3 {
+			for k := range 3 {
 				seq++
+				if k == 0 {
+					look(listScreen(seq, mark, observe.NavDown))
+					continue
+				}
 				look(listScreen(seq, mark))
 			}
 		}

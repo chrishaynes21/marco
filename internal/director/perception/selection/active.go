@@ -122,6 +122,26 @@ type Evidence struct {
 	Holders int
 	// Qualifies says this candidate behaves like a list somebody is choosing from.
 	Qualifies bool
+	// QualifiedAt is the observation on which this candidate first met every
+	// requirement, or -1. Tracker.IdentifiedAt says WHEN a list was named; this says
+	// WHICH ONE got there first, which is a different question and the one that matters
+	// when the wrong list was named.
+	//
+	// It matters because `active` publishes a sole qualifier with no comparison to
+	// anything. First past the post wins, so the order candidates cross the bar in IS
+	// the decision, and a report that cannot show that order cannot explain the outcome.
+	QualifiedAt int
+	// Hull is the union of every extent this candidate has ever had, and Rehomed how
+	// many times its extent changed area by more than double or less than half.
+	//
+	// THE TEMPORAL-IDENTITY DIAGNOSTIC, and it cannot be recovered from Bounds. A
+	// candidate's bounds are overwritten by every frame's extent, so the final table
+	// shows wherever it ended up — and candidates are matched by overlap normalised on
+	// the SMALLER area, which means a small group nested inside a tracked candidate's
+	// extent matches it completely. A hull far larger than the bounds, or a Rehomed
+	// above zero, is one tracked "list" that has been several different rectangles.
+	Hull    image.Rectangle
+	Rehomed int
 }
 
 func (e Evidence) String() string {
@@ -234,6 +254,12 @@ type candidate struct {
 	prompted   int
 	unprompted int
 	stale      int
+	// qualifiedAt is the observation this candidate first met every requirement, or -1.
+	qualifiedAt int
+	// hull is the union of every extent it has had, and rehomed how many times that
+	// extent changed area by more than a factor of two. See Evidence.Hull.
+	hull    image.Rectangle
+	rehomed int
 }
 
 // Tracker watches candidate lists and decides which one is being used.
@@ -252,6 +278,14 @@ type Tracker struct {
 	// credited 4 of a real menu's 31 transfers; the long end would credit an unrelated
 	// list's.
 	navRecent bool
+	// navSeen says navigation has been observed at least once in this session.
+	//
+	// It decides whether responsiveness is a REQUIREMENT or merely a tie-break, which is
+	// the difference between a session somebody is navigating and a session with no input
+	// source at all. A caller that cannot see input must not have its silence read as "the
+	// person pressed nothing here", so where nothing was ever observed the rule falls back
+	// to what it was: a sole qualifier is named. See active().
+	navSeen bool
 }
 
 // NewTracker begins watching, knowing nothing.
@@ -298,6 +332,9 @@ func (t *Tracker) ObserveNavigated(rows []Row, shades []Shade, navRecent bool) {
 	// BEFORE the frame is folded, so a transfer seen on THIS observation can be
 	// attributed to an input the caller judged recent enough to have caused it.
 	t.navRecent = navRecent
+	if navRecent {
+		t.navSeen = true
+	}
 	t.frames++
 	byGroup := map[int][]image.Rectangle{}
 	shadeOf := map[int][]Shade{}
@@ -341,11 +378,19 @@ func (t *Tracker) update(members []image.Rectangle, shades []Shade, used map[*ca
 	ext := extent(members)
 	c := t.match(ext, used)
 	if c == nil {
-		c = &candidate{bounds: ext, rows: members, last: -1, holders: map[int]bool{}}
+		c = &candidate{bounds: ext, rows: members, last: -1, holders: map[int]bool{},
+			qualifiedAt: -1, hull: ext}
 		c.baseline = make([][]desc, len(members))
 		t.cands = append(t.cands, c)
 	}
 	c.stale = 0
+	// RECORDED BEFORE THE BOUNDS MOVE, because the bounds are about to stop being
+	// evidence of anything: they are overwritten by this frame's extent and the previous
+	// value is gone. See Evidence.Hull.
+	if a, b := area(c.bounds), area(ext); a > 0 && b > 0 && (b*2 < a || b > a*2) {
+		c.rehomed++
+	}
+	c.hull = c.hull.Union(ext)
 	c.bounds = ext
 	// Members are matched by position, so a row the detector dropped this frame does not
 	// shift every baseline onto a neighbour.
@@ -434,6 +479,17 @@ func (t *Tracker) update(members []image.Rectangle, shades []Shade, used map[*ca
 		if len(c.baseline[i]) > BaselineSamples {
 			c.baseline[i] = c.baseline[i][len(c.baseline[i])-BaselineSamples:]
 		}
+	}
+	// WHEN THIS CANDIDATE CROSSED THE BAR, recorded for every candidate and not only for
+	// the one that won. `active` publishes a sole qualifier with no comparison to anything,
+	// so the ORDER candidates cross in is the decision — and after the fact the counters
+	// alone cannot say who was first.
+	//
+	// Here rather than in a loop over every candidate per frame, because a candidate's
+	// verdict can only change when its counters do, and its counters only change here. The
+	// loop was the same answer at O(candidates) per frame with an allocation each.
+	if c.qualifiedAt < 0 && c.qualifies() {
+		c.qualifiedAt = t.frames
 	}
 	return c
 }
@@ -537,6 +593,7 @@ func (c *candidate) evidence() Evidence {
 		Exclusive: c.excl, Shared: c.shared, Quiet: c.quiet, Unreadable: c.unreadable,
 		Transfers: c.moves, Holders: len(c.holders),
 		Prompted: c.prompted, Unprompted: c.unprompted,
+		QualifiedAt: c.qualifiedAt, Hull: c.hull, Rehomed: c.rehomed,
 	}
 	e.Qualifies = len(e.Unmet()) == 0
 	return e
@@ -569,10 +626,55 @@ func (t *Tracker) active() (int, string) {
 			"(%d candidates watched over %d frames)", len(t.cands), t.frames)
 	case 1:
 		c := t.cands[passing[0]]
-		return passing[0], fmt.Sprintf("one list hands a mark around: %s",
-			Evidence{Rows: len(c.rows), Frames: c.seen, Exclusive: c.excl,
-				Shared: c.shared, Quiet: c.quiet, Unreadable: c.unreadable,
-				Transfers: c.moves, Holders: len(c.holders)}.String())
+		ev := Evidence{Rows: len(c.rows), Frames: c.seen, Exclusive: c.excl,
+			Shared: c.shared, Quiet: c.quiet, Unreadable: c.unreadable,
+			Transfers: c.moves, Holders: len(c.holders)}
+		// A SOLE QUALIFIER IS NOT AUTOMATICALLY THE LIST BEING USED.
+		//
+		// # The measurement that forced this
+		//
+		// Over 864 real frames, scored against the labelled list's own extent rather
+		// than against whether some candidate overlapped the selected row:
+		//
+		//	published by this arm          144 frames, 0 the right list, 144 wrong
+		//	published by the arm below      48 frames, 45 the right list, 3 wrong
+		//
+		// 139 of the session's 185 selection readings came from this arm and not one of
+		// them named the labelled row. The arm below, which is the only one that
+		// consults input evidence, read 43 of its 46 correctly. The difference is not a
+		// threshold: it is that this arm asked nothing at all. First past the post won,
+		// and on a real screen the first candidate to behave like a list is a stack of
+		// unrelated rectangles that happens to flicker.
+		//
+		// # Why the requirement is responsiveness and not a shape
+		//
+		// Because a shape rule cannot work and this file already says so: a menu is not
+		// the biggest list, the brightest list, or the list with the most going on. What
+		// separates the list being USED from a list that is merely there is that the
+		// person's navigation reaches it — the same evidence the arm below compares, and
+		// `Evidence.Prompted` is an increment of a move the shading had already proved,
+		// so no input can manufacture one.
+		//
+		// # Why it is conditional on navigation having been observed
+		//
+		// Because a caller that cannot see input must not have its silence read as "the
+		// person pressed nothing". `Tracker.Observe` and `ObserveShades` are that
+		// caller, and where no navigation was ever observed this arm behaves exactly as
+		// it did. The rule is: WHERE THERE IS INPUT EVIDENCE TO BE HAD, a published
+		// active list must have some.
+		//
+		// Deleting the guard must fail
+		// TestASoleQualifyingListIsNotActiveUntilNavigationReachesIt.
+		if t.navSeen && c.prompted < MinTransfers {
+			return -1, fmt.Sprintf("one list hands a mark around and the person's "+
+				"navigation has never reached it: %d of its %d transfers "+
+				"followed an observed input, against the %d it takes to say a "+
+				"mark moves when somebody presses something. Navigation WAS "+
+				"observed in this session, so a list nothing has been pressed "+
+				"at is not the list being used (%s)",
+				c.prompted, c.moves, MinTransfers, ev)
+		}
+		return passing[0], fmt.Sprintf("one list hands a mark around: %s", ev)
 	}
 	// SEVERAL LISTS QUALIFY, SO ASK WHICH ONE RESPONDS.
 	//
@@ -691,6 +793,9 @@ func (t *Tracker) moreResponsive(i, j int) bool {
 
 // IdentifiedAt is the observation on which a single list first qualified, or -1.
 func (t *Tracker) IdentifiedAt() int { return t.identifiedAt }
+
+// area is a rectangle's area as a float, so a ratio of two of them cannot overflow.
+func area(r image.Rectangle) float64 { return float64(r.Dx()) * float64(r.Dy()) }
 
 // extent is the rectangle a set of rows occupies.
 func extent(rows []image.Rectangle) image.Rectangle {

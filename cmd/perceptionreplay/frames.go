@@ -171,6 +171,9 @@ type frameResult struct {
 	Trace         []frameObservation
 	Score         selectionScore
 	Confirmations []confirmation
+	// Lists is which list the belief was reading, scored as an identity. See
+	// listidentity.go for why that is a different question from the selection score.
+	Lists listScoreboard
 }
 
 // replayFrames reprocesses a recording's pixels through the structure proposer and the
@@ -353,6 +356,7 @@ func replayFrames(dir string, stride, limit int, verbose bool) (frameResult, err
 	r.Hypotheses = observe.Hypotheses(totals, observe.DefaultHypothesisThresholds())
 	r.Score = scoreSelection(r.Trace, ann)
 	r.Confirmations = confirmations(r.Trace, ann)
+	r.Lists = scoreLists(r.Trace, ann)
 	reportFrames(r, ann)
 	return r, nil
 }
@@ -490,6 +494,10 @@ func reportFrames(r frameResult, ann *annotationFile) {
 
 	// THE SPLIT, before anything derived from it.
 	reportSelectionScore(r.Score, r.Confirmations)
+	// AND WHICH LIST IT WAS READING, which score.go established is the question that
+	// decides the rest: the reader is right 93% of the time when the list it is handed
+	// contains the row the person is looking at.
+	reportListIdentity(r.Lists, r.Identified)
 
 	reportRetained(r)
 	// AND THE OTHER HALF OF USING A MENU, and whether any of it would outlive the session.
@@ -512,9 +520,16 @@ func reportFrames(r frameResult, ann *annotationFile) {
 	// SHARED IS IN THE TABLE, and it was not. The real menu on this corpus is refused
 	// for having too many frames with more than one member marked, and the column that
 	// says so was the one column missing - so the refusal read as unexplained.
-	fmt.Printf("    %-5s %-6s %-6s %-5s %-5s %-5s %-6s %-5s %-6s %-6s %-7s %-22s %s\n",
+	// QUALIFIED AND HULL ARE IN THE TABLE TOO. `qual` is the observation this candidate
+	// first met every requirement: the tracker publishes a sole qualifier with no
+	// comparison, so the order candidates cross the bar in is the decision. `hull` is
+	// every extent it has ever had — a hull far larger than `where` is one tracked list
+	// that has been several different rectangles, which `where` alone cannot show because
+	// it is overwritten every frame.
+	fmt.Printf("    %-5s %-6s %-6s %-5s %-5s %-5s %-6s %-5s %-6s %-6s %-7s %-5s %-6s "+
+		"%-22s %-14s %s\n",
 		"rows", "frames", "judged", "excl", "shar", "quiet", "unread", "moves", "prompt",
-		"unprom", "holders", "where y..y (x,w)", "verdict")
+		"unprom", "holders", "qual", "rehome", "where y..y (x,w)", "hull y..y", "verdict")
 	for _, c := range r.Candidates {
 		verdict := "refused"
 		if c.Qualifies {
@@ -522,10 +537,12 @@ func reportFrames(r frameResult, ann *annotationFile) {
 		}
 		where := fmt.Sprintf("%.3f..%.3f (%.3f,%.3f)",
 			c.Where.Y, c.Where.Y+c.Where.Height, c.Where.X, c.Where.Width)
-		fmt.Printf("    %-5d %-6d %-6d %-5d %-5d %-5d %-6d %-5d %-6d %-6d %-7d %-22s %s\n",
+		hull := fmt.Sprintf("%.3f..%.3f", c.Hull.Y, c.Hull.Y+c.Hull.Height)
+		fmt.Printf("    %-5d %-6d %-6d %-5d %-5d %-5d %-6d %-5d %-6d %-6d %-7d %-5d "+
+			"%-6d %-22s %-14s %s\n",
 			c.Members, c.Frames, c.Judged, c.Exclusive, c.Shared, c.Quiet,
-			c.Unreadable, c.Transfers, c.Prompted, c.Unprompted, c.Holders, where,
-			verdict)
+			c.Unreadable, c.Transfers, c.Prompted, c.Unprompted, c.Holders,
+			c.QualifiedAt, c.Rehomed, where, hull, verdict)
 		// AND WHY, per candidate. The aggregate below says five candidates fell short
 		// of something; it cannot say that the one list a person was actually using
 		// fell short of exactly one requirement by eleven frames.
