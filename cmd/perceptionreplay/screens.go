@@ -188,3 +188,67 @@ func reportScreens(r frameResult) {
 	fmt.Printf("  Marco's own screen model on this recording is %d state(s), %d "+
 		"transition(s).\n", r.States, r.Transitions)
 }
+
+// regionsOf is a look's rectangles, which is all an arrangement is made of.
+func regionsOf(shapes []observe.ShadowShape) []observe.Region {
+	out := make([]observe.Region, 0, len(shapes))
+	for _, sh := range shapes {
+		out = append(out, sh.Region)
+	}
+	return out
+}
+
+// reportVisualScreens prints the stabilised layer, beside the raw measurement above it.
+//
+// Both, deliberately. The raw numbers are what an arrangement can SEE and the stabilised ones
+// are what it would be worth acting on, and the gap between them is the whole argument for
+// the layer existing. A report that showed only the second would be a claim nobody could check.
+func reportVisualScreens(r frameResult) {
+	st := r.VisualStability
+	if st.Looks == 0 {
+		return
+	}
+	fmt.Printf("\n  --- SESSION-LOCAL SCREEN HYPOTHESES (stabilised, never durable) ---\n")
+	fmt.Printf("  settled screens     %d, over %d look(s)\n", len(r.VisualSeen), st.Looks)
+	fmt.Printf("  looks               %d agreed with the standing screen, %d differed and "+
+		"did NOT become one, %d before the first settled\n",
+		st.Settled, st.Unsettled, st.Warming)
+	fmt.Printf("  blank looks         %d saw no structure (not screens), %d run(s) long "+
+		"enough to give up the screen\n", st.Unobserved, st.Unobservable)
+	for i, sc := range r.VisualSeen {
+		if i >= 10 {
+			fmt.Printf("                      ... and %d more\n", len(r.VisualSeen)-10)
+			break
+		}
+		fmt.Printf("                      %-10s %4d look(s), settled at %d, %d region(s) "+
+			"over %d cell(s)\n", sc.ID, sc.Looks, sc.First, sc.Total, sc.Cells)
+	}
+	fmt.Printf("  transitions         %d distinct, %d promotion(s) in all\n",
+		len(r.VisualTransitions), st.Promotions)
+	for _, t := range r.VisualTransitions {
+		looks := t.Looks
+		if len(looks) > 8 {
+			looks = looks[:8]
+		}
+		fmt.Printf("                      %-10s -> %-10s x%-3d at looks %v (%d look(s) "+
+			"to settle in all)\n", t.From, t.To, t.Count, looks, t.Unsettled)
+	}
+	if len(r.PressScreens) > 0 {
+		fmt.Printf("  presses             %d, by the screen they were made on and the "+
+			"screen that followed\n", len(r.PressScreens))
+		for _, p := range r.PressScreens {
+			mark := "same screen"
+			if p.Before != p.After {
+				mark = "CHANGED"
+			}
+			fmt.Printf("                      frame %4d  %-10s -> %-10s  %s\n",
+				p.Frame, p.Before, p.After, mark)
+		}
+	}
+}
+
+// pressScreen is one press and the settled screens around it.
+type pressScreen struct {
+	Frame         int
+	Before, After observe.VisualScreenID
+}

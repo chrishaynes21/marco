@@ -156,6 +156,16 @@ type frameResult struct {
 	Candidates          []observe.InterfaceCandidate
 	Identified          int
 	Inputs              int
+	// VisualSeen, VisualTransitions and VisualStability are the SESSION-LOCAL screen
+	// hypotheses: arrangements stabilised over time, which is the layer the raw clustering
+	// below says is needed and does not provide. PressScreens is each press by the settled
+	// screen it was made on and the one that followed it.
+	//
+	// Never durable. See observe/arrangement.go.
+	VisualSeen        []observe.VisualScreenSeen
+	VisualTransitions []observe.VisualTransition
+	VisualStability   observe.VisualStability
+	PressScreens      []pressScreen
 	// PixelClusters is what an unnamed-geometry cue WOULD have segmented this recording
 	// into, PixelScreenChanges how often adjacent frames fell in different clusters, and
 	// PressOutcomes whether each press was followed by a different one.
@@ -265,6 +275,11 @@ func replayFrames(dir string, stride, limit int, verbose bool) (frameResult, err
 	// not what Marco believes.
 	var pixelSigs []observe.ScreenSignature
 	var pressFrames []int
+	// The stabilised layer, folded as the looks arrive because that is what it is for: a
+	// screen hypothesis is a claim about consecutive time and cannot be reconstructed from
+	// an unordered set of frames afterwards.
+	var screens observe.VisualScreens
+	var perLook []observe.VisualScreenID
 
 	for i, fr := range frames {
 		if stride > 1 && i%stride != 0 {
@@ -349,6 +364,9 @@ func replayFrames(dir string, stride, limit int, verbose bool) (frameResult, err
 		// once at the end: a greedy assignment needs the clusters that exist so far,
 		// and building them here would interleave the measurement with the belief.
 		pixelSigs = append(pixelSigs, pixelSignature(shapes))
+		perLook = append(perLook, screens.Observe(
+			observe.ArrangeLook(regionsOf(shapes)),
+			base.Add(time.Duration(fr.AtMS)*time.Millisecond)))
 		for _, e := range slot {
 			if e.Intent == observe.NavPoint {
 				pressFrames = append(pressFrames, len(pixelSigs)-1)
@@ -476,6 +494,22 @@ func replayFrames(dir string, stride, limit int, verbose bool) (frameResult, err
 	// long enough for a menu to repaint and short enough that the next press has not
 	// happened yet. The presses in rl-freeplay-1 are 2.3 seconds apart at the closest.
 	const settleFrames = 10
+	r.VisualSeen = screens.Seen()
+	r.VisualTransitions = screens.Transitions()
+	r.VisualStability = screens.Stability()
+	// EACH PRESS BY THE SCREEN IT WAS MADE ON AND THE ONE THAT FOLLOWED. The same settle
+	// window the raw measurement uses, so the two answers are about the same question.
+	for _, f := range pressFrames {
+		if f < 0 || f >= len(perLook) {
+			continue
+		}
+		after := f + settleFrames
+		if after >= len(perLook) {
+			after = len(perLook) - 1
+		}
+		r.PressScreens = append(r.PressScreens, pressScreen{
+			Frame: f, Before: perLook[f], After: perLook[after]})
+	}
 	per, clusters := clusterScreens(pixelSigs)
 	r.PixelClusters = clusters
 	r.PixelScreenChanges = screenChanges(per)
@@ -497,6 +531,7 @@ func replayFrames(dir string, stride, limit int, verbose bool) (frameResult, err
 	r.Lists = scoreLists(r.Trace, ann)
 	reportFrames(r, ann)
 	reportScreens(r)
+	reportVisualScreens(r)
 	return r, nil
 }
 

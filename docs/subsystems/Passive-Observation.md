@@ -354,6 +354,16 @@ it refuses those looks. Visible is fine; in front is not.
 ## Decisions
 
 - [[ADR-010-passive-observation-cannot-execute]]
+- [[ADR-171-an-arrangement-is-an-observation-and-a-screen-is-an-interpretation]] — the middle
+  of three identities, built: a frame-local arrangement is an observation, a session-local
+  screen is an interpretation, and the gap between them is time. A change must hold for three
+  consecutive looks, each agreeing with the arrangement that STARTED the run; coming back reuses
+  the screen it left, which is what makes a route visible; a blank look is a missing observation
+  and never a screen, and a persisting absence gives the screen up without recording a
+  transition. On the measured recording: 150 raw adjacent-frame changes became 22 promotions,
+  and SEVEN transitions happened exactly twice, once per demonstration, chaining into the two
+  walks the person actually made. It may not become durable, and a test that walks `internal/`
+  holds that
 - [[ADR-170-what-an-unnamed-arrangement-would-have-segmented]] — the screen model is one
   vacuous state on the pixels path, which killed three of four acceptance questions on the first
   mouse demonstration. So the same frames were asked what the segmenter WOULD have produced if
@@ -894,6 +904,15 @@ it refuses those looks. Visible is fine; in front is not.
   reachable through a keyboard FFI. `InputLog` retains the device beside every admitted event, so
   the join exists to be made when something exists that would use it. Deliberate scope, recorded
   in ADR-161 rather than discovered later.
+- **A session-local visual screen exists and nothing in the live path uses it.** The stabilised
+  layer is built, measured and gated, and only the offline replay calls it. Wiring it into live
+  observation is a separate decision from building it, and promoting one into a durable Place is
+  a third. [[ADR-171-an-arrangement-is-an-observation-and-a-screen-is-an-interpretation]]
+- **A press is attributed to the screen a fixed window later, not to the next transition.** On
+  the measured recording the press at frame 138 reads `visual_3 -> visual_3` while the
+  transition `visual_3 -> visual_4` is recorded thirty frames later, outside the window. So
+  "the screen after a press" is answered and "the next transition after a press" is not — and
+  the second is what an attributable click transition needs.
 - **A session on the pixels discovery path segments no screens — and a MEASUREMENT now says the
   pixels could carry it.** Asked of arrangement alone, with production's own signature,
   similarity and threshold and one generic kind on every proposal, the 900-frame Rocket League

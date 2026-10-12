@@ -134,6 +134,18 @@ func TestAnL0RecordingReplaysThroughPerception(t *testing.T) {
 		t.Error("the replay reports no pixel arrangements over 24 frames of drawn rows, " +
 			"so the measurement in screens.go was never reached")
 	}
+	// AND THE STABILISED LAYER SAW EVERY LOOK. It is folded as the frames arrive, so a
+	// replay that skipped the fold reports no screens — indistinguishable in the output
+	// from a recording whose screen never changed, which is the one conclusion it is
+	// there to support or refute.
+	if r.VisualStability.Looks != 24 {
+		t.Errorf("the stabiliser was offered %d look(s) of 24 frames replayed",
+			r.VisualStability.Looks)
+	}
+	if len(r.VisualSeen) == 0 {
+		t.Error("no session-local screen settled over 24 frames of five drawn rows, " +
+			"which do not move")
+	}
 	// THE MARK MOVES in this fixture, so the belief has to get somewhere. This is the
 	// assertion that the shading was measured FROM THE PIXELS: a replay that handed the
 	// watch unshaded geometry would group these rows and report every candidate quiet.
