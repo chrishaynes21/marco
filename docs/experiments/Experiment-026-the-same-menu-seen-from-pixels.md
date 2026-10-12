@@ -582,3 +582,74 @@ open.
 
 Nothing in this correction is validated live, and at production cadence this corpus still
 identifies nothing.
+
+## Sixth correction, 2026-10-12: a list shares an edge, and a partial row keeps one
+
+The fifth correction left every confidently wrong selection in one place: the published list did
+not contain the row the mark was on, and handed a list that did the reader was right 78 of 78.
+This traces why the nine-entry menu was repeatedly tracked as six or seven. Full account in
+[[ADR-166-a-list-shares-an-edge-and-a-partial-row-keeps-one]].
+
+### The funnel, and the version of it that was wrong
+
+The annotation gives a selected row's HEIGHT and nothing else, so "a shape was found at that
+height" is satisfied by anything anywhere on the screen. Measured that way the row looked grouped
+on 86% of frames. On frame 273 the labelled row at y 0.439 shares its height with a six-row stack
+of its own at x 0.000 width 0.099, while the menu being tracked is at x 0.107 width 0.348. The
+reference has to be the list's OWN column.
+
+Asked properly, over the 312 frames that published a list:
+
+| the labelled row | frames |
+|---|---|
+| a measurable shape at its height, in the list's own column | **312 — all of them** |
+| in a stack grouping made, in that column | 197 |
+| a row the list believes it has | 85 |
+| in a stack holding none of the list's members | 109 |
+| in the list's own stack and never taken | **4** |
+
+The row is always detected. Grouping loses it. Membership and member aging are exonerated.
+
+### The one row that did it
+
+`alike` tests height, then width similarity, left alignment or centring. Frame 273's menu rows
+are h 0.052 w 0.388, and one came back as `y 0.470..0.524 x 0.280..0.460 h 0.054 w 0.180` — the
+right height at the right beat, less than half the width, its left edge a fifth of the frame
+right of its siblings' and its centre a tenth. The run ended there. Its RIGHT edge is 0.460
+against 0.455 below and 0.467 above: a detector that finds part of a right-aligned row finds the
+part that ends where the row ends.
+
+### The numbers, four cadences
+
+| stride | | correct list | WRONG list | coverage | right | accuracy | off by one | moves |
+|---|---|---|---|---|---|---|---|---|
+| 1 | before | 312 | **0** | 100 | 78 | 78% | 20 | 11 |
+| 1 | **after** | **559** | 6 | **362** | **349** | **96%** | **2** | **13** |
+| 3 | before | 47 | **0** | 9 | 9 | **100%** | 0 | 0 |
+| 3 | **after** | **51** | 26 | **53** | **29** | 55% | 0 | 0 |
+| 10 | before | 0 | 0 | 0 | 0 | — | 0 | 0 |
+| 10 | **after** | **29** | **0** | **26** | **21** | **81%** | 5 | **1** |
+| 20 | both | 0 | 0 | 0 | 0 | — | 0 | 0 |
+
+Labelled row-changes recognised: 22 → 26 of 33 at stride 1, 0 → 8 at stride 10. The row is a
+member of the list on 85 → 400 frames.
+
+### Three repairs measured and rejected
+
+Letting a candidate grow from the whole frame — the obvious answer to a menu split across two
+stacks — took it to sixteen and seventeen members on a nine-entry menu and correct-list
+identification to zero; adding the list's own median height and width as a resemblance test still
+lost 14 right answers and added 46 wrong ones.
+
+The brief's abstention rule was built and rejected on measurement: withholding the selection claim
+whenever the matched stack showed rows the list has no entry for removed 7 of 13 wrong namings and
+cost **232 right** ones. Narrowing it to rows beyond the list's ends changed nothing at all, which
+is what says the signal fires on two thirds of frames for an unrelated reason.
+
+### Where the work is now
+
+Thirteen wrong namings at stride 1, of which 11 are a list still missing the row and 2 are the
+reader naming a neighbour in a list that held both — counted apart now. Wrong-list publications
+are no longer zero. Stride 3 trades right answers for wrong ones. Stride 20 identifies nothing.
+
+Nothing here is validated live.

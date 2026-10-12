@@ -208,9 +208,27 @@ func stackPitch(boxes []image.Rectangle, members []int) float64 {
 // indistinguishable, in the report, from having seen nothing at all.
 //
 // What a list actually shares is a common edge and a regular pitch. Left-aligned is the usual
-// case and centred is common in games, so either satisfies this; the tolerance is half a row's
-// height, which is tight enough to separate two adjacent columns and loose enough for the
-// ragged left edge of an indented sub-item.
+// case, centred is common in games, and RIGHT-aligned is what a partially found row leaves
+// behind — so any of the three satisfies this; the tolerance is half a row's height, which is
+// tight enough to separate two adjacent columns and loose enough for the ragged left edge of an
+// indented sub-item.
+//
+// # Why the right edge earned its place
+//
+// Because one row found badly was cutting a menu in half. Measured over the 312 frames of the
+// Trackmania corpus that published a list: the row the person was looking at was detected in
+// the list's own column on EVERY one of them, and was a member of the tracked list on 85. Of
+// the 112 frames it was lost on between grouping and membership, 109 had it in a stack holding
+// none of the list's members — the menu split in two, with the tracked list one piece of it.
+//
+// On frame 273 the break is one row: y 0.470..0.524, the right height at the right beat, and
+// 0.180 wide against its siblings' 0.388. Its left edge is a fifth of the frame to the right of
+// theirs and its centre a tenth, so neither of the two tests could see it as a sibling. Its
+// RIGHT edge is 0.460 against the row below it at 0.455 and the row above it at 0.467. A
+// detector that finds part of a right-aligned row finds the part that ends where the row ends.
+//
+// This is not a third kind of list. It is the same claim — a list shares an edge — asked of the
+// edge a partial detection keeps. [[ADR-166-a-list-shares-an-edge-and-a-partial-row-keeps-one]].
 //
 // Width is NOT merely dropped. A pair whose widths are similar is still alike by the old test,
 // so full-width row boxes from the detector group exactly as they did; alignment is an
@@ -225,8 +243,9 @@ func alike(a, b image.Rectangle) bool {
 	}
 	tol := 0.5 * math.Max(float64(a.Dy()), float64(b.Dy()))
 	leftAligned := math.Abs(float64(a.Min.X-b.Min.X)) <= tol
+	rightAligned := math.Abs(float64(a.Max.X-b.Max.X)) <= tol
 	centred := math.Abs(centreX(a)-centreX(b)) <= tol
-	return leftAligned || centred
+	return leftAligned || rightAligned || centred
 }
 
 // centreX is a rectangle's horizontal midpoint.

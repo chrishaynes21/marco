@@ -42,6 +42,34 @@ import (
 type frameObservation struct {
 	Index int
 	AtMS  int64
+	// Labelled says the annotation claims a selected row on this frame, and LabelledY
+	// where it is. The three fields below are only meaningful when it is true.
+	Labelled  bool
+	LabelledY float64
+	// RowGrouped says grouping put the labelled row in a stack, and RowIsMember that the
+	// active list counts it among its own rows. ListMembers is how many rows that list
+	// believes it has.
+	//
+	// THE COMPLETENESS FUNNEL. A proposal covers the labelled row on every labelled frame
+	// of this corpus, so a frame that cannot name it lost the row after that, and these
+	// say where: grouping left it out of every stack, the tracked list never took it as a
+	// member, or the list published is a different list. Counting them apart is the
+	// difference between "the detector is weak" and "the list is incomplete", which want
+	// opposite work.
+	// RowShaped says a measurable shape was found at the labelled row's height IN THE
+	// LIST'S OWN COLUMN, which is the first rung of the funnel and the one the
+	// whole-screen discovery number cannot speak to.
+	RowShaped               bool
+	RowGrouped, RowIsMember bool
+	ListMembers             int
+	// RowStack is how many rows were in the stack grouping put the labelled row in, and
+	// RowStackHolds how many of the active list's members are in that same stack.
+	//
+	// THE QUESTION THAT DECIDES THE REPAIR. If the labelled row is in a stack that holds
+	// none of the list's members, the menu has been SPLIT and the list is one piece of it.
+	// If it is in the same stack as the list's members, grouping found it and the list
+	// never took it. Those are grouping and membership, and they are not the same work.
+	RowStack, RowStackHolds int
 	// Status and Reading are the belief's own two words, kept apart: the first says
 	// whether a list was identified, the second whether a row in it could be read. A
 	// frame that named nothing is silent for one of those two reasons and they are not
@@ -107,6 +135,40 @@ type selectionScore struct {
 	// points apart, which is the whole reason the single figure was misleading enough to
 	// be reported as a reader failure.
 	InsideNamed, InsideRight int
+	// THE COMPLETENESS FUNNEL, over the labelled frames, in the order a row is lost in.
+	//
+	// Grouped is how many had the labelled row in some stack; Member, how many had it
+	// among the active list's own rows; Inside, how many had it inside the published
+	// extent. Each is a subset of the one before it on this corpus, because a proposal
+	// covers the labelled row on every labelled frame.
+	//
+	// WhileNamed and WhileNotMember cut the same frames the other way: how many namings
+	// were made while the labelled row WAS a member of the list being read, and how many
+	// while it was not. The second is the number that says a selection claim never had a
+	// chance, and it is the one a list that is merely INCOMPLETE produces — which is a
+	// different failure from reading the wrong list and a different failure again from
+	// reading the right list badly.
+	// Split is labelled frames where the row was in a stack that holds none of the list's
+	// members, and Dropped where it was in the SAME stack as them and still not a member.
+	// Shaped is labelled frames with a shape at the row's height in the list's column.
+	Shaped                         int
+	Split, Dropped                 int
+	Grouped, Member, Inside        int
+	WhileNamed, WhileNotMember     int
+	NotMemberRight, NotMemberWrong int
+	// MembersSeen is how many rows the active list believed it had, as a histogram over
+	// labelled frames. A list that is sometimes six rows and sometimes nine is not a
+	// list whose entry count can be trusted for anything.
+	MembersSeen map[int]int
+	// NamedRight and NamedWrong are what the reader rested its claim on, in its own
+	// words, split by whether the claim was right.
+	//
+	// THE QUESTION AN ABSTENTION RULE HAS TO ANSWER: is there anything in the evidence
+	// itself that separates a claim about a row the list does not contain from a claim
+	// about one it does? If the wrong ones rest on weaker evidence than the right ones,
+	// the rule is in the evidence. If they rest on the same evidence, nothing the reader
+	// can see distinguishes them and the rule has to come from the list.
+	NamedRight, NamedWrong map[string]int
 	// Silent is why the reader said nothing, in the READER'S OWN WORDS, on the frames
 	// where a list was identified and no entry was named.
 	//
@@ -176,7 +238,8 @@ func rate(n, d int) float64 {
 // scoreSelection runs the whole session's trace against the labels.
 func scoreSelection(trace []frameObservation, ann *annotationFile) selectionScore {
 	s := selectionScore{Offsets: map[int]int{}, Silent: map[string]int{},
-		SilentEntries: map[int]int{}, Lists: map[string]*listScore{}}
+		SilentEntries: map[int]int{}, MembersSeen: map[int]int{},
+		NamedRight: map[string]int{}, NamedWrong: map[string]int{}, Lists: map[string]*listScore{}}
 	rows := ann.labelledRows()
 	pitch := labelledPitch(rows)
 	if pitch <= 0 {
@@ -193,6 +256,29 @@ func scoreSelection(trace []frameObservation, ann *annotationFile) selectionScor
 			continue
 		}
 		s.Labelled++
+		// THE FUNNEL, counted before anything about the reading, because it is about
+		// the list rather than about what was read from it.
+		if f.RowShaped {
+			s.Shaped++
+		}
+		if f.RowGrouped {
+			s.Grouped++
+		}
+		if f.RowIsMember {
+			s.Member++
+		} else if f.RowGrouped && f.ListMembers > 0 {
+			if f.RowStackHolds == 0 {
+				s.Split++
+			} else {
+				s.Dropped++
+			}
+		}
+		if f.ListMembers > 0 {
+			s.MembersSeen[f.ListMembers]++
+		}
+		if f.ListBottom > f.ListTop && y >= f.ListTop && y <= f.ListBottom {
+			s.Inside++
+		}
 		if f.Selected < 0 {
 			switch f.Status {
 			case string(observe.InterfaceProvisional):
@@ -205,6 +291,11 @@ func scoreSelection(trace []frameObservation, ann *annotationFile) selectionScor
 			continue
 		}
 		s.Named++
+		if f.RowIsMember {
+			s.WhileNamed++
+		} else {
+			s.WhileNotMember++
+		}
 		key := fmt.Sprintf("%.3f..%.3f/%d", f.ListTop, f.ListBottom, f.Entries)
 		ls := s.Lists[key]
 		if ls == nil {
@@ -230,6 +321,18 @@ func scoreSelection(trace []frameObservation, ann *annotationFile) selectionScor
 		inside := f.ListBottom <= f.ListTop || (y >= f.ListTop && y <= f.ListBottom)
 		if inside {
 			s.InsideNamed++
+		}
+		if !f.RowIsMember {
+			if math.Abs(f.NamedY-y) <= pitch/2 {
+				s.NotMemberRight++
+			} else {
+				s.NotMemberWrong++
+			}
+		}
+		if math.Abs(f.NamedY-y) <= pitch/2 {
+			s.NamedRight[readingClause(f.Reading)]++
+		} else {
+			s.NamedWrong[readingClause(f.Reading)]++
 		}
 		if math.Abs(f.NamedY-y) <= pitch/2 {
 			s.Right++
@@ -410,6 +513,65 @@ func reportSelectionScore(s selectionScore, confs []confirmation) {
 			"not half a list, so these\n                      numbers are measuring "+
 			"the envelope and not the entry\n", s.NamedAsTallAsList)
 	}
+	// ── LIST COMPLETENESS, which is where a wrong selection now comes from ────────
+	fmt.Printf("  LIST COMPLETENESS, the labelled row's way from a proposal to a list\n")
+	fmt.Printf("    a shape at all    %d of %d labelled frames had a measurable shape at the\n"+
+		"                      labelled row's height IN THE LIST'S OWN COLUMN (%.0f%%)\n"+
+		"                      (the discovery figure above is over the whole screen,\n"+
+		"                      which anything at that height satisfies)\n",
+		s.Shaped, s.Labelled, rate(s.Shaped, s.Labelled))
+	fmt.Printf("    in a stack        %d of %d had it in a group grouping made, in that\n"+
+		"                      same column (%.0f%%)\n",
+		s.Grouped, s.Labelled, rate(s.Grouped, s.Labelled))
+	fmt.Printf("    a member          %d of %d had it among the active list's OWN rows\n"+
+		"                      (%.0f%%)  <-- a claim about a row the list does not\n"+
+		"                      have is wrong before the reader is consulted\n",
+		s.Member, s.Labelled, rate(s.Member, s.Labelled))
+	fmt.Printf("    inside the extent %d of %d had it inside the published extent (%.0f%%)\n",
+		s.Inside, s.Labelled, rate(s.Inside, s.Labelled))
+	if len(s.MembersSeen) > 0 {
+		ns := make([]int, 0, len(s.MembersSeen))
+		for n := range s.MembersSeen {
+			ns = append(ns, n)
+		}
+		sort.Ints(ns)
+		var hist []string
+		for _, n := range ns {
+			hist = append(hist, fmt.Sprintf("%d:%d", n, s.MembersSeen[n]))
+		}
+		fmt.Printf("    rows it believes  %s\n"+
+			"                      (how many rows the active list thought it had)\n",
+			strings.Join(hist, "  "))
+	}
+	fmt.Printf("    where it was lost %d frame(s) had it in a stack holding NONE of the\n"+
+		"                      list's members, so the menu was split and the list is one\n"+
+		"                      piece of it; %d had it in the SAME stack as them and the\n"+
+		"                      list still never took it\n", s.Split, s.Dropped)
+	fmt.Printf("    named anyway      %d naming(s) were made while the labelled row was NOT\n"+
+		"                      a member of the list being read; %d of them happened to\n"+
+		"                      be right and %d were wrong  <-- the incomplete-list error\n",
+		s.WhileNotMember, s.NotMemberRight, s.NotMemberWrong)
+	fmt.Printf("    named fairly      %d naming(s) were made while it WAS a member\n",
+		s.WhileNamed)
+
+	// ── WHAT THE CLAIMS RESTED ON, right ones against wrong ones ──────────────────
+	byWhy := func(label string, m map[string]int) {
+		if len(m) == 0 {
+			return
+		}
+		keys := make([]string, 0, len(m))
+		for k := range m {
+			keys = append(keys, k)
+		}
+		sort.Slice(keys, func(i, j int) bool { return m[keys[i]] > m[keys[j]] })
+		fmt.Printf("    %-17s\n", label)
+		for _, k := range keys {
+			fmt.Printf("                      %-52s %d\n", trim(k, 52), m[k])
+		}
+	}
+	byWhy("rested on, right", s.NamedRight)
+	byWhy("rested on, WRONG", s.NamedWrong)
+
 	fmt.Printf("  the reader alone    %d of %d naming(s) made while the labelled row WAS\n"+
 		"                      inside the list being read were right (%.0f%%)\n"+
 		"                      <-- what the reader does when handed the right list\n",

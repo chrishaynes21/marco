@@ -1005,6 +1005,77 @@ func GroupedForLook(look InterfaceLook) []int {
 	return out
 }
 
+// GroupedStacksForLook is the stacks grouping made of this look, each as its own rows,
+// window-relative and normalised.
+//
+// The stacks and not just the rows, because the question behind an incomplete list is whether
+// the rows it is missing are in a DIFFERENT stack. A menu split into a six and a three is a
+func GroupedStacksForLook(look InterfaceLook) [][]Region {
+	if !look.Observed {
+		return nil
+	}
+	boxes, _, _ := measurableBoxes(look)
+	if len(boxes) == 0 {
+		return nil
+	}
+	byGroup := map[int][]Region{}
+	var order []int
+	for _, r := range selection.GroupRows(boxes) {
+		if _, seen := byGroup[r.Group]; !seen {
+			order = append(order, r.Group)
+		}
+		byGroup[r.Group] = append(byGroup[r.Group], unscaleRect(r.Bounds))
+	}
+	out := make([][]Region, 0, len(order))
+	for _, g := range order {
+		out = append(out, byGroup[g])
+	}
+	return out
+}
+
+// GroupedRowsForLook is the rows grouping made of this look, window-relative and normalised.
+//
+// INSTRUMENTATION, and the companion to GroupedForLook, which gives the sizes alone. The sizes
+// answer "was there a stack"; these answer "is the row somebody is looking at IN one", which is
+// a different question and the one that matters when a list is published without the row the
+// mark is on. A detector may propose a row, grouping may leave it out of every stack, and the
+// list that is published then cannot contain it however well everything downstream works.
+//
+// Reports what the production rule produced. It does not group, re-group, or judge.
+func GroupedRowsForLook(look InterfaceLook) []Region {
+	if !look.Observed {
+		return nil
+	}
+	boxes, _, _ := measurableBoxes(look)
+	if len(boxes) == 0 {
+		return nil
+	}
+	rows := selection.GroupRows(boxes)
+	out := make([]Region, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, unscaleRect(r.Bounds))
+	}
+	return out
+}
+
+// ActiveMembers is the rows the active list is made of, window-relative and normalised, or nil.
+//
+// The list's own answer about what it contains. `InterfaceBelief.Where` is their extent and
+// `Entries` is how many rows the DETECTOR found inside it this frame; neither says which rows
+// the list believes it has, and that is the question behind every selection claim about a row
+// the list does not contain.
+func (w *InterfaceWatch) ActiveMembers() []Region {
+	members := w.tracker.ActiveMembers()
+	if len(members) == 0 {
+		return nil
+	}
+	out := make([]Region, 0, len(members))
+	for _, m := range members {
+		out = append(out, unscaleRect(m))
+	}
+	return out
+}
+
 // MaxResponseLatency is how long after a press a screen may still be repainting it.
 //
 // THE ONE LATENCY ASSUMPTION IN THE ATTRIBUTION, named and in one place. A menu animates for a

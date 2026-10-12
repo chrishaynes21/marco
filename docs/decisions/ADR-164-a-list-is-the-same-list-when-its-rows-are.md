@@ -263,7 +263,7 @@ Rejected in this cycle as well:
   `TestAListThatScrolledRetainsNoMoveAcrossTheScroll`,
   `TestTheReportSaysWhatWasRetiredAndWhichListTheBeliefIsAbout`.
 - `cmd/perceptionreplay` — `TestTheRealMenuCorpusStillReadsAsAMenu` (now every frame, with
-  `wantCorrectList = 312` and `allowWrongList = 0`), `TestAtACoarseCadenceTheCorpusAbstains`,
+  `wantCorrectList = 312` and `allowWrongList = 0`), `TestAtACoarseCadenceTheCorpusIdentifiesTheMenu`,
   `TestTheSilentFramesSayWhyInTheReadersOwnWords`.
 
 ## Mutation gate

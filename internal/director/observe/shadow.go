@@ -311,6 +311,14 @@ type ShadowTotals struct {
 	// RetiredCandidates is how many tracked lists were dropped for not being found
 	// again, whose evidence went with them rather than into the next list at that place.
 	RetiredCandidates int `json:"retired_candidates,omitempty"`
+	// ActiveMembers is the rows the active list believes it is made of, in order down the
+	// screen.
+	//
+	// Not `Interface.Entries`, which is how many rows the DETECTOR found inside the list
+	// on the last look, and not `Interface.Where`, which is their extent. A selection
+	// claim about a row the list does not contain is wrong before the reader is
+	// consulted, and this is the only thing that says which rows those are.
+	ActiveMembers []Region `json:"active_members,omitempty"`
 	// SelectionTransitions is every move the mark was seen making between two entries of
 	// one list, grounded in the screen it happened on where the session could place one.
 	//
@@ -591,6 +599,7 @@ func (t *ShadowTotals) Observe(sample Sample) {
 	// Deleting this must fail TestTheSessionSaysWhyEachCandidateWasRefused.
 	t.Candidates = t.watch.Candidates()
 	t.RetiredCandidates = t.watch.RetiredCandidates()
+	t.ActiveMembers = t.watch.ActiveMembers()
 	// THE MOVES THE MARK MADE, grounded in the screen the session was on WHILE THEY WERE
 	// SEEN — which is the state published at the end of the previous cycle and not the one
 	// this cycle is about to settle on. A move seen on the way out of a menu belongs to the

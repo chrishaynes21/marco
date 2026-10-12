@@ -336,6 +336,57 @@ func replayFrames(dir string, stride, limit int, verbose bool) (frameResult, err
 			Reading: b.Because, Selected: b.Selected, Entries: b.Entries,
 			ListTop: b.Where.Y, ListBottom: b.Where.Y + b.Where.Height,
 		}
+		// WHERE THE SELECTED ROW IS LOST, asked of every labelled frame as a funnel.
+		//
+		// IN THE LIST'S OWN COLUMN, which the first version of this got wrong in an
+		// instructive way. The annotation gives a row's HEIGHT and nothing else, so
+		// "something was found at that height" is satisfied by anything anywhere across
+		// the screen — and on this corpus it is: frame 273's labelled row at y 0.439 sits
+		// at the same height as a six-row stack of its own at x 0.000 width 0.099, while
+		// the menu being tracked is at x 0.107 width 0.348. Measured that way the row
+		// looked grouped on 86% of frames and a member on 10%, and the gap was an
+		// artefact of the question.
+		//
+		// The reference is the LIST'S column, taken from the list, which is the only thing
+		// here that knows where the menu is. No geometry is assumed; a list on the other
+		// side of the screen asks about its own side.
+		if labelled && state == "selected" {
+			obs.Labelled, obs.LabelledY = true, y
+
+			members := totals.ActiveMembers
+			obs.ListMembers = len(members)
+			if len(members) > 0 {
+				x0, x1 := members[0].X, members[0].X+members[0].Width
+				for _, m := range members {
+					x0 = math.Min(x0, m.X)
+					x1 = math.Max(x1, m.X+m.Width)
+				}
+				obs.RowIsMember = coversRow(members, y, x0, x1)
+				shaped := make([]observe.Region, 0, len(shapes))
+				for _, sh := range shapes {
+					if len(sh.Shade) > 0 {
+						shaped = append(shaped, sh.Region)
+					}
+				}
+				obs.RowShaped = coversRow(shaped, y, x0, x1)
+				stacks := observe.GroupedStacksForLook(observe.InterfaceLook{
+					Observed: true, Shapes: shapes,
+				})
+				for _, stack := range stacks {
+					if !coversRow(stack, y, x0, x1) {
+						continue
+					}
+					obs.RowGrouped = true
+					obs.RowStack = len(stack)
+					for _, m := range members {
+						if coversRow(stack, m.Y+m.Height/2, x0, x1) {
+							obs.RowStackHolds++
+						}
+					}
+					break
+				}
+			}
+		}
 		if b.Selected >= 0 {
 			obs.NamedY = b.SelectedWhere.Y + b.SelectedWhere.Height/2
 			obs.NamedHeight = b.SelectedWhere.Height
@@ -441,6 +492,27 @@ func labelledPitch(rows []float64) float64 {
 		return 0
 	}
 	return (rows[len(rows)-1] - rows[0]) / float64(len(rows)-1)
+}
+
+// coversRow says one of these regions contains this height.
+//
+// Containment of a height and not of a rectangle, because the annotation gives the row's centre
+// and nothing else: the question is whether the row at that height is among them.
+func coversRow(rows []observe.Region, y, x0, x1 float64) bool {
+	for _, r := range rows {
+		if y < r.Y || y > r.Y+r.Height {
+			continue
+		}
+		// AND IN THE SAME COLUMN. A row at the right height on the other side of the
+		// screen is a different thing at the same height.
+		lo, hi := math.Max(r.X, x0), math.Min(r.X+r.Width, x1)
+		// The share is of the ROW'S OWN width, so a narrow row wholly inside the
+		// list belongs to it and a band that merely crosses the list does not.
+		if hi-lo >= r.Width/2 {
+			return true
+		}
+	}
+	return false
 }
 
 func reportFrames(r frameResult, ann *annotationFile) {

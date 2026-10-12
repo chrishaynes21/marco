@@ -14,6 +14,7 @@ updated: 2026-10-11
 source_paths:
   - internal/director/observe
   - internal/director/observe/interface.go
+  - internal/director/perception/selection/group.go
   - internal/director/observe/track.go
   - internal/director/observe/shadow.go
   - internal/director/perception/selection/selection.go
@@ -596,11 +597,37 @@ it refuses those looks. Visible is fine; in front is not.
   still name nothing, and the reader's own word on most of them is that no row stands out from its
   siblings or from its own unselected level — which is genuinely unreadable shading rather than
   evidence lost in the pipeline.
-- **The remaining selection error is the list's EXTENT, not the reader.** All 22 confidently wrong
-  namings at stride 1 are frames where the labelled row is not inside the published list, so none
-  of them is a misreading. The menu is tracked as six or seven of its nine entries; letting a list
-  admit a row where its own pitch says its next row goes narrows that and does not close it, and
-  it costs 16 correct-list frames at stride 3.
+- ~~The remaining selection error is the list's extent, not the reader.~~ **Largely fixed
+  2026-10-12**, [[ADR-166-a-list-shares-an-edge-and-a-partial-row-keeps-one]]. A list shares an
+  edge and `alike` tested the left edge and the centre but not the RIGHT one — so one partially
+  found row, right-aligned with its siblings and a third of their width, cut a nine-entry menu in
+  half and left the tracked list as one piece of it. A completeness funnel placed it exactly: over
+  the 312 frames that published a list, the row the person was on was detected in the list's own
+  column on EVERY one of them, was in a stack grouping made on 197, and was a member of the list
+  on 85 — and of the 112 lost in between, 109 were in a stack holding none of the list's members
+  and **4** were in its own stack. Membership and member aging were exonerated; grouping was the
+  loss. With the right edge admitted: correct-list identification 312 → 559, coverage 100 → 362,
+  right namings 78 → 349 at 96%, neighbour confusions 20 → 2, and **stride 10 goes from
+  identifying nothing to 29 of 83 frames with 21 of 21 namings right**.
+- **Wrong-list publications are no longer zero: 6 of 829 at stride 1 and 26 of 280 at stride 3.**
+  A shared right edge joins rows that belong together and, on a few frames, joins something that
+  does not. Stride-3 accuracy fell from 100% to 55% with it — 29 right and 24 wrong where it was
+  9 and 0 — because the list there is sometimes three or four rows. More right answers and more
+  wrong ones at that cadence. [[ADR-166-a-list-shares-an-edge-and-a-partial-row-keeps-one]]
+- **An abstention rule for an incomplete list is wanted and OPEN.** Nothing the reader can see
+  distinguishes a claim about a row the list does not contain from one about a row it does: the 20
+  wrong claims rested on the same sentence — "away from its own unselected level, while its
+  neighbours are not" — as 52 of the 78 right ones. The list-level signal that is available is too
+  blunt: withholding the claim whenever the matched stack showed rows the list has no entry for
+  removed 7 wrong namings and cost **232 right** ones, and narrowing it to rows beyond the list's
+  ENDS changed nothing, because a list's own stack routinely extends past its members. The next
+  candidate is a signal from the list's history rather than from one look at it.
+  [[ADR-166-a-list-shares-an-edge-and-a-partial-row-keeps-one]]
+- **Superseded, kept for the measurement.** All 22 confidently wrong
+  namings at stride 1 were frames where the labelled row was not inside the published list, so none
+  of them was a misreading. The menu was tracked as six or seven of its nine entries; letting a list
+  admit a row where its own pitch says its next row goes narrowed that and did not close it, and
+  it cost 16 correct-list frames at stride 3.
   [[ADR-165-an-entry-is-the-same-entry-when-nothing-says-otherwise]]
 - **A drawn list of identical rows is read once and then held, not re-read.** On the first look at
   a newly marked row the claim still standing is the row the mark has just LEFT, so the arriving
@@ -641,14 +668,20 @@ it refuses those looks. Visible is fine; in front is not.
   dropped at most one member per observation. Growth was unbounded and aging nearly inert.
   Retaken, the menu candidate holds at six members with no rehoming and growth removes 52 of the
   63 confidently wrong readings. It still costs 16 correct-list frames at stride 3.
-- **At a coarse cadence nothing is identified at all.** Strides 10 and 20 of this corpus now
-  abstain, naming `exclusive_over_shared 28/34` as the shortfall: at 660ms between looks the mark
+- ~~At a coarse cadence nothing is identified at all.~~ **Fixed at stride 10, 2026-10-12**,
+  [[ADR-166-a-list-shares-an-edge-and-a-partial-row-keeps-one]]. The cause was not the cadence: a
+  menu cut in half by one badly found row has too few exclusive frames to qualify, and a whole one
+  has enough. At every tenth frame the menu is now identified on 29 of 83 labelled frames, after 58
+  observations, and the reader names 21 entries of which all 21 are the labelled row. **Stride 20
+  is still zero.** Held by `TestAtACoarseCadenceTheCorpusIdentifiesTheMenu`.
+- **Superseded, kept for the measurement.** Strides 10 and 20 of this corpus
+  abstained, naming `exclusive_over_shared 28/34` as the shortfall: at 660ms between looks the mark
   has usually moved between them, and the real menu's candidate reaches 28 exclusive frames
   against 11 shared. Production runs at about 2s a look. What the coarse cadence identified before
   was not the menu — the only candidate that qualified had a final extent of y 0.078..0.355 and a
   hull of y 0.000..0.898 and had rehomed 21 times, where the menu is at y 0.528..0.857 — so its
   22 "correct" frames were a bucket drifting across the menu on its way past. Held by
-  `TestAtACoarseCadenceTheCorpusAbstains`, which asserts no wrong list and a readable shortfall.
+  `TestAtACoarseCadenceTheCorpusIdentifiesTheMenu`, which asserts no wrong list and a readable shortfall.
   [[ADR-164-a-list-is-the-same-list-when-its-rows-are]]
 - **The dwell guard is the strongest open lead and it is not in the tree.** Declining to teach the
   frame's loudest member on a non-exclusive frame was rejected in an earlier cycle for costing 88%

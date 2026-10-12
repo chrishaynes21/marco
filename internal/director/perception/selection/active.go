@@ -1322,6 +1322,24 @@ func (t *Tracker) ActiveEntryRanks() (map[int]int, int) {
 	return out, len(c.rows)
 }
 
+// ActiveMembers is the rows the active list is made of, in order down the screen, or nil.
+//
+// What the list believes it contains, which is not what any one look found inside it.
+// `InterfaceBelief.Where` is their extent and `Entries` is how many rows the DETECTOR found
+// inside it this frame; neither says which rows the list believes it has, and that is the
+// question behind every selection claim about a row the list does not contain.
+func (t *Tracker) ActiveMembers() []image.Rectangle {
+	i, _ := t.active()
+	if i < 0 {
+		return nil
+	}
+	c := t.cands[i]
+	out := make([]image.Rectangle, len(c.rows))
+	copy(out, c.rows)
+	sort.SliceStable(out, func(a, b int) bool { return centreY(out[a]) < centreY(out[b]) })
+	return out
+}
+
 // IdentifiedAt is the observation on which a single list first qualified, or -1.
 func (t *Tracker) IdentifiedAt() int { return t.identifiedAt }
 
