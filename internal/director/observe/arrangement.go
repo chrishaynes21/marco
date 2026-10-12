@@ -253,6 +253,14 @@ type VisualScreens struct {
 
 	transitions []VisualTransition
 	stats       VisualStability
+
+	// promoted is the change the look just folded caused, if it caused one.
+	//
+	// Reported rather than returned from Observe so the caller can ask about it without
+	// every caller having to take a second value it mostly ignores — and because the
+	// thing a correlation needs is the PAIR, which the returned id alone cannot give.
+	promoted   VisualTransition
+	didPromote bool
 }
 
 // Observe folds one look and returns what screen it is a look AT.
@@ -267,6 +275,7 @@ func (v *VisualScreens) Observe(a VisualArrangement, at time.Time) VisualScreenI
 	_ = at
 	v.look++
 	v.stats.Looks++
+	v.didPromote = false
 
 	if !a.Observed() {
 		// A MISSING OBSERVATION, NOT A SCREEN. The standing claim survives it, and
@@ -349,6 +358,9 @@ func (v *VisualScreens) promote(a VisualArrangement) VisualScreenID {
 	v.touch(id)
 	if from != "" && from != id {
 		v.note(from, id, v.look-v.pendingFrom)
+		v.promoted = VisualTransition{From: from, To: id, Count: 1,
+			Looks: []int{v.look}, Unsettled: v.look - v.pendingFrom}
+		v.didPromote = true
 	}
 	return id
 }
@@ -390,6 +402,15 @@ func (v *VisualScreens) note(from, to VisualScreenID, unsettled int) {
 	v.transitions = append(v.transitions, VisualTransition{
 		From: from, To: to, Count: 1, Looks: []int{v.look}, Unsettled: unsettled,
 	})
+}
+
+// Promoted reports the change the last folded look caused, if it caused one.
+//
+// Only a change BETWEEN two screens. Settling on the first screen of a session is a promotion
+// and not a transition — there is nothing it came from, and a pair with an invented origin is
+// the manufactured edge the blank rule exists to refuse.
+func (v *VisualScreens) Promoted() (VisualTransition, bool) {
+	return v.promoted, v.didPromote
 }
 
 // Screen is the standing claim, or unknown when there is none.

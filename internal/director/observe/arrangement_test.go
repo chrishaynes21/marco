@@ -127,8 +127,32 @@ func TestAChangeThatHoldsIsAScreenAndComingBackIsTheSameOne(t *testing.T) {
 	for range observe.VisualSettleLooks {
 		first = look(t, &v, a)
 	}
+	// SETTLING ON THE FIRST SCREEN IS NOT A TRANSITION. There is nothing it came from,
+	// and a pair with an invented origin is the manufactured edge the blank rule refuses.
+	if _, ok := v.Promoted(); ok {
+		t.Error("settling on the session's first screen reported a change; it has no " +
+			"origin to have come from")
+	}
 	for range observe.VisualSettleLooks {
 		second = look(t, &v, b)
+	}
+	// A CHANGE BETWEEN TWO SCREENS IS REPORTED, which is what a press is correlated
+	// against: the pair, not the id, because a correlation needs both ends.
+	got, ok := v.Promoted()
+	if !ok {
+		t.Fatal("a settled change between two screens was not reported as a promotion, " +
+			"so nothing could correlate a press with it")
+	}
+	if got.From != first || got.To != second {
+		t.Errorf("the reported change is %s -> %s, want %s -> %s",
+			got.From, got.To, first, second)
+	}
+	// AND IT IS NOT STILL REPORTED ON THE NEXT LOOK. A correlation that read a stale
+	// promotion would attribute one change to every press that followed it.
+	look(t, &v, b)
+	if _, ok := v.Promoted(); ok {
+		t.Error("the promotion was still reported a look later, so one change could be " +
+			"attributed to several presses")
 	}
 	if second == first {
 		t.Fatalf("two different arrangements settled on one screen %q", first)
@@ -333,13 +357,32 @@ func TestARepeatedNavigationIsCountedTwiceWithWhen(t *testing.T) {
 // An offline replay under `cmd/` may use them freely; the live path may not, and the day that
 // changes it changes with somebody deleting a line of this test on purpose.
 func TestAVisualScreenCannotReachDurableMemory(t *testing.T) {
-	// Where they are allowed to be, relative to the repository root.
+	// THE SESSION-LOCAL TIER, which is four files and no others.
+	//
+	// It grew once, on purpose and with this test failing first: clicktarget.go refers to
+	// visual screens because a click transition's source and destination ARE visual
+	// screens, and a target identity is the same kind of claim — session-local, geometric,
+	// and not something that may outlive the session that saw it. That is a widening of
+	// the tier, not a widening of what may become durable, and it is recorded in
+	// [[ADR-172-a-click-transition-is-a-source-a-target-and-a-destination]].
+	//
+	// The next addition should be as hard. If a file outside this list needs these names,
+	// the question to answer first is whether what it does with them can reach the store.
+	dir := filepath.Join("internal", "director", "observe")
 	allowed := map[string]bool{
-		filepath.Join("internal", "director", "observe", "arrangement.go"):      true,
-		filepath.Join("internal", "director", "observe", "arrangement_test.go"): true,
+		filepath.Join(dir, "arrangement.go"):      true,
+		filepath.Join(dir, "arrangement_test.go"): true,
+		filepath.Join(dir, "clicktarget.go"):      true,
+		filepath.Join(dir, "clicktarget_test.go"): true,
 	}
 	root := filepath.Join("..", "..", "..")
-	names := []string{"VisualScreenID", "VisualArrangement", "ArrangeLook", "VisualScreens"}
+	names := []string{
+		"VisualScreenID", "VisualArrangement", "ArrangeLook", "VisualScreens",
+		// The click tier's own names, held to the same place for the same reason: a
+		// target identified by a rectangle on a screen identified by an arrangement
+		// is two weak identities stacked, and the durable store takes neither.
+		"VisualTargetID", "ClickTargets", "ClickObservation", "ClickTransition",
+	}
 	var found []string
 	err := filepath.WalkDir(filepath.Join(root, "internal"), func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") {

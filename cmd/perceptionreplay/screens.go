@@ -32,6 +32,7 @@ package main
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
@@ -251,4 +252,172 @@ func reportVisualScreens(r frameResult) {
 type pressScreen struct {
 	Frame         int
 	Before, After observe.VisualScreenID
+}
+
+// reportClicks prints the learning units, and everything that failed to be one.
+//
+// The failures are not an appendix. A press that changed nothing, a change nobody pressed for,
+// and a press that landed on nothing the proposer found are each a reason a route cannot be
+// built over that step — and a report that listed only the successes would describe a route
+// Marco cannot walk.
+func reportClicks(r frameResult) {
+	e := r.Clicks
+	if len(e.Attributed) == 0 && len(e.Inert) == 0 && len(e.Unattributed) == 0 && e.Blind == 0 {
+		return
+	}
+	fmt.Printf("\n  --- CLICK TRANSITIONS (source screen -> target -> destination) ---\n")
+	fmt.Printf("  targets             %d session-local control identit(ies)\n", len(r.Targets))
+	fmt.Printf("  presses             %d landed on nothing (never re-groundable), "+
+		"%d inside more than one region\n", e.Blind, e.AmbiguousPresses)
+	fmt.Printf("  attributed          %d distinct unit(s)\n", len(e.Attributed))
+	for _, a := range e.Attributed {
+		amb := ""
+		if a.Ambiguous > 0 {
+			amb = fmt.Sprintf("  [%d of them AMBIGUOUS: the target is one reading "+
+				"of several]", a.Ambiguous)
+		}
+		fmt.Printf("                      %-10s --%-10s--> %-10s x%-2d presses at %v, "+
+			"%v look(s) to arrive%s\n",
+			a.From, a.Target, a.To, a.Count, a.Looks, a.Gaps, amb)
+	}
+	if len(e.Inert) > 0 {
+		fmt.Printf("  changed nothing     %d press(es): ", len(e.Inert))
+		for i, p := range e.Inert {
+			if i >= 10 {
+				fmt.Printf("...")
+				break
+			}
+			fmt.Printf("look %d on %s (%s) ", p.Look, p.Screen, p.Target)
+		}
+		fmt.Println()
+	}
+	if len(e.MaybeOneControl) > 0 {
+		fmt.Printf("  MAYBE ONE CONTROL   %d pair(s) of identities on one screen that led "+
+			"to the same place:\n", len(e.MaybeOneControl))
+		for _, p := range e.MaybeOneControl {
+			fmt.Printf("                      on %-10s %s and %s both reached %s\n",
+				p.Screen, p.A, p.B, p.To)
+		}
+		fmt.Printf("                      (reported, NOT merged: this is also the shape " +
+			"of two different\n                      entries that happen to open the " +
+			"same thing)\n")
+	}
+	if len(e.Unattributed) > 0 {
+		fmt.Printf("  nobody pressed for  %d change(s): ", len(e.Unattributed))
+		for i, t := range e.Unattributed {
+			if i >= 10 {
+				fmt.Printf("...")
+				break
+			}
+			fmt.Printf("%s->%s ", t.From, t.To)
+		}
+		fmt.Printf("\n                      (a change that usually has no press before it is " +
+			"evidence AGAINST\n                      reading the correlated ones as causes)\n")
+	}
+}
+
+// reportClickRoute walks the evidence into a route somebody can read, with the uncertainty in it.
+//
+// # Why the uncertainty is in the line rather than a footnote
+//
+// The acceptance goal is "an inspectable, evidence-backed session-local route through the two
+// demonstrations, with ambiguous or missing transitions explicitly represented". A route printed
+// without its doubts is the thing this whole subsystem exists not to produce: it would read as a
+// plan, and three of its steps would be guesses wearing a plan's clothes.
+//
+// So every step carries what is known about it, and a step that is only a screen change with no
+// press behind it says so in the place where its target would have been. Nothing is inferred to
+// fill a gap: a chain stops where the evidence stops.
+//
+// It starts at the screen that held the most looks, which on a menu recording is the screen
+// somebody kept coming back to. That is a heuristic about where to begin READING and not a
+// claim about the route; a different start would print the same steps in a different order.
+func reportClickRoute(r frameResult) {
+	if len(r.VisualSeen) == 0 {
+		return
+	}
+	start := r.VisualSeen[0].ID
+	best := 0
+	for _, sc := range r.VisualSeen {
+		if sc.Looks > best {
+			start, best = sc.ID, sc.Looks
+		}
+	}
+	// What is attributed, and what merely happened.
+	type step struct {
+		to      observe.VisualScreenID
+		target  observe.VisualTargetID
+		count   int
+		amb     int
+		pressed bool
+	}
+	outgoing := map[observe.VisualScreenID][]step{}
+	for _, a := range r.Clicks.Attributed {
+		outgoing[a.From] = append(outgoing[a.From], step{
+			to: a.To, target: a.Target, count: a.Count, amb: a.Ambiguous, pressed: true,
+		})
+	}
+	for _, t := range r.Clicks.Unattributed {
+		outgoing[t.From] = append(outgoing[t.From], step{to: t.To, count: t.Count})
+	}
+	// Which pairs two identities competed over, so a step can say so.
+	competing := map[string]bool{}
+	for _, p := range r.Clicks.MaybeOneControl {
+		competing[string(p.Screen)+">"+string(p.To)] = true
+	}
+
+	fmt.Printf("\n  --- THE ROUTE, AS EVIDENCE (session-local; nothing here is durable) ---\n")
+	fmt.Printf("  reading from %s, which held the most looks\n\n", start)
+
+	seen := map[observe.VisualScreenID]bool{}
+	at := start
+	for n := 0; n < len(r.VisualSeen)+2; n++ {
+		if seen[at] {
+			fmt.Printf("      %-10s (already visited — the walk closes here)\n", at)
+			return
+		}
+		seen[at] = true
+		steps := outgoing[at]
+		if len(steps) == 0 {
+			fmt.Printf("      %-10s NO STEP OUT: nothing was pressed on this screen "+
+				"that was followed by a change\n", at)
+			return
+		}
+		// The best-evidenced step first: repeated over once-seen, pressed over not.
+		sort.SliceStable(steps, func(i, j int) bool {
+			if steps[i].pressed != steps[j].pressed {
+				return steps[i].pressed
+			}
+			return steps[i].count > steps[j].count
+		})
+		for i, st := range steps {
+			lead := "  -> "
+			if i > 0 {
+				lead = "   or "
+			}
+			switch {
+			case !st.pressed:
+				fmt.Printf("      %-10s%s%-10s  NO TARGET: the screen changed and "+
+					"nobody pressed for it (x%d)\n", at, lead, st.to, st.count)
+			default:
+				note := ""
+				switch {
+				case st.count > 1:
+					note = fmt.Sprintf("confirmed in %d demonstrations", st.count)
+				default:
+					note = "seen ONCE — not confirmed"
+				}
+				if st.amb > 0 {
+					note += "; the target is one reading of several"
+				}
+				if competing[string(at)+">"+string(st.to)] {
+					note += "; ANOTHER identity reached the same place, so " +
+						"these may be one control"
+				}
+				fmt.Printf("      %-10s%s%-10s  via %-10s  (%s)\n",
+					at, lead, st.to, st.target, note)
+			}
+		}
+		at = steps[0].to
+	}
 }

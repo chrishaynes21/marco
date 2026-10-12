@@ -162,6 +162,11 @@ type frameResult struct {
 	// screen it was made on and the one that followed it.
 	//
 	// Never durable. See observe/arrangement.go.
+	// Clicks is the learning units — source screen, visual target, destination screen —
+	// with the presses that changed nothing and the changes nobody pressed for reported
+	// beside them. Targets is every session-local control identity minted.
+	Clicks            observe.ClickEvidence
+	Targets           []observe.TargetSeen
 	VisualSeen        []observe.VisualScreenSeen
 	VisualTransitions []observe.VisualTransition
 	VisualStability   observe.VisualStability
@@ -280,6 +285,9 @@ func replayFrames(dir string, stride, limit int, verbose bool) (frameResult, err
 	// an unordered set of frames afterwards.
 	var screens observe.VisualScreens
 	var perLook []observe.VisualScreenID
+	// The presses, correlated with the changes that followed them. Folded beside the
+	// stabiliser because the learning unit needs both halves on one clock.
+	var clicks observe.ClickTargets
 
 	for i, fr := range frames {
 		if stride > 1 && i%stride != 0 {
@@ -364,9 +372,27 @@ func replayFrames(dir string, stride, limit int, verbose bool) (frameResult, err
 		// once at the end: a greedy assignment needs the clusters that exist so far,
 		// and building them here would interleave the measurement with the belief.
 		pixelSigs = append(pixelSigs, pixelSignature(shapes))
+		// ── THE PRESS FIRST, then the arrangement, then the change ──
+		//
+		// The screen a press was made ON is the one that was standing when the person
+		// clicked, which is the screen BEFORE this look is folded. Folding the look
+		// first would, on the one look in a session that both carries a press and
+		// completes a promotion, record the press as having been made on the screen it
+		// arrived at — a learning unit whose source is its own destination.
+		rows := regionsOf(shapes)
+		standing := screens.Screen()
+		for _, e := range slot {
+			if e.Intent != observe.NavPoint {
+				continue
+			}
+			clicks.Press(len(pixelSigs)-1, e.Where, standing, rows)
+		}
 		perLook = append(perLook, screens.Observe(
-			observe.ArrangeLook(regionsOf(shapes)),
+			observe.ArrangeLook(rows),
 			base.Add(time.Duration(fr.AtMS)*time.Millisecond)))
+		if t, ok := screens.Promoted(); ok {
+			clicks.Arrived(len(pixelSigs)-1, t)
+		}
 		for _, e := range slot {
 			if e.Intent == observe.NavPoint {
 				pressFrames = append(pressFrames, len(pixelSigs)-1)
@@ -494,6 +520,11 @@ func replayFrames(dir string, stride, limit int, verbose bool) (frameResult, err
 	// long enough for a menu to repaint and short enough that the next press has not
 	// happened yet. The presses in rl-freeplay-1 are 2.3 seconds apart at the closest.
 	const settleFrames = 10
+	// A DEMONSTRATION'S LAST PRESS still belongs to it: the session ends before the
+	// screen settles, and a press left pending would be lost rather than reported inert.
+	clicks.Close()
+	r.Clicks = clicks.Evidence()
+	r.Targets = clicks.Targets()
 	r.VisualSeen = screens.Seen()
 	r.VisualTransitions = screens.Transitions()
 	r.VisualStability = screens.Stability()
@@ -532,6 +563,8 @@ func replayFrames(dir string, stride, limit int, verbose bool) (frameResult, err
 	reportFrames(r, ann)
 	reportScreens(r)
 	reportVisualScreens(r)
+	reportClicks(r)
+	reportClickRoute(r)
 	return r, nil
 }
 

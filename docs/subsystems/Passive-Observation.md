@@ -354,6 +354,16 @@ it refuses those looks. Visible is fine; in front is not.
 ## Decisions
 
 - [[ADR-010-passive-observation-cannot-execute]]
+- [[ADR-172-a-click-transition-is-a-source-a-target-and-a-destination]] — the learning unit of a
+  mouse demonstration. Every region that contained a press is kept, smallest first, and the
+  smallest is a stated hypothesis rather than a decision; a change is attributed to the most
+  recent press made on the screen being left, inside a bound of 50 looks that was MEASURED (a
+  ten-look window reported a real press as having changed nothing, because its transition took
+  thirty), with the gap reported per occurrence so an implausible attribution is visible. Four
+  identity rules were measured and they trade a split against a merge, so none is chosen: the
+  pairs that might be one control are reported with the evidence. On the recording: 3 units
+  confirmed in both demonstrations, 2 pairs that may be one control, 4 presses that changed
+  nothing, 8 changes nobody pressed for — and an inspectable route with its doubts in the line
 - [[ADR-171-an-arrangement-is-an-observation-and-a-screen-is-an-interpretation]] — the middle
   of three identities, built: a frame-local arrangement is an observation, a session-local
   screen is an interpretation, and the gap between them is time. A change must hold for three
@@ -908,11 +918,22 @@ it refuses those looks. Visible is fine; in front is not.
   layer is built, measured and gated, and only the offline replay calls it. Wiring it into live
   observation is a separate decision from building it, and promoting one into a durable Place is
   a third. [[ADR-171-an-arrangement-is-an-observation-and-a-screen-is-an-interpretation]]
-- **A press is attributed to the screen a fixed window later, not to the next transition.** On
-  the measured recording the press at frame 138 reads `visual_3 -> visual_3` while the
-  transition `visual_3 -> visual_4` is recorded thirty frames later, outside the window. So
-  "the screen after a press" is answered and "the next transition after a press" is not — and
-  the second is what an attributable click transition needs.
+- ~~A press is attributed to the screen a fixed window later, not to the next transition.~~
+  **Fixed 2026-10-12**, [[ADR-172-a-click-transition-is-a-source-a-target-and-a-destination]].
+  The window was ten looks and the measured transition took thirty; attribution is to the next
+  change on the screen the press was made on, bounded at fifty, with the gap reported.
+- **Target identity from geometry alone does not survive two demonstrations.** Four rules
+  measured: the smallest containing region splits one control across runs (12 identities, 3
+  repeated units); the whole candidate set merges three visibly different menu entries (8, 4);
+  both scale restrictions make one or the other worse. The conservative rule is in the tree and
+  the pairs that might be one control are reported rather than merged. Settling them needs a
+  third demonstration or a visual comparison of the candidate rectangles.
+  [[ADR-172-a-click-transition-is-a-source-a-target-and-a-destination]]
+- **Some steps of a real route are not caused by clicks.** Eight changes on the measured
+  recording had no press before them, and they are not noise: entering Free Play is a LOAD
+  completing, so whether a press falls inside the attribution window depends on how long the
+  load took — the same change was attributed in one demonstration and not the other. A planner
+  that assumed every edge needs a press would be wrong about this menu.
 - **A session on the pixels discovery path segments no screens — and a MEASUREMENT now says the
   pixels could carry it.** Asked of arrangement alone, with production's own signature,
   similarity and threshold and one generic kind on every proposal, the 900-frame Rocket League
