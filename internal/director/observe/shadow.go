@@ -311,6 +311,13 @@ type ShadowTotals struct {
 	// RetiredCandidates is how many tracked lists were dropped for not being found
 	// again, whose evidence went with them rather than into the next list at that place.
 	RetiredCandidates int `json:"retired_candidates,omitempty"`
+	// ActiveMissingRows is how many rows the active list has that the last look did not
+	// show, and ActiveRows how many it has in all. See InterfaceWatch.ActiveMissing.
+	ActiveMissingRows int `json:"active_missing_rows,omitempty"`
+	ActiveRows        int `json:"active_rows,omitempty"`
+	// HeldSightingsDropped is why the mark's last sighting was let go, by cause. Each is a
+	// move that could not be recorded. See InterfaceWatch.HeldSightingsDropped.
+	HeldSightingsDropped map[string]int `json:"held_sightings_dropped,omitempty"`
 	// ActiveMembers is the rows the active list believes it is made of, in order down the
 	// screen.
 	//
@@ -600,6 +607,8 @@ func (t *ShadowTotals) Observe(sample Sample) {
 	t.Candidates = t.watch.Candidates()
 	t.RetiredCandidates = t.watch.RetiredCandidates()
 	t.ActiveMembers = t.watch.ActiveMembers()
+	t.HeldSightingsDropped = t.watch.HeldSightingsDropped()
+	t.ActiveMissingRows, t.ActiveRows = t.watch.ActiveMissing()
 	// THE MOVES THE MARK MADE, grounded in the screen the session was on WHILE THEY WERE
 	// SEEN — which is the state published at the end of the previous cycle and not the one
 	// this cycle is about to settle on. A move seen on the way out of a menu belongs to the

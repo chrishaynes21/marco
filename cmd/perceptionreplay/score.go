@@ -59,6 +59,14 @@ type frameObservation struct {
 	// RowShaped says a measurable shape was found at the labelled row's height IN THE
 	// LIST'S OWN COLUMN, which is the first rung of the funnel and the one the
 	// whole-screen discovery number cannot speak to.
+	// MissingRows is how many rows the active list HAS that this look did not show, and
+	// ListRows how many it has in all.
+	//
+	// A selection claim made while a row of the list was unseen is a claim that could not
+	// have been right if the mark was on that row, and counting those apart is the
+	// difference between the reader's error and the list's. See observe.ActiveMissing for
+	// why this is reported rather than acted on.
+	MissingRows, ListRows   int
 	RowShaped               bool
 	RowGrouped, RowIsMember bool
 	ListMembers             int
@@ -150,6 +158,11 @@ type selectionScore struct {
 	// reading the right list badly.
 	// Split is labelled frames where the row was in a stack that holds none of the list's
 	// members, and Dropped where it was in the SAME stack as them and still not a member.
+	// WhileIncomplete is namings made while the list had a row this look did not show,
+	// and WhileIncompleteWrong how many of those were wrong. MissingSeen is how many rows
+	// were unseen, as a histogram over labelled frames with a list.
+	WhileIncomplete, WhileIncompleteWrong int
+	MissingSeen                           map[int]int
 	// Shaped is labelled frames with a shape at the row's height in the list's column.
 	Shaped                         int
 	Split, Dropped                 int
@@ -239,7 +252,8 @@ func rate(n, d int) float64 {
 func scoreSelection(trace []frameObservation, ann *annotationFile) selectionScore {
 	s := selectionScore{Offsets: map[int]int{}, Silent: map[string]int{},
 		SilentEntries: map[int]int{}, MembersSeen: map[int]int{},
-		NamedRight: map[string]int{}, NamedWrong: map[string]int{}, Lists: map[string]*listScore{}}
+		MissingSeen: map[int]int{},
+		NamedRight:  map[string]int{}, NamedWrong: map[string]int{}, Lists: map[string]*listScore{}}
 	rows := ann.labelledRows()
 	pitch := labelledPitch(rows)
 	if pitch <= 0 {
@@ -275,6 +289,7 @@ func scoreSelection(trace []frameObservation, ann *annotationFile) selectionScor
 		}
 		if f.ListMembers > 0 {
 			s.MembersSeen[f.ListMembers]++
+			s.MissingSeen[f.MissingRows]++
 		}
 		if f.ListBottom > f.ListTop && y >= f.ListTop && y <= f.ListBottom {
 			s.Inside++
@@ -295,6 +310,12 @@ func scoreSelection(trace []frameObservation, ann *annotationFile) selectionScor
 			s.WhileNamed++
 		} else {
 			s.WhileNotMember++
+		}
+		if f.MissingRows > 0 {
+			s.WhileIncomplete++
+			if math.Abs(f.NamedY-y) > pitch/2 {
+				s.WhileIncompleteWrong++
+			}
 		}
 		key := fmt.Sprintf("%.3f..%.3f/%d", f.ListTop, f.ListBottom, f.Entries)
 		ls := s.Lists[key]
@@ -547,6 +568,25 @@ func reportSelectionScore(s selectionScore, confs []confirmation) {
 		"                      list's members, so the menu was split and the list is one\n"+
 		"                      piece of it; %d had it in the SAME stack as them and the\n"+
 		"                      list still never took it\n", s.Split, s.Dropped)
+	if len(s.MissingSeen) > 0 {
+		ns := make([]int, 0, len(s.MissingSeen))
+		for n := range s.MissingSeen {
+			ns = append(ns, n)
+		}
+		sort.Ints(ns)
+		var hist []string
+		for _, n := range ns {
+			hist = append(hist, fmt.Sprintf("%d:%d", n, s.MissingSeen[n]))
+		}
+		fmt.Printf("    rows unseen       %s\n"+
+			"                      (how many of the list's OWN rows this look did not\n"+
+			"                      show; 0 means the list was complete on that look)\n",
+			strings.Join(hist, "  "))
+		fmt.Printf("    named incomplete  %d naming(s) were made while a row of the list "+
+			"was\n                      unseen; %d of those were wrong. Withholding them "+
+			"was\n                      measured and cost 12 of 13 retained graph moves\n",
+			s.WhileIncomplete, s.WhileIncompleteWrong)
+	}
 	fmt.Printf("    named anyway      %d naming(s) were made while the labelled row was NOT\n"+
 		"                      a member of the list being read; %d of them happened to\n"+
 		"                      be right and %d were wrong  <-- the incomplete-list error\n",

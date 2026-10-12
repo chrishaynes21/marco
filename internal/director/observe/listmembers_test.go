@@ -116,6 +116,22 @@ func TestASessionSaysWhichRowsTheListHasAndWhatGroupingMade(t *testing.T) {
 			"reads them from here, and a funnel that cannot say which rows the " +
 			"list has cannot say whether a selection claim had a chance")
 	}
+	if totals.ActiveRows != len(totals.ActiveMembers) {
+		t.Errorf("the totals say the list has %d rows and report %d of them",
+			totals.ActiveRows, len(totals.ActiveMembers))
+	}
+	// AND THE CAUSES OF A LOST SIGHTING COME THROUGH THE SAME DOOR. Nothing is marked on
+	// the looks below, so the reader holds its claim and then gives it up, and the gap
+	// between sightings runs out. Each of those is a move that could not be recorded.
+	for i := range 24 {
+		totals.Observe(twoListSample(200+i,
+			base.Add(time.Duration(200+i)*100*time.Millisecond),
+			navSample{markA: -1, markB: 3}))
+	}
+	if len(totals.HeldSightingsDropped) == 0 {
+		t.Error("the session's totals report no cause for a lost sighting after " +
+			"twenty-four looks that read nothing. The replay reads them from here")
+	}
 
 	t.Logf("%d member(s) in x %.3f..%.3f; %d stack(s), largest %d; %d in the totals",
 		len(members), x0, x1, len(stacks), big, len(totals.ActiveMembers))

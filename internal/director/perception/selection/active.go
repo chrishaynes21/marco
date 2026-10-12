@@ -1322,6 +1322,43 @@ func (t *Tracker) ActiveEntryRanks() (map[int]int, int) {
 	return out, len(c.rows)
 }
 
+// ActiveMissing is how many rows the active list HAS that the last observation did not show,
+// how many it has in all, and whether a list is active at all.
+//
+// # The question this answers
+//
+// Whether the mark could be on a row nobody can see. The reader is given the rows of this
+// frame that fall inside the list, so it can only ever name one of those — and if the list has
+// a row that this look did not find, the mark may be on it and the reader will instead name the
+// strongest row it WAS given. Measured on this corpus, every such claim was wrong.
+//
+// # Why it is not a remembered row COUNT
+//
+// Because a menu may legitimately change, and "this list once had nine rows" is then a false
+// oracle: the ninth row may be gone rather than missed. What is reported instead is the
+// membership as it stands with each member's own staleness behind it — a row that is still a
+// member and was not seen on the last look. A row that genuinely left stops being a member
+// after MaxUnmatched observations and stops counting here, and a list that has not been watched
+// long enough to have a membership worth trusting cannot qualify in the first place.
+//
+// So the three cases the owner named are separated by the mechanism rather than by a threshold:
+// a row temporarily missing is a member with a non-zero cold count; a list that genuinely
+// changed loses those members to aging; and a list whose history is not yet trustworthy is not
+// yet an active list.
+func (t *Tracker) ActiveMissing() (missing, of int, ok bool) {
+	i, _ := t.active()
+	if i < 0 {
+		return 0, 0, false
+	}
+	c := t.cands[i]
+	for _, n := range c.cold {
+		if n > 0 {
+			missing++
+		}
+	}
+	return missing, len(c.rows), true
+}
+
 // ActiveMembers is the rows the active list is made of, in order down the screen, or nil.
 //
 // What the list believes it contains, which is not what any one look found inside it.

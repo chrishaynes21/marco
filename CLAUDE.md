@@ -101,6 +101,12 @@ go -C plugins/overlay build -o overlay.exe .
 pluginsvisionuild.cmd                 # Windows: the ONNX backend (needs gcc)
 .\overlay.cmd                          # Windows: launches the overlay stack
 ```
+- **The full-frame perception corpus test is behind `-tags corpus`** and is REQUIRED for a
+  perception change: `go test -tags corpus ./cmd/perceptionreplay/` (about 145s). It is out of the
+  default suite because it was starving other packages — `cmd/marco` past its 600s limit, and a
+  latency assertion from 962µs to 60ms. `go test ./...` still gates perception through the
+  every-tenth-frame test in the same package. See
+  [[ADR-167-a-slow-gate-and-two-rules-that-measured-worse]].
 - **`go build` in `plugins/vision` produces a detector that detects NOTHING.** The ONNX
   backend is behind `-tags onnxvision` and the default build answers "no model loaded" to
   everything, which reads as a missing subsystem rather than an unbuilt one. Use

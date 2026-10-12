@@ -653,3 +653,62 @@ reader naming a neighbour in a list that held both — counted apart now. Wrong-
 are no longer zero. Stride 3 trades right answers for wrong ones. Stride 20 identifies nothing.
 
 Nothing here is validated live.
+
+## Seventh correction, 2026-10-12: what the measurements refused
+
+No behaviour changed in this pass. Two rules were built and rejected on measurement, the gap
+between readings and graph moves was attributed, and the corpus gate was split so it stops
+breaking other tests. Full account in
+[[ADR-167-a-slow-gate-and-two-rules-that-measured-worse]].
+
+### List completeness, newly measured
+
+How many rows the active list HAS that a look did not show, over labelled frames with a list:
+
+| stride | 0 unseen | 1 | 2 | 3 | 4 | 5 | 6 |
+|---|---|---|---|---|---|---|---|
+| 1 | 436 | 92 | 15 | 5 | 12 | 5 | — |
+| 3 | 26 | 38 | 10 | 1 | 2 | — | — |
+| 10 | 14 | 1 | 7 | 6 | — | — | 1 |
+
+Complete on 77% of looks at stride 1 and 34% at stride 3. That is the stride-3 problem in a line.
+
+It is deliberately NOT a remembered row count. A menu may legitimately change, so "this list once
+had nine rows" would be a false oracle; what is reported is the membership as it stands, and a row
+that genuinely left stops being a member after MaxUnmatched observations and stops counting.
+
+### The abstention rule, built and rejected
+
+| at stride 1 | coverage | right | wrong | accuracy | retained moves |
+|---|---|---|---|---|---|
+| kept | 362 | 349 | 13 | 96% | **13** |
+| withholding when a row was unseen | 296 | 289 | 7 | 98% | **1** |
+
+At stride 3 it took wrong namings from 24 to 5 and right ones from 29 to 20. It does what it was
+asked to do and takes the graph with it: a move is recorded between two readings of one list, and
+the withheld looks fall between them. On the same corpus 65 namings were made while a row was
+unseen and 6 were wrong — 59 right answers and 12 moves given up to remove 6 errors.
+
+### The graph gap, attributed
+
+| | |
+|---|---|
+| labelled changes of row in the corpus | 33 |
+| ever named | 26 |
+| transfers the menu candidate observed | 21 |
+| retained as moves | **13** |
+| sightings dropped in the whole session | **9** (5 unread, 2 no list, 2 list changed) |
+| moves seen more than once | **0** |
+| screen states / transitions | 1 / 0 |
+
+So move retention is near its ceiling here, and the remaining gap is the recording: 13 moves each
+seen once on a screen that never changes cannot become durable edges. That needs a session where
+somebody repeats a navigation and the screen changes.
+
+### The gate
+
+The full-frame test took 145 seconds and was failing other packages — `cmd/marco` past its
+600-second limit, and a latency assertion from 962µs to 60ms. It is behind `//go:build corpus`
+now; the every-tenth-frame gate stays in the default suite at about 14 seconds.
+
+Nothing in this correction is validated live.

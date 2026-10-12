@@ -614,7 +614,26 @@ it refuses those looks. Visible is fine; in front is not.
   does not. Stride-3 accuracy fell from 100% to 55% with it — 29 right and 24 wrong where it was
   9 and 0 — because the list there is sometimes three or four rows. More right answers and more
   wrong ones at that cadence. [[ADR-166-a-list-shares-an-edge-and-a-partial-row-keeps-one]]
-- **An abstention rule for an incomplete list is wanted and OPEN.** Nothing the reader can see
+- **Reducing confidently wrong selections at a coarse cadence is OPEN, and the two obvious rules
+  are measured and rejected.** List completeness is now reported per look — how many rows the list
+  HAS that the look did not show — and it is the shape of the problem: at stride 1 the list is
+  complete on 436 of 565 looks (77%) and at stride 3 on 26 of 77 (34%). Withholding the selection
+  claim whenever a row was unseen raised accuracy 96% → 98% and cut confidently wrong readings
+  13 → 7 (and 24 → 5 at stride 3), and took **retained graph moves from 13 to ONE**, because a
+  move is recorded between two readings of one list and the withheld looks fall between them. On
+  the same corpus 65 namings were made while a row was unseen and **6** were wrong, so the rule
+  gives up 59 right answers and 12 moves to remove 6 errors. The next rule has to separate those
+  6 from the other 59. [[ADR-167-a-slow-gate-and-two-rules-that-measured-worse]]
+- **The gap between 349 correct readings and 13 retained moves is attributed, and the remainder is
+  the RECORDING.** Three gaps stacked: most of the 349 are repeated readings of a settled
+  selection, and the corpus holds 33 labelled changes of row of which 26 were ever named; 13 of
+  the menu candidate's 21 observed transfers became moves, with only **9 sightings dropped in the
+  whole session** (5 unread too long, 2 for want of a list, 2 for the list changing), so retention
+  is near its ceiling; and all 13 moves were seen exactly ONCE, on a screen that never changes, so
+  every one is `thin_evidence` and no durable edge can have recognised endpoints. **No amount of
+  perception work produces a durable edge on this recording.**
+  [[ADR-167-a-slow-gate-and-two-rules-that-measured-worse]]
+- **Superseded, kept for the measurement.** An abstention rule for an incomplete list is wanted. Nothing the reader can see
   distinguishes a claim about a row the list does not contain from one about a row it does: the 20
   wrong claims rested on the same sentence — "away from its own unselected level, while its
   neighbours are not" — as 52 of the 78 right ones. The list-level signal that is available is too

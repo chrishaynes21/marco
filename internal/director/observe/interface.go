@@ -305,6 +305,13 @@ type InterfaceWatch struct {
 	// pendingDropped how many the bound refused. See TakeSelectionMoves.
 	pending        []SelectionMove
 	pendingDropped int
+	// heldDropped counts why a held sighting was let go, by cause.
+	//
+	// A move is only ever recorded between two sightings of one list, so every reset is a
+	// move that cannot be. 349 correct readings produced 13 retained moves on this corpus
+	// and the causes were not separated; a count of each is the difference between a
+	// perception gap and a corpus that simply never repeats itself.
+	heldDropped map[string]int
 	// heldRank is the rank the held entry had when it was seen, for the move's prose.
 	heldRank int
 	// heldList, heldEntries and heldEntry are the list the mark was last SEEN in and
@@ -485,6 +492,7 @@ func (w *InterfaceWatch) TakeSelectionMoves() ([]SelectionMove, int) {
 func (w *InterfaceWatch) noteMove(_, next InterfaceBelief) {
 	if next.Status != InterfaceProvisional {
 		// No list is identified, so there is nothing for a mark to be an entry OF.
+		w.drop("no list identified")
 		w.heldEntry, w.heldRank, w.heldGap = 0, 0, 0
 		w.heldList, w.heldEntries = 0, 0
 		return
@@ -506,6 +514,12 @@ func (w *InterfaceWatch) noteMove(_, next InterfaceBelief) {
 		// `SelectedRank` is a position among the members, so a list that gained a row has
 		// moved every rank below it and a move recorded across that boundary would name
 		// two rows the mark was never on. `TestAListThatRenumbersRetainsNoMove` holds it.
+		switch {
+		case next.ListID != w.heldList:
+			w.drop("a different list")
+		default:
+			w.drop("the list gained or lost a row")
+		}
 		w.heldList, w.heldEntries = next.ListID, next.ListEntries
 		w.heldEntry, w.heldRank, w.heldGap = next.SelectedEntry, next.SelectedRank, 0
 		// THE BANKED MOMENT IS NOT RESET HERE, and an earlier version did reset it.
@@ -526,6 +540,7 @@ func (w *InterfaceWatch) noteMove(_, next InterfaceBelief) {
 		// changes is how good the next sighting's evidence is.
 		w.heldGap++
 		if w.heldGap > MaxUnreadBetweenSightings {
+			w.drop("unread for too long between sightings")
 			w.heldEntry, w.heldRank = 0, 0
 		}
 		return
@@ -578,6 +593,29 @@ func (w *InterfaceWatch) noteMove(_, next InterfaceBelief) {
 		Sample:      sample, At: at,
 		FirstSeen: firstSeen, ConfirmedAfterMS: lateMS,
 	})
+}
+
+// drop records that a held sighting was let go, and why, when there was one to let go of.
+func (w *InterfaceWatch) drop(why string) {
+	if w.heldEntry == 0 {
+		return
+	}
+	if w.heldDropped == nil {
+		w.heldDropped = map[string]int{}
+	}
+	w.heldDropped[why]++
+}
+
+// HeldSightingsDropped is why a held sighting was let go, by cause, over the session.
+//
+// A move is only recorded between two sightings of one list, so each of these is a move that
+// could not be. Instrumentation: it counts what the rule already did and decides nothing.
+func (w *InterfaceWatch) HeldSightingsDropped() map[string]int {
+	out := make(map[string]int, len(w.heldDropped))
+	for k, v := range w.heldDropped {
+		out[k] = v
+	}
+	return out
 }
 
 // settlingOf is when the pixels first pointed at this row, and whether the window was open
@@ -1388,6 +1426,24 @@ func (w *InterfaceWatch) Candidates() []InterfaceCandidate {
 		})
 	}
 	return out
+}
+
+// ActiveMissing is how many rows the active list HAS that the last look did not show, and how
+// many it has in all.
+//
+// REPORTED AND NOT ACTED ON, and the measurement behind that is in
+// [[ADR-167-a-slow-gate-and-two-rules-that-measured-worse]]. Withholding the selection claim
+// whenever this was non-zero raised accuracy from 96% to 98% and cut confidently wrong readings
+// from 13 to 7 — and took retained graph moves from 13 to ONE, because a move needs two
+// readings of one list and the withheld looks fall between them. A rule that buys precision by
+// making the graph stop learning is not a trade worth taking.
+//
+// It is still worth saying. A claim about which entry is selected, made while the list has a row
+// nobody could see, is a claim that could not have been right, and a report that cannot count
+// those cannot tell a reader's error from a list's.
+func (w *InterfaceWatch) ActiveMissing() (missing, of int) {
+	m, o, _ := w.tracker.ActiveMissing()
+	return m, o
 }
 
 // RetiredCandidates is how many tracked lists have been dropped for not being found again.

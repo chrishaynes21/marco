@@ -112,6 +112,9 @@ func (a *annotationFile) labelAt(index int) (state string, y float64, ok bool) {
 type frameResult struct {
 	Name   string
 	Frames int
+	// HeldDropped is why the mark's last sighting was let go, by cause. Each is a move
+	// that could not be recorded between two sightings of one list.
+	HeldDropped map[string]int
 	// Retired is how many tracked lists were dropped for not being found again. A
 	// population being pruned and one that was never crowded look the same from a count
 	// of the survivors.
@@ -355,6 +358,7 @@ func replayFrames(dir string, stride, limit int, verbose bool) (frameResult, err
 
 			members := totals.ActiveMembers
 			obs.ListMembers = len(members)
+			obs.MissingRows, obs.ListRows = totals.ActiveMissingRows, totals.ActiveRows
 			if len(members) > 0 {
 				x0, x1 := members[0].X, members[0].X+members[0].Width
 				for _, m := range members {
@@ -404,6 +408,7 @@ func replayFrames(dir string, stride, limit int, verbose bool) (frameResult, err
 	r.Identified = r.Belief.After
 	r.Candidates = totals.Candidates
 	r.Retired = totals.RetiredCandidates
+	r.HeldDropped = totals.HeldSightingsDropped
 	r.Moves = totals.SelectionTransitions
 	r.Latencies = responseLatencies(totals.InterfaceMoments, inputs, base)
 	r.MovesUnplaced, r.MovesDropped = totals.SelectionMovesUnplaced, totals.SelectionMovesDropped
@@ -882,6 +887,22 @@ func reportRetained(r frameResult) {
 			"grounded in its list alone)\n")
 	}
 	reportLatencies(r.Latencies)
+	if len(r.HeldDropped) > 0 {
+		keys := make([]string, 0, len(r.HeldDropped))
+		var total int
+		for k, v := range r.HeldDropped {
+			keys = append(keys, k)
+			total += v
+		}
+		sort.Slice(keys, func(i, j int) bool {
+			return r.HeldDropped[keys[i]] > r.HeldDropped[keys[j]]
+		})
+		fmt.Printf("  sightings dropped   %d time(s) the mark's last sighting was let go, "+
+			"so\n                      no move could be recorded across it:\n", total)
+		for _, k := range keys {
+			fmt.Printf("                      %-44s %d\n", k, r.HeldDropped[k])
+		}
+	}
 	fmt.Printf("  moves retained      %d distinct, %d observations",
 		len(r.Moves), observationsIn(r.Moves))
 	if r.MovesUnplaced > 0 || r.MovesDropped > 0 {

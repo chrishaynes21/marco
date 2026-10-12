@@ -127,3 +127,68 @@ func TestTheReplayReportsWhereTheSelectedRowWasLost(t *testing.T) {
 			n, sc.MembersSeen)
 	}
 }
+
+// The replay says what a list did not show, and whether a claim was made anyway.
+//
+// # Why this is reported rather than acted on
+//
+// A selection claim made while the list has a row this look did not show is a claim that could
+// not have been right if the mark was on that row. Withholding those was built and measured:
+// accuracy 96% to 98% and confidently wrong readings 13 to 7, against retained graph moves 13
+// to ONE — because a move is recorded between two readings of one list and the withheld looks
+// fall between them. On the same corpus 65 namings were made while a row was unseen and 6 of
+// them were wrong, so the rule costs 59 right answers and 12 moves to remove 6 errors.
+// [[ADR-167-a-slow-gate-and-two-rules-that-measured-worse]].
+//
+// So the numbers are reported and the next rule has to beat them. That is what these counters
+// are for, and a report that cannot separate "the reader misread a list it was given" from "the
+// list was missing the row" cannot tell whether a change helped.
+//
+// Deleting either tally in scoreSelection must fail this.
+func TestTheReplayReportsWhatAListDidNotShow(t *testing.T) {
+	ann := scoreAnn() // nine rows, y 0.100 to 0.500, pitch 0.050
+	const y = 0.300   // the fifth labelled row
+	trace := []frameObservation{
+		// A complete list, read correctly.
+		{Index: 40, Status: "provisional", Selected: 2, Labelled: true, LabelledY: y,
+			RowShaped: true, RowGrouped: true, RowIsMember: true,
+			ListMembers: 9, ListRows: 9, MissingRows: 0,
+			ListTop: 0.05, ListBottom: 0.55, NamedY: y, NamedHeight: 0.04},
+		// An incomplete list, read correctly anyway: the mark was on a row that WAS
+		// shown, so the claim happened to be safe.
+		{Index: 41, Status: "provisional", Selected: 2, Labelled: true, LabelledY: y,
+			RowShaped: true, RowGrouped: true, RowIsMember: true,
+			ListMembers: 9, ListRows: 9, MissingRows: 2,
+			ListTop: 0.05, ListBottom: 0.55, NamedY: y, NamedHeight: 0.04},
+		// An incomplete list, read WRONGLY: the claim names a row the labels put
+		// elsewhere, and two of the list's rows were not shown.
+		{Index: 42, Status: "provisional", Selected: 0, Labelled: true, LabelledY: y,
+			RowShaped: true, RowGrouped: true, RowIsMember: true,
+			ListMembers: 9, ListRows: 9, MissingRows: 3,
+			ListTop: 0.05, ListBottom: 0.55, NamedY: 0.15, NamedHeight: 0.04},
+		// And a frame with a list and no reading, which belongs in the histogram and
+		// in neither naming tally.
+		{Index: 43, Status: "provisional", Selected: -1, Labelled: true, LabelledY: y,
+			RowShaped: true, ListMembers: 9, ListRows: 9, MissingRows: 1,
+			ListTop: 0.05, ListBottom: 0.55},
+	}
+	sc := scoreSelection(trace, ann)
+
+	if sc.WhileIncomplete != 2 {
+		t.Errorf("%d naming(s) were made while a row of the list was unseen, want 2",
+			sc.WhileIncomplete)
+	}
+	if sc.WhileIncompleteWrong != 1 {
+		t.Errorf("%d of those were wrong, want 1. A claim that could not have been "+
+			"right and one that happened to be are the same risk and different "+
+			"outcomes, and the rule to come has to beat both numbers",
+			sc.WhileIncompleteWrong)
+	}
+	want := map[int]int{0: 1, 1: 1, 2: 1, 3: 1}
+	for n, c := range want {
+		if sc.MissingSeen[n] != c {
+			t.Errorf("%d row(s) unseen on %d frame(s), want %d: %v",
+				n, sc.MissingSeen[n], c, sc.MissingSeen)
+		}
+	}
+}
