@@ -360,6 +360,15 @@ it refuses those looks. Visible is fine; in front is not.
 ## Decisions
 
 - [[ADR-010-passive-observation-cannot-execute]]
+- [[ADR-175-no-settling-rule-survives-a-four-second-cadence]] — the settle rule was chosen
+  against a 10fps recording and the live path samples at ~3.8s. Swept at every rate and every
+  phase: at 3.8s the rule settles on 0–3 of nine screens while SAMPLING 5–6, so the screens were
+  seen and the rule discarded them, with an 11.4-second confirmation latency at the best phase.
+  Lowering it to one look fixes the live cadence and produces 113 promotions over 900 looks with
+  72 unknown causes. And click attribution degrades faster than the screens do — 13/5/3 at 10fps
+  becomes 0/0/12 at 3.8s. The default is unchanged and the evidence is why: the slow cadence
+  cannot support this model, and the pixel proposer's measured 39ms a frame (≈26 looks/second on
+  one core) says the fix is a faster local observer whose cadence is not the AI's
 - [[ADR-174-three-kinds-of-transition-and-what-a-brief-screen-was]] — not every screen change is
   caused by a click, and a planner that assumed one would fail on ordinary applications. Three
   causes now: CLICK (a press on a grounded target), AUTOMATIC (no press, following Marco's own
@@ -953,6 +962,16 @@ it refuses those looks. Visible is fine; in front is not.
   looks, `visual_9` held 2 — and short-lived screens that appear in one demonstration and not
   the other are the shape of a load or a splash rather than a place.
   [[ADR-173-the-proposers-yield-is-not-what-separates-two-screens]]
+- **The session-local screen model needs ≈10fps and the live path samples at ~3.8s.** Not a
+  tuning problem: measured at every rate and phase, the current rule discards screens it
+  sampled, and the rule that recovers them produces a promotion every eight looks at the
+  recording's own rate. Click attribution goes to zero before the screens do. The way out is a
+  fast local observer on its own cadence, and the proposer's 39ms a frame says that is
+  affordable; where it gets its pixels is NOT answered — the existing capture costs ~130ms a
+  frame, which caps a fast observer at about 7fps on its own.
+  [[ADR-175-no-settling-rule-survives-a-four-second-cadence]]
+- **Everything established about the repeated route exists only at ≈10fps.** Five screens of
+  route correspondence at the recording's own rate, 2–3 at 300ms, 1–2 at 3.8s.
 - **A session-local visual screen exists and nothing in the live path uses it.** The stabilised
   layer is built, measured and gated, and only the offline replay calls it. Wiring it into live
   observation is a separate decision from building it, and promoting one into a durable Place is

@@ -313,12 +313,43 @@ type VisualScreens struct {
 	promoted   VisualTransition
 	didPromote bool
 
+	// settle is how many consecutive looks a change must hold, or 0 for the default.
+	//
+	// A property of the session rather than only a constant, because the right number
+	// depends on the observation RATE and a measurement that could not vary it could not
+	// say what the rate costs. Set through SettleAfter; zero behaves exactly as before.
+	settle int
+
 	// walk is the screens in the order they were settled on, first settle included.
 	//
 	// A session's own sequence, which no collection of transitions can reconstruct:
 	// counts lose the order, and the occurrences of two different pairs interleave. A
 	// route that repeats is a repeated run in HERE.
 	walk []VisualScreenID
+}
+
+// SettleAfter sets how many consecutive looks a change must hold before it is a screen.
+//
+// For measurement. The default is VisualSettleLooks and the reason it is three is written on
+// that constant; a caller that lowers it is trading noise protection for responsiveness and
+// should be able to show what the trade cost.
+//
+// A value below one is not refused here. The floor lives in settleLooks and in ONE place: a
+// zero-value VisualScreens has no setting either, and two guards for one rule are two things to
+// keep in step.
+func (v *VisualScreens) SettleAfter(looks int) { v.settle = looks }
+
+// settleLooks is the rule in force, and the only place the floor is applied.
+//
+// Anything below one means "nothing was set", whether because nobody called SettleAfter or
+// because somebody passed a number that is not a rule: a change that holds for no looks is not
+// a change anybody saw, and promoting on every look would be the transition storm the damping
+// exists to prevent.
+func (v *VisualScreens) settleLooks() int {
+	if v.settle >= 1 {
+		return v.settle
+	}
+	return VisualSettleLooks
 }
 
 // Observe folds one look and returns what screen it is a look AT.
@@ -373,7 +404,7 @@ func (v *VisualScreens) Observe(a VisualArrangement, at time.Time) VisualScreenI
 	} else {
 		v.pending, v.pendingRun, v.pendingFrom = a, 1, v.look
 	}
-	if v.pendingRun < VisualSettleLooks {
+	if v.pendingRun < v.settleLooks() {
 		// A LOOK THAT DIFFERED FROM A SCREEN, or a look taken before there was one.
 		// The second is not a flap — see VisualStability.Warming.
 		if v.held == "" {

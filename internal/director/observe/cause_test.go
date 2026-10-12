@@ -58,11 +58,22 @@ func TestAChangeAfterArrivingByClickIsAutomatic(t *testing.T) {
 		t.Errorf("an automatic step names target %q. Nothing was pressed, and naming "+
 			"one would invite a planner to press it", auto.Target)
 	}
-	if auto.Cause.Executable() {
-		t.Error("an automatic cause reports itself as executable")
+	if auto.Cause.AuthorizesInput() {
+		t.Error("an automatic cause says it may produce a press. Nobody pressed " +
+			"anything")
 	}
-	if !click.Cause.Executable() {
-		t.Error("a click cause reports itself as not executable")
+	// AND IT IS STILL PLANNABLE AND STILL VERIFIABLE. `Click Play -> Wait for
+	// loading -> Verify Training` needs the wait, and a step nothing may press is not
+	// a step nothing may contain.
+	if !auto.Cause.Plannable() {
+		t.Error("an automatic cause cannot appear in a route. A wait is a valid " +
+			"operation in a plan")
+	}
+	if !auto.Cause.Verifiable() {
+		t.Error("an automatic cause cannot be verified by looking")
+	}
+	if !click.Cause.AuthorizesInput() || !click.Cause.Plannable() {
+		t.Error("a click cause reports itself as unable to press or unable to plan")
 	}
 	if len(auto.Gaps) != 1 || auto.Gaps[0] != 8 {
 		t.Errorf("the automatic step's gap after arriving is %v, want [8]", auto.Gaps)
@@ -107,9 +118,19 @@ func TestAChangeWithNoArrivalBehindItHasAnUnknownCause(t *testing.T) {
 	if steps[0].Cause != observe.CauseUnknown {
 		t.Errorf("a change with nothing behind it was called %q", steps[0].Cause)
 	}
-	if steps[0].Cause.Executable() {
-		t.Error("an unknown cause reports itself as executable. Nothing may be run on " +
-			"evidence that cannot say what happened")
+	if steps[0].Cause.AuthorizesInput() {
+		t.Error("an unknown cause says it may produce a press")
+	}
+	// AND IT MAY NOT APPEAR IN A ROUTE EITHER, because there is no operation to put
+	// there: not a press, since nobody pressed, and not a wait, since nothing says it
+	// will arrive. A route that needs one is a route Marco cannot walk.
+	if steps[0].Cause.Plannable() {
+		t.Error("an unknown cause may appear in a route. There is no operation to put " +
+			"in the plan at that step")
+	}
+	// It is still VERIFIABLE: Marco cannot plan to cause it and can notice it happened.
+	if !steps[0].Cause.Verifiable() {
+		t.Error("an unknown destination cannot be confirmed by looking at it")
 	}
 	if steps[0].Target != "" {
 		t.Errorf("an unknown step names target %q", steps[0].Target)

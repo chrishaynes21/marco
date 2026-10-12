@@ -81,12 +81,50 @@ const (
 	CauseUnknown TransitionCause = "unknown"
 )
 
-// Executable reports whether a cause could ever license an action.
+// THREE DIFFERENT QUESTIONS, AND THEY MUST NOT COLLAPSE INTO ONE.
 //
-// Only a click, and only ever after a target is re-grounded on the screen in front of Marco.
-// This is a statement about the EVIDENCE and not a permission: nothing in this package can act,
-// and an automatic transition says to wait and verify rather than to press anything.
-func (c TransitionCause) Executable() bool { return c == CauseClick }
+// The first version of this had a single `Executable()`, and the owner caught what that name
+// would eventually license:
+//
+//	I would avoid equating `Executable() == false` with "this step cannot participate in
+//	execution". For example, a future route may legitimately be: Click Play → Wait for
+//	loading → Verify Training. The wait is a valid operation in an executable plan, even
+//	though the automatic transition itself has no executable click.
+//
+//	If `Executable()` specifically means "may produce an input action", the current design is
+//	sensible. If it means "may appear in a runnable plan", it will eventually be too
+//	restrictive.
+//
+// It meant the first. The name invited the second, and a name that invites the wrong reading is
+// a defect waiting for a reader in a hurry. So the three questions are three predicates:
+//
+//	AuthorizesInput   may this step produce a press?
+//	Plannable         may this step appear in a route at all?
+//	Verifiable        can arriving be confirmed by looking, without acting?
+
+// AuthorizesInput reports whether this cause could ever license a press.
+//
+// Only a click, and only ever after the target is re-grounded on the screen in front of Marco.
+// A statement about the EVIDENCE and not a permission: nothing in this package can act.
+func (c TransitionCause) AuthorizesInput() bool { return c == CauseClick }
+
+// Plannable reports whether a step with this cause may appear in a route.
+//
+// A click and an automatic transition both can: one is "press this", the other is "wait for
+// this", and `Click Play → Wait for loading → Verify Training` needs both. An unknown cause
+// cannot, because there is no operation to put in the plan — not pressing, since nobody pressed,
+// and not waiting, since nothing says it will arrive.
+//
+// A route that needs an unknown step is a route Marco cannot walk, and saying so is the point.
+func (c TransitionCause) Plannable() bool {
+	return c == CauseClick || c == CauseAutomatic
+}
+
+// Verifiable reports whether arriving can be confirmed by observation alone.
+//
+// Always. Every step names a destination screen, and a destination is something Marco can look
+// at — including an unknown one, which is why an unknown transition is still worth recording:
+// Marco cannot plan to cause it and can perfectly well notice that it happened.
 
 // MaxArrivalToAutomaticLooks is how soon after arriving somewhere a further change may still be
 // called automatic.
@@ -645,3 +683,6 @@ func containsPoint(r Region, at PointerAt) bool {
 func containsCentre(a, b Region) bool {
 	return containsPoint(a, PointerAt{X: b.X + b.Width/2, Y: b.Y + b.Height/2})
 }
+
+// Verifiable is true for every cause. See the note above.
+func (c TransitionCause) Verifiable() bool { return c != "" }

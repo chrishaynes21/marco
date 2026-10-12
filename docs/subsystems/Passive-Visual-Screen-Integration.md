@@ -48,13 +48,28 @@ Measured on `rl-freeplay-1`, and none of them is met yet.
 2. **One recording.** Every number rests on 900 frames of one game recorded once. A second
    recording of a different application is worth more than any amount of further analysis of this
    one.
-3. **The live cadence is not the replay's.** The stabiliser counts LOOKS, and
-   `VisualSettleLooks = 3` was chosen against a 10fps recording — 300ms. The live observation
-   path samples on a ~3.8-second discovery cadence
-   ([[Experiment-008-unknown-game-discovery]]), where three looks is **eleven seconds**. On that
-   clock the damping would discard every real navigation. This is the precondition that matters
-   most and the one that is easiest to miss, because the code would run and produce plausible
-   nonsense.
+3. ~~The live cadence is not the replay's.~~ **MEASURED, and it is worse than a tuning
+   problem.** [[ADR-175-no-settling-rule-survives-a-four-second-cadence]] swept every rate at
+   every phase: at 3.8 seconds the current rule settles on **0 to 3** of nine screens while
+   **sampling 5 to 6** of them, with a confirmation latency of 11.4 seconds at the best phase
+   and nothing at all at one phase in thirty-eight. The screens were seen and the rule discarded
+   them.
+   Lowering the rule to one look fixes the live cadence (7 of 9 matched) and produces 113
+   promotions over 900 looks at the recording's own rate, 72 of them with an unknown cause. And
+   click attribution degrades faster than the screens do: 13/5/3 click/automatic/unknown at
+   10fps becomes 4/2/11 at 300ms and 0/0/12 at 3.8s. **A coarse observer loses the ability to
+   say why anything changed**, which is the half the product needs.
+   So this is not a precondition that tuning clears. The slow cadence cannot support this model,
+   and the plan below is built on that.
+
+## The cost, measured, and what it licenses
+
+The pixel proposer cost **39ms per frame** over the 900-frame pass — about **26 looks per second
+on one core**. The expensive AI interpretation runs at ~3.8 seconds because it is expensive.
+
+**The two cadences are tied together by the wiring and not by the cost.** That is the whole
+architecture finding: a cheap local observer can run two orders of magnitude faster than the
+thing it currently shares a clock with, and it does not need the AI to do its job.
 
 ## The shape it should take
 
@@ -74,16 +89,36 @@ the visual names to four files inside `internal/`. **Wiring this means editing t
 the edit should add exactly one file — the composition root — and nothing else. If the diff wants
 more, the design is wrong.
 
-### The settle rule has to take the cadence, not assume it
+### The screen model gets its own cadence, and it is not the AI's
 
-`VisualSettleLooks` becomes a parameter of the session rather than a constant, derived from the
-sampler's interval: the damping is about a duration (a change that survives ~300ms of looking)
-and looks are how that duration is counted. A replay at 10fps and a live session at 3.8s must
-damp the same amount of TIME, or the measurement and production are two different things —
-which is exactly the drift this repository's worst defects are made of.
+This is the part the measurement changed. The original plan was to fold the arrangement in the
+existing sampler's cycle. That cycle runs at the AI's rate, and at that rate this model does not
+work — so the plan is now the opposite:
 
-That is a change to `arrangement.go` and it should be made and measured **offline, against the
-existing recording at several strides**, before anything live sees it.
+- a **fast local observer** folds arrangements from the window's pixels at its own interval,
+  target 10fps, which the 39ms measurement says costs about 40% of one core;
+- it calls the proposer and the stabiliser and **nothing else** — no accessibility, no detector,
+  no fusion, no AI;
+- the AI interpretation path keeps its own cadence and is unchanged;
+- the two meet where they already do: the slow path's conclusions are what identify a PLACE, and
+  the fast path's are what notice that the screen moved.
+
+That division is already the architecture's stated intent — *fast local perception handles
+changes; AI interprets them when needed* — and it is the first time a measurement has required
+it rather than merely allowed it.
+
+`SettleAfter` exists for this: the settle count becomes a function of the observer's own
+interval, so the damping is a DURATION and a replay at 10fps and a live observer at 10fps damp
+identically. It must not be derived from the AI's interval, because that is the number the
+measurement rules out.
+
+### Where the fast observer gets its pixels is an open question
+
+It must not be a second capture path. The existing capture is `screen`-backed, occlusion-unsafe
+and costs ~130ms a frame on this machine for a 1920x1080 window — which alone caps a fast
+observer at about 7fps and makes the 39ms proposer the cheaper half. Whether a fast observer can
+share the sampler's capture, capture at reduced resolution, or needs something else is **not
+answered here and should be measured before it is designed**, offline, against a recording.
 
 ### Nothing new is captured
 
@@ -96,6 +131,11 @@ stopped being passive and needs its own authorisation.
 One thing: finding out whether the nine-screens-for-five problem is a property of the recording
 or of the layer. A live session over a different application, reported and never acted on, says
 that in a way no further analysis of one Rocket League recording can.
+
+And the owner's own framing of the priority, which this plan now follows rather than resists:
+
+> I wouldn't spend the next several iterations trying to force nine visual hypotheses into
+> exactly five screens. […] Instead, prioritize the observation architecture.
 
 ## What it must not do
 

@@ -390,7 +390,7 @@ func reportClickRoute(r frameResult) {
 		// once-seen. A click is preferred for READING, not because it is better
 		// evidence — an automatic step beside it is a real alternative and is printed.
 		sort.SliceStable(steps, func(i, j int) bool {
-			ei, ej := steps[i].Cause.Executable(), steps[j].Cause.Executable()
+			ei, ej := steps[i].Cause.AuthorizesInput(), steps[j].Cause.AuthorizesInput()
 			if ei != ej {
 				return ei
 			}
