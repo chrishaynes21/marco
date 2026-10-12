@@ -73,6 +73,18 @@ type frameRecord struct {
 type inputRecord struct {
 	Intent string `json:"intent"`
 	AtMS   int64  `json:"at_ms"`
+	// Where the press was, for a pointer press. Normalised against the rectangle that
+	// frame was captured from, which is the same rectangle every region below is a
+	// fraction of — so a press and a row are comparable without a transform.
+	//
+	// Read back because it was being dropped on BOTH sides: the writer took Intent and
+	// AtMS off the event, and this took Intent and AtMS off the line. A mouse
+	// demonstration replayed as a sequence of `point`s with no positions, which is a
+	// record that somebody clicked and no record of what they clicked.
+	Where observe.PointerAt `json:"where"`
+	// Device is which hardware reported it. Carried for the same reason the recorder
+	// carries it: a quiet keyboard and an unwatched one are different facts.
+	Device string `json:"device"`
 }
 
 // annotationFile is a recording's labels, when it has any.
@@ -144,6 +156,16 @@ type frameResult struct {
 	Candidates          []observe.InterfaceCandidate
 	Identified          int
 	Inputs              int
+	// PointsSeen is pointer presses the replay was given, PointsOnAShape those that
+	// landed inside at least one region the proposer found on that frame, and
+	// PointsAmbiguous those inside more than one.
+	//
+	// The three are the mouse half of the funnel. A press on nothing cannot be learned
+	// as anything but a coordinate; a press inside two nested regions has an answer
+	// that needs choosing, which is the same "smallest containing control wins" rule
+	// the live pointer path applies and is NOT applied here — this counts the question,
+	// it does not answer it.
+	PointsSeen, PointsOnAShape, PointsAmbiguous int
 	// NavsSeen is the directional intents the replay actually handed to a slot. Below
 	// Inputs by the non-directional ones, and a replay that joined nothing reports zero
 	// here rather than looking like a session nobody played.
@@ -275,8 +297,14 @@ func replayFrames(dir string, stride, limit int, verbose bool) (frameResult, err
 			switch intent {
 			case observe.NavUp, observe.NavDown, observe.NavLeft, observe.NavRight:
 				r.NavsSeen++
+			case observe.NavPoint:
+				r.PointsSeen++
 			}
-			slot = append(slot, observe.InputEvent{Intent: intent, AtMS: in.AtMS})
+			slot = append(slot, observe.InputEvent{
+				Intent: intent, AtMS: in.AtMS,
+				Where:  in.Where,
+				Device: observe.NavDevice(in.Device),
+			})
 		}
 		t1 := time.Now()
 		res := structure.Propose(img, opt)
@@ -287,6 +315,21 @@ func replayFrames(dir string, stride, limit int, verbose bool) (frameResult, err
 		// level: shading comes from the frame through the production measurement, not
 		// from whatever a previous detector happened to record.
 		shapes := shapesFrom(img, res.Candidates)
+		// ── DID THE PRESS LAND ON ANYTHING MARCO COULD SEE ──
+		//
+		// The first question a mouse demonstration raises, and the one that decides
+		// whether a click is learnable at all: a press inside a region perception
+		// proposed can be re-grounded later by finding that region again, and a press
+		// on bare background can only ever be replayed as a coordinate.
+		//
+		// Asked of the RAW proposals rather than of the identified list, and counted
+		// apart from it, because the two failures want opposite work: a press on
+		// nothing says the proposer missed the control, and a press on a proposal that
+		// no list claimed says grouping or membership did.
+		//
+		// Nothing here decides what was clicked. It counts whether an answer was
+		// possible.
+		scorePresses(slot, shapes, &r)
 		at := base.Add(time.Duration(fr.AtMS) * time.Millisecond)
 		if sizes := observe.GroupedForLook(observe.InterfaceLook{
 			Observed: true, Shapes: shapes,
@@ -452,6 +495,67 @@ func shapesFrom(img image.Image, cands []structure.Candidate) []observe.ShadowSh
 	return out
 }
 
+// scorePresses tallies what this frame's pointer presses landed on.
+//
+// # The question, and why it is only counted
+//
+// A press inside a region perception proposed can be re-grounded later by finding that region
+// again. A press on bare background can only ever be replayed as a coordinate — and a route
+// built on one would go somewhere else the moment the menu moved, with nothing to notice it.
+// So this is the first thing to know about a mouse demonstration, before any question about
+// what the thing clicked was called.
+//
+// Asked of the RAW proposals, and counted apart from the identified list, because the two
+// failures want opposite work: a press on nothing says the proposer missed the control, and a
+// press on a proposal no list claimed says grouping or membership did.
+//
+// Nothing here decides WHAT was clicked. The live pointer path resolves a press to the
+// smallest containing control, and that rule lives there; a press under several regions is
+// counted as needing that choice rather than having it made twice in two places.
+//
+// # Read from the events, not from the records they came from
+//
+// `slot` is what PRODUCTION receives. A press whose position failed to reach the event is a
+// press the interface watch could not correlate against anything either, so a tally taken
+// from the input records would be true about a field nothing downstream had.
+func scorePresses(slot []observe.InputEvent, shapes []observe.ShadowShape, r *frameResult) {
+	for _, e := range slot {
+		if e.Intent != observe.NavPoint {
+			continue
+		}
+		n := shapesUnder(shapes, e.Where)
+		if n == 0 {
+			continue
+		}
+		r.PointsOnAShape++
+		if n > 1 {
+			r.PointsAmbiguous++
+		}
+	}
+}
+
+// shapesUnder is how many proposed regions contain a normalised point.
+//
+// Inclusive of the left and top edges and exclusive of the right and bottom, the same
+// half-open convention windowBounds.place uses, so a press at exactly the boundary between
+// two stacked rows belongs to the lower one and to one of them only.
+func shapesUnder(shapes []observe.ShadowShape, at observe.PointerAt) int {
+	// A REGION WITH NO AREA NEEDS NO GUARD, and the one written here was dead code.
+	// For zero width, `at.X >= r.X+r.Width` is `at.X >= r.X`, which is the negation of
+	// the test beside it — so every point is already excluded, whatever its position.
+	// Deleted rather than kept as reassurance: an unreachable check reads as a case
+	// somebody handled.
+	n := 0
+	for _, sh := range shapes {
+		r := sh.Region
+		if at.X < r.X || at.Y < r.Y || at.X >= r.X+r.Width || at.Y >= r.Y+r.Height {
+			continue
+		}
+		n++
+	}
+	return n
+}
+
 // coversHeight reports whether any proposal spans the labelled row's height.
 //
 // Height only. The label gives the selected row's vertical centre and nothing else, so a
@@ -533,6 +637,18 @@ func reportFrames(r frameResult, ann *annotationFile) {
 	// the tell that the join is broken.
 	fmt.Printf("  nav attributions    %d directional press-to-frame attributions\n",
 		r.NavsSeen)
+	// THE MOUSE HALF, reported whenever the recording has one.
+	//
+	// Silent on a controller session rather than printing three zeroes, because a line
+	// of zeroes on a recording with no mouse in it reads as a failure to see the mouse.
+	// On a mouse session the three numbers are the first thing to look at: a press that
+	// landed on nothing cannot be learned as anything but a coordinate.
+	if r.PointsSeen > 0 {
+		fmt.Printf("  pointer presses     %d, %d landed on a proposed region (%.0f%%), "+
+			"%d inside more than one\n",
+			r.PointsSeen, r.PointsOnAShape, pct(r.PointsOnAShape, r.PointsSeen),
+			r.PointsAmbiguous)
+	}
 	if r.Frames == 0 {
 		return
 	}

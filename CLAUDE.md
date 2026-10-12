@@ -101,6 +101,10 @@ go -C plugins/overlay build -o overlay.exe .
 pluginsvisionuild.cmd                 # Windows: the ONNX backend (needs gcc)
 .\overlay.cmd                          # Windows: launches the overlay stack
 ```
+- **`director capture-game-session` is the L0 recorder** (frames + observed inputs on one
+  clock, nothing injected) and `go run ./cmd/perceptionreplay -frames -stride N <dir>` replays
+  the pixels through the production perception path. `-frames` is a BOOL and the directory is
+  POSITIONAL; putting the directory first silently ignores `-stride`.
 - **The full-frame perception corpus test is behind `-tags corpus`** and is REQUIRED for a
   perception change: `go test -tags corpus ./cmd/perceptionreplay/` (about 145s). It is out of the
   default suite because it was starving other packages — `cmd/marco` past its 600s limit, and a

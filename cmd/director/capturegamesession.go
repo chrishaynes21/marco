@@ -103,6 +103,29 @@ type gameInput struct {
 	// came from cannot answer the question a mixed session raises: whether the keyboard
 	// half was observed at all, or whether quiet means nobody pressed anything.
 	Device observe.NavDevice `json:"device,omitempty"`
+	// Where the pointer was when it went down, normalised and window-relative. Zero
+	// for every intent but `point`.
+	//
+	// # It was dropped on the way to disk, like Device before it
+	//
+	// `observe.InputEvent` has carried a pointer position since the mouse half existed,
+	// and this writer took Intent and AtMS off it. So a recording of somebody playing
+	// with the mouse said `point` and could not say WHERE — which is the entire content
+	// of a mouse demonstration. Nothing errored; the log looked like a log.
+	//
+	// # What it is, and what it must never become
+	//
+	// DEMONSTRATION EVIDENCE. A route that clicked this position again would be
+	// replaying a coordinate, and a menu that moved — a different resolution, a patch,
+	// a scrollbar — would take it somewhere else with no way to notice. What the
+	// position is FOR is asking which row of a list the person pressed, against the
+	// geometry perception found in that same frame; the answer to that question is
+	// re-grounded on the screen in front of Marco at the time, every time.
+	//
+	// See observe.SemanticTarget, which is the same distinction one layer up: a click at
+	// (0.42, 0.55) is evidence that somebody clicked somewhere, and a click on the entry
+	// called "Training" is evidence of what they meant.
+	Where observe.PointerAt `json:"where,omitzero"`
 	// Observed is always true and is written anyway.
 	//
 	// It is the field that keeps a DEMONSTRATION distinguishable from an ACTUATION in
@@ -139,6 +162,11 @@ type gameSession struct {
 	// what for somebody who played with the keyboard, and must not look like one that
 	// could.
 	Keyboard string `json:"keyboard"`
+	// Pointer is what the MOUSE half of this session is worth, and it is the number
+	// that separates "nobody clicked" from "every click was discarded". Those two
+	// produced an identical recording until the frame above was pushed: zero point
+	// intents, and a count of refusals nothing wrote down.
+	Pointer string `json:"pointer"`
 	// CaptureFailures is captures that ERRORED, kept apart from DroppedFrames, which is
 	// captures that succeeded and were never written because the encoders were behind.
 	// One is a fact about the window and the other about this process, and they were
@@ -375,7 +403,9 @@ func runCaptureGameSession(args []string) int {
 		if navSub != nil {
 			for _, e := range navSub.Drain() {
 				inputs = append(inputs, gameInput{Intent: e.Intent, AtMS: e.AtMS,
-					Device: deviceOr(e.Device, observe.DeviceKeyboard), Observed: true})
+					Device: deviceOr(e.Device, observe.DeviceKeyboard),
+					// The position, for a press that had one. See gameInput.Where.
+					Where: e.Where, Observed: true})
 			}
 		}
 
@@ -399,6 +429,46 @@ func runCaptureGameSession(args []string) int {
 		index := captured
 		rel := filepath.ToSlash(filepath.Join("frames", fmt.Sprintf("%s-%04d.png", *session, index)))
 		b := img.Image.Bounds()
+		// ── THE POINTER NEEDS A FRAME, AND THIS RECORDER NEVER GAVE IT ONE ──
+		//
+		// `navsource` places a press by normalising it against the watched window's
+		// rectangle and REFUSES any press it cannot place: `windowBounds.fresh` is
+		// false until somebody pushes one. Nothing here ever did. So every mouse press
+		// in every session this command has recorded was counted `unplaceable_pointer`
+		// and discarded — not stripped of its position, dropped whole — and the
+		// recording reported `0 inputs` as though nobody had touched the mouse.
+		//
+		// The identical defect was found and fixed in the live sampler: see
+		// observewiring.go, where a default Director reported
+		// `received=2 classified=0 unplaceable_pointer=2` for two real clicks. This is
+		// the second site, and it stayed broken because every session so far was
+		// played on a controller, where placement is not needed.
+		//
+		// # The rectangle is the CAPTURE'S, not the reference's
+		//
+		// The live path pushes the validated reference's bounds, which is right there:
+		// everything it correlates is scoped to that reference. Here the thing a press
+		// will be compared against is GEOMETRY READ FROM THESE PIXELS, and the pixels
+		// are of `img.Bounds` — which can differ from the window rectangle by a frame
+		// or a shadow. A press expressed as a fraction of one rectangle and a row
+		// expressed as a fraction of the other do not meet, and the error is a few
+		// percent of a screen: enough to pick the neighbouring row, which is precisely
+		// the mistake that must not look like a correct answer.
+		//
+		// Stamped with the moment the picture was taken, for the same reason: a frame
+		// newer than the press says nothing about the press, and
+		// `windowBounds.fresh` refuses one. Capture takes about 130ms here, so a press
+		// made DURING the grab is still placeable against it.
+		//
+		// Deleting this must fail TestAGameRecordingGivesThePointerAFrame.
+		if navs != nil && img.Bounds.Width > 0 && img.Bounds.Height > 0 {
+			seen := img.CapturedAt
+			if seen.IsZero() {
+				seen = time.Now()
+			}
+			navs.SetWindowBounds(img.Bounds.X, img.Bounds.Y,
+				img.Bounds.Width, img.Bounds.Height, seen)
+		}
 		p := pending{
 			frame: gameFrame{
 				Index: index, File: rel, AtMS: at,
@@ -453,7 +523,15 @@ func runCaptureGameSession(args []string) int {
 	pads.Stop()
 	// Whatever the controller reported after the last frame still belongs to the session.
 	for e := range pads.Events() {
-		inputs = append(inputs, gameInput{Intent: e.Intent, AtMS: e.AtMS})
+		// SAID THE SAME WAY AS EVERY OTHER EVENT. This tail wrote neither the device
+		// nor `observed`, so a controller press made after the last frame reached disk
+		// with no provenance and with `observed: false` — which in this format states
+		// that MARCO produced it. Nothing here can inject, so the record was wrong
+		// about the one distinction gameInput.Observed exists to keep.
+		inputs = append(inputs, gameInput{Intent: e.Intent, AtMS: e.AtMS,
+			Device:   deviceOr(e.Device, observe.DeviceController),
+			Where:    e.Where,
+			Observed: true})
 	}
 
 	meta := gameSession{
@@ -475,6 +553,7 @@ func runCaptureGameSession(args []string) int {
 		AchievedFPS:               achievedFPS(written),
 		Controller:                controllerNote(pads, len(inputs)),
 		Keyboard:                  keyboardNote(navWhy, inputs),
+		Pointer:                   pointerNote(navs, inputs),
 		Actuation: "none; every input in this recording was OBSERVED from hardware. " +
 			"Nothing here can inject, and the controller reader does not bind the " +
 			"call that could. See gameInput.observed.",
@@ -520,6 +599,7 @@ func runCaptureGameSession(args []string) int {
 	if len(inputs) == 0 {
 		fmt.Printf("NO INPUTS WERE OBSERVED. %s\n", meta.Controller)
 	}
+	fmt.Printf("Mouse: %s\n", meta.Pointer)
 	fmt.Printf("NOTHING is annotated and NOTHING is approved:\n  %s\n", dir)
 	return 0
 }
@@ -621,6 +701,37 @@ func keyboardNote(unavailable string, inputs []gameInput) string {
 		}
 	}
 	return "watched, and nothing navigational was pressed on it"
+}
+
+// pointerNote says what the mouse half of this session is worth.
+//
+// Three outcomes, and they are three different problems. Presses recorded is the good one.
+// Presses REFUSED for want of a placeable window frame is a Marco defect — the one this
+// command carried until the frame was pushed — and must never read as a quiet session.
+// Nothing at all is a fact about the person, who may have used a controller.
+func pointerNote(navs *navsource.Source, inputs []gameInput) string {
+	if navs == nil {
+		return "not watched; no keyboard or mouse producer on this platform"
+	}
+	presses := 0
+	for _, in := range inputs {
+		if in.Intent == observe.NavPoint {
+			presses++
+		}
+	}
+	unplaceable := navs.Stats().Ignored[observe.IgnoreUnplaceablePointer]
+	switch {
+	case presses > 0 && unplaceable > 0:
+		return fmt.Sprintf("%d press(es) recorded with a position; %d could not be "+
+			"placed inside the window and are NOT in this recording", presses, unplaceable)
+	case presses > 0:
+		return fmt.Sprintf("%d press(es) recorded with a position, each normalised "+
+			"against the rectangle its own frame was captured from", presses)
+	case unplaceable > 0:
+		return fmt.Sprintf("NO press was recorded and %d were refused as unplaceable. "+
+			"That is a defect in the recorder, not a quiet session", unplaceable)
+	}
+	return "watched, and nothing was pressed on it"
 }
 
 // navComponent names the keyboard producer, or says there was none.

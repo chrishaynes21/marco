@@ -354,6 +354,14 @@ it refuses those looks. Visible is fine; in front is not.
 ## Decisions
 
 - [[ADR-010-passive-observation-cannot-execute]]
+- [[ADR-168-a-mouse-demonstration-the-recorder-could-not-hold]] — `capture-game-session` could
+  not record a mouse click. It opened a navigation subscription and never pushed the window
+  rectangle a press is placed against, so every press was refused `unplaceable_pointer` and
+  dropped whole, and the recording said `0 inputs` — the same thing a session nobody played
+  says. The position was dropped again on the way to disk and a third time on the way back in.
+  Fixed, with the capture's own rectangle rather than the reference's, because a press and a row
+  have to be fractions of the same rectangle. The position is demonstration evidence and never
+  an execution target
 - [[ADR-147-the-interface-in-front-of-a-session-is-a-shadow-belief]] — the screen it is
   watching now, as a belief it can be asked about
 - [[ADR-148-a-claim-of-sufficiency-is-not-a-claim-about-a-game]] — why the detector ran once in
@@ -467,6 +475,10 @@ it refuses those looks. Visible is fine; in front is not.
 - [[Experiment-024-watching-a-player-navigate-a-real-menu]] — the first run with a
   player navigating a real menu by controller. The presses were observed; the menu was
   not. Why, measured.
+- [[Experiment-027-what-did-you-click-and-where-did-it-take-you]] — PLANNED, not run. The first
+  mouse-driven demonstration, on an unmodded game surface, and the first one whose acceptance
+  questions were written down before the data existed. Says in advance which of them the current
+  path cannot answer, and why.
 
 ## Validated by
 
@@ -482,6 +494,18 @@ it refuses those looks. Visible is fine; in front is not.
 
 ## Known gaps
 
+- **The mouse half of a recording has never been exercised live.** `capture-game-session` can
+  now place a press, write its position, and hand it back to perception, and every number
+  behind that is a drawn fixture or a synthetic producer. No session has been recorded with it.
+  [[ADR-168-a-mouse-demonstration-the-recorder-could-not-hold]]
+- **A click in a GAME cannot resolve to a named target.** `observe.SemanticTarget` is resolved
+  against an offered control index, which the live path fills from accessibility; a game has no
+  accessibility tree, so the honest answer there is `no controls were on offer`. The replay
+  counts whether a press landed inside a region the proposer found — which is what makes it
+  re-groundable — and does not yet join the press to the LIST MEMBER it landed on, or to the
+  screen that followed. Both are needed before "I saw what you clicked and I learned where it
+  took you" is a claim Marco can make.
+  [[ADR-168-a-mouse-demonstration-the-recorder-could-not-hold]]
 - ~~A targeted session is vision-only by construction.~~ **Corrected 2026-08-06**: the
   sampler simply never set `observation.Request.Window`. Accessibility now reaches a
   targeted session — see [[director-accessibility-targeting]].
