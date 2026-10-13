@@ -102,6 +102,8 @@ func main() {
 	cadence := flag.Bool("cadence", false,
 		"with -frames, measure the screen model at several sampling rates and phases "+
 			"instead of replaying once")
+	save := flag.String("save", "",
+		"with -workflow, write the learned workflow as a durable artifact and read it back")
 	onnx := flag.String("onnx", "",
 		"with -workflow, replay recorded detections as a second candidate source")
 	onnxdelay := flag.Int("onnxdelay", 8,
@@ -139,7 +141,7 @@ func main() {
 				continue
 			}
 			if *flow {
-				if err := reportWorkflowOverRecording(dir, *limit, *onnx, *onnxdelay); err != nil {
+				if err := reportWorkflowOverRecording(dir, *limit, *onnx, *onnxdelay, *save); err != nil {
 					fmt.Fprintf(os.Stderr, "perceptionreplay: %s: %v\n", dir, err)
 					os.Exit(1)
 				}

@@ -206,6 +206,25 @@ func (d *Draft) Confirm(i int, by string) error {
 	return nil
 }
 
+// Confirmation says who agreed to this step, if anybody has.
+//
+// # Why this is readable at all
+//
+// So the agreement can be WRITTEN DOWN, and for no other reason. A durable workflow carries an
+// audit record of who confirmed which step — that is a requirement of
+// [[ADR-183-remembering-recognising-and-being-allowed-to-act]] — and a store outside this
+// package cannot read an unexported field.
+//
+// What it must never become is a way to restore one. `Confirm` is still the only thing that can
+// make a step confirmed, it still needs a person's name, and a step read back out of a file
+// comes back UNCONFIRMED however much audit it carries:
+//
+//	Stored confirmation history is audit metadata only. It is never reusable authorization.
+//
+// There is deliberately no setter. A reader can learn that somebody agreed; nothing can replay
+// their agreement.
+func (s Step) Confirmation() (by string, ok bool) { return s.by, s.confirmed }
+
 // why explains in words what a step's support rests on or lacks.
 func (s Step) why() string {
 	switch {

@@ -62,7 +62,7 @@ type stepTrial struct {
 // `onnx` names recorded detections from `vision batch`, replayed `delay` looks behind the frame
 // they describe. Empty means the pixel proposer alone, which is what every earlier measurement
 // of this workflow was taken with and is the comparison that matters.
-func reportWorkflowOverRecording(dir string, limit int, onnx string, delay int) error {
+func reportWorkflowOverRecording(dir string, limit int, onnx string, delay int, save string) error {
 	frames, err := readJSONL[frameRecord](filepath.Join(dir, "frames.jsonl"))
 	if err != nil {
 		return err
@@ -269,6 +269,15 @@ func reportWorkflowOverRecording(dir string, limit int, onnx string, delay int) 
 	second.finish(draft)
 	obs2.Close()
 
+	// SAVED BEFORE THE REPORT, so a run that writes an artifact and then fails to
+	// print one is distinguishable from a run that printed and failed to write.
+	if save != "" {
+		if err := saveAndReload(save, draft, obs, func() int64 {
+			return frames[len(frames)-1].AtMS / 1000
+		}); err != nil {
+			return err
+		}
+	}
 	printWorkflowTrials(draft, trials, first.reach, first.stopAt, first.stopWhy)
 	walks := []*walker{first}
 	if secondStart >= 0 {

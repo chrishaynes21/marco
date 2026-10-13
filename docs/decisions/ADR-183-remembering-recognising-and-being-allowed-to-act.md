@@ -1,6 +1,6 @@
 ---
 type: decision
-status: proposed
+status: partly-accepted
 date: 2026-10-12
 affects:
   - passive-observation
@@ -11,17 +11,21 @@ affects:
 
 # ADR-183 — remembering a workflow, recognising where you are, and being allowed to act
 
-## Status: proposed, and deliberately unbuilt
+## Status: the Workflow is built; the Binding is not, and the measurement says why
 
-No code exists for anything below. The owner asked for the boundary before the implementation:
+The owner authorised the first of the three objects below, and only the first:
 
-> Separately, design — but do not yet implement — the durable workflow artifact and its
-> session-binding requirements. […] Report the two target diagnoses, any evidence-backed offline
-> improvements, and the proposed persistence boundary before proceeding.
+> I now think there's enough evidence to begin persisting workflow intent and demonstration
+> evidence, while keeping screen bindings temporary. […] When loaded in a new session, it should
+> have no automatically trusted screen bindings. Cross-session recognition remains an unresolved
+> capability, not something persistence should silently imply.
 
-So this note is the proposal and nothing in the tree depends on it. It is written down now because
-the shape of the artifact decides what [[ADR-181-a-demonstration-marco-can-keep]]'s draft has to
-carry, and that is cheaper to get right before a store exists than after.
+So `internal/director/workflowstore` exists and is the **Workflow** half of this note. The
+**Binding** half is still unbuilt, because
+[[Experiment-029-binding-a-screen-across-two-independent-folds]] measured the relation it would
+need and found it binds the wrong screen at 0.886 while binding right ones at 0.556, with no
+floor between them. The store therefore stores an arrangement as evidence and offers nothing
+that compares one. The **Authorisation** half is unchanged and unbuilt.
 
 ## Context
 
@@ -189,6 +193,59 @@ This is the separation earning its keep rather than an argument against it. *Per
 imply recognition* is exactly the right boundary, because recognition is the half that the
 measurement says is not ready.
 
+## What was built, and the two refusals it rests on
+
+`workflowstore.Artifact` is this note's Workflow: a name, the steps in the order they were
+demonstrated with their positions, each screen's **arrangement** under a label scoped to the
+artifact, each control's **readings and containers** under a label of its own, what is
+unresolved, and an audit record of who confirmed what. Saved from `rl-freeplay-1` it is 11,917
+bytes: 21 steps, 9 screens, 9 controls, 9 readings, 5 containers, 9 arrangements, 13 audit
+entries.
+
+A reloaded workflow cannot run, for **two independent reasons**, and the independence is the
+design:
+
+1. **Nobody has agreed to it.** The file records who confirmed which step, and that record is
+   read back as audit and never as agreement — `execute/replaypolicy.go`'s rule, honoured by
+   there being no setter at all. `Confirm` remains the only thing that can confirm a step.
+2. **Its screens are the artifact's own labels.** `screen_a` is not an identity any session
+   mints, so `workflow.Plan` refuses because the screen standing now is not the screen the step
+   names. This one survives somebody deleting the first.
+
+```
+1. step 0 has not been confirmed by anybody. Its evidence is geometric […]
+2. this step was demonstrated on screen_a and the screen standing now is visual_1
+```
+
+Binding is a caller's decision, stated in full or not at all: a partial binding is refused and
+names what is missing, because a workflow that bound what it could would act before discovering
+it was lost.
+
+### The leak that only the real recording found
+
+Every structural field was clean and the first artifact saved from `rl-freeplay-1` still carried
+two session identities — inside **prose**. `Unresolved` is a sentence for a person and it quotes
+what it is about: *"this session could not tell target_2 from [target_10] on visual_2"*. Those
+names mean nothing tomorrow and look like they mean something, which is the exact failure this
+note forbids.
+
+They are now rewritten with the artifact's own labels; an identity the artifact does not
+describe becomes a phrase, because the ambiguity is the point of the sentence and the dead name
+is not. No synthetic fixture produced this — one of the package's fixtures now writes what
+`workflow.Learn` actually writes.
+
+## What is still required before anything can be performed
+
+Named here so that "it saves and loads" is not mistaken for "it runs":
+
+- **A binding mechanism that can abstain.** Not this note's `ambiguous`, which Experiment-029
+  showed is a sketch: both of its wrong bindings were unopposed rather than ambiguous.
+- **Target re-acquisition from stored readings**, rather than from a session registry. The
+  artifact keeps the readings for exactly this, and `observe.Reacquire` does not yet take them.
+- **Fresh confirmation, per session.** Built: a loaded workflow has none.
+- **Live execution authorisation and a destination to verify against**, both unchanged from the
+  Authorisation section above and both unbuilt.
+
 ## Consequences
 
 - **Three refusals become possible to state separately**, where today there is one silence:
@@ -204,5 +261,13 @@ measurement says is not ready.
 
 ## Enforced by
 
-Nothing yet, by design. This note is a proposal; the tests arrive with the implementation, and the
-measurement above should land before either.
+- `internal/director/workflowstore` — round-trip, provenance (no session identity and no press
+  coordinate reaches the file, asserted against the encoded form), authority (a loaded workflow
+  is not executable and cannot plan), unsupported binding (partial bindings refused in both
+  directions), versioning (refused in both directions, and this build will not write a version
+  it does not own), corruption (seven damaged artifacts refused, never half-read), and prose
+  provenance. **Mutation: 20 of 20 killed.**
+- `internal/director/workflowstore/boundary_test.go` — an import walk: a saved workflow cannot
+  reach `marcoexec`, `execute`, the action graph, semantic memory, the OS host or `os/exec`. It
+  could not press anything or write itself into the durable graph.
+- The Binding and Authorisation halves are still enforced by nothing, because they do not exist.

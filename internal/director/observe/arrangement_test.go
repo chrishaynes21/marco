@@ -401,6 +401,21 @@ func TestAVisualScreenCannotReachDurableMemory(t *testing.T) {
 	//     could perform itself would be an autonomous actuator with a reading
 	//     interface. [[ADR-181-a-demonstration-marco-can-keep]]
 	//
+	//  5. `internal/director/workflowstore`, which WRITES one to a file. The hardest
+	//     addition to this list and the one the question above was written for: it
+	//     is literally durable, so “can what it does with these names reach the
+	//     store” has to be answered rather than assumed.
+	//
+	//     It can not, and the artifact is the reason. A saved workflow holds no
+	//     session identity at all — its screens and controls are labels scoped to
+	//     the artifact, asserted against the encoded bytes and inside its own prose
+	//     — so nothing it writes could be mistaken for one of these. It names the
+	//     types only to READ a draft and to hand one back, and what it hands back
+	//     cannot plan: the labels match no screen any session mints. It carries its
+	//     own import walk, which fails if it can reach the action graph, semantic
+	//     memory, the lowering path or anything that touches a desktop.
+	//     [[ADR-183-remembering-recognising-and-being-allowed-to-act]]
+	//
 	// A widening of the TIER is not a widening of what may become durable, and the
 	// difference is the whole reason this list is worth keeping. The next addition should
 	// be as hard: if a file outside this list needs these names, the question to answer
@@ -408,22 +423,25 @@ func TestAVisualScreenCannotReachDurableMemory(t *testing.T) {
 	dir := filepath.Join("internal", "director", "observe")
 	fast := filepath.Join("internal", "director", "fastobserve")
 	flow := filepath.Join("internal", "director", "workflow")
+	store := filepath.Join("internal", "director", "workflowstore")
 	allowed := map[string]bool{
-		filepath.Join(dir, "arrangement.go"):       true,
-		filepath.Join(dir, "arrangement_test.go"):  true,
-		filepath.Join(dir, "candidate.go"):         true,
-		filepath.Join(dir, "clicktarget.go"):       true,
-		filepath.Join(dir, "clicktarget_test.go"):  true,
-		filepath.Join(dir, "cause_test.go"):        true,
-		filepath.Join(dir, "reacquire.go"):         true,
-		filepath.Join(dir, "reacquire_test.go"):    true,
-		filepath.Join(fast, "fastobserve.go"):      true,
-		filepath.Join(fast, "fastobserve_test.go"): true,
-		filepath.Join(fast, "slow_test.go"):        true,
-		filepath.Join(fast, "boundary_test.go"):    true,
-		filepath.Join(flow, "workflow.go"):         true,
-		filepath.Join(flow, "workflow_test.go"):    true,
-		filepath.Join(flow, "boundary_test.go"):    true,
+		filepath.Join(dir, "arrangement.go"):          true,
+		filepath.Join(dir, "arrangement_test.go"):     true,
+		filepath.Join(dir, "candidate.go"):            true,
+		filepath.Join(dir, "clicktarget.go"):          true,
+		filepath.Join(dir, "clicktarget_test.go"):     true,
+		filepath.Join(dir, "cause_test.go"):           true,
+		filepath.Join(dir, "reacquire.go"):            true,
+		filepath.Join(dir, "reacquire_test.go"):       true,
+		filepath.Join(fast, "fastobserve.go"):         true,
+		filepath.Join(fast, "fastobserve_test.go"):    true,
+		filepath.Join(fast, "slow_test.go"):           true,
+		filepath.Join(fast, "boundary_test.go"):       true,
+		filepath.Join(flow, "workflow.go"):            true,
+		filepath.Join(flow, "workflow_test.go"):       true,
+		filepath.Join(flow, "boundary_test.go"):       true,
+		filepath.Join(store, "workflowstore.go"):      true,
+		filepath.Join(store, "workflowstore_test.go"): true,
 	}
 	root := filepath.Join("..", "..", "..")
 	names := []string{

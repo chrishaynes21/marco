@@ -1113,6 +1113,29 @@ it refuses those looks. Visible is fine; in front is not.
   as a test that asserts the wrong answer on purpose; the recording has no scrolling list, so
   this is reasoned rather than measured on real pixels.
   [[ADR-180-finding-a-demonstrated-target-again]]
+- **A learned workflow now survives the session, and still cannot act.**
+  `internal/director/workflowstore` is
+  [[ADR-183-remembering-recognising-and-being-allowed-to-act]]'s Workflow half: ordered
+  steps with their positions, each screen's arrangement and each control's readings and
+  containers under labels scoped to the artifact, what is unresolved, and an audit of who
+  confirmed what. Saved from `rl-freeplay-1` it is 11,917 bytes — 21 steps, 9 screens,
+  9 controls, 9 arrangements, 13 audit entries. A reloaded workflow cannot run for two
+  INDEPENDENT reasons: nobody has agreed to it, and its screens are labels no session
+  mints, so planning is refused on identity even after confirmation. Binding is a
+  caller's decision, refused entirely while anything is unaccounted for.
+- **Prose is provenance too, and that is where the first leak was.** Every structural
+  field was clean and the first artifact saved from the real recording still carried two
+  session identities inside an `Unresolved` sentence — “could not tell target_2 from
+  [target_10] on visual_2”. They are rewritten to the artifact's labels now, and an
+  identity the artifact does not describe becomes a phrase. No synthetic fixture found
+  this one. [[ADR-183-remembering-recognising-and-being-allowed-to-act]]
+- **The Binding half is still unbuilt, on purpose.** Nothing in the store compares an
+  arrangement or picks a best match, because
+  [[Experiment-029-binding-a-screen-across-two-independent-folds]] measured that relation
+  binding the wrong screen at 0.886 while binding right ones at 0.556. Still needed
+  before anything can be performed: a binder that can abstain, re-acquisition from stored
+  readings rather than a session registry, fresh confirmation (built), and live execution
+  authorisation (unbuilt).
 - **A learned draft is session-local, and that is the one remaining blocker to the product.**
   It names screens identified by a count of rectangles in nine boxes, and those identities mean
   nothing in the next session. "Tomorrow: Marco, enter Free Play" needs cross-session screen
