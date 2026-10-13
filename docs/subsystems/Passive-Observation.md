@@ -1127,9 +1127,29 @@ it refuses those looks. Visible is fine; in front is not.
   prototyped and all three rejected on measurement — the band-height guard (no effect), a
   text-height ceiling on a merged line (removes every frame-scale blob and takes a bare
   rendered scene from 24 candidates to 265, failing the package's own test) and an outline
-  cue (the premise is false). This needs a capability of a different kind: a region-level cue,
-  or the learned detector in `plugins/vision` that nothing in this path unions with.
+  cue (the premise is false). This needs a capability of a different kind.
   [[Experiment-028-the-tile-that-was-never-a-candidate]]
+- **That capability exists in the tree and is not wired to this path.** The vendored
+  ScreenParser detector proposes the TRAINING tile at `(397,527 360x226)` — IoU **0.928**
+  against independently measured bounds — on **14 of 14** settled PLAY-menu looks, scoring
+  0.37–0.44, and proposes nothing over the press point on the looks where the control is
+  absent. It finds all six tiles, the pause menu's four buttons, and the stadium that
+  produced the `target_2` slab yields **zero** detections. It costs **569–746ms a frame**
+  against a 55–65ms look, so it can never run in the fast loop.
+  [[Experiment-030-asking-the-learned-detector-for-the-tile]]
+- **The tile's TEXT is the thing that would have been missed.** Five of the six tile labels
+  are detected as their own `text` boxes; TRAINING's is not, because the selected tile
+  renders its label without the others' dark bar. A text-first approach would have failed
+  on exactly the control that blocks the workflow while succeeding on its five neighbours.
+  The container was available when the text was not.
+  [[Experiment-030-asking-the-learned-detector-for-the-tile]]
+- **There are two perception stacks and they do not touch.** The Director cycle
+  (providers → `fusion.Engine` → Elements) already runs this detector at a frozen
+  calibration and already holds every authority rule — `SourceRank`, `ActuatingSource`,
+  evidence never destroyed, conflicts recorded rather than resolved. The fast observer has
+  none of them, because its whole currency is `Look.Regions []observe.Region`: a rectangle
+  with no record of where it came from. So the gap is a missing wire, not a missing
+  capability. [[ADR-184-two-speeds-of-looking]] designs the wire and is unbuilt.
 - **Recall is the fix, not suppression.** `Press` takes the smallest proposal containing a
   press, so a missing true candidate is what promotes a noise aggregate to “the control”.
   Propose the tile and the stadium slab stops mattering without being removed.

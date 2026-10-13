@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/screen"
 )
@@ -40,17 +41,28 @@ func runDetect(args []string) int {
 		return 1
 	}
 
+	// THE TWO COSTS, SEPARATED. Loading a 97MB model and running one frame through it are
+	// different numbers with different consequences: the load is paid once per process and
+	// the inference is paid per look. A single wall-clock figure would hide whichever one a
+	// reader cared about, and the whole question a probe answers is what this would cost.
+	loadStart := time.Now()
 	det := newDetector()
+	load := time.Since(loadStart)
 	if !det.Ready() {
 		fmt.Fprintln(os.Stderr, "no model loaded — build with -tags onnxvision and set "+
 			"$MARCO_VISION_MODEL + $MARCO_ONNXRUNTIME, then retry")
 		return 1
 	}
+	inferStart := time.Now()
 	els, err := det.Detect(img)
+	infer := time.Since(inferStart)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "detect:", err)
 		return 1
 	}
+	fmt.Printf("model load %v, inference %v  (%dx%d frame)\n",
+		load.Round(time.Millisecond), infer.Round(time.Millisecond),
+		img.Bounds().Dx(), img.Bounds().Dy())
 	if len(els) == 0 {
 		fmt.Println("no elements detected (try lowering $MARCO_VISION_CONF)")
 		return 0

@@ -166,6 +166,20 @@ So the owner's framing is the one the evidence supports. The goal is to make the
 usable candidate, not to stop the proposer producing noise aggregates, and the two attempts to do
 the latter both cost more than they returned.
 
+## The answer, the next day
+
+The closing question above — *missing, or merely unwired?* — was put to the vendored
+ScreenParser detector offline in
+[[Experiment-030-asking-the-learned-detector-for-the-tile]]. **Merely unwired.** On this
+same frame it proposes the tile at `(397,527 360x226)`, IoU 0.928 against independently
+measured bounds, on 14 of 14 settled looks — and proposes nothing at all over the stadium
+that produced the slab. It costs 569–746ms a frame, so it belongs at a different speed,
+which is what [[ADR-184-two-speeds-of-looking]] is for.
+
+The paragraph above is also confirmed rather than merely argued: the detected tile is 0.93x
+its true area and less than half the slab's, so it wins the containment test on size alone.
+Recall was the fix.
+
 ## Enforced by
 
 - `cmd/perceptionreplay` — `TestEveryRelationIsReachableAndOrdered` and the diagnosis fixtures
