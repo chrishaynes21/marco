@@ -360,6 +360,16 @@ it refuses those looks. Visible is fine; in front is not.
 ## Decisions
 
 - [[ADR-010-passive-observation-cannot-execute]]
+- [[ADR-179-the-first-live-observation]] — the fast observer has now run against a live
+  screen once, 60 seconds of Rocket League at 10fps, started by the owner. Cadence held
+  exactly (600 looks, 0 dropped), the route is UNIQUELY recoverable from the transition
+  counts, four screens were re-recognised on return, and no look was missing, covered or
+  interrupted. Every press is accounted for from the hook to the attributed step — which
+  is what found the last hole: key RELEASES incremented `Received` and landed in no
+  subset of it, so eleven events reconciled to nine. The invariant is stated now rather
+  than the case patched. Acquisition, proposer and whole look are timed apart from the
+  next run on, because 600 looks in 60 seconds bounds a look at 100ms and says nothing
+  about whether it took twenty or ninety-nine.
 - [[ADR-178-the-fast-observer]] — the fast half of perception, built. It notices that the screen
   CHANGED and what was clicked; the slow semantic path keeps its own cadence and says what the
   screen IS. Its settle rule is derived from its OWN interval, because the rule was always a
@@ -1029,13 +1039,24 @@ it refuses those looks. Visible is fine; in front is not.
   proposed region at 480x270; the repeated-run correspondence falls from 5 steps to 2. So a
   perception-quality check has to ask about more than targets, and the resolution choice is a
   measured trade rather than a free win.
-- **No live validation of the fast observer exists.** Every number in
-  [[ADR-178-the-fast-observer]] comes from the 900-frame recording or a drawn fixture. The
-  capture path, the window tracker, the mouse hook and the observer have never run together
-  against a moving screen, and three things cannot be measured any other way: whether the ticker
-  holds its cadence while the proposer runs, whether a game's own window generation churns, and
-  whether a press made during a loading screen is placeable. The command is
-  `director observe-screen`, it is bounded, and the owner starts it.
+- ~~No live validation of the fast observer exists.~~ **Done 2026-10-12**,
+  [[ADR-179-the-first-live-observation]]. One 60-second supervised run: cadence held at 10.0/s
+  with nothing dropped, the route recoverable, four screens re-recognised on return, 7 of 7
+  presses placed and folded, no transition manufactured. Two things it did NOT establish, and
+  both are now instrumented rather than argued: a look's cost was bounded at 100ms and never
+  decomposed, so the 16.7ms acquisition remains a bench figure; and **the occlusion guard never
+  fired, because nothing covered the window**, so `!Front` is still unexercised live.
+- **A live look's stages have never been measured.** The first run reported the observer's own
+  fold latency (median under a microsecond, p95 1.00ms, max 1.61ms over 600 looks — consistent
+  with the recording's 0.05ms mean, which is dragged by the looks that promote). Acquisition,
+  proposer and whole look are timed separately from the next run on; until one happens, every
+  stage figure in this subsystem is a bench measurement.
+  [[ADR-179-the-first-live-observation]]
+- **A keyboard-caused change can only ever be `unknown` on this path.** The live run's single
+  unknown is the return to the main menu, and the likely cause is the one keyboard event it
+  counted as seen-and-not-used. The fast observer correlates pointer presses; connecting key
+  intents to screen changes is a separate decision, and reporting the count is what keeps the
+  silence from reading as "nobody navigated". [[ADR-179-the-first-live-observation]]
 - **The fast observer exists and nothing in Director's live sampler calls it.** It is reached
   only by `director observe-screen`, which the owner starts. Wiring it into the existing
   observation cycle is a separate decision, and the cycle's own cadence is the one ADR-175 ruled

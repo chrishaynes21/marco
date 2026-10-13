@@ -718,3 +718,49 @@ func TestWhatTheCallbackRefusedReachesTheStats(t *testing.T) {
 			"declined never reached the queue", st.Received)
 	}
 }
+
+// EVERY EVENT RECEIVED LANDS IN A SUBSET OF RECEIVED.
+//
+// The first live observation printed `11 event(s) received, 8 placed inside the window` and
+// `no_session=1`, and two events had no account at all. They were key RELEASES: the one path
+// through the classifier that incremented Received and returned without naming where the event
+// went.
+//
+// Two of eleven is small and the conclusion it threatens is not. A reader who checks a total
+// once and finds a gap stops checking totals, and this subsystem has now lost five diagnoses to
+// counts that could not be reconciled — see
+// [[ADR-169-a-recording-that-could-not-explain-its-own-total]].
+//
+// So the invariant is stated rather than the case patched: received equals classified plus every
+// ignore reason, whatever the mixture of events.
+func TestEveryEventReceivedIsAccountedFor(t *testing.T) {
+	s, b := newTestSource(t)
+	sub := s.Open(time.Now())
+
+	// A navigation key, the same key held, a character key and an escape — the mixture a
+	// real session produces, including the edges nothing navigates on.
+	b.press(vkDown)
+	b.offer(rawEvent{code: vkDown, down: true, at: time.Now()})
+	b.offer(rawEvent{code: vkDown, down: true, at: time.Now()})
+	b.offer(rawEvent{code: vkDown, down: false, at: time.Now()})
+	b.press(vkA)
+	b.press(vkEscape)
+	drainWithin(t, sub, 1)
+	time.Sleep(120 * time.Millisecond)
+
+	st := s.Stats()
+	sum := st.Classified
+	for _, n := range st.Ignored {
+		sum += n
+	}
+	if sum != st.Received {
+		t.Errorf("%d event(s) received but %d accounted for (%d classified, ignored "+
+			"%v): an event counted as received that lands in no subset of it makes "+
+			"the total unreconcilable, which is worse than having no total",
+			st.Received, sum, st.Classified, st.Ignored)
+	}
+	// AND THE RELEASES ARE WHY IT ADDS UP, named rather than folded into something else.
+	if n := st.Ignored[ReasonKeyRelease]; n == 0 {
+		t.Error("no key release was counted, so the total closed by some other means")
+	}
+}

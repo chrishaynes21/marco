@@ -308,6 +308,17 @@ const (
 	IgnoreRepeat IgnoreReason = "repeat"
 	// IgnoreNoSession is navigation observed while nothing was watching.
 	IgnoreNoSession IgnoreReason = "no_session"
+	// IgnoreKeyRelease is the releasing edge of a keypress.
+	//
+	// Not navigation — emitting on both edges would double every intent — but it IS an
+	// event the producer received, and until 2026-10-12 it was the one path through the
+	// classifier that incremented `Received` and then returned without landing in any
+	// subset of it. The first live observation is what found it: eleven events received,
+	// eight classified, one ignored, and two with no account at all. Two key releases.
+	//
+	// A total that does not add up is worse than no total, because a reader who checks it
+	// once and finds a gap stops checking. So the quiet edge gets a name.
+	IgnoreKeyRelease IgnoreReason = "key_release"
 	// IgnoreUnplaceablePointer is a pointer press Marco could not place inside the window
 	// it was watching.
 	//
@@ -342,7 +353,7 @@ const (
 
 var ignoreReasons = []IgnoreReason{
 	IgnoreUnsupported, IgnoreAmbiguous, IgnoreRepeat, IgnoreNoSession,
-	IgnoreUnplaceablePointer, IgnoreMarcoOwned,
+	IgnoreUnplaceablePointer, IgnoreMarcoOwned, IgnoreKeyRelease,
 }
 
 // Known reports whether a reason is in the closed vocabulary.

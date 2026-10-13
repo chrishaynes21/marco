@@ -158,6 +158,19 @@ func runObserveScreen(args []string) int {
 	deadline := time.Now().Add(time.Duration(*seconds) * time.Second)
 	lost := ""
 	keys := 0
+	// THE STAGES, TIMED SEPARATELY.
+	//
+	// The observer reports its own fold latency, which is the one number that can be
+	// measured without a screen — and the first live run showed exactly why that is not
+	// enough. Six hundred looks in sixty seconds proves the whole look fitted inside its
+	// 100ms slot and says nothing about whether it took twenty or ninety-nine, so the
+	// acquisition figure every cadence decision rests on could not be confirmed against
+	// the thing it was a prediction about.
+	//
+	// [[ADR-177-acquisition-is-a-frame-interval-not-a-cost]] measured 16.7ms for the blit
+	// on a bench and attributed it to a 60Hz compositor. That is a hypothesis about a live
+	// window, so a live window should answer it.
+	var stage stageTimes
 	for time.Now().Before(deadline) {
 		lk := fastobserve.Look{At: time.Now()}
 
@@ -183,13 +196,18 @@ func runObserveScreen(args []string) int {
 				v.Ref.Bounds.Width, v.Ref.Bounds.Height, time.Now())
 		}
 
+		whole := time.Now()
+		shot := time.Now()
 		img, err := shots.CaptureWindow(ctx, windowRefToWindow(v.Ref))
+		stage.capture = append(stage.capture, msSince(shot))
 		if err != nil {
 			lk.Missing = true
 		} else {
 			lk.Front = frontnessOf(frontCandidate(ctx, windows), v.Ref) ==
 				observe.FrontTarget
+			prop := time.Now()
 			res := structure.Propose(img.Image, opt)
+			stage.propose = append(stage.propose, msSince(prop))
 			// THE SAME NORMALISATION THE REPLAY USES. One statement of it, in
 			// observe, so the live observer and the offline measurement are the
 			// same arithmetic on the same proposals.
@@ -200,6 +218,7 @@ func runObserveScreen(args []string) int {
 			lk.Regions = observe.NormaliseRects(img.Image.Bounds(), rects)
 		}
 		obs.Observe(lk)
+		stage.whole = append(stage.whole, msSince(whole))
 		<-ticker.C
 	}
 	obs.Close()
@@ -216,13 +235,36 @@ func runObserveScreen(args []string) int {
 			in.Unavailable = "no mouse producer was started"
 		}
 	}
-	reportObserve(os.Stdout, obs, seen, lost, in, keys)
+	reportObserve(os.Stdout, obs, seen, lost, in, keys, stage)
 	return 0
 }
 
 // reportObserve prints what the observer concluded. Hypotheses and counts.
+// stageTimes is per-look milliseconds for each stage of a look.
+//
+// Kept apart because they are three different claims about three different pieces of the
+// machine, and a combined figure answers none of them — the mistake
+// [[ADR-177-acquisition-is-a-frame-interval-not-a-cost]] was written to avoid.
+type stageTimes struct {
+	capture, propose, whole []float64
+}
+
+// msSince is one stage's cost in milliseconds, at microsecond resolution.
+func msSince(t time.Time) float64 { return float64(time.Since(t).Microseconds()) / 1000 }
+
+// at returns the pth percentile, or zero when nothing was measured.
+func pctile(v []float64, p int) float64 {
+	if len(v) == 0 {
+		return 0
+	}
+	c := make([]float64, len(v))
+	copy(c, v)
+	sort.Float64s(c)
+	return c[p*(len(c)-1)/100]
+}
+
 func reportObserve(w io.Writer, obs *fastobserve.Observer, consumed int, lost string,
-	in observe.InputStats, keys int) {
+	in observe.InputStats, keys int, stage stageTimes) {
 	s := obs.Stats()
 	fmt.Fprintf(w, "\n%d look(s): %d published, %d dropped, %d consumed\n",
 		s.Looks, s.Published, s.Dropped, consumed)
@@ -230,6 +272,24 @@ func reportObserve(w io.Writer, obs *fastobserve.Observer, consumed int, lost st
 		"%d window change(s)\n", s.Missing, s.Covered, s.Interrupted)
 	fmt.Fprintf(w, "  fold latency: median %.2fms  p95 %.2fms  max %.2fms\n",
 		s.At(50), s.At(95), s.At(100))
+	for _, st := range []struct {
+		name string
+		v    []float64
+	}{
+		{"acquisition", stage.capture},
+		{"proposer   ", stage.propose},
+		{"whole look ", stage.whole},
+	} {
+		fmt.Fprintf(w, "  %s:  median %6.2fms  p95 %6.2fms  max %6.2fms  (%d measured)\n",
+			st.name, pctile(st.v, 50), pctile(st.v, 95), pctile(st.v, 100), len(st.v))
+	}
+	if len(stage.whole) > 0 {
+		parts := pctile(stage.capture, 50) + pctile(stage.propose, 50)
+		if pctile(stage.whole, 50) < parts {
+			fmt.Fprintf(w, "  STAGE TIMINGS DO NOT ADD UP: the parts median %.2fms\n  against a whole look of %.2fms. A timer is measuring something other than\n  its own stage, so read none of the three.\n",
+				parts, pctile(stage.whole, 50))
+		}
+	}
 	if s.Dropped > 0 {
 		fmt.Fprintf(w, "  %d update(s) were dropped because the consumer fell behind. The\n"+
 			"  observer did not wait for it, which is the point.\n", s.Dropped)

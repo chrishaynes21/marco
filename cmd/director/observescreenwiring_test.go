@@ -119,7 +119,7 @@ func TestTheObserverReportAccountsForEveryPress(t *testing.T) {
 	o.Close()
 	var silent bytes.Buffer
 	reportObserve(&silent, o, 0, "",
-		observe.InputStats{Unavailable: "no hook could be installed"}, 0)
+		observe.InputStats{Unavailable: "no hook could be installed"}, 0, stageTimes{})
 	if !strings.Contains(silent.String(), "NOT OBSERVED") {
 		t.Errorf("with no mouse producer the report does not say so:\n%s", &silent)
 	}
@@ -150,7 +150,11 @@ func TestTheObserverReportAccountsForEveryPress(t *testing.T) {
 	var seen bytes.Buffer
 	reportObserve(&seen, o2, 0, "", observe.InputStats{Received: 9, Classified: 3,
 		Ignored: map[navsource.IgnoreReason]int{navsource.ReasonUnplaceablePointer: 6}},
-		4)
+		4, stageTimes{
+			capture: []float64{16.1, 16.9, 17.4},
+			propose: []float64{30.0, 44.0, 51.0},
+			whole:   []float64{48.0, 62.0, 70.0},
+		})
 	out := seen.String()
 	for _, want := range []string{
 		"9 event(s) received",      // what the hook saw
@@ -160,6 +164,13 @@ func TestTheObserverReportAccountsForEveryPress(t *testing.T) {
 		"1 on a look that was not", // and what it could not use
 		"2 press(es) folded",       // what the correlator got
 		"4 keyboard event(s)",      // seen and not used, said so
+		// AND THE STAGES, SEPARATELY. The first live run reported only the
+		// fold latency, so the 16.7ms acquisition every cadence decision
+		// rests on could not be checked against a live window at all — and
+		// a combined figure is the mistake ADR-177 exists to refuse.
+		"acquisition:  median  16.90ms",
+		"proposer   :  median  44.00ms",
+		"whole look :  median  62.00ms",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("the report does not account for %q:\n%s", want, out)
@@ -200,5 +211,60 @@ func TestAKeyboardEventIsCountedAndNotTakenForAPress(t *testing.T) {
 			t.Error("a press at the window's origin: a keyboard event was taken " +
 				"for a pointer press and carried its zero position in")
 		}
+	}
+}
+
+// THE STAGE TIMINGS HAVE TO ADD UP, AND THE REPORT SAYS WHEN THEY DO NOT.
+//
+// The first live observation reported only the observer's own fold latency — 600 looks in 60
+// seconds proves the whole look fitted inside its 100ms slot and says nothing about whether it
+// took twenty milliseconds or ninety-nine. So the 16.7ms acquisition every cadence decision
+// rests on, measured on a bench in
+// [[ADR-177-acquisition-is-a-frame-interval-not-a-cost]] and explained by a 60Hz compositor,
+// could not be checked against a live window at all.
+//
+// The three timers now live inside the observation loop, which needs a live window to reach, so
+// nothing can prove in a test that each measures its own stage. What CAN be proved is that the
+// report refuses an impossible arithmetic: a whole look is at least its parts. A reader who
+// would otherwise trust three plausible numbers gets told not to.
+func TestTheReportRefusesStageTimingsThatDoNotAddUp(t *testing.T) {
+	o, err := fastobserve.New(100*time.Millisecond, 8)
+	if err != nil {
+		t.Fatal(err)
+	}
+	o.Close()
+
+	// Impossible: the acquisition alone is longer than the whole look it is part of.
+	var bad bytes.Buffer
+	reportObserve(&bad, o, 0, "", observe.InputStats{}, 0, stageTimes{
+		capture: []float64{50, 50, 50},
+		propose: []float64{40, 40, 40},
+		whole:   []float64{60, 60, 60},
+	})
+	if !strings.Contains(bad.String(), "DO NOT ADD UP") {
+		t.Errorf("an acquisition and a proposer totalling 90ms inside a 60ms look is "+
+			"reported as though it were a measurement:\n%s", &bad)
+	}
+
+	// And an ordinary set is not complained about, or the warning means nothing.
+	var good bytes.Buffer
+	reportObserve(&good, o, 0, "", observe.InputStats{}, 0, stageTimes{
+		capture: []float64{16, 17, 17},
+		propose: []float64{30, 44, 51},
+		whole:   []float64{48, 62, 70},
+	})
+	if strings.Contains(good.String(), "DO NOT ADD UP") {
+		t.Errorf("a consistent set of stage timings is reported as contradictory, so "+
+			"the warning carries no information:\n%s", &good)
+	}
+	// A STAGE THAT NEVER FIRED SAYS SO. `(0 measured)` is what a timer that was never
+	// reached looks like, and it has to be visible rather than printing 0.00ms as though
+	// the stage were free.
+	var none bytes.Buffer
+	reportObserve(&none, o, 0, "", observe.InputStats{}, 0,
+		stageTimes{whole: []float64{60}})
+	if !strings.Contains(none.String(), "(0 measured)") {
+		t.Errorf("an unmeasured stage does not say so, so a timer that never fired "+
+			"reads as a stage that cost nothing:\n%s", &none)
 	}
 }

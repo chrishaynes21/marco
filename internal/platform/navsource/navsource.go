@@ -70,7 +70,8 @@ const (
 	// ReasonRepeat is auto-repeat while a key is held.
 	ReasonRepeat = observe.IgnoreRepeat
 	// ReasonNoSession is navigation observed while nothing was watching.
-	ReasonNoSession = observe.IgnoreNoSession
+	ReasonNoSession  = observe.IgnoreNoSession
+	ReasonKeyRelease = observe.IgnoreKeyRelease
 	// ReasonUnplaceablePointer is a pointer press with no window to place it in.
 	ReasonUnplaceablePointer = observe.IgnoreUnplaceablePointer
 	// ReasonMarcoOwned is input aimed at Marco's own control surface.
@@ -302,8 +303,13 @@ func (s *Source) handle(e rawEvent) {
 	}
 
 	// Key-up only clears the held set. It is not navigation, and emitting on both edges
-	// would double every intent.
+	// would double every intent — but it is COUNTED, because it was received.
+	//
+	// This was the one path that incremented Received and then returned without landing
+	// in any subset of it, and the first live observation is what found it: eleven
+	// received, eight classified, one ignored, two unaccounted. See IgnoreKeyRelease.
 	if !e.down {
+		s.ignore(ReasonKeyRelease)
 		delete(s.held, e.code)
 		return
 	}
