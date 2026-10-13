@@ -371,6 +371,23 @@ it refuses those looks. Visible is fine; in front is not.
   **reaches step 1 of 21** before stopping, because two named controls can never be
   resolved, while 10 of 13 can be. One step lowers through `marcoexec` to a complete
   Marco program, unrun.
+- [[ADR-182-two-controls-that-could-never-be-found-again]] — why the two controls that
+  blocked the learned workflow could never be reacquired, diagnosed off the pixels
+  already on disk. `target_2` is a PROPOSAL failure: the TRAINING tile is never
+  proposed, and the one rectangle containing the press is a 778x230 slab of stadium.
+  `target_6` is an IDENTITY failure with a cause — the identity is a run of the EXIT
+  TO MAIN MENU label, its recorded container is the button, and the two are the same
+  rectangle, so the one rectangle that IS the button was barred from matching it. A
+  rectangle a press identified the control as is no longer a container of it; a DROP
+  on the second press, never a refusal to file, so the row-in-a-panel hazard stands.
+  10 of 13 controls resolvable becomes 12 of 13, with no new false matches and the
+  product answer still 1 of 21.
+- [[ADR-183-remembering-recognising-and-being-allowed-to-act]] — PROPOSED, unbuilt.
+  The persistence boundary: a durable Workflow that carries its evidence and asserts
+  nothing, a session-local Binding that recognises and expires, and an authorisation
+  per action per look. Persistence does not imply recognition; recognition does not
+  imply authority. Names the one thing that has to be measured first — whether an
+  arrangement binds the same screen across two independent folds.
 - [[ADR-180-finding-a-demonstrated-target-again]] — a demonstrated click target can be
   looked for again from the proposals alone, with the press position neither used nor
   reachable. Three outcomes, not two: matched, ambiguous, unobservable — and `matched` is
@@ -1100,11 +1117,16 @@ it refuses those looks. Visible is fine; in front is not.
   It names screens identified by a count of rectangles in nine boxes, and those identities mean
   nothing in the next session. "Tomorrow: Marco, enter Free Play" needs cross-session screen
   identity, which is explicitly not authorised — so persisting a draft is its own decision.
+  [[ADR-183-remembering-recognising-and-being-allowed-to-act]] proposes the boundary and names
+  the measurement that has to come before it.
   [[ADR-181-a-demonstration-marco-can-keep]]
-- **Two controls block the Rocket League workflow, and they are named.** `target_2` on `visual_2`
-  (0 of 62 looks) and `target_6` on `visual_6` (0 of 181). The workflow stops at step 1 of 21 for
-  the first of them. A diagnosable question with the pixels still on disk, needing no further
-  demonstration. [[ADR-181-a-demonstration-marco-can-keep]]
+- **One control still blocks the Rocket League workflow, and it is a PERCEPTION gap.** `target_2`
+  on `visual_2` resolves on none of its looks because the TRAINING tile is never proposed: the
+  only rectangle containing the press is a 778x230 slab of stadium background. No matching rule
+  can admit a rectangle the proposer never offered, so the question is upstream — the proposer
+  finds text and small glyphs and does not find large artwork tiles, which shows in the yields
+  (90–153 proposals per look on `visual_2` against 400 on `visual_6`). `target_6` was the other
+  one and is fixed. [[ADR-182-two-controls-that-could-never-be-found-again]]
 - **Manual Rocket League sessions are no longer the default next step.** The owner's standing
   change: use the existing recordings, replay-based regression tests and synthetic edge cases
   first, and when live evidence is genuinely necessary, say precisely what is missing and why the

@@ -75,6 +75,14 @@ func main() {
 	flow := flag.Bool("workflow", false,
 		"with -frames, learn a workflow from the recording and plan it back against "+
 			"the same pixels: record, learn, plan, lower, verify. Executes nothing")
+	diagnose := flag.String("diagnose", "",
+		"with -frames, explain WHY each named target (comma separated, empty = all) "+
+			"is or is not found again on later looks of its own screen: the "+
+			"geometric relation between the rectangle it was pressed as and the "+
+			"rectangles the proposer offers later")
+	crops := flag.String("crops", "",
+		"with -diagnose, write the pixels behind the geometry to this directory: "+
+			"the reading, its containers and the closest later proposal, outlined")
 	reacquire := flag.Bool("reacquire", false,
 		"with -frames, measure whether a demonstrated click target can be found again "+
 			"on later looks of its own screen, from the proposals alone")
@@ -118,6 +126,14 @@ func main() {
 			}
 			if *flow {
 				if err := reportWorkflowOverRecording(dir, *limit); err != nil {
+					fmt.Fprintf(os.Stderr, "perceptionreplay: %s: %v\n", dir, err)
+					os.Exit(1)
+				}
+				continue
+			}
+			if *diagnose != "" || *crops != "" {
+				if err := reportTargetDiagnosis(dir, *limit, *diagnose,
+					*crops); err != nil {
 					fmt.Fprintf(os.Stderr, "perceptionreplay: %s: %v\n", dir, err)
 					os.Exit(1)
 				}

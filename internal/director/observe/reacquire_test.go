@@ -252,6 +252,125 @@ func TestAControlIndistinguishableFromItsContainerIsRefused(t *testing.T) {
 	}
 }
 
+// A SECOND PRESS ON THE LARGER RECTANGLE SETTLES WHICH OF THE TWO IS THE CONTROL.
+//
+// The measured half of the refusal above, and the case that cost the learned Rocket League
+// workflow a step. A label and the button around it are the same rectangle under mutual centre
+// containment, so the label becomes the identity and the button becomes a container — and from
+// then on every proposal of the button agrees with both and is refused. The one rectangle that
+// IS the button is the one rectangle barred from matching it.
+//
+// What settles it is a SECOND press whose own smallest candidate is the button: somebody clicked
+// that rectangle as the control, so it is not a container of it. One press settles nothing, which
+// is the first half of this test and the reason the refusal above still stands.
+// [[ADR-182-two-controls-that-could-never-be-found-again]]
+func TestASecondPressOnTheLargerRectangleSettlesWhichIsTheControl(t *testing.T) {
+	button := observe.Region{X: 0.40, Y: 0.50, Width: 0.20, Height: 0.04}
+	label := observe.Region{X: 0.45, Y: 0.505, Width: 0.10, Height: 0.03}
+	// Concentric, so each contains the other's centre: the same rectangle, to the only
+	// relation this package has for "the same control".
+	c := &observe.ClickTargets{}
+	c.Press(1, centre(label), "visual_1", []observe.Region{button, label})
+
+	// ONE PRESS SETTLES NOTHING. The button is still a container, and a look offering
+	// only the button is still refused — a panel whose middle happens to be a row would
+	// look exactly like this, and pressing its middle is the wrong act.
+	got := c.Reacquire("visual_1", []observe.Region{button})
+	if len(got) != 1 {
+		t.Fatalf("%d outcome(s), want 1", len(got))
+	}
+	if got[0].Result != observe.ReacquireUnobservable {
+		t.Fatalf("after one press, result %q (%s), want unobservable: nothing yet "+
+			"says the larger rectangle is the control rather than something "+
+			"around it", got[0].Result, got[0].Because)
+	}
+
+	// THE SECOND PRESS, landing inside the button and outside the label, so the button
+	// is its own smallest candidate.
+	outside := observe.PointerAt{X: 0.42, Y: 0.52}
+	obs := c.Press(20, outside, "visual_1", []observe.Region{button})
+	if obs.Target != got[0].Target {
+		t.Fatalf("the second press became %q, want the same target as the first (%q): "+
+			"the two rectangles agree, so this is one control clicked twice",
+			obs.Target, got[0].Target)
+	}
+
+	got = c.Reacquire("visual_1", []observe.Region{button})
+	if len(got) != 1 {
+		t.Fatalf("%d outcome(s), want 1", len(got))
+	}
+	if got[0].Result != observe.ReacquireMatched {
+		t.Fatalf("after a press ON the larger rectangle, result %q (%s), want matched: "+
+			"somebody clicked that rectangle as the control, so it is not a "+
+			"container of it", got[0].Result, got[0].Because)
+	}
+	if !sameRegionT(got[0].Where, button) {
+		t.Errorf("matched %v, want the button %v", got[0].Where, button)
+	}
+	// AND THE RECORD SAYS SO, because a reader who sees the match needs to find the
+	// evidence that licensed it rather than take the outcome's word.
+	reg := c.Registry()
+	if len(reg) != 1 {
+		t.Fatalf("%d target(s), want 1", len(reg))
+	}
+	if len(reg[0].Containers) != 0 {
+		t.Errorf("the button is still recorded as a container of itself: %v",
+			reg[0].Containers)
+	}
+	if !reg[0].Repeated() {
+		t.Error("two presses did not register as repeated evidence")
+	}
+}
+
+// sameRegionT is mutual centre containment, for the assertions above.
+func sameRegionT(a, b observe.Region) bool {
+	in := func(r, o observe.Region) bool {
+		cx, cy := o.X+o.Width/2, o.Y+o.Height/2
+		return cx >= r.X && cx < r.X+r.Width && cy >= r.Y && cy < r.Y+r.Height
+	}
+	return in(a, b) && in(b, a)
+}
+
+// A SECOND PRESS THAT SETTLES NOTHING TAKES NOTHING AWAY.
+//
+// The other side of the rule above, and the one that keeps it narrow. Pressing the same control
+// twice in the same place says nothing new about what contains it, so the panel is still a panel
+// and a look offering only the panel is still refused. Only a press whose OWN smallest candidate
+// is the larger rectangle establishes that somebody clicks it.
+// [[ADR-182-two-controls-that-could-never-be-found-again]]
+func TestContainersSurviveASecondPressThatDoesNotSettleThem(t *testing.T) {
+	c := &observe.ClickTargets{}
+	r := row(0.2)
+	all := []observe.Region{menuPanel(), r}
+	c.Press(1, centre(r), "visual_1", all)
+	// The same control again, a little to the left and still inside the same row, so the
+	// row is this press's smallest candidate too — and on a look where the proposer
+	// happened not to find the panel at all. A container is evidence that was
+	// gathered, not a thing that has to be re-offered to survive: forgetting it
+	// because one look missed it would let the next look matching only the panel
+	// press its middle.
+	c.Press(20, observe.PointerAt{X: r.X + 0.01, Y: r.Y + r.Height/2}, "visual_1",
+		[]observe.Region{r})
+
+	reg := c.Registry()
+	if len(reg) != 1 {
+		t.Fatalf("%d target(s), want 1 — two presses on one row are one control", len(reg))
+	}
+	if !reg[0].Repeated() {
+		t.Fatal("two presses did not register as repeated evidence, so this test is " +
+			"not exercising a second press at all")
+	}
+	if len(reg[0].Containers) != 1 {
+		t.Fatalf("%d container(s) after a second press on the same rectangle, want 1: "+
+			"the panel is still a panel, and forgetting it would let a look "+
+			"offering only the panel match", len(reg[0].Containers))
+	}
+	got := c.Reacquire("visual_1", []observe.Region{menuPanel()})
+	if len(got) != 1 || got[0].Result != observe.ReacquireUnobservable {
+		t.Fatalf("result %+v with only the panel on screen, want unobservable", got)
+	}
+}
+
 // A CONTROL THAT DISAPPEARED IS UNOBSERVABLE, AND SO IS ONE ON A SCREEN NOBODY COULD IDENTIFY.
 //
 // Two different silences with the same answer. The second matters more: matching a target against

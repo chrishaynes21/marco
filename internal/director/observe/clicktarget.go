@@ -480,6 +480,42 @@ func (c *ClickTargets) recordTarget(obs ClickObservation) {
 			t.firstLook = obs.Look
 		}
 		t.lastLook = obs.Look
+		// A RECTANGLE A PRESS IDENTIFIED THE CONTROL AS IS NOT A CONTAINER OF IT.
+		//
+		// The smallest containing region is the HYPOTHESIS — the thing this
+		// press is taken to have hit. A rectangle that has been some press's
+		// hypothesis cannot also be something the control merely sits inside:
+		// the evidence says a person clicked it AS the control.
+		//
+		// Measured, and it is the whole of `target_6` on `rl-freeplay-1`. The
+		// person clicked EXIT TO MAIN MENU twice. The first press was inside
+		// two rectangles — a 170x14 run of the label and the 352x34 button row
+		// around it — so the run became the identity and the row became a
+		// container. The second press was inside ONE rectangle, the row, which
+		// is this control's own hypothesis read at a different extent. Mutual
+		// centre containment holds between them, so every later proposal of
+		// that row agreed with the identity AND with the container, and the
+		// exclusion refused the control on 63 of 96 looks of its own screen:
+		// the one rectangle that IS the button was the one rectangle barred
+		// from matching it.
+		//
+		// This is a DROP and not a refusal to file, and the difference is the
+		// hazard ADR-180 found. A row sitting at its panel's centre is the
+		// same rectangle as the panel, so declining to FILE a container that
+		// agrees with this press's own hypothesis would let a look offering
+		// only the panel match, and press its middle. One press therefore
+		// drops nothing; it takes a SECOND press, landing on the larger
+		// rectangle as its own smallest, to establish that somebody clicks
+		// that rectangle.
+		// [[ADR-182-two-controls-that-could-never-be-found-again]]
+		kept := t.containers[:0]
+		for _, r := range t.containers {
+			if sameRect(r, obs.Candidates[0]) {
+				continue
+			}
+			kept = append(kept, r)
+		}
+		t.containers = kept
 		// THE CONTAINERS, which are the candidates that are not the control's own
 		// reading. Bounded like `where`, because a session of five hundred clicks
 		// must not accumulate five hundred rectangles.

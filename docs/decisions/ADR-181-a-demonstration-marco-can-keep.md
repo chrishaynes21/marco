@@ -126,12 +126,21 @@ is still a workflow that cannot be performed**, and that is the number to read.
   5    visual_5   target_5          6  unobservable=5
   7    visual_6   target_6          0  unobservable=181    <-- would be the next stop
   8    visual_7   target_7         18  unobservable=33
+  11   visual_1   target_1        139  ambiguous=74 unobservable=235
   12   visual_2   target_10         5  unobservable=57
+  14   visual_4   target_4         51  ambiguous=3 unobservable=2
   15   visual_1   target_11       129  ambiguous=9 unobservable=310
+  16   visual_6   target_6          0  unobservable=181
   17   visual_7   target_12         6  unobservable=45
 
       10 of 13 repeatable step(s) could be resolved on at least one look of their own screen
 ```
+
+One row per repeatable STEP, which is why `target_1`, `target_4` and `target_6` each appear
+twice: the workflow presses them at two positions, and a table keyed by control rather than by
+step would answer the capability question about ten things while the prose counts thirteen. This
+table was first written here with those three rows dropped —
+[[ADR-182-two-controls-that-could-never-be-found-again]] records the correction.
 
 So the blockage is **two controls**, not a general weakness of matching. `target_2` and
 `target_6` are the same two that ADR-180 measured as never reacquirable, and they are now the
