@@ -1154,6 +1154,26 @@ it refuses those looks. Visible is fine; in front is not.
   second-press rule fixes this within a session; fold A holds only the first press, so
   the rule never fired and the artifact was saved with the label as its identity.
   [[Experiment-034-two-controls-and-why-each-was-lost]]
+- **A person can now say where they are, and one Yes buys exactly one screen.**
+  One saved screen, as one current screen, in ONE observation generation — the same rule
+  a delayed detection lives under, because an arrangement recurs and a moment does not.
+  No rejects without promoting the runner-up; not-sure changes nothing. A confirmation
+  never reaches a file, so a workflow reloaded tomorrow starts with nothing established.
+  [[ADR-186-a-person-can-say-where-they-are]]
+- **Expectation supplies presence; similarity supplies agreement.** A screen may be
+  established WITHOUT asking only when the workflow demonstrates a step into it from a
+  screen already established AND the arrangement agrees. Neither alone is admitted:
+  without the transition this is Experiment-029’s two wrong bindings; without the
+  agreement it is arriving somewhere and calling it arriving where you meant. Inferred
+  bindings carry their depth from a person. [[ADR-186-a-person-can-say-where-they-are]]
+- **Measured: 12 moments, 7 questions, 5 inferred, deepest chain 3, none unresolved — but
+  6 of the 7 questions were re-asks.** Only one was about a new place. The rest are the
+  cost of tying a binding to an observation: the observer loses a screen for a look and
+  finds it again, which is a new observation and buys a new question. Whether a TRANSIENT
+  loss should move the observation generation is unsettled — `A->unobserved->A`
+  and `A->B->A` are different, and only the second is what the rule was written
+  for.
+  [[ADR-186-a-person-can-say-where-they-are]]
 - **Screen recognition fails at ABSENCE, not at discrimination, and no measure fixes it.**
   Five measures over two independent folds — arrangement, its shape, a whole-frame colour
   histogram, a per-cell one, and the detector’s classes. Where a counterpart exists the

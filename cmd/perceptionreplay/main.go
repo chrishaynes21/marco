@@ -102,6 +102,8 @@ func main() {
 	cadence := flag.Bool("cadence", false,
 		"with -frames, measure the screen model at several sampling rates and phases "+
 			"instead of replaying once")
+	anchor := flag.Bool("anchor", false,
+		"measure how many explicit screen confirmations a saved route needs in a fresh observer")
 	screenid := flag.Bool("screenid", false,
 		"ask whether a demonstrated screen can be recognised again from saved visual evidence")
 	clarify := flag.String("clarify", "",
@@ -160,6 +162,13 @@ func main() {
 			}
 			if *flow {
 				if err := reportWorkflowOverRecording(dir, *limit, *onnx, *onnxdelay, *save); err != nil {
+					fmt.Fprintf(os.Stderr, "perceptionreplay: %s: %v\n", dir, err)
+					os.Exit(1)
+				}
+				continue
+			}
+			if *anchor {
+				if err := reportAnchoring(dir, *limit, *onnx); err != nil {
 					fmt.Fprintf(os.Stderr, "perceptionreplay: %s: %v\n", dir, err)
 					os.Exit(1)
 				}

@@ -443,6 +443,8 @@ func TestAVisualScreenCannotReachDurableMemory(t *testing.T) {
 		filepath.Join(store, "workflowstore.go"):      true,
 		filepath.Join(store, "clarify.go"):            true,
 		filepath.Join(store, "clarify_test.go"):       true,
+		filepath.Join(store, "anchor.go"):             true,
+		filepath.Join(store, "anchor_test.go"):        true,
 		filepath.Join(store, "workflowstore_test.go"): true,
 	}
 	root := filepath.Join("..", "..", "..")
