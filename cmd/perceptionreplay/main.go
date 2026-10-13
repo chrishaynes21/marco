@@ -72,6 +72,9 @@ func main() {
 	observer := flag.Bool("observer", false,
 		"with -frames, fold the recording through the PRODUCTION fast observer and "+
 			"measure what it sustains, with and without a consumer keeping up")
+	flow := flag.Bool("workflow", false,
+		"with -frames, learn a workflow from the recording and plan it back against "+
+			"the same pixels: record, learn, plan, lower, verify. Executes nothing")
 	reacquire := flag.Bool("reacquire", false,
 		"with -frames, measure whether a demonstrated click target can be found again "+
 			"on later looks of its own screen, from the proposals alone")
@@ -110,6 +113,13 @@ func main() {
 						fmt.Fprintf(os.Stderr, "perceptionreplay: %s: %v\n", dir, err)
 						os.Exit(1)
 					}
+				}
+				continue
+			}
+			if *flow {
+				if err := reportWorkflowOverRecording(dir, *limit); err != nil {
+					fmt.Fprintf(os.Stderr, "perceptionreplay: %s: %v\n", dir, err)
+					os.Exit(1)
 				}
 				continue
 			}

@@ -360,6 +360,17 @@ it refuses those looks. Visible is fine; in front is not.
 ## Decisions
 
 - [[ADR-010-passive-observation-cannot-execute]]
+- [[ADR-181-a-demonstration-marco-can-keep]] — the missing middle between watching and
+  doing. A Draft is the ordered record of one demonstration with its evidence on the
+  steps it belongs to; a Plan is what the Draft would do against the screen in front of
+  it. Two refusals kept apart: a draft is not a Play (only `Confirm(i, by)` sets a step
+  executable, and no amount of evidence does), and geometry is not identity (`Support`
+  has no semantic value, deliberately). The press position is not merely unused — `Plan`
+  takes reacquisition outcomes rather than the correlator, so the coordinates are out of
+  scope. Measured on the recording: the draft is the route a person walked, 21 steps; it
+  **reaches step 1 of 21** before stopping, because two named controls can never be
+  resolved, while 10 of 13 can be. One step lowers through `marcoexec` to a complete
+  Marco program, unrun.
 - [[ADR-180-finding-a-demonstrated-target-again]] — a demonstrated click target can be
   looked for again from the proposals alone, with the press position neither used nor
   reachable. Three outcomes, not two: matched, ambiguous, unobservable — and `matched` is
@@ -1085,6 +1096,19 @@ it refuses those looks. Visible is fine; in front is not.
   as a test that asserts the wrong answer on purpose; the recording has no scrolling list, so
   this is reasoned rather than measured on real pixels.
   [[ADR-180-finding-a-demonstrated-target-again]]
+- **A learned draft is session-local, and that is the one remaining blocker to the product.**
+  It names screens identified by a count of rectangles in nine boxes, and those identities mean
+  nothing in the next session. "Tomorrow: Marco, enter Free Play" needs cross-session screen
+  identity, which is explicitly not authorised — so persisting a draft is its own decision.
+  [[ADR-181-a-demonstration-marco-can-keep]]
+- **Two controls block the Rocket League workflow, and they are named.** `target_2` on `visual_2`
+  (0 of 62 looks) and `target_6` on `visual_6` (0 of 181). The workflow stops at step 1 of 21 for
+  the first of them. A diagnosable question with the pixels still on disk, needing no further
+  demonstration. [[ADR-181-a-demonstration-marco-can-keep]]
+- **Manual Rocket League sessions are no longer the default next step.** The owner's standing
+  change: use the existing recordings, replay-based regression tests and synthetic edge cases
+  first, and when live evidence is genuinely necessary, say precisely what is missing and why the
+  corpus cannot provide it. [[ADR-181-a-demonstration-marco-can-keep]]
 - **The fast observer exists and nothing in Director's live sampler calls it.** It is reached
   only by `director observe-screen`, which the owner starts. Wiring it into the existing
   observation cycle is a separate decision, and the cycle's own cadence is the one ADR-175 ruled

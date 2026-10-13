@@ -393,6 +393,13 @@ func TestAVisualScreenCannotReachDurableMemory(t *testing.T) {
 	//     worth holding here. `Reacquisition.Actionable` says COULD, the actuation
 	//     boundary is untouched, and nothing in it can reach a store.
 	//     [[ADR-180-finding-a-demonstrated-target-again]]
+	//  4. `internal/director/workflow`, the learned draft, because a workflow is a
+	//     sequence of these screens and these targets and it is the most
+	//     promotable-looking thing the tier has produced — a saved list of actions with
+	//     the evidence to resolve each one. It carries its own boundary tests, including
+	//     an import walk that fails if it can reach the lowering path: a draft that
+	//     could perform itself would be an autonomous actuator with a reading
+	//     interface. [[ADR-181-a-demonstration-marco-can-keep]]
 	//
 	// A widening of the TIER is not a widening of what may become durable, and the
 	// difference is the whole reason this list is worth keeping. The next addition should
@@ -400,6 +407,7 @@ func TestAVisualScreenCannotReachDurableMemory(t *testing.T) {
 	// first is whether what it does with them can reach the store.
 	dir := filepath.Join("internal", "director", "observe")
 	fast := filepath.Join("internal", "director", "fastobserve")
+	flow := filepath.Join("internal", "director", "workflow")
 	allowed := map[string]bool{
 		filepath.Join(dir, "arrangement.go"):       true,
 		filepath.Join(dir, "arrangement_test.go"):  true,
@@ -411,6 +419,9 @@ func TestAVisualScreenCannotReachDurableMemory(t *testing.T) {
 		filepath.Join(fast, "fastobserve.go"):      true,
 		filepath.Join(fast, "fastobserve_test.go"): true,
 		filepath.Join(fast, "boundary_test.go"):    true,
+		filepath.Join(flow, "workflow.go"):         true,
+		filepath.Join(flow, "workflow_test.go"):    true,
+		filepath.Join(flow, "boundary_test.go"):    true,
 	}
 	root := filepath.Join("..", "..", "..")
 	names := []string{

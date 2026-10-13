@@ -248,6 +248,13 @@ func (o *Observer) Transitions() []observe.VisualTransition { return o.screens.T
 // Clicks is the press evidence, with the three causes intact.
 func (o *Observer) Clicks() observe.ClickEvidence { return o.clicks.Evidence() }
 
+// Walk is the order the session visited its screens.
+//
+// The order, not the set. A workflow is a sequence somebody performed, and the transition list is
+// sorted most-repeated first — assembling a draft from that would produce a set of edges in
+// popularity order, which is not a thing anybody demonstrated.
+func (o *Observer) Walk() []observe.VisualScreenID { return o.screens.Walk() }
+
 // Screen is the screen standing now, which is what a reacquisition is scoped to.
 func (o *Observer) Screen() observe.VisualScreenID { return o.screens.Screen() }
 
