@@ -1154,6 +1154,26 @@ it refuses those looks. Visible is fine; in front is not.
   second-press rule fixes this within a session; fold A holds only the first press, so
   the rule never fired and the artifact was saved with the label as its identity.
   [[Experiment-034-two-controls-and-why-each-was-lost]]
+- **Four of the six repeated questions are real navigation, and two are one capture gap.**
+  Reconstructed from the looks around each repeat: `A->B->A` four times, with another
+  screen positively observed; and one look with no pixels, which moved the generation
+  twice — out and back — and so cost two questions. **2 of 6 could be bridged safely, 0
+  would be bridged wrongly.** The first navigation's returning observation agrees with
+  the stored arrangement at **1.000**: the same menu looks identical on both visits, and
+  that is not evidence that nothing happened between.
+  [[Experiment-037-why-the-binding-disappeared]]
+- **The observation generation is jumpier than the screen it describes.** Of 12 generation
+  moves in one walk, only 2 happened while the stabiliser held the screen throughout. The
+  generation moves on the id `Observe` RETURNS; the stabiliser exists to hold a screen
+  through exactly the noise that makes that flicker. Moving it on the standing screen
+  instead would be smaller than a new continuity state — but it also governs detector
+  expiry, so it stays ring-fenced until measured there too.
+  [[Experiment-037-why-the-binding-disappeared]]
+- **A gap in what was SEEN is not a gap in what was THERE.** Recording only the held
+  screen classified four gaps as indeterminate in which, by that record, nothing had
+  happened; excluding the gap's closing look hid two real navigations. Both corrections
+  moved the answer AGAINST the proposal being measured.
+  [[Experiment-037-why-the-binding-disappeared]]
 - **A person can now say where they are, and one Yes buys exactly one screen.**
   One saved screen, as one current screen, in ONE observation generation — the same rule
   a delayed detection lives under, because an arrangement recurs and a moment does not.

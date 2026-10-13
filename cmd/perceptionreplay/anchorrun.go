@@ -146,6 +146,14 @@ func reportAnchoring(dir string, limit int, onnx string) error {
 	feed := newFeed()
 
 	var events []anchorEvent
+	// EVERY LOOK, so a gap between two establishments can be reconstructed
+	// afterwards rather than guessed at. Kept for the whole walk because the
+	// interesting question is what happened on the looks nobody asked about.
+	var timeline []walkLook
+	// arrOf remembers each screen's arrangement as this fold settled it, so the
+	// returning observation can be compared with the earlier one WITHOUT going
+	// through the person's answer.
+	arrOf := map[observe.VisualScreenID]observe.VisualArrangement{}
 	base := time.Unix(1700000000, 0).UTC()
 	lastEpoch := ^uint64(0)
 	var lastLabel string
@@ -166,6 +174,17 @@ func reportAnchoring(dir string, limit int, onnx string) error {
 		up := obs.Observe(lk)
 		if up.Settled {
 			feed.request(i+1, fr.WindowGeneration, up.Epoch)
+		}
+		timeline = append(timeline, walkLook{
+			look: i + 1, atMS: fr.AtMS, epoch: up.Epoch,
+			returned: up.Screen, standing: obs.Screen(),
+			generation: fr.WindowGeneration, missing: lk.Missing,
+			front: lk.Front, proposals: len(regions[i]),
+		})
+		if sc := obs.Screen(); sc != "" {
+			if a := obs.Arrangement(sc); a.Observed() {
+				arrOf[sc] = a
+			}
 		}
 		if up.Epoch == lastEpoch {
 			continue
@@ -235,6 +254,27 @@ func reportAnchoring(dir string, limit int, onnx string) error {
 	}
 
 	printAnchoring(dir, loaded, half, len(frames), events, session)
+
+	// ── WHY EACH REPEATED QUESTION WAS ASKED ──
+	//
+	// Only the questions that repeated a screen established earlier in this walk.
+	// A first question about a screen is the honest price of not having been
+	// there before; a second is the thing worth explaining.
+	var gaps []gapReport
+	lastAt := map[string]int{}
+	lastScreen := map[string]observe.VisualScreenID{}
+	for _, e := range events {
+		if e.label == "" {
+			continue
+		}
+		if prev, ok := lastAt[e.label]; ok && e.asked {
+			gaps = append(gaps, classifyGap(e.label, timeline, prev, e.look,
+				lastScreen[e.label], arrOf[lastScreen[e.label]],
+				arrOf[e.screen]))
+		}
+		lastAt[e.label], lastScreen[e.label] = e.look, e.screen
+	}
+	printContinuity(gaps, timeline)
 	return nil
 }
 
