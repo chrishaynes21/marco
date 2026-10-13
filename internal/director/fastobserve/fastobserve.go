@@ -242,6 +242,16 @@ func (o *Observer) Stats() Stats { return o.stats }
 // Screens is the session-local screens settled so far.
 func (o *Observer) Screens() []observe.VisualScreenSeen { return o.screens.Seen() }
 
+// Arrangement is one settled screen's stored arrangement.
+//
+// For measurement, like the method it forwards to: an arrangement is what a cross-session
+// binding would have to carry, and comparing two observers' screens needs it in hand. A caller
+// that reconstructed a screen identity from this would be a second statement of what "the same
+// screen" means, which is why the relation stays in observe.
+func (o *Observer) Arrangement(id observe.VisualScreenID) observe.VisualArrangement {
+	return o.screens.Arrangement(id)
+}
+
 // Transitions is every change observed between settled screens.
 func (o *Observer) Transitions() []observe.VisualTransition { return o.screens.Transitions() }
 

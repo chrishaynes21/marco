@@ -1120,6 +1120,26 @@ it refuses those looks. Visible is fine; in front is not.
   [[ADR-183-remembering-recognising-and-being-allowed-to-act]] proposes the boundary and names
   the measurement that has to come before it.
   [[ADR-181-a-demonstration-marco-can-keep]]
+- **The proposer has no cue that could find a large artwork tile, and that is now measured.**
+  Inside the TRAINING tile's 181x115 working cells there is no component larger than 125x31:
+  405 fragments, nearly all of them in the text-height band, so the tile's artwork is read as
+  lines of writing. Its border is not a connected component either. Three changes were
+  prototyped and all three rejected on measurement — the band-height guard (no effect), a
+  text-height ceiling on a merged line (removes every frame-scale blob and takes a bare
+  rendered scene from 24 candidates to 265, failing the package's own test) and an outline
+  cue (the premise is false). This needs a capability of a different kind: a region-level cue,
+  or the learned detector in `plugins/vision` that nothing in this path unions with.
+  [[Experiment-028-the-tile-that-was-never-a-candidate]]
+- **Recall is the fix, not suppression.** `Press` takes the smallest proposal containing a
+  press, so a missing true candidate is what promotes a noise aggregate to “the control”.
+  Propose the tile and the stadium slab stops mattering without being removed.
+  [[Experiment-028-the-tile-that-was-never-a-candidate]]
+- **A screen does not bind reliably across independent folds, and no threshold fixes it.**
+  Two folds sharing no identities: 5 of 8 screens bound correctly, 2 bound confidently to
+  screens the other fold had never seen, 1 ambiguous. The best wrong binding scored 0.886,
+  above four of the five correct ones. The screen model has no abstention — `promote` takes
+  the best above the floor — which is defensible session-locally and not for a durable
+  binding. [[Experiment-029-binding-a-screen-across-two-independent-folds]]
 - **One control still blocks the Rocket League workflow, and it is a PERCEPTION gap.** `target_2`
   on `visual_2` resolves on none of its looks because the TRAINING tile is never proposed: the
   only rectangle containing the press is a 778x230 slab of stadium background. No matching rule

@@ -154,6 +154,41 @@ If arrangements do not bind across folds, persistence is premature and the answe
 evidence does cross-session recognition need" is that it needs something the proposer does not yet
 produce. Either way the question is cheap, offline, and answerable this week.
 
+## The prerequisite was measured, and it does not hold
+
+[[Experiment-029-binding-a-screen-across-two-independent-folds]] ran the experiment this section
+asked for, the day after it was written. Three separate observers over the same recording — two
+folds that share no counter, registry or signature, and an oracle whose only job is to say which
+screens are really the same.
+
+```
+8 screens of fold A:  5 bound CORRECTLY, 2 bound WRONG, 1 ambiguous, 0 missed
+correct bindings scored   0.556  0.611  0.688  0.833  0.901
+wrong   bindings scored   0.559  0.886
+```
+
+The best **wrong** binding scored above four of the five correct ones, so **no floor separates
+them** and raising the threshold cannot make one. Both wrong bindings were to screens the other
+fold had never seen at all, where the only correct answer was to refuse — and
+`VisualScreens.promote` has no refusal: it takes the best match above the floor and never reports
+that it was choosing. Fold B also split one of the oracle's screens into three identities.
+
+So the design above holds, and one layer of it is not ready:
+
+- **The Workflow is unaffected.** Remembering what somebody taught, with its evidence, costs
+  nothing and claims nothing.
+- **The Binding needs an abstention the screen model does not have.** "No counterpart" has to be
+  an available answer, decided on something other than being the best of what is lying around.
+  The experiment's `ambiguous` is a sketch of it and is not sufficient on its own: the two wrong
+  bindings were not ambiguous, they were unopposed.
+- **An arrangement is not enough evidence for a durable claim.** It is a session-local stabiliser
+  cue — its own file calls it "a far weaker claim" — and this is what that weakness costs when it
+  is asked to carry identity across sessions.
+
+This is the separation earning its keep rather than an argument against it. *Persistence does not
+imply recognition* is exactly the right boundary, because recognition is the half that the
+measurement says is not ready.
+
 ## Consequences
 
 - **Three refusals become possible to state separately**, where today there is one silence:

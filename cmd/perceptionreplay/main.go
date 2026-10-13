@@ -75,6 +75,16 @@ func main() {
 	flow := flag.Bool("workflow", false,
 		"with -frames, learn a workflow from the recording and plan it back against "+
 			"the same pixels: record, learn, plan, lower, verify. Executes nothing")
+	propose := flag.Int("propose", 0,
+		"with -frames, draw and list every candidate the production proposer found on "+
+			"one look (1-based), with -near to ask about one rectangle")
+	near := flag.String("near", "",
+		"with -propose, a rectangle in frame pixels as x,y,w,h: the candidates that "+
+			"overlap it, and how much of it each covers")
+	bindscreens := flag.Bool("bind", false,
+		"with -frames, split the recording into two independent observation "+
+			"folds that share no screen identities, and measure whether a screen "+
+			"learned in one can be recognised in the other by arrangement alone")
 	diagnose := flag.String("diagnose", "",
 		"with -frames, explain WHY each named target (comma separated, empty = all) "+
 			"is or is not found again on later looks of its own screen: the "+
@@ -126,6 +136,21 @@ func main() {
 			}
 			if *flow {
 				if err := reportWorkflowOverRecording(dir, *limit); err != nil {
+					fmt.Fprintf(os.Stderr, "perceptionreplay: %s: %v\n", dir, err)
+					os.Exit(1)
+				}
+				continue
+			}
+			if *bindscreens {
+				if err := reportScreenBinding(dir, *limit); err != nil {
+					fmt.Fprintf(os.Stderr, "perceptionreplay: %s: %v\n", dir, err)
+					os.Exit(1)
+				}
+				continue
+			}
+			if *propose > 0 {
+				if err := reportProposals(dir, *propose, *near,
+					*crops); err != nil {
 					fmt.Fprintf(os.Stderr, "perceptionreplay: %s: %v\n", dir, err)
 					os.Exit(1)
 				}
