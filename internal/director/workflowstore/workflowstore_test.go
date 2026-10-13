@@ -518,10 +518,14 @@ func TestAnUnknownVersionIsRefusedRatherThanRead(t *testing.T) {
 		want string
 	}{
 		{"newer", `"version": 99`, "newer Marco"},
-		{"older", `"version": 0`, "not a workflow artifact"},
+		// A REAL OLDER VERSION, now that one exists. Version 1 had no
+		// clarifications, and reading it as though it did would treat a control
+		// nobody had answered about as one nobody needed to answer about.
+		{"older", `"version": 1`, "older than this build"},
+		{"none", `"version": 0`, "not a workflow artifact"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			bad := bytes.Replace(b, []byte(`"version": 1`), []byte(c.v), 1)
+			bad := bytes.Replace(b, []byte(`"version": 2`), []byte(c.v), 1)
 			if bytes.Equal(bad, b) {
 				t.Fatal("the fixture did not change the version")
 			}
@@ -535,7 +539,7 @@ func TestAnUnknownVersionIsRefusedRatherThanRead(t *testing.T) {
 		})
 	}
 	// And this build will not WRITE a version it does not own.
-	a.Version = 2
+	a.Version = 99
 	if _, err := a.Marshal(); err == nil {
 		t.Error("an artifact claiming another version was written")
 	}

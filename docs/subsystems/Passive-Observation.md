@@ -1154,6 +1154,18 @@ it refuses those looks. Visible is fine; in front is not.
   second-press rule fixes this within a session; fold A holds only the first press, so
   the rule never fired and the artifact was saved with the label as its identity.
   [[Experiment-034-two-controls-and-why-each-was-lost]]
+- **Marco can now ask for the smallest missing piece instead of a new demonstration.**
+  A control the matcher cannot tell from a region that merely contained its press becomes
+  a QUESTION, with both rectangles named and inspectable, and a person can choose, refuse
+  or defer. The answer is evidence attached to one control, carrying who said it — not a
+  rule, not recognition, not authorisation. Naming the LARGER region settles the control;
+  naming the smaller one is recorded and leaves it refused, because nothing can tell the
+  two apart on a later look. [[ADR-185-asking-the-smallest-missing-thing]]
+- **Only a real ambiguity is a question.** Having a container recorded is not the same as
+  being confused with it: the TRAINING tile has a stadium slab as a container and is found
+  again on 21 looks of 28, so there is nothing to ask. The matcher decides, by being run
+  over the container, rather than by a rule restated beside it.
+  [[ADR-185-asking-the-smallest-missing-thing]]
 - **A colour histogram reads a control's STATE, not its identity.** Asked only on the looks
   geometry had already refused, the 64-bucket RGB descriptor failed before discrimination
   was reachable: the same rectangle on the same screen agrees with itself at 0.90 for

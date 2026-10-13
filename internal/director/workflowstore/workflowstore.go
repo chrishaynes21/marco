@@ -62,7 +62,10 @@ import (
 // describes evidence this build may not understand, and reading it optimistically would produce
 // a workflow missing whatever the new version added — which is worse than refusing, because the
 // shortfall is invisible.
-const Version = 1
+// Version 2 added Clarifications. A version-1 file is refused rather than read without them:
+// the field is where a person's answer about a control's identity lives, and a reader that
+// ignored it would quietly match a control the person had said was something else.
+const Version = 2
 
 // Artifact is one durable workflow: inert, evidence-bearing, and unable to act.
 type Artifact struct {
@@ -77,6 +80,10 @@ type Artifact struct {
 	Controls []Control `json:"controls,omitempty"`
 	Steps    []Step    `json:"steps"`
 	Notes    []string  `json:"notes,omitempty"`
+	// Clarifications are what people have said about controls the demonstration
+	// could not settle. Evidence with provenance, never a rule: an answer is about
+	// one control of this workflow and reaches nothing else.
+	Clarifications []Answer `json:"clarifications,omitempty"`
 }
 
 // Screen is a label and what the demonstration saw, never a name from the session.
@@ -373,6 +380,18 @@ func Unmarshal(b []byte) (Artifact, error) {
 				"which this artifact does not describe", st.Position, st.Control)
 		}
 	}
+	for _, cl := range a.Clarifications {
+		if !ctrl[cl.Control] {
+			return Artifact{}, fmt.Errorf("workflowstore: a clarification "+
+				"names control %q, which this artifact does not describe",
+				cl.Control)
+		}
+		if cl.By == "" {
+			return Artifact{}, fmt.Errorf("workflowstore: a clarification "+
+				"for %q has nobody attached to it, so it is "+
+				"indistinguishable from a default", cl.Control)
+		}
+	}
 	return a, nil
 }
 
@@ -582,7 +601,11 @@ func (a Artifact) Targets(b Binding) []observe.StoredTarget {
 			continue
 		}
 		seen[st.Control] = true
-		c := byLabel[st.Control]
+		// THE CLARIFIED EVIDENCE, which is the same evidence when nobody has
+		// answered. A clarification changes which rectangle is the control and
+		// which are the regions it must not be confused with; it changes
+		// nothing else, and it cannot make a control exist.
+		c, _ := a.clarified(byLabel[st.Control])
 		out = append(out, observe.StoredTarget{
 			ID:     observe.VisualTargetID(c.Label),
 			Screen: id,
@@ -625,8 +648,9 @@ func (a Artifact) draft(b Binding) workflow.Draft {
 			Uncertain: st.Uncertain, Unresolved: st.Unresolved,
 		}
 		if c, ok := readings[st.Control]; ok {
-			s.Readings = append([]observe.Region{}, c.Readings...)
-			s.Containers = append([]observe.Region{}, c.Containers...)
+			cl, _ := a.clarified(c)
+			s.Readings = append([]observe.Region{}, cl.Readings...)
+			s.Containers = append([]observe.Region{}, cl.Containers...)
 		}
 		d.Steps = append(d.Steps, s)
 	}

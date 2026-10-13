@@ -102,6 +102,8 @@ func main() {
 	cadence := flag.Bool("cadence", false,
 		"with -frames, measure the screen model at several sampling rates and phases "+
 			"instead of replaying once")
+	clarify := flag.String("clarify", "",
+		"print what Marco would ask about a saved workflow artifact, and what each answer would change")
 	appearance := flag.Bool("appearance", false,
 		"with -reload, ask whether appearance separates a control from its container")
 	reload := flag.Bool("reload", false,
@@ -120,6 +122,16 @@ func main() {
 			"reports what it discovered. Several runs are compared side by side.\n")
 	}
 	flag.Parse()
+	// AN ARTIFACT IS NOT A RECORDING. -clarify reads a saved workflow and asks
+	// nothing of the frames, so it runs before the loop that wants a capture
+	// directory — and needs no directory argument at all.
+	if *clarify != "" {
+		if err := reportClarifications(*clarify, 1920, 1080); err != nil {
+			fmt.Fprintf(os.Stderr, "perceptionreplay: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
 	if flag.NArg() == 0 {
 		flag.Usage()
 		os.Exit(2)
