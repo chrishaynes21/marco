@@ -63,7 +63,7 @@ type targetScore struct {
 }
 
 // reportReacquisitionOverRecording folds the recording and scores target reacquisition.
-func reportReacquisitionOverRecording(dir string, limit int) error {
+func reportReacquisitionOverRecording(dir string, limit int, onnx string, delay int) error {
 	frames, err := readJSONL[frameRecord](filepath.Join(dir, "frames.jsonl"))
 	if err != nil {
 		return err
@@ -92,6 +92,17 @@ func reportReacquisitionOverRecording(dir string, limit int) error {
 	nextInput := 0
 	scores := map[observe.VisualTargetID]*targetScore{}
 	collisions, collisionLooks := 0, 0
+	// THE SLOW SOURCE, if one was recorded. Same discipline as the workflow replay:
+	// ask on a settle, one outstanding, deliver late, and let the observer decide
+	// whether the answer is still about the screen in front of it.
+	var feed *slowFeed
+	if onnx != "" {
+		fd, ferr := loadSlowFeed(onnx, delay)
+		if ferr != nil {
+			return ferr
+		}
+		feed = fd
+	}
 	look := 0
 	for _, fr := range frames {
 		look++
@@ -126,7 +137,8 @@ func reportReacquisitionOverRecording(dir string, limit int) error {
 		// recognise what this look was supposed to recognise. On a look with a press
 		// that ordering is the whole measurement; on the others it costs nothing and
 		// keeps one rule.
-		got := obs.Reacquire(lk.Regions)
+		lk.Slow = feed.due(look)
+		got := obs.Reacquire(lk)
 		pressed := map[observe.VisualTargetID]bool{}
 		if len(lk.Presses) > 0 && len(lk.Regions) > 0 {
 			// WHERE THE PRESS ACTUALLY LANDED, worked out here rather than taken
@@ -210,7 +222,15 @@ func reportReacquisitionOverRecording(dir string, limit int) error {
 			collisions += n
 			collisionLooks++
 		}
-		obs.Observe(lk)
+		if up := obs.Observe(lk); up.Settled {
+			feed.request(look, fr.WindowGeneration, up.Epoch)
+		}
+	}
+
+	if feed != nil {
+		fmt.Println(feed.report())
+		fmt.Println(admissionLedger(obs.Stats()))
+		fmt.Println()
 	}
 	obs.Close()
 

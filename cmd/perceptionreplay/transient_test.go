@@ -39,8 +39,8 @@ func TestABriefScreenIsExplainedRatherThanDeleted(t *testing.T) {
 			// unexplained — which is the opposite of what the evidence says.
 			Inert: []observe.ClickObservation{
 				{Look: 500, Screen: "s_dead", Target: "t9",
-					Candidates: []observe.Region{
-						{X: 0.1, Y: 0.1, Width: 0.2, Height: 0.05}}},
+					Candidates: observe.Proposed([]observe.Region{
+						{X: 0.1, Y: 0.1, Width: 0.2, Height: 0.05}}, 0, 0, 0)},
 			},
 			Steps: []observe.RouteStep{
 				// Clicked out of the place, into the loading screen.

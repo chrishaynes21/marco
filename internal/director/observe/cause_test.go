@@ -23,7 +23,7 @@ func TestAChangeAfterArrivingByClickIsAutomatic(t *testing.T) {
 	var c observe.ClickTargets
 	row := []observe.Region{{X: 0.1, Y: 0.4, Width: 0.3, Height: 0.05}}
 	// Click into B...
-	c.Press(10, observe.PointerAt{X: 0.2, Y: 0.42}, "visual_a", row)
+	c.Press(10, observe.PointerAt{X: 0.2, Y: 0.42}, "visual_a", observe.Proposed(row, 0, 0, 0))
 	c.Arrived(16, observe.VisualTransition{From: "visual_a", To: "visual_b"})
 	// ...and B becomes C by itself.
 	c.Arrived(24, observe.VisualTransition{From: "visual_b", To: "visual_c"})
@@ -86,7 +86,7 @@ func TestAChangeAfterArrivingByClickIsAutomatic(t *testing.T) {
 	// else, however soon after, is not this load completing — and an arrival that
 	// explained every subsequent change would make almost nothing unknown.
 	var d observe.ClickTargets
-	d.Press(10, observe.PointerAt{X: 0.2, Y: 0.42}, "visual_a", row)
+	d.Press(10, observe.PointerAt{X: 0.2, Y: 0.42}, "visual_a", observe.Proposed(row, 0, 0, 0))
 	d.Arrived(16, observe.VisualTransition{From: "visual_a", To: "visual_b"})
 	d.Arrived(20, observe.VisualTransition{From: "visual_x", To: "visual_y"})
 	d.Close()
@@ -144,7 +144,7 @@ func TestAChangeWithNoArrivalBehindItHasAnUnknownCause(t *testing.T) {
 func TestAnArrivalTooLongAgoDoesNotExplainTheNextChange(t *testing.T) {
 	var c observe.ClickTargets
 	row := []observe.Region{{X: 0.1, Y: 0.4, Width: 0.3, Height: 0.05}}
-	c.Press(10, observe.PointerAt{X: 0.2, Y: 0.42}, "visual_a", row)
+	c.Press(10, observe.PointerAt{X: 0.2, Y: 0.42}, "visual_a", observe.Proposed(row, 0, 0, 0))
 	c.Arrived(16, observe.VisualTransition{From: "visual_a", To: "visual_b"})
 	c.Arrived(17+observe.MaxArrivalToAutomaticLooks,
 		observe.VisualTransition{From: "visual_b", To: "visual_c"})

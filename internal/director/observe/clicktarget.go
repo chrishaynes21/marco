@@ -171,12 +171,12 @@ type ClickObservation struct {
 	// learning unit, and unknown is a real answer.
 	Screen VisualScreenID `json:"screen"`
 	// Candidates is every proposed region that contained the press, SMALLEST FIRST and
-	// bounded.
+	// bounded — each with the cue that proposed it.
 	//
 	// All of them on purpose. The smallest containing region is the live pointer path's
 	// rule and a good hypothesis; it is not evidence, and a press that kept only its
 	// favourite would have thrown away the thing that could later contradict it.
-	Candidates []Region `json:"candidates,omitempty"`
+	Candidates []Candidate `json:"candidates,omitempty"`
 	// Target is the identity of the SMALLEST candidate, which is the hypothesis. Empty
 	// when the press landed on nothing the proposer found.
 	Target VisualTargetID `json:"target,omitempty"`
@@ -367,19 +367,27 @@ type ClickTargets struct {
 
 // Press folds one press: what it landed on, and which target that is.
 //
-// `regions` is the whole look's proposals. Containment is asked here rather than by the caller
-// so that the ranking and the identity are decided in one place — a caller that picked a
-// favourite first would hand this a decision and call it an observation.
+// `cands` is the whole look's proposals — the pixel proposer's, plus any slow detections the
+// observer admitted for this look. Containment is asked here rather than by the caller so that
+// the ranking and the identity are decided in one place: a caller that picked a favourite
+// first would hand this a decision and call it an observation.
+//
+// THE RANKING RULE IS UNCHANGED, AND THAT IS THE POINT. The smallest containing rectangle
+// wins on area, with no reference to which cue proposed it. A detector candidate is not
+// preferred for being semantic and not penalised for being late; it competes on the one
+// property this layer is willing to judge. Experiment-030 is what makes that sufficient: the
+// detected TRAINING tile is under half the area of the stadium slab that had been winning,
+// so proposing it is enough and the slab never has to be suppressed.
 func (c *ClickTargets) Press(look int, at PointerAt, screen VisualScreenID,
-	regions []Region) ClickObservation {
+	cands []Candidate) ClickObservation {
 
 	c.presses++
 	obs := ClickObservation{Look: look, At: at, Screen: screen}
-	for _, r := range regions {
-		if !containsPoint(r, at) {
+	for _, cand := range cands {
+		if !containsPoint(cand.Region, at) {
 			continue
 		}
-		obs.Candidates = append(obs.Candidates, r)
+		obs.Candidates = append(obs.Candidates, cand)
 	}
 	// SMALLEST FIRST. The most specific thing containing a press is the likeliest control,
 	// which is the same reasoning the live pointer path applies — and ties break on
@@ -409,7 +417,10 @@ func (c *ClickTargets) Press(look int, at PointerAt, screen VisualScreenID,
 		// THE SMALLEST CANDIDATE, which is the stated hypothesis and nothing more.
 		// The rest of the set survives on the observation; see identify for the four
 		// rules measured and why this is the one that does not resolve anything.
-		obs.Target = c.identify(screen, obs.Candidates[:1])
+		// GEOMETRIC, DELIBERATELY. identify is handed rectangles and never learns
+		// which cue proposed them, so a target means the same thing whether the
+		// detector happened to have answered yet.
+		obs.Target = c.identify(screen, Regions(obs.Candidates[:1]))
 		c.recordTarget(obs)
 	}
 	c.pending = append(c.pending, obs)
@@ -510,7 +521,7 @@ func (c *ClickTargets) recordTarget(obs ClickObservation) {
 		// [[ADR-182-two-controls-that-could-never-be-found-again]]
 		kept := t.containers[:0]
 		for _, r := range t.containers {
-			if sameRect(r, obs.Candidates[0]) {
+			if sameRect(r, obs.Candidates[0].Region) {
 				continue
 			}
 			kept = append(kept, r)
@@ -519,12 +530,12 @@ func (c *ClickTargets) recordTarget(obs ClickObservation) {
 		// THE CONTAINERS, which are the candidates that are not the control's own
 		// reading. Bounded like `where`, because a session of five hundred clicks
 		// must not accumulate five hundred rectangles.
-		for _, r := range obs.Candidates[1:] {
+		for _, cand := range obs.Candidates[1:] {
 			if len(t.containers) >= MaxTargetRegions {
 				break
 			}
-			if !sameControl(t.containers, []Region{r}) {
-				t.containers = append(t.containers, r)
+			if !sameControl(t.containers, []Region{cand.Region}) {
+				t.containers = append(t.containers, cand.Region)
 			}
 		}
 		return

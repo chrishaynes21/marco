@@ -46,7 +46,7 @@ func demo(t *testing.T, screen observe.VisualScreenID, rows ...float64) *observe
 		for _, yy := range rows {
 			all = append(all, row(yy))
 		}
-		c.Press(look, centre(row(y)), screen, all)
+		c.Press(look, centre(row(y)), screen, observe.Proposed(all, 0, 0, 0))
 		look += 10
 	}
 	return c
@@ -193,7 +193,7 @@ func TestTwoDisagreeingCandidatesAreAmbiguousAndNeitherIsChosen(t *testing.T) {
 	stored := observe.Region{X: 0.4, Y: 0.2, Width: 0.2, Height: 0.1}
 	above := observe.Region{X: 0.4, Y: 0.17, Width: 0.2, Height: 0.1}
 	below := observe.Region{X: 0.4, Y: 0.23, Width: 0.2, Height: 0.1}
-	c.Press(1, centre(stored), "visual_1", []observe.Region{stored})
+	c.Press(1, centre(stored), "visual_1", observe.Proposed([]observe.Region{stored}, 0, 0, 0))
 
 	got := c.Reacquire("visual_1", []observe.Region{above, below})
 	if len(got) != 1 {
@@ -235,7 +235,7 @@ func TestAControlIndistinguishableFromItsContainerIsRefused(t *testing.T) {
 	// A row sitting exactly at the panel's vertical centre.
 	p := menuPanel()
 	straddling := observe.Region{X: 0.4, Y: p.Y + p.Height/2, Width: 0.2, Height: 0.04}
-	c.Press(1, centre(straddling), "visual_1", []observe.Region{p, straddling})
+	c.Press(1, centre(straddling), "visual_1", observe.Proposed([]observe.Region{p, straddling}, 0, 0, 0))
 
 	got := c.Reacquire("visual_1", []observe.Region{p, straddling})
 	if len(got) != 1 {
@@ -270,7 +270,7 @@ func TestASecondPressOnTheLargerRectangleSettlesWhichIsTheControl(t *testing.T) 
 	// Concentric, so each contains the other's centre: the same rectangle, to the only
 	// relation this package has for "the same control".
 	c := &observe.ClickTargets{}
-	c.Press(1, centre(label), "visual_1", []observe.Region{button, label})
+	c.Press(1, centre(label), "visual_1", observe.Proposed([]observe.Region{button, label}, 0, 0, 0))
 
 	// ONE PRESS SETTLES NOTHING. The button is still a container, and a look offering
 	// only the button is still refused — a panel whose middle happens to be a row would
@@ -288,7 +288,7 @@ func TestASecondPressOnTheLargerRectangleSettlesWhichIsTheControl(t *testing.T) 
 	// THE SECOND PRESS, landing inside the button and outside the label, so the button
 	// is its own smallest candidate.
 	outside := observe.PointerAt{X: 0.42, Y: 0.52}
-	obs := c.Press(20, outside, "visual_1", []observe.Region{button})
+	obs := c.Press(20, outside, "visual_1", observe.Proposed([]observe.Region{button}, 0, 0, 0))
 	if obs.Target != got[0].Target {
 		t.Fatalf("the second press became %q, want the same target as the first (%q): "+
 			"the two rectangles agree, so this is one control clicked twice",
@@ -342,7 +342,7 @@ func TestContainersSurviveASecondPressThatDoesNotSettleThem(t *testing.T) {
 	c := &observe.ClickTargets{}
 	r := row(0.2)
 	all := []observe.Region{menuPanel(), r}
-	c.Press(1, centre(r), "visual_1", all)
+	c.Press(1, centre(r), "visual_1", observe.Proposed(all, 0, 0, 0))
 	// The same control again, a little to the left and still inside the same row, so the
 	// row is this press's smallest candidate too — and on a look where the proposer
 	// happened not to find the panel at all. A container is evidence that was
@@ -350,7 +350,7 @@ func TestContainersSurviveASecondPressThatDoesNotSettleThem(t *testing.T) {
 	// because one look missed it would let the next look matching only the panel
 	// press its middle.
 	c.Press(20, observe.PointerAt{X: r.X + 0.01, Y: r.Y + r.Height/2}, "visual_1",
-		[]observe.Region{r})
+		observe.Proposed([]observe.Region{r}, 0, 0, 0))
 
 	reg := c.Registry()
 	if len(reg) != 1 {
@@ -400,7 +400,7 @@ func TestADisappearedTargetAndAnUnreadableScreenAreBothUnobservable(t *testing.T
 	// passed with the guard deleted.
 	u := &observe.ClickTargets{}
 	u.Press(1, centre(row(0.2)), observe.VisualScreenUnknown,
-		[]observe.Region{menuPanel(), row(0.2)})
+		observe.Proposed([]observe.Region{menuPanel(), row(0.2)}, 0, 0, 0))
 	if n := len(u.Registry()); n != 1 {
 		t.Fatalf("%d target(s) minted on an unidentified screen, want 1 — this test "+
 			"needs one to be exercising anything", n)
@@ -429,9 +429,9 @@ func TestAnUncertainIdentityStaysUncertainWhenItIsFound(t *testing.T) {
 	b := row(0.4)
 	all := []observe.Region{menuPanel(), a, b}
 	// Two different rows, each clicked once, each followed by the same change.
-	c.Press(1, centre(a), "visual_1", all)
+	c.Press(1, centre(a), "visual_1", observe.Proposed(all, 0, 0, 0))
 	c.Arrived(2, observe.VisualTransition{From: "visual_1", To: "visual_2"})
-	c.Press(10, centre(b), "visual_1", all)
+	c.Press(10, centre(b), "visual_1", observe.Proposed(all, 0, 0, 0))
 	c.Arrived(11, observe.VisualTransition{From: "visual_1", To: "visual_2"})
 
 	if n := len(c.Evidence().MaybeOneControl); n == 0 {
@@ -466,15 +466,15 @@ func TestAnUncertainIdentityStaysUncertainWhenItIsFound(t *testing.T) {
 func TestTheRegistryCarriesTheWholeEvidenceForATarget(t *testing.T) {
 	c := &observe.ClickTargets{}
 	r := row(0.2)
-	c.Press(5, centre(r), "visual_1", []observe.Region{menuPanel(), r})
+	c.Press(5, centre(r), "visual_1", observe.Proposed([]observe.Region{menuPanel(), r}, 0, 0, 0))
 	c.Arrived(7, observe.VisualTransition{From: "visual_1", To: "visual_2"})
-	c.Press(40, centre(r), "visual_1", []observe.Region{menuPanel(), r})
+	c.Press(40, centre(r), "visual_1", observe.Proposed([]observe.Region{menuPanel(), r}, 0, 0, 0))
 	c.Arrived(42, observe.VisualTransition{From: "visual_1", To: "visual_2"})
 	// A SECOND CONTROL WITH A DIFFERENT DESTINATION, so "this target's destinations"
 	// is a claim with something to be wrong about. With one target in the registry, a
 	// filter that returned every step would look correct.
 	other := row(0.5)
-	c.Press(60, centre(other), "visual_1", []observe.Region{menuPanel(), other})
+	c.Press(60, centre(other), "visual_1", observe.Proposed([]observe.Region{menuPanel(), other}, 0, 0, 0))
 	c.Arrived(62, observe.VisualTransition{From: "visual_1", To: "visual_6"})
 
 	reg := c.Registry()
@@ -618,7 +618,11 @@ func TestATargetSurvivesLeavingTheScreenAndComingBack(t *testing.T) {
 	if len(o.Registry()) == 0 {
 		t.Fatal("no target was demonstrated, so the return proves nothing")
 	}
-	got := o.Reacquire(menu)
+	got := o.Reacquire(fastobserve.Look{
+		At:      at.Add(time.Duration(ms) * time.Millisecond),
+		Window:  fastobserve.WindowRef{Generation: 1},
+		Regions: menu, Front: true,
+	})
 	if len(got) == 0 {
 		t.Fatalf("back on the menu, the observer offers no outcome for %d "+
 			"demonstrated target(s): the screen identity did not survive the "+

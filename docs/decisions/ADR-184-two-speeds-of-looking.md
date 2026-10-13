@@ -1,6 +1,6 @@
 ---
 type: decision
-status: proposed
+status: accepted
 date: 2026-10-13
 affects:
   - passive-observation
@@ -10,19 +10,25 @@ affects:
 
 # ADR-184 — two speeds of looking
 
-## Status: proposed, and deliberately unbuilt
+## Status: accepted and built, with one clause replaced before it was
 
-No code exists for anything below, and the owner's authorisation was explicit about that:
+The owner authorised the integration after reviewing
+[[Experiment-030-asking-the-learned-detector-for-the-tile]], and rejected one clause of what is
+written below:
 
-> Separately, document the minimal evidence-fusion interface that would allow fast pixel proposals
-> and slower learned detections to contribute to the same screen observation without granting
-> either source automatic authority.
+> I'd approve implementing ADR-184's source-aware candidate bridge, with one important
+> condition: the fast observer must never wait for ONNX.
 >
-> Do not implement that integration until we review the probe.
+> The proposed lifetime rule says a detection remains admissible while its screen remains
+> settled. That's a useful starting point, but screen identity alone may be insufficient to
+> validate a delayed detection. […] A return to the same arrangement should not automatically
+> authorize reuse of an old rectangle.
 
-So this note is the proposal and nothing in the tree depends on it.
-[[Experiment-030-asking-the-learned-detector-for-the-tile]] is the evidence that makes it worth
-writing.
+That objection is correct and is the single most important thing on this page, so section 3
+below has been rewritten rather than annotated — see **the observation generation**.
+[[Experiment-031-the-workflow-gets-nine-steps-in]] is what the built version measured:
+**the completed workflow prefix went from 1 of 21 to 9 of 21, with zero false matches and no
+change in fold latency.**
 
 ## Context
 
@@ -132,18 +138,34 @@ inference returns    ~10 looks later (~600ms)
 A detection therefore always arrives **about ten looks after the frame it describes**, and that is
 the fact rule 3 exists to handle.
 
-### 3. A detection is evidence about a screen, not about a moment
+### 3. A detection is evidence about an OBSERVATION, not about a screen
 
-A candidate computed from look 109 and delivered at look 119 is only admissible while **the screen
-standing when it was requested is still standing**. Then it is offered on every look until that
-screen goes, and dropped the instant it does.
+This section said "screen" and was wrong, and the way it was wrong is worth keeping on the page
+because it is the error this whole design is most likely to make again.
 
-Never reprojected, never aged, never adjusted for a scroll. If the screen changed, the evidence is
-gone and the honest answer is that there is no slow candidate yet — exactly the state the fast
-observer is in today, which is a state it already handles correctly.
+A screen can be left and returned to:
 
-This is the same judgement `Thresholds.MaxStaleness` already makes on the other stack, expressed in
-the unit this stack actually has. A look is a moment; a screen is the thing that persists.
+```
+settle on A  ->  request  ->  navigate to B  ->  return to A  ->  the answer arrives
+```
+
+Under a screen rule that answer is admitted, because the arrangement standing now IS the
+arrangement it was computed on — they are the same menu. But the interface went somewhere else
+in between, and anything could have changed on the way back. No arrangement comparison can
+separate the two visits, because there is nothing to compare: they are the same.
+
+So a detection carries the **observation generation** — a counter the observer moves on every
+screen change and every window replacement. Returning to A costs two increments, and the old
+answer is refused for the right reason: not that the screen is different, but that the
+observation is. Measured, this refused **56 of 249** delivered candidates on one recording.
+
+A candidate is admissible while its window generation AND its observation generation are both
+still current. It is then **held and offered on every look** until one of them moves, at which
+point the whole held set goes at once — 164 expired that way. Holding is not an optimisation:
+the press that needs the TRAINING tile lands about twenty looks after the menu settled, so a
+detection offered only on its arrival look would never be there when it mattered.
+
+Never reprojected, never aged, never adjusted for a scroll.
 
 ### 4. Authority — and most of it is already written
 
@@ -204,9 +226,28 @@ worth preventing.
 - **Nothing is built,** and the order matters: this is the wire, and the owner has not reviewed the
   probe that justifies it.
 
+## What the implementation added that this note did not anticipate
+
+- **The duplicate rule nearly deleted the capability.** When both sources describe one
+  rectangle one copy is kept, and the obvious choice is the pixel one so a stored reading never
+  depends on inference timing. `sameRect` is loose enough that a few pixels of difference would
+  make the stadium slab and the tile inside it "the same rectangle" — discarding the tile, with
+  every admission counter still reporting success. The **more specific** reading survives.
+- **The arrangement had to be held out explicitly.** Screen identity must be a function of the
+  look alone; feeding it a channel that arrives ten looks late would make one screen's signature
+  depend on whether inference had landed.
+- **Reacquisition had to see the same set a press is judged against**, or Marco could learn a
+  control it could never find again.
+
 ## Enforced by
 
-Nothing yet, by design. The tests arrive with the implementation. The two that should exist on day
+[[Experiment-031-the-workflow-gets-nine-steps-in]] names the seventeen tests and the mutation
+run (16 of 16, after two real survivors were found and fixed). The two this note asked for on
+day one both exist: `TestNoDecisionReadsTheDetectorsClass` holds the detector's vocabulary out
+of every decision, and `TestAHeldDetectionIsDroppedWhenTheScreenMovesOn` holds the staleness
+rule.
+
+Superseded for this note's own purposes: the original "nothing yet, by design." The tests arrive with the implementation. The two that should exist on day
 one are named here so they are not invented afterwards to fit what was written: an **import walk**
 proving no decision-making package reads `Class`, and a **staleness test** proving a candidate is
 dropped when its screen goes rather than being carried onto the next one.

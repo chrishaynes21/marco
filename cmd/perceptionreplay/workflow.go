@@ -58,7 +58,11 @@ type stepTrial struct {
 }
 
 // reportWorkflowOverRecording learns a workflow from the recording and plans it back.
-func reportWorkflowOverRecording(dir string, limit int) error {
+//
+// `onnx` names recorded detections from `vision batch`, replayed `delay` looks behind the frame
+// they describe. Empty means the pixel proposer alone, which is what every earlier measurement
+// of this workflow was taken with and is the comparison that matters.
+func reportWorkflowOverRecording(dir string, limit int, onnx string, delay int) error {
 	frames, err := readJSONL[frameRecord](filepath.Join(dir, "frames.jsonl"))
 	if err != nil {
 		return err
@@ -70,6 +74,24 @@ func reportWorkflowOverRecording(dir string, limit int) error {
 		frames = frames[:limit]
 	}
 	inputs, _ := readJSONL[inputRecord](filepath.Join(dir, "input.jsonl"))
+	// ONE FEED PER PASS, loaded fresh each time. The two passes are independent
+	// observers over one recording; a shared feed would let pass one's requests
+	// satisfy pass two's, and pass two would measure a source that never waited.
+	reload := func() *slowFeed {
+		if onnx == "" {
+			return nil
+		}
+		fd, ferr := loadSlowFeed(onnx, delay)
+		if ferr != nil {
+			err = ferr
+			return nil
+		}
+		return fd
+	}
+	feed := reload()
+	if err != nil {
+		return err
+	}
 	sort.Slice(inputs, func(i, j int) bool { return inputs[i].AtMS < inputs[j].AtMS })
 
 	// ── PASS ONE: watch the demonstration ──
@@ -81,10 +103,15 @@ func reportWorkflowOverRecording(dir string, limit int) error {
 		for range obs.Updates() {
 		}
 	}()
-	looks, err := foldRecording(dir, frames, inputs, obs, nil)
+	looks, err := foldRecording(dir, frames, inputs, obs, feed, nil)
 	if err != nil {
 		return err
 	}
+	fmt.Println(feed.report())
+	if feed != nil {
+		fmt.Println(admissionLedger(obs.Stats()))
+	}
+	fmt.Println()
 	obs.Close()
 
 	draft := workflow.Learn("enter free play", obs.Walk(), obs.Clicks(), obs.Registry())
@@ -162,9 +189,19 @@ func reportWorkflowOverRecording(dir string, limit int) error {
 	cursor := 0
 	var pending *workflow.Action
 
-	_, err = foldRecording(dir, frames, inputs, obs2, func(look int, lk fastobserve.Look) {
+	// A SECOND FEED FOR THE SECOND PASS. The two passes are separate observers over
+	// the same recording, so sharing one feed would let the first pass's requests
+	// satisfy the second's — and the second pass would measure a source that
+	// answered instantly.
+	feed2 := reload()
+	_, err = foldRecording(dir, frames, inputs, obs2, feed2, func(look int, lk fastobserve.Look) {
 		standing := obs2.Screen()
-		got := obs2.Reacquire(lk.Regions)
+		// THE SAME SET A PRESS WOULD BE JUDGED AGAINST. A target the detector
+		// made findable is only found again if reacquisition can see the
+		// detector's rectangles too — and `observe.Admissible` is applied here
+		// rather than restated, so the search cannot be more permissive than
+		// the fold.
+		got := obs2.Reacquire(lk)
 
 		// ── THE CAPABILITY QUESTION, every step, independently ──
 		//
@@ -378,8 +415,14 @@ func wrapAt(s string, width int, indent string) string {
 }
 
 // foldRecording folds every frame through an observer, calling `each` before the fold.
+//
+// With a slow feed it also plays the second source at the delay it really has: deliver
+// whatever is due onto this look, fold, and ask again if the look settled a screen. The
+// request is stamped with the context it was made in, which is what lets the observer
+// decide later whether that context survived.
 func foldRecording(dir string, frames []frameRecord, inputs []inputRecord,
-	obs *fastobserve.Observer, each func(look int, lk fastobserve.Look)) (int, error) {
+	obs *fastobserve.Observer, feed *slowFeed,
+	each func(look int, lk fastobserve.Look)) (int, error) {
 
 	opt := structure.DefaultOptions()
 	base := time.Unix(1700000000, 0).UTC()
@@ -412,10 +455,20 @@ func foldRecording(dir string, frames []frameRecord, inputs []inputRecord,
 			}
 			lk.Regions = observe.NormaliseRects(img.Bounds(), rects)
 		}
+		// WHAT THE SLOW SOURCE HAS FINISHED, before the look it arrives on is
+		// folded. Nothing is reprojected or adjusted: these are rectangles from
+		// an earlier frame, offered as such.
+		lk.Slow = feed.due(look)
 		if each != nil {
 			each(look, lk)
 		}
-		obs.Observe(lk)
+		up := obs.Observe(lk)
+		// ASK ON A SETTLE, which is the cheap change detection the observer already
+		// computes for its own reasons. Not per look: that would be the thing the
+		// two-speed design exists to avoid.
+		if up.Settled {
+			feed.request(look, fr.WindowGeneration, up.Epoch)
+		}
 	}
 	return look, nil
 }

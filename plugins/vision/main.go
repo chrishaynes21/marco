@@ -70,6 +70,11 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "detect" {
 		os.Exit(runDetect(os.Args[2:]))
 	}
+	// `vision batch <manifest.txt> <out.jsonl>` is the same detector over a list of files,
+	// loaded once: the offline path that records detections for perceptionreplay.
+	if len(os.Args) > 1 && os.Args[1] == "batch" {
+		os.Exit(runBatch(os.Args[2:]))
+	}
 	det := newDetector()
 	in := bufio.NewScanner(os.Stdin)
 	in.Buffer(make([]byte, 0, 64*1024), bridgehost.MaxLine)

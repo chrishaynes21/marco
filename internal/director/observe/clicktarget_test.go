@@ -30,7 +30,7 @@ func TestAPressKeepsEveryRegionThatContainedIt(t *testing.T) {
 		{X: 0.13, Y: 0.46, Width: 0.1, Height: 0.03}, // its text
 		{X: 0.7, Y: 0.1, Width: 0.2, Height: 0.1},    // somewhere else entirely
 	}
-	obs := c.Press(10, observe.PointerAt{X: 0.15, Y: 0.47}, "visual_1", regions)
+	obs := c.Press(10, observe.PointerAt{X: 0.15, Y: 0.47}, "visual_1", observe.Proposed(regions, 0, 0, 0))
 
 	if len(obs.Candidates) != 4 {
 		t.Fatalf("%d candidate(s) kept, want 4: the window, the panel, the row and its "+
@@ -66,7 +66,7 @@ func TestAPressKeepsEveryRegionThatContainedIt(t *testing.T) {
 func TestAPressOnNothingIsBlindAndNeverATarget(t *testing.T) {
 	var c observe.ClickTargets
 	obs := c.Press(5, observe.PointerAt{X: 0.5, Y: 0.5}, "visual_1",
-		[]observe.Region{{X: 0.0, Y: 0.0, Width: 0.1, Height: 0.1}})
+		observe.Proposed([]observe.Region{{X: 0.0, Y: 0.0, Width: 0.1, Height: 0.1}}, 0, 0, 0))
 	if obs.Landed() || obs.Target != "" {
 		t.Errorf("a press on bare background got target %q and %d candidate(s)",
 			obs.Target, len(obs.Candidates))
@@ -95,25 +95,25 @@ func TestTheSameControlTwiceIsOneTargetAndAnotherScreenIsNot(t *testing.T) {
 	row := []observe.Region{{X: 0.1, Y: 0.4, Width: 0.3, Height: 0.05}}
 	at := observe.PointerAt{X: 0.2, Y: 0.42}
 
-	first := c.Press(1, at, "visual_1", row)
+	first := c.Press(1, at, "visual_1", observe.Proposed(row, 0, 0, 0))
 	// The proposer found it slightly differently the second time, which is the ordinary
 	// case and the thing mutual centre containment exists to absorb.
 	moved := []observe.Region{{X: 0.11, Y: 0.405, Width: 0.28, Height: 0.052}}
-	second := c.Press(40, at, "visual_1", moved)
+	second := c.Press(40, at, "visual_1", observe.Proposed(moved, 0, 0, 0))
 	if second.Target != first.Target {
 		t.Errorf("the same control read slightly differently got %q then %q. A route "+
 			"needs a repeated click to refer to one control",
 			first.Target, second.Target)
 	}
 	// The same place on a DIFFERENT screen is a different control.
-	other := c.Press(80, at, "visual_2", row)
+	other := c.Press(80, at, "visual_2", observe.Proposed(row, 0, 0, 0))
 	if other.Target == first.Target {
 		t.Errorf("the same place on another screen reused %q; the third row of one menu "+
 			"and the third row of another are two controls", other.Target)
 	}
 	// And a genuinely different place on the same screen is a different control.
 	far := c.Press(120, observe.PointerAt{X: 0.8, Y: 0.8}, "visual_1",
-		[]observe.Region{{X: 0.75, Y: 0.75, Width: 0.2, Height: 0.1}})
+		observe.Proposed([]observe.Region{{X: 0.75, Y: 0.75, Width: 0.2, Height: 0.1}}, 0, 0, 0))
 	if far.Target == first.Target {
 		t.Errorf("a press at the other end of the screen reused %q", far.Target)
 	}
@@ -146,9 +146,9 @@ func TestAChangeIsAttributedToTheMostRecentPressThatCouldHaveCausedIt(t *testing
 	// An older press on the right screen, then a newer one, then a press on ANOTHER
 	// screen that is newer than both. The order matters: if the newest press were the
 	// qualifying one, the screen test would be doing nothing here.
-	old := c.Press(2, observe.PointerAt{X: 0.15, Y: 0.15}, "visual_1", a)
-	recent := c.Press(8, observe.PointerAt{X: 0.65, Y: 0.65}, "visual_1", b)
-	c.Press(10, observe.PointerAt{X: 0.15, Y: 0.15}, "visual_9", a)
+	old := c.Press(2, observe.PointerAt{X: 0.15, Y: 0.15}, "visual_1", observe.Proposed(a, 0, 0, 0))
+	recent := c.Press(8, observe.PointerAt{X: 0.65, Y: 0.65}, "visual_1", observe.Proposed(b, 0, 0, 0))
+	c.Press(10, observe.PointerAt{X: 0.15, Y: 0.15}, "visual_9", observe.Proposed(a, 0, 0, 0))
 	c.Arrived(12, observe.VisualTransition{From: "visual_1", To: "visual_2"})
 
 	e := c.Evidence()
@@ -186,7 +186,7 @@ func TestAChangeIsAttributedToTheMostRecentPressThatCouldHaveCausedIt(t *testing
 func TestAPressTooLongBeforeAChangeIsNotItsCause(t *testing.T) {
 	var c observe.ClickTargets
 	c.Press(1, observe.PointerAt{X: 0.15, Y: 0.15}, "visual_1",
-		[]observe.Region{{X: 0.1, Y: 0.1, Width: 0.2, Height: 0.1}})
+		observe.Proposed([]observe.Region{{X: 0.1, Y: 0.1, Width: 0.2, Height: 0.1}}, 0, 0, 0))
 	c.Arrived(2+observe.MaxPressToTransitionLooks,
 		observe.VisualTransition{From: "visual_1", To: "visual_2"})
 
@@ -232,9 +232,9 @@ func TestARepeatedUnitIsCountedTwiceWithItsGaps(t *testing.T) {
 	var c observe.ClickTargets
 	row := []observe.Region{{X: 0.1, Y: 0.4, Width: 0.3, Height: 0.05}}
 	at := observe.PointerAt{X: 0.2, Y: 0.42}
-	c.Press(10, at, "visual_1", row)
+	c.Press(10, at, "visual_1", observe.Proposed(row, 0, 0, 0))
 	c.Arrived(16, observe.VisualTransition{From: "visual_1", To: "visual_2"})
-	c.Press(100, at, "visual_1", row)
+	c.Press(100, at, "visual_1", observe.Proposed(row, 0, 0, 0))
 	c.Arrived(103, observe.VisualTransition{From: "visual_1", To: "visual_2"})
 
 	e := c.Evidence()
@@ -280,9 +280,9 @@ func TestTwoIdentitiesThatReachedTheSamePlaceAreReportedNotMerged(t *testing.T) 
 	// Two different rows of one menu, each clicked once, each followed by the same screen.
 	one := []observe.Region{{X: 0.1, Y: 0.4, Width: 0.3, Height: 0.05}}
 	two := []observe.Region{{X: 0.1, Y: 0.6, Width: 0.3, Height: 0.05}}
-	c.Press(10, observe.PointerAt{X: 0.2, Y: 0.42}, "visual_2", one)
+	c.Press(10, observe.PointerAt{X: 0.2, Y: 0.42}, "visual_2", observe.Proposed(one, 0, 0, 0))
 	c.Arrived(15, observe.VisualTransition{From: "visual_2", To: "visual_3"})
-	c.Press(100, observe.PointerAt{X: 0.2, Y: 0.62}, "visual_2", two)
+	c.Press(100, observe.PointerAt{X: 0.2, Y: 0.62}, "visual_2", observe.Proposed(two, 0, 0, 0))
 	c.Arrived(105, observe.VisualTransition{From: "visual_2", To: "visual_3"})
 
 	e := c.Evidence()
@@ -299,7 +299,7 @@ func TestTwoIdentitiesThatReachedTheSamePlaceAreReportedNotMerged(t *testing.T) 
 	}
 	// AND A SINGLE UNIT IS NOT A PAIR WITH ITSELF.
 	var solo observe.ClickTargets
-	solo.Press(10, observe.PointerAt{X: 0.2, Y: 0.42}, "visual_2", one)
+	solo.Press(10, observe.PointerAt{X: 0.2, Y: 0.42}, "visual_2", observe.Proposed(one, 0, 0, 0))
 	solo.Arrived(15, observe.VisualTransition{From: "visual_2", To: "visual_3"})
 	if n := len(solo.Evidence().MaybeOneControl); n != 0 {
 		t.Errorf("%d pair(s) from one unit", n)
@@ -316,7 +316,7 @@ func TestTwoIdentitiesThatReachedTheSamePlaceAreReportedNotMerged(t *testing.T) 
 func TestTheLastPressOfADemonstrationIsNotLost(t *testing.T) {
 	var c observe.ClickTargets
 	c.Press(900, observe.PointerAt{X: 0.2, Y: 0.42}, "visual_1",
-		[]observe.Region{{X: 0.1, Y: 0.4, Width: 0.3, Height: 0.05}})
+		observe.Proposed([]observe.Region{{X: 0.1, Y: 0.4, Width: 0.3, Height: 0.05}}, 0, 0, 0))
 	if n := len(c.Evidence().Inert); n != 0 {
 		t.Fatalf("a press was filed before the session closed (%d)", n)
 	}

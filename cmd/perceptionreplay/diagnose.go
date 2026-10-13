@@ -245,7 +245,7 @@ func reportTargetDiagnosis(dir string, limit int, only string, cropDir string) e
 		}
 		// THE PRODUCTION VERDICT, taken before the fold exactly as the scorer takes
 		// it, so a look's explanation and its outcome come from one ordering.
-		for _, r := range obs.Reacquire(lk.Regions) {
+		for _, r := range obs.Reacquire(lk) {
 			if production[r.Target] == nil {
 				production[r.Target] = map[int]observe.ReacquireResult{}
 			}

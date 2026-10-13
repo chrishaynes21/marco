@@ -108,6 +108,15 @@ type Look struct {
 	// Presses are pointer presses observed during this look's interval, normalised to
 	// the window.
 	Presses []observe.PointerAt
+	// Slow is detections from a slower source that have ARRIVED by this look — each
+	// describing an EARLIER one.
+	//
+	// The pixels are not here and must not be: a frame costs 600ms to run through the
+	// detector and a look is 60ms, so the source that produced these owns the capture,
+	// runs off this thread, and hands back rectangles stamped with the context they
+	// were computed in. This observer's whole job with them is to decide whether that
+	// context is still the one it is in — see admitSlow.
+	Slow []observe.Candidate
 }
 
 // Update is what the observer publishes.
@@ -117,6 +126,15 @@ type Update struct {
 	At     time.Time              `json:"at"`
 	Window WindowRef              `json:"window"`
 	Screen observe.VisualScreenID `json:"screen"`
+	// Look is which look this was, and Epoch the observation generation it was folded
+	// under.
+	//
+	// Both are published because a caller that wants richer perception has to stamp its
+	// request with the context it was made in, and it cannot be trusted to work that
+	// out for itself: an epoch inferred from a screen NAME would be wrong in exactly
+	// the case this exists for, because a screen name recurs and an epoch does not.
+	Look  int    `json:"look"`
+	Epoch uint64 `json:"epoch"`
 	// Settled says this look promoted a new screen.
 	Settled bool `json:"settled,omitempty"`
 	// Step is the transition this look completed, with its cause, when it completed one.
@@ -156,6 +174,25 @@ type Stats struct {
 	// a demonstration whose press total could not be accounted for, and a press dropped
 	// here would be the same hole in a different wall.
 	Presses, PressesUnusable int
+	// SlowOffered is slow detections handed to the observer and SlowAdmitted those it
+	// accepted as candidates for this look. The three refusals are counted apart
+	// because they mean different things and only one of them is a defect:
+	//
+	//	SlowStaleEpoch	the screen moved while inference ran. ORDINARY.
+	//	SlowStaleWindow	another window's frame. Should be rare.
+	//	SlowUnusable	the look itself was not evidence.
+	//
+	// A deployment where SlowAdmitted is near zero and SlowStaleEpoch is large is one
+	// where inference is slower than the interface moves — which is a finding about
+	// the cadence and not a bug to be worked around by relaxing the rule.
+	SlowOffered, SlowAdmitted       int
+	SlowStaleEpoch, SlowStaleWindow int
+	SlowUnusable                    int
+	// SlowExpired is held candidates dropped because the observation moved on,
+	// and SlowOfferedLooks the looks on which at least one held candidate was part
+	// of the set a press would be judged against. The second is the one that says
+	// whether the second source was ever actually available when it mattered.
+	SlowExpired, SlowOfferedLooks int
 	// LatencyMS is per-look fold latency, which is what the observer itself costs once
 	// the pixels are in hand.
 	LatencyMS []float64
@@ -195,6 +232,32 @@ type Observer struct {
 	seen    uint64
 	hasSeen bool
 	look    int
+
+	// epoch is the OBSERVATION GENERATION: a counter that moves whenever the standing
+	// screen changes, and whenever the window underneath is replaced.
+	//
+	// It exists because an arrangement RECURS and a moment does not. Settle on A,
+	// ask for inference, navigate to B, come back to A, and the answer arrives
+	// describing a frame from the first visit while the screen in front looks
+	// identical. Nothing about the arrangement can tell those apart; a counter can.
+	// Returning to the same screen is a NEW epoch, so the old rectangle is refused
+	// rather than silently reused — which is the whole difference between a delayed
+	// result and a wrong one.
+	epoch     uint64
+	lastID    observe.VisualScreenID
+	hasLastID bool
+
+	// held is the slow candidates admitted and not yet outrun.
+	//
+	// A detection arrives on ONE look and is evidence about a SCREEN, so holding it
+	// is not an optimisation — it is the difference between the integration working
+	// and not. The press that needs the TRAINING tile lands about twenty looks after
+	// the menu settled; an answer offered only on the look it arrived on would be
+	// gone by then, and every counter would still report it admitted.
+	//
+	// Held, never refreshed and never reprojected. When the epoch moves the whole set
+	// goes at once, because what expired is the observation and not the rectangles.
+	held []observe.Candidate
 }
 
 // New builds an observer for a given observation interval and queue depth.
@@ -239,6 +302,9 @@ func (o *Observer) SettleLooks() int { return o.settle }
 // Stats is what the observer did.
 func (o *Observer) Stats() Stats { return o.stats }
 
+// Epoch is the observation generation a request made now should be stamped with.
+func (o *Observer) Epoch() uint64 { return o.epoch }
+
 // Screens is the session-local screens settled so far.
 func (o *Observer) Screens() []observe.VisualScreenSeen { return o.screens.Seen() }
 
@@ -278,8 +344,8 @@ func (o *Observer) Registry() []observe.TargetRecord { return o.clicks.Registry(
 // a screen somebody else believed was standing would be a target found on the wrong page. And it
 // is a read — nothing here folds, remembers or presses, and
 // [[ADR-180-finding-a-demonstrated-target-again]] is explicit that a match is not permission.
-func (o *Observer) Reacquire(regions []observe.Region) []observe.Reacquisition {
-	return o.clicks.Reacquire(o.screens.Screen(), regions)
+func (o *Observer) Reacquire(lk Look) []observe.Reacquisition {
+	return o.clicks.Reacquire(o.screens.Screen(), observe.Regions(o.candidateSet(lk)))
 }
 
 // Observe folds one look and publishes what it concluded.
@@ -298,6 +364,9 @@ func (o *Observer) Observe(lk Look) Update {
 	if o.hasSeen && lk.Window.Generation != o.seen {
 		o.screens.Interrupt()
 		o.stats.Interrupted++
+		// AND THE EPOCH MOVES. A result computed on the old window describes
+		// pixels this observer is no longer looking at, whatever it says.
+		o.epoch++
 	}
 	o.seen, o.hasSeen = lk.Window.Generation, true
 
@@ -328,9 +397,23 @@ func (o *Observer) Observe(lk Look) Update {
 	// arrived at — a learning unit whose source is its own destination.
 	standing := o.screens.Screen()
 	o.stats.Presses += len(lk.Presses)
+
+	// THE CANDIDATE SET A PRESS IS JUDGED AGAINST: this look's own geometry, plus
+	// whatever a slower source has returned that is still about this screen.
+	//
+	// Built even when there are no presses, because the admission ledger is a
+	// measurement of the integration and would otherwise only be collected on the
+	// seventeen looks of a nine-hundred-look recording that happen to carry one.
+	cands := observe.Merge(
+		observe.Proposed(regions, o.look, lk.Window.Generation, o.epoch),
+		o.intakeSlow(lk, len(regions) > 0))
+	if len(o.held) > 0 && len(regions) > 0 {
+		o.stats.SlowOfferedLooks++
+	}
+
 	if len(regions) > 0 {
 		for _, w := range lk.Presses {
-			o.clicks.Press(o.look, w, standing, regions)
+			o.clicks.Press(o.look, w, standing, cands)
 		}
 	} else {
 		// A PRESS WITH NOTHING TO HAVE LANDED ON, counted where it is lost. The
@@ -339,8 +422,19 @@ func (o *Observer) Observe(lk Look) Update {
 		o.stats.PressesUnusable += len(lk.Presses)
 	}
 
+	// THE ARRANGEMENT IS PIXEL-ONLY, DELIBERATELY.
+	//
+	// `regions`, never `cands`. A screen's identity is a count of rectangles in nine
+	// boxes, and feeding it a channel that arrives ten looks late and intermittently
+	// would make the signature of one screen depend on whether inference had landed
+	// yet — the same screen would be two screens, or two screens one, according to
+	// timing. Screen identity must be a function of the look alone.
 	id := o.screens.Observe(observe.ArrangeLook(regions), lk.At)
-	up := Update{At: lk.At, Window: lk.Window, Screen: id}
+	if o.hasLastID && id != o.lastID {
+		o.epoch++
+	}
+	o.lastID, o.hasLastID = id, true
+	up := Update{At: lk.At, Window: lk.Window, Screen: id, Look: o.look, Epoch: o.epoch}
 	switch id {
 	case observe.VisualScreenUnobserved, observe.VisualScreenUnknown:
 		up.Unobserved = true
@@ -365,6 +459,103 @@ func (o *Observer) Observe(lk Look) Update {
 		float64(time.Since(t0).Microseconds())/1000)
 	o.publish(up)
 	return up
+}
+
+// admitSlow decides which delayed detections are evidence about the look in front of us.
+//
+// # Three rules, and the one that is easy to get wrong
+//
+// A detection is admissible only when ALL of:
+//
+//  1. the look it arrives on is itself evidence — pixels were obtained and the target window
+//     was in front. A look that cannot host a pixel proposal cannot host a detection either,
+//     and admitting one would let a covered window's geometry in by the back door;
+//  2. it was computed under the window generation standing now. A frame of a window that has
+//     since been replaced describes something else;
+//  3. it was computed under the OBSERVATION GENERATION standing now.
+//
+// The third is the one that matters, and an earlier draft of this had it wrong. It said a
+// detection stayed admissible while its SCREEN was still standing — which sounds equivalent and
+// is not, because a screen can be left and returned to:
+//
+//	settle on A  ->  request  ->  navigate to B  ->  return to A  ->  result arrives
+//
+// Under the screen rule that result is admitted: the arrangement matches, because it is the
+// same menu. But between the request and the answer the interface was somewhere else, and
+// anything could have changed on the way back — a list scrolled, a dialog opened, a selection
+// moved. The rectangle is from a frame nobody is looking at any more and it would be offered as
+// though it were current.
+//
+// An epoch cannot be mistaken that way. It moves on every screen change, so leaving A and
+// coming back costs two increments, and the returning detection is refused for the reason it
+// should be: not that the screen is different, but that the OBSERVATION is.
+//
+// Refusals are counted, never logged and never retried. There is nothing to recover: the frame
+// is gone, and the next settle will ask again.
+func (o *Observer) intakeSlow(lk Look, usable bool) []observe.Candidate {
+	for _, c := range lk.Slow {
+		o.stats.SlowOffered++
+		switch {
+		case !usable:
+			o.stats.SlowUnusable++
+		case !observe.Admissible(c, lk.Window.Generation, o.epoch):
+			// ONE DECISION, TWO LABELS. An earlier version asked about the
+			// window here and about the epoch in `observe`, which read as
+			// thoroughness and was a second copy of half the rule — a mutation
+			// run found the copy in `observe` could be deleted with every test
+			// still passing, because nothing here was reaching it.
+			//
+			// So the rule decides, and the counters only say which part of the
+			// context moved: a window replaced under the observer and a screen
+			// that moved on are different findings about a deployment.
+			if c.Generation != lk.Window.Generation {
+				o.stats.SlowStaleWindow++
+			} else {
+				o.stats.SlowStaleEpoch++
+			}
+		default:
+			o.stats.SlowAdmitted++
+			o.held = append(o.held, c)
+		}
+	}
+	// WHAT THE OBSERVATION HAS OUTRUN GOES, all of it, the look it stops being current.
+	if len(o.held) > 0 {
+		kept := o.held[:0]
+		for _, c := range o.held {
+			if observe.Admissible(c, lk.Window.Generation, o.epoch) {
+				kept = append(kept, c)
+			}
+		}
+		o.stats.SlowExpired += len(o.held) - len(kept)
+		o.held = kept
+	}
+	if !usable {
+		return nil
+	}
+	return o.held
+}
+
+// candidateSet is what a press on this look would be judged against, computed without changing
+// anything: the look's own proposals, plus every slow candidate still admissible — held from an
+// earlier look, or arriving on this one.
+//
+// Reacquisition reads it, so a target the detector made findable can actually be found again.
+// Searching a narrower set than a press is judged against would mean Marco could learn a
+// control it could never re-acquire, which is the quietest possible way to waste the evidence.
+func (o *Observer) candidateSet(lk Look) []observe.Candidate {
+	if lk.Missing || !lk.Front {
+		return nil
+	}
+	var slow []observe.Candidate
+	for _, set := range [][]observe.Candidate{o.held, lk.Slow} {
+		for _, c := range set {
+			if observe.Admissible(c, lk.Window.Generation, o.epoch) {
+				slow = append(slow, c)
+			}
+		}
+	}
+	return observe.Merge(
+		observe.Proposed(lk.Regions, o.look, lk.Window.Generation, o.epoch), slow)
 }
 
 // publish sends without waiting, and counts what the queue would not take.

@@ -208,7 +208,7 @@ func runCadence(looks []cadenceLook, everyMS, offsetMS, settle int,
 
 		standing := screens.Screen()
 		for _, w := range lk.presses {
-			clicks.Press(n-1, w, standing, lk.rows)
+			clicks.Press(n-1, w, standing, observe.Proposed(lk.rows, n-1, 0, 0))
 		}
 		// DID THIS LOOK AGREE WITH THE STANDING SCREEN? Asked of the ARRANGEMENTS, not
 		// of what Observe returns: Observe answers the held screen for a look that

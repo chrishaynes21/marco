@@ -33,7 +33,7 @@ func demo(t *testing.T, from, to observe.VisualScreenID, which float64) (
 	t.Helper()
 	c := &observe.ClickTargets{}
 	all := []observe.Region{panel(), row(0.2), row(0.3), row(0.4)}
-	c.Press(1, centre(row(which)), from, all)
+	c.Press(1, centre(row(which)), from, observe.Proposed(all, 1, 0, 0))
 	c.Arrived(3, observe.VisualTransition{From: from, To: to})
 	d := workflow.Learn("enter free play",
 		[]observe.VisualScreenID{from, to}, c.Evidence(), c.Registry())
@@ -81,11 +81,11 @@ func TestTheDraftFollowsTheWalkAndNotTheEvidenceOrder(t *testing.T) {
 	all := []observe.Region{panel(), row(0.2), row(0.3), row(0.4)}
 	// Walk 1 -> 2 -> 3, but make 2 -> 3 the more repeated edge so the evidence sorts
 	// it first.
-	c.Press(1, centre(row(0.2)), "visual_1", all)
+	c.Press(1, centre(row(0.2)), "visual_1", observe.Proposed(all, 0, 0, 0))
 	c.Arrived(3, observe.VisualTransition{From: "visual_1", To: "visual_2"})
-	c.Press(5, centre(row(0.3)), "visual_2", all)
+	c.Press(5, centre(row(0.3)), "visual_2", observe.Proposed(all, 0, 0, 0))
 	c.Arrived(7, observe.VisualTransition{From: "visual_2", To: "visual_3"})
-	c.Press(9, centre(row(0.3)), "visual_2", all)
+	c.Press(9, centre(row(0.3)), "visual_2", observe.Proposed(all, 0, 0, 0))
 	c.Arrived(11, observe.VisualTransition{From: "visual_2", To: "visual_3"})
 
 	d := workflow.Learn("x", []observe.VisualScreenID{"visual_1", "visual_2", "visual_3"},
@@ -110,7 +110,7 @@ func TestAnAutomaticStepIsNotRepeatableAndSaysWhy(t *testing.T) {
 	// A change with no press before it, out of a screen Marco clicked its way into:
 	// the load-after-a-click shape.
 	all := []observe.Region{panel(), row(0.2)}
-	c.Press(1, centre(row(0.2)), "visual_1", all)
+	c.Press(1, centre(row(0.2)), "visual_1", observe.Proposed(all, 0, 0, 0))
 	c.Arrived(2, observe.VisualTransition{From: "visual_1", To: "visual_2"})
 	c.Arrived(4, observe.VisualTransition{From: "visual_2", To: "visual_3"})
 
@@ -273,9 +273,9 @@ func TestAnUncertainIdentityIsNotPlanned(t *testing.T) {
 	c := &observe.ClickTargets{}
 	a, b := row(0.2), row(0.4)
 	all := []observe.Region{panel(), a, b}
-	c.Press(1, centre(a), "visual_1", all)
+	c.Press(1, centre(a), "visual_1", observe.Proposed(all, 0, 0, 0))
 	c.Arrived(2, observe.VisualTransition{From: "visual_1", To: "visual_2"})
-	c.Press(10, centre(b), "visual_1", all)
+	c.Press(10, centre(b), "visual_1", observe.Proposed(all, 0, 0, 0))
 	c.Arrived(11, observe.VisualTransition{From: "visual_1", To: "visual_2"})
 
 	d := workflow.Learn("x", []observe.VisualScreenID{"visual_1", "visual_2"},

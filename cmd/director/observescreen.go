@@ -230,7 +230,7 @@ func runObserveScreen(args []string) int {
 					}
 				}
 			}
-			found.fold(obs.Reacquire(lk.Regions), pressed)
+			found.fold(obs.Reacquire(lk), pressed)
 		}
 		obs.Observe(lk)
 		stage.whole = append(stage.whole, msSince(whole))

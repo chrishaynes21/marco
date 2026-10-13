@@ -411,6 +411,7 @@ func TestAVisualScreenCannotReachDurableMemory(t *testing.T) {
 	allowed := map[string]bool{
 		filepath.Join(dir, "arrangement.go"):       true,
 		filepath.Join(dir, "arrangement_test.go"):  true,
+		filepath.Join(dir, "candidate.go"):         true,
 		filepath.Join(dir, "clicktarget.go"):       true,
 		filepath.Join(dir, "clicktarget_test.go"):  true,
 		filepath.Join(dir, "cause_test.go"):        true,
@@ -418,6 +419,7 @@ func TestAVisualScreenCannotReachDurableMemory(t *testing.T) {
 		filepath.Join(dir, "reacquire_test.go"):    true,
 		filepath.Join(fast, "fastobserve.go"):      true,
 		filepath.Join(fast, "fastobserve_test.go"): true,
+		filepath.Join(fast, "slow_test.go"):        true,
 		filepath.Join(fast, "boundary_test.go"):    true,
 		filepath.Join(flow, "workflow.go"):         true,
 		filepath.Join(flow, "workflow_test.go"):    true,

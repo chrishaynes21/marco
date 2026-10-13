@@ -1143,13 +1143,40 @@ it refuses those looks. Visible is fine; in front is not.
   on exactly the control that blocks the workflow while succeeding on its five neighbours.
   The container was available when the text was not.
   [[Experiment-030-asking-the-learned-detector-for-the-tile]]
-- **There are two perception stacks and they do not touch.** The Director cycle
+- **The two stacks now share one concept, and the workflow runs nine steps instead of one.**
+  A candidate carries its source, the detector's class (carried, read by nothing that
+  decides), its originating look, and the window and observation generations it was
+  computed under. A detection is requested on a settle, at most one outstanding, admitted
+  only while BOTH generations still hold, and held until one moves. Measured on
+  `rl-freeplay-1`: prefix **1 of 21 → 9 of 21**, controls resolvable **12 of 13 → 13 of 13**,
+  `target_2` **0 → 26** reacquisitions, **0 false matches** either way, ground truth
+  unchanged, fold latency p95 **0.511ms**. It stops at step 9 because the recording ended.
+  [[Experiment-031-the-workflow-gets-nine-steps-in]] · [[ADR-184-two-speeds-of-looking]]
+- **A screen is not an observation, and that distinction is load-bearing.** Leaving a
+  screen and returning gives the same arrangement, so a delayed detection validated
+  against the SCREEN would be reused on a frame nobody is looking at. An observation
+  generation separates the two visits; 56 of 249 delivered candidates were refused by it
+  on one recording, and 164 more expired while held.
+  [[Experiment-031-the-workflow-gets-nine-steps-in]]
+- **Matches moved into abstentions, which is the conservative direction.** A target whose
+  identity is a detected rectangle is only re-acquirable on a look where a detection is
+  held — 543 of 900 — so matched fell 674→593 and unobservable rose 450→537 while false
+  matches stayed at 0. At a 4-second inference delay the integration refuses nearly
+  everything and returns to exactly the pixel-only answer rather than a wrong one.
+  [[Experiment-031-the-workflow-gets-nine-steps-in]]
+- **No detector runs in any live path.** All of the above is offline, over recorded
+  detections replayed at the measured 820ms latency. Director's live sampler still does
+  not call the fast observer at all, and `stale-window` has never been exercised by
+  evidence — only by a test.
+- **There are two perception stacks and they barely touch.** The Director cycle
   (providers → `fusion.Engine` → Elements) already runs this detector at a frozen
   calibration and already holds every authority rule — `SourceRank`, `ActuatingSource`,
   evidence never destroyed, conflicts recorded rather than resolved. The fast observer has
   none of them, because its whole currency is `Look.Regions []observe.Region`: a rectangle
-  with no record of where it came from. So the gap is a missing wire, not a missing
-  capability. [[ADR-184-two-speeds-of-looking]] designs the wire and is unbuilt.
+  with no record of where it came from. The fast observer now has a sourced candidate and
+  the same authority vocabulary, but it still does not use `fusion.Engine`, and a
+  `directorapi.Element` and a session-local rectangle remain different objects.
+  [[ADR-184-two-speeds-of-looking]]
 - **Recall is the fix, not suppression.** `Press` takes the smallest proposal containing a
   press, so a missing true candidate is what promotes a noise aggregate to “the control”.
   Propose the tile and the stadium slab stops mattering without being removed.

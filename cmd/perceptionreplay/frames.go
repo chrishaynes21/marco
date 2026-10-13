@@ -391,7 +391,8 @@ func replayFrames(dir string, stride, limit int, verbose bool) (frameResult, err
 			if e.Intent != observe.NavPoint {
 				continue
 			}
-			clicks.Press(len(pixelSigs)-1, e.Where, standing, rows)
+			clicks.Press(len(pixelSigs)-1, e.Where, standing,
+				observe.Proposed(rows, len(pixelSigs)-1, 0, 0))
 		}
 		perLook = append(perLook, screens.Observe(
 			observe.ArrangeLook(rows),
