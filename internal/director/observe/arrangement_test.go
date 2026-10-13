@@ -386,6 +386,13 @@ func TestAVisualScreenCannotReachDurableMemory(t *testing.T) {
 	//     an import walk that fails if it can reach the durable store, the execution
 	//     pipeline or anything that can touch a desktop, and a source check that it
 	//     names no place establisher. [[ADR-178-the-fast-observer]]
+	//  3. reacquire.go, because finding a demonstrated target again is the same claim one
+	//     step further on: a rectangle on a screen identified by an arrangement, matched
+	//     to a rectangle found on a later look. It produces a `matched` verdict, which is
+	//     the most promotable-looking thing this tier has ever held — and so the one most
+	//     worth holding here. `Reacquisition.Actionable` says COULD, the actuation
+	//     boundary is untouched, and nothing in it can reach a store.
+	//     [[ADR-180-finding-a-demonstrated-target-again]]
 	//
 	// A widening of the TIER is not a widening of what may become durable, and the
 	// difference is the whole reason this list is worth keeping. The next addition should
@@ -399,6 +406,8 @@ func TestAVisualScreenCannotReachDurableMemory(t *testing.T) {
 		filepath.Join(dir, "clicktarget.go"):       true,
 		filepath.Join(dir, "clicktarget_test.go"):  true,
 		filepath.Join(dir, "cause_test.go"):        true,
+		filepath.Join(dir, "reacquire.go"):         true,
+		filepath.Join(dir, "reacquire_test.go"):    true,
 		filepath.Join(fast, "fastobserve.go"):      true,
 		filepath.Join(fast, "fastobserve_test.go"): true,
 		filepath.Join(fast, "boundary_test.go"):    true,

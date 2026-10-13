@@ -360,6 +360,19 @@ it refuses those looks. Visible is fine; in front is not.
 ## Decisions
 
 - [[ADR-010-passive-observation-cannot-execute]]
+- [[ADR-180-finding-a-demonstrated-target-again]] — a demonstrated click target can be
+  looked for again from the proposals alone, with the press position neither used nor
+  reachable. Three outcomes, not two: matched, ambiguous, unobservable — and `matched` is
+  not permission. No new threshold: `sameRect` decides, which forces two things worth
+  knowing — supporting proposals are grouped into CONTROLS so one row read twice is not
+  an ambiguity, and a region that merely CONTAINED the press cannot be support, because
+  mutual centre containment is not a size test and a row straddling its panel's centre
+  is "the same rectangle" as the panel. Measured on 900 looks: 52.2% matched, 47.8%
+  abstained, 0 colliding pairs — and on the only ground truth available, second presses,
+  **3 verified, 0 contradicted, 2 declined**. Two of twelve targets can never be found
+  again, and a scrolled list would be matched wrongly by any geometry. It also found an
+  accumulation that could never accumulate: `visualTarget.where` was documented as every
+  reading of a control and always held exactly one.
 - [[ADR-179-the-first-live-observation]] — the fast observer has now run against a live
   screen once, 60 seconds of Rocket League at 10fps, started by the owner. Cadence held
   exactly (600 looks, 0 dropped), the route is UNIQUELY recoverable from the transition
@@ -1057,6 +1070,21 @@ it refuses those looks. Visible is fine; in front is not.
   counted as seen-and-not-used. The fast observer correlates pointer presses; connecting key
   intents to screen changes is a separate decision, and reporting the count is what keeps the
   silence from reading as "nobody navigated". [[ADR-179-the-first-live-observation]]
+- **Reacquisition is measured on five data points.** Four of twelve targets in the recording
+  were clicked more than once, giving five repeat presses: three verified, none contradicted, two
+  declined. That is the owner's standard met on the evidence that exists and it is not a rate. A
+  second live run designed around repeated navigation is what would turn it into one.
+  [[ADR-180-finding-a-demonstrated-target-again]]
+- **Two of twelve demonstrated targets can never be reacquired**, and one flickers across the
+  looks of its own screen (139 matched, 74 ambiguous, 163 unobservable over 376). The refusals
+  are honest and they are a real cost: a control whose reading cannot be told from a region that
+  contained it is permanently unreacquirable.
+  [[ADR-180-finding-a-demonstrated-target-again]]
+- **A scrolled or reordered list defeats reacquisition, and geometry cannot see it.** The row
+  that moves into the demonstrated row's place satisfies every geometric test there is. Recorded
+  as a test that asserts the wrong answer on purpose; the recording has no scrolling list, so
+  this is reasoned rather than measured on real pixels.
+  [[ADR-180-finding-a-demonstrated-target-again]]
 - **The fast observer exists and nothing in Director's live sampler calls it.** It is reached
   only by `director observe-screen`, which the owner starts. Wiring it into the existing
   observation cycle is a separate decision, and the cycle's own cadence is the one ADR-175 ruled

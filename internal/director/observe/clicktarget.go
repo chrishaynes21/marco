@@ -292,13 +292,42 @@ const MaxTargetRegions = 16
 type visualTarget struct {
 	id     VisualTargetID
 	screen VisualScreenID
-	// where is every SMALLEST candidate this target has been clicked as.
+	// where is the smallest candidate this target was FIRST clicked as. One reading.
 	//
-	// Accumulated, because the proposer reads one control two ways on two frames and each
-	// reading is another way a later press can recognise it. Only the smallest, for the
-	// reason in identify.
+	// It was written to accumulate — "every rectangle it was found as is another way a
+	// later press can recognise it" — and the accumulation could never fire. `identify`
+	// is given the smallest candidate alone, a single rectangle; a later press reaches
+	// the loop only by AGREEING with a stored reading, and the loop appended only
+	// readings that DISAGREED with all of them. So the condition that admitted the press
+	// and the condition that would have stored it were each other's negation, and
+	// `MaxTargetRegions` on this field was unreachable too.
+	//
+	// Deleted rather than excused, which is this repository's rule for an unreachable
+	// guard. The tolerance that actually makes a control survive a proposer reading it
+	// slightly differently is `sameRect` — mutual centre containment — and that needs one
+	// reading, not a collection. A slice because the JSON shape is published and because
+	// an accumulation that is REACHED is a change somebody should make deliberately,
+	// after measuring what merging does to the identity count.
+	// [[ADR-180-finding-a-demonstrated-target-again]]
 	where []Region
 	seen  int
+	// containers is every LARGER region that also contained one of this target's
+	// presses, accumulated across them.
+	//
+	// Not part of the identity — `identify` is given the smallest candidate alone and
+	// that rule is measured, so this records beside it rather than changing it. Kept
+	// because the control/container ambiguity is what makes a click target hard, and
+	// because reacquisition has to be able to say "the panel is still here and the
+	// button is not" instead of matching the panel.
+	containers []Region
+	// ambiguous is how many of its presses landed inside more than one region, and
+	// firstLook/lastLook when it was clicked.
+	//
+	// The looks are what let a reacquisition be scored somewhere other than the
+	// demonstration itself: the owner's standard is that a click's own observation does
+	// not count as having found the target again.
+	ambiguous           int
+	firstLook, lastLook int
 }
 
 // ClickTargets correlates presses with the screen changes that followed them.
@@ -381,6 +410,7 @@ func (c *ClickTargets) Press(look int, at PointerAt, screen VisualScreenID,
 		// The rest of the set survives on the observation; see identify for the four
 		// rules measured and why this is the one that does not resolve anything.
 		obs.Target = c.identify(screen, obs.Candidates[:1])
+		c.recordTarget(obs)
 	}
 	c.pending = append(c.pending, obs)
 	return obs
@@ -421,29 +451,48 @@ func (c *ClickTargets) identify(screen VisualScreenID, cands []Region) VisualTar
 			continue
 		}
 		t.seen++
-		// WHAT ELSE THIS CONTROL LOOKS LIKE. Every new rectangle it was found as is
-		// another way a later press can recognise it, which is how a target survives
-		// a proposer that reads the same button two ways.
-		for _, r := range cands {
-			if len(t.where) >= MaxTargetRegions {
-				break
-			}
-			if !sameControl(t.where, []Region{r}) {
-				t.where = append(t.where, r)
-			}
-		}
 		return t.id
 	}
 	c.next++
 	id := VisualTargetID(fmt.Sprintf("target_%d", c.next))
-	keep := cands
-	if len(keep) > MaxTargetRegions {
-		keep = keep[:MaxTargetRegions]
-	}
 	c.targets = append(c.targets, visualTarget{
-		id: id, screen: screen, where: append([]Region{}, keep...), seen: 1,
+		id: id, screen: screen, where: append([]Region{}, cands...), seen: 1,
 	})
 	return id
+}
+
+// recordTarget files one press's alternatives and provenance against its target.
+//
+// Separate from identify on purpose. The identity rule was measured four ways on a real
+// demonstration and the one in the tree is the one that resolves nothing
+// ([[ADR-172-a-click-transition-is-a-source-a-target-and-a-destination]]); widening what it is
+// given would change a measured decision as a side effect of wanting more bookkeeping.
+func (c *ClickTargets) recordTarget(obs ClickObservation) {
+	for i := range c.targets {
+		t := &c.targets[i]
+		if t.id != obs.Target {
+			continue
+		}
+		if obs.Ambiguous {
+			t.ambiguous++
+		}
+		if t.firstLook == 0 {
+			t.firstLook = obs.Look
+		}
+		t.lastLook = obs.Look
+		// THE CONTAINERS, which are the candidates that are not the control's own
+		// reading. Bounded like `where`, because a session of five hundred clicks
+		// must not accumulate five hundred rectangles.
+		for _, r := range obs.Candidates[1:] {
+			if len(t.containers) >= MaxTargetRegions {
+				break
+			}
+			if !sameControl(t.containers, []Region{r}) {
+				t.containers = append(t.containers, r)
+			}
+		}
+		return
+	}
 }
 
 // sameControl reports whether any rectangle in one set is the same rectangle as any in the
@@ -677,10 +726,12 @@ func (c *ClickTargets) Evidence() ClickEvidence {
 type TargetSeen struct {
 	ID     VisualTargetID `json:"id"`
 	Screen VisualScreenID `json:"screen"`
-	// Where is every rectangle this control has been clicked as, which is what a later
-	// look would have to find again to re-ground it. More than one is not a defect: it is
-	// the proposer reading one control two ways, and keeping them is what let the second
-	// demonstration recognise the first one's click.
+	// Where is the rectangle this control was clicked as, which is what a later look has
+	// to find again to re-ground it.
+	//
+	// One reading, always. It was documented as a collection and the code that would have
+	// grown it was unreachable; see visualTarget.where. What lets a second demonstration
+	// recognise the first one's click is `sameRect`'s tolerance, not a list.
 	Where  []Region `json:"where"`
 	Clicks int      `json:"clicks"`
 }

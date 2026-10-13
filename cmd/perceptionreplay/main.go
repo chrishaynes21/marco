@@ -72,6 +72,9 @@ func main() {
 	observer := flag.Bool("observer", false,
 		"with -frames, fold the recording through the PRODUCTION fast observer and "+
 			"measure what it sustains, with and without a consumer keeping up")
+	reacquire := flag.Bool("reacquire", false,
+		"with -frames, measure whether a demonstrated click target can be found again "+
+			"on later looks of its own screen, from the proposals alone")
 	capturecost := flag.Bool("capturecost", false,
 		"with -frames, measure where an observation's time goes and what a smaller "+
 			"one keeps. Captures nothing from the screen")
@@ -107,6 +110,13 @@ func main() {
 						fmt.Fprintf(os.Stderr, "perceptionreplay: %s: %v\n", dir, err)
 						os.Exit(1)
 					}
+				}
+				continue
+			}
+			if *reacquire {
+				if err := reportReacquisitionOverRecording(dir, *limit); err != nil {
+					fmt.Fprintf(os.Stderr, "perceptionreplay: %s: %v\n", dir, err)
+					os.Exit(1)
 				}
 				continue
 			}

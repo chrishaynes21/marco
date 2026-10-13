@@ -248,6 +248,23 @@ func (o *Observer) Transitions() []observe.VisualTransition { return o.screens.T
 // Clicks is the press evidence, with the three causes intact.
 func (o *Observer) Clicks() observe.ClickEvidence { return o.clicks.Evidence() }
 
+// Screen is the screen standing now, which is what a reacquisition is scoped to.
+func (o *Observer) Screen() observe.VisualScreenID { return o.screens.Screen() }
+
+// Registry is every target demonstrated this session, with its provenance.
+func (o *Observer) Registry() []observe.TargetRecord { return o.clicks.Registry() }
+
+// Reacquire looks for the targets demonstrated on the screen standing NOW among the proposals of
+// the look in front of us.
+//
+// The screen comes from the observer rather than the caller on purpose: a reacquisition scoped to
+// a screen somebody else believed was standing would be a target found on the wrong page. And it
+// is a read — nothing here folds, remembers or presses, and
+// [[ADR-180-finding-a-demonstrated-target-again]] is explicit that a match is not permission.
+func (o *Observer) Reacquire(regions []observe.Region) []observe.Reacquisition {
+	return o.clicks.Reacquire(o.screens.Screen(), regions)
+}
+
 // Observe folds one look and publishes what it concluded.
 //
 // Never blocks. The fold is bounded work and the publication is a non-blocking send.
