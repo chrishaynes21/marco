@@ -185,9 +185,20 @@ func reportWorkflowOverRecording(dir string, limit int, onnx string, delay int) 
 	trials := map[int]*stepTrial{}
 	var lowered string
 	var loweredAt int
-	reach, stopAt, stopWhy := 0, -1, ""
-	cursor := 0
-	var pending *workflow.Action
+
+	// TWO WALKS, AND A COUNT OF WHAT EACH STEP WAS EVER OFFERED.
+	//
+	// The first walk is the product answer and is unchanged. The second starts at
+	// the step where the demonstration repeats its own opening, so the route the
+	// person walked SECOND is evaluated from its own starting observation rather
+	// than only as the tail of the first. `ownScreen` is the opportunities each
+	// step had at all, which is what separates a control that could not be found
+	// from one that was never looked for.
+	first := newWalker(0, 0)
+	secondStart := secondRouteStart(draft)
+	second := newWalker(max(secondStart, 0),
+		routeStartLook(draft, obs.Transitions(), secondStart))
+	ownScreen := map[int]int{}
 
 	// A SECOND FEED FOR THE SECOND PASS. The two passes are separate observers over
 	// the same recording, so sharing one feed would let the first pass's requests
@@ -224,61 +235,28 @@ func reportWorkflowOverRecording(dir string, limit int, onnx string, delay int) 
 			t.planned++
 		}
 
+		// ── WHAT EACH STEP WAS EVER OFFERED ──
+		//
+		// A repeatable step needs its SOURCE screen to be standing; a wait needs its
+		// DESTINATION, because what a wait observes is the arrival.
+		for i := range draft.Steps {
+			want := draft.Steps[i].From
+			if !draft.Steps[i].Repeatable() {
+				want = draft.Steps[i].To
+			}
+			if standing == want {
+				ownScreen[i]++
+			}
+		}
+
 		// ── THE PRODUCT QUESTION, in order, stopping where a run would ──
-		if stopAt >= 0 || cursor >= len(draft.Steps) {
-			return
+		first.look(draft, look, standing, got)
+		if secondStart >= 0 {
+			second.look(draft, look, standing, got)
 		}
-		step := draft.Steps[cursor]
-		if !step.Repeatable() {
-			// A WAIT. The right response to a load completing is to watch for
-			// the destination, and arriving is what advances.
-			if standing == step.To {
-				trial(trials, cursor).arrived++
-				cursor++
-				reach = cursor
-			} else {
-				trial(trials, cursor).waiting++
-			}
-			return
-		}
-		if pending != nil {
-			switch workflow.Verify(*pending, step.From, standing) {
-			case workflow.VerdictArrived:
-				trial(trials, cursor).arrived++
-				pending = nil
-				cursor++
-				reach = cursor
-			case workflow.VerdictElsewhere:
-				// THE EXPECTED TRANSITION DID NOT HAPPEN. A run stops: it
-				// has lost its place, and acting on a workflow that does
-				// not know where it is presses something nobody asked for.
-				trial(trials, cursor).elsewhre++
-				stopAt, stopWhy = cursor, fmt.Sprintf(
-					"the step expected %s and the screen became %s",
-					pending.Expect, standing)
-				pending = nil
-			case workflow.VerdictWaiting:
-				trial(trials, cursor).waiting++
-			}
-			return
-		}
-		if standing != step.From {
-			return
-		}
-		act, ref := workflow.Plan(draft, cursor, standing, got)
-		if ref != nil {
-			// NOT YET A STOP. The control may simply not be drawn on this look —
-			// a screen settles before its contents are proposed — so a run waits
-			// on its own screen and gives up when the screen itself goes away.
-			if standing != step.From {
-				stopAt, stopWhy = cursor, ref.Because
-			}
-			return
-		}
-		pending = act
-		if lowered == "" {
-			if src, lerr := lowerClick(*act, lk.Window.Bounds); lerr == nil {
-				lowered, loweredAt = src, cursor
+		if lowered == "" && first.act != nil {
+			if src, lerr := lowerClick(*first.act, lk.Window.Bounds); lerr == nil {
+				lowered, loweredAt = src, first.actAt
 			}
 		}
 	})
@@ -287,14 +265,18 @@ func reportWorkflowOverRecording(dir string, limit int, onnx string, delay int) 
 	}
 	// THE WALK ENDED WITHOUT A STOP AND WITHOUT FINISHING, which is its own outcome: the
 	// recording ran out while the workflow was still waiting on a control.
-	if stopAt < 0 && cursor < len(draft.Steps) {
-		stopAt = cursor
-		stopWhy = "the recording ended while this step was still waiting for its " +
-			"control to be resolvable"
-	}
+	first.finish(draft)
+	second.finish(draft)
 	obs2.Close()
 
-	printWorkflowTrials(draft, trials, reach, stopAt, stopWhy)
+	printWorkflowTrials(draft, trials, first.reach, first.stopAt, first.stopWhy)
+	walks := []*walker{first}
+	if secondStart >= 0 {
+		walks = append(walks, second)
+	}
+	cov := classify(draft, walks, ownScreen, trials)
+	printCoverage(draft, cov, first, second, secondStart)
+	printRepeatedTargets(draft, sameTargetAcrossVisits(draft, cov))
 	if lowered != "" {
 		fmt.Printf("\n  %s\n", repeat("-", 74))
 		fmt.Printf("  STEP %d, LOWERED INTO LEGAL MARCO. Not run. The point computed\n",

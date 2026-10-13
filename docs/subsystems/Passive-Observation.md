@@ -1152,6 +1152,19 @@ it refuses those looks. Visible is fine; in front is not.
   `target_2` **0 → 26** reacquisitions, **0 false matches** either way, ground truth
   unchanged, fold latency p95 **0.511ms**. It stops at step 9 because the recording ended.
   [[Experiment-031-the-workflow-gets-nine-steps-in]] · [[ADR-184-two-speeds-of-looking]]
+- **A prefix is not an assessment, and the prefix was hiding a route that works.**
+  Each learned step is now classified by WHY it went unexamined: verified, unresolved,
+  not-reached, or no-evidence. With detections: **19 verified, 0 unresolved**, 2 not
+  reached (the tail of route 1, where the recording ends). The second demonstrated route
+  completes **10 of 10 from its own starting observation** — and did so pixel-only too,
+  which the 1-of-21 prefix could never show because a walk cannot look past its own stop.
+  [[Experiment-032-what-the-recording-can-and-cannot-say]]
+- **The detector merged two identities into one control.** Pixel-only, the two presses on
+  the TRAINING tile were learned as `target_2` (the stadium slab, unresolvable at 0 of
+  62 looks) and `target_10` (resolvable at 5 of 62) — two identities for one control.
+  With detections both steps are `target_2`, verified on both visits at 26 of 62, and all
+  four repeated targets resolve at both of their steps.
+  [[Experiment-032-what-the-recording-can-and-cannot-say]]
 - **A screen is not an observation, and that distinction is load-bearing.** Leaving a
   screen and returning gives the same arrangement, so a delayed detection validated
   against the SCREEN would be reused on a frame nobody is looking at. An observation
