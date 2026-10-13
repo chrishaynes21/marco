@@ -102,6 +102,8 @@ func main() {
 	cadence := flag.Bool("cadence", false,
 		"with -frames, measure the screen model at several sampling rates and phases "+
 			"instead of replaying once")
+	screenid := flag.Bool("screenid", false,
+		"ask whether a demonstrated screen can be recognised again from saved visual evidence")
 	clarify := flag.String("clarify", "",
 		"print what Marco would ask about a saved workflow artifact, and what each answer would change")
 	appearance := flag.Bool("appearance", false,
@@ -158,6 +160,13 @@ func main() {
 			}
 			if *flow {
 				if err := reportWorkflowOverRecording(dir, *limit, *onnx, *onnxdelay, *save); err != nil {
+					fmt.Fprintf(os.Stderr, "perceptionreplay: %s: %v\n", dir, err)
+					os.Exit(1)
+				}
+				continue
+			}
+			if *screenid {
+				if err := reportScreenRecognition(dir, *limit, *onnx); err != nil {
 					fmt.Fprintf(os.Stderr, "perceptionreplay: %s: %v\n", dir, err)
 					os.Exit(1)
 				}

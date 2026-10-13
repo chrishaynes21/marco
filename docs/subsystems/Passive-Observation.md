@@ -1154,6 +1154,25 @@ it refuses those looks. Visible is fine; in front is not.
   second-press rule fixes this within a session; fold A holds only the first press, so
   the rule never fired and the artifact was saved with the label as its identity.
   [[Experiment-034-two-controls-and-why-each-was-lost]]
+- **Screen recognition fails at ABSENCE, not at discrimination, and no measure fixes it.**
+  Five measures over two independent folds — arrangement, its shape, a whole-frame colour
+  histogram, a per-cell one, and the detector’s classes. Where a counterpart exists the
+  production relation puts it top **6 of 6**, worst margin +0.062, and every other measure
+  is worse. But all five nominate the two screens fold B never saw, **unopposed** — 0.886
+  and 0.559 for arrangement, 1.000 and 0.996 for palette and detector. Those are
+  Experiment-029’s two wrong bindings, located: nothing can say “none of these”.
+  [[Experiment-036-recognising-a-screen-you-were-shown]]
+- **Appearance costs five correct recognitions and fixes none of the wrong ones.** The
+  ambiguity rule would decline 1 correct answer under arrangement and 5 under palette,
+  grid or detector, while BIND-WRONG stays at 2 for all of them. The appearance measures
+  also collapse on screens that move (self-similarity 0.27–0.36 where proposal counts
+  swing 56–373), exactly as Experiment-035 found at control scale.
+  [[Experiment-036-recognising-a-screen-you-were-shown]]
+- **Absence cannot be read out of a ranking, because a ranking always has a top.** A
+  higher floor, a runner-up margin and agreement between measures were each checked and
+  each fail: the wrong winner beats its runner-up by 0.419 while a correct one beats
+  its by 0.062, and all five measures agree on the same wrong screen.
+  [[Experiment-036-recognising-a-screen-you-were-shown]]
 - **Marco can now ask for the smallest missing piece instead of a new demonstration.**
   A control the matcher cannot tell from a region that merely contained its press becomes
   a QUESTION, with both rectangles named and inspectable, and a person can choose, refuse
