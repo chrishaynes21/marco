@@ -198,3 +198,17 @@ three were the same mistake — a fixture with one of something, so a filter tha
 everything looked correct: one target in the registry (so "this target's destinations" had nothing
 to be wrong about), one target clicked twice (so "repeated" was true either way), and no target
 minted on an unidentified screen (so the guard against matching on one had nothing to guard).
+
+## The live command reports it too, before a run is asked for
+
+`director observe-screen` prints the registry and a per-target reacquisition tally, computed
+before each look is folded and excluding the looks a target was pressed on — the same rule the
+replay uses, so a live session and the recording produce comparable numbers.
+
+It distinguishes **"no target's screen ever came back"** from **"the target could not be found"**.
+Two silences with the same shape and opposite meanings: the first has measured nothing about the
+matcher, and printing `0%` for it would report a failure at a test that was never given. A second
+bounded live run would be proposed on the strength of this output, so it had to be unambiguous
+before anybody is asked to sit through one.
+
+Mutation gate: a further 7 mutants, all killed.

@@ -119,7 +119,8 @@ func TestTheObserverReportAccountsForEveryPress(t *testing.T) {
 	o.Close()
 	var silent bytes.Buffer
 	reportObserve(&silent, o, 0, "",
-		observe.InputStats{Unavailable: "no hook could be installed"}, 0, stageTimes{})
+		observe.InputStats{Unavailable: "no hook could be installed"}, 0, stageTimes{},
+		reacquireTally{})
 	if !strings.Contains(silent.String(), "NOT OBSERVED") {
 		t.Errorf("with no mouse producer the report does not say so:\n%s", &silent)
 	}
@@ -154,7 +155,7 @@ func TestTheObserverReportAccountsForEveryPress(t *testing.T) {
 			capture: []float64{16.1, 16.9, 17.4},
 			propose: []float64{30.0, 44.0, 51.0},
 			whole:   []float64{48.0, 62.0, 70.0},
-		})
+		}, reacquireTally{})
 	out := seen.String()
 	for _, want := range []string{
 		"9 event(s) received",      // what the hook saw
@@ -240,7 +241,7 @@ func TestTheReportRefusesStageTimingsThatDoNotAddUp(t *testing.T) {
 		capture: []float64{50, 50, 50},
 		propose: []float64{40, 40, 40},
 		whole:   []float64{60, 60, 60},
-	})
+	}, reacquireTally{})
 	if !strings.Contains(bad.String(), "DO NOT ADD UP") {
 		t.Errorf("an acquisition and a proposer totalling 90ms inside a 60ms look is "+
 			"reported as though it were a measurement:\n%s", &bad)
@@ -252,7 +253,7 @@ func TestTheReportRefusesStageTimingsThatDoNotAddUp(t *testing.T) {
 		capture: []float64{16, 17, 17},
 		propose: []float64{30, 44, 51},
 		whole:   []float64{48, 62, 70},
-	})
+	}, reacquireTally{})
 	if strings.Contains(good.String(), "DO NOT ADD UP") {
 		t.Errorf("a consistent set of stage timings is reported as contradictory, so "+
 			"the warning carries no information:\n%s", &good)
@@ -262,9 +263,81 @@ func TestTheReportRefusesStageTimingsThatDoNotAddUp(t *testing.T) {
 	// the stage were free.
 	var none bytes.Buffer
 	reportObserve(&none, o, 0, "", observe.InputStats{}, 0,
-		stageTimes{whole: []float64{60}})
+		stageTimes{whole: []float64{60}}, reacquireTally{})
 	if !strings.Contains(none.String(), "(0 measured)") {
 		t.Errorf("an unmeasured stage does not say so, so a timer that never fired "+
 			"reads as a stage that cost nothing:\n%s", &none)
+	}
+}
+
+// THE LIVE REPORT DISTINGUISHES "NEVER CAME BACK" FROM "COULD NOT BE FOUND".
+//
+// Two silences with the same shape and opposite meanings. A session where no screen with a target
+// on it ever returned has measured nothing about reacquisition; a session where it returned and
+// the target could not be found has measured something quite specific. Printing 0% for the first
+// would report the matcher failing at a test it was never given — and a second bounded live run
+// is about to be proposed on the strength of this output, so it has to be unambiguous before
+// anybody is asked to sit through one.
+func TestTheLiveReportSeparatesNoReturnFromNoMatch(t *testing.T) {
+	build := func() *fastobserve.Observer {
+		o, err := fastobserve.New(100*time.Millisecond, 64)
+		if err != nil {
+			t.Fatal(err)
+		}
+		menu := []observe.Region{
+			{X: 0.35, Y: 0.1, Width: 0.3, Height: 0.6},
+			{X: 0.4, Y: 0.2, Width: 0.2, Height: 0.05},
+		}
+		at := time.Unix(1700000000, 0).UTC()
+		for i := range 4 {
+			o.Observe(fastobserve.Look{At: at.Add(time.Duration(i*100) * time.Millisecond),
+				Window: fastobserve.WindowRef{Generation: 1}, Regions: menu, Front: true})
+		}
+		o.Observe(fastobserve.Look{At: at.Add(400 * time.Millisecond),
+			Window: fastobserve.WindowRef{Generation: 1}, Regions: menu, Front: true,
+			Presses: []observe.PointerAt{{X: 0.5, Y: 0.225}}})
+		return o
+	}
+
+	// A session that demonstrated a target and never looked for it again.
+	never := build()
+	never.Close()
+	var out bytes.Buffer
+	reportObserve(&out, never, 0, "", observe.InputStats{}, 0, stageTimes{},
+		reacquireTally{})
+	if !strings.Contains(out.String(), "demonstrated target(s)") {
+		t.Fatalf("the report does not name the demonstrated target:\n%s", &out)
+	}
+	if !strings.Contains(out.String(), "no target's screen came back") {
+		t.Errorf("a session that never returned to a target's screen is not "+
+			"distinguished from one where the target could not be found:\n%s", &out)
+	}
+	if strings.Contains(out.String(), "matched      ") {
+		t.Errorf("a rate is printed although nothing was looked for again, so the "+
+			"matcher is reported failing a test it was never given:\n%s", &out)
+	}
+
+	// And a session that did look, and found it.
+	looked := build()
+	looked.Close()
+	var out2 bytes.Buffer
+	tally := reacquireTally{}
+	tally.fold([]observe.Reacquisition{{
+		Target: "target_1", Screen: "visual_1", Result: observe.ReacquireMatched,
+	}}, nil)
+	reportObserve(&out2, looked, 0, "", observe.InputStats{}, 0, stageTimes{}, tally)
+	if !strings.Contains(out2.String(), "matched           1  100.0%") {
+		t.Errorf("a target looked for once and found is not reported as a rate:\n%s",
+			&out2)
+	}
+	// AND A PRESSED LOOK IS NOT A REACQUISITION. The owner's standard, held by the
+	// tally rather than by the caller remembering.
+	excluded := reacquireTally{}
+	excluded.fold([]observe.Reacquisition{{
+		Target: "target_1", Screen: "visual_1", Result: observe.ReacquireMatched,
+	}}, map[observe.VisualTargetID]bool{"target_1": true})
+	if n := len(excluded.order); n != 0 {
+		t.Errorf("%d target(s) tallied on a look they were pressed on: a matcher "+
+			"scored on the frame it learned from reports its own memory", n)
 	}
 }

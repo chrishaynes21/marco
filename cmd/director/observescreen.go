@@ -158,6 +158,7 @@ func runObserveScreen(args []string) int {
 	deadline := time.Now().Add(time.Duration(*seconds) * time.Second)
 	lost := ""
 	keys := 0
+	var found reacquireTally
 	// THE STAGES, TIMED SEPARATELY.
 	//
 	// The observer reports its own fold latency, which is the one number that can be
@@ -217,6 +218,20 @@ func runObserveScreen(args []string) int {
 			}
 			lk.Regions = observe.NormaliseRects(img.Image.Bounds(), rects)
 		}
+		// REACQUISITION BEFORE THE FOLD, so nothing this look teaches can help
+		// recognise what this look was meant to recognise. The targets this look's
+		// own presses belong to are excluded from the tally for the same reason.
+		if len(obs.Registry()) > 0 {
+			pressed := map[observe.VisualTargetID]bool{}
+			for _, t := range obs.Registry() {
+				for _, w := range lk.Presses {
+					if t.Screen == obs.Screen() && containsAny(t.Where, w) {
+						pressed[t.ID] = true
+					}
+				}
+			}
+			found.fold(obs.Reacquire(lk.Regions), pressed)
+		}
 		obs.Observe(lk)
 		stage.whole = append(stage.whole, msSince(whole))
 		<-ticker.C
@@ -235,11 +250,66 @@ func runObserveScreen(args []string) int {
 			in.Unavailable = "no mouse producer was started"
 		}
 	}
-	reportObserve(os.Stdout, obs, seen, lost, in, keys, stage)
+	reportObserve(os.Stdout, obs, seen, lost, in, keys, stage, found)
 	return 0
 }
 
 // reportObserve prints what the observer concluded. Hypotheses and counts.
+// reacquireTally is how often each demonstrated target was found again.
+//
+// Counted live because [[ADR-180-finding-a-demonstrated-target-again]]'s numbers come from one
+// recording and five repeat presses. A rate needs a session that walks the same route twice on
+// purpose, and the command has to be able to report one before such a session is worth asking
+// for.
+type reacquireTally struct {
+	// byTarget is one record per identity, keyed in first-seen order by `order`.
+	byTarget map[observe.VisualTargetID]*targetTally
+	order    []observe.VisualTargetID
+}
+
+type targetTally struct {
+	screen                           observe.VisualScreenID
+	looks                            int
+	matched, ambiguous, unobservable int
+	indistinct                       int
+	uncertain                        bool
+}
+
+// fold records one look's outcomes.
+//
+// `pressed` is the targets this look's presses belong to, which are excluded: the owner's
+// standard is that a click's own observation is not a reacquisition, and a matcher scored on the
+// frame it learned from would report its own memory.
+func (r *reacquireTally) fold(got []observe.Reacquisition, pressed map[observe.VisualTargetID]bool) {
+	if r.byTarget == nil {
+		r.byTarget = map[observe.VisualTargetID]*targetTally{}
+	}
+	for _, o := range got {
+		if pressed[o.Target] {
+			continue
+		}
+		t, ok := r.byTarget[o.Target]
+		if !ok {
+			t = &targetTally{screen: o.Screen}
+			r.byTarget[o.Target] = t
+			r.order = append(r.order, o.Target)
+		}
+		t.looks++
+		t.uncertain = t.uncertain || o.Uncertain
+		switch o.Result {
+		case observe.ReacquireMatched:
+			t.matched++
+		case observe.ReacquireAmbiguous:
+			t.ambiguous++
+		default:
+			t.unobservable++
+			if o.Indistinct > 0 {
+				t.indistinct++
+			}
+		}
+	}
+}
+
 // stageTimes is per-look milliseconds for each stage of a look.
 //
 // Kept apart because they are three different claims about three different pieces of the
@@ -264,7 +334,7 @@ func pctile(v []float64, p int) float64 {
 }
 
 func reportObserve(w io.Writer, obs *fastobserve.Observer, consumed int, lost string,
-	in observe.InputStats, keys int, stage stageTimes) {
+	in observe.InputStats, keys int, stage stageTimes, found reacquireTally) {
 	s := obs.Stats()
 	fmt.Fprintf(w, "\n%d look(s): %d published, %d dropped, %d consumed\n",
 		s.Looks, s.Published, s.Dropped, consumed)
@@ -359,6 +429,7 @@ func reportObserve(w io.Writer, obs *fastobserve.Observer, consumed int, lost st
 		fmt.Fprintf(w, "  %-10s --%-10s--> %-10s %-9s x%d\n",
 			st.From, st.Target, st.To, st.Cause, st.Count)
 	}
+	reportReacquire(w, obs, found)
 	if lost != "" {
 		fmt.Fprintf(w, "\nStopped early: %s\n", lost)
 	}
@@ -387,6 +458,19 @@ func splitNav(events []observe.InputEvent) ([]observe.PointerAt, int) {
 		keys++
 	}
 	return presses, keys
+}
+
+// containsAny reports whether any of a target's readings contains a press.
+func containsAny(where []observe.Region, at observe.PointerAt) bool {
+	for _, r := range where {
+		if r.Width <= 0 || r.Height <= 0 {
+			continue
+		}
+		if at.X >= r.X && at.Y >= r.Y && at.X < r.X+r.Width && at.Y < r.Y+r.Height {
+			return true
+		}
+	}
+	return false
 }
 
 // sortedReasons orders the ignore reasons so two runs print them the same way.
