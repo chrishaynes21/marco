@@ -266,86 +266,57 @@ func TestALoadedWorkflowIsNotExecutableAuthority(t *testing.T) {
 }
 
 // UNSUPPORTED BINDING: a partial decision binds nothing.
+//
+// A workflow that bound what it could would plan its first steps and discover somewhere in the
+// middle that it has no idea where it is. The refusal has to arrive before the first action, not
+// at the first gap.
 func TestAPartiallyBoundWorkflowIsRefusedEntirely(t *testing.T) {
 	back := roundTrip(t)
 
 	if _, err := back.Bind(workflowstore.Binding{}); err == nil {
 		t.Fatal("an empty binding was accepted")
 	}
-	// Everything but one control.
-	b := workflowstore.Binding{
-		Screens:  map[string]observe.VisualScreenID{},
-		Controls: map[string]observe.VisualTargetID{},
-	}
-	for i, s := range back.Screens {
-		b.Screens[s.Label] = observe.VisualScreenID(
-			[]string{"visual_9", "visual_8", "visual_7"}[i%3])
-	}
-	for i, c := range back.Controls {
+	b := workflowstore.Binding{Screens: map[string]observe.VisualScreenID{}}
+	for i, sc := range back.Screens {
 		if i == 0 {
-			continue
+			continue // the one nobody has established
 		}
-		b.Controls[c.Label] = "target_9"
-	}
-	_, err := back.Bind(b)
-	if err == nil {
-		t.Fatal("a workflow bound while one of its controls was unaccounted for")
-	}
-	if !strings.Contains(err.Error(), back.Controls[0].Label) {
-		t.Errorf("the refusal does not name what is missing: %v", err)
-	}
-}
-
-// AND THE SAME WHEN IT IS A SCREEN THAT IS UNACCOUNTED FOR.
-//
-// A separate case because it is a separate branch: a test that bound every screen and omitted a
-// control passed whether the screen half existed or not, which a mutation run found.
-func TestAWorkflowWithAnUnboundScreenIsRefused(t *testing.T) {
-	back := roundTrip(t)
-	b := workflowstore.Binding{
-		Screens:  map[string]observe.VisualScreenID{},
-		Controls: map[string]observe.VisualTargetID{},
-	}
-	for i, s := range back.Screens {
-		if i == 0 {
-			continue // the one nobody has said anything about
-		}
-		b.Screens[s.Label] = "visual_9"
-	}
-	for _, c := range back.Controls {
-		b.Controls[c.Label] = "target_9"
+		b.Screens[sc.Label] = "visual_9"
 	}
 	_, err := back.Bind(b)
 	if err == nil {
 		t.Fatal("a workflow bound while one of its screens was unaccounted for")
 	}
 	if !strings.Contains(err.Error(), back.Screens[0].Label) {
-		t.Errorf("the refusal does not name the missing screen: %v", err)
+		t.Errorf("the refusal does not name what is missing: %v", err)
 	}
+}
+
+// bindAll is a complete, arbitrary correspondence — what a caller who knows would supply.
+func bindAll(a workflowstore.Artifact) workflowstore.Binding {
+	b := workflowstore.Binding{Screens: map[string]observe.VisualScreenID{}}
+	for i, sc := range a.Screens {
+		b.Screens[sc.Label] = observe.VisualScreenID("visual_" + string(rune('1'+i)))
+	}
+	return b
 }
 
 // A COMPLETE BINDING PRODUCES A PLANNABLE — AND STILL UNCONFIRMED — WORKFLOW.
 func TestBindingSaysWhereThingsAreAndNotThatAnybodyAgreed(t *testing.T) {
 	back := roundTrip(t)
-	b := workflowstore.Binding{
-		Screens:  map[string]observe.VisualScreenID{},
-		Controls: map[string]observe.VisualTargetID{},
-	}
-	for i, s := range back.Screens {
-		b.Screens[s.Label] = observe.VisualScreenID("visual_" + string(rune('1'+i)))
-	}
-	for i, c := range back.Controls {
-		b.Controls[c.Label] = observe.VisualTargetID("target_" + string(rune('1'+i)))
-	}
-	d, err := back.Bind(b)
+	d, err := back.Bind(bindAll(back))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if d.Steps[0].From != "visual_1" {
 		t.Errorf("step 0 starts from %q after binding", d.Steps[0].From)
 	}
-	if d.Steps[0].Target != "target_1" {
-		t.Errorf("step 0 presses %q after binding", d.Steps[0].Target)
+	// THE CONTROL KEEPS THE ARTIFACT'S LABEL, in this session and every other. Targets
+	// are not bound: a control is re-acquired from its readings at the moment of acting,
+	// and a bound identity would be a stale answer that still looks fresh.
+	if d.Steps[0].Target != "control_1" {
+		t.Errorf("step 0 presses %q after binding; a control's label is not a thing "+
+			"binding translates", d.Steps[0].Target)
 	}
 	// The readings came with it — a bound workflow that could not re-acquire its
 	// controls would be a route with no way to find anything on it.
@@ -356,6 +327,182 @@ func TestBindingSaysWhereThingsAreAndNotThatAnybodyAgreed(t *testing.T) {
 	if d.Executable() {
 		t.Error("binding made a workflow executable. Knowing where a control is is " +
 			"not permission to press it")
+	}
+}
+
+// THE STORED EVIDENCE REACHES THE MATCHER, SCOPED TO THE BOUND SCREEN.
+func TestTargetsCarryTheirEvidenceToTheBoundScreen(t *testing.T) {
+	back := roundTrip(t)
+	got := back.Targets(bindAll(back))
+	if len(got) != len(back.Controls) {
+		t.Fatalf("%d stored target(s) for %d control(s)", len(got), len(back.Controls))
+	}
+	for _, st := range got {
+		if !strings.HasPrefix(string(st.ID), "control_") {
+			t.Errorf("a stored target is called %q", st.ID)
+		}
+		if !strings.HasPrefix(string(st.Screen), "visual_") {
+			t.Errorf("%s is scoped to %q, which is not a screen of this session",
+				st.ID, st.Screen)
+		}
+		if len(st.Readings) == 0 {
+			t.Errorf("%s reached the matcher with no readings, so it could never "+
+				"be found again", st.ID)
+		}
+	}
+	// A CONTROL ON AN UNBOUND SCREEN IS LEFT OUT rather than scoped to a label. An
+	// outcome on `screen_a` would be refused by the planner for a reason that reads
+	// like the matcher failed.
+	if n := len(back.Targets(workflowstore.Binding{})); n != 0 {
+		t.Errorf("%d target(s) came back with nothing bound", n)
+	}
+}
+
+// EVERY SCREEN GETS ITS OWN LABEL, IN THE ORDER THE WALK MET IT.
+//
+// Two screens sharing a label would collapse two places into one, and the artifact would
+// describe a shorter route than the person walked — silently, because every field would still
+// validate.
+func TestEachScreenGetsItsOwnLabelInWalkOrder(t *testing.T) {
+	d, _ := demo(t)
+	got := workflowstore.Labels(d)
+	seen := map[string]observe.VisualScreenID{}
+	for id, label := range got {
+		if other, clash := seen[label]; clash {
+			t.Errorf("%s and %s were both called %s", id, other, label)
+		}
+		seen[label] = id
+	}
+	if len(got) != 3 {
+		t.Fatalf("%d label(s) for 3 screens", len(got))
+	}
+	// visual_1 is the first screen the walk meets.
+	if got["visual_1"] != "screen_a" {
+		t.Errorf("the walk's first screen is %q, want screen_a", got["visual_1"])
+	}
+	// And Save agrees with Labels, because it IS Labels.
+	a, err := workflowstore.Save(d, nil, saved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(a.Screens) != len(got) {
+		t.Errorf("the artifact describes %d screen(s) for %d label(s)",
+			len(a.Screens), len(got))
+	}
+	for i := 1; i < len(a.Screens); i++ {
+		if a.Screens[i-1].Label >= a.Screens[i].Label {
+			t.Errorf("the screens are not in label order: %s before %s",
+				a.Screens[i-1].Label, a.Screens[i].Label)
+		}
+	}
+}
+
+// THE THREE OUTCOMES, AND WHY THE MIDDLE ONE IS NOT A TIE-BREAK.
+func TestAProposedCorrespondenceIsValidatedOrRefused(t *testing.T) {
+	back := roundTrip(t)
+	// The artifact's own arrangements, so a candidate can be made to agree exactly.
+	stored := map[string]observe.VisualArrangement{}
+	for _, sc := range back.Screens {
+		stored[sc.Label] = sc.Arrangement
+	}
+	labels := []string{back.Screens[0].Label, back.Screens[1].Label, back.Screens[2].Label}
+
+	props := []workflowstore.Proposal{
+		// ONE candidate that agrees -> bound.
+		{Label: labels[0], Candidates: []workflowstore.ScreenCandidate{
+			{ID: "visual_7", Arrangement: stored[labels[0]]},
+		}},
+		// TWO that agree -> ambiguous, however they score.
+		{Label: labels[1], Candidates: []workflowstore.ScreenCandidate{
+			{ID: "visual_8", Arrangement: stored[labels[1]]},
+			{ID: "visual_9", Arrangement: stored[labels[1]]},
+		}},
+		// One that does not -> the caller's claim is REJECTED.
+		{Label: labels[2], Candidates: []workflowstore.ScreenCandidate{
+			{ID: "visual_6", Arrangement: observe.VisualArrangement{
+				Cells: map[string]int{"8,8": 400}, Total: 400}},
+		}},
+	}
+	want := map[string]workflowstore.BindResult{
+		labels[0]: workflowstore.BindBound,
+		labels[1]: workflowstore.BindAmbiguous,
+		labels[2]: workflowstore.BindNoCounterpart,
+	}
+	got := back.BindScreens(props)
+	if len(got) != len(back.Screens) {
+		t.Fatalf("%d outcome(s) for %d screen(s)", len(got), len(back.Screens))
+	}
+	for _, o := range got {
+		w, named := want[o.Label]
+		if !named {
+			// Every screen nobody proposed anything for.
+			if o.Result != workflowstore.BindNoCounterpart {
+				t.Errorf("%s: %q with nothing proposed", o.Label, o.Result)
+			}
+			continue
+		}
+		if o.Result != w {
+			t.Errorf("%s: %q, want %q (scores %v, because %s)",
+				o.Label, o.Result, w, o.Scores, o.Because)
+		}
+		if o.Result == workflowstore.BindBound && o.ID != "visual_7" {
+			t.Errorf("%s bound to %q", o.Label, o.ID)
+		}
+		if o.Result != workflowstore.BindBound && o.ID != "" {
+			t.Errorf("%s is %q and still names %q", o.Label, o.Result, o.ID)
+		}
+	}
+	// AND A RUN OF OUTCOMES BINDS ONLY WHAT WAS BOUND.
+	b := workflowstore.BindingFrom(got)
+	if len(b.Screens) != 1 {
+		t.Fatalf("%d screen(s) bound from one bound outcome", len(b.Screens))
+	}
+	if _, err := back.Bind(b); err == nil {
+		t.Error("a workflow was bound from a run that refused most of its screens")
+	}
+}
+
+// AN AMBIGUITY IS A REFUSAL EVEN WHEN ONE CANDIDATE IS PLAINLY BETTER.
+//
+// This is the measured rule and the one most likely to be "improved" away. Experiment-029's best
+// WRONG binding scored 0.886 while correct ones scored as low as 0.556 — so a higher score is
+// not evidence of being right, and taking the best of two qualifying candidates would be exactly
+// the rule that produced two wrong bindings out of seven.
+func TestABetterScoreIsNotATieBreak(t *testing.T) {
+	back := roundTrip(t)
+	exact := back.Screens[0].Arrangement
+	// A second candidate that qualifies but agrees less well.
+	weaker := observe.VisualArrangement{Cells: map[string]int{}, Total: 0}
+	for k, v := range exact.Cells {
+		weaker.Cells[k] = v
+		weaker.Total += v
+	}
+	for k := range weaker.Cells {
+		weaker.Cells[k] = weaker.Cells[k] * 3 / 4
+		break
+	}
+
+	got := back.BindScreens([]workflowstore.Proposal{{
+		Label: back.Screens[0].Label,
+		Candidates: []workflowstore.ScreenCandidate{
+			{ID: "visual_1", Arrangement: exact},
+			{ID: "visual_2", Arrangement: weaker},
+		},
+	}})
+	var o workflowstore.ScreenOutcome
+	for _, c := range got {
+		if c.Label == back.Screens[0].Label {
+			o = c
+		}
+	}
+	if o.Scores["visual_1"] <= o.Scores["visual_2"] {
+		t.Fatalf("the fixture's candidates score %v; one must be plainly better",
+			o.Scores)
+	}
+	if o.Result != workflowstore.BindAmbiguous {
+		t.Errorf("%q with two qualifying candidates scoring %.3f and %.3f; a higher "+
+			"score is not evidence of being right", o.Result,
+			o.Scores["visual_1"], o.Scores["visual_2"])
 	}
 }
 

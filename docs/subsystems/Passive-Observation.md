@@ -1129,6 +1129,21 @@ it refuses those looks. Visible is fine; in front is not.
   [target_10] on visual_2”. They are rewritten to the artifact's labels now, and an
   identity the artifact does not describe becomes a phrase. No synthetic fixture found
   this one. [[ADR-183-remembering-recognising-and-being-allowed-to-act]]
+- **A saved workflow has been reconstructed and its controls found again by a session that
+  never saw the demonstration.** Two independent folds of one recording, the artifact
+  crossing between them as 8,511 bytes and nothing else: **5 screens bound, 1 ambiguous,
+  2 with no counterpart**, and **2 of 4 controls on a bound screen re-acquired** from the
+  file's own readings through the production matcher. `control_4` matched on 52 of 54
+  looks. The workflow as a whole was refused, because three screens could not be
+  established. [[Experiment-033-a-workflow-asked-for-in-another-session]]
+- **The conservative binder fired on the first real screen.** `screen_a` had three
+  candidates above the floor, the best at 0.787, and was refused as ambiguous — exactly
+  the case a best-match rule gets wrong. Validation can REJECT a correspondence the
+  evidence contradicts and cannot confirm one: agreement is necessary and not
+  sufficient, and nothing yet can propose a correspondence without a person.
+- **Two of four controls could not be found again** on screens that were bound, over 28
+  and 90 looks. Whether that is the proposer, the screens being genuinely different, or
+  the readings being too thin is unanswered.
 - **The Binding half is still unbuilt, on purpose.** Nothing in the store compares an
   arrangement or picks a best match, because
   [[Experiment-029-binding-a-screen-across-two-independent-folds]] measured that relation

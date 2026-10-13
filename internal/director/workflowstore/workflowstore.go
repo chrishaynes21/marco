@@ -131,6 +131,32 @@ type Step struct {
 func screenLabel(i int) string  { return fmt.Sprintf("screen_%c", 'a'+rune(i%26)) }
 func controlLabel(i int) string { return fmt.Sprintf("control_%d", i+1) }
 
+// Labels is which artifact label each session screen was given.
+//
+// SAVE-TIME ONLY, and never stored. A caller that still has the session it saved from sometimes
+// needs to know which label a screen became — an offline experiment binding a saved workflow
+// against a second, independent fold needs exactly this to work out which screen of the second
+// fold corresponds to which label of the first.
+//
+// It is a function of the draft alone, and it is the same function `Save` uses, so there is no
+// way for the two to disagree about which screen became `screen_c`. Labels are allocated in the
+// order the walk meets them, so reading the file top to bottom is reading the route in the order
+// it was demonstrated.
+func Labels(d workflow.Draft) map[observe.VisualScreenID]string {
+	out := map[observe.VisualScreenID]string{}
+	for _, s := range d.Steps {
+		for _, id := range []observe.VisualScreenID{s.From, s.To} {
+			if id == "" {
+				continue
+			}
+			if _, ok := out[id]; !ok {
+				out[id] = screenLabel(len(out))
+			}
+		}
+	}
+	return out
+}
+
 // Save turns a session's draft into a durable artifact.
 //
 // `arrangements` is the evidence for each screen the draft names. A screen with no arrangement
@@ -150,20 +176,20 @@ func Save(d workflow.Draft, arrangements map[observe.VisualScreenID]observe.Visu
 	//
 	// In walk order rather than sorted, so reading the file top to bottom is reading the
 	// route in the order it was demonstrated.
-	screens := map[observe.VisualScreenID]string{}
+	screens := Labels(d)
 	controls := map[observe.VisualTargetID]string{}
-	label := func(id observe.VisualScreenID) string {
-		if id == "" {
-			return ""
-		}
-		if l, ok := screens[id]; ok {
-			return l
-		}
-		l := screenLabel(len(screens))
-		screens[id] = l
-		a.Screens = append(a.Screens, Screen{Label: l, Arrangement: arrangements[id]})
-		return l
+	// The screens in label order, so the file reads as the route was walked.
+	byLabel := make([]observe.VisualScreenID, 0, len(screens))
+	for id := range screens {
+		byLabel = append(byLabel, id)
 	}
+	sort.Slice(byLabel, func(i, j int) bool { return screens[byLabel[i]] < screens[byLabel[j]] })
+	for _, id := range byLabel {
+		a.Screens = append(a.Screens, Screen{
+			Label: screens[id], Arrangement: arrangements[id],
+		})
+	}
+	label := func(id observe.VisualScreenID) string { return screens[id] }
 
 	// BY INDEX, NOT BY POINTER. Holding a *Control into a slice that is still being
 	// appended to is a pointer into an array that `append` may replace: the merge
@@ -352,15 +378,146 @@ func Unmarshal(b []byte) (Artifact, error) {
 
 // ── binding ───────────────────────────────────────────────────────────────────
 
-// Binding is a caller's decision about what the artifact's labels correspond to NOW.
+// BindResult is what became of one proposed correspondence.
+type BindResult string
+
+const (
+	// BindBound: exactly one proposed candidate is supported by the stored evidence.
+	BindBound BindResult = "bound"
+	// BindAmbiguous: more than one is. A REFUSAL, and not a tie to be broken.
+	BindAmbiguous BindResult = "ambiguous"
+	// BindNoCounterpart: none is. Also a refusal, and a different one — "I cannot tell
+	// which of these" and "none of these" send a reader to different places.
+	BindNoCounterpart BindResult = "no-counterpart"
+)
+
+// ScreenCandidate is one screen a caller believes a saved screen might be now, with the
+// evidence for it as observed NOW.
+type ScreenCandidate struct {
+	ID          observe.VisualScreenID
+	Arrangement observe.VisualArrangement
+}
+
+// Proposal is a caller's claim about one saved screen, with every current screen it thinks
+// could be the one.
 //
-// A decision, and recorded as one. Nothing in this package compares an arrangement, scores a
-// similarity or picks a best match: Experiment-029 measured that the available relation binds
-// the wrong screen at 0.886 while binding right ones at 0.556, and that no floor separates them.
-// Until something can abstain, the only honest binder is somebody who knows.
+// Offering several is the honest case and the one the outcome rules are written for: a caller
+// that narrowed to its favourite before asking would have already made the decision this is
+// supposed to examine.
+type Proposal struct {
+	Label      string
+	Candidates []ScreenCandidate
+}
+
+// ScreenOutcome is one saved screen's verdict, with the numbers behind it.
+type ScreenOutcome struct {
+	Label  string
+	Result BindResult
+	// ID is the screen this is bound to, and is set only when bound.
+	ID observe.VisualScreenID
+	// Scores is every candidate's similarity to the stored arrangement, including the
+	// ones that did not qualify. Reported because a binding nobody can see the losing
+	// scores for is one nobody can argue with.
+	Scores  map[observe.VisualScreenID]float64
+	Because string
+}
+
+// BindScreens validates a caller's proposed correspondences against the stored evidence.
+//
+// # What this does, and the much smaller thing it can actually prove
+//
+// The caller says which current screen it believes a saved one is. This checks that claim
+// against the arrangement the demonstration recorded, and answers one of three ways.
+//
+// **Agreement is necessary and not sufficient**, and that sentence is the whole design.
+// [[Experiment-029-binding-a-screen-across-two-independent-folds]] measured this relation
+// binding the wrong screen at 0.886 while binding right ones at 0.556 — so a candidate that
+// agrees may still be the wrong screen, and this cannot tell. What it CAN do is reject a
+// correspondence the evidence contradicts, and refuse when more than one candidate qualifies.
+// That is validation, not recognition, and calling it recognition is the error this whole
+// subsystem exists to avoid.
+//
+// # Why more than one qualifying candidate is a refusal rather than a ranking
+//
+// Because ranking is exactly what the measurement broke. The best wrong binding in
+// Experiment-029 outscored four of the five correct ones, so "the highest score above the
+// floor" is a rule with a measured error rate and no way to tell when it is wrong. Two
+// qualifying candidates is therefore `ambiguous` however far apart they score. A caller that
+// knows which is which can say so by proposing one.
+func (a Artifact) BindScreens(props []Proposal) []ScreenOutcome {
+	offered := map[string][]ScreenCandidate{}
+	for _, p := range props {
+		offered[p.Label] = append(offered[p.Label], p.Candidates...)
+	}
+
+	out := make([]ScreenOutcome, 0, len(a.Screens))
+	for _, sc := range a.Screens {
+		o := ScreenOutcome{Label: sc.Label, Scores: map[observe.VisualScreenID]float64{}}
+		var qualified []ScreenCandidate
+		for _, c := range offered[sc.Label] {
+			sim := observe.ArrangementSimilarity(sc.Arrangement, c.Arrangement)
+			o.Scores[c.ID] = sim
+			if sim >= observe.VisualScreenMatch {
+				qualified = append(qualified, c)
+			}
+		}
+		switch {
+		case len(offered[sc.Label]) == 0:
+			o.Result = BindNoCounterpart
+			o.Because = "nothing was proposed for this screen"
+		case len(qualified) == 0:
+			o.Result = BindNoCounterpart
+			o.Because = fmt.Sprintf("%d candidate(s) were proposed and the stored "+
+				"arrangement supports none of them at or above %.2f",
+				len(offered[sc.Label]), observe.VisualScreenMatch)
+		case len(qualified) > 1:
+			// NOT A TIE TO BREAK. See the note above: the ordering of these
+			// scores is the thing that was measured and found unreliable.
+			o.Result = BindAmbiguous
+			o.Because = fmt.Sprintf("%d candidates are supported by the stored "+
+				"arrangement and nothing here chooses between them; the best "+
+				"wrong binding ever measured outscored four correct ones",
+				len(qualified))
+		default:
+			o.Result = BindBound
+			o.ID = qualified[0].ID
+			o.Because = fmt.Sprintf("the only candidate the stored arrangement "+
+				"supports, at %.3f. Agreement is necessary and not sufficient: "+
+				"this validates the caller's correspondence and does not "+
+				"establish it", o.Scores[qualified[0].ID])
+		}
+		out = append(out, o)
+	}
+	return out
+}
+
+// Binding is which current screen each saved screen corresponds to.
+//
+// CONTROLS ARE NOT IN IT, and that is ADR-183's rule rather than an omission:
+//
+//	targets are not bound. Not at save time and not at bind time. A control is re-acquired
+//	from the artifact's stored readings against the proposals of the look in front of
+//	Marco, at the moment of acting.
+//
+// So a saved control keeps the artifact's own label in every session, and `Targets` hands its
+// readings to the matcher. A bound coordinate would be a stale answer that still looks fresh.
 type Binding struct {
-	Screens  map[string]observe.VisualScreenID
-	Controls map[string]observe.VisualTargetID
+	Screens map[string]observe.VisualScreenID
+}
+
+// BindingFrom collects the bound outcomes, and only those.
+//
+// An ambiguous or unsupported screen contributes nothing, so a binding assembled from a run of
+// outcomes is as incomplete as the run was — and `Bind` then refuses it, naming what is
+// missing. The refusal arrives at the end rather than being skipped at the start.
+func BindingFrom(outcomes []ScreenOutcome) Binding {
+	b := Binding{Screens: map[string]observe.VisualScreenID{}}
+	for _, o := range outcomes {
+		if o.Result == BindBound {
+			b.Screens[o.Label] = o.ID
+		}
+	}
+	return b
 }
 
 // Draft returns the workflow as the planner's own type, with the artifact's labels intact.
@@ -376,37 +533,75 @@ func (a Artifact) Draft() workflow.Draft {
 	return a.draft(Binding{})
 }
 
-// Bind applies a caller's decision and returns a draft in the session's own identities.
+// Bind applies a caller's decision and returns a draft in the session's own screen identities.
 //
-// Refuses while anything is unbound, naming what is missing. A partial binding is the dangerous
-// case — a workflow that could plan its first three steps and then discover it has no idea where
-// step four goes is one that acts before it finds out.
+// Refuses while any screen is unbound, naming what is missing. A partial binding is the
+// dangerous case — a workflow that could plan its first three steps and then discover it has no
+// idea where step four goes is one that acts before it finds out.
 //
 // The returned draft is STILL UNCONFIRMED. Binding says where things are; it does not say
 // anybody agreed to press them.
 func (a Artifact) Bind(b Binding) (workflow.Draft, error) {
 	var missing []string
-	for _, s := range a.Screens {
-		if b.Screens[s.Label] == "" {
-			missing = append(missing, s.Label)
-		}
-	}
-	for _, c := range a.Controls {
-		if b.Controls[c.Label] == "" {
-			missing = append(missing, c.Label)
+	for _, sc := range a.Screens {
+		if b.Screens[sc.Label] == "" {
+			missing = append(missing, sc.Label)
 		}
 	}
 	if len(missing) > 0 {
 		sort.Strings(missing)
 		return workflow.Draft{}, fmt.Errorf("workflowstore: %q cannot be bound: "+
-			"nothing has been said about %v. A workflow that bound what it could "+
-			"and left the rest would act before discovering it was lost",
+			"nothing has been established about %v. A workflow that bound what it "+
+			"could and left the rest would act before discovering it was lost",
 			a.Name, missing)
 	}
 	return a.draft(b), nil
 }
 
-// draft builds the planner's type, translating labels through whatever binding exists.
+// Targets is the stored evidence for every control, scoped to the screen it was demonstrated
+// on, ready for the matcher.
+//
+// The control keeps the ARTIFACT's label in every session, so an outcome and the step that
+// wants it name the same thing without anything having been bound. Only the screen is
+// translated, and a control whose screen is unbound is left out: matching it would produce an
+// outcome scoped to a screen nobody has established, and `workflow.Plan` would then refuse it
+// for a reason that reads like a matcher failure.
+func (a Artifact) Targets(b Binding) []observe.StoredTarget {
+	byLabel := map[string]Control{}
+	for _, c := range a.Controls {
+		byLabel[c.Label] = c
+	}
+	seen := map[string]bool{}
+	var out []observe.StoredTarget
+	for _, st := range a.Steps {
+		if st.Control == "" || seen[st.Control] {
+			continue
+		}
+		id, ok := b.Screens[st.From]
+		if !ok || id == "" {
+			continue
+		}
+		seen[st.Control] = true
+		c := byLabel[st.Control]
+		out = append(out, observe.StoredTarget{
+			ID:     observe.VisualTargetID(c.Label),
+			Screen: id,
+			// UNCERTAIN FROM THE STEP, because it is the step that recorded the
+			// session's doubt about this control.
+			Uncertain:  st.Uncertain,
+			Readings:   append([]observe.Region{}, c.Readings...),
+			Containers: append([]observe.Region{}, c.Containers...),
+		})
+	}
+	return out
+}
+
+// draft builds the planner's type, translating SCREEN labels through whatever binding exists.
+//
+// A control's label is left exactly as it is, in every session. That is not an oversight: the
+// matcher is handed the same label through `Targets`, so a step and the outcome for it name one
+// another without anything having been bound, and there is no moment at which a control's
+// identity could be decided by this package.
 func (a Artifact) draft(b Binding) workflow.Draft {
 	readings := map[string]Control{}
 	for _, c := range a.Controls {
@@ -421,21 +616,12 @@ func (a Artifact) draft(b Binding) workflow.Draft {
 		}
 		return observe.VisualScreenID(label)
 	}
-	control := func(label string) observe.VisualTargetID {
-		if label == "" {
-			return ""
-		}
-		if id, ok := b.Controls[label]; ok && id != "" {
-			return id
-		}
-		return observe.VisualTargetID(label)
-	}
 
 	d := workflow.Draft{Name: a.Name, Notes: a.Notes}
 	for _, st := range a.Steps {
 		s := workflow.Step{
 			From: screen(st.From), To: screen(st.To), Cause: st.Cause,
-			Target: control(st.Control), Seen: st.Seen,
+			Target: observe.VisualTargetID(st.Control), Seen: st.Seen,
 			Uncertain: st.Uncertain, Unresolved: st.Unresolved,
 		}
 		if c, ok := readings[st.Control]; ok {

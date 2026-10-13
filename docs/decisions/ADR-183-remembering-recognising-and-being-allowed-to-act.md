@@ -234,14 +234,45 @@ describe becomes a phrase, because the ambiguity is the point of the sentence an
 is not. No synthetic fixture produced this — one of the package's fixtures now writes what
 `workflow.Learn` actually writes.
 
+## The Binding half, conservatively
+
+Built after the owner asked for it in the one shape the measurement allows:
+
+> it may require externally supplied screen correspondence and use the stored evidence to
+> validate or reject that correspondence.
+
+`BindScreens` takes a caller's proposed correspondences and answers **bound**, **ambiguous** or
+**no counterpart** — the three outcomes this note's Binding section asked for. It never selects a
+best match. Two candidates clearing the floor is `ambiguous` however far apart they score,
+because the ordering of those scores is precisely what Experiment-029 measured and found
+unreliable.
+
+**Agreement is necessary and not sufficient.** This can reject a correspondence the stored
+evidence contradicts; it cannot confirm one. That is validation, and calling it recognition would
+be the error this note exists to prevent.
+
+[[Experiment-033-a-workflow-asked-for-in-another-session]] ran it across two independent folds:
+**5 bound, 1 ambiguous, 2 with no counterpart** — and the ambiguous one had three candidates
+above the floor with the best at 0.787, exactly the case a best-match binder would have got
+wrong. The workflow as a whole was therefore refused, which is the correct answer.
+
+Targets are still not bound, per this note's own rule. `Artifact.Targets` hands the stored
+readings to `observe.ReacquireStored` — the registry's own matcher, now reachable without a
+registry — and a control keeps the artifact's label in every session. **2 of 4 controls on a
+bound screen were found again by a session that never saw the demonstration.**
+
 ## What is still required before anything can be performed
 
 Named here so that "it saves and loads" is not mistaken for "it runs":
 
-- **A binding mechanism that can abstain.** Not this note's `ambiguous`, which Experiment-029
-  showed is a sketch: both of its wrong bindings were unopposed rather than ambiguous.
-- **Target re-acquisition from stored readings**, rather than from a session registry. The
-  artifact keeps the readings for exactly this, and `observe.Reacquire` does not yet take them.
+- **A binding that can be ESTABLISHED rather than validated.** The abstention exists now,
+  and it fires; what does not exist is anything that can propose a correspondence
+  without a person. Experiment-029's wrong bindings were unopposed rather than
+  ambiguous, and an unopposed wrong candidate still binds.
+- **A complete binding.** On the fold split measured, three of eight screens could not be
+  established, so the workflow was refused as a whole.
+- **The controls that cannot be found again.** Two of four on a bound screen matched on
+  none of their looks. [[Experiment-033-a-workflow-asked-for-in-another-session]]
 - **Fresh confirmation, per session.** Built: a loaded workflow has none.
 - **Live execution authorisation and a destination to verify against**, both unchanged from the
   Authorisation section above and both unbuilt.

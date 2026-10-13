@@ -223,15 +223,42 @@ func (c *ClickTargets) Reacquire(screen VisualScreenID, regions []Region) []Reac
 	return out
 }
 
-// reacquireOne is one target against one look's proposals.
-func (c *ClickTargets) reacquireOne(t visualTarget, regions []Region) Reacquisition {
-	r := Reacquisition{Target: t.id, Screen: t.screen}
-	for _, p := range c.Evidence().MaybeOneControl {
-		if p.A == t.id || p.B == t.id {
-			r.Uncertain = true
-			break
-		}
-	}
+// StoredTarget is everything finding a control again actually needs.
+//
+// # Why this type exists
+//
+// Reacquisition used to be reachable only through a session's own registry, which meant a
+// control could be found again only in the session that learned it. A workflow read back from a
+// file has the same evidence — the readings, the containers that are not the control, and
+// whether the session could tell this identity from another — and no registry at all.
+//
+// So the matcher takes evidence rather than a registry, and the registry became one of its two
+// callers. There is one matcher: a target re-acquired from a file and a target re-acquired from
+// the session that learned it are judged by the same rules, which is the only way the offline
+// measurement means anything about the live path.
+//
+// The ID and Screen are carried through to the outcome and are not consulted. They are labels
+// for a reader — for a reloaded workflow they are the artifact's own, which name nothing in this
+// session, and the matching is pure geometry either way.
+type StoredTarget struct {
+	ID     VisualTargetID
+	Screen VisualScreenID
+	// Readings is every reading of the CONTROL, Containers every larger region that also
+	// contained one of its presses.
+	Readings   []Region
+	Containers []Region
+	// Uncertain says the session that learned this could not tell it from another
+	// identity on the same screen. Carried because a match against an uncertain identity
+	// matches a PAIR, and a reader has to be told that.
+	Uncertain bool
+}
+
+// ReacquireStored matches one stored control against one look's proposals.
+//
+// `regions` is what the proposer found NOW. The original click position is not consulted and is
+// not reachable from here: the inputs are rectangles and rectangles.
+func ReacquireStored(t StoredTarget, regions []Region) Reacquisition {
+	r := Reacquisition{Target: t.ID, Screen: t.Screen, Uncertain: t.Uncertain}
 	// EVERY PROPOSAL THAT AGREES WITH A READING OF THIS CONTROL AND IS NOT A KNOWN
 	// CONTAINER OF IT.
 	//
@@ -252,10 +279,10 @@ func (c *ClickTargets) reacquireOne(t visualTarget, regions []Region) Reacquisit
 	// press's own candidates.
 	indistinct := 0
 	for _, p := range regions {
-		if !sameControl(t.where, []Region{p}) {
+		if !sameControl(t.Readings, []Region{p}) {
 			continue
 		}
-		if sameControl(t.containers, []Region{p}) {
+		if sameControl(t.Containers, []Region{p}) {
 			// INDISTINGUISHABLE FROM A REGION THAT CONTAINED THE PRESS, so it
 			// cannot be support. Counted, because it is a different refusal from
 			// finding nothing and it sends a reader somewhere else entirely.
@@ -282,7 +309,7 @@ func (c *ClickTargets) reacquireOne(t visualTarget, regions []Region) Reacquisit
 			// reader who sees `unobservable` while the panel is plainly on screen
 			// should be told so rather than left to suspect a capture fault.
 			for _, p := range regions {
-				if sameControl(t.containers, []Region{p}) {
+				if sameControl(t.Containers, []Region{p}) {
 					r.Because += ", though a region that contained the " +
 						"original press is still here: a container is not " +
 						"the control and its centre is not the same press"
@@ -314,6 +341,25 @@ func (c *ClickTargets) reacquireOne(t visualTarget, regions []Region) Reacquisit
 			len(r.Supporting), len(groups))
 	}
 	return r
+}
+
+// reacquireOne is one target against one look's proposals, from the registry.
+//
+// The registry's own entry point into the matcher above. It is the only thing that knows about
+// `MaybeOneControl`, which is session evidence: whether two identities led to the same place is
+// a fact about what was observed, not about the rectangles.
+func (c *ClickTargets) reacquireOne(t visualTarget, regions []Region) Reacquisition {
+	st := StoredTarget{
+		ID: t.id, Screen: t.screen,
+		Readings: t.where, Containers: t.containers,
+	}
+	for _, p := range c.Evidence().MaybeOneControl {
+		if p.A == t.id || p.B == t.id {
+			st.Uncertain = true
+			break
+		}
+	}
+	return ReacquireStored(st, regions)
 }
 
 // controlGroups partitions regions into sets that are readings of one control.

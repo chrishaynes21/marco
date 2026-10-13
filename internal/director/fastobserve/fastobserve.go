@@ -345,7 +345,7 @@ func (o *Observer) Registry() []observe.TargetRecord { return o.clicks.Registry(
 // is a read — nothing here folds, remembers or presses, and
 // [[ADR-180-finding-a-demonstrated-target-again]] is explicit that a match is not permission.
 func (o *Observer) Reacquire(lk Look) []observe.Reacquisition {
-	return o.clicks.Reacquire(o.screens.Screen(), observe.Regions(o.candidateSet(lk)))
+	return o.clicks.Reacquire(o.screens.Screen(), observe.Regions(o.Candidates(lk)))
 }
 
 // Observe folds one look and publishes what it concluded.
@@ -535,14 +535,19 @@ func (o *Observer) intakeSlow(lk Look, usable bool) []observe.Candidate {
 	return o.held
 }
 
-// candidateSet is what a press on this look would be judged against, computed without changing
+// Candidates is what a press on this look would be judged against, computed without changing
 // anything: the look's own proposals, plus every slow candidate still admissible — held from an
 // earlier look, or arriving on this one.
+//
+// Exported because a RELOADED workflow needs it too. A workflow read from a file has stored
+// readings and no session registry, and matching them against a narrower set than a press is
+// judged against would mean Marco could learn a control it could never re-acquire. One set, one
+// statement of what is on this look.
 //
 // Reacquisition reads it, so a target the detector made findable can actually be found again.
 // Searching a narrower set than a press is judged against would mean Marco could learn a
 // control it could never re-acquire, which is the quietest possible way to waste the evidence.
-func (o *Observer) candidateSet(lk Look) []observe.Candidate {
+func (o *Observer) Candidates(lk Look) []observe.Candidate {
 	if lk.Missing || !lk.Front {
 		return nil
 	}
