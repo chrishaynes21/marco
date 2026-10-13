@@ -546,7 +546,7 @@ func match(scr, tmpl *image.RGBA, tol int) Match {
 		// template's — robust to a small warp/AA the spatial score is sensitive to.
 		win := scr.SubImage(image.Rect(scr.Rect.Min.X+bestX0, scr.Rect.Min.Y+bestY0,
 			scr.Rect.Min.X+bestX0+tw, scr.Rect.Min.Y+bestY0+th)).(*image.RGBA)
-		best.ColorScore = histIntersection(colorHistogram(tmpl), colorHistogram(win))
+		best.ColorScore = HistIntersection(ColorHistogram(tmpl), ColorHistogram(win))
 	}
 	return best
 }

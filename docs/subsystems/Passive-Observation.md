@@ -1154,6 +1154,21 @@ it refuses those looks. Visible is fine; in front is not.
   second-press rule fixes this within a session; fold A holds only the first press, so
   the rule never fired and the artifact was saved with the label as its identity.
   [[Experiment-034-two-controls-and-why-each-was-lost]]
+- **A colour histogram reads a control's STATE, not its identity.** Asked only on the looks
+  geometry had already refused, the 64-bucket RGB descriptor failed before discrimination
+  was reachable: the same rectangle on the same screen agrees with itself at 0.90 for
+  five looks and then at **0.000** — no shared buckets — because the button is highlighted
+  on some looks and not others. The margin between control and container changes sign
+  (-0.299 to +0.362), so no threshold divides the cases. **No tie-breaker was proposed.**
+  [[Experiment-035-what-a-control-looks-like]]
+- **`control_6`'s ambiguity is not an appearance problem at all.** The 170x14 reading is
+  NESTED INSIDE its 352x34 container, so every crop of the button contains the label.
+  They are not two things that look alike, they are two extents of one thing — no
+  descriptor can separate them and OCR could not either, since both carry the same words.
+  What settles it is evidence about what was PRESSED, which is ADR-182's second-press
+  rule, and the fold that learned it contains one press. The artifact already says so:
+  “clicked once, so nothing independent confirms that this control can be found again”.
+  [[Experiment-035-what-a-control-looks-like]]
 - **Richer proposals are not free.** `control_7` went 16 of 19 with pixels to 12 of 19
   with the detector: more candidates is more chances for one to be indistinct from a
   container. [[Experiment-034-two-controls-and-why-each-was-lost]]

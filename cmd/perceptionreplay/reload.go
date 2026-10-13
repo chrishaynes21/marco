@@ -130,7 +130,8 @@ func foldStart(frames []frameRecord, regions [][]observe.Region, feed *slowFeed,
 }
 
 // reportReloadOverRecording is the whole milestone.
-func reportReloadOverRecording(dir string, limit int, onnx string, delay int) error {
+func reportReloadOverRecording(dir string, limit int, onnx string, delay int,
+	appearance bool) error {
 	frames, err := readJSONL[frameRecord](filepath.Join(dir, "frames.jsonl"))
 	if err != nil {
 		return err
@@ -303,6 +304,10 @@ func reportReloadOverRecording(dir string, limit int, onnx string, delay int) er
 	// Fold C is a fresh observer over fold B's range with a fresh feed; it is deterministic
 	// over the same frames, so the binding computed from B applies to it — and that is
 	// asserted below rather than assumed.
+	var app *appearanceExperiment
+	if appearance {
+		app = newAppearanceExperiment(targets)
+	}
 	c, cerr := foldStart(frames, regions, newFeed(), half)
 	if cerr != nil {
 		return cerr
@@ -341,6 +346,11 @@ func reportReloadOverRecording(dir string, limit int, onnx string, delay int) er
 			t := per[st.ID]
 			t.looks++
 			diag[st.ID].observeControl(here)
+			// THE LOOKS APPEARANCE IS ALLOWED TO EXAMINE: the ones geometry
+			// already refused for indistinctness, and no others.
+			if app != nil {
+				app.collect(st, i, here)
+			}
 			switch observe.ReacquireStored(st, regionsHere).Result {
 			case observe.ReacquireMatched:
 				t.matched++
@@ -390,6 +400,11 @@ func reportReloadOverRecording(dir string, limit int, onnx string, delay int) er
 		resolvable, len(targets))
 	fmt.Printf("      by a session that never saw the demonstration.\n")
 	printControlDiagnoses(diag)
+	if app != nil {
+		if aerr := app.run(dir, frames, regions, a.fold, labels, binding); aerr != nil {
+			return aerr
+		}
+	}
 
 	// ── AND STILL NOT AUTHORITY ──
 	fmt.Printf("\n  %s\n", repeat("-", 74))

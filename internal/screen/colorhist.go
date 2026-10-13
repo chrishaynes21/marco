@@ -12,8 +12,13 @@ import "image"
 // has histBinsPerChannel³ buckets) — coarse enough to be robust to small colour shifts.
 const histBinsPerChannel = 4
 
-// colorHistogram returns the (4×4×4 = 64-bucket) RGB colour histogram of img.
-func colorHistogram(img *image.RGBA) [histBinsPerChannel * histBinsPerChannel * histBinsPerChannel]int {
+// ColorHistogram returns the (4×4×4 = 64-bucket) RGB colour histogram of img.
+//
+// Exported so an offline experiment can ask whether appearance adds anything geometry does not,
+// without copying the implementation into a second place where the two could drift. It is a pure
+// function of the pixels handed to it and reaches nothing: the capture in this package is
+// elsewhere in it, and nothing in the observation tier may import this package for that reason.
+func ColorHistogram(img *image.RGBA) [histBinsPerChannel * histBinsPerChannel * histBinsPerChannel]int {
 	var h [histBinsPerChannel * histBinsPerChannel * histBinsPerChannel]int
 	b := img.Bounds()
 	const shift = 6 // 8-bit channel → top 2 bits (4 levels)
@@ -29,9 +34,12 @@ func colorHistogram(img *image.RGBA) [histBinsPerChannel * histBinsPerChannel * 
 	return h
 }
 
-// histIntersection returns the normalised histogram-intersection similarity of two colour
+// Histogram is one 64-bucket RGB colour histogram.
+type Histogram = [histBinsPerChannel * histBinsPerChannel * histBinsPerChannel]int
+
+// HistIntersection returns the normalised histogram-intersection similarity of two colour
 // histograms, in [0,1] — 1.0 when the palettes are identical, 0 when they share nothing.
-func histIntersection(a, b [histBinsPerChannel * histBinsPerChannel * histBinsPerChannel]int) float64 {
+func HistIntersection(a, b [histBinsPerChannel * histBinsPerChannel * histBinsPerChannel]int) float64 {
 	sa, sb := 0, 0
 	for i := range a {
 		sa += a[i]

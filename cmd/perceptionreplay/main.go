@@ -102,6 +102,8 @@ func main() {
 	cadence := flag.Bool("cadence", false,
 		"with -frames, measure the screen model at several sampling rates and phases "+
 			"instead of replaying once")
+	appearance := flag.Bool("appearance", false,
+		"with -reload, ask whether appearance separates a control from its container")
 	reload := flag.Bool("reload", false,
 		"learn and save from the first half, then bind and re-acquire it from a fresh observer over the second")
 	save := flag.String("save", "",
@@ -151,7 +153,7 @@ func main() {
 			}
 			if *reload {
 				if err := reportReloadOverRecording(dir, *limit, *onnx,
-					*onnxdelay); err != nil {
+					*onnxdelay, *appearance); err != nil {
 					fmt.Fprintf(os.Stderr, "perceptionreplay: %s: %v\n", dir, err)
 					os.Exit(1)
 				}
