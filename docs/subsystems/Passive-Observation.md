@@ -1141,9 +1141,28 @@ it refuses those looks. Visible is fine; in front is not.
   the case a best-match rule gets wrong. Validation can REJECT a correspondence the
   evidence contradicts and cannot confirm one: agreement is necessary and not
   sufficient, and nothing yet can propose a correspondence without a person.
-- **Two of four controls could not be found again** on screens that were bound, over 28
-  and 90 looks. Whether that is the proposer, the screens being genuinely different, or
-  the readings being too thin is unanswered.
+- **The two lost controls failed for different reasons, and one of them is fixed.**
+  `control_2` is the TRAINING tile: with pixel proposals alone nothing on any look came
+  within 0.132 of its saved rectangle, and with equivalent detector evidence on both
+  sides it is found on **21 of 28 looks at an overlap of 0.997**. An evidence-coverage
+  failure, not an identity one. `control_6` is unchanged by the detector: something
+  agrees with its saved reading on 24 looks and every one of those is ALSO the same
+  rectangle as a region that merely contained the original press. That is an identity
+  failure. [[Experiment-034-two-controls-and-why-each-was-lost]]
+- **`control_6` is ADR-182's `target_6` again, across a fold boundary.** Its reading is
+  the 170x14 EXIT TO MAIN MENU label and its container the 352x34 button. ADR-182's
+  second-press rule fixes this within a session; fold A holds only the first press, so
+  the rule never fired and the artifact was saved with the label as its identity.
+  [[Experiment-034-two-controls-and-why-each-was-lost]]
+- **Richer proposals are not free.** `control_7` went 16 of 19 with pixels to 12 of 19
+  with the detector: more candidates is more chances for one to be indistinct from a
+  container. [[Experiment-034-two-controls-and-why-each-was-lost]]
+- **A reacquisition measured after a fold is measuring the wrong look.** An observer
+  holds admitted detections until its observation moves on, so a finished observer
+  hands back the LAST look's detections for every look. Experiment-033 under-reported
+  because of it — 3 of 4 controls, not 2. Re-acquisition now runs inside a fold, which
+  is also the order the live path uses.
+  [[Experiment-034-two-controls-and-why-each-was-lost]]
 - **The Binding half is still unbuilt, on purpose.** Nothing in the store compares an
   arrangement or picks a best match, because
   [[Experiment-029-binding-a-screen-across-two-independent-folds]] measured that relation

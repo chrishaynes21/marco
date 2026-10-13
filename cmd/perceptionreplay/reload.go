@@ -104,6 +104,31 @@ func foldAndLearn(frames []frameRecord, inputs []inputRecord, regions [][]observ
 	return lf, nil
 }
 
+// runningFold is an observer part-way through a range, with its own slow source.
+type runningFold struct {
+	obs  *fastobserve.Observer
+	feed *slowFeed
+}
+
+// foldStart opens a fresh observer for a range the caller will drive itself.
+//
+// Needed because re-acquisition has to happen BETWEEN looks — before this look is folded, on the
+// screen currently believed — and a function that folds the whole range gives a caller no moment
+// to ask anything.
+func foldStart(frames []frameRecord, regions [][]observe.Region, feed *slowFeed,
+	_ int) (runningFold, error) {
+
+	obs, err := fastobserve.New(100*time.Millisecond, 64)
+	if err != nil {
+		return runningFold{}, err
+	}
+	go func() {
+		for range obs.Updates() {
+		}
+	}()
+	return runningFold{obs: obs, feed: feed}, nil
+}
+
 // reportReloadOverRecording is the whole milestone.
 func reportReloadOverRecording(dir string, limit int, onnx string, delay int) error {
 	frames, err := readJSONL[frameRecord](filepath.Join(dir, "frames.jsonl"))
@@ -259,12 +284,35 @@ func reportReloadOverRecording(dir string, limit int, onnx string, delay int) er
 		matched, ambiguous, unobservable, looks int
 	}
 	per := map[observe.VisualTargetID]*tally{}
+	diag := map[observe.VisualTargetID]*controlDiagnosis{}
 	for _, st := range targets {
 		per[st.ID] = &tally{}
+		diag[st.ID] = &controlDiagnosis{target: st}
 	}
-	// A SECOND PASS OVER FOLD B's RANGE. The observer is the one that folded them, so
-	// `Candidates` is the same set a press on that look would have been judged against.
+	// ── A THIRD FOLD, AND IT HAS TO BE A FOLD ──
+	//
+	// The first version of this re-read fold B's looks and asked its finished observer
+	// what was on each one. That is wrong in a way that produced confident numbers: an
+	// observer holds admitted detections until its observation moves on, so after the
+	// fold its held set is whatever survived to the LAST look of the recording. Asking it
+	// about look 460 handed back the detections of look 900, on every look, and the
+	// report said "detector evidence available on 28 of 28 looks" about a screen whose
+	// detections were never there.
+	//
+	// So re-acquisition runs INSIDE a fold, against the candidate set as of that look.
+	// Fold C is a fresh observer over fold B's range with a fresh feed; it is deterministic
+	// over the same frames, so the binding computed from B applies to it — and that is
+	// asserted below rather than assumed.
+	c, cerr := foldStart(frames, regions, newFeed(), half)
+	if cerr != nil {
+		return cerr
+	}
+	defer c.obs.Close()
+	if err != nil {
+		return err
+	}
 	base := time.Unix(1700000000, 0).UTC()
+	drift := 0
 	for i := half; i < len(frames); i++ {
 		fr := frames[i]
 		lk := fastobserve.Look{
@@ -275,15 +323,25 @@ func reportReloadOverRecording(dir string, limit int, onnx string, delay int) er
 			},
 			Front: true, Regions: regions[i],
 		}
-		standing := b.at[i]
-		here := observe.Regions(b.obs.Candidates(lk))
+		if len(regions[i]) == 0 {
+			lk.Missing = true
+		}
+		lk.Slow = c.feed.due(i + 1)
+
+		// THE CANDIDATE SET AS OF THIS LOOK, read before folding it, which is the
+		// same order the live path uses: a reacquisition is about the look in front
+		// of you, judged on the screen you currently believe you are on.
+		standing := c.obs.Screen()
+		here := c.obs.Candidates(lk)
+		regionsHere := observe.Regions(here)
 		for _, st := range targets {
 			if st.Screen != standing {
 				continue
 			}
 			t := per[st.ID]
 			t.looks++
-			switch observe.ReacquireStored(st, here).Result {
+			diag[st.ID].observeControl(here)
+			switch observe.ReacquireStored(st, regionsHere).Result {
 			case observe.ReacquireMatched:
 				t.matched++
 			case observe.ReacquireAmbiguous:
@@ -292,7 +350,20 @@ func reportReloadOverRecording(dir string, limit int, onnx string, delay int) er
 				t.unobservable++
 			}
 		}
+		if up := c.obs.Observe(lk); up.Settled {
+			c.feed.request(i+1, fr.WindowGeneration, up.Epoch)
+		}
+		if c.obs.Screen() != b.at[i] {
+			drift++
+		}
 	}
+	if drift > 0 {
+		fmt.Printf("\n  *** fold C disagreed with fold B on %d of %d look(s). The binding\n",
+			drift, len(frames)-half)
+		fmt.Printf("  *** was computed from B and applied to C, so these numbers are\n")
+		fmt.Printf("  *** about a screen correspondence that does not hold.\n")
+	}
+
 	ids := make([]string, 0, len(per))
 	for id := range per {
 		ids = append(ids, string(id))
@@ -318,6 +389,7 @@ func reportReloadOverRecording(dir string, limit int, onnx string, delay int) er
 	fmt.Printf("\n      %d of %d saved control(s) on a bound screen were found again\n",
 		resolvable, len(targets))
 	fmt.Printf("      by a session that never saw the demonstration.\n")
+	printControlDiagnoses(diag)
 
 	// ── AND STILL NOT AUTHORITY ──
 	fmt.Printf("\n  %s\n", repeat("-", 74))

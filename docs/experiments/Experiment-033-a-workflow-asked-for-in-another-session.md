@@ -7,7 +7,7 @@ backend:
   - vision
 game: rocketleague
 fixture: ".tmp/game-capture-review/rl-freeplay-1"
-result: five-of-eight-screens-bound-one-ambiguous-two-absent-and-two-of-four-controls-found-again-from-the-file-alone
+result: five-of-eight-screens-bound-one-ambiguous-two-absent-and-three-of-four-controls-found-again-from-the-file-alone
 supersedes: []
 source_paths:
   - internal/director/workflowstore/workflowstore.go
@@ -112,6 +112,25 @@ is the first time anything in Marco has done that.
 
 `control_2` and `control_6` are the answer to "which require stronger visual identity evidence":
 both had plenty of looks on a bound screen and matched on none.
+
+## Corrected: this under-reported, and the harness was why
+
+[[Experiment-034-two-controls-and-why-each-was-lost]] found a defect in how the numbers above
+were taken. Re-acquisition was run as a second pass that asked fold B's **finished** observer
+what was on each look — and an observer holds admitted detections until its observation moves on,
+so after a fold its held set is the last look's. Every look was offered the end of the recording.
+
+Run inside a fold, as the live path does, the result is **3 of 4 controls, not 2**:
+
+```
+control_2  visual_2   28 looks   21 matched   (was 0)
+control_4  visual_3   54 looks   52 matched
+control_6  visual_4   90 looks    0 matched
+control_7  visual_5   19 looks   12 matched   (was 2)
+```
+
+The binding numbers above are unaffected: they are computed from the folds' own arrangements and
+never touched the held set.
 
 ## What this establishes, and what it does not
 
