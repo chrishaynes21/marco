@@ -251,6 +251,13 @@ type ClickEvidence struct {
 	// own unattributed count is: a change that usually has no input before it is evidence
 	// AGAINST reading the correlated ones as causes.
 	Unattributed []VisualTransition `json:"unattributed,omitempty"`
+	// Presses is every press the correlator was given, whatever became of it.
+	//
+	// The total the other counts are subsets of. A report with four subsets and no total
+	// cannot tell "nothing was attributed" from "nothing arrived", and those send a
+	// reader to opposite ends of the system — one is a correlation question and the other
+	// is a question about whether anything is watching the mouse at all.
+	Presses int `json:"presses,omitempty"`
 	// Blind is presses that landed on nothing the proposer found. They can never be
 	// re-grounded, so a route cannot be built over them however reliable the transition.
 	Blind int `json:"blind,omitempty"`
@@ -308,8 +315,15 @@ type ClickTargets struct {
 	inert        []ClickObservation
 	unattributed []VisualTransition
 	steps        []RouteStep
-	blind        int
-	ambiguous    int
+	// presses is every press this correlator was given, before any judgement about it.
+	//
+	// The denominator. Blind, ambiguous, inert and attributed are all subsets of it, and
+	// without it a report has four subsets and no total — which is ADR-169's defect
+	// exactly: a record that cannot explain its own number. "No clicks were attributed"
+	// has to be distinguishable from "no clicks arrived", and only a total does that.
+	presses   int
+	blind     int
+	ambiguous int
 
 	// arrivedAt is the look Marco last arrived somewhere BY A CLICK, and arrivedWhere
 	// the screen it arrived at.
@@ -330,6 +344,7 @@ type ClickTargets struct {
 func (c *ClickTargets) Press(look int, at PointerAt, screen VisualScreenID,
 	regions []Region) ClickObservation {
 
+	c.presses++
 	obs := ClickObservation{Look: look, At: at, Screen: screen}
 	for _, r := range regions {
 		if !containsPoint(r, at) {
@@ -612,6 +627,7 @@ func (c *ClickTargets) Evidence() ClickEvidence {
 		Attributed:       make([]ClickTransition, len(c.attributed)),
 		Inert:            make([]ClickObservation, len(c.inert)),
 		Unattributed:     make([]VisualTransition, len(c.unattributed)),
+		Presses:          c.presses,
 		Blind:            c.blind,
 		AmbiguousPresses: c.ambiguous,
 	}

@@ -146,6 +146,16 @@ type Stats struct {
 	Missing, Covered, Interrupted int
 	// Promotions is screens settled and Transitions edges recorded.
 	Promotions, Transitions int
+	// Presses is pointer presses offered to the observer, and PressesUnusable those the
+	// correlator was never given because the look carrying them had no geometry — no
+	// pixels, another window in front, or nothing proposed in them.
+	//
+	// The second one exists because a press on such a look is DISCARDED: there is nothing
+	// for it to have landed on, and inventing a target for it would be the worst kind of
+	// evidence. Discarding it silently is the other worst kind — ADR-169 is the record of
+	// a demonstration whose press total could not be accounted for, and a press dropped
+	// here would be the same hole in a different wall.
+	Presses, PressesUnusable int
 	// LatencyMS is per-look fold latency, which is what the observer itself costs once
 	// the pixels are in hand.
 	LatencyMS []float64
@@ -283,10 +293,16 @@ func (o *Observer) Observe(lk Look) Update {
 	// carries a press and completes a promotion, be recorded as made on the screen it
 	// arrived at — a learning unit whose source is its own destination.
 	standing := o.screens.Screen()
+	o.stats.Presses += len(lk.Presses)
 	if len(regions) > 0 {
 		for _, w := range lk.Presses {
 			o.clicks.Press(o.look, w, standing, regions)
 		}
+	} else {
+		// A PRESS WITH NOTHING TO HAVE LANDED ON, counted where it is lost. The
+		// look had no geometry, so there is no candidate set and no target; the
+		// press is real and unusable, which is a different thing from absent.
+		o.stats.PressesUnusable += len(lk.Presses)
 	}
 
 	id := o.screens.Observe(observe.ArrangeLook(regions), lk.At)

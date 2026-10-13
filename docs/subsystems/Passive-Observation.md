@@ -595,8 +595,10 @@ it refuses those looks. Visible is fine; in front is not.
 - **How many presses the first mouse recording lost is not known and cannot now be
   established.** `rl-freeplay-1` holds 17, the person who made it had clicked more times, and
   the counters that would separate "the producer lost them" from "those were never navigation"
-  did not exist when it was made. The next recording will say.
-  [[ADR-169-a-recording-that-could-not-explain-its-own-total]]
+  did not exist when it was made. The next recording will say — and so will the first live
+  observation, which as of 2026-10-12 reconciles the hook's received count through to what the
+  correlator folded. [[ADR-169-a-recording-that-could-not-explain-its-own-total]]
+  [[ADR-178-the-fast-observer]]
 - **A mouse demonstration cannot identify a list, and this is structural rather than a
   defect.** The list machinery is keyed to a mark moving between entries under directional input
   ([[ADR-158-the-active-list-is-the-one-that-responds]]); a mouse hands no mark along anything.
@@ -1027,13 +1029,37 @@ it refuses those looks. Visible is fine; in front is not.
   proposed region at 480x270; the repeated-run correspondence falls from 5 steps to 2. So a
   perception-quality check has to ask about more than targets, and the resolution choice is a
   measured trade rather than a free win.
+- **No live validation of the fast observer exists.** Every number in
+  [[ADR-178-the-fast-observer]] comes from the 900-frame recording or a drawn fixture. The
+  capture path, the window tracker, the mouse hook and the observer have never run together
+  against a moving screen, and three things cannot be measured any other way: whether the ticker
+  holds its cadence while the proposer runs, whether a game's own window generation churns, and
+  whether a press made during a loading screen is placeable. The command is
+  `director observe-screen`, it is bounded, and the owner starts it.
 - **The fast observer exists and nothing in Director's live sampler calls it.** It is reached
   only by `director observe-screen`, which the owner starts. Wiring it into the existing
   observation cycle is a separate decision, and the cycle's own cadence is the one ADR-175 ruled
   out — so the wiring must give the observer its own clock or not happen.
   [[ADR-178-the-fast-observer]]
-- **18 looks a second is this machine, this window, one recording.** Not a claim about other
-  applications, other resolutions, or dialogs shorter than the ones measured.
+- **15 to 18 looks a second is this machine, this window, one recording.** Re-folding the same
+  900 frames on 2026-10-12 gave 15.5 to 16.5 a second against the 18.3 first recorded — same
+  code, same recording, load the only variable. The range is the finding; either end clears the
+  ten the model needs. It is not a claim about other applications, other resolutions, or dialogs
+  shorter than the ones measured. [[ADR-178-the-fast-observer]]
+- **`observe-screen` does subscribe to live mouse events, and now its output can prove it.**
+  `navsource`, a subscription drained once a look, `NavPoint` folded as presses. Until
+  2026-10-12 a report of `0 click` had four causes in four places and three of them were
+  invisible — including a press offered on a look with no geometry, which was discarded with no
+  number anywhere. The command now reports the producer's own counts, the observer's press total
+  and the unusable subset, the correlator's total, and keys seen-and-not-used; and it says `NOT
+  OBSERVED` with the reason when no mouse could be watched, because an absence that is forced
+  must not read as one that was observed. Over the recording: 17 offered, 0 unusable, 17 folded,
+  0 blind, 5 ambiguous, against a recording known to hold seventeen.
+  [[ADR-178-the-fast-observer]]
+- **A full-length backpressure run is stronger than the first one.** 541 and 552 of 900 updates
+  dropped, conclusions identical: nine screens, the same look counts and settle points, 13/5/3,
+  all seventeen presses folded. A consumer seeing two looks in five arrived at the same session.
+  [[ADR-178-the-fast-observer]]
 - ~~The session-local screen model needs ≈10fps and the live path samples at ~3.8s.~~
   **Addressed by [[ADR-178-the-fast-observer]]**, which gives the model its own cadence rather
   than changing the rule. The original finding stands: Not a

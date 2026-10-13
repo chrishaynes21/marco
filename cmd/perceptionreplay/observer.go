@@ -167,6 +167,12 @@ func reportObserverOverRecording(dir string, limit int, consume bool) error {
 	for _, st := range e.Steps {
 		byCause[st.Cause] += st.Count
 	}
+	// THE PRESS ACCOUNT, in the same shape the live command prints it, so the two
+	// outputs can be set side by side. A session's press total is the only thing that
+	// separates "no clicks were attributed" from "no clicks were seen", and a baseline
+	// that omitted it would give the comparison nothing to compare against.
+	fmt.Printf("  presses: %d offered, %d unusable, %d folded, %d blind, %d ambiguous\n",
+		s.Presses, s.PressesUnusable, e.Presses, e.Blind, e.AmbiguousPresses)
 	fmt.Printf("  changes by cause: %d click, %d automatic, %d unknown\n",
 		byCause[observe.CauseClick], byCause[observe.CauseAutomatic],
 		byCause[observe.CauseUnknown])

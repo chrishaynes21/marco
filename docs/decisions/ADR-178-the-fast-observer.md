@@ -98,7 +98,19 @@ The production observer, folded over the 900-frame recording every offline concl
 ```
 
 **The fold itself costs 0.05ms.** The observer adds essentially nothing to the proposer, and the
-~50ms estimate holds: **about 18 looks a second against the ten the model needs.**
+~50ms estimate holds: **comfortably more than the ten looks a second the model needs.**
+
+### And 18.3 was the optimistic end of one run
+
+Re-folded twice more on 2026-10-12 while the press account below was added, the same 900 frames
+gave a proposer of 43.3 to 46.1ms a look and a live look of **60.5 to 64.6ms — 15.5 to 16.5 a
+second**, against the 37.4ms and 18.3/s recorded above. Same code, same recording, same machine.
+
+The spread is this machine under varying load, and the honest reading is a range rather than a
+figure: **a live look is 55–65ms here, so 15 to 18 a second.** Either end clears the ten the
+model needs with room, which is why this changes no decision — but a single measurement quoted
+to one decimal place reads as a precision nobody measured, and the next person to compare a live
+session against it would be comparing against the best of three runs.
 
 ### It reproduces the offline conclusions exactly
 
@@ -124,6 +136,61 @@ for, and it is measured rather than asserted.
 The first attempt at this measured nothing: the "slow" consumer slept 2ms against a 92ms look and
 dropped zero, which read as *the consumer kept up* when it meant *the consumer was never tested*.
 Recorded because a green measurement of nothing is the most expensive kind.
+
+Repeated over the whole recording rather than its first 300 looks, the result is stronger: **541
+and 552 of 900 updates dropped, and the conclusions character for character identical** — nine
+screens, the same look counts, the same settle points, 13/5/3, and all seventeen presses folded.
+A consumer that saw two looks in five arrived at the same session.
+
+## The mouse, accounted for end to end
+
+The owner asked the right question about the live command before running it:
+
+> it isn't entirely clear whether `observe-screen` subscribes to live mouse events. If it
+> doesn't, we should expect automatic or unknown classifications rather than treating a lack of
+> click-attributed transitions as a regression.
+
+It does subscribe — `navsource.New`, a subscription opened after the delay, drained once a look,
+`NavPoint` events folded as presses. But the question could not be answered **from the output**,
+and that is the defect worth fixing before a bounded live run rather than after it.
+
+A report of `0 click` has at least four causes, and they live in four different places:
+
+| | |
+|---|---|
+| no hook was installed | `navsource` said why and nobody printed it |
+| no press was placed inside the window | `unplaceable_pointer`, counted by the producer and not read |
+| the press arrived on a look that was not evidence | discarded by the observer, counted **nowhere** |
+| the press landed on nothing the proposer found | `Blind`, already counted |
+
+Three of the four were invisible, and the third was a silent drop — a press real enough to have
+happened and gone without a number, which is
+[[ADR-169-a-recording-that-could-not-explain-its-own-total]] in a different wall. So:
+
+- `fastobserve.Stats` gains **`Presses`**, the denominator, and **`PressesUnusable`**, the ones
+  offered on a look with no geometry. A press on a missing or covered look has no candidate set
+  and must not become evidence; discarding it is right, discarding it silently is not.
+- `observe.ClickEvidence` gains **`Presses`**, what the correlator was actually given. The two
+  accounts have to close: offered, less unusable, is what the correlator holds.
+- The command reports the producer's own `InputStats` — received, placed, and the ignore reasons
+  by name — and **says `NOT OBSERVED` with the reason** when no mouse could be watched, adding
+  that the causes are then automatic or unknown *by construction*. An absence that is forced
+  must not read as an absence that was observed.
+- Keyboard events are counted as **seen and not used**. This path correlates presses only, and a
+  keyboard-navigated session reporting "no input" is the controller mistake of ADR-169 exactly.
+
+### And the frame is pushed before anything is watching
+
+`navsource` can only place a press against bounds pushed **before** the press happened. The
+observation loop pushed them, but not until after its first capture — so every press in the
+first interval would have come back `unplaceable_pointer`: ADR-168's defect at one look's scale,
+and the shape that once reported six live clicks as a perception failure. The rectangle is now
+acquired and pushed before the subscription opens, re-acquired rather than reused from before
+the delay, because an eight-second-old rectangle stamped `now` is a small lie the pointer path
+would then trust.
+
+Over the recording the account closes: **17 presses offered, 0 unusable, 17 folded, 0 blind, 5
+ambiguous** — against a recording known to hold seventeen.
 
 ## One statement of the normalisation
 
@@ -163,10 +230,18 @@ it actually damped at.
 
 ## Mutation gate
 
-19 mutants, all 19 killed. Three survivors needed a test that did not exist: at 10fps the derived
+19 mutants, all 19 killed; the press account added 14 more, all killed. Three survivors needed a test that did not exist: at 10fps the derived
 settle rule equals the default, so an observer that computed the rule and never applied it looked
 correct at the one rate every offline measurement was taken at. The test now checks a 5fps
 observer, whose rule is two, and asserts that two looks settle a screen there.
+
+The press account's run found one real survivor and one bug in the harness. The survivor: a
+mutant that folded a keyboard event in as a press passed, because the split lived inside the
+observation loop where only a real window could reach it — so it is `splitNav` now, tested
+directly, and a key carrying its zero position into a click at the window's origin is what the
+test names. The harness bug was funnier and worth recording: it scored six kills as compile
+errors, because it looked for the words "not used" in the output and the report it was testing
+prints "seen and not used".
 
 ## Enforced by
 
@@ -178,7 +253,10 @@ observer, whose rule is two, and asserts that two looks settle a screen there.
   `TestASettledChangePublishesItsCause`,
   `TestAPressOnThePromotingLookBelongsToTheScreenItLeft`,
   `TestTheFastObserverCannotActOrRemember`, `TestTheFastObserverNamesNothingDurable`,
-  `TestThisPackageIsPartOfTheSessionLocalTier`.
+  `TestThisPackageIsPartOfTheSessionLocalTier`,
+  `TestAPressOnALookThatIsNotEvidenceIsCountedAndNotCorrelated`.
 - `internal/director/observe` — `TestRectanglesAreNormalisedToTheImageTheyCameFrom`,
   `TestAVisualScreenCannotReachDurableMemory`.
-- `cmd/director` — `TestTheScreenObserverIsReachableAndBounded`.
+- `cmd/director` — `TestTheScreenObserverIsReachableAndBounded`,
+  `TestTheObserverReportAccountsForEveryPress`,
+  `TestAKeyboardEventIsCountedAndNotTakenForAPress`.

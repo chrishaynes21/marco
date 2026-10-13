@@ -425,3 +425,61 @@ func TestTheObserverReportsItsOwnFoldLatency(t *testing.T) {
 		t.Error("an observer that folded nothing reported a latency")
 	}
 }
+
+// EVERY PRESS IS ACCOUNTED FOR, INCLUDING THE ONES NOTHING COULD BE DONE WITH.
+//
+// A press offered on a look that carried no geometry — no pixels, another window in front,
+// nothing proposed — cannot be correlated: there is no candidate set, so there is no target and
+// no screen it was made on. Discarding it is right. Discarding it SILENTLY is the defect
+// [[ADR-169-a-recording-that-could-not-explain-its-own-total]] is about, and it would be worse
+// here than in the recorder, because the live observer's press count is the only thing that
+// separates "no clicks were attributed" from "no clicks were seen".
+//
+// So: the total the observer was offered, and the subset it could not use, both counted.
+func TestAPressOnALookThatIsNotEvidenceIsCountedAndNotCorrelated(t *testing.T) {
+	o, err := fastobserve.New(100*time.Millisecond, 64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer o.Close()
+
+	at := observe.PointerAt{X: 0.2, Y: 0.15}
+
+	// One press on a look with no pixels, one on a look behind another window, and one
+	// on a look that is ordinary evidence.
+	blindLook := fastobserve.Look{
+		At: time.Unix(1700000000, 0).UTC(), Window: win(1),
+		Regions: rows(0.1, 6), Missing: true, Presses: []observe.PointerAt{at},
+	}
+	o.Observe(blindLook)
+	covered := fastobserve.Look{
+		At: time.Unix(1700000000, 0).UTC().Add(100 * time.Millisecond), Window: win(1),
+		Regions: rows(0.1, 6), Front: false, Presses: []observe.PointerAt{at},
+	}
+	o.Observe(covered)
+	good := look(200, 1, rows(0.1, 6))
+	good.Presses = []observe.PointerAt{at}
+	o.Observe(good)
+
+	s := o.Stats()
+	if s.Presses != 3 {
+		t.Errorf("%d press(es) offered, want 3: the total is the denominator every "+
+			"other press count is a subset of", s.Presses)
+	}
+	if s.PressesUnusable != 2 {
+		t.Errorf("%d press(es) counted as unusable, want 2 — one on a look with no "+
+			"pixels and one taken behind another window", s.PressesUnusable)
+	}
+	if n := o.Clicks().Presses; n != 1 {
+		t.Errorf("the correlator folded %d press(es), want 1. A press on a look with "+
+			"no geometry has no candidate set and must not become evidence", n)
+	}
+	// AND THE TWO ACCOUNTS AGREE. Offered, minus unusable, is what the correlator got;
+	// a version that counted the discard and folded it anyway would pass both checks
+	// above and fail this one.
+	if got := s.Presses - s.PressesUnusable; got != o.Clicks().Presses {
+		t.Errorf("%d press(es) offered less %d unusable is %d, but the correlator "+
+			"holds %d: the account does not close",
+			s.Presses, s.PressesUnusable, got, o.Clicks().Presses)
+	}
+}
