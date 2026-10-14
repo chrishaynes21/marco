@@ -118,13 +118,19 @@ type wordRow struct {
 //
 // Fresh is the point, as in `foldRange`: nothing is carried between the two folds, so `visual_1`
 // in one and `visual_1` in the other are unrelated names that happen to collide.
+// `delay` is how many looks after its own frame each reading is delivered, and it changes
+// WHICH PATH is being measured. Zero hands the reading to the look it describes, through
+// `Look.Text` -- which is look-local and which no live source can satisfy. Anything else
+// hands it over later, through `Look.Readings`, which is the live path: the reading carries
+// the window generation and observation epoch of the frame it came from, and the observer
+// decides whether that context is still the one it is in.
 func semanticFold(frames []frameRecord, regions [][]observe.Region, readable []bool,
-	words []observe.ScreenText, withText bool) (fold, observe.VisualStability,
-	map[observe.VisualScreenID]observe.ScreenText, error) {
+	words []observe.ScreenText, withText bool, delay int) (fold, observe.VisualStability,
+	fastobserve.Stats, map[observe.VisualScreenID]observe.ScreenText, error) {
 
 	obs, err := fastobserve.New(100*time.Millisecond, 64)
 	if err != nil {
-		return fold{}, observe.VisualStability{}, nil, err
+		return fold{}, observe.VisualStability{}, fastobserve.Stats{}, nil, err
 	}
 	go func() {
 		for range obs.Updates() {
@@ -135,6 +141,11 @@ func semanticFold(frames []frameRecord, regions [][]observe.Region, readable []b
 	f := fold{at: map[int]observe.VisualScreenID{},
 		arr: map[observe.VisualScreenID]observe.VisualArrangement{}}
 	base := time.Unix(1700000000, 0).UTC()
+	// THE EPOCH EACH LOOK WAS FOLDED UNDER, recorded as the fold goes so a reading of
+	// look N can be stamped with the context look N was actually taken in. A live
+	// source reads the epoch off the observer at the moment it captures; this is the
+	// same thing, replayed.
+	epochAt := make([]uint64, len(frames))
 	for i := range frames {
 		fr := frames[i]
 		lk := fastobserve.Look{
@@ -149,9 +160,28 @@ func semanticFold(frames []frameRecord, regions [][]observe.Region, readable []b
 		if !readable[i] {
 			lk.Missing = true
 		}
-		if withText && i < len(words) {
-			lk.Text = words[i]
+		switch {
+		case !withText:
+		case delay <= 0:
+			// THE SYNCHRONOUS PATH, which exists to be compared against.
+			if i < len(words) {
+				lk.Text = words[i]
+			}
+		default:
+			// THE LIVE PATH. A reading of look i-delay arrives now, stamped
+			// with the context THAT look was taken in -- the window
+			// generation of its own frame and the observation epoch that
+			// was standing when it was folded. The observer judges it.
+			src := i - delay
+			if src >= 0 && src < len(words) && words[src].Read() {
+				lk.Readings = []observe.ScreenReading{{
+					Text: words[src], FromLook: src,
+					Generation: frames[src].WindowGeneration,
+					Epoch:      epochAt[src],
+				}}
+			}
 		}
+		epochAt[i] = obs.Epoch()
 		obs.Observe(lk)
 		f.at[i] = obs.Screen()
 	}
@@ -160,7 +190,7 @@ func semanticFold(frames []frameRecord, regions [][]observe.Region, readable []b
 		f.arr[s.ID] = obs.Arrangement(s.ID)
 		said[s.ID] = obs.SaidBy(s.ID)
 	}
-	return f, obs.Stability(), said, nil
+	return f, obs.Stability(), obs.Stats(), said, nil
 }
 
 // reportSemanticScreens is the experiment.
@@ -191,28 +221,79 @@ func reportSemanticScreens(dir string, limit, stride int) error {
 
 	regions, readable := proposeAll(dir, frames)
 
-	plain, pstats, _, perr := semanticFold(frames, regions, readable, nil, false)
+	plain, pstats, _, _, perr := semanticFold(frames, regions, readable, nil, false, 0)
 	if perr != nil {
 		return perr
 	}
-	rich, rstats, said, rerr := semanticFold(frames, regions, readable, words, true)
-	if rerr != nil {
-		return rerr
+	sync, sstats, _, _, serr := semanticFold(frames, regions, readable, words, true, 0)
+	if serr != nil {
+		return serr
+	}
+
+	// ── AND THE LIVE PATH, AT EVERY LATENCY WORTH ASKING ABOUT ──
+	//
+	// A look is 100ms and OCR is 300-600ms on a 1920x1080 frame, so the honest range
+	// is three to six looks behind; the rest are there to show where it stops working
+	// and why. The SAME readings in every row -- only when they arrive changes.
+	delays := []int{1, 3, 5, 8, 12, 20}
+	type row struct {
+		delay  int
+		f      fold
+		st     observe.VisualStability
+		stats  fastobserve.Stats
+		said   map[observe.VisualScreenID]observe.ScreenText
+		splits int
+	}
+	var live []row
+	for _, d := range delays {
+		f, st, stats, said, err := semanticFold(frames, regions, readable,
+			words, true, d)
+		if err != nil {
+			return err
+		}
+		live = append(live, row{delay: d, f: f, st: st, stats: stats, said: said})
 	}
 
 	fmt.Println()
-	fmt.Println("  the same 900 looks, the same proposer, one thing changed")
-	fmt.Printf("  %-34s %10s %10s\n", "", "pixel-only", "with text")
-	fmt.Printf("  %-34s %10d %10d\n", "screens settled",
-		countScreens(plain), countScreens(rich))
-	fmt.Printf("  %-34s %10d %10d\n", "promotions", pstats.Promotions, rstats.Promotions)
-	fmt.Printf("  %-34s %10d %10d\n", "looks that settled onto a screen",
-		pstats.Settled, rstats.Settled)
-	fmt.Printf("  %-34s %10d %10d\n", "looks read", 0, nread)
-	fmt.Printf("  %-34s %10s %10d\n", "merges text refused", "n/a",
-		rstats.TextRefusedMerge)
-	fmt.Printf("  %-34s %10s %10d\n", "reuses text refused", "n/a",
-		rstats.TextRefusedReuse)
+	fmt.Println("  the same 900 looks and the same 300 readings; only WHEN they arrive")
+	fmt.Printf("  %-26s %7s %7s %7s %7s %7s %7s\n",
+		"", "screens", "settled", "offered", "admitted", "stale", "refused")
+	fmt.Printf("  %-26s %7d %7d %7s %7s %7s %7s\n", "pixel-only",
+		countScreens(plain), pstats.Settled, "-", "-", "-", "-")
+	fmt.Printf("  %-26s %7d %7d %7d %7d %7d %7d\n",
+		"with text, same look", countScreens(sync), sstats.Settled,
+		len(words), nread, 0, sstats.TextRefusedMerge)
+	for _, r := range live {
+		stale := r.stats.ReadingsStaleEpoch + r.stats.ReadingsStaleWindow
+		fmt.Printf("  %-26s %7d %7d %7d %7d %7d %7d\n",
+			fmt.Sprintf("late by %d look(s)", r.delay),
+			countScreens(r.f), r.st.Settled, r.stats.ReadingsOffered,
+			r.stats.ReadingsAdmitted, stale, r.stats.ReadingsRefusedMerge)
+	}
+
+	// ── AND THE ONE QUESTION THE WHOLE THING IS FOR ──
+	//
+	// Not "how many screens" but "are THOSE two screens apart". A fold can score well
+	// on every count above and have merged the one pair this exists to separate.
+	fmt.Println()
+	fmt.Println("  are the Training page and the Free Play submenu two screens")
+	fmt.Printf("  %-26s %s\n", "pixel-only", verdictOf(plain, nil))
+	fmt.Printf("  %-26s %s\n", "with text, same look",
+		verdictOf(sync, syncSaid(frames, regions, readable, words)))
+	for _, r := range live {
+		fmt.Printf("  %-26s %s\n",
+			fmt.Sprintf("late by %d look(s)", r.delay), verdictOf(r.f, r.said))
+	}
+
+	// The richest fold is the one the rest of the report describes.
+	rich, rstats, _, said := sync, sstats, fastobserve.Stats{}, syncSaid(frames, regions,
+		readable, words)
+	for _, r := range live {
+		if r.delay == 5 {
+			rich, rstats, said = r.f, r.st, r.said
+		}
+	}
+	_ = rstats
 
 	// ── WHICH SCREENS SPLIT, AND INTO WHAT ──
 	//
@@ -495,4 +576,84 @@ func tesseractPath() string {
 		}
 	}
 	return ""
+}
+
+// ── the one question the whole thing is for ───────────────────────────────────
+
+// trainingWords and freePlayWords are the labels that identify the two screens of the measured
+// failure, as OCR actually reads them.
+//
+// Used ONLY to recognise which of a fold's screens is which, so the report can say whether those
+// two are apart. Never used to produce a fold: every identity in every fold above is settled from
+// pixels and readings with no knowledge of these at all. This is the oracle, beside the verdict.
+var (
+	trainingWords = []string{"aerial", "goalie", "striker"}
+	freePlayWords = []string{"free", "join", "online"}
+)
+
+// holdsAll reports whether a vocabulary contains every one of these words.
+func holdsAll(t observe.ScreenText, words []string) bool {
+	if !t.Said() {
+		return false
+	}
+	for _, w := range words {
+		if _, ok := t.Words[w]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+// verdictOf says whether the Training page and the Free Play submenu came out as two screens.
+//
+// With no vocabularies — the pixel-only fold — there is nothing to recognise them BY, which is
+// itself the finding: a fold that saved only arrangements cannot even be asked this question
+// about its own screens.
+func verdictOf(f fold, said map[observe.VisualScreenID]observe.ScreenText) string {
+	if said == nil {
+		return "cannot be asked: the fold kept no words, so nothing identifies either screen"
+	}
+	var training, freePlay []observe.VisualScreenID
+	for _, id := range screenOrder(f) {
+		if holdsAll(said[id], trainingWords) {
+			training = append(training, id)
+		}
+		if holdsAll(said[id], freePlayWords) {
+			freePlay = append(freePlay, id)
+		}
+	}
+	switch {
+	case len(training) == 0 || len(freePlay) == 0:
+		return fmt.Sprintf("NOT FOUND: %d screen(s) read as the Training page and %d as "+
+			"the Free Play submenu", len(training), len(freePlay))
+	case len(training) == 1 && len(freePlay) == 1 && training[0] == freePlay[0]:
+		return fmt.Sprintf("MERGED: both are %s", training[0])
+	}
+	shared := map[observe.VisualScreenID]bool{}
+	for _, a := range training {
+		for _, b := range freePlay {
+			if a == b {
+				shared[a] = true
+			}
+		}
+	}
+	if len(shared) > 0 {
+		return fmt.Sprintf("PARTLY MERGED: training %v, free play %v", training, freePlay)
+	}
+	return fmt.Sprintf("APART: training %v, free play %v", training, freePlay)
+}
+
+// syncSaid re-runs the synchronous fold for its vocabularies.
+//
+// A second run rather than a second return value, because the comparison table wants the stats
+// of every fold and the verdict wants the words of two of them, and threading both through six
+// rows was less readable than folding twice over a cached reading set.
+func syncSaid(frames []frameRecord, regions [][]observe.Region, readable []bool,
+	words []observe.ScreenText) map[observe.VisualScreenID]observe.ScreenText {
+
+	_, _, _, said, err := semanticFold(frames, regions, readable, words, true, 0)
+	if err != nil {
+		return nil
+	}
+	return said
 }

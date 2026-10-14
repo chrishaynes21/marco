@@ -392,6 +392,11 @@ type VisualScreens struct {
 	// reading before it. lookText is their agreement -- see ObserveWith.
 	lookRead ScreenText
 	prevText ScreenText
+	// prevRead is the previous ADMITTED late reading and prevReadOf the screen it was
+	// about, so two readings of one screen can be paired and two that straddle a
+	// screen change cannot. See VisualScreens.Read.
+	prevRead   ScreenText
+	prevReadOf VisualScreenID
 	// lastTextRefusal is the most recent sentence explaining a refusal, for a report
 	// somebody reads. Evidence, never read back as a decision.
 	lastTextRefusal string

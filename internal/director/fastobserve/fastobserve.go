@@ -117,6 +117,14 @@ type Look struct {
 	// within a look leaves this zero, and the fold is then the pixel-only one it
 	// always was -- nobody read it, which is not a disagreement.
 	Text observe.ScreenText
+	// Readings is what a SLOW text source has finished reading by this look — each
+	// describing an EARLIER one, exactly as Slow does and judged by the same rule.
+	//
+	// `Text` above is a reading of THIS look and is look-local by construction. No live
+	// source can satisfy it: OCR costs hundreds of milliseconds against a cadence of a
+	// hundred. These are the readings a live source can actually produce, and what
+	// makes them safe is not speed but provenance — see intakeReadings.
+	Readings []observe.ScreenReading
 	// Slow is detections from a slower source that have ARRIVED by this look — each
 	// describing an EARLIER one.
 	//
@@ -183,6 +191,20 @@ type Stats struct {
 	// a demonstration whose press total could not be accounted for, and a press dropped
 	// here would be the same hole in a different wall.
 	Presses, PressesUnusable int
+	// ReadingsOffered is how many delayed READINGS were handed to the observer, and the
+	// rest of this group what became of them. The same shape as the Slow counters
+	// below, because it is the same rule being applied to a different kind of result.
+	//
+	// ReadingsRefusedMerge is the number that says whether any of this did anything: a
+	// run that admitted readings and refused nothing is a run where OCR cost hundreds
+	// of milliseconds a frame and changed no decision.
+	ReadingsOffered      int
+	ReadingsAdmitted     int
+	ReadingsUnusable     int
+	ReadingsStaleWindow  int
+	ReadingsStaleEpoch   int
+	ReadingsSilent       int
+	ReadingsRefusedMerge int
 	// SlowOffered is slow detections handed to the observer and SlowAdmitted those it
 	// accepted as candidates for this look. The three refusals are counted apart
 	// because they mean different things and only one of them is a defect:
@@ -462,6 +484,10 @@ func (o *Observer) Observe(lk Look) Update {
 	// count of rectangles whether anybody read it or not, and a run with no text
 	// source folds exactly as it did before text existed. See
 	// observe/screentext.go for which direction that asymmetry protects.
+	// THE SLOW TEXT SOURCE, admitted before the fold so a refusal it raises is in
+	// force for this look. See intakeReadings.
+	o.intakeReadings(lk, len(regions) > 0 && lk.Front)
+
 	id := o.screens.ObserveWith(observe.ArrangeLook(regions), lk.Text, lk.At)
 	if o.hasLastID && id != o.lastID {
 		o.epoch++
@@ -492,6 +518,59 @@ func (o *Observer) Observe(lk Look) Update {
 		float64(time.Since(t0).Microseconds())/1000)
 	o.publish(up)
 	return up
+}
+
+// intakeReadings decides which delayed readings are evidence about the look in front of us,
+// and hands the ones that are to the screen model.
+//
+// THE SAME THREE RULES AS intakeSlow, and deliberately not a second statement of them:
+// `observe.Current` decides, and the counters only say which part of the context moved. The
+// argument for the third rule is written out below for detections and is the same argument
+// here — an epoch moves on every screen change, so an unchanged epoch means no screen change
+// has happened since the frame was captured, which is a demonstrably continuous interval
+// rather than the weaker "the same screen is standing".
+//
+// What a reading may do once admitted is in `observe.VisualScreens.Read`, and it is one
+// thing: refuse to believe the standing screen is the screen the arrangement says. It never
+// mints a screen, moves the standing claim, or reaches a stored arrangement — so a run with
+// no text source, or one whose readings all arrive stale, folds exactly as it always did.
+//
+// NOTHING HERE REACHES AN ACTION ALREADY TAKEN. A refusal changes which screen later looks
+// are folded onto; it does not revisit a press, an authorisation, or an arrival already
+// established, because none of those is stored here and all of them were decided against
+// the observation they happened in.
+func (o *Observer) intakeReadings(lk Look, usable bool) {
+	for _, r := range lk.Readings {
+		o.stats.ReadingsOffered++
+		switch {
+		case !usable:
+			// A look that cannot host a pixel proposal cannot host a reading
+			// either. Admitting one would let a covered window's words in by
+			// the back door, and a covered window's words are another
+			// application's.
+			o.stats.ReadingsUnusable++
+		case !r.Admissible(lk.Window.Generation, o.epoch):
+			if r.Generation != lk.Window.Generation {
+				o.stats.ReadingsStaleWindow++
+			} else {
+				o.stats.ReadingsStaleEpoch++
+			}
+		default:
+			o.stats.ReadingsAdmitted++
+			refused, _ := o.screens.Read(r)
+			switch {
+			case refused:
+				o.stats.ReadingsRefusedMerge++
+			case !r.Text.Said():
+				// READ AND SILENT IS NOT MISSING. A source that answered
+				// without reading anything is a fact about the screen or
+				// about OCR; a source that never answered is neither, and
+				// conflating them would make a frame nobody read look like
+				// a screen that went quiet.
+				o.stats.ReadingsSilent++
+			}
+		}
+	}
 }
 
 // admitSlow decides which delayed detections are evidence about the look in front of us.

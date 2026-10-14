@@ -1208,6 +1208,18 @@ it refuses those looks. Visible is fine; in front is not.
   screens separated with them, and the main menu stayed one identity over eleven visits.
   [[ADR-194-a-screen-is-also-what-it-says]],
   [[Experiment-042-a-screen-remembers-what-it-said]]
+- **And a reading may arrive late.** OCR costs 300-600ms against a 100ms cadence, so no live
+  source can ever read a look in time. A reading now carries the window generation and
+  observation epoch of its own frame and goes through the rule the delayed detections
+  already use — and the epoch is the half that carries it: it moves on every screen
+  change, so an unchanged epoch means no screen change since the capture rather than the
+  weaker "the same screen is standing". The merge is what makes it work, because a merge
+  records no screen change. Measured: the two menus stay apart while readings arrive
+  within eight looks, the late path settles FEWER spurious screens than a synchronous one
+  because stale readings are refused, and past twelve looks it degrades to the behaviour
+  it had before. `--reading`.
+  [[ADR-195-a-reading-that-arrives-after-the-look-it-describes]],
+  [[Experiment-043-a-reading-that-arrives-late]]
 - **The learned detector runs in the live loop now, beside the proposer.** On the Play
   page the proposer cannot see the Training tile at all — its only covering proposal is
   1644x1032, which `Locates` refuses — and the detector boxes it at IoU 0.991 against

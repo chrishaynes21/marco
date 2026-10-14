@@ -106,6 +106,24 @@ func TestPerformWorkflowInstallsItsGates(t *testing.T) {
 				"planned one back would make the check agree with itself"},
 		{"Epoch: obs.Epoch(),",
 			"the same, for the observation generation"},
+		// THE SLOW TEXT SOURCE, offered and drained. Either half alone is a
+		// source that does nothing: offering without draining reads frames and
+		// throws every answer away, and draining without offering drains an
+		// empty queue forever. A mutation run on the detector found exactly this
+		// shape, so both halves are named.
+		{"reader.offer(readingFrame{",
+			"without it OCR is never given a frame and --reading is a flag that " +
+				"starts a process and reads nothing"},
+		{"lk.Readings = reader.ready()",
+			"without it every reading is computed and discarded, and the run " +
+				"reports words it never used"},
+		// AND THE READING CARRIES THE CONTEXT ITS FRAME WAS CAPTURED IN, which
+		// is the whole of what makes a late reading safe. A frame offered
+		// without the epoch would be admitted forever, because a zero epoch
+		// matches whatever the observer started at.
+		{"epoch:      obs.Epoch(),",
+			"a reading with no observation generation cannot be refused when " +
+				"the screen moves on"},
 		{"newConsentDesk(src.Consents(), func() { run.Stop() })",
 			"without the stop function the stop key is a key that prints " +
 				"something"},

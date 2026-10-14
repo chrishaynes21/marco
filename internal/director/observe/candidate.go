@@ -139,7 +139,7 @@ func Detected(regions []Region, classes []string, scores []float64,
 // A pixel proposal passes trivially: it is stamped with the look it was made on, in the context
 // it was made in.
 func Admissible(c Candidate, generation, epoch uint64) bool {
-	return c.Generation == generation && c.Epoch == epoch
+	return Current(c.Generation, c.Epoch, generation, epoch)
 }
 
 // Merge combines a look's own proposals with admitted slow candidates, keeping one copy of a

@@ -95,6 +95,8 @@ func runPerformWorkflow(args []string) int {
 			"the first observation; every screen after it is inferred or asked about")
 	answer := fs.Duration("answer", 20*time.Second,
 		"with -hotkeys, how long a question stays open")
+	reading := fs.Bool("reading", false,
+		"read the words on each look with OCR, beside the fast loop, so two visually similar screens are not merged into one identity")
 	repair := fs.String("repair", "",
 		"when a saved control locates nothing, look for it on the screen instead, and "+
 			"write a PROPOSED correction to this path. Never writes to the "+
@@ -321,6 +323,7 @@ func runPerformWorkflow(args []string) int {
 
 	// THE SECOND SOURCE, on its own clock. See learnedeyes.go.
 	var eyes *learnedEyes
+	var reader *readingEyes
 	if *learned {
 		eyes = newLearnedEyes(ctx)
 		if !eyes.working() {
@@ -329,6 +332,15 @@ func runPerformWorkflow(args []string) int {
 			return 1
 		}
 		fmt.Printf("  the learned detector is running beside the loop.\n")
+	}
+	if *reading {
+		reader = newReadingEyes(ctx)
+		if !reader.working() {
+			fmt.Fprintf(os.Stderr, "director: --reading asked for OCR "+
+				"and it is not available: %s\n", reader.why)
+			return 1
+		}
+		fmt.Printf("  the words on each look are read beside the loop.\n")
 	}
 
 	var blind int
@@ -396,6 +408,23 @@ func runPerformWorkflow(args []string) int {
 					generation: v.Ref.Generation,
 				})
 				lk.Slow = eyes.ready()
+			}
+
+			// THE SLOW TEXT SOURCE, offered and drained exactly as the detector
+			// is, and for the same reason: OCR costs hundreds of milliseconds
+			// against a cadence of a hundred, so what comes back describes a
+			// frame several looks old and carries the window generation and
+			// observation epoch that say which. The observer refuses one whose
+			// context has moved -- see fastobserve.intakeReadings -- and an
+			// admitted one may do exactly one thing: refuse to believe the
+			// standing screen is the screen the arrangement says.
+			if reader.working() {
+				reader.offer(readingFrame{
+					img: img.Image, look: look,
+					epoch:      obs.Epoch(),
+					generation: v.Ref.Generation,
+				})
+				lk.Readings = reader.ready()
 			}
 		}
 		look++
@@ -476,7 +505,7 @@ func runPerformWorkflow(args []string) int {
 		fmt.Printf("\n  %d of %d capture(s) returned nothing. The first said: %s\n",
 			blind, rep.Looks, blindWhy)
 	}
-	printRun(rep, art, book, *live, lost, eyes)
+	printRun(rep, art, book, *live, lost, eyes, reader, obs.Stats())
 	if desk != nil {
 		stray, drained := desk.counts()
 		fmt.Printf("\n  %-42s %d of %d\n", "steps agreed to by key",
@@ -852,7 +881,8 @@ func reportAttempt(a workflowrun.Attempt) {
 // The five rows at the end are deliberately five sentences and not one. Collapsing any two of
 // them is how a dry run, or a simulated boundary, turns into a success claim.
 func printRun(rep workflowrun.Report, art workflowstore.Artifact, book *recordhost.Host,
-	live bool, lost string, eyes *learnedEyes) {
+	live bool, lost string, eyes *learnedEyes, reader *readingEyes,
+	readings fastobserve.Stats) {
 
 	fmt.Printf("\n%s\n", strings.Repeat("-", 72))
 	fmt.Printf("%s\n", rep.Progress.Summary())
@@ -864,6 +894,26 @@ func printRun(rep workflowrun.Report, art workflowstore.Artifact, book *recordho
 		rep.Usable, rep.Looks)
 	if eyes != nil {
 		fmt.Printf("  %-42s %s\n", "the learned detector", eyes.describe())
+	}
+	if reader != nil {
+		fmt.Printf("  %-42s %s\n", "the words on each look", reader.describe())
+		// WHAT BECAME OF THEM, which is the only honest way to report a source
+		// whose results are usually too late to use. A run that read three
+		// hundred frames and admitted none is a run where OCR cost minutes and
+		// changed no decision, and it must not look like a run where it worked.
+		st := readings
+		fmt.Printf("      offered %d, admitted %d, refused as stale %d "+
+			"(window %d, screen moved on %d), unusable look %d\n",
+			st.ReadingsOffered, st.ReadingsAdmitted,
+			st.ReadingsStaleWindow+st.ReadingsStaleEpoch,
+			st.ReadingsStaleWindow, st.ReadingsStaleEpoch, st.ReadingsUnusable)
+		if st.ReadingsRefusedMerge > 0 {
+			fmt.Printf("      %d time(s) a reading refused to believe the standing "+
+				"screen was the screen the arrangement said\n",
+				st.ReadingsRefusedMerge)
+		} else if st.ReadingsAdmitted > 0 {
+			fmt.Printf("      no reading ever contradicted the standing screen\n")
+		}
 	}
 	for because, n := range rep.Unusable {
 		fmt.Printf("      %d x %s\n", n, because)
