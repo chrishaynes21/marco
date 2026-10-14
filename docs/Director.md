@@ -62,6 +62,7 @@ succeeding. [[Learned-Plays]] is the note; ADRs 023–032 are the constraints.
 - [[Vision]] — the learned detector as an evidence source
 - [[Windows]] — window identity, liveness, stale-capture prevention
 - [[Passive-Observation]] — watching without a reachable execution path
+- [[Capability-review-2026-10-13]] — what the teach-once chain demonstrates, simulates, asks a person for, and has not built
 - [[Navigation]] — what the player did, as meaning rather than as keys
 
 **Interpreting**
