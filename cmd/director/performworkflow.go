@@ -95,6 +95,9 @@ func runPerformWorkflow(args []string) int {
 			"the first observation; every screen after it is inferred or asked about")
 	answer := fs.Duration("answer", 20*time.Second,
 		"with -hotkeys, how long a question stays open")
+	learned := fs.Bool("learned", false,
+		"offer the learned detector's candidates beside the pixel proposer's. It runs "+
+			"on its own clock and never inside the observation loop")
 	frames := fs.String("frames", "",
 		"write the two captures each hover measurement was made from into this "+
 			"directory, so a number can be checked against a picture")
@@ -294,8 +297,21 @@ func runPerformWorkflow(args []string) int {
 		}
 	}()
 
+	// THE SECOND SOURCE, on its own clock. See learnedeyes.go.
+	var eyes *learnedEyes
+	if *learned {
+		eyes = newLearnedEyes(ctx)
+		if !eyes.working() {
+			fmt.Fprintf(os.Stderr, "director: --learned asked for the detector "+
+				"and it is not available: %s\n", eyes.why)
+			return 1
+		}
+		fmt.Printf("  the learned detector is running beside the loop.\n")
+	}
+
 	var blind int
 	var blindWhy string
+	var look int
 	opt := structure.DefaultOptions()
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -345,7 +361,22 @@ func runPerformWorkflow(args []string) int {
 				rects = append(rects, c.Bounds)
 			}
 			lk.Regions = observe.NormaliseRects(img.Image.Bounds(), rects)
+
+			// THE SLOW SOURCE. Offering is non-blocking and the queue holds
+			// one frame, so a busy detector costs detections and never
+			// costs cadence; the candidates it returns describe a frame
+			// about ten looks old and carry the epoch and generation that
+			// says so. See [[ADR-184-two-speeds-of-looking]].
+			if eyes.working() {
+				eyes.offer(learnedFrame{
+					img: img.Image, look: look,
+					epoch:      obs.Epoch(),
+					generation: v.Ref.Generation,
+				})
+				lk.Slow = eyes.ready()
+			}
 		}
+		look++
 		// RE-ACQUISITION BEFORE THE FOLD, so nothing this look teaches can help
 		// recognise what this look was meant to recognise.
 		outcomes := reacquireStored(art, session, obs, lk)
@@ -354,7 +385,7 @@ func runPerformWorkflow(args []string) int {
 		at := workflowrun.Sighting{
 			Screen: up.Screen, Epoch: up.Epoch, Generation: v.Ref.Generation,
 			Window: v.Ref.ID, Bounds: v.Ref.Bounds,
-			Front: lk.Front, Missing: lk.Missing || up.Unobserved,
+			Front: lk.Front, Missing: lk.Missing, Unobserved: up.Unobserved,
 			Outcomes: outcomes, At: lk.At,
 		}
 		ground.arrangement = obs.Arrangement(up.Screen)
@@ -400,7 +431,7 @@ func runPerformWorkflow(args []string) int {
 		fmt.Printf("\n  %d of %d capture(s) returned nothing. The first said: %s\n",
 			blind, rep.Looks, blindWhy)
 	}
-	printRun(rep, art, book, *live, lost)
+	printRun(rep, art, book, *live, lost, eyes)
 	if desk != nil {
 		stray, drained := desk.counts()
 		fmt.Printf("\n  %-42s %d of %d\n", "steps agreed to by key",
@@ -423,9 +454,26 @@ func runPerformWorkflow(args []string) int {
 func reacquireStored(art workflowstore.Artifact, s *workflowstore.SessionBinding,
 	obs *fastobserve.Observer, lk fastobserve.Look) []observe.Reacquisition {
 
+	// BOTH SOURCES, ONE MATCHER.
+	//
+	// The detector's candidates join the proposer's and are matched by exactly the same
+	// rule — same `sameControl` relation, same container exclusion, same ambiguity
+	// refusal when two proposals support one control and describe different ones. A
+	// detection is a region like any other region; what makes it a target is agreeing
+	// with a reading the demonstration recorded, and that is unchanged.
+	//
+	// Only the fresh ones. A detection describes pixels from several observations ago and
+	// `fresh` drops the ones whose epoch or generation has moved — the same two numbers
+	// `admitSlow` asks about, asked here because a target matched against a stale
+	// rectangle is a point on a screen that has gone.
+	regions := lk.Regions
+	if len(lk.Slow) > 0 {
+		regions = append(append([]observe.Region{}, regions...),
+			fresh(lk.Slow, obs.Epoch(), lk.Window.Generation)...)
+	}
 	var out []observe.Reacquisition
 	for _, st := range art.Targets(s.Binding(obs.Epoch(), lk.Window.Generation)) {
-		out = append(out, observe.ReacquireStored(st, lk.Regions))
+		out = append(out, observe.ReacquireStored(st, regions))
 	}
 	return out
 }
@@ -759,7 +807,7 @@ func reportAttempt(a workflowrun.Attempt) {
 // The five rows at the end are deliberately five sentences and not one. Collapsing any two of
 // them is how a dry run, or a simulated boundary, turns into a success claim.
 func printRun(rep workflowrun.Report, art workflowstore.Artifact, book *recordhost.Host,
-	live bool, lost string) {
+	live bool, lost string, eyes *learnedEyes) {
 
 	fmt.Printf("\n%s\n", strings.Repeat("-", 72))
 	fmt.Printf("%s\n", rep.Progress.Summary())
@@ -769,6 +817,9 @@ func printRun(rep workflowrun.Report, art workflowstore.Artifact, book *recordho
 	fmt.Printf("\n")
 	fmt.Printf("  %-42s %d of %d\n", "observations Marco could use",
 		rep.Usable, rep.Looks)
+	if eyes != nil {
+		fmt.Printf("  %-42s %s\n", "the learned detector", eyes.describe())
+	}
 	for because, n := range rep.Unusable {
 		fmt.Printf("      %d x %s\n", n, because)
 	}

@@ -130,8 +130,17 @@ type Sighting struct {
 	Bounds directorapi.Rect
 	// Front says the TARGET was the window in front when the pixels were taken.
 	Front bool
-	// Missing says no pixels were obtained at all.
+	// Missing says no pixels were obtained at all: the capture itself failed.
 	Missing bool
+	// Unobserved says pixels arrived and no screen could be made of them — a covered
+	// window, a blank frame, a screen the observer will not name.
+	//
+	// SEPARATE FROM Missing, and the separation is not pedantry. Folding the two meant a
+	// run whose window was covered for every one of 250 observations reported "no pixels
+	// were obtained" 250 times, and the captures had in fact all succeeded. One of those
+	// sentences sends somebody to look at the capture path and the other sends them to
+	// look at what is in front of the application, and they are different afternoons.
+	Unobserved bool
 	// Outcomes is what re-acquisition said about this look, from the caller's own
 	// candidate set. Passed through to `workflowstore` untouched.
 	Outcomes []observe.Reacquisition
@@ -149,6 +158,9 @@ func (s Sighting) Usable() (bool, string) {
 		return false, "the target was not the window in front, so these pixels may " +
 			"belong to whatever is covering it and are not evidence about the " +
 			"application"
+	case s.Unobserved:
+		return false, "pixels arrived and no screen could be made of them, which is " +
+			"what a covered or blank window looks like from here"
 	case s.Screen == "":
 		return false, "no screen hypothesis is standing, so there is nothing to " +
 			"ground a step against"
@@ -992,8 +1004,8 @@ func (r Report) Verified() (bool, string) {
 }
 
 // Report builds the record of the run so far.
-func (r *Runner) Report() Report {
-	out := Report{
+func (r *Runner) Report() (out Report) {
+	out = Report{
 		Workflow: r.art.Name, Attempts: r.attempts, Real: r.real,
 		Budget: r.budget, Sent: r.sent, Changed: r.changed, Dwell: r.dwell,
 		Progress: workflowstore.Progress{
@@ -1008,7 +1020,16 @@ func (r *Runner) Report() Report {
 		// AN EMPTY EXPLANATION IS NOT AN EXPLANATION. A run whose looks were all
 		// unusable never reached a refusal, so nothing set one — and the report
 		// then said it stopped before the first step, for no stated reason.
-		if out.Progress.Because != "" || out.Usable > 0 {
+		if out.Progress.Because != "" {
+			return
+		}
+		if out.Usable > 0 {
+			// NOTHING REFUSED IT. The walk was still going when the caller
+			// stopped asking — its own deadline, usually — and a summary that
+			// trails off after "at step N:" reads as a reason nobody wrote
+			// down rather than as a run that simply ran out of time.
+			out.Progress.Because = fmt.Sprintf("the run ended while step %d was "+
+				"still being attempted; nothing refused it", r.cursor)
 			return
 		}
 		why, most := "no observation could be used", 0

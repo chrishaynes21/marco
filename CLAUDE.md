@@ -98,7 +98,7 @@ go build ./... && go test ./...        # 73 packages, deterministic
 go build -o marco.exe ./cmd/marco
 go build -o marco-macros.exe ./cmd/marco-macros
 go -C plugins/overlay build -o overlay.exe .
-pluginsvisionuild.cmd                 # Windows: the ONNX backend (needs gcc)
+plugins/vision/build.cmd                 # Windows: the ONNX backend (needs gcc)
 .\overlay.cmd                          # Windows: launches the overlay stack
 ```
 - **`director capture-game-session` is the L0 recorder** (frames + observed inputs on one
@@ -114,8 +114,15 @@ pluginsvisionuild.cmd                 # Windows: the ONNX backend (needs gcc)
 - **`go build` in `plugins/vision` produces a detector that detects NOTHING.** The ONNX
   backend is behind `-tags onnxvision` and the default build answers "no model loaded" to
   everything, which reads as a missing subsystem rather than an unbuilt one. Use
-  `pluginsvisionuild.cmd`. The runtime and model are vendored under `tools/` and are
-  chosen automatically; `$MARCO_ONNXRUNTIME` and `$MARCO_SCREENPARSER_MODEL` override.
+  `plugins/vision/build.cmd` — it needs gcc
+  (`winget install BrechtSanders.WinLibs.POSIX.UCRT`). The runtime and model are
+  vendored under `tools/` and **Director's own wiring finds them**:
+  `visionChildEnv` hands each child `$MARCO_VISION_MODEL`, `$MARCO_VISION_SIZE=1280`
+  and `$MARCO_ONNXRUNTIME`. A bare `vision.exe detect` finds NONE of them and needs
+  all three by hand; without the size it refuses with `Got: 640 Expected: 1280`,
+  because the vendored model is 1280 and the default is 640.
+  `$MARCO_SCREENPARSER_MODEL` only chooses which model path Director passes — the
+  plugin itself reads `$MARCO_VISION_MODEL`.
 - **Restart `overlay.cmd`** to pick up a new `overlay.exe`; `marco.exe` is spawned
   fresh per command so it takes effect immediately (`$MARCO_BIN` overrides it).
 - `marco do` performs **real input** (types/clicks for real). For behavior checks use

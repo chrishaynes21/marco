@@ -1188,6 +1188,12 @@ it refuses those looks. Visible is fine; in front is not.
   Nothing in `workflowstore` lowers anything and its import walk keeps the lowering path
   out of reach. Knowing the plan is not standing on the screen: a later step's screen is
   never pre-authorised. [[ADR-187-knowing-the-plan-and-trusting-the-screen]]
+- **The learned detector runs in the live loop now, beside the proposer.** On the Play
+  page the proposer cannot see the Training tile at all — its only covering proposal is
+  1644x1032, which `Locates` refuses — and the detector boxes it at IoU 0.991 against
+  the saved reading. Both sources go through the SAME matcher and the same ambiguity
+  rules; a detection is a place and never a meaning.
+  [[ADR-192-a-second-source-in-the-live-loop]]
 - **Marco opened a real game menu.** It grounded PLAY on a fresh look, moved the pointer
   there through legal Marco, Rocket League lit the button up (136.7/255 over its own
   pixels), the click opened the submenu, and the destination was recognised at 0.794 by
