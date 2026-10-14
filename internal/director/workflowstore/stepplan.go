@@ -86,6 +86,25 @@ type Now struct {
 	// here: a planner that could grant its own permission is the thing every boundary in
 	// this subsystem exists to prevent.
 	Authorised bool
+	// Reground is a region to use INSTEAD of what the file says about a control,
+	// supplied by whoever established it in this session.
+	//
+	// # Why a saved reading is sometimes the broken thing
+	//
+	// Four of the nine controls in the Rocket League artifact are bands across the whole
+	// window. They are not hard to find — they match perfectly, every look — they simply
+	// do not say where anything is, and `Region.Locates` refuses them. No amount of
+	// looking repairs that: the demonstration recorded a rectangle that locates nothing,
+	// and the rectangle is what is wrong.
+	//
+	// So this is the one case where the file's own evidence is set aside. It is not a
+	// correction TO the artifact — nothing here writes one — it is a region established
+	// for this session by somebody who could see the screen, in the same shape as a
+	// screen binding and with the same lifetime.
+	//
+	// It replaces the agreement step and NOT the Locates check: a repair that named
+	// another band would be the same defect with a different provenance.
+	Reground map[string]observe.Region
 }
 
 // StepReadiness is one step examined against one observation.
@@ -207,8 +226,25 @@ func (a Artifact) StepReadinessAt(at int, s *SessionBinding, now Now) StepReadin
 	// Refused before `Found` is set, so there is no position to show and no position to
 	// press. A step that cannot say where its control is must not offer a point that looks
 	// exactly like one it found.
-	if ok, why := outcome.Where.Locates(); !ok {
+	// A REGION ESTABLISHED FOR THIS SESSION REPLACES WHAT THE FILE SAYS, and skips both
+	// of the rules below, because both of them are questions about the file's readings
+	// and this exists for the case where those readings are the broken thing.
+	//
+	// It does NOT skip Locates. A repair that named another band across the window would
+	// be the same defect with a better provenance.
+	where := outcome.Where
+	regrounded, repaired := now.Reground[st.Control]
+	if repaired {
+		where = regrounded
+	}
+	if ok, why := where.Locates(); !ok {
 		r.Stage = StepControlUnlocated
+		if repaired {
+			r.Because = fmt.Sprintf("%s was re-grounded for this session and %s; "+
+				"a repair that locates nothing is the defect it was meant "+
+				"to fix", st.Control, why)
+			return r
+		}
 		r.Because = fmt.Sprintf("%s was matched again, but %s; this step has no point "+
 			"to press and no substitute for one will be invented", st.Control, why)
 		return r
@@ -221,8 +257,7 @@ func (a Artifact) StepReadinessAt(at int, s *SessionBinding, now Now) StepReadin
 	// middle. Measured: a live look matched PLAY with a region running from the window's
 	// left edge to 132px, and its middle landed three pixels inside a button that starts
 	// at 62. See observe.Agreed.
-	where := outcome.Where
-	if saved := a.readingsOf(st.Control); len(saved) > 0 {
+	if saved := a.readingsOf(st.Control); len(saved) > 0 && !repaired {
 		agreed, ok := observe.Agreed(where, saved)
 		if !ok {
 			r.Stage = StepControlUnlocated
@@ -264,9 +299,15 @@ func (a Artifact) StepReadinessAt(at int, s *SessionBinding, now Now) StepReadin
 	r.Stage = StepPlannable
 	r.Action = &workflow.Action{
 		Step: at, Where: where, Support: workflow.SupportGeometric,
-		Expect:  observe.VisualScreenID(st.To),
-		At:      centre,
-		Because: outcome.Because,
+		Expect: observe.VisualScreenID(st.To),
+		At:     centre,
+		Because: func() string {
+			if repaired {
+				return "re-grounded for this session; the saved reading of " +
+					st.Control + " locates nothing"
+			}
+			return outcome.Because
+		}(),
 	}
 	r.Because = fmt.Sprintf("%s is established here, %s was found again, %s agreed, and "+
 		"the session is authorised. A point and an expectation; nothing has been "+

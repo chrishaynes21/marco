@@ -95,6 +95,10 @@ func runPerformWorkflow(args []string) int {
 			"the first observation; every screen after it is inferred or asked about")
 	answer := fs.Duration("answer", 20*time.Second,
 		"with -hotkeys, how long a question stays open")
+	repair := fs.String("repair", "",
+		"when a saved control locates nothing, look for it on the screen instead, and "+
+			"write a PROPOSED correction to this path. Never writes to the "+
+			"workflow")
 	learned := fs.Bool("learned", false,
 		"offer the learned detector's candidates beside the pixel proposer's. It runs "+
 			"on its own clock and never inside the observation loop")
@@ -255,17 +259,35 @@ func runPerformWorkflow(args []string) int {
 		grant = keys
 	}
 
-	probe := &hoverProbe{shots: shots, moved: 8, frames: *frames, window: func() (directorapi.Window, bool) {
+	windowNow := func() (directorapi.Window, bool) {
 		v := tracker.Acquire(ctx, *app)
 		if !v.State.OK() {
 			return directorapi.Window{}, false
 		}
 		return windowRefToWindow(v.Ref), true
-	}}
+	}
+
+	// ── WHERE A CONTROL IS, WHEN THE FILE CANNOT SAY ──
+	//
+	// Only built when asked for. The repair needs OCR, which costs hundreds of
+	// milliseconds, and an ordinary run neither needs it nor pays for it.
+	var repairs *regrounder
+	if *repair != "" {
+		words := newWordReader(shots, windowNow)
+		if !words.working() {
+			fmt.Fprintf(os.Stderr, "director: --repair needs the OCR plugin and "+
+				"it is not available: %s\n", words.why)
+			return 1
+		}
+		repairs = &regrounder{art: art, out: os.Stdout, words: words.read}
+	}
+
+	probe := &hoverProbe{shots: shots, moved: 8, frames: *frames, window: windowNow}
 
 	run = workflowrun.New(art, nil, ground, grant).
 		WithExecutor(marcoexec.New(marco), *live).
 		WithHover(probe.look).
+		WithRegrounder(regroundOrNil(repairs)).
 		WithBudget(*maxActions).
 		WithDwell(*dwell).
 		// THE WORLD, RE-OBSERVED AT THE INSTANT OF THE PRESS. Deleting this call, or
@@ -390,6 +412,14 @@ func runPerformWorkflow(args []string) int {
 		}
 		ground.arrangement = obs.Arrangement(up.Screen)
 
+		// WHAT THE SOURCES FOUND ON THIS LOOK, handed over because the repair
+		// cannot look for itself. Both sources, and only regions that locate
+		// something: a band is never a candidate for replacing a band.
+		if repairs != nil {
+			repairs.candidates = append(append([]observe.Region{}, lk.Regions...),
+				fresh(lk.Slow, obs.Epoch(), v.Ref.Generation)...)
+		}
+
 		a := run.Advance(ctx, session, at)
 		reportAttempt(a)
 
@@ -427,6 +457,21 @@ func runPerformWorkflow(args []string) int {
 	obs.Close()
 
 	rep := run.Report()
+	if *repair != "" && len(rep.Repairs) > 0 {
+		reached := map[int]bool{}
+		for _, a := range rep.Attempts {
+			if a.Arrival != nil && a.Arrival.Established() {
+				reached[a.Step] = true
+			}
+		}
+		if err := writeProposal(*repair, art, rep.Repairs, reached, rep.Changed); err != nil {
+			fmt.Fprintf(os.Stderr, "director: the proposal could not be "+
+				"written: %v\n", err)
+		} else {
+			fmt.Printf("\n  %d proposed correction(s) written to %s. The "+
+				"workflow itself is untouched.\n", len(rep.Repairs), *repair)
+		}
+	}
 	if blind > 0 {
 		fmt.Printf("\n  %d of %d capture(s) returned nothing. The first said: %s\n",
 			blind, rep.Looks, blindWhy)

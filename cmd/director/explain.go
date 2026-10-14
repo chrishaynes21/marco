@@ -242,6 +242,7 @@ var valued = map[string]bool{
 	"-max-actions": true, "--max-actions": true,
 	"-answer": true, "--answer": true,
 	"-dwell": true, "--dwell": true,
+	"-repair": true, "--repair": true,
 }
 
 // valuedFlags is the table above, for the test that holds every command's value-taking flags to

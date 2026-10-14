@@ -1188,6 +1188,15 @@ it refuses those looks. Visible is fine; in front is not.
   Nothing in `workflowstore` lowers anything and its import walk keeps the lowering path
   out of reach. Knowing the plan is not standing on the screen: a later step's screen is
   never pre-authorised. [[ADR-187-knowing-the-plan-and-trusting-the-screen]]
+- **Marco recovered a control its demonstration never located.** A saved reading that
+  spans the window can never be performed; rather than stopping, Director reads the
+  screen and looks for the control among live candidates. The rule is strict — every
+  word of a candidate must come from the workflow's own name, and EXACTLY ONE may
+  qualify — and it is the workflow corroborating itself, so it lasts one session and
+  is written nowhere. `--repair` proposes a correction beside the artifact.
+  [[Experiment-041-the-control-Marco-found-for-itself]]
+- **Goal reached and goal recognised are different numbers.** Marco navigated to Free
+  Play and Director could not establish that it had.
 - **The learned detector runs in the live loop now, beside the proposer.** On the Play
   page the proposer cannot see the Training tile at all — its only covering proposal is
   1644x1032, which `Locates` refuses — and the detector boxes it at IoU 0.991 against

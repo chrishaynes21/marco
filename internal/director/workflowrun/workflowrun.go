@@ -193,6 +193,27 @@ type Grounder interface {
 	Establish(ctx context.Context, s *workflowstore.SessionBinding, at Sighting) error
 }
 
+// Regrounder is asked where a control is, when the file cannot say.
+//
+// # Why this is somebody else's job
+//
+// Four of the nine controls in the measured artifact are bands across the window. They
+// re-acquire perfectly and locate nothing, and `Region.Locates` refuses them — which is right,
+// and leaves a step that can never be performed however long it is given.
+//
+// The repair is not arithmetic. It needs the live screen, candidates from whatever sources are
+// running, and whatever evidence distinguishes one of them — which is everything this package
+// deliberately cannot see. So it is an interface, like the grounder and the granter, and for the
+// same reason: a coordinator that could decide where a control is from the inside would be
+// choosing its own click target.
+//
+// Returning false is a complete answer and means the step stays refused. The region it returns
+// is used for THIS SESSION only; nothing here writes to the artifact.
+type Regrounder interface {
+	Reground(ctx context.Context, step int, control string, at Sighting) (
+		observe.Region, string, bool)
+}
+
 // Outcome is what one call to Advance did.
 type Outcome string
 
@@ -303,6 +324,12 @@ type Runner struct {
 	// dwell is how long the pointer rests on the control before the click. Zero sends the
 	// click alone, which is what every desktop control wants and what a game menu ignores.
 	dwell time.Duration
+	// regrounder is asked where a control is when the file's own reading locates
+	// nothing, and regrounded is what it has answered, for this session only.
+	regrounder Regrounder
+	regrounded map[string]observe.Region
+	// repairs is what was re-grounded and on whose evidence, in order.
+	repairs []Repair
 	// hover is asked, after the pointer has moved and rested, whether the control's own
 	// pixels changed.
 	//
@@ -424,6 +451,28 @@ func (r *Runner) Dwell() time.Duration { return r.dwell }
 // Changed reports whether any observation after an action differed from the one it was
 // performed in. It is evidence that something happened, and not evidence of what.
 func (r *Runner) Changed() bool { return r.changed }
+
+// Repair is a control re-grounded for this session, and the evidence for it.
+//
+// Reported rather than applied. The artifact is not touched: a workflow corrected in place by the
+// run that was using it would make the next run's evidence depend on this one's guess, and the
+// provenance would be gone by the time anybody looked.
+type Repair struct {
+	Step    int
+	Control string
+	Where   observe.Region
+	// Because is the evidence, in the words of whoever established it.
+	Because string
+}
+
+// WithRegrounder installs the question "where is this control, when the file cannot say".
+func (r *Runner) WithRegrounder(g Regrounder) *Runner {
+	r.regrounder = g
+	return r
+}
+
+// Repairs is every control re-grounded in this session.
+func (r *Runner) Repairs() []Repair { return r.repairs }
 
 // WithHover installs the question "did this control react to the pointer".
 //
@@ -597,7 +646,33 @@ func (r *Runner) Advance(ctx context.Context, s *workflowstore.SessionBinding,
 	// is how the coordinator discovers that permission is the ONLY thing missing, which is
 	// the one moment a person can usefully be asked — everything else about the step is
 	// settled and can be described to them.
+	now.Reground = r.regrounded
 	ready := r.art.StepReadinessAt(r.cursor, s, now)
+
+	// ── 5a. THE FILE CANNOT SAY WHERE THIS CONTROL IS ──
+	//
+	// Asked once per control and only here, where the refusal actually happens. A step
+	// that was refused for any other reason is not re-grounded: looking for a different
+	// rectangle because a control was briefly covered would replace a target that works
+	// with one that happened to be visible.
+	if ready.Stage == workflowstore.StepControlUnlocated && r.regrounder != nil {
+		if _, done := r.regrounded[r.art.Steps[r.cursor].Control]; !done {
+			control := r.art.Steps[r.cursor].Control
+			if where, why, ok := r.regrounder.Reground(ctx, r.cursor, control,
+				at); ok {
+				if r.regrounded == nil {
+					r.regrounded = map[string]observe.Region{}
+				}
+				r.regrounded[control] = where
+				r.repairs = append(r.repairs, Repair{
+					Step: r.cursor, Control: control,
+					Where: where, Because: why,
+				})
+				now.Reground = r.regrounded
+				ready = r.art.StepReadinessAt(r.cursor, s, now)
+			}
+		}
+	}
 	a.Stage, a.Because = ready.Stage, ready.Because
 
 	// ── 6. SOMEBODY IS ASKED, FOR THIS STEP, IN THIS OBSERVATION ──
@@ -856,17 +931,23 @@ func (r *Runner) intentOf(ready workflowstore.StepReadiness, at Sighting) Intent
 	if ready.Found != nil {
 		in.At = Desktop(*ready.Found, at.Bounds)
 	}
-	if ready.Action != nil {
-		in.Because = ready.Action.Because
-		in.Where = ready.Action.Where
-	}
 	// THE REGION IS KNOWN BEFORE THE STEP IS PLANNABLE, like the point is. At the moment
 	// somebody is asked, authorisation is the last refusal and Action is still nil — so
-	// taking the rectangle only from Action would show it to nobody.
+	// the outcome is consulted only when there is nothing better.
+	//
+	// Action.Where WINS where it exists, and that is not a preference. It is the region
+	// the point was actually taken from: narrowed by agreement, or replaced outright by a
+	// re-grounding. A live run re-grounded control_3 to the FREE PLAY label, pressed the
+	// right point, and printed the saved full-window rectangle as its target — because
+	// this loop ran afterwards and overwrote the good answer with the matched one.
 	for _, o := range at.Outcomes {
 		if string(o.Target) == in.Control && o.Actionable() {
 			in.Where = o.Where
 		}
+	}
+	if ready.Action != nil {
+		in.Because = ready.Action.Because
+		in.Where = ready.Action.Where
 	}
 	return in
 }
@@ -974,6 +1055,10 @@ type Report struct {
 	Looks    int
 	Usable   int
 	Unusable map[string]int
+	// Repairs is every control re-grounded for this session, with its evidence. Reported
+	// so a correction can be proposed afterwards by somebody who can weigh it; nothing
+	// here writes one.
+	Repairs []Repair
 	// Hovered is how many actions saw the control react to the pointer resting on it, and
 	// Watched how many were looked at. Two numbers, because nobody looking and nothing
 	// happening are different findings.
@@ -1008,6 +1093,7 @@ func (r *Runner) Report() (out Report) {
 	out = Report{
 		Workflow: r.art.Name, Attempts: r.attempts, Real: r.real,
 		Budget: r.budget, Sent: r.sent, Changed: r.changed, Dwell: r.dwell,
+		Repairs: r.repairs,
 		Progress: workflowstore.Progress{
 			Steps: len(r.art.Steps), Reached: r.cursor, Stopped: -1,
 			Stage: r.lastStage, Because: r.lastBecause, Acted: r.sent,
