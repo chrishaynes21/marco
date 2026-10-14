@@ -4,6 +4,7 @@ package main
 
 import (
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/fastobserve"
@@ -51,30 +52,40 @@ func stageReload(r *readiness, a learnedFold, half int, frames []frameRecord) (
 	return art, body, loaded
 }
 
-// ── 2. FRESH SCREEN ESTABLISHMENT ─────────────────────────────────────────────
+// ── 2-7. THE STEP-SCOPED WALK ─────────────────────────────────────────────
+//
+// One walk, because the stages are not separable in a sequential workflow: a step's screen is
+// established, its control looked for, its confirmation checked and its action lowered AT THE
+// SAME MOMENT, and the next step's turn comes only after the observation has moved.
+//
+// Stage counts are therefore "how many steps reached this stage at least once", which is the
+// honest unit. A step that reached lowering on one look and not on the next reached lowering.
 
-func stageEstablish(r *readiness, loaded workflowstore.Artifact, a learnedFold,
-	oracle fold, regions [][]observe.Region, readable []bool, frames []frameRecord,
-	half int, feed *slowFeed) (workflowstore.Binding, *workflowstore.SessionBinding) {
+// stepWalk drives fold B and examines each step against the observation it is in.
+func stepWalk(r *readiness, loaded workflowstore.Artifact, a learnedFold, oracle fold,
+	regions [][]observe.Region, readable []bool, frames []frameRecord, half int,
+	feed *slowFeed, authorised bool) {
 
-	if len(loaded.Steps) == 0 {
-		r.notReached(2, "fresh screen establishment", "no artifact to establish")
-		return workflowstore.Binding{}, workflowstore.NewSessionBinding()
-	}
 	session := workflowstore.NewSessionBinding()
 	labels := workflowstore.Labels(a.draft)
 	truthOf := map[string]observe.VisualScreenID{}
-	for _, s := range summarise(a.fold, oracle, regions) {
-		if l, ok := labels[s.id]; ok {
-			truthOf[l] = s.truth
+	for _, sc := range summarise(a.fold, oracle, regions) {
+		if l, ok := labels[sc.id]; ok {
+			truthOf[l] = sc.truth
 		}
+	}
+	// SIMULATED: a person would be shown each step and its evidence. Every step is
+	// confirmed up front because confirmation is about the workflow, not about where
+	// Marco is standing — and the label travels with every result below.
+	for i := range loaded.Steps {
+		_ = session.ConfirmStep(i, "SIMULATED fixture")
 	}
 
 	obs, err := fastobserve.New(100*time.Millisecond, 64)
 	if err != nil {
-		r.add(stage{n: 2, name: "fresh screen establishment",
-			state: stageRefused, missing: err.Error()})
-		return workflowstore.Binding{}, session
+		r.add(stage{n: 2, name: "fresh screen establishment", state: stageRefused,
+			missing: err.Error()})
+		return
 	}
 	go func() {
 		for range obs.Updates() {
@@ -82,11 +93,24 @@ func stageEstablish(r *readiness, loaded workflowstore.Artifact, a learnedFold,
 	}()
 	defer obs.Close()
 
+	reached := map[workflowstore.StepStage]map[int]bool{}
+	note := func(st workflowstore.StepStage, step int) {
+		if reached[st] == nil {
+			reached[st] = map[int]bool{}
+		}
+		reached[st][step] = true
+	}
+	lowered := map[int]bool{}
+	verified := map[int]bool{}
+	verdicts := map[int]workflow.Verdict{}
+	establishedScreens, inferredScreens := map[string]bool{}, map[string]bool{}
+	var firstRefusal string
+	var firstRefusalStage workflowstore.StepStage
+	cursor, reachedSteps := 0, 0
+
 	base := time.Unix(1700000000, 0).UTC()
 	lastEpoch := ^uint64(0)
 	var lastLabel string
-	var lastEpochSeen, lastGenSeen uint64
-	confirmed, inferred := 0, 0
 	for i := half; i < len(frames); i++ {
 		fr := frames[i]
 		lk := fastobserve.Look{
@@ -101,290 +125,210 @@ func stageEstablish(r *readiness, loaded workflowstore.Artifact, a learnedFold,
 			lk.Missing = true
 		}
 		lk.Slow = feed.due(i + 1)
+
+		standing := obs.Screen()
+		here := obs.Candidates(lk)
+
+		// ── ESTABLISH, ONCE PER OBSERVATION ──
 		up := obs.Observe(lk)
 		if up.Settled {
 			feed.request(i+1, fr.WindowGeneration, up.Epoch)
 		}
-		lastEpochSeen, lastGenSeen = up.Epoch, fr.WindowGeneration
-		if up.Epoch == lastEpoch {
-			continue
-		}
-		lastEpoch = up.Epoch
-		standing := obs.Screen()
-		if standing == "" || standing == observe.VisualScreenUnknown ||
-			standing == observe.VisualScreenUnobserved {
-			session.Observed(up.Epoch, fr.WindowGeneration)
-			lastLabel = ""
-			continue
-		}
-		here := obs.Arrangement(standing)
-
-		done := false
-		if lastLabel != "" {
-			for _, to := range nextLabels(loaded, lastLabel) {
-				agreed := observe.ArrangementSimilarity(arrangementOf(loaded, to), here)
-				if b, ierr := session.Infer(loaded, lastLabel, to, standing,
-					agreed, up.Epoch, fr.WindowGeneration); ierr == nil {
-					lastLabel, done = b.Label, true
-					inferred++
-					break
+		if up.Epoch != lastEpoch {
+			lastEpoch = up.Epoch
+			now := obs.Screen()
+			if now == "" || now == observe.VisualScreenUnknown ||
+				now == observe.VisualScreenUnobserved {
+				session.Observed(up.Epoch, fr.WindowGeneration)
+				lastLabel = ""
+				continue
+			}
+			arr := obs.Arrangement(now)
+			done := false
+			if lastLabel != "" {
+				for _, to := range nextLabels(loaded, lastLabel) {
+					agreed := observe.ArrangementSimilarity(
+						arrangementOf(loaded, to), arr)
+					if b, ierr := session.Infer(loaded, lastLabel, to, now,
+						agreed, up.Epoch, fr.WindowGeneration); ierr == nil {
+						lastLabel, done = b.Label, true
+						inferredScreens[b.Label] = true
+						break
+					}
 				}
 			}
-		}
-		if !done {
-			proposed := bestLabel(loaded, here)
-			// SIMULATED. A person would look at the screen; this looks at the
-			// oracle, and the result is labelled wherever it is reported.
-			if proposed != "" && truthOf[proposed] == oracleName(oracle, i) &&
-				oracleName(oracle, i) != "" {
-				if cerr := session.Confirm(proposed, standing, up.Epoch,
-					fr.WindowGeneration, "SIMULATED fixture", base); cerr == nil {
-					lastLabel = proposed
-					confirmed++
-					done = true
+			if !done {
+				proposed := bestLabel(loaded, arr)
+				// SIMULATED: the oracle stands where a person would look.
+				if proposed != "" && truthOf[proposed] == oracleName(oracle, i) &&
+					oracleName(oracle, i) != "" {
+					if cerr := session.Confirm(proposed, now, up.Epoch,
+						fr.WindowGeneration, "SIMULATED fixture",
+						base); cerr == nil {
+						lastLabel, done = proposed, true
+						establishedScreens[proposed] = true
+					}
 				}
 			}
 			if !done {
 				lastLabel = ""
 			}
+			session.Observed(up.Epoch, fr.WindowGeneration)
+			standing = now
 		}
-		session.Observed(up.Epoch, fr.WindowGeneration)
-	}
-
-	binding := session.Binding(lastEpochSeen, lastGenSeen)
-	live := session.Live(lastEpochSeen, lastGenSeen)
-	detail := fmt.Sprintf("%d screen(s) established over the walk — %d confirmed, "+
-		"%d inferred; %d still live in the final observation",
-		confirmed+inferred, confirmed, inferred, len(live))
-	if _, berr := loaded.Bind(binding); berr != nil {
-		r.add(stage{n: 2, name: "fresh screen establishment", state: stageRefused,
-			detail: detail, simulated: true, missing: berr.Error()})
-		return binding, session
-	}
-	r.add(stage{n: 2, name: "fresh screen establishment", state: stageReady,
-		detail: detail, simulated: true})
-	return binding, session
-}
-
-// ── 3. STORED-CONTROL REACQUISITION ───────────────────────────────────────────
-
-func stageReacquire(r *readiness, loaded workflowstore.Artifact, b workflowstore.Binding,
-	frames []frameRecord, regions [][]observe.Region, readable []bool, half int,
-	feed *slowFeed) []observe.StoredTarget {
-
-	targets := loaded.Targets(b)
-	if len(targets) == 0 {
-		r.notReached(3, "stored-control reacquisition",
-			"no control is on a screen this session established, so there is nothing "+
-				"to look for")
-		return nil
-	}
-	obs, err := fastobserve.New(100*time.Millisecond, 64)
-	if err != nil {
-		r.add(stage{n: 3, name: "stored-control reacquisition",
-			state: stageRefused, missing: err.Error()})
-		return targets
-	}
-	go func() {
-		for range obs.Updates() {
-		}
-	}()
-	defer obs.Close()
-
-	found := map[observe.VisualTargetID]bool{}
-	base := time.Unix(1700000000, 0).UTC()
-	for i := half; i < len(frames); i++ {
-		fr := frames[i]
-		lk := fastobserve.Look{
-			At: base.Add(time.Duration(fr.AtMS) * time.Millisecond),
-			Window: fastobserve.WindowRef{
-				ID: "hwnd:recorded", Generation: fr.WindowGeneration,
-				Bounds: directorapi.Rect{Width: fr.Width, Height: fr.Height},
-			},
-			Front: true, Regions: regions[i],
-		}
-		if !readable[i] {
-			lk.Missing = true
-		}
-		lk.Slow = feed.due(i + 1)
-		standing := obs.Screen()
-		here := observe.Regions(obs.Candidates(lk))
-		for _, st := range targets {
-			if st.Screen != standing {
-				continue
-			}
-			if observe.ReacquireStored(st, here).Result == observe.ReacquireMatched {
-				found[st.ID] = true
-			}
-		}
-		if up := obs.Observe(lk); up.Settled {
-			feed.request(i+1, fr.WindowGeneration, up.Epoch)
-		}
-	}
-	detail := fmt.Sprintf("%d of %d stored control(s) were found again from the file's "+
-		"own readings", len(found), len(targets))
-	if len(found) == 0 {
-		r.add(stage{n: 3, name: "stored-control reacquisition", state: stageUnobservable,
-			detail:  detail,
-			missing: "no proposal on any look agreed with a stored reading"})
-		return targets
-	}
-	r.add(stage{n: 3, name: "stored-control reacquisition", state: stageReady, detail: detail})
-	return targets
-}
-
-// ── 4. CONTROL CLARIFICATION ──────────────────────────────────────────────────
-
-func stageClarify(r *readiness, loaded workflowstore.Artifact) {
-	qs := loaded.Questions()
-	if len(qs) == 0 {
-		r.add(stage{n: 4, name: "control clarification", state: stageReady,
-			detail: "no control is ambiguous enough to be worth asking about"})
-		return
-	}
-	var names []string
-	for _, q := range qs {
-		names = append(names, q.Control)
-	}
-	// A QUESTION IS NOT A FAILURE. It is the mechanism working: the demonstration
-	// could not settle this and says so. Nothing is answered here, because nothing
-	// should answer on a person's behalf.
-	r.add(stage{n: 4, name: "control clarification", state: stageReady,
-		detail: fmt.Sprintf("%d open question(s) (%v) — asked, and deliberately "+
-			"unanswered: nothing may answer for a person", len(qs), names)})
-}
-
-// ── 5. FRESH CONFIRMATION AND AUTHORISATION ───────────────────────────────────
-
-func stageConfirm(r *readiness, loaded workflowstore.Artifact,
-	b workflowstore.Binding) workflow.Draft {
-
-	d, err := loaded.Bind(b)
-	if err != nil {
-		r.notReached(5, "fresh confirmation and per-action authorisation",
-			"the workflow is not bound, so there is nothing to confirm")
-		return workflow.Draft{}
-	}
-	if d.Executable() {
-		r.add(stage{n: 5, name: "fresh confirmation and per-action authorisation",
-			state: stageRefused,
-			missing: "a reloaded workflow arrived executable; stored confirmation " +
-				"has become reusable authorisation"})
-		return d
-	}
-	// SIMULATED. A person would be shown each step and its evidence.
-	confirmed := 0
-	for i := range d.Steps {
-		if d.Steps[i].Repeatable() {
-			if cerr := d.Confirm(i, "SIMULATED fixture"); cerr == nil {
-				confirmed++
-			}
-		}
-	}
-	if !d.Executable() {
-		r.add(stage{n: 5, name: "fresh confirmation and per-action authorisation",
-			state: stageRefused, simulated: true,
-			detail:  fmt.Sprintf("%d step(s) confirmed", confirmed),
-			missing: "the draft is still not executable after confirming every repeatable step"})
-		return d
-	}
-	r.add(stage{n: 5, name: "fresh confirmation and per-action authorisation",
-		state: stageReady, simulated: true,
-		detail: fmt.Sprintf("%d repeatable step(s) confirmed afresh; the reloaded "+
-			"workflow arrived unconfirmed, as it must", confirmed)})
-	return d
-}
-
-// ── 6. LOWERING AND COMPILE VALIDATION ────────────────────────────────────────
-
-func stageLower(r *readiness, d workflow.Draft, targets []observe.StoredTarget,
-	b workflowstore.Binding, session *workflowstore.SessionBinding) *workflow.Action {
-
-	if len(d.Steps) == 0 {
-		r.notReached(6, "legal Marco lowering and compile validation",
-			"no confirmed workflow to lower")
-		return nil
-	}
-	// A PLAN NEEDS AN OUTCOME FOR ITS CONTROL, on the screen standing now. Built from
-	// the stored readings so the lowering is of the reloaded workflow and not of the
-	// session that taught it.
-	var act *workflow.Action
-	var refusal string
-	for i := range d.Steps {
-		if !d.Steps[i].Repeatable() {
+		if cursor >= len(loaded.Steps) {
 			continue
 		}
-		var got []observe.Reacquisition
-		for _, st := range targets {
-			if st.Screen != d.Steps[i].From {
-				continue
+
+		// ── AND EXAMINE THE STEP THE WALK IS ON ──
+		var outcomes []observe.Reacquisition
+		for _, st := range loaded.Targets(session.Binding(up.Epoch, fr.WindowGeneration)) {
+			outcomes = append(outcomes, observe.ReacquireStored(st,
+				observe.Regions(here)))
+		}
+		got := loaded.StepReadinessAt(cursor, session, workflowstore.Now{
+			Screen: standing, Epoch: up.Epoch, Generation: fr.WindowGeneration,
+			Outcomes: outcomes, Authorised: authorised,
+		})
+		note(got.Stage, cursor)
+		if firstRefusal == "" && !got.Ready() &&
+			got.Stage != workflowstore.StepNotRepeatable {
+			firstRefusal, firstRefusalStage = got.Because, got.Stage
+		}
+		switch {
+		case got.Stage == workflowstore.StepNotRepeatable:
+			// A WAIT. It advances on arrival, which is the walk's own rule.
+			if string(standing) != "" && loaded.Steps[cursor].To != "" {
+				cursor++
+				reachedSteps++
 			}
-			got = append(got, observe.Reacquisition{
-				Target: st.ID, Screen: st.Screen,
-				Result: observe.ReacquireMatched,
-				Where:  st.Readings[0],
-				Because: "SIMULATED: a matched outcome standing in for a live look, so " +
-					"the lowering path can be exercised without a desktop",
+		case got.Ready():
+			src, lerr := marcoexec.Lower(marcoexec.Operation{
+				Kind: marcoexec.KindClick, Count: 1,
+				At: marcoexec.Point{
+					X: int(got.Action.At.X * float64(fr.Width)),
+					Y: int(got.Action.At.Y * float64(fr.Height)),
+				},
 			})
-		}
-		a, ref := workflow.Plan(d, i, d.Steps[i].From, got)
-		if ref != nil {
-			if refusal == "" {
-				refusal = ref.Because
+			if lerr == nil && driver.CheckSource(src) == nil {
+				lowered[cursor] = true
+				// THE VERIFICATION EXPECTATION, not a result.
+				//
+				// `workflow.Verify` compares SCREEN IDENTITIES, and a
+				// reloaded workflow's destination is an artifact LABEL
+				// that nothing has bound, because arriving there is what
+				// would bind it. So it is asked, and what it says is
+				// recorded rather than required.
+				v := workflow.Verify(*got.Action,
+					observe.VisualScreenID(loaded.Steps[cursor].From), standing)
+				verdicts[cursor] = v
+				if v == workflow.VerdictWaiting {
+					verified[cursor] = true
+				}
 			}
-			continue
+			cursor++
+			reachedSteps++
 		}
-		act = a
-		break
 	}
-	if act == nil {
-		r.add(stage{n: 6, name: "legal Marco lowering and compile validation",
-			state: stageRefused, missing: refusal})
-		return nil
+
+	// ── THE STAGES, FROM WHAT THE WALK ACTUALLY REACHED ──
+	countOf := func(st workflowstore.StepStage) int { return len(reached[st]) }
+	establishedAny := len(establishedScreens) + len(inferredScreens)
+	r.add(stage{n: 2, name: "fresh screen establishment", state: stageReady, simulated: true,
+		detail: fmt.Sprintf("%d screen(s) established — %d confirmed, %d inferred; "+
+			"%d step(s) found their own screen standing",
+			establishedAny, len(establishedScreens), len(inferredScreens),
+			len(loaded.Steps)-countOf(workflowstore.StepScreenUnestablished))})
+
+	resolved := len(loaded.Steps) - countOf(workflowstore.StepScreenUnestablished) -
+		countOf(workflowstore.StepControlUnresolved)
+	if countOf(workflowstore.StepControlUnresolved) > 0 || resolved <= 0 {
+		r.add(stage{n: 3, name: "stored-control reacquisition", state: stageReady,
+			detail: fmt.Sprintf("%d step(s) could not find their control, %d could",
+				countOf(workflowstore.StepControlUnresolved),
+				countOf(workflowstore.StepUnconfirmed)+
+					countOf(workflowstore.StepUnauthorised)+
+					countOf(workflowstore.StepPlannable))})
+	} else {
+		r.add(stage{n: 3, name: "stored-control reacquisition", state: stageReady,
+			detail: "every step that found its screen also found its control"})
 	}
-	src, err := marcoexec.Lower(marcoexec.Operation{
-		Kind: marcoexec.KindClick, Count: 1,
-		At: marcoexec.Point{X: int(act.At.X * 1920), Y: int(act.At.Y * 1080)},
-	})
-	if err != nil {
-		r.add(stage{n: 6, name: "legal Marco lowering and compile validation",
-			state: stageRefused, missing: "lowering failed: " + err.Error()})
-		return act
+
+	if n := countOf(workflowstore.StepNeedsClarification); n > 0 {
+		r.add(stage{n: 4, name: "control clarification", state: stageRefused,
+			detail:  fmt.Sprintf("%d step(s) wait on a question nobody has answered", n),
+			missing: "a person's answer; nothing may answer for them"})
+	} else {
+		r.add(stage{n: 4, name: "control clarification", state: stageReady,
+			detail: "no step is blocked on an unanswered question"})
 	}
-	if err := driver.CheckSource(src); err != nil {
-		r.add(stage{n: 6, name: "legal Marco lowering and compile validation",
+
+	unconf, unauth := countOf(workflowstore.StepUnconfirmed), countOf(workflowstore.StepUnauthorised)
+	switch {
+	case unauth > 0 && !authorised:
+		r.add(stage{n: 5, name: "fresh confirmation and per-action authorisation",
 			state: stageRefused, simulated: true,
-			missing: "the lowered Marco does not compile: " + err.Error()})
-		return act
+			detail: fmt.Sprintf("%d step(s) reached authorisation confirmed; %d were "+
+				"unconfirmed", unauth, unconf),
+			missing: "the session carries no live execution authorisation, and this " +
+				"experiment will not manufacture one"})
+	case unconf > 0:
+		r.add(stage{n: 5, name: "fresh confirmation and per-action authorisation",
+			state: stageRefused, simulated: true,
+			missing: fmt.Sprintf("%d step(s) were not confirmed in this session", unconf)})
+	default:
+		r.add(stage{n: 5, name: "fresh confirmation and per-action authorisation",
+			state: stageReady, simulated: true,
+			detail: "every step that got this far was confirmed and authorised"})
 	}
-	r.add(stage{n: 6, name: "legal Marco lowering and compile validation",
-		state: stageReady, simulated: true,
-		detail: fmt.Sprintf("step %d lowered into %d byte(s) of Marco and compiled; "+
-			"NOT run", act.Step, len(src))})
-	return act
-}
 
-// ── 7. VERIFICATION PLAN ──────────────────────────────────────────────────────
-
-func stageVerify(r *readiness, d workflow.Draft, act *workflow.Action) {
-	if act == nil {
-		r.notReached(7, "verification plan",
-			"no action was lowered, so there is nothing to verify")
-		return
+	if len(lowered) == 0 {
+		r.add(stage{n: 6, name: "legal Marco lowering and compile validation",
+			state: stageNotReached, missing: "no step became plannable"})
+	} else {
+		r.add(stage{n: 6, name: "legal Marco lowering and compile validation",
+			state: stageReady, simulated: true,
+			detail: fmt.Sprintf("%d step(s) lowered into Marco and compiled; NOT run",
+				len(lowered))})
 	}
-	// THE PLAN, NOT A RESULT. `Verify` is asked what it WOULD say, against a screen
-	// that has not changed because nothing was done.
-	v := workflow.Verify(*act, d.Steps[act.Step].From, d.Steps[act.Step].From)
-	if v != workflow.VerdictWaiting {
+	switch {
+	case len(lowered) == 0:
+		r.add(stage{n: 7, name: "verification plan",
+			state: stageNotReached, missing: "no action was lowered"})
+	case len(verified) == 0:
+		// THE NEXT GENUINE BLOCKER, and it is not an absence of machinery.
+		//
+		// `Verify` asks whether the screen standing now is the one the action
+		// expected, by comparing identities. A reloaded workflow expects
+		// `screen_c` — an artifact label — and the screen standing is a session
+		// id, so the comparison is between two vocabularies and can only say
+		// `elsewhere`. Arriving is what would bind the destination label, and
+		// verification is being asked before that has happened.
+		var saw []string
+		for i, v := range verdicts {
+			saw = append(saw, fmt.Sprintf("step %d: %s", i, v))
+		}
+		sort.Strings(saw)
 		r.add(stage{n: 7, name: "verification plan", state: stageRefused,
-			missing: fmt.Sprintf("with nothing performed, verification says %q "+
-				"rather than waiting; an unexecuted action has been scored", v)})
-		return
+			detail: fmt.Sprintf("%d action(s) lowered and %v", len(lowered), saw),
+			missing: "a reloaded workflow's destination is an artifact label and " +
+				"the screen standing is a session identity; `workflow.Verify` " +
+				"compares identities, so it reports `elsewhere` for a step " +
+				"that has not moved. Verifying a reloaded step means asking " +
+				"whether the NEW observation establishes as the step's " +
+				"destination label, which is screen establishment run once " +
+				"more rather than a comparison"})
+	default:
+		r.add(stage{n: 7, name: "verification plan", state: stageReady,
+			detail: fmt.Sprintf("%d step(s) built an expectation that reports waiting "+
+				"with nothing performed", len(verified))})
 	}
-	r.add(stage{n: 7, name: "verification plan", state: stageReady,
-		detail: fmt.Sprintf("the plan expects %s and reports %q until it arrives; "+
-			"nothing was performed and nothing is claimed",
-			act.Expect, v)})
+
+	p := workflowstore.Progress{Steps: len(loaded.Steps), Reached: reachedSteps, Stopped: -1}
+	if reachedSteps < len(loaded.Steps) {
+		p.Stopped, p.Because, p.Stage = cursor, firstRefusal, firstRefusalStage
+	}
+	r.progress = &p
 }
 
 // ── the report ────────────────────────────────────────────────────────────────
@@ -415,6 +359,9 @@ func printReadiness(r readiness) {
 	fmt.Printf("\n  %s\n", repeat("-", 74))
 	fmt.Printf("  THE EARLIEST GENUINE BLOCKER\n")
 	fmt.Printf("  %s\n", repeat("-", 74))
+	if r.progress != nil {
+		fmt.Printf("      how far it got: %s\n\n", wrapAt(r.progress.Summary(), 64, "      "))
+	}
 	if firstBlock == nil {
 		fmt.Printf("      None. Every stage completed, with the decisions a person would\n")
 		fmt.Printf("      make supplied by fixtures and marked SIMULATED above.\n")

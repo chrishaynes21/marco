@@ -102,6 +102,8 @@ func main() {
 	cadence := flag.Bool("cadence", false,
 		"with -frames, measure the screen model at several sampling rates and phases "+
 			"instead of replaying once")
+	authorise := flag.Bool("authorise", false,
+		"with -readiness, supply a SIMULATED execution authorisation; nothing is executed either way")
 	readiness := flag.Bool("readiness", false,
 		"follow a reloaded workflow through the production contracts, executing nothing")
 	anchor := flag.Bool("anchor", false,
@@ -170,7 +172,7 @@ func main() {
 				continue
 			}
 			if *readiness {
-				if err := reportReadiness(dir, *limit, *onnx); err != nil {
+				if err := reportReadiness(dir, *limit, *onnx, *authorise); err != nil {
 					fmt.Fprintf(os.Stderr, "perceptionreplay: %s: %v\n", dir, err)
 					os.Exit(1)
 				}

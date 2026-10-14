@@ -1176,6 +1176,24 @@ it refuses those looks. Visible is fine; in front is not.
   happened; excluding the gap's closing look hid two real navigations. Both corrections
   moved the answer AGAINST the proposal being measured.
   [[Experiment-037-why-the-binding-disappeared]]
+- **A reloaded workflow now gets six stages in, and three steps into legal Marco.**
+  `StepReadinessAt` grounds ONE step against ONE observation: this step's screen
+  established here, its control settled and found, somebody's agreement in this session,
+  and a live authorisation that is never inferred. Measured across two independent folds
+  with a labelled simulated authorisation: **6 of 7 stages, 3 of 11 steps lowered and
+  compiled, NOT run**, and it STOPPED SAFELY rather than completing or failing. Without
+  the authorisation fixture it stops at stage 5.
+  [[ADR-187-knowing-the-plan-and-trusting-the-screen]]
+- **Plannable is not permission.** A plannable step is a point and an expectation.
+  Nothing in `workflowstore` lowers anything and its import walk keeps the lowering path
+  out of reach. Knowing the plan is not standing on the screen: a later step's screen is
+  never pre-authorised. [[ADR-187-knowing-the-plan-and-trusting-the-screen]]
+- **The next blocker is verification, and it is a vocabulary mismatch.** `workflow.Verify`
+  compares screen identities; a reloaded workflow's destination is an artifact label that
+  nothing has bound, because arriving is what would bind it. Verifying a reloaded step
+  means asking whether the new observation establishes as that label — screen
+  establishment once more, not a comparison.
+  [[Experiment-038-how-far-a-reloaded-workflow-gets]]
 - **The contracts do not yet compose, and the readiness report found where.** A reloaded
   workflow gets through stage 1 of 7 and stops: `Artifact.Bind` requires EVERY screen
   bound at once, and a binding is valid only in the observation generation it was

@@ -26,6 +26,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/chaynes-simpleclouds/marco/internal/director/workflowstore"
 	"path/filepath"
 	"sort"
 )
@@ -56,6 +57,9 @@ type stage struct {
 type readiness struct {
 	stages  []stage
 	blocked bool
+	// progress is how far the walk actually got, kept apart from the stages
+	// because a stage says what WORKED and this says what HAPPENED.
+	progress *workflowstore.Progress
 }
 
 func (r *readiness) add(s stage) {
@@ -74,7 +78,7 @@ func (r *readiness) notReached(n int, name, why string) {
 	r.stages = append(r.stages, stage{n: n, name: name, state: stageNotReached, missing: why})
 }
 
-func reportReadiness(dir string, limit int, onnx string) error {
+func reportReadiness(dir string, limit int, onnx string, authorised bool) error {
 	frames, err := readJSONL[frameRecord](filepath.Join(dir, "frames.jsonl"))
 	if err != nil {
 		return err
@@ -125,17 +129,16 @@ func reportReadiness(dir string, limit int, onnx string) error {
 	fmt.Printf("  SIMULATED. Nothing is executed.\n")
 
 	var r readiness
-	art, body, loaded := stageReload(&r, a, half, frames)
-	binding, session := stageEstablish(&r, loaded, a, oracle, regions, readable,
-		frames, half, newFeed())
-	targets := stageReacquire(&r, loaded, binding, frames, regions, readable, half, newFeed())
-	stageClarify(&r, loaded)
-	confirmed := stageConfirm(&r, loaded, binding)
-	act := stageLower(&r, confirmed, targets, binding, session)
-	stageVerify(&r, confirmed, act)
-
-	_ = art
-	_ = body
+	_, _, loaded := stageReload(&r, a, half, frames)
+	if len(loaded.Steps) == 0 {
+		r.notReached(2, "the step-scoped walk", "no artifact to walk")
+	} else {
+		// AUTHORISED is a fixture and says so. Nothing in this experiment may
+		// manufacture permission, so it is passed in and labelled, and the
+		// unauthorised run is the one that shows what it is worth.
+		stepWalk(&r, loaded, a, oracle, regions, readable, frames, half,
+			newFeed(), authorised)
+	}
 	printReadiness(r)
 	return nil
 }

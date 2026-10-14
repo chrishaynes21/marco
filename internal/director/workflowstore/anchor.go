@@ -97,12 +97,25 @@ type SessionBinding struct {
 	// asked counts the questions actually put to a person, which is the number the
 	// experience is judged by.
 	asked, confirmed, denied, unsure int
+
+	// steps is who agreed to which step, IN THIS SESSION.
+	//
+	// Here rather than on the Draft because a draft is rebuilt from the artifact
+	// every time the observation moves — that is what step-scoped planning does —
+	// and a confirmation that lived on the draft would evaporate with it. It is a
+	// fact about the session, not about where Marco happens to be standing.
+	//
+	// It still never reaches a file. The thing forbidden is a confirmation
+	// surviving a RELOAD, and a SessionBinding has no JSON tags and is not a field
+	// of Artifact.
+	steps map[int]string
 }
 
 func NewSessionBinding() *SessionBinding {
 	return &SessionBinding{
 		bound:    map[string]Bound{},
 		rejected: map[string][]observe.VisualScreenID{},
+		steps:    map[int]string{},
 	}
 }
 
@@ -111,6 +124,28 @@ func (s *SessionBinding) Asked() int     { return s.asked }
 func (s *SessionBinding) Confirmed() int { return s.confirmed }
 func (s *SessionBinding) Denied() int    { return s.denied }
 func (s *SessionBinding) Unsures() int   { return s.unsure }
+
+// ConfirmStep records that somebody agreed to one step of the workflow, in this session.
+//
+// Separate from `Confirm`, which is about a screen. Agreeing that this is the Play menu and
+// agreeing to press something on it are two different sentences, and a build that conflated them
+// would let a person answer one and be taken to have answered the other.
+func (s *SessionBinding) ConfirmStep(at int, by string) error {
+	if by == "" {
+		return fmt.Errorf("workflowstore: a confirmation needs somebody to have given it")
+	}
+	if at < 0 {
+		return fmt.Errorf("workflowstore: step %d is not a step", at)
+	}
+	s.steps[at] = by
+	return nil
+}
+
+// StepConfirmation says who agreed to a step in this session, if anybody has.
+func (s *SessionBinding) StepConfirmation(at int) (string, bool) {
+	by, ok := s.steps[at]
+	return by, ok
+}
 
 // Confirm records a person's yes.
 //

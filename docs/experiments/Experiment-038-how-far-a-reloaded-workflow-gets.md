@@ -95,6 +95,34 @@ established — and stops standing between a reloaded workflow and its first ste
 
 **It is not implemented.** This is the blocker and the proposal, as asked.
 
+## Resolved, and rerun
+
+[[ADR-187-knowing-the-plan-and-trusting-the-screen]] made the change this section proposed:
+`Artifact.StepReadinessAt` grounds one step against one observation, and `Bind` keeps its
+all-or-nothing meaning for the question it answers. Rerun with that path:
+
+```
+1. artifact reload and validation                READY
+2. fresh screen establishment                    READY   6 screens, 1 confirmed, 5 inferred
+3. stored-control reacquisition                  READY   3 steps found their control
+4. control clarification                         READY
+5. fresh confirmation and authorisation          READY   [SIMULATED authorisation]
+6. legal Marco lowering and compile validation   READY   3 steps lowered and compiled; NOT run
+7. verification plan                             REFUSED
+
+STOPPED SAFELY after 3 of 11 steps
+```
+
+Six of seven stages, and three steps of a reloaded workflow lowered into legal Marco and
+compiled. Without the authorisation fixture the chain stops at stage 5, which is what the flag is
+for.
+
+The next blocker is stage 7 and it is specific: `workflow.Verify` compares screen IDENTITIES, and
+a reloaded workflow's destination is an artifact LABEL that nothing has bound — arriving there is
+what would bind it. Verifying a reloaded step means asking whether the new observation
+establishes as the destination label, which is screen establishment once more rather than a
+comparison.
+
 ## What stages 3 to 7 would need
 
 Reported as `not reached` rather than guessed at, but the prerequisites are known and worth
