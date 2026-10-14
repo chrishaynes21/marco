@@ -179,6 +179,19 @@ func main() {
 		// own imports to prove it. Bounded by --seconds; writes nothing. See
 		// observescreen.go.
 		os.Exit(runObserveScreen(os.Args[2:]))
+	case "perform-workflow":
+		// A SAVED WORKFLOW, PERFORMED ONE AUTHORISED ACTION AT A TIME.
+		//
+		// The composition root for internal/director/workflowrun: it supplies the
+		// live observer, the person who grounds a screen, the person who permits a
+		// press, and the executor. DRY unless --live, where "dry" means the whole
+		// path runs and the Host writes the program down instead of pressing
+		// anything.
+		//
+		// It writes nothing to disk and promotes nothing into durable memory, and it
+		// reports a destination established — never an action verified. See
+		// performworkflow.go.
+		os.Exit(runPerformWorkflow(os.Args[2:]))
 	case "capture-benchmark":
 		// WHAT AN ACQUISITION COSTS, stage by stage, on one window. Timings only: it
 		// injects nothing, activates nothing, and keeps no pixels. The single thing

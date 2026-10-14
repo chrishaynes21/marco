@@ -89,6 +89,20 @@ type StepReadiness struct {
 	// worked. Set whenever the step is known, so a verification expectation can be built
 	// without the step being plannable.
 	Expect string
+	// Found is where the control was re-acquired on this look, normalised to the window.
+	//
+	// Set as soon as the control is found, which is BEFORE confirmation and before
+	// authorisation, and it is not permission to press it — `Action` is still the only
+	// field that means a step is plannable.
+	//
+	// It exists because of what happens without it. Authorisation is the last refusal, so
+	// at the moment somebody is asked for it the step is not plannable and `Action` is
+	// nil; a caller building the question from `Action` alone would show them a press at
+	// (0,0). Asking a person to permit a click without telling them where it lands is not
+	// an explicit authorisation, and the alternative — the caller computing the centre
+	// itself — would be a second statement of this arithmetic, which is this subsystem's
+	// recorded failure mode.
+	Found *observe.PointerAt
 }
 
 // Ready reports whether this step could be lowered.
@@ -169,6 +183,14 @@ func (a Artifact) StepReadinessAt(at int, s *SessionBinding, now Now) StepReadin
 		return r
 	}
 
+	// THE CONTROL IS WHERE IT WAS FOUND, which the person asked for authorisation needs
+	// to be shown and which nothing downstream may compute for itself. See Found.
+	centre := observe.PointerAt{
+		X: outcome.Where.X + outcome.Where.Width/2,
+		Y: outcome.Where.Y + outcome.Where.Height/2,
+	}
+	r.Found = &centre
+
 	// ── 5. HAS ANYBODY AGREED, IN THIS SESSION ──
 	by, confirmed := s.StepConfirmation(at)
 	if !confirmed {
@@ -191,11 +213,8 @@ func (a Artifact) StepReadinessAt(at int, s *SessionBinding, now Now) StepReadin
 	r.Stage = StepPlannable
 	r.Action = &workflow.Action{
 		Step: at, Where: outcome.Where, Support: workflow.SupportGeometric,
-		Expect: observe.VisualScreenID(st.To),
-		At: observe.PointerAt{
-			X: outcome.Where.X + outcome.Where.Width/2,
-			Y: outcome.Where.Y + outcome.Where.Height/2,
-		},
+		Expect:  observe.VisualScreenID(st.To),
+		At:      centre,
 		Because: outcome.Because,
 	}
 	r.Because = fmt.Sprintf("%s is established here, %s was found again, %s agreed, and "+

@@ -60,9 +60,12 @@ established — 4 of those being real navigation, which is correct, and 2 one bl
 - **Autonomous screen recognition.** The gap is absence detection, and no measure available
   provides it. This is the single thing standing between the current chain and one that does not
   need a person per screen.
-- **Executing anything.** No Director command performs a saved workflow. `marcoexec` is reachable
-  from the offline replay and from nothing in `workflowstore` or `workflow`, which their import
-  walks hold.
+- ~~**Executing anything.**~~ **Built, and never run live.** `director perform-workflow` performs
+  a saved workflow one authorised action at a time, through `internal/director/workflowrun`.
+  `workflowstore` and `workflow` still cannot reach `marcoexec`, which their import walks hold;
+  the coordinator sits outside both. **No live run has happened** — what is demonstrated is the
+  whole path with `recordhost` at the bottom, which is a notebook.
+  [[ADR-188-performing-a-saved-workflow]]
 - **Verifying an action.** A destination established is not an action verified, and no
   post-action evidence exists. `Verified()` returns false with its reason.
 - **Durable cross-session screen identity.** Deliberately: arrangements bind the wrong screen at
@@ -77,19 +80,25 @@ established — 4 of those being real navigation, which is correct, and 2 one bl
 ## The honest one-line state
 
 A workflow taught in one session can be saved, reloaded in another that shares nothing with it,
-grounded a step at a time with a person answering where Marco cannot, and compiled into legal
-Marco — and then it stops, because nothing is permitted to run it and nothing has asked to be.
+grounded a step at a time with a person answering where Marco cannot, compiled into legal Marco,
+and now **performed** — one action that somebody permitted, in the observation they permitted it
+in, with the world re-checked at the instant of the press. Every press so far has gone into a
+notebook, because a live run is a decision and not a change.
 
 ## What a supervised execution experiment would need
 
 Named here so the decision is about a list rather than a feeling:
 
-1. A real execution authorisation path, separate from confirmation, that a person grants per
-   session and that expires.
-2. A Director command that performs a reloaded workflow step by step, refusing exactly where the
-   readiness report refuses.
+1. ~~A real execution authorisation path, separate from confirmation.~~ **Built**: per action,
+   per observation, expiring, and never inferred. [[ADR-188-performing-a-saved-workflow]]
+2. ~~A Director command that performs a reloaded workflow step by step.~~ **Built**:
+   `director perform-workflow`, refusing where the readiness report refuses and in four more
+   places only a live press needs.
 3. Post-action evidence good enough to tell arriving-where-expected from the press having caused
-   it — or an explicit decision that destination-established is the bar, stated as such.
-4. A live run of the two-speed perception path, which has never happened.
+   it — or an explicit decision that destination-established is the bar, stated as such. **Still
+   open**, and the honest state is that destination-established is what the code claims.
+4. A live run of the two-speed perception path, which has never happened. **Still open**, and now
+   the only thing standing between this and a supervised experiment.
 5. A decision about the 6-questions-per-route cost, which is a product question and not a
-   technical one.
+   technical one. **Still open**, and performing adds two more questions per step — one to agree
+   to it and one to permit it.

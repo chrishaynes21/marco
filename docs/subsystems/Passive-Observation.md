@@ -1188,6 +1188,15 @@ it refuses those looks. Visible is fine; in front is not.
   Nothing in `workflowstore` lowers anything and its import walk keeps the lowering path
   out of reach. Knowing the plan is not standing on the screen: a later step's screen is
   never pre-authorised. [[ADR-187-knowing-the-plan-and-trusting-the-screen]]
+- **A saved workflow can be performed now, one authorised action at a time.**
+  `internal/director/workflowrun` sequences the five operations somebody else performs
+  and holds none of them: it can see no screen, grounds nothing, grants itself nothing, and
+  reaches a desktop only through a `*marcoexec.Executor` a composition root hands it. An
+  authorisation is for ONE step in ONE observation and expires; the world is re-observed at
+  the instant of the press, because asking a person is an unbounded pause and the look that
+  found the control goes stale inside it. `director perform-workflow` is DRY unless
+  `--live`, where dry means the whole real path with a notebook where the mouse would be.
+  [[ADR-188-performing-a-saved-workflow]]
 - **All seven stages complete, and the last one is called a destination established.**
   `DestinationAt` asks the establishment path its own question one observation after a
   simulated action boundary, and establishes nothing itself. `Verified()` always returns

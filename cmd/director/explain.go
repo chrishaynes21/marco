@@ -235,6 +235,10 @@ var valued = map[string]bool{
 	"-iou": true, "--iou": true,
 	"-redact": true, "--redact": true,
 	"-pause": true, "--pause": true,
+	// `perform-workflow --workflow f.json --live`. The fifth instance, and this time the
+	// test above found it before anybody typed the combination.
+	"-workflow": true, "--workflow": true,
+	"-patience": true, "--patience": true,
 }
 
 // valuedFlags is the table above, for the test that holds every command's value-taking flags to

@@ -416,6 +416,25 @@ func TestAVisualScreenCannotReachDurableMemory(t *testing.T) {
 	//     memory, the lowering path or anything that touches a desktop.
 	//     [[ADR-183-remembering-recognising-and-being-allowed-to-act]]
 	//
+	//  6. `internal/director/workflowrun`, which PERFORMS one. The first thing on this
+	//     list that can act, which makes it the first one where the question is not
+	//     "could this become durable" but "could this become durable BECAUSE it
+	//     acted" — a run that promoted the screen it had just clicked on would be
+	//     geometry earning permanence by being used.
+	//
+	//     It can not, and two things are the reason. It writes nothing: there is no
+	//     store, no graph and no file in its import closure, and its own walk fails
+	//     if it can reach `actiongraph`, `semanticmemory`, a host, the driver, the
+	//     runtime or screen capture. And it holds no identity of its own — every
+	//     screen it names arrived in a `Sighting` from the caller doing the looking,
+	//     and the only thing it does with one is hand it to the establishment path
+	//     and compare it with what came back. The one thing it produces is a point
+	//     in DESKTOP coordinates, which names no screen at all.
+	//
+	//     Its route outward is a single `*marcoexec.Executor`, so what it can do with
+	//     one of these names is press somewhere and then ask somebody else what the
+	//     screen became. [[ADR-188-performing-a-saved-workflow]]
+	//
 	// A widening of the TIER is not a widening of what may become durable, and the
 	// difference is the whole reason this list is worth keeping. The next addition should
 	// be as hard: if a file outside this list needs these names, the question to answer
@@ -424,6 +443,7 @@ func TestAVisualScreenCannotReachDurableMemory(t *testing.T) {
 	fast := filepath.Join("internal", "director", "fastobserve")
 	flow := filepath.Join("internal", "director", "workflow")
 	store := filepath.Join("internal", "director", "workflowstore")
+	run := filepath.Join("internal", "director", "workflowrun")
 	allowed := map[string]bool{
 		filepath.Join(dir, "arrangement.go"):          true,
 		filepath.Join(dir, "arrangement_test.go"):     true,
@@ -450,6 +470,8 @@ func TestAVisualScreenCannotReachDurableMemory(t *testing.T) {
 		filepath.Join(store, "stepplan_test.go"):      true,
 		filepath.Join(store, "anchor_test.go"):        true,
 		filepath.Join(store, "workflowstore_test.go"): true,
+		filepath.Join(run, "workflowrun.go"):          true,
+		filepath.Join(run, "workflowrun_test.go"):     true,
 	}
 	root := filepath.Join("..", "..", "..")
 	names := []string{

@@ -383,3 +383,57 @@ func TestPlannableIsNotPermission(t *testing.T) {
 	}
 	_ = time.Now
 }
+
+// THE CONTROL'S POSITION IS KNOWN BEFORE ANYBODY IS ASKED TO PERMIT PRESSING IT.
+//
+// Authorisation is the LAST refusal, so at the moment somebody is asked for it the step is not
+// plannable and `Action` is nil. A caller building the question from `Action` alone shows them a
+// press at (0,0) — which is not an explicit authorisation of anything. `Found` carries the point
+// from the moment the control is re-acquired, and it is the same point `Action` gets.
+func TestTheControlsPositionIsKnownBeforeAuthorisationIsAskedFor(t *testing.T) {
+	a := threeScreens(t)
+	s, now := ready(t, a)
+
+	now.Authorised = false
+	unauthorised := a.StepReadinessAt(0, s, now)
+	if unauthorised.Stage != workflowstore.StepUnauthorised {
+		t.Fatalf("stage %q — the fixture is not sitting on the authorisation refusal",
+			unauthorised.Stage)
+	}
+	if unauthorised.Action != nil {
+		t.Fatal("an unauthorised step has an Action, which is what means plannable")
+	}
+	if unauthorised.Found == nil {
+		t.Fatal("the control's position is unknown at the moment somebody would be " +
+			"asked to permit pressing it, so they could only be shown (0,0)")
+	}
+
+	now.Authorised = true
+	plannable := a.StepReadinessAt(0, s, now)
+	if !plannable.Ready() {
+		t.Fatalf("stage %q", plannable.Stage)
+	}
+	// THE SAME POINT, not a second computation of it.
+	if *unauthorised.Found != plannable.Action.At {
+		t.Errorf("the point somebody authorised (%v) is not the point the step would "+
+			"press (%v)", *unauthorised.Found, plannable.Action.At)
+	}
+	if got := *plannable.Found; got != plannable.Action.At {
+		t.Errorf("Found %v and Action.At %v disagree", got, plannable.Action.At)
+	}
+}
+
+// AND A STEP THAT NEVER FOUND ITS CONTROL HAS NO POSITION TO SHOW.
+func TestAStepThatCouldNotFindItsControlHasNoPosition(t *testing.T) {
+	a := threeScreens(t)
+	s, now := ready(t, a)
+	now.Outcomes = nil
+
+	got := a.StepReadinessAt(0, s, now)
+	if got.Stage != workflowstore.StepControlUnresolved {
+		t.Fatalf("stage %q", got.Stage)
+	}
+	if got.Found != nil {
+		t.Errorf("a step whose control was never found reports it at %v", *got.Found)
+	}
+}
