@@ -52,6 +52,16 @@ const (
 	StepNeedsClarification StepStage = "clarification unresolved"
 	// StepControlUnresolved: the control could not be found on this look.
 	StepControlUnresolved StepStage = "control not re-acquired"
+	// StepControlUnlocated: the control was found again, and what was found does not say
+	// where it is.
+	//
+	// A separate stage from StepControlUnresolved on purpose, because the two tell a person
+	// to do opposite things. "Not re-acquired" means look again — the control may be mid
+	// animation, or behind something, and the next observation may resolve it. This one
+	// will never resolve: the saved target is a band across the window, so every future
+	// look that matches it will match it just as well and offer the same useless centre.
+	// The workflow needs re-teaching, not more patience.
+	StepControlUnlocated StepStage = "what was found does not locate the control"
 	// StepUnconfirmed: nobody has agreed to this step in this session.
 	StepUnconfirmed StepStage = "not confirmed in this session"
 	// StepUnauthorised: the session carries no live execution authorisation.
@@ -183,6 +193,22 @@ func (a Artifact) StepReadinessAt(at int, s *SessionBinding, now Now) StepReadin
 		return r
 	}
 
+	// ── 4b. AND DOES WHAT WAS FOUND SAY WHERE THE CONTROL IS ──
+	//
+	// Matching is about rectangles; pressing is about a point. A region that runs edge to
+	// edge across the window is matched again perfectly well and names nowhere, and its
+	// centre is the middle of the screen — see observe.Region.Locates.
+	//
+	// Refused BEFORE `Found` is set, so there is no position to show and no position to
+	// press. A step that cannot say where its control is must not offer a point that looks
+	// exactly like one it found.
+	if ok, why := outcome.Where.Locates(); !ok {
+		r.Stage = StepControlUnlocated
+		r.Because = fmt.Sprintf("%s was matched again, but %s; this step has no point "+
+			"to press and no substitute for one will be invented", st.Control, why)
+		return r
+	}
+
 	// THE CONTROL IS WHERE IT WAS FOUND, which the person asked for authorisation needs
 	// to be shown and which nothing downstream may compute for itself. See Found.
 	centre := observe.PointerAt{
@@ -242,6 +268,14 @@ type Progress struct {
 	Reached int
 	// Stopped is the step it stopped at, or -1 when it ran out of workflow.
 	Stopped int
+	// Acted is how many actions were performed.
+	//
+	// Separate from Reached because they count different things and the difference is
+	// the whole subject of this type: Reached counts steps that ARRIVED, and a press
+	// that went out and produced nothing advances neither. Without this, a run that
+	// lowered, compiled, ran and sent an action reports itself as having stopped before
+	// the first step, which reads as a run where nothing happened.
+	Acted int
 	// Because is why.
 	Because string
 	// Stage is the refusal that stopped it.
@@ -259,6 +293,9 @@ func (p Progress) Summary() string {
 	switch {
 	case p.Complete():
 		return fmt.Sprintf("all %d step(s) reached", p.Steps)
+	case p.Reached == 0 && p.Acted > 0:
+		return fmt.Sprintf("stopped at the first step, which was acted on and did "+
+			"not arrive: %s", p.Because)
 	case p.Reached == 0:
 		return fmt.Sprintf("stopped before the first step: %s", p.Because)
 	default:

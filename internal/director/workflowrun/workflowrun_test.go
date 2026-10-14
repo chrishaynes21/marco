@@ -68,6 +68,24 @@ type notebook struct {
 	programs []string
 	names    []string
 	err      error
+	// after runs once the program has been written down, so a test can make the world
+	// move in the gap between two operations of one action.
+	after func()
+}
+
+// clicks is how many of the programs written down actually press something.
+//
+// An action is a move and then a press — see DefaultDwell — so counting PROGRAMS answers a
+// different question from the one most of these tests are asking. Where the assertion is "one
+// press went out", this is the count it means.
+func (n *notebook) clicks() int {
+	c := 0
+	for _, p := range n.programs {
+		if strings.Contains(p, "OS's Click") {
+			c++
+		}
+	}
+	return c
 }
 
 func (n *notebook) Run(ctx context.Context, name, program string) (
@@ -75,6 +93,9 @@ func (n *notebook) Run(ctx context.Context, name, program string) (
 
 	n.programs = append(n.programs, program)
 	n.names = append(n.names, name)
+	if n.after != nil {
+		n.after()
+	}
 	if n.err != nil {
 		return directorapi.MarcoResult{}, n.err
 	}
@@ -123,6 +144,11 @@ func (g *grants) Authorise(ctx context.Context, in workflowrun.Intent) (
 	a := workflowrun.Authorisation{
 		Step: in.Step, By: "SIMULATED fixture",
 		Epoch: g.epoch, Generation: g.generation,
+		// THE WINDOW FROM THE QUESTION, which is what a well-behaved granter
+		// does: it copies back what it was asked about. Copying it proves
+		// nothing about the world — the runner re-observes that — and it is what
+		// makes a grant about ANOTHER window unspendable here.
+		Window:  in.Window,
 		Expires: looked.Add(time.Minute),
 	}
 	if g.bend != nil {
@@ -223,8 +249,8 @@ func TestAWorkflowAdvancesOneGroundedActionAtATime(t *testing.T) {
 	if first.Outcome != workflowrun.OutcomePressed {
 		t.Fatalf("step 0: %s — %s", first.Outcome, first.Because)
 	}
-	if len(g.book.programs) != 1 {
-		t.Fatalf("%d program(s) reached Marco, want 1", len(g.book.programs))
+	if g.book.clicks() != 1 {
+		t.Fatalf("%d press(es) reached Marco, want 1", g.book.clicks())
 	}
 	if g.run.Cursor() != 0 {
 		t.Errorf("the cursor moved to %d on a press; a step moves on by arriving",
@@ -261,7 +287,8 @@ func TestEveryActionGoesThroughMarcoAsAClickAtAPoint(t *testing.T) {
 	if got := g.run.Advance(context.Background(), g.s, firstStep()); !got.Acted() {
 		t.Fatalf("nothing was run: %s — %s", got.Outcome, got.Because)
 	}
-	src := g.book.programs[0]
+	// THE PRESS, which is the second program: an action is a move and then a press.
+	src := g.book.programs[len(g.book.programs)-1]
 	for _, want := range []string{
 		"use os.",
 		"the DirectorClick is an actor.",
@@ -299,7 +326,11 @@ func TestThePressLandsAtTheControlOnTheDesktopAndNotInTheWindowsOwnCoordinates(t
 			rect(0.4, 0.5, 0.1, 0.04), workflowrun.Point{X: 450, Y: 260}},
 		{"a window on a second monitor",
 			directorapi.Rect{X: -1920, Y: 0, Width: 1920, Height: 1080},
-			rect(0.5, 0.5, 0.0, 0.0), workflowrun.Point{X: -960, Y: 540}},
+			// A REAL REGION whose centre is the middle of the window, rather
+			// than a zero-extent one at the middle. The arithmetic under test is
+			// the same and a region with no extent is now refused outright: it
+			// locates nothing, which is observe.Region.Locates's first sentence.
+			rect(0.45, 0.45, 0.1, 0.1), workflowrun.Point{X: -960, Y: 540}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			g := newRig(t)
@@ -603,8 +634,8 @@ func TestAPressedStepIsNeverPressedTwice(t *testing.T) {
 	if again.Outcome != workflowrun.OutcomeWaiting {
 		t.Fatalf("%s — %s", again.Outcome, again.Because)
 	}
-	if len(g.book.programs) != 1 {
-		t.Fatalf("%d program(s) reached Marco for one step", len(g.book.programs))
+	if g.book.clicks() != 1 {
+		t.Fatalf("%d press(es) reached Marco for one step", g.book.clicks())
 	}
 	if !strings.Contains(again.Because, "acted on") {
 		t.Errorf("the wait does not say the press already went out: %s", again.Because)
@@ -644,8 +675,8 @@ func TestAPressWhoseDestinationNeverArrivesStopsSafely(t *testing.T) {
 	if rep.Established != 0 {
 		t.Errorf("%d destination(s) established, want 0", rep.Established)
 	}
-	if len(g.book.programs) != 1 {
-		t.Fatalf("%d program(s) sent while waiting", len(g.book.programs))
+	if g.book.clicks() != 1 {
+		t.Fatalf("%d press(es) sent while waiting", g.book.clicks())
 	}
 }
 
@@ -750,8 +781,22 @@ func TestTheRecheckIsToldWhichObservationThePlanWasMadeFrom(t *testing.T) {
 	if got := g.run.Advance(context.Background(), g.s, look); !got.Acted() {
 		t.Fatalf("%s — %s", got.Outcome, got.Because)
 	}
-	if len(saw) != 1 {
-		t.Fatalf("the world was re-observed %d time(s) for one press", len(saw))
+	// TWICE, and both times about the look the plan was made from.
+	//
+	// Once before the pointer moves and once after it has rested, because the dwell is a
+	// gap like any other and the world can change inside it. Both are told about the
+	// PLANNED sighting rather than about each other: the question is always whether the
+	// world is still the one this action was planned against.
+	if len(saw) != 2 {
+		t.Fatalf("the world was re-observed %d time(s) for one action, want 2 — "+
+			"before the move and after the rest", len(saw))
+	}
+	for i, got := range saw {
+		if got.Screen != saw[0].Screen || got.Epoch != saw[0].Epoch ||
+			got.Generation != saw[0].Generation || got.Window != saw[0].Window {
+			t.Errorf("re-observation %d was told about a different sighting from "+
+				"the first", i)
+		}
 	}
 	if saw[0].Epoch != look.Epoch || saw[0].Generation != look.Generation ||
 		saw[0].Screen != look.Screen {
@@ -870,10 +915,14 @@ func TestNoRunReportsAVerifiedAction(t *testing.T) {
 	if ok {
 		t.Fatal("a run reported an action as independently verified")
 	}
-	for _, want := range []string{"nothing was executed", "not by itself proof"} {
-		if !strings.Contains(why, want) {
-			t.Errorf("want %q in the reason: %s", want, why)
-		}
+	// THE CLAIM IS THE SAME WHATEVER THE RUN DID. What varies is the sentence around
+	// it, and this run performed an action — so a reason saying nothing was executed
+	// would be describing a different run. See Report.Verified.
+	if !strings.Contains(why, "not by itself proof") {
+		t.Errorf("the verdict drops the claim it exists to make: %s", why)
+	}
+	if strings.Contains(why, "nothing was executed") {
+		t.Errorf("a run that performed an action says nothing was executed: %s", why)
 	}
 }
 

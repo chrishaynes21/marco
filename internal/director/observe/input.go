@@ -319,6 +319,18 @@ const (
 	// A total that does not add up is worse than no total, because a reader who checks it
 	// once and finds a gap stops checking. So the quiet edge gets a name.
 	IgnoreKeyRelease IgnoreReason = "key_release"
+	// IgnoreConsent is a key that answered a question Marco asked.
+	//
+	// Not navigation and not unsupported. A producer may observe a small, fixed set of
+	// keys whose only meaning is a reply to a prompt Marco put up — permit this action,
+	// refuse it, stop. They are counted here because the total must add up and they
+	// produce no intent, and they are named separately because a reader looking at a run
+	// where somebody answered four questions needs to see four answers rather than four
+	// keys nobody recognised.
+	//
+	// It is a reply and never an observation: nothing admitted under this reason reaches a
+	// subscription, a correlation or a recording.
+	IgnoreConsent IgnoreReason = "consent"
 	// IgnoreUnplaceablePointer is a pointer press Marco could not place inside the window
 	// it was watching.
 	//

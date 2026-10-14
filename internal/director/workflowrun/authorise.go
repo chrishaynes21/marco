@@ -22,6 +22,9 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
+	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 )
 
 // Authorisation is somebody's permission to perform one step, once.
@@ -39,6 +42,14 @@ type Authorisation struct {
 	// click a remembered coordinate on a screen that has since changed.
 	Epoch      uint64
 	Generation uint64
+	// Window is the window the grant was given about.
+	//
+	// Carried separately from Generation because they fail differently and a person needs
+	// to be told which happened. A generation moves when the SAME window is replaced;
+	// this changes when the press would go to a DIFFERENT window — the application
+	// relaunched, a second copy opened, or a selector matched something else. Both make
+	// the point meaningless and only one of them looks like the application restarting.
+	Window directorapi.WindowID
 	// Expires is when it lapses regardless of anything else. A grant with no expiry is a
 	// session flag with extra words.
 	Expires time.Time
@@ -46,7 +57,7 @@ type Authorisation struct {
 
 // Spendable reports whether this authorisation permits acting on `step` in `at`, and why not.
 //
-// Four separate questions, each with its own answer, because a caller that gets one "no" cannot
+// Five separate questions, each with its own answer, because a caller that gets one "no" cannot
 // tell a person whether to look again, agree again, or stop.
 func (a Authorisation) Spendable(step int, at Sighting, now time.Time) (bool, string) {
 	switch {
@@ -55,6 +66,10 @@ func (a Authorisation) Spendable(step int, at Sighting, now time.Time) (bool, st
 	case a.Step != step:
 		return false, fmt.Sprintf("the authorisation is for step %d and this is step %d",
 			a.Step, step)
+	case a.Window == "" || a.Window != at.Window:
+		return false, fmt.Sprintf("the authorisation was given about window %q and the "+
+			"press would go to %q; permission to click in one window is not "+
+			"permission to click in another", a.Window, at.Window)
 	case a.Epoch != at.Epoch || a.Generation != at.Generation:
 		return false, fmt.Sprintf("the authorisation was given in observation %d/%d and "+
 			"this is %d/%d; the screen it was granted about is not the screen "+
@@ -85,6 +100,9 @@ type Intent struct {
 	// instant of the press; see the runner's WithConfirm.
 	Epoch      uint64
 	Generation uint64
+	// Window is the window the press would go to, carried so the grant can be stamped
+	// with it and so a prompt can name it.
+	Window directorapi.WindowID
 	// Control is the artifact's own label for the thing that would be pressed.
 	Control string
 	// Screen is the label of the screen the step starts on, as established in this
@@ -95,6 +113,18 @@ type Intent struct {
 	// At is where the press would land, in desktop coordinates. The real number, because a
 	// person authorising a click is entitled to know where it goes.
 	At Point
+	// Where is the region the point came from, normalised to the window.
+	//
+	// Carried because a point on its own cannot be checked. Somebody told "(79,479)" can
+	// say whether it is roughly where they expect; told the rectangle it is the middle of,
+	// they can say whether MARCO IS LOOKING AT THE RIGHT THING — a point near the left
+	// edge of a wide control and the middle of a narrow one look identical as two numbers
+	// and are completely different findings.
+	//
+	// This was a real gap. A live run clicked (71,479) and then (79,479) on two passes and
+	// the log could not say what either was the middle of, so the question "did it find
+	// the button or a piece of the button" had no answer in the record.
+	Where observe.Region
 	// Because is how the control was re-acquired, in the matcher's own words.
 	Because string
 }
@@ -103,6 +133,22 @@ type Intent struct {
 func (i Intent) Describe() string {
 	return fmt.Sprintf("step %d: press %s on %s at (%d,%d), expecting %s",
 		i.Step, i.Control, i.Screen, i.At.X, i.At.Y, i.Expect)
+}
+
+// Target describes the rectangle the point is the middle of, in window fractions and in window
+// pixels, and says which rule picked the point.
+//
+// A second line rather than a longer first one: the first answers "what is about to happen" and
+// this answers "on what evidence", and somebody deciding quickly needs the first on its own.
+func (i Intent) Target(w, h int) string {
+	if i.Where.Width <= 0 || i.Where.Height <= 0 {
+		return "no region was recorded for this target"
+	}
+	return fmt.Sprintf("the middle of a region at x %.4f..%.4f, y %.4f..%.4f "+
+		"(%dx%d px at %d,%d in the window), re-acquired on this look",
+		i.Where.X, i.Where.X+i.Where.Width, i.Where.Y, i.Where.Y+i.Where.Height,
+		int(i.Where.Width*float64(w)), int(i.Where.Height*float64(h)),
+		int(i.Where.X*float64(w)), int(i.Where.Y*float64(h)))
 }
 
 // Granter is asked for the right to perform one action.

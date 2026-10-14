@@ -423,6 +423,52 @@ func TestTheControlsPositionIsKnownBeforeAuthorisationIsAskedFor(t *testing.T) {
 	}
 }
 
+// AND A STEP WHOSE CONTROL WAS FOUND AS A BAND ACROSS THE WINDOW HAS NO POSITION EITHER.
+//
+// A different refusal from "not re-acquired", and the difference is what a person should do
+// about it. Not re-acquired means look again: the control may be mid-animation. This one never
+// resolves — the saved target runs edge to edge, so every future look matching it offers the
+// same centre, which is the middle of the window.
+//
+// Measured rather than imagined. A saved Rocket League workflow carried nine controls and four
+// of them were bands of exactly this shape, three covering the window almost entirely. All four
+// re-acquired perfectly and all four offered (960,517) on a 1920x1080 window.
+func TestAStepWhoseControlIsABandAcrossTheWindowIsNotPlannable(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		where observe.Region
+	}{
+		{"the whole window", observe.Region{X: 0, Y: 0, Width: 1, Height: 0.957}},
+		{"the bottom half, full width",
+			observe.Region{X: 0, Y: 0.468, Width: 1, Height: 0.461}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := threeScreens(t)
+			s, now := ready(t, a)
+			now.Authorised = true
+			now.Outcomes[0].Where = tc.where
+
+			got := a.StepReadinessAt(0, s, now)
+			if got.Stage != workflowstore.StepControlUnlocated {
+				t.Fatalf("stage %q, want %q", got.Stage,
+					workflowstore.StepControlUnlocated)
+			}
+			// NO POINT, ANYWHERE. Neither one to press nor one to show
+			// somebody while asking them to permit pressing it.
+			if got.Action != nil {
+				t.Errorf("the step is plannable at %v", got.Action.At)
+			}
+			if got.Found != nil {
+				t.Errorf("the step reports its control at %v", *got.Found)
+			}
+			if !strings.Contains(got.Because, "no substitute") {
+				t.Errorf("the refusal does not say a point will not be "+
+					"invented: %s", got.Because)
+			}
+		})
+	}
+}
+
 // AND A STEP THAT NEVER FOUND ITS CONTROL HAS NO POSITION TO SHOW.
 func TestAStepThatCouldNotFindItsControlHasNoPosition(t *testing.T) {
 	a := threeScreens(t)

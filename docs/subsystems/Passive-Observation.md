@@ -1188,6 +1188,32 @@ it refuses those looks. Visible is fine; in front is not.
   Nothing in `workflowstore` lowers anything and its import walk keeps the lowering path
   out of reach. Knowing the plan is not standing on the screen: a later step's screen is
   never pre-authorised. [[ADR-187-knowing-the-plan-and-trusting-the-screen]]
+- **An action is move, rest, press — not one click event.**
+  The Windows backend sends the move, the button-down and the button-up in one
+  `SendInput` batch, which a game menu ignores because it decides what is under the
+  cursor on its own frame tick. Measured: a real click in the middle of Rocket League's
+  PLAY button changed nothing. The pointer now rests `--dwell` (250ms) first, the gap
+  is guarded on both sides like any other, and it is still ONE authorised action.
+  [[ADR-190-the-pointer-arrives-before-the-button-goes-down]]
+- **"The screen changed" is reported separately from "the destination arrived".**
+  The first distinguishes an interface that ignored a press from one that responded
+  unrecognisably; without it both read as the same refusal.
+- **Somebody can permit a press without taking the foreground from the game.**
+  A click lands in whatever window is in front, so the coordinator refuses when the
+  target does not lead the desktop — and typing an answer makes the TERMINAL the front
+  window, which refused every grant in the first live run. Three keys observed by the
+  hook `navsource` already installs (F7 permit, F8 refuse, F9 stop) are an ANSWER and
+  never an observation: recognised before classification, never a NavIntent, never in a
+  recording. Injected keys are dropped at the callback, so Marco cannot authorise Marco.
+  [[ADR-189-answering-without-taking-the-foreground]]
+- **A control re-acquired as a band across the window is refused, not pressed.**
+  Matching is about rectangles and pressing is about a point. Four of a saved Rocket
+  League workflow's nine controls ran edge to edge and every one offered the middle of
+  the screen; `observe.Region.Locates` says that is the window's centre and not a
+  control's position. No substitute point is invented.
+- **The first live look at a game held its cadence**: 150 looks, none dropped, p95 67ms
+  of a 100ms budget — and a stationary main menu settled TWO screens, which is recorded
+  and not yet acted on. [[Experiment-039-the-first-live-look-at-a-game]]
 - **A saved workflow can be performed now, one authorised action at a time.**
   `internal/director/workflowrun` sequences the five operations somebody else performs
   and holds none of them: it can see no screen, grounds nothing, grants itself nothing, and

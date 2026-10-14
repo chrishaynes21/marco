@@ -239,6 +239,9 @@ var valued = map[string]bool{
 	// test above found it before anybody typed the combination.
 	"-workflow": true, "--workflow": true,
 	"-patience": true, "--patience": true,
+	"-max-actions": true, "--max-actions": true,
+	"-answer": true, "--answer": true,
+	"-dwell": true, "--dwell": true,
 }
 
 // valuedFlags is the table above, for the test that holds every command's value-taking flags to

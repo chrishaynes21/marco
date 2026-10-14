@@ -81,9 +81,10 @@ established — 4 of those being real navigation, which is correct, and 2 one bl
 
 A workflow taught in one session can be saved, reloaded in another that shares nothing with it,
 grounded a step at a time with a person answering where Marco cannot, compiled into legal Marco,
-and now **performed** — one action that somebody permitted, in the observation they permitted it
-in, with the world re-checked at the instant of the press. Every press so far has gone into a
-notebook, because a live run is a decision and not a change.
+and now **performed** — one action that somebody permitted, in the observation and the window
+they permitted it in, with the world re-checked at the instant of the press and the whole
+authorisation answered by a key so the application never loses the foreground. Every press so far
+has gone into a notebook, because a live run is a decision and not a change.
 
 ## What a supervised execution experiment would need
 
@@ -97,8 +98,17 @@ Named here so the decision is about a list rather than a feeling:
 3. Post-action evidence good enough to tell arriving-where-expected from the press having caused
    it — or an explicit decision that destination-established is the bar, stated as such. **Still
    open**, and the honest state is that destination-established is what the code claims.
-4. A live run of the two-speed perception path, which has never happened. **Still open**, and now
-   the only thing standing between this and a supervised experiment.
+4. ~~A live run of the two-speed perception path, which has never happened.~~ **Done, and it
+   held**: 150 looks against a live Rocket League window, none dropped, p95 67ms of a 100ms
+   budget, and the saved evidence ranked the right screen first at 0.619 against 0.408. It also
+   found that a stationary menu settles two screens, which is recorded and not acted on.
+   [[Experiment-039-the-first-live-look-at-a-game]]
 5. A decision about the 6-questions-per-route cost, which is a product question and not a
    technical one. **Still open**, and performing adds two more questions per step — one to agree
-   to it and one to permit it.
+   to it and one to permit it. Both are now one keypress each, which changes the cost of
+   answering and not the number of questions.
+   [[ADR-189-answering-without-taking-the-foreground]]
+6. **Controls that locate nothing.** Four of the saved workflow's nine ran edge to edge across
+   the window and every one of them offered the middle of the screen. They are refused now rather
+   than pressed, which costs five of twenty-one steps and is the honest state: the workflow needs
+   re-teaching, not more patience.

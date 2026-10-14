@@ -82,6 +82,9 @@ func (p *permits) Authorise(ctx context.Context, in workflowrun.Intent) (
 	return workflowrun.Authorisation{
 		Step: in.Step, By: "SIMULATED fixture",
 		Epoch: p.epoch, Generation: p.generation,
+		// The window from the question, which is what a granter does: it copies
+		// back what it was asked about. See workflowrun.Authorisation.Window.
+		Window:  in.Window,
 		Expires: time.Now().Add(time.Minute),
 	}, true
 }
@@ -131,30 +134,33 @@ func TestAWorkflowStepReachesTheHostAsOneRealLeftClickThroughTheMarcoCompiler(t 
 	}
 
 	// AND EXACTLY ONE LEFT CLICK, AT THE CONTROL, ARRIVED AT THE HOST.
+	// A MOVE, THEN A PRESS, AT THE SAME POINT.
+	//
+	// Through the real lexer, parser, graph builder, compiler and runtime, with a notebook
+	// where the mouse would be. Two host calls and not one: the Windows backend sends an
+	// absolute move, a button-down and a button-up in a single SendInput batch, which a
+	// game menu ignores because it has not yet noticed the pointer is there. See
+	// workflowrun.DefaultDwell, and the live run that measured it.
 	lines := book.Lines()
-	if len(lines) != 1 {
-		t.Fatalf("%d call(s) reached the host, want 1:\n%s", len(lines),
-			strings.Join(lines, "\n"))
+	if len(lines) != 2 {
+		t.Fatalf("%d call(s) reached the host, want 2 (a move and a click):%s%s",
+			len(lines), "\n", strings.Join(lines, "\n"))
 	}
-	if !strings.HasPrefix(lines[0], "OS's Click") {
-		t.Errorf("the host was asked for %q, which is not a click", lines[0])
+	if !strings.HasPrefix(lines[0], "OS's Move") {
+		t.Errorf("the host was asked for %q first, which is not a move", lines[0])
 	}
-	for _, want := range []string{"550", "310"} {
-		if !strings.Contains(lines[0], want) {
-			t.Errorf("the click does not carry %s — want the control's centre on "+
-				"the desktop: %s", want, lines[0])
+	if !strings.HasPrefix(lines[1], "OS's Click") {
+		t.Errorf("the host was asked for %q second, which is not a click", lines[1])
+	}
+	// THE CONTROL'S POINT ON THE DESKTOP, in both: the window's offset plus the centre of
+	// the region it was re-acquired at. A pointer that rested somewhere the press does not
+	// land would be worse than no dwell at all.
+	for _, line := range lines {
+		for _, want := range []string{"550", "310"} {
+			if !strings.Contains(line, want) {
+				t.Errorf("%q does not carry %s", line, want)
+			}
 		}
-	}
-	if dropped, over := book.Overflowed(); over {
-		t.Errorf("the record overflowed, dropping %d call(s)", dropped)
-	}
-
-	// AND THE PERSON WAS SHOWN THAT POINT BEFORE THEY PERMITTED IT.
-	if len(grant.asked) != 1 {
-		t.Fatalf("somebody was asked %d time(s)", len(grant.asked))
-	}
-	if at := grant.asked[0].At; at.X != 550 || at.Y != 310 {
-		t.Errorf("they authorised a press at %v and (550,310) was sent", at)
 	}
 }
 

@@ -64,9 +64,18 @@ func (a Arrival) Independent() bool { return a.Ground == GroundConfirmed }
 // The day that changes, this returns something else and every caller already prints the reason.
 func (a Arrival) Verified() (bool, string) {
 	return false, "nothing was executed, so there is no post-action evidence; and " +
-		"arriving where a step expected is not by itself proof that the step's " +
-		"action caused it"
+		ArrivalIsNotCausation
 }
+
+// ArrivalIsNotCausation is the load-bearing half of every "not verified" answer.
+//
+// Factored out because the OTHER half is not always true. An arrival on its own is reported by
+// something that executed nothing, and saying so is honest there; a run that lowered, compiled
+// and performed an action and then said "nothing was executed" would be describing a different
+// run from the one it just did. The claim both of them are making is this one, and it is stated
+// once so the two cannot drift.
+const ArrivalIsNotCausation = "arriving where a step expected is not by itself proof that " +
+	"the step's action caused it"
 
 // DestinationAt asks what the current observation says about a step's destination.
 //

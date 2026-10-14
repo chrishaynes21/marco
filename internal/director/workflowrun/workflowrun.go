@@ -79,6 +79,28 @@ import (
 // a coordinator with infinite patience is a loop that never reports anything.
 const DefaultPatience = 40
 
+// DefaultDwell is how long the pointer rests on a control before the button goes down.
+//
+// # Why a click is not one event
+//
+// The Windows host sends an absolute move, a button-down and a button-up in ONE SendInput
+// batch, so they arrive with nothing between them. That is deliberate and right for a desktop
+// control: one batch cannot be interleaved with anything else, and the down and up carry their
+// own position so the press cannot land at a stale spot.
+//
+// It is wrong for an interface that tracks the pointer. A game menu decides what is under the
+// cursor on its own frame tick and lights it up then; a button-down arriving in the same batch
+// as the move is a press on a control the interface has not yet noticed the pointer is over.
+// Nothing registers, nothing moves, and the press reads as a click that missed.
+//
+// Measured, not assumed: a supervised live run put a real left click in the middle of Rocket
+// League's PLAY button and the menu did not change. The point was right. The timing was not.
+//
+// 250ms is a starting value for the experiment, not a law. It is several frames at any refresh
+// rate a game runs at, and short enough that the gap it opens — see the re-check after it — is
+// a quarter of a second rather than a pause somebody could walk away during.
+const DefaultDwell = 250 * time.Millisecond
+
 // Point is a press position in DESKTOP coordinates.
 //
 // Its own type rather than `observe.PointerAt`, because that one is normalised to the window and
@@ -207,6 +229,10 @@ type Attempt struct {
 	// [[Experiment-038-how-far-a-reloaded-workflow-gets]] is exactly the kind of record
 	// that gets quoted without its preamble.
 	Real bool
+	// Prepared says the pointer was moved to the control and rested there
+	// before the press. False means the click was sent on its own, which is
+	// what a desktop control wants and what a game menu ignores.
+	Prepared bool
 }
 
 // Acted reports whether a program was run through Marco.
@@ -258,6 +284,33 @@ type Runner struct {
 	confirm func(ctx context.Context, planned Sighting) (bool, string)
 
 	patience int
+	// dwell is how long the pointer rests on the control before the click. Zero sends the
+	// click alone, which is what every desktop control wants and what a game menu ignores.
+	dwell time.Duration
+	// actedAt is the observation an action was performed in, and changed says a later
+	// observation differed from it.
+	//
+	// Here because "did anything happen at all" is a different question from "did the
+	// expected destination arrive", and a run that can only answer the second reports a
+	// game that ignored the click and a game that responded in a way nobody recognised
+	// as the same thing.
+	actedAt Sighting
+	changed bool
+	// budget is how many actions this run may ever send, and sent is how many it has.
+	//
+	// Enforced HERE rather than by the caller, because a caller that counted presses
+	// would be counting what it was told afterwards. The coordinator is the only thing
+	// that knows an action is about to be sent, and the last moment a limit can be a
+	// limit is before the one press that exceeds it.
+	//
+	// A spent budget is a refusal and not a completion: the run stops safely and says how
+	// far it got, because stopping after one deliberate action is the ordinary shape of a
+	// supervised test and must not read as a workflow that finished.
+	//
+	// Negative means unbounded, which is the default and is what every offline caller
+	// wants. See WithBudget.
+	budget int
+	sent   int
 	// cursor is the step being attempted.
 	cursor int
 	// acted is the step a program was run for and whose destination is not yet
@@ -286,7 +339,7 @@ type Runner struct {
 func New(art workflowstore.Artifact, eyes Eyes, g Grounder, a Granter) *Runner {
 	return &Runner{
 		art: art, eyes: eyes, grounder: g, granter: a,
-		patience: DefaultPatience, acted: -1,
+		patience: DefaultPatience, acted: -1, budget: -1, dwell: DefaultDwell,
 	}
 }
 
@@ -330,6 +383,38 @@ func (r *Runner) WithPatience(n int) *Runner {
 	}
 	return r
 }
+
+// WithDwell sets how long the pointer rests on a control before the click. Zero sends the click
+// on its own, with no separate move.
+func (r *Runner) WithDwell(d time.Duration) *Runner {
+	if d >= 0 {
+		r.dwell = d
+	}
+	return r
+}
+
+// Dwell is how long the pointer rests before the click.
+func (r *Runner) Dwell() time.Duration { return r.dwell }
+
+// Changed reports whether any observation after an action differed from the one it was
+// performed in. It is evidence that something happened, and not evidence of what.
+func (r *Runner) Changed() bool { return r.changed }
+
+// WithBudget sets how many actions this run may send in total. Negative is unbounded.
+//
+// The first supervised live test of anything that can click wants exactly one press, and
+// "exactly one" has to be a property of the thing doing the pressing. A caller that stopped the
+// run on seeing a press reported would be acting on a report of something that already happened.
+func (r *Runner) WithBudget(n int) *Runner {
+	r.budget = n
+	return r
+}
+
+// Budget is how many actions this run may send, and Sent how many it has.
+func (r *Runner) Budget() int { return r.budget }
+
+// Sent reports how many actions have been lowered, compiled and run.
+func (r *Runner) Sent() int { return r.sent }
 
 // Stop ends the run.
 //
@@ -436,6 +521,12 @@ func (r *Runner) Advance(ctx context.Context, s *workflowstore.SessionBinding,
 	// that did respond is a click on whatever replaced the control.
 	if r.acted == r.cursor {
 		a.Arrival = &arrival
+		// DID ANYTHING HAPPEN AT ALL. A separate question from whether the expected
+		// destination arrived, and the one that separates an interface which ignored
+		// the press from one that responded in a way nobody recognised.
+		if at.Screen != r.actedAt.Screen || at.Epoch != r.actedAt.Epoch {
+			r.changed = true
+		}
 		r.looks++
 		if r.looks > r.patience {
 			a.Outcome = OutcomeRefused
@@ -465,6 +556,19 @@ func (r *Runner) Advance(ctx context.Context, s *workflowstore.SessionBinding,
 	a.Stage, a.Because = ready.Stage, ready.Because
 
 	// ── 6. SOMEBODY IS ASKED, FOR THIS STEP, IN THIS OBSERVATION ──
+	//
+	// Unless this run has already sent everything it may. Asking first and refusing after
+	// would put a question to a person whose answer could not be used, which is how a
+	// person learns that answering does not matter.
+	if ready.Stage == workflowstore.StepUnauthorised {
+		if over, why := r.overBudget(); over {
+			a.Outcome = OutcomeRefused
+			a.Because = fmt.Sprintf("%s, so nobody was asked about step %d",
+				why, r.cursor)
+			r.lastStage, r.lastBecause = ready.Stage, a.Because
+			return r.record(a)
+		}
+	}
 	if ready.Stage == workflowstore.StepUnauthorised {
 		in := r.intentOf(ready, at)
 		a.Intent = &in
@@ -524,6 +628,32 @@ func (r *Runner) Advance(ctx context.Context, s *workflowstore.SessionBinding,
 func (r *Runner) press(ctx context.Context, a Attempt, ready workflowstore.StepReadiness,
 	at Sighting) Attempt {
 
+	// THE BUDGET, ASKED FIRST.
+	//
+	// Before the executor, before stop, before the world: a run that may not send another
+	// action has nothing to check, and asking the cheapest unconditional question first
+	// means a spent budget cannot be reported as some other refusal that happened to come
+	// up on the way.
+	// UNREACHABLE WHILE THE CHECK BEFORE THE QUESTION STANDS, and kept anyway.
+	//
+	// Every path to here passes through the authorisation refusal in Advance, which asks
+	// the same question first so that nobody is asked for permission that could not be
+	// used. A mutation run confirms it: disabling this one changes no test, because the
+	// earlier one catches every case.
+	//
+	// It stays because this is where `sent` is incremented, and a limit whose only check
+	// sits in a different function is a limit the next reordering of that function
+	// removes without anything failing. Written down rather than deleted so that the day
+	// the order changes, this is the line that was already in the right place — the same
+	// reason Report.Verified prints its unreachable branch instead of assuming it.
+	if over, why := r.overBudget(); over {
+		a.Outcome = OutcomeRefused
+		a.Because = fmt.Sprintf("%s; step %d was plannable and nothing was sent",
+			why, r.cursor)
+		r.lastStage, r.lastBecause = ready.Stage, a.Because
+		return a
+	}
+
 	if !r.Acts() {
 		a.Outcome = OutcomeRefused
 		a.Because = "this runner has no executor, so it has no way to perform an " +
@@ -566,10 +696,57 @@ func (r *Runner) press(ctx context.Context, a Attempt, ready workflowstore.StepR
 
 	// THE POINT, IN DESKTOP COORDINATES. See Sighting.Bounds.
 	p := Desktop(ready.Action.At, at.Bounds)
+	point := marcoexec.Point{X: p.X, Y: p.Y}
+
+	// ── THE POINTER ARRIVES BEFORE THE BUTTON GOES DOWN ──
+	//
+	// Two operations rather than one program containing both, and the gap between them is
+	// the reason. A single program would put the move, the wait and the click inside one
+	// run of the Marco runtime, where this package can check nothing; splitting them keeps
+	// the dwell HERE, where a stop can land in it and the world can be asked again on the
+	// other side of it. Both go out under the one authorisation somebody gave for this
+	// step: moving the pointer to a control and pressing it are one act, and nobody is
+	// asked twice for it.
+	if r.dwell > 0 {
+		mv := marcoexec.Operation{Kind: marcoexec.KindMove, At: point}
+		mres, merr := r.exec.Do(ctx, mv)
+		if merr != nil || mres.Status != marcoexec.StatusCompleted {
+			a.Result = &mres
+			a.Outcome = OutcomeFailed
+			a.Because = "the pointer could not be moved to the control, so nothing " +
+				"was pressed: " + mres.Summary()
+			r.lastStage, r.lastBecause = ready.Stage, a.Because
+			return a
+		}
+		a.Prepared = true
+
+		// THE INTERFACE IS GIVEN TIME TO NOTICE, and a stop lands in it.
+		select {
+		case <-time.After(r.dwell):
+		case <-ctx.Done():
+		}
+		if stopped, why := r.halted(ctx); stopped {
+			a.Outcome = OutcomeStopped
+			a.Because = "the pointer was moved to the control and the run was " +
+				"stopped before the press: " + why
+			r.lastStage, r.lastBecause = ready.Stage, a.Because
+			return a
+		}
+
+		// AND THE WORLD AGAIN, because the dwell is a gap like any other.
+		if ok, why := r.confirm(ctx, at); !ok {
+			a.Outcome = OutcomeRefused
+			a.Because = "the pointer was moved to the control and the world " +
+				"changed before the press, so nothing was clicked: " + why
+			r.lastStage, r.lastBecause = ready.Stage, a.Because
+			return a
+		}
+	}
+
 	op := marcoexec.Operation{
 		Kind:  marcoexec.KindClick,
 		Count: 1,
-		At:    marcoexec.Point{X: p.X, Y: p.Y},
+		At:    point,
 	}
 	res, err := r.exec.Do(ctx, op)
 	a.Result = &res
@@ -584,6 +761,8 @@ func (r *Runner) press(ctx context.Context, a Attempt, ready workflowstore.StepR
 		// records that a press went out so nothing presses again.
 		r.acted = r.cursor
 		r.looks = 0
+		r.sent++
+		r.actedAt = at
 	case res.Status == marcoexec.StatusCancelled:
 		a.Outcome, a.Because = OutcomeStopped, res.Summary()
 		r.lastStage, r.lastBecause = ready.Stage, a.Because
@@ -612,7 +791,7 @@ func Desktop(at observe.PointerAt, in directorapi.Rect) Point {
 func (r *Runner) intentOf(ready workflowstore.StepReadiness, at Sighting) Intent {
 	in := Intent{
 		Step: r.cursor, Expect: ready.Expect,
-		Epoch: at.Epoch, Generation: at.Generation,
+		Epoch: at.Epoch, Generation: at.Generation, Window: at.Window,
 	}
 	if r.cursor < len(r.art.Steps) {
 		in.Control = r.art.Steps[r.cursor].Control
@@ -627,8 +806,31 @@ func (r *Runner) intentOf(ready workflowstore.StepReadiness, at Sighting) Intent
 	}
 	if ready.Action != nil {
 		in.Because = ready.Action.Because
+		in.Where = ready.Action.Where
+	}
+	// THE REGION IS KNOWN BEFORE THE STEP IS PLANNABLE, like the point is. At the moment
+	// somebody is asked, authorisation is the last refusal and Action is still nil — so
+	// taking the rectangle only from Action would show it to nobody.
+	for _, o := range at.Outcomes {
+		if string(o.Target) == in.Control && o.Actionable() {
+			in.Where = o.Where
+		}
 	}
 	return in
+}
+
+// overBudget reports whether this run has sent every action it may, and says so.
+//
+// One statement, asked twice. Before the question, so nobody is asked for permission that could
+// not be used; and again before the press, because that is where `sent` is incremented and a
+// limit whose check sits anywhere but beside the thing it limits is a limit somebody can route
+// around. Deleting either call has its own test.
+func (r *Runner) overBudget() (bool, string) {
+	if r.budget < 0 || r.sent < r.budget {
+		return false, ""
+	}
+	return true, fmt.Sprintf("this run may send %d action(s) and has sent %d",
+		r.budget, r.sent)
 }
 
 // ask puts the question to the granter, or refuses when there is nobody to ask.
@@ -702,6 +904,16 @@ type Report struct {
 	// See `workflowstore.Arrival`.
 	Established int
 	Independent int
+	// Budget is how many actions the run was allowed to send, negative for unbounded, and
+	// Sent how many it did. Reported because "one action" is only a meaningful claim
+	// beside the limit it was made under.
+	Budget int
+	Sent   int
+	// Changed says an observation after an action differed from the one it was performed
+	// in. Evidence that something happened; never evidence of what.
+	Changed bool
+	// Dwell is how long the pointer rested on a control before each press.
+	Dwell time.Duration
 }
 
 // Verified reports whether any ACTION was independently verified, and why not.
@@ -710,17 +922,28 @@ type Report struct {
 // `workflowstore.Arrival.Verified` is: nothing may set it. The reason is taken from the arrival
 // contract rather than restated, so there is one sentence about this in the codebase.
 func (r Report) Verified() (bool, string) {
-	_, why := workflowstore.Arrival{}.Verified()
-	return false, why
+	if r.Sent == 0 {
+		_, why := workflowstore.Arrival{}.Verified()
+		return false, why
+	}
+	// A RUN THAT DID PERFORM SOMETHING says so, and then makes the same claim.
+	//
+	// Borrowing the arrival's whole sentence here would have this run report that nothing
+	// was executed immediately below a line counting what it executed. The part that is
+	// load-bearing is shared; the part that is a fact about this run is this run's.
+	return false, fmt.Sprintf("%d action(s) were performed and no post-action evidence "+
+		"is collected about any of them; and %s", r.Sent,
+		workflowstore.ArrivalIsNotCausation)
 }
 
 // Report builds the record of the run so far.
 func (r *Runner) Report() Report {
 	out := Report{
 		Workflow: r.art.Name, Attempts: r.attempts, Real: r.real,
+		Budget: r.budget, Sent: r.sent, Changed: r.changed, Dwell: r.dwell,
 		Progress: workflowstore.Progress{
 			Steps: len(r.art.Steps), Reached: r.cursor, Stopped: -1,
-			Stage: r.lastStage, Because: r.lastBecause,
+			Stage: r.lastStage, Because: r.lastBecause, Acted: r.sent,
 		},
 	}
 	if r.cursor < len(r.art.Steps) {

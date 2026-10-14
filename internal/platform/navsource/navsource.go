@@ -127,6 +127,12 @@ type Source struct {
 	// why is why this platform produces nothing, empty when it works. Carried into Stats
 	// so a report can tell "nobody pressed anything" from "nothing was listening".
 	why string
+	// consents is the stream of answers to questions Marco asked. See consent.go.
+	//
+	// Created whether or not anybody listens, because the alternative is a classifier that
+	// behaves differently depending on who is watching; offerConsent drops into it rather
+	// than blocking.
+	consents chan Consent
 	// drops counts offers the bounded queue refused.
 	//
 	// An atomic rather than a counter under s.mu, because it is incremented BY THE HOOK
@@ -246,10 +252,11 @@ func newWith(b backend) (*Source, string) {
 		return &Source{backend: b, done: make(chan struct{}), closed: true, why: why}, why
 	}
 	s := &Source{
-		backend: b,
-		raw:     make(chan rawEvent, QueueDepth),
-		held:    map[uint16]bool{},
-		done:    make(chan struct{}),
+		backend:  b,
+		raw:      make(chan rawEvent, QueueDepth),
+		consents: make(chan Consent, ConsentDepth),
+		held:     map[uint16]bool{},
+		done:     make(chan struct{}),
 	}
 	s.wg.Add(1)
 	go s.classify()
@@ -320,6 +327,22 @@ func (s *Source) handle(e rawEvent) {
 		return
 	}
 	s.held[e.code] = true
+
+	// ── AN ANSWER, NOT AN OBSERVATION ──
+	//
+	// Before classification, because a consent key has no navigation meaning and would
+	// otherwise be counted as a key nobody recognised. After the auto-repeat check above,
+	// deliberately: a held F7 is ONE answer, and a person leaning on the key must not
+	// authorise forty actions.
+	//
+	// Before the session check too. A reply is addressed to Marco and is meaningful
+	// whether or not anything is being observed — the run asking the question is not a
+	// subscription.
+	if c, ok := consentOf(e.code); ok {
+		s.offerConsent(c)
+		s.ignore(ReasonConsent)
+		return
+	}
 
 	// The screen context is read HERE, on the worker, under the lock the classifier already
 	// holds. Freshness is judged against the event's own timestamp rather than against now,

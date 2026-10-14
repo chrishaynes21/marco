@@ -58,6 +58,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflowstore"
 	"github.com/chaynes-simpleclouds/marco/internal/oshost"
 	"github.com/chaynes-simpleclouds/marco/internal/platform/marcorunner"
+	"github.com/chaynes-simpleclouds/marco/internal/platform/navsource"
 	"github.com/chaynes-simpleclouds/marco/internal/platform/recordhost"
 	"github.com/chaynes-simpleclouds/marco/internal/platform/winprovider"
 	"github.com/chaynes-simpleclouds/marco/internal/runtime"
@@ -81,6 +82,21 @@ func runPerformWorkflow(args []string) int {
 	delay := fs.Duration("delay", 5*time.Second, "wait before starting, to switch to the app")
 	patience := fs.Int("patience", workflowrun.DefaultPatience,
 		"how many observations one step is given before the run stops safely")
+	maxActions := fs.Int("max-actions", -1,
+		"how many actions this run may send in total; negative is unbounded")
+	hotkeys := fs.Bool("hotkeys", false,
+		"answer with "+navsource.ConsentKeys[navsource.ConsentApprove]+"/"+
+			navsource.ConsentKeys[navsource.ConsentRefuse]+"/"+
+			navsource.ConsentKeys[navsource.ConsentStop]+" instead of the "+
+			"keyboard, so the application keeps the foreground")
+	from := fs.String("from", "",
+		"the saved screen you will be standing on when the run starts. Spent ONCE, on "+
+			"the first observation; every screen after it is inferred or asked about")
+	answer := fs.Duration("answer", 20*time.Second,
+		"with -hotkeys, how long a question stays open")
+	dwell := fs.Duration("dwell", workflowrun.DefaultDwell,
+		"how long the pointer rests on a control before the click. 0 sends the click "+
+			"alone, which a game menu ignores")
 	_ = fs.Parse(flagsFirst(args))
 
 	switch {
@@ -99,6 +115,11 @@ func runPerformWorkflow(args []string) int {
 	case *fps < 1 || *fps > 60:
 		fmt.Fprintln(os.Stderr, "director: --fps must be between 1 and 60")
 		return 2
+	case *maxActions == 0:
+		fmt.Fprintln(os.Stderr, "director: --max-actions 0 would perform nothing; "+
+			"leave it out for an unbounded run, or use --live without it to "+
+			"send nothing at all")
+		return 2
 	}
 
 	raw, err := os.ReadFile(*file)
@@ -112,6 +133,20 @@ func runPerformWorkflow(args []string) int {
 		// clarification attached to nothing, a step naming a screen it does not carry.
 		fmt.Fprintf(os.Stderr, "director: %v\n", err)
 		return 1
+	}
+
+	if *from != "" {
+		known := false
+		for _, sc := range art.Screens {
+			if sc.Label == *from {
+				known = true
+			}
+		}
+		if !known {
+			fmt.Fprintf(os.Stderr, "director: %q carries no screen called %q\n",
+				art.Name, *from)
+			return 1
+		}
 	}
 
 	interval := time.Second / time.Duration(*fps)
@@ -160,11 +195,39 @@ func runPerformWorkflow(args []string) int {
 
 	ask := bufio.NewReader(os.Stdin)
 	session := workflowstore.NewSessionBinding()
-	ground := &promptGrounder{art: art, in: ask, out: os.Stdout}
-	grant := &promptGranter{in: ask, out: os.Stdout, live: *live}
+	ground := &promptGrounder{art: art, in: ask, out: os.Stdout,
+		claim: *from, silent: *hotkeys}
 
-	run := workflowrun.New(art, nil, ground, grant).
+	// ── WHO IS ASKED, AND HOW THEY ANSWER ──
+	//
+	// `--hotkeys` exists because of a measured failure, not a preference: typing an answer
+	// makes the terminal the foreground window, and the press the answer permits is then
+	// refused because the target no longer leads the desktop. See consentdesk.go.
+	// `run` is declared before the desk so the STOP key can reach it. A desk built with
+	// no way to stop the run would make F9 a key that prints something.
+	var run *workflowrun.Runner
+	var grant workflowrun.Granter = &promptGranter{in: ask, out: os.Stdout, live: *live}
+	var keys *hotkeyGranter
+	var desk *consentDesk
+	if *hotkeys {
+		src, why := navsource.New()
+		if why != "" {
+			fmt.Fprintf(os.Stderr, "director: no key hook is available, so "+
+				"--hotkeys has no way to hear an answer: %s\n", why)
+			return 1
+		}
+		defer src.Close()
+		desk = newConsentDesk(src.Consents(), func() { run.Stop() })
+		go desk.run(ctx)
+		keys = &hotkeyGranter{desk: desk, out: os.Stdout, live: *live,
+			within: *answer, life: 10 * time.Second}
+		grant = keys
+	}
+
+	run = workflowrun.New(art, nil, ground, grant).
 		WithExecutor(marcoexec.New(marco), *live).
+		WithBudget(*maxActions).
+		WithDwell(*dwell).
 		// THE WORLD, RE-OBSERVED AT THE INSTANT OF THE PRESS. Deleting this call, or
 		// passing nil, must make the runner refuse every action — see
 		// TestPerformWorkflowRechecksTheWorldBeforeEveryPress.
@@ -251,7 +314,7 @@ func runPerformWorkflow(args []string) int {
 		// behind one prompt would let a person answer one and be taken to have
 		// answered the other.
 		if a.Stage == workflowstore.StepUnconfirmed {
-			if !confirmStep(ask, os.Stdout, art, a.Step, session) {
+			if !agreeToStep(ctx, keys, ask, os.Stdout, art, a.Step, session) {
 				lost = "nobody agreed to step " + fmt.Sprint(a.Step)
 				break
 			}
@@ -267,6 +330,15 @@ func runPerformWorkflow(args []string) int {
 
 	rep := run.Report()
 	printRun(rep, art, book, *live, lost)
+	if desk != nil {
+		stray, drained := desk.counts()
+		fmt.Printf("\n  %-42s %d of %d\n", "steps agreed to by key",
+			keys.agreed, keys.proposed)
+		fmt.Printf("  %-42s %d of %d\n", "presses permitted by key",
+			keys.granted, keys.asked)
+		fmt.Printf("  %-42s %d before a question, %d with none open\n",
+			"key presses that answered nothing", drained, stray)
+	}
 	if rep.Progress.Complete() {
 		return 0
 	}
@@ -301,6 +373,14 @@ type worldNow struct {
 	// Generation is the window generation now, and Epoch the observation generation now.
 	Generation uint64
 	Epoch      uint64
+	// Screen is the screen hypothesis standing now.
+	//
+	// Carried as well as Epoch, and not instead of it, because the two catch different
+	// things. The epoch moves when the observation is superseded; the identity changes
+	// when what is standing is a DIFFERENT screen. A re-settle inside one epoch is the
+	// case where the first is unchanged and the second is not, and it is the one that
+	// would spend an authorisation on a point found on a screen nobody is looking at.
+	Screen observe.VisualScreenID
 	// Front is what the desktop says about the target leading it.
 	Front observe.Frontness
 }
@@ -326,6 +406,10 @@ func worldMoved(app string, now worldNow, planned workflowrun.Sighting) (bool, s
 		return false, fmt.Sprintf("the screen changed since this was planned "+
 			"(observation %d, was %d), so the point belongs to a screen that is "+
 			"no longer standing", now.Epoch, planned.Epoch)
+	case now.Screen != planned.Screen:
+		return false, fmt.Sprintf("a different screen is standing now (%s, was %s), "+
+			"so the control this point was found on is not what is in front of "+
+			"the pointer", now.Screen, planned.Screen)
 	}
 	return true, ""
 }
@@ -344,6 +428,7 @@ func stillThere(obs *fastobserve.Observer, tracker *windowref.Tracker,
 		now := worldNow{
 			Alive: v.State.OK(), State: string(v.State),
 			Generation: v.Ref.Generation, Epoch: obs.Epoch(),
+			Screen: obs.Screen(),
 		}
 		if now.Alive {
 			now.Front = frontnessOf(frontCandidate(ctx, windows), v.Ref)
@@ -372,6 +457,28 @@ type promptGrounder struct {
 	// declined remembers a screen nobody could name, so the same question is not asked
 	// again in the same observation.
 	declined map[observe.VisualScreenID]uint64
+	// claim is what somebody said, before the run started, about where they would be
+	// standing, and spent says it has been used.
+	//
+	// # Why a claim made in advance is still a person establishing correspondence
+	//
+	// [[ADR-186-a-person-can-say-where-they-are]] requires a saved screen to be matched to
+	// a live one by somebody who can see both, because no measure can say whether the
+	// right answer is in the list. Somebody typing --from before switching to the
+	// application is doing exactly that, in the only moment a keyboard is available to
+	// them: once the run starts, typing takes the foreground away from the thing being
+	// watched and the press it would permit is refused. See consentdesk.go.
+	//
+	// What keeps it honest is that it is spent ONCE, on the first observation it can be
+	// spent in, and is stamped with that observation like any other confirmation. A claim
+	// about one screen, not a standing answer: every screen after it is inferred from the
+	// workflow's own demonstrated transitions, or nobody has said what it is and the run
+	// stops.
+	claim string
+	spent bool
+	// silent says nobody can be asked, because answering would take the foreground. The
+	// ranking is still printed: somebody who cannot answer can still read.
+	silent bool
 }
 
 func (p *promptGrounder) Establish(ctx context.Context, s *workflowstore.SessionBinding,
@@ -399,6 +506,18 @@ func (p *promptGrounder) Establish(ctx context.Context, s *workflowstore.Session
 		return fmt.Errorf("nobody could say which saved screen %s is", at.Screen)
 	}
 
+	// ── OR THE CLAIM SOMEBODY MADE BEFORE THE RUN STARTED, SPENT ONCE ──
+	if p.claim != "" && !p.spent {
+		if err := s.Confirm(p.claim, at.Screen, at.Epoch, at.Generation,
+			"the person who started the run (--from)", time.Now()); err != nil {
+			return err
+		}
+		p.spent, p.standing = true, p.claim
+		fmt.Fprintf(p.out, "  %s established from --from, in observation %d/%d\n",
+			p.claim, at.Epoch, at.Generation)
+		return nil
+	}
+
 	// ── OTHERWISE SOMEBODY IS ASKED, WITH THE CANDIDATES RANKED AND THE RANKING
 	//    LABELLED AS WHAT IT IS ──
 	fmt.Fprintf(p.out, "\n  Which saved screen are you looking at?\n")
@@ -407,6 +526,17 @@ func (p *promptGrounder) Establish(ctx context.Context, s *workflowstore.Session
 	}
 	fmt.Fprintf(p.out, "    (a ranking cannot say whether the right answer is in the "+
 		"list; that is what you are adding)\n")
+	// NOBODY CAN BE ASKED. The ranking above is printed anyway, because it is what
+	// somebody reading the other monitor needs in order to decide whether to start again
+	// with a different --from. Refusing silently would make an unanswerable question look
+	// like a perception failure.
+	if p.silent {
+		p.declined[at.Screen] = at.Epoch
+		p.standing = ""
+		return fmt.Errorf("nobody could say which saved screen %s is, and answering "+
+			"here would take the foreground away from the application; name "+
+			"the screen with --from and start again", at.Screen)
+	}
 	fmt.Fprintf(p.out, "  label, or `none`: ")
 	answer := strings.TrimSpace(readLine(p.in))
 	if answer == "" || strings.EqualFold(answer, "none") {
@@ -475,6 +605,7 @@ func (g *promptGranter) Authorise(ctx context.Context, in workflowrun.Intent) (
 	if in.Because != "" {
 		fmt.Fprintf(g.out, "    found: %s\n", in.Because)
 	}
+	fmt.Fprintf(g.out, "    target: %s\n", in.Target(1920, 1080))
 	fmt.Fprintf(g.out, "  May Marco %s a left click there, once? [y/N]: ", what)
 	if !strings.EqualFold(strings.TrimSpace(readLine(g.in)), "y") {
 		return workflowrun.Authorisation{}, false
@@ -488,6 +619,28 @@ func (g *promptGranter) Authorise(ctx context.Context, in workflowrun.Intent) (
 		// SHORT. A permission that outlived the answer would be a session flag.
 		Expires: time.Now().Add(10 * time.Second),
 	}, true
+}
+
+// agreeToStep puts the agreement question to whoever can answer it.
+//
+// The desk when a hook is listening, stdin otherwise. The QUESTION is the same either way, and
+// in both it stays separate from authorisation: agreeing that a step belongs in the workflow and
+// permitting it to happen on the screen in front of you are two sentences, and a build that took
+// one answer for both would let somebody answer one and be taken to have answered the other.
+func agreeToStep(ctx context.Context, keys *hotkeyGranter, in *bufio.Reader, out *os.File,
+	art workflowstore.Artifact, at int, s *workflowstore.SessionBinding) bool {
+
+	if at < 0 || at >= len(art.Steps) {
+		return false
+	}
+	if keys != nil {
+		st := art.Steps[at]
+		if !keys.agree(ctx, at, st.Control, st.From, st.To) {
+			return false
+		}
+		return s.ConfirmStep(at, "the person at the keyboard") == nil
+	}
+	return confirmStep(in, out, art, at, s)
 }
 
 // confirmStep asks whether somebody agrees to a step at all, which is not the same question as
@@ -547,6 +700,32 @@ func printRun(rep workflowrun.Report, art workflowstore.Artifact, book *recordho
 	} else {
 		fmt.Printf("  %-42s %s\n", "real input sent",
 			"NO — the Host wrote it down")
+	}
+	if rep.Dwell > 0 {
+		fmt.Printf("  %-42s %s before each press\n", "the pointer was moved and rested",
+			rep.Dwell)
+	} else {
+		fmt.Printf("  %-42s %s\n", "the pointer was moved and rested",
+			"NO — the click was sent on its own")
+	}
+	// VISIBLE CHANGE IS ITS OWN SENTENCE, and it is the one missing from a run that
+	// pressed something and saw nothing. "The destination was not established" is true of
+	// an interface that ignored the press and of one that responded in a way nobody
+	// recognised, and those want opposite things done about them.
+	switch {
+	case rep.Sent == 0:
+		fmt.Printf("  %-42s %s\n", "the screen changed after the action",
+			"n/a — nothing was performed")
+	case rep.Changed:
+		fmt.Printf("  %-42s %s\n", "the screen changed after the action",
+			"YES — something happened; what, is the next line's question")
+	default:
+		fmt.Printf("  %-42s %s\n", "the screen changed after the action",
+			"NO — the application did not visibly respond")
+	}
+	if rep.Budget >= 0 {
+		fmt.Printf("  %-42s %d of %d allowed\n", "actions this run was allowed to send",
+			rep.Sent, rep.Budget)
 	}
 	fmt.Printf("  %-42s %d of %d\n", "destinations established", rep.Established,
 		len(art.Steps))

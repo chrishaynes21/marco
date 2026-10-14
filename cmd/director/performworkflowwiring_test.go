@@ -91,6 +91,24 @@ func TestPerformWorkflowInstallsItsGates(t *testing.T) {
 		{"signal.NotifyContext",
 			"Ctrl-C has to stop the run rather than kill it, so a press in flight " +
 				"is refused and the report still says how far it got"},
+		// THE RE-OBSERVATION HAS TO READ THE WORLD, not the plan it is checking.
+		//
+		// `stillThere` is the one function here a test cannot supply for itself: a
+		// real answer needs a live window and a real desktop, and everything it
+		// DECIDES lives in worldMoved, which is tested properly below. What cannot
+		// be tested properly is that it reads the present rather than echoing the
+		// past — a version passing `planned.Screen` and `planned.Epoch` straight
+		// back would agree with itself forever and every refusal below would still
+		// pass. A mutation run found exactly that, so the gap is held here, weakly
+		// and on purpose.
+		{"Screen: obs.Screen(),",
+			"the re-observation must read the screen standing NOW; passing the " +
+				"planned one back would make the check agree with itself"},
+		{"Epoch: obs.Epoch(),",
+			"the same, for the observation generation"},
+		{"newConsentDesk(src.Consents(), func() { run.Stop() })",
+			"without the stop function the stop key is a key that prints " +
+				"something"},
 	} {
 		if !strings.Contains(string(src), want.call) {
 			t.Errorf("the assembly does not install %s\n\t%s", want.call, want.why)
@@ -106,11 +124,12 @@ func TestPerformWorkflowInstallsItsGates(t *testing.T) {
 
 // WHETHER THE WORLD STILL HOLDS, which is the one judgement this command makes.
 //
-// Four refusals and a pass. The last refusal is the one that exists because somebody was asked a
-// question: the pause while they read it is unbounded, and in it the screen can change.
+// Five refusals and a pass. The last two exist because somebody was asked a question: the pause
+// while they read it is unbounded, and in it the screen can change.
 func TestWorldMovedRefusesEachWayTheWorldCanHaveMoved(t *testing.T) {
 	planned := workflowrun.Sighting{Screen: "now_1", Epoch: 7, Generation: 3}
-	held := worldNow{Alive: true, Generation: 3, Epoch: 7, Front: observe.FrontTarget}
+	held := worldNow{Alive: true, Generation: 3, Epoch: 7, Front: observe.FrontTarget,
+		Screen: "now_1"}
 
 	for _, tc := range []struct {
 		name  string
@@ -127,6 +146,12 @@ func TestWorldMovedRefusesEachWayTheWorldCanHaveMoved(t *testing.T) {
 		}, "does not lead the desktop"},
 		{"the screen changed while the question was open",
 			func(w *worldNow) { w.Epoch = 8 }, "no longer standing"},
+		// A RE-SETTLE INSIDE ONE OBSERVATION. The epoch is unchanged and what is
+		// standing is a different screen, which is the case the epoch alone cannot
+		// catch and the one that would spend an authorisation on a point found on a
+		// screen nobody is looking at.
+		{"a different screen is standing in the same observation",
+			func(w *worldNow) { w.Screen = "now_2" }, "a different screen is standing"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			now := held
@@ -140,7 +165,9 @@ func TestWorldMovedRefusesEachWayTheWorldCanHaveMoved(t *testing.T) {
 			}
 			if !strings.Contains(why, "rocketleague") && tc.name !=
 				"the window was replaced" && tc.name !=
-				"the screen changed while the question was open" {
+				"the screen changed while the question was open" &&
+				tc.name != "a different screen is standing in the "+
+					"same observation" {
 				t.Errorf("the refusal does not name the application: %s", why)
 			}
 		})
