@@ -1176,6 +1176,20 @@ it refuses those looks. Visible is fine; in front is not.
   happened; excluding the gap's closing look hid two real navigations. Both corrections
   moved the answer AGAINST the proposal being measured.
   [[Experiment-037-why-the-binding-disappeared]]
+- **The contracts do not yet compose, and the readiness report found where.** A reloaded
+  workflow gets through stage 1 of 7 and stops: `Artifact.Bind` requires EVERY screen
+  bound at once, and a binding is valid only in the observation generation it was
+  established in. Establishing the second screen expires the first, so at most one is
+  ever live and Bind can only succeed on a one-screen workflow. Twelve screens were
+  established in the walk — 7 confirmed, 5 inferred — and one survived to the end.
+  Both rules are right alone and were written three days apart against different models
+  of how a run proceeds. [[Experiment-038-how-far-a-reloaded-workflow-gets]]
+- **The smallest fix is to plan against the step’s own screen, not the whole workflow’s.**
+  Bind’s all-or-nothing rule exists to stop a run acting before it discovers it is lost;
+  a per-step requirement gives the same protection and is compatible with the
+  observation rule. `SessionBinding.Established(label, epoch, generation)` already
+  is that function, and nothing consumes it in a planning path.
+  [[Experiment-038-how-far-a-reloaded-workflow-gets]]
 - **A person can now say where they are, and one Yes buys exactly one screen.**
   One saved screen, as one current screen, in ONE observation generation — the same rule
   a delayed detection lives under, because an arrangement recurs and a moment does not.
