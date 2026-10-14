@@ -89,6 +89,36 @@ next, and the record could not say what either was the middle of — so "did it 
 a piece of the button" had no answer in the log. A point near the left edge of a wide control and
 the middle of a narrow one are the same two numbers and completely different findings.
 
+## And then the point was still wrong
+
+The run with the dwell in place sent a real click and the menu still did not change — and this
+time the report said `the screen changed after the action: NO`, so not even a hover highlight
+appeared. The new `target:` line said why:
+
+```
+the middle of a region at x 0.0000..0.0688 (132x44 px at 0,458 in the window)
+```
+
+Measured against the recording: the PLAY button is **x 62..370, y 465..512** and its text is
+**x 80..127**. The matched region starts at the window's own left edge, so it is background and
+then the left sliver of the button, and its middle — x 66 — is four pixels inside a slanted
+border.
+
+Re-acquisition was not wrong. It is GENEROUS on purpose: a proposal that spills past a control is
+still evidence the control is there, and [[ADR-187-knowing-the-plan-and-trusting-the-screen]]
+wants that generosity for recognition. What it is not is a statement about where to press. A
+generous rectangle has a misleading middle, and nothing in between said so.
+
+So the point is the middle of the part the saved readings and this look BOTH describe —
+`observe.Agreed`. For the measured case that is x 26..132, whose middle is 79: the first letter
+of PLAY.
+
+Two rules keep it honest. A match that **locates nothing is refused before any narrowing**,
+because a window-spanning region overlaps every saved reading and narrowing it would hand back
+the saved reading and present a recorded coordinate as something this look found. And a match the
+saved readings **do not touch at all** is a contradiction rather than a point: two rectangles
+disagree and nothing here chooses between them.
+
 ## Consequences
 
 - **A game menu can be clicked.** Whether Rocket League's responds is the next live run's
@@ -100,6 +130,10 @@ the middle of a narrow one are the same two numbers and completely different fin
 - **Every existing measurement was taken at dwell 0**, and remains valid for what it measured.
 - **No new executor, no new perception, no new Marco.** `KindMove` already existed and already
   lowered to `do OS's Move with at.`
+- **A press point is narrower than a match**, and the two are now different things with different
+  rules. Recognition stays generous; pressing does not.
+- **`real input sent` reports what was sent**, not which mode was asked for. It said YES above a
+  line counting zero actions.
 
 ## Enforced by
 
@@ -114,6 +148,17 @@ the middle of a narrow one are the same two numbers and completely different fin
 `TestTheQuestionNamesTheRegionThePointCameFrom`,
 `TestATargetWithNoRegionSaysSo`,
 `TestTheRecheckIsToldWhichObservationThePlanWasMadeFrom` (twice, now).
+
+`internal/director/observe` —
+`TestTheAgreedPartIsBoundedByTheSmallerOfTheTwo`,
+`TestRegionsThatDoNotTouchDoNotAgree`,
+`TestTheReadingThatAgreesMostIsTheOneUsed`,
+`TestNoSavedReadingsIsNoAgreement`.
+
+`internal/director/workflowstore` —
+`TestThePointIsTheMiddleOfWhatBothTheFileAndTheLookDescribe`,
+`TestAMatchTheSavedReadingsDoNotTouchIsRefused`,
+`TestAWindowSpanningMatchIsNotNarrowedIntoAGroundedPoint`.
 
 `cmd/director` — `TestOneApprovalKeySendsOneLeftClickThroughTheMarcoCompiler` and
 `TestAWorkflowStepReachesTheHostAsOneRealLeftClickThroughTheMarcoCompiler`, which assert the

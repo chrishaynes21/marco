@@ -320,17 +320,17 @@ func TestThePressLandsAtTheControlOnTheDesktopAndNotInTheWindowsOwnCoordinates(t
 		where  observe.Region
 		want   workflowrun.Point
 	}{
+		// THE SAME REGION IN ALL THREE, because the arithmetic under test is the
+		// window's, and a different region per case would also change the point
+		// through the agreement in StepReadinessAt — which is a different rule
+		// with its own tests.
 		{"an offset window", directorapi.Rect{X: 100, Y: 50, Width: 1000, Height: 500},
 			rect(0.4, 0.5, 0.1, 0.04), workflowrun.Point{X: 550, Y: 310}},
 		{"a window at the origin", directorapi.Rect{Width: 1000, Height: 500},
 			rect(0.4, 0.5, 0.1, 0.04), workflowrun.Point{X: 450, Y: 260}},
 		{"a window on a second monitor",
 			directorapi.Rect{X: -1920, Y: 0, Width: 1920, Height: 1080},
-			// A REAL REGION whose centre is the middle of the window, rather
-			// than a zero-extent one at the middle. The arithmetic under test is
-			// the same and a region with no extent is now refused outright: it
-			// locates nothing, which is observe.Region.Locates's first sentence.
-			rect(0.45, 0.45, 0.1, 0.1), workflowrun.Point{X: -960, Y: 540}},
+			rect(0.4, 0.5, 0.1, 0.04), workflowrun.Point{X: -1056, Y: 561}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			g := newRig(t)

@@ -695,9 +695,20 @@ func printRun(rep workflowrun.Report, art workflowstore.Artifact, book *recordho
 	fmt.Printf("\n")
 	fmt.Printf("  %-42s %s\n", "actions lowered, compiled and run",
 		fmt.Sprint(rep.Pressed))
-	if live {
+	// WHAT WAS SENT, not which mode was asked for.
+	//
+	// A run that performed nothing sent no real input, whatever --live said, and a report
+	// that answered the flag instead of the run said "real input sent YES" above a line
+	// counting zero actions. That is the exact shape of claim this report exists to refuse.
+	switch {
+	case rep.Sent == 0 && live:
+		fmt.Printf("  %-42s %s\n", "real input sent",
+			"NO — nothing was performed, though --live was asked for")
+	case rep.Sent == 0:
+		fmt.Printf("  %-42s %s\n", "real input sent", "NO — nothing was performed")
+	case live:
 		fmt.Printf("  %-42s %s\n", "real input sent", "YES")
-	} else {
+	default:
 		fmt.Printf("  %-42s %s\n", "real input sent",
 			"NO — the Host wrote it down")
 	}

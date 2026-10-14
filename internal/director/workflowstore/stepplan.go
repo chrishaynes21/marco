@@ -193,13 +193,18 @@ func (a Artifact) StepReadinessAt(at int, s *SessionBinding, now Now) StepReadin
 		return r
 	}
 
-	// ── 4b. AND DOES WHAT WAS FOUND SAY WHERE THE CONTROL IS ──
+	// ── 4a. DOES WHAT WAS FOUND SAY WHERE THE CONTROL IS ──
 	//
 	// Matching is about rectangles; pressing is about a point. A region that runs edge to
-	// edge across the window is matched again perfectly well and names nowhere, and its
-	// centre is the middle of the screen — see observe.Region.Locates.
+	// edge across the window is matched again perfectly well and names nowhere — see
+	// observe.Region.Locates.
 	//
-	// Refused BEFORE `Found` is set, so there is no position to show and no position to
+	// Asked BEFORE the agreement below, and the order is load-bearing. A window-spanning
+	// match overlaps every saved reading, so narrowing it would produce the saved reading
+	// back and present a recorded coordinate as a grounded one. A match that locates
+	// nothing corroborates nothing, and there is no arithmetic that repairs it.
+	//
+	// Refused before `Found` is set, so there is no position to show and no position to
 	// press. A step that cannot say where its control is must not offer a point that looks
 	// exactly like one it found.
 	if ok, why := outcome.Where.Locates(); !ok {
@@ -209,11 +214,31 @@ func (a Artifact) StepReadinessAt(at int, s *SessionBinding, now Now) StepReadin
 		return r
 	}
 
+	// ── 4b. THE PART THE DEMONSTRATION AND THIS LOOK BOTH DESCRIBE ──
+	//
+	// Re-acquisition is generous on purpose — a proposal that spills past a control is
+	// still evidence the control is there — and a generous rectangle has a misleading
+	// middle. Measured: a live look matched PLAY with a region running from the window's
+	// left edge to 132px, and its middle landed three pixels inside a button that starts
+	// at 62. See observe.Agreed.
+	where := outcome.Where
+	if saved := a.readingsOf(st.Control); len(saved) > 0 {
+		agreed, ok := observe.Agreed(where, saved)
+		if !ok {
+			r.Stage = StepControlUnlocated
+			r.Because = fmt.Sprintf("%s was matched against a region the saved "+
+				"readings do not touch, so the two disagree about where it "+
+				"is and nothing here chooses between them", st.Control)
+			return r
+		}
+		where = agreed
+	}
+
 	// THE CONTROL IS WHERE IT WAS FOUND, which the person asked for authorisation needs
 	// to be shown and which nothing downstream may compute for itself. See Found.
 	centre := observe.PointerAt{
-		X: outcome.Where.X + outcome.Where.Width/2,
-		Y: outcome.Where.Y + outcome.Where.Height/2,
+		X: where.X + where.Width/2,
+		Y: where.Y + where.Height/2,
 	}
 	r.Found = &centre
 
@@ -238,7 +263,7 @@ func (a Artifact) StepReadinessAt(at int, s *SessionBinding, now Now) StepReadin
 	// ── 7. A POINT AND AN EXPECTATION. NOT PERMISSION. ──
 	r.Stage = StepPlannable
 	r.Action = &workflow.Action{
-		Step: at, Where: outcome.Where, Support: workflow.SupportGeometric,
+		Step: at, Where: where, Support: workflow.SupportGeometric,
 		Expect:  observe.VisualScreenID(st.To),
 		At:      centre,
 		Because: outcome.Because,
@@ -247,6 +272,20 @@ func (a Artifact) StepReadinessAt(at int, s *SessionBinding, now Now) StepReadin
 		"the session is authorised. A point and an expectation; nothing has been "+
 		"pressed", st.From, st.Control, by)
 	return r
+}
+
+// readingsOf is every saved reading of one control.
+//
+// The CONTROL's readings only, never its containers: a container is a region that also held the
+// press, and agreeing with one would put the point in the middle of the thing the control sits
+// in rather than in the control.
+func (a Artifact) readingsOf(label string) []observe.Region {
+	for _, c := range a.Controls {
+		if c.Label == label {
+			return c.Readings
+		}
+	}
+	return nil
 }
 
 // ── progress ──────────────────────────────────────────────────────────────────

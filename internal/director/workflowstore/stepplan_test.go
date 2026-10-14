@@ -483,3 +483,82 @@ func TestAStepThatCouldNotFindItsControlHasNoPosition(t *testing.T) {
 		t.Errorf("a step whose control was never found reports it at %v", *got.Found)
 	}
 }
+
+// THE POINT IS THE MIDDLE OF WHAT BOTH DESCRIBE, NOT OF WHAT WAS MATCHED.
+//
+// Measured. A live look matched Rocket League's PLAY button with a region running from the
+// window's left edge to 132px in; the saved reading was 26..192; the button is 62..370. The
+// middle of the match was x 66, three pixels inside the button's border, and the click did
+// nothing. The middle of the agreed part is x 79, the first letter of PLAY.
+func TestThePointIsTheMiddleOfWhatBothTheFileAndTheLookDescribe(t *testing.T) {
+	a := threeScreens(t)
+	s, now := ready(t, a)
+	now.Authorised = true
+	saved := a.Controls[0].Readings[0]
+
+	// A MATCH THAT SPILLS PAST THE CONTROL, which is what re-acquisition is generous
+	// enough to produce and what makes its middle misleading.
+	now.Outcomes[0].Where = observe.Region{
+		X: saved.X + saved.Width/2, Y: saved.Y,
+		Width: saved.Width, Height: saved.Height,
+	}
+	got := a.StepReadinessAt(0, s, now)
+	if !got.Ready() {
+		t.Fatalf("stage %q — %s", got.Stage, got.Because)
+	}
+	// The agreed part runs from the saved reading's left edge to the match's right edge.
+	wantX := saved.X + saved.Width*0.75
+	if d := got.Action.At.X - wantX; d > 0.0001 || d < -0.0001 {
+		t.Errorf("the point is x %.4f and the middle of the agreed part is %.4f",
+			got.Action.At.X, wantX)
+	}
+	// AND THE MIDDLE OF THE MATCH IS NOT WHERE IT PRESSES.
+	mid := now.Outcomes[0].Where.X + now.Outcomes[0].Where.Width/2
+	if d := got.Action.At.X - mid; d < 0.0001 && d > -0.0001 {
+		t.Error("the point is the middle of the match, which is the thing that missed")
+	}
+}
+
+// AND A MATCH THE SAVED READINGS DO NOT TOUCH IS A CONTRADICTION, not a point.
+func TestAMatchTheSavedReadingsDoNotTouchIsRefused(t *testing.T) {
+	a := threeScreens(t)
+	s, now := ready(t, a)
+	now.Authorised = true
+	now.Outcomes[0].Where = observe.Region{X: 0.8, Y: 0.8, Width: 0.05, Height: 0.05}
+
+	got := a.StepReadinessAt(0, s, now)
+	if got.Ready() {
+		t.Fatalf("a match nowhere near the saved readings was plannable at %v",
+			got.Action.At)
+	}
+	if got.Stage != workflowstore.StepControlUnlocated {
+		t.Errorf("stage %q, want %q", got.Stage, workflowstore.StepControlUnlocated)
+	}
+	if !strings.Contains(got.Because, "disagree") {
+		t.Errorf("the refusal does not say the two disagree: %s", got.Because)
+	}
+	if got.Found != nil {
+		t.Errorf("a contradiction still reports a position: %v", *got.Found)
+	}
+}
+
+// AND A WINDOW-SPANNING MATCH IS STILL REFUSED, rather than narrowed into a grounded-looking one.
+//
+// The order matters: a region that spans the window overlaps EVERY saved reading, so agreeing
+// with it first would hand back the saved reading and present a recorded coordinate as something
+// this look found. A match that locates nothing corroborates nothing.
+func TestAWindowSpanningMatchIsNotNarrowedIntoAGroundedPoint(t *testing.T) {
+	a := threeScreens(t)
+	s, now := ready(t, a)
+	now.Authorised = true
+	now.Outcomes[0].Where = observe.Region{X: 0, Y: 0, Width: 1, Height: 0.957}
+
+	got := a.StepReadinessAt(0, s, now)
+	if got.Ready() {
+		t.Fatalf("a window-spanning match was narrowed into a plannable point at %v",
+			got.Action.At)
+	}
+	if !strings.Contains(got.Because, "full width") {
+		t.Errorf("the refusal is not the one about the region: %s", got.Because)
+	}
+}
