@@ -77,3 +77,9 @@ So a Director program leaves the pointer where it put it.
 
 `internal/platform/marcorunner` — `TestADirectorActionLeavesThePointerWhereItPutIt`,
 `TestADirectorActionStillReleasesAHeldKey`.
+
+Both are in the deletion check in `mutate220.py`, which also carries the mutant that matters
+most here and is the one a reader would not think of: a third mutant GIVES `actionHost` a
+`CursorSnapshot` that forwards to the real host. That is the defect this decision exists to
+prevent -- the whole wrapper is an absence -- and a suite that only checked the two present
+behaviours would pass with the absence filled in.

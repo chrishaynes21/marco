@@ -562,3 +562,120 @@ func TestAWindowSpanningMatchIsNotNarrowedIntoAGroundedPoint(t *testing.T) {
 		t.Errorf("the refusal is not the one about the region: %s", got.Because)
 	}
 }
+
+// ── a region established for this session, when the file cannot say ───────────
+
+// A RE-GROUNDED CONTROL IS PRESSED WHERE THE SCREEN SAYS, NOT WHERE THE FILE SAYS.
+//
+// The measured case: `control_3`'s saved reading is the whole window, so the step can never be
+// performed however long it is given. A region established live for this session replaces that
+// reading, and the point is the middle of THAT.
+func TestAControlRegroundedForThisSessionReplacesWhatTheFileSays(t *testing.T) {
+	a := threeScreens(t)
+	s, now := ready(t, a)
+	control := a.Steps[0].Control
+	// THE DEFECT: a reading that re-acquires perfectly and locates nowhere.
+	now.Outcomes[0].Where = observe.Region{X: 0, Y: 0, Width: 1, Height: 0.957}
+
+	// Unrepaired, the step is refused and has no position at all.
+	if got := a.StepReadinessAt(0, s, now); got.Stage !=
+		workflowstore.StepControlUnlocated {
+		t.Fatalf("the fixture's defect is not the one under test: %q", got.Stage)
+	}
+
+	live := observe.Region{X: 0.177, Y: 0.431, Width: 0.074, Height: 0.031}
+	now.Reground = map[string]observe.Region{control: live}
+	got := a.StepReadinessAt(0, s, now)
+	if !got.Ready() {
+		t.Fatalf("stage %q — %s", got.Stage, got.Because)
+	}
+	wantX, wantY := live.X+live.Width/2, live.Y+live.Height/2
+	if d := got.Action.At.X - wantX; d > 0.0001 || d < -0.0001 {
+		t.Errorf("the point is x %.4f and the middle of the re-grounded region is %.4f",
+			got.Action.At.X, wantX)
+	}
+	if d := got.Action.At.Y - wantY; d > 0.0001 || d < -0.0001 {
+		t.Errorf("the point is y %.4f and the middle of the re-grounded region is %.4f",
+			got.Action.At.Y, wantY)
+	}
+}
+
+// AND IT IS NOT NARROWED AGAINST THE READINGS IT EXISTS TO REPLACE.
+//
+// The agreement rule asks "what do the file and this look both describe", and both of its inputs
+// are suspect in exactly this case: the saved reading is the broken thing, and narrowing a good
+// live region against a window-spanning one would hand the window-spanning one straight back.
+func TestARegroundedRegionIsNotNarrowedAgainstTheReadingItReplaces(t *testing.T) {
+	a := threeScreens(t)
+	s, now := ready(t, a)
+	control := a.Steps[0].Control
+	now.Outcomes[0].Where = observe.Region{X: 0, Y: 0, Width: 1, Height: 0.957}
+
+	// A live region NOWHERE NEAR the saved reading, which is the ordinary case when the
+	// saved reading is a band: it overlaps everything, so "disagrees with the file" says
+	// nothing about whether the repair is right.
+	saved := a.Controls[0].Readings[0]
+	live := observe.Region{X: saved.X + saved.Width + 0.3, Y: saved.Y + 0.3,
+		Width: 0.05, Height: 0.03}
+	now.Reground = map[string]observe.Region{control: live}
+
+	got := a.StepReadinessAt(0, s, now)
+	if !got.Ready() {
+		t.Fatalf("a re-grounded region was refused for disagreeing with the reading "+
+			"it replaces: %q — %s", got.Stage, got.Because)
+	}
+	if d := got.Action.At.X - (live.X + live.Width/2); d > 0.0001 || d < -0.0001 {
+		t.Errorf("the point is x %.4f, which is not the middle of the re-grounded "+
+			"region (%.4f)", got.Action.At.X, live.X+live.Width/2)
+	}
+}
+
+// AND A REPAIR THAT LOCATES NOTHING IS THE DEFECT IT WAS MEANT TO FIX.
+//
+// The one rule a repair does NOT skip. A re-grounded band across the window would be the same
+// unpressable step with a better provenance, and provenance is not a position.
+func TestARepairThatNamesAnotherBandAcrossTheWindowIsRefused(t *testing.T) {
+	a := threeScreens(t)
+	s, now := ready(t, a)
+	control := a.Steps[0].Control
+	now.Outcomes[0].Where = observe.Region{X: 0, Y: 0, Width: 1, Height: 0.957}
+	now.Reground = map[string]observe.Region{
+		control: {X: 0, Y: 0.468, Width: 1, Height: 0.461},
+	}
+
+	got := a.StepReadinessAt(0, s, now)
+	if got.Ready() {
+		t.Fatalf("a re-grounded band was plannable at %v", got.Action.At)
+	}
+	if got.Stage != workflowstore.StepControlUnlocated {
+		t.Errorf("stage %q, want %q", got.Stage, workflowstore.StepControlUnlocated)
+	}
+	if got.Found != nil {
+		t.Errorf("a refused repair still reports a position: %v", *got.Found)
+	}
+	// AND THE REFUSAL SAYS WHICH OF THE TWO IT IS ABOUT, or a reviewer reads it as the
+	// original defect and goes looking in the artifact.
+	if !strings.Contains(got.Because, "re-grounded") {
+		t.Errorf("the refusal does not say the repair is the thing that failed: %s",
+			got.Because)
+	}
+}
+
+// AND A REPAIR FOR ANOTHER CONTROL DOES NOT MOVE THIS ONE.
+func TestARepairIsAboutOneControl(t *testing.T) {
+	a := threeScreens(t)
+	s, now := ready(t, a)
+	saved := a.Controls[0].Readings[0]
+	now.Reground = map[string]observe.Region{
+		"control_9": {X: 0.8, Y: 0.8, Width: 0.05, Height: 0.03},
+	}
+
+	got := a.StepReadinessAt(0, s, now)
+	if !got.Ready() {
+		t.Fatalf("stage %q — %s", got.Stage, got.Because)
+	}
+	if d := got.Action.At.X - (saved.X + saved.Width/2); d > 0.0001 || d < -0.0001 {
+		t.Errorf("the point is x %.4f and another control's repair is at 0.8..0.85; "+
+			"this step's control is at %.4f", got.Action.At.X, saved.X+saved.Width/2)
+	}
+}

@@ -76,6 +76,9 @@ A capture afterwards shows the Free Play submenu — `FREE PLAY` and `CREATE ONL
 
 ## The repair, and exactly how much it is worth
 
+The rule and its four separations are recorded in
+[[ADR-193-a-control-re-grounded-from-the-workflows-own-name]].
+
 Three sources of evidence were available for `control_3` and only one of them is about identity.
 
 - **Where things are**: the detector boxes the tiles; OCR reads every label at ~95% confidence.
@@ -179,6 +182,32 @@ is needed to answer it.
 
 If text does separate them, the general improvement is at LEARN time — a screen remembers what it
 said — and not at recognition time, and certainly not at a threshold.
+
+## What the deletion check found afterwards
+
+The run above was recorded before the repair path had a deletion check, and before it had
+any test at all. Writing both turned up three places where the code said something it could
+not mean -- the same shape as the `target:` line above, which printed the saved rectangle
+while pressing the right point.
+
+**A refusal that could never be printed for the reason it stated.** "N candidate region(s)
+and none of them contains any text" was reached only when there were no locatable candidate
+regions at all. Those are different findings -- a source offering only bands is a capture to
+look at, a screen of unlabelled tiles is a workflow to re-record -- and one sentence for
+both made the first read as the second.
+
+**A count labelled as something it was not.** The line above reads "65 candidate(s) carry
+text". 65 was every candidate; how many carried text was never computed. The listing under
+it is the evidence: eight rows, every one of them `""`. The listing now puts the candidates
+that carry text first, because those are the ones that bear on the choice.
+
+**A metric that could print a negative.** `Sent - Established` is not the number of actions
+that moved an unrecognised screen. A destination can be established with no press behind it
+-- the screen was already standing when the step was examined -- so the difference can cross
+zero. It is counted per pressed step now, which is what the line claims to be.
+
+None of the three changes what happened on the run. All three would have made the next run
+harder to read, and the second one already had.
 
 ## The gap worth measuring
 

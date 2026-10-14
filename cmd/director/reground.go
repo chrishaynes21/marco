@@ -108,10 +108,29 @@ func (g *regrounder) Reground(ctx context.Context, step int, control string,
 		return observe.Region{}, "", false
 	}
 
+	// TWO WAYS THERE IS NOTHING TO MATCH, AND THEY ARE DIFFERENT FINDINGS.
+	//
+	// No candidate region that locates anything means the sources offered only bands on
+	// this look -- a capture or a source to look at. Candidates with no text in them
+	// means the sources found controls and OCR read nothing inside any of them -- a
+	// screen to look at. One sentence for both made the first read as the second, and
+	// the sentence that was there could only ever be printed for the first.
 	cands := g.labelledCandidates(read, bounds)
 	if len(cands) == 0 {
+		fmt.Fprintf(g.out, "    %d region(s) were offered on this look and none of "+
+			"them locates anything, so there is nowhere here to read a label "+
+			"inside\n", len(g.candidates))
+		return observe.Region{}, "", false
+	}
+	withText := 0
+	for _, c := range cands {
+		if c.text != "" {
+			withText++
+		}
+	}
+	if withText == 0 {
 		fmt.Fprintf(g.out, "    %d candidate region(s) and none of them contains any "+
-			"text\n", len(g.candidates))
+			"text\n", len(cands))
 		return observe.Region{}, "", false
 	}
 
@@ -122,11 +141,24 @@ func (g *regrounder) Reground(ctx context.Context, step int, control string,
 		}
 	}
 
-	fmt.Fprintf(g.out, "    the workflow is called %q; %d candidate(s) carry text, "+
-		"%d of them words it uses:\n", g.art.Name, len(cands), len(matched))
-	for i, c := range cands {
+	fmt.Fprintf(g.out, "    the workflow is called %q; %d region(s) are candidates, "+
+		"%d of them carry text and %d of those are worded in its name:\n",
+		g.art.Name, len(cands), withText, len(matched))
+	// THE ONES CARRYING TEXT FIRST.
+	//
+	// The listing is here so somebody can weigh the decision, and on the measured run it
+	// printed eight blank rows out of 65 and then "... and 57 more" -- every row of which
+	// was a region with nothing written in it. The candidates that bear on the choice are
+	// the ones with words in them.
+	shown := make([]labelled, len(cands))
+	copy(shown, cands)
+	sort.SliceStable(shown, func(i, j int) bool {
+		return shown[i].text != "" && shown[j].text == ""
+	})
+	for i, c := range shown {
 		if i >= 8 {
-			fmt.Fprintf(g.out, "      ... and %d more\n", len(cands)-8)
+			fmt.Fprintf(g.out, "      ... and %d more, %d of them carrying text\n",
+				len(shown)-8, max0(withText-8))
 			break
 		}
 		mark := " "
@@ -227,6 +259,14 @@ func covered(some, all []string) bool {
 		}
 	}
 	return true
+}
+
+// max0 keeps a count from reading as a negative number of remaining candidates.
+func max0(n int) int {
+	if n < 0 {
+		return 0
+	}
+	return n
 }
 
 func pxOf(r observe.Region) string {

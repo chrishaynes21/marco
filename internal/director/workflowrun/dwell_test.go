@@ -13,6 +13,7 @@ package workflowrun_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -134,6 +135,64 @@ func TestAWorldThatMovedDuringTheDwellIsNotClicked(t *testing.T) {
 	if !strings.Contains(got.Because, "pointer was moved") {
 		t.Errorf("the refusal does not say the pointer had already moved: %s",
 			got.Because)
+	}
+}
+
+// A MOVE THAT FAILED IS NOT FOLLOWED BY A PRESS.
+//
+// The press is aimed at wherever the pointer is, so a click sent after a move that did not
+// happen lands on whatever was under the cursor already. That is the one failure in this
+// sequence that could put a real press somewhere nobody authorised.
+func TestAMoveThatFailedIsNotFollowedByAPress(t *testing.T) {
+	g := newRig(t)
+	g.run.WithDwell(time.Millisecond)
+	g.book.err = errors.New("SIMULATED: the host refused the move")
+
+	got := g.run.Advance(context.Background(), g.s, firstStep())
+	if got.Outcome == workflowrun.OutcomePressed {
+		t.Fatal("a click was sent after the pointer could not be moved")
+	}
+	if got.Outcome != workflowrun.OutcomeFailed {
+		t.Errorf("%s - %s", got.Outcome, got.Because)
+	}
+	if g.book.clicks() != 0 {
+		t.Errorf("%d press(es) reached Marco after a failed move", g.book.clicks())
+	}
+	if got.Prepared {
+		t.Error("the attempt claims the pointer was placed, and the move failed")
+	}
+	// AND THE REFUSAL SAYS WHICH HALF FAILED, or a reader cannot tell this from a
+	// click that was sent and rejected.
+	if !strings.Contains(got.Because, "could not be moved") {
+		t.Errorf("the explanation does not name the move: %s", got.Because)
+	}
+}
+
+// AND RESTING BEFORE THE PRESS IS THE DEFAULT.
+//
+// A caller that asked for nothing in particular gets the behaviour that was measured to
+// work on a real interface. The old behaviour is still reachable and has to be asked for.
+func TestTheDefaultIsToRestThePointerBeforePressing(t *testing.T) {
+	g := newRig(t)
+	if g.run.Dwell() <= 0 {
+		t.Fatalf("a runner built with no dwell set rests for %s", g.run.Dwell())
+	}
+	if workflowrun.DefaultDwell <= 0 {
+		t.Fatalf("the default dwell is %s", workflowrun.DefaultDwell)
+	}
+	got := g.run.Advance(context.Background(), g.s, firstStep())
+	if got.Outcome != workflowrun.OutcomePressed {
+		t.Fatalf("%s - %s", got.Outcome, got.Because)
+	}
+	if !got.Prepared || len(g.book.programs) != 2 {
+		t.Errorf("a run with no dwell asked for sent %d program(s), prepared %v",
+			len(g.book.programs), got.Prepared)
+	}
+	// AND THE REPORT SAYS HOW LONG, because every other number in it was measured
+	// under this one.
+	if rep := g.run.Report(); rep.Dwell != workflowrun.DefaultDwell {
+		t.Errorf("the report says %s and the run rested %s", rep.Dwell,
+			workflowrun.DefaultDwell)
 	}
 }
 

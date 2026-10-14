@@ -1194,6 +1194,7 @@ it refuses those looks. Visible is fine; in front is not.
   word of a candidate must come from the workflow's own name, and EXACTLY ONE may
   qualify — and it is the workflow corroborating itself, so it lasts one session and
   is written nowhere. `--repair` proposes a correction beside the artifact.
+  [[ADR-193-a-control-re-grounded-from-the-workflows-own-name]],
   [[Experiment-041-the-control-Marco-found-for-itself]]
 - **Goal reached and goal recognised are different numbers.** Marco navigated to Free
   Play and Director could not establish that it had.

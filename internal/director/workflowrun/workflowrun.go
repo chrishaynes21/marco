@@ -1059,6 +1059,20 @@ type Report struct {
 	// so a correction can be proposed afterwards by somebody who can weigh it; nothing
 	// here writes one.
 	Repairs []Repair
+	// StepsPressed is how many distinct steps had an action performed for them, and
+	// Unrecognised how many of those never had their destination established.
+	//
+	// THE PRODUCT NUMBER: goal reached versus goal recognised. An action that moved the
+	// application somewhere Director could not name is a navigation that worked and a
+	// recognition that did not, and the two have to be counted apart or the first is
+	// filed as a failure of the second.
+	//
+	// Counted rather than subtracted. `Sent - Established` looks like the same number and
+	// is not: a destination can be established with no press behind it -- the screen was
+	// already standing when the step was examined -- so the difference can cross zero and
+	// print as a negative count of unrecognised screens.
+	StepsPressed int
+	Unrecognised int
 	// Hovered is how many actions saw the control react to the pointer resting on it, and
 	// Watched how many were looked at. Two numbers, because nobody looking and nothing
 	// happening are different findings.
@@ -1133,6 +1147,10 @@ func (r *Runner) Report() (out Report) {
 			"time(s): %s", out.Looks, most, why)
 	}()
 	out.Unusable = map[string]int{}
+	// WHICH STEPS WERE PRESSED, AND WHICH OF THOSE ARRIVED. Per step, because a step
+	// presses once and is then asked about over however many later observations it
+	// takes, so a run of attempts carries one press and many answers about it.
+	pressed, arrived := map[int]bool{}, map[int]bool{}
 	for _, a := range r.attempts {
 		out.Looks++
 		if a.Outcome == OutcomeUnobserved {
@@ -1142,6 +1160,7 @@ func (r *Runner) Report() (out Report) {
 		}
 		if a.Acted() && a.Result.Status == marcoexec.StatusCompleted {
 			out.Pressed++
+			pressed[a.Step] = true
 		}
 		if a.HoverBecause != "" {
 			out.Watched++
@@ -1151,9 +1170,16 @@ func (r *Runner) Report() (out Report) {
 		}
 		if a.Arrival != nil && a.Arrival.Established() {
 			out.Established++
+			arrived[a.Step] = true
 			if a.Arrival.Independent() {
 				out.Independent++
 			}
+		}
+	}
+	for step := range pressed {
+		out.StepsPressed++
+		if !arrived[step] {
+			out.Unrecognised++
 		}
 	}
 	return out

@@ -118,4 +118,9 @@ holds for Director's own wiring and not for the plugin on its own.
 
 `cmd/director` — `TestADetectionBecomesATargetOnlyByAgreeingWithTheFile`,
 `TestAStaleDetectionIsNotMatchedAgainst`,
-`TestTheLearnedSourceNeverBlocksTheLoop`.
+`TestTheLearnedSourceNeverBlocksTheLoop`,
+`TestASourceWithNoDetectorOffersAndReturnsNothing`.
+
+In the deletion check in `mutate220.py`: the freshness rule, the epoch stamp a detection
+carries, the non-blocking offer, the dropped-frame count, the attribution to the detector,
+and the source that has no detector at all.
