@@ -115,6 +115,71 @@ that did nothing. The claim was right that time and the foreground was wrong —
 `--from` produces exactly the same shape, and the arrangement ranking that would flag it is
 computed for the asking path and never consulted for the claimed one.
 
+## Why the arrival was not recognised
+
+Four measurements, and the first two rule out the obvious answers.
+
+**The saved evidence is good.** The live Free Play submenu, through the production proposer,
+agrees with the saved screens like this:
+
+```
+  screen      agrees    shape
+  screen_d     0.750    0.765      <- the expected destination, ranked first
+  screen_c     0.533    0.668
+  screen_i     0.431    0.473
+  ...
+  screen_f     0.163    0.609
+```
+
+`screen_d` is first, by a wide margin, at a higher agreement than the 0.590 that was ACCEPTED one
+step earlier for `screen_c`. Nothing is missing from the file and no threshold on the workflow's
+side would have changed the outcome.
+
+**The screen the destination would be established on never existed.** The refusal says the
+standing screen is `visual_3` — the one Marco was already on. The Training page and the Free Play
+submenu agree with EACH OTHER at **0.721**, and `VisualScreenMatch` is **0.55**: the threshold at
+which a look joins a known visual screen. So the new screen was absorbed into the old one.
+
+That constant carries its own warning, written when it was chosen: *"the same 0.55 the segmenter
+uses for role compositions, on purpose and as a STARTING POINT rather than a conclusion ...
+Whether it is the right number for an arrangement is its own measurement."* This is that
+measurement.
+
+**Raising it is not the fix either.** [[Experiment-039-the-first-live-look-at-a-game]] found the
+main menu settling TWO screens while nobody touched it, at this same 0.55. The measure is
+simultaneously too coarse to separate two different menus and too brittle to hold one still — a
+3x3 histogram of proposal counts describes how much structure sits in each ninth of the window,
+and two dark menus with a row of tiles look alike by that description however different they are.
+
+**What would separate them is text, and it was never recorded.**
+
+| | Training page | Free Play submenu |
+|---|---|---|
+| words read | TUTORIAL, CUSTOM, TRAINING, AERIAL, STRIKER, GOALIE, FREE, PLAY, CREATE, PARTY | BACK, CREATE, FREE, JOIN, ONLINE, PLAY |
+| overlap with each other | **0.23** | |
+| arrangement agreement | **0.721** | |
+
+Text separates these two screens decisively where geometry conflates them. OCR reads both at
+~95% confidence, live, today.
+
+**The missing evidence, precisely**: a saved screen is `{label, arrangement}` and nothing else.
+There is no text in the artifact to compare live text against. The demonstration recorded how
+much structure sat in each ninth of the window and not one word of what the screen said — so the
+thing that tells these screens apart for a person was never captured.
+
+This is the same shape as the control defect in the same artifact: the recording kept the
+geometry and dropped the meaning.
+
+## The smallest useful next experiment
+
+**Offline, on the recording that already exists.** Re-process `rl-freeplay-1` with OCR attached to
+the fold, so each learned screen carries the words that were on it, and ask whether `screen_c` and
+`screen_d` become distinguishable. The corpus, the fold and the OCR path all exist; nothing live
+is needed to answer it.
+
+If text does separate them, the general improvement is at LEARN time — a screen remembers what it
+said — and not at recognition time, and certainly not at a threshold.
+
 ## The gap worth measuring
 
 **Goal reached: yes. Goal recognised: no.** Those are different capabilities and today they

@@ -923,6 +923,15 @@ func printRun(rep workflowrun.Report, art workflowstore.Artifact, book *recordho
 	}
 	fmt.Printf("  %-42s %d of %d\n", "destinations established", rep.Established,
 		len(art.Steps))
+	// THE GAP BETWEEN REACHING AND RECOGNISING, which is a product number and not a
+	// diagnostic. An action that moved the application somewhere Director could not name
+	// is a navigation that worked and a recognition that did not, and the two have to be
+	// counted apart or the first is filed as a failure of the second.
+	if rep.Sent > 0 {
+		fmt.Printf("  %-42s %d of %d\n",
+			"  actions that moved an unrecognised screen",
+			rep.Sent-rep.Established, rep.Sent)
+	}
 	fmt.Printf("  %-42s %d\n", "  of those, independent of the workflow",
 		rep.Independent)
 	ok, why := rep.Verified()
