@@ -74,12 +74,18 @@ func TestTheBindingFoldsShareNothing(t *testing.T) {
 	const each = 8
 	frames, regions := syntheticLooks(each)
 	half := len(frames) / 2
+	// Every synthetic look has pixels; the fixture is about screen identity,
+	// not about capture.
+	readable := make([]bool, len(frames))
+	for i := range readable {
+		readable[i] = true
+	}
 
-	a, err := foldRange(frames, regions, 0, half)
+	a, err := foldRange(frames, regions, readable, 0, half)
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := foldRange(frames, regions, half, len(frames))
+	b, err := foldRange(frames, regions, readable, half, len(frames))
 	if err != nil {
 		t.Fatal(err)
 	}

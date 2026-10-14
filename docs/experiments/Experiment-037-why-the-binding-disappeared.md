@@ -47,8 +47,7 @@ the proposal, not the one that flatters it.
 
 ```
 navigated away      4
-no pixels           1
-transient loss      1   (the return leg of the same interruption)
+transient loss      2   (one interruption: the way out and the way back)
 
 2 of 6 repeated questions could be bridged safely
 4 are real navigation
@@ -69,12 +68,14 @@ observation agrees with the stored arrangement at 1.000**. The same menu looks i
 visits, and that is not evidence that nothing happened in between. A continuity rule built on
 similarity alone would bridge it.
 
-### Two of the six are one capture gap
+### Two of the six are one black frame
 
-One look with **no pixels at all**, at look 643. The identity went on the way out and came back
-on the way in, so **one interruption moved the generation twice and cost two questions**. The
-stabiliser never let go, nothing else was ever observed, the window never changed, and the
-returning observation agrees at 1.000.
+Look 643. The identity went on the way out and came back on the way in, so **one interruption
+moved the generation twice and cost two questions**. The stabiliser never let go, nothing else
+was ever observed, the window never changed, and the returning observation agrees at 1.000.
+
+**It was not a capture failure**, and this report said it was until the frame was opened. See
+the correction below.
 
 ### And the generation is jumpier than the screen
 
@@ -127,8 +128,30 @@ smaller change than a new continuity state — but it also governs **detector ex
 surviving a blind look. That is why it was ring-fenced, and it should stay ring-fenced until
 measured on the detector path too.
 
-The cheapest thing of all is upstream of both: **there was one blind look in 450.** Asking why
-the capture failed is a smaller question than either of the above.
+The cheapest thing of all looked like it was upstream of both — one blind look in 450 — and it
+turned out there was nothing there to fix. See the correction below.
+
+## Correction: it was never a capture gap
+
+This experiment originally reported look 643 as "no pixels", which named a capture failure. It
+was not one. The frame is on disk at 1920x1080, the recorder marked it `front: target`,
+`window_generation 1`, with no drop; it decodes; and it is **entirely black** — 10,540 bytes
+against 2.1MB and 2.7MB either side. The game presented a black frame mid-transition and the
+capture recorded it faithfully. The proposer found 0 candidates, correctly, because there is
+nothing in a black frame.
+
+The wrong label came from the replay harnesses, which set `Look.Missing` when the PROPOSER found
+nothing. `Missing` means no pixels were obtained; a readable frame with no proposals is an
+ordinary thing. Three harnesses conflated them, and the conflation is why a black frame was
+reported as a broken capture.
+
+They now share one `proposeAll`, which returns the proposals and, separately, whether the pixels
+could be read at all. The counts above are unchanged — 2 bridgeable, 4 navigation, 0 wrongly
+bridged — and the diagnosis is no longer wrong.
+
+The answer to "investigate the capture failure at look 643" is therefore: **there was no capture
+failure.** There is nothing to fix upstream, and one black frame in 450 is the application, not
+Marco.
 
 ## What this does not establish
 

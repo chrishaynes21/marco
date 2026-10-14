@@ -27,14 +27,12 @@ package main
 
 import (
 	"fmt"
-	"image"
 	"path/filepath"
 	"sort"
 	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/fastobserve"
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
-	"github.com/chaynes-simpleclouds/marco/internal/director/perception/structure"
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflow"
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflowstore"
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
@@ -50,7 +48,7 @@ type learnedFold struct {
 // foldAndLearn runs one fresh observer over a range of looks, folding the presses that happened
 // in it, and learns whatever workflow that produced.
 func foldAndLearn(frames []frameRecord, inputs []inputRecord, regions [][]observe.Region,
-	feed *slowFeed, lo, hi int) (learnedFold, error) {
+	readable []bool, feed *slowFeed, lo, hi int) (learnedFold, error) {
 
 	obs, err := fastobserve.New(100*time.Millisecond, 64)
 	if err != nil {
@@ -88,7 +86,9 @@ func foldAndLearn(frames []frameRecord, inputs []inputRecord, regions [][]observ
 				lk.Presses = append(lk.Presses, in.Where)
 			}
 		}
-		if len(regions[i]) == 0 {
+		// MISSING MEANS NO PIXELS, not no proposals. A black frame is a
+		// look that saw nothing, not one nobody could take.
+		if !readable[i] {
 			lk.Missing = true
 		}
 		lk.Slow = feed.due(i + 1)
@@ -147,19 +147,7 @@ func reportReloadOverRecording(dir string, limit int, onnx string, delay int,
 
 	// THE PROPOSALS, COMPUTED ONCE, so a difference between the folds can never be a
 	// difference in segmentation.
-	regions := make([][]observe.Region, len(frames))
-	for i, fr := range frames {
-		img, rerr := readPNG(filepath.Join(dir, filepath.FromSlash(fr.File)))
-		if rerr != nil {
-			continue
-		}
-		res := structure.Propose(img, structure.DefaultOptions())
-		rects := make([]image.Rectangle, 0, len(res.Candidates))
-		for _, c := range res.Candidates {
-			rects = append(rects, c.Bounds)
-		}
-		regions[i] = observe.NormaliseRects(img.Bounds(), rects)
-	}
+	regions, readable := proposeAll(dir, frames)
 	newFeed := func() *slowFeed {
 		if onnx == "" {
 			return nil
@@ -173,17 +161,17 @@ func reportReloadOverRecording(dir string, limit int, onnx string, delay int,
 	}
 
 	half := len(frames) / 2
-	a, aerr := foldAndLearn(frames, inputs, regions, newFeed(), 0, half)
+	a, aerr := foldAndLearn(frames, inputs, regions, readable, newFeed(), 0, half)
 	if aerr != nil {
 		return aerr
 	}
 	defer a.obs.Close()
-	b, berr := foldAndLearn(frames, inputs, regions, newFeed(), half, len(frames))
+	b, berr := foldAndLearn(frames, inputs, regions, readable, newFeed(), half, len(frames))
 	if berr != nil {
 		return berr
 	}
 	defer b.obs.Close()
-	oracle, oerr := foldRange(frames, regions, 0, len(frames))
+	oracle, oerr := foldRange(frames, regions, readable, 0, len(frames))
 	if oerr != nil {
 		return oerr
 	}
@@ -328,7 +316,9 @@ func reportReloadOverRecording(dir string, limit int, onnx string, delay int,
 			},
 			Front: true, Regions: regions[i],
 		}
-		if len(regions[i]) == 0 {
+		// MISSING MEANS NO PIXELS, not no proposals. A black frame is a
+		// look that saw nothing, not one nobody could take.
+		if !readable[i] {
 			lk.Missing = true
 		}
 		lk.Slow = c.feed.due(i + 1)

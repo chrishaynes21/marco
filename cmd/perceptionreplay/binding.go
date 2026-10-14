@@ -37,7 +37,6 @@ package main
 
 import (
 	"fmt"
-	"image"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -45,7 +44,6 @@ import (
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/fastobserve"
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
-	"github.com/chaynes-simpleclouds/marco/internal/director/perception/structure"
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 )
 
@@ -102,30 +100,18 @@ func reportScreenBinding(dir string, limit int) error {
 	// THE PROPOSALS, COMPUTED ONCE. The three folds must see identical pixels and
 	// identical rectangles, or a difference in binding could be a difference in
 	// segmentation and nobody could tell which.
-	regions := make([][]observe.Region, len(frames))
-	for i, fr := range frames {
-		img, err := readPNG(filepath.Join(dir, filepath.FromSlash(fr.File)))
-		if err != nil {
-			continue
-		}
-		res := structure.Propose(img, structure.DefaultOptions())
-		rects := make([]image.Rectangle, 0, len(res.Candidates))
-		for _, c := range res.Candidates {
-			rects = append(rects, c.Bounds)
-		}
-		regions[i] = observe.NormaliseRects(img.Bounds(), rects)
-	}
+	regions, readable := proposeAll(dir, frames)
 
 	half := len(frames) / 2
-	oracle, err := foldRange(frames, regions, 0, len(frames))
+	oracle, err := foldRange(frames, regions, readable, 0, len(frames))
 	if err != nil {
 		return err
 	}
-	a, err := foldRange(frames, regions, 0, half)
+	a, err := foldRange(frames, regions, readable, 0, half)
 	if err != nil {
 		return err
 	}
-	b, err := foldRange(frames, regions, half, len(frames))
+	b, err := foldRange(frames, regions, readable, half, len(frames))
 	if err != nil {
 		return err
 	}
@@ -151,7 +137,8 @@ type fold struct {
 // Fresh is the point: a new `fastobserve.Observer` has no screens, no targets and a counter that
 // starts at one, so `visual_1` in one fold and `visual_1` in another are two unrelated names that
 // happen to collide. Nothing is passed between them.
-func foldRange(frames []frameRecord, regions [][]observe.Region, lo, hi int) (fold, error) {
+func foldRange(frames []frameRecord, regions [][]observe.Region, readable []bool,
+	lo, hi int) (fold, error) {
 	obs, err := fastobserve.New(100*time.Millisecond, 64)
 	if err != nil {
 		return fold{}, err
@@ -176,7 +163,9 @@ func foldRange(frames []frameRecord, regions [][]observe.Region, lo, hi int) (fo
 			Front:   true,
 			Regions: regions[i],
 		}
-		if len(regions[i]) == 0 {
+		// MISSING MEANS NO PIXELS, not no proposals. A black frame is a
+		// look that saw nothing, not one nobody could take.
+		if !readable[i] {
 			lk.Missing = true
 		}
 		obs.Observe(lk)

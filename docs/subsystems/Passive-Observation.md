@@ -1156,8 +1156,10 @@ it refuses those looks. Visible is fine; in front is not.
   [[Experiment-034-two-controls-and-why-each-was-lost]]
 - **Four of the six repeated questions are real navigation, and two are one capture gap.**
   Reconstructed from the looks around each repeat: `A->B->A` four times, with another
-  screen positively observed; and one look with no pixels, which moved the generation
-  twice — out and back — and so cost two questions. **2 of 6 could be bridged safely, 0
+  screen positively observed; and one BLACK FRAME the application presented mid-transition,
+  which moved the generation twice — out and back — and so cost two questions. The capture
+  did not fail: the frame is on disk at full resolution with no drop marker, and the
+  proposer correctly found nothing in it. **2 of 6 could be bridged safely, 0
   would be bridged wrongly.** The first navigation's returning observation agrees with
   the stored arrangement at **1.000**: the same menu looks identical on both visits, and
   that is not evidence that nothing happened between.

@@ -24,14 +24,12 @@ package main
 
 import (
 	"fmt"
-	"image"
 	"path/filepath"
 	"sort"
 	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/fastobserve"
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
-	"github.com/chaynes-simpleclouds/marco/internal/director/perception/structure"
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflowstore"
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 )
@@ -66,19 +64,7 @@ func reportAnchoring(dir string, limit int, onnx string) error {
 	inputs, _ := readJSONL[inputRecord](filepath.Join(dir, "input.jsonl"))
 	sort.Slice(inputs, func(i, j int) bool { return inputs[i].AtMS < inputs[j].AtMS })
 
-	regions := make([][]observe.Region, len(frames))
-	for i, fr := range frames {
-		img, rerr := readPNG(filepath.Join(dir, filepath.FromSlash(fr.File)))
-		if rerr != nil {
-			continue
-		}
-		res := structure.Propose(img, structure.DefaultOptions())
-		rects := make([]image.Rectangle, 0, len(res.Candidates))
-		for _, c := range res.Candidates {
-			rects = append(rects, c.Bounds)
-		}
-		regions[i] = observe.NormaliseRects(img.Bounds(), rects)
-	}
+	regions, readable := proposeAll(dir, frames)
 	newFeed := func() *slowFeed {
 		if onnx == "" {
 			return nil
@@ -92,12 +78,12 @@ func reportAnchoring(dir string, limit int, onnx string) error {
 	}
 
 	half := len(frames) / 2
-	a, aerr := foldAndLearn(frames, inputs, regions, newFeed(), 0, half)
+	a, aerr := foldAndLearn(frames, inputs, regions, readable, newFeed(), 0, half)
 	if aerr != nil {
 		return aerr
 	}
 	defer a.obs.Close()
-	oracle, oerr := foldRange(frames, regions, 0, len(frames))
+	oracle, oerr := foldRange(frames, regions, readable, 0, len(frames))
 	if oerr != nil {
 		return oerr
 	}
@@ -167,7 +153,9 @@ func reportAnchoring(dir string, limit int, onnx string) error {
 			},
 			Front: true, Regions: regions[i],
 		}
-		if len(regions[i]) == 0 {
+		// MISSING MEANS NO PIXELS, not no proposals. A black frame is a
+		// look that saw nothing, not one nobody could take.
+		if !readable[i] {
 			lk.Missing = true
 		}
 		lk.Slow = feed.due(i + 1)

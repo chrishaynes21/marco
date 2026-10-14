@@ -4,14 +4,12 @@ package main
 
 import (
 	"fmt"
-	"image"
 	"path/filepath"
 	"sort"
 
 	"github.com/chaynes-simpleclouds/marco/internal/screen"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
-	"github.com/chaynes-simpleclouds/marco/internal/director/perception/structure"
 )
 
 // screenSample is how many looks of each screen are described.
@@ -34,19 +32,7 @@ func reportScreenRecognition(dir string, limit int, onnx string) error {
 		frames = frames[:limit]
 	}
 
-	regions := make([][]observe.Region, len(frames))
-	for i, fr := range frames {
-		img, rerr := readPNG(filepath.Join(dir, filepath.FromSlash(fr.File)))
-		if rerr != nil {
-			continue
-		}
-		res := structure.Propose(img, structure.DefaultOptions())
-		rects := make([]image.Rectangle, 0, len(res.Candidates))
-		for _, c := range res.Candidates {
-			rects = append(rects, c.Bounds)
-		}
-		regions[i] = observe.NormaliseRects(img.Bounds(), rects)
-	}
+	regions, readable := proposeAll(dir, frames)
 
 	// THE RECORDED DETECTIONS, PER LOOK, used as saved evidence rather than re-run.
 	dets := map[int][]observe.Candidate{}
@@ -59,15 +45,15 @@ func reportScreenRecognition(dir string, limit int, onnx string) error {
 	}
 
 	half := len(frames) / 2
-	oracle, oerr := foldRange(frames, regions, 0, len(frames))
+	oracle, oerr := foldRange(frames, regions, readable, 0, len(frames))
 	if oerr != nil {
 		return oerr
 	}
-	a, aerr := foldRange(frames, regions, 0, half)
+	a, aerr := foldRange(frames, regions, readable, 0, half)
 	if aerr != nil {
 		return aerr
 	}
-	b, berr := foldRange(frames, regions, half, len(frames))
+	b, berr := foldRange(frames, regions, readable, half, len(frames))
 	if berr != nil {
 		return berr
 	}
