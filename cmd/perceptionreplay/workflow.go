@@ -62,7 +62,12 @@ type stepTrial struct {
 // `onnx` names recorded detections from `vision batch`, replayed `delay` looks behind the frame
 // they describe. Empty means the pixel proposer alone, which is what every earlier measurement
 // of this workflow was taken with and is the comparison that matters.
-func reportWorkflowOverRecording(dir string, limit int, onnx string, delay int, save string) error {
+// `semantic` folds with what OCR read on each look, from the cache `-semantic` writes, so
+// a learned screen remembers what it said. Off by default: every earlier measurement of
+// this workflow was taken without it and the comparison has to stay available.
+func reportWorkflowOverRecording(dir string, limit int, onnx string, delay int,
+	save string, semantic bool) error {
+
 	frames, err := readJSONL[frameRecord](filepath.Join(dir, "frames.jsonl"))
 	if err != nil {
 		return err
@@ -72,6 +77,15 @@ func reportWorkflowOverRecording(dir string, limit int, onnx string, delay int, 
 	}
 	if limit > 0 && limit < len(frames) {
 		frames = frames[:limit]
+	}
+	var words []observe.ScreenText
+	if semantic {
+		var werr error
+		words, werr = readWords(dir, frames, 1, nil)
+		if werr != nil {
+			return fmt.Errorf("run -frames -semantic first to read the "+
+				"words: %w", werr)
+		}
 	}
 	inputs, _ := readJSONL[inputRecord](filepath.Join(dir, "input.jsonl"))
 	// ONE FEED PER PASS, loaded fresh each time. The two passes are independent
@@ -103,7 +117,7 @@ func reportWorkflowOverRecording(dir string, limit int, onnx string, delay int, 
 		for range obs.Updates() {
 		}
 	}()
-	looks, err := foldRecording(dir, frames, inputs, obs, feed, nil)
+	looks, err := foldRecording(dir, frames, inputs, obs, feed, words, nil)
 	if err != nil {
 		return err
 	}
@@ -205,61 +219,62 @@ func reportWorkflowOverRecording(dir string, limit int, onnx string, delay int, 
 	// satisfy the second's — and the second pass would measure a source that
 	// answered instantly.
 	feed2 := reload()
-	_, err = foldRecording(dir, frames, inputs, obs2, feed2, func(look int, lk fastobserve.Look) {
-		standing := obs2.Screen()
-		// THE SAME SET A PRESS WOULD BE JUDGED AGAINST. A target the detector
-		// made findable is only found again if reacquisition can see the
-		// detector's rectangles too — and `observe.Admissible` is applied here
-		// rather than restated, so the search cannot be more permissive than
-		// the fold.
-		got := obs2.Reacquire(lk)
+	_, err = foldRecording(dir, frames, inputs, obs2, feed2, words,
+		func(look int, lk fastobserve.Look) {
+			standing := obs2.Screen()
+			// THE SAME SET A PRESS WOULD BE JUDGED AGAINST. A target the detector
+			// made findable is only found again if reacquisition can see the
+			// detector's rectangles too — and `observe.Admissible` is applied here
+			// rather than restated, so the search cannot be more permissive than
+			// the fold.
+			got := obs2.Reacquire(lk)
 
-		// ── THE CAPABILITY QUESTION, every step, independently ──
-		//
-		// Steps 0 and 11 are the same control on the same screen — the person clicked
-		// it on both passes — so they resolve identically. That is correct and not a
-		// double count: they are two steps of the workflow and both have to work.
-		for i := range draft.Steps {
-			if !draft.Steps[i].Repeatable() || draft.Steps[i].From != standing {
-				continue
-			}
-			t := trial(trials, i)
-			if _, ref := workflow.Plan(draft, i, standing, got); ref != nil {
-				key := string(ref.Result)
-				if key == "" {
-					key = "refused"
+			// ── THE CAPABILITY QUESTION, every step, independently ──
+			//
+			// Steps 0 and 11 are the same control on the same screen — the person clicked
+			// it on both passes — so they resolve identically. That is correct and not a
+			// double count: they are two steps of the workflow and both have to work.
+			for i := range draft.Steps {
+				if !draft.Steps[i].Repeatable() || draft.Steps[i].From != standing {
+					continue
 				}
-				t.refused[key]++
-				continue
+				t := trial(trials, i)
+				if _, ref := workflow.Plan(draft, i, standing, got); ref != nil {
+					key := string(ref.Result)
+					if key == "" {
+						key = "refused"
+					}
+					t.refused[key]++
+					continue
+				}
+				t.planned++
 			}
-			t.planned++
-		}
 
-		// ── WHAT EACH STEP WAS EVER OFFERED ──
-		//
-		// A repeatable step needs its SOURCE screen to be standing; a wait needs its
-		// DESTINATION, because what a wait observes is the arrival.
-		for i := range draft.Steps {
-			want := draft.Steps[i].From
-			if !draft.Steps[i].Repeatable() {
-				want = draft.Steps[i].To
+			// ── WHAT EACH STEP WAS EVER OFFERED ──
+			//
+			// A repeatable step needs its SOURCE screen to be standing; a wait needs its
+			// DESTINATION, because what a wait observes is the arrival.
+			for i := range draft.Steps {
+				want := draft.Steps[i].From
+				if !draft.Steps[i].Repeatable() {
+					want = draft.Steps[i].To
+				}
+				if standing == want {
+					ownScreen[i]++
+				}
 			}
-			if standing == want {
-				ownScreen[i]++
-			}
-		}
 
-		// ── THE PRODUCT QUESTION, in order, stopping where a run would ──
-		first.look(draft, look, standing, got)
-		if secondStart >= 0 {
-			second.look(draft, look, standing, got)
-		}
-		if lowered == "" && first.act != nil {
-			if src, lerr := lowerClick(*first.act, lk.Window.Bounds); lerr == nil {
-				lowered, loweredAt = src, first.actAt
+			// ── THE PRODUCT QUESTION, in order, stopping where a run would ──
+			first.look(draft, look, standing, got)
+			if secondStart >= 0 {
+				second.look(draft, look, standing, got)
 			}
-		}
-	})
+			if lowered == "" && first.act != nil {
+				if src, lerr := lowerClick(*first.act, lk.Window.Bounds); lerr == nil {
+					lowered, loweredAt = src, first.actAt
+				}
+			}
+		})
 	if err != nil {
 		return err
 	}
@@ -411,8 +426,10 @@ func wrapAt(s string, width int, indent string) string {
 // whatever is due onto this look, fold, and ask again if the look settled a screen. The
 // request is stamped with the context it was made in, which is what lets the observer
 // decide later whether that context survived.
+// `words` is what was read on each look, when anybody read it, indexed by frame. Nil
+// means nobody read any of them and the fold is the pixel-only one.
 func foldRecording(dir string, frames []frameRecord, inputs []inputRecord,
-	obs *fastobserve.Observer, feed *slowFeed,
+	obs *fastobserve.Observer, feed *slowFeed, words []observe.ScreenText,
 	each func(look int, lk fastobserve.Look)) (int, error) {
 
 	opt := structure.DefaultOptions()
@@ -427,6 +444,11 @@ func foldRecording(dir string, frames []frameRecord, inputs []inputRecord,
 				Bounds: directorapi.Rect{Width: fr.Width, Height: fr.Height},
 			},
 			Front: true,
+		}
+		// WHAT WAS READ ON THIS LOOK'S OWN PIXELS, which is the only kind of text
+		// screen identity may see. See fastobserve.Look.Text.
+		if look-1 < len(words) {
+			lk.Text = words[look-1]
 		}
 		for nextInput < len(inputs) && inputs[nextInput].AtMS <= fr.AtMS {
 			in := inputs[nextInput]

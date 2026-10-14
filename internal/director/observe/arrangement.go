@@ -295,6 +295,17 @@ type VisualStability struct {
 	// and counting them as changes that failed to settle would charge the stabiliser for
 	// the one thing it could not have done differently.
 	Warming int
+	// TextRead is how many looks anybody read words on, TextRefusedMerge how many times
+	// a look that agreed by arrangement was kept off the standing screen because it
+	// said something else, and TextRefusedReuse how many times a settled run was kept
+	// off an identity it otherwise matched.
+	//
+	// Reported because this evidence is new and the honest question about it is "did it
+	// ever do anything". A run with TextRead high and both refusals zero is a run where
+	// OCR cost hundreds of milliseconds a look and changed no decision.
+	// TextWithdrewRefusal is how many times a later reading agreed with a screen a
+	// previous one had said this was not, which is the evidence correcting itself.
+	TextRead, TextRefusedMerge, TextRefusedReuse, TextWithdrewRefusal int
 	// Unobserved is looks that saw no structure, and Unobservable the times a run of them
 	// went on long enough to give up the standing screen.
 	Unobserved, Unobservable int
@@ -321,6 +332,13 @@ type visualScreen struct {
 	sig   VisualArrangement
 	looks int
 	first int
+	// text is what this screen has been read to say, accumulated over the looks
+	// that were read. UNLIKE sig it does drift, and on purpose: a vocabulary is
+	// built by agreement across readings, so a word has to recur to join it and
+	// one more reading of a screen Marco already knows can only corroborate.
+	//
+	// Never part of the arrangement. See screentextfold.go.
+	text screenVocabulary
 }
 
 // VisualScreens stabilises arrangements into session-local screen hypotheses.
@@ -362,6 +380,46 @@ type VisualScreens struct {
 	// depends on the observation RATE and a measurement that could not vary it could not
 	// say what the rate costs. Set through SettleAfter; zero behaves exactly as before.
 	settle int
+
+	// lookText is what was read on the look being folded, set by ObserveWith and
+	// cleared after it.
+	//
+	// A field rather than a parameter threaded through Observe because every caller
+	// of Observe would otherwise have to name evidence it does not have, and the
+	// pixel-only path is the one that must stay exactly as it was.
+	lookText ScreenText
+	// lookRead is the raw reading of the look being folded, and prevText the raw
+	// reading before it. lookText is their agreement -- see ObserveWith.
+	lookRead ScreenText
+	prevText ScreenText
+	// lastTextRefusal is the most recent sentence explaining a refusal, for a report
+	// somebody reads. Evidence, never read back as a decision.
+	lastTextRefusal string
+
+	// contradicted is the standing screen a reading has said this is not, and it
+	// stands until the run resolves or a later reading agrees with that screen.
+	//
+	// # Why a refusal has to outlive the look that made it
+	//
+	// Text is SPARSE. OCR costs hundreds of milliseconds against an observation
+	// cadence of a hundred, so most looks carry no reading at all -- and an unread
+	// look agrees with the standing screen by arrangement, settles onto it, and
+	// clears the pending run on its way past. Without this field the sequence is:
+	//
+	//	look 30  read, contradicts   refused; pending run starts at 1
+	//	look 31  unread              settles onto the standing screen; run cleared
+	//	look 32  unread              settles; nothing pending
+	//	look 33  read, contradicts   refused; pending run starts at 1 again
+	//
+	// — forever. The refusal fires on every reading and no run ever reaches the
+	// three looks it needs, so a screen that said something else is refused a
+	// thousand times and never separated. Measured on the Free Play recording with
+	// one reading in three, which is the ordinary density, not a pathological one.
+	//
+	// So the refusal is carried by the SCREEN rather than the look. The evidence
+	// still came from a look somebody read: an unread look contributes nothing and
+	// is not being treated as a disagreement -- it simply does not overturn one.
+	contradicted VisualScreenID
 
 	// walk is the screens in the order they were settled on, first settle included.
 	//
@@ -420,6 +478,7 @@ func (v *VisualScreens) Observe(a VisualArrangement, at time.Time) VisualScreenI
 			v.stats.Unobservable++
 			v.held, v.heldSig = "", VisualArrangement{}
 			v.pending, v.pendingRun = VisualArrangement{}, 0
+			v.contradicted = ""
 		}
 		if v.held == "" {
 			return VisualScreenUnknown
@@ -431,11 +490,55 @@ func (v *VisualScreens) Observe(a VisualArrangement, at time.Time) VisualScreenI
 	// THE STANDING SCREEN FIRST. A look that agrees with it is the ordinary case and must
 	// not disturb a pending run — a hover that flickers on and off would otherwise keep
 	// resetting the count and never settle either way.
+	//
+	// UNLESS IT SAID SOMETHING ELSE. This is the branch that merged Rocket League's
+	// Free Play submenu into the Training page it replaced: the two arrangements agree
+	// at 0.721 against a threshold of 0.55, so the submenu settled onto the screen
+	// Marco was already on and no new identity was ever minted. Their words agree at
+	// 0.231. See screentext.go for why that margin is the one worth having.
+	//
+	// A refusal here is not a transition. The look goes on to start or continue a
+	// pending run exactly as a look that differed by arrangement would, and has to
+	// hold for settleLooks before it is a screen — so one odd reading costs nothing.
 	if v.held != "" && ArrangementSimilarity(v.heldSig, a) >= VisualScreenMatch {
-		v.stats.Settled++
-		v.pending, v.pendingRun = VisualArrangement{}, 0
-		v.touch(v.held)
-		return v.held
+		apart, why := v.saidSomethingElse(v.held, v.lookText)
+		switch {
+		case apart:
+			// A READING SAYS THIS IS NOT THAT SCREEN. Recorded against the
+			// screen, not the look, so the sparse looks between readings do
+			// not undo it. See VisualScreens.contradicted.
+			v.stats.TextRefusedMerge++
+			v.lastTextRefusal = why
+			v.contradicted = v.held
+		case v.contradicted == v.held:
+			// A REFUSAL IS ALREADY STANDING about this screen. An unread look
+			// does not overturn it -- it has no evidence either way -- so the
+			// run that was building is allowed to keep building.
+			//
+			// A READING THAT AGREES DOES overturn it, which is this case not
+			// being reached: `apart` was false for a look that said enough to
+			// be asked, so the screen is cleared below.
+			if v.lookRead.Said() {
+				v.contradicted = ""
+				v.stats.TextWithdrewRefusal++
+				break
+			}
+		default:
+			v.stats.Settled++
+			v.pending, v.pendingRun = VisualArrangement{}, 0
+			v.touch(v.held)
+			v.noteText(v.held, v.lookText)
+			return v.held
+		}
+		if v.contradicted != v.held {
+			// The refusal was withdrawn by a reading that agreed; this look is
+			// an ordinary look at the standing screen after all.
+			v.stats.Settled++
+			v.pending, v.pendingRun = VisualArrangement{}, 0
+			v.touch(v.held)
+			v.noteText(v.held, v.lookText)
+			return v.held
+		}
 	}
 
 	// A DIFFERENT ARRANGEMENT. It has to hold for VisualSettleLooks consecutive looks
@@ -466,12 +569,39 @@ func (v *VisualScreens) Observe(a VisualArrangement, at time.Time) VisualScreenI
 // Reuse is what makes a route possible: walking back out of a submenu has to arrive at the
 // screen it left, or every demonstration is a chain of new places and no repetition is visible.
 func (v *VisualScreens) promote(a VisualArrangement) VisualScreenID {
+	// THE BEST ARRANGEMENT THAT DID NOT SAY SOMETHING ELSE.
+	//
+	// Reuse is what makes a route possible, and it is also how a screen released for
+	// saying something else would promote straight back onto the identity it just
+	// left. So a candidate that contradicts this run's reading is passed over rather
+	// than taken, and the next one down is considered: a screen Marco is genuinely
+	// returning to agrees with its own vocabulary and is still reused.
 	id := VisualScreenID("")
 	best, bestSim := -1, 0.0
 	for i := range v.screens {
-		if sim := ArrangementSimilarity(v.screens[i].sig, a); sim > bestSim {
-			best, bestSim = i, sim
+		sim := ArrangementSimilarity(v.screens[i].sig, a)
+		if sim <= bestSim {
+			continue
 		}
+		// THE REFUSAL THAT IS STANDING, or one this look makes.
+		//
+		// `v.contradicted` first, and it is the one that matters: text is sparse,
+		// so the look that COMPLETES a settle run is usually not one anybody
+		// read. A promotion that consulted only the completing look would walk
+		// a run that was started by a contradiction straight back onto the
+		// screen it contradicted -- measured, at one reading in three.
+		apart, why := v.saidSomethingElse(v.screens[i].id, v.lookText)
+		if v.contradicted == v.screens[i].id {
+			apart, why = true, v.lastTextRefusal
+		}
+		if apart {
+			if sim >= VisualScreenMatch {
+				v.stats.TextRefusedReuse++
+				v.lastTextRefusal = why
+			}
+			continue
+		}
+		best, bestSim = i, sim
 	}
 	if best >= 0 && bestSim >= VisualScreenMatch {
 		id = v.screens[best].id
@@ -483,6 +613,14 @@ func (v *VisualScreens) promote(a VisualArrangement) VisualScreenID {
 		// one that completed it is the one three looks agreed about.
 		v.screens = append(v.screens, visualScreen{id: id, sig: a, first: v.look})
 	}
+	// THE READING THE RUN SETTLED WITH, against whichever identity it landed on. A
+	// screen minted here starts its vocabulary from this look; one reused adds to the
+	// vocabulary it already had.
+	v.noteText(id, v.lookText)
+	// THE RUN RESOLVED, so whatever was being contradicted is settled either way:
+	// a new screen was minted, or the old one was reused because its vocabulary
+	// agreed after all.
+	v.contradicted = ""
 	from := v.held
 	v.held, v.heldSig = id, v.screenSig(id)
 	v.pending, v.pendingRun = VisualArrangement{}, 0

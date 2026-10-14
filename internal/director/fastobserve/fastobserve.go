@@ -108,6 +108,15 @@ type Look struct {
 	// Presses are pointer presses observed during this look's interval, normalised to
 	// the window.
 	Presses []observe.PointerAt
+	// Text is what was read on THIS look's pixels, by a source that could answer in
+	// time to be folded with them.
+	//
+	// Look-local, and that is a hard requirement rather than a convenience: see the
+	// note beside the fold below on why a channel that arrives late and
+	// intermittently must not reach screen identity. A source that cannot answer
+	// within a look leaves this zero, and the fold is then the pixel-only one it
+	// always was -- nobody read it, which is not a disagreement.
+	Text observe.ScreenText
 	// Slow is detections from a slower source that have ARRIVED by this look — each
 	// describing an EARLIER one.
 	//
@@ -308,6 +317,20 @@ func (o *Observer) Epoch() uint64 { return o.epoch }
 // Screens is the session-local screens settled so far.
 func (o *Observer) Screens() []observe.VisualScreenSeen { return o.screens.Seen() }
 
+// Stability is what the stabiliser did, and the numbers that say whether to trust it.
+//
+// Exposed for the measurements that characterise the fold. `Stats` is this observer's own
+// ledger — looks, presses, slow admissions — and this is the screen model's.
+func (o *Observer) Stability() observe.VisualStability { return o.screens.Stability() }
+
+// SaidBy is what a screen was read to say, stable words only.
+//
+// Unread when nobody supplied text for its looks, which is a different answer from a
+// screen with no words on it. Saved beside the arrangement by the learner.
+func (o *Observer) SaidBy(id observe.VisualScreenID) observe.ScreenText {
+	return o.screens.SaidBy(id)
+}
+
 // Arrangement is one settled screen's stored arrangement.
 //
 // For measurement, like the method it forwards to: an arrangement is what a cross-session
@@ -429,7 +452,17 @@ func (o *Observer) Observe(lk Look) Update {
 	// would make the signature of one screen depend on whether inference had landed
 	// yet — the same screen would be two screens, or two screens one, according to
 	// timing. Screen identity must be a function of the look alone.
-	id := o.screens.Observe(observe.ArrangeLook(regions), lk.At)
+	//
+	// `lk.Text` IS A FUNCTION OF THE LOOK ALONE, which is why it may be here and
+	// `cands` may not. It is what a source read of THESE pixels, not what arrived
+	// while they were being folded, and the type cannot express anything else.
+	//
+	// It also cannot alter a stored arrangement. The most it does is decline a
+	// merge the arrangement proposed, so the signature of every screen stays a
+	// count of rectangles whether anybody read it or not, and a run with no text
+	// source folds exactly as it did before text existed. See
+	// observe/screentext.go for which direction that asymmetry protects.
+	id := o.screens.ObserveWith(observe.ArrangeLook(regions), lk.Text, lk.At)
 	if o.hasLastID && id != o.lastID {
 		o.epoch++
 	}

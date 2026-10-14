@@ -1198,6 +1198,16 @@ it refuses those looks. Visible is fine; in front is not.
   [[Experiment-041-the-control-Marco-found-for-itself]]
 - **Goal reached and goal recognised are different numbers.** Marco navigated to Free
   Play and Director could not establish that it had.
+- **A screen is also what it says.** The arrival was unrecognised because the observer had
+  already merged the Training page and the Free Play submenu into one identity — their
+  arrangements agree at 0.559 against a threshold of 0.55, and over all 36 pairs of that
+  artifact three sit within 0.05 of joining while the closest two are separated by 0.010.
+  A screen now carries what OCR read on it, and stable, materially different words REFUSE
+  a merge the arrangement proposed — never propose one, never reach a stored arrangement.
+  Offline on the existing recording: the two menus became two screens, three other real
+  screens separated with them, and the main menu stayed one identity over eleven visits.
+  [[ADR-194-a-screen-is-also-what-it-says]],
+  [[Experiment-042-a-screen-remembers-what-it-said]]
 - **The learned detector runs in the live loop now, beside the proposer.** On the Play
   page the proposer cannot see the Training tile at all — its only covering proposal is
   1644x1032, which `Locates` refuses — and the detector boxes it at IoU 0.991 against

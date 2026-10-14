@@ -110,6 +110,8 @@ func main() {
 		"measure how many explicit screen confirmations a saved route needs in a fresh observer")
 	screenid := flag.Bool("screenid", false,
 		"ask whether a demonstrated screen can be recognised again from saved visual evidence")
+	semantic := flag.Bool("semantic", false,
+		"fold the recording twice -- pixel-only, and with what OCR read on each look -- and ask whether text separates screens the arrangement merged")
 	clarify := flag.String("clarify", "",
 		"print what Marco would ask about a saved workflow artifact, and what each answer would change")
 	appearance := flag.Bool("appearance", false,
@@ -165,7 +167,8 @@ func main() {
 				continue
 			}
 			if *flow {
-				if err := reportWorkflowOverRecording(dir, *limit, *onnx, *onnxdelay, *save); err != nil {
+				if err := reportWorkflowOverRecording(dir, *limit, *onnx,
+					*onnxdelay, *save, *semantic); err != nil {
 					fmt.Fprintf(os.Stderr, "perceptionreplay: %s: %v\n", dir, err)
 					os.Exit(1)
 				}
@@ -180,6 +183,13 @@ func main() {
 			}
 			if *anchor {
 				if err := reportAnchoring(dir, *limit, *onnx); err != nil {
+					fmt.Fprintf(os.Stderr, "perceptionreplay: %s: %v\n", dir, err)
+					os.Exit(1)
+				}
+				continue
+			}
+			if *semantic {
+				if err := reportSemanticScreens(dir, *limit, *stride); err != nil {
 					fmt.Fprintf(os.Stderr, "perceptionreplay: %s: %v\n", dir, err)
 					os.Exit(1)
 				}

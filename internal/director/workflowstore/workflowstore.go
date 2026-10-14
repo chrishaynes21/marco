@@ -96,6 +96,38 @@ type Screen struct {
 	// reliably, and the honest consequence is that this field is evidence waiting for a
 	// mechanism rather than a mechanism.
 	Arrangement observe.VisualArrangement `json:"arrangement"`
+	// Text is what the screen was READ to say while it was being demonstrated:
+	// the words that held still across readings, with the source that read them.
+	//
+	// Saved because a screen is not only a collection of rectangles, and because
+	// the arrangement alone has been measured not to have the margin it needs.
+	// On the Rocket League artifact three of 36 screen pairs sit within 0.05 of
+	// joining and the closest two are separated by 0.010, while the words on those
+	// same two agree at 0.231. See observe/screentext.go.
+	//
+	// A POINTER, so an artifact nobody read carries no `text` key at all rather
+	// than an empty one. `omitempty` does nothing to a struct, and every artifact
+	// on disk today was saved without this field — a file that suddenly grew
+	// `"text":{}` on every screen would be noise in the one document the owner
+	// reads to see what Marco thinks it is keeping.
+	//
+	// Nil is NOT the same as a screen with no words on it. Read through `Said`,
+	// which answers unread text for nil: a reader that could not tell them apart
+	// would treat every old route as a chain of silent screens, and a silent
+	// screen is one that can never disagree with anything.
+	Text *observe.ScreenText `json:"text,omitempty"`
+}
+
+// Said is what this screen was read to say, and unread text when nobody read it.
+//
+// The only way to ask. Reaching for `Text` directly means handling nil at every call
+// site, and the one that forgets turns a missing reading into a panic or, worse, into a
+// screen that said nothing.
+func (s Screen) Said() observe.ScreenText {
+	if s.Text == nil {
+		return observe.ScreenText{}
+	}
+	return *s.Text
 }
 
 // Control is a label and every reading of the control, with the containers that are not it.
@@ -173,6 +205,20 @@ func Labels(d workflow.Draft) map[observe.VisualScreenID]string {
 func Save(d workflow.Draft, arrangements map[observe.VisualScreenID]observe.VisualArrangement,
 	at time.Time) (Artifact, error) {
 
+	return SaveWith(d, arrangements, nil, at)
+}
+
+// SaveWith is Save, with what each screen was read to say.
+//
+// A separate entry point rather than a fourth parameter on Save, because most callers
+// have no text to offer and a nil map threaded through all of them would say nothing
+// about whether this evidence was collected. A screen missing from `texts` is saved
+// with unread text, which is the honest record: nobody read it.
+func SaveWith(d workflow.Draft,
+	arrangements map[observe.VisualScreenID]observe.VisualArrangement,
+	texts map[observe.VisualScreenID]observe.ScreenText,
+	at time.Time) (Artifact, error) {
+
 	if d.Name == "" {
 		return Artifact{}, fmt.Errorf("workflowstore: a workflow needs a name, " +
 			"because the person has to be able to ask for it by one")
@@ -192,9 +238,15 @@ func Save(d workflow.Draft, arrangements map[observe.VisualScreenID]observe.Visu
 	}
 	sort.Slice(byLabel, func(i, j int) bool { return screens[byLabel[i]] < screens[byLabel[j]] })
 	for _, id := range byLabel {
-		a.Screens = append(a.Screens, Screen{
-			Label: screens[id], Arrangement: arrangements[id],
-		})
+		sc := Screen{Label: screens[id], Arrangement: arrangements[id]}
+		// ONLY WHEN SOMEBODY READ IT. An unread screen carries no key, so an
+		// artifact saved with no text source is byte-identical to one saved
+		// before this field existed.
+		if t, ok := texts[id]; ok && t.Read() {
+			said := t
+			sc.Text = &said
+		}
+		a.Screens = append(a.Screens, sc)
 	}
 	label := func(id observe.VisualScreenID) string { return screens[id] }
 

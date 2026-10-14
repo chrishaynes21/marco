@@ -34,12 +34,22 @@ func stamp(now func() int64) time.Time {
 func saveAndReload(path string, d workflow.Draft, obs *fastobserve.Observer, now func() int64) error {
 	// THE EVIDENCE FOR EACH SCREEN THE DRAFT NAMES. An arrangement, not a name — the
 	// whole point of the artifact is that `visual_3` means nothing tomorrow.
+	//
+	// AND WHAT EACH ONE SAID, when anybody read it. A screen is not only a
+	// collection of rectangles, and the arrangement alone has been measured not to
+	// have the margin it needs: on the Rocket League artifact the closest two
+	// screens are separated by 0.010 while the words on them agree at 0.231.
+	// Unread screens are saved as unread rather than as silent.
 	arr := map[observe.VisualScreenID]observe.VisualArrangement{}
+	said := map[observe.VisualScreenID]observe.ScreenText{}
 	for _, s := range obs.Screens() {
 		arr[s.ID] = obs.Arrangement(s.ID)
+		if t := obs.SaidBy(s.ID); t.Read() {
+			said[s.ID] = t
+		}
 	}
 
-	a, err := workflowstore.Save(d, arr, stamp(now))
+	a, err := workflowstore.SaveWith(d, arr, said, stamp(now))
 	if err != nil {
 		return err
 	}

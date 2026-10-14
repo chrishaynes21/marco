@@ -448,6 +448,10 @@ func TestAVisualScreenCannotReachDurableMemory(t *testing.T) {
 		filepath.Join(dir, "arrangement.go"):          true,
 		filepath.Join(dir, "arrangement_test.go"):     true,
 		filepath.Join(dir, "candidate.go"):            true,
+		filepath.Join(dir, "screentext.go"):           true,
+		filepath.Join(dir, "screentext_test.go"):      true,
+		filepath.Join(dir, "screentextfold.go"):       true,
+		filepath.Join(dir, "screentextfold_test.go"):  true,
 		filepath.Join(dir, "clicktarget.go"):          true,
 		filepath.Join(dir, "clicktarget_test.go"):     true,
 		filepath.Join(dir, "cause_test.go"):           true,
@@ -470,6 +474,7 @@ func TestAVisualScreenCannotReachDurableMemory(t *testing.T) {
 		filepath.Join(store, "stepplan_test.go"):      true,
 		filepath.Join(store, "anchor_test.go"):        true,
 		filepath.Join(store, "workflowstore_test.go"): true,
+		filepath.Join(store, "screentext_test.go"):    true,
 		filepath.Join(run, "workflowrun.go"):          true,
 		filepath.Join(run, "workflowrun_test.go"):     true,
 	}
