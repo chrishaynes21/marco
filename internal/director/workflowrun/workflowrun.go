@@ -229,6 +229,10 @@ type Attempt struct {
 	// [[Experiment-038-how-far-a-reloaded-workflow-gets]] is exactly the kind of record
 	// that gets quoted without its preamble.
 	Real bool
+	// Hovered says the control's own pixels changed while the pointer rested on it, and
+	// HoverBecause is how that was measured. Both empty when nobody looked.
+	Hovered      bool
+	HoverBecause string
 	// Prepared says the pointer was moved to the control and rested there
 	// before the press. False means the click was sent on its own, which is
 	// what a desktop control wants and what a game menu ignores.
@@ -287,6 +291,15 @@ type Runner struct {
 	// dwell is how long the pointer rests on the control before the click. Zero sends the
 	// click alone, which is what every desktop control wants and what a game menu ignores.
 	dwell time.Duration
+	// hover is asked, after the pointer has moved and rested, whether the control's own
+	// pixels changed.
+	//
+	// Separate from `confirm`, which asks whether the WORLD still holds. This asks a much
+	// narrower question — did this control react to the pointer being on it — and the
+	// answer is the difference between "the click missed" and "the click was ignored".
+	// Nil means nobody is looking, which is not the same as nothing happening and is
+	// reported as such.
+	hover func(ctx context.Context, where observe.Region) (bool, string)
 	// actedAt is the observation an action was performed in, and changed says a later
 	// observation differed from it.
 	//
@@ -400,6 +413,16 @@ func (r *Runner) Dwell() time.Duration { return r.dwell }
 // performed in. It is evidence that something happened, and not evidence of what.
 func (r *Runner) Changed() bool { return r.changed }
 
+// WithHover installs the question "did this control react to the pointer".
+//
+// Asked after the move and the rest, before the press. It is a diagnosis and never a gate: a
+// control that does not light up may still take the click, and refusing on that would be Marco
+// deciding it knows what an interface looks like.
+func (r *Runner) WithHover(f func(ctx context.Context, where observe.Region) (bool, string)) *Runner {
+	r.hover = f
+	return r
+}
+
 // WithBudget sets how many actions this run may send in total. Negative is unbounded.
 //
 // The first supervised live test of anything that can click wants exactly one press, and
@@ -509,6 +532,16 @@ func (r *Runner) Advance(ctx context.Context, s *workflowstore.SessionBinding,
 	arrival := r.art.DestinationAt(r.cursor, s, now)
 	if arrival.Established() {
 		a.Arrival = &arrival
+		// A DESTINATION THAT ARRIVED IS A SCREEN THAT CHANGED.
+		//
+		// Recorded here as well as in the waiting branch below, because an arrival
+		// on the very next observation never reaches that branch — and the first
+		// successful live navigation reported "the application did not visibly
+		// respond" directly above the line saying its destination was established.
+		if r.acted == r.cursor && (at.Screen != r.actedAt.Screen ||
+			at.Epoch != r.actedAt.Epoch) {
+			r.changed = true
+		}
 		a.Outcome, a.Because = OutcomeArrived, arrival.Because
 		r.advance()
 		return r.record(a)
@@ -733,6 +766,13 @@ func (r *Runner) press(ctx context.Context, a Attempt, ready workflowstore.StepR
 			return a
 		}
 
+		// DID THE CONTROL NOTICE. Asked here because this is the only moment it can
+		// be: the pointer is on it and nothing has been pressed yet.
+		if r.hover != nil {
+			lit, why := r.hover(ctx, ready.Action.Where)
+			a.Hovered, a.HoverBecause = lit, why
+		}
+
 		// AND THE WORLD AGAIN, because the dwell is a gap like any other.
 		if ok, why := r.confirm(ctx, at); !ok {
 			a.Outcome = OutcomeRefused
@@ -912,6 +952,21 @@ type Report struct {
 	// Changed says an observation after an action differed from the one it was performed
 	// in. Evidence that something happened; never evidence of what.
 	Changed bool
+	// Looks is how many observations the run was given, Usable how many it could
+	// conclude anything from, and Unusable why the rest could not be used.
+	//
+	// Reported because a run that never saw its application is indistinguishable, in every
+	// other number here, from a run that saw it perfectly and chose to do nothing. The
+	// first supervised exploration session produced a report whose entire explanation was
+	// an empty string, and this is what was missing from it.
+	Looks    int
+	Usable   int
+	Unusable map[string]int
+	// Hovered is how many actions saw the control react to the pointer resting on it, and
+	// Watched how many were looked at. Two numbers, because nobody looking and nothing
+	// happening are different findings.
+	Hovered int
+	Watched int
 	// Dwell is how long the pointer rested on a control before each press.
 	Dwell time.Duration
 }
@@ -949,9 +1004,43 @@ func (r *Runner) Report() Report {
 	if r.cursor < len(r.art.Steps) {
 		out.Progress.Stopped = r.cursor
 	}
+	defer func() {
+		// AN EMPTY EXPLANATION IS NOT AN EXPLANATION. A run whose looks were all
+		// unusable never reached a refusal, so nothing set one — and the report
+		// then said it stopped before the first step, for no stated reason.
+		if out.Progress.Because != "" || out.Usable > 0 {
+			return
+		}
+		why, most := "no observation could be used", 0
+		for because, n := range out.Unusable {
+			if n > most {
+				why, most = because, n
+			}
+		}
+		if out.Looks == 0 {
+			out.Progress.Because = "the run was never given an observation at all"
+			return
+		}
+		out.Progress.Because = fmt.Sprintf("not one of the %d observation(s) could "+
+			"be used, so nothing was ever examined. The commonest reason, %d "+
+			"time(s): %s", out.Looks, most, why)
+	}()
+	out.Unusable = map[string]int{}
 	for _, a := range r.attempts {
+		out.Looks++
+		if a.Outcome == OutcomeUnobserved {
+			out.Unusable[a.Because]++
+		} else {
+			out.Usable++
+		}
 		if a.Acted() && a.Result.Status == marcoexec.StatusCompleted {
 			out.Pressed++
+		}
+		if a.HoverBecause != "" {
+			out.Watched++
+			if a.Hovered {
+				out.Hovered++
+			}
 		}
 		if a.Arrival != nil && a.Arrival.Established() {
 			out.Established++

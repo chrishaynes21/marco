@@ -710,3 +710,84 @@ func TestNothingRenderedForASecretCarriesItsName(t *testing.T) {
 		}
 	}
 }
+
+// ── the two deferred guarantees, which are not one decision ───────────────────
+
+// cleanupHost records which of the driver's deferred guarantees it was asked for.
+//
+// Both are optional capabilities the driver finds by type assertion on hosts["*"], so the only
+// way to tell whether one applies to a Director program is to offer both and see which is taken.
+type cleanupHost struct {
+	snapshots int
+	restores  int
+	releases  int
+	calls     []string
+}
+
+func (h *cleanupHost) Invoke(c runtime.HostCall) (string, runtime.Value, error) {
+	h.calls = append(h.calls, c.Action)
+	return "ok", runtime.Value{}, nil
+}
+
+func (h *cleanupHost) CursorSnapshot() func() {
+	h.snapshots++
+	return func() { h.restores++ }
+}
+
+func (h *cleanupHost) ReleaseHeld() { h.releases++ }
+
+// A DIRECTOR ACTION LEAVES THE POINTER WHERE IT PUT IT.
+//
+// Measured, not reasoned about. The driver restores the cursor after a run, which is right for a
+// route — one complete errand with a person waiting to get their mouse back. A Director action is
+// one operation of a sequence, each its own program, and restoring between them undid the move
+// before the press that depended on it: a live Rocket League run reported the control's pixels
+// changing by exactly 0.0/255 because the pointer was never there.
+func TestADirectorActionLeavesThePointerWhereItPutIt(t *testing.T) {
+	h := &cleanupHost{}
+	r := marcorunner.New(map[string]runtime.Host{"OS": h})
+
+	src, err := marcoexec.Lower(marcoexec.Operation{
+		Kind: marcoexec.KindMove, At: marcoexec.Point{X: 85, Y: 485},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.Run(context.Background(), "move", src); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(h.calls) != 1 || !strings.EqualFold(h.calls[0], "move") {
+		t.Fatalf("the host was asked for %v, want one move", h.calls)
+	}
+	if h.snapshots != 0 || h.restores != 0 {
+		t.Errorf("the cursor was snapshotted %d time(s) and restored %d; a Director "+
+			"action must leave the pointer where it put it, or the press that "+
+			"follows the move lands on a control the pointer has left",
+			h.snapshots, h.restores)
+	}
+}
+
+// AND IT STILL RELEASES A HELD KEY.
+//
+// The other half of the same decision, and the half that is safety rather than courtesy: a
+// KeyDown with no KeyUp leaves a key stuck down in somebody's application after Marco has gone,
+// and nothing later can undo it.
+func TestADirectorActionStillReleasesAHeldKey(t *testing.T) {
+	h := &cleanupHost{}
+	r := marcorunner.New(map[string]runtime.Host{"OS": h})
+
+	src, err := marcoexec.Lower(marcoexec.Operation{
+		Kind: marcoexec.KindClick, At: marcoexec.Point{X: 85, Y: 485},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.Run(context.Background(), "click", src); err != nil {
+		t.Fatal(err)
+	}
+	if h.releases != 1 {
+		t.Errorf("held keys were released %d time(s), want 1 — a key left down "+
+			"outlives the run and nothing afterwards can undo it", h.releases)
+	}
+}

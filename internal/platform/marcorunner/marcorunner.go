@@ -53,6 +53,42 @@ var _ directorapi.MarcoRunner = (*Runner)(nil)
 // makes an unsupported operation safe to attempt. That is not incidental: the
 // compiler rejects `OS has no capability "X"` before the runtime is ever entered, so
 // a step naming something Marco does not export cannot mutate the desktop.
+// actionHost is the OS host with its cursor-restore withheld, and nothing else changed.
+//
+// # Why one of the driver's two courtesies does not belong here
+//
+// `driver.RunSourceWithHostsCtx` offers a real host two deferred guarantees. They look alike and
+// they are not the same kind of thing.
+//
+// Releasing a held key is SAFETY. A KeyDown with no KeyUp leaves a key stuck down in somebody's
+// application after Marco has gone, and nothing later can undo it. It fires here.
+//
+// Restoring the cursor is COURTESY, and it is courtesy to a person whose hand is on the mouse: a
+// menu macro should put the pointer back where they left it rather than parking it on whatever
+// it clicked last. That is right for a ROUTE, which is one complete errand.
+//
+// A Director action is not one complete errand. It is one operation in a deliberate sequence —
+// move the pointer to a control, let the interface notice, then press it — and each operation is
+// its own program. Restoring the cursor at the end of each one undoes the move before the press
+// that depended on it, which makes the sequence impossible to express at all.
+//
+// Measured, not reasoned about. A live Rocket League run moved the pointer onto PLAY, waited
+// 400ms and reported that the control's pixels had changed by exactly 0.0/255 — because the
+// pointer was never there. The driver had put it back the instant the move's program ended, and
+// the click that followed arrived on an item the cursor had never hovered.
+//
+// So: a Director program leaves the pointer where it put it. There is no person waiting to get
+// their mouse back mid-sequence, and the next operation in the sequence is relying on where the
+// last one left it.
+type actionHost struct{ runtime.Host }
+
+// ReleaseHeld keeps the safety half, delegating when the real host offers it.
+func (a actionHost) ReleaseHeld() {
+	if r, ok := a.Host.(interface{ ReleaseHeld() }); ok {
+		r.ReleaseHeld()
+	}
+}
+
 func (r *Runner) Run(ctx context.Context, name, program string) (directorapi.MarcoResult, error) {
 	var out bytes.Buffer
 	tees := make(map[string]*tee, len(r.hosts))
@@ -71,11 +107,9 @@ func (r *Runner) Run(ctx context.Context, name, program string) (directorapi.Mar
 	// somewhere in the codebase" is not the same as "the guarantee covers this path",
 	// and the difference is a key left held in the user's application.
 	//
-	// The UNWRAPPED OS host, deliberately. These are type assertions for optional
-	// capabilities (cursorSnapshotter, heldKeyReleaser); the tee does not implement
-	// them, so wrapping it here would silently disable both again.
+	// ONE GUARANTEE, NOT BOTH. See actionHost.
 	if osHost, ok := r.hosts["OS"]; ok {
-		hosts["*"] = osHost
+		hosts["*"] = actionHost{Host: osHost}
 	}
 
 	err := driver.RunSourceWithHostsCtx(ctx, program, r.dir, name, &out, hosts)

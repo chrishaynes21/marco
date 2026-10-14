@@ -1188,6 +1188,16 @@ it refuses those looks. Visible is fine; in front is not.
   Nothing in `workflowstore` lowers anything and its import walk keeps the lowering path
   out of reach. Knowing the plan is not standing on the screen: a later step's screen is
   never pre-authorised. [[ADR-187-knowing-the-plan-and-trusting-the-screen]]
+- **Marco opened a real game menu.** It grounded PLAY on a fresh look, moved the pointer
+  there through legal Marco, Rocket League lit the button up (136.7/255 over its own
+  pixels), the click opened the submenu, and the destination was recognised at 0.794 by
+  demonstrated transition plus arrangement. It then stopped, unable to ground the next
+  control. [[Experiment-040-the-first-menu-Marco-opened]]
+- **A Director action leaves the pointer where it put it.** The driver restores the cursor
+  after a run — right for a route, wrong between the move and the press of one action,
+  which are separate programs. Releasing a held key is safety and still fires; putting the
+  mouse back is courtesy to somebody whose hand is on it, and there is nobody inside a
+  sequence. [[ADR-191-a-move-that-survives-until-the-press]]
 - **An action is move, rest, press — not one click event.**
   The Windows backend sends the move, the button-down and the button-up in one
   `SendInput` batch, which a game menu ignores because it decides what is under the

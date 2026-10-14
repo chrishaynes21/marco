@@ -62,6 +62,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/platform/recordhost"
 	"github.com/chaynes-simpleclouds/marco/internal/platform/winprovider"
 	"github.com/chaynes-simpleclouds/marco/internal/runtime"
+	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 )
 
 // maxPerformSeconds bounds a run.
@@ -94,6 +95,12 @@ func runPerformWorkflow(args []string) int {
 			"the first observation; every screen after it is inferred or asked about")
 	answer := fs.Duration("answer", 20*time.Second,
 		"with -hotkeys, how long a question stays open")
+	frames := fs.String("frames", "",
+		"write the two captures each hover measurement was made from into this "+
+			"directory, so a number can be checked against a picture")
+	explore := fs.Bool("explore", false,
+		"authorise the whole session at launch instead of asking for each action. "+
+			"Bounded by -max-actions and -seconds; every other check is unchanged")
 	dwell := fs.Duration("dwell", workflowrun.DefaultDwell,
 		"how long the pointer rests on a control before the click. 0 sends the click "+
 			"alone, which a game menu ignores")
@@ -114,6 +121,10 @@ func runPerformWorkflow(args []string) int {
 		return 2
 	case *fps < 1 || *fps > 60:
 		fmt.Fprintln(os.Stderr, "director: --fps must be between 1 and 60")
+		return 2
+	case *explore && *maxActions < 1:
+		fmt.Fprintln(os.Stderr, "director: --explore needs --max-actions, because a "+
+			"session nobody is asked about has to be bounded by something")
 		return 2
 	case *maxActions == 0:
 		fmt.Fprintln(os.Stderr, "director: --max-actions 0 would perform nothing; "+
@@ -196,7 +207,11 @@ func runPerformWorkflow(args []string) int {
 	ask := bufio.NewReader(os.Stdin)
 	session := workflowstore.NewSessionBinding()
 	ground := &promptGrounder{art: art, in: ask, out: os.Stdout,
-		claim: *from, silent: *hotkeys}
+		// NOBODY CAN BE ASKED in either mode: answering by keyboard would take the
+		// foreground, and an exploring session is authorised precisely so that it
+		// does not stop to ask. Every screen after --from is inferred from the
+		// workflow's own demonstrated transitions, or the run stops and says so.
+		claim: *from, silent: *hotkeys || *explore}
 
 	// ── WHO IS ASKED, AND HOW THEY ANSWER ──
 	//
@@ -206,10 +221,23 @@ func runPerformWorkflow(args []string) int {
 	// `run` is declared before the desk so the STOP key can reach it. A desk built with
 	// no way to stop the run would make F9 a key that prints something.
 	var run *workflowrun.Runner
+	var session0 *sessionGrant
 	var grant workflowrun.Granter = &promptGranter{in: ask, out: os.Stdout, live: *live}
 	var keys *hotkeyGranter
 	var desk *consentDesk
-	if *hotkeys {
+	if *explore {
+		// THE CLOCK STARTS WHEN THE RUN DOES, which is why `until` is set below
+		// rather than here. Started here it would already be running through
+		// --delay, which is time nobody is allowed to act in: the first exploring
+		// session spent its whole allowance waiting to begin and then refused its
+		// first action because the session's time was up.
+		session0 = &sessionGrant{
+			by:  "the person who authorised this exploration at launch",
+			out: os.Stdout, actions: *maxActions,
+		}
+		grant = session0
+	}
+	if *hotkeys && !*explore {
 		src, why := navsource.New()
 		if why != "" {
 			fmt.Fprintf(os.Stderr, "director: no key hook is available, so "+
@@ -224,8 +252,17 @@ func runPerformWorkflow(args []string) int {
 		grant = keys
 	}
 
+	probe := &hoverProbe{shots: shots, moved: 8, frames: *frames, window: func() (directorapi.Window, bool) {
+		v := tracker.Acquire(ctx, *app)
+		if !v.State.OK() {
+			return directorapi.Window{}, false
+		}
+		return windowRefToWindow(v.Ref), true
+	}}
+
 	run = workflowrun.New(art, nil, ground, grant).
 		WithExecutor(marcoexec.New(marco), *live).
+		WithHover(probe.look).
 		WithBudget(*maxActions).
 		WithDwell(*dwell).
 		// THE WORLD, RE-OBSERVED AT THE INSTANT OF THE PRESS. Deleting this call, or
@@ -257,10 +294,18 @@ func runPerformWorkflow(args []string) int {
 		}
 	}()
 
+	var blind int
+	var blindWhy string
 	opt := structure.DefaultOptions()
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	deadline := time.Now().Add(time.Duration(*seconds) * time.Second)
+	if session0 != nil {
+		// THE SESSION'S CLOCK, started with the run. Set here and not where the
+		// grant was built, because --delay is time nobody may act in and a session
+		// that counted it spent its whole allowance waiting to begin.
+		session0.until = deadline
+	}
 	lost := ""
 
 	for time.Now().Before(deadline) {
@@ -280,8 +325,18 @@ func runPerformWorkflow(args []string) int {
 		}
 		img, cerr := shots.CaptureWindow(ctx, windowRefToWindow(v.Ref))
 		if cerr != nil {
+			// WHY THE PIXELS DID NOT ARRIVE. Discarding this turned a capture
+			// that failed 410 times out of 417 into "no pixels were obtained",
+			// which names the symptom and not one cause.
 			lk.Missing = true
+			blind++
+			if blindWhy == "" {
+				blindWhy = cerr.Error()
+			}
 		} else {
+			// THE FRAME THE PLAN IS MADE FROM, kept so the hover probe can
+			// compare the control against itself a quarter of a second later.
+			probe.before = img.Image
 			lk.Front = frontnessOf(frontCandidate(ctx, windows), v.Ref) ==
 				observe.FrontTarget
 			res := structure.Propose(img.Image, opt)
@@ -314,6 +369,18 @@ func runPerformWorkflow(args []string) int {
 		// behind one prompt would let a person answer one and be taken to have
 		// answered the other.
 		if a.Stage == workflowstore.StepUnconfirmed {
+			if *explore {
+				// THE SESSION AGREED TO THE ROUTE, once, at launch. Still
+				// recorded per step and still attributed, because a
+				// confirmation with no author is indistinguishable from a
+				// default — see SessionBinding.ConfirmStep.
+				if err := session.ConfirmStep(a.Step,
+					"the person who authorised this exploration"); err != nil {
+					lost = err.Error()
+					break
+				}
+				continue
+			}
 			if !agreeToStep(ctx, keys, ask, os.Stdout, art, a.Step, session) {
 				lost = "nobody agreed to step " + fmt.Sprint(a.Step)
 				break
@@ -329,6 +396,10 @@ func runPerformWorkflow(args []string) int {
 	obs.Close()
 
 	rep := run.Report()
+	if blind > 0 {
+		fmt.Printf("\n  %d of %d capture(s) returned nothing. The first said: %s\n",
+			blind, rep.Looks, blindWhy)
+	}
 	printRun(rep, art, book, *live, lost)
 	if desk != nil {
 		stray, drained := desk.counts()
@@ -678,6 +749,9 @@ func reportAttempt(a workflowrun.Attempt) {
 		return // the ordinary case; printing it would bury everything else
 	}
 	fmt.Printf("  step %d: %s — %s\n", a.Step, a.Outcome, a.Because)
+	if a.HoverBecause != "" {
+		fmt.Printf("    hover: %s\n", a.HoverBecause)
+	}
 }
 
 // printRun is the account a person reads afterwards.
@@ -693,6 +767,11 @@ func printRun(rep workflowrun.Report, art workflowstore.Artifact, book *recordho
 		fmt.Printf("%s\n", lost)
 	}
 	fmt.Printf("\n")
+	fmt.Printf("  %-42s %d of %d\n", "observations Marco could use",
+		rep.Usable, rep.Looks)
+	for because, n := range rep.Unusable {
+		fmt.Printf("      %d x %s\n", n, because)
+	}
 	fmt.Printf("  %-42s %s\n", "actions lowered, compiled and run",
 		fmt.Sprint(rep.Pressed))
 	// WHAT WAS SENT, not which mode was asked for.
@@ -723,6 +802,14 @@ func printRun(rep workflowrun.Report, art workflowstore.Artifact, book *recordho
 	// pressed something and saw nothing. "The destination was not established" is true of
 	// an interface that ignored the press and of one that responded in a way nobody
 	// recognised, and those want opposite things done about them.
+	switch {
+	case rep.Watched == 0:
+		fmt.Printf("  %-42s %s\n", "the control reacted to the pointer",
+			"n/a — nobody looked")
+	default:
+		fmt.Printf("  %-42s %d of %d action(s)\n",
+			"the control reacted to the pointer", rep.Hovered, rep.Watched)
+	}
 	switch {
 	case rep.Sent == 0:
 		fmt.Printf("  %-42s %s\n", "the screen changed after the action",
