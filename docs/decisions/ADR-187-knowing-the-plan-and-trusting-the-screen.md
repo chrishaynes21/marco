@@ -103,6 +103,54 @@ Verifying a reloaded step therefore means asking whether the NEW observation est
 step's destination label — screen establishment run once more, not a comparison. That is the next
 change and it is not made here.
 
+## Stage 7: a destination established, never an action verified
+
+The blocker above is closed, and the words matter more than the code. `Artifact.DestinationAt`
+asks the establishment path its own question one observation later — is this screen the saved
+`screen_c` — and **establishes nothing itself**. Thresholds, expiry and the three outcomes are
+untouched.
+
+What it returns is a **destination established**. It is not an action verified, and `Verified()`
+is a method that always returns false with the reason attached, so no caller can print the first
+and imply the second:
+
+> nothing was executed, so there is no post-action evidence; and arriving where a step expected
+> is not by itself proof that the step's action caused it
+
+### The circularity, labelled rather than argued away
+
+A destination can be established two ways, and here they are not equal evidence even though they
+are elsewhere:
+
+- **confirmed** — somebody looked and said it is `screen_c`. They did not consult the workflow,
+  so this is independent of the thing being checked.
+- **inferred** — the workflow demonstrates a step into `screen_c` and the arrangement agrees. The
+  expectation came from the **same workflow whose step is being checked**, so the only
+  independent part is the arrangement agreement — and
+  [[Experiment-036-recognising-a-screen-you-were-shown]] measured that arrangement agreement
+  nominates an absent screen as confidently as a present one.
+
+`Arrival.Independent()` is true only for the first. A report that collapsed the two would let a
+workflow corroborate its own expectations.
+
+### What the run actually shows
+
+```
+action lowered and compiled                ready
+action executed                            NOT EXECUTED
+simulated action boundary                  present
+destination established                    2 of 3
+  of those, independent of the workflow    0
+action independently verified              NOT ESTABLISHED
+```
+
+**Zero of the three arrivals were established by somebody looking.** Every one was the workflow's
+own expectation agreeing with an arrangement. That is the weakest of the two grounds, it is the
+one the circularity warning is about, and it is the number this stage exists to print rather
+than hide.
+
+All seven stages now complete, and the chain still STOPS SAFELY after 3 of 11 steps.
+
 ## Consequences
 
 - **A step on an unestablished screen is refused, and says which of the two reasons it is**:
@@ -126,6 +174,13 @@ change and it is not made here.
 `TestAWaitStepIsNotPlannable`, `TestStoppingPartwayIsItsOwnOutcome`,
 `TestPlannableIsNotPermission`.
 
-**Mutation: 12 of 12 killed**, after two genuinely untested cases were found (an outcome for
+Arrival — `TestAConfirmedDestinationIsIndependentEvidence`,
+`TestAnInferredDestinationIsEstablishedButNotIndependent`,
+`TestAnUngroundedDestinationIsNotEstablished`,
+`TestADestinationMustBeEstablishedInTheNewObservation`,
+`TestADestinationEstablishedAsAnotherScreenIsNotAnArrival`,
+`TestAStepWithNoDestinationCannotArrive`, `TestAnActionIsNeverVerified`.
+
+**Mutation: 12 of 12 on the step planner and 7 of 7 on the arrival adapter**, after two genuinely untested cases were found (an outcome for
 another control, and a wait step) and one guard that was being killed by the guard after it — the
 test now asserts which refusal it got rather than only that it got one.

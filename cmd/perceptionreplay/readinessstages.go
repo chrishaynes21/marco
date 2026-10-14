@@ -4,13 +4,11 @@ package main
 
 import (
 	"fmt"
-	"sort"
 	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/fastobserve"
 	"github.com/chaynes-simpleclouds/marco/internal/director/marcoexec"
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
-	"github.com/chaynes-simpleclouds/marco/internal/director/workflow"
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflowstore"
 	"github.com/chaynes-simpleclouds/marco/internal/driver"
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
@@ -101,8 +99,12 @@ func stepWalk(r *readiness, loaded workflowstore.Artifact, a learnedFold, oracle
 		reached[st][step] = true
 	}
 	lowered := map[int]bool{}
-	verified := map[int]bool{}
-	verdicts := map[int]workflow.Verdict{}
+	// arrivals is what the observation AFTER each simulated action boundary said
+	// about that step's destination. Nothing was executed, so the boundary is a
+	// marker and not an event — which is exactly why the result is called a
+	// destination established and never an action verified.
+	arrivals := map[int]workflowstore.Arrival{}
+	pending := -1
 	establishedScreens, inferredScreens := map[string]bool{}, map[string]bool{}
 	var firstRefusal string
 	var firstRefusalStage workflowstore.StepStage
@@ -175,6 +177,16 @@ func stepWalk(r *readiness, loaded workflowstore.Artifact, a learnedFold, oracle
 			}
 			session.Observed(up.Epoch, fr.WindowGeneration)
 			standing = now
+
+			// THE SIMULATED ACTION BOUNDARY, settled against THIS observation.
+			// Asked after establishment has run, because it reads what that
+			// path grounded and establishes nothing itself.
+			if pending >= 0 {
+				arrivals[pending] = loaded.DestinationAt(pending, session,
+					workflowstore.Now{Screen: now, Epoch: up.Epoch,
+						Generation: fr.WindowGeneration})
+				pending = -1
+			}
 		}
 		if cursor >= len(loaded.Steps) {
 			continue
@@ -212,19 +224,10 @@ func stepWalk(r *readiness, loaded workflowstore.Artifact, a learnedFold, oracle
 			})
 			if lerr == nil && driver.CheckSource(src) == nil {
 				lowered[cursor] = true
-				// THE VERIFICATION EXPECTATION, not a result.
-				//
-				// `workflow.Verify` compares SCREEN IDENTITIES, and a
-				// reloaded workflow's destination is an artifact LABEL
-				// that nothing has bound, because arriving there is what
-				// would bind it. So it is asked, and what it says is
-				// recorded rather than required.
-				v := workflow.Verify(*got.Action,
-					observe.VisualScreenID(loaded.Steps[cursor].From), standing)
-				verdicts[cursor] = v
-				if v == workflow.VerdictWaiting {
-					verified[cursor] = true
-				}
+				// A SIMULATED ACTION BOUNDARY. Nothing is performed; this
+				// marks the point after which the next observation is the
+				// one that would say whether the destination is there.
+				pending = cursor
 			}
 			cursor++
 			reachedSteps++
@@ -291,38 +294,47 @@ func stepWalk(r *readiness, loaded workflowstore.Artifact, a learnedFold, oracle
 			detail: fmt.Sprintf("%d step(s) lowered into Marco and compiled; NOT run",
 				len(lowered))})
 	}
+	// ── STAGE 7, AS FIVE SEPARATE SENTENCES ──
+	//
+	// The owner's table, because collapsing any two of these rows is how a simulated
+	// action boundary turns into a success claim.
+	var establishedDest, independentDest int
+	for _, arr := range arrivals {
+		if arr.Established() {
+			establishedDest++
+		}
+		if arr.Independent() {
+			independentDest++
+		}
+	}
 	switch {
 	case len(lowered) == 0:
-		r.add(stage{n: 7, name: "verification plan",
+		r.add(stage{n: 7, name: "destination established after the action boundary",
 			state: stageNotReached, missing: "no action was lowered"})
-	case len(verified) == 0:
-		// THE NEXT GENUINE BLOCKER, and it is not an absence of machinery.
-		//
-		// `Verify` asks whether the screen standing now is the one the action
-		// expected, by comparing identities. A reloaded workflow expects
-		// `screen_c` — an artifact label — and the screen standing is a session
-		// id, so the comparison is between two vocabularies and can only say
-		// `elsewhere`. Arriving is what would bind the destination label, and
-		// verification is being asked before that has happened.
-		var saw []string
-		for i, v := range verdicts {
-			saw = append(saw, fmt.Sprintf("step %d: %s", i, v))
+	case len(arrivals) == 0:
+		r.add(stage{n: 7, name: "destination established after the action boundary",
+			state: stageUnobservable,
+			detail: fmt.Sprintf("%d action boundary/boundaries, and no observation "+
+				"followed any of them", len(lowered)),
+			missing: "the recording ended before the next observation"})
+	case establishedDest == 0:
+		var why string
+		for _, arr := range arrivals {
+			why = arr.Because
+			break
 		}
-		sort.Strings(saw)
-		r.add(stage{n: 7, name: "verification plan", state: stageRefused,
-			detail: fmt.Sprintf("%d action(s) lowered and %v", len(lowered), saw),
-			missing: "a reloaded workflow's destination is an artifact label and " +
-				"the screen standing is a session identity; `workflow.Verify` " +
-				"compares identities, so it reports `elsewhere` for a step " +
-				"that has not moved. Verifying a reloaded step means asking " +
-				"whether the NEW observation establishes as the step's " +
-				"destination label, which is screen establishment run once " +
-				"more rather than a comparison"})
+		r.add(stage{n: 7, name: "destination established after the action boundary",
+			state:   stageRefused,
+			detail:  fmt.Sprintf("%d boundary/boundaries examined", len(arrivals)),
+			missing: why})
 	default:
-		r.add(stage{n: 7, name: "verification plan", state: stageReady,
-			detail: fmt.Sprintf("%d step(s) built an expectation that reports waiting "+
-				"with nothing performed", len(verified))})
+		r.add(stage{n: 7, name: "destination established after the action boundary",
+			state: stageReady,
+			detail: fmt.Sprintf("%d of %d destination(s) established, %d of them by "+
+				"somebody looking rather than by the workflow's own expectation",
+				establishedDest, len(arrivals), independentDest)})
 	}
+	r.arrivals = arrivals
 
 	p := workflowstore.Progress{Steps: len(loaded.Steps), Reached: reachedSteps, Stopped: -1}
 	if reachedSteps < len(loaded.Steps) {
@@ -354,6 +366,51 @@ func printReadiness(r readiness) {
 		if firstBlock == nil && (s.state == stageRefused || s.state == stageUnobservable) {
 			firstBlock = &r.stages[i]
 		}
+	}
+
+	// ── THE FIVE CLAIMS, KEPT APART ──
+	//
+	// Collapsing any two of these rows is how a simulated action boundary becomes a
+	// success claim, so each is printed as its own sentence with its own answer.
+	lowered, established, independent := 0, 0, 0
+	for _, s := range r.stages {
+		if s.n == 6 && s.state == stageReady {
+			lowered = 1
+		}
+	}
+	for _, arr := range r.arrivals {
+		if arr.Established() {
+			established++
+		}
+		if arr.Independent() {
+			independent++
+		}
+	}
+	fmt.Printf("\n  %s\n", repeat("-", 74))
+	fmt.Printf("  WHAT IS AND IS NOT CLAIMED\n")
+	fmt.Printf("  %s\n", repeat("-", 74))
+	yn := func(ok bool, yes, no string) string {
+		if ok {
+			return yes
+		}
+		return no
+	}
+	fmt.Printf("  %-42s %s\n", "action lowered and compiled",
+		yn(lowered > 0, "ready", "not reached"))
+	fmt.Printf("  %-42s %s\n", "action executed", "NOT EXECUTED")
+	fmt.Printf("  %-42s %s\n", "simulated action boundary",
+		yn(len(r.arrivals) > 0, "present", "none"))
+	fmt.Printf("  %-42s %s\n", "destination established",
+		yn(established > 0,
+			fmt.Sprintf("%d of %d", established, len(r.arrivals)), "neither"))
+	fmt.Printf("  %-42s %s\n", "  of those, independent of the workflow",
+		fmt.Sprintf("%d", independent))
+	fmt.Printf("  %-42s %s\n", "action independently verified", "NOT ESTABLISHED")
+	for _, arr := range r.arrivals {
+		if ok, why := arr.Verified(); !ok {
+			fmt.Printf("     %s\n", wrapAt(why, 66, "     "))
+		}
+		break
 	}
 
 	fmt.Printf("\n  %s\n", repeat("-", 74))

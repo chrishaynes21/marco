@@ -1188,6 +1188,14 @@ it refuses those looks. Visible is fine; in front is not.
   Nothing in `workflowstore` lowers anything and its import walk keeps the lowering path
   out of reach. Knowing the plan is not standing on the screen: a later step's screen is
   never pre-authorised. [[ADR-187-knowing-the-plan-and-trusting-the-screen]]
+- **All seven stages complete, and the last one is called a destination established.**
+  `DestinationAt` asks the establishment path its own question one observation after a
+  simulated action boundary, and establishes nothing itself. `Verified()` always returns
+  false with its reason attached, so no report can print an arrival and imply a success.
+  Measured: **2 of 3 destinations established, 0 of them by somebody looking** — every
+  arrival was the workflow's own expectation agreeing with an arrangement, which is the
+  weaker of the two grounds and is printed as such.
+  [[ADR-187-knowing-the-plan-and-trusting-the-screen]]
 - **The next blocker is verification, and it is a vocabulary mismatch.** `workflow.Verify`
   compares screen identities; a reloaded workflow's destination is an artifact label that
   nothing has bound, because arriving is what would bind it. Verifying a reloaded step

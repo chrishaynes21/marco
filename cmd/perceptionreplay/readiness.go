@@ -60,6 +60,8 @@ type readiness struct {
 	// progress is how far the walk actually got, kept apart from the stages
 	// because a stage says what WORKED and this says what HAPPENED.
 	progress *workflowstore.Progress
+	// arrivals is what the observation after each simulated action boundary said.
+	arrivals map[int]workflowstore.Arrival
 }
 
 func (r *readiness) add(s stage) {
