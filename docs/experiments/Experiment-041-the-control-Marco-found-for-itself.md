@@ -173,6 +173,61 @@ thing that tells these screens apart for a person was never captured.
 This is the same shape as the control defect in the same artifact: the recording kept the
 geometry and dropped the meaning.
 
+### A fifth measurement: how much room the measure has at all
+
+Offline, on the saved artifact, through `observe.ArrangementSimilarity` and
+`ArrangementShapeSimilarity` -- the functions the stabiliser and the recogniser actually
+call, not a reimplementation of them. The question is not "are these two screens too alike"
+but "does this measure have a margin anywhere in this file".
+
+```
+                          raw    margin    shape    margin
+  screen_c   screen_d   0.540    +0.010    0.602    -0.052   <- the two menus of the run
+  screen_e   screen_h   0.515    +0.035    0.550    -0.000
+  screen_a   screen_i   0.504    +0.046    0.695    -0.145
+  screen_d   screen_i   0.482    +0.068    0.445    +0.105
+  screen_b   screen_g   0.481    +0.069    0.482    +0.068
+  ...
+  screen_c   screen_f   0.247    +0.303    0.642    -0.092
+  screen_d   screen_f   0.188    +0.363    0.592    -0.042
+  screen_e   screen_f   0.142    +0.408    0.427    +0.123
+```
+
+Three of 36 pairs are within 0.05 of joining by count. **Five of 36 are already over the
+threshold by shape**, one of them (`screen_e`/`screen_h`) at exactly 0.550.
+
+`screen_c` and `screen_d` are the closest pair in the file, separated by **0.010**. That is
+not a margin; it is rounding. And the live looks of the same two screens agreed at **0.721** --
+so **the variance of the measure between a recording pass and a live pass is larger than the
+distance between the two screens it has to tell apart.**
+
+Two pairs make the same point from the other side. `screen_c`/`screen_f` is 0.247 by count
+and 0.642 by shape, and `screen_d`/`screen_f` is 0.188 and 0.592. Normalising the counts away
+-- which is what makes two readings of ONE screen at different yields come out alike -- also
+makes two screens that are plainly different by count into near neighbours. Neither variant
+of the measure has room to spare.
+
+So the failure is not that `screen_d`'s saved evidence is poor, and not that the threshold
+is set wrong. `screen_d` agrees with the live destination at 0.750 and ranks first. The
+failure is one layer earlier: **the Free Play submenu was never given its own visual screen
+identity to be matched against**, because by the only measure the stabiliser has, it was the
+screen Marco was already on.
+
+### And the same two screens, by what they said
+
+Same arithmetic -- min/max over the union of keys -- so the numbers are directly comparable:
+
+| measure | `screen_c` vs `screen_d` | distance from 0.55 |
+|---|---|---|
+| arrangement, live | **0.721** | -0.171, they join |
+| arrangement, as saved | 0.540 raw / 0.602 shape | +0.010 / -0.052 |
+| **the words on them** | **0.231** | **+0.319** |
+
+Shared: `CREATE FREE PLAY`. Training page only: `AERIAL CUSTOM GOALIE PARTY STRIKER
+TRAINING TUTORIAL`. Free Play submenu only: `BACK JOIN ONLINE`.
+
+A margin of +0.319 is a margin. A margin of +0.010 is rounding.
+
 ## The smallest useful next experiment
 
 **Offline, on the recording that already exists.** Re-process `rl-freeplay-1` with OCR attached to
