@@ -45,10 +45,27 @@ type learnedFold struct {
 	obs   *fastobserve.Observer
 }
 
+// wordsBeside is what the recording was read to say, when it has been read.
+//
+// Read from the cache `-semantic` writes and never computed here: a diagnostic that silently
+// ran OCR over 900 frames would cost minutes nobody asked for. Missing is not an error — the
+// fold proceeds with no text, and every screen is then saved as unread rather than as silent,
+// which is the honest record of a recording nobody read.
+func wordsBeside(dir string, frames []frameRecord) []observe.ScreenText {
+	words, err := readWords(dir, frames, 1, nil)
+	if err != nil {
+		fmt.Printf("  words: none cached beside the recording, so the screens of any "+
+			"artifact saved here carry no vocabulary (%v)\n", err)
+		return nil
+	}
+	return words
+}
+
 // foldAndLearn runs one fresh observer over a range of looks, folding the presses that happened
 // in it, and learns whatever workflow that produced.
 func foldAndLearn(frames []frameRecord, inputs []inputRecord, regions [][]observe.Region,
-	readable []bool, feed *slowFeed, lo, hi int) (learnedFold, error) {
+	readable []bool, words []observe.ScreenText, feed *slowFeed, lo, hi int) (
+	learnedFold, error) {
 
 	obs, err := fastobserve.New(100*time.Millisecond, 64)
 	if err != nil {
@@ -62,6 +79,7 @@ func foldAndLearn(frames []frameRecord, inputs []inputRecord, regions [][]observ
 	lf := learnedFold{obs: obs}
 	lf.at = map[int]observe.VisualScreenID{}
 	lf.arr = map[observe.VisualScreenID]observe.VisualArrangement{}
+	lf.said = map[observe.VisualScreenID]observe.ScreenText{}
 
 	base := time.Unix(1700000000, 0).UTC()
 	next := 0
@@ -78,6 +96,15 @@ func foldAndLearn(frames []frameRecord, inputs []inputRecord, regions [][]observ
 			},
 			Front:   true,
 			Regions: regions[i],
+		}
+		// WHAT WAS READ ON THIS LOOK'S OWN PIXELS, which is the only kind of
+		// text screen identity may see -- see fastobserve.Look.Text. Folded
+		// here so an artifact learned from this recording carries what its
+		// screens were read to say: a destination saved with no words cannot
+		// be corroborated by a reading, and that term is what took the false
+		// arrivals of Experiment-048 to zero.
+		if i < len(words) {
+			lk.Text = words[i]
 		}
 		for next < len(inputs) && inputs[next].AtMS <= fr.AtMS {
 			in := inputs[next]
@@ -99,6 +126,9 @@ func foldAndLearn(frames []frameRecord, inputs []inputRecord, regions [][]observ
 	}
 	for _, s := range obs.Screens() {
 		lf.arr[s.ID] = obs.Arrangement(s.ID)
+		if t := obs.SaidBy(s.ID); t.Read() {
+			lf.said[s.ID] = t
+		}
 	}
 	lf.draft = workflow.Learn("enter free play", obs.Walk(), obs.Clicks(), obs.Registry())
 	return lf, nil
@@ -160,13 +190,15 @@ func reportReloadOverRecording(dir string, limit int, onnx string, delay int,
 		return fd
 	}
 
+	// WHAT THE RECORDING WAS READ TO SAY, read once for every fold below it.
+	read := wordsBeside(dir, frames)
 	half := len(frames) / 2
-	a, aerr := foldAndLearn(frames, inputs, regions, readable, newFeed(), 0, half)
+	a, aerr := foldAndLearn(frames, inputs, regions, readable, read, newFeed(), 0, half)
 	if aerr != nil {
 		return aerr
 	}
 	defer a.obs.Close()
-	b, berr := foldAndLearn(frames, inputs, regions, readable, newFeed(), half, len(frames))
+	b, berr := foldAndLearn(frames, inputs, regions, readable, read, newFeed(), half, len(frames))
 	if berr != nil {
 		return berr
 	}
@@ -180,11 +212,23 @@ func reportReloadOverRecording(dir string, limit int, onnx string, delay int,
 	}
 
 	// ── SAVE, FROM FOLD A ──
+	// THE EVIDENCE FOR EACH SCREEN THE DRAFT NAMES, both halves of it.
+	//
+	// Through SaveWith rather than Save, so a saved destination carries what it was
+	// READ to say and not only where its rectangles were. An artifact without that
+	// cannot have an arrival corroborated by a reading, and the arrangement alone was
+	// measured to arrive on the wrong page — see
+	// [[Experiment-048-the-destination-a-workflow-can-see-for-itself]]. A screen
+	// nobody read is still saved, as unread rather than as silent.
 	arrangements := map[observe.VisualScreenID]observe.VisualArrangement{}
 	for id, ar := range a.arr {
 		arrangements[id] = ar
 	}
-	art, serr := workflowstore.Save(a.draft, arrangements,
+	said := map[observe.VisualScreenID]observe.ScreenText{}
+	for id, t := range a.said {
+		said[id] = t
+	}
+	art, serr := workflowstore.SaveWith(a.draft, arrangements, said,
 		time.Unix(frames[half-1].AtMS/1000, 0).UTC())
 	if serr != nil {
 		return serr

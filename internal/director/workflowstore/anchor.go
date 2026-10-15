@@ -57,6 +57,16 @@ const (
 	// mode, and a report that counted them together would say a person had answered
 	// questions they were never asked.
 	GroundInferred Ground = "inferred"
+	// GroundReached: the workflow demonstrates the transition, and THIS LOOK's own
+	// arrangement agrees with the destination better than with the screen the step
+	// started on, with a fresh reading that does not contradict it.
+	//
+	// Distinct from `inferred` because the evidence is different, not weaker in the same
+	// direction: an inference FOLLOWS a screen change the global observer recorded, and
+	// this one is what can be said when it recorded none. See reached.go, and
+	// [[Experiment-048-the-destination-a-workflow-can-see-for-itself]] for the
+	// measurement that bounds it.
+	GroundReached Ground = "reached"
 )
 
 // Bound is one saved screen, established as one current screen, in one observation.
@@ -75,6 +85,22 @@ type Bound struct {
 	// looking at it; 3 is three transitions of trust, and a report that did not show this
 	// would make a chain look like a confirmation.
 	Depth int
+	// Positive says the reading behind a `reached` arrival POSITIVELY identified the
+	// destination — it still says at least `observe.TextKept` of what that screen was
+	// read to say — rather than merely failing to contradict it.
+	//
+	// Two strengths of one term, kept apart because they are not the same evidence: a
+	// reading that resolved fewer labels, or one shorter than
+	// `observe.TextDisagreementWords`, does not contradict ANYTHING, and a report that
+	// counted it as corroboration would be counting an abstention as a yes. False for
+	// every other ground, which have no reading behind them.
+	Positive bool
+	// Thin says the destination was saved with fewer than `observe.TextDisagreementWords`
+	// words, so no reading could have contradicted it however wrong it was.
+	//
+	// Recorded because it changes what the corroboration MEANT without changing the
+	// decision: the positive share is still measurable, and the veto is not available.
+	Thin bool
 	// Because is the reasoning, for a person reading a log afterwards.
 	Because string
 }

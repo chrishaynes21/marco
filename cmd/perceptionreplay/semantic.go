@@ -139,7 +139,8 @@ func semanticFold(frames []frameRecord, regions [][]observe.Region, readable []b
 	defer obs.Close()
 
 	f := fold{at: map[int]observe.VisualScreenID{},
-		arr: map[observe.VisualScreenID]observe.VisualArrangement{}}
+		arr:  map[observe.VisualScreenID]observe.VisualArrangement{},
+		said: map[observe.VisualScreenID]observe.ScreenText{}}
 	base := time.Unix(1700000000, 0).UTC()
 	// THE EPOCH EACH LOOK WAS FOLDED UNDER, recorded as the fold goes so a reading of
 	// look N can be stamped with the context look N was actually taken in. A live
@@ -188,6 +189,9 @@ func semanticFold(frames []frameRecord, regions [][]observe.Region, readable []b
 	said := map[observe.VisualScreenID]observe.ScreenText{}
 	for _, s := range obs.Screens() {
 		f.arr[s.ID] = obs.Arrangement(s.ID)
+		if t := obs.SaidBy(s.ID); t.Read() {
+			f.said[s.ID] = t
+		}
 		said[s.ID] = obs.SaidBy(s.ID)
 	}
 	return f, obs.Stability(), obs.Stats(), said, nil

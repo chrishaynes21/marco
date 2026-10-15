@@ -1194,6 +1194,19 @@ type Report struct {
 	// See `workflowstore.Arrival`.
 	Established int
 	Independent int
+	// Reached is how many of those were established from the look's own evidence rather
+	// than by following a change the global observer recorded; Identified how many of
+	// THOSE rested on a reading that said the destination was that screen, rather than
+	// one that merely failed to contradict it; and ThinWords how many were corroborated
+	// against a destination saved with too few words for any reading to have refused it.
+	//
+	// Three numbers rather than one because they are three strengths of evidence, and the
+	// weakest of them is the one that looks exactly like the strongest in a count of
+	// destinations established. OCR that does not contradict a destination is not OCR
+	// that identifies it.
+	Reached    int
+	Identified int
+	ThinWords  int
 	// Budget is how many actions the run was allowed to send, negative for unbounded, and
 	// Sent how many it did. Reported because "one action" is only a meaningful claim
 	// beside the limit it was made under.
@@ -1330,6 +1343,15 @@ func (r *Runner) Report() (out Report) {
 			arrived[a.Step] = true
 			if a.Arrival.Independent() {
 				out.Independent++
+			}
+			if a.Arrival.Ground == workflowstore.GroundReached {
+				out.Reached++
+				if a.Arrival.Positive {
+					out.Identified++
+				}
+				if a.Arrival.Thin {
+					out.ThinWords++
+				}
 			}
 		}
 	}

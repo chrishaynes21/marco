@@ -78,14 +78,29 @@ func reportWorkflowOverRecording(dir string, limit int, onnx string, delay int,
 	if limit > 0 && limit < len(frames) {
 		frames = frames[:limit]
 	}
-	var words []observe.ScreenText
-	if semantic {
-		var werr error
-		words, werr = readWords(dir, frames, 1, nil)
-		if werr != nil {
+	// WHAT THE RECORDING WAS READ TO SAY, WHENEVER IT CAN SAY.
+	//
+	// This used to be folded only under `-semantic`, and the consequence was measured:
+	// the artifact the live run of
+	// [[Experiment-046-the-destination-it-reached-and-did-not-recognise]] carried was
+	// learned without it, so every one of its nine screens was saved with no words at
+	// all — and a destination nobody read cannot be corroborated by a reading, which is
+	// the one term that took the false arrivals of
+	// [[Experiment-048-the-destination-a-workflow-can-see-for-itself]] to zero.
+	//
+	// The live observer folds readings whenever a source answers. A replay of it that
+	// dropped them unless a flag was passed was measuring a different observer from the
+	// one that runs, and saving a thinner artifact than the one a demonstration produces.
+	// So the words are read whenever the recording carries them, and `-semantic` now
+	// means "and fail if it cannot" rather than "and otherwise pretend nobody looked".
+	words, werr := readWords(dir, frames, 1, nil)
+	if werr != nil {
+		if semantic {
 			return fmt.Errorf("run -frames -semantic first to read the "+
 				"words: %w", werr)
 		}
+		fmt.Printf("  words: none cached beside the recording, so the screens of "+
+			"any artifact saved here carry no vocabulary (%v)\n", werr)
 	}
 	inputs, _ := readJSONL[inputRecord](filepath.Join(dir, "input.jsonl"))
 	// ONE FEED PER PASS, loaded fresh each time. The two passes are independent

@@ -7,7 +7,7 @@ backend:
   - ocr
 game: rocketleague
 fixture: "freeplay.workflow.json and the same recording re-saved through SaveWith, scored against rl-freeplay-1's four pages, 222 folds of the recorded navigation, and the held-out rl-playtrain-1 capture"
-result: the-evidence-to-recognise-the-expected-destination-is-present-on-the-first-look-of-it-and-the-run-never-asks-because-the-question-is-gated-on-the-global-observer-minting-an-identity-and-scored-against-the-standing-screens-stored-signature
+result: the-evidence-was-always-there-and-the-run-never-asked-implemented-as-ADR-200-and-the-destination-is-now-established-in-69-of-69-merged-folds-with-zero-false-arrivals-39-of-40-on-a-held-out-capture-and-two-residual-false-positives-on-a-generic-saved-vocabulary
 supersedes: []
 affects:
   - passive-observation
@@ -16,8 +16,12 @@ affects:
 
 # Experiment-048 — the destination a workflow can see for itself
 
-**Status: RUN offline, 2026-10-15. Read-only on every production contract. Nothing was
-executed, nothing authorised, no production file changed. An investigation, as asked.**
+**Status: RUN offline, 2026-10-15. Nothing executed, nothing authorised, no live run.**
+
+**The investigation below was read-only. It was then authorised and implemented as
+[[ADR-200-a-destination-a-workflow-recognises-for-itself]], and the final section re-measures
+the same recordings through the production rule itself rather than through a harness's
+reimplementation of it.**
 
 ## The question
 
@@ -333,8 +337,123 @@ and it is one held-out page, not a corpus.
 **That three steps are a workflow.** The artifact has 39 steps and this measures three of them,
 chosen because they are the ones the live run reached.
 
+## And then implemented, and measured again through the rule itself
+
+The five changes were authorised and are [[ADR-200-a-destination-a-workflow-recognises-for-itself]].
+What follows is not the harness's arithmetic: every number below is
+`workflowstore.SessionBinding.Reached` deciding, with an independent session per probe, so each
+one is a single look's decision and not a consequence of an earlier one.
+
+### Every look of four verified pages
+
+```
+  the step screen_a -> screen_b, which the live run DID make
+    ON the Play page          TRUE arrival   11 of 34 look(s)   identified 11, uncontradicted 0
+    on the main menu          false           0 of 28
+    on the Training page      false           0 of 28
+    on the Free Play submenu  false           0 of 28
+
+  the step screen_b -> screen_c, the one it could not
+    ON the Training page      TRUE arrival   10 of 28 look(s)   identified 10, uncontradicted 0
+    on the main menu          false           0 of 28
+    on the Play page          false           0 of 34     (10 of 34 by arrangement alone)
+    on the Free Play submenu  false           0 of 28     (21 of 28 by arrangement alone)
+
+  the step screen_c -> screen_d
+    ON the Free Play submenu  TRUE arrival    9 of 28 look(s)   identified  9, uncontradicted 0
+    on the main menu          false           0 of 28
+    on the Play page          false           1 of 34
+    on the Training page      false           1 of 28
+```
+
+Arrivals land only on looks that carry a reading — the recording holds one on every third frame —
+which is why 10 of 28 rather than 28 of 28. **Of the looks that have a reading, every one
+arrives, and every one of them identified the destination rather than merely failing to
+contradict it.**
+
+### The held-out capture
+
+`rl-playtrain-1` is a separate session of the Training page, 400 frames, no inputs, never learned
+from:
+
+```
+  ON the Training page   TRUE arrival   39 of 40 look(s)   identified 39, uncontradicted 0
+```
+
+### The 222 folds
+
+```
+  222 fold(s); the Training page merged onto the Play page's identity in 69
+  OF THOSE 69 MERGED FOLDS -- the live failure -- the destination was
+    established                              69       (0 before)
+      by a reading that identified it        69
+      by one that only failed to refuse it    0
+    looks after the page appeared            mean 5.33, worst 8
+  FALSE ARRIVALS on the Play page, all 222 folds      0 look(s)
+```
+
+### The two false arrivals that survive, and why they are reported rather than filed
+
+Both are on `screen_c -> screen_d`, and both keep 40% of
+`create free join online play` — which is `create` and `play`:
+
+```
+  frame 141   agrees with screen_d at 0.759 against 0.606 for screen_c
+  frame  93   agrees with screen_d at 0.604 against 0.523 for screen_c
+```
+
+**Frame 141 is the transition frame.** Its reading is
+`aerial create custom field free goalie hit invited party pla players practice striker training`
+— `FREE PLA…` and `CREATE` are on the glass because the submenu is appearing. Arriving one look
+early there is not a wrong answer.
+
+**Frame 93 is a Play-page look, and it is a real false positive.** The lesson it carries is not
+about length: `screen_d`'s five saved words include `create`, `play` and `online`, which half
+this game's menus say. **The positive term's strength depends on how DISTINCTIVE a saved
+vocabulary is, and the rule cannot tell the difference.** It is reachable only off-path — the
+workflow would have to be established on the Training page with a Play-page look in front of it —
+and it is not fixed here.
+
+### Thin destinations, which the owner asked to be watched
+
+Measured by cutting one destination's saved vocabulary to two words, below the floor
+`TextsDisagree` needs, so the veto becomes unavailable and only the positive half remains:
+
+```
+  screen_c cut to two words   the Play page        0 -> 1 false arrival(s)
+                              the Free Play menu   0 -> 6
+  screen_d cut to two words   the Play page        1 -> 5
+                              the Training page    1 -> 10
+```
+
+Every one of those is `Positive == false` and `Thin == true`, so the run report names them as the
+weakest evidence it has. The rule still fires on them. **Whether it should is the next decision,
+and it is not taken here** — what is done is that a run can no longer rest on that evidence
+without saying so.
+
+### And the artifact keeps its vocabulary now
+
+The default invocation that produced the live run's nine text-free screens now produces a
+byte-identical artifact to the one `-semantic` produced: 13 screens, 11 of them with words,
+`screen_b` saying `match offline play private` and `screen_c` saying `aerial goalie striker`.
+
+Folding the readings in the learning path also changes what is LEARNED, and this is the size of
+it: on the same recording the artifact goes from **9 screens and 21 steps to 13 screens and 39
+steps**. Pages that were silently merged are now distinguished, so transitions that produced no
+step now produce one. The artifact a live run carries should be regenerated before the next one.
+
+### What the implementation did not change
+
+The global screen model, in any respect. No identity is minted, no arrangement stored, no
+vocabulary folded by anything in this change; `internal/director/observe` still does not import
+`workflowstore`; the 449-look single main-menu identity and the Training/Free Play separation of
+[[Experiment-047-what-one-reading-is-allowed-to-do]] are untouched, and the corpus perception
+gate passes unchanged.
+
 ## Related
 
+- [[ADR-200-a-destination-a-workflow-recognises-for-itself]] — the rule, its three terms, and the
+  two strengths of reading it counts apart.
 - [[Experiment-046-the-destination-it-reached-and-did-not-recognise]] — the live run, and the
   log line this re-reads.
 - [[Experiment-047-what-one-reading-is-allowed-to-do]] — the merge-rule line this closes, and

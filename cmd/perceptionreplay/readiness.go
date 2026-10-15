@@ -106,8 +106,10 @@ func reportReadiness(dir string, limit int, onnx string, authorised bool) error 
 		}
 		return fd
 	}
+	// WHAT THE RECORDING WAS READ TO SAY, read once for every fold below it.
+	read := wordsBeside(dir, frames)
 	half := len(frames) / 2
-	a, aerr := foldAndLearn(frames, inputs, regions, readable, newFeed(), 0, half)
+	a, aerr := foldAndLearn(frames, inputs, regions, readable, read, newFeed(), 0, half)
 	if aerr != nil {
 		return aerr
 	}

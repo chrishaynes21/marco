@@ -360,6 +360,11 @@ func runPerformWorkflow(args []string) int {
 	// screen change is recorded, not the moment a different screen is standing.
 	var said []observe.ReadWord
 	var saidGen, saidEpoch uint64
+	// AND WHAT IT SAID AS A VOCABULARY, which is a different question from where each
+	// word was. `said` carries positions and is what a control is found by; this is what
+	// a SCREEN is recognised by, and the destination test needs the second. Kept on the
+	// same stamps so one admission rule covers both.
+	var saidText observe.ScreenText
 	opt := structure.DefaultOptions()
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -453,7 +458,16 @@ func runPerformWorkflow(args []string) int {
 			Front: lk.Front, Missing: lk.Missing, Unobserved: up.Unobserved,
 			Outcomes: outcomes, At: lk.At,
 		}
-		ground.arrangement = obs.Arrangement(up.Screen)
+		// THE ARRANGEMENT OF THIS LOOK, not of the screen standing.
+		//
+		// `obs.Arrangement(id)` is a signature fixed when that screen was minted and
+		// never updated, so standing on a page that merged onto an older identity it
+		// answers with the OLDER PAGE's arrangement -- which is what
+		// [[Experiment-048-the-destination-a-workflow-can-see-for-itself]] measured
+		// the destination being compared against for sixty observations. The regions
+		// of the look in front of us are right here, and the saved Training page
+		// agrees with a Training look at 0.600 and with a Play look at 0.448.
+		ground.arrangement = observe.ArrangeLook(lk.Regions)
 
 		// WHAT THE SOURCES FOUND ON THIS LOOK, handed over because neither the
 		// repair nor the coordinator can look for itself. Both sources, and only
@@ -482,12 +496,17 @@ func runPerformWorkflow(args []string) int {
 				continue
 			}
 			said, saidGen, saidEpoch = rd.Words, rd.Generation, rd.Epoch
+			saidText = rd.Text
 		}
 		if observe.Current(saidGen, saidEpoch, v.Ref.Generation, up.Epoch) {
 			at.Words = said
 		} else {
-			said = nil
+			said, saidText = nil, observe.ScreenText{}
 		}
+		// WHAT THE DESTINATION TEST MAY USE: the same reading, admitted by the same
+		// rule. Set after the admission check rather than inside the loop, so a
+		// reading the epoch has outrun cannot corroborate an arrival.
+		ground.read = saidText
 
 		a := run.Advance(ctx, session, at)
 		reportAttempt(a)
@@ -682,9 +701,16 @@ type promptGrounder struct {
 	art workflowstore.Artifact
 	in  *bufio.Reader
 	out *os.File
-	// arrangement is what the live observer makes of the screen standing now, pushed by
-	// the loop because this cannot look for itself.
+	// arrangement is what THIS LOOK looks like — `observe.ArrangeLook` of its own
+	// regions — pushed by the loop because this cannot look for itself.
+	//
+	// Not the standing screen's stored signature, which is what it used to be: that
+	// signature is fixed when the screen is minted, so a page that merged onto an older
+	// identity is compared as the older page. See the loop, and Experiment-048.
 	arrangement observe.VisualArrangement
+	// read is the reading admitted for this observation, or unread text when there is
+	// none. The loop supplies it already filtered by `observe.Current`.
+	read observe.ScreenText
 	// standing is the label last established, which is what an inference follows from.
 	standing string
 	// declined remembers a screen nobody could name, so the same question is not asked
@@ -718,7 +744,23 @@ func (p *promptGrounder) Establish(ctx context.Context, s *workflowstore.Session
 	at workflowrun.Sighting) error {
 
 	if _, ok := s.Established(p.standing, at.Epoch, at.Generation); ok {
-		return nil // already settled in this observation
+		// ALREADY SETTLED IN THIS OBSERVATION — AND THAT IS NOT THE WHOLE QUESTION.
+		//
+		// This used to return here, and returning here is the first of the two gates
+		// [[Experiment-048-the-destination-a-workflow-can-see-for-itself]] measured.
+		// A binding is live for exactly one observation generation, which moves only
+		// when the GLOBAL observer records a screen change. Two pages inside the
+		// arrangement measure's own resolution merge, no change is recorded, the
+		// source stays live — and the step's destination is never asked about at
+		// all. In the live run it was not asked for sixty observations, while Marco
+		// stood on the page it was waiting for.
+		//
+		// So the destination is tried from this look's own evidence before the
+		// source's standing binding is allowed to end the question. It is still an
+		// error-free path: nothing established here is required, and a refusal is the
+		// ordinary case on every look before the one that arrives.
+		p.reach(s, at)
+		return nil
 	}
 	// ── AN INFERENCE, WHERE THE WORKFLOW DEMONSTRATES THE TRANSITION ──
 	if p.standing != "" {
@@ -783,6 +825,27 @@ func (p *promptGrounder) Establish(ctx context.Context, s *workflowstore.Session
 	}
 	p.standing = answer
 	return nil
+}
+
+// reach tries to establish a destination the workflow demonstrates, from this look's own
+// evidence, where the global observer has recorded no change to follow.
+//
+// Returns nothing. A destination that cannot be established yet is the ordinary case — the
+// walk is between screens, or the reading has not landed — and the step's own waiting report
+// already says so in the caller's words. What this must not do is fail the establishment path:
+// the source IS established, which is all `Establish` promised.
+func (p *promptGrounder) reach(s *workflowstore.SessionBinding, at workflowrun.Sighting) {
+	for _, to := range p.next(p.standing) {
+		b, err := s.Reached(p.art, p.standing, to, at.Screen, p.arrangement, p.read,
+			at.Epoch, at.Generation)
+		if err != nil {
+			continue
+		}
+		// THE WALK MOVES ON, so the next look asks about the step after this one.
+		p.standing = b.Label
+		fmt.Fprintf(p.out, "  %s reached: %s\n", to, b.Because)
+		return
+	}
 }
 
 // next is the screens the workflow demonstrates arriving at from one label.
@@ -1030,6 +1093,22 @@ func printRun(rep workflowrun.Report, art workflowstore.Artifact, book *recordho
 	}
 	fmt.Printf("  %-42s %d\n", "  of those, independent of the workflow",
 		rep.Independent)
+	// AND HOW STRONG THE REST WAS. A destination reached on this look's own evidence is
+	// the weaker claim, and a reading that merely failed to contradict it is weaker
+	// again — see workflowstore.Bound.Positive. Printed only when there were any, so a
+	// run that followed real screen changes throughout says nothing about a path it
+	// never took.
+	if rep.Reached > 0 {
+		fmt.Printf("  %-42s %d\n", "  of those, reached on the look's own evidence",
+			rep.Reached)
+		fmt.Printf("  %-42s %d of %d\n", "    with a reading that identified it",
+			rep.Identified, rep.Reached)
+		if rep.ThinWords > 0 {
+			fmt.Printf("  %-42s %d of %d\n",
+				"    against too few saved words to refuse",
+				rep.ThinWords, rep.Reached)
+		}
+	}
 	ok, why := rep.Verified()
 	if ok {
 		// Unreachable by construction; printed rather than assumed so that the day it

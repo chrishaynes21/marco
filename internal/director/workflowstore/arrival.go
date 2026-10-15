@@ -42,8 +42,18 @@ type Arrival struct {
 	// Ground is how it came to be established, or empty when it did not.
 	Ground Ground
 	// Depth is how many inferences from a person's answer, for an inferred arrival.
-	Depth   int
-	Because string
+	Depth int
+	// Positive says the reading behind a `reached` arrival identified the destination
+	// rather than merely failing to contradict it, and Thin that the destination was
+	// saved with too few words for any reading to have contradicted it.
+	//
+	// Carried through to the report because the owner asked for the two to be counted
+	// apart: OCR that does not contradict a destination is weaker evidence than OCR that
+	// says it is that destination, and a single `destinations established` number would
+	// hide which one a run rested on.
+	Positive bool
+	Thin     bool
+	Because  string
 }
 
 // Established reports whether the saved destination is grounded in this observation.
@@ -108,9 +118,22 @@ func (a Artifact) DestinationAt(step int, s *SessionBinding, now Now) Arrival {
 		return r
 	}
 	r.Ground, r.Depth = bound.Ground, bound.Depth
+	r.Positive, r.Thin = bound.Positive, bound.Thin
 	if r.Independent() {
 		r.Because = fmt.Sprintf("%s was confirmed as %s by %s, who did not consult the "+
 			"workflow to decide", st.To, bound.Screen, bound.By)
+		return r
+	}
+	// REACHED, which is the same circularity and a different piece of evidence. The
+	// sentence says which reading strength it rested on, because an arrival corroborated
+	// by a reading that merely failed to contradict the destination is not the same claim
+	// as one a reading identified.
+	if bound.Ground == GroundReached {
+		r.Because = fmt.Sprintf("%s was reached as %s at depth %d — %s. The "+
+			"expectation came from the same workflow this step belongs to, so "+
+			"this is weaker than somebody looking%s",
+			st.To, bound.Screen, bound.Depth, bound.Because,
+			reachedCaveat(bound))
 		return r
 	}
 	r.Because = fmt.Sprintf("%s was inferred as %s at depth %d — the workflow said to "+
@@ -118,4 +141,15 @@ func (a Artifact) DestinationAt(step int, s *SessionBinding, now Now) Arrival {
 		"workflow this step belongs to, so this is weaker than somebody looking",
 		st.To, bound.Screen, bound.Depth)
 	return r
+}
+
+// reachedCaveat is the extra sentence a weaker corroboration earns.
+func reachedCaveat(b Bound) string {
+	switch {
+	case !b.Positive:
+		return ", and weaker again than a reading that said this is that screen"
+	case b.Thin:
+		return ", and the destination's own words were too few to have refused it"
+	}
+	return ""
 }

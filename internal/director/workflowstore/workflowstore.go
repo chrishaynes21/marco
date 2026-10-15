@@ -218,6 +218,19 @@ func Labels(d workflow.Draft) map[observe.VisualScreenID]string {
 // is still saved — the workflow is what somebody demonstrated and dropping a step because its
 // evidence is thin would silently shorten the route they taught — but it is saved as a screen
 // nothing can ever bind, which the artifact says plainly rather than hiding.
+//
+// # Nothing in the tree calls this any more, and it is kept on purpose
+//
+// Every save path goes through `SaveWith`, because
+// [[Experiment-048-the-destination-a-workflow-can-see-for-itself]] measured what an artifact
+// without screen text cannot do: a destination nobody read cannot be corroborated by a reading,
+// and the arrangement alone establishes the wrong page often enough to matter. A mode that has
+// the readings in hand and saves them away was the defect, not a convenience.
+//
+// This remains as the statement of one contract — an artifact with no text is byte-identical to
+// one saved before the field existed — which `TestSaveWithoutTextWritesNoTextAtAll` holds by
+// comparing the two. A caller with no readings to offer should still use `SaveWith` with nil,
+// which says so explicitly.
 func Save(d workflow.Draft, arrangements map[observe.VisualScreenID]observe.VisualArrangement,
 	at time.Time) (Artifact, error) {
 

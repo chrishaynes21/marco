@@ -479,8 +479,16 @@ func TestAVisualScreenCannotReachDurableMemory(t *testing.T) {
 		filepath.Join(store, "anchor_test.go"):          true,
 		filepath.Join(store, "workflowstore_test.go"):   true,
 		filepath.Join(store, "screentext_test.go"):      true,
-		filepath.Join(run, "workflowrun.go"):            true,
-		filepath.Join(run, "workflowrun_test.go"):       true,
+		// `reached.go` establishes a workflow's destination from the look in front of
+		// it, so it has to be handed an arrangement and name the screen standing. It is
+		// allowed here for the same reason `anchor.go` is: what it writes is a `Bound`
+		// in a `SessionBinding`, which has no JSON tags, is not a field of `Artifact`,
+		// and nothing marshals. A reached arrival dies with its observation, and
+		// `TestAReachedArrivalDoesNotSurviveTheObservationItWasMadeIn` holds that.
+		filepath.Join(store, "reached.go"):        true,
+		filepath.Join(store, "reached_test.go"):   true,
+		filepath.Join(run, "workflowrun.go"):      true,
+		filepath.Join(run, "workflowrun_test.go"): true,
 	}
 	root := filepath.Join("..", "..", "..")
 	names := []string{

@@ -19,11 +19,23 @@ import (
 func stageReload(r *readiness, a learnedFold, half int, frames []frameRecord) (
 	workflowstore.Artifact, []byte, workflowstore.Artifact) {
 
+	// THE EVIDENCE FOR EACH SCREEN THE DRAFT NAMES, both halves of it.
+	//
+	// Through SaveWith rather than Save, so a saved destination carries what it was
+	// READ to say and not only where its rectangles were. An artifact without that
+	// cannot have an arrival corroborated by a reading, and the arrangement alone was
+	// measured to arrive on the wrong page — see
+	// [[Experiment-048-the-destination-a-workflow-can-see-for-itself]]. A screen
+	// nobody read is still saved, as unread rather than as silent.
 	arrangements := map[observe.VisualScreenID]observe.VisualArrangement{}
 	for id, ar := range a.arr {
 		arrangements[id] = ar
 	}
-	art, err := workflowstore.Save(a.draft, arrangements,
+	said := map[observe.VisualScreenID]observe.ScreenText{}
+	for id, t := range a.said {
+		said[id] = t
+	}
+	art, err := workflowstore.SaveWith(a.draft, arrangements, said,
 		time.Unix(frames[half-1].AtMS/1000, 0).UTC())
 	if err != nil {
 		r.add(stage{n: 1, name: "artifact reload and validation",

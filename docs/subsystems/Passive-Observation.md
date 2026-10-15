@@ -1321,6 +1321,32 @@ it refuses those looks. Visible is fine; in front is not.
   piece of evidence missing is that the artifact carries no screen text at all, because
   only `perceptionreplay -save` reaches `SaveWith`.
   [[Experiment-048-the-destination-a-workflow-can-see-for-itself]]
+- **So a workflow may now recognise its own destination, and still may not mint a
+  screen.** `Reached` is a second establishment path beside `Infer`, asked where the
+  global observer has recorded no change to follow, on three terms that all have to
+  hold: the destination agrees with THIS LOOK at the unmoved 0.55, it agrees better than
+  the saved SOURCE does, and a fresh admissible reading does not contradict it. The
+  corroboration is required rather than consulted — the arrangement alone arrives on the
+  Play page 10 times in 34 and on the submenu 21 times in 28 — and a destination saved
+  with no words is refused, because missing evidence is not corroboration either. One
+  term was measured and REJECTED: requiring the reading to also contradict the source is
+  perfect on Play -> Training and destroys Main Menu -> Play, whose four saved words the
+  menu also says. Measured through the production rule, an independent session per look:
+  11 of 11 reading-bearing looks of the Play page, 10 of 10 of the Training page, 9 of 10
+  of the submenu, 39 of 40 on a held-out capture nothing was learned from, and in the 69
+  merged folds of the 222 the destination is established 69 times against 0 before, with
+  ZERO false arrivals on the Play page. Positive and merely-uncontradicted OCR are
+  counted apart in the report, because an abstention counted as corroboration is an
+  abstention counted as a yes: cutting a destination's saved words to two turns 0 false
+  arrivals into 6, and every one is flagged as the weakest evidence there is. Two false
+  positives survive at full vocabulary, both keeping `create` and `play` of
+  `create free join online play` — one is the transition frame itself, the other says
+  that what matters is how DISTINCTIVE a saved vocabulary is, not how long. Nothing here
+  touches the global model: no identity minted, no arrangement stored, no vocabulary
+  folded, and `observe` still does not import `workflowstore`. And a saved workflow keeps
+  its vocabulary now, which moved the learned artifact from 9 screens and 21 steps to 13
+  and 39.
+  [[ADR-200-a-destination-a-workflow-recognises-for-itself]]
 - **The learned detector runs in the live loop now, beside the proposer.** On the Play
   page the proposer cannot see the Training tile at all — its only covering proposal is
   1644x1032, which `Locates` refuses — and the detector boxes it at IoU 0.991 against

@@ -130,6 +130,15 @@ type fold struct {
 	at map[int]observe.VisualScreenID
 	// arr is each screen's stored arrangement, read from the observer that minted it.
 	arr map[observe.VisualScreenID]observe.VisualArrangement
+	// said is what each screen was READ to say, from the same observer.
+	//
+	// Collected beside the arrangement because an artifact saved without it is an
+	// artifact whose destinations can never be corroborated by a reading, and
+	// [[Experiment-048-the-destination-a-workflow-can-see-for-itself]] measured
+	// what that costs: the arrangement alone establishes the wrong page on 10 of
+	// 34 looks of the page a step starts on. Empty for a fold nobody read, which
+	// `SaveWith` writes as unread rather than as silent.
+	said map[observe.VisualScreenID]observe.ScreenText
 }
 
 // foldRange runs ONE fresh observer over one slice of the recording.
@@ -150,7 +159,8 @@ func foldRange(frames []frameRecord, regions [][]observe.Region, readable []bool
 	defer obs.Close()
 
 	f := fold{at: map[int]observe.VisualScreenID{},
-		arr: map[observe.VisualScreenID]observe.VisualArrangement{}}
+		arr:  map[observe.VisualScreenID]observe.VisualArrangement{},
+		said: map[observe.VisualScreenID]observe.ScreenText{}}
 	base := time.Unix(1700000000, 0).UTC()
 	for i := lo; i < hi; i++ {
 		fr := frames[i]
@@ -173,6 +183,9 @@ func foldRange(frames []frameRecord, regions [][]observe.Region, readable []bool
 	}
 	for _, s := range obs.Screens() {
 		f.arr[s.ID] = obs.Arrangement(s.ID)
+		if t := obs.SaidBy(s.ID); t.Read() {
+			f.said[s.ID] = t
+		}
 	}
 	return f, nil
 }

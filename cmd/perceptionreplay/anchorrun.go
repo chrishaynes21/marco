@@ -77,8 +77,10 @@ func reportAnchoring(dir string, limit int, onnx string) error {
 		return fd
 	}
 
+	// WHAT THE RECORDING WAS READ TO SAY, read once for every fold below it.
+	read := wordsBeside(dir, frames)
 	half := len(frames) / 2
-	a, aerr := foldAndLearn(frames, inputs, regions, readable, newFeed(), 0, half)
+	a, aerr := foldAndLearn(frames, inputs, regions, readable, read, newFeed(), 0, half)
 	if aerr != nil {
 		return aerr
 	}
@@ -91,11 +93,23 @@ func reportAnchoring(dir string, limit int, onnx string) error {
 		return err
 	}
 
+	// THE EVIDENCE FOR EACH SCREEN THE DRAFT NAMES, both halves of it.
+	//
+	// Through SaveWith rather than Save, so a saved destination carries what it was
+	// READ to say and not only where its rectangles were. An artifact without that
+	// cannot have an arrival corroborated by a reading, and the arrangement alone was
+	// measured to arrive on the wrong page — see
+	// [[Experiment-048-the-destination-a-workflow-can-see-for-itself]]. A screen
+	// nobody read is still saved, as unread rather than as silent.
 	arrangements := map[observe.VisualScreenID]observe.VisualArrangement{}
 	for id, ar := range a.arr {
 		arrangements[id] = ar
 	}
-	art, serr := workflowstore.Save(a.draft, arrangements, time.Unix(0, 0).UTC())
+	said := map[observe.VisualScreenID]observe.ScreenText{}
+	for id, t := range a.said {
+		said[id] = t
+	}
+	art, serr := workflowstore.SaveWith(a.draft, arrangements, said, time.Unix(0, 0).UTC())
 	if serr != nil {
 		return serr
 	}
