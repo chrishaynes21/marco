@@ -1261,6 +1261,18 @@ it refuses those looks. Visible is fine; in front is not.
   still permits the press, which is ADR-197 one layer down.
   [[ADR-198-a-move-that-reported-completed-and-did-not-happen]],
   [[Experiment-045-the-pointer-that-would-not-leave]]
+- **And then it arrived somewhere and did not notice.** OPEN. Two correct presses
+  reached the Training page and the standing screen never changed, so the
+  destination was never established and sixty observations went by waiting for
+  it. The cause is NOT established: the recorded transition separates at every
+  look rate including the live one, the arrangement is pixel-only so the sparse
+  detector cannot have moved it, and the live capture proposes a healthy 76
+  regions. What the run could not say is what its observer believed -- an
+  arrangement that never differed, one that differed and never held for three
+  looks, and a standing screen that had learned the next page's words all print
+  the same report. So the report now carries the walk, what each screen was read
+  to say, and the stabiliser's counters, and no threshold was touched.
+  [[Experiment-046-the-destination-it-reached-and-did-not-recognise]]
 - **The learned detector runs in the live loop now, beside the proposer.** On the Play
   page the proposer cannot see the Training tile at all — its only covering proposal is
   1644x1032, which `Locates` refuses — and the detector boxes it at IoU 0.991 against

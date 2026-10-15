@@ -43,6 +43,7 @@ import (
 	"flag"
 	"fmt"
 	"image"
+	"io"
 	"os"
 	"os/signal"
 	"sort"
@@ -544,7 +545,7 @@ func runPerformWorkflow(args []string) int {
 		fmt.Printf("\n  %d of %d capture(s) returned nothing. The first said: %s\n",
 			blind, rep.Looks, blindWhy)
 	}
-	printRun(rep, art, book, *live, lost, eyes, reader, obs.Stats())
+	printRun(rep, art, book, *live, lost, eyes, reader, obs.Stats(), obs)
 	if desk != nil {
 		stray, drained := desk.counts()
 		fmt.Printf("\n  %-42s %d of %d\n", "steps agreed to by key",
@@ -926,7 +927,7 @@ func reportAttempt(a workflowrun.Attempt) {
 // them is how a dry run, or a simulated boundary, turns into a success claim.
 func printRun(rep workflowrun.Report, art workflowstore.Artifact, book *recordhost.Host,
 	live bool, lost string, eyes *learnedEyes, reader *readingEyes,
-	readings fastobserve.Stats) {
+	readings fastobserve.Stats, obs *fastobserve.Observer) {
 
 	fmt.Printf("\n%s\n", strings.Repeat("-", 72))
 	fmt.Printf("%s\n", rep.Progress.Summary())
@@ -962,6 +963,7 @@ func printRun(rep workflowrun.Report, art workflowstore.Artifact, book *recordho
 	for because, n := range rep.Unusable {
 		fmt.Printf("      %d x %s\n", n, because)
 	}
+	printScreensSeen(obs)
 	fmt.Printf("  %-42s %s\n", "actions lowered, compiled and run",
 		fmt.Sprint(rep.Pressed))
 	// WHAT WAS SENT, not which mode was asked for.
@@ -1043,4 +1045,62 @@ func printRun(rep workflowrun.Report, art workflowstore.Artifact, book *recordho
 			fmt.Printf("  %s\n", line)
 		}
 	}
+}
+
+// printScreensSeen is what the observer believed, which no other line of this report says.
+//
+// # Why a run has to be able to answer this
+//
+// [[Experiment-046-the-destination-it-reached-and-did-not-recognise]] reached the Training
+// page with two correct presses and then spent sixty observations waiting for a destination,
+// because the standing screen never changed. Every other number in the report was consistent
+// with that AND with half a dozen different causes: an arrangement that never differed, a
+// difference that never held for three looks, a vocabulary that had learned the next page's
+// words. The run could not say which, and the recording it was replayed against reproduced
+// none of them -- so the question could only be put by running the game again, which is the
+// one thing a report exists to avoid.
+//
+// Three facts, and none of them new work: the screens in the order they were settled on, what
+// each was READ to say, and the stabiliser's own counters. A screen standing through a
+// navigation is a walk that does not move; a vocabulary that learned the next screen is words
+// that do not belong to it.
+func printScreensSeen(obs *fastobserve.Observer) { printScreensSeenTo(os.Stdout, obs) }
+
+// printScreensSeenTo is the same account, written somewhere a test can read it back.
+func printScreensSeenTo(w io.Writer, obs *fastobserve.Observer) {
+	if obs == nil {
+		return
+	}
+	seen := obs.Screens()
+	if len(seen) == 0 {
+		return
+	}
+	st := obs.Stability()
+	fmt.Fprintf(w, "  %-42s %d screen(s) over %d look(s)\n",
+		"the screens this run saw", len(seen), st.Looks)
+	for _, sc := range seen {
+		said := obs.SaidBy(sc.ID)
+		words := "nobody read it"
+		switch {
+		case !said.Read():
+		case len(said.Words) == 0:
+			words = "read, and no word was there twice"
+		default:
+			words = strings.Join(said.List(), " ")
+		}
+		fmt.Fprintf(w, "      %-14s %3d look(s)   %s\n", sc.ID, sc.Looks, words)
+	}
+	// THE WALK, which the counts cannot reconstruct: two screens visited once each and
+	// two visited five times alternately are the same two rows above.
+	if walk := obs.Walk(); len(walk) > 0 {
+		parts := make([]string, 0, len(walk))
+		for _, id := range walk {
+			parts = append(parts, string(id))
+		}
+		fmt.Fprintf(w, "      %-14s %s\n", "in this order",
+			strings.Join(parts, " -> "))
+	}
+	fmt.Fprintf(w, "      %-14s settled %d, unsettled %d, warming %d, text refused a "+
+		"merge %d time(s)\n", "and the fold", st.Settled, st.Unsettled,
+		st.Warming, st.TextRefusedMerge)
 }
