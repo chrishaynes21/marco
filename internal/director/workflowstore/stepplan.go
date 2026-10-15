@@ -32,6 +32,7 @@ package workflowstore
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflow"
@@ -62,6 +63,15 @@ const (
 	// look that matches it will match it just as well and offer the same useless centre.
 	// The workflow needs re-teaching, not more patience.
 	StepControlUnlocated StepStage = "what was found does not locate the control"
+	// StepControlContradicted: a region WAS matched, and the words on this look say it
+	// is not this control while something else on the same look is.
+	//
+	// A third thing again, and the difference is the whole of why it exists. "Not
+	// re-acquired" means look again. "Does not locate" means re-teach. This one means
+	// LOOK SOMEWHERE ELSE ON THIS SAME SCREEN — the control is here, the match is not
+	// it, and the better candidate has already been seen. It is never resolved by
+	// patience, and the repair can act on it immediately.
+	StepControlContradicted StepStage = "what was matched is not the control"
 	// StepUnconfirmed: nobody has agreed to this step in this session.
 	StepUnconfirmed StepStage = "not confirmed in this session"
 	// StepUnauthorised: the session carries no live execution authorisation.
@@ -105,6 +115,16 @@ type Now struct {
 	// It replaces the agreement step and NOT the Locates check: a repair that named
 	// another band would be the same defect with a different provenance.
 	Reground map[string]observe.Region
+	// Candidates is every region the sources proposed on this look, and Words every word
+	// that was read on it, both normalised to the window.
+	//
+	// Supplied rather than discovered, like everything else here: this package can see no
+	// screen. They are what makes it possible to ask whether a geometric match is the
+	// control it was matched to — see observe.ControlIdentityOf. Both empty is the
+	// ordinary case for a run with no reader, and means the question is not asked rather
+	// than answered badly.
+	Candidates []observe.Region
+	Words      []observe.ReadWord
 }
 
 // StepReadiness is one step examined against one observation.
@@ -132,7 +152,38 @@ type StepReadiness struct {
 	// itself — would be a second statement of this arithmetic, which is this subsystem's
 	// recorded failure mode.
 	Found *observe.PointerAt
+	// Grounding is WHAT KIND OF EVIDENCE put the target where it is.
+	//
+	// Separate from `Stage` because a plannable step is plannable either way, and a
+	// report that said "re-acquired" for all of them would describe a geometric
+	// coincidence in the same words as a corroborated identity. Experiment-044 is
+	// exactly that sentence being believed: `re-acquired on this look` was printed over
+	// a patch of pitch.
+	Grounding Grounding
+	// Identity is what the words on this look made of the match, when there were any.
+	// Carried so a reader can see the question was asked and what it answered, including
+	// when the answer was "there was nothing to ask with".
+	Identity observe.ControlIdentity
 }
+
+// Grounding is what kind of evidence placed a step's target.
+type Grounding string
+
+const (
+	// GroundingNone: no target.
+	GroundingNone Grounding = ""
+	// GroundingGeometric: a proposer drew a box in the same place as the saved reading,
+	// and nothing on this look either corroborated or contradicted it. This is the
+	// WEAKEST thing that may still be pressed, and it is what every run before
+	// Experiment-044 called "re-acquired".
+	GroundingGeometric Grounding = "geometrically re-acquired"
+	// GroundingCorroborated: and the words inside it say what this control is recorded
+	// as saying.
+	GroundingCorroborated Grounding = "geometrically re-acquired and semantically corroborated"
+	// GroundingRegrounded: the saved reading was set aside and the region was
+	// established from this screen, by the repair.
+	GroundingRegrounded Grounding = "semantically re-grounded for this session"
+)
 
 // Ready reports whether this step could be lowered.
 func (s StepReadiness) Ready() bool { return s.Stage == StepPlannable }
@@ -288,6 +339,38 @@ func (a Artifact) StepReadinessAt(at int, s *SessionBinding, now Now) StepReadin
 		where = agreed
 	}
 
+	// ── 4c. AND IS WHAT WAS MATCHED THIS CONTROL ──
+	//
+	// Everything above establishes OVERLAP. `sameControl` is mutual centre containment
+	// and consults no pixels and no text, so a proposer that boxed a patch of background
+	// inside the recorded rectangle re-acquires perfectly — which is what Experiment-044
+	// pressed, 75px above a PLAY button whose label was read on the very same look.
+	//
+	// So this is the last question before a point exists, and it is asked in one
+	// direction only: text may REFUSE a match and may never propose one. A refusal sends
+	// the step to the repair, which is the thing allowed to nominate a region.
+	//
+	// NOT asked about a repaired region. The repair established it by reading this screen
+	// — asking the same words to confirm themselves would be a second vote from one
+	// source, and `GroundingRegrounded` already says what the evidence was.
+	r.Grounding = GroundingGeometric
+	if repaired {
+		r.Grounding = GroundingRegrounded
+	} else if len(now.Words) > 0 {
+		wanted, from := a.ExpectedWords(st.Control)
+		r.Identity = observe.ControlIdentityOf(where, now.Candidates, now.Words, wanted)
+		switch {
+		case r.Identity.Contradicted():
+			r.Stage = StepControlContradicted
+			r.Because = fmt.Sprintf("%s was matched by position only, and %s. The "+
+				"words it is being checked against are %s",
+				st.Control, r.Identity.Because, from)
+			return r
+		case r.Identity.Result == observe.IdentityCorroborated:
+			r.Grounding = GroundingCorroborated
+		}
+	}
+
 	// THE CONTROL IS WHERE IT WAS FOUND, which the person asked for authorisation needs
 	// to be shown and which nothing downstream may compute for itself. See Found.
 	centre := observe.PointerAt{
@@ -346,6 +429,44 @@ func (a Artifact) readingsOf(label string) []observe.Region {
 		}
 	}
 	return nil
+}
+
+// ExpectedWords is what one control is recorded as saying, and where that came from.
+//
+// # Two sources, and they are not equally good
+//
+// A demonstration that recorded the text ON the control has somebody's actual intent in it: they
+// clicked the thing that said PLAY. The workflow's NAME has only the task, and matching a label
+// against it is the workflow corroborating itself — enough to nominate a candidate, and reported
+// everywhere as weaker than somebody pointing at it.
+//
+// So the saved text wins whenever there is any, and the provenance is returned beside the words
+// rather than left for a caller to guess, because a report that did not distinguish them would
+// make the weak case read like the strong one. No demonstration writes `Control.Text` yet; see
+// the field.
+func (a Artifact) ExpectedWords(label string) (words []string, from string) {
+	for _, c := range a.Controls {
+		if c.Label != label {
+			continue
+		}
+		var saved []string
+		for _, t := range c.Text {
+			saved = append(saved, observe.Words(t)...)
+		}
+		if len(saved) > 0 {
+			return saved, fmt.Sprintf("the text the demonstration read on this "+
+				"control (%q)", strings.Join(c.Text, " "))
+		}
+		break
+	}
+	// THE WORDS THEMSELVES, not just where they came from. A reader weighing a repair
+	// has to see what was matched against, and a provenance without its content makes
+	// the decision unauditable from the report alone.
+	if w := observe.Words(a.Name); len(w) > 0 {
+		return w, fmt.Sprintf("the workflow's own name (%q), which is weaker than "+
+			"somebody pointing", a.Name)
+	}
+	return nil, "nothing recorded says what this control should say"
 }
 
 // ── progress ──────────────────────────────────────────────────────────────────

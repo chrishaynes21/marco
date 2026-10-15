@@ -21,9 +21,11 @@ package workflowrun
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
+	"github.com/chaynes-simpleclouds/marco/internal/director/workflowstore"
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 )
 
@@ -127,6 +129,15 @@ type Intent struct {
 	Where observe.Region
 	// Because is how the control was re-acquired, in the matcher's own words.
 	Because string
+	// Grounding is WHAT KIND of evidence put the target here, and Said what the
+	// region was read as saying when anything read it.
+	//
+	// Shown because the person being asked for permission is being asked about a
+	// point, and "a proposer drew a box in the same place as the recorded one" and
+	// "and it says PLAY" are not the same claim. Experiment-044 printed the first and
+	// meant it, over a patch of pitch.
+	Grounding workflowstore.Grounding
+	Said      string
 }
 
 // Describe is the one-line form a prompt shows.
@@ -144,11 +155,21 @@ func (i Intent) Target(w, h int) string {
 	if i.Where.Width <= 0 || i.Where.Height <= 0 {
 		return "no region was recorded for this target"
 	}
+	// NEVER "re-acquired" UNQUALIFIED. A geometric match and a corroborated one are
+	// different evidence and the line that showed them identically is the one a
+	// person read before a press into the background.
+	how := string(i.Grounding)
+	if how == "" {
+		how = string(workflowstore.GroundingGeometric)
+	}
+	if i.Said != "" {
+		how += ", reading " + strconv.Quote(i.Said)
+	}
 	return fmt.Sprintf("the middle of a region at x %.4f..%.4f, y %.4f..%.4f "+
-		"(%dx%d px at %d,%d in the window), re-acquired on this look",
+		"(%dx%d px at %d,%d in the window), %s",
 		i.Where.X, i.Where.X+i.Where.Width, i.Where.Y, i.Where.Y+i.Where.Height,
 		int(i.Where.Width*float64(w)), int(i.Where.Height*float64(h)),
-		int(i.Where.X*float64(w)), int(i.Where.Y*float64(h)))
+		int(i.Where.X*float64(w)), int(i.Where.Y*float64(h)), how)
 }
 
 // Granter is asked for the right to perform one action.

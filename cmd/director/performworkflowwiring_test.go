@@ -124,6 +124,27 @@ func TestPerformWorkflowInstallsItsGates(t *testing.T) {
 		{"epoch:      obs.Epoch(),",
 			"a reading with no observation generation cannot be refused when " +
 				"the screen moves on"},
+		// AND THE LOOK CARRIES ITS CANDIDATES AND ITS WORDS TO READINESS.
+		//
+		// Both halves again, and the failure of either is silent. Without the
+		// candidates there is nothing for a word to be read INSIDE, so every
+		// match is unexamined and a geometric coincidence is pressed —
+		// Experiment-044, which pressed grass 75px above a PLAY button whose
+		// label was read on the same look. Without the words there is nothing
+		// to examine with, and the run spends OCR on a question it never asks.
+		{"at.Candidates = append(",
+			"without it readiness sees no regions, so no word can be attributed " +
+				"to one and no match can ever be contradicted"},
+		{"at.Words = said",
+			"without it the words are read, admitted, and never reach the only " +
+				"place that could refuse a match with them"},
+		// AND THEY ARE DROPPED WHEN THE OBSERVATION MOVES ON. A reading held
+		// across a screen change is a reading of a screen that has gone, and
+		// using it to refuse a match on a new one is the defect ADR-195 exists
+		// to prevent, arriving by a different door.
+		{"observe.Current(saidGen, saidEpoch,",
+			"without the check the last words read stand forever, and a menu " +
+				"left and returned to is judged by what the old one said"},
 		{"newConsentDesk(src.Consents(), func() { run.Stop() })",
 			"without the stop function the stop key is a key that prints " +
 				"something"},

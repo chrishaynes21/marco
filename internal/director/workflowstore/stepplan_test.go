@@ -640,6 +640,187 @@ func TestARepairAnswersAControlThatCouldNotBeSeenAtAll(t *testing.T) {
 	}
 }
 
+// ── is what was matched this control ──────────────────────────────────────────
+
+// saying places one word inside a region.
+func saying(text string, r observe.Region) observe.ReadWord {
+	return observe.ReadWord{Text: text, Where: observe.Region{
+		X: r.X + r.Width/4, Y: r.Y + r.Height/4,
+		Width: r.Width / 2, Height: r.Height / 2,
+	}}
+}
+
+// EXPERIMENT-044: A GEOMETRIC MATCH ONTO SOMETHING THAT IS NOT THE CONTROL IS REFUSED.
+//
+// Measured live: a proposer boxed a patch of pitch inside the recorded rectangle, the
+// matcher reported MATCHED because each box contains the other's centre, and the step
+// pressed 75px above a PLAY button whose label was read on the same look.
+func TestAMatchOntoSomethingElseIsRefusedBeforeItBecomesAPress(t *testing.T) {
+	a := threeScreens(t)
+	s, now := ready(t, a)
+	matched := rect(100, 100, 200, 40)
+	elsewhere := rect(100, 300, 200, 40)
+	now.Candidates = []observe.Region{matched, elsewhere}
+	now.Words = []observe.ReadWord{saying("FREE PLAY", elsewhere)}
+
+	got := a.StepReadinessAt(0, s, now)
+	if got.Ready() {
+		t.Fatalf("a match onto a region that says nothing was plannable at %+v",
+			got.Action)
+	}
+	if got.Stage != workflowstore.StepControlContradicted {
+		t.Fatalf("stage %q -- %s", got.Stage, got.Because)
+	}
+	// THE PROVENANCE OF THE WORDS IS IN THE REFUSAL. A workflow name agreeing with a
+	// label is weaker evidence than a demonstration recording one, and a reader who
+	// cannot tell which was used cannot weigh the refusal.
+	for _, want := range []string{"open free play", "weaker than somebody pointing"} {
+		if !strings.Contains(got.Because, want) {
+			t.Errorf("the refusal does not say %q:\n%s", want, got.Because)
+		}
+	}
+}
+
+// AND A MATCH THAT SAYS WHAT IT SHOULD IS PLANNABLE, AND SAYS SO.
+func TestACorroboratedMatchIsPlannableAndReportedAsCorroborated(t *testing.T) {
+	a := threeScreens(t)
+	s, now := ready(t, a)
+	matched := rect(100, 100, 200, 40)
+	now.Candidates = []observe.Region{matched}
+	now.Words = []observe.ReadWord{saying("FREE PLAY", matched)}
+
+	got := a.StepReadinessAt(0, s, now)
+	if !got.Ready() {
+		t.Fatalf("stage %q -- %s", got.Stage, got.Because)
+	}
+	if got.Grounding != workflowstore.GroundingCorroborated {
+		t.Errorf("grounding %q, want it to say the words agreed", got.Grounding)
+	}
+	if got.Identity.Said != "FREE PLAY" {
+		t.Errorf("it was read as %q", got.Identity.Said)
+	}
+}
+
+// AND A MATCH NOTHING CONTRADICTS IS PLANNABLE, AND IS NOT CALLED CORROBORATED.
+//
+// The case that keeps every unlabelled control in every application pressable: an icon, a
+// label drawn outside the clickable rectangle, an OCR that missed. Missing evidence is not
+// contradictory evidence -- and it is not corroboration either, so the report must not
+// describe a geometric coincidence in the words it uses for an identity.
+func TestAnUnlabelledMatchIsPlannableAndReportedAsGeometryOnly(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		words []observe.ReadWord
+	}{
+		{"nothing was read at all", nil},
+		{"words, none of them about this control", []observe.ReadWord{
+			saying("GARAGE", rect(100, 300, 200, 40))}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := threeScreens(t)
+			s, now := ready(t, a)
+			now.Candidates = []observe.Region{rect(100, 100, 200, 40),
+				rect(100, 300, 200, 40)}
+			now.Words = tc.words
+
+			got := a.StepReadinessAt(0, s, now)
+			if !got.Ready() {
+				t.Fatalf("stage %q -- %s", got.Stage, got.Because)
+			}
+			if got.Grounding != workflowstore.GroundingGeometric {
+				t.Errorf("grounding %q, want geometry alone", got.Grounding)
+			}
+		})
+	}
+}
+
+// AND TWO CANDIDATES NAMED THE SAME REFUSE THE MATCH AND CHOOSE NEITHER.
+func TestCompetingCandidatesRefuseTheMatchAndChooseNeither(t *testing.T) {
+	a := threeScreens(t)
+	s, now := ready(t, a)
+	one, two := rect(100, 300, 200, 40), rect(100, 400, 200, 40)
+	now.Candidates = []observe.Region{rect(100, 100, 200, 40), one, two}
+	now.Words = []observe.ReadWord{saying("FREE PLAY", one), saying("FREE PLAY", two)}
+
+	got := a.StepReadinessAt(0, s, now)
+	if got.Stage != workflowstore.StepControlContradicted {
+		t.Fatalf("stage %q -- %s", got.Stage, got.Because)
+	}
+	if got.Found != nil || got.Action != nil {
+		t.Errorf("a refused match offered a point anyway: %+v %+v",
+			got.Found, got.Action)
+	}
+	if !strings.Contains(got.Because, "nothing chooses between them") {
+		t.Errorf("the refusal reads as though it had an answer:\n%s", got.Because)
+	}
+}
+
+// AND A REPAIRED REGION IS NOT ASKED TO CONFIRM ITSELF.
+//
+// The repair established it by reading this screen. Asking the same words whether they agree
+// would be one source voting twice, and `GroundingRegrounded` already says what the evidence
+// was -- including that it is the workflow agreeing with itself.
+func TestARepairedRegionIsNotCheckedAgainstTheWordsThatMadeIt(t *testing.T) {
+	a := threeScreens(t)
+	s, now := ready(t, a)
+	live := rect(100, 300, 200, 40)
+	now.Reground = map[string]observe.Region{a.Steps[0].Control: live}
+	// Words that would contradict any geometric match, and must not be consulted.
+	now.Candidates = []observe.Region{live, rect(100, 500, 200, 40)}
+	now.Words = []observe.ReadWord{saying("FREE PLAY", rect(100, 500, 200, 40))}
+
+	got := a.StepReadinessAt(0, s, now)
+	if !got.Ready() {
+		t.Fatalf("stage %q -- %s", got.Stage, got.Because)
+	}
+	if got.Grounding != workflowstore.GroundingRegrounded {
+		t.Errorf("grounding %q, want the repair named as the evidence", got.Grounding)
+	}
+}
+
+// THE CONTROL'S OWN SAVED TEXT WINS OVER THE WORKFLOW'S NAME, AND THE REPORT SAYS WHICH.
+//
+// No demonstration writes `Control.Text` yet, and the preference is a rule rather than a
+// convenience: a fallback nothing could ever be preferred over would quietly become the only
+// rule there is.
+func TestSavedControlTextIsPreferredOverTheWorkflowName(t *testing.T) {
+	a := threeScreens(t)
+	for i := range a.Controls {
+		if a.Controls[i].Label == a.Steps[0].Control {
+			a.Controls[i].Text = []string{"FREE PLAY"}
+		}
+	}
+	words, from := a.ExpectedWords(a.Steps[0].Control)
+	if strings.Join(words, " ") != "free play" {
+		t.Errorf("matching against %v", words)
+	}
+	if !strings.Contains(from, "demonstration read on this control") {
+		t.Errorf("the provenance is %q", from)
+	}
+
+	// AND THE SAVED TEXT IS WHAT CONTRADICTS, not the name that would also have
+	// matched. "open free play" covers CUSTOM TRAINING no better, so the two are
+	// separated by a control whose text the name does NOT contain.
+	for i := range a.Controls {
+		if a.Controls[i].Label == a.Steps[0].Control {
+			a.Controls[i].Text = []string{"CUSTOM TRAINING"}
+		}
+	}
+	s, now := ready(t, a)
+	matched, other := rect(100, 100, 200, 40), rect(100, 300, 200, 40)
+	now.Candidates = []observe.Region{matched, other}
+	now.Words = []observe.ReadWord{saying("CUSTOM TRAINING", other)}
+
+	got := a.StepReadinessAt(0, s, now)
+	if got.Stage != workflowstore.StepControlContradicted {
+		t.Fatalf("stage %q -- %s", got.Stage, got.Because)
+	}
+	if !strings.Contains(got.Because, "demonstration read on this control") {
+		t.Errorf("the refusal does not name the stronger evidence:\n%s",
+			got.Because)
+	}
+}
+
 // AND IT IS NOT NARROWED AGAINST THE READINGS IT EXISTS TO REPLACE.
 //
 // The agreement rule asks "what do the file and this look both describe", and both of its inputs

@@ -144,6 +144,15 @@ type Sighting struct {
 	// Outcomes is what re-acquisition said about this look, from the caller's own
 	// candidate set. Passed through to `workflowstore` untouched.
 	Outcomes []observe.Reacquisition
+	// Candidates is every region the sources proposed on this look and Words every
+	// word read on it, both normalised to the window, and both passed through
+	// untouched as well.
+	//
+	// They are what lets readiness ask whether a geometric match IS the control it
+	// was matched to. This package neither looks nor judges: a coordinator that
+	// decided what a region said would be deciding its own click target.
+	Candidates []observe.Region
+	Words      []observe.ReadWord
 	// At is when the look was taken.
 	At time.Time
 }
@@ -583,7 +592,8 @@ func (r *Runner) Advance(ctx context.Context, s *workflowstore.SessionBinding,
 
 	now := workflowstore.Now{
 		Screen: at.Screen, Epoch: at.Epoch, Generation: at.Generation,
-		Outcomes: at.Outcomes,
+		Outcomes:   at.Outcomes,
+		Candidates: at.Candidates, Words: at.Words,
 	}
 
 	// ── 3. WHAT DOES THIS OBSERVATION SAY ABOUT THE CURRENT STEP'S DESTINATION ──
@@ -923,6 +933,11 @@ func (r *Runner) intentOf(ready workflowstore.StepReadiness, at Sighting) Intent
 	in := Intent{
 		Step: r.cursor, Expect: ready.Expect,
 		Epoch: at.Epoch, Generation: at.Generation, Window: at.Window,
+		// ON WHAT EVIDENCE, carried through untouched. Readiness decided it; a
+		// coordinator that recomputed the kind of grounding here would be a second
+		// account of one fact, and this subsystem's recorded failure mode is two
+		// statements of one fact drifting apart.
+		Grounding: ready.Grounding, Said: ready.Identity.Said,
 	}
 	if r.cursor < len(r.art.Steps) {
 		in.Control = r.art.Steps[r.cursor].Control
@@ -1017,6 +1032,13 @@ func (r *Runner) halted(ctx context.Context) (bool, string) {
 func (r *Runner) wantsReground(stage workflowstore.StepStage) bool {
 	switch stage {
 	case workflowstore.StepControlUnlocated:
+		return true
+	case workflowstore.StepControlContradicted:
+		// AT ONCE, and this is the one that needs no window at all. The evidence is
+		// positive and already in hand: something on THIS look is named as this
+		// control is, and the thing that was matched is not it. Waiting could only
+		// produce the same answer more slowly, and the repair is being asked to
+		// weigh a candidate that has already been seen.
 		return true
 	case workflowstore.StepControlUnresolved:
 		// THE LAST LOOK, counted the way section 8 counts it: `looks` is

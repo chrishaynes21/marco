@@ -35,6 +35,7 @@ import (
 	"context"
 	"image"
 	"os"
+	"strings"
 	"sync/atomic"
 
 	"github.com/chaynes-simpleclouds/marco/internal/bridgehost"
@@ -144,15 +145,40 @@ func (e *readingEyes) run(ctx context.Context) {
 				continue
 			}
 			e.answered.Add(1)
+			// THE FRAME THAT WAS ACTUALLY READ, which is the shrunken one, so
+			// every box comes back in its coordinates and not the window's.
+			b := shrink(f.img, readScale).Bounds()
+			w, h := float64(b.Dx()), float64(b.Dy())
 			var phrases []string
+			var placed []observe.ReadWord
 			for _, g := range got {
 				if g.Text == "" || g.Bounds.Empty() {
 					continue
 				}
 				phrases = append(phrases, g.Text)
+				if w <= 0 || h <= 0 {
+					continue
+				}
+				// EACH WORD SEPARATELY, because a phrase's rectangle is the
+				// span of several words and a span is not inside the row one
+				// of them sits in. The box is shared by the words it holds:
+				// the engine reports a line, and splitting its rectangle on
+				// character counts would invent positions nothing measured.
+				for _, word := range strings.Fields(g.Text) {
+					placed = append(placed, observe.ReadWord{
+						Text: word,
+						Where: observe.Region{
+							X:      float64(g.Bounds.Min.X-b.Min.X) / w,
+							Y:      float64(g.Bounds.Min.Y-b.Min.Y) / h,
+							Width:  float64(g.Bounds.Dx()) / w,
+							Height: float64(g.Bounds.Dy()) / h,
+						},
+					})
+				}
 			}
 			r := observe.ScreenReading{
 				Text:     observe.TextOf(directorapi.SourceOCR, phrases),
+				Words:    placed,
 				FromLook: f.look,
 				// THE CONTEXT THE PIXELS WERE READ IN, which is the whole of
 				// what makes a late reading safe. The observer refuses one

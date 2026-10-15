@@ -346,6 +346,13 @@ func runPerformWorkflow(args []string) int {
 	var blind int
 	var blindWhy string
 	var look int
+	// WHAT WAS LAST READ, AND THE CONTEXT THAT KEEPS IT CURRENT.
+	//
+	// Held across looks because OCR answers far less often than the loop looks, and
+	// dropped the moment `observe.Current` stops being true of it — which is the moment a
+	// screen change is recorded, not the moment a different screen is standing.
+	var said []observe.ReadWord
+	var saidGen, saidEpoch uint64
 	opt := structure.DefaultOptions()
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -441,12 +448,38 @@ func runPerformWorkflow(args []string) int {
 		}
 		ground.arrangement = obs.Arrangement(up.Screen)
 
-		// WHAT THE SOURCES FOUND ON THIS LOOK, handed over because the repair
-		// cannot look for itself. Both sources, and only regions that locate
-		// something: a band is never a candidate for replacing a band.
+		// WHAT THE SOURCES FOUND ON THIS LOOK, handed over because neither the
+		// repair nor the coordinator can look for itself. Both sources, and only
+		// regions that locate something: a band is never a candidate for
+		// replacing a band.
+		at.Candidates = append(append([]observe.Region{}, lk.Regions...),
+			fresh(lk.Slow, obs.Epoch(), v.Ref.Generation)...)
 		if repairs != nil {
-			repairs.candidates = append(append([]observe.Region{}, lk.Regions...),
-				fresh(lk.Slow, obs.Epoch(), v.Ref.Generation)...)
+			repairs.candidates = at.Candidates
+		}
+
+		// AND WHAT WAS READ ON IT, WHICH IS OLDER THAN IT AND STILL CURRENT.
+		//
+		// OCR answers about twice a second against a loop that looks ten times, so
+		// most looks have no reading of their own and the last one stands. What
+		// makes that safe is the same rule the readings themselves go through:
+		// `observe.Current` is true only while NO SCREEN CHANGE has happened since
+		// the frame was captured, which is a demonstrably continuous interval and
+		// not the weaker "the same screen is standing".
+		// See [[ADR-195-a-reading-that-arrives-after-the-look-it-describes]].
+		for _, rd := range lk.Readings {
+			if ok, _ := at.Usable(); !ok {
+				break
+			}
+			if !rd.Admissible(v.Ref.Generation, up.Epoch) || len(rd.Words) == 0 {
+				continue
+			}
+			said, saidGen, saidEpoch = rd.Words, rd.Generation, rd.Epoch
+		}
+		if observe.Current(saidGen, saidEpoch, v.Ref.Generation, up.Epoch) {
+			at.Words = said
+		} else {
+			said = nil
 		}
 
 		a := run.Advance(ctx, session, at)

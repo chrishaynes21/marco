@@ -56,6 +56,16 @@ type ScreenReading struct {
 	// observation generation it was captured under.
 	Generation uint64
 	Epoch      uint64
+	// Words is the same reading with each word's rectangle kept, normalised to the
+	// window.
+	//
+	// `Text` is a vocabulary — what the screen says, with position thrown away — and
+	// that is right for screen identity, where a label moving down a list does not make
+	// a new screen. It is not enough to ask WHICH REGION said something, which is what
+	// separates a control from the one above it. Carried on the same value and under the
+	// same stamps, so one admission rule covers both and a caller cannot reach the
+	// positions of a reading whose observation has moved on.
+	Words []ReadWord
 }
 
 // Current reports whether a result computed under one context is still about the context

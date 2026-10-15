@@ -91,8 +91,9 @@ next live run a proposer happened to box a patch of pitch inside the old rectang
 no pixels and no text. So *"re-acquired on this look"* means only **a proposer drew a box in the
 same place**, and a wrong match reaches the press ahead of the repair that would have been right.
 
-That is open, and [[Experiment-044-two-live-runs-that-pressed-nothing-and-pressed-grass]] states
-it as the next decision rather than guessing at it here.
+That is [[ADR-197-a-geometric-match-nominates-and-does-not-identify]], which refuses such a match
+before it becomes a press and hands it to the repair this ADR made reachable — in a single look,
+because a contradiction needs no patience window to tell it from a transient.
 
 ## Enforced by
 

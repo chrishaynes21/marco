@@ -140,6 +140,22 @@ type Control struct {
 	// target hard, and discarded evidence cannot later contradict a match.
 	Readings   []observe.Region `json:"readings,omitempty"`
 	Containers []observe.Region `json:"containers,omitempty"`
+	// Text is what the demonstration read ON this control, and it is the strongest
+	// evidence of identity the artifact can carry.
+	//
+	// # Why it is empty in every artifact recorded so far
+	//
+	// Because no demonstration writes it yet. `Label` is a generated name — `control_1`
+	// — and the measured artifact records no text, no label and no container, so the one
+	// human-supplied meaning in it is the workflow's own NAME. That is what
+	// [[ADR-193-a-control-re-grounded-from-the-workflows-own-name]] matches against, and
+	// it is weak on purpose: a workflow agreeing with itself is not somebody pointing.
+	//
+	// The field exists ahead of the recorder because the PREFERENCE is a rule, not a
+	// convenience — asked for in `ExpectedWords`, reported with its provenance wherever
+	// it decides anything, and held by a test on both branches. A fallback that nothing
+	// could ever prefer over would quietly become the only rule there is.
+	Text []string `json:"text,omitempty"`
 }
 
 // Step is one demonstrated move, at its position in the walk.

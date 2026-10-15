@@ -8,7 +8,7 @@ backend:
   - vision
 game: rocketleague
 fixture: "live Rocket League, main menu, 1920x1080, --explore --learned --reading"
-result: the-menu-had-moved-and-re-acquisition-cannot-tell-a-button-from-the-pitch-behind-it
+result: the-menu-had-moved-and-re-acquisition-cannot-tell-a-button-from-the-pitch-behind-it-which-text-now-refuses
 supersedes: []
 affects:
   - passive-observation
@@ -136,7 +136,40 @@ first of them is that OCR landed inside the window on real game frames: of 10 re
 [[ADR-195-a-reading-that-arrives-after-the-look-it-describes]] holds up live — on a screen that
 never changed, so it was never asked to discriminate anything.
 
-## The next decision, stated rather than guessed
+## And then the answer, on the same menu
+
+One frame of that signed-out menu, through the production detector and the production OCR
+at the production scale, against the region the live run actually matched:
+
+```
+  the detector proposed 7 region(s); OCR read 35 word(s) at half size
+  * "PLAY"        x  60.. 367  y  564.. 608    the only candidate named in the task
+    "GARAGE"      x  59.. 368  y  610.. 654
+    "CLUB"        x  59.. 368  y  658.. 703
+    "PROFILE "    x  59.. 367  y  706.. 750
+    "SETTINGS"    x  59.. 367  y  752.. 797
+
+  the region the live run pressed:  x 100.. 227  y 478.. 501
+    verdict: contradicted by a better-named candidate
+    instead: "PLAY" at x 60..367 y 564..608
+```
+
+**The press that was sent would not have been sent.** The matched region reads nothing, the
+PLAY row 86px below it reads PLAY, and exactly one candidate on the whole screen is worded
+in "enter free play" -- so the repair that follows the refusal has an unambiguous answer and
+grounds the row the person would have clicked.
+
+The rule is [[ADR-197-a-geometric-match-nominates-and-does-not-identify]]. It is the
+asymmetry from [[ADR-194-a-screen-is-also-what-it-says]] one level down: text may REFUSE a
+match and may never propose one, and the contradiction is a competing candidate rather than
+a silence -- because an icon, a label drawn outside its clickable rectangle and an OCR that
+missed all look identical from here, and refusing on any of them would make every unlabelled
+control in every application unpressable on a bad frame.
+
+**Not performed live.** The verification above is offline, on real pixels from the menu that
+produced the defect.
+
+## The decision this produced
 
 What corroborates a geometric match before it becomes a press. The candidate that fits what is
 already built is the asymmetry
@@ -145,13 +178,21 @@ may never propose one.** A control matched to a region where nothing is read, wh
 workflow's own name points at is plainly on screen elsewhere, is a match to refuse — and the
 refusal reaches the regrounder, which grounds it by that word.
 
-That needs the look's words on the readiness path, which they do not currently reach. It is a
-trust-boundary change — it decides what licenses a press — and it is recorded here as the next
-decision rather than taken in passing.
+It needed the look's words on the readiness path, which they did not reach. That is a
+trust-boundary change — it decides what licenses a press — so it was put to the person who owns
+that boundary rather than taken in passing, and it is
+[[ADR-197-a-geometric-match-nominates-and-does-not-identify]].
+
+The bound that came back with the approval is the one that makes it safe: **absence of text must
+not invalidate a match.** A control may be an icon, its label may be drawn outside its clickable
+rectangle, or OCR may have missed it, and those are indistinguishable from here. The meaningful
+contradiction is a competing, positively identified candidate elsewhere — nothing less.
 
 ## Related
 
-- [[ADR-196-a-control-that-moved-is-not-a-control-that-was-covered]] — the rule this produced.
+- [[ADR-196-a-control-that-moved-is-not-a-control-that-was-covered]] — the first rule this produced.
+- [[ADR-197-a-geometric-match-nominates-and-does-not-identify]] — the second, and the one that
+  refuses the press.
 - [[ADR-193-a-control-re-grounded-from-the-workflows-own-name]] — the repair, and its bounds.
 - [[ADR-190-the-pointer-arrives-before-the-button-goes-down]] — the hover probe that said no.
 - [[Experiment-041-the-control-Marco-found-for-itself]] — the same button, three clicks, 136.7/255.

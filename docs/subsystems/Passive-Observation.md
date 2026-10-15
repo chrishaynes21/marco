@@ -1231,13 +1231,21 @@ it refuses those looks. Visible is fine; in front is not.
   repair now answers "can it be seen now" at all, which it could not before.
   [[ADR-196-a-control-that-moved-is-not-a-control-that-was-covered]],
   [[Experiment-044-two-live-runs-that-pressed-nothing-and-pressed-grass]]
-- **And re-acquisition cannot tell a button from the pitch behind it.** OPEN. The
+- **And re-acquisition cannot tell a button from the pitch behind it.** The
   next run matched a 128x24 patch of grass inside the old rectangle and pressed it,
   75px above the real button: `sameControl` is mutual centre containment and consults
   no pixels and no text, so "re-acquired on this look" means only that a proposer drew
   a box in the same place. A wrong match reaches the press AHEAD of the repair that
   would have been right. The hover probe measured 0.0/255 against 136.7 for the same
-  button in Experiment-041, said so, and nothing used it.
+  button in Experiment-041, said so, and nothing used it. So a geometric match now
+  NOMINATES and does not identify: text may refuse a match and may never propose
+  one, and the contradiction is a competing candidate rather than a silence --
+  missing evidence is not contradictory evidence, or every unlabelled control in
+  every application becomes unpressable on a bad frame. A refusal falls through to
+  the repair, which grounds the control by what it says. Verified offline on the
+  menu that produced the defect: the pressed region reads nothing, PLAY reads PLAY
+  86px below it, and exactly one candidate is worded in the task.
+  [[ADR-197-a-geometric-match-nominates-and-does-not-identify]],
   [[Experiment-044-two-live-runs-that-pressed-nothing-and-pressed-grass]]
 - **The learned detector runs in the live loop now, beside the proposer.** On the Play
   page the proposer cannot see the Training tile at all — its only covering proposal is

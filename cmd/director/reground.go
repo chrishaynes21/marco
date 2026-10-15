@@ -50,7 +50,6 @@ import (
 	"io"
 	"os"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
@@ -96,12 +95,16 @@ func (g *regrounder) Reground(ctx context.Context, step int, control string,
 	fmt.Fprintf(g.out, "\n  step %d: %s %s. Looking for it on the screen instead.\n",
 		step, control, whyRegrounding(stage))
 
-	// THE WORDS THE PERSON USED FOR THIS TASK. The only human-supplied meaning in the
-	// artifact; everything else in it is a generated name.
-	wanted := words(g.art.Name)
+	// WHAT THIS CONTROL IS RECORDED AS SAYING, and where that came from.
+	//
+	// The text a demonstration read ON the control is somebody's actual intent and
+	// wins whenever there is any. The workflow's NAME is the fallback, and it is the
+	// workflow corroborating itself -- which is why the provenance is printed beside
+	// the decision rather than left for a reader to assume.
+	wanted, from := g.art.ExpectedWords(control)
 	if len(wanted) == 0 {
-		fmt.Fprintf(g.out, "    the workflow has no name to match against, so there "+
-			"is nothing here that says which control was meant\n")
+		fmt.Fprintf(g.out, "    %s, so there is nothing here that says which "+
+			"control was meant\n", from)
 		return observe.Region{}, "", false
 	}
 
@@ -140,14 +143,14 @@ func (g *regrounder) Reground(ctx context.Context, step int, control string,
 
 	var matched []labelled
 	for _, c := range cands {
-		if c.text != "" && covered(words(c.text), wanted) {
+		if c.text != "" && observe.Covered(observe.Words(c.text), wanted) {
 			matched = append(matched, c)
 		}
 	}
 
-	fmt.Fprintf(g.out, "    the workflow is called %q; %d region(s) are candidates, "+
-		"%d of them carry text and %d of those are worded in its name:\n",
-		g.art.Name, len(cands), withText, len(matched))
+	fmt.Fprintf(g.out, "    matching against %s; %d region(s) are candidates, "+
+		"%d of them carry text and %d of those are worded in it:\n",
+		from, len(cands), withText, len(matched))
 	// THE ONES CARRYING TEXT FIRST.
 	//
 	// The listing is here so somebody can weigh the decision, and on the measured run it
@@ -166,7 +169,7 @@ func (g *regrounder) Reground(ctx context.Context, step int, control string,
 			break
 		}
 		mark := " "
-		if c.text != "" && covered(words(c.text), wanted) {
+		if c.text != "" && observe.Covered(observe.Words(c.text), wanted) {
 			mark = "*"
 		}
 		fmt.Fprintf(g.out, "    %s %-28q %s\n", mark, c.text, pxOf(c.region))
@@ -175,16 +178,16 @@ func (g *regrounder) Reground(ctx context.Context, step int, control string,
 	switch len(matched) {
 	case 1:
 		c := matched[0]
-		why := fmt.Sprintf("the only control on this screen whose text (%q) is made "+
-			"of words from the workflow's own name (%q)", c.text, g.art.Name)
+		why := fmt.Sprintf("the only control on this screen whose text (%q) is "+
+			"made of %s", c.text, from)
 		fmt.Fprintf(g.out, "    re-grounded: %s\n", why)
 		fmt.Fprintf(g.out, "    this is the workflow agreeing with itself, which is "+
 			"weaker than somebody pointing at it\n")
 		return c.region, why, true
 	case 0:
-		fmt.Fprintf(g.out, "    nothing on this screen is named in the workflow's "+
-			"own name, so which control was meant is not recoverable from "+
-			"what was saved\n")
+		fmt.Fprintf(g.out, "    nothing on this screen is named in %s, so which "+
+			"control was meant is not recoverable from what was saved\n",
+			from)
 	default:
 		fmt.Fprintf(g.out, "    %d candidates match equally and nothing here chooses "+
 			"between them\n", len(matched))
@@ -194,95 +197,55 @@ func (g *regrounder) Reground(ctx context.Context, step int, control string,
 
 // labelledCandidates pairs each candidate region with the words read inside it.
 //
-// A word belongs to a candidate when its box is inside that candidate's. Smallest containing
-// candidate wins, so a tile and the panel behind it do not both claim the same label.
+// The rule itself lives in `observe.NameCandidates`, because readiness asks the same
+// question of the same candidates one step earlier -- whether the region a geometric match
+// landed on is the control it was matched to -- and two implementations of "which candidate
+// said this" would eventually disagree. The shape of that disagreement is a repair that
+// nominates a region readiness would then refuse. All that is left here is the conversion
+// from the pixels OCR answers in to the normalised window this subsystem speaks.
 func (g *regrounder) labelledCandidates(read []readWord, bounds image.Rectangle) []labelled {
 	w, h := float64(bounds.Dx()), float64(bounds.Dy())
 	if w <= 0 || h <= 0 {
 		return nil
 	}
-	out := make([]labelled, 0, len(g.candidates))
-	for _, r := range g.candidates {
-		if ok, _ := r.Locates(); !ok {
-			continue // a band is not a candidate, whatever is written on it
-		}
-		out = append(out, labelled{region: r, from: directorapi.SourceVision})
-	}
-	// Smallest first, so the tightest region that contains a word takes it.
-	sort.Slice(out, func(i, j int) bool { return out[i].region.Area() < out[j].region.Area() })
+	placed := make([]observe.ReadWord, 0, len(read))
 	for _, word := range read {
-		wr := observe.Region{
+		placed = append(placed, observe.ReadWord{Text: word.Text, Where: observe.Region{
 			X: float64(word.X) / w, Y: float64(word.Y) / h,
 			Width: float64(word.W) / w, Height: float64(word.H) / h,
-		}
-		for i := range out {
-			if inside(wr, out[i].region) {
-				out[i].text = strings.TrimSpace(out[i].text + " " + word.Text)
-				break
-			}
-		}
+		}})
+	}
+	named := observe.NameCandidates(g.candidates, placed)
+	out := make([]labelled, 0, len(named))
+	for _, n := range named {
+		out = append(out, labelled{region: n.Region, text: n.Text,
+			from: directorapi.SourceVision})
 	}
 	return out
 }
 
-// inside reports whether all of `a` lies within `b`.
-func inside(a, b observe.Region) bool {
-	return a.X >= b.X && a.Y >= b.Y &&
-		a.X+a.Width <= b.X+b.Width && a.Y+a.Height <= b.Y+b.Height
-}
-
-// words splits a phrase into lowercase words, dropping anything that is not a letter or digit.
-func words(s string) []string {
-	var out []string
-	for _, f := range strings.FieldsFunc(strings.ToLower(s), func(r rune) bool {
-		return !(r >= 'a' && r <= 'z') && !(r >= '0' && r <= '9')
-	}) {
-		if len(f) > 1 { // a stray letter from OCR is not a word
-			out = append(out, f)
-		}
-	}
-	return out
-}
-
-// covered reports whether every word of `some` appears in `all`.
+// whyRegrounding is the half-sentence that says what the file could not do.
 //
-// Deliberately one-directional and whole-word. "FREE PLAY" is covered by "enter free play";
-// "CUSTOM TRAINING" is not. A substring rule would make "PLAY" match "PLAYLIST", and a
-// bidirectional one would make any short label match any long name.
-func covered(some, all []string) bool {
-	if len(some) == 0 {
-		return false
+// Three stages reach here and they are not the same finding. `StepControlUnlocated` is a
+// recorded rectangle that names nowhere. `StepControlUnresolved` is a control looked for on
+// every observation of the patience window and found on none of them, which is what a menu
+// that has moved looks like. `StepControlContradicted` is a control that WAS matched, by
+// position alone, onto a region the words on this look say is something else.
+//
+// One sentence for all three would read as the first, and send whoever reads it to the
+// artifact to look at a rectangle that is perfectly well-formed.
+func whyRegrounding(stage workflowstore.StepStage) string {
+	switch stage {
+	case workflowstore.StepControlUnresolved:
+		return "was not found on any look while the run waited for it"
+	case workflowstore.StepControlContradicted:
+		return "was matched by position onto something that is not it"
+	default:
+		return "locates nothing"
 	}
-	has := map[string]bool{}
-	for _, a := range all {
-		has[a] = true
-	}
-	for _, s := range some {
-		if !has[s] {
-			return false
-		}
-	}
-	return true
 }
 
 // max0 keeps a count from reading as a negative number of remaining candidates.
-// whyRegrounding is the half-sentence that says what the file could not do.
-//
-// Two stages reach here and they are not the same finding. `StepControlUnlocated` is a recorded
-// rectangle that names nowhere — a band across the window, which re-acquires on every look and
-// cannot be pressed. `StepControlUnresolved` is a control that was looked for on every
-// observation of the patience window and found on none of them, which is what a menu that has
-// moved looks like from here.
-//
-// One sentence for both would read as the first, and send whoever reads it to the artifact to
-// look at a rectangle that is perfectly well-formed.
-func whyRegrounding(stage workflowstore.StepStage) string {
-	if stage == workflowstore.StepControlUnresolved {
-		return "was not found on any look while the run waited for it"
-	}
-	return "locates nothing"
-}
-
 func max0(n int) int {
 	if n < 0 {
 		return 0

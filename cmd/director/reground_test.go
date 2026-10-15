@@ -66,7 +66,7 @@ func TestOnlyALabelWhollyNamedInTheWorkflowsNameQualifies(t *testing.T) {
 		{"123", false, "digits nobody typed"},
 	} {
 		t.Run(tc.label+"/"+tc.why, func(t *testing.T) {
-			if got := covered(words(tc.label), words(name)); got != tc.want {
+			if got := observe.Covered(observe.Words(tc.label), observe.Words(name)); got != tc.want {
 				t.Errorf("%q against %q: %v, want %v (%s)",
 					tc.label, name, got, tc.want, tc.why)
 			}
@@ -80,13 +80,13 @@ func TestOnlyALabelWhollyNamedInTheWorkflowsNameQualifies(t *testing.T) {
 // does if nobody checks. A nameless workflow carries no human-supplied meaning at all and the
 // honest answer is that the intent is not recoverable.
 func TestANamelessWorkflowGroundsNothing(t *testing.T) {
-	if words("") != nil {
-		t.Errorf("an empty name yields %v", words(""))
+	if observe.Words("") != nil {
+		t.Errorf("an empty name yields %v", observe.Words(""))
 	}
-	if covered(words("FREE PLAY"), words("")) {
+	if observe.Covered(observe.Words("FREE PLAY"), observe.Words("")) {
 		t.Error("a label qualified against a workflow with no name")
 	}
-	if covered(nil, words("enter free play")) {
+	if observe.Covered(nil, observe.Words("enter free play")) {
 		t.Error("a candidate with no text qualified")
 	}
 }
@@ -96,7 +96,7 @@ func TestANamelessWorkflowGroundsNothing(t *testing.T) {
 // OCR produces them constantly -- an edge read as "I", a bullet as "l" -- and a one-letter
 // token would match almost any name by accident.
 func TestAStrayLetterFromOCRIsNotAWord(t *testing.T) {
-	if got := words("I l FREE PLAY x"); strings.Join(got, ",") != "free,play" {
+	if got := observe.Words("I l FREE PLAY x"); strings.Join(got, ",") != "free,play" {
 		t.Errorf("words are %v, want free and play alone", got)
 	}
 }
@@ -351,7 +351,7 @@ func TestEachWayTheWordsCanBeMissingIsReportedSeparately(t *testing.T) {
 		{"the workflow has no name", func() (*regrounder, *strings.Builder) {
 			return regrounderOver("", []observe.Region{atPx(399, 529, 355, 223)},
 				[]readWord{word("FREE", 440, 600, 70, 34)})
-		}, "no name to match against"},
+		}, "nothing recorded says what this control should say"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			g, out := tc.build()
