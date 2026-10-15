@@ -1255,7 +1255,11 @@ it refuses those looks. Visible is fine; in front is not.
   rather than "the control ignored the pointer", and that is what it said. The pin
   OUTLIVED every Marco process and took a reboot to clear, so nothing here is
   established as the cause; what is established is that a move can report
-  completed and not happen, and that no run notices.
+  completed and not happen, and that the run did not notice. It does now: the
+  pointer is asked of the OS before the button goes down, and a measurement more
+  than four pixels from where the move was sent FAILS the action. Nobody-could-ask
+  still permits the press, which is ADR-197 one layer down.
+  [[ADR-198-a-move-that-reported-completed-and-did-not-happen]],
   [[Experiment-045-the-pointer-that-would-not-leave]]
 - **The learned detector runs in the live loop now, beside the proposer.** On the Play
   page the proposer cannot see the Training tile at all — its only covering proposal is

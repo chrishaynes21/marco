@@ -139,11 +139,19 @@ needs, before anything is sent: the cursor position sampled and reported *before
 the same sample after it, and the run stopped if they disagree — because a move that reports
 completed and did not happen is currently indistinguishable from a control that did not react.
 
+**That guard is built.** It is
+[[ADR-198-a-move-that-reported-completed-and-did-not-happen]]: the pointer is asked of the
+operating system after the move and the rest, before the button goes down, and a measurement
+that disagrees by more than a rounding allowance FAILS the action instead of being printed
+beside it. It does not say what moved the cursor. It is the difference between a run that
+presses through a pointer it has lost and one that stops and says so.
+
 ## Related
 
 - [[Experiment-041-the-control-Marco-found-for-itself]] — the same region, pressed, 136.7/255.
 - [[Experiment-044-two-live-runs-that-pressed-nothing-and-pressed-grass]] — the run this was to
   close, and the pointer reading that was right there.
 - [[ADR-190-the-pointer-arrives-before-the-button-goes-down]] — the probe, and why it asks the OS.
+- [[ADR-198-a-move-that-reported-completed-and-did-not-happen]] — the gate this produced.
 - [[ADR-197-a-geometric-match-nominates-and-does-not-identify]] — asked nothing, for a reason worth
   a decision.

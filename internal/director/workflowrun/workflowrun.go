@@ -283,6 +283,11 @@ type Attempt struct {
 	// before the press. False means the click was sent on its own, which is
 	// what a desktop control wants and what a game menu ignores.
 	Prepared bool
+	// PointerArrived says the pointer was MEASURED where the move put it, and
+	// PointerBecause is that measurement. Both empty when nobody could ask —
+	// which is not the same as the pointer being there.
+	PointerArrived bool
+	PointerBecause string
 }
 
 // Acted reports whether a program was run through Marco.
@@ -343,6 +348,24 @@ type Runner struct {
 	regrounded map[string]observe.Region
 	// repairs is what was re-grounded and on whose evidence, in order.
 	repairs []Repair
+	// pointer answers WHERE THE POINTER ACTUALLY IS, in desktop coordinates, at the
+	// instant it is asked.
+	//
+	// [[Experiment-045-the-pointer-that-would-not-leave]] is why this is a gate and not a
+	// diagnostic. A move was lowered into legal Marco, the runtime reported it COMPLETED,
+	// and 400ms later the operating system said the cursor was 306px right and 452px down
+	// from where it had been sent. The press that followed was aimed at a control the
+	// pointer had never been on.
+	//
+	// A move that reports completed and did not happen is otherwise indistinguishable
+	// from a control that did not react, and the run that cannot tell them apart presses
+	// anyway. So the question is asked before the button goes down, and a pointer that is
+	// somewhere else FAILS the action rather than being noted beside it.
+	//
+	// Returning false means nobody could ask, and nobody-could-ask is not an answer: the
+	// press goes ahead, exactly as a look with no words still permits one. What is
+	// refused is a measurement that DISAGREES.
+	pointer func(ctx context.Context) (x, y int, ok bool)
 	// hover is asked, after the pointer has moved and rested, whether the control's own
 	// pixels changed.
 	//
@@ -486,6 +509,20 @@ func (r *Runner) WithRegrounder(g Regrounder) *Runner {
 
 // Repairs is every control re-grounded in this session.
 func (r *Runner) Repairs() []Repair { return r.repairs }
+
+// WithPointer installs the question "where is the pointer, actually".
+//
+// Asked after the move and the rest, before the press, and unlike the hover probe it IS a gate.
+// The difference is what each one measures: a control that does not light up may still take the
+// click, and Marco does not get to decide what an interface looks like — but a pointer that is
+// not where Marco put it means the move did not happen, whatever the runtime reported, and a
+// press aimed through it lands somewhere nobody chose.
+//
+// Not installed means the question cannot be asked, and the press goes ahead. See `pointer`.
+func (r *Runner) WithPointer(f func(ctx context.Context) (x, y int, ok bool)) *Runner {
+	r.pointer = f
+	return r
+}
 
 // WithHover installs the question "did this control react to the pointer".
 //
@@ -874,6 +911,35 @@ func (r *Runner) press(ctx context.Context, a Attempt, ready workflowstore.StepR
 			a.Hovered, a.HoverBecause = lit, why
 		}
 
+		// AND WHETHER THE POINTER IS WHERE IT WAS SENT, which the hover probe
+		// cannot answer: unchanged pixels mean "the control ignored the pointer"
+		// and "the pointer is somewhere else" equally, and those are different
+		// findings with different repairs. See `pointer`.
+		if r.pointer != nil {
+			if px, py, ok := r.pointer(ctx); ok {
+				off := away(px-p.X, py-p.Y)
+				a.PointerArrived = off <= pointerSlack
+				if a.PointerArrived {
+					a.PointerBecause = fmt.Sprintf("the operating "+
+						"system puts the pointer at (%d,%d), "+
+						"where it was sent", px, py)
+				} else {
+					a.PointerBecause = fmt.Sprintf("the pointer was "+
+						"sent to (%d,%d) and the operating system "+
+						"puts it at (%d,%d), %d px away",
+						p.X, p.Y, px, py, off)
+					a.Outcome = OutcomeFailed
+					a.Because = "the move was reported completed and " +
+						"did not happen (" + a.PointerBecause +
+						"), so nothing was pressed: a click through " +
+						"a pointer nobody placed lands somewhere " +
+						"nobody chose"
+					r.lastStage, r.lastBecause = ready.Stage, a.Because
+					return a
+				}
+			}
+		}
+
 		// AND THE WORLD AGAIN, because the dwell is a gap like any other.
 		if ok, why := r.confirm(ctx, at); !ok {
 			a.Outcome = OutcomeRefused
@@ -915,6 +981,32 @@ func (r *Runner) press(ctx context.Context, a Attempt, ready workflowstore.StepR
 		// only thing that can tell a reader which happened.
 	}
 	return a
+}
+
+// pointerSlack is how far from the point it was sent to the pointer may be measured and still
+// count as having arrived.
+//
+// Four pixels, and the number is a rounding allowance rather than a tolerance. An injected
+// absolute move is normalised to 65535 steps across the whole virtual desktop, so on the widest
+// desk this machine has seen — two 1920-wide monitors, 3840 px — one step is under a tenth of a
+// pixel. Nothing legitimate lands four pixels out. The defect this exists to catch was 306 px
+// right and 452 px down, and a number this small is deliberate: a slack wide enough to absorb a
+// real disagreement would turn the gate back into the diagnostic it replaces.
+const pointerSlack = 4
+
+// away is the Chebyshev distance from the origin — the longer axis, the same measure
+// `oshost.glide` steps along, so a miss is reported in the units the move was made in.
+func away(dx, dy int) int {
+	if dx < 0 {
+		dx = -dx
+	}
+	if dy < 0 {
+		dy = -dy
+	}
+	if dy > dx {
+		return dy
+	}
+	return dx
 }
 
 // Desktop turns a point normalised to a window into one on the desktop.

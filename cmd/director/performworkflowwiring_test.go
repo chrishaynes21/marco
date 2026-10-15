@@ -83,6 +83,11 @@ func TestPerformWorkflowInstallsItsGates(t *testing.T) {
 		{"WithConfirm(stillThere(",
 			"without it the runner refuses every action, because it cannot tell " +
 				"whether the world is still the one the plan was made against"},
+		{"WithPointer(pointerNow)",
+			"without it a move that reports completed and did not happen is " +
+				"indistinguishable from a control that did not react, and the " +
+				"press goes out through a pointer nobody placed — see " +
+				"ADR-198 and Experiment-045"},
 		{"recordhost.New()",
 			"without it there is no dry run, and the only way to exercise the path " +
 				"would be to send real input"},

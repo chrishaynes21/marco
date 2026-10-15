@@ -228,3 +228,26 @@ func absDiff(a, b uint32) float64 {
 	}
 	return float64(b - a)
 }
+
+// pointerNow answers where the pointer is, in desktop coordinates, for the runner's gate.
+//
+// Asked of the operating system, like the hover probe's own reading and for the same reason:
+// GDI BitBlt does not composite the cursor, so no frame can answer it.
+//
+// (0,0) is reported as UNKNOWN rather than as a position. It is what `winctx.CursorPos` returns
+// from its off-Windows stub, and `oshost.glide` already reads it that way — so a platform that
+// cannot answer permits the press instead of failing every action, which is the same direction
+// the rest of this system takes missing evidence in. The cost is the gate going quiet when the
+// pointer is in the exact top-left pixel of the desk.
+func pointerNow(ctx context.Context) (int, int, bool) {
+	// A CANCELLED RUN MEASURES NOTHING. Stopping is not evidence about the pointer, and
+	// reporting a position taken after somebody pressed stop would license a press on it.
+	if ctx.Err() != nil {
+		return 0, 0, false
+	}
+	x, y := winctx.CursorPos()
+	if x == 0 && y == 0 {
+		return 0, 0, false
+	}
+	return x, y, true
+}

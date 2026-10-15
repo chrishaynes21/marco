@@ -289,12 +289,18 @@ func runPerformWorkflow(args []string) int {
 	run = workflowrun.New(art, nil, ground, grant).
 		WithExecutor(marcoexec.New(marco), *live).
 		WithHover(probe.look).
+		// WHERE THE POINTER ACTUALLY IS, asked of the operating system rather than
+		// of a frame, because BitBlt does not composite the cursor. Deleting this
+		// call puts back the run that pressed through a pointer 452 px from its
+		// target and called the result "the control did not react" — see
+		// TestPerformWorkflowInstallsItsGates.
+		WithPointer(pointerNow).
 		WithRegrounder(regroundOrNil(repairs)).
 		WithBudget(*maxActions).
 		WithDwell(*dwell).
 		// THE WORLD, RE-OBSERVED AT THE INSTANT OF THE PRESS. Deleting this call, or
 		// passing nil, must make the runner refuse every action — see
-		// TestPerformWorkflowRechecksTheWorldBeforeEveryPress.
+		// TestPerformWorkflowInstallsItsGates.
 		WithConfirm(stillThere(obs, tracker, windows, *app)).
 		WithPatience(*patience)
 
@@ -904,6 +910,11 @@ func reportAttempt(a workflowrun.Attempt) {
 		return // the ordinary case; printing it would bury everything else
 	}
 	fmt.Printf("  step %d: %s — %s\n", a.Step, a.Outcome, a.Because)
+	// THE POINTER FIRST, because it qualifies the line under it: unchanged pixels beneath
+	// a pointer that is somewhere else say nothing at all about the control.
+	if a.PointerBecause != "" {
+		fmt.Printf("    pointer: %s\n", a.PointerBecause)
+	}
 	if a.HoverBecause != "" {
 		fmt.Printf("    hover: %s\n", a.HoverBecause)
 	}
