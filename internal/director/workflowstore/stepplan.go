@@ -439,6 +439,10 @@ func (a Artifact) StepReadinessAt(at int, s *SessionBinding, now Now) StepReadin
 	return r
 }
 
+// Readings is every saved reading of one control, for a caller that has to decide WHERE to
+// press something it identified some other way. See `readingsOf`, which it forwards to.
+func (a Artifact) Readings(label string) []observe.Region { return a.readingsOf(label) }
+
 // readingsOf is every saved reading of one control.
 //
 // The CONTROL's readings only, never its containers: a container is a region that also held the

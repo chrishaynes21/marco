@@ -620,6 +620,12 @@ func sameControl(a, b []Region) bool {
 	return false
 }
 
+// SameControl reports whether two rectangles are two readings of one control.
+//
+// The exported statement of the rule re-acquisition has always used, so a caller outside this
+// package asks the same question rather than inventing a second one. See `sameRect`.
+func SameControl(a, b Region) bool { return sameRect(a, b) }
+
 // sameRect reports whether two rectangles are two readings of one control.
 //
 // Mutual centre containment: each contains the other's centre. Symmetric, threshold-free, and

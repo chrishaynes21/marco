@@ -116,6 +116,56 @@ report whose job is keeping those apart. Corrected.
 **What this does not fix.** Step 2 of the route. Main Menu → Play → Training is the executable
 prefix, and the Free Play control needs re-teaching rather than more patience.
 
+## Since — the text identifies, and a demonstrated surface is pressed
+
+The owner asked one question before authorising a live run, and it was the right one:
+
+> the TRAINING regrounder resolves to the caption rectangle rather than the tile's original
+> center. That may be perfectly clickable, but the saved click point and the semantic text region
+> serve different purposes.
+
+Inspected on nine looks of the Play page, in window pixels:
+
+```
+  the SAVED control reading      x  399.. 754 y  530.. 751 (355x221)   centre 576,640
+  look  81  identified by text at x  402.. 520 y  718.. 750 (118x 32)  centre 461,734
+  look  93  identified by text at x  397.. 757 y  528.. 755 (360x227)  centre 577,642
+```
+
+Two findings, and the second is worse than the first. **The caption's centre sits 17 px above
+the bottom edge of the tile it labels**, where the demonstrated press was 111 px clear of every
+edge. And **it was not stable**: whether the matcher returned the caption or the tile depended on
+whether the proposer happened to box the caption separately on that look, so the press point
+moved between the tile's middle and its lower lip from one observation to the next. A margin of
+17 px is inside the jitter already visible in the data — the caption box reads 718..750 on one
+look and 722..748 on another, and the tile's own bottom edge moves between 751 and 755.
+
+So the two roles are separated. The text IDENTIFIES; the press goes to `surfaceFor` — the
+smallest candidate on this look that contains the identifying text **and agrees with a saved
+reading of that control** by `observe.SameControl`, the mutual-centre-containment test
+re-acquisition has always used. No new threshold, no second detector, and the demonstrated
+relationship preserved rather than guessed at: the demonstration pressed a surface of this shape,
+and this is a surface of that shape with the control's name inside it.
+
+```
+  after: every resolving look presses 577,640 — the demonstrated centre, 111 px from the
+         nearest edge — whether or not the caption was boxed separately
+```
+
+**When nothing around the text agrees, the text itself is pressed, and the report says so.** On
+the one look where the page was changing, the tile was not proposed at all and the only thing
+containing the caption was the caption's own 353x34 row, which is not a reading of a 355x221
+tile. Refusing entirely would turn a control Marco correctly identified into one it cannot use;
+claiming a surface would be inventing one. The run report now prints both rectangles on separate
+lines, because they are not the same claim:
+
+```
+    re-grounded: the only control on this screen whose text ("TRAINING") is made of …
+      identified by its text at x 402..520 y 718..750
+      pressing the surface around it at x 400..754 y 529..751, which agrees with the
+      demonstrated control
+```
+
 ## Enforced by
 
 `internal/director/observe` — `TestAControlIsNamedByTheWordsInsideIt`,
@@ -130,9 +180,17 @@ prefix, and the Free Play control needs re-teaching rather than more patience.
 
 `internal/director/workflowstore` — `TestASavedControlCarriesWhatTheDemonstrationReadOnIt`.
 
-`cmd/director` — `TestAnAttemptSaysWhatItEstablishedAndThatTheActionIsStillNotVerified`.
+`cmd/director` — `TestAnAttemptSaysWhatItEstablishedAndThatTheActionIsStillNotVerified`,
+`TestAControlIdentifiedByItsCaptionIsPressedOnTheSurfaceAroundIt`,
+`TestWithNoAgreeingSurfaceTheTextItselfIsPressed`,
+`TestWithNoSavedReadingTheTextItselfIsPressed`,
+`TestAFullWindowBandIsNotAnInteractionSurface`,
+`TestTheSmallestAgreeingSurfaceIsTheOnePressed`,
+`TestRegroundingACaptionHandsBackTheSurfaceToPress`.
 
-Eleven mutants run and all eleven killed: a band across the window naming a control; one look
+Seventeen mutants run and all seventeen killed. For the press surface: the caption pressed with
+no surface sought; any containing candidate accepted as a surface; a band across the window
+pressed; and the largest agreeing surface taken instead of the smallest. For the naming rules: a band across the window naming a control; one look
 being enough; readings before the press discarded; a reading of any screen naming this control;
 the match direction ignoring provenance; the draft dropping the name; a control nobody read not
 recorded as unread; the artifact dropping the name; a demonstrated label reported as the weak

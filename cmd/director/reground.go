@@ -180,12 +180,43 @@ func (g *regrounder) Reground(ctx context.Context, step int, control string,
 	switch len(matched) {
 	case 1:
 		c := matched[0]
+		// WHAT IDENTIFIED IT IS NOT NECESSARILY WHAT TO PRESS.
+		//
+		// The text that names a control is often its CAPTION, and a caption is not
+		// the control. Measured on the Training tile: the caption's own rectangle
+		// is 118x32 and its centre sits 17 px above the bottom edge of the 354x221
+		// tile it labels, while the demonstrated press was in the middle of that
+		// tile — and which of the two the matcher returned depended on whether the
+		// proposer happened to box the caption separately on this look, so the
+		// press point moved between the tile's centre and its lower edge from one
+		// look to the next.
+		//
+		// So the text IDENTIFIES, and the press goes to the surface the
+		// DEMONSTRATION establishes: the smallest candidate on this look that
+		// contains the identifying text and agrees with a saved reading of this
+		// control by the same mutual-centre-containment test re-acquisition has
+		// always used. No new threshold, and nothing invented when there is no such
+		// candidate — then the text's own region is pressed, as before, and the
+		// report says which of the two happened.
+		press, surfaced := g.surfaceFor(control, c.region)
 		why := fmt.Sprintf("the only control on this screen whose text (%q) is "+
 			"made of %s", c.text, from)
 		fmt.Fprintf(g.out, "    re-grounded: %s\n", why)
+		fmt.Fprintf(g.out, "      identified by its text at %s\n", pxOf(c.region))
+		if surfaced {
+			why += fmt.Sprintf(", pressed on the surface around it (%s) that "+
+				"agrees with the demonstrated control", pxOf(press))
+			fmt.Fprintf(g.out, "      pressing the surface around it at %s, which "+
+				"agrees with the demonstrated control\n", pxOf(press))
+		} else {
+			why += ", pressed on the text itself: no candidate around it agrees " +
+				"with the demonstrated control"
+			fmt.Fprintf(g.out, "      pressing the text itself: no candidate around "+
+				"it agrees with the demonstrated control\n")
+		}
 		fmt.Fprintf(g.out, "    this is the workflow agreeing with itself, which is "+
 			"weaker than somebody pointing at it\n")
-		return c.region, why, true
+		return press, why, true
 	case 0:
 		fmt.Fprintf(g.out, "    nothing on this screen is named in %s, so which "+
 			"control was meant is not recoverable from what was saved\n",
@@ -195,6 +226,58 @@ func (g *regrounder) Reground(ctx context.Context, step int, control string,
 			"between them\n", len(matched))
 	}
 	return observe.Region{}, "", false
+}
+
+// surfaceFor is the region to PRESS, having identified a control by the text at `text`.
+//
+// The smallest candidate on this look that contains that text and agrees with a saved reading of
+// the control by `observe.SameControl` — the mutual-centre-containment test re-acquisition uses,
+// which is symmetric and threshold-free. That is the demonstrated relationship preserved: the
+// demonstration pressed a surface of this shape, and this is a surface of that shape with the
+// control's name inside it.
+//
+// Returns the text's own region, and false, when nothing around it agrees. A caption IS the
+// control to a person looking at it, and refusing to press anything would turn a control Marco
+// correctly identified into one it cannot use — but the caller says which of the two happened,
+// because they are not the same claim.
+func (g *regrounder) surfaceFor(control string, text observe.Region) (observe.Region, bool) {
+	saved := g.art.Readings(control)
+	if len(saved) == 0 {
+		return text, false
+	}
+	best, found := observe.Region{}, false
+	for _, c := range g.candidates {
+		if ok, _ := c.Locates(); !ok {
+			continue
+		}
+		if !holds(c, text) {
+			continue
+		}
+		var agrees bool
+		for _, s := range saved {
+			if observe.SameControl(c, s) {
+				agrees = true
+				break
+			}
+		}
+		if !agrees {
+			continue
+		}
+		if !found || c.Area() < best.Area() {
+			best, found = c, true
+		}
+	}
+	if !found {
+		return text, false
+	}
+	return best, true
+}
+
+// holds reports whether `outer` wholly contains `inner`.
+func holds(outer, inner observe.Region) bool {
+	return inner.X >= outer.X && inner.Y >= outer.Y &&
+		inner.X+inner.Width <= outer.X+outer.Width &&
+		inner.Y+inner.Height <= outer.Y+outer.Height
 }
 
 // labelledCandidates pairs each candidate region with the words read inside it.
