@@ -654,6 +654,26 @@ func (r *Runner) Advance(ctx context.Context, s *workflowstore.SessionBinding,
 			at.Epoch != r.actedAt.Epoch) {
 			r.changed = true
 		}
+		// THE DESTINATION'S OWN WORDS WERE TOO FEW TO HAVE REFUSED IT.
+		//
+		// An execution policy, not a change to the recognition rule: the arrival above
+		// is kept, counted and reported with everything it rested on, and what it may
+		// not do is carry the walk forward by itself. See
+		// `workflowstore.StepArrivalTooThin` for the measurement, and note the order —
+		// `a.Arrival` and `r.changed` are already set, so the diagnostics a person
+		// needs survive the refusal.
+		if arrival.Thin {
+			a.Outcome = OutcomeRefused
+			a.Stage = workflowstore.StepArrivalTooThin
+			a.Because = fmt.Sprintf("step %d's destination %s was established from "+
+				"this look, and it was saved with fewer than %d word(s) — so "+
+				"the reading that corroborated it could not have contradicted "+
+				"it however wrong it was, and this run will not advance on "+
+				"that. %s", r.cursor, arrival.Destination,
+				observe.TextDisagreementWords, arrival.Because)
+			r.lastStage, r.lastBecause = a.Stage, a.Because
+			return r.record(a)
+		}
 		a.Outcome, a.Because = OutcomeArrived, arrival.Because
 		r.advance()
 		return r.record(a)

@@ -72,6 +72,27 @@ const (
 	// it, and the better candidate has already been seen. It is never resolved by
 	// patience, and the repair can act on it immediately.
 	StepControlContradicted StepStage = "what was matched is not the control"
+	// StepArrivalTooThin: the destination WAS established, and the only corroboration
+	// available for it was a reading that could not have contradicted it.
+	//
+	// Below `observe.TextDisagreementWords` a saved screen's vocabulary cannot disagree
+	// with anything, so the reading term of
+	// [[ADR-200-a-destination-a-workflow-recognises-for-itself]] keeps only its positive
+	// half and loses its veto. Measured: cutting one destination's saved words to two
+	// turned zero false arrivals into six.
+	//
+	// This is an EXECUTION policy and not a change to the rule. The arrival is still
+	// recorded, still reported, and still says what it rested on; what it may not do is
+	// carry the walk forward on its own. The owner drew that line:
+	//
+	//	don't automatically advance on Bound.Thin. Keep the observation and
+	//	diagnostics, but refuse progression when the destination's saved vocabulary is
+	//	too thin to support meaningful contradiction.
+	//
+	// It is never resolved by patience — a vocabulary is a property of the artifact, not
+	// of this look — so the repair is to re-teach the screen or to have somebody confirm
+	// it.
+	StepArrivalTooThin StepStage = "the destination's own words could not have refused it"
 	// StepUnconfirmed: nobody has agreed to this step in this session.
 	StepUnconfirmed StepStage = "not confirmed in this session"
 	// StepUnauthorised: the session carries no live execution authorisation.

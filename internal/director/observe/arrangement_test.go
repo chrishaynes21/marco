@@ -489,6 +489,10 @@ func TestAVisualScreenCannotReachDurableMemory(t *testing.T) {
 		filepath.Join(store, "reached_test.go"):   true,
 		filepath.Join(run, "workflowrun.go"):      true,
 		filepath.Join(run, "workflowrun_test.go"): true,
+		// `thinarrival_test.go` builds an artifact and a look to drive the
+		// coordinator's thin-arrival policy through the real establishment path, so it
+		// names both. It writes nothing durable: a `SessionBinding` is not marshalled.
+		filepath.Join(run, "thinarrival_test.go"): true,
 	}
 	root := filepath.Join("..", "..", "..")
 	names := []string{

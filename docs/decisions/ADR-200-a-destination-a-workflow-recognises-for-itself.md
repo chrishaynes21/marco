@@ -192,6 +192,43 @@ weakest evidence there is. This is the owner's concern, quantified: below three 
 veto is simply unavailable, and what remains is an arrangement contrast plus a reading that could
 not have disagreed. The rule still fires, and says so; whether it should is the next decision.
 
+## Since — an execution policy for a thin destination
+
+The owner read the thin-vocabulary measurement above and drew a line that is not a change to the
+rule:
+
+> I would make that second point a narrow execution policy: don't automatically advance on
+> `Bound.Thin`. Keep the observation and diagnostics, but refuse progression when the
+> destination's saved vocabulary is too thin to support meaningful contradiction. This does not
+> require changing the recognition algorithm.
+
+So `Runner.Advance` refuses to advance the walk on an arrival marked `Thin`, with the stage
+`workflowstore.StepArrivalTooThin`. **Both halves are load-bearing.** The arrival is still
+established, still attached to the attempt, still counted in `Established` and `ThinWords`, and
+still prints everything it rested on — what it may not do is carry the walk forward by itself.
+The refusal ends the run with its report intact, rather than weakening the semantic requirement
+to get past it.
+
+It is never resolved by patience: a vocabulary is a property of the artifact, not of this look.
+The repairs are to re-teach the screen or to have somebody confirm it.
+
+**And the three claims are now three lines, per step**, which the owner asked for separately —
+*"do not report success solely because a click was sent"*:
+
+```
+  step 1: arrived — ...
+    pointer: the operating system puts the pointer at (577,640), where it was sent
+    hover:   the control's pixels changed by 161.3/255 over 748 px
+    destination: established as "reached" from this look, and a reading IDENTIFIED it
+    action: NOT independently verified — nothing was executed, so there is no
+            post-action evidence; and arriving where a step expected is not by
+            itself proof that the step's action caused it
+```
+
+The four readings of the destination line — independent, identified, only failed to contradict,
+and too thin to have refused — are what separate an arrival somebody vouched for from one that
+rested on an abstention.
+
 ## Enforced by
 
 `internal/director/workflowstore` —
@@ -209,7 +246,11 @@ not have disagreed. The rule still fires, and says so; whether it should is the 
 `TestAnArrivalNeedsSomewhereToHaveArrivedFrom`,
 `TestAReachedArrivalDoesNotSurviveTheObservationItWasMadeIn`.
 
-`cmd/director` — `TestTheGrounderAsksAboutTheDestinationWhileTheSourceIsStillEstablished`,
+`internal/director/workflowrun` — `TestARunDoesNotAdvanceOnADestinationTooThinToHaveRefusedIt`,
+`TestARunAdvancesOnADestinationThatCouldHaveRefusedIt`.
+
+`cmd/director` — `TestAnAttemptSaysWhatItEstablishedAndThatTheActionIsStillNotVerified`,
+`TestTheGrounderAsksAboutTheDestinationWhileTheSourceIsStillEstablished`,
 `TestTheGrounderWillNotArriveOnAReadingThatSaysSomewhereElse`,
 `TestTheGrounderWillNotArriveWhileTheLookIsStillTheSourcePage`,
 `TestTheDestinationIsScoredAgainstThisLookAndNotTheStandingScreensSignature`.
@@ -221,7 +262,10 @@ not have disagreed. The rule still fires, and says so; whether it should is the 
 `internal/director/observe` — `TestAVisualScreenCannotReachDurableMemory`, whose allowlist
 records why `reached.go` is permitted to name an arrangement at all.
 
-Eleven mutants run and all eleven killed: the destination question never asked; the grounder fed
+Seventeen mutants run and all seventeen killed. For the policy and the report: a thin arrival
+advancing anyway; the refusal dropping the arrival's diagnostics; every arrival refused as thin;
+the not-verified line dropped; a merely-uncontradicted arrival reading as identified; a thin
+arrival not named as thin. For the rule itself: the destination question never asked; the grounder fed
 the standing screen's stored signature; the contrast term dropped; the corroboration dropped; no
 reading required; a wordless destination accepted; every reading reported as having identified
 the destination; a thin vocabulary not reported; a confirmation overwritten; the learning fold

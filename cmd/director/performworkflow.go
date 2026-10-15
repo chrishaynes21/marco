@@ -982,6 +982,33 @@ func reportAttempt(a workflowrun.Attempt) {
 	if a.HoverBecause != "" {
 		fmt.Printf("    hover: %s\n", a.HoverBecause)
 	}
+	// THE THREE CLAIMS, KEPT APART ON THREE LINES.
+	//
+	// An input was delivered; a destination was established, by evidence of a named
+	// strength; and the action was independently verified. The third is always NO, and
+	// printing the first two beside it is what stops a reader taking the first for the
+	// third. See workflowstore.Arrival, whose `Verified` is a method precisely so nobody
+	// can set it.
+	if a.Arrival == nil || !a.Arrival.Established() {
+		return
+	}
+	switch {
+	case a.Arrival.Independent():
+		fmt.Printf("    destination: established, and INDEPENDENT of the workflow — "+
+			"somebody looked at it (%s)\n", a.Arrival.Ground)
+	case a.Arrival.Thin:
+		fmt.Printf("    destination: established as %q from this look, on a saved "+
+			"vocabulary too thin to have refused it\n", a.Arrival.Ground)
+	case a.Arrival.Positive:
+		fmt.Printf("    destination: established as %q from this look, and a reading "+
+			"IDENTIFIED it\n", a.Arrival.Ground)
+	default:
+		fmt.Printf("    destination: established as %q from this look, on a reading "+
+			"that only FAILED TO CONTRADICT it\n", a.Arrival.Ground)
+	}
+	if ok, why := a.Arrival.Verified(); !ok {
+		fmt.Printf("    action: NOT independently verified — %s\n", why)
+	}
 }
 
 // printRun is the account a person reads afterwards.

@@ -229,3 +229,66 @@ func TestTheDestinationIsScoredAgainstThisLookAndNotTheStandingScreensSignature(
 		t.Errorf("the grounder is fed a stored screen signature again: %q", line)
 	}
 }
+
+// THE THREE CLAIMS, ON THREE LINES, FOR EVERY STEP.
+//
+// The owner's instruction for the live run, and it is the oldest rule in this subsystem:
+//
+//	Distinguish input delivered, destination inferred, and independently verified. Do not
+//	report success solely because a click was sent.
+//
+// So an attempt that arrived prints what kind of arrival it was AND that the action is still not
+// verified. The second line is the one that must never go missing, because the first reads like
+// success.
+func TestAnAttemptSaysWhatItEstablishedAndThatTheActionIsStillNotVerified(t *testing.T) {
+	for _, c := range []struct {
+		name     string
+		arrival  workflowstore.Arrival
+		contains []string
+	}{{
+		name: "somebody looked at it",
+		arrival: workflowstore.Arrival{
+			Step: 0, Destination: "screen_b",
+			Ground: workflowstore.GroundConfirmed, Because: "a person said so",
+		},
+		contains: []string{"INDEPENDENT of the workflow", "NOT independently verified"},
+	}, {
+		name: "the workflow reached it and a reading identified it",
+		arrival: workflowstore.Arrival{
+			Step: 1, Destination: "screen_c",
+			Ground: workflowstore.GroundReached, Positive: true,
+			Because: "this look agrees with screen_c at 0.600 against 0.448",
+		},
+		contains: []string{"IDENTIFIED it", "NOT independently verified"},
+	}, {
+		name: "the reading only failed to contradict it",
+		arrival: workflowstore.Arrival{
+			Step: 1, Destination: "screen_c",
+			Ground: workflowstore.GroundReached, Because: "a thin reading",
+		},
+		contains: []string{"only FAILED TO CONTRADICT it", "NOT independently verified"},
+	}, {
+		name: "the destination's own words could not have refused it",
+		arrival: workflowstore.Arrival{
+			Step: 1, Destination: "screen_c",
+			Ground: workflowstore.GroundReached, Positive: true, Thin: true,
+			Because: "two saved words",
+		},
+		contains: []string{"too thin to have refused it", "NOT independently verified"},
+	}} {
+		t.Run(c.name, func(t *testing.T) {
+			arrival := c.arrival
+			out := captureStdout(t, func() {
+				reportAttempt(workflowrun.Attempt{
+					Step: arrival.Step, Outcome: workflowrun.OutcomeArrived,
+					Because: arrival.Because, Arrival: &arrival,
+				})
+			})
+			for _, want := range c.contains {
+				if !strings.Contains(out, want) {
+					t.Errorf("the attempt does not say %q:\n%s", want, out)
+				}
+			}
+		})
+	}
+}
