@@ -8,7 +8,7 @@ backend:
   - vision
 game: rocketleague
 fixture: "live Rocket League, signed-in main menu, 1920x1080, --explore --learned --reading; and the rl-freeplay-1 recording"
-result: two-correct-presses-reached-the-training-page-and-the-standing-screen-never-changed-cause-not-established-because-the-run-kept-no-record-of-what-its-observer-saw
+result: the-play-page-and-the-training-page-overlap-at-0-592-against-a-0-55-merge-threshold-so-whether-the-navigation-is-seen-depends-on-which-look-became-the-signature
 supersedes: []
 affects:
   - passive-observation
@@ -140,6 +140,66 @@ report could not tell apart.
 **No threshold was changed and no rule was altered.** The cause is not known, and a correction
 aimed at a cause that is not known would be a guess with a test written to protect it.
 
+## And then the captures, which found it
+
+A passive recording of the live Training page -- 400 frames, 40 seconds, no input injected and
+none observed -- settles into **one** screen: 67 to 154 regions a look, median 76, **2 of 99
+adjacent pairs** below the merge threshold, 96 settled and 1 unsettled. The live page is not
+noisy and is not the problem.
+
+The problem is the pair. Every page measured against every other, through the production
+measure:
+
+```
+  median pairwise arrangement similarity (merge at 0.55)
+    rec-playpage    rec-training     mean 0.592  (0.350..0.786)   <- WOULD MERGE
+    rec-playpage    live-training    mean 0.590  (0.342..0.800)   <- WOULD MERGE
+    rec-training    live-training    mean 0.813  (0.667..0.958)
+    rec-mainmenu    rec-playpage     mean 0.345  (0.199..0.527)
+```
+
+**The Play page and the Training page are, on average, similar enough to merge.** The main menu
+and the Play page are not close (0.345, never reaching 0.55 on any pair). These two are: a
+single look of one against a single look of the other lands anywhere from 0.350 to 0.786, with
+the threshold at 0.55 straddled by the distribution.
+
+A screen's signature is ONE arrangement -- whichever look settled it. So whether the navigation
+is seen depends on which look that was. Folding the same recorded navigation twenty-two times,
+varying only where the Play page starts:
+
+```
+  play from 87    training got its own id    visual_2 says: match offline play private
+  play from 96    training got its own id    visual_2 says: create match offline party play private
+  play from 99    training got its own id    visual_2 says: aerial create goalie party striker
+  play from 99/8  MERGED                     visual_2 says: create party play
+  play from 102   the Play page merged into the MAIN MENU
+```
+
+One fold in twenty-two merges the Training page into the Play page outright. Another ends with
+the Play page's identity holding the Training page's words. Three more never give the Play page
+an identity at all -- it merges into the main menu. **Nothing the session controls decides
+which.** The live run landed on the merging side; the recording, replayed at every cadence, had
+landed on the other.
+
+## A correction that was written, measured, and reverted
+
+The fold teaches the standing screen the words of looks that arrive during the three it takes a
+new arrangement to settle. A guard was written for it: a reading that materially disagrees with
+what a screen has already been read to say is not folded into it, compared against the raw
+vocabulary rather than the stable one, on the argument that refusing to LEARN is weaker than
+refusing a merge and so needs less corroboration.
+
+**Measured over the same twenty-two folds, it changed one and made it worse** -- the fold at
+`play from 99` went from a separated pair with a corrupted vocabulary to an outright merge. It
+was reverted.
+
+Recorded because the first measurement of it said the opposite. An earlier harness sampled the
+Play page on frames that carry no OCR at all, so half its folds had an UNREAD screen acquiring
+the next page's words -- which looks exactly like contamination in the output and is a different
+thing. Sampling the pages where they were actually read, contamination appears once in
+twenty-two. The lesson is the same one the Trackmania capture taught three hours earlier: check
+what the fixture contains before measuring it.
+
 ## What this does not claim
 
 **That the instrumentation is the fix.** It is what makes the next run able to answer the
@@ -147,6 +207,18 @@ question in one pass instead of none, which is the only honest step available fr
 
 **That the three candidates are the only ones.** They are the three the current output cannot
 distinguish.
+
+**That the cause is now repaired.** It is located, not fixed. Two pages sit inside the
+arrangement measure's own resolution, and every obvious response to that is one this project has
+refused on purpose: lowering the merge threshold splits screens that are the same, raising it
+merges more, and a second measure chosen because it separates THIS pair is a Rocket League
+heuristic wearing a general name. The one evidence that does separate them cleanly -- `match
+offline play private` against `aerial goalie striker` -- is already in the system and is already
+allowed to refuse a merge; what it is not allowed to do is refuse one on a screen nobody has
+read twice, and the Play page is a screen a workflow passes through in four looks.
+
+Whether that bound should move is a question about what licenses a screen identity, which is
+not a decision to take while holding a measurement.
 
 ## Related
 

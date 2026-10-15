@@ -1271,7 +1271,14 @@ it refuses those looks. Visible is fine; in front is not.
   arrangement that never differed, one that differed and never held for three
   looks, and a standing screen that had learned the next page's words all print
   the same report. So the report now carries the walk, what each screen was read
-  to say, and the stabiliser's counters, and no threshold was touched.
+  to say, and the stabiliser's counters, and no threshold was touched. Then the
+  captures found it: the Play page and the Training page overlap at mean 0.592
+  against the 0.55 that merges, over a per-look range of 0.350..0.786, where the
+  main menu and the Play page never reach 0.55 at all. A screen's signature is ONE
+  arrangement, so which look settled it decides whether the navigation is visible:
+  one fold in twenty-two of the same recorded navigation merges outright. The live
+  run landed on that side. Located, NOT fixed -- every obvious response is a
+  threshold or a heuristic for one game.
   [[Experiment-046-the-destination-it-reached-and-did-not-recognise]]
 - **The learned detector runs in the live loop now, beside the proposer.** On the Play
   page the proposer cannot see the Training tile at all — its only covering proposal is
