@@ -177,6 +177,53 @@ func (g *regrounder) Reground(ctx context.Context, step int, control string,
 		fmt.Fprintf(g.out, "    %s %-28q %s\n", mark, c.text, pxOf(c.region))
 	}
 
+	// AND THE WORDS ALONE DO NOT CHOOSE, WHERE THE DEMONSTRATION LEFT GEOMETRY.
+	//
+	// A saved label is not unique on a real screen. "play" names the PLAY entry of Rocket
+	// League's main menu AND whatever the rotating news panel happens to be advertising:
+	// on the measured run it read "Play 10 Competitive 2v2 Doubles Matches", three
+	// candidates matched the word, and the re-grounder refused — which was right, and
+	// left a step that could never run.
+	//
+	// The demonstration knows more than the word. It recorded WHERE this control was, and
+	// `surfaceFor` already asks the only question that settles it: is there a candidate
+	// around this text that agrees with a saved reading of this control, by the
+	// mutual-centre-containment test re-acquisition uses. A news banner does not agree
+	// with a 166x40 menu row.
+	//
+	// ONLY WHERE THERE IS GEOMETRY TO ASK WITH. Four of nine controls in the measured
+	// artifact are bands across the window that locate nothing —
+	// [[ADR-193-a-control-re-grounded-from-the-workflows-own-name]] exists for exactly
+	// those, and requiring them to corroborate a match against a rectangle that names
+	// nowhere would make the repair they were built for impossible. So the corroboration
+	// is required where the demonstration left a usable rectangle and skipped where it
+	// did not, and the report says which.
+	grounded := make([]labelled, 0, len(matched))
+	surfaces := make([]observe.Region, 0, len(matched))
+	if g.hasUsableGeometry(control) {
+		for _, c := range matched {
+			if press, ok := g.surfaceFor(control, c.region); ok {
+				grounded = append(grounded, c)
+				surfaces = append(surfaces, press)
+			}
+		}
+		if len(grounded) != len(matched) {
+			fmt.Fprintf(g.out, "    %d of %d text match(es) sit in a region that "+
+				"agrees with where this control was demonstrated; the rest "+
+				"are words of the same name somewhere else on the screen\n",
+				len(grounded), len(matched))
+		}
+	} else {
+		fmt.Fprintf(g.out, "    this control was demonstrated as a band that locates "+
+			"nothing, so there is no saved geometry to corroborate the words "+
+			"with\n")
+		for _, c := range matched {
+			grounded = append(grounded, c)
+			surfaces = append(surfaces, c.region)
+		}
+	}
+	matched = grounded
+
 	switch len(matched) {
 	case 1:
 		c := matched[0]
@@ -198,7 +245,8 @@ func (g *regrounder) Reground(ctx context.Context, step int, control string,
 		// always used. No new threshold, and nothing invented when there is no such
 		// candidate — then the text's own region is pressed, as before, and the
 		// report says which of the two happened.
-		press, surfaced := g.surfaceFor(control, c.region)
+		press := surfaces[0]
+		surfaced := press != c.region
 		why := fmt.Sprintf("the only control on this screen whose text (%q) is "+
 			"made of %s", c.text, from)
 		fmt.Fprintf(g.out, "    re-grounded: %s\n", why)
@@ -226,6 +274,21 @@ func (g *regrounder) Reground(ctx context.Context, step int, control string,
 			"between them\n", len(matched))
 	}
 	return observe.Region{}, "", false
+}
+
+// hasUsableGeometry reports whether the demonstration left a rectangle for this control that
+// says where anything is.
+//
+// A band across the window re-acquires perfectly and locates nothing, which is the whole of
+// ADR-193's problem. Asking such a control to corroborate a text match against its own saved
+// rectangle would refuse every repair it was built to make.
+func (g *regrounder) hasUsableGeometry(control string) bool {
+	for _, r := range g.art.Readings(control) {
+		if ok, _ := r.Locates(); ok {
+			return true
+		}
+	}
+	return false
 }
 
 // surfaceFor is the region to PRESS, having identified a control by the text at `text`.

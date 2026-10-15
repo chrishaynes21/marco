@@ -166,6 +166,58 @@ lines, because they are not the same claim:
       demonstrated control
 ```
 
+## Since — one identity per button, and a label that has to agree with where it was
+
+[[Experiment-050-two-readings-of-one-button]] ran the prefix live and sent nothing: two
+ambiguity refusals, both correct, two different defects behind them.
+
+**The proposer and the detector each read PLAY, differently, and the demonstration learned two
+controls.** `sameControl` is mutual centre containment and the 308x44 box's centre falls outside
+the 166x40 row, so the two were never going to merge by shape. What resolves it is the presses:
+the person clicked (125,480) and then (159,499) and **both points lie inside both rectangles**.
+That is evidence the rectangles cannot supply about themselves, and it is neither a shared name
+nor a shared destination — the two things that must not be sufficient, because different controls
+can lead to the same place and two rows can read the same word.
+
+So `oneControlTwice`: the existing control's rectangle contains the press being folded now, and
+the rectangle this press landed in contains every press that control already has. Both must
+`Locate`, or a band across the window would swallow every control on its screen.
+
+**The merged identity keeps one rectangle.** Keeping both was tried first and measured —
+re-acquisition then found proposals agreeing with each, those described two different controls,
+and it refused as ambiguous on every look of the screen. `sameControl` is how a stored rectangle
+is matched, so two readings that fail it against each other are a stored contradiction. The
+identity keeps the tightest rectangle that still covers every press: the most specific claim the
+evidence supports.
+
+```
+  before   14 controls, 5 uncertain steps, step 0 an unresolved pair
+  after    13 controls, 3 uncertain steps, step 0 settled, one 166x40 PLAY reading
+```
+
+**And a saved label is not unique on a real screen.** "play" named the PLAY entry and whatever
+the rotating news panel was advertising — "Play 10 Competitive 2v2 Doubles Matches" on the
+measured run. A text match is therefore corroborated by the demonstrated geometry: there must be
+a candidate around the matched text that agrees with a saved reading of that control, which is
+`surfaceFor` asked one step earlier. **Only where there is geometry to ask with** — a control
+saved as a band across the window has none, ADR-193 exists for exactly those, and holding them to
+a rectangle that names nowhere would refuse every repair it was built to make.
+
+### Validated through the runner, not the matcher
+
+The offline check before that run exercised the label matcher alone and said both controls
+resolved. It missed both defects because neither is in the matcher. The validation now drives
+`fastobserve`, `reacquireStored`, `promptGrounder`, `regrounder` and `workflowrun.Runner` over
+recorded frames, with a notebook where the mouse would be:
+
+```
+  main menu -> Play   look 3   PRESSED at (82,485)   inside the demonstrated PLAY reading
+  Play -> Training    look 82  PRESSED at (577,640)  the demonstrated tile centre
+```
+
+Behind `-tags corpus`, because it decodes several hundred PNGs; a control-identity change is
+required to run it.
+
 ## Enforced by
 
 `internal/director/observe` — `TestAControlIsNamedByTheWordsInsideIt`,
@@ -180,6 +232,19 @@ lines, because they are not the same claim:
 
 `internal/director/workflowstore` — `TestASavedControlCarriesWhatTheDemonstrationReadOnIt`.
 
+For one identity per button: `internal/director/observe` —
+`TestTwoReadingsOfOneButtonBecomeOneControl`, `TestTwoDifferentMenuEntriesStayTwoControls`,
+`TestABandAcrossTheWindowDoesNotSwallowAControl`,
+`TestAPressOutsideTheControlIsNotAnotherReadingOfIt`,
+`TestTheSamePlaceOnTwoScreensIsNotOneControl`.
+
+For the label that must agree with where it was: `cmd/director` —
+`TestTheRotatingNewsPanelIsNeverTheDemonstratedControl`,
+`TestAControlSavedAsABandIsStillRepairableFromItsWords`.
+
+And through the runner, under `-tags corpus`: `cmd/director` —
+`TestEachStepOfThePrefixReachesItsPressThroughTheProductionPath`.
+
 `cmd/director` — `TestAnAttemptSaysWhatItEstablishedAndThatTheActionIsStillNotVerified`,
 `TestAControlIdentifiedByItsCaptionIsPressedOnTheSurfaceAroundIt`,
 `TestWithNoAgreeingSurfaceTheTextItselfIsPressed`,
@@ -188,7 +253,12 @@ lines, because they are not the same claim:
 `TestTheSmallestAgreeingSurfaceIsTheOnePressed`,
 `TestRegroundingACaptionHandsBackTheSurfaceToPress`.
 
-Seventeen mutants run and all seventeen killed. For the press surface: the caption pressed with
+Twenty-eight mutants run and all twenty-eight killed. For one identity per button: two readings
+staying two controls; any press inside the control merging it; the existing control not needing
+to cover the new press; a band swallowing a control; the merged control keeping both rectangles;
+the loosest reading kept instead of the tightest; and merging ignoring the screen. For the label
+corroboration: the words alone choosing, and a band-saved control held to geometry it does not
+have. For the press surface: the caption pressed with
 no surface sought; any containing candidate accepted as a surface; a band across the window
 pressed; and the largest agreeing surface taken instead of the smallest. For the naming rules: a band across the window naming a control; one look
 being enough; readings before the press discarded; a reading of any screen naming this control;

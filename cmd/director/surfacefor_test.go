@@ -14,6 +14,7 @@ package main
 import (
 	"context"
 	"image"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -179,5 +180,115 @@ func TestRegroundingACaptionHandsBackTheSurfaceToPress(t *testing.T) {
 	}
 	if !strings.Contains(why, "agrees with the demonstrated control") {
 		t.Errorf("the reason does not say what the press rests on: %s", why)
+	}
+}
+
+// THE ROTATING NEWS PANEL IS NEVER PLAY.
+//
+// [[Experiment-050-two-readings-of-one-button]]: the live run's re-grounder matched the saved
+// label "play" against three regions, because Rocket League's news panel was advertising
+// "Play 10 Competitive 2v2 Doubles Matches". It refused, which was right and left a step that
+// could never run. A saved label is not unique; the demonstration's own geometry is what says
+// which occurrence is the control.
+func TestTheRotatingNewsPanelIsNeverTheDemonstratedControl(t *testing.T) {
+	// The PLAY entry as the demonstration recorded it, and as this look proposes it.
+	saved := observe.Region{X: 26.0 / 1920, Y: 468.0 / 1080,
+		Width: 166.0 / 1920, Height: 40.0 / 1080}
+	onThisLook := observe.Region{X: 30.0 / 1920, Y: 470.0 / 1080,
+		Width: 160.0 / 1920, Height: 38.0 / 1080}
+	// The news panel, far away, carrying the same word.
+	banner := observe.Region{X: 1520.0 / 1920, Y: 600.0 / 1080,
+		Width: 300.0 / 1920, Height: 40.0 / 1080}
+
+	d := workflow.Draft{Name: "enter free play"}
+	d.Steps = []workflow.Step{{
+		From: "visual_1", To: "visual_2", Target: "target_1",
+		Cause: observe.CauseClick, Seen: 2,
+		Readings: []observe.Region{saved}, Text: []string{"play"},
+	}}
+	a, err := workflowstore.SaveWith(d,
+		map[observe.VisualScreenID]observe.VisualArrangement{
+			"visual_1": {Cells: map[string]int{"0,0": 9}, Total: 9},
+			"visual_2": {Cells: map[string]int{"1,1": 7}, Total: 7},
+		}, nil, time.Date(2026, 10, 15, 9, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var out strings.Builder
+	g := &regrounder{art: a, candidates: []observe.Region{onThisLook, banner}}
+	f, ferr := os.CreateTemp(t.TempDir(), "r*.txt")
+	if ferr != nil {
+		t.Fatal(ferr)
+	}
+	t.Cleanup(func() { f.Close() })
+	g.out = f
+	g.words = func(context.Context) ([]readWord, image.Rectangle, bool) {
+		return []readWord{
+			{Text: "PLAY", X: 42, Y: 476, W: 50, H: 20},
+			{Text: "Play 10 Competitive 2v2 Doubles Matches",
+				X: 1530, Y: 608, W: 280, H: 24},
+		}, image.Rect(0, 0, 1920, 1080), true
+	}
+
+	where, _, ok := g.Reground(context.Background(), 0, "control_1",
+		workflowstore.StepControlUnresolved, workflowrun.Sighting{})
+	if !ok {
+		b, _ := os.ReadFile(f.Name())
+		t.Fatalf("the control was not re-grounded although the menu entry is on "+
+			"this look and agrees with where it was demonstrated:\n%s%s",
+			out.String(), b)
+	}
+	if !observe.SameControl(where, saved) {
+		t.Fatalf("re-grounded to %+v, which is not where PLAY was demonstrated. "+
+			"The news banner carries the word and is not the control.", where)
+	}
+	mid := observe.PointerAt{X: where.X + where.Width/2, Y: where.Y + where.Height/2}
+	if mid.X*1920 > 400 {
+		t.Errorf("the press would land at x %.0f, which is out in the news panel",
+			mid.X*1920)
+	}
+}
+
+// AND WHEN THE DEMONSTRATION LEFT NO USABLE RECTANGLE, THE WORDS STILL DECIDE.
+//
+// [[ADR-193-a-control-re-grounded-from-the-workflows-own-name]] exists for controls saved as
+// bands across the window. Requiring those to corroborate a text match against a rectangle that
+// names nowhere would refuse every repair it was built to make.
+func TestAControlSavedAsABandIsStillRepairableFromItsWords(t *testing.T) {
+	band := observe.Region{X: 0, Y: 0, Width: 1, Height: 0.957}
+	onThisLook := observe.Region{X: 0.3, Y: 0.4, Width: 0.1, Height: 0.04}
+
+	d := workflow.Draft{Name: "free play"}
+	d.Steps = []workflow.Step{{
+		From: "visual_1", To: "visual_2", Target: "target_1",
+		Cause: observe.CauseClick, Seen: 1, Readings: []observe.Region{band},
+	}}
+	a, err := workflowstore.SaveWith(d,
+		map[observe.VisualScreenID]observe.VisualArrangement{
+			"visual_1": {Cells: map[string]int{"0,0": 9}, Total: 9},
+			"visual_2": {Cells: map[string]int{"1,1": 7}, Total: 7},
+		}, nil, time.Date(2026, 10, 15, 9, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, ferr := os.CreateTemp(t.TempDir(), "r*.txt")
+	if ferr != nil {
+		t.Fatal(ferr)
+	}
+	t.Cleanup(func() { f.Close() })
+	g := &regrounder{art: a, out: f, candidates: []observe.Region{onThisLook}}
+	g.words = func(context.Context) ([]readWord, image.Rectangle, bool) {
+		return []readWord{{Text: "FREE PLAY", X: 590, Y: 440, W: 100, H: 24}},
+			image.Rect(0, 0, 1920, 1080), true
+	}
+
+	where, _, ok := g.Reground(context.Background(), 0, "control_1",
+		workflowstore.StepControlUnlocated, workflowrun.Sighting{})
+	if !ok {
+		t.Fatal("a control saved as a band is no longer repairable from its words")
+	}
+	if where != onThisLook {
+		t.Errorf("re-grounded to %+v, want the region the words were read in", where)
 	}
 }

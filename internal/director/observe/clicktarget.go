@@ -331,6 +331,12 @@ type visualTarget struct {
 	// said is what this control's own rectangle has been read to say, over every look
 	// of the screen it is on. See controllabel.go.
 	said controlWords
+	// pressedAt is where each of this target's presses landed, bounded.
+	//
+	// Kept because it is the only evidence that can say whether two rectangles are two
+	// readings of ONE control or two controls that happen to overlap: the person's own
+	// clicks. See `oneControlTwice`.
+	pressedAt []PointerAt
 }
 
 // ClickTargets correlates presses with the screen changes that followed them.
@@ -476,7 +482,7 @@ func (c *ClickTargets) Press(look int, at PointerAt, screen VisualScreenID,
 		// GEOMETRIC, DELIBERATELY. identify is handed rectangles and never learns
 		// which cue proposed them, so a target means the same thing whether the
 		// detector happened to have answered yet.
-		obs.Target = c.identify(screen, Regions(obs.Candidates[:1]))
+		obs.Target = c.identify(screen, at, Regions(obs.Candidates[:1]))
 		c.recordTarget(obs)
 	}
 	c.pending = append(c.pending, obs)
@@ -511,24 +517,163 @@ func (c *ClickTargets) Press(look int, at PointerAt, screen VisualScreenID,
 //
 // Scoped to the screen, because "the third row" means nothing across two different menus, and
 // the same place on two screens is two different controls.
-func (c *ClickTargets) identify(screen VisualScreenID, cands []Region) VisualTargetID {
+func (c *ClickTargets) identify(screen VisualScreenID, at PointerAt,
+	cands []Region) VisualTargetID {
 	for i := range c.targets {
 		t := &c.targets[i]
 		if t.screen != screen || !sameControl(t.where, cands) {
 			continue
 		}
 		t.seen++
+		t.sawPress(at)
+		return t.id
+	}
+	// OR THE DEMONSTRATION SHOWS ONE CONTROL READ TWO WAYS.
+	//
+	// `sameControl` above is mutual centre containment, and two sources reading one
+	// button at different extents can fail it: the proposer boxed Rocket League's PLAY
+	// entry as 166x40 and the detector as 308x44, so the second's centre fell outside
+	// the first and two identities were minted for one button. The uncertainty logic
+	// noticed -- they led to the same place -- and correctly refused to resolve it,
+	// which left a step that could never run.
+	//
+	// What resolves it is not the rectangles. It is the PRESSES. See `oneControlTwice`.
+	for i := range c.targets {
+		t := &c.targets[i]
+		if t.screen != screen || !c.oneControlTwice(t, at, cands) {
+			continue
+		}
+		t.seen++
+		t.sawPress(at)
+		// ONE IDENTITY, AND THE MOST SPECIFIC RECTANGLE THE PRESSES SUPPORT.
+		//
+		// Keeping BOTH readings was tried first and measured: re-acquisition then
+		// found proposals agreeing with each of them, those proposals described
+		// two different controls, and it refused as ambiguous on every look of the
+		// screen. That is the same defect one tier down -- `sameControl` is how a
+		// stored rectangle is matched, and two rectangles that are not
+		// `sameControl` with each other cannot both be the control.
+		//
+		// So the identity keeps one rectangle: the smallest that still contains
+		// every press this control has had. Smallest because it is the most
+		// specific claim the evidence supports, and containing every press because
+		// that is what made them one control in the first place.
+		t.where = []Region{tightestOver(append(append([]Region{}, t.where...),
+			here(cands)), t.pressedAt)}
 		return t.id
 	}
 	c.next++
 	id := VisualTargetID(fmt.Sprintf("target_%d", c.next))
 	c.targets = append(c.targets, visualTarget{
 		id: id, screen: screen, where: append([]Region{}, cands...), seen: 1,
+		pressedAt: []PointerAt{at},
 	})
 	// AND WHAT THE LOOKS ALREADY TAKEN SAID ABOUT IT. The rectangle did not exist
 	// until now, so the readings that name it are the ones before the press.
 	c.nameFromRecent(&c.targets[len(c.targets)-1])
 	return id
+}
+
+// sawPress records where one more press of this target landed, bounded.
+func (t *visualTarget) sawPress(at PointerAt) {
+	if len(t.pressedAt) >= MaxTargetRegions {
+		return
+	}
+	t.pressedAt = append(t.pressedAt, at)
+}
+
+// oneControlTwice reports whether this press and an existing target are one control that two
+// sources read differently.
+//
+// # What counts as evidence, and what explicitly does not
+//
+// Not the rectangles agreeing — `sameControl` above already asked that, and the case this
+// exists for is precisely the one where they do not. Not a shared destination either: the owner
+// was exact about it, and right, because different controls can navigate to the same place. And
+// not a shared label, for the same reason — two menu entries can read the same word.
+//
+// What counts is THE PERSON'S OWN CLICKS. Two rectangles are two readings of one control when
+// each of them covers every press that established the other:
+//
+//	the existing target's rectangle contains the press being folded now, AND
+//	the rectangle this press landed in contains every press that target already has.
+//
+// Measured on the demonstration that produced the defect: PLAY was clicked at (125,480) and
+// again at (159,499), and BOTH points lie inside both the 166x40 row and the 308x44 box. The
+// person pressed one button twice and two sources drew it differently. Two genuinely different
+// menu entries fail this at once, because a press on one is not inside the other's rectangle.
+//
+// Both must LOCATE. A band across the window contains every press on the screen and would
+// swallow every control into one identity; it is not a control, and this will not make it one.
+func (c *ClickTargets) oneControlTwice(t *visualTarget, at PointerAt, cands []Region) bool {
+	if len(cands) == 0 || len(t.where) == 0 || len(t.pressedAt) == 0 {
+		return false
+	}
+	here := cands[0]
+	if ok, _ := here.Locates(); !ok {
+		return false
+	}
+	// THE EXISTING CONTROL COVERS THIS PRESS, in at least one of its readings.
+	covered := false
+	for _, r := range t.where {
+		if ok, _ := r.Locates(); !ok {
+			continue
+		}
+		if containsPoint(r, at) {
+			covered = true
+			break
+		}
+	}
+	if !covered {
+		return false
+	}
+	// AND THIS READING COVERS EVERY PRESS THAT CONTROL ALREADY HAS.
+	for _, p := range t.pressedAt {
+		if !containsPoint(here, p) {
+			return false
+		}
+	}
+	return true
+}
+
+// here is the rectangle a press identified its control as, which is the smallest it landed in.
+func here(cands []Region) Region {
+	if len(cands) == 0 {
+		return Region{}
+	}
+	return cands[0]
+}
+
+// tightestOver is the smallest of `rs` that contains every press, or the first when none does.
+//
+// The most specific claim the demonstration supports. A larger rectangle is not more evidence —
+// it is the same control read more loosely, and storing both is storing a contradiction, because
+// `sameControl` is how a stored rectangle is matched and two readings that fail it against each
+// other make every re-acquisition ambiguous.
+func tightestOver(rs []Region, presses []PointerAt) Region {
+	best, found := Region{}, false
+	for _, r := range rs {
+		if ok, _ := r.Locates(); !ok {
+			continue
+		}
+		covers := true
+		for _, p := range presses {
+			if !containsPoint(r, p) {
+				covers = false
+				break
+			}
+		}
+		if !covers {
+			continue
+		}
+		if !found || r.Area() < best.Area() {
+			best, found = r, true
+		}
+	}
+	if !found {
+		return rs[0]
+	}
+	return best
 }
 
 // recordTarget files one press's alternatives and provenance against its target.

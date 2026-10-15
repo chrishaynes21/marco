@@ -1370,6 +1370,26 @@ it refuses those looks. Visible is fine; in front is not.
   and still refuses when two candidates match.
   [[ADR-201-a-demonstrated-click-remembers-what-it-clicked]],
   [[Experiment-049-the-control-it-could-see-and-could-not-name]]
+- **And then two ambiguity refusals, both correct, with two defects behind them.** The
+  next live run sent NOTHING. Re-acquisition refused because the demonstration had
+  learned PLAY as two identities -- the proposer boxed it 166x40 and the detector
+  308x44, the second's centre falls outside the first, so `sameControl` was never going
+  to merge them -- and the re-grounder refused because "play" also matched the rotating
+  news panel advertising "Play 10 Competitive 2v2 Doubles Matches". What resolves the
+  first is not the rectangles but the PRESSES: the person clicked (125,480) and (159,499)
+  and both points lie inside both boxes, which is evidence neither rectangle can supply
+  about itself and is neither a shared name nor a shared destination. The merged identity
+  keeps ONE rectangle -- keeping both was measured and made every re-acquisition
+  ambiguous, because `sameControl` is how a stored rectangle is matched -- the tightest
+  that still covers every press. 14 controls and 5 uncertain steps become 13 and 3, with
+  step 0 settled. What resolves the second is that a text match must be corroborated by
+  the demonstrated geometry, and only where there IS geometry: a control saved as a band
+  has none, and ADR-193 exists for exactly those. Validated by driving `fastobserve`,
+  `reacquireStored`, the grounder, the re-grounder and the Runner over recorded frames,
+  because the check before the run exercised the label matcher alone and missed both:
+  main menu -> Play presses at (82,485) inside the demonstrated reading, Play -> Training
+  at (577,640), the tile centre.
+  [[Experiment-050-two-readings-of-one-button]]
 - **The learned detector runs in the live loop now, beside the proposer.** On the Play
   page the proposer cannot see the Training tile at all — its only covering proposal is
   1644x1032, which `Locates` refuses — and the detector boxes it at IoU 0.991 against
