@@ -110,6 +110,42 @@ plus whatever the other readings separated, with the two menus merged.
 Degrading to the previous behaviour is the correct failure. Nothing is corrupted, nothing is
 mislabelled, and the counters say why: 95 refused as stale at twelve looks, 137 at twenty.
 
+## And then the real clock, which moved the configuration
+
+Everything above is SIMULATED delay. Preparing the live run meant timing the thing the
+simulation stood in for: the same plugin, the same tesseract, the same 1920x1080 frames of
+this recording, through the production engine.
+
+**609 to 1084ms, median 847ms.** At a 100ms cadence that is **nine to ten looks behind**,
+and the window above is eight. A live run at full resolution would have had almost every
+reading refused as stale and the two menus would have merged exactly as they did before any
+of this existed -- a correct failure, and a wasted session.
+
+So the frame is reduced before it is read, and the factor is itself a measurement. Both
+halves have to hold: a reading that arrives in time and has lost the words that tell the two
+screens apart is a reading of nothing.
+
+```
+  scale          per reading   looks behind   training/free        menu vs itself
+  1/1 1920x1080        920ms       10  OUT    APART  0.07 / 0.80   one screen
+  1/2  960x540         516ms        6  in     APART  0.21 / 0.70   one screen
+  1/3  640x360         436ms        5  in     MERGED 0.36 / 0.29   one screen
+```
+
+The two failures either side are opposite and both silent. At full size the readings never
+arrive in time to be admitted. At a third they arrive easily and tesseract has started
+inventing: the Training page comes back as `aerial custom fire free goalie play players
+practice say sily striker` and the submenu as `create fire free online play say sily`, which
+share enough junk to agree -- kept 0.36 against a threshold of 0.35.
+
+Half is in time and still reading the labels, with margin on both rules. It also reads MORE
+distinct words than full size over the same frames, 217 against 181, because the gradients a
+game menu is painted on produce less spurious text once they are averaged down.
+
+Reduced by averaging each block rather than by sampling, and that is not cosmetic: dropping
+pixels deletes whole strokes from thin glyphs, and tesseract reads a letter with a missing
+stem as a different letter or as nothing.
+
 ## What this does not claim
 
 **The run has not been performed live.** The wiring exists behind `--reading` and is held by a

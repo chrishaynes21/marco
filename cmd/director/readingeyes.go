@@ -132,7 +132,10 @@ func (e *readingEyes) run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case f := <-e.work:
-			got, err := e.eng.Recognize(ctx, ocr.ImageInput{Image: f.img})
+			// HALF SIZE, BECAUSE THE DEADLINE IS REAL. See readScale.
+			got, err := e.eng.Recognize(ctx, ocr.ImageInput{
+				Image: shrink(f.img, readScale),
+			})
 			if err != nil {
 				// NOT A SILENT SCREEN. A reading that failed is offered as
 				// nothing at all, so the observer counts it as a source that
@@ -164,6 +167,77 @@ func (e *readingEyes) run(ctx context.Context) {
 			}
 		}
 	}
+}
+
+// readScale is how much the frame is reduced before it is read.
+//
+// # Why this is not an optimisation
+//
+// [[Experiment-043-a-reading-that-arrives-late]] measured the window: the two menus stay
+// apart while a reading arrives within EIGHT looks of its own frame, and merge again past
+// twelve. That was simulated delay on a recording. Measured for real, on the same frames
+// through this plugin and this tesseract:
+//
+//	scale          per reading   looks behind   training/free   menu against itself
+//	1/1 1920x1080        920ms       10  OUT    APART           one screen
+//	1/2  960x540         516ms        6  in     APART           one screen
+//	1/3  640x360         436ms        5  in     MERGED          one screen
+//
+// At full resolution the reading is TEN looks behind and the window is eight, so a live
+// run would have had almost every reading refused as stale and the two menus would have
+// merged exactly as they did before any of this existed. At a third the reading is quick
+// and tesseract has started inventing: the Training page comes back as
+// `aerial custom fire free goalie play players practice say sily striker` and the submenu
+// as `create fire free online play say sily`, which share enough junk to agree -- kept
+// 0.36 against a threshold of 0.35, and the discrimination is gone.
+//
+// Half is the one that is both in time and still reading the labels, with margin on both
+// rules: kept 0.21 against 0.35, novel 0.70 against 0.55. It also reads MORE distinct
+// words than full size over the same frames (217 against 181), because the gradients a
+// game menu is painted on produce less spurious text once they are averaged down.
+//
+// Local to this source on purpose. `director ocr` reads a frame for a person to look at and
+// has no deadline; this one has eight looks.
+const readScale = 2
+
+// shrink reduces an image by an integer factor, averaging each block.
+//
+// A box average rather than nearest-neighbour, and the difference is not cosmetic: dropping
+// pixels deletes whole strokes from thin glyphs, while averaging leaves them as grey, which
+// is what tesseract's own thresholding wants. Hand-written because the engine carries no
+// image dependency and because this is the exact arithmetic the measurement above was taken
+// with -- a resampler swapped in later would make those numbers describe something else.
+func shrink(src image.Image, n int) image.Image {
+	if n <= 1 || src == nil {
+		return src
+	}
+	b := src.Bounds()
+	w, h := b.Dx()/n, b.Dy()/n
+	if w <= 0 || h <= 0 {
+		// SMALLER THAN THE FACTOR. Reading the original is right: it is cheap
+		// precisely because there is almost nothing of it.
+		return src
+	}
+	dst := image.NewRGBA(image.Rect(0, 0, w, h))
+	k := uint32(n * n)
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			var r, g, bl, a uint32
+			for dy := 0; dy < n; dy++ {
+				for dx := 0; dx < n; dx++ {
+					cr, cg, cb, ca := src.At(
+						b.Min.X+x*n+dx, b.Min.Y+y*n+dy).RGBA()
+					r, g, bl, a = r+cr, g+cg, bl+cb, a+ca
+				}
+			}
+			o := y*dst.Stride + x*4
+			dst.Pix[o+0] = uint8(r / k >> 8)
+			dst.Pix[o+1] = uint8(g / k >> 8)
+			dst.Pix[o+2] = uint8(bl / k >> 8)
+			dst.Pix[o+3] = uint8(a / k >> 8)
+		}
+	}
+	return dst
 }
 
 // describe is what the report says about the reader.

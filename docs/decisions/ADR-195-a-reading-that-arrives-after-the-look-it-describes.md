@@ -124,8 +124,17 @@ screen moved on M) / unusable look K` and whether any reading ever contradicted 
 a source that read three hundred frames and admitted none is a run where OCR cost minutes and
 changed no decision — and it must not read like a run where it worked.
 
-**Not yet performed live.** Whether this machine's OCR latency lands inside eight looks is one
-run's worth of evidence away, and the report is built to answer it.
+**And the real clock did not fit.** Timed on the same frames through this plugin and this
+tesseract, a full-resolution reading is 847ms at the median -- nine to ten looks behind a
+window of eight. So `readingEyes` reads a HALVED frame: 516ms, six looks, with the
+discrimination intact at kept 0.21 and novel 0.70 against thresholds of 0.35 and 0.55. A
+third is faster still and loses it, because tesseract starts inventing words the two screens
+then share. The factor is local to this source, which has a deadline; `director ocr` reads a
+frame for a person to look at and does not.
+
+**Not yet performed live.** The configuration is now inside the measured window on this
+machine's own clock, and the report prints offered, admitted and refused so one run says
+whether that holds against a real game.
 
 ## Enforced by
 
