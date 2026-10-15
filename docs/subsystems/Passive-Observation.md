@@ -1247,6 +1247,16 @@ it refuses those looks. Visible is fine; in front is not.
   86px below it, and exactly one candidate is worded in the task.
   [[ADR-197-a-geometric-match-nominates-and-does-not-identify]],
   [[Experiment-044-two-live-runs-that-pressed-nothing-and-pressed-grass]]
+- **And then the pointer did not go where it was sent.** OPEN, and a safety hold
+  on live runs. On the signed-in menu the target was chosen correctly -- the same
+  region Experiment-041 pressed successfully -- the move reported completed, and
+  400ms later the OS said the cursor was 306px right and 452px down from it. The
+  hover probe asks the OS precisely so it can say "the pointer is somewhere else"
+  rather than "the control ignored the pointer", and that is what it said. The pin
+  OUTLIVED every Marco process and took a reboot to clear, so nothing here is
+  established as the cause; what is established is that a move can report
+  completed and not happen, and that no run notices.
+  [[Experiment-045-the-pointer-that-would-not-leave]]
 - **The learned detector runs in the live loop now, beside the proposer.** On the Play
   page the proposer cannot see the Training tile at all — its only covering proposal is
   1644x1032, which `Locates` refuses — and the detector boxes it at IoU 0.991 against
