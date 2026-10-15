@@ -455,6 +455,8 @@ func TestAVisualScreenCannotReachDurableMemory(t *testing.T) {
 		filepath.Join(dir, "screenreading.go"):          true,
 		filepath.Join(dir, "screenreading_test.go"):     true,
 		filepath.Join(dir, "screensolereading_test.go"): true,
+		filepath.Join(dir, "controllabel.go"):           true,
+		filepath.Join(dir, "controllabel_test.go"):      true,
 		filepath.Join(dir, "clicktarget.go"):            true,
 		filepath.Join(dir, "clicktarget_test.go"):       true,
 		filepath.Join(dir, "cause_test.go"):             true,

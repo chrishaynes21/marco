@@ -117,6 +117,19 @@ type Look struct {
 	// within a look leaves this zero, and the fold is then the pixel-only one it
 	// always was -- nobody read it, which is not a disagreement.
 	Text observe.ScreenText
+	// Words is the same reading with each phrase's rectangle kept, and it is for one
+	// thing only: naming the control a press landed on.
+	//
+	// The look-local sibling of `Text`, and separate from it because the two answer
+	// different questions. `Text` is a VOCABULARY and is what screen identity may see;
+	// it cannot say which control said something, which is exactly what a demonstrated
+	// click needs to remember what it clicked. Nothing here reaches screen identity:
+	// folding this as well as `Text` would count one reading twice.
+	//
+	// Empty for a live source, which cannot answer about a look while the look is still
+	// in front of it -- see `Readings`, and the press fold in Observe, which falls back
+	// to the last admitted late reading.
+	Words []observe.ReadWord
 	// Readings is what a SLOW text source has finished reading by this look — each
 	// describing an EARLIER one, exactly as Slow does and judged by the same rule.
 	//
@@ -277,6 +290,19 @@ type Observer struct {
 	epoch     uint64
 	lastID    observe.VisualScreenID
 	hasLastID bool
+	// read is the last admitted reading's words WITH their rectangles, and readGen /
+	// readEpoch the context it was read under.
+	//
+	// Held across looks because OCR answers far less often than the loop looks, and a
+	// press is folded on whichever look it happened on. Only ever consulted through
+	// `observe.Current`, so a reading the observation has outrun names nothing. See the
+	// press fold in Observe.
+	read               []observe.ReadWord
+	readGen, readEpoch uint64
+	// readAt is the look the words above arrived on, and readFolded the last one
+	// already folded against the controls. A reading stands until the next one
+	// arrives, and counting it once a look would weigh it by how long it stood.
+	readAt, readFolded int
 
 	// held is the slow candidates admitted and not yet outrun.
 	//
@@ -457,6 +483,41 @@ func (o *Observer) Observe(lk Look) Update {
 	}
 
 	if len(regions) > 0 {
+		// WHAT THE LAST ADMITTED READING SAW, AND WHERE.
+		//
+		// From a look BEFORE this one, necessarily: readings arrive late, and the
+		// presses are folded first on purpose so a press is recorded against the
+		// screen it was made on rather than the one it produced. That is sound
+		// evidence about the control under the pointer, and `observe.Current` is
+		// what makes it sound -- it holds only while no screen change has been
+		// recorded since the words were read, which is a continuous interval and
+		// not the weaker "the same screen is standing". A reading the epoch has
+		// outrun names nothing.
+		// THIS LOOK'S OWN POSITIONED READING, where a source could supply one.
+		// Remembered rather than used once: a source answers on some looks and
+		// not others, and the press is on whichever look the person clicked. It
+		// is stamped with the context standing NOW, so the same rule that governs
+		// a late reading governs how long this one keeps describing the screen.
+		if len(lk.Words) > 0 {
+			o.read = lk.Words
+			o.readGen, o.readEpoch = lk.Window.Generation, o.epoch
+			o.readAt = o.look
+		}
+		read := o.read
+		if !observe.Current(o.readGen, o.readEpoch, lk.Window.Generation, o.epoch) {
+			read = nil
+		}
+		// WHAT THIS READING SAYS ABOUT THE CONTROLS ON THE SCREEN STANDING, folded
+		// before the presses so a control clicked on this very look is named from
+		// the looks before it as well. See ClickTargets.Reading.
+		//
+		// ONCE PER READING, not once per look. A reading stands until the next one
+		// arrives, and folding it on every look in between would weigh what it says
+		// by how long OCR happened to take.
+		if len(read) > 0 && o.readAt != o.readFolded {
+			o.clicks.Reading(standing, read)
+			o.readFolded = o.readAt
+		}
 		for _, w := range lk.Presses {
 			o.clicks.Press(o.look, w, standing, cands)
 		}
@@ -557,6 +618,18 @@ func (o *Observer) intakeReadings(lk Look, usable bool) {
 			}
 		default:
 			o.stats.ReadingsAdmitted++
+			// AND ITS POSITIONS ARE KEPT, for the press that may be
+			// folded on a later look. `Text` is a vocabulary and cannot
+			// say WHICH control said something; `Words` can, and a
+			// demonstrated click that cannot name what it clicked is
+			// the defect Experiment-049 ran into live. Stamped, so the
+			// same admission rule that let the reading in decides
+			// whether it is still about the screen a press lands on.
+			if len(r.Words) > 0 {
+				o.read = r.Words
+				o.readGen, o.readEpoch = r.Generation, r.Epoch
+				o.readAt = o.look
+			}
 			refused, _ := o.screens.Read(r)
 			switch {
 			case refused:

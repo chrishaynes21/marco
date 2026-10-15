@@ -102,6 +102,8 @@ func reportWorkflowOverRecording(dir string, limit int, onnx string, delay int,
 		fmt.Printf("  words: none cached beside the recording, so the screens of "+
 			"any artifact saved here carry no vocabulary (%v)\n", werr)
 	}
+	// AND WHERE EACH PHRASE WAS, which is what lets a press remember what it clicked.
+	positions := readPositions(dir, frames)
 	inputs, _ := readJSONL[inputRecord](filepath.Join(dir, "input.jsonl"))
 	// ONE FEED PER PASS, loaded fresh each time. The two passes are independent
 	// observers over one recording; a shared feed would let pass one's requests
@@ -132,7 +134,7 @@ func reportWorkflowOverRecording(dir string, limit int, onnx string, delay int,
 		for range obs.Updates() {
 		}
 	}()
-	looks, err := foldRecording(dir, frames, inputs, obs, feed, words, nil)
+	looks, err := foldRecording(dir, frames, inputs, obs, feed, words, positions, nil)
 	if err != nil {
 		return err
 	}
@@ -234,7 +236,7 @@ func reportWorkflowOverRecording(dir string, limit int, onnx string, delay int,
 	// satisfy the second's — and the second pass would measure a source that
 	// answered instantly.
 	feed2 := reload()
-	_, err = foldRecording(dir, frames, inputs, obs2, feed2, words,
+	_, err = foldRecording(dir, frames, inputs, obs2, feed2, words, positions,
 		func(look int, lk fastobserve.Look) {
 			standing := obs2.Screen()
 			// THE SAME SET A PRESS WOULD BE JUDGED AGAINST. A target the detector
@@ -445,6 +447,7 @@ func wrapAt(s string, width int, indent string) string {
 // means nobody read any of them and the fold is the pixel-only one.
 func foldRecording(dir string, frames []frameRecord, inputs []inputRecord,
 	obs *fastobserve.Observer, feed *slowFeed, words []observe.ScreenText,
+	positions [][]observe.ReadWord,
 	each func(look int, lk fastobserve.Look)) (int, error) {
 
 	opt := structure.DefaultOptions()
@@ -464,6 +467,11 @@ func foldRecording(dir string, frames []frameRecord, inputs []inputRecord,
 		// screen identity may see. See fastobserve.Look.Text.
 		if look-1 < len(words) {
 			lk.Text = words[look-1]
+		}
+		// AND WHERE EACH PHRASE WAS, for the press this look may carry. Not
+		// folded into screen identity -- see fastobserve.Look.Words.
+		if look-1 < len(positions) {
+			lk.Words = positions[look-1]
 		}
 		for nextInput < len(inputs) && inputs[nextInput].AtMS <= fr.AtMS {
 			in := inputs[nextInput]

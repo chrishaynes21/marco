@@ -790,7 +790,7 @@ func TestSavedControlTextIsPreferredOverTheWorkflowName(t *testing.T) {
 			a.Controls[i].Text = []string{"FREE PLAY"}
 		}
 	}
-	words, from := a.ExpectedWords(a.Steps[0].Control)
+	words, from, _ := a.ExpectedWords(a.Steps[0].Control)
 	if strings.Join(words, " ") != "free play" {
 		t.Errorf("matching against %v", words)
 	}

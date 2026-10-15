@@ -462,3 +462,56 @@ func TestAnAutomaticStepDoesNotBlockAnAgreedDraft(t *testing.T) {
 			"itself inexecutable; no real workflow would ever be executable")
 	}
 }
+
+// A DRAFT CARRIES WHAT THE DEMONSTRATION READ ON THE CONTROL IT PRESSED.
+//
+// The live step of [[Experiment-049-the-control-it-could-see-and-could-not-name]] refused with
+// the word TRAINING in its own candidate listing, because nothing between the press and the file
+// carried the control's name. This is the link in that chain.
+func TestADraftCarriesTheNameOfTheControlThatWasPressed(t *testing.T) {
+	c := &observe.ClickTargets{}
+	all := []observe.Region{panel(), row(0.2), row(0.3), row(0.4)}
+	label := observe.ReadWord{Text: "TRAINING",
+		Where: observe.Region{X: 0.42, Y: 0.31, Width: 0.05, Height: 0.01}}
+	// READ FIRST, CLICKED AFTER, which is the order the recording actually has.
+	for i := 0; i < 3; i++ {
+		c.Reading("visual_1", []observe.ReadWord{label})
+	}
+	c.Press(1, centre(row(0.3)), "visual_1", observe.Proposed(all, 1, 0, 0))
+	c.Arrived(3, observe.VisualTransition{From: "visual_1", To: "visual_2"})
+
+	d := workflow.Learn("enter free play",
+		[]observe.VisualScreenID{"visual_1", "visual_2"}, c.Evidence(), c.Registry())
+	if len(d.Steps) != 1 {
+		t.Fatalf("%d step(s) learned, want 1", len(d.Steps))
+	}
+	got := strings.Join(d.Steps[0].Text, " ")
+	if got != "training" {
+		t.Fatalf("the step's control is named %q; the demonstration read TRAINING "+
+			"inside the row it pressed", got)
+	}
+	if d.Steps[0].TextLooks == 0 {
+		t.Error("the draft does not say how many looks contributed the name")
+	}
+}
+
+// AND A CONTROL NOBODY READ SAYS SO, so a reader can tell "unlabelled" from "not looked at".
+func TestADraftSaysWhenNothingWasReadOnTheControl(t *testing.T) {
+	_, d := demo(t, "visual_1", "visual_2", 0.3)
+	if len(d.Steps) != 1 {
+		t.Fatalf("%d step(s) learned, want 1", len(d.Steps))
+	}
+	if len(d.Steps[0].Text) != 0 {
+		t.Fatalf("a control nobody read is named %v", d.Steps[0].Text)
+	}
+	var said bool
+	for _, u := range d.Steps[0].Unresolved {
+		if strings.Contains(u, "nothing was read on this control") {
+			said = true
+		}
+	}
+	if !said {
+		t.Errorf("the draft does not record that the control was never read: %v",
+			d.Steps[0].Unresolved)
+	}
+}

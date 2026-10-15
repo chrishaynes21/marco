@@ -158,3 +158,75 @@ func TestSaveWithoutTextWritesNoTextAtAll(t *testing.T) {
 		t.Errorf("an artifact saved with nothing read carries a text key:\n%s", a)
 	}
 }
+
+// A CONTROL'S OWN NAME REACHES THE FILE, AND IS PREFERRED TO THE WORKFLOW'S.
+//
+// [[Experiment-049-the-control-it-could-see-and-could-not-name]]: the live run refused a step
+// with the word TRAINING in its own candidate listing, because the demonstration recorded a
+// rectangle and no name. `ExpectedWords` has preferred saved control text since ADR-193; the
+// field was always empty.
+func TestASavedControlCarriesWhatTheDemonstrationReadOnIt(t *testing.T) {
+	d := workflow.Draft{Name: "enter free play"}
+	d.Steps = []workflow.Step{{
+		From: "visual_1", To: "visual_2", Target: "target_1",
+		Cause: observe.CauseClick, Seen: 2,
+		Readings:  []observe.Region{{X: 0.2, Y: 0.49, Width: 0.18, Height: 0.2}},
+		Text:      []string{"training"},
+		TextLooks: 4,
+	}}
+	a, err := workflowstore.SaveWith(d,
+		map[observe.VisualScreenID]observe.VisualArrangement{
+			"visual_1": {Cells: map[string]int{"0,0": 9}, Total: 9},
+			"visual_2": {Cells: map[string]int{"1,1": 7}, Total: 7},
+		}, nil, saved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := a.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	back, err := workflowstore.Unmarshal(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(back.Controls) != 1 || len(back.Controls[0].Text) != 1 ||
+		back.Controls[0].Text[0] != "training" {
+		t.Fatalf("the control round-tripped as %+v; what the demonstration read on "+
+			"it is the strongest evidence of identity the artifact can carry",
+			back.Controls)
+	}
+
+	// AND IT WINS OVER THE WORKFLOW'S OWN NAME, with the provenance saying which it was.
+	words, from, demonstrated := back.ExpectedWords("control_1")
+	if len(words) != 1 || words[0] != "training" {
+		t.Errorf("the control is expected to say %v, not what it was read to say", words)
+	}
+	if !demonstrated {
+		t.Error("a label the demonstration read is being reported as the weaker source")
+	}
+	if !strings.Contains(from, "the demonstration read") {
+		t.Errorf("the provenance does not say where the words came from: %s", from)
+	}
+
+	// AND A CONTROL NOBODY READ STILL FALLS BACK, and says so.
+	d.Steps[0].Text, d.Steps[0].TextLooks = nil, 0
+	b, err := workflowstore.SaveWith(d,
+		map[observe.VisualScreenID]observe.VisualArrangement{
+			"visual_1": {Cells: map[string]int{"0,0": 9}, Total: 9},
+			"visual_2": {Cells: map[string]int{"1,1": 7}, Total: 7},
+		}, nil, saved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	words, from, demonstrated = b.ExpectedWords("control_1")
+	if demonstrated {
+		t.Error("the workflow's own name is being reported as something somebody read")
+	}
+	if !strings.Contains(from, "weaker than somebody pointing") {
+		t.Errorf("the fallback does not say it is weaker: %s", from)
+	}
+	if len(words) == 0 {
+		t.Error("the fallback produced no words at all")
+	}
+}

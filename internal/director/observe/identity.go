@@ -86,7 +86,8 @@ func (i ControlIdentity) Contradicted() bool { return i.Result == IdentityContra
 // Where that came from is the caller's to report; this function is told the words and not the
 // provenance, because the rule is the same either way and a function that took both would invite
 // one of them to change the answer.
-func ControlIdentityOf(where Region, candidates []Region, read []ReadWord, wanted []string) ControlIdentity {
+func ControlIdentityOf(where Region, candidates []Region, read []ReadWord, wanted []string,
+	demonstrated bool) ControlIdentity {
 	switch {
 	case len(wanted) == 0:
 		return ControlIdentity{Result: IdentityUnexamined,
@@ -110,7 +111,7 @@ func ControlIdentityOf(where Region, candidates []Region, read []ReadWord, wante
 			break
 		}
 	}
-	if said != "" && Covered(Words(said), wanted) {
+	if said != "" && NamesControl(Words(said), wanted, demonstrated) {
 		return ControlIdentity{Result: IdentityCorroborated, Said: said,
 			Because: "the region matched on this look reads " + quoted(said) +
 				", which is what this control is recorded as"}
@@ -122,7 +123,7 @@ func ControlIdentityOf(where Region, candidates []Region, read []ReadWord, wante
 		if n.Text == "" || sameRect(n.Region, where) {
 			continue
 		}
-		if Covered(Words(n.Text), wanted) {
+		if NamesControl(Words(n.Text), wanted, demonstrated) {
 			elsewhere = append(elsewhere, n)
 		}
 	}
@@ -208,6 +209,33 @@ func Words(s string) []string {
 // Deliberately one-directional and whole-word. "FREE PLAY" is covered by "enter free play";
 // "CUSTOM TRAINING" is not. A substring rule would make "PLAY" match "PLAYLIST", and a
 // bidirectional one would make any short label match any long name.
+// NamesControl reports whether a candidate reading `said` is named as a control recorded as
+// saying `wanted`, and the direction depends on where `wanted` came from.
+//
+// # Why one rule cannot serve both sources
+//
+// The fallback is the workflow's own NAME -- "enter free play" -- and what it can say is that a
+// candidate's label is made of the task's words. It runs `said ⊆ wanted`, because a title is a
+// handful of words and a control that says something outside them is a different control. That
+// is [[ADR-193-a-control-re-grounded-from-the-workflows-own-name]] and it is unchanged.
+//
+// A DEMONSTRATED label is the opposite shape. It is what somebody actually clicked, and the
+// question is whether this candidate says it -- `wanted ⊆ said`. The direction matters on the
+// measured case: the control was learned as `training`, and a later look reads `CUSTOM TRAINING`
+// on the tile. Under the title rule that is a miss, because `custom` is not in the saved label;
+// under this one it is the control, because everything the control is recorded as saying is
+// there.
+//
+// Both directions keep the same safety property, which is that nothing here PROPOSES on its own:
+// a caller still refuses when more than one candidate matches, and `NameCandidates` has already
+// given each word to exactly one candidate.
+func NamesControl(said, wanted []string, demonstrated bool) bool {
+	if demonstrated {
+		return Covered(wanted, said)
+	}
+	return Covered(said, wanted)
+}
+
 func Covered(some, all []string) bool {
 	if len(some) == 0 {
 		return false

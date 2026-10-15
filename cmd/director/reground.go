@@ -101,7 +101,7 @@ func (g *regrounder) Reground(ctx context.Context, step int, control string,
 	// wins whenever there is any. The workflow's NAME is the fallback, and it is the
 	// workflow corroborating itself -- which is why the provenance is printed beside
 	// the decision rather than left for a reader to assume.
-	wanted, from := g.art.ExpectedWords(control)
+	wanted, from, demonstrated := g.art.ExpectedWords(control)
 	if len(wanted) == 0 {
 		fmt.Fprintf(g.out, "    %s, so there is nothing here that says which "+
 			"control was meant\n", from)
@@ -143,7 +143,8 @@ func (g *regrounder) Reground(ctx context.Context, step int, control string,
 
 	var matched []labelled
 	for _, c := range cands {
-		if c.text != "" && observe.Covered(observe.Words(c.text), wanted) {
+		if c.text != "" && observe.NamesControl(observe.Words(c.text), wanted,
+			demonstrated) {
 			matched = append(matched, c)
 		}
 	}
@@ -169,7 +170,8 @@ func (g *regrounder) Reground(ctx context.Context, step int, control string,
 			break
 		}
 		mark := " "
-		if c.text != "" && observe.Covered(observe.Words(c.text), wanted) {
+		if c.text != "" && observe.NamesControl(observe.Words(c.text), wanted,
+			demonstrated) {
 			mark = "*"
 		}
 		fmt.Fprintf(g.out, "    %s %-28q %s\n", mark, c.text, pxOf(c.region))

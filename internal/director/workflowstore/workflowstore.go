@@ -309,6 +309,13 @@ func SaveWith(d workflow.Draft,
 			c := &a.Controls[slot[s.Target]]
 			c.Readings = mergeRegions(c.Readings, s.Readings)
 			c.Containers = mergeRegions(c.Containers, s.Containers)
+			// AND WHAT IT WAS READ TO SAY. The draft already holds only what
+			// the presses AGREED on -- see observe/controllabel.go -- so this
+			// copies rather than merges: two steps using one control carry the
+			// same accumulated label, and a union here would quietly widen it.
+			if len(s.Text) > 0 {
+				c.Text = append([]string{}, s.Text...)
+			}
 		}
 		a.Steps = append(a.Steps, st)
 	}

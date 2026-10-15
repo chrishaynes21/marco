@@ -107,6 +107,16 @@ type TargetRecord struct {
 	// against looks that are not the demonstration itself.
 	FirstLook int `json:"first_look"`
 	LastLook  int `json:"last_look"`
+	// Text is what this control's own rectangle was read to say, and TextLooks how many
+	// looks of its screen contributed a reading of it.
+	//
+	// The strongest evidence of identity a demonstration can record, and the thing whose
+	// absence refused a live step that had the word on the screen in front of it --
+	// [[Experiment-049-the-control-it-could-see-and-could-not-name]]. Empty is the honest
+	// answer for a control nobody read, an unlabelled icon, or a hypothesis that locates
+	// nothing; see controllabel.go.
+	Text      []string `json:"text,omitempty"`
+	TextLooks int      `json:"text_looks,omitempty"`
 	// Destinations is where clicking it was observed to lead, with the cause.
 	Destinations []TargetDestination `json:"destinations,omitempty"`
 	// MaybeOneControlWith is the other identities on this screen that led to the same
@@ -170,6 +180,8 @@ func (c *ClickTargets) Registry() []TargetRecord {
 			Containers:       append([]Region{}, t.containers...),
 			Presses:          t.seen,
 			AmbiguousPresses: t.ambiguous,
+			Text:             t.said.list(),
+			TextLooks:        t.said.looks,
 			FirstLook:        t.firstLook,
 			LastLook:         t.lastLook,
 		}

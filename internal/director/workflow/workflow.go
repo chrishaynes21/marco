@@ -102,6 +102,15 @@ type Step struct {
 	// ADR-180, where mutual centre containment turned out not to be a size test.
 	Readings   []observe.Region `json:"readings,omitempty"`
 	Containers []observe.Region `json:"containers,omitempty"`
+	// Text is what the demonstration read ON the control, and TextLooks how many
+	// looks of its screen contributed a reading of it.
+	//
+	// The one piece of evidence in a step a person would recognise. See
+	// observe/controllabel.go for what may become one, and
+	// [[Experiment-049-the-control-it-could-see-and-could-not-name]] for the live step
+	// that refused with the word on the screen in front of it.
+	Text      []string `json:"text,omitempty"`
+	TextLooks int      `json:"text_looks,omitempty"`
 
 	// Uncertain says the session could not tell this target from another on the same
 	// screen: two identities that led to the same destination.
@@ -294,6 +303,16 @@ func Learn(name string, walk []observe.VisualScreenID, ev observe.ClickEvidence,
 		if rec, ok := records[st.Target]; ok {
 			step.Readings = append([]observe.Region{}, rec.Where...)
 			step.Containers = append([]observe.Region{}, rec.Containers...)
+			step.Text = append([]string{}, rec.Text...)
+			step.TextLooks = rec.TextLooks
+			// A CONTROL NOBODY READ IS SAID SO, because the re-grounder's only
+			// other source is the workflow's own title and a reader has to be
+			// able to tell "unlabelled" from "not looked at".
+			if len(step.Text) == 0 && st.Cause == observe.CauseClick {
+				step.Unresolved = append(step.Unresolved,
+					"nothing was read on this control, so a repair has "+
+						"only the workflow's own name to go on")
+			}
 			step.Uncertain = len(rec.MaybeOneControlWith) > 0
 			if step.Uncertain {
 				step.Unresolved = append(step.Unresolved, fmt.Sprintf(

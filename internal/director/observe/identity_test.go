@@ -41,7 +41,7 @@ func TestAMatchOnBackgroundIsContradictedByTheLabelElsewhere(t *testing.T) {
 	got := observe.ControlIdentityOf(grass,
 		[]observe.Region{grass, play, garage},
 		[]observe.ReadWord{reads("PLAY", play), reads("GARAGE", garage)},
-		observe.Words("enter free play"))
+		observe.Words("enter free play"), false)
 
 	if !got.Contradicted() {
 		t.Fatalf("%s — %s", got.Result, got.Because)
@@ -69,7 +69,7 @@ func TestAnUnlabelledControlIsNotContradictedByItsOwnSilence(t *testing.T) {
 		[]observe.Region{grass, play, garage},
 		// Words on the screen, none of them this control's and none of them PLAY.
 		[]observe.ReadWord{reads("GARAGE", garage)},
-		observe.Words("enter free play"))
+		observe.Words("enter free play"), false)
 
 	if got.Contradicted() {
 		t.Fatalf("an unlabelled match was refused: %s", got.Because)
@@ -89,7 +89,7 @@ func TestAnUnlabelledControlIsNotContradictedByItsOwnSilence(t *testing.T) {
 // bears on this control.
 func TestWithNoWordsAtAllNothingIsContradicted(t *testing.T) {
 	got := observe.ControlIdentityOf(grass, []observe.Region{grass, play}, nil,
-		observe.Words("enter free play"))
+		observe.Words("enter free play"), false)
 
 	if got.Contradicted() {
 		t.Fatalf("a look with no words refused a match: %s", got.Because)
@@ -102,7 +102,7 @@ func TestWithNoWordsAtAllNothingIsContradicted(t *testing.T) {
 // AND NEITHER IS A CONTROL NOTHING SAYS ANYTHING ABOUT.
 func TestWithNothingRecordedToMatchAgainstTheQuestionIsNotAsked(t *testing.T) {
 	got := observe.ControlIdentityOf(grass, []observe.Region{grass, play},
-		[]observe.ReadWord{reads("PLAY", play)}, nil)
+		[]observe.ReadWord{reads("PLAY", play)}, nil, false)
 
 	if got.Result != observe.IdentityUnexamined {
 		t.Fatalf("%s — %s", got.Result, got.Because)
@@ -130,7 +130,7 @@ func TestAMatchThatSaysWhatItShouldIsCorroboratedEvenWithCompany(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			got := observe.ControlIdentityOf(play,
 				[]observe.Region{grass, play, garage}, tc.words,
-				observe.Words("enter free play"))
+				observe.Words("enter free play"), false)
 
 			if got.Result != observe.IdentityCorroborated {
 				t.Fatalf("%s — %s", got.Result, got.Because)
@@ -150,7 +150,7 @@ func TestTwoCandidatesNamedTheSameAreReportedAndNotChosenBetween(t *testing.T) {
 	got := observe.ControlIdentityOf(grass,
 		[]observe.Region{grass, play, garage},
 		[]observe.ReadWord{reads("PLAY", play), reads("PLAY", garage)},
-		observe.Words("enter free play"))
+		observe.Words("enter free play"), false)
 
 	if !got.Contradicted() {
 		t.Fatalf("%s — %s", got.Result, got.Because)
@@ -172,7 +172,7 @@ func TestABandIsNotACompetingCandidate(t *testing.T) {
 	band := rect(0, 432, 1920, 324)
 	got := observe.ControlIdentityOf(grass, []observe.Region{grass, band},
 		[]observe.ReadWord{reads("PLAY", band)},
-		observe.Words("enter free play"))
+		observe.Words("enter free play"), false)
 
 	if got.Contradicted() {
 		t.Fatalf("a band refused a match: %s", got.Because)

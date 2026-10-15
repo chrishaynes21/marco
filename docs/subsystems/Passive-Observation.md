@@ -1347,6 +1347,29 @@ it refuses those looks. Visible is fine; in front is not.
   its vocabulary now, which moved the learned artifact from 9 screens and 21 steps to 13
   and 39.
   [[ADR-200-a-destination-a-workflow-recognises-for-itself]]
+- **And then the live run found the next blocker: a control Marco could see and could
+  not name.** It pressed PLAY, the pointer landed where it was sent, the button lit at
+  170.7/255, the screen changed and the Play page was recognised at 0.796 -- goal reached
+  1, goal recognised 1. Step 1 then refused with `"TRAINING"` in its own candidate
+  listing, because the demonstration had recorded a rectangle and no name. The refusal
+  was right: `ExpectedWords` has preferred saved control text to the workflow's title
+  since ADR-193, and the field was always empty. So a demonstrated click records what the
+  thing it clicked SAYS -- the words wholly inside the rectangle the press established,
+  by the same `NameCandidates` the live identity tier uses, kept when read on at least
+  `TextCommon` of that screen's looks. One look is never asked: OCR read PLAY on
+  seventeen looks of the main menu and NONE of the six before the press, because the
+  entry is highlighted by the time the pointer reaches it. A band across the window
+  learns nothing, which is what keeps the full-window Free Play control from being named
+  after the whole screen. Measured on the recording: `control_1 play`, `control_2
+  training` -- the second only with the learned detector running, because the proposer's
+  tile stops at y 0.654 and the caption sits at y 0.673 while the detector's box covers
+  it at under half the area. FREE PLAY is NOT recoverable -- its press landed inside no
+  region but the whole window and no word lies under the click -- and the artifact
+  records that it was never read rather than guessing a rectangle. The existing
+  re-grounder resolves both labelled controls offline with no reference to the title,
+  and still refuses when two candidates match.
+  [[ADR-201-a-demonstrated-click-remembers-what-it-clicked]],
+  [[Experiment-049-the-control-it-could-see-and-could-not-name]]
 - **The learned detector runs in the live loop now, beside the proposer.** On the Play
   page the proposer cannot see the Training tile at all — its only covering proposal is
   1644x1032, which `Locates` refuses — and the detector boxes it at IoU 0.991 against

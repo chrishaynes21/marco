@@ -328,6 +328,9 @@ type visualTarget struct {
 	// not count as having found the target again.
 	ambiguous           int
 	firstLook, lastLook int
+	// said is what this control's own rectangle has been read to say, over every look
+	// of the screen it is on. See controllabel.go.
+	said controlWords
 }
 
 // ClickTargets correlates presses with the screen changes that followed them.
@@ -363,6 +366,59 @@ type ClickTargets struct {
 	arrivedAt    int
 	arrivedWhere VisualScreenID
 	hasArrived   bool
+
+	// recent is the last positioned readings, with the screen each was taken on.
+	//
+	// Held because a press is folded before the rectangle it establishes exists, so the
+	// readings that name a control are usually the ones taken BEFORE it was clicked.
+	// See MaxRecentReadings.
+	recent []screenReading
+}
+
+// screenReading is one look's positioned reading, and the screen it was taken on.
+type screenReading struct {
+	screen VisualScreenID
+	words  []ReadWord
+}
+
+// Reading folds one look's positioned reading against every control known on this screen.
+//
+// Called once a look by the observer, before the presses. What it does is accumulate what each
+// control's OWN rectangle says over the looks of its screen — see controllabel.go for why one
+// look is the wrong number to ask, and why `Locates` is what keeps a full-window hypothesis from
+// learning the whole screen's vocabulary as a control's name.
+//
+// Nothing here moves a target, mints one, or changes which rectangle a press identified. A label
+// is evidence about a control that already exists.
+func (c *ClickTargets) Reading(screen VisualScreenID, read []ReadWord) {
+	if len(read) == 0 || screen == "" {
+		return
+	}
+	for i := range c.targets {
+		t := &c.targets[i]
+		if t.screen != screen || len(t.where) == 0 {
+			continue
+		}
+		t.said.saw(LabelOf(t.where[0], read))
+	}
+	c.recent = append(c.recent, screenReading{screen: screen,
+		words: append([]ReadWord{}, read...)})
+	if len(c.recent) > MaxRecentReadings {
+		c.recent = c.recent[len(c.recent)-MaxRecentReadings:]
+	}
+}
+
+// nameFromRecent folds the readings already taken of this screen into a control just created.
+func (c *ClickTargets) nameFromRecent(t *visualTarget) {
+	if len(t.where) == 0 {
+		return
+	}
+	for _, r := range c.recent {
+		if r.screen != t.screen {
+			continue
+		}
+		t.said.saw(LabelOf(t.where[0], r.words))
+	}
 }
 
 // Press folds one press: what it landed on, and which target that is.
@@ -469,6 +525,9 @@ func (c *ClickTargets) identify(screen VisualScreenID, cands []Region) VisualTar
 	c.targets = append(c.targets, visualTarget{
 		id: id, screen: screen, where: append([]Region{}, cands...), seen: 1,
 	})
+	// AND WHAT THE LOOKS ALREADY TAKEN SAID ABOUT IT. The rectangle did not exist
+	// until now, so the readings that name it are the ones before the press.
+	c.nameFromRecent(&c.targets[len(c.targets)-1])
 	return id
 }
 

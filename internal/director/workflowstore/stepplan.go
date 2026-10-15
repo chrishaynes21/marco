@@ -378,8 +378,9 @@ func (a Artifact) StepReadinessAt(at int, s *SessionBinding, now Now) StepReadin
 	if repaired {
 		r.Grounding = GroundingRegrounded
 	} else if len(now.Words) > 0 {
-		wanted, from := a.ExpectedWords(st.Control)
-		r.Identity = observe.ControlIdentityOf(where, now.Candidates, now.Words, wanted)
+		wanted, from, demonstrated := a.ExpectedWords(st.Control)
+		r.Identity = observe.ControlIdentityOf(where, now.Candidates, now.Words,
+			wanted, demonstrated)
 		switch {
 		case r.Identity.Contradicted():
 			r.Stage = StepControlContradicted
@@ -465,7 +466,7 @@ func (a Artifact) readingsOf(label string) []observe.Region {
 // rather than left for a caller to guess, because a report that did not distinguish them would
 // make the weak case read like the strong one. No demonstration writes `Control.Text` yet; see
 // the field.
-func (a Artifact) ExpectedWords(label string) (words []string, from string) {
+func (a Artifact) ExpectedWords(label string) (words []string, from string, demonstrated bool) {
 	for _, c := range a.Controls {
 		if c.Label != label {
 			continue
@@ -476,7 +477,7 @@ func (a Artifact) ExpectedWords(label string) (words []string, from string) {
 		}
 		if len(saved) > 0 {
 			return saved, fmt.Sprintf("the text the demonstration read on this "+
-				"control (%q)", strings.Join(c.Text, " "))
+				"control (%q)", strings.Join(c.Text, " ")), true
 		}
 		break
 	}
@@ -485,9 +486,9 @@ func (a Artifact) ExpectedWords(label string) (words []string, from string) {
 	// the decision unauditable from the report alone.
 	if w := observe.Words(a.Name); len(w) > 0 {
 		return w, fmt.Sprintf("the workflow's own name (%q), which is weaker than "+
-			"somebody pointing", a.Name)
+			"somebody pointing", a.Name), false
 	}
-	return nil, "nothing recorded says what this control should say"
+	return nil, "nothing recorded says what this control should say", false
 }
 
 // ── progress ──────────────────────────────────────────────────────────────────

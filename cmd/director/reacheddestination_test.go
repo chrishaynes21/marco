@@ -253,6 +253,14 @@ func TestAnAttemptSaysWhatItEstablishedAndThatTheActionIsStillNotVerified(t *tes
 		},
 		contains: []string{"INDEPENDENT of the workflow", "NOT independently verified"},
 	}, {
+		name: "an inference is arrangement evidence and says so",
+		arrival: workflowstore.Arrival{
+			Step: 0, Destination: "screen_b",
+			Ground: workflowstore.GroundInferred, Because: "the arrangement agreed",
+		},
+		contains: []string{"the arrangement agreed", "No reading was part of that",
+			"NOT independently verified"},
+	}, {
 		name: "the workflow reached it and a reading identified it",
 		arrival: workflowstore.Arrival{
 			Step: 1, Destination: "screen_c",

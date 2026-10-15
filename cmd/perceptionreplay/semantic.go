@@ -31,6 +31,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"image"
 
 	"os"
 	"path/filepath"
@@ -88,14 +89,21 @@ func readWords(dir string, frames []frameRecord, stride int, eng *ocrclient.Engi
 			return nil, fmt.Errorf("look %d: %w", i, oerr)
 		}
 		var phrases []string
+		var rects []image.Rectangle
 		for _, g := range got {
 			if g.Text == "" || g.Bounds.Empty() {
 				continue
 			}
 			phrases = append(phrases, g.Text)
+			rects = append(rects, g.Bounds)
 		}
+		// AND WHERE EACH ONE WAS, normalised to the frame the way every other
+		// region in this system is. Discarding it was why a demonstrated click
+		// could not remember what it clicked.
+		boxes := observe.NormaliseRects(img.Bounds(), rects)
 		out[i] = observe.TextOf(directorapi.SourceOCR, phrases)
-		if err := writeJSONLRow(f, wordRow{Look: i, Phrases: phrases}); err != nil {
+		if err := writeJSONLRow(f, wordRow{Look: i, Phrases: phrases,
+			Boxes: boxes}); err != nil {
 			return nil, err
 		}
 		done++
@@ -112,6 +120,51 @@ func readWords(dir string, frames []frameRecord, stride int, eng *ocrclient.Engi
 type wordRow struct {
 	Look    int      `json:"look"`
 	Phrases []string `json:"phrases,omitempty"`
+	// Where each phrase was read, normalised to the frame, parallel to Phrases.
+	//
+	// Kept because a vocabulary cannot say WHICH control said something, and that is
+	// exactly what a demonstrated click needs in order to remember what it clicked --
+	// see [[ADR-201-a-demonstrated-click-remembers-what-it-clicked]]. Optional, so a
+	// cache written before this field still loads: a row with no boxes is a reading
+	// whose positions were not kept, which is honestly different from one with none.
+	Boxes []observe.Region `json:"boxes,omitempty"`
+}
+
+// positioned is the reading with each phrase's rectangle, when the cache kept them.
+func (r wordRow) positioned() []observe.ReadWord {
+	if len(r.Boxes) != len(r.Phrases) {
+		return nil
+	}
+	out := make([]observe.ReadWord, 0, len(r.Phrases))
+	for i, p := range r.Phrases {
+		out = append(out, observe.ReadWord{Text: p, Where: r.Boxes[i]})
+	}
+	return out
+}
+
+// readPositions is the same cache read for WHERE each phrase was, when it kept them.
+//
+// Separate from `readWords` and never computed: a cache written before boxes existed answers
+// nothing here, which is the honest record of a recording whose positions were not kept. Run
+// `-frames -semantic` again after deleting words.jsonl to get them.
+func readPositions(dir string, frames []frameRecord) [][]observe.ReadWord {
+	out := make([][]observe.ReadWord, len(frames))
+	rows, err := readJSONL[wordRow](filepath.Join(dir, "words.jsonl"))
+	if err != nil {
+		return out
+	}
+	kept := 0
+	for _, r := range rows {
+		if r.Look < 0 || r.Look >= len(out) {
+			continue
+		}
+		if w := r.positioned(); len(w) > 0 {
+			out[r.Look] = w
+			kept++
+		}
+	}
+	fmt.Printf("  words: %d reading(s) carry where each phrase was read\n", kept)
+	return out
 }
 
 // semanticFold runs ONE fresh observer over the whole recording, with or without text.

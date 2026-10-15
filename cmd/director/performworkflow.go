@@ -996,6 +996,18 @@ func reportAttempt(a workflowrun.Attempt) {
 	case a.Arrival.Independent():
 		fmt.Printf("    destination: established, and INDEPENDENT of the workflow — "+
 			"somebody looked at it (%s)\n", a.Arrival.Ground)
+	// AN INFERENCE HAS NO READING IN IT, and saying otherwise misnames the evidence.
+	//
+	// `Positive` and `Thin` are set only by `Reached`, so an inferred arrival used to
+	// fall through to the default below and print "on a reading that only FAILED TO
+	// CONTRADICT it" — when what established it was a screen change the observer
+	// recorded and an arrangement that agreed, with no reading consulted at all. It
+	// overstated nothing about strength and misnamed the KIND, in the one report whose
+	// job is keeping those apart.
+	case a.Arrival.Ground == workflowstore.GroundInferred:
+		fmt.Printf("    destination: established as %q — the workflow demonstrates "+
+			"this transition and the arrangement agreed. No reading was part "+
+			"of that decision\n", a.Arrival.Ground)
 	case a.Arrival.Thin:
 		fmt.Printf("    destination: established as %q from this look, on a saved "+
 			"vocabulary too thin to have refused it\n", a.Arrival.Ground)
