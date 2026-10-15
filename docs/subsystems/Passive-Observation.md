@@ -1280,6 +1280,26 @@ it refuses those looks. Visible is fine; in front is not.
   run landed on that side. Located, NOT fixed -- every obvious response is a
   threshold or a heuristic for one game.
   [[Experiment-046-the-destination-it-reached-and-did-not-recognise]]
+- **One reading may refuse a merge now, and still may not mint a screen.** The words
+  that separate those two pages were already allowed to refuse, and could not reach
+  the question: the rule wanted two consecutive readings of the new page, and a page
+  a workflow passes THROUGH is read once -- the reading that would corroborate the
+  first is a reading of the next page. So one reading may object, on a harder bar:
+  the screen must have established what it says, the look must disagree with that
+  AND with every word that screen has ever been read to say, and it must bring three
+  words the screen has never said. Measured over 222 folds of the recorded
+  navigation: 147 -> 153 separated, the Play page holding the Training page's words
+  75 -> 69, the main menu split zero times either way, and all 27 refusals correct.
+  Over the whole 900-look recording the main menu keeps ONE identity across its 449
+  looks with its panel rotating, and nine of eleven screens are still entered more
+  than once. The live four-look dwell is UNCHANGED, and that is the finding: a
+  screen's first reading is never folded, the reading before the change is stale by
+  ADR-195, and the next pair available is two readings of the page that replaced
+  it -- so a page passed through can never have established what it says. The
+  variant that fixes that was measured and reverted: 210 of 222 separated, and a
+  second identity for the main menu over 93 looks and four visits.
+  [[ADR-199-one-reading-may-refuse-a-merge-and-may-not-mint-a-screen]],
+  [[Experiment-047-what-one-reading-is-allowed-to-do]]
 - **The learned detector runs in the live loop now, beside the proposer.** On the Play
   page the proposer cannot see the Training tile at all — its only covering proposal is
   1644x1032, which `Locates` refuses — and the detector boxes it at IoU 0.991 against

@@ -1100,7 +1100,14 @@ func printScreensSeenTo(w io.Writer, obs *fastobserve.Observer) {
 		fmt.Fprintf(w, "      %-14s %s\n", "in this order",
 			strings.Join(parts, " -> "))
 	}
+	// AND HOW MUCH OF THAT RESTED ON ONE READING. A refusal two readings agreed on and a
+	// refusal one reading raised alone are different evidence, and the second is the one
+	// whose cost somebody will want to see — see ADR-199.
+	alone := ""
+	if st.TextRefusedAlone > 0 {
+		alone = fmt.Sprintf(" (%d on one reading)", st.TextRefusedAlone)
+	}
 	fmt.Fprintf(w, "      %-14s settled %d, unsettled %d, warming %d, text refused a "+
-		"merge %d time(s)\n", "and the fold", st.Settled, st.Unsettled,
-		st.Warming, st.TextRefusedMerge)
+		"merge %d time(s)%s\n", "and the fold", st.Settled, st.Unsettled,
+		st.Warming, st.TextRefusedMerge, alone)
 }

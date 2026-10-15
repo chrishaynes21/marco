@@ -126,18 +126,46 @@ func (v *VisualScreens) Read(r ScreenReading) (bool, string) {
 	// screen standing now, and that is true whether or not it contradicts.
 	v.noteText(v.held, agreed)
 
-	if !agreed.Said() {
-		return false, "this is the first reading of " + string(v.held) +
+	apart, why, alone := false, "", false
+	if agreed.Said() {
+		apart, why = v.saidSomethingElse(v.held, agreed)
+	} else {
+		why = "this is the first reading of " + string(v.held) +
 			", so there is nothing to compare it with yet"
 	}
-	apart, why := v.saidSomethingElse(v.held, agreed)
+	if !apart {
+		// AND ON THIS ONE READING, WHICH NOTHING HAS CORROBORATED.
+		//
+		// The branch above needs two readings of one screen to agree, and a screen
+		// a workflow passes THROUGH is read once -- the reading that would
+		// corroborate it is a reading of the next page. So a single reading may
+		// raise the objection on a harder bar: see TextSoleReadingDisagrees.
+		if soleApart, soleWhy := v.soleReadingSaysOtherwise(v.held, r.Text); soleApart {
+			apart, why, alone = true, soleWhy, true
+		}
+	}
 	if apart {
 		v.stats.TextRefusedMerge++
+		if alone {
+			v.stats.TextRefusedAlone++
+		}
 		v.lastTextRefusal = why
 		v.contradicted = v.held
 		return true, why
 	}
-	if v.contradicted == v.held {
+	// A REFUSAL IS WITHDRAWN BY AN AGREEMENT, not by one reading.
+	//
+	// Deliberately asymmetric, and the asymmetry runs the other way from the refusal
+	// above: refusing on one reading costs a split, which costs a recognition, and
+	// withdrawing on one reading restores the merge this exists to refuse. So a
+	// withdrawal keeps the corroboration requirement it always had.
+	//
+	// `agreed.Said()` is a statement of that intent rather than a live branch: every
+	// admitted reading sets the pairing key to the screen standing when it arrived, so a
+	// refusal that is still standing always has a pair available, and a screen change
+	// clears the refusal on its way past. Written down because a mutant that drops this
+	// condition survives, and the reason it survives is that the case cannot arise today.
+	if v.contradicted == v.held && agreed.Said() {
 		v.contradicted = ""
 		v.stats.TextWithdrewRefusal++
 		return false, "a reading of " + string(v.held) + " agrees with it again: " + why

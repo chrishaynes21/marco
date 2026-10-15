@@ -426,7 +426,7 @@ func TestARefusalSurvivesTheUnreadLooksBetweenReadings(t *testing.T) {
 // This is what the measurement forced. Taking a single reading as the look's side split one main
 // menu into eight identities over 449 looks, because each reading of it brought thirty fresh
 // misreadings and every one of them counted as a word the screen had never said.
-func TestOneOddReadingRefusesNothing(t *testing.T) {
+func TestOneOddReadingCostsAScreenNothingItKeeps(t *testing.T) {
 	training, _ := twoMenus()
 	v := &observe.VisualScreens{}
 	say := read("TUTORIAL", "CUSTOM TRAINING", "AERIAL", "STRIKER", "GOALIE")
@@ -446,8 +446,19 @@ func TestOneOddReadingRefusesNothing(t *testing.T) {
 			t.Fatalf("the screen split to %s after the reading agreed again", got)
 		}
 	}
-	if st := v.Stability(); st.TextRefusedMerge != 0 {
-		t.Errorf("single odd readings refused %d merge(s)", st.TextRefusedMerge)
+	// AND EVERY OBJECTION IT RAISED WAS TAKEN BACK.
+	//
+	// [[ADR-199-one-reading-may-refuse-a-merge-and-may-not-mint-a-screen]] lets a single
+	// reading refuse, so `loading please wait` -- which keeps nothing of what this screen
+	// says and brings three words it has never said -- now raises an objection where it
+	// raised none. The next reading of the screen underneath withdraws it, inside the
+	// three looks the pending run needs, and the screen is never split. That outcome is
+	// what this test was always about; the counter is how it gets there.
+	st := v.Stability()
+	if st.TextRefusedMerge != st.TextWithdrewRefusal {
+		t.Errorf("single odd readings refused %d merge(s) and %d were withdrawn; a "+
+			"refusal nothing takes back costs this screen its identity in three looks",
+			st.TextRefusedMerge, st.TextWithdrewRefusal)
 	}
 }
 

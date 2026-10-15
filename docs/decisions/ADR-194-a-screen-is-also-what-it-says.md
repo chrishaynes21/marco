@@ -166,7 +166,7 @@ reader can see whether it is still there.
 `TestAScreenThatSaysMoreThanItDidIsNotANewScreen`,
 `TestAScreenReadLessFullyIsNotANewScreen`,
 `TestARefusalSurvivesTheUnreadLooksBetweenReadings`,
-`TestOneOddReadingRefusesNothing`,
+`TestOneOddReadingCostsAScreenNothingItKeeps`,
 `TestAReadingThatAgreesWithdrawsAnEarlierRefusal`,
 `TestNobodyLookedIsNotTheSameAsNothingWasThere`,
 `TestTooFewWordsIsNotADisagreement`,
@@ -178,6 +178,15 @@ reader can see whether it is still there.
 
 And the measurement itself: `go run ./cmd/perceptionreplay -frames -semantic <recording>`, which
 folds the recording both ways and prints the distributions the two numbers sit between.
+
+## Since
+
+The look's side of the rule moved. A single uncorroborated reading may now refuse a merge, on a
+stricter bar and with the screen's side exactly as it is above, because a page a workflow passes
+THROUGH is read once and the reading that would corroborate it is a reading of the next page. See
+[[ADR-199-one-reading-may-refuse-a-merge-and-may-not-mint-a-screen]] and
+[[Experiment-047-what-one-reading-is-allowed-to-do]]; the measurement that set the SCREEN's side
+stands and is not reopened there.
 
 ## Related
 

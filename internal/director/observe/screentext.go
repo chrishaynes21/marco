@@ -347,3 +347,64 @@ func TextsDisagree(said, now ScreenText) (bool, string) {
 		"what it says is new (%s against %s)", kept*100, novel*100,
 		strings.Join(said.List(), " "), strings.Join(now.List(), " "))
 }
+
+// TextSoleReadingDisagrees reports whether ONE reading, which nothing has corroborated, may
+// refuse to believe this is that screen.
+//
+// # Why there is a second, stricter rule at all
+//
+// `TextBoth` requires the look's side to be an agreement of two consecutive readings, and the
+// measurement that forced it is real: a single reading as the look's side split one main menu
+// into eight identities. The cost of that protection is a delay of one reading, and
+// [[Experiment-046-the-destination-it-reached-and-did-not-recognise]] measured what the delay
+// costs — a screen a workflow passes THROUGH is read once, or not at all, and the second
+// reading that would corroborate the first is a reading of the next page.
+//
+// So one reading may raise the objection, on a bar the corroborated rule does not have to clear.
+// `said` is what the screen has been read to say and `everSaid` every word ever folded into it,
+// unfiltered:
+//
+//	it must disagree with the screen's VOCABULARY            the measured kept/novel rule
+//	and with everything that screen has EVER been read to say which is the corroboration the
+//	                                                          look's own side is missing
+//	and it must bring TextDisagreementWords words that        so the claim rests on words
+//	screen has never said                                     rather than on a fraction
+//
+// The last two are what keep a rotating panel from separating. A screen whose content changes
+// under one identity has usually said the new words before — the panel comes back around — and
+// `everSaid` remembers that even after `TextCommon` has dropped them from what the screen
+// usually says. And a reading that merely resolved fewer labels brings nothing new at all, which
+// is the same rule as `TextNovel` stated on words instead of on a share: missing text is not a
+// contradiction.
+//
+// What this may NOT do is mint an identity. A refusal keeps a look off the standing screen; the
+// arrangement still has to hold for `VisualSettleLooks` before anything is a new screen, and
+// nothing here reaches a stored signature. See screentextfold.go.
+func TextSoleReadingDisagrees(said, everSaid, now ScreenText) (bool, string) {
+	apart, why := TextsDisagree(said, now)
+	if !apart {
+		return false, why
+	}
+	// EVERYTHING THIS SCREEN HAS EVER BEEN READ TO SAY, not only what it usually says.
+	if ever, everWhy := TextsDisagree(everSaid, now); !ever {
+		return false, "on one reading, and " + everWhy
+	}
+	// AND THE NEW WORDS HAVE TO BE A CLAIM. `novel` is a share, so two new words out of
+	// three clear it; one uncorroborated reading does not get to rest a screen identity
+	// on two words. Counted against everSaid, for the same reason as above.
+	fresh := make([]string, 0, len(now.Words))
+	for w := range now.Words {
+		if _, old := everSaid.Words[w]; !old {
+			fresh = append(fresh, w)
+		}
+	}
+	if len(fresh) < TextDisagreementWords {
+		sort.Strings(fresh)
+		return false, fmt.Sprintf("on one reading it brings %d word(s) that screen has "+
+			"never said (%s), fewer than the %d it takes to be a claim",
+			len(fresh), strings.Join(fresh, " "), TextDisagreementWords)
+	}
+	sort.Strings(fresh)
+	return true, fmt.Sprintf("%s — on one reading, and it brings %s, which that screen "+
+		"has never said", why, strings.Join(fresh, " "))
+}

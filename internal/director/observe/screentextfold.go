@@ -70,6 +70,30 @@ func (v *screenVocabulary) add(t ScreenText) {
 	}
 }
 
+// raw is every word ever folded into this screen, with no commonness filter, for the one
+// question that may be asked of an uncorroborated reading.
+//
+// `stable` is what a screen may be said to SAY and is the only thing a merge is refused against.
+// This is weaker and is used only to make a sole reading's refusal HARDER: a word this screen has
+// said before, even rarely, is not a word that makes this a different screen. See
+// TextSoleReadingDisagrees.
+//
+// What is folded here is already an agreement of two readings — see `stable` — so "ever said" is
+// still corroborated evidence about this screen, and a single misreading never enters it.
+func (v screenVocabulary) raw() ScreenText {
+	if v.readings == 0 || v.from == "" {
+		return ScreenText{}
+	}
+	out := ScreenText{From: directorapi.ObservationSource(v.from), Looks: v.readings}
+	for w, n := range v.seen {
+		if out.Words == nil {
+			out.Words = map[string]int{}
+		}
+		out.Words[w] = n
+	}
+	return out
+}
+
 // stable is what the screen says: the union of every AGREEMENT folded into it.
 //
 // What is folded here is already a `TextBoth` — words two consecutive readings of this screen
@@ -177,6 +201,37 @@ func (v *VisualScreens) saidSomethingElse(id VisualScreenID, t ScreenText) (bool
 			continue
 		}
 		apart, why := TextsDisagree(v.screens[i].text.stable(), t)
+		if !apart {
+			return false, why
+		}
+		return true, fmt.Sprintf("%s and this look %s", id, why)
+	}
+	return false, ""
+}
+
+// soleReadingSaysOtherwise reports whether ONE uncorroborated reading contradicts a screen.
+//
+// The same question as `saidSomethingElse` and a stricter rule, because nothing has corroborated
+// the look's side — see TextSoleReadingDisagrees for the bar and for what forced it. The SCREEN's
+// side is unchanged and is still `stable()`: a screen that has not established what it says may
+// not be contradicted, which is the measurement that minted a second identity for one main menu
+// and is not being reopened.
+//
+// Called only where a merge onto the STANDING screen is decided. `promote` deliberately does not
+// ask it: a sole reading may refuse to believe this is that screen, and may not go looking for
+// identities to keep a settled run away from. What reaches a promotion is the refusal already
+// standing against the standing screen, which is how a screen released for saying something else
+// avoids promoting straight back onto it.
+func (v *VisualScreens) soleReadingSaysOtherwise(id VisualScreenID, t ScreenText) (bool, string) {
+	if !t.Said() {
+		return false, ""
+	}
+	for i := range v.screens {
+		if v.screens[i].id != id {
+			continue
+		}
+		apart, why := TextSoleReadingDisagrees(v.screens[i].text.stable(),
+			v.screens[i].text.raw(), t)
 		if !apart {
 			return false, why
 		}

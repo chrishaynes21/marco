@@ -306,6 +306,12 @@ type VisualStability struct {
 	// TextWithdrewRefusal is how many times a later reading agreed with a screen a
 	// previous one had said this was not, which is the evidence correcting itself.
 	TextRead, TextRefusedMerge, TextRefusedReuse, TextWithdrewRefusal int
+	// TextRefusedAlone is how many of the refusals rested on ONE reading that nothing
+	// corroborated, rather than on two consecutive readings that agreed.
+	//
+	// Counted apart because it is the weaker evidence and the honest question about it is
+	// how often a screen identity turned on it. See TextSoleReadingDisagrees.
+	TextRefusedAlone int
 	// Unobserved is looks that saw no structure, and Unobservable the times a run of them
 	// went on long enough to give up the standing screen.
 	Unobserved, Unobservable int
@@ -507,12 +513,25 @@ func (v *VisualScreens) Observe(a VisualArrangement, at time.Time) VisualScreenI
 	// hold for settleLooks before it is a screen — so one odd reading costs nothing.
 	if v.held != "" && ArrangementSimilarity(v.heldSig, a) >= VisualScreenMatch {
 		apart, why := v.saidSomethingElse(v.held, v.lookText)
+		alone := false
+		if !apart {
+			// AND ON ONE READING, WHERE THERE IS NO AGREEMENT TO BE HAD. A
+			// screen passed through is read once and the reading that would
+			// corroborate it is a reading of the next page -- see
+			// TextSoleReadingDisagrees, which is why this one has a harder bar
+			// to clear rather than the same one.
+			apart, why = v.soleReadingSaysOtherwise(v.held, v.lookRead)
+			alone = apart
+		}
 		switch {
 		case apart:
 			// A READING SAYS THIS IS NOT THAT SCREEN. Recorded against the
 			// screen, not the look, so the sparse looks between readings do
 			// not undo it. See VisualScreens.contradicted.
 			v.stats.TextRefusedMerge++
+			if alone {
+				v.stats.TextRefusedAlone++
+			}
 			v.lastTextRefusal = why
 			v.contradicted = v.held
 		case v.contradicted == v.held:
