@@ -1300,6 +1300,27 @@ it refuses those looks. Visible is fine; in front is not.
   second identity for the main menu over 93 looks and four visits.
   [[ADR-199-one-reading-may-refuse-a-merge-and-may-not-mint-a-screen]],
   [[Experiment-047-what-one-reading-is-allowed-to-do]]
+- **And the destination was recognisable the whole time; the run never asked.** Read
+  again, the live log says step 0 recognised the Play page inside its four looks and
+  step 1 stood on the Training page for SIXTY observations without establishing it. Two
+  lines explain it, and both are the global model answering a workflow's question:
+  `Establish` returns early while the step's SOURCE is still established, and a binding
+  is live for exactly one observation generation, which moves only when the global
+  observer records a change -- so a merge means the question "is this screen_c?" is never
+  put. And when it is put, what it scores is `obs.Arrangement(standing)`, a signature
+  fixed at `promote` and never updated, so standing on the Training page under `visual_2`
+  the saved destination is compared against the PLAY page's arrangement. Scored
+  look-local instead, the saved Training page agrees with a Training look at 0.600
+  (0.550..0.686, above 0.55 on all 28) and with a Play look at 0.448, clearing on none of
+  the main menu's 28; on a held-out capture nothing was learned from, 39 of 40. The
+  arrangement alone is NOT safe -- 10 of 34 Play looks and 21 of 28 submenu looks -- and a
+  reading takes every one of those to zero. Over the same 222 folds, in the 69 that merge:
+  established 0 of 69 today, 69 of 69 look-local with a reading corroborating, and ZERO
+  false arrivals in 222 folds. The arrangement answers on look 0, the reading by look 5
+  of 8 at worst, against a step patience of 60. Measured, NOT implemented; and the one
+  piece of evidence missing is that the artifact carries no screen text at all, because
+  only `perceptionreplay -save` reaches `SaveWith`.
+  [[Experiment-048-the-destination-a-workflow-can-see-for-itself]]
 - **The learned detector runs in the live loop now, beside the proposer.** On the Play
   page the proposer cannot see the Training tile at all — its only covering proposal is
   1644x1032, which `Locates` refuses — and the detector boxes it at IoU 0.991 against
