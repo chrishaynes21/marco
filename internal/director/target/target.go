@@ -58,6 +58,21 @@ func NewResolver() *Resolver {
 // Asking them the other way round is what turns "I cannot see into this application"
 // into "that button does not exist".
 func (r *Resolver) Resolve(w *directorapi.WorldState, q directorapi.ElementQuery) directorapi.Resolution {
+	return r.ResolveUnder(w, q, directorapi.OperateLicence{}, "")
+}
+
+// ResolveUnder is Resolve for a request that carries an explicit action licence.
+//
+// The licence reaches exactly one decision: whether a Prop that ONLY PIXELS DESCRIBE may be
+// offered as a target at all. Everything else about resolution is untouched — the same ranking,
+// the same ambiguity refusal, the same geometry and visibility requirements, the same
+// explanations. A request without a licence resolves exactly as it always did, which is what
+// makes this safe to add to a shared path.
+//
+// See directorapi.OperateLicence for what a licence is and the four things it cannot do.
+func (r *Resolver) ResolveUnder(w *directorapi.WorldState, q directorapi.ElementQuery,
+	lic directorapi.OperateLicence, verb string) directorapi.Resolution {
+
 	if !q.Constrained() {
 		return directorapi.Resolution{
 			Status:      directorapi.ResolutionUnobservable,
@@ -66,7 +81,7 @@ func (r *Resolver) Resolve(w *directorapi.WorldState, q directorapi.ElementQuery
 		}
 	}
 
-	candidates := r.rank(w, q)
+	candidates := r.rankUnder(w, q, lic, verb)
 
 	// A match found despite a poor world is still a match: the world being weak
 	// overall does not unfind a control we can plainly see and use.
@@ -239,13 +254,20 @@ func unobservable(w *directorapi.WorldState) (blocker, why string) {
 
 // rank scores every element against the query, best first.
 func (r *Resolver) rank(w *directorapi.WorldState, q directorapi.ElementQuery) []directorapi.TargetCandidate {
+	return r.rankUnder(w, q, directorapi.OperateLicence{}, "")
+}
+
+// rankUnder is rank, told what the request is licensed to operate.
+func (r *Resolver) rankUnder(w *directorapi.WorldState, q directorapi.ElementQuery,
+	lic directorapi.OperateLicence, verb string) []directorapi.TargetCandidate {
+
 	var out []directorapi.TargetCandidate
 
 	for _, el := range world.Elements(w) {
 		if !inScope(w, el, q) {
 			continue
 		}
-		c := score(el, q)
+		c := score(el, q, lic, verb)
 		if c.Score < r.MinScore && c.Rejected == "" {
 			continue
 		}
@@ -333,7 +355,8 @@ const (
 )
 
 // score rates one element against the query and records why.
-func score(el *directorapi.Element, q directorapi.ElementQuery) directorapi.TargetCandidate {
+func score(el *directorapi.Element, q directorapi.ElementQuery,
+	lic directorapi.OperateLicence, verb string) directorapi.TargetCandidate {
 	c := directorapi.TargetCandidate{
 		ElementID: el.ID,
 		Role:      el.Role,
@@ -417,16 +440,30 @@ func score(el *directorapi.Element, q directorapi.ElementQuery) directorapi.Targ
 	}
 
 	c.Score = s
-	if !acts.Targetable() {
-		// Recorded, not dropped: an unusable match is a real finding, and it is what
-		// lets the Director say "Save is disabled" instead of "Save does not exist".
+	// GROUNDING AND PERMISSION, ASKED APART.
+	//
+	// `Targetable()` is the conjunction of both, and reading it as one question is what
+	// made a pixel-only control report "not visible on screen" — a control that was
+	// plainly visible, correctly matched, and merely unvouched-for. A person told that
+	// goes looking for a missing button.
+	//
+	// So grounding is asked first and answers for itself, and the permission question —
+	// did anything say this may be OPERATED — is asked second, where an explicit
+	// instruction may answer it. See directorapi.OperateLicence.
+	operable, why := el.OperableUnder(lic, verb)
+	if !(acts.Enabled && acts.ClickableByBounds && operable && acts.Any()) {
+		// Recorded, not dropped: an unusable match is a real finding, and it is
+		// what lets the Director say "Save is disabled" instead of "Save does not
+		// exist".
 		switch {
 		case !acts.Interactive:
 			c.Rejected = "not an interactive control"
 		case !acts.Enabled:
 			c.Rejected = "disabled"
-		default:
+		case !acts.ClickableByBounds:
 			c.Rejected = "not visible on screen"
+		default:
+			c.Rejected = why
 		}
 	}
 	return c

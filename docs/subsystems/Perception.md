@@ -195,6 +195,27 @@ counted toward whether the window was read, and still reported.
 Without it, one cold Learn with the detector configured left two durable Places for one Settings
 page nobody touched. See [[ADR-107-a-sensor-appearing-is-not-the-screen-changing]].
 
+### And a camera still cannot say how to work a control — unless somebody asks
+
+`ActuatingSource` admits accessibility, a native integration, a DOM bridge and a capability pack,
+because each can say how to OPERATE a thing. A detector and an OCR reader describe what the
+screen looks like, so `Actionability.Actuable` is false for an element only they saw and the
+resolver refuses it. That rule is unchanged and is what stops Marco operating a surface nobody
+vouched for, on its own initiative, everywhere.
+
+What it also did was make every control in an application with no accessibility tree unreachable
+except by demonstration. So an explicit instruction may now license ONE action on such a Prop:
+`directorapi.OperateLicence` is a fact about the REQUEST — these words, this verb — and says
+nothing about which Prop is meant. Ambiguity still refuses, geometry still has to be there and
+refuses at grounding, policy never sees the licence so risk rules are untouched, and read text
+alone is not a clickable surface, because the rectangle of a word is a caption and not the
+control it labels. It is a local value on one call: nothing stores it, nothing can reuse it, and
+it mints no identity.
+
+`Resolve` is unchanged and licenses nothing; `ResolveUnder` is the licensed sibling, so every
+existing caller behaves as it did. See
+[[ADR-202-an-instruction-may-license-one-action-on-a-prop-only-pixels-describe]].
+
 ## Known gaps
 
 - ~~Vision runs an unrequested pass on every ordinary cycle.~~ **Fixed 2026-08-10.** The

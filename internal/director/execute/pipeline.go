@@ -892,10 +892,22 @@ func (p *Pipeline) prepareTraced(ctx context.Context, request string, world dire
 		}
 		// Resolution is pure computation over an already-observed world, so its
 		// deadline exists to catch a pathological candidate set rather than a hang.
+		// THE LICENCE THIS REQUEST CARRIES, built here and nowhere else.
+		//
+		// A person asked, in these words, for this verb. That is the whole of it: it
+		// permits a Prop THAT ONLY PIXELS DESCRIBE to be offered as a target, and
+		// decides nothing about WHICH Prop — ambiguity, geometry and visibility
+		// refuse exactly as they did. It is a local value on one call of one
+		// request, so it expires when this returns; there is nowhere for it to be
+		// kept and nothing keeps it. See directorapi.OperateLicence.
+		//
+		// It does not reach policy. Risk and destructiveness are evaluated below
+		// from the planned action, and that evaluation cannot see this.
+		lic := directorapi.OperateLicence{Instruction: request, Verb: in.Verb}
 		var res directorapi.Resolution
 		_ = trace.Do(ctx, p.Trace, trace.PhaseResolve, p.stepMeta(trace.PhaseResolve),
 			func(context.Context) error {
-				res = p.Resolver.Resolve(&world, query)
+				res = p.Resolver.ResolveUnder(&world, query, lic, in.Verb)
 				return nil
 			})
 		input.Resolution = res
