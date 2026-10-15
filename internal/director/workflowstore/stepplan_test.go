@@ -600,6 +600,46 @@ func TestAControlRegroundedForThisSessionReplacesWhatTheFileSays(t *testing.T) {
 	}
 }
 
+// AND A REPAIR ANSWERS A CONTROL THAT WAS NOT SEEN AT ALL.
+//
+// The measured defect: the main menu is bottom-anchored and signed out it loses two entries,
+// so PLAY sits 95px below where the demonstration recorded it. Re-acquisition finds nothing
+// that agrees with the saved reading, and before this the readiness refused on that before it
+// ever consulted the session repairs -- so the repair could only ever widen a control that had
+// been found, never place one that had not.
+//
+// The repair IS a sighting: it was established by looking at this screen. The saved readings
+// are the thing that failed.
+func TestARepairAnswersAControlThatCouldNotBeSeenAtAll(t *testing.T) {
+	a := threeScreens(t)
+	s, now := ready(t, a)
+	control := a.Steps[0].Control
+	// THE DEFECT: looked for, and not found anywhere on this look.
+	now.Outcomes[0].Result = observe.ReacquireUnobservable
+	now.Outcomes[0].Where = observe.Region{}
+
+	if got := a.StepReadinessAt(0, s, now); got.Stage !=
+		workflowstore.StepControlUnresolved {
+		t.Fatalf("the fixture is not the defect under test: %q", got.Stage)
+	}
+
+	live := observe.Region{X: 0.177, Y: 0.431, Width: 0.074, Height: 0.031}
+	now.Reground = map[string]observe.Region{control: live}
+	got := a.StepReadinessAt(0, s, now)
+	if !got.Ready() {
+		t.Fatalf("stage %q -- %s", got.Stage, got.Because)
+	}
+	wantX, wantY := live.X+live.Width/2, live.Y+live.Height/2
+	if d := got.Action.At.X - wantX; d > 0.0001 || d < -0.0001 {
+		t.Errorf("the point is x %.4f, and the repair middle is %.4f",
+			got.Action.At.X, wantX)
+	}
+	if d := got.Action.At.Y - wantY; d > 0.0001 || d < -0.0001 {
+		t.Errorf("the point is y %.4f, and the repair middle is %.4f",
+			got.Action.At.Y, wantY)
+	}
+}
+
 // AND IT IS NOT NARROWED AGAINST THE READINGS IT EXISTS TO REPLACE.
 //
 // The agreement rule asks "what do the file and this look both describe", and both of its inputs

@@ -1220,6 +1220,25 @@ it refuses those looks. Visible is fine; in front is not.
   it had before. `--reading`.
   [[ADR-195-a-reading-that-arrives-after-the-look-it-describes]],
   [[Experiment-043-a-reading-that-arrives-late]]
+- **A control that moved is not a control that was covered.** Live, Rocket League
+  is bottom-anchored and signed out loses two menu entries and both side panels, so
+  PLAY sits 95px below where the demonstration recorded it. The old rectangle still
+  LOCATES something -- the pitch behind the menu -- so the step refused `unresolved`
+  sixty times while the repair for exactly this went unasked, because it was asked
+  only where a control locates nothing. The patience window is the discriminator: a
+  covered control comes back within it, a moved one never does, so an unresolved
+  control is asked about ONCE, on the look the run would otherwise stop on. And a
+  repair now answers "can it be seen now" at all, which it could not before.
+  [[ADR-196-a-control-that-moved-is-not-a-control-that-was-covered]],
+  [[Experiment-044-two-live-runs-that-pressed-nothing-and-pressed-grass]]
+- **And re-acquisition cannot tell a button from the pitch behind it.** OPEN. The
+  next run matched a 128x24 patch of grass inside the old rectangle and pressed it,
+  75px above the real button: `sameControl` is mutual centre containment and consults
+  no pixels and no text, so "re-acquired on this look" means only that a proposer drew
+  a box in the same place. A wrong match reaches the press AHEAD of the repair that
+  would have been right. The hover probe measured 0.0/255 against 136.7 for the same
+  button in Experiment-041, said so, and nothing used it.
+  [[Experiment-044-two-live-runs-that-pressed-nothing-and-pressed-grass]]
 - **The learned detector runs in the live loop now, beside the proposer.** On the Play
   page the proposer cannot see the Training tile at all — its only covering proposal is
   1644x1032, which `Locates` refuses — and the detector boxes it at IoU 0.991 against

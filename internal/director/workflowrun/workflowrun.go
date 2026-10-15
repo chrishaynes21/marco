@@ -209,9 +209,13 @@ type Grounder interface {
 //
 // Returning false is a complete answer and means the step stays refused. The region it returns
 // is used for THIS SESSION only; nothing here writes to the artifact.
+//
+// The stage is passed because the two reasons for asking are different findings and a repair
+// that described itself as the wrong one would send its reader to the wrong place. See
+// `wantsReground` for which stages qualify and when.
 type Regrounder interface {
-	Reground(ctx context.Context, step int, control string, at Sighting) (
-		observe.Region, string, bool)
+	Reground(ctx context.Context, step int, control string, stage workflowstore.StepStage,
+		at Sighting) (observe.Region, string, bool)
 }
 
 // Outcome is what one call to Advance did.
@@ -652,14 +656,14 @@ func (r *Runner) Advance(ctx context.Context, s *workflowstore.SessionBinding,
 	// ── 5a. THE FILE CANNOT SAY WHERE THIS CONTROL IS ──
 	//
 	// Asked once per control and only here, where the refusal actually happens. A step
-	// that was refused for any other reason is not re-grounded: looking for a different
-	// rectangle because a control was briefly covered would replace a target that works
-	// with one that happened to be visible.
-	if ready.Stage == workflowstore.StepControlUnlocated && r.regrounder != nil {
+	// refused for a reason that is not about where its control is stays refused: nobody
+	// looks for a different rectangle because a person has not yet said which control was
+	// meant, or because this run may not send another action.
+	if r.regrounder != nil && r.wantsReground(ready.Stage) {
 		if _, done := r.regrounded[r.art.Steps[r.cursor].Control]; !done {
 			control := r.art.Steps[r.cursor].Control
 			if where, why, ok := r.regrounder.Reground(ctx, r.cursor, control,
-				at); ok {
+				ready.Stage, at); ok {
 				if r.regrounded == nil {
 					r.regrounded = map[string]observe.Region{}
 				}
@@ -983,6 +987,45 @@ func (r *Runner) halted(ctx context.Context) (bool, string) {
 		return true, "the run was cancelled: " + err.Error()
 	}
 	return false, ""
+}
+
+// wantsReground says whether this refusal is one that looking at the screen could answer, and
+// whether now is the moment to look.
+//
+// # Two refusals, and only one of them is immediate
+//
+// `StepControlUnlocated` is the file naming nowhere: a band across the window re-acquires
+// perfectly on every look and locates nothing. No amount of waiting changes that, so it is asked
+// the first time it happens.
+//
+// `StepControlUnresolved` is the control not being found on this look, and that is the one the
+// original rule excluded on purpose — a control mid-animation, or briefly covered by something
+// passing over it, is refused exactly this way and resolves itself a look later. Replacing its
+// target with whatever happened to be visible during the gap would break a step that works.
+//
+// # What changed, and why the exclusion survives it
+//
+// A menu MOVES. Measured live: Rocket League's main menu is bottom-anchored, and signed out it
+// loses two entries, so PLAY sits 95px lower than the demonstration recorded it. The recorded
+// rectangle still locates something — the arena behind the menu — so the step is refused
+// unresolved, forever, and the repair that exists for precisely this was never asked.
+//
+// The patience window is what separates the two. A control that is covered comes back within it;
+// a control that has moved is refused on every look of it. So an unresolved control is asked
+// about ONCE, on the last observation before the run would stop anyway — where the alternative is
+// not a working target but no target at all, and the exclusion's reasoning no longer applies.
+func (r *Runner) wantsReground(stage workflowstore.StepStage) bool {
+	switch stage {
+	case workflowstore.StepControlUnlocated:
+		return true
+	case workflowstore.StepControlUnresolved:
+		// THE LAST LOOK, counted the way section 8 counts it: `looks` is
+		// incremented there and compared after, so the final observation of the
+		// window is the one where it has not yet been incremented past patience.
+		return r.looks >= r.patience
+	default:
+		return false
+	}
 }
 
 // impatient turns a refusal that has run out of observations into the end of the walk.

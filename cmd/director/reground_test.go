@@ -213,7 +213,7 @@ func TestALookThatOfferedOnlyBandsIsReportedAsThat(t *testing.T) {
 		[]readWord{word("FREE", 340, 466, 70, 34), word("PLAY", 420, 466, 62, 34)})
 
 	if _, _, ok := g.Reground(context.Background(), 2, "control_3",
-		workflowrun.Sighting{}); ok {
+		workflowstore.StepControlUnlocated, workflowrun.Sighting{}); ok {
 		t.Fatal("a look offering only bands grounded a control")
 	}
 	if !strings.Contains(out.String(), "none of them locates anything") {
@@ -258,7 +258,7 @@ func TestExactlyOneQualifyingCandidateIsTheAnswer(t *testing.T) {
 		})
 
 	where, why, ok := g.Reground(context.Background(), 2, "control_3",
-		workflowrun.Sighting{})
+		workflowstore.StepControlUnlocated, workflowrun.Sighting{})
 	if !ok {
 		t.Fatalf("refused: %s", out.String())
 	}
@@ -303,7 +303,7 @@ func TestTwoCandidatesThatQualifyEquallyAreRefused(t *testing.T) {
 		})
 
 	where, why, ok := g.Reground(context.Background(), 2, "control_3",
-		workflowrun.Sighting{})
+		workflowstore.StepControlUnlocated, workflowrun.Sighting{})
 	if ok {
 		t.Fatalf("two qualifying candidates grounded %+v: %s", where, why)
 	}
@@ -320,7 +320,7 @@ func TestNoQualifyingCandidateIsRefusedAsAnIntentNeverSaved(t *testing.T) {
 			word("TRAINING", 540, 600, 110, 34)})
 
 	if _, _, ok := g.Reground(context.Background(), 2, "control_3",
-		workflowrun.Sighting{}); ok {
+		workflowstore.StepControlUnlocated, workflowrun.Sighting{}); ok {
 		t.Fatal("a screen with nothing named in the workflow's name was grounded")
 	}
 	if !strings.Contains(out.String(), "not recoverable") {
@@ -356,6 +356,7 @@ func TestEachWayTheWordsCanBeMissingIsReportedSeparately(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			g, out := tc.build()
 			if _, _, ok := g.Reground(context.Background(), 2, "control_3",
+				workflowstore.StepControlUnlocated,
 				workflowrun.Sighting{}); ok {
 				t.Fatal("grounded")
 			}

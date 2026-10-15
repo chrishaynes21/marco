@@ -162,3 +162,5 @@ Every one of these is in the deletion check in `mutate220.py`.
 - [[ADR-192-a-second-source-in-the-live-loop]] — where the candidate regions come from.
 - [[ADR-188-performing-a-saved-workflow]] — the walk this repair happens inside.
 - [[Experiment-041-the-control-Marco-found-for-itself]] — the live run.
+- [[ADR-196-a-control-that-moved-is-not-a-control-that-was-covered]] — the case the exclusion
+  argued here does not cover, and when an unresolved control may be asked about.

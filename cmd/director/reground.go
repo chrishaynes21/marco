@@ -86,11 +86,15 @@ type readWord struct {
 }
 
 func (g *regrounder) Reground(ctx context.Context, step int, control string,
-	at workflowrun.Sighting) (observe.Region, string, bool) {
+	stage workflowstore.StepStage, at workflowrun.Sighting) (observe.Region, string, bool) {
 
 	g.asked++
-	fmt.Fprintf(g.out, "\n  step %d: %s locates nothing. Looking for it on the screen "+
-		"instead.\n", step, control)
+	// WHICH REFUSAL THIS IS, because they send a reader to different places. A control
+	// that locates nothing is a rectangle the demonstration recorded wrong. A control
+	// that was not found on any look of the patience window is a control that is no
+	// longer where it was — which is the ordinary fate of a menu, not a broken file.
+	fmt.Fprintf(g.out, "\n  step %d: %s %s. Looking for it on the screen instead.\n",
+		step, control, whyRegrounding(stage))
 
 	// THE WORDS THE PERSON USED FOR THIS TASK. The only human-supplied meaning in the
 	// artifact; everything else in it is a generated name.
@@ -262,6 +266,23 @@ func covered(some, all []string) bool {
 }
 
 // max0 keeps a count from reading as a negative number of remaining candidates.
+// whyRegrounding is the half-sentence that says what the file could not do.
+//
+// Two stages reach here and they are not the same finding. `StepControlUnlocated` is a recorded
+// rectangle that names nowhere — a band across the window, which re-acquires on every look and
+// cannot be pressed. `StepControlUnresolved` is a control that was looked for on every
+// observation of the patience window and found on none of them, which is what a menu that has
+// moved looks like from here.
+//
+// One sentence for both would read as the first, and send whoever reads it to the artifact to
+// look at a rectangle that is perfectly well-formed.
+func whyRegrounding(stage workflowstore.StepStage) string {
+	if stage == workflowstore.StepControlUnresolved {
+		return "was not found on any look while the run waited for it"
+	}
+	return "locates nothing"
+}
+
 func max0(n int) int {
 	if n < 0 {
 		return 0

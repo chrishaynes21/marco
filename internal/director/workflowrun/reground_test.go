@@ -31,14 +31,16 @@ type repairs struct {
 	asked  []string
 	steps  []int
 	looked []uint64
+	stages []workflowstore.StepStage
 }
 
 func (p *repairs) Reground(ctx context.Context, step int, control string,
-	at workflowrun.Sighting) (observe.Region, string, bool) {
+	stage workflowstore.StepStage, at workflowrun.Sighting) (observe.Region, string, bool) {
 
 	p.asked = append(p.asked, control)
 	p.steps = append(p.steps, step)
 	p.looked = append(p.looked, at.Epoch)
+	p.stages = append(p.stages, stage)
 	if p.no {
 		return observe.Region{}, "", false
 	}
@@ -245,17 +247,23 @@ func TestARepairSurvivesToTheNextLook(t *testing.T) {
 	}
 }
 
-// AND A STEP REFUSED FOR ANY OTHER REASON IS NOT RE-GROUNDED.
+// AND A STEP REFUSED FOR ANOTHER REASON IS NOT RE-GROUNDED ON THE LOOK IT IS REFUSED.
 //
 // The question is asked where the refusal actually happens and nowhere else. Looking for a
 // different rectangle because a control was briefly covered, or because nobody has agreed to the
 // step yet, would replace a target that works with whatever happened to be visible.
+//
+// ON THE LOOK, and the qualification is load-bearing for the first case only. A control that was
+// not found comes back if it was covered and does not if it moved, and the patience window is
+// the only thing that tells those apart — so it IS asked about, once, after the window is spent.
+// See TestAControlNeverSeenIsReGroundedOnTheLastLookAndThenPressed. The other two are refusals
+// about something other than where the control is, and no amount of waiting makes them askable.
 func TestAStepRefusedForAnotherReasonIsNotRegrounded(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
 		spoil func(*rig) workflowrun.Sighting
 	}{
-		{"the control was not found at all", func(g *rig) workflowrun.Sighting {
+		{"the control was not found on this look", func(g *rig) workflowrun.Sighting {
 			at := firstStep()
 			at.Outcomes = nil
 			return at
@@ -350,6 +358,147 @@ func TestARunWithNoRegrounderStillRefusesAControlThatLocatesNothing(t *testing.T
 	}
 	if len(g.book.programs) != 0 {
 		t.Errorf("%d program(s) reached Marco", len(g.book.programs))
+	}
+}
+
+// notFound is an observation on which the control was looked for and not seen.
+//
+// The measured shape: the main menu is bottom-anchored and signed out it loses two entries,
+// so PLAY sits 95px below where the demonstration recorded it. The recorded rectangle still
+// locates something -- the arena behind the menu -- so this is not StepControlUnlocated.
+func notFound(lk workflowrun.Sighting) workflowrun.Sighting {
+	lk.Outcomes[0].Result = observe.ReacquireUnobservable
+	lk.Outcomes[0].Where = observe.Region{}
+	lk.Outcomes[0].Controls = 0
+	lk.Outcomes[0].Because = "no proposal on this look agrees with any reading of this " +
+		"control, though a region that contained the original press is still here"
+	return lk
+}
+
+// A CONTROL THAT WAS BRIEFLY NOT SEEN IS NOT RE-GROUNDED WHILE THE RUN IS STILL WAITING.
+//
+// The exclusion the original rule defended, and it survives: a control mid-animation or
+// covered by something passing over it is refused exactly this way and comes back a look
+// later. Asking then would replace a target that works with whatever happened to be visible.
+func TestAControlNotSeenYetIsNotReGroundedWhileThereIsStillPatience(t *testing.T) {
+	g := newRig(t)
+	p := &repairs{where: rect(0.177, 0.431, 0.074, 0.031), why: "somewhere else"}
+	g.run.WithRegrounder(p).WithPatience(4)
+
+	for i := 0; i < 4; i++ {
+		got := g.run.Advance(context.Background(), g.s, notFound(firstStep()))
+		if got.Outcome != workflowrun.OutcomeWaiting {
+			t.Fatalf("look %d: %s -- %s", i, got.Outcome, got.Because)
+		}
+		if len(p.asked) != 0 {
+			t.Fatalf("look %d: re-grounded after %d look(s); a control that is "+
+				"briefly covered must be waited for", i, i+1)
+		}
+	}
+	if g.book.clicks() != 0 {
+		t.Errorf("%d press(es) reached Marco", g.book.clicks())
+	}
+}
+
+// AND ONE THAT WAS NEVER SEEN AT ALL IS ASKED ABOUT, ONCE, BEFORE THE RUN GIVES UP.
+//
+// The defect this fixes, measured live: step 0 was refused unobservable on all 60 looks of
+// its window and the run stopped, while the repair that exists for exactly this -- a control
+// grounded by what it SAYS -- was never asked, because the control still located something.
+func TestAControlNeverSeenIsReGroundedOnTheLastLookAndThenPressed(t *testing.T) {
+	g := newRig(t)
+	live := rect(0.177, 0.431, 0.074, 0.031)
+	p := &repairs{where: live, why: "the only control on this screen whose text is " +
+		"made of words from the workflow's own name"}
+	g.run.WithRegrounder(p).WithPatience(3)
+
+	ctx := context.Background()
+	// THE WHOLE WINDOW IS SPENT WAITING FIRST, because a control that comes back is not
+	// a control that moved, and only the window apart tells them apart.
+	for i := 0; i < 3; i++ {
+		got := g.run.Advance(ctx, g.s, notFound(firstStep()))
+		if got.Outcome != workflowrun.OutcomeWaiting {
+			t.Fatalf("look %d: %s -- %s", i, got.Outcome, got.Because)
+		}
+		if len(p.asked) != 0 {
+			t.Fatalf("re-grounded on look %d, with the window not yet spent", i)
+		}
+	}
+
+	// AND THE LOOK THE RUN WOULD OTHERWISE STOP ON IS THE ONE THAT ASKS.
+	got := g.run.Advance(ctx, g.s, notFound(firstStep()))
+	if len(p.asked) != 1 {
+		t.Fatalf("asked %d time(s), want exactly once", len(p.asked))
+	}
+	if got.Outcome != workflowrun.OutcomePressed {
+		t.Fatalf("%s -- %s", got.Outcome, got.Because)
+	}
+	if n := g.book.clicks(); n != 1 {
+		t.Fatalf("%d press(es) reached Marco, want 1", n)
+	}
+	want := workflowrun.Desktop(observe.PointerAt{
+		X: live.X + live.Width/2, Y: live.Y + live.Height/2}, window)
+	if !strings.Contains(g.book.programs[0], "X "+itoa(want.X)+", Y "+itoa(want.Y)) {
+		t.Errorf("the press did not go to the re-grounded point (%v):\n%s",
+			want, g.book.programs[0])
+	}
+}
+
+// AND THE REASON IT IS BEING ASKED REACHES WHOEVER ANSWERS.
+//
+// Two refusals arrive here and they are different findings: a rectangle recorded wrong, and
+// a control that has moved. A repair that described itself as the first would send a reader
+// to the artifact to look at a rectangle that is perfectly well-formed.
+func TestTheRepairIsToldWhichRefusalItIsAnswering(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		look workflowrun.Sighting
+		// looks is how many observations it takes to reach the question, which is
+		// itself the difference: a band is asked about at once, a control that was
+		// not found is asked about only once waiting has been given up on.
+		looks int
+		want  workflowstore.StepStage
+	}{
+		{"a band across the window", onABand(), 1,
+			workflowstore.StepControlUnlocated},
+		{"a control that moved", notFound(firstStep()), 2,
+			workflowstore.StepControlUnresolved},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			g := newRig(t)
+			p := &repairs{no: true}
+			g.run.WithRegrounder(p).WithPatience(1)
+			for i := 0; i < tc.looks; i++ {
+				g.run.Advance(context.Background(), g.s, tc.look)
+			}
+			if len(p.stages) != 1 {
+				t.Fatalf("asked %d time(s), want once", len(p.stages))
+			}
+			if p.stages[0] != tc.want {
+				t.Errorf("told %q, want %q", p.stages[0], tc.want)
+			}
+		})
+	}
+}
+
+// AND AN ORDINARY STEP NEVER CONSULTS THE REPAIR AT ALL.
+//
+// Every plannable step passes through 5a refused as unauthorised, because authorisation is
+// deliberately asked for last. A rule that re-grounded whatever refusal it met would look for
+// a new rectangle before any step was ever pressed, and the target the demonstration
+// established would never be used.
+func TestAStepThatIsMerelyUnauthorisedIsNeverReGrounded(t *testing.T) {
+	g := newRig(t)
+	p := &repairs{where: rect(0.177, 0.431, 0.074, 0.031), why: "somewhere else"}
+	g.run.WithRegrounder(p)
+
+	got := g.run.Advance(context.Background(), g.s, firstStep())
+	if got.Outcome != workflowrun.OutcomePressed {
+		t.Fatalf("%s -- %s", got.Outcome, got.Because)
+	}
+	if len(p.asked) != 0 {
+		t.Errorf("a step whose control was found was re-grounded anyway, about %v",
+			p.asked)
 	}
 }
 

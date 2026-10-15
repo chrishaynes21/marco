@@ -201,7 +201,24 @@ func (a Artifact) StepReadinessAt(at int, s *SessionBinding, now Now) StepReadin
 			outcome = &now.Outcomes[i]
 		}
 	}
+	regrounded, repaired := now.Reground[st.Control]
+
+	// A REPAIR IS ITSELF AN ANSWER TO "CAN IT BE SEEN NOW"
+	//
+	// Not a way around the question. The repair was established by looking at THIS screen
+	// — the regions the sources proposed on it and the words read inside them — so a
+	// control re-grounded here was seen, by something other than the file's own readings.
+	// Those readings are the thing that failed, and asking them again is how the measured
+	// defect produced sixty identical refusals: Rocket League's main menu is
+	// bottom-anchored, and signed out it loses two entries, so PLAY sits 95px below where
+	// the demonstration recorded it. Matching against the recorded pixels of a
+	// semi-transparent button over a different car and a different arena cannot succeed,
+	// and nothing about waiting changes it.
+	//
+	// What this does NOT skip is 4a. A repair that names a band across the window is
+	// refused exactly as a recorded one is — see the comment there.
 	switch {
+	case repaired:
 	case outcome == nil:
 		r.Stage = StepControlUnresolved
 		r.Because = fmt.Sprintf("no outcome was offered for %s on this look", st.Control)
@@ -232,10 +249,12 @@ func (a Artifact) StepReadinessAt(at int, s *SessionBinding, now Now) StepReadin
 	//
 	// It does NOT skip Locates. A repair that named another band across the window would
 	// be the same defect with a better provenance.
-	where := outcome.Where
-	regrounded, repaired := now.Reground[st.Control]
-	if repaired {
+	var where observe.Region
+	switch {
+	case repaired:
 		where = regrounded
+	default:
+		where = outcome.Where
 	}
 	if ok, why := where.Locates(); !ok {
 		r.Stage = StepControlUnlocated
