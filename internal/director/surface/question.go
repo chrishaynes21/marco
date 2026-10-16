@@ -68,6 +68,12 @@ type Question struct {
 	// Window is the window the options are in, carried so a press can be placed without
 	// asking the world again.
 	Window directorapi.Rect `json:"window"`
+	// WindowID is which window that is.
+	//
+	// Carried because a question is bound to one window: a press that arrived while a
+	// different window was in front is not an answer to this, and the holder needs the id
+	// to say so. The rectangle above cannot: two windows can share one.
+	WindowID directorapi.WindowID `json:"window_id,omitempty"`
 	// Options are the defensible surfaces, nested smallest first.
 	Options []Option `json:"options"`
 	// Asked is the sentence to put to the person.
@@ -97,7 +103,7 @@ func (h Hypothesis) Question() (Question, bool) {
 	}
 	q := Question{
 		Request: h.Request, Verb: h.Verb, Identity: *h.Identity,
-		Window: h.Window,
+		Window: h.Window, WindowID: h.WindowID,
 	}
 	for _, c := range h.Candidates {
 		if !c.Defensible() {

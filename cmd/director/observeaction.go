@@ -151,6 +151,19 @@ func (a *ambientObserver) drain(look ambientLook) []stampedAct {
 	fresh := append([]observe.AttributedInput{}, look.Inputs[start:]...)
 	a.cursor = look.Dropped + len(look.Inputs)
 	a.mu.Unlock()
+	// AND WHETHER ANY OF THEM ANSWERS AN OUTSTANDING SURFACE QUESTION.
+	//
+	// Here because this is where the admitted input log is already in scope, already
+	// carries the screen state each event was performed ON, and has already been through
+	// every refusal `navsource` makes — injected, Marco-owned, unplaceable, no session.
+	// A second reader of the same log rather than a second recorder: `fresh` goes on to
+	// `coalesce` untouched, so nothing is taken away from the correlator that has to
+	// confirm it.
+	//
+	// Deleting this must fail TestAGenuinePressSettlesAnOpenQuestion.
+	if a.rt != nil {
+		a.rt.surfaceLearner().offerPresses(look)
+	}
 	return coalesce(fresh)
 }
 

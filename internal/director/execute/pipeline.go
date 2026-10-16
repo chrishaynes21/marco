@@ -237,6 +237,15 @@ type Outcome struct {
 	// for a request that pointed at nothing and needed no confirmation.
 	Binding *BindingDiagnostics `json:"binding,omitempty"`
 
+	// SurfaceQuestion is set when the request stopped because where to press is not
+	// settled and one press by the person would settle it.
+	//
+	// Carried on the outcome rather than pushed to a callback because the composition root
+	// already receives every finished request here, and a second door into the same event
+	// would be a second place the lifecycle could be forgotten. See
+	// [[ADR-207-a-question-is-answered-by-a-press-and-confirmed-by-a-crossing]].
+	SurfaceQuestion *surface.Question `json:"surface_question,omitempty"`
+
 	// Status is the headline result.
 	Status directorapi.ResultStatus `json:"status"`
 	// Message is one sentence for a person.
@@ -504,9 +513,10 @@ func (p *Pipeline) handleParsed(ctx context.Context, request string, parsed dire
 		len(world.Elements), world.Confidence.Coverage, world.Confidence.Actionability), true)
 
 	// ── Resolve + plan + policy ───────────────────────────────────────────────
-	built, decision, res, status, msg, diag := p.prepareTraced(ctx, request, world,
+	built, decision, res, status, msg, diag, asked := p.prepareTraced(ctx, request, world,
 		out.Intent, false, add)
 	out.Binding = diag
+	out.SurfaceQuestion = asked
 	out.Resolution = res
 	out.Policy = decision
 	// The variable, if any, learns whether its query still finds its object.
@@ -540,9 +550,10 @@ func (p *Pipeline) handleParsed(ctx context.Context, request string, parsed dire
 		if fresh, oerr := p.observeTraced(ctx); oerr == nil {
 			world = fresh
 			out.World = &world
-			built, decision, res, status, msg, diag = p.prepareTraced(ctx, request, world,
-				out.Intent, false, add)
+			built, decision, res, status, msg, diag, asked = p.prepareTraced(ctx,
+				request, world, out.Intent, false, add)
 			out.Binding, out.Resolution, out.Policy = diag, res, decision
+			out.SurfaceQuestion = asked
 			p.recordVariableOutcome(varName, res)
 		}
 	}
@@ -568,9 +579,10 @@ func (p *Pipeline) handleParsed(ctx context.Context, request string, parsed dire
 		if found, sres := p.lookElsewhere(ctx, out.Intent, add); found != nil {
 			world = *found
 			out.World = &world
-			built, decision, res, status, msg, diag = p.prepareTraced(ctx, request, world,
-				out.Intent, false, add)
+			built, decision, res, status, msg, diag, asked = p.prepareTraced(ctx,
+				request, world, out.Intent, false, add)
 			out.Binding, out.Resolution, out.Policy = diag, res, decision
+			out.SurfaceQuestion = asked
 			p.recordVariableOutcome(varName, res)
 		} else {
 			searched = sres
@@ -852,7 +864,8 @@ func (p *Pipeline) prepare(ctx context.Context, request string, world directorap
 	*directorapi.Plan, *directorapi.PolicyDecision, *directorapi.Resolution,
 	directorapi.ResultStatus, string) {
 
-	built, decision, res, status, msg, _ := p.prepareTraced(ctx, request, world, in, confirmed, add)
+	built, decision, res, status, msg, _, _ := p.prepareTraced(ctx, request, world, in,
+		confirmed, add)
 	return built, decision, res, status, msg
 }
 
@@ -861,10 +874,16 @@ func (p *Pipeline) prepare(ctx context.Context, request string, world directorap
 // Split out rather than widening every caller, because only the single-step path records
 // the account on its Outcome — a replay iteration and a retry have their own reporting and
 // would discard it.
+// AND THE QUESTION, when the request stopped because a press would settle it.
+//
+// An explicit return value rather than a field on the diagnostics or on the Pipeline. The
+// diagnostics are about binding and this is not one; a field on the Pipeline would be per-request
+// state on a shared object, which is the bug this project has twice. Four call sites discard it
+// and say so, which is the cost of being able to see where it goes.
 func (p *Pipeline) prepareTraced(ctx context.Context, request string, world directorapi.WorldState,
 	in directorapi.Intent, confirmed bool, add func(string, string, bool)) (
 	*directorapi.Plan, *directorapi.PolicyDecision, *directorapi.Resolution,
-	directorapi.ResultStatus, string, *BindingDiagnostics) {
+	directorapi.ResultStatus, string, *BindingDiagnostics, *surface.Question) {
 
 	diag := &BindingDiagnostics{}
 
@@ -877,7 +896,7 @@ func (p *Pipeline) prepareTraced(ctx context.Context, request string, world dire
 		diag.Editor = &v
 		add("editor", v.Describe(), v.Result.OK())
 		if !v.Result.OK() {
-			return nil, nil, nil, statusForEditor(v.Result), v.Reason, diag
+			return nil, nil, nil, statusForEditor(v.Result), v.Reason, diag, nil
 		}
 		in = pinned
 	}
@@ -888,7 +907,7 @@ func (p *Pipeline) prepareTraced(ctx context.Context, request string, world dire
 		win, ok := p.windowFor(world, in)
 		if !ok {
 			add("resolve", "no window to move", false)
-			return nil, nil, nil, directorapi.ResultFailed, "I could not tell which window to move", diag
+			return nil, nil, nil, directorapi.ResultFailed, "I could not tell which window to move", diag, nil
 		}
 		input.TargetWindow = &win
 		input.Placement, _ = in.Parameters["placement"].(string)
@@ -896,7 +915,7 @@ func (p *Pipeline) prepareTraced(ctx context.Context, request string, world dire
 			mons, err := p.Monitors(ctx)
 			if err != nil {
 				add("resolve", "could not read the display layout: "+err.Error(), false)
-				return nil, nil, nil, directorapi.ResultFailed, "I could not read the display layout", diag
+				return nil, nil, nil, directorapi.ResultFailed, "I could not read the display layout", diag, nil
 			}
 			input.Monitors = mons
 		}
@@ -953,9 +972,9 @@ func (p *Pipeline) prepareTraced(ctx context.Context, request string, world dire
 			if q := ground.Question; q != nil && q.Open() {
 				add("surface", q.Asked, false)
 				return nil, nil, &res,
-					directorapi.ResultNeedsClarification, q.Asked, diag
+					directorapi.ResultNeedsClarification, q.Asked, diag, q
 			}
-			return nil, nil, &res, statusFor(res), res.Explanation, diag
+			return nil, nil, &res, statusFor(res), res.Explanation, diag, nil
 		}
 		// AND WHERE AN ORDINARY ROLE DID NOT ACCOUNT FOR THIS, SAY SO OUT LOUD.
 		//
@@ -973,7 +992,7 @@ func (p *Pipeline) prepareTraced(ctx context.Context, request string, world dire
 	built, err := p.Planner.Build(input)
 	if err != nil {
 		add("plan", err.Error(), false)
-		return nil, nil, resPtr(input.Resolution), directorapi.ResultFailed, err.Error(), diag
+		return nil, nil, resPtr(input.Resolution), directorapi.ResultFailed, err.Error(), diag, nil
 	}
 	planLine := fmt.Sprintf("%s (%s risk)", built.Steps[0].Action.Describe(), built.Risk)
 	for _, a := range built.Assumptions {
@@ -998,7 +1017,7 @@ func (p *Pipeline) prepareTraced(ctx context.Context, request string, world dire
 		if reval.Problem.Clarifiable() {
 			status = directorapi.ResultNeedsClarification
 		}
-		return nil, nil, resPtr(input.Resolution), status, reval.Problem.Message, diag
+		return nil, nil, resPtr(input.Resolution), status, reval.Problem.Message, diag, nil
 	}
 
 	// THE RESOLUTION THIS REQUEST PRODUCED, handed to policy rather than re-derived.
@@ -1012,7 +1031,7 @@ func (p *Pipeline) prepareTraced(ctx context.Context, request string, world dire
 	decision := p.Policy.EvaluatePlan(ctx, built, world, resPtr(input.Resolution))
 	if !decision.Allowed {
 		add("policy", "refused: "+decision.Reason, false)
-		return nil, &decision, resPtr(input.Resolution), directorapi.ResultBlocked, decision.Reason, diag
+		return nil, &decision, resPtr(input.Resolution), directorapi.ResultBlocked, decision.Reason, diag, nil
 	}
 	if decision.RequiresConfirmation && confirmed && materialChange(reval) == "" {
 		add("confirm", "already agreed to a moment ago, and the target has not changed", true)
@@ -1039,13 +1058,13 @@ func (p *Pipeline) prepareTraced(ctx context.Context, request string, world dire
 			// reported differently because they are different — one is the user saying
 			// no, one is a Director that cannot ask, one is a request abandoned.
 			add("confirm", string(outcome)+": "+message, false)
-			return nil, &decision, resPtr(input.Resolution), statusForConfirmation(outcome), message, diag
+			return nil, &decision, resPtr(input.Resolution), statusForConfirmation(outcome), message, diag, nil
 		}
 	} else {
 		add("policy", "allowed", true)
 	}
 
-	return &built, &decision, resPtr(input.Resolution), "", "", diag
+	return &built, &decision, resPtr(input.Resolution), "", "", diag, nil
 }
 
 // statusForConfirmation maps a refused confirmation onto the request's headline status.

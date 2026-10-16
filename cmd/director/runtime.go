@@ -37,6 +37,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/search"
 	"github.com/chaynes-simpleclouds/marco/internal/director/semanticmemory"
 	"github.com/chaynes-simpleclouds/marco/internal/director/service"
+	"github.com/chaynes-simpleclouds/marco/internal/director/surface"
 	"github.com/chaynes-simpleclouds/marco/internal/director/target"
 	"github.com/chaynes-simpleclouds/marco/internal/director/trace"
 	"github.com/chaynes-simpleclouds/marco/internal/director/values"
@@ -167,6 +168,12 @@ type Runtime struct {
 	// `director rehearse` uses the recording host unless `--live` is given, and nothing
 	// below cmd/director can obtain this field. See [[ADR-024-a-dry-step-is-not-evidence]].
 	liveMarco directorapi.MarcoRunner
+	// surfaces holds at most one outstanding surface question and learns from the press
+	// that answers it. Built on first use, like watching, and for the same reason: the
+	// stores it needs are opened during setup.
+	surfaces     *surfaceLearner
+	surfacesOnce sync.Once
+
 	// watching is the ambient observation supervisor, built on first use. One per Runtime,
 	// which is one per Director, which is one per home -- see ADR-092.
 	watching     *ambientObserver
@@ -739,7 +746,21 @@ func NewRuntime(bridgePath string, maxNodes int, dryRun bool, g *actiongraph.Fil
 		// Deleting this must fail TestTheDirectorConsultsTheInterpreterForAPhraseItCannotParse.
 		Interpret: interpretIntent(),
 		Resolver:  target.NewResolver(),
-		Planner:   plan.New(),
+		// WHERE A PERSON SAID THE PRESS GOES, when a request names a Prop whose role
+		// affords nothing and somebody has already been asked once.
+		//
+		// The grounder re-observes, re-evaluates and selects by RELATION; the stored
+		// rectangles can only contradict it. Everything after it is the path it already
+		// was — the resolver, ADR-202's licence, policy, the ladder and legal Marco. See
+		// [[ADR-207-a-question-is-answered-by-a-press-and-confirmed-by-a-crossing]].
+		//
+		// Deleting this must fail TestTheDaemonGroundsADemonstratedSurface.
+		Surfaces: surface.NewGrounder(rt.semanticMemory),
+		// AND WHICH SCREEN THAT IS, DURABLY — from the resolver ambient watching already
+		// runs, never a second one. Empty when Marco does not recognise the screen, which
+		// means a question can be asked and its answer cannot be stored.
+		Place:   rt.standingPlace,
+		Planner: plan.New(),
 		// Policy, plus what the capability packs declare about the applications they
 		// serve. A contributed rule may only NARROW a decision — see
 		// internal/director/policy/contributed.go — so adding a pack can make the
@@ -932,7 +953,50 @@ func (r *Runtime) Handle(ctx context.Context, phrase string, progress func(servi
 	if r.demos != nil {
 		r.demos.Observe(out)
 	}
+	// AND THE SURFACE QUESTION, opened or closed by the same event.
+	//
+	// One subscription, at the one door, for the reason the recorder above has one: a
+	// second place a request could open or close a question is a second place the
+	// lifecycle can be forgotten. A request that raised no question closes whatever was
+	// open — the person asked for something else, and the press they make next belongs to
+	// that.
+	//
+	// Deleting this must fail TestTheDaemonOpensAQuestionItCannotSettleItself.
+	place, session, state, _ := r.ambient().standing()
+	r.surfaceLearner().Asked(out, r.activeApplication(), place, session, state)
 	return out
+}
+
+// standingPlace is the durable subject id of the screen in front, empty when Marco does not
+// recognise it.
+//
+// The pipeline's `Place` seam. It reads what ambient watching's own resolver decided and resolves
+// nothing itself — see ambientObserver.standing.
+func (r *Runtime) standingPlace(directorapi.WorldState) string {
+	place, _, _, _ := r.ambient().standing()
+	return place
+}
+
+// surfaceLearner is the one outstanding surface question and the memory that can keep its answer.
+//
+// Built on first use. The stores are handed over narrowed — see semanticStores — so what this can
+// write is visible in one place: a target's identity, and where its press goes.
+func (r *Runtime) surfaceLearner() *surfaceLearner {
+	if r == nil {
+		return nil
+	}
+	r.surfacesOnce.Do(func() {
+		var stores *semanticStores
+		if r.semanticMemory != nil {
+			stores = &semanticStores{
+				targets:  r.semanticMemory,
+				surfaces: r.semanticMemory,
+				recall:   r.semanticMemory.Recall,
+			}
+		}
+		r.surfaces = newSurfaceLearner(stores, time.Now)
+	})
+	return r.surfaces
 }
 
 // record files one cycle and its fusion report for diagnostics.

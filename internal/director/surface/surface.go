@@ -182,6 +182,8 @@ type Hypothesis struct {
 	// Candidates is every surface considered, best container first, including the rejected
 	// with the reason. The losers are the explanation.
 	Candidates []Candidate `json:"candidates,omitempty"`
+	// WindowID is which window that is, for a caller that has to bind something to it.
+	WindowID directorapi.WindowID `json:"window_id,omitempty"`
 	// Window is the rectangle every candidate above is stated in.
 	//
 	// Carried because a surface means nothing without it: the area share is a fraction OF
@@ -297,7 +299,7 @@ func (e *Evaluator) Evaluate(w *directorapi.WorldState, request, verb string,
 	peer, peered := fusion.Rivals(owners)
 
 	window, _ := w.Window(el.WindowID)
-	h.Window = window.Bounds
+	h.Window, h.WindowID = window.Bounds, el.WindowID
 	for _, o := range owners {
 		h.Candidates = append(h.Candidates, e.judge(w, ordered, o, el, window.Bounds, q))
 	}

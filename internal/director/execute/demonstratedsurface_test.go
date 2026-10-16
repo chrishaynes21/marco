@@ -218,7 +218,7 @@ func TestADemonstratedSurfaceReachesTheActuator(t *testing.T) {
 	h := overMenu()
 	teach(h, &knows{target: "subject-1", named: "SETTINGS",
 		surfaces: []observe.DemonstratedSurface{
-			theRowWasShown(t, "subject-1", observe.ConfirmationAttributed)}})
+			theRowWasShown(t, "subject-1", attributedCrossing(t))}})
 
 	out := h.pipeline.Handle(context.Background(), "click Settings")
 
@@ -289,7 +289,7 @@ func TestAnUnconfirmedDemonstrationPerformsNothing(t *testing.T) {
 	h := overMenu()
 	teach(h, &knows{target: "subject-1", named: "SETTINGS",
 		surfaces: []observe.DemonstratedSurface{
-			theRowWasShown(t, "subject-1", observe.ConfirmationObserved)}})
+			theRowWasShown(t, "subject-1", pressOnly(t))}})
 
 	out := h.pipeline.Handle(context.Background(), "click Settings")
 
@@ -321,7 +321,7 @@ func TestADemonstrationTheScreenContradictsPerformsNothing(t *testing.T) {
 	h := newHarness(worlds...)
 	teach(h, &knows{target: "subject-1", named: "SETTINGS",
 		surfaces: []observe.DemonstratedSurface{
-			theRowWasShown(t, "subject-1", observe.ConfirmationAttributed)}})
+			theRowWasShown(t, "subject-1", attributedCrossing(t))}})
 
 	out := h.pipeline.Handle(context.Background(), "click Settings")
 
@@ -361,7 +361,7 @@ func TestADemonstrationDoesNotTravelToASiblingControl(t *testing.T) {
 	h := newHarness(worlds...)
 	teach(h, &knows{target: "subject-1", named: "SETTINGS",
 		surfaces: []observe.DemonstratedSurface{
-			theRowWasShown(t, "subject-1", observe.ConfirmationAttributed)}})
+			theRowWasShown(t, "subject-1", attributedCrossing(t))}})
 
 	// The memory above answers MatchSame for whatever signature it is asked about, which is
 	// the WORST case for this assertion: even a store that confuses the two targets must
@@ -382,4 +382,28 @@ func TestADemonstrationDoesNotTravelToASiblingControl(t *testing.T) {
 		}
 	}
 	t.Logf("%s — %s", out.Status, out.Message)
+}
+
+// attributedCrossing is a confirmation built the only way one can be: from a crossing witness
+// through `observe.TransitionAttributed`. No test here asserts a level.
+func attributedCrossing(t *testing.T) observe.SurfaceConfirmation {
+	t.Helper()
+	c, err := observe.TransitionAttributed(observe.TransitionWitness{
+		Application: "fixture", From: "subj_menu", To: "subj_settings",
+		ByHuman: true, Acts: 1, At: time.Date(2026, 10, 16, 9, 0, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatalf("building an attributed confirmation: %v", err)
+	}
+	return c
+}
+
+// pressOnly is the weaker one: a press was seen and nothing confirmed its effect.
+func pressOnly(t *testing.T) observe.SurfaceConfirmation {
+	t.Helper()
+	c, err := observe.PressWasObserved("a press landed on one surface and not the other")
+	if err != nil {
+		t.Fatalf("building an observed confirmation: %v", err)
+	}
+	return c
 }

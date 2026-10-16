@@ -111,7 +111,7 @@ func TestAPressOnTheWordsSettlesNothing(t *testing.T) {
 		t.Errorf("the answer does not say it settled nothing: %s", a.Because)
 	}
 	// AND IT ESTABLISHED NOTHING TO REMEMBER.
-	if _, err := q.Demonstrated(a, given(observe.ConfirmationAttributed)); err == nil {
+	if _, err := q.Demonstrated(a, given(attributedCrossing(t))); err == nil {
 		t.Error("a press that settled nothing produced a durable record")
 	}
 }
@@ -134,7 +134,7 @@ func TestAPressOnlyTheRowCoversSettlesIt(t *testing.T) {
 			a.Settled.Depth)
 	}
 	// AND THE DURABLE RECORD IS A RELATION, NOT A RECTANGLE.
-	d, err := q.Demonstrated(a, given(observe.ConfirmationAttributed))
+	d, err := q.Demonstrated(a, given(attributedCrossing(t)))
 	if err != nil {
 		t.Fatalf("a settled press produced no record: %v", err)
 	}
@@ -171,7 +171,7 @@ func TestAPressOutsideEverySurfaceIsAnAnswerToo(t *testing.T) {
 	if len(a.Inside) != 0 || a.Settled != nil {
 		t.Error("a press outside every surface landed on one")
 	}
-	if _, err := q.Demonstrated(a, given(observe.ConfirmationAttributed)); err == nil {
+	if _, err := q.Demonstrated(a, given(attributedCrossing(t))); err == nil {
 		t.Error("a press on something else produced a durable record")
 	}
 }
@@ -184,7 +184,7 @@ func TestAnObservedPressIsNotEnoughToAimWith(t *testing.T) {
 	q, _ := ask(nested(), "settings").Question()
 	a := q.Answer(at(theRow.X+20, theRow.Y+theRow.Height/2))
 
-	d, err := q.Demonstrated(a, given(observe.ConfirmationObserved))
+	d, err := q.Demonstrated(a, given(pressOnly(t)))
 	if err != nil {
 		t.Fatalf("an observed press produced no record at all: %v", err)
 	}
@@ -319,4 +319,28 @@ func ptr(w directorapi.WorldState) *directorapi.WorldState { return &w }
 func given(c observe.SurfaceConfirmation) Given {
 	return Given{Application: "fixture", Target: "subject-1", By: "chris",
 		At: time.Now(), Confirmed: c}
+}
+
+// attributedCrossing is a confirmation built the only way one can be: from a crossing witness
+// through `observe.TransitionAttributed`. No test here asserts a level.
+func attributedCrossing(t *testing.T) observe.SurfaceConfirmation {
+	t.Helper()
+	c, err := observe.TransitionAttributed(observe.TransitionWitness{
+		Application: "fixture", From: "subj_menu", To: "subj_settings",
+		ByHuman: true, Acts: 1, At: time.Date(2026, 10, 16, 9, 0, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatalf("building an attributed confirmation: %v", err)
+	}
+	return c
+}
+
+// pressOnly is the weaker one: a press was seen and nothing confirmed its effect.
+func pressOnly(t *testing.T) observe.SurfaceConfirmation {
+	t.Helper()
+	c, err := observe.PressWasObserved("a press landed on one surface and not the other")
+	if err != nil {
+		t.Fatalf("building an observed confirmation: %v", err)
+	}
+	return c
 }

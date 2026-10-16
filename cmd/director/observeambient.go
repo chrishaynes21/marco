@@ -66,6 +66,16 @@ type ambientObserver struct {
 	// TRANSITION rather than two unrelated sightings.
 	last    string
 	lastApp string
+	// lastSubject is the DURABLE subject id of the screen the previous sample resolved to,
+	// empty when Marco does not recognise it.
+	//
+	// Separate from `last` because that is a crossing KEY and falls back to a transient
+	// `session:state` for an unrecognised screen. A durable fact can only be stored against
+	// the durable id, so the two must not be confused — see surfacelearn.go.
+	lastSubject string
+	// lastSession is the observation session the previous sample came from, carried for the
+	// same reason the state is: state ids are session-local counters.
+	lastSession observe.SessionID
 	// lastState is the session-local screen state `last` was read from, lastShape its
 	// description when Marco does not recognise it, and bridged how many unrecognised
 	// readings have been crossed since. Together they are the SOURCE half of the next step.
@@ -303,6 +313,7 @@ func (r *Runtime) DisableAmbient() service.AmbientView {
 	// session attribute its first action to the previous one's screen.
 	a.session, a.cursor, a.behind, a.actions = "", 0, 0, 0
 	a.lastState, a.lastShape, a.bridged, a.settled = "", nil, 0, 0
+	a.lastSubject, a.lastSession = "", ""
 	a.pending = map[observe.ScreenStateID][]ambient.Act{}
 	a.mu.Unlock()
 	return a.view()
@@ -698,6 +709,7 @@ func (a *ambientObserver) record(application string, look ambientLook, now time.
 	sameSession := a.lastLedgerSession == look.Session
 	a.lastLedgerSession = look.Session
 	a.last, a.lastApp = key, application
+	a.lastSubject, a.lastSession = place.Subject, look.Session
 	a.lastState, a.lastShape = look.State, look.Shape
 	changed := previous != key
 	// EXCEPT WHEN IT IS THE SAME SCREEN WEARING A NEW SESSION'S NAME.
@@ -783,6 +795,17 @@ func (a *ambientObserver) record(application string, look ambientLook, now time.
 			Did: did, By: by, Bridged: bridged, Settled: settled, At: now,
 		}
 		a.buf.Walked(step)
+		// AND WHETHER THIS CROSSING CONFIRMS A DEMONSTRATION SOMEBODY JUST MADE.
+		//
+		// The correlator's own account of the change, handed over as a witness: who
+		// caused it, which screens, and how many human actions it was attributed to.
+		// Nothing here decides anything — `observe.TransitionAttributed` is what turns
+		// a witness into a confirmation, and it refuses every way one can mean nothing.
+		//
+		// Deleting this must fail TestAPressIsLearnedOnlyAfterAnAttributedCrossing.
+		if a.rt != nil {
+			a.rt.surfaceLearner().offerCrossing(step)
+		}
 		// AND THE LEDGER, on the same event and only on this event.
 		//
 		// A new semantic transition is the only thing that can change what repeated
@@ -1465,4 +1488,24 @@ func (a *ambientObserver) recordAffordanceFunnel(application string, funnel map[
 	for outcome, n := range funnel {
 		a.affordanceFunnel[application][outcome] += n
 	}
+}
+
+// standing is the durable place, session and screen state of the last ambient reading.
+//
+// The one place the surface-question path asks "where am I, durably". It reports what the ambient
+// resolver already decided — `observe.Place.Subject` — and never resolves anything itself, which
+// is what keeps this from becoming a second screen identity.
+//
+// An empty subject is ordinary and is not a failure: it means Marco does not recognise the screen
+// in front, so a target on it has no durable identity. The question is still asked; the answer
+// cannot be stored.
+func (a *ambientObserver) standing() (place string, session observe.SessionID,
+	state observe.ScreenStateID, application string) {
+
+	if a == nil {
+		return "", "", "", ""
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.lastSubject, a.lastSession, a.lastState, a.lastApp
 }

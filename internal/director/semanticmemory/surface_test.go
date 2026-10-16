@@ -58,7 +58,7 @@ func TestADemonstratedSurfaceSurvivesAReopen(t *testing.T) {
 	first := open(t, path)
 	id := aTarget(t, first, "Mouse")
 	if err := first.RememberSurface("unknown-game",
-		theRow(id, observe.ConfirmationAttributed)); err != nil {
+		theRow(id, attributedCrossing(t))); err != nil {
 		t.Fatalf("RememberSurface: %v", err)
 	}
 
@@ -98,7 +98,7 @@ func TestTheStoredFileHoldsNoDesktopCoordinateAndNoControlName(t *testing.T) {
 	s := open(t, path)
 	id := aTarget(t, s, "Mouse")
 	if err := s.RememberSurface("unknown-game",
-		theRow(id, observe.ConfirmationAttributed)); err != nil {
+		theRow(id, attributedCrossing(t))); err != nil {
 		t.Fatalf("RememberSurface: %v", err)
 	}
 
@@ -124,7 +124,7 @@ func TestTheStoredFileHoldsNoDesktopCoordinateAndNoControlName(t *testing.T) {
 func TestASurfaceForAnUnknownTargetIsNotStored(t *testing.T) {
 	s := open(t, filepath.Join(t.TempDir(), "memory.json"))
 	err := s.RememberSurface("unknown-game",
-		theRow("subject-nobody-has", observe.ConfirmationAttributed))
+		theRow("subject-nobody-has", attributedCrossing(t)))
 	if err == nil {
 		t.Fatal("a surface for an unknown target was stored")
 	}
@@ -160,7 +160,7 @@ func TestAnIncoherentSurfaceIsRefused(t *testing.T) {
 		{"no time", func(d *observe.DemonstratedSurface) { d.At = time.Time{} }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			d := theRow(id, observe.ConfirmationAttributed)
+			d := theRow(id, attributedCrossing(t))
 			tc.edit(&d)
 			if err := s.RememberSurface("unknown-game", d); err == nil {
 				t.Error("it was stored")
@@ -183,10 +183,10 @@ func TestASecondDemonstrationReplacesTheFirst(t *testing.T) {
 	id := aTarget(t, s, "Mouse")
 
 	if err := s.RememberSurface("unknown-game",
-		theRow(id, observe.ConfirmationAttributed)); err != nil {
+		theRow(id, attributedCrossing(t))); err != nil {
 		t.Fatalf("first: %v", err)
 	}
-	corrected := theRow(id, observe.ConfirmationAttributed)
+	corrected := theRow(id, attributedCrossing(t))
 	corrected.Relation = observe.RelationIdentityRegion
 	corrected.Depth = 0
 	corrected.By = "someone else"
@@ -217,7 +217,7 @@ func TestAnUnconfirmedDemonstrationIsKeptAndRefusesToAim(t *testing.T) {
 	id := aTarget(t, s, "Mouse")
 
 	if err := s.RememberSurface("unknown-game",
-		theRow(id, observe.ConfirmationObserved)); err != nil {
+		theRow(id, pressOnly(t))); err != nil {
 		t.Fatalf("RememberSurface: %v", err)
 	}
 	got := open(t, path).DemonstratedSurfaces("unknown-game")
@@ -241,7 +241,7 @@ func TestASurfaceWhoseTargetIsForgottenIsDroppedAtLoad(t *testing.T) {
 	s := open(t, path)
 	id := aTarget(t, s, "Mouse")
 	if err := s.RememberSurface("unknown-game",
-		theRow(id, observe.ConfirmationAttributed)); err != nil {
+		theRow(id, attributedCrossing(t))); err != nil {
 		t.Fatalf("RememberSurface: %v", err)
 	}
 
@@ -275,4 +275,28 @@ func readFile(path string) (string, error) {
 
 func writeFile(path, body string) error {
 	return os.WriteFile(path, []byte(body), 0o600)
+}
+
+// attributedCrossing is a confirmation built the only way one can be: from a crossing witness
+// through `observe.TransitionAttributed`. No test here asserts a level.
+func attributedCrossing(t *testing.T) observe.SurfaceConfirmation {
+	t.Helper()
+	c, err := observe.TransitionAttributed(observe.TransitionWitness{
+		Application: "fixture", From: "subj_menu", To: "subj_settings",
+		ByHuman: true, Acts: 1, At: time.Date(2026, 10, 16, 9, 0, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatalf("building an attributed confirmation: %v", err)
+	}
+	return c
+}
+
+// pressOnly is the weaker one: a press was seen and nothing confirmed its effect.
+func pressOnly(t *testing.T) observe.SurfaceConfirmation {
+	t.Helper()
+	c, err := observe.PressWasObserved("a press landed on one surface and not the other")
+	if err != nil {
+		t.Fatalf("building an observed confirmation: %v", err)
+	}
+	return c
 }

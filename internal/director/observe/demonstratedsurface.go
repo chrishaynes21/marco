@@ -54,6 +54,7 @@ package observe
 // workflow and reaches nothing else".
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"strings"
@@ -85,9 +86,9 @@ func (r SurfaceRelation) Known() bool {
 	return r == RelationIdentityRegion || r == RelationContainingRegion
 }
 
-// SurfaceConfirmation is how well the demonstration was confirmed, as three separate claims.
+// SurfaceConfirmation is how well a demonstration was confirmed — and it cannot be asserted.
 //
-// # Why three and not a boolean
+// # Why three, when a boolean looks like enough
 //
 // Because the owner named the conflation to avoid:
 //
@@ -98,45 +99,194 @@ func (r SurfaceRelation) Known() bool {
 //
 // A boolean would have to choose one of those to mean, and whichever it chose, the other reading
 // would eventually be taken by somebody in a hurry.
-type SurfaceConfirmation string
+//
+// # Why it is a struct with no exported field
+//
+// Because the first version of this was a string a caller handed in, and the owner caught what
+// that licenses:
+//
+//	`ConfirmationAttributed` must not be an assertion that an arbitrary caller can make. It
+//	should be derived from a validated observation/transition result, or accepted only through a
+//	narrowly controlled internal boundary. Otherwise the system can promote a demonstration to
+//	learned knowledge without evidence that the demonstrated action did anything.
+//
+// So there is one constructor per level and no other way in — the discipline `ScreenName` already
+// keeps, for the reason its note gives: passing something off as a confirmation is possible in
+// the sense that any lie is possible, and it is not possible by accident. The ZERO VALUE confirms
+// nothing and is not `Sufficient`, so a record built by forgetting to set this cannot aim
+// anything.
+type SurfaceConfirmation struct {
+	level string
+	// why is the evidence, in words. Required by both constructors: a confirmation with no
+	// account of itself is indistinguishable from a default, and it is also what a person
+	// reads when Marco says why it is about to press something its role says is not a
+	// control.
+	why string
+}
 
+// The three levels. Strings rather than an enum because they are written to a durable file and
+// read by a person looking at it.
 const (
-	// ConfirmationObserved: a genuine press from a hand, inside the watched window, while
-	// the question was open, landing on one surface and not on the others.
+	// confirmationObserved: a genuine press from a hand, inside the watched window, while
+	// the question was open, landing on one surface and not the others.
 	//
 	// The weakest of the three and NOT enough to act on. A person can click the wrong
 	// thing, and a click that reached nothing is indistinguishable here from one that
 	// worked.
-	ConfirmationObserved SurfaceConfirmation = "observed"
-	// ConfirmationAttributed: and the screen then changed, and the change was attributed to
-	// that press by the existing correlator.
+	confirmationObserved = "observed"
+	// confirmationAttributed: and the screen then changed, and the existing crossing
+	// correlator attributed the change to that press.
 	//
 	// Evidence that the interaction DID something. Not evidence that it did the right
 	// thing.
-	ConfirmationAttributed SurfaceConfirmation = "attributed"
-	// ConfirmationVerified: and what the request asked for actually happened.
+	confirmationAttributed = "attributed"
+	// confirmationVerified: and what the request asked for actually happened.
 	//
-	// Nothing in this slice produces it. Present because the distinction above is the point,
-	// and a vocabulary that stopped at `attributed` would make `attributed` mean this by
-	// default.
-	ConfirmationVerified SurfaceConfirmation = "verified"
+	// NOTHING CONSTRUCTS THIS. It is named because the distinction above is the point, and
+	// a vocabulary that stopped at `attributed` would make `attributed` mean this by
+	// default. The day something can verify an intended outcome it gets a constructor of
+	// its own, and this comment goes.
+	confirmationVerified = "verified"
 )
 
-// Sufficient reports whether this confirmation is enough to ground a later press.
+// TransitionWitness is what the crossing correlator knows about one screen change.
+//
+// The narrow boundary `TransitionAttributed` accepts, and its fields are exactly the ones the
+// ambient crossing in `cmd/director` already produces — this is not a new observation, it is the
+// shape of the one that exists. Nothing here is durable and nothing here is stored.
+type TransitionWitness struct {
+	// Application is the application the crossing happened in.
+	Application string
+	// From and To are the screens either side of it, as the crossing keyed them.
+	From, To string
+	// ByHuman says the crossing was attributed to a PERSON acting rather than to Marco.
+	//
+	// Load-bearing: a play running while watching is on moves the screen too, and offering
+	// that back as something the person demonstrated is how a system comes to learn its own
+	// behaviour from itself.
+	ByHuman bool
+	// Acts is how many human actions the crossing was attributed to.
+	//
+	// Exactly one is required. A crossing attributed to two actions does not single out the
+	// press being asked about, and crediting it would be the same mistake as settling a
+	// surface question with a press that was inside both candidates.
+	Acts int
+	// At is when the crossing was observed.
+	At time.Time
+}
+
+// PressWasObserved is one of the two ways to make a confirmation: somebody pressed something.
+//
+// It confirms the press and nothing about its effect, so it is not `Sufficient` and cannot aim
+// anything. It exists so that a demonstration nobody could confirm is still a thing that
+// happened, with provenance, rather than being silently discarded.
+func PressWasObserved(why string) (SurfaceConfirmation, error) {
+	if strings.TrimSpace(why) == "" {
+		return SurfaceConfirmation{}, fmt.Errorf("observe: a confirmation needs to say " +
+			"what was observed")
+	}
+	return SurfaceConfirmation{level: confirmationObserved, why: strings.TrimSpace(why)}, nil
+}
+
+// TransitionAttributed is the other: the screen changed, and the change was attributed to it.
+//
+// THE ONLY WAY TO REACH A CONFIRMATION THAT CAN AIM ANYTHING, and every clause below is a way a
+// witness could exist and mean nothing. A caller that wants this has to have a crossing in hand;
+// a caller that merely wants to say so cannot.
+func TransitionAttributed(w TransitionWitness) (SurfaceConfirmation, error) {
+	switch {
+	case strings.TrimSpace(w.Application) == "":
+		return SurfaceConfirmation{}, fmt.Errorf("observe: a crossing with no " +
+			"application is not about anything")
+	case !w.ByHuman:
+		return SurfaceConfirmation{}, fmt.Errorf("observe: the screen change was not " +
+			"attributed to a person acting, so it is not evidence about what they " +
+			"demonstrated")
+	case w.Acts != 1:
+		return SurfaceConfirmation{}, fmt.Errorf("observe: the crossing was attributed "+
+			"to %d human action(s), so it does not single out the one being asked "+
+			"about", w.Acts)
+	case w.From == "" || w.To == "":
+		return SurfaceConfirmation{}, fmt.Errorf("observe: a crossing needs both the " +
+			"screen left and the screen arrived at")
+	case w.From == w.To:
+		return SurfaceConfirmation{}, fmt.Errorf("observe: the screen did not change, " +
+			"so nothing confirms that the press did anything")
+	case w.At.IsZero():
+		return SurfaceConfirmation{}, fmt.Errorf("observe: a crossing needs to say when")
+	}
+	return SurfaceConfirmation{
+		level: confirmationAttributed,
+		why: fmt.Sprintf("the screen changed from %s to %s and the crossing was "+
+			"attributed to one human action", w.From, w.To),
+	}, nil
+}
+
+// Level is which of the three this is, empty for the zero value.
+func (c SurfaceConfirmation) Level() string { return c.level }
+
+// Why is the evidence, in words.
+func (c SurfaceConfirmation) Why() string { return c.why }
+
+// Stated reports whether this confirms anything at all.
+func (c SurfaceConfirmation) Stated() bool { return c.level != "" && c.why != "" }
+
+// Sufficient reports whether this is enough to ground a later press.
 //
 // `observed` is not. The owner's rule:
 //
 //	Do not persist a successful grounding rule merely because a click occurred.
 //
-// A record may still be KEPT at `observed` — a demonstration nobody could confirm is a real
-// thing that happened and throwing it away would make the person demonstrate again for nothing —
-// so the refusal is here, on reading, rather than at the store.
+// The zero value is not either, which is what makes a forgotten field safe rather than dangerous.
 func (c SurfaceConfirmation) Sufficient() bool {
-	return c == ConfirmationAttributed || c == ConfirmationVerified
+	if !c.Stated() {
+		return false
+	}
+	return c.level == confirmationAttributed || c.level == confirmationVerified
 }
 
-// Region is where something is, relative to the window — see sample.go. Repeated here only to say
-// that `SurfaceShape` holds them as EVIDENCE: nothing matches on them.
+// confirmationOnDisk is the serialised form.
+//
+// The struct's fields are unexported so that nothing can assign one, which also means nothing
+// marshals them — so the two have to be written out. Both halves are kept: a level with no
+// evidence is exactly the assertion this type exists to refuse, and `Stated` rejects it on the
+// way back in.
+type confirmationOnDisk struct {
+	Level string `json:"level"`
+	Why   string `json:"why"`
+}
+
+// MarshalJSON writes the level and the evidence for it.
+func (c SurfaceConfirmation) MarshalJSON() ([]byte, error) {
+	return json.Marshal(confirmationOnDisk{Level: c.level, Why: c.why})
+}
+
+// UnmarshalJSON reads one back, refusing a level this build does not know.
+//
+// # What this does and does not promise
+//
+// It does not make the FILE unforgeable. Somebody editing durable memory by hand can write
+// `"level":"attributed"` and Marco will believe it, exactly as they could add a route or a place
+// — the store trusts its own file and says so. What the constructors protect is the code path: no
+// caller inside Marco can reach a usable confirmation without a crossing, which is where the
+// owner's requirement bites and where a mistake would otherwise be invisible.
+func (c *SurfaceConfirmation) UnmarshalJSON(b []byte) error {
+	var on confirmationOnDisk
+	if err := json.Unmarshal(b, &on); err != nil {
+		return err
+	}
+	switch on.Level {
+	case confirmationObserved, confirmationAttributed, confirmationVerified:
+	case "":
+		*c = SurfaceConfirmation{}
+		return nil
+	default:
+		return fmt.Errorf("observe: %q is not a confirmation this build understands",
+			on.Level)
+	}
+	*c = SurfaceConfirmation{level: on.Level, why: on.Why}
+	return nil
+}
 
 // SurfaceShape is what the demonstrated surface and its identity LOOKED like, normalised.
 //
@@ -194,9 +344,9 @@ type DemonstratedSurface struct {
 	// Target is the durable subject id of the semantic target — what `RememberTarget`
 	// returned for it.
 	//
-	// AN ID AND NOT A NAME. The name lives on the subject, where the two decided durable-text
-	// exceptions already admit it under the Learn licence; repeating it here would be a third
-	// exception, arriving as a field rather than as a decision.
+	// AN ID AND NOT A NAME. The name lives on the subject, where the two decided
+	// durable-text exceptions already admit it under the Learn licence; repeating it here
+	// would be a third exception, arriving as a field rather than as a decision.
 	Target string `json:"target"`
 	// Relation is which surface was pressed, and Depth which one when it was a containing
 	// region.
@@ -209,7 +359,8 @@ type DemonstratedSurface struct {
 	Depth    int             `json:"depth"`
 	// Shape is what it looked like. Evidence, never identity — see SurfaceShape.
 	Shape SurfaceShape `json:"shape"`
-	// Confirmed is how well this was confirmed, as three separate claims.
+	// Confirmed is how well this was confirmed, as three separate claims, and it cannot be
+	// asserted — see SurfaceConfirmation.
 	Confirmed SurfaceConfirmation `json:"confirmed"`
 	// By is who demonstrated it and At when.
 	//
@@ -237,6 +388,9 @@ func (d DemonstratedSurface) Valid() (bool, string) {
 		return false, "the identity's own region is at depth 0 by definition"
 	case d.Relation == RelationContainingRegion && d.Depth < 1:
 		return false, "a region containing the identity is at depth 1 or more"
+	case !d.Confirmed.Stated():
+		return false, "a demonstration that says nothing about how it was confirmed is " +
+			"indistinguishable from one nobody checked"
 	case strings.TrimSpace(d.By) == "":
 		return false, "a demonstration nobody is recorded as having given is " +
 			"indistinguishable from a default"
@@ -256,9 +410,9 @@ func (d DemonstratedSurface) Usable() (bool, string) {
 		return false, why
 	}
 	if !d.Confirmed.Sufficient() {
-		return false, fmt.Sprintf("the demonstration is %s: a press was seen and "+
+		return false, fmt.Sprintf("the demonstration is %s (%s): a press was seen and "+
 			"nothing confirmed that it did anything, so it is kept as evidence and "+
-			"not used to aim", d.Confirmed)
+			"not used to aim", d.Confirmed.Level(), d.Confirmed.Why())
 	}
 	return true, ""
 }

@@ -79,7 +79,7 @@ func groundIt(mem Repertoire, w directorapi.WorldState) Grounded {
 func TestAStoredDemonstrationGroundsTheSameRequestLater(t *testing.T) {
 	mem := &remembered{target: "subject-1",
 		surfaces: []observe.DemonstratedSurface{
-			theRowWasDemonstrated(observe.ConfirmationAttributed)}}
+			theRowWasDemonstrated(attributedCrossing(t))}}
 
 	// FIRST, WITHOUT IT: a question and no demonstration, which is where the person was
 	// before they answered.
@@ -134,7 +134,7 @@ func TestAStoredDemonstrationGroundsTheSameRequestLater(t *testing.T) {
 func TestAnUnconfirmedDemonstrationDoesNotAim(t *testing.T) {
 	mem := &remembered{target: "subject-1",
 		surfaces: []observe.DemonstratedSurface{
-			theRowWasDemonstrated(observe.ConfirmationObserved)}}
+			theRowWasDemonstrated(pressOnly(t))}}
 	g := groundIt(mem, nested())
 
 	if g.Shown.Given() {
@@ -158,7 +158,7 @@ func TestOnlyAnExactRecollectionGrounds(t *testing.T) {
 	} {
 		mem := &remembered{target: "subject-1", verdict: v,
 			surfaces: []observe.DemonstratedSurface{
-				theRowWasDemonstrated(observe.ConfirmationAttributed)}}
+				theRowWasDemonstrated(attributedCrossing(t))}}
 		g := groundIt(mem, nested())
 		if g.Shown.Given() {
 			t.Errorf("a %q recollection grounded a press", v)
@@ -171,7 +171,7 @@ func TestOnlyAnExactRecollectionGrounds(t *testing.T) {
 
 // A DEMONSTRATION ABOUT ANOTHER TARGET DOES NOT APPLY.
 func TestADemonstrationAboutAnotherTargetDoesNotApply(t *testing.T) {
-	other := theRowWasDemonstrated(observe.ConfirmationAttributed)
+	other := theRowWasDemonstrated(attributedCrossing(t))
 	other.Target = "subject-9"
 	mem := &remembered{target: "subject-1",
 		surfaces: []observe.DemonstratedSurface{other}}
@@ -187,7 +187,7 @@ func TestADemonstrationAboutAnotherTargetDoesNotApply(t *testing.T) {
 
 // AND TWO RECORDS FOR ONE TARGET IS A CONTRADICTION, NOT A PREFERENCE.
 func TestTwoDemonstrationsForOneTargetGroundNothing(t *testing.T) {
-	one := theRowWasDemonstrated(observe.ConfirmationAttributed)
+	one := theRowWasDemonstrated(attributedCrossing(t))
 	two := one
 	two.Relation = observe.RelationIdentityRegion
 	two.Depth = 0
@@ -208,7 +208,7 @@ func TestTwoDemonstrationsForOneTargetGroundNothing(t *testing.T) {
 // Not "falls back to the nearest" — the nearest surface would be Marco deciding which one the
 // person probably meant, which is the thing the question exists to avoid asking Marco.
 func TestARelationThatNamesNoSurfaceNowMisses(t *testing.T) {
-	deep := theRowWasDemonstrated(observe.ConfirmationAttributed)
+	deep := theRowWasDemonstrated(attributedCrossing(t))
 	deep.Depth = 4
 	mem := &remembered{target: "subject-1",
 		surfaces: []observe.DemonstratedSurface{deep}}
@@ -240,7 +240,7 @@ func TestStoredEvidenceCanContradictTheSurfaceItPicked(t *testing.T) {
 	)
 	mem := &remembered{target: "subject-1",
 		surfaces: []observe.DemonstratedSurface{
-			theRowWasDemonstrated(observe.ConfirmationAttributed)}}
+			theRowWasDemonstrated(attributedCrossing(t))}}
 	g := groundIt(mem, grown)
 
 	if g.Shown.Given() {
@@ -280,7 +280,7 @@ func TestASettledSurfaceIsNotRegrounded(t *testing.T) {
 		prop("word", "SETTINGS", theWord, directorapi.SourceOCR),
 		prop("row", "", theRow, directorapi.SourceStructure),
 	)
-	contradicting := theRowWasDemonstrated(observe.ConfirmationAttributed)
+	contradicting := theRowWasDemonstrated(attributedCrossing(t))
 	contradicting.Relation = observe.RelationIdentityRegion
 	contradicting.Depth = 0
 	mem := &remembered{target: "subject-1",
@@ -311,7 +311,7 @@ func TestASettledSurfaceIsNotRegrounded(t *testing.T) {
 func TestGroundingDoesNotConsultItself(t *testing.T) {
 	mem := &remembered{target: "subject-1",
 		surfaces: []observe.DemonstratedSurface{
-			theRowWasDemonstrated(observe.ConfirmationAttributed)}}
+			theRowWasDemonstrated(attributedCrossing(t))}}
 	g := groundIt(mem, nested())
 
 	if g.Hypothesis.Identity == nil {

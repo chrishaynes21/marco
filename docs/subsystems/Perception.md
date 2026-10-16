@@ -362,6 +362,34 @@ demonstration yet: `Pipeline.Surfaces` and `Pipeline.Place` are both nil in the 
 [[ADR-206-a-demonstrated-surface-is-one-fact-about-one-target]] and
 [[Experiment-058-one-question-one-answer-and-the-same-request-again]].
 
+### A question is answered by a press and confirmed by a crossing
+
+Both halves already ran in ambient watching, so the wiring is a reader of each rather than
+anything new. `navsource` admits a hand's press — refusing an injected one, one on Marco's own
+surface, and one it cannot place in the window — and the session runner banks it **stamped with
+the screen state it was performed on**; `ambientObserver.drain` reads that log and one call there
+offers it to the open question. The ambient observer then detects a screen change, asks whether a
+person or Marco caused it, and one call there offers the step as a witness. The durable place is
+`observe.Place.Subject`, already resolved on every ambient look by the one resolver.
+
+**A confirmation cannot be asserted.** `observe.SurfaceConfirmation` is a struct with no exported
+field and one constructor per level — `ScreenName`'s discipline. `TransitionAttributed` is the only
+door to a usable one, and it refuses a crossing with no application, one not attributed to a
+person, one attributed to anything but **exactly one** human action, one with no screens either
+side, one where the screen did not change, and one with no time. The zero value confirms nothing,
+so a forgotten field is a refusal rather than a press, and `verified` is named with no constructor
+because nothing can verify an intended outcome yet.
+
+A question binds one request, one place, one window, one observation session and one screen state,
+and lapses after ninety seconds; a later request closes it. Two presses that disagree contest each
+other and leave it unanswerable — the same refusal the press rule makes of a press inside both
+candidates.
+
+Measured on a game menu and a Windows Settings page: the loop closes on both, and the four
+negative crossings each keep the press as a demonstration that cannot aim. See
+[[ADR-207-a-question-is-answered-by-a-press-and-confirmed-by-a-crossing]] and
+[[Experiment-059-one-demonstration-from-a-person-into-durable-memory]].
+
 ## Known gaps
 
 - ~~Vision runs an unrequested pass on every ordinary cycle.~~ **Fixed 2026-08-10.** The
