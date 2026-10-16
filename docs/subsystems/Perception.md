@@ -216,6 +216,16 @@ it mints no identity.
 existing caller behaves as it did. See
 [[ADR-202-an-instruction-may-license-one-action-on-a-prop-only-pixels-describe]].
 
+And exercising it against two real applications found that the first missing connection is
+upstream of all of it. `capture.WindowCapture` is one method, so a recorded frame reaches the
+real OCR and ScreenParser providers with no new code — and on a Trackmania pause menu they
+produce 46 observations of which **every one is text**. The detector proposes three buttons and
+a menu but below the 0.15 acceptance floor, so they never become observations; its confident
+detections are all `text`. Fusion therefore builds no Element, the Stage carries no Props, and
+the Director correctly says nothing in the window can be operated. A perception gap, not a
+grounding or authorization one, and not fixed by tuning a floor to one recording. See
+[[Experiment-051-the-stage-two-real-applications-produced]].
+
 ## Known gaps
 
 - ~~Vision runs an unrequested pass on every ordinary cycle.~~ **Fixed 2026-08-10.** The
