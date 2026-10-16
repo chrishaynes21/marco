@@ -166,7 +166,8 @@ that policy alone really would allow it, so the pair cannot keep passing while h
 `TestAnOversizedNamedRegionIsNotASurface`, `TestABandOfChromeIsNotASurface`,
 `TestARegionSpanningTheWindowLocatesNothing`, `TestReadTextAloneIsNotASurface`,
 `TestALineOfReadTextIsNotASurfaceEither`, `TestTheEvaluatorChangesNothing`,
-`TestEveryProposedPointIsASurfacesOwnMiddle`.
+`TestEveryProposedPointIsASurfacesOwnMiddle`,
+`TestABandIsStillABandWhenTheWindowIsNotAtTheOrigin`.
 
 `internal/director/perception/fusion` — `TestTheExportedRuleAgreesWithFusionsOwn`,
 `TestBothCallTwoComparableContainersAmbiguous`, `TestNothingOwnsAnUncontainedRegion`.

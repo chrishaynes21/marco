@@ -162,6 +162,32 @@ Reported because each produced a confident wrong answer that a green suite would
 4. **"structure and ocr and ocr"** — an element's provenance can hold two OCR references, and the
    explanation was a sentence about the bookkeeping.
 
+## And a fifth, found afterwards by reading the code rather than by running it
+
+**The band rule could not fire on a window that is not at the desktop origin**, so every result
+above was measured where the bug cannot show.
+
+A Prop's bounds are DESKTOP coordinates — `providers/structure` puts the proposer's frame-local
+rectangles through the capture's own transform, like every other source on the window. Normalising
+against the window therefore means subtracting the window's origin and then dividing, which is
+what `observe.relativeTo` does and what `surface.locates` did not: it divided without
+subtracting.
+
+`Region.Locates` asks where a rectangle's EDGES are — `X <= 0.005 && X+Width >= 0.995` — so this
+is not a rounding error. On a window at x=1920 a band running that window's full width normalises
+to 1.000..2.000, its left edge stops looking like the window's left edge, and the band becomes
+defensible. Measured with the fix reverted: the 1920x56 band was not merely admitted but **chosen**,
+with the press at `{2880 978}` — the window's own horizontal centre, which is the exact arithmetic
+`Locates` exists to refuse.
+
+Every fixture in this experiment and every unit fixture states its window as `Rect{Width, Height}`,
+and the desktop origin is precisely where the two arithmetics agree. The five-interface table above
+is byte-for-byte unchanged by the fix, which is the other half of the claim.
+
+`TestABandIsStillABandWhenTheWindowIsNotAtTheOrigin` asserts both halves, and a sweep of every
+other normalisation in the tree — `observe.relativeTo`, `plan.go`'s window placement and
+`trackwiring.go`'s inverse — found all of them subtracting correctly.
+
 ## What was reused rather than rebuilt
 
 - `fusion.Owners` and `fusion.Rivals` — the owner-candidate rule, its three constants and its
@@ -185,6 +211,9 @@ Reported because each produced a confident wrong answer that a green suite would
   identity and surface are the same object because a source said so. That case does not reach this
   code: a Prop an actuating source described resolves without a licence.
 - Nothing is wired into execution. The hypothesis is a value; no path reads it.
+- Every fixture states its window at the desktop origin, so nothing here measures the evaluator
+  on a window that is anywhere else. That is how the band rule came to be unmeasurable; see the
+  fifth defect above.
 - The exclusivity test depends on OCR having read the other things inside a candidate. On Explorer
   the toolbar band was refused because OCR produced two garbage-labelled Props inside it (`"—"`,
   `"WN"`) — the right answer for a shaky reason. Had OCR read nothing else in that band, the band

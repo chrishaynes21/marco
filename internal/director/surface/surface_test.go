@@ -39,6 +39,16 @@ func prop(id, label string, at directorapi.Rect,
 }
 
 func stage(els ...*directorapi.Element) directorapi.WorldState {
+	return stageAt(directorapi.Rect{Width: winW, Height: winH}, els...)
+}
+
+// stageAt is `stage` with the window stated somewhere in particular.
+//
+// Every fixture in this file and every recorded capture states its window as `Rect{Width,
+// Height}` — the desktop origin — which is exactly where a normalisation that forgets to
+// subtract the origin agrees with one that does not. So a window placed anywhere else needs
+// saying explicitly, and this is the only way to say it.
+func stageAt(window directorapi.Rect, els ...*directorapi.Element) directorapi.WorldState {
 	byID := map[directorapi.ElementID]*directorapi.Element{}
 	for _, el := range els {
 		byID[el.ID] = el
@@ -47,7 +57,7 @@ func stage(els ...*directorapi.Element) directorapi.WorldState {
 	return directorapi.WorldState{
 		Timestamp: time.Now(), Elements: byID,
 		Windows: []directorapi.Window{{ID: id, Application: "fixture",
-			Bounds:  directorapi.Rect{Width: winW, Height: winH},
+			Bounds:  window,
 			Focused: true, Visible: true}},
 		ActiveWindow: &id,
 		Confidence: directorapi.WorldConfidence{
@@ -332,6 +342,78 @@ func TestARegionSpanningTheWindowLocatesNothing(t *testing.T) {
 	if h.Decision == DecisionDefensible {
 		t.Errorf("with only a caption and a band, something was still chosen: %+v",
 			h.Chosen)
+	}
+}
+
+// AND IT IS STILL A BAND WHEN THE APPLICATION IS NOT ON THE FIRST MONITOR.
+//
+// A Prop's bounds are DESKTOP coordinates — `providers/structure` puts the proposer's
+// frame-local rectangles through the capture's own transform, like every other source. So
+// normalising against the window means subtracting the window's origin and then dividing, and
+// `locates` divided without subtracting.
+//
+// `Region.Locates` asks where a rectangle's EDGES are, so the error is not a rounding one: on a
+// window at x=1920 the band's left edge normalises to 1.000 instead of 0.000, stops looking like
+// the window's left edge, and the band becomes a defensible place to press. Every fixture states
+// its window at the desktop origin, which is precisely where the two arithmetics agree — so the
+// rule the owner named as the test of readiness was only ever measured where it could not fail.
+//
+// Asserted both ways round: the offset window must refuse the band, and the origin window must
+// give the identical answer, because the claim is that the origin case was never wrong.
+func TestABandIsStillABandWhenTheWindowIsNotAtTheOrigin(t *testing.T) {
+	// A second monitor to the right, and a little down. The band runs the window's full
+	// width, which is the whole of what makes it a band.
+	origin := directorapi.Rect{X: 1920, Y: 200, Width: winW, Height: winH}
+	shift := func(r directorapi.Rect) directorapi.Rect {
+		r.X += origin.X
+		r.Y += origin.Y
+		return r
+	}
+	band := shift(directorapi.Rect{X: 0, Y: 750, Width: winW, Height: 56})
+
+	for _, tc := range []struct {
+		name   string
+		window directorapi.Rect
+		word   directorapi.Rect
+		band   directorapi.Rect
+	}{
+		{"off the origin", origin, shift(theWord), band},
+		{"at the origin", directorapi.Rect{Width: winW, Height: winH}, theWord,
+			directorapi.Rect{X: 0, Y: 750, Width: winW, Height: 56}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := ask(stageAt(tc.window,
+				prop("word", "SETTINGS", tc.word, directorapi.SourceOCR),
+				prop("band", "", tc.band, directorapi.SourceStructure),
+			), "settings")
+
+			found := false
+			for _, c := range h.Candidates {
+				if c.ElementID != "band" {
+					continue
+				}
+				found = true
+				if c.Evidence.Locates {
+					t.Error("a band running the full width of the window " +
+						"locates something in it")
+				}
+				if c.Defensible() {
+					t.Error("a band running the full width of the window " +
+						"is a defensible surface")
+				}
+				if !strings.Contains(c.Rejected, "full width") {
+					t.Errorf("the refusal does not say why: %q", c.Rejected)
+				}
+			}
+			if !found {
+				t.Fatal("the band was not considered at all, so this test is " +
+					"not about what it says it is about")
+			}
+			if h.Decision == DecisionDefensible {
+				t.Errorf("with only a caption and a band, something was still "+
+					"chosen: %+v", h.Chosen)
+			}
+		})
 	}
 }
 

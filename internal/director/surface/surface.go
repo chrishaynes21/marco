@@ -415,16 +415,33 @@ func onlyRegionIsTheWords(el *directorapi.Element) bool {
 	return true
 }
 
-// locates asks the workflow stack's own question of a window-pixel rectangle.
+// locates asks the workflow stack's own question of a DESKTOP rectangle.
 //
 // The conversion is the only thing here: `observe.Region` is normalised against the window, which
 // is the space that subsystem speaks, and the rule itself is `Region.Locates` unchanged.
+//
+// # The origin, and why leaving it out could not fail on any fixture
+//
+// A Prop's bounds are desktop coordinates — `providers/structure` puts the proposer's
+// frame-local rectangles through the capture's own transform, like every other source on the
+// window. So normalising means subtracting the window's own origin and then dividing, which is
+// exactly what `observe.relativeTo` does and what this did not.
+//
+// Dividing without subtracting inflates X and Y by the window's position, and `Region.Locates`
+// asks where a rectangle's edges are: `X <= 0.005 && X+Width >= 0.995`. On a window at the
+// desktop origin the two arithmetics agree exactly, and every recorded fixture states its window
+// as `Rect{Width, Height}` — so the band rule was measured only where the bug cannot show. Off
+// the origin the left edge no longer looks like the left edge and a band across the window stops
+// being recognised as one, which is the rule the owner named as the test of readiness.
+//
+// Held by `TestABandIsStillABandWhenTheWindowIsNotAtTheOrigin`.
 func locates(r, window directorapi.Rect) (bool, string) {
 	if window.Width <= 0 || window.Height <= 0 {
 		return true, ""
 	}
 	return observe.Region{
-		X: float64(r.X) / float64(window.Width), Y: float64(r.Y) / float64(window.Height),
+		X:      float64(r.X-window.X) / float64(window.Width),
+		Y:      float64(r.Y-window.Y) / float64(window.Height),
 		Width:  float64(r.Width) / float64(window.Width),
 		Height: float64(r.Height) / float64(window.Height),
 	}.Locates()
