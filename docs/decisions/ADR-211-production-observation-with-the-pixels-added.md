@@ -84,11 +84,15 @@ The owner's limit, carried as written:
 
 ## Consequences
 
-**Unverified.** The only probe of it so far read a game window, because the foreground had moved.
-Nothing about this configuration has been measured on a live Settings screen, and the owner's
-instruction is explicit that it must not be assumed:
+**Verified on a live Settings screen.** A durable place on both pages tried, and on the Home page
+one press-separable surface question. See
+[[Experiment-064-the-augmented-configuration-works-and-settings-is-the-wrong-instrument]], which
+also records the result nobody predicted: the richer evidence produces FEWER askable words than
+pixel-only did on the same page, because accessibility names more things and a surface holding
+several named things is refused.
 
-> Do not assume the augmented configuration succeeds until measured on the live Settings screen.
+**And the authorised application has no usable target.** The one answerable question on Settings
+changes the desktop theme, which the owner excluded. Ordinary software offers them routinely.
 
 **And it is not the long-term design.** The owner was clear that this is alpha scaffolding:
 

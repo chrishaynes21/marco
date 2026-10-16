@@ -460,8 +460,23 @@ with the shape proposer and OCR added. The third is additive — `Include` adds 
 and removes nothing, so accessibility is collected exactly as usual and production is
 unchanged because production does not ask. `Sources` stays empty on purpose: naming anything
 there would switch accessibility off by implication. All three go through the one sandbox
-door, and the configuration is unverified on a live screen. See
-[[ADR-211-production-observation-with-the-pixels-added]].
+door. See [[ADR-211-production-observation-with-the-pixels-added]].
+
+**The augmented configuration does what it was approved to do, and Settings is the wrong
+instrument.** Measured live: a durable place on both Settings pages tried, and on the Home
+page one press-separable surface question. The richer evidence produced FEWER askable words
+than pixel-only did on the same page, which is the opposite of the intuition — accessibility
+names more things, and a surface holding several named things is refused, so adding evidence
+tightens the question. The one answerable question on Settings changes the desktop theme,
+and the owner excluded changes to real Windows preferences; the second page offers none at
+all. Meanwhile ordinary software offers them routinely — nineteen in VS Code, four in
+Discord, two in Chrome, with twenty-six more refused as unanswerable. The caption-inside-a-
+container tie is a property of real software seen through an accessibility tree, and
+Settings, chosen because it was safe, is among the worst examples of it. See
+[[Experiment-064-the-augmented-configuration-works-and-settings-is-the-wrong-instrument]].
+
+The loop from a human demonstration to a reused instruction has still never run live, under
+any configuration.
 
 ## Known gaps
 
