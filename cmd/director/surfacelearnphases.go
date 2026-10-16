@@ -34,31 +34,28 @@ import (
 // surfacePhase is the shared setup every phase needs: a sandbox, the pixel-only configuration,
 // and a runtime.
 //
-// `pixels` is false for one caller only, and it is a DIAGNOSTIC: the probe can run the same
-// screen under production observation defaults, so that "this screen cannot be recognised"
-// and "this screen cannot be recognised WITHOUT ACCESSIBILITY" are separable findings. One of
-// those says to pick another screen and the other is about the configuration itself, and no
-// amount of staring at one run tells them apart.
+// `mode` is which of the three configurations to run under, and it exists because the live
+// runs needed to tell three findings apart: a screen that cannot be recognised, a screen
+// that cannot be recognised WITHOUT ACCESSIBILITY, and a screen whose surfaces are only
+// nested when something other than the accessibility tree describes them. One of those says
+// to pick another screen; the other two are about the configuration. No amount of staring at
+// one run tells them apart. See pixelonly.go.
 //
 // `wet` is the one difference between the phases that cannot press anything and the one that can,
 // and it is a single boolean passed to `NewRuntime` — so a reader can see which phase is which by
 // looking at one call.
 func surfacePhase(out io.Writer, bridge string, maxNodes int, wet bool) (*Runtime, error) {
-	return surfacePhaseUnder(out, bridge, maxNodes, wet, true)
+	return surfacePhaseUnder(out, bridge, maxNodes, wet, modePixelOnly)
 }
 
 // surfacePhaseUnder is surfacePhase with the observation configuration named.
-func surfacePhaseUnder(out io.Writer, bridge string, maxNodes int, wet, pixels bool) (
-	*Runtime, error) {
+func surfacePhaseUnder(out io.Writer, bridge string, maxNodes int, wet bool,
+	mode observationMode) (*Runtime, error) {
 
-	if pixels {
-		if err := enablePixelOnly(os.Getenv("MARCO_HOME"), defaultHome()); err != nil {
-			return nil, err
-		}
-	} else if why := resetGuard(os.Getenv("MARCO_HOME"), defaultHome()); why != "" {
-		// THE SANDBOX STILL. The production configuration is not a reason to write
-		// into the real store, and this is the only phase that could have.
-		return nil, fmt.Errorf("a probe is only available against a sandbox: %s", why)
+	// THE SANDBOX FOR ALL THREE. Production observation is not a reason to write into
+	// the real store, and these phases establish places and keep demonstrations.
+	if err := enableTestObservation(os.Getenv("MARCO_HOME"), defaultHome(), mode); err != nil {
+		return nil, err
 	}
 	fmt.Fprintf(out, "%s\n", pixelOnlyNote())
 	if wet {
@@ -147,12 +144,14 @@ func theAmbiguityIsReallyThere(out io.Writer, w directorapi.WorldState, instruct
 //
 // It cannot press anything: the runtime is a dry run. The only thing that touches the desktop in
 // this phase is the person's own hand.
-func runSurfaceLearn(out io.Writer, instruction, bridge string, maxNodes, seconds int) int {
+func runSurfaceLearn(out io.Writer, instruction, bridge string, maxNodes, seconds int,
+	mode observationMode) int {
+
 	if instruction == "" {
 		fmt.Fprintln(out, "give the instruction with -instruction")
 		return 2
 	}
-	rt, err := surfacePhase(out, bridge, maxNodes, false)
+	rt, err := surfacePhaseUnder(out, bridge, maxNodes, false, mode)
 	if err != nil {
 		fmt.Fprintf(out, "STOP: %v\n", err)
 		return 1
@@ -263,8 +262,10 @@ func waitForPlace(out io.Writer, rt *Runtime, app string, seconds int) string {
 // through are held separately ' recognitionLines and surveyReport each have their own test '
 // and the composition is exercised only by a live run. Said plainly rather than pointed at a
 // test that would not fail.
-func runSurfaceProbe(out io.Writer, bridge string, maxNodes, seconds int, pixels bool) int {
-	rt, err := surfacePhaseUnder(out, bridge, maxNodes, false, pixels)
+func runSurfaceProbe(out io.Writer, bridge string, maxNodes, seconds int,
+	mode observationMode) int {
+
+	rt, err := surfacePhaseUnder(out, bridge, maxNodes, false, mode)
 	if err != nil {
 		fmt.Fprintf(out, "STOP: %v\n", err)
 		return 1
@@ -433,7 +434,9 @@ func reportDemonstration(out io.Writer, rt *Runtime, app string, seconds int) in
 //
 // A dry run. Nothing is pressed and nothing is authorised; this reports the decision that the
 // execute phase would act on, so the decision can be read before anything happens.
-func runSurfaceReground(out io.Writer, instruction, bridge string, maxNodes int) int {
+func runSurfaceReground(out io.Writer, instruction, bridge string, maxNodes int,
+	mode observationMode) int {
+
 	rt, err := surfacePhase(out, bridge, maxNodes, false)
 	if err != nil {
 		fmt.Fprintf(out, "STOP: %v\n", err)
@@ -478,7 +481,7 @@ func runSurfaceReground(out io.Writer, instruction, bridge string, maxNodes int)
 // the confirmation gate, the capability ladder and the Marco runtime, none of them changed for
 // this experiment.
 func runSurfaceExecute(out io.Writer, instruction, bridge string, maxNodes int,
-	authorised bool) int {
+	authorised bool, mode observationMode) int {
 
 	if !authorised {
 		fmt.Fprintln(out, "STOP: this phase presses something. Re-run with "+

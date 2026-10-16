@@ -43,6 +43,37 @@ import (
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 )
 
+// observationMode is which of three configurations a harness phase runs under.
+//
+// Three, not two, and the third is the one the live runs argued for. Measured on Windows
+// Settings, one page at a time:
+//
+//	production  a place establishes, and every tie is an element beside a near-identical
+//	            wrapper in the accessibility tree — two options at the same bounds, which
+//	            no press can separate, so the question is unanswerable
+//	pixel-only  the ties are genuinely nested and separable, and no place can be
+//	            established at all, because a screen discriminates on interface terms
+//	            and nothing credits any without accessibility
+//	augmented   both. Accessibility recognises the screen; the shape proposer finds
+//	            rectangles that are actually nested inside one another.
+//
+// See [[Experiment-063-the-configuration-that-cannot-close-its-own-loop]].
+type observationMode int
+
+const (
+	// modeProduction is the defaults every other command uses. The zero value.
+	modeProduction observationMode = iota
+	// modePixelOnly is ADR-208: accessibility neither requested nor registered.
+	modePixelOnly
+	// modeAugmented is production observation with the shape proposer and OCR added.
+	//
+	// ADDITIVE, which is the whole of why it is safe: `Include` adds opt-in sources and
+	// removes nothing, so accessibility is collected exactly as it always is and the
+	// extra evidence arrives beside it. Production is unchanged because production does
+	// not ask — an empty request includes nothing.
+	modeAugmented
+)
+
 // pixelOnly is the experiment's observation configuration, nil in every other Director.
 //
 // Nil is the production default and is what every path reads when nothing set this, so forgetting
@@ -59,6 +90,16 @@ type pixelOnlyConfig struct {
 	// and no controls, and the surface evaluator needs the window's rectangle: every area
 	// share is a fraction of it and the band rule is about running its width.
 	Sources []observation.Source
+
+	// Include is the opt-in half, used by the augmented mode and empty for pixel-only.
+	//
+	// Pixel-only needs none: `Request.Includes` reads `Sources` as well, so naming a
+	// source there asks for it. The augmented mode restricts nothing and therefore has
+	// nowhere else to ask from.
+	Include []observation.Source
+
+	// Mode is which of the three this is, so one value answers every question about it.
+	Mode observationMode
 }
 
 // pixelOnlySources is the evidence the experiment needs and nothing more.
@@ -77,11 +118,33 @@ func pixelOnlySources() []observation.Source {
 // configuration that produces an unusual Stage and the store that can be emptied are the same
 // decision rather than two.
 func enablePixelOnly(home, realHome string) error {
+	return enableTestObservation(home, realHome, modePixelOnly)
+}
+
+// enableTestObservation turns on one of the two test configurations, and refuses outside a
+// sandbox.
+//
+// THE ONLY DOOR, for both of them. The augmented mode removes nothing and could defend
+// itself as harmless, which is exactly the argument that would eventually put a second door
+// next to this one; it goes through the same guard so there is one.
+func enableTestObservation(home, realHome string, mode observationMode) error {
 	if why := resetGuard(home, realHome); why != "" {
-		return fmt.Errorf("the pixel-only test configuration is only available against a "+
+		return fmt.Errorf("a test observation configuration is only available against a "+
 			"sandbox: %s", why)
 	}
-	pixelOnly = &pixelOnlyConfig{Sources: pixelOnlySources()}
+	switch mode {
+	case modeAugmented:
+		// NO `Sources`, so nothing is restricted and accessibility runs as it always
+		// does. Only `Include`, which is how an opt-in provider is asked.
+		pixelOnly = &pixelOnlyConfig{Mode: modeAugmented,
+			Include: []observation.Source{
+				directorapi.SourceStructure, directorapi.SourceOCR,
+			}}
+	case modePixelOnly:
+		pixelOnly = &pixelOnlyConfig{Mode: modePixelOnly, Sources: pixelOnlySources()}
+	default:
+		pixelOnly = nil
+	}
 	return nil
 }
 
@@ -94,7 +157,7 @@ func pixelOnlyRequest() observation.Request {
 	if pixelOnly == nil {
 		return observation.Request{}
 	}
-	return observation.Request{Sources: pixelOnly.Sources}
+	return observation.Request{Sources: pixelOnly.Sources, Include: pixelOnly.Include}
 }
 
 // pixelOnlyExcludesAccessibility reports whether the accessibility provider should be left out of
@@ -105,7 +168,9 @@ func pixelOnlyRequest() observation.Request {
 // structurally impossible rather than merely unrequested — which is the owner's requirement:
 //
 //	Do not silently fall back to accessibility during this pixel-only test.
-func pixelOnlyExcludesAccessibility() bool { return pixelOnly != nil }
+func pixelOnlyExcludesAccessibility() bool {
+	return pixelOnly != nil && pixelOnly.Mode == modePixelOnly
+}
 
 // pixelOnlyNote is what a report says about the configuration it ran under.
 //
@@ -115,6 +180,12 @@ func pixelOnlyExcludesAccessibility() bool { return pixelOnly != nil }
 func pixelOnlyNote() string {
 	if pixelOnly == nil {
 		return "configuration: production defaults (accessibility included)"
+	}
+	if pixelOnly.Mode == modeAugmented {
+		return fmt.Sprintf("configuration: AUGMENTED TEST — production defaults with "+
+			"%v added, accessibility collected exactly as usual. Nothing is "+
+			"restricted and nothing downstream (resolver, licence, policy, "+
+			"ladder, Marco runtime) is changed.", pixelOnly.Include)
 	}
 	return fmt.Sprintf("configuration: PIXEL-ONLY TEST — sources %v, accessibility "+
 		"neither requested nor registered. Everything downstream (resolver, licence, "+

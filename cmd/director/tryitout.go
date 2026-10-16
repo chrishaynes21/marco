@@ -135,8 +135,11 @@ func tryItOut(out io.Writer, args []string) int {
 		"ask of every word on one Stage whether it would raise a surface question; "+
 			"reads, and interacts with nothing")
 	production := fs.Bool("production-observation", false,
-		"probe under production observation defaults instead, for comparison only; "+
-			"still a sandbox, still a dry run, still presses nothing")
+		"run under production observation defaults instead, for comparison; still a "+
+			"sandbox, and the configuration is printed by every phase")
+	withPixels := fs.Bool("with-pixels", false,
+		"run under production defaults PLUS the shape proposer and OCR; additive, so "+
+			"accessibility is collected exactly as usual")
 	clean := fs.Bool("clean", false, "empty the disposable store")
 	phrase := fs.String("instruction", "",
 		"the instruction being tested, e.g. \"click Bluetooth & devices\"")
@@ -161,6 +164,19 @@ func tryItOut(out io.Writer, args []string) int {
 		return tryItOutUsage(out)
 	}
 
+	// WHICH CONFIGURATION, decided once so no phase can disagree with another about it.
+	mode := modePixelOnly
+	switch {
+	case *production && *withPixels:
+		fmt.Fprintln(out, "-production-observation and -with-pixels are different "+
+			"configurations; choose one")
+		return 2
+	case *production:
+		mode = modeProduction
+	case *withPixels:
+		mode = modeAugmented
+	}
+
 	home, err := tryItOutHome()
 	if err != nil {
 		fmt.Fprintf(out, "STOP: %v\n", err)
@@ -173,7 +189,7 @@ func tryItOut(out io.Writer, args []string) int {
 		// READY when a question exists somewhere on this Stage, BLOCKED when the
 		// screen has nothing to ask about — which is a finding and the reason to
 		// find another screen, never to loosen what counts as a question.
-		return atCheckpoint(out, runSurfaceSurvey(out, *bridgeFlag, *maxNodes),
+		return atCheckpoint(out, runSurfaceSurvey(out, *bridgeFlag, *maxNodes, mode),
 			checkReady)
 	case *clean:
 		// The checkpoint prints either way: a store that was already empty is a
@@ -184,12 +200,12 @@ func tryItOut(out io.Writer, args []string) int {
 		// DEMONSTRATION NEEDED is printed by the phase, at the moment the question
 		// is actually open — not here, where it would be a guess about when.
 		return atCheckpoint(out, runSurfaceLearn(out, *phrase, *bridgeFlag, *maxNodes,
-			watchFor(*seconds)), checkLearned)
+			watchFor(*seconds), mode), checkLearned)
 	case *replay:
-		return atCheckpoint(out, runSurfaceReground(out, *phrase, *bridgeFlag, *maxNodes),
-			checkReadyToExec)
+		return atCheckpoint(out, runSurfaceReground(out, *phrase, *bridgeFlag, *maxNodes,
+			mode), checkReadyToExec)
 	case *exec:
-		code := runSurfaceExecute(out, *phrase, *bridgeFlag, *maxNodes, *authorise)
+		code := runSurfaceExecute(out, *phrase, *bridgeFlag, *maxNodes, *authorise, mode)
 		// RESULT, whatever happened. See the vocabulary above.
 		checkpoint(out, checkResult)
 		return code
@@ -198,11 +214,10 @@ func tryItOut(out io.Writer, args []string) int {
 		// surfaces, or tied surfaces and no place, cannot carry a demonstration —
 		// and which half is missing is the whole content of the answer.
 		return atCheckpoint(out,
-			runSurfaceProbe(out, *bridgeFlag, *maxNodes, *observe, !*production),
-			checkReady)
+			runSurfaceProbe(out, *bridgeFlag, *maxNodes, *observe, mode), checkReady)
 	}
-	return atCheckpoint(out, surfacePreconditions(out, *phrase, *bridgeFlag, *maxNodes, 0),
-		checkReady)
+	return atCheckpoint(out, surfacePreconditions(out, *phrase, *bridgeFlag, *maxNodes, 0,
+		mode), checkReady)
 }
 
 // tryItOutUsage names the phases in the order they happen.

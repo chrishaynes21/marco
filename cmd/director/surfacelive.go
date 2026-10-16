@@ -117,20 +117,26 @@ func runDemonstrateSurface(args []string) int {
 	}
 	switch {
 	case *learn:
-		return runSurfaceLearn(os.Stdout, *phrase, *bridgeFlag, *maxNodes, watchFor(*watch))
+		return runSurfaceLearn(os.Stdout, *phrase, *bridgeFlag, *maxNodes,
+			watchFor(*watch), modePixelOnly)
 	case *reground:
-		return runSurfaceReground(os.Stdout, *phrase, *bridgeFlag, *maxNodes)
+		return runSurfaceReground(os.Stdout, *phrase, *bridgeFlag, *maxNodes,
+			modePixelOnly)
 	case *exec:
-		return runSurfaceExecute(os.Stdout, *phrase, *bridgeFlag, *maxNodes, *authorise)
+		return runSurfaceExecute(os.Stdout, *phrase, *bridgeFlag, *maxNodes, *authorise,
+			modePixelOnly)
 	}
-	return surfacePreconditions(os.Stdout, *phrase, *bridgeFlag, *maxNodes, *watch)
+	return surfacePreconditions(os.Stdout, *phrase, *bridgeFlag, *maxNodes, *watch,
+		modePixelOnly)
 }
 
 // surfacePreconditions runs every check and reports.
 //
 // Split from the command for the reason every harness in this tree is: the flags are not the
 // thing worth testing and the refusals are.
-func surfacePreconditions(out io.Writer, phrase, bridge string, maxNodes, watch int) int {
+func surfacePreconditions(out io.Writer, phrase, bridge string, maxNodes, watch int,
+	mode observationMode) int {
+
 	var checks []surfaceCheck
 	add := func(c surfaceCheck) { checks = append(checks, c) }
 
@@ -140,11 +146,20 @@ func surfacePreconditions(out io.Writer, phrase, bridge string, maxNodes, watch 
 	// is the Stage the learning phase will see. Diagnosing production defaults and then
 	// learning under a different configuration would be a check about the wrong screen.
 	add(surfaceSandboxCheck(os.Getenv("MARCO_HOME"), defaultHome()))
-	if err := enablePixelOnly(os.Getenv("MARCO_HOME"), defaultHome()); err != nil {
-		add(surfaceCheck{Name: "pixel-only test configuration", Blocking: true,
-			Detail: err.Error()})
-	} else {
-		add(surfaceCheck{Name: "pixel-only test configuration", OK: true,
+	switch {
+	case mode == modeProduction:
+		// PRODUCTION OBSERVATION, which is not a second test configuration: it is
+		// the one every other command uses. Named as a precondition anyway, because
+		// a result reported without the configuration it was obtained under is the
+		// kind of finding that gets quoted later as though it were about the other.
+		add(surfaceCheck{Name: "observation configuration", OK: true,
+			Blocking: true, Detail: pixelOnlyNote()})
+	case enableTestObservation(os.Getenv("MARCO_HOME"), defaultHome(), mode) != nil:
+		add(surfaceCheck{Name: "test observation configuration", Blocking: true,
+			Detail: enableTestObservation(os.Getenv("MARCO_HOME"), defaultHome(),
+				mode).Error()})
+	default:
+		add(surfaceCheck{Name: "test observation configuration", OK: true,
 			Blocking: true, Detail: pixelOnlyNote()})
 	}
 
@@ -533,8 +548,10 @@ func sortedSurveyReasons(by map[string]int) []string {
 }
 
 // runSurfaceSurvey builds the dry-run runtime a survey needs and surveys one Stage.
-func runSurfaceSurvey(out io.Writer, bridge string, maxNodes int) int {
-	rt, err := surfacePhase(out, bridge, maxNodes, false)
+func runSurfaceSurvey(out io.Writer, bridge string, maxNodes int,
+	mode observationMode) int {
+
+	rt, err := surfacePhaseUnder(out, bridge, maxNodes, false, mode)
 	if err != nil {
 		fmt.Fprintf(out, "STOP: %v\n", err)
 		return 1

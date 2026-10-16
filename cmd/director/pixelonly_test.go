@@ -187,3 +187,102 @@ func registersAccessibility(rt *Runtime) bool {
 	}
 	return false
 }
+
+// THE AUGMENTED CONFIGURATION ADDS AND REMOVES NOTHING.
+//
+// It exists because neither of the other two could close the loop, and for opposite reasons:
+// production observation establishes a place and offers only ties between an element and its own
+// near-identical wrapper, which no press can separate; pixel-only offers genuinely nested
+// surfaces and can establish no place at all. Augmented is both, and the only way it can be both
+// is by taking nothing away.
+//
+// So what is asserted is the absence of subtraction. `Sources` must stay EMPTY, because a source
+// list is a restriction and naming anything there would switch accessibility off by implication
+// — which is exactly the mistake that would make this a second pixel-only mode wearing a
+// friendlier name.
+func TestTheAugmentedConfigurationRemovesNothing(t *testing.T) {
+	withoutPixelOnly(t)
+	pixelOnly = nil
+	if err := enableTestObservation(filepath.Join(t.TempDir(), "home"),
+		filepath.Join("C:", "real"), modeAugmented); err != nil {
+		t.Fatalf("enabling: %v", err)
+	}
+
+	req := pixelOnlyRequest()
+	if len(req.Sources) != 0 {
+		t.Errorf("the augmented request restricts sources to %v, so something was "+
+			"taken away", req.Sources)
+	}
+	if !req.Wants(directorapi.SourceAccessibility) {
+		t.Error("the augmented request does not want accessibility, so the screen " +
+			"could not be recognised and nothing could be kept")
+	}
+	if pixelOnlyExcludesAccessibility() {
+		t.Error("the augmented configuration leaves accessibility out of the provider " +
+			"list, which is the one thing it exists not to do")
+	}
+	// AND IT ASKS FOR THE PIXEL EVIDENCE BY NAME, because both are opt-in and being
+	// permitted to run is not being asked to.
+	for _, want := range []directorapi.ObservationSource{
+		directorapi.SourceStructure, directorapi.SourceOCR,
+	} {
+		if !req.Includes(want) {
+			t.Errorf("the augmented request does not ask for %s, so the surfaces "+
+				"would be the accessibility tree's own and nested in name only",
+				want)
+		}
+	}
+	if note := pixelOnlyNote(); !strings.Contains(note, "AUGMENTED") {
+		t.Errorf("the configuration does not announce itself: %q", note)
+	}
+}
+
+// AND IT GOES THROUGH THE SAME DOOR.
+//
+// The augmented mode removes nothing and could defend itself as harmless. That argument is
+// precisely how a second door ends up beside the first, so it is refused outside a sandbox for
+// the same reason pixel-only is: it establishes places and keeps demonstrations, and a store that
+// cannot be emptied is a store nothing should be learned into.
+func TestEveryTestConfigurationIsReachableOnlyFromASandbox(t *testing.T) {
+	withoutPixelOnly(t)
+	real := filepath.Join("C:", "Users", "someone", "AppData", "Roaming", "marco")
+	for _, mode := range []observationMode{modePixelOnly, modeAugmented, modeProduction} {
+		pixelOnly = nil
+		if err := enableTestObservation("", real, mode); err == nil {
+			t.Errorf("mode %d was enabled with no MARCO_HOME at all", mode)
+		}
+		if err := enableTestObservation(real, real, mode); err == nil {
+			t.Errorf("mode %d was enabled against the real store", mode)
+		}
+		if pixelOnly != nil {
+			t.Errorf("mode %d left a configuration behind after refusing", mode)
+		}
+	}
+}
+
+// AND ASKING FOR PRODUCTION CLEARS WHATEVER WAS SET.
+//
+// Latent today, because every phase runs in its own process and starts from nil. It is asserted
+// anyway: the configuration is a package variable, and the one thing a package variable does that
+// a parameter cannot is survive into a caller that did not ask for it.
+func TestAskingForProductionClearsTheTestConfiguration(t *testing.T) {
+	withoutPixelOnly(t)
+	home := filepath.Join(t.TempDir(), "home")
+	real := filepath.Join("C:", "real")
+
+	if err := enableTestObservation(home, real, modePixelOnly); err != nil {
+		t.Fatalf("enabling pixel-only: %v", err)
+	}
+	if err := enableTestObservation(home, real, modeProduction); err != nil {
+		t.Fatalf("asking for production: %v", err)
+	}
+	if pixelOnly != nil {
+		t.Fatalf("the previous configuration survived: %+v", pixelOnly)
+	}
+	if req := pixelOnlyRequest(); len(req.Sources) != 0 || len(req.Include) != 0 {
+		t.Errorf("the request still restricts or adds: %+v", req)
+	}
+	if note := pixelOnlyNote(); !strings.Contains(note, "production defaults") {
+		t.Errorf("the configuration describes itself as %q", note)
+	}
+}
