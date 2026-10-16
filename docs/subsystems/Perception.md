@@ -228,9 +228,11 @@ grounding or authorization one, and not fixed by tuning a floor to one recording
 
 Investigating the existing structural proposer as the missing source found the evidence is
 already there and is lost later: on that same frame it produces a **444x56 menu row** for the
-SETTINGS entry, the same 56 px height as every other entry, and `NameCandidates` fails to
-associate the word with it because the OCR box overruns the row by eight pixels and `within`
-requires total containment. The proposer is generic — 228 regions on a game, 40 on Explorer, 25
+SETTINGS entry, the same 56 px height as every other entry. (That experiment measured the
+association with `NameCandidates`, whose rule is total containment, and the OCR box overruns
+the row by eight pixels. Fusion does not use `NameCandidates` — it admits text by FRACTIONAL
+coverage at 0.80, so on the Stage path the association succeeds. See
+[[Experiment-053-what-the-stage-can-already-say-it-is-unsure-of]].) The proposer is generic — 228 regions on a game, 40 on Explorer, 25
 on Paint — and it finds the rows the detector rejects below its floor. Neither reaches fusion.
 No new interface would be needed to change that, only a provider and an `ObservationSource`,
 and a new source is not in `ActuatingSource`, so proposed Props would arrive non-`Actuable` and
@@ -252,6 +254,19 @@ on that frame is not a target, and neither — this is the gap, reported rather 
 the well-grounded 444x56 menu row, because the only thing actionability consults is the role and
 the proposer may not assign one. See
 [[ADR-203-a-proposed-rectangle-is-stage-evidence-and-not-a-control]].
+
+Asked where that gap actually sits, the whole path from a real capture to a real decision was
+measured once more. **The row is already a Prop** — `{98 750 444 56}`, unnamed, at the structural
+source's confidence floor — and fusion already computes the relation: the word-shaped region and
+the row contain the SETTINGS text at 0.955 and 0.950, a difference far inside `ambiguityMargin`,
+and only `nestingRatio` keeps it from being called ambiguous by classifying the row an ANCESTOR.
+That classification is the relation, and nothing but the winner's id survives it. **ADR-202's
+licence already passes** on that Prop — sources `[structure ocr]`, so `OperableUnder` returns true
+with no reason — and the single refusal at grounding is `Any()`, from the role. And **two further
+gates refuse the whole world** before an action is considered: `Coverage` is 0.000 because
+`RoleUnknown` is a container, so policy's first gate reports *"only 0% of this window's content was
+visible"*, and `Blind()` fires on the second. `Locates()` refuses none of the oversized cases.
+See [[Experiment-054-the-surface-a-named-prop-does-not-carry]].
 
 ## Known gaps
 
