@@ -118,7 +118,7 @@ func runDemonstrateSurface(args []string) int {
 	switch {
 	case *learn:
 		return runSurfaceLearn(os.Stdout, *phrase, *bridgeFlag, *maxNodes,
-			watchFor(*watch), modePixelOnly)
+			watchFor(*watch), modePixelOnly, true)
 	case *reground:
 		return runSurfaceReground(os.Stdout, *phrase, *bridgeFlag, *maxNodes,
 			modePixelOnly)
@@ -262,11 +262,51 @@ func surfaceProvidersCheck(rt *Runtime) surfaceCheck {
 			}
 		}
 	}
-	if pixelOnly != nil && accessible {
+	return surfaceProvidersVerdict(names, accessible)
+}
+
+// surfaceProvidersVerdict judges a provider list against what the configuration requires.
+//
+// # The defect this is a correction of
+//
+// This asked `pixelOnly != nil`, which was the same question as "is accessibility excluded"
+// right up until there were three configurations rather than two. The augmented one sets the
+// variable and requires accessibility to be PRESENT, so the check failed it and explained the
+// failure by naming the pixel-only configuration — a report that was wrong twice over, in a
+// run where the only other false precondition was the real one.
+//
+// So the question is now the one that was always meant: does THIS configuration exclude
+// accessibility? One function answers it, `pixelOnlyExcludesAccessibility`, and it is the same
+// function `NewRuntime` consults when building the list — so the check and the thing it checks
+// cannot disagree about what was required.
+//
+// Split from the collector walk so the verdict can be tested for all three configurations
+// without a runtime, which is what was missing: the pixel-only case had a test and the other
+// two had none.
+//
+// It reads the predicate itself rather than taking it as an argument, because the first
+// version took it as an argument and a mutation gate immediately showed why that was wrong:
+// the verdict was held by a test and the CALLER's choice of predicate was not, so the defect
+// this function exists to correct could be reintroduced one line above it and nothing would
+// fail. One predicate, read in one place, leaves nothing to pass wrongly.
+//
+// Deleting the distinction must fail TestTheProviderCheckAsksWhatTheConfigurationRequires.
+func surfaceProvidersVerdict(names []string, accessible bool) surfaceCheck {
+	excluded := pixelOnlyExcludesAccessibility()
+	switch {
+	case excluded && accessible:
 		return surfaceCheck{Name: "registered observation providers", Blocking: true,
-			Detail: fmt.Sprintf("%v — accessibility is registered under the "+
-				"pixel-only configuration, so a fall back to it is possible",
+			Detail: fmt.Sprintf("%v — this configuration excludes accessibility "+
+				"and it is registered anyway, so a fall back to it is possible",
 				names)}
+	case !excluded && !accessible:
+		// THE OTHER DIRECTION, which had no check at all. A configuration that
+		// needs accessibility and did not get it cannot recognise a screen, and
+		// [[Experiment-063-the-configuration-that-cannot-close-its-own-loop]] is
+		// what that costs: a demonstration with nowhere to be kept.
+		return surfaceCheck{Name: "registered observation providers", Blocking: true,
+			Detail: fmt.Sprintf("%v — this configuration needs accessibility and "+
+				"no provider offers it, so no screen could be recognised", names)}
 	}
 	return surfaceCheck{Name: "registered observation providers", OK: true,
 		Blocking: true, Detail: fmt.Sprintf("%v", names)}

@@ -212,3 +212,69 @@ func TestTheWarmUpCycleIsAllowedToBePartial(t *testing.T) {
 		t.Error("a Stage that could not be collected at all came back as a Stage")
 	}
 }
+
+// THE PROVIDER CHECK ASKS WHAT THE CONFIGURATION REQUIRES.
+//
+// It used to ask whether a test configuration was SET, which was the same question as "is
+// accessibility excluded" for exactly as long as there were two configurations. The augmented one
+// sets the variable and requires accessibility to be present, so the check failed a correct
+// provider list and explained the failure by naming the wrong configuration — in a live run
+// whose only other false precondition was the real one.
+//
+// Driven through the real configurations rather than a boolean, because the first version of this
+// test passed a flag and a mutation gate showed that the caller could still ask the wrong
+// question with nothing failing.
+func TestTheProviderCheckAsksWhatTheConfigurationRequires(t *testing.T) {
+	withAccess := []string{"accessibility", "window_system", "ocr", "structure"}
+	withoutAccess := []string{"window_system", "ocr", "structure"}
+
+	for _, tc := range []struct {
+		name       string
+		mode       observationMode
+		names      []string
+		accessible bool
+		ok         bool
+		says       string
+	}{
+		{"pixel-only, and accessibility is absent as required",
+			modePixelOnly, withoutAccess, false, true, ""},
+		{"pixel-only, and accessibility is registered anyway",
+			modePixelOnly, withAccess, true, false, "excludes accessibility"},
+		{"augmented, and accessibility is present as required",
+			modeAugmented, withAccess, true, true, ""},
+		{"augmented, and accessibility is missing",
+			modeAugmented, withoutAccess, false, false, "needs accessibility"},
+		{"production, and accessibility is present as required",
+			modeProduction, withAccess, true, true, ""},
+		{"production, and accessibility is missing",
+			modeProduction, withoutAccess, false, false, "needs accessibility"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			withoutPixelOnly(t)
+			pixelOnly = nil
+			if err := enableTestObservation(filepath.Join(t.TempDir(), "home"),
+				filepath.Join("C:", "real"), tc.mode); err != nil {
+				t.Fatalf("enabling: %v", err)
+			}
+
+			got := surfaceProvidersVerdict(tc.names, tc.accessible)
+			if got.OK != tc.ok {
+				t.Fatalf("OK = %v, want %v: %s", got.OK, tc.ok, got.Detail)
+			}
+			if !got.Blocking {
+				t.Error("the provider list is not a blocking precondition")
+			}
+			if tc.says != "" && !strings.Contains(got.Detail, tc.says) {
+				t.Errorf("the refusal does not say %q: %s", tc.says, got.Detail)
+			}
+			// AND IT ALWAYS NAMES WHAT WAS ACTUALLY REGISTERED, pass or fail. A
+			// refusal that did not would leave somebody guessing which list it
+			// was about.
+			for _, n := range tc.names {
+				if !strings.Contains(got.Detail, n) {
+					t.Errorf("the verdict does not name %q: %s", n, got.Detail)
+				}
+			}
+		})
+	}
+}

@@ -130,6 +130,19 @@ func (h Hypothesis) Question() (Question, bool) {
 	return q, true
 }
 
+// WhereToPress is the place a press would single out exactly one of this question's options.
+//
+// For telling somebody where to click, which is the one thing the instruction sentence
+// cannot do: "on a part the words do not cover" is a description, and a rectangle is an
+// address. The same rectangle the admission gate found, so the place offered and the reason
+// the question exists are one fact.
+//
+// False only for a question that should not have been asked, which `Question` refuses to
+// build — so a caller holding an open question can rely on this.
+func (q Question) WhereToPress() (directorapi.Rect, bool) {
+	return aPressCouldTellThemApart(q.Options)
+}
+
 // surfaceOptions is the defensible surfaces as options, in candidate order.
 //
 // ONE BUILDER, used by Question and by the evaluator's own explanation of why it did not

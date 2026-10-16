@@ -204,3 +204,36 @@ func TestEveryCheckpointIsPrintedSomewhere(t *testing.T) {
 		}
 	}
 }
+
+// CONFIRMING PREREQUISITES NEVER WATCHES ANYBODY.
+//
+// The owner's limit, and the reason the confirmation phase exists at all:
+//
+//	Observe my demonstration only after I explicitly authorize watching.
+//
+// "I am ready to be asked" is not "watch me". The confirmation runs every prerequisite a
+// demonstration depends on, through the same code the demonstration runs, and stops at the
+// question — so a confirmation that passes and a demonstration that then fails cannot
+// disagree about why.
+//
+// What is asserted here is the refusal and the separation, because the rest needs a desktop.
+func TestConfirmingPrerequisitesNeverWatchesAnybody(t *testing.T) {
+	t.Setenv("MARCO_HOME", filepath.Join(t.TempDir(), "sandbox"))
+
+	// NO INSTRUCTION, so the phase refuses before building anything. What this proves is
+	// that -confirm is a phase of its own: it is chosen, it runs, and it reports through the
+	// same checkpoint vocabulary as the rest.
+	var buf bytes.Buffer
+	if code := tryItOut(&buf, []string{"-confirm"}); code == 0 {
+		t.Errorf("a confirmation with no instruction succeeded:\n%s", buf.String())
+	}
+	if marks := countCheckpoints(buf.String()); len(marks) != 1 || marks[0] != checkBlocked {
+		t.Errorf("checkpoints %v, want exactly [%s]", marks, checkBlocked)
+	}
+
+	// AND IT IS NOT THE DEMONSTRATION PHASE WEARING A DIFFERENT NAME.
+	var both bytes.Buffer
+	if code := tryItOut(&both, []string{"-confirm", "-demonstrate"}); code != 2 {
+		t.Errorf("confirming and demonstrating at once exited %d, want a usage error", code)
+	}
+}

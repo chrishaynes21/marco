@@ -131,6 +131,9 @@ func tryItOut(out io.Writer, args []string) int {
 	exec := fs.Bool("execute", false, "perform exactly one guarded click")
 	authorise := fs.Bool("authorise-one-click", false,
 		"authorise the single click -execute would perform")
+	confirm := fs.Bool("confirm", false,
+		"establish every prerequisite against the live screen, the production request "+
+			"path included, and stop before watching anybody")
 	survey := fs.Bool("survey", false,
 		"ask of every word on one Stage whether it would raise a surface question; "+
 			"reads, and interacts with nothing")
@@ -155,7 +158,7 @@ func tryItOut(out io.Writer, args []string) int {
 	// chained them would be the thing that property exists to prevent.
 	chosen := 0
 	for _, on := range []bool{*prepare, *observe > 0, *demonstrate, *replay, *exec,
-		*clean, *survey} {
+		*clean, *survey, *confirm} {
 		if on {
 			chosen++
 		}
@@ -196,11 +199,18 @@ func tryItOut(out io.Writer, args []string) int {
 		// clean store, and `reset-test-state` says so itself.
 		code := runReset(nil)
 		return atCheckpoint(out, code, checkCleaned)
+	case *confirm:
+		// THE SAME PHASE, STOPPED EARLY. Not a lighter copy of it: every
+		// prerequisite a demonstration depends on is established by the code that
+		// the demonstration itself runs, so a confirmation that passes and a
+		// demonstration that then fails cannot disagree about why.
+		return atCheckpoint(out, runSurfaceLearn(out, *phrase, *bridgeFlag, *maxNodes,
+			watchFor(*seconds), mode, false), checkReady)
 	case *demonstrate:
 		// DEMONSTRATION NEEDED is printed by the phase, at the moment the question
 		// is actually open — not here, where it would be a guess about when.
 		return atCheckpoint(out, runSurfaceLearn(out, *phrase, *bridgeFlag, *maxNodes,
-			watchFor(*seconds), mode), checkLearned)
+			watchFor(*seconds), mode, true), checkLearned)
 	case *replay:
 		return atCheckpoint(out, runSurfaceReground(out, *phrase, *bridgeFlag, *maxNodes,
 			mode), checkReadyToExec)
@@ -228,6 +238,7 @@ func tryItOutUsage(out io.Writer) int {
 	fmt.Fprintln(out, "  -demonstrate       ask, watch a person answer, keep what was confirmed")
 	fmt.Fprintln(out, "  -prepare-replay    a fresh Stage, and what the saved relation picks out")
 	fmt.Fprintln(out, "  -execute           one guarded click, with -authorise-one-click")
+	fmt.Fprintln(out, "  -confirm           every prerequisite, stopping before anybody is watched")
 	fmt.Fprintln(out, "  -survey            which words on this Stage would raise a question")
 	fmt.Fprintln(out, "  -clean             empty the disposable store")
 	return 2

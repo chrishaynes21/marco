@@ -145,7 +145,7 @@ func theAmbiguityIsReallyThere(out io.Writer, w directorapi.WorldState, instruct
 // It cannot press anything: the runtime is a dry run. The only thing that touches the desktop in
 // this phase is the person's own hand.
 func runSurfaceLearn(out io.Writer, instruction, bridge string, maxNodes, seconds int,
-	mode observationMode) int {
+	mode observationMode, watch bool) int {
 
 	if instruction == "" {
 		fmt.Fprintln(out, "give the instruction with -instruction")
@@ -209,6 +209,32 @@ func runSurfaceLearn(out io.Writer, instruction, bridge string, maxNodes, second
 	// C AND D. THE PERSON DEMONSTRATES, and the existing correlator decides whether the
 	// screen change that follows is attributable to exactly that action.
 	fmt.Fprintf(out, "\n%s\n", outcome.Message)
+
+	// WHERE A PRESS WOULD ACTUALLY ANSWER IT, as a rectangle rather than a description.
+	// "On a part the words do not cover" tells somebody what to avoid; this tells them
+	// where to go, and it is the same area the admission gate required to exist.
+	if where, ok := outcome.SurfaceQuestion.WhereToPress(); ok {
+		fmt.Fprintf(out, "\nwhere a press answers it: %v, whose middle is (%d, %d)\n",
+			where, where.X+where.Width/2, where.Y+where.Height/2)
+	}
+
+	// AND A STOP BEFORE ANYBODY IS WATCHED.
+	//
+	// Every prerequisite above has now been established against the live screen, the
+	// production request path included: this is the furthest a run can get without
+	// observing a person's input. The owner's limit is that watching is separately
+	// authorised, and "I am ready to be asked" is not "watch me":
+	//
+	//	Observe my demonstration only after I explicitly authorize watching.
+	//
+	// Deleting this must fail TestConfirmingPrerequisitesNeverWatchesAnybody.
+	if !watch {
+		fmt.Fprintln(out, "\nEvery prerequisite holds and the question is open. Nothing "+
+			"has been watched: this phase stops here by construction, and watching "+
+			"is a separate command with its own authorisation.")
+		return 0
+	}
+
 	// AND ONLY NOW is there anything to answer. Everything above had to succeed first:
 	// the Stage, the ambiguity, the durable place, and a request that actually raised the
 	// question. Somebody told to click before this point would be pressing at a screen
