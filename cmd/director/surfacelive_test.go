@@ -13,9 +13,14 @@ package main
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/chaynes-simpleclouds/marco/internal/director/execute"
+	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 )
 
 // A DEMONSTRATION IS NEVER LEARNED INTO THE REAL STORE.
@@ -121,5 +126,89 @@ func TestTheInstructionsTargetPhrase(t *testing.T) {
 		if got := instructionWords(tc.in); got != tc.want {
 			t.Errorf("instructionWords(%q) = %q, want %q", tc.in, got, tc.want)
 		}
+	}
+}
+
+// A STAGE IS COLLECTED WITH A WINDOW ALREADY IN IT.
+//
+// The one ordering fact in the perception stack, and the reason this harness observes twice.
+// Every pixel provider is scoped to a window by `Runtime.activeWindow`, which takes its candidate
+// from the LAST OBSERVED WORLD — because text has to be fused against elements from a world, and
+// photographing a different window from the one those elements came from would compare things
+// that were never on screen together.
+//
+// With accessibility collected that ordering is invisible: the walk reports the window and its
+// controls in the same breath. Without it, the first cycle is the one that establishes the window
+// and the second is the first that can see anything inside it. The first live run of this
+// experiment is what made the point: a foreground of "" and zero Props, on a screen full of
+// controls.
+//
+// What is asserted is the consequence rather than the mechanism. The world that comes back is the
+// SECOND one, so whatever the first cycle established is already in it.
+func TestAStageIsCollectedWithAWindowAlreadyInIt(t *testing.T) {
+	var cycles int
+	front := directorapi.WindowID("hwnd:42")
+	rt := &Runtime{pipeline: &execute.Pipeline{
+		Observe: func(context.Context) (directorapi.WorldState, error) {
+			cycles++
+			if cycles == 1 {
+				// THE FIRST CYCLE, as it really is under a pixel-only
+				// configuration: a window has just been enumerated, and
+				// nothing has had a chance to look inside one yet.
+				return directorapi.WorldState{}, nil
+			}
+			return directorapi.WorldState{ActiveWindow: &front}, nil
+		},
+	}}
+
+	w, err := observeStage(context.Background(), rt)
+	if err != nil {
+		t.Fatalf("observeStage: %v", err)
+	}
+	if cycles != 2 {
+		t.Errorf("%d cycles, want two: the first establishes the window and the second "+
+			"is the first that can see inside it", cycles)
+	}
+	if w.ActiveWindow == nil || *w.ActiveWindow != front {
+		t.Errorf("the Stage came back with active window %v, so the warm-up cycle was "+
+			"the one reported and every pixel provider had nothing to look at",
+			w.ActiveWindow)
+	}
+}
+
+// AND A PARTIAL FIRST CYCLE IS NOT A FAILURE.
+//
+// It is the EXPECTED first cycle: there is no window yet, so the providers that need one say so.
+// Reporting that as the result of the collection would turn the ordinary case into an error and
+// hide the second cycle, which is the one whose failure is a finding.
+func TestTheWarmUpCycleIsAllowedToBePartial(t *testing.T) {
+	var cycles int
+	front := directorapi.WindowID("hwnd:7")
+	rt := &Runtime{pipeline: &execute.Pipeline{
+		Observe: func(context.Context) (directorapi.WorldState, error) {
+			cycles++
+			if cycles == 1 {
+				return directorapi.WorldState{}, errors.New("no window to read")
+			}
+			return directorapi.WorldState{ActiveWindow: &front}, nil
+		},
+	}}
+
+	w, err := observeStage(context.Background(), rt)
+	if err != nil {
+		t.Fatalf("a partial first cycle was reported as the result: %v", err)
+	}
+	if w.ActiveWindow == nil {
+		t.Error("the Stage has no active window")
+	}
+
+	// AND THE SECOND CYCLE'S FAILURE IS REPORTED, because that one is a finding.
+	cycles = 0
+	rt.pipeline.Observe = func(context.Context) (directorapi.WorldState, error) {
+		cycles++
+		return directorapi.WorldState{}, errors.New("the collector is gone")
+	}
+	if _, err := observeStage(context.Background(), rt); err == nil {
+		t.Error("a Stage that could not be collected at all came back as a Stage")
 	}
 }

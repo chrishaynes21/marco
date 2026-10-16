@@ -77,9 +77,23 @@ association under the stated conditions and nothing constructs
 `confirmationVerified` — so `-execute` ends by printing *"READ IT YOURSELF AND SAY"* rather than
 claiming the right page opened.
 
+## What has happened since
+
+`-check` has been run on the owner's machine, read-only, twice. The first run found the
+configuration produced NO STAGE AT ALL — see
+[[Experiment-062-what-a-stage-is-made-of]], which is the whole of why the window system now
+enumerates when asked. The second found a window, a foreground application and 46 proposed
+rectangles, and the one precondition still false is the ordinary one: the application has to
+be in front.
+
+The commands below are no longer how this is driven. `director try-it-out` is — one phase
+per invocation, one checkpoint line each, operated rather than typed. See
+[[ADR-209-the-assistant-operates-the-harness]].
+
 ## What has not happened
 
-**Nothing live has been run.** No watch, no demonstration, no click. The two unmeasured
+**Nothing has been demonstrated and nothing has been pressed.** No watch, no demonstration,
+no click. The two unmeasured
 preconditions need the owner's hands and screen, and the owner's own qualification is the reason
 this record stops here:
 

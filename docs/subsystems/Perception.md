@@ -409,6 +409,23 @@ Six of eight preconditions hold on the real machine; the rest need a hand. See
 [[ADR-208-one-guarded-test-configuration-and-no-second-one]] and
 [[Experiment-061-the-live-focused-demonstration]].
 
+**The first live run of that configuration produced no Stage at all** — an empty foreground
+and zero Props on a screen full of controls. The accessibility walk is the only thing that
+enumerates windows, and every pixel provider is scoped to a window, so leaving accessibility
+out removed the Stage rather than thinning it. The window system now enumerates when a
+request names it — `Includes`, the same opt-in the shape proposer has, so an empty request
+still gets nothing and production observation is unchanged — and the harness collects two
+cycles, because the first is what establishes the window the second looks inside. Measured
+again: a window, a foreground application and 46 proposed rectangles with no accessibility
+evidence in the cycle. See [[Experiment-062-what-a-stage-is-made-of]].
+
+`director try-it-out` is how the harness is driven: one phase per invocation, one checkpoint
+line each — READY, OBSERVING, DEMONSTRATION NEEDED, LEARNED, READY TO EXECUTE, RESULT, and
+BLOCKED when a phase refused — and its own disposable store. It delegates to the same
+functions `demonstrate-surface` calls and moves none of the gates: the demonstration phase
+starts only when a person has said they are ready, and the one live click still needs its own
+authorisation. See [[ADR-209-the-assistant-operates-the-harness]].
+
 ## Known gaps
 
 - ~~Vision runs an unrequested pass on every ordinary cycle.~~ **Fixed 2026-08-10.** The

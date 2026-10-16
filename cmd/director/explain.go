@@ -183,6 +183,9 @@ var valued = map[string]bool{
 	// command's flags were declared, which is the sixth time and the reason the walk reads
 	// the source rather than a list somebody maintains beside it.
 	"-session": true, "--session": true,
+	// try-it-out names its watch window -observe N rather than -watch N, because the
+	// phase it starts is the one a person is asked to act in.
+	"-observe": true, "--observe": true,
 	"-seconds": true, "--seconds": true,
 	"-fps": true, "--fps": true,
 	// `capture-benchmark`'s own. It shares --application and --delay with the recorder

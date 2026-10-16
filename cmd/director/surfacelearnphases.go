@@ -65,7 +65,7 @@ func surfacePhase(out io.Writer, bridge string, maxNodes int, wet bool) (*Runtim
 func liveStage(rt *Runtime) (directorapi.WorldState, string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	w, err := rt.pipeline.Observe(ctx)
+	w, err := observeStage(ctx, rt)
 	if err != nil {
 		return directorapi.WorldState{}, "", err
 	}
@@ -189,7 +189,12 @@ func runSurfaceLearn(out io.Writer, instruction, bridge string, maxNodes, second
 	// C AND D. THE PERSON DEMONSTRATES, and the existing correlator decides whether the
 	// screen change that follows is attributable to exactly that action.
 	fmt.Fprintf(out, "\n%s\n", outcome.Message)
-	fmt.Fprintf(out, "\nNOW: click the control, on a part of it the words do not cover. "+
+	// AND ONLY NOW is there anything to answer. Everything above had to succeed first:
+	// the Stage, the ambiguity, the durable place, and a request that actually raised the
+	// question. Somebody told to click before this point would be pressing at a screen
+	// with no open question, and the press would be dropped rather than banked.
+	checkpoint(out, checkDemoNeeded)
+	fmt.Fprintf(out, "Click the control, on a part of it the words do not cover. "+
 		"Watching for %ds. Marco will not press anything.\n", seconds)
 	return reportDemonstration(out, rt, app, seconds)
 }

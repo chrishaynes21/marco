@@ -281,6 +281,33 @@ func surfaceSandboxCheck(home, realHome string) surfaceCheck {
 // and it is OPT-IN: `req.Includes(SourceStructure)` is its gate, and no production observation
 // request includes it. So this reports which sources actually described the target, which is the
 // fact that decides whether the experiment can run at all on this application.
+// observeStage collects a Stage the pixel providers could actually read.
+//
+// TWO CYCLES, deliberately. Every pixel provider is scoped to a window by
+// `Runtime.activeWindow`, which takes its candidate from the LAST OBSERVED WORLD — because
+// text has to be fused against elements from a world, and photographing a different window
+// from the one those elements came from would compare things that were never on screen
+// together. A window therefore has to be in a world before anything can look inside it.
+//
+// With accessibility collected that ordering is invisible: the walk reports the window and
+// its controls in the same breath, and the pixel providers are opt-in and asked for later,
+// by which time a world exists. Without it, the first cycle is the one that establishes the
+// window and the second is the first that can see anything inside it.
+//
+// So this is not a workaround for the test configuration. It is what "the last observed
+// world" has always meant, said out loud in the one place where the first cycle is also the
+// only cycle.
+//
+// The first cycle's error is not reported, because the first cycle is EXPECTED to be partial
+// — there is no window yet, so the providers that need one say so. The second is the one
+// whose failure is a finding.
+//
+// Deleting the warm-up must fail TestAStageIsCollectedWithAWindowAlreadyInIt.
+func observeStage(ctx context.Context, rt *Runtime) (directorapi.WorldState, error) {
+	_, _ = rt.pipeline.Observe(ctx)
+	return rt.pipeline.Observe(ctx)
+}
+
 func surfaceStageCheck(rt *Runtime, phrase string) surfaceCheck {
 	if phrase == "" {
 		return surfaceCheck{Name: "the instruction against the live Stage",
@@ -288,7 +315,7 @@ func surfaceStageCheck(rt *Runtime, phrase string) surfaceCheck {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	world, err := rt.pipeline.Observe(ctx)
+	world, err := observeStage(ctx, rt)
 	if err != nil {
 		return surfaceCheck{Name: "the instruction against the live Stage",
 			Blocking: true, Detail: "could not observe: " + err.Error()}
@@ -385,7 +412,11 @@ func equalFoldASCII(a, b string) bool {
 func surfaceWatchCheck(out io.Writer, rt *Runtime, seconds int) surfaceCheck {
 	rt.EnableAmbient()
 	defer rt.DisableAmbient()
-	fmt.Fprintf(out, "\nwatching for %ds — click inside the application you want to "+
+	// THE CHECKPOINT BELONGS HERE, not in whatever started this: it marks the moment the
+	// hook is actually watching, and an operator that announced it earlier would be
+	// telling somebody to click at a time when nothing would see them.
+	checkpoint(out, checkObserving)
+	fmt.Fprintf(out, "watching for %ds — click inside the application you want to "+
 		"demonstrate in, then wait…\n", seconds)
 
 	deadline := time.Now().Add(time.Duration(seconds) * time.Second)

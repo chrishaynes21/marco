@@ -290,6 +290,10 @@ func main() {
 		os.Exit(runStop(os.Args[2:]))
 	case "shutdown":
 		os.Exit(runShutdown(os.Args[2:]))
+	case "try-it-out":
+		// THE OPERATED HARNESS. One phase per invocation, one checkpoint line each,
+		// and its own disposable store. See tryitout.go.
+		os.Exit(runTryItOut(os.Args[2:]))
 	case "demonstrate-surface":
 		os.Exit(runDemonstrateSurface(os.Args[2:]))
 	case "reset-test-state":
@@ -357,6 +361,9 @@ func usage() {
   director plan "<request>"      the steps a request becomes (never runs them)
   director lower <op>            the Marco an operation compiles to (never runs it)
   director op <op>               execute one operation through the Marco pipeline
+  director try-it-out -prepare   the live demonstration, one phase per run: -prepare,
+                                 -observe N, -demonstrate, -prepare-replay, -execute,
+                                 -clean. Each prints one CHECKPOINT line
   director demonstrate-surface -check   the preconditions for one live focused
                                  demonstration; reads, and interacts with nothing
   director confirm [yes|no]      answer the question a running command is waiting on
