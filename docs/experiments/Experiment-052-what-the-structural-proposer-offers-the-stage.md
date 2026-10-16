@@ -8,7 +8,7 @@ backend:
   - vision
 game: trackmania
 fixture: "one frame of tm-menu-steps-sanitized, an Explorer window and a Paint window, through observe/perception/structure and observe.NameCandidates unchanged"
-result: the-structural-proposer-does-produce-a-menu-row-shaped-candidate-and-the-evidence-is-lost-in-the-association-rule-not-in-the-proposer-strict-containment-misses-the-row-by-eight-pixels
+result: the-structural-proposer-does-produce-a-menu-row-shaped-candidate-and-the-eight-pixel-miss-is-NameCandidates-strict-containment-which-fusion-does-not-use-see-the-correction-and-Experiment-053
 supersedes: []
 affects:
   - perception
@@ -147,6 +147,16 @@ the detector.** `NameCandidates`' total containment is what both this and the ea
 work ran into, and relaxing it is a change to a rule that
 [[ADR-201-a-demonstrated-click-remembers-what-it-clicked]] and the live identity tier both
 depend on. That is a decision to take deliberately and measure, not a tuning.
+
+> **CORRECTED, and the correction matters.** The paragraph above is right about
+> `NameCandidates` and wrong about what follows from it, because **fusion does not use
+> `NameCandidates`**. It has its own text-to-element rule in
+> `perception/fusion/text.go`, and that rule is fractional: `el.Bounds.Covers(t.Box)` is the
+> share of the TEXT lying inside the element, admitted at `minContainment = 0.80`. The
+> SETTINGS word overlaps the 444x56 row by 153 px of its 161, which is 0.95 — **fusion would
+> associate them.** The eight-pixel overrun is fatal only on the workflow stack's path, which
+> is where this investigation measured it. Nothing needs relaxing for the Stage path. See
+> [[Experiment-053-what-the-stage-can-already-say-it-is-unsure-of]].
 
 **And one limitation no rule change reaches:** RESUME was never read, because a highlighted entry
 renders as dark text on white. A candidate Prop with no readable name cannot be asked for by
