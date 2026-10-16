@@ -32,6 +32,22 @@ const (
 	// SourceVision is a learned UI-element detector: boxes with class labels and no
 	// semantics beyond them.
 	SourceVision ObservationSource = "vision"
+	// SourceStructure is the generic shape proposer: connected regions that were drawn
+	// as rectangles or as runs of marks, with no class and no semantics at all.
+	//
+	// It is the weakest source there is and every default here says so without a case:
+	// `SourceRank` returns 0, `baseConfidence` returns its floor, `Structured()` is
+	// false because a shape is read off pixels, and — the one that matters —
+	// `ActuatingSource` does not list it, so an element only this reported is not
+	// `Actuable` and the resolver refuses it exactly as it refuses a camera's.
+	//
+	// What it is FOR is that a surface with no accessibility tree currently produces no
+	// objects at all: [[Experiment-051-the-stage-two-real-applications-produced]]
+	// measured 46 observations and zero Props on a game menu, because OCR reports
+	// strings and a detector below its threshold reports nothing. A proposed rectangle
+	// is not a control, and saying "something is drawn here" is still more than saying
+	// nothing. See [[Experiment-053-what-the-stage-can-already-say-it-is-unsure-of]].
+	SourceStructure ObservationSource = "structure"
 	// SourceModel is a general vision-language model reasoning over a screenshot.
 	// The last resort, used only when the structured ladder came up empty.
 	SourceModel ObservationSource = "model"

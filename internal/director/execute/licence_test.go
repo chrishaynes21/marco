@@ -70,6 +70,22 @@ func overStage(els func() []*directorapi.Element) *harness {
 	return newHarness(worlds...)
 }
 
+// proposedShape is a structural proposal as the production provider emits one: a rectangle,
+// no role, no label, no patterns. `seenBy` above fabricates a button and would not be a
+// faithful stand-in — it was tried, and it made this very test pass for the wrong reason.
+func proposedShape(id string, at directorapi.Rect) *directorapi.Element {
+	el := &directorapi.Element{
+		ID: directorapi.ElementID(id), Role: directorapi.RoleUnknown,
+		WindowID: "hwnd:1", Enabled: true, Visible: true, Confidence: 0.3,
+		Bounds: at,
+	}
+	el.Provenance.Add(directorapi.ObservationReference{
+		Observation: directorapi.ObservationID(id + "-structure"),
+		Source:      directorapi.SourceStructure,
+	})
+	return el
+}
+
 // stageTick advances the Stage's clock, so an after-state is newer than the before-state the
 // verifier compares it with.
 var stageTick int
@@ -340,4 +356,56 @@ func mentions(res directorapi.Resolution, what string) bool {
 		}
 	}
 	return false
+}
+
+// A STRUCTURAL PROPOSAL DOES NOT DISTURB A PROP AN ACTUATING SOURCE DESCRIBED.
+//
+// The shape proposer finds drawn rectangles everywhere, including over controls accessibility
+// already reported. The integration is only safe if those Props keep winning: a request for a
+// control an application vouched for must not start resolving to a rectangle beside it, and
+// must not become ambiguous because a second source drew a box in the same place.
+func TestAStructuralProposalDoesNotDisturbAnAccessibilityProp(t *testing.T) {
+	// The File menu as accessibility reports it, and a structural region over the same
+	// part of the screen — the ordinary case, not a contrived one.
+	overlapping := proposedShape("shape",
+		directorapi.Rect{X: 8, Y: 8, Width: 70, Height: 28})
+	h := overStage(func() []*directorapi.Element {
+		return []*directorapi.Element{fileMenu(), overlapping}
+	})
+
+	out := h.pipeline.Handle(context.Background(), "click File")
+	acted(t, h, out, "file")
+
+	// AND THE STRUCTURAL PROP IS STILL THERE, still not operable: present on the Stage
+	// and not a target. A Prop may exist without being operable.
+	w := h.worlds[0]
+	shape := w.Elements["shape"]
+	if shape == nil {
+		t.Fatal("the structural Prop vanished from the Stage")
+	}
+	if shape.Actions().Targetable() {
+		t.Error("a structural Prop is a valid click target")
+	}
+	if ok, _ := shape.OperableUnder(directorapi.OperateLicence{
+		Instruction: "click File", Verb: "click"}, "click"); ok &&
+		shape.Actions().Any() {
+		t.Error("an explicit instruction made a bare rectangle operable")
+	}
+}
+
+// AND AN UNNAMED STRUCTURAL PROP DOES NOT ANSWER A NAMED REQUEST.
+func TestAnUnnamedStructuralPropDoesNotMatchANamedInstruction(t *testing.T) {
+	h := overStage(func() []*directorapi.Element {
+		return []*directorapi.Element{proposedShape("shape",
+			directorapi.Rect{X: 400, Y: 500, Width: 300, Height: 60})}
+	})
+	out := h.pipeline.Handle(context.Background(), "click Resume")
+
+	if out.Resolution != nil && out.Resolution.Status == directorapi.ResolutionResolved {
+		t.Fatalf("an unnamed rectangle answered a request for \"Resume\": %+v",
+			out.Resolution.Target)
+	}
+	if n := len(h.operations.ops) + len(h.actuator.clicks); n != 0 {
+		t.Fatalf("%d action(s) reached the runtime", n)
+	}
 }

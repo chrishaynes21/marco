@@ -236,6 +236,23 @@ No new interface would be needed to change that, only a provider and an `Observa
 and a new source is not in `ActuatingSource`, so proposed Props would arrive non-`Actuable` and
 still need a licence. See [[Experiment-052-what-the-structural-proposer-offers-the-stage]].
 
+### A proposed rectangle is Stage evidence, and not a control
+
+That provider exists now. `providers/structure` runs the same proposer and emits its rectangles
+as element observations under `SourceStructure`, carrying the proposer's own `kind`, `fill` and
+`parts` and claiming nothing else: no role, no label. The Trackmania menu goes from 46
+observations and **zero Props** to 274 and **228 Props**, 13 of them named, with SETTINGS and
+SCOREBOARD each fusing a structural region and its OCR reading into one Prop; Explorer gives 40
+Props, 19 named. RESUME stays nameless because OCR never read it, which is the honest answer.
+
+**Nothing became clickable.** Three rules do that and none was touched: `ActuatingSource` does
+not list the source, `RoleUnknown` affords nothing so `Targetable()` is false whether or not a
+licence is granted, and fusion's text rules are unchanged. The 48%-of-window background region
+on that frame is not a target, and neither — this is the gap, reported rather than closed — is
+the well-grounded 444x56 menu row, because the only thing actionability consults is the role and
+the proposer may not assign one. See
+[[ADR-203-a-proposed-rectangle-is-stage-evidence-and-not-a-control]].
+
 ## Known gaps
 
 - ~~Vision runs an unrequested pass on every ordinary cycle.~~ **Fixed 2026-08-10.** The

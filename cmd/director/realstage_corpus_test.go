@@ -39,6 +39,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/observation"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/providers"
 	ocrprov "github.com/chaynes-simpleclouds/marco/internal/director/perception/providers/ocr"
+	structureprov "github.com/chaynes-simpleclouds/marco/internal/director/perception/providers/structure"
 	visionprov "github.com/chaynes-simpleclouds/marco/internal/director/perception/providers/vision"
 	"github.com/chaynes-simpleclouds/marco/internal/director/target"
 	"github.com/chaynes-simpleclouds/marco/internal/platform/ocrclient"
@@ -191,7 +192,10 @@ func stageFrom(t *testing.T, frame recordedFrame, withVision bool) (
 	// on this surface at all. The window itself is stated below, as the recording's own
 	// metadata; it is not evidence about any control.
 	reader, engine := realOCR(t, frame, win)
-	sources := []observation.Provider{reader}
+	// AND THE GENERIC SHAPE PROPOSER, the production provider, unmodified.
+	shapes := structureprov.New(frame,
+		func(context.Context) (directorapi.Window, bool) { return win, true })
+	sources := []observation.Provider{reader, shapes}
 	var eyes *visionprov.Provider
 	if withVision {
 		eyes = realVision(t, frame, win, engine)
@@ -201,11 +205,19 @@ func stageFrom(t *testing.T, frame recordedFrame, withVision bool) (
 	// CHEAPLY see", and neither a screen capture plus a recognition pass nor a detector
 	// inference is cheap — so an ordinary command cycle runs neither. On a surface with
 	// no accessibility at all, they are the only sources there are.
-	req := observation.Request{Sources: []observation.Source{directorapi.SourceOCR}}
+	req := observation.Request{Sources: []observation.Source{
+		directorapi.SourceOCR, directorapi.SourceStructure}}
 	if withVision {
 		req.Sources = append(req.Sources, directorapi.SourceVision)
 	}
 	cycle := providers.NewCollector(sources...).Collect(context.Background(), req)
+	if _, sd, serr := shapes.Propose(context.Background(), req); true {
+		t.Logf("structure: %dx%s accepted %d of %d component(s) "+
+			"(small %d, large %d, thin %d, not-rect %d, below-scale %d) err=%v",
+			1, sd.ImageSize, sd.Counters.Accepted, sd.Counters.Components,
+			sd.Counters.TooSmall, sd.Counters.TooLarge, sd.Counters.TooThin,
+			sd.Counters.NotRectangular, sd.Counters.BelowHumanScale, serr)
+	}
 	if eyes != nil {
 		_, vd, verr := eyes.Look(context.Background(), req)
 		t.Logf("vision: %+v err=%v", vd, verr)
@@ -226,8 +238,11 @@ func stageFrom(t *testing.T, frame recordedFrame, withVision bool) (
 	for _, o := range cycle.Observations {
 		byKind[o.Kind()]++
 	}
-	t.Logf("fusion: %d observation(s) by kind %v -> %d element(s); report %+v",
-		len(cycle.Observations), byKind, len(world.Elements), report)
+	t.Logf("fusion: %d observation(s) by kind %v -> %d element(s); "+
+		"text filled %d, reinforced %d, supporting %d, standalone %d, conflict %d",
+		len(cycle.Observations), byKind, len(world.Elements),
+		report.Text.FilledLabel, report.Text.Reinforced, report.Text.Supporting,
+		report.Text.Standalone, report.Text.RejectedConflict)
 	active := win.ID
 	world.ActiveWindow = &active
 	world.Windows = []directorapi.Window{win}
@@ -260,7 +275,7 @@ func describeStage(t *testing.T, w directorapi.WorldState, cycle observation.Cyc
 //
 // A surface with no accessibility tree at all: every Prop on it is pixel-only, which is exactly
 // the case the licence exists for. The entry asked for is one the menu really has.
-func TestARecordedGameStageProducesNoPropForTheDirectorToActOn(t *testing.T) {
+func TestARecordedGameStageProducesPropsThatAreNotClickable(t *testing.T) {
 	frame := loadFrame(t, filepath.Join(tmRecording, "frames",
 		"tm-menu-steps-0100.png"))
 	world, cycle := stageFrom(t, frame, true)
@@ -292,53 +307,65 @@ func TestARecordedGameStageProducesNoPropForTheDirectorToActOn(t *testing.T) {
 		}
 	}
 
-	// ── WHAT THIS RECORDING ESTABLISHES, AND WHERE IT STOPS ──
+	// ── WHAT THE STRUCTURAL PROVIDER ADDED, AND WHAT IT DID NOT ──
 	//
-	// Measured: the real OCR reader accepts 43 observations of this frame and the real
-	// detector accepts 3 — and EVERY ONE OF THEM IS TEXT. The detector does propose
-	// three buttons and a menu, below the 0.15 acceptance floor and far below the 0.25
-	// a structural class needs, so they never become observations at all. Its confident
-	// detections are all `text`, which the provider emits as text evidence.
+	// Measured on this frame: 228 Props where there were none, and the SETTINGS and
+	// SCOREBOARD entries each fuse a structural region with the OCR reading of their
+	// own text into ONE Prop carrying both sources. RESUME stays nameless, because a
+	// highlighted entry is dark text on white and OCR never read it — the Stage can say
+	// a region is there and cannot say what it is called, which is the honest answer.
 	//
-	// Fusion therefore receives no observation of an OBJECT, builds no Element, and the
-	// Stage has no Props on it. The Director says so exactly — "nothing in this window
-	// can be operated" — and the licence is never reached, because there is nothing to
-	// license an action ON.
-	//
-	// THAT IS A PERCEPTION GAP, and it is upstream of everything ADR-202 added. It is
-	// also consistent with ADR-202's own rule: read text does not describe an object.
-	// Lowering the detector's floor to make this frame work would be tuning a threshold
-	// to one recording of one game, which is the move this subsystem has paid for before.
-	//
-	// So this test asserts the measured state rather than a capability. If the detector
-	// starts accepting structural classes here, the kind assertion below fails and
-	// somebody looks — which is the point of writing it down.
-	objects := 0
-	for _, o := range cycle.Observations {
-		if o.Kind() != observation.TextObservation {
-			objects++
+	// And NOTHING BECAME CLICKABLE. Every structural Prop carries RoleUnknown, which
+	// affords nothing, so `Actionability.Any()` is false and `Targetable()` is false
+	// whether or not a licence is granted. The resolver refuses for a precise reason
+	// and the licence is never consulted.
+	if len(world.Elements) == 0 {
+		t.Fatal("PERCEPTION GAP: the Stage carries no Props at all; the structural " +
+			"provider contributed nothing")
+	}
+	named := 0
+	for _, el := range world.Elements {
+		if el.Label != "" {
+			named++
 		}
 	}
-	switch {
-	case len(cycle.Observations) == 0:
-		t.Fatal("PERCEPTION GAP: the real providers read nothing from this frame; " +
-			"the recorded capture never reached them")
-	case objects > 0:
-		t.Fatalf("the Stage now carries %d observation(s) of an OBJECT where it "+
-			"carried none. The perception gap this test records may have "+
-			"closed: re-measure and update it.", objects)
-	case len(world.Elements) != 0:
-		t.Fatalf("fusion built %d element(s) from text alone", len(world.Elements))
+	t.Logf("%d Prop(s), %d of them named", len(world.Elements), named)
+
+	// THE SAFETY PROPERTY, asserted over every Prop on the Stage rather than over a
+	// chosen one: not a single structural region is targetable, licensed or not, and
+	// that includes the oversized background regions among them.
+	var biggest *directorapi.Element
+	for _, el := range world.Elements {
+		if !el.Provenance.Has(directorapi.SourceStructure) {
+			continue
+		}
+		if ok, _ := el.OperableUnder(lic, "click"); ok && el.Actions().Any() {
+			t.Errorf("a structural Prop is operable: %q at %v, sources %v",
+				el.Label, el.Bounds, sourcesOf(el))
+		}
+		if biggest == nil || el.Bounds.Area() > biggest.Bounds.Area() {
+			biggest = el
+		}
 	}
+	if biggest != nil {
+		t.Logf("the largest structural Prop is %v (%.1f%% of the window), "+
+			"targetable %v", biggest.Bounds,
+			100*float64(biggest.Bounds.Area())/float64(frame.size.Width*frame.size.Height),
+			biggest.Actions().Targetable())
+		if biggest.Actions().Targetable() {
+			t.Error("an oversized decorative region is a valid click surface")
+		}
+	}
+
+	// AND THE REQUEST REFUSES, for a reason that names what is missing.
 	if licensed.Status == directorapi.ResolutionResolved {
-		t.Fatalf("something resolved on a Stage with no Props: %+v", licensed.Target)
+		t.Fatalf("a structural Prop resolved as a click target: %+v", licensed.Target)
 	}
 	if licensed.Status != unlicensed.Status {
-		t.Errorf("the licence changed the outcome on a Stage with no Props at all: "+
+		t.Errorf("the licence changed the outcome although nothing is operable: "+
 			"%s vs %s", unlicensed.Status, licensed.Status)
 	}
-	t.Logf("PERCEPTION GAP recorded: %d text observation(s), 0 object(s), 0 Prop(s); "+
-		"the Director refuses with %q", len(cycle.Observations), licensed.Explanation)
+	t.Logf("GAP: Props exist and none is operable. %q", licensed.Explanation)
 }
 
 // findLabelled is the first Prop whose label contains `want`, case-insensitively.
@@ -366,4 +393,44 @@ func exists(p string) bool {
 
 func centreOf(r directorapi.Rect) string {
 	return fmt.Sprintf("(%d,%d)", r.X+r.Width/2, r.Y+r.Height/2)
+}
+
+// A SECOND, UNRELATED INTERFACE, to show the provider is generic rather than fitted.
+//
+// A real Explorer window: a different toolkit, a different density, and no game anywhere near
+// it. What is asserted is the same two things — that Props appear, and that none of them is
+// clickable on structural evidence alone.
+func TestAnUnrelatedRecordedInterfaceAlsoProducesPropsThatAreNotClickable(t *testing.T) {
+	frame := loadFrame(t, `../../.tmp/desktop-corpus-review/explorer-fixture-wide/`+
+		`explorer-fixture-wide.png`)
+	world, cycle := stageFrom(t, frame, false)
+	describeStage(t, world, cycle)
+
+	if len(world.Elements) == 0 {
+		t.Fatal("the structural provider contributed no Props to this interface")
+	}
+	named := 0
+	for _, el := range world.Elements {
+		if el.Label != "" {
+			named++
+		}
+	}
+	t.Logf("%d Prop(s), %d of them named", len(world.Elements), named)
+
+	lic := directorapi.OperateLicence{Instruction: "click Details", Verb: "click"}
+	for _, el := range world.Elements {
+		if !el.Provenance.Has(directorapi.SourceStructure) {
+			continue
+		}
+		if ok, _ := el.OperableUnder(lic, "click"); ok && el.Actions().Any() {
+			t.Errorf("a structural Prop is operable here too: %q at %v",
+				el.Label, el.Bounds)
+		}
+	}
+	res := target.NewResolver().ResolveUnder(&world,
+		directorapi.ElementQuery{Text: "details"}, lic, "click")
+	t.Logf("click Details: %s — %s", res.Status, res.Explanation)
+	if res.Status == directorapi.ResolutionResolved {
+		t.Fatalf("a structural Prop resolved as a click target: %+v", res.Target)
+	}
 }

@@ -27,6 +27,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/observation"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/providers"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/providers/ocr"
+	structureprov "github.com/chaynes-simpleclouds/marco/internal/director/perception/providers/structure"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/providers/vision"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/providers/visualstate"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/shadow"
@@ -497,6 +498,14 @@ func NewRuntime(bridgePath string, maxNodes int, dryRun bool, g *actiongraph.Fil
 		// point: the Director cannot tell where an observation came from, and adding a
 		// source is adding a line here. It is opt-in, so an ordinary cycle skips it.
 		rt.vision,
+		// And the generic shape proposer, which is the line that comment describes.
+		//
+		// It finds drawn rectangles and claims nothing about them — no role, no label,
+		// and a source that `ActuatingSource` does not list, so nothing it reports is
+		// operable. It exists because a surface with no accessibility tree otherwise
+		// produces no objects at all. Opt-in like the two above: it costs a capture and
+		// a pass over the pixels. See providers/structure.
+		structureprov.New(provenCapture, rt.activeWindow),
 	}
 	// An experimental detector, only when one was asked for. It is registered like any
 	// other provider — the collector routes its evidence away from belief because of what
