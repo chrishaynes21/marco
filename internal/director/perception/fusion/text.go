@@ -280,26 +280,20 @@ func fuseOneText(fused []Fused, t observation.Text, cycleID observation.CycleID,
 // smallest container wins, and ambiguity means something narrower: two candidates that
 // contain the text equally well AND are comparably sized — siblings, not ancestors.
 func ambiguousRival(sorted []textCandidate) (textCandidate, bool) {
-	if len(sorted) < 2 {
+	// THE RULE ITSELF IS IN owners.go, because Director asks the same question one tier up
+	// and a second copy of it is how the two come to disagree. The comment above is kept
+	// here, where the measured failure was found.
+	boxes := make([]directorapi.Rect, len(sorted))
+	ranks := make([]ownerRank, len(sorted))
+	for i, c := range sorted {
+		boxes[i] = c.fused.Element.Bounds
+		ranks[i] = ownerRank{index: i, containment: c.containment}
+	}
+	r, ok := rivalOf(boxes, ranks)
+	if !ok {
 		return textCandidate{}, false
 	}
-	best := sorted[0]
-	bestArea := best.fused.Element.Bounds.Area()
-
-	for _, c := range sorted[1:] {
-		if c.containment <= best.containment-ambiguityMargin {
-			continue // materially worse containment; not a rival
-		}
-		area := c.fused.Element.Bounds.Area()
-		if bestArea <= 0 || area <= 0 {
-			continue
-		}
-		// Comparable in size, so neither is plainly inside the other.
-		if float64(area) <= float64(bestArea)*nestingRatio {
-			return c, true
-		}
-	}
-	return textCandidate{}, false
+	return sorted[r.index], true
 }
 
 // nestingRatio is how much bigger a rival container may be before it is treated as an
@@ -320,41 +314,37 @@ type textCandidate struct {
 // application — which distinguishes "there is nothing structural here" from "there is
 // structure, and this text is not inside any of it".
 func textCandidates(fused []Fused, t observation.Text) ([]textCandidate, bool) {
-	var out []textCandidate
-	scoped := false
-
+	// WHICH ELEMENTS ARE EVEN IN SCOPE, which is this function's own question: an element in
+	// another window is not a candidate however well its rectangle happens to contain the
+	// box. The second return says whether ANY element shared the text's window, which
+	// distinguishes "there is nothing structural here" from "there is structure, and this
+	// text is not inside any of it".
+	var (
+		idx    []int
+		boxes  []directorapi.Rect
+		keys   []string
+		scoped bool
+	)
 	for i, f := range fused {
 		el := f.Element
 		if el.WindowID != "" && t.WindowID != "" && el.WindowID != t.WindowID {
 			continue
 		}
 		scoped = true
-		if el.Bounds.Empty() || t.Box.Empty() {
+		if el.Bounds.Empty() {
 			continue
 		}
-		// Containment of the TEXT by the ELEMENT, not intersection-over-union. A word
-		// inside a button covers a small fraction of it, which IoU rates near zero —
-		// the exact relationship that matters here.
-		cov := el.Bounds.Covers(t.Box)
-		if cov < minContainment {
-			continue
-		}
-		out = append(out, textCandidate{index: i, fused: f, containment: cov})
+		idx = append(idx, i)
+		boxes = append(boxes, el.Bounds)
+		keys = append(keys, string(el.ID))
 	}
 
-	// Smallest container first among equals: the pointer is over a pane, a group and a
-	// button at once, and the button is the one the text is printed on.
-	sort.SliceStable(out, func(a, b int) bool {
-		if out[a].containment != out[b].containment {
-			return out[a].containment > out[b].containment
-		}
-		aa := out[a].fused.Element.Bounds.Area()
-		bb := out[b].fused.Element.Bounds.Area()
-		if aa != bb {
-			return aa < bb
-		}
-		return out[a].fused.Element.ID < out[b].fused.Element.ID
-	})
+	// AND THE RULE, which lives in owners.go and is shared with Director's own use of it.
+	out := make([]textCandidate, 0, len(idx))
+	for _, r := range rankOwners(boxes, keys, t.Box) {
+		i := idx[r.index]
+		out = append(out, textCandidate{index: i, fused: fused[i], containment: r.containment})
+	}
 	return out, scoped
 }
 

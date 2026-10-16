@@ -315,6 +315,27 @@ rather than refuses. `Coverage`, `Actionability`, `RoleUnknown` and `Targetable(
 unchanged. See
 [[ADR-204-a-grounded-target-answers-the-world-level-question-and-nothing-else]].
 
+### A surface hypothesis is request-scoped and refuses to guess
+
+`internal/director/surface` is the first piece of Director reasoning over the Stage rather than
+consumption of it, and it is READ-ONLY: given "click Settings" it produces the identity, every
+candidate surface with the evidence for and against it, a three-valued decision and a sentence,
+and executes nothing. A candidate must contain the identity (by `fusion.Owners`, the shared rule),
+be accounted for by something other than read text (ADR-202's own rule), locate a position in the
+window (`observe.Region.Locates`), and **be the only named thing inside it** — the test that does
+almost all of the work and needs no number. `fill`, `parts`, area and sibling structure are
+carried as evidence and decide nothing.
+
+Measured over five recorded interfaces: every indefensible surface refused, including the NAMED
+48% background and Explorer's toolbar band. And on the case the milestone was about, the answer is
+AMBIGUOUS — nothing in the evidence chooses between the word's own region and the 444x56 row
+around it, and the same shape recurs on Windows Settings. Where one surface does survive it is
+usually the caption, and the sentence says so rather than pretending otherwise. The one missing
+piece is named exactly: **which of two nested surfaces is the control**, which no amount of looking
+supplies and one demonstration does. See
+[[ADR-205-a-surface-hypothesis-is-request-scoped-and-refuses-to-guess]] and
+[[Experiment-057-what-earns-a-click-on-five-interfaces]].
+
 ## Known gaps
 
 - ~~Vision runs an unrequested pass on every ordinary cycle.~~ **Fixed 2026-08-10.** The
