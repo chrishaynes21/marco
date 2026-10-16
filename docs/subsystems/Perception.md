@@ -268,6 +268,30 @@ gates refuse the whole world** before an action is considered: `Coverage` is 0.0
 visible"*, and `Blind()` fires on the second. `Locates()` refuses none of the oversized cases.
 See [[Experiment-054-the-surface-a-named-prop-does-not-carry]].
 
+### Coverage is an accessibility measure wearing a general name
+
+Asked why policy refused that Stage, `Coverage` turns out to be `content/n` over roles, where
+`ElementRole.Container()` lists `RoleUnknown` — so it measures **the share of reported objects
+carrying a specific non-container kind**, not visual extent and not whether anything was seen. A
+backgrounded Discord husk (8 panes, quality 0.90) and a 228-Prop structural Stage (quality 0.056)
+both score 0.00. `Blind()` is `Actionability <= 0`, which conflates nothing-reported,
+nothing-with-an-interactive-kind and nothing-addressable; and the existing distinguisher
+`SeenOnlyByPixels()` counts only elements that `Affords()`, which is role-derived, so it returns
+false on a structural Stage and the better sentence is unreachable. Meanwhile `uiact.Ladder` is
+the component that actually knows whether an Actor path exists, and it runs AFTER the gate that
+refused for lack of actionability. The resolver already states the principle policy contradicts —
+*"the world being weak overall does not unfind a control we can plainly see and use"* — and checks
+the same conditions only after finding nothing. See
+[[Experiment-055-what-coverage-and-blind-actually-measure]].
+
+And assessed separately: membership of a **repeated set of same-shaped rows each carrying its own
+distinct text** separates every case in a five-interface corpus where `fill` and `parts` do not —
+the 48% background has no siblings at all, Windows Settings yields nine 846x66 rows at a 72 px
+pitch with nine distinct texts, and a paint canvas correctly yields none. It does not settle the
+Explorer toolbar, which has one sibling (the title bar) where the browser's real control list has
+two; pitch regularity is not usable as measured. See
+[[Experiment-056-whether-a-row-is-one-of-a-set]].
+
 ## Known gaps
 
 - ~~Vision runs an unrequested pass on every ordinary cycle.~~ **Fixed 2026-08-10.** The
