@@ -1,6 +1,9 @@
 package directorapi
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 // ResolutionStatus is the outcome of trying to find what the user meant.
 //
@@ -170,4 +173,84 @@ func (r Resolution) Consistent() error {
 		}
 	}
 	return nil
+}
+
+// GroundedIn reports whether this resolution established a SPECIFIC target in THIS world, and
+// says what was missing when it did not.
+//
+// # The question it exists to answer, and the one it must not be read as answering
+//
+// Policy's world-level gates ask "could this Stage answer a question like the one being asked".
+// The resolver asks "which Prop did this request mean, and on what evidence", and it already
+// states the principle the gates contradict:
+//
+//	A match found despite a poor world is still a match: the world being weak overall does not
+//	unfind a control we can plainly see and use.
+//
+// So a grounded target settles the WORLD-LEVEL evidence question for this one action, and
+// settles nothing else. It does not establish that the action is actionable, authorized,
+// executable or safe. Risk, destructiveness, staleness, confirmation, the capability ladder's
+// terminal refusal and an application's own rules all still apply, are all evaluated elsewhere,
+// and none of them consults this. See [[Experiment-055-what-coverage-and-blind-actually-measure]].
+//
+// # Why a non-nil target is not grounding
+//
+// Every clause below is a way a target pointer can exist and mean nothing. An AMBIGUOUS
+// resolution carries contenders and no choice; a resolution can name an element that is not in
+// the world being judged, because it was resolved against an earlier snapshot; a zero-confidence
+// match is not a match; and a target in a stale world is a target that may have moved. Reading
+// `Target != nil` as grounding would turn each of those into a licence to skip a gate.
+func (r *Resolution) GroundedIn(w *WorldState, now time.Time) (bool, string) {
+	switch {
+	case r == nil:
+		return false, "nothing was resolved for this request"
+	case r.Status != ResolutionResolved:
+		return false, "the request resolved to " + string(r.Status) + ", not to one target"
+	case r.Consistent() != nil:
+		// The type's own promise-keeping check: RESOLVED means exactly one target.
+		return false, "the resolution does not keep the promise its status makes"
+	case r.Target == nil:
+		return false, "the resolution carries no target"
+	case r.Target.Confidence <= 0:
+		return false, "the target was identified with no confidence at all"
+	case w == nil:
+		return false, "there is no world to have grounded it in"
+	}
+
+	// AND IT IS IN THE WORLD BEING JUDGED, with somewhere real to aim.
+	//
+	// Geometry only — whether anything may OPERATE it is a different question, asked at
+	// grounding by `Element.OperableUnder` and never here. A gate that asked it twice would
+	// be a second permission decision in the place that must not make one.
+	if id := r.Target.ElementID; id != "" {
+		el, ok := w.Element(id)
+		if !ok {
+			return false, "the target is not in this reading of the screen"
+		}
+		acts := el.Actions()
+		if !acts.ClickableByBounds {
+			return false, "the target has no on-screen rectangle in this reading"
+		}
+		if !acts.Enabled {
+			// The resolver requires this too, and keeps a disabled match as a
+			// candidate so "Save is greyed out" can be said. Such a match is a real
+			// finding and not a reason to stop asking whether this Stage could
+			// answer the question at all.
+			return false, "the target will not respond: it is disabled"
+		}
+	} else if id := r.Target.WindowID; id != "" {
+		if _, ok := w.Window(id); !ok {
+			return false, "the target window is not in this reading of the screen"
+		}
+	} else {
+		return false, "the target names neither an element nor a window"
+	}
+
+	// AND THE READING STILL DESCRIBES THE PRESENT. Belt and braces: policy's own staleness
+	// gate is deliberately NOT conditional on grounding, and this makes it impossible for a
+	// grounded target to be the thing that carries a stale world past any gate.
+	if w.ConfidenceAt(now).Stale() {
+		return false, "this reading of the screen is out of date"
+	}
+	return true, ""
 }

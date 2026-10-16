@@ -292,6 +292,29 @@ Explorer toolbar, which has one sibling (the title bar) where the browser's real
 two; pitch regularity is not usable as measured. See
 [[Experiment-056-whether-a-row-is-one-of-a-set]].
 
+### A grounded target answers the world-level question and nothing else
+
+So the gates learned one new input. `EvaluatePlan` and `EvaluateStep` take the `Resolution` this
+request produced — the resolution and not merely its target, because only a Resolution can say
+whether the request resolved to ONE thing — and gates 1 and 2 are skipped when
+`Resolution.GroundedIn` holds. Every clause of that predicate is a way a target pointer can exist
+and mean nothing: an ambiguous status, an element this reading does not have, no rectangle to aim
+at, no confidence, a stale reading. Geometry only, never permission; `Element.OperableUnder` at
+grounding is still the only thing that decides whether a Prop may be operated, and policy neither
+imports nor names a licence (a source guard holds that).
+
+ONE BRANCH IS NOT CONDITIONAL: where `SeenOnlyByPixels()` holds, gate 2 refuses whether grounded
+or not, because that is a claim about MECHANISM and grounding does not establish execution
+capability. It reads as an asymmetry — nameless rectangles pass where detected buttons do not —
+and the reason is exact: that method is a positive claim and can only be made where something
+affords.
+
+Measured on the real Stage: "click Settings" **still refuses**, at the resolver, for the reason it
+always did. A request that HAD grounded a target now reaches the evidence gate instead, which asks
+rather than refuses. `Coverage`, `Actionability`, `RoleUnknown` and `Targetable()` are all
+unchanged. See
+[[ADR-204-a-grounded-target-answers-the-world-level-question-and-nothing-else]].
+
 ## Known gaps
 
 - ~~Vision runs an unrequested pass on every ordinary cycle.~~ **Fixed 2026-08-10.** The

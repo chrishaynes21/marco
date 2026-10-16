@@ -321,3 +321,42 @@ func reportsScrolling(e *Element) bool {
 	}
 	return false
 }
+
+// OnlyGenericKindsWereReported reports that objects were observed here and not one of them
+// carries a claim about what kind of thing it is.
+//
+// # Why this is a separate question from SeenOnlyByPixels
+//
+// Both describe a world where nothing can be operated, and they describe DIFFERENT such worlds,
+// and the existing one cannot see this case at all. `SeenOnlyByPixels` counts elements that
+// `Affords()`, and affordance is derived from the role — so on a Stage of proposed rectangles,
+// where every role is generic, nothing affords, the count is zero, and it answers false. Measured
+// on a real game menu: 228 Props, every one `RoleUnknown`, and the refusal that printed was
+// "nothing in this window can be operated, so there is nothing here to act on" — the sentence
+// written for an EMPTY window.
+//
+// Three worlds answer `WorldConfidence.Blind()` the same way and need different responses:
+//
+//	nothing was observed              reach for a source, or the window is genuinely empty
+//	objects, and no kinds claimed     Marco can see shapes and cannot say what any of them is
+//	kinds claimed, none addressable   the controls are there and something about them refuses
+//
+// The second is this one. It is not blindness — it is the opposite, a Stage rich in observations
+// and modest in claims — and saying so is what stops a person concluding their application is
+// broken. See [[Experiment-055-what-coverage-and-blind-actually-measure]].
+//
+// False for an empty world, because then there is nothing to have failed to describe.
+func (w *WorldState) OnlyGenericKindsWereReported() bool {
+	if w == nil || len(w.Elements) == 0 {
+		return false
+	}
+	for _, el := range w.Elements {
+		if el == nil {
+			continue
+		}
+		if !el.Role.Generic() {
+			return false
+		}
+	}
+	return true
+}

@@ -951,7 +951,15 @@ func (p *Pipeline) prepareTraced(ctx context.Context, request string, world dire
 		return nil, nil, resPtr(input.Resolution), status, reval.Problem.Message, diag
 	}
 
-	decision := p.Policy.EvaluatePlan(ctx, built, world)
+	// THE RESOLUTION THIS REQUEST PRODUCED, handed to policy rather than re-derived.
+	//
+	// The world-level gates ask whether this Stage could answer a question like the one being
+	// asked, and a request that has identified one specific Prop with geometry has answered
+	// it. Nothing else about policy sees this: risk, destructiveness, confirmation and an
+	// application's own rules are evaluated from the ACTION, exactly as before. For
+	// `move_window` the resolution is the zero value, which grounds nothing and leaves those
+	// gates deciding as they always did.
+	decision := p.Policy.EvaluatePlan(ctx, built, world, resPtr(input.Resolution))
 	if !decision.Allowed {
 		add("policy", "refused: "+decision.Reason, false)
 		return nil, &decision, resPtr(input.Resolution), directorapi.ResultBlocked, decision.Reason, diag

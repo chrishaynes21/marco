@@ -72,6 +72,12 @@ type ReplayCandidate struct {
 
 	// Alternatives are the competing candidates when the status is ambiguous.
 	Alternatives []directorapi.TargetCandidate `json:"alternatives,omitempty"`
+
+	// resolution is the whole re-resolution, kept so policy's world-level gates see the same
+	// grounding this analysis reached. Unexported and not serialised: `CurrentTarget` is the
+	// part a reader of the candidate wants, and a Resolution in the JSON would be a second,
+	// larger copy of what is already there.
+	resolution *directorapi.Resolution
 }
 
 // Displacement is how far a target moved between two observations.
@@ -142,7 +148,7 @@ func (a *Analyzer) Analyze(node ActionNode, world directorapi.WorldState) Replay
 	}
 
 	if a.Policy != nil {
-		if status, reason := a.policyVerdict(node, world); status != "" {
+		if status, reason := a.policyVerdict(node, world, verdict.resolution); status != "" {
 			return verdict.conclude(status, reason)
 		}
 	}
@@ -182,6 +188,7 @@ func (a *Analyzer) analyzeElement(out ReplayCandidate, node ActionNode,
 	switch res.Status {
 	case directorapi.ResolutionResolved:
 		out.CurrentTarget = res.Target
+		out.resolution = &res
 		was := node.ResolvedTarget.Bounds
 		now := res.Target.Point
 		if was.Empty() {
@@ -271,6 +278,12 @@ func (a *Analyzer) analyzeWindow(out ReplayCandidate, spec ActionSpec,
 	out.CurrentTarget = &directorapi.ResolvedTarget{
 		WindowID: win.ID, Label: win.Title, Confidence: 1,
 	}
+	// A WINDOW IS A GROUNDED TARGET TOO, and said in the same vocabulary the element path
+	// uses, so policy's gates do not treat "the window I am about to move" as nothing.
+	out.resolution = &directorapi.Resolution{
+		Status: directorapi.ResolutionResolved, Target: out.CurrentTarget,
+		Explanation: fmt.Sprintf("%q is the only window of this application", win.Title),
+	}
 	if win.Minimized {
 		return out.conclude(ReplayTargetMissing, fmt.Sprintf("%q is minimised", win.Title))
 	}
@@ -279,14 +292,20 @@ func (a *Analyzer) analyzeWindow(out ReplayCandidate, spec ActionSpec,
 
 // policyVerdict asks policy whether this action would still be permitted, returning
 // an empty status when it would.
-func (a *Analyzer) policyVerdict(node ActionNode, world directorapi.WorldState) (ReplayStatus, string) {
+// `res` is what the analysis above re-resolved, so policy's world-level gates see the same
+// grounding the replay would act on. Passing nil here would refuse a replayable action on the
+// strength of the rest of the Stage — which is the exact defect
+// [[Experiment-055-what-coverage-and-blind-actually-measure]] measured one level up, and this is
+// the OTHER gate it warned must not be left behind.
+func (a *Analyzer) policyVerdict(node ActionNode, world directorapi.WorldState,
+	res *directorapi.Resolution) (ReplayStatus, string) {
 	spec, _ := node.Action()
 	action, err := spec.Rebuild()
 	if err != nil {
 		return ReplayUnsafe, err.Error()
 	}
 	step := directorapi.PlanStep{Action: action, Risk: node.Plan.Risk}
-	d := a.Policy.EvaluateStep(nil, step, nil, world)
+	d := a.Policy.EvaluateStep(nil, step, res, world)
 	switch {
 	case !d.Allowed:
 		return ReplayUnsafe, "policy would refuse this now: " + d.Reason

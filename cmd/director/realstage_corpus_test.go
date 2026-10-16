@@ -41,6 +41,7 @@ import (
 	ocrprov "github.com/chaynes-simpleclouds/marco/internal/director/perception/providers/ocr"
 	structureprov "github.com/chaynes-simpleclouds/marco/internal/director/perception/providers/structure"
 	visionprov "github.com/chaynes-simpleclouds/marco/internal/director/perception/providers/vision"
+	"github.com/chaynes-simpleclouds/marco/internal/director/policy"
 	"github.com/chaynes-simpleclouds/marco/internal/director/target"
 	"github.com/chaynes-simpleclouds/marco/internal/platform/ocrclient"
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
@@ -434,3 +435,94 @@ func TestAnUnrelatedRecordedInterfaceAlsoProducesPropsThatAreNotClickable(t *tes
 		t.Fatalf("a structural Prop resolved as a click target: %+v", res.Target)
 	}
 }
+
+// WHAT POLICY MAKES OF THE STAGE A REAL GAME PRODUCES, BEFORE AND AFTER GROUNDING.
+//
+// [[Experiment-055-what-coverage-and-blind-actually-measure]] measured that policy refused this
+// Stage with "only 0% of this window's content was visible" — said about 228 measured rectangles
+// on a screen a person can read, because `Coverage` is the share of objects carrying a specific
+// kind of control and `ElementRole.Container()` lists `RoleUnknown`.
+//
+// Two things are asserted here and they pull in opposite directions, which is the point.
+//
+// The resolver STILL REFUSES "click Settings", so nothing on this Stage grounds and the request
+// is as refused as it ever was — no structural Prop has become clickable. And a request that HAD
+// grounded a target would no longer be refused by a gate that was describing the rest of the
+// screen. The second is measured with a hand-built resolution, because the first means there is
+// no other way to produce one: policy trusts the resolver's verdict, and the resolver's own
+// refusal is what stands between a proposed rectangle and a click.
+func TestPolicyOnARecordedGameStageBeforeAndAfterGrounding(t *testing.T) {
+	frame := loadFrame(t, filepath.Join(tmRecording, "frames", "tm-menu-steps-0100.png"))
+	world, _ := stageFrom(t, frame, true)
+
+	c := world.ConfidenceAt(time.Now())
+	t.Logf("the Stage: %d Prop(s), coverage %.3f, quality %.3f, actionability %.3f, "+
+		"blind %v", len(world.Elements), c.Coverage, c.ObservationQuality,
+		c.Actionability, c.Blind())
+
+	// ── THE REQUEST ITSELF, UNCHANGED ──
+	lic := directorapi.OperateLicence{Instruction: "click Settings", Verb: "click"}
+	res := target.NewResolver().ResolveUnder(&world,
+		directorapi.ElementQuery{Text: "settings"}, lic, "click")
+	t.Logf("resolve %q: %s — %s", "click Settings", res.Status, res.Explanation)
+	if res.Status == directorapi.ResolutionResolved {
+		t.Fatal("a structural Prop resolved as a click target; this change must not " +
+			"have made one clickable")
+	}
+	if ok, why := res.GroundedIn(&world, time.Now()); ok {
+		t.Fatal("the refused resolution counts as a grounded target")
+	} else {
+		t.Logf("grounded: false — %s", why)
+	}
+
+	plan := directorapi.Plan{
+		Goal: "click Settings", Risk: directorapi.RiskLow,
+		Steps: []directorapi.PlanStep{{Action: directorapi.ClickAction{
+			Target: directorapi.ElementReference{
+				Query: &directorapi.ElementQuery{Text: "settings"}}}}},
+	}
+	engine := policy.New()
+
+	// ── BEFORE: what this request gets, which is still a refusal ──
+	actual := engine.EvaluatePlan(context.Background(), plan, world, resPtrOf(res))
+	t.Logf("policy, as the request actually stands: allowed=%v confirm=%v\n  %s",
+		actual.Allowed, actual.RequiresConfirmation, actual.Reason)
+	if actual.Allowed {
+		t.Fatal("an ungrounded request was allowed on this Stage")
+	}
+	for _, want := range []string{"coverage", "No target was grounded"} {
+		if !strings.Contains(actual.Reason, want) {
+			t.Errorf("the refusal does not say %q: %q", want, actual.Reason)
+		}
+	}
+
+	// ── AFTER: what a request that HAD grounded one of these Props would get ──
+	named := findLabelled(world, "settings")
+	if named == nil {
+		t.Fatal("SETTINGS is not on this Stage")
+	}
+	hypothetical := &directorapi.Resolution{
+		Status: directorapi.ResolutionResolved,
+		Target: &directorapi.ResolvedTarget{
+			ElementID: named.ID, WindowID: named.WindowID, Label: named.Label,
+			Role: named.Role, Point: named.ClickPoint(), Confidence: 0.75,
+		},
+	}
+	if ok, why := hypothetical.GroundedIn(&world, time.Now()); !ok {
+		t.Fatalf("the hypothetical resolution does not ground: %s", why)
+	}
+	after := engine.EvaluatePlan(context.Background(), plan, world, hypothetical)
+	t.Logf("policy, given a grounded target: allowed=%v confirm=%v\n  %s",
+		after.Allowed, after.RequiresConfirmation, after.Reason)
+	if !after.Allowed {
+		t.Errorf("a grounded target was still refused by a world-level gate: %s",
+			after.Reason)
+	}
+	if !after.RequiresConfirmation {
+		t.Error("a grounded click on a Stage read off pixels was allowed outright; " +
+			"the evidence gate must still ask")
+	}
+}
+
+// resPtrOf hands policy the resolution this request produced, whatever it was.
+func resPtrOf(res directorapi.Resolution) *directorapi.Resolution { return &res }

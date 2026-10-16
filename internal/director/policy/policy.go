@@ -86,8 +86,13 @@ func New() *Engine {
 var _ directorapi.PolicyEngine = (*Engine)(nil)
 
 // EvaluatePlan decides whether a whole plan may run.
-func (e *Engine) EvaluatePlan(ctx context.Context, plan directorapi.Plan, w directorapi.WorldState) directorapi.PolicyDecision {
-	if d := e.checkWorld(&w, plan.Risk); !d.Allowed || d.RequiresConfirmation {
+//
+// `res` is the resolution this request produced, or nil where nothing was resolved. It reaches
+// exactly two of the gates below and nothing else. See checkWorld.
+func (e *Engine) EvaluatePlan(ctx context.Context, plan directorapi.Plan, w directorapi.WorldState,
+	res *directorapi.Resolution) directorapi.PolicyDecision {
+
+	if d := e.checkWorld(&w, plan.Risk, res); !d.Allowed || d.RequiresConfirmation {
 		return d
 	}
 	if len(plan.Steps) > e.MaxSteps {
@@ -142,13 +147,17 @@ func applicationOf(w directorapi.WorldState) string {
 
 // EvaluateStep decides whether one step may run, given what it resolved to.
 func (e *Engine) EvaluateStep(ctx context.Context, step directorapi.PlanStep,
-	tgt *directorapi.ResolvedTarget, w directorapi.WorldState) directorapi.PolicyDecision {
+	res *directorapi.Resolution, w directorapi.WorldState) directorapi.PolicyDecision {
 
+	var tgt *directorapi.ResolvedTarget
+	if res != nil {
+		tgt = res.Target
+	}
 	risk := step.Risk
 	if risk == "" {
 		risk = directorapi.RiskLow
 	}
-	if d := e.checkWorld(&w, risk); !d.Allowed || d.RequiresConfirmation {
+	if d := e.checkWorld(&w, risk, res); !d.Allowed || d.RequiresConfirmation {
 		return d
 	}
 	if d := e.checkAction(step.Action, risk); !d.Allowed {
@@ -189,45 +198,105 @@ func (e *Engine) EvaluateStep(ctx context.Context, step directorapi.PlanStep,
 // The gates are INDEPENDENT and checked in their own right. This is the heart of the
 // package: a world may be beautifully observed and still be useless, and no amount
 // of observation quality is allowed to stand in for coverage or actionability.
-func (e *Engine) checkWorld(w *directorapi.WorldState, risk directorapi.RiskLevel) directorapi.PolicyDecision {
+//
+// # And two of them are questions a grounded target has already answered
+//
+// Gates 1 and 2 ask whether this Stage could answer a question like the one being asked.
+// `target.Resolver` asks which Prop this request meant, and it already states the principle
+// these gates contradicted:
+//
+//	A match found despite a poor world is still a match: the world being weak overall does not
+//	unfind a control we can plainly see and use.
+//
+// The resolver therefore checks `Shallow`, `Blind` and the degraded sources only AFTER finding
+// nothing usable. These gates asked the same questions unconditionally, before the target was
+// in scope — so a request that had identified one specific Prop, with geometry, in this reading,
+// was refused on the strength of the roles of everything else on the screen. Measured on a real
+// game menu: 228 proposed rectangles, coverage 0.000 because `ElementRole.Container()` lists
+// `RoleUnknown`, and the refusal read "only 0% of this window's content was visible".
+//
+// So they are SKIPPED when the request grounded a target, and nothing else changes:
+//
+//   - `Coverage` is computed exactly as before and means exactly what it meant. It still gates
+//     how much a conclusion of ABSENCE is worth, still feeds `Shallow` and `Overall`, and is
+//     still the measure the browser and Electron cases were sized against.
+//   - `WorldConfidence.Actionability` is unchanged, for diagnostics and for every other reader.
+//     Nothing raises it for a proposed rectangle.
+//   - Gate 3 (evidence quality) and gate 4 (staleness) are NOT conditional, and a grounded
+//     target in a stale world cannot arise anyway: `Resolution.GroundedIn` refuses one.
+//   - Nothing here consults an `OperateLicence`, which that type's own contract forbids. Whether
+//     a Prop may be operated is decided at grounding, before this is reached.
+//
+// A grounded target settles the world-level evidence question for ONE action. It establishes
+// nothing about actionability, authorization, execution capability or safety: risk,
+// destructiveness, `MinTargetConfidence`, the confirmation gates, an application's contributed
+// rules and the capability ladder's terminal refusal all still apply, and all of them run
+// elsewhere. See [[Experiment-055-what-coverage-and-blind-actually-measure]].
+func (e *Engine) checkWorld(w *directorapi.WorldState, risk directorapi.RiskLevel,
+	res *directorapi.Resolution) directorapi.PolicyDecision {
+
 	c := w.ConfidenceAt(e.now())
+	grounded, _ := res.GroundedIn(w, e.now())
 
 	// Gate 1 — did we see into the application at all?
 	//
 	// Refused outright rather than confirmed, because a confirmation prompt here
 	// would ask the user to vouch for a target the Director cannot actually see. The
 	// honest move is to say so and let another source be tried.
-	if c.Coverage < e.MinCoverage {
+	//
+	// The sentence says what `Coverage` MEASURES rather than paraphrasing it as visibility.
+	// It is the share of the reported objects carrying a specific kind of control, and on a
+	// Stage of proposed rectangles that share is zero while the screen is perfectly visible.
+	if c.Coverage < e.MinCoverage && !grounded {
 		return refuse(fmt.Sprintf(
-			"only %.0f%% of this window's content was visible (quality was %.0f%%, "+
-				"but seeing clearly is not the same as seeing enough) — "+
-				"the application may not be exposing its interior",
-			c.Coverage*100, c.ObservationQuality*100))
+			"coverage is %.0f%%, which is the share of the %d object(s) observed "+
+				"here carrying a specific kind of control, and the evidence is "+
+				"%.0f%% — seeing clearly is not the same as seeing enough. %s. %s",
+			c.Coverage*100, len(w.Elements), c.ObservationQuality*100,
+			whichBlindness(w), didNotGround(res, w, e.now())))
 	}
 
 	// Gate 2 — is there anything here that can be operated?
 	if c.Blind() {
-		// AND WHY NOT, when the answer is that only a camera saw it.
-		//
-		// "Nothing here can be operated" is true of an empty window and of one full of
-		// controls that only a visual detector reported, and those need opposite
-		// responses: the first is a window with nothing in it, the second is a window
-		// Marco can SEE and has no mechanism to work.
-		//
-		// Saying which is what stops a person concluding their application is broken
-		// when the honest answer is that accessibility did not describe it.
-		//
-		// Deleting this must fail TestTheGateSaysWhenOnlyACameraSawIt.
-		if w.SeenOnlyByPixels() {
+		switch {
+		case w.SeenOnlyByPixels():
+			// NOT CONDITIONAL ON GROUNDING, and this is the one branch that is not.
+			//
+			// Every other thing these gates say is a claim about EVIDENCE, which a
+			// grounded target answers. This one is a claim about MECHANISM: things
+			// here look operable and nothing that could operate them reported any of
+			// them. Grounding explicitly does not establish execution capability, so
+			// it may not answer this.
+			//
+			// It reads as an asymmetry — a Stage of nameless rectangles passes where
+			// a Stage of detected buttons does not — and the reason is exact.
+			// `SeenOnlyByPixels` is a POSITIVE claim, and it can only be made where
+			// something affords. Where nothing claims to be operable there is no such
+			// claim available, and policy must not invent one; the capability ladder
+			// is the authority on whether an Actor path exists and it runs later.
+			if grounded {
+				return refuse("the target was grounded and nothing here can say " +
+					"how to operate it — this window was described by the " +
+					"screen alone, with no accessibility information, so " +
+					"whether any Actor can work it is not established")
+			}
 			return refuse("I can see controls here but nothing told me how to " +
-				"operate them — this window was described by the screen alone, " +
-				"with no accessibility information")
+				"operate them — this window was described by the screen " +
+				"alone, with no accessibility information")
+		case grounded:
+			// The world-level evidence question has been answered for this action.
+		default:
+			return refuse(fmt.Sprintf("nothing in this window can be operated. %s. %s",
+				whichBlindness(w), didNotGround(res, w, e.now())))
 		}
-		return refuse("nothing in this window can be operated, " +
-			"so there is nothing here to act on")
 	}
 
 	// Gate 3 — is the evidence good enough for what is being asked?
+	//
+	// NOT conditional on grounding. Identifying one Prop in a poorly-sourced reading does not
+	// make the reading better sourced, and this gate's answer for a low-risk action is a
+	// CONFIRMATION rather than a refusal — which is the right thing to put in front of a
+	// person whose screen Marco is reading off pixels.
 	if c.ObservationQuality < e.MinQuality {
 		if risk.AtLeast(directorapi.RiskMedium) {
 			return refuse(fmt.Sprintf(
@@ -239,11 +308,60 @@ func (e *Engine) checkWorld(w *directorapi.WorldState, risk directorapi.RiskLeve
 	}
 
 	// Gate 4 — is the snapshot still describing the present?
+	//
+	// NOT conditional, and `Resolution.GroundedIn` asks the same question with the same
+	// expression — so a mutation of EITHER ONE ALONE changes nothing, and `grounded` can
+	// never be true here. That is deliberate redundancy rather than an oversight, and it is
+	// recorded because it looks exactly like something to simplify away: each half is tested
+	// on its own, and removing both is two edits.
 	if c.Stale() {
 		return refuse("this view of the screen is out of date; re-observe before acting")
 	}
 
 	return allow()
+}
+
+// whichBlindness says WHICH kind of world this is, in the words its own evidence supports.
+//
+// Four worlds produced one sentence between them, and the sentence was written for the first:
+// "nothing in this window can be operated". The others need opposite responses — one is a
+// window to look at again, one is a source to reach for, one is a Stage Marco can see perfectly
+// well and cannot name, and one is a set of controls that something about refuses. A person told
+// the wrong one goes looking in the wrong place.
+//
+// The pixel-only case is handled by its caller, because it is the one that is not about evidence
+// and the one whose sentence must not contain "nothing in this window".
+func whichBlindness(w *directorapi.WorldState) string {
+	switch {
+	case w == nil || len(w.Elements) == 0:
+		return "nothing was observed in this window at all"
+	case w.OnlyGenericKindsWereReported():
+		return fmt.Sprintf("%d region(s) were observed here and nothing could say what "+
+			"any of them IS, so there is no control to match against — Marco can "+
+			"see this screen and cannot name it", len(w.Elements))
+	default:
+		return fmt.Sprintf("%d object(s) were observed and none of them is both named "+
+			"and reachable", len(w.Elements))
+	}
+}
+
+// didNotGround is the second half: what this request itself failed to establish.
+//
+// Two halves because they are two findings. The first is about the screen and the second is
+// about the request, and a refusal that gave only the first invited the reader to conclude the
+// screen was the problem when the request had simply not identified anything.
+//
+// The world is passed rather than elided, so a resolution that DID resolve and still failed to
+// ground reports the clause that actually failed — the target is not in this reading, or has no
+// rectangle in it — instead of the one a nil world would produce.
+func didNotGround(res *directorapi.Resolution, w *directorapi.WorldState, now time.Time) string {
+	_, why := res.GroundedIn(w, now)
+	if res != nil && res.Status == directorapi.ResolutionResolved {
+		// Resolved and still not grounded: the specific clause is the whole finding, and
+		// it is about the target rather than about the screen.
+		return "A target was resolved and not grounded: " + why
+	}
+	return "No target was grounded for this request: " + why
 }
 
 // checkAction applies per-action rules that do not depend on the world.
@@ -303,7 +421,11 @@ func (e *Engine) EvaluateRepeat(ctx context.Context, prior *directorapi.ActionRe
 	if prior != nil && prior.Action != nil {
 		risk = riskOfAction(prior.Action)
 	}
-	if d := e.checkWorld(&w, risk); !d.Allowed || d.RequiresConfirmation {
+	// NIL, and not an oversight: a repeat RE-RESOLVES its target in the current world, so
+	// at this point there is no resolution to consult. The gates decide exactly as they
+	// always did, which is the conservative side — a repeat into a world Marco cannot read
+	// is the case this whole method exists to be careful about.
+	if d := e.checkWorld(&w, risk, nil); !d.Allowed || d.RequiresConfirmation {
 		return d
 	}
 

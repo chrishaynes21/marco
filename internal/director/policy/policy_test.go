@@ -57,7 +57,7 @@ func TestQualityCannotCompensateForCoverage(t *testing.T) {
 	discord := worldWith(directorapi.WorldConfidence{
 		ObservationQuality: 1.0, Coverage: 0.0, Actionability: 0.0, Freshness: 1,
 	})
-	d := e.EvaluatePlan(context.Background(), clickPlan(directorapi.RiskLow), discord)
+	d := e.EvaluatePlan(context.Background(), clickPlan(directorapi.RiskLow), discord, nil)
 	if d.Allowed {
 		t.Fatal("a world with no coverage must be refused, however well observed")
 	}
@@ -72,7 +72,7 @@ func TestQualityCannotCompensateForCoverage(t *testing.T) {
 		w := worldWith(directorapi.WorldConfidence{
 			ObservationQuality: q, Coverage: 0.05, Actionability: 0.0, Freshness: 1,
 		})
-		if e.EvaluatePlan(context.Background(), clickPlan(directorapi.RiskLow), w).Allowed {
+		if e.EvaluatePlan(context.Background(), clickPlan(directorapi.RiskLow), w, nil).Allowed {
 			t.Errorf("quality %v was allowed to compensate for absent coverage", q)
 		}
 	}
@@ -84,7 +84,7 @@ func TestZeroActionabilityIsRefused(t *testing.T) {
 	w := worldWith(directorapi.WorldConfidence{
 		ObservationQuality: 1.0, Coverage: 0.9, Actionability: 0.0, Freshness: 1,
 	})
-	d := e.EvaluatePlan(context.Background(), clickPlan(directorapi.RiskLow), w)
+	d := e.EvaluatePlan(context.Background(), clickPlan(directorapi.RiskLow), w, nil)
 	if d.Allowed {
 		t.Fatal("nothing operable means nothing to act on")
 	}
@@ -101,7 +101,7 @@ func TestBlindWorldIsRefusedNotConfirmed(t *testing.T) {
 	w := worldWith(directorapi.WorldConfidence{
 		ObservationQuality: 1.0, Coverage: 0.0, Actionability: 0.0, Freshness: 1,
 	})
-	d := e.EvaluatePlan(context.Background(), clickPlan(directorapi.RiskLow), w)
+	d := e.EvaluatePlan(context.Background(), clickPlan(directorapi.RiskLow), w, nil)
 	if d.RequiresConfirmation {
 		t.Error("an unseeable world must be refused outright, not put to the user")
 	}
@@ -111,7 +111,7 @@ func TestBlindWorldIsRefusedNotConfirmed(t *testing.T) {
 }
 
 func TestGoodWorldIsAllowed(t *testing.T) {
-	d := engine().EvaluatePlan(context.Background(), clickPlan(directorapi.RiskLow), good())
+	d := engine().EvaluatePlan(context.Background(), clickPlan(directorapi.RiskLow), good(), nil)
 	if !d.Allowed {
 		t.Fatalf("a readable, usable world should permit a low-risk click: %s", d.Reason)
 	}
@@ -128,12 +128,12 @@ func TestWeakEvidenceScalesWithRisk(t *testing.T) {
 		ObservationQuality: 0.4, Coverage: 0.7, Actionability: 0.9, Freshness: 1,
 	})
 
-	low := e.EvaluatePlan(context.Background(), clickPlan(directorapi.RiskLow), w)
+	low := e.EvaluatePlan(context.Background(), clickPlan(directorapi.RiskLow), w, nil)
 	if !low.Allowed || !low.RequiresConfirmation {
 		t.Errorf("a low-risk action on weak evidence should be confirmed, got %+v", low)
 	}
 
-	high := e.EvaluatePlan(context.Background(), clickPlan(directorapi.RiskHigh), w)
+	high := e.EvaluatePlan(context.Background(), clickPlan(directorapi.RiskHigh), w, nil)
 	if high.Allowed {
 		t.Error("a high-risk action on weak evidence must be refused")
 	}
@@ -144,7 +144,7 @@ func TestStaleWorldIsRefused(t *testing.T) {
 	e := New()
 	e.Now = func() time.Time { return t0.Add(10 * time.Second) }
 
-	d := e.EvaluatePlan(context.Background(), clickPlan(directorapi.RiskLow), good())
+	d := e.EvaluatePlan(context.Background(), clickPlan(directorapi.RiskLow), good(), nil)
 	if d.Allowed {
 		t.Fatal("a ten-second-old view of the screen must not be acted on")
 	}
@@ -155,7 +155,7 @@ func TestStaleWorldIsRefused(t *testing.T) {
 
 // High risk is always confirmed, and a planner cannot opt out of it.
 func TestHighRiskAlwaysConfirms(t *testing.T) {
-	d := engine().EvaluatePlan(context.Background(), clickPlan(directorapi.RiskHigh), good())
+	d := engine().EvaluatePlan(context.Background(), clickPlan(directorapi.RiskHigh), good(), nil)
 	if !d.Allowed {
 		t.Fatalf("a high-risk action in a good world is allowed, with confirmation: %s", d.Reason)
 	}
@@ -166,7 +166,7 @@ func TestHighRiskAlwaysConfirms(t *testing.T) {
 	// A plan asserting it needs no confirmation does not get to decide that.
 	plan := clickPlan(directorapi.RiskHigh)
 	plan.RequiresConfirmation = false
-	if !engine().EvaluatePlan(context.Background(), plan, good()).RequiresConfirmation {
+	if !engine().EvaluatePlan(context.Background(), plan, good(), nil).RequiresConfirmation {
 		t.Error("a plan must not be able to waive its own confirmation")
 	}
 }
@@ -176,7 +176,7 @@ func TestHighRiskAlwaysConfirms(t *testing.T) {
 func TestPlannerRequestedConfirmationIsHonoured(t *testing.T) {
 	plan := clickPlan(directorapi.RiskLow)
 	plan.RequiresConfirmation = true
-	if !engine().EvaluatePlan(context.Background(), plan, good()).RequiresConfirmation {
+	if !engine().EvaluatePlan(context.Background(), plan, good(), nil).RequiresConfirmation {
 		t.Error("a planner's own request for confirmation must stand")
 	}
 }
@@ -200,7 +200,7 @@ func TestRepeatsMustBeBounded(t *testing.T) {
 			Goal: "repeat", Risk: directorapi.RiskLow,
 			Steps: []directorapi.PlanStep{{Action: repeat}},
 		}
-		if e.EvaluatePlan(context.Background(), plan, good()).Allowed {
+		if e.EvaluatePlan(context.Background(), plan, good(), nil).Allowed {
 			t.Errorf("a repeat with %s must be refused", name)
 		}
 	}
@@ -210,7 +210,7 @@ func TestRepeatsMustBeBounded(t *testing.T) {
 		Goal: "repeat", Risk: directorapi.RiskLow,
 		Steps: []directorapi.PlanStep{{Action: ok}},
 	}
-	if !e.EvaluatePlan(context.Background(), plan, good()).Allowed {
+	if !e.EvaluatePlan(context.Background(), plan, good(), nil).Allowed {
 		t.Error("a properly bounded repeat should be allowed")
 	}
 }
@@ -222,7 +222,7 @@ func TestWaitsMustHaveTimeouts(t *testing.T) {
 			Until: directorapi.Condition{Type: directorapi.ConditionElementVisible},
 		}}},
 	}
-	if engine().EvaluatePlan(context.Background(), plan, good()).Allowed {
+	if engine().EvaluatePlan(context.Background(), plan, good(), nil).Allowed {
 		t.Error("an unbounded wait must be refused")
 	}
 }
@@ -235,12 +235,12 @@ func TestShellIsRefusedByDefault(t *testing.T) {
 			Action: directorapi.LaunchAction{Target: `cmd.exe /c del *.*`},
 		}},
 	}
-	if engine().EvaluatePlan(context.Background(), plan, good()).Allowed {
+	if engine().EvaluatePlan(context.Background(), plan, good(), nil).Allowed {
 		t.Error("launching a shell command must be refused")
 	}
 	// An ordinary application is fine.
 	plan.Steps[0].Action = directorapi.LaunchAction{Target: "notepad"}
-	if !engine().EvaluatePlan(context.Background(), plan, good()).Allowed {
+	if !engine().EvaluatePlan(context.Background(), plan, good(), nil).Allowed {
 		t.Error("launching an application should be allowed")
 	}
 }
@@ -259,17 +259,17 @@ func TestLowTargetConfidenceConfirmsForRiskyActions(t *testing.T) {
 	sure := &directorapi.ResolvedTarget{ElementID: "e1", Confidence: 0.95}
 	w := good()
 
-	if d := e.EvaluateStep(context.Background(), step, unsure, w); !d.RequiresConfirmation {
+	if d := e.EvaluateStep(context.Background(), step, resolved(unsure), w); !d.RequiresConfirmation {
 		t.Error("a shaky target for a medium-risk action should be confirmed")
 	}
-	if d := e.EvaluateStep(context.Background(), step, sure, w); d.RequiresConfirmation {
+	if d := e.EvaluateStep(context.Background(), step, resolved(sure), w); d.RequiresConfirmation {
 		t.Errorf("a confident target needs no confirmation: %s", d.Reason)
 	}
 
 	// The same shaky target is fine for something reversible.
 	step.Risk = directorapi.RiskLow
 	step.Action = directorapi.ClickAction{Target: directorapi.ElementReference{ID: "e1"}}
-	if d := e.EvaluateStep(context.Background(), step, unsure, w); d.RequiresConfirmation {
+	if d := e.EvaluateStep(context.Background(), step, resolved(unsure), w); d.RequiresConfirmation {
 		t.Errorf("a low-risk action tolerates an uncertain target: %s", d.Reason)
 	}
 }
@@ -304,7 +304,7 @@ func TestRepeatRequiresDurableIdentity(t *testing.T) {
 
 	// Durability must not block acting NOW — only referring back. A first click in
 	// the fragile world is still fine.
-	if !e.EvaluatePlan(context.Background(), clickPlan(directorapi.RiskLow), fragile).Allowed {
+	if !e.EvaluatePlan(context.Background(), clickPlan(directorapi.RiskLow), fragile, nil).Allowed {
 		t.Error("poor identity durability must not prevent acting for the first time")
 	}
 }
@@ -335,4 +335,14 @@ func TestConstraintsReflectTheWorld(t *testing.T) {
 	if c := e.Constraints(context.Background(), good()); c.AllowShell {
 		t.Error("shell access must be off by default")
 	}
+}
+
+// resolved is the faithful translation of "this target was resolved" into the shape the gates
+// now take. A bare target cannot say whether the request resolved to ONE of them, and that
+// difference is the whole of what the world-level gates may consult.
+func resolved(t *directorapi.ResolvedTarget) *directorapi.Resolution {
+	if t == nil {
+		return nil
+	}
+	return &directorapi.Resolution{Status: directorapi.ResolutionResolved, Target: t}
 }

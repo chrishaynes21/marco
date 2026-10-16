@@ -182,9 +182,22 @@ type PlanValidator interface {
 // PolicyEngine decides what is permitted. Its decisions are final — a planner may
 // not override them, and a skill may not relax them.
 type PolicyEngine interface {
-	EvaluatePlan(ctx context.Context, plan Plan, world WorldState) PolicyDecision
-	EvaluateStep(ctx context.Context, step PlanStep, target *ResolvedTarget, world WorldState) PolicyDecision
+	// EvaluatePlan and EvaluateStep both take the RESOLUTION this request produced, and not
+	// merely its target. The world-level gates ask whether this Stage could answer a question
+	// like the one being asked, and a request that has already identified one specific Prop
+	// has answered it — but only a Resolution can say whether it did, because AMBIGUOUS also
+	// carries candidates and RESOLVED against an earlier snapshot also carries a target. See
+	// Resolution.GroundedIn for every clause and the gate it would otherwise let through.
+	//
+	// Nil is the honest value where nothing was resolved, and it decides exactly as these
+	// gates always did.
+	EvaluatePlan(ctx context.Context, plan Plan, world WorldState, res *Resolution) PolicyDecision
+	EvaluateStep(ctx context.Context, step PlanStep, res *Resolution, world WorldState) PolicyDecision
 	// Constraints are what a planner is allowed to propose in the current context.
+	//
+	// DELIBERATELY NOT target-aware: it is asked before anything has been resolved, so there
+	// is no grounding to consult and a planner being told what it may propose is not an action
+	// being refused.
 	Constraints(ctx context.Context, world WorldState) PolicyConstraints
 }
 

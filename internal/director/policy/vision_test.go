@@ -119,7 +119,7 @@ func TestAVisionOnlyWorldIsNotSafeToActIn(t *testing.T) {
 	}
 
 	step, target := click(w)
-	d := engineAt(now).EvaluateStep(context.Background(), step, target, w)
+	d := engineAt(now).EvaluateStep(context.Background(), step, resolved(target), w)
 	if d.Allowed && !d.RequiresConfirmation {
 		t.Fatalf("a medium-risk click on a box only a model saw was allowed outright: %+v", d)
 	}
@@ -137,7 +137,7 @@ func TestTheSameWorldSeenStructurallyIsNotGated(t *testing.T) {
 	w := perceive(t, now, directorapi.SourceAccessibility, 0.95)
 
 	step, target := click(w)
-	d := engineAt(now).EvaluateStep(context.Background(), step, target, w)
+	d := engineAt(now).EvaluateStep(context.Background(), step, resolved(target), w)
 
 	if !d.Allowed {
 		t.Fatalf("a medium-risk click in a structured world was refused: %s", d.Reason)
@@ -154,7 +154,7 @@ func TestTheGateNamesWhatWasInsufficient(t *testing.T) {
 	w := perceive(t, now, directorapi.SourceVision, 0.55)
 
 	step, target := click(w)
-	d := engineAt(now).EvaluateStep(context.Background(), step, target, w)
+	d := engineAt(now).EvaluateStep(context.Background(), step, resolved(target), w)
 	if d.Allowed && !d.RequiresConfirmation {
 		t.Fatal("nothing gated the action")
 	}
@@ -193,7 +193,7 @@ func TestTheGateSaysWhenOnlyACameraSawIt(t *testing.T) {
 	w := perceive(t, now, directorapi.SourceVision, 0.9)
 
 	step, target := click(w)
-	d := engineAt(now).EvaluateStep(context.Background(), step, target, w)
+	d := engineAt(now).EvaluateStep(context.Background(), step, resolved(target), w)
 	if d.Allowed && !d.RequiresConfirmation {
 		t.Fatal("a control only a camera saw was allowed outright")
 	}
@@ -208,4 +208,14 @@ func TestTheGateSaysWhenOnlyACameraSawIt(t *testing.T) {
 		t.Errorf("a window full of visible controls was described as having none: %q",
 			d.Reason)
 	}
+}
+
+// resolved is the faithful translation of "this target was resolved" into the shape the
+// world-level gates now take: a bare target cannot say whether the request resolved to ONE of
+// them, and that difference is the whole of what those gates may consult.
+func resolved(t *directorapi.ResolvedTarget) *directorapi.Resolution {
+	if t == nil {
+		return nil
+	}
+	return &directorapi.Resolution{Status: directorapi.ResolutionResolved, Target: t}
 }
