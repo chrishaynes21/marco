@@ -226,6 +226,16 @@ the Director correctly says nothing in the window can be operated. A perception 
 grounding or authorization one, and not fixed by tuning a floor to one recording. See
 [[Experiment-051-the-stage-two-real-applications-produced]].
 
+Investigating the existing structural proposer as the missing source found the evidence is
+already there and is lost later: on that same frame it produces a **444x56 menu row** for the
+SETTINGS entry, the same 56 px height as every other entry, and `NameCandidates` fails to
+associate the word with it because the OCR box overruns the row by eight pixels and `within`
+requires total containment. The proposer is generic — 228 regions on a game, 40 on Explorer, 25
+on Paint — and it finds the rows the detector rejects below its floor. Neither reaches fusion.
+No new interface would be needed to change that, only a provider and an `ObservationSource`,
+and a new source is not in `ActuatingSource`, so proposed Props would arrive non-`Actuable` and
+still need a licence. See [[Experiment-052-what-the-structural-proposer-offers-the-stage]].
+
 ## Known gaps
 
 - ~~Vision runs an unrequested pass on every ordinary cycle.~~ **Fixed 2026-08-10.** The
