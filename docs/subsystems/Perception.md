@@ -441,6 +441,28 @@ tied surfaces on the Personalisation panel — a caption and the tile it labels,
 described by the tree, with nothing choosing between them. See
 [[Experiment-063-the-configuration-that-cannot-close-its-own-loop]].
 
+**A question nobody could answer is no longer asked.** Putting the surface question to a
+live accessibility tree found every tie on eight Settings pages to be a control beside its
+own wrapper — identical bounds and an identical press point, or two pixels apart — and the
+press rule settles a question only when exactly one option contains the press. So a question
+is offered only when some place exists that a press could use to single one out: each
+surface is clipped by every other, and what survives must be at least as large in both
+directions as the smallest surface already on the menu. The minimum comes from the screen
+rather than from a constant, because a threshold chosen to make one application pass fails
+the next one silently. The ambiguity is still reported as ambiguous; what the explanation
+adds is that the demonstration cannot exist rather than that somebody failed to give one.
+See [[ADR-210-a-question-nobody-could-answer-is-not-asked]].
+
+There are now **three observation configurations**, because two of them cannot work:
+production establishes a place and offers only unanswerable ties, pixel-only offers
+separable surfaces and can establish no place, and the augmented one is production defaults
+with the shape proposer and OCR added. The third is additive — `Include` adds opt-in sources
+and removes nothing, so accessibility is collected exactly as usual and production is
+unchanged because production does not ask. `Sources` stays empty on purpose: naming anything
+there would switch accessibility off by implication. All three go through the one sandbox
+door, and the configuration is unverified on a live screen. See
+[[ADR-211-production-observation-with-the-pixels-added]].
+
 ## Known gaps
 
 - ~~Vision runs an unrequested pass on every ordinary cycle.~~ **Fixed 2026-08-10.** The

@@ -98,28 +98,170 @@ func (h Hypothesis) Question() (Question, bool) {
 	// An unsettled IDENTITY is not a surface question. The evaluator reports it with the
 	// same decision, and a press cannot answer it: two Props named alike are two things a
 	// person could have meant, not two places one press could land.
-	if h.Unsettled != "which surface is the control" {
+	if h.Unsettled != unsettledWhichSurface {
 		return Question{}, false
 	}
 	q := Question{
 		Request: h.Request, Verb: h.Verb, Identity: *h.Identity,
 		Window: h.Window, WindowID: h.WindowID,
-	}
-	for _, c := range h.Candidates {
-		if !c.Defensible() {
-			continue
-		}
-		q.Options = append(q.Options, Option{
-			ElementID: c.ElementID, Bounds: c.Bounds, Point: c.Point,
-			Evidence: c.Evidence,
-		})
+		Options: h.surfaceOptions(),
 	}
 	if len(q.Options) < 2 {
+		return Question{}, false
+	}
+	// AND ONLY WHEN A PRESS COULD ANSWER IT.
+	//
+	// Two options are not a question. A question needs somewhere a person could press
+	// that would single ONE of them out, and on a live accessibility tree that is
+	// routinely untrue: a control and its own wrapper arrive at identical bounds with
+	// identical press points, or two pixels apart, and every point either offers lies
+	// inside both. Asking then is asking for a demonstration that cannot exist, and the
+	// person's correct press comes back as `undiscriminating` — which reads as their
+	// mistake. Measured on Windows Settings: e49 {908 54 98 38} against e50 {908 54 98
+	// 38}, same press point, and three options on the Personalisation panel of which
+	// two differed by two pixels.
+	//
+	// Deleting this must fail TestAQuestionNoPressCouldAnswerIsNotAsked.
+	if _, can := aPressCouldTellThemApart(q.Options); !can {
 		return Question{}, false
 	}
 	assignDepth(q.Options)
 	q.Asked = q.sentence()
 	return q, true
+}
+
+// surfaceOptions is the defensible surfaces as options, in candidate order.
+//
+// ONE BUILDER, used by Question and by the evaluator's own explanation of why it did not
+// ask, so the question that is offered and the reason given for withholding it are about
+// the same set of surfaces.
+func (h Hypothesis) surfaceOptions() []Option {
+	var out []Option
+	for _, c := range h.Candidates {
+		if !c.Defensible() {
+			continue
+		}
+		out = append(out, Option{
+			ElementID: c.ElementID, Bounds: c.Bounds, Point: c.Point,
+			Evidence: c.Evidence,
+		})
+	}
+	return out
+}
+
+// aPressCouldTellThemApart reports where somebody could press to single out exactly one of
+// these surfaces.
+//
+// # Why a region and not a point
+//
+// The first version of this asked whether any option's own middle fell inside exactly one
+// option, on the reasoning that those are the only points this system itself would press. It was
+// wrong, and a fixture said so: two peer surfaces overlapping in the middle are told apart by a
+// press near either outer edge, and neither middle is in exactly one of them. A person presses
+// where they like, so the question is whether a usable PLACE exists, not whether this system
+// would have nominated it.
+//
+// # What makes a place usable, without a new number
+//
+// The only pointer-safety rule in force anywhere in this tree is `ClickableByBounds`:
+// a non-empty rectangle is somewhere real to aim. That alone would admit a two-pixel margin
+// between two rectangles that differ by two pixels, which is exactly the case the owner named as
+// not usable.
+//
+// So the minimum comes from the evidence on screen rather than from a constant: the
+// discriminating area must be at least as large, in both directions, as the SMALLEST SURFACE
+// THIS QUESTION IS ALREADY WILLING TO PRESS. If a 24x24 icon is a legitimate target here, a
+// 24x24 exclusive area is equally pointable; if the exclusive area cannot hold the smallest
+// thing on the menu, it is not a target. Nothing is tuned to any particular screen and no
+// absolute size appears, which is the property that matters: a threshold chosen to make one
+// application pass is a threshold that will fail the next one silently.
+//
+// # The search is greedy, and therefore conservative
+//
+// Each surface is clipped by every other, keeping the largest of the four rectangles that
+// survive each clip. That can miss a qualifying area a full plane sweep would find, and the
+// direction is deliberate: refusing a question that was barely answerable costs an instruction,
+// while asking one that was not costs somebody's trust in the request.
+//
+// Measured against the cases that mattered. Admits e28 {637 424 126 18} inside
+// e27 {613 400 492 66}, where the clear part of the card is 342x66. Admits the two peer
+// surfaces of the contest fixture, at 50x28. Refuses e49 {908 54 98 38} against
+// e50 {908 54 98 38}, which leaves nothing at all, and refuses e58 {908 240 116 94} against
+// e59 {910 242 112 90}, whose widest exclusive strip is 116x2 against a smallest surface of 24.
+func aPressCouldTellThemApart(opts []Option) (directorapi.Rect, bool) {
+	least := 0
+	for _, o := range opts {
+		side := o.Bounds.Width
+		if o.Bounds.Height < side {
+			side = o.Bounds.Height
+		}
+		if side <= 0 {
+			// A surface with no rectangle is somewhere nobody can aim, and it
+			// cannot set the bar for anybody else either.
+			continue
+		}
+		if least == 0 || side < least {
+			least = side
+		}
+	}
+	if least == 0 {
+		return directorapi.Rect{}, false
+	}
+	for i, o := range opts {
+		clear := o.Bounds
+		for j, other := range opts {
+			if i == j {
+				continue
+			}
+			clear = outside(clear, other.Bounds)
+			if clear.Empty() {
+				break
+			}
+		}
+		if clear.Width >= least && clear.Height >= least {
+			return clear, true
+		}
+	}
+	return directorapi.Rect{}, false
+}
+
+// outside is the largest part of r that b does not cover.
+//
+// One of the four rectangles r is cut into by b, or nothing when b covers r. Half-open, like
+// `covers` and like every other rectangle in this package, so a shared edge is not an overlap.
+func outside(r, b directorapi.Rect) directorapi.Rect {
+	if r.Empty() || b.Empty() {
+		return r
+	}
+	// NO OVERLAP IS NO CLIP. Checked first because the common case on a real screen is
+	// seven surfaces of which one contains the identity and the rest are elsewhere.
+	if b.X >= r.X+r.Width || b.X+b.Width <= r.X ||
+		b.Y >= r.Y+r.Height || b.Y+b.Height <= r.Y {
+		return r
+	}
+	parts := []directorapi.Rect{
+		{X: r.X, Y: r.Y, Width: b.X - r.X, Height: r.Height},
+		{X: b.X + b.Width, Y: r.Y, Width: r.X + r.Width - (b.X + b.Width),
+			Height: r.Height},
+		{X: r.X, Y: r.Y, Width: r.Width, Height: b.Y - r.Y},
+		{X: r.X, Y: b.Y + b.Height, Width: r.Width,
+			Height: r.Y + r.Height - (b.Y + b.Height)},
+	}
+	best := directorapi.Rect{}
+	for _, p := range parts {
+		if p.Width <= 0 || p.Height <= 0 {
+			continue
+		}
+		if p.Width*p.Height > best.Width*best.Height {
+			best = p
+		}
+	}
+	return best
+}
+
+// covers is this package's one containment rule: half-open, like every rectangle here.
+func covers(b directorapi.Rect, x, y int) bool {
+	return x >= b.X && y >= b.Y && x < b.X+b.Width && y < b.Y+b.Height
 }
 
 // assignDepth numbers the options outwards from the identity.
@@ -252,8 +394,7 @@ func (q Question) Answer(at observe.PointerAt) Answer {
 	x := q.Window.X + int(at.X*float64(q.Window.Width)+0.5)
 	y := q.Window.Y + int(at.Y*float64(q.Window.Height)+0.5)
 	for _, o := range q.Options {
-		if x < o.Bounds.X || y < o.Bounds.Y ||
-			x >= o.Bounds.X+o.Bounds.Width || y >= o.Bounds.Y+o.Bounds.Height {
+		if !covers(o.Bounds, x, y) {
 			continue
 		}
 		a.Inside = append(a.Inside, o)

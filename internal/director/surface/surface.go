@@ -318,7 +318,7 @@ func (e *Evaluator) Evaluate(w *directorapi.WorldState, request, verb string,
 			"%s and %s — which fusion's own rule calls peers rather than one inside "+
 			"the other, so nothing here chooses between them",
 			best.Label, len(good), h.Candidates[good[0]].ElementID, peer.Element.ID)
-		h.Unsettled = "which surface is the control"
+		h.Unsettled = unsettledWhichSurface
 	case len(good) == 0:
 		h.Decision = DecisionInsufficient
 		h.Explanation = fmt.Sprintf("%d surface(s) contain %q and none of them is "+
@@ -358,10 +358,37 @@ func (e *Evaluator) Evaluate(w *directorapi.WorldState, request, verb string,
 		h.Explanation = fmt.Sprintf("%d surfaces containing %q are equally defensible "+
 			"on this evidence (%s), and nothing here chooses between them",
 			len(good), best.Label, strings.Join(names, ", "))
-		h.Unsettled = "which surface is the control"
+		h.Unsettled = unsettledWhichSurface
+	}
+	// AND WHETHER A PRESS COULD ANSWER WHAT WAS LEFT OPEN.
+	//
+	// The ambiguity is real either way — nothing here chose, and saying it did would be
+	// worse than saying nothing. What changes is whether a DEMONSTRATION could settle it, and
+	// when it could not, the reason belongs in the explanation rather than in somebody's
+	// failed attempt to give one. `Question` applies the same test to decide not to ask; this
+	// is what says why.
+	//
+	// Deleting this must fail TestAnUnanswerableAmbiguitySaysWhyRatherThanAsking.
+	if h.Unsettled == unsettledWhichSurface {
+		if _, can := aPressCouldTellThemApart(h.surfaceOptions()); !can {
+			h.Explanation += ". No press could tell them apart: the part of each " +
+				"surface the others leave clear is smaller than the smallest " +
+				"surface here, so there is nowhere anybody could click that " +
+				"would single one out. That is a demonstration which cannot " +
+				"exist rather than one somebody failed to give, and the answer " +
+				"is better evidence about the surfaces, not a clearer " +
+				"instruction"
+		}
 	}
 	return h
 }
+
+// unsettledWhichSurface is the one open question a press can settle.
+//
+// A constant because three places set it and a fourth reads it to decide whether to ask.
+// Spelled out in four string literals, one of them would eventually disagree with the others
+// by a word, and the disagreement would read as a question that is never asked.
+const unsettledWhichSurface = "which surface is the control"
 
 // judge assembles the evidence for one candidate and says whether it survives.
 func (e *Evaluator) judge(w *directorapi.WorldState, ordered []*directorapi.Element,
