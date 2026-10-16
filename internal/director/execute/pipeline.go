@@ -11,6 +11,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/plan"
 	"github.com/chaynes-simpleclouds/marco/internal/director/program"
 	"github.com/chaynes-simpleclouds/marco/internal/director/search"
+	"github.com/chaynes-simpleclouds/marco/internal/director/surface"
 	"github.com/chaynes-simpleclouds/marco/internal/director/target"
 	"github.com/chaynes-simpleclouds/marco/internal/director/trace"
 	"github.com/chaynes-simpleclouds/marco/internal/director/values"
@@ -70,7 +71,22 @@ type Pipeline struct {
 	// target with the resolver's own sentence. Consulted at ONE point — a resolution that came
 	// back `absent`, which is the only status that means "read, and not here". See look.go.
 	Searcher *search.Searcher
-	Planner  *plan.Planner
+	// Surfaces applies what a person has demonstrated about where a press goes.
+	//
+	// Optional, and its absence is the whole of what keeps this safe to add to a shared
+	// path: without one the pipeline resolves exactly as it did before, and a Prop whose
+	// role affords nothing is refused by the resolver as it always was. See
+	// [[ADR-206-a-demonstrated-surface-is-one-fact-about-one-target]].
+	//
+	// Consulted at ONE point — before resolution, because the question it answers is one of
+	// the resolver's own clauses and the resolver has to be told rather than overridden.
+	Surfaces *surface.Grounder
+	// Place is the durable subject id of the screen Marco is standing on, for the one
+	// thing that needs it: a durable semantic target is `{label, kind, place}` and has no
+	// identity without the last. Optional, and its absence costs the second half of
+	// demonstration grounding and not the first — see surfacegrounding.go.
+	Place   func(directorapi.WorldState) string
+	Planner *plan.Planner
 	// Goals expands a high-level goal into a program. Optional: without it the
 	// pipeline behaves exactly as it did before, which is how a caller that has not
 	// opted in stays unaffected.
@@ -904,17 +920,51 @@ func (p *Pipeline) prepareTraced(ctx context.Context, request string, world dire
 		// It does not reach policy. Risk and destructiveness are evaluated below
 		// from the planned action, and that evaluation cannot see this.
 		lic := directorapi.OperateLicence{Instruction: request, Verb: in.Verb}
+		// AND WHAT, IF ANYTHING, SOMEBODY HAS DEMONSTRATED ABOUT WHERE THE PRESS GOES.
+		//
+		// Asked BEFORE resolution and handed to it, because what a demonstration
+		// answers is one of the resolver's own clauses — whether the interface
+		// presents anything operable at that rectangle. A surface chosen here and
+		// handed to the planner instead would be a second copy of the rule ADR-204
+		// made policy trust this one for. See target.Demonstration.
+		//
+		// Zero without a grounder, which is every caller that has not opted in.
+		ground := p.ground(&world, in, request, query)
 		var res directorapi.Resolution
 		_ = trace.Do(ctx, p.Trace, trace.PhaseResolve, p.stepMeta(trace.PhaseResolve),
 			func(context.Context) error {
-				res = p.Resolver.ResolveUnder(&world, query, lic, in.Verb)
+				res = p.Resolver.ResolveDemonstrated(&world, query, lic, in.Verb,
+					ground.Shown)
 				return nil
 			})
 		input.Resolution = res
 
 		if res.Status != directorapi.ResolutionResolved {
 			add("resolve", string(res.Status)+": "+res.Explanation, false)
+			// AND WHETHER THERE IS A QUESTION A PERSON COULD SETTLE.
+			//
+			// A refusal that could be answered by one press is not the same
+			// refusal as one that could not, and the two must not read alike:
+			// "Settings is not an interactive control" sends somebody looking
+			// for a missing button, and "I cannot tell which area is the
+			// control, show me once" asks them for the one thing that would fix
+			// it. Clarification is the existing status for a refusal the user
+			// can resolve.
+			if q := ground.Question; q != nil && q.Open() {
+				add("surface", q.Asked, false)
+				return nil, nil, &res,
+					directorapi.ResultNeedsClarification, q.Asked, diag
+			}
 			return nil, nil, &res, statusFor(res), res.Explanation, diag
+		}
+		// AND WHERE AN ORDINARY ROLE DID NOT ACCOUNT FOR THIS, SAY SO OUT LOUD.
+		//
+		// A press about to happen on a Prop that affords nothing by role is happening
+		// because a person demonstrated it, and that is the most important sentence in
+		// the whole exchange. It belongs in the record a person reads, not only in the
+		// candidate.
+		if ground.Shown.Covers(res.Target.ElementID) {
+			add("surface", ground.Shown.Because, true)
 		}
 		add("resolve", fmt.Sprintf("%s %q (%.2f)", res.Target.Role, res.Target.Label,
 			res.Target.Confidence), true)

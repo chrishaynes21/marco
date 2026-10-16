@@ -77,6 +77,10 @@ type file struct {
 	Candidates []observe.ProcedureCandidate `json:"candidates,omitempty"`
 	// Rehearsals is what whole attempts proved. Bounded evidence, nothing executable.
 	Rehearsals []observe.RehearsalEvidence `json:"rehearsals,omitempty"`
+	// Surfaces is where a person demonstrated that the press goes, per target. Beside the
+	// subjects for the reason everything here is: a record names a target subject, and a
+	// second file could disagree about whether that subject exists.
+	Surfaces []observe.DemonstratedSurface `json:"surfaces,omitempty"`
 	// Goals are the destinations people asked Marco to learn, in their own words. Beside
 	// the subjects for the same reason everything here is: a goal names a subject, and a
 	// second file could disagree about whether that subject exists.
@@ -117,6 +121,9 @@ type Store struct {
 	// rehearsals is what whole attempts proved. Evidence, never a procedure: see
 	// observe.RehearsalEvidence for what is deliberately absent.
 	rehearsals []observe.RehearsalEvidence
+	// surfaces is where a person demonstrated that a press goes. Evidence about one target,
+	// never a rule about a shape; see observe.DemonstratedSurface.
+	surfaces []observe.DemonstratedSurface
 	// goals are remembered destinations. A name and a subject — never a start, never a
 	// route; see observe.Goal for why the type has nowhere to put either.
 	goals []observe.Goal
@@ -140,6 +147,7 @@ var (
 	_ observe.PlaceStore   = (*Store)(nil)
 	_ observe.GoalStore    = (*Store)(nil)
 	_ observe.ScreenAuthor = (*Store)(nil)
+	_ observe.SurfaceStore = (*Store)(nil)
 )
 
 // Open reads the store, or returns an inert one that explains why it could not.
@@ -213,6 +221,17 @@ func Open(path string) (*Store, string) {
 			continue
 		}
 		s.rehearsals = append(s.rehearsals, e)
+	}
+	for _, d := range f.Surfaces {
+		// THE SAME REFERENTIAL RULE, and here it is load-bearing rather than tidy: a
+		// surface record is where a press GOES, and its target is the only thing that
+		// says which control the press was about. A record whose target subject is gone
+		// would be a saved aiming decision with nothing left to aim at.
+		if !known[d.Target] {
+			s.orphaned++
+			continue
+		}
+		s.surfaces = append(s.surfaces, d)
 	}
 	for _, w := range f.Watched {
 		// THE SAME REFERENTIAL RULE, and it applies to only HALF of a candidate.
@@ -501,6 +520,7 @@ func (s *Store) snapshotLocked() file {
 		Relationships: append([]observe.RememberedRelationship{}, s.relationships...),
 		Candidates:    append([]observe.ProcedureCandidate{}, s.candidates...),
 		Rehearsals:    append([]observe.RehearsalEvidence{}, s.rehearsals...),
+		Surfaces:      append([]observe.DemonstratedSurface{}, s.surfaces...),
 		Goals:         append([]observe.Goal{}, s.goals...),
 		Watched:       append([]observe.WatchedEdge{}, s.watched...),
 	}

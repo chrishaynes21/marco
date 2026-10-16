@@ -362,6 +362,12 @@ func TestNothingCapturedCanReachDurableMemory(t *testing.T) {
 	// digests and a per-step outcome, and it is the newest durable evidence type, so it is the
 	// most likely place a future field could smuggle a window title, a label or a process id in.
 	walk(reflect.TypeOf(observe.RehearsalEvidence{}), "RehearsalEvidence")
+	// AND WHAT A DEMONSTRATION ESTABLISHED ABOUT A SURFACE. The newest durable type, written
+	// to the same file with the same lifetime, and the one with the strongest pull towards a
+	// forbidden field: it is ABOUT a rectangle, so a coordinate, a window reference or the
+	// word on the control would each look like the obvious thing to store. It carries the
+	// target by its durable subject id for exactly that reason.
+	walk(reflect.TypeOf(observe.DemonstratedSurface{}), "DemonstratedSurface")
 }
 
 // The durable-memory guard is load-bearing: a forbidden field added to rehearsal evidence is

@@ -336,6 +336,32 @@ supplies and one demonstration does. See
 [[ADR-205-a-surface-hypothesis-is-request-scoped-and-refuses-to-guess]] and
 [[Experiment-057-what-earns-a-click-on-five-interfaces]].
 
+### A demonstrated surface is one fact about one target
+
+The answer to that question is a person's own press, and the one real discovery is that **a press
+on the words settles nothing**: shown "the word, or the row?" a person clicks the word, the word is
+inside the row, and the smallest-containing rule every other part of this system uses would have
+answered "the word" every time while learning nothing. So a press settles it only when exactly one
+surface contains it, and the question says which part of the control would tell them apart.
+
+What is remembered is a RELATION — the identity's own region, or a containing region at a depth —
+joined to a durable semantic target by its subject id, with the normalised rectangles kept as
+evidence that can only CONTRADICT a later reading. No coordinate, no label, no third durable-text
+exception. Three confirmations stay apart (`observed`, `attributed`, `verified`) and `observed` is
+kept and refuses to aim.
+
+Later use re-observes, re-evaluates, selects by relation, and lets the stored shape veto the
+result — then hands `target.Demonstration` to the resolver, where it answers **one clause**:
+`Actionability.Any()`, the affordance a proposed rectangle cannot claim for itself. ADR-202's
+licence, enabledness, geometry, policy and the ladder are all still required. Identity and surface
+travel as two things, because the words identify and the surface locates.
+
+Measured on the recorded game menu: the loop closes, and the press reaches the actuator at
+(320,778) — the row's own middle, where the words' is (469,775). No production path grounds a
+demonstration yet: `Pipeline.Surfaces` and `Pipeline.Place` are both nil in the daemon. See
+[[ADR-206-a-demonstrated-surface-is-one-fact-about-one-target]] and
+[[Experiment-058-one-question-one-answer-and-the-same-request-again]].
+
 ## Known gaps
 
 - ~~Vision runs an unrequested pass on every ordinary cycle.~~ **Fixed 2026-08-10.** The

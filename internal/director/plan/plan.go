@@ -324,7 +324,11 @@ func elementTarget(in Input) (directorapi.ElementReference, error) {
 		// The source's own id travels with the choice, so execution can find the same
 		// control when the Director's element id has moved under it. See
 		// directorapi.ElementReference.NativeID.
-		NativeID:    t.NativeID,
+		NativeID: t.NativeID,
+		// AND WHERE THE PRESS GOES, when a demonstration said somewhere other than the
+		// identified control's own middle. An id, resolved again by the executor against
+		// the world in front of it. See directorapi.ElementReference.Surface.
+		Surface:     t.Surface,
 		Query:       t.Query,
 		Description: describeTarget(in),
 	}, nil

@@ -182,6 +182,13 @@ type Hypothesis struct {
 	// Candidates is every surface considered, best container first, including the rejected
 	// with the reason. The losers are the explanation.
 	Candidates []Candidate `json:"candidates,omitempty"`
+	// Window is the rectangle every candidate above is stated in.
+	//
+	// Carried because a surface means nothing without it: the area share is a fraction OF
+	// this, the band rule is about running the width of THIS, and a press arrives
+	// window-relative and has to be placed back into the space the candidates are in. A
+	// caller that had to ask the world again for it could ask a different world.
+	Window directorapi.Rect `json:"window"`
 	// Chosen is the one defensible surface, set only when Decision says there is one.
 	Chosen      *Candidate `json:"chosen,omitempty"`
 	Decision    Decision   `json:"decision"`
@@ -290,6 +297,7 @@ func (e *Evaluator) Evaluate(w *directorapi.WorldState, request, verb string,
 	peer, peered := fusion.Rivals(owners)
 
 	window, _ := w.Window(el.WindowID)
+	h.Window = window.Bounds
 	for _, o := range owners {
 		h.Candidates = append(h.Candidates, e.judge(w, ordered, o, el, window.Bounds, q))
 	}

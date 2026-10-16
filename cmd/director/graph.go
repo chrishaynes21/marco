@@ -472,13 +472,31 @@ func resolveRef(observe execute.Observer, ref directorapi.ElementReference) (dir
 	}
 	if el, ok := w.Element(ref.ID); ok {
 		native, _ := el.Attributes["native_id"].(string)
-		return directorapi.ResolvedTarget{
+		t := directorapi.ResolvedTarget{
 			ElementID: el.ID, WindowID: el.WindowID, Point: el.ClickPoint(),
 			Role: el.Role, Label: el.Label, NativeID: native, Confidence: el.Confidence,
 			// The same facts the Director's own resolver records, from the same
 			// builder, so a re-resolution cannot disagree with the resolution.
 			Control: directorapi.FactsOf(el),
-		}, nil
+		}
+		// AND THE DEMONSTRATED SURFACE, RE-OBSERVED LIKE EVERYTHING ELSE HERE.
+		//
+		// This function exists because the element the plan named may have moved under
+		// the Director between resolution and acting, so the point is recomputed from
+		// what is on screen NOW. A surface carried on the reference has to be recomputed
+		// the same way, or the one number a demonstration contributes would be the one
+		// number in the whole path that was not re-observed.
+		//
+		// A surface that is no longer there leaves the identity's own middle standing,
+		// which is the honest fallback: the press is then where it would have been
+		// without any demonstration, and nothing stale is pressed.
+		if ref.Surface != "" && ref.Surface != el.ID {
+			if sel, ok := w.Element(ref.Surface); ok && !sel.Bounds.Empty() {
+				t.Surface = ref.Surface
+				t.Point = sel.ClickPoint()
+			}
+		}
+		return t, nil
 	}
 	// THE SOURCE'S OWN ID, before the description.
 	//

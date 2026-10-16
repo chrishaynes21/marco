@@ -231,6 +231,21 @@ func (r *Resolution) GroundedIn(w *WorldState, now time.Time) (bool, string) {
 		if !acts.ClickableByBounds {
 			return false, "the target has no on-screen rectangle in this reading"
 		}
+		// AND THE SURFACE, when the press belongs somewhere other than this element's
+		// own middle. Geometry again, and the same question asked of the same world: a
+		// resolution naming a surface that is not in this reading has nowhere to aim,
+		// and a grounded target with nowhere to aim is exactly what this gate is for.
+		if s := r.Target.Surface; s != "" && s != id {
+			sel, ok := w.Element(s)
+			if !ok {
+				return false, "the surface the press was aimed at is not in this " +
+					"reading of the screen"
+			}
+			if !sel.Actions().ClickableByBounds {
+				return false, "the surface the press was aimed at has no " +
+					"on-screen rectangle in this reading"
+			}
+		}
 		if !acts.Enabled {
 			// The resolver requires this too, and keeps a disabled match as a
 			// candidate so "Save is greyed out" can be said. Such a match is a real

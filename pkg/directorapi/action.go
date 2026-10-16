@@ -93,6 +93,20 @@ type ElementReference struct {
 	// the whole design refuses.
 	NativeID string `json:"native_id,omitempty"`
 
+	// Surface is the element whose own middle the press belongs on, when a person
+	// demonstrated that it is not the identified element's own region.
+	//
+	// Travels with the reference because the executor observes AFRESH before acting and
+	// recomputes the point from the element it finds — so a surface decided at resolution
+	// and not carried here would be silently replaced by the identity's own middle. An ID
+	// and never a coordinate: the press is computed from whatever that Prop is at the
+	// moment of acting, and a surface that has gone leaves the reference falling back to
+	// the identity rather than to a remembered number.
+	//
+	// Set only by a demonstrated resolution; empty on every path that existed before it.
+	// See directorapi.ResolvedTarget.Surface.
+	Surface ElementID `json:"surface,omitempty"`
+
 	// CoordinateLocked marks this reference as inherently positional. Required
 	// before Point is used, and it makes the action ineligible for semantic repeat
 	// in a different window or app.

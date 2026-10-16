@@ -175,6 +175,18 @@ func TestTheseAreNotGrounding(t *testing.T) {
 			Status: directorapi.ResolutionResolved,
 			Target: &directorapi.ResolvedTarget{Confidence: 0.9}},
 			"neither an element nor a window"},
+		// A SURFACE THIS READING DOES NOT HAVE.
+		//
+		// [[ADR-206-a-demonstrated-surface-is-one-fact-about-one-target]] lets a
+		// demonstrated surface decide where the press goes, so grounding has to ask
+		// the same geometric question of it that it asks of the identity: a target
+		// aimed at a rectangle that is not here has nowhere to aim, and policy
+		// trusting it would be policy trusting a press into nothing.
+		{"a surface this reading does not have", &directorapi.Resolution{
+			Status: directorapi.ResolutionResolved,
+			Target: &directorapi.ResolvedTarget{ElementID: "e194",
+				Surface: "e999", Confidence: 0.9}},
+			"not in this reading"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ok, why := tc.res.GroundedIn(&w, t0)

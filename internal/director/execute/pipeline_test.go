@@ -220,10 +220,21 @@ func newHarness(worlds ...directorapi.WorldState) *harness {
 			w := h.worlds[min(h.observed-1, len(h.worlds)-1)]
 			if el, ok := w.Element(ref.ID); ok {
 				native, _ := el.Attributes["native_id"].(string)
-				return directorapi.ResolvedTarget{
+				t := directorapi.ResolvedTarget{
 					ElementID: el.ID, WindowID: el.WindowID, Point: el.ClickPoint(),
 					Role: el.Role, Label: el.Label, NativeID: native,
-				}, nil
+				}
+				// The demonstrated surface, re-observed — the same rule
+				// `resolveRef` applies in production, so this harness cannot
+				// pass a path the daemon would fail.
+				if ref.Surface != "" && ref.Surface != el.ID {
+					if sel, ok := w.Element(ref.Surface); ok &&
+						!sel.Bounds.Empty() {
+						t.Surface = ref.Surface
+						t.Point = sel.ClickPoint()
+					}
+				}
+				return t, nil
 			}
 			return directorapi.ResolvedTarget{}, errors.New("the target is no longer on screen")
 		},

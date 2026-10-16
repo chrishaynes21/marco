@@ -17,6 +17,22 @@ type ResolvedTarget struct {
 	// of where the action went, never as the thing a repeat replays — a repeat
 	// re-resolves unless the reference was coordinate-locked.
 	Point Point `json:"point"`
+	// Surface is the element whose own middle Point came from, when that is not the
+	// identified element.
+	//
+	// # Why identity and position can come apart at all
+	//
+	// They cannot, where an accessibility tree reports a button: the thing that is named
+	// and the thing that is pressed are one object.
+	// [[Experiment-057-what-earns-a-click-on-five-interfaces]] measured them coming apart
+	// where nothing but pixels describes the screen — OCR reads SETTINGS on a 162x22
+	// region and the 444x56 menu row around it is also a Prop and is also a place a person
+	// would press. The words IDENTIFY; the surface LOCATES.
+	//
+	// AN ID, so the press is still that Prop's own middle computed from a live reading.
+	// Set only where a person demonstrated it — see target.Demonstration — and empty
+	// everywhere else, which is every path that existed before it.
+	Surface ElementID `json:"surface,omitempty"`
 
 	// Role and Label describe what was chosen, so history stays readable after the
 	// element itself is long gone.
@@ -58,6 +74,15 @@ type TargetCandidate struct {
 	// Rejected, when set, is why this candidate was excluded outright rather than
 	// merely out-scored ("disabled", "not an interactive control", "not visible").
 	Rejected string `json:"rejected,omitempty"`
+	// Demonstrated, when set, is why this candidate was accepted as presenting something
+	// operable although its role says nothing is.
+	//
+	// The counterpart of Rejected and recorded for the same reason: a candidate admitted on
+	// something other than the ordinary rule has to be able to say so. A Prop the shape
+	// proposer found affords nothing by role, and the only thing that can answer that is a
+	// person having pressed it — so where this is set, a human demonstration is the reason
+	// the press is about to be allowed, and every report of it should say so out loud.
+	Demonstrated string `json:"demonstrated,omitempty"`
 }
 
 // VerificationResult is the verdict on whether an action had its intended effect.

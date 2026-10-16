@@ -73,6 +73,17 @@ func (r *Resolver) Resolve(w *directorapi.WorldState, q directorapi.ElementQuery
 func (r *Resolver) ResolveUnder(w *directorapi.WorldState, q directorapi.ElementQuery,
 	lic directorapi.OperateLicence, verb string) directorapi.Resolution {
 
+	return r.resolve(w, q, lic, verb, Demonstration{})
+}
+
+// resolve is the whole of resolution, told everything the request carries.
+//
+// One body, so the licensed, unlicensed and demonstrated entry points cannot diverge: the
+// difference between them is entirely in what they pass, and there is no second ranking, second
+// ambiguity rule or second explanation anywhere in this package.
+func (r *Resolver) resolve(w *directorapi.WorldState, q directorapi.ElementQuery,
+	lic directorapi.OperateLicence, verb string, shown Demonstration) directorapi.Resolution {
+
 	if !q.Constrained() {
 		return directorapi.Resolution{
 			Status:      directorapi.ResolutionUnobservable,
@@ -81,12 +92,12 @@ func (r *Resolver) ResolveUnder(w *directorapi.WorldState, q directorapi.Element
 		}
 	}
 
-	candidates := r.rankUnder(w, q, lic, verb)
+	candidates := r.rankUnder(w, q, lic, verb, shown)
 
 	// A match found despite a poor world is still a match: the world being weak
 	// overall does not unfind a control we can plainly see and use.
 	if best := firstUsable(candidates); best != nil {
-		return r.decide(w, q, candidates)
+		return r.decide(w, q, candidates, shown)
 	}
 
 	// Nothing usable found. Now the question is whether this world was ever capable
@@ -146,7 +157,8 @@ func (r *Resolver) ResolveUnder(w *directorapi.WorldState, q directorapi.Element
 
 // decide turns a ranked candidate list into a resolved or ambiguous outcome.
 func (r *Resolver) decide(w *directorapi.WorldState, q directorapi.ElementQuery,
-	candidates []directorapi.TargetCandidate) directorapi.Resolution {
+	candidates []directorapi.TargetCandidate,
+	shown Demonstration) directorapi.Resolution {
 
 	usable := usableOnly(candidates)
 	best := usable[0]
@@ -165,7 +177,8 @@ func (r *Resolver) decide(w *directorapi.WorldState, q directorapi.ElementQuery,
 		}
 		best = usable[q.Ordinal-1]
 		return resolved(w, q, best, candidates,
-			fmt.Sprintf("match %d of %d for %s", q.Ordinal, len(usable), describe(q)))
+			fmt.Sprintf("match %d of %d for %s", q.Ordinal, len(usable), describe(q)),
+			shown)
 	}
 
 	if len(usable) > 1 && usable[1].Score > best.Score-r.AmbiguityMargin {
@@ -177,7 +190,7 @@ func (r *Resolver) decide(w *directorapi.WorldState, q directorapi.ElementQuery,
 			// Cannot honestly call this ambiguous: there are not two things to offer.
 			// Resolving to the best is the truthful reading — nothing was close enough
 			// to contest it after all.
-			return resolved(w, q, best, candidates, explain(best))
+			return resolved(w, q, best, candidates, explain(best), shown)
 		}
 		return directorapi.Resolution{
 			Status:     directorapi.ResolutionAmbiguous,
@@ -187,11 +200,11 @@ func (r *Resolver) decide(w *directorapi.WorldState, q directorapi.ElementQuery,
 				len(contenders), describe(q)),
 		}
 	}
-	return resolved(w, q, best, candidates, explain(best))
+	return resolved(w, q, best, candidates, explain(best), shown)
 }
 
 func resolved(w *directorapi.WorldState, q directorapi.ElementQuery, best directorapi.TargetCandidate,
-	all []directorapi.TargetCandidate, why string) directorapi.Resolution {
+	all []directorapi.TargetCandidate, why string, shown Demonstration) directorapi.Resolution {
 
 	el, _ := w.Element(best.ElementID)
 	query := q
@@ -210,6 +223,24 @@ func resolved(w *directorapi.WorldState, q directorapi.ElementQuery, best direct
 	if el != nil {
 		target.WindowID = el.WindowID
 		target.Point = el.ClickPoint()
+		// AND WHERE THE PRESS GOES, WHEN A DEMONSTRATION SAID SOMEWHERE ELSE.
+		//
+		// `ResolvedTarget` has always separated identity from position, and this is the
+		// first thing to use the separation: the words IDENTIFY the control and the
+		// surface a person demonstrated LOCATES it. The regrounder one tier down says
+		// the same sentence about the same problem.
+		//
+		// A PROP'S OWN MIDDLE, never a remembered number. The surface is named by id
+		// and looked up in THIS world, so the press is computed from a live observation
+		// of the thing that is there now — and a surface the demonstration named that is
+		// no longer on screen contributes nothing rather than a stale coordinate.
+		if shown.Covers(best.ElementID) && shown.Surface != "" &&
+			shown.Surface != best.ElementID {
+			if sel, ok := w.Element(shown.Surface); ok && !sel.Bounds.Empty() {
+				target.Surface = shown.Surface
+				target.Point = sel.ClickPoint()
+			}
+		}
 		target.Alternatives = all[1:]
 		if n, ok := el.Attributes["native_id"].(string); ok {
 			target.NativeID = n
@@ -254,12 +285,13 @@ func unobservable(w *directorapi.WorldState) (blocker, why string) {
 
 // rank scores every element against the query, best first.
 func (r *Resolver) rank(w *directorapi.WorldState, q directorapi.ElementQuery) []directorapi.TargetCandidate {
-	return r.rankUnder(w, q, directorapi.OperateLicence{}, "")
+	return r.rankUnder(w, q, directorapi.OperateLicence{}, "", Demonstration{})
 }
 
-// rankUnder is rank, told what the request is licensed to operate.
+// rankUnder is rank, told what the request is licensed to operate and what was demonstrated.
 func (r *Resolver) rankUnder(w *directorapi.WorldState, q directorapi.ElementQuery,
-	lic directorapi.OperateLicence, verb string) []directorapi.TargetCandidate {
+	lic directorapi.OperateLicence, verb string,
+	shown Demonstration) []directorapi.TargetCandidate {
 
 	var out []directorapi.TargetCandidate
 
@@ -267,7 +299,7 @@ func (r *Resolver) rankUnder(w *directorapi.WorldState, q directorapi.ElementQue
 		if !inScope(w, el, q) {
 			continue
 		}
-		c := score(el, q, lic, verb)
+		c := score(el, q, lic, verb, shown)
 		if c.Score < r.MinScore && c.Rejected == "" {
 			continue
 		}
@@ -356,7 +388,8 @@ const (
 
 // score rates one element against the query and records why.
 func score(el *directorapi.Element, q directorapi.ElementQuery,
-	lic directorapi.OperateLicence, verb string) directorapi.TargetCandidate {
+	lic directorapi.OperateLicence, verb string,
+	shown Demonstration) directorapi.TargetCandidate {
 	c := directorapi.TargetCandidate{
 		ElementID: el.ID,
 		Role:      el.Role,
@@ -451,7 +484,27 @@ func score(el *directorapi.Element, q directorapi.ElementQuery,
 	// did anything say this may be OPERATED — is asked second, where an explicit
 	// instruction may answer it. See directorapi.OperateLicence.
 	operable, why := el.OperableUnder(lic, verb)
-	if !(acts.Enabled && acts.ClickableByBounds && operable && acts.Any()) {
+	// AND WHETHER THE INTERFACE PRESENTS ANYTHING OPERABLE HERE, which is the third
+	// question and the one a proposed rectangle cannot answer for itself.
+	//
+	// `Any()` is derived from ROLE, so a Prop the shape proposer found answers no however
+	// well it is observed and however exactly the words match. Experiment-057 measured that
+	// as the only thing refusing a correctly matched, correctly licensed menu entry.
+	//
+	// A person pressing that rectangle, and the screen then changing, is evidence about
+	// exactly this question — the interface itself answering it, which is better evidence
+	// than a role string. So a demonstration may answer this clause and NO OTHER: enabled,
+	// reachable and ADR-202's licence are all still required, and all still asked above.
+	//
+	// It cannot be inferred from inside here; see demonstrated.go. Deleting this must fail
+	// TestADemonstratedSurfaceResolvesAndNothingElseDoes.
+	affords := acts.Any()
+	if !affords && shown.Covers(el.ID) {
+		affords = true
+		c.Signals["demonstrated"] = 1
+		c.Demonstrated = shown.Because
+	}
+	if !(acts.Enabled && acts.ClickableByBounds && operable && affords) {
 		// Recorded, not dropped: an unusable match is a real finding, and it is
 		// what lets the Director say "Save is disabled" instead of "Save does not
 		// exist".
