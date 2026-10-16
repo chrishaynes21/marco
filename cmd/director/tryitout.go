@@ -121,8 +121,8 @@ func tryItOut(out io.Writer, args []string) int {
 	prepare := fs.Bool("prepare", false,
 		"establish the disposable store and report every precondition, interacting with nothing")
 	observe := fs.Int("observe", 0,
-		"watch for this many seconds and report whether a press from a hand arrives; "+
-			"started only when a person has said they are ready")
+		"probe the screen in front for this many seconds: can a place be established "+
+			"here, and is any word's surface in question? reads, presses nothing")
 	demonstrate := fs.Bool("demonstrate", false,
 		"ask the live screen, then watch a person answer; keeps only what an attributed "+
 			"crossing confirms")
@@ -131,6 +131,12 @@ func tryItOut(out io.Writer, args []string) int {
 	exec := fs.Bool("execute", false, "perform exactly one guarded click")
 	authorise := fs.Bool("authorise-one-click", false,
 		"authorise the single click -execute would perform")
+	survey := fs.Bool("survey", false,
+		"ask of every word on one Stage whether it would raise a surface question; "+
+			"reads, and interacts with nothing")
+	production := fs.Bool("production-observation", false,
+		"probe under production observation defaults instead, for comparison only; "+
+			"still a sandbox, still a dry run, still presses nothing")
 	clean := fs.Bool("clean", false, "empty the disposable store")
 	phrase := fs.String("instruction", "",
 		"the instruction being tested, e.g. \"click Bluetooth & devices\"")
@@ -145,7 +151,8 @@ func tryItOut(out io.Writer, args []string) int {
 	// separating what learns from what presses is a safety property, and a front end that
 	// chained them would be the thing that property exists to prevent.
 	chosen := 0
-	for _, on := range []bool{*prepare, *observe > 0, *demonstrate, *replay, *exec, *clean} {
+	for _, on := range []bool{*prepare, *observe > 0, *demonstrate, *replay, *exec,
+		*clean, *survey} {
 		if on {
 			chosen++
 		}
@@ -162,6 +169,12 @@ func tryItOut(out io.Writer, args []string) int {
 	}
 	fmt.Fprintf(out, "disposable store: %s\n", home)
 	switch {
+	case *survey:
+		// READY when a question exists somewhere on this Stage, BLOCKED when the
+		// screen has nothing to ask about — which is a finding and the reason to
+		// find another screen, never to loosen what counts as a question.
+		return atCheckpoint(out, runSurfaceSurvey(out, *bridgeFlag, *maxNodes),
+			checkReady)
 	case *clean:
 		// The checkpoint prints either way: a store that was already empty is a
 		// clean store, and `reset-test-state` says so itself.
@@ -181,9 +194,11 @@ func tryItOut(out io.Writer, args []string) int {
 		checkpoint(out, checkResult)
 		return code
 	case *observe > 0:
-		// OBSERVING is printed by the watch itself, for the same reason
-		// DEMONSTRATION NEEDED is.
-		return atCheckpoint(out, surfacePreconditions(out, "", *bridgeFlag, *maxNodes, *observe),
+		// BOTH HALVES OR NEITHER. A screen that can hold a place but has no tied
+		// surfaces, or tied surfaces and no place, cannot carry a demonstration —
+		// and which half is missing is the whole content of the answer.
+		return atCheckpoint(out,
+			runSurfaceProbe(out, *bridgeFlag, *maxNodes, *observe, !*production),
 			checkReady)
 	}
 	return atCheckpoint(out, surfacePreconditions(out, *phrase, *bridgeFlag, *maxNodes, 0),
@@ -194,10 +209,11 @@ func tryItOut(out io.Writer, args []string) int {
 func tryItOutUsage(out io.Writer) int {
 	fmt.Fprintln(out, "director try-it-out: choose exactly one phase")
 	fmt.Fprintln(out, "  -prepare           preconditions and the live Stage; interacts with nothing")
-	fmt.Fprintln(out, "  -observe N         watch N seconds for a press from a hand")
+	fmt.Fprintln(out, "  -observe N         probe the screen in front for N seconds")
 	fmt.Fprintln(out, "  -demonstrate       ask, watch a person answer, keep what was confirmed")
 	fmt.Fprintln(out, "  -prepare-replay    a fresh Stage, and what the saved relation picks out")
 	fmt.Fprintln(out, "  -execute           one guarded click, with -authorise-one-click")
+	fmt.Fprintln(out, "  -survey            which words on this Stage would raise a question")
 	fmt.Fprintln(out, "  -clean             empty the disposable store")
 	return 2
 }

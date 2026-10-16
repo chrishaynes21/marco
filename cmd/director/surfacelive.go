@@ -39,12 +39,22 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
 	"github.com/chaynes-simpleclouds/marco/internal/director/surface"
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 )
+
+// surfaceWordsShown is how many of the words read on a Stage a diagnosis prints.
+//
+// Enough to recognise the screen AND to choose an instruction against it, which is what a
+// sample of twelve was not: the first two diagnoses of a live Settings page each turned on a word
+// the truncation had cut. The count is printed beside them, so a truncated sample never reads as
+// the whole Stage.
+const surfaceWordsShown = 40
 
 // surfaceCheck is one precondition and what was actually found.
 type surfaceCheck struct {
@@ -343,28 +353,287 @@ func surfaceStageCheck(rt *Runtime, phrase string) surfaceCheck {
 		return surfaceCheck{Name: "the instruction against the live Stage", OK: true,
 			Blocking: true,
 			Detail: detail + "\n        A SURFACE QUESTION WOULD BE ASKED, so the " +
-				"experiment has something to demonstrate."}
+				"experiment has something to demonstrate." +
+				whichSurfacesWereRefused(h)}
 	}
 	// AND WHY NOT, which is the prerequisite report rather than a failure of this command.
-	structural := 0
+	return surfaceCheck{Name: "the instruction against the live Stage", Blocking: true,
+		Detail: detail + "\n        NO SURFACE QUESTION WOULD BE ASKED. " +
+			whatTheStageContains(&world) + whichSurfacesWereRefused(h)}
+}
+
+// —— SURVEY ————————————————————————————————————————————————————————————
+
+// surfaceWordsSurveyed is how many of a Stage's words one survey will try.
+//
+// A ceiling rather than a judgement: the evaluation is in-process against a Stage already
+// collected, so the cost is small, and a screen with four hundred words is a screen where a
+// person would rather see the first hundred than wait.
+const surfaceWordsSurveyed = 100
+
+// surveyTheStage asks of every word on one Stage: would THIS one raise a surface question?
+//
+// # Why a survey rather than another guess
+//
+// Because three instructions against one live Settings page produced three different
+// near-misses, and each one cost a full Stage collection to discover. "Bluetooth devices" had
+// one defensible surface and a card around it that held a second name. "Bluetooth" matched
+// three Props at once, which is an unsettled IDENTITY and not something a press can answer.
+// "Accounts" had no surface around it at all, because a Windows 11 navigation row draws no
+// rectangle unless it is selected or hovered, so the proposer had nothing to propose.
+//
+// Every one of those is a fact about the SCREEN, and the screen was willing to say all of them
+// at once. Guessing a word, collecting a Stage and reading one answer is the slow way to ask a
+// question the Stage can answer in full.
+//
+// # What it does not do
+//
+// It does not choose. It reports which words would raise a question and which would not, with
+// the reason, and the point of that is to find a screen where the thing being tested exists —
+// never to pick whichever word happens to get past the rules. Nothing here evaluates anything
+// the ordinary path would not; it is the same `surface.Evaluate` the pipeline consults, asked
+// once per word against one world.
+//
+// The words it prints are held by TestASurveyReportsTheAskableWordsFirst. The surveying
+// itself needs a desktop, so nothing in the suite catches the deletion of the loop — said
+// plainly rather than pointed at a test that would not fail.
+func surveyTheStage(out io.Writer, rt *Runtime) int {
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	world, err := observeStage(ctx, rt)
+	if err != nil {
+		fmt.Fprintf(out, "STOP: could not observe: %v\n", err)
+		return 1
+	}
+	app := ""
+	if world.ActiveWindow != nil {
+		if win, ok := world.Window(*world.ActiveWindow); ok {
+			app = fmt.Sprintf("%s (%q)", win.Application, win.Title)
+		}
+	}
+	fmt.Fprintf(out, "\nSURVEY OF ONE STAGE — foreground %s, %d Props\n", app,
+		len(world.Elements))
+
+	asked, settled, byReason := []string{}, []string{}, map[string]int{}
+	ev := surface.New()
+	for i, word := range stageWords(&world) {
+		if i >= surfaceWordsSurveyed {
+			fmt.Fprintf(out, "  (stopping at %d words)\n", surfaceWordsSurveyed)
+			break
+		}
+		request := "click " + word
+		h := ev.Evaluate(&world, request, "click",
+			directorapi.ElementQuery{Text: instructionWords(request)})
+		if q, ok := h.Question(); ok {
+			asked = append(asked, fmt.Sprintf("%q — %d options, depth 0 %v",
+				word, len(q.Options), q.Identity.Bounds))
+			continue
+		}
+		if h.Chosen != nil && h.Unsettled == "" {
+			settled = append(settled, word)
+			continue
+		}
+		byReason[surveyReason(h)]++
+	}
+
+	fmt.Fprint(out, surveyReport(asked, settled, byReason))
+	if len(asked) == 0 {
+		return 1
+	}
+	return 0
+}
+
+// surveyReport is what a survey says, separated from the surveying.
+//
+// THE ANSWER FIRST. A survey whose useful line is buried under the tallies is a survey
+// somebody reads the wrong way round, and the tallies are long: twenty-six words came back
+// under three reasons on the first live Settings page, with the two that mattered on top.
+//
+// Separated from the collection because the collection needs a desktop and the words do not.
+// Every refusal in this subsystem is tested that way and this is the same discipline: the
+// thing worth holding to is what it SAYS.
+//
+// Deleting the askable report must fail TestASurveyReportsTheAskableWordsFirst.
+func surveyReport(asked, settled []string, byReason map[string]int) string {
+	out := ""
+	if len(asked) == 0 {
+		out += "  NOT ONE WORD ON THIS STAGE WOULD RAISE A SURFACE QUESTION.\n"
+	} else {
+		out += fmt.Sprintf("  %d word(s) WOULD raise a surface question:\n", len(asked))
+		for _, a := range asked {
+			out += fmt.Sprintf("    %s\n", a)
+		}
+	}
+	if len(settled) > 0 {
+		out += fmt.Sprintf("  %d word(s) resolve outright, so there is nothing to ask: "+
+			"%s\n", len(settled), strings.Join(settled, " | "))
+	}
+	for _, why := range sortedSurveyReasons(byReason) {
+		out += fmt.Sprintf("  %3d — %s\n", byReason[why], why)
+	}
+	return out
+}
+
+// stageWords is the distinct labels on a Stage, in a stable order.
+//
+// Short ones are dropped. OCR on a real screen reads punctuation and single glyphs — "Q",
+// ">", "@", "eS" came off one Settings page — and an instruction built from one of those is
+// not a question anybody would ask.
+func stageWords(world *directorapi.WorldState) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, el := range world.Elements {
+		if el == nil {
+			continue
+		}
+		label := strings.TrimSpace(el.Label)
+		if len(label) < surfaceShortestWord || seen[label] {
+			continue
+		}
+		seen[label] = true
+		out = append(out, label)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// surfaceShortestWord is the shortest label a survey will build an instruction from.
+const surfaceShortestWord = 4
+
+// surveyReason is the one-line reason a word raised no question.
+func surveyReason(h surface.Hypothesis) string {
+	switch {
+	case h.Identity == nil:
+		return "no Prop is named like the word"
+	case h.Unsettled == "which of these the request meant":
+		return "several Props are named alike, which is an unsettled identity and not " +
+			"something a press can answer"
+	case h.Unsettled == "whether the words are the control or its caption":
+		return "only the words' own region is defensible, so there is one place a " +
+			"press could land and nothing to ask about"
+	case h.Unsettled != "":
+		return "left open: " + h.Unsettled
+	}
+	return "no surface: " + string(h.Decision)
+}
+
+// sortedSurveyReasons orders the tallied reasons, commonest first.
+func sortedSurveyReasons(by map[string]int) []string {
+	out := make([]string, 0, len(by))
+	for why := range by {
+		out = append(out, why)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if by[out[i]] != by[out[j]] {
+			return by[out[i]] > by[out[j]]
+		}
+		return out[i] < out[j]
+	})
+	return out
+}
+
+// runSurfaceSurvey builds the dry-run runtime a survey needs and surveys one Stage.
+func runSurfaceSurvey(out io.Writer, bridge string, maxNodes int) int {
+	rt, err := surfacePhase(out, bridge, maxNodes, false)
+	if err != nil {
+		fmt.Fprintf(out, "STOP: %v\n", err)
+		return 1
+	}
+	defer rt.Close()
+	return surveyTheStage(out, rt)
+}
+
+// whichSurfacesWereRefused prints every surface the evaluator weighed and why it lost.
+//
+// `Hypothesis.Candidates` already carries them with their reasons — "the losers are the
+// explanation", as its own comment puts it — and a precondition report that said only "1
+// surface(s) around it were considered and refused" was withholding the one fact that decides
+// what to do next.
+//
+// Because there are two completely different situations behind that sentence. Either this
+// screen has no nesting to ask about, in which case the answer is a different screen; or the
+// nesting is there and the rule that refused it is the thing to look at, which is a decision
+// for the owner and not something to quietly relax. One report cannot tell them apart; the
+// reasons can.
+//
+// Deleting this must fail TestTheRefusedSurfacesAreNamedWithTheirReasons.
+func whichSurfacesWereRefused(h surface.Hypothesis) string {
+	if len(h.Candidates) == 0 {
+		return ""
+	}
+	out := fmt.Sprintf("\n        %d surface(s) were weighed:", len(h.Candidates))
+	for _, c := range h.Candidates {
+		why := c.Rejected
+		if why == "" {
+			why = "DEFENSIBLE"
+		}
+		role := "a surface around the words"
+		if c.Evidence.IsIdentity {
+			role = "the words' own region"
+		}
+		out += fmt.Sprintf("\n          %s %v press %v — %s — %s",
+			c.ElementID, c.Bounds, c.Point, role, why)
+	}
+	if h.Unsettled != "" {
+		out += fmt.Sprintf("\n        the evaluator left this open: %s", h.Unsettled)
+	}
+	return out
+}
+
+// whatTheStageContains says what was on the Stage, not only that the instruction missed.
+//
+// Written because the first operated run reported "nothing in this window is named like
+// \"Bluetooth & devices\"" against a Stage of 65 Props, and that is two completely different
+// findings wearing one sentence: the words might not be on the screen, or they might be on
+// the screen and unread. One of those is a precondition and the other is a defect, and an
+// operator cannot act on either until they know which.
+//
+// So both halves are counted by SOURCE — shapes from the proposer, words from OCR — and a
+// sample of the words actually read is printed. A Stage with shapes and no words cannot
+// identify anything by name, whatever is on it.
+//
+// Deleting the words must fail TestTheStageDiagnosisNamesTheWordsItRead, and the
+// source counts must fail TestTheStageDiagnosisSeparatesShapesFromWords.
+func whatTheStageContains(world *directorapi.WorldState) string {
+	structural, textual := 0, 0
+	var words []string
+	seen := map[string]bool{}
 	for _, el := range world.Elements {
 		if el == nil {
 			continue
 		}
 		for _, ref := range el.Provenance.Sources {
-			if ref.Source == directorapi.SourceStructure {
+			switch ref.Source {
+			case directorapi.SourceStructure:
 				structural++
-				break
+			case directorapi.SourceOCR:
+				textual++
 			}
 		}
+		if label := strings.TrimSpace(el.Label); label != "" && !seen[label] {
+			seen[label] = true
+			words = append(words, label)
+		}
 	}
-	return surfaceCheck{Name: "the instruction against the live Stage", Blocking: true,
-		Detail: detail + fmt.Sprintf("\n        NO SURFACE QUESTION WOULD BE ASKED. "+
-			"%d of %d Props were described by the shape proposer. A question "+
-			"arises only where identity and interaction surface come apart, "+
-			"which is where nothing but pixels describes the control — and no "+
-			"production observation request includes SourceStructure.",
-			structural, len(world.Elements))}
+	sort.Strings(words)
+
+	out := fmt.Sprintf("%d of %d Props carry a shape from the proposer and %d carry "+
+		"words from OCR.", structural, len(world.Elements), textual)
+	if len(words) == 0 {
+		// THE DIAGNOSIS THAT MATTERS MOST, because it is not about the
+		// instruction. A Stage with no words on it cannot identify anything by
+		// name, so no instruction would have matched and the next thing to look at
+		// is the reader rather than the screen.
+		return out + "\n        NOT ONE WORD WAS READ on this Stage, so nothing on it " +
+			"can be identified by name and no instruction would have matched. " +
+			"That is about the text reader, not about this screen."
+	}
+	shown := words
+	if len(shown) > surfaceWordsShown {
+		shown = shown[:surfaceWordsShown]
+	}
+	return out + fmt.Sprintf("\n        %d distinct word(s) were read, including: %s",
+		len(words), strings.Join(shown, " | "))
 }
 
 // instructionWords is the target phrase out of "click <something>".

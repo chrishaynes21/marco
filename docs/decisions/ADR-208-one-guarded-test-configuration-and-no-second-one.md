@@ -15,6 +15,15 @@ source_paths:
 
 # ADR-208 — one guarded test configuration, and no second one
 
+> **BLOCKED, 2026-10-16.** The configuration below cannot close the loop it was approved
+> for, and not for want of a better screen: a surface question exists only where
+> accessibility does not describe the control, an answer can only be kept where the screen
+> is recognisable, and a screen is recognisable by interface terms — which is what
+> accessibility supplies. Measured on one page, probed both ways, one variable. See
+> [[Experiment-063-the-configuration-that-cannot-close-its-own-loop]], which also records
+> that a surface question arises under production observation anyway, falsifying the
+> premise that sent this ADR down the pixel-only road.
+
 ## Context
 
 [[Experiment-060-the-preconditions-for-one-live-demonstration]] found the live focused

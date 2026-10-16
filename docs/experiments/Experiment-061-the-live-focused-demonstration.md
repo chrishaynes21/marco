@@ -90,6 +90,13 @@ The commands below are no longer how this is driven. `director try-it-out` is â€
 per invocation, one checkpoint line each, operated rather than typed. See
 [[ADR-209-the-assistant-operates-the-harness]].
 
+## And then it was attempted, and blocked
+
+The demonstration phase reached the surface question on the live screen and stopped on the
+precondition after it: no durable place. That is a property of the configuration rather
+than of the screen, and it is not something another page fixes. See
+[[Experiment-063-the-configuration-that-cannot-close-its-own-loop]].
+
 ## What has not happened
 
 **Nothing has been demonstrated and nothing has been pressed.** No watch, no demonstration,

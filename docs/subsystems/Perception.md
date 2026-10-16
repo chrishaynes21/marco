@@ -426,6 +426,21 @@ functions `demonstrate-surface` calls and moves none of the gates: the demonstra
 starts only when a person has said they are ready, and the one live click still needs its own
 authorisation. See [[ADR-209-the-assistant-operates-the-harness]].
 
+**The pixel-only configuration cannot close its own loop.** The first operated run reached
+the surface question on a live screen — two tied defensible surfaces around "installed
+apps", measured outside a fixture for the first time — and then stopped because no durable
+place could be established. A screen is establishable when its signature can match again,
+and it discriminates on interface terms; under pixel-only not one word was tallied against
+the screen, so twelve readings of sixteen were refused as `not_discriminating`. The same
+page under production defaults establishes a place immediately. So the configuration's
+requirements are mutually exclusive as the system stands, and no choice of screen helps.
+
+And the premise that led to it is false: under production observation, with every Prop from
+the accessibility walk and no pixel evidence in the cycle, `click Dark` still produces two
+tied surfaces on the Personalisation panel — a caption and the tile it labels, both
+described by the tree, with nothing choosing between them. See
+[[Experiment-063-the-configuration-that-cannot-close-its-own-loop]].
+
 ## Known gaps
 
 - ~~Vision runs an unrequested pass on every ordinary cycle.~~ **Fixed 2026-08-10.** The

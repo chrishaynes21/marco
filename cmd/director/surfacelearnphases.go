@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/execute"
+	"github.com/chaynes-simpleclouds/marco/internal/director/service"
 	"github.com/chaynes-simpleclouds/marco/internal/director/surface"
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 )
@@ -33,12 +34,31 @@ import (
 // surfacePhase is the shared setup every phase needs: a sandbox, the pixel-only configuration,
 // and a runtime.
 //
+// `pixels` is false for one caller only, and it is a DIAGNOSTIC: the probe can run the same
+// screen under production observation defaults, so that "this screen cannot be recognised"
+// and "this screen cannot be recognised WITHOUT ACCESSIBILITY" are separable findings. One of
+// those says to pick another screen and the other is about the configuration itself, and no
+// amount of staring at one run tells them apart.
+//
 // `wet` is the one difference between the phases that cannot press anything and the one that can,
 // and it is a single boolean passed to `NewRuntime` — so a reader can see which phase is which by
 // looking at one call.
 func surfacePhase(out io.Writer, bridge string, maxNodes int, wet bool) (*Runtime, error) {
-	if err := enablePixelOnly(os.Getenv("MARCO_HOME"), defaultHome()); err != nil {
-		return nil, err
+	return surfacePhaseUnder(out, bridge, maxNodes, wet, true)
+}
+
+// surfacePhaseUnder is surfacePhase with the observation configuration named.
+func surfacePhaseUnder(out io.Writer, bridge string, maxNodes int, wet, pixels bool) (
+	*Runtime, error) {
+
+	if pixels {
+		if err := enablePixelOnly(os.Getenv("MARCO_HOME"), defaultHome()); err != nil {
+			return nil, err
+		}
+	} else if why := resetGuard(os.Getenv("MARCO_HOME"), defaultHome()); why != "" {
+		// THE SANDBOX STILL. The production configuration is not a reason to write
+		// into the real store, and this is the only phase that could have.
+		return nil, fmt.Errorf("a probe is only available against a sandbox: %s", why)
 	}
 	fmt.Fprintf(out, "%s\n", pixelOnlyNote())
 	if wet {
@@ -168,7 +188,8 @@ func runSurfaceLearn(out io.Writer, instruction, bridge string, maxNodes, second
 	if place == "" {
 		fmt.Fprintln(out, "STOP: no durable place was established for this screen, so "+
 			"a target on it has no durable identity and an answer could not be "+
-			"kept. Leave the screen still for a few seconds and try again.")
+			"kept.")
+		whyNoPlace(out, rt)
 		return 1
 	}
 	fmt.Fprintf(out, "durable place: %s\n", place)
@@ -210,6 +231,145 @@ func waitForPlace(out io.Writer, rt *Runtime, app string, seconds int) string {
 		time.Sleep(time.Second)
 	}
 	return ""
+}
+
+// runSurfaceProbe asks of one screen: could a demonstration happen here at all?
+//
+// # Why one probe rather than two commands
+//
+// Because a demonstration needs TWO independent things to be true of a screen, and finding
+// out took a full attempt each time. It needs a surface QUESTION — two defensible surfaces
+// around one name, which is what the survey measures — and it needs a durable PLACE, because
+// a target with no place has no durable identity and an answer could not be kept.
+//
+// The first live attempt had the question and not the place. Windows Settings on its home
+// page was read sixteen times in fifteen still seconds and refused twelve of them as
+// `not_discriminating`: settled, coherent in shape, and not distinctive enough to tell apart
+// from any other page of the same application. That is a fact about the screen, and the
+// answer is to find a different one rather than to lower what discriminating means.
+//
+// So this watches for establishment and surveys the Stage in one run, and says plainly which
+// of the two halves is missing.
+//
+// # What it may do
+//
+// It reads, and it establishes places under the ambient learning licence — into the
+// disposable store, which is the only store any of this is reachable from. A DRY RUN, so the
+// one host that could reach the desktop is DryRunHost. Nothing is pressed and nothing is
+// asked of anybody.
+//
+// NOTHING IN THE SUITE CATCHES THE DELETION OF EITHER HALF. Both need a desktop, a window
+// manager and twenty seconds of a person not touching anything. The pieces they report
+// through are held separately ' recognitionLines and surveyReport each have their own test '
+// and the composition is exercised only by a live run. Said plainly rather than pointed at a
+// test that would not fail.
+func runSurfaceProbe(out io.Writer, bridge string, maxNodes, seconds int, pixels bool) int {
+	rt, err := surfacePhaseUnder(out, bridge, maxNodes, false, pixels)
+	if err != nil {
+		fmt.Fprintf(out, "STOP: %v\n", err)
+		return 1
+	}
+	defer rt.Close()
+	rt.EnableAmbient()
+	rt.EnableAmbientLearning()
+	defer rt.DisableAmbient()
+
+	_, app, err := liveStage(rt)
+	if err != nil {
+		fmt.Fprintf(out, "STOP: could not observe: %v\n", err)
+		return 1
+	}
+	fmt.Fprintf(out, "\nPROBING THE SCREEN IN FRONT %s foreground %q, watching %ds\n",
+		dashes, app, seconds)
+	if app == "" {
+		fmt.Fprintln(out, "STOP: no foreground application could be established.")
+		return 1
+	}
+
+	// HALF ONE: A DURABLE PLACE. The same wait the demonstration phase does, so a probe
+	// that says yes is a probe about the gate that will actually be applied.
+	place := waitForPlace(out, rt, app, seconds)
+	if place == "" {
+		fmt.Fprintln(out, "  PLACE: no. Nothing could be kept from a demonstration here.")
+		whyNoPlace(out, rt)
+	} else {
+		fmt.Fprintf(out, "  PLACE: yes %s %s\n", dashes, place)
+	}
+
+	// HALF TWO: A QUESTION. Surveyed whatever the place came to, because the two halves
+	// are independent and a screen that fails one is still worth knowing about for the
+	// other.
+	questions := surveyTheStage(out, rt)
+	if place == "" || questions != 0 {
+		fmt.Fprintln(out, "\nThis screen cannot carry the experiment. That is a finding "+
+			"about the screen, and the answer is another screen.")
+		return 1
+	}
+	fmt.Fprintln(out, "\nBOTH HALVES HOLD on this screen: a durable place, and at least "+
+		"one word whose surfaces are tied.")
+	return 0
+}
+
+// dashes is the one em dash this file prints, named so the source stays ASCII.
+const dashes = "\u2014"
+
+// whyNoPlace prints the recognition trace's own account of every screen it read.
+//
+// Because "leave the screen still and try again" was advice, not a diagnosis, and the first
+// live demonstration stopped on exactly this line after three minutes of a perfectly still
+// Windows Settings page. Establishment has four named gates — not settled, still loading,
+// not discriminating, not describable — plus a fifth that refuses a state carrying two words,
+// and the trace counts which one fired on every reading. Printing the count turns a dead end
+// into a fact about the screen.
+//
+// Nothing is evaluated here. `recognitionReport` is the same fold `director status` serves and
+// is read-only over a ring the observer already filled.
+//
+// The words themselves are held by TestAPlaceThatWasNeverEstablishedSaysWhichGateRefusedIt;
+// what reaches them from a live observer is exercised only by a live run, and nothing in the
+// suite catches its deletion.
+func whyNoPlace(out io.Writer, rt *Runtime) {
+	a := rt.ambient()
+	if a == nil {
+		fmt.Fprintln(out, "  (no ambient observer, so nothing was read at all)")
+		return
+	}
+	fmt.Fprint(out, recognitionLines(recognitionReport(a.trace.all())))
+}
+
+// recognitionLines is what the trace says, separated from reading it.
+//
+// Separated because the reading needs a desktop and the words do not, and because the words
+// are the whole value: `12 x not_discriminating` beside `settled=true` is what turned a dead
+// end into a finding, and a report that dropped the counts would read as "it just did not
+// work".
+//
+// Deleting the refusal counts must fail TestAPlaceThatWasNeverEstablishedSaysWhichGateRefusedIt.
+func recognitionLines(screens []service.RecognitionScreen) string {
+	if len(screens) == 0 {
+		return "  NOT ONE READING was traced, so ambient watching never sampled this " +
+			"screen. That is about the watcher, not the screen.\n"
+	}
+	out := fmt.Sprintf("  what ambient watching made of %d screen(s):\n", len(screens))
+	for _, sc := range screens {
+		out += fmt.Sprintf("    %s %s — read %d (%d traced), %d agreeing, "+
+			"%d distinct %v, settled=%v coherent=%v named=%v visible %dms\n",
+			sc.Application, sc.State, sc.Readings, sc.Traced, sc.Agreeing,
+			sc.Distinct, sc.ShapeCounts, sc.Settled, sc.Coherent, sc.Named,
+			sc.VisibleMS)
+		if sc.NameSightings > 0 || sc.NameRunnerUp > 0 {
+			out += fmt.Sprintf("      the word was read %dx and the next one %dx\n",
+				sc.NameSightings, sc.NameRunnerUp)
+		}
+		if sc.Place != "" || sc.Established {
+			out += fmt.Sprintf("      place %q established=%v\n", sc.Place,
+				sc.Established)
+		}
+		for _, r := range sc.Refusals {
+			out += fmt.Sprintf("      %4d x %s\n", r.Count, r.Reason)
+		}
+	}
+	return out
 }
 
 // reportDemonstration watches the learner and reports the three facts separately.
