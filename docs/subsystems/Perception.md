@@ -390,6 +390,13 @@ negative crossings each keep the press as a demonstration that cannot aim. See
 [[ADR-207-a-question-is-answered-by-a-press-and-confirmed-by-a-crossing]] and
 [[Experiment-059-one-demonstration-from-a-person-into-durable-memory]].
 
+`director demonstrate-surface -check` reports the preconditions for a live run and injects nothing.
+Five of seven hold on the real machine, including the installed input hook and both seams. The
+experiment is **blocked by a structural one**: no production observation request includes
+`SourceStructure`, so the shape proposer never runs on a live Stage — and where an accessibility
+tree describes the control there is nothing to ask anyway, which is the case on Windows Settings.
+See [[Experiment-060-the-preconditions-for-one-live-demonstration]].
+
 ## Known gaps
 
 - ~~Vision runs an unrequested pass on every ordinary cycle.~~ **Fixed 2026-08-10.** The

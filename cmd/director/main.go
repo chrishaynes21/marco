@@ -290,6 +290,8 @@ func main() {
 		os.Exit(runStop(os.Args[2:]))
 	case "shutdown":
 		os.Exit(runShutdown(os.Args[2:]))
+	case "demonstrate-surface":
+		os.Exit(runDemonstrateSurface(os.Args[2:]))
 	case "reset-test-state":
 		// A HARNESS operation, not a product one. Refuses unless MARCO_HOME names a
 		// sandbox; see resetGuard.

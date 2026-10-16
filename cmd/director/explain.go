@@ -220,6 +220,7 @@ var valued = map[string]bool{
 	"-threshold": true, "--threshold": true,
 	"-detections": true, "--detections": true,
 	"-accessibility": true, "--accessibility": true,
+	"-instruction": true, "--instruction": true,
 	"-backend": true, "--backend": true,
 	"-control": true, "--control": true,
 	"-corpus": true, "--corpus": true,
