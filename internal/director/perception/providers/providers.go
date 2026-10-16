@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/observation"
+	"github.com/chaynes-simpleclouds/marco/internal/director/perception/windowref"
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 )
 
@@ -177,18 +178,33 @@ type WindowSource interface {
 	Enrich(windows []directorapi.Window) []directorapi.Window
 }
 
-// WindowSystem contributes window and display detail.
+// WindowEnumerator is the half of a window source that can walk the desktop itself.
 //
-// It is a REFINER rather than a producer today, and that is a limitation of the
-// current arrangement rather than a design choice: the platform's window enumeration
-// happens to live inside the accessibility bridge's walk, so this provider has nothing
-// of its own to enumerate and instead adds bounds, state and monitor placement to
-// window evidence another source produced.
+// OPTIONAL, like `observation.Refiner`: `WindowSource` is what every backend must do -- the
+// display layout, and detail added to windows somebody else found -- and this is what a
+// backend that can list the desktop may additionally offer. A stub platform implements the
+// first and not the second, and the provider falls back to refining rather than failing to
+// compile.
+type WindowEnumerator interface {
+	AllCandidates(ctx context.Context) []windowref.Candidate
+}
+
+// WindowSystem contributes window and display detail, and enumerates windows when asked.
 //
-// When it does enumerate — the platform APIs are right there, it is a question of
-// where the walk lives — it becomes an ordinary Provider emitting its own window
-// observations, and fusion merges the two accounts of each window exactly as it merges
-// two accounts of a button. The refiner path exists so that change is additive.
+// It REFINES on every cycle: the accessibility bridge reports the window list as a side
+// effect of walking the tree, and this adds the bounds, state and monitor placement an
+// accessibility tree does not know. That is the production path, and it is unchanged.
+//
+// It ENUMERATES only when a request names this source, which is the day the paragraph that
+// used to sit here anticipated. Opt-in not out of caution but because there is normally
+// nothing to add: production already hears about every window from the walk, so a second
+// account of each on every cycle would be work for nothing, and fusion would spend the day
+// merging two descriptions of one window.
+//
+// What makes the opt-in LOAD-BEARING is the case it was written for. Where accessibility is
+// not collected at all the walk is not happening, and then this is the only thing that knows
+// a window exists — and every pixel provider is scoped to a window, so without it there
+// is no Stage to look at rather than merely a thinner one. See `cmd/director/pixelonly.go`.
 type WindowSystem struct {
 	src WindowSource
 }
@@ -208,10 +224,72 @@ func (w *WindowSystem) Sources() []observation.Source {
 	return []observation.Source{directorapi.SourceWindowSystem}
 }
 
-// Observe reports nothing. See the type comment: this source refines rather than
-// enumerates, for now.
-func (w *WindowSystem) Observe(context.Context, observation.Request) ([]observation.Observation, error) {
-	return nil, nil
+// Observe enumerates the desktop's top-level windows, and only when asked by name.
+//
+// The gate is `Includes` rather than `Wants`, which is the gate ADR-203 put on the shape
+// proposer and for the same reason: an empty `Sources` list means "everything the providers
+// can cheaply see", and being PERMITTED to run is not being ASKED to. So
+// `observation.Request{}` — every production cycle — gets exactly what it got before
+// this existed, which is nothing, and the window evidence production fuses still comes from
+// the accessibility walk alone.
+//
+// A source that cannot walk the desktop says so by not implementing `WindowEnumerator`, and
+// then this answers nothing. That is not a silent failure: a request that asked for this
+// source and got no windows produces a world with no windows in it, which every consumer
+// downstream already reports rather than papers over.
+//
+// Deleting the gate must fail TestTheWindowSystemEnumeratesNothingUnlessAsked.
+func (w *WindowSystem) Observe(ctx context.Context, req observation.Request) (
+	[]observation.Observation, error) {
+
+	if !req.Includes(directorapi.SourceWindowSystem) {
+		return nil, nil
+	}
+	walker, ok := w.src.(WindowEnumerator)
+	if !ok {
+		return nil, nil
+	}
+	at := time.Now()
+	var out []observation.Observation
+	for i, c := range walker.AllCandidates(ctx) {
+		out = append(out, observation.Window{
+			ObservationID: mintID("win"),
+			From:          directorapi.SourceWindowSystem,
+			At:            at,
+			Detail: directorapi.Window{
+				ID:          c.ID,
+				Application: c.Application,
+				Title:       c.Title,
+				Bounds:      c.Bounds,
+				Focused:     c.Foreground,
+				Visible:     c.Visible,
+				Minimized:   c.Minimized,
+				// The desktop enumerates front to back, so the position IS the
+				// z-order. Refine supplies the rest of the geometry and does not
+				// supply this.
+				ZOrder: i,
+			},
+		})
+		// THE FOREGROUND APPLICATION, a separate claim from the window and the only thing
+		// that sets `WorldState.ActiveWindow`. The platform answers it per window, so
+		// exactly one candidate carries it, and a desktop with nothing in front produces
+		// no claim at all rather than a guess at one.
+		if !c.Foreground {
+			continue
+		}
+		out = append(out, observation.Application{
+			ObservationID: mintID("app"),
+			From:          directorapi.SourceWindowSystem,
+			At:            at,
+			Detail: directorapi.Application{
+				ID: c.Application, Name: c.Application,
+				ProcessID: int(c.ProcessID),
+			},
+			Active:   true,
+			WindowID: c.ID,
+		})
+	}
+	return out, nil
 }
 
 // Refine adds window-system detail to window evidence.

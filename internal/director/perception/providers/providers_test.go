@@ -8,6 +8,7 @@ import (
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/internal/fixtures"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/observation"
+	"github.com/chaynes-simpleclouds/marco/internal/director/perception/windowref"
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 )
 
@@ -370,9 +371,105 @@ func TestTheWindowSystemRefinesWindowEvidenceWithoutProducingAny(t *testing.T) {
 	if windows[0].Bounds.Width != 300 {
 		t.Errorf("the refinement did not land: %+v", windows[0].Bounds)
 	}
-	// A refiner produces nothing of its own. If it ever does, it is a Provider.
+	// AND IT PRODUCES NOTHING OF ITS OWN ON A PRODUCTION REQUEST. It can enumerate now
+	// — see TestTheWindowSystemEnumeratesNothingUnlessAsked — and an empty request is
+	// not an instruction to.
 	alone := NewCollector(NewWindowSystem(win)).Collect(context.Background(), observation.Request{})
 	if len(alone.Observations) != 0 {
 		t.Errorf("the window system produced %d observations on its own", len(alone.Observations))
+	}
+}
+
+// fakeDesktop is a window source that can also walk the desktop.
+//
+// Separate from fakeWindows on purpose, so the refiner-only case stays represented: a backend
+// that cannot enumerate must still be a legal WindowSource, and the test above proves it
+// compiles as one.
+type fakeDesktop struct {
+	fakeWindows
+	candidates []windowref.Candidate
+	walks      int
+}
+
+func (f *fakeDesktop) AllCandidates(context.Context) []windowref.Candidate {
+	f.walks++
+	return f.candidates
+}
+
+// THE WINDOW SYSTEM ENUMERATES NOTHING UNLESS ASKED.
+//
+// `Includes` rather than `Wants`, which is the gate ADR-203 put on the shape proposer: being
+// PERMITTED to run is not being ASKED to, and an empty request permits everything cheap. So
+// production gets what it always got, from the accessibility walk alone, and the desktop is not
+// walked a second time for nothing.
+//
+// The other half is why the enumeration exists at all. Where accessibility is not collected the
+// walk is not happening, and this is then the only thing that knows a window is there. Every
+// pixel provider is scoped to a window, so without it there is no Stage rather than a thinner one.
+func TestTheWindowSystemEnumeratesNothingUnlessAsked(t *testing.T) {
+	front := windowref.Candidate{
+		ID: "hwnd:42", Application: "settings", Title: "Settings",
+		Bounds:     directorapi.Rect{X: 100, Y: 50, Width: 1200, Height: 800},
+		Foreground: true, Visible: true, OnScreen: true,
+	}
+	behind := windowref.Candidate{
+		ID: "hwnd:7", Application: "chrome", Title: "something else",
+		Bounds:  directorapi.Rect{X: 0, Y: 0, Width: 800, Height: 600},
+		Visible: true, OnScreen: true,
+	}
+
+	// A PRODUCTION CYCLE. Nothing asked for this source by name, so nothing is walked.
+	quiet := &fakeDesktop{candidates: []windowref.Candidate{front, behind}}
+	cycle := NewCollector(NewWindowSystem(quiet)).
+		Collect(context.Background(), observation.Request{})
+	if len(cycle.Observations) != 0 || quiet.walks != 0 {
+		t.Errorf("a production request produced %d observations and walked the desktop "+
+			"%d times, so production observation is not what it was",
+			len(cycle.Observations), quiet.walks)
+	}
+
+	// AND ONE THAT ASKED. Both windows, and exactly one claim about which is in front.
+	asked := &fakeDesktop{candidates: []windowref.Candidate{front, behind}}
+	cycle = NewCollector(NewWindowSystem(asked)).Collect(context.Background(),
+		observation.Request{Include: []observation.Source{directorapi.SourceWindowSystem}})
+
+	windows := observation.Windows(cycle.Observations)
+	if len(windows) != 2 {
+		t.Fatalf("%d windows from a request that asked for them", len(windows))
+	}
+	if windows[0].ID != front.ID || !windows[0].Focused {
+		t.Errorf("the foreground window is %+v", windows[0])
+	}
+	if windows[0].ZOrder != 0 || windows[1].ZOrder != 1 {
+		t.Errorf("z-order %d and %d, but the desktop enumerates front to back",
+			windows[0].ZOrder, windows[1].ZOrder)
+	}
+	if windows[0].Bounds != front.Bounds {
+		t.Errorf("bounds %+v, want the platform's %+v", windows[0].Bounds, front.Bounds)
+	}
+
+	// THE FOREGROUND APPLICATION, which is the only thing that sets WorldState.ActiveWindow
+	// and is therefore the claim the whole pixel path depends on.
+	app, ok := observation.ActiveApplication(cycle.Observations)
+	if !ok {
+		t.Fatal("no active application, so a fused world would have no active window " +
+			"and every provider scoped to one would have nothing to look at")
+	}
+	if app.WindowID != front.ID || app.Detail.ID != front.Application {
+		t.Errorf("the active application is %+v", app)
+	}
+	for _, o := range cycle.Observations {
+		if a, is := o.(observation.Application); is && a.WindowID == behind.ID {
+			t.Error("a window that is not in front claimed to be the active one")
+		}
+	}
+
+	// AND A BACKEND THAT CANNOT WALK says so by not implementing the interface, rather than
+	// by failing. Asked, it answers nothing.
+	plain := NewCollector(NewWindowSystem(&fakeWindows{})).Collect(context.Background(),
+		observation.Request{Include: []observation.Source{directorapi.SourceWindowSystem}})
+	if len(plain.Observations) != 0 {
+		t.Errorf("a refiner-only backend produced %d observations",
+			len(plain.Observations))
 	}
 }

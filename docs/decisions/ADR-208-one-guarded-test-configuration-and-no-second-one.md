@@ -92,6 +92,12 @@ learning record, the configuration, the bridge, the registered provider list, th
 hook, durable memory, and both ADR-207 seams. The two that remain need a hand and a screen, and
 are what `-watch` and `-instruction` measure.
 
+**And the eighth was false for a reason the other seven could not show.** The provider-list
+check asserts the object the runtime built; it says nothing about what that list can SEE. On
+the first live run the Stage came back empty, because the accessibility walk is the only
+thing that enumerates windows and every pixel provider is scoped to one. The configuration
+was right and the Stage was absent. See [[Experiment-062-what-a-stage-is-made-of]].
+
 **Nothing about production observation changed.** `pixelOnlyRequest()` returns
 `observation.Request{}` when the variable is nil, which is what every production cycle has always
 sent.
