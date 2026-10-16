@@ -514,6 +514,17 @@ func NewRuntime(bridgePath string, maxNodes int, dryRun bool, g *actiongraph.Fil
 		// a pass over the pixels. See providers/structure.
 		structureprov.New(provenCapture, rt.activeWindow),
 	}
+	// AND THE ONE TEST CONFIGURATION, which leaves accessibility out of the list entirely.
+	//
+	// Belt and braces beside the request's own Sources restriction: a provider that is not
+	// registered cannot be fallen back to, which is what the experiment needs stated
+	// structurally rather than merely intended. Nil in every Director that was not started
+	// against a sandbox — see pixelonly.go.
+	//
+	// Deleting this must fail TestThePixelOnlyRuntimeRegistersNoAccessibility.
+	if pixelOnlyExcludesAccessibility() {
+		sources = sources[1:]
+	}
 	// An experimental detector, only when one was asked for. It is registered like any
 	// other provider — the collector routes its evidence away from belief because of what
 	// it IS (an observation.ShadowProvider), not because of where it sits in this list.
@@ -602,7 +613,9 @@ func NewRuntime(bridgePath string, maxNodes int, dryRun bool, g *actiongraph.Fil
 	rt.collector, rt.history, rt.explainer, rt.engine = collector, history, explainer, engine
 
 	observe := func(ctx context.Context) (directorapi.WorldState, error) {
-		cycle := collector.Collect(ctx, observation.Request{})
+		// THE REQUEST, which is the production default unless the one test
+		// configuration is on. See pixelonly.go for the door and its guard.
+		cycle := collector.Collect(ctx, pixelOnlyRequest())
 		w, report, err := engine.Fuse(cycle)
 		if err != nil {
 			return directorapi.WorldState{}, err

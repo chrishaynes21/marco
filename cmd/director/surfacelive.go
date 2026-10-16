@@ -56,6 +56,18 @@ type surfaceCheck struct {
 	Blocking bool
 }
 
+// watchFor is how long a watching phase waits, with a default a person can actually use.
+//
+// Thirty seconds: long enough to read a sentence, look at the screen and aim deliberately, which
+// is slower than clicking and is what is being asked for. Bounded, because an unbounded watch is
+// a Director sitting on somebody's input with no end.
+func watchFor(given int) int {
+	if given > 0 {
+		return given
+	}
+	return 30
+}
+
 // runDemonstrateSurface is `director demonstrate-surface`.
 func runDemonstrateSurface(args []string) int {
 	fs := flag.NewFlagSet("demonstrate-surface", flag.ExitOnError)
@@ -67,13 +79,39 @@ func runDemonstrateSurface(args []string) int {
 		"the instruction the experiment is about, e.g. \"click Bluetooth & devices\"")
 	bridgeFlag := fs.String("accessibility", defaultBridge(), "path to the accessibility bridge")
 	maxNodes := fs.Int("max-nodes", 4000, "node ceiling per snapshot")
+	learn := fs.Bool("learn", false,
+		"ask, watch a person demonstrate, and keep what an attributed crossing confirms")
+	reground := fs.Bool("reground", false,
+		"collect a fresh Stage and report what the saved relation picks out of it")
+	exec := fs.Bool("execute", false, "perform exactly one guarded click")
+	authorise := fs.Bool("authorise-one-click", false,
+		"authorise the single click -execute would perform")
 	_ = fs.Parse(args)
 
-	if !*check {
-		fmt.Fprintln(os.Stderr, "director: demonstrate-surface runs only with -check for now.")
-		fmt.Fprintln(os.Stderr, "          The learning and execution phases do not exist yet:")
-		fmt.Fprintln(os.Stderr, "          see the structural precondition this reports.")
+	// ONE PHASE PER RUN, and never two. The phases are separate commands because
+	// separating learning from execution is a safety property rather than a convenience —
+	// see surfacelearnphases.go.
+	chosen := 0
+	for _, on := range []bool{*check, *learn, *reground, *exec} {
+		if on {
+			chosen++
+		}
+	}
+	if chosen != 1 {
+		fmt.Fprintln(os.Stderr, "director demonstrate-surface: choose exactly one of")
+		fmt.Fprintln(os.Stderr, "  -check      report the preconditions; interacts with nothing")
+		fmt.Fprintln(os.Stderr, "  -learn      ask, watch a person demonstrate, keep what was confirmed")
+		fmt.Fprintln(os.Stderr, "  -reground   a fresh Stage, and what the saved relation picks out of it")
+		fmt.Fprintln(os.Stderr, "  -execute    one guarded click, with -authorise-one-click")
 		return 2
+	}
+	switch {
+	case *learn:
+		return runSurfaceLearn(os.Stdout, *phrase, *bridgeFlag, *maxNodes, watchFor(*watch))
+	case *reground:
+		return runSurfaceReground(os.Stdout, *phrase, *bridgeFlag, *maxNodes)
+	case *exec:
+		return runSurfaceExecute(os.Stdout, *phrase, *bridgeFlag, *maxNodes, *authorise)
 	}
 	return surfacePreconditions(os.Stdout, *phrase, *bridgeFlag, *maxNodes, *watch)
 }
@@ -86,8 +124,19 @@ func surfacePreconditions(out io.Writer, phrase, bridge string, maxNodes, watch 
 	var checks []surfaceCheck
 	add := func(c surfaceCheck) { checks = append(checks, c) }
 
-	// ── 1. THE SANDBOX ──
+	// ── 1. THE SANDBOX, AND THE CONFIGURATION IT UNLOCKS ──
+	//
+	// The experiment's own configuration, enabled here so that the Stage diagnosed below
+	// is the Stage the learning phase will see. Diagnosing production defaults and then
+	// learning under a different configuration would be a check about the wrong screen.
 	add(surfaceSandboxCheck(os.Getenv("MARCO_HOME"), defaultHome()))
+	if err := enablePixelOnly(os.Getenv("MARCO_HOME"), defaultHome()); err != nil {
+		add(surfaceCheck{Name: "pixel-only test configuration", Blocking: true,
+			Detail: err.Error()})
+	} else {
+		add(surfaceCheck{Name: "pixel-only test configuration", OK: true,
+			Blocking: true, Detail: pixelOnlyNote()})
+	}
 
 	// ── 2. THE PLUGINS THE STAGE NEEDS ──
 	if _, err := os.Stat(bridge); err != nil {
@@ -141,16 +190,24 @@ func surfacePreconditions(out io.Writer, phrase, bridge string, maxNodes, watch 
 			Detail: semanticMemoryPath()})
 	}
 
-	// ── 6. THE SEAMS ADR-207 WIRED ──
+	// ── 6. WHICH PROVIDERS ARE ACTUALLY REGISTERED ──
+	//
+	// The other half of "accessibility neither requested nor registered": the request's
+	// Sources list is a statement of intent and this is what was built. Printed because a
+	// configuration that was meant to exclude a provider and did not is exactly the kind of
+	// thing that reads correct in a comment.
+	add(surfaceProvidersCheck(rt))
+
+	// ── 7. THE SEAMS ADR-207 WIRED ──
 	add(surfaceCheck{Name: "surface grounder wired", OK: rt.pipeline.Surfaces != nil,
 		Blocking: true,
 		Detail: fmt.Sprintf("Pipeline.Surfaces non-nil: %v; Pipeline.Place non-nil: %v",
 			rt.pipeline.Surfaces != nil, rt.pipeline.Place != nil)})
 
-	// ── 7. THE STAGE, AND THE DECISIVE QUESTION ──
+	// ── 8. THE STAGE, AND THE DECISIVE QUESTION ──
 	add(surfaceStageCheck(rt, phrase))
 
-	// ── 8. AND WHETHER A HAND'S PRESS ACTUALLY ARRIVES ──
+	// ── 9. AND WHETHER A HAND'S PRESS ACTUALLY ARRIVES ──
 	if watch > 0 {
 		add(surfaceWatchCheck(out, rt, watch))
 	} else {
@@ -160,6 +217,34 @@ func surfacePreconditions(out io.Writer, phrase, bridge string, maxNodes, watch 
 	}
 
 	return reportSurfaceChecks(out, checks, phrase)
+}
+
+// surfaceProvidersCheck reports which observation providers this Director registered.
+//
+// Under the pixel-only configuration accessibility must be absent, and this is the only place
+// that is asserted about the object that was actually built rather than about the request that
+// will be sent to it.
+//
+// Deleting the exclusion in NewRuntime must fail TestThePixelOnlyRuntimeRegistersNoAccessibility.
+func surfaceProvidersCheck(rt *Runtime) surfaceCheck {
+	var names []string
+	accessible := false
+	for _, p := range rt.collector.Providers() {
+		names = append(names, p.Name())
+		for _, src := range p.Sources() {
+			if src == directorapi.SourceAccessibility {
+				accessible = true
+			}
+		}
+	}
+	if pixelOnly != nil && accessible {
+		return surfaceCheck{Name: "registered observation providers", Blocking: true,
+			Detail: fmt.Sprintf("%v — accessibility is registered under the "+
+				"pixel-only configuration, so a fall back to it is possible",
+				names)}
+	}
+	return surfaceCheck{Name: "registered observation providers", OK: true,
+		Blocking: true, Detail: fmt.Sprintf("%v", names)}
 }
 
 // surfaceSandboxCheck is the owner's first safeguard: a disposable learning record.

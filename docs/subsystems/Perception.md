@@ -397,6 +397,18 @@ experiment is **blocked by a structural one**: no production observation request
 tree describes the control there is nothing to ask anyway, which is the case on Windows Settings.
 See [[Experiment-060-the-preconditions-for-one-live-demonstration]].
 
+The owner chose a configuration over a redesign, so there is now ONE guarded test configuration:
+sources restricted to the window system, the shape proposer and OCR, with accessibility neither
+requested nor registered. It is reachable only from a throwaway MARCO_HOME, through the same
+resetGuard the reset command uses, so a Director started normally cannot reach it and nil is the
+production default. It changes what is OBSERVED and not what is ALLOWED — resolver, licence,
+policy, ladder, Marco runtime, foreground guards and cancellation are all unchanged.
+`director demonstrate-surface` drives it in four phases, three of them dry-run; the learn phase
+verifies the live ambiguity exists before asking for anything and reports its absence as a result.
+Six of eight preconditions hold on the real machine; the rest need a hand. See
+[[ADR-208-one-guarded-test-configuration-and-no-second-one]] and
+[[Experiment-061-the-live-focused-demonstration]].
+
 ## Known gaps
 
 - ~~Vision runs an unrequested pass on every ordinary cycle.~~ **Fixed 2026-08-10.** The

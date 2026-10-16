@@ -357,6 +357,8 @@ func usage() {
   director plan "<request>"      the steps a request becomes (never runs them)
   director lower <op>            the Marco an operation compiles to (never runs it)
   director op <op>               execute one operation through the Marco pipeline
+  director demonstrate-surface -check   the preconditions for one live focused
+                                 demonstration; reads, and interacts with nothing
   director confirm [yes|no]      answer the question a running command is waiting on
                                  (with no answer it shows the question and decides nothing)
 
