@@ -80,6 +80,42 @@ a zero outcome matches none of the learner's cases. That is the leading candidat
 demonstration and it is now instrumented rather than inferred — the account prints which gate
 refused a press and what it said.
 
+## And the gate it actually met, measured live
+
+With the account of [[ADR-212-a-silence-is-reported-as-a-silence]] in place, one bounded run
+answered it on the first attempt. The press was captured and every one of them was refused by
+the SESSION gate.
+
+```
+offers ................... 56
+presses seen in the log .. 14
+another session .......... 54      <- every press
+nothing was pending ...... 2
+settled / undiscriminating / elsewhere / other ... 0 0 0 0
+
+  "the reading is from session observe_2 and the question was asked in observe_1,
+   so no press in it can be matched to the question's screen"
+```
+
+The screen-state gate was never reached, so the temporal reading — a press attributed to the
+destination screen after navigation rather than the source screen it was made on — is not what
+happened here. The cause is earlier and deterministic.
+
+A request makes ambient watching **stand aside**: its session is cancelled so that nothing the
+Director does is folded into evidence about what the person did, and the supervisor starts a
+fresh one afterwards. That is deliberate and documented at the call site. But the question is
+stamped from `standing()` read immediately after the request returns, which reports the session
+of the last ambient look — the one just cancelled. The question is therefore born carrying a
+session that no longer exists, and every press afterwards arrives in the next one.
+
+This is not a flaw in the rule. A press must come from the session its question was asked in,
+because screen state ids are session-local counters and `state_2` in two sessions are unrelated
+screens. What is wrong is that the demonstration path asks the question in a session it has
+already ended. Renaming the session on the pending question would not fix it either: the
+question's `State` is session-local too, so a rebind has to re-establish that the same screen is
+in front rather than relabel a stamp. The durable Place is the one anchor that survives a
+session, and it is already established here.
+
 ## Status after this
 
 ```
@@ -88,7 +124,7 @@ resolving outright when accessibility already names it       verified live
 the bounded life of a question, enforced                     verified live
 durable place across runs                                    verified live
 input capture: admitted and placed in the watched window      verified live
-the handoff from an admitted press to the question           INSTRUMENTED, not yet measured live
+the handoff from an admitted press to the question           MEASURED: every press refused at the session gate
 learning from a human click                                  not reached
 persistence, reacquisition, authorised replay                 not reached
 ```
