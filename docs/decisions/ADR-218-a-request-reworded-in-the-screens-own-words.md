@@ -140,7 +140,7 @@ when it was not — which does nothing and reports success.
 **It is not wired into execution**, and that is a boundary rather than an omission. Acting on
 it means a request can succeed WITHOUT performing its action, which changes the plan, the
 policy verdict, the confirmation and the record a person reads afterwards. That is a decision
-about what "performed" means. `TestSatisfactionIsNotWiredIntoExecution` walks the tree and
+about what "performed" means. `TestSatisfactionIsDecidedInExactlyOnePlace` walks the tree and
 fails the day somebody takes it without saying so.
 
 ## How it is evaluated
@@ -196,4 +196,4 @@ nobody tuned against. The numbers are in
 - `cmd/director` `TestRewordingNeverChoosesTheWrongControl` (the evaluation, as a gate),
   `TestRewordingAnswersWhatTheLiteralReadingCouldNot`,
   `TestARewordedAnswerIsVisiblyReworded`,
-  `TestSatisfactionIsNotWiredIntoExecution`.
+  `TestSatisfactionIsDecidedInExactlyOnePlace`.

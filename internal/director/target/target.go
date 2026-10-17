@@ -127,8 +127,81 @@ func (r *Resolver) resolve(w *directorapi.WorldState, q directorapi.ElementQuery
 		if better, ok := r.reconsider(w, q, lic, verb, shown, res); ok {
 			return better
 		}
+	case directorapi.ResolutionAmbiguous:
+		if settled, ok := r.settle(w, q, lic, verb, shown, res); ok {
+			return settled
+		}
 	}
 	return res
+}
+
+// settle answers a question the person's own sentence already answered.
+//
+// # The measured case
+//
+// Paint shows a `Zoom` slider and a `Zoom` combo box. Asked for "the zoom slider", resolution
+// matched both at 0.5 — the word "zoom" is in both labels and in the request — and asked which
+// was meant. The person had already said which: they said slider.
+//
+// [[ADR-218-a-request-reworded-in-the-screens-own-words]] permits exactly this and only this:
+// a tie may be broken by evidence that DISTINGUISHES the candidates, never by a preference. A
+// kind noun in the request is that evidence when it fits one contender and not the others, and
+// it is nothing at all when it fits several — which is why the re-asking has to come back
+// RESOLVED rather than merely shorter.
+//
+// # The two conditions, and what each refuses
+//
+// THE RE-ASKING MUST RESOLVE. Role-constrained and still ambiguous means the kind did not
+// distinguish them — two sliders both called Zoom are still two sliders — and the question
+// stands exactly as it was.
+//
+// AND IT MUST LAND ON ONE OF THE CONTENDERS. The question was about those controls, and
+// answering it with a different one would be changing the subject: a lower-scoring control
+// that only wins once the contenders are role-rejected was never what the person was being
+// asked to choose between.
+//
+// That second clause is defence in depth rather than a measured need, and the mutation gate is
+// the reason it is described that way: no world in either evaluation corpus produces a
+// re-asking that resolves to a control the question was not about, because the reduced query is
+// an exact match on the contenders' own label and nothing outscores that. Deleting it changes
+// no outcome today. It stays because the day something does outscore it, the failure would be
+// Marco answering a question nobody asked.
+//
+// Together those mean this can only ever turn one of the offered choices into the answer. It
+// cannot invent a third, cannot refuse, and cannot resolve a tie that the person's words left
+// genuinely tied.
+func (r *Resolver) settle(w *directorapi.WorldState, q directorapi.ElementQuery,
+	lic directorapi.OperateLicence, verb string, shown Demonstration,
+	res directorapi.Resolution) (directorapi.Resolution, bool) {
+
+	kinds := rephrase.KindNamed(firstNonEmpty(q.Label, q.Text))
+	if len(kinds) == 0 || len(res.Contenders) < directorapi.MinContenders {
+		return directorapi.Resolution{}, false
+	}
+	// A kind that fits every contender distinguishes nothing, and asking again would be
+	// asking the same question with extra steps.
+	//
+	// AN EARLY-OUT RATHER THAN THE GUARANTEE, and the mutation gate said so: deleting this
+	// changes no outcome, because the accept predicate below is what actually refuses to
+	// settle a genuine tie. Two buttons both called Close re-resolve to an AMBIGUOUS
+	// answer, and `accept` takes only a RESOLVED one. Kept because it says what the rule
+	// is in the place somebody looks for it, and because it saves the work — not because
+	// the rule depends on it.
+	fitting := 0
+	offered := map[directorapi.ElementID]bool{}
+	for _, c := range res.Contenders {
+		offered[c.ElementID] = true
+		if roleFits(c.Role, kinds) {
+			fitting++
+		}
+	}
+	if fitting != 1 {
+		return directorapi.Resolution{}, false
+	}
+	return r.reword(w, q, lic, verb, shown, func(got directorapi.Resolution) bool {
+		return got.Status == directorapi.ResolutionResolved &&
+			offered[got.Target.ElementID] && roleFits(got.Target.Role, kinds)
+	})
 }
 
 // reconsider asks again when the words matched something the person's own sentence says is the

@@ -71,6 +71,36 @@ var verbPhrases = map[string]directorapi.SemanticActionKind{
 	"pick":     directorapi.SemanticChoose,
 	"open":     directorapi.SemanticOpen,
 
+	// GOING SOMEWHERE, which is what `open` means when the thing opened is a place.
+	//
+	// Measured on a live Settings window. "Open installed apps" worked; "show installed
+	// apps", "show me installed apps", "go to installed apps", "take me to installed
+	// apps", "navigate to installed apps" and "I want to see my installed apps" all
+	// failed before resolution was reached, with "I only understand click, focus, move,
+	// repeat and text editing so far" — about a control that was plainly on screen and
+	// that the same request with the word "open" resolved at once.
+	//
+	// So the limit on the live desktop was not perception and not resolution. It was that
+	// ONE English word opened a destination and its ordinary synonyms did not. These are
+	// the same kind of entry as "open up" for expand and "tick" for check: surface forms
+	// of a vocabulary this table already owns, and not one of them is about a particular
+	// application.
+	//
+	// Safe beside the scroll destinations because whole-phrase scrolls are matched FIRST:
+	// "go to the top" and "jump to the bottom" are in scrollPhrases and still read as
+	// moving the view rather than as opening a control called "the top".
+	"go to":       directorapi.SemanticOpen,
+	"goto":        directorapi.SemanticOpen,
+	"jump to":     directorapi.SemanticOpen,
+	"navigate to": directorapi.SemanticOpen,
+	"switch to":   directorapi.SemanticOpen,
+	"take me to":  directorapi.SemanticOpen,
+	"bring up":    directorapi.SemanticOpen,
+	// "show context menu" is longer and still wins the longest-prefix match, so asking
+	// for a context menu is unaffected.
+	"show":    directorapi.SemanticOpen,
+	"show me": directorapi.SemanticOpen,
+
 	"dismiss":           directorapi.SemanticDismiss,
 	"submit":            directorapi.SemanticSubmit,
 	"confirm":           directorapi.SemanticConfirm,
@@ -127,6 +157,12 @@ var wholePhrases = map[string]directorapi.SemanticActionKind{
 
 	"show the context menu": directorapi.SemanticShowContextMenu,
 	"open the context menu": directorapi.SemanticShowContextMenu,
+	// Without the article, because "show" now opens a destination and "show context
+	// menu" would otherwise be read as a request to press a control called "context
+	// menu". Caught by TestTheDestinationPhrasingsDoNotSwallowWhatTheyResemble before
+	// the destination phrasings were committed.
+	"show context menu": directorapi.SemanticShowContextMenu,
+	"context menu":      directorapi.SemanticShowContextMenu,
 }
 
 // ordinals are the positions a choose can name.

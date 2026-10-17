@@ -155,3 +155,100 @@ func TestReconsideringLeavesAnAnswerItCannotBetterExactlyAsItWas(t *testing.T) {
 			want.Target.Confidence, got.Target.ElementID, got.Target.Confidence)
 	}
 }
+
+// A QUESTION THE PERSON ALREADY ANSWERED IS NOT ASKED.
+//
+// Paint shows a `Zoom` slider and a `Zoom` combo box. Asked for "the zoom slider", resolution
+// matched both — the word is in both labels and in the request — and asked which was meant.
+// The person had already said which: they said slider.
+//
+// [[ADR-221-a-question-the-person-already-answered]]. Deleting the AMBIGUOUS branch in
+// resolve, or settle's fitting-count check, must fail this.
+func twoControlsSharingAName() directorapi.WorldState {
+	w := directorapi.WorldState{Elements: map[directorapi.ElementID]*directorapi.Element{}}
+	win := directorapi.WindowID("hwnd:1")
+	add := func(id string, role directorapi.ElementRole, label string) {
+		el := &directorapi.Element{
+			ID: directorapi.ElementID(id), WindowID: win, Role: role, Label: label,
+			Bounds:  directorapi.Rect{X: 40, Y: 40, Width: 90, Height: 24},
+			Enabled: true, Visible: true, Confidence: 0.9,
+		}
+		el.Provenance.Add(directorapi.ObservationReference{
+			Observation: directorapi.ObservationID("obs:" + id),
+			Source:      directorapi.SourceAccessibility,
+		})
+		w.Elements[el.ID] = el
+	}
+	add("zoom_slider", directorapi.RoleSlider, "Zoom")
+	add("zoom_combo", directorapi.RoleComboBox, "Zoom")
+	add("close_a", directorapi.RoleButton, "Close")
+	add("close_b", directorapi.RoleButton, "Close")
+	w.Windows = []directorapi.Window{{ID: win, Application: "mspaint",
+		Focused: true, Visible: true}}
+	w.ActiveWindow = &win
+	w.Confidence = directorapi.WorldConfidence{ObservationQuality: 0.9, Coverage: 0.8,
+		Actionability: 0.9, Freshness: 1}
+	return w
+}
+
+func TestAQuestionThePersonAlreadyAnsweredIsNotAsked(t *testing.T) {
+	w := twoControlsSharingAName()
+	r := NewResolver()
+
+	// Without the kind, the question is real and stands.
+	bare := r.ResolveUnder(&w, directorapi.ElementQuery{Label: "Zoom"}, opening("Zoom"), "open")
+	if bare.Status != directorapi.ResolutionAmbiguous {
+		t.Fatalf("two controls called Zoom and no kind named: %s %q",
+			bare.Status, bare.Explanation)
+	}
+
+	// With it, the person has already chosen.
+	settled := r.ResolveUnder(&w, directorapi.ElementQuery{Label: "the zoom slider"},
+		opening("the zoom slider"), "open")
+	if settled.Status != directorapi.ResolutionResolved {
+		t.Fatalf("\"the zoom slider\" was still a question: %s %q",
+			settled.Status, settled.Explanation)
+	}
+	if settled.Target.ElementID != "zoom_slider" {
+		t.Errorf("it settled on %s %q", settled.Target.Role, settled.Target.Label)
+	}
+	if settled.Reworded == "" {
+		t.Error("a settled question does not say the words were read again")
+	}
+	// AND IT MUST BE ONE OF THE CONTROLS THAT WERE IN QUESTION. Answering with a
+	// different one would be changing the subject.
+	offered := false
+	for _, c := range bare.Contenders {
+		if c.ElementID == settled.Target.ElementID {
+			offered = true
+		}
+	}
+	if !offered {
+		t.Errorf("%s was not one of the controls the question was about",
+			settled.Target.ElementID)
+	}
+}
+
+// AND A KIND THAT FITS EVERY CANDIDATE DISTINGUISHES NOTHING.
+//
+// Two buttons both called Close, and "button" fits both. The person has narrowed nothing, and a
+// resolver that answered anyway would be choosing by preference — the one thing ADR-218 forbids.
+func TestAKindThatFitsEveryCandidateSettlesNothing(t *testing.T) {
+	w := twoControlsSharingAName()
+	r := NewResolver()
+	for _, say := range []string{"Close", "the close button", "the close icon"} {
+		got := r.ResolveUnder(&w, directorapi.ElementQuery{Label: say}, opening(say), "open")
+		if got.Status != directorapi.ResolutionAmbiguous {
+			t.Errorf("%q: %s %q — both candidates are buttons, so naming the kind "+
+				"narrowed nothing", say, got.Status, got.Explanation)
+		}
+	}
+	// And a word that is set aside but names no kind worth constraining by is not
+	// distinguishing evidence either.
+	vague := r.ResolveUnder(&w, directorapi.ElementQuery{Label: "the zoom control"},
+		opening("the zoom control"), "open")
+	if vague.Status != directorapi.ResolutionAmbiguous {
+		t.Errorf("\"control\" names no kind and settled the question anyway: %s %q",
+			vague.Status, vague.Explanation)
+	}
+}

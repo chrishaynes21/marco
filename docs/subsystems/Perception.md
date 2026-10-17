@@ -620,6 +620,28 @@ Settings went **73% → 82%** with extra-word phrasing at **11/11 on both sets**
 unchanged, which is the right result there: the defect was specific, not everywhere. See
 [[ADR-219-a-match-is-not-an-answer]].
 
+**Going somewhere is one request however you ask.** The live limit turned out to be the first
+three words of the sentence: "open installed apps" resolved at once and "show me installed apps",
+"go to installed apps", "take me to installed apps" and "navigate to installed apps" all failed
+BEFORE resolution with "I only understand click, focus, move, repeat and text editing so far",
+about a control plainly on screen. Those phrasings are now surface forms of `open` in the same
+table that already holds "open up" for expand and "tick" for check — language, not applications,
+and no new action. See [[ADR-222-going-somewhere-is-one-request-however-you-ask]] and
+[[Experiment-071-marco-goes-where-you-ask-and-says-when-it-need-not]].
+
+**A question the person already answered, and a request already answered by the screen.** Two
+deterministic capabilities that need no model. A tie is SETTLED when the kind of control the
+person named fits exactly one of the candidates in question — Paint's `Zoom` slider beside its
+`Zoom` combo box, asked for as "the zoom slider" — and preserved whenever the kind fits several
+or names nothing worth constraining by. And a request whose state the application already reports
+as current performs NOTHING and says so: `ResultNothingToDo`, no plan, no policy verdict, no
+record, the actuator never reached. The no-op rests on `Element.Selected` **and** a
+`StateEvidence["selected"]` from a structured source, because appearance is good enough to say
+"this looks like the current tab" and not good enough to tell somebody their request is complete.
+It applies to a person's request and not to a step of a procedure, which the rename procedure
+found the hard way. Ambiguity preserved 3/3 and 6/6; held out **79% → 83%**. See
+[[ADR-221-a-question-the-person-already-answered]].
+
 **And an interpreter that is asked and not believed.** The paraphrase gap — `themes`,
 `bookmarks`, `dark mode`, `wifi` — is a knowledge question that no lexical rule reaches, so an
 optional external interpreter may now be asked WHICH OBSERVED CONTROL a request meant: a third
@@ -641,16 +663,26 @@ answers that move between runs. A wash, and not wired in. See
   makes many ordinary extra-word requests work at all — `time and language` resolves at 0.259
   against a floor of 0.25. What changed is that such a match no longer ENDS the search when the
   person named a kind of control it conflicts with.
-- **An ambiguity the person's own words could settle is still a question.** Paint's `Zoom`
-  slider beside its `Zoom` combo box, asked for as "the zoom slider", asks which was meant
-  although the request named the kind that distinguishes them. The reconsideration in ADR-219
-  only looks at a RESOLVED answer, deliberately, to leave ambiguity behaviour untouched. It is
-  in the held-out evaluation set with that reasoning beside it, and it is the cheapest thing
-  left: distinguishing evidence from the request is exactly what ADR-218 permits.
-- **Whether a request is already satisfied cannot be measured on the committed corpus.** The
-  rule is `Element.Selected` and is unit-tested; `desktopElement` now records `selected`, but
-  every committed sample predates the field, so four evaluation cases report as unmeasured.
-  One fresh capture settles it.
+- ~~An ambiguity the person's own words could settle is still a question.~~ **Fixed 2026-10-17**
+  by [[ADR-221-a-question-the-person-already-answered]].
+- **Whether a request is already satisfied cannot be measured on the committed CORPUS.** The
+  rule is wired into the lifecycle and tested over the real pipeline, and `desktopElement` now
+  records `selected` — but every committed sample predates the field, so those evaluation cases
+  report as unmeasured. One fresh capture settles it.
+- **A menu item that disappears because it was clicked verifies as inconclusive.** Measured live:
+  `"make a new folder called Reports"` invoked the New menu, chose Folder, CREATED THE FOLDER —
+  and reported `verify inconclusive: "Folder" is no longer in the world, so its selection could
+  not be read`, which stopped the program two steps before the name was typed. The item's
+  absence IS the evidence that the click landed. See
+  [[Experiment-071-marco-goes-where-you-ask-and-says-when-it-need-not]].
+- **A goal that needs an argument refuses in the wrong words.** `"make a new folder"` with no
+  name answers "I only understand click, focus, move, repeat and text editing so far". Marco has
+  the goal and the Explorer procedure; what it lacks is the name, and the honest sentence is a
+  clarification — a status it already has.
+- **A program step whose state is already set still performs its action.** Satisfaction applies
+  to a person's request and not to a step of a procedure, because a precondition already met
+  means the procedure should continue and the later steps read the record a skipped step would
+  have left. See [[ADR-221-a-question-the-person-already-answered]].
 - ~~Vision runs an unrequested pass on every ordinary cycle.~~ **Fixed 2026-08-10.** The
   opt-in was enforced on `Observe` and not on `ObserveTargeted`, which is the door the
   collector prefers — so every command captured the screen, and every live diagnosis carried a

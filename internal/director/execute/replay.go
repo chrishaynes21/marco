@@ -302,7 +302,11 @@ func (p *Pipeline) replayOnce(ctx context.Context, source actiongraph.ActionNode
 	// ── Resolve + plan + policy ───────────────────────────────────────────────
 	// The recorded INTENT is re-run through the ordinary pipeline. Nothing of the
 	// stored plan is reused: it is rebuilt from what is on screen now.
-	built, decision, res, status, msg := p.prepare(ctx, source.Intent.Raw, world, in, false, discard)
+	// Carried out rather than asked for, so the satisfaction short-circuit is not offered:
+	// a replay is performing a route Marco learned, and its own verification decides whether
+	// each step landed. See Pipeline.nothingNeeded.
+	built, decision, res, status, msg := p.prepare(ctx, source.Intent.Raw, world, in, false,
+		true, discard)
 	if status != "" {
 		iter.Reason = msg
 		if status == directorapi.ResultNeedsClarification {

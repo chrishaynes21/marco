@@ -398,6 +398,10 @@ func (p *Pipeline) RunProgram(ctx context.Context, prog program.Program,
 // simplified version of all that is how the two paths drift.
 func (p *Pipeline) runStep(ctx context.Context, phrase string, in directorapi.Intent,
 	pctx program.Context) Outcome {
+	// AND IT IS A STEP, which the single-step pipeline has one reason to know: a
+	// precondition already met means a procedure CONTINUES, where a person's request
+	// already satisfied means nothing needs doing. See program.Context.WithinProgram.
+	pctx.WithinProgram = true
 	return p.handleParsed(ctx, phrase, in, pctx)
 }
 

@@ -7,13 +7,32 @@ import (
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 )
 
+// navItem is one navigation member, with the state reported the way fusion reports it: the
+// boolean AND the StateFact that says which sensor said so.
+//
+// Both, because a no-op success rests on the second. A `Selected` with no evidence behind it is
+// a value nobody wrote, and a `Selected` whose evidence comes from a visual detector is what a
+// region LOOKS like — neither is the application telling Marco the request is already done.
 func navItem(label string, selected bool) *directorapi.Element {
-	return &directorapi.Element{
+	return navItemSeenBy(label, selected, directorapi.SourceAccessibility)
+}
+
+func navItemSeenBy(label string, selected bool,
+	src directorapi.ObservationSource) *directorapi.Element {
+
+	el := &directorapi.Element{
 		ID: directorapi.ElementID("nav_" + label), WindowID: "hwnd:1",
 		Role: directorapi.RoleListItem, Label: label, Selected: selected,
 		Bounds:  directorapi.Rect{X: 16, Y: 100, Width: 280, Height: 36},
 		Enabled: true, Visible: true, Confidence: 0.9,
 	}
+	if selected {
+		el.StateEvidence = map[string]directorapi.StateFact{
+			directorapi.StateSelected: {Value: true, Source: src, Confidence: 1,
+				Observation: "obs:" + directorapi.ObservationID(label)},
+		}
+	}
+	return el
 }
 
 func TestTheCurrentPageNeedsNoPressing(t *testing.T) {
@@ -86,5 +105,93 @@ func TestTheSentenceFitsTheKindOfControl(t *testing.T) {
 	row.Role = directorapi.RoleRow
 	if got := AlreadyThere(row, "select"); !strings.Contains(got.Because, "selected") {
 		t.Errorf("a selected row was not described as selected: %q", got.Because)
+	}
+}
+
+// AND THE APPLICATION MUST HAVE SAID SO ITSELF.
+//
+// A no-op success is a claim that nothing needed doing. Appearance is good enough to say "this
+// looks like the current tab" and not good enough to tell somebody their request is complete,
+// so a `Selected` a visual detector filled must not produce one — and neither must one with no
+// evidence behind it at all.
+func TestOnlyTheApplicationsOwnReportCanSayARequestIsDone(t *testing.T) {
+	seen := navItemSeenBy("Apps", true, directorapi.SourceVision)
+	if s := AlreadyThere(seen, "open"); s.Already {
+		t.Errorf("what a region LOOKS like reported a request as already done: %q",
+			s.Because)
+	}
+	bare := navItem("Apps", true)
+	bare.StateEvidence = nil
+	if s := AlreadyThere(bare, "open"); s.Already {
+		t.Errorf("a selection nothing vouched for reported a request as done: %q",
+			s.Because)
+	}
+	// AND THE RECEIPT TRAVELS WITH THE ANSWER, because "nothing needed doing" without one
+	// is indistinguishable from "I did not try".
+	told := AlreadyThere(navItem("Apps", true), "open")
+	if told.ElementID == "" || told.Source != directorapi.SourceAccessibility {
+		t.Errorf("the answer carries no evidence: %+v", told)
+	}
+}
+
+// AND A RESOLUTION'S CONTENDERS ARE READ, not only its target.
+//
+// The measured case was AMBIGUOUS. Two operable controls labelled "Apps", one of them the page
+// the person is already on, and a question whose every answer is "nothing happens".
+func TestAnAmbiguousResolutionIsSatisfiedWhenOneChoiceAlreadyIs(t *testing.T) {
+	w := &directorapi.WorldState{Elements: map[directorapi.ElementID]*directorapi.Element{}}
+	nav := navItem("Apps", true)
+	crumb := &directorapi.Element{
+		ID: "crumb_apps", WindowID: "hwnd:1", Role: directorapi.RoleButton, Label: "Apps",
+		Bounds:  directorapi.Rect{X: 400, Y: 60, Width: 180, Height: 28},
+		Enabled: true, Visible: true, Confidence: 0.9,
+	}
+	w.Elements[nav.ID] = nav
+	w.Elements[crumb.ID] = crumb
+
+	res := directorapi.Resolution{
+		Status: directorapi.ResolutionAmbiguous,
+		Contenders: []directorapi.TargetCandidate{
+			{ElementID: crumb.ID, Role: crumb.Role, Label: crumb.Label},
+			{ElementID: nav.ID, Role: nav.Role, Label: nav.Label},
+		},
+	}
+	s := Already(w, res, "open")
+	if !s.Already {
+		t.Fatal("a question whose every answer changes nothing was left as a question")
+	}
+	if s.ElementID != nav.ID {
+		t.Errorf("the answer names %s rather than the page that is open", s.ElementID)
+	}
+	// And with nothing selected it is a real question again.
+	w.Elements[nav.ID] = navItem("Apps", false)
+	if got := Already(w, res, "open"); got.Already {
+		t.Errorf("a genuine question was answered: %q", got.Because)
+	}
+}
+
+// AND THE RESOLUTION-LEVEL ANSWER KEEPS THE VERB RULE TOO.
+//
+// Already and AlreadyThere each ask whether the verb names a place, and both have to: the
+// first is what the request lifecycle calls, and a rule enforced only one tier down would let
+// "click Apps" come back as needing nothing because the page happens to be the current one.
+func TestTheResolutionLevelAnswerAlsoOnlyAnswersDestinationRequests(t *testing.T) {
+	w := &directorapi.WorldState{Elements: map[directorapi.ElementID]*directorapi.Element{}}
+	nav := navItem("Apps", true)
+	w.Elements[nav.ID] = nav
+	res := directorapi.Resolution{
+		Status: directorapi.ResolutionResolved,
+		Target: &directorapi.ResolvedTarget{ElementID: nav.ID, Role: nav.Role, Label: nav.Label},
+	}
+	for _, verb := range []string{"click", "double_click", "refresh", "toggle", "copy",
+		"invoke", "scroll"} {
+		if s := Already(w, res, verb); s.Already {
+			t.Errorf("%q was called already satisfied: %q", verb, s.Because)
+		}
+	}
+	for _, verb := range []string{"open", "select", "choose"} {
+		if s := Already(w, res, verb); !s.Already {
+			t.Errorf("%q names a place and was not recognised as satisfied", verb)
+		}
 	}
 }

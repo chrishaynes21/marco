@@ -445,7 +445,13 @@ func (p *Pipeline) iterate(ctx context.Context, f collections.ForEach,
 			Digest:    collections.Digest(member.Key),
 			ProgramID: env.Program(), StepID: p.stepID,
 		}
-		stepOut := p.handleParsed(ctx, memberPhrase(member), stepIn, pctx)
+		// A MEMBER'S TURN IS A STEP, for the same one reason runStep says so: an
+		// iteration whose member is already in the asked-for state is a precondition
+		// met, and the iteration should go on to the next member rather than report
+		// that nothing needed doing. See program.Context.WithinProgram.
+		stepCtx := pctx
+		stepCtx.WithinProgram = true
+		stepOut := p.handleParsed(ctx, memberPhrase(member), stepIn, stepCtx)
 		p.iteration = nil
 		result.Attempted++
 

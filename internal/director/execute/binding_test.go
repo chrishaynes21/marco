@@ -330,8 +330,15 @@ func TestOneRequestSharesOneStoreAcrossItsSteps(t *testing.T) {
 
 // progContext is the per-step context a program supplies, with its value and collection
 // environments made — the shape handleParsed expects when a step runs.
+//
+// WithinProgram, because that is what `runStep` sets and these tests enter at handleParsed
+// instead. A test that entered as a program and was treated as a person's request would be
+// testing a path production does not take: the rename procedure's first step selects a file,
+// and in a window where that file is already selected a person's request is finished where a
+// procedure is one step in.
 func progContext() program.Context {
 	var pctx program.Context
+	pctx.WithinProgram = true
 	pctx.EnsureValues()
 	pctx.EnsureCollections()
 	return pctx

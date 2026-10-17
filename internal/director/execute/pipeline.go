@@ -7,9 +7,11 @@ import (
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/actiongraph"
 	"github.com/chaynes-simpleclouds/marco/internal/director/collections"
+	"github.com/chaynes-simpleclouds/marco/internal/director/intent"
 	"github.com/chaynes-simpleclouds/marco/internal/director/memory"
 	"github.com/chaynes-simpleclouds/marco/internal/director/plan"
 	"github.com/chaynes-simpleclouds/marco/internal/director/program"
+	"github.com/chaynes-simpleclouds/marco/internal/director/satisfied"
 	"github.com/chaynes-simpleclouds/marco/internal/director/search"
 	"github.com/chaynes-simpleclouds/marco/internal/director/surface"
 	"github.com/chaynes-simpleclouds/marco/internal/director/target"
@@ -265,6 +267,48 @@ type Stage struct {
 	OK     bool   `json:"ok"`
 }
 
+// nothingNeeded reports whether this resolution's own answer is a state the screen is already
+// in, so the honest outcome is that no input is called for.
+//
+// # Why only a request a person made, and not a step of a procedure
+//
+// Because a procedure's steps have an order, and a precondition already met means the
+// procedure should CONTINUE rather than stop. Found by the rename procedure, whose first step
+// selects the file the person pointed at: in a window where that file was already selected,
+// satisfaction ended the request before F2 was ever pressed, and "Alpha.txt is already the one
+// you are on" was a true sentence about a rename that did not happen.
+//
+// A person's "open Apps" has no next step. A procedure's step one has three, and teaching
+// every program to treat a no-op step as a success it can build on is a larger change — the
+// later steps read the record the skipped step would have left. Recorded as a limitation in
+// [[ADR-221-a-question-the-person-already-answered]].
+//
+// Enforced by TestARequestForAPageThatIsOpenPerformsNothingAndSaysSo and
+// TestAProgramStepWhoseStateIsAlreadySetStillRuns.
+func (p *Pipeline) nothingNeeded(w *directorapi.WorldState, res directorapi.Resolution,
+	in directorapi.Intent, withinProgram bool) satisfied.Satisfaction {
+
+	if withinProgram {
+		return satisfied.Satisfaction{}
+	}
+	return satisfied.Already(w, res, actionAsked(in))
+}
+
+// actionAsked names what the request asked for, in the vocabulary a reader of the request
+// would use.
+//
+// `Intent.Verb` is "semantic" for every one of the 34 actions — the verb says which PLANNER
+// handles it, and the action itself travels in the parameters. Anything reasoning about what
+// was asked for wants the second, and reading the first gets "semantic" for `open`, `select`,
+// `copy` and `maximize` alike. Measured: satisfaction never fired, because no request ever
+// named a destination verb.
+func actionAsked(in directorapi.Intent) string {
+	if kind, ok := intent.SemanticKindOf(in); ok {
+		return string(kind)
+	}
+	return in.Verb
+}
+
 // Handle runs one request end to end.
 //
 // A single request gets a one-step value environment, created here and discarded when
@@ -514,7 +558,7 @@ func (p *Pipeline) handleParsed(ctx context.Context, request string, parsed dire
 
 	// ── Resolve + plan + policy ───────────────────────────────────────────────
 	built, decision, res, status, msg, diag, asked := p.prepareTraced(ctx, request, world,
-		out.Intent, false, add)
+		out.Intent, false, pctx.WithinProgram, add)
 	out.Binding = diag
 	out.SurfaceQuestion = asked
 	out.Resolution = res
@@ -551,7 +595,7 @@ func (p *Pipeline) handleParsed(ctx context.Context, request string, parsed dire
 			world = fresh
 			out.World = &world
 			built, decision, res, status, msg, diag, asked = p.prepareTraced(ctx,
-				request, world, out.Intent, false, add)
+				request, world, out.Intent, false, pctx.WithinProgram, add)
 			out.Binding, out.Resolution, out.Policy = diag, res, decision
 			out.SurfaceQuestion = asked
 			p.recordVariableOutcome(varName, res)
@@ -580,7 +624,7 @@ func (p *Pipeline) handleParsed(ctx context.Context, request string, parsed dire
 			world = *found
 			out.World = &world
 			built, decision, res, status, msg, diag, asked = p.prepareTraced(ctx,
-				request, world, out.Intent, false, add)
+				request, world, out.Intent, false, pctx.WithinProgram, add)
 			out.Binding, out.Resolution, out.Policy = diag, res, decision
 			out.SurfaceQuestion = asked
 			p.recordVariableOutcome(varName, res)
@@ -681,7 +725,13 @@ func (p *Pipeline) handleParsed(ctx context.Context, request string, parsed dire
 			retryBuilt, retryDecision, retryRes, retryStatus, retryMsg :=
 				// Already confirmed: the retry is only reached when the first attempt
 				// EXECUTED, which it could not have done without passing the gate.
-				p.prepare(ctx, request, retryWorld, out.Intent, true, add)
+				//
+				// And NOT asked whether anything needs doing: by here something
+				// has been performed, and the question is whether it landed —
+				// which is verification's job. A retry that found the state
+				// already as asked would report that nothing needed doing about
+				// an action it had just taken.
+				p.prepare(ctx, request, retryWorld, out.Intent, true, true, add)
 			if retryStatus != "" {
 				add("recover", "the target could not be resolved again: "+retryMsg, false)
 			} else {
@@ -860,12 +910,12 @@ func changed(record directorapi.ActionRecord) bool {
 // is unchanged, because a retry whose binding was re-established somewhere material asks
 // again.
 func (p *Pipeline) prepare(ctx context.Context, request string, world directorapi.WorldState,
-	in directorapi.Intent, confirmed bool, add func(string, string, bool)) (
+	in directorapi.Intent, confirmed, withinProgram bool, add func(string, string, bool)) (
 	*directorapi.Plan, *directorapi.PolicyDecision, *directorapi.Resolution,
 	directorapi.ResultStatus, string) {
 
 	built, decision, res, status, msg, _, _ := p.prepareTraced(ctx, request, world, in,
-		confirmed, add)
+		confirmed, withinProgram, add)
 	return built, decision, res, status, msg
 }
 
@@ -881,7 +931,7 @@ func (p *Pipeline) prepare(ctx context.Context, request string, world directorap
 // state on a shared object, which is the bug this project has twice. Four call sites discard it
 // and say so, which is the cost of being able to see where it goes.
 func (p *Pipeline) prepareTraced(ctx context.Context, request string, world directorapi.WorldState,
-	in directorapi.Intent, confirmed bool, add func(string, string, bool)) (
+	in directorapi.Intent, confirmed, withinProgram bool, add func(string, string, bool)) (
 	*directorapi.Plan, *directorapi.PolicyDecision, *directorapi.Resolution,
 	directorapi.ResultStatus, string, *BindingDiagnostics, *surface.Question) {
 
@@ -960,6 +1010,16 @@ func (p *Pipeline) prepareTraced(ctx context.Context, request string, world dire
 
 		if res.Status != directorapi.ResolutionResolved {
 			add("resolve", string(res.Status)+": "+res.Explanation, false)
+			// AND BEFORE THE QUESTION, whether the answer to it matters.
+			//
+			// The measured case is this one. Two operable controls labelled "Apps",
+			// one of them the page the person is already on, and a question whose
+			// every answer is "nothing happens". Asking it was the failure.
+			if s := p.nothingNeeded(&world, res, in, withinProgram); s.Already {
+				add("state", s.Because+" — "+string(s.Source)+" reported it", true)
+				return nil, nil, &res, directorapi.ResultNothingToDo,
+					s.Because, diag, nil
+			}
 			// AND WHETHER THERE IS A QUESTION A PERSON COULD SETTLE.
 			//
 			// A refusal that could be answered by one press is not the same
@@ -987,6 +1047,25 @@ func (p *Pipeline) prepareTraced(ctx context.Context, request string, world dire
 		}
 		add("resolve", fmt.Sprintf("%s %q (%.2f)", res.Target.Role, res.Target.Label,
 			res.Target.Confidence), true)
+
+		// AND WHETHER ANYTHING NEEDS DOING AT ALL.
+		//
+		// Here, and not a few lines later where the executor is, because the claim is
+		// that nothing needed doing: no plan, no policy verdict, no record. Measured on
+		// a live Settings window with the check placed after the plan instead, and the
+		// account read
+		//
+		//	plan      open "Bluetooth & devices" (medium risk)
+		//	policy    allowed
+		//	state     already the one you are on, so nothing needs pressing
+		//
+		// — three lines about acting, under a heading that says acting was not called
+		// for. Nothing was performed either way, so the defect was in the account
+		// rather than on the desktop, and the account is what a person reads.
+		if s := p.nothingNeeded(&world, res, in, withinProgram); s.Already {
+			add("state", s.Because+" — "+string(s.Source)+" reported it", true)
+			return nil, nil, &res, directorapi.ResultNothingToDo, s.Because, diag, nil
+		}
 	}
 
 	built, err := p.Planner.Build(input)

@@ -195,6 +195,15 @@
       }
     },
     {
+      "say": "the show more settings button",
+      "on": "settings-bluetooth-wide",
+      "kind": "ambiguous",
+      "means": {
+        "ambiguous": true,
+        "why": "REGRESSION CASE for settling by kind. Every one of them IS a button, so naming the kind distinguishes nothing and the question stands."
+      }
+    },
+    {
       "say": "Devices",
       "on": "settings-bluetooth-wide",
       "kind": "exact label",

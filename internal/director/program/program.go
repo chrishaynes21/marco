@@ -311,6 +311,20 @@ func (p Program) Describe() string {
 // purpose. That is the whole distinction this milestone rests on, and the two live side
 // by side here precisely so it stays visible.
 type Context struct {
+	// WithinProgram says this is a STEP OF A PROCEDURE rather than a request somebody
+	// made.
+	//
+	// It exists for one decision and should not grow others: whether finding the screen
+	// already in the state a step describes means "nothing needs doing" or "this
+	// precondition is met, carry on". For a person's request the first is the whole
+	// answer. For step one of a rename — select the file, press F2, type the name — it is
+	// the wrong one, and saying it stops a rename that was three keystrokes from
+	// happening.
+	//
+	// Not derivable from the fields below: they are empty for step one exactly as they are
+	// for a single request, which is the case that matters.
+	WithinProgram bool
+
 	// LastResolvedTarget is the element the previous step acted on.
 	LastResolvedTarget *directorapi.ResolvedTarget
 	// LastWindow is the window it was in.

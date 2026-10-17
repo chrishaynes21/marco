@@ -1,22 +1,20 @@
 package main
 
-// RECOGNISING THAT NOTHING NEEDS DOING IS NOT WIRED INTO DOING THINGS.
+// RECOGNISING THAT NOTHING NEEDS DOING IS DECIDED IN EXACTLY ONE PLACE.
 //
-// `internal/director/satisfied` answers a question the measurement asked for and the
-// execution path does not yet ask: whether the screen is already in the state a request
-// described. Asked to open a Settings page that was already open, Marco found two controls
-// with that label and asked which was meant; the answer it owed was that nothing needed
-// pressing.
+// `internal/director/satisfied` answers whether the screen is already in the state a request
+// described. It is now wired into the request lifecycle — a satisfied request performs nothing
+// and says so, which ADR-221 took as a deliberate product decision rather than a resolution
+// detail — and the point of this walk changes with it.
 //
-// The rule it uses is implemented and tested. What is deliberately NOT done is act on it,
-// because acting on it means a request can succeed WITHOUT performing its action — which
-// changes the plan, the policy verdict, the confirmation and the record a person reads
-// afterwards. That is a decision about what "performed" means, and it is the owner's, not a
-// resolution detail to be slipped in beside a rewording change.
+// What it holds now is that the decision is taken ONCE. A second place reading the rule is a
+// second place that could decide a request needs no action, and the two would diverge exactly
+// where it matters: one of them would report a no-op success for a request the other performed.
+// So the rule may be read by the lifecycle and by the evaluation that measures it, and by
+// nothing else.
 //
-// So the boundary is held structurally rather than remembered. The package may be read by
-// the evaluation that measures it and by nothing else, and the day somebody wires it into
-// execution this test fails and says what the decision is.
+// The behaviour itself is held where it belongs, over the real pipeline with a recording
+// actuator: internal/director/execute TestARequestForAPageThatIsOpenPerformsNothingAndSaysSo.
 
 import (
 	"os"
@@ -25,16 +23,17 @@ import (
 	"testing"
 )
 
-// theOnlyPlacesThatMayAskWhetherNothingIsNeeded are the files allowed to import the
+// theOnlyPlacesThatMayAskWhetherNothingIsNeeded are the files allowed to read the
 // satisfaction rule.
 //
-// One: the evaluation harness, which measures the rule without acting on it. Its own package
-// and its own tests are not in the walk.
+// Two. The request lifecycle, which acts on it by NOT acting, and the evaluation harness,
+// which measures it. Its own package and every _test.go are outside the walk.
 var theOnlyPlacesThatMayAskWhetherNothingIsNeeded = map[string]bool{
-	filepath.Join("cmd", "director", "assessrewording.go"): true,
+	filepath.Join("internal", "director", "execute", "pipeline.go"): true,
+	filepath.Join("cmd", "director", "assessrewording.go"):          true,
 }
 
-func TestSatisfactionIsNotWiredIntoExecution(t *testing.T) {
+func TestSatisfactionIsDecidedInExactlyOnePlace(t *testing.T) {
 	// The quoted import path, not the name: a doc comment that merely POINTS at the
 	// package is a reference and not a use, and the whole value of the boundary is that
 	// the rest of the tree can talk about it without reaching for it.
@@ -87,7 +86,7 @@ func TestSatisfactionIsNotWiredIntoExecution(t *testing.T) {
 	}
 	// AND THE RULE IS STILL MEASURED. A boundary nothing crosses is indistinguishable
 	// from a package nothing uses, and the second one quietly rots.
-	if found == 0 {
+	if found < 2 {
 		t.Error("nothing reads the satisfaction rule at all, so it is not being measured " +
 			"either — see director assess-rewording")
 	}

@@ -995,6 +995,21 @@ func classify(out execute.Outcome) (CommandState, ResponseType) {
 		return CommandBlocked, ResponseFailed
 	case directorapi.ResultNeedsClarification:
 		return CommandFailed, ResponseFailed
+	case directorapi.ResultNothingToDo:
+		// NOTHING NEEDED DOING IS A SUCCESS, and reporting it as a failure is how a
+		// person learns to distrust the answer.
+		//
+		// Measured on a live Settings window: asked to open the Bluetooth page while
+		// already on it, Marco said the right thing — "Bluetooth & devices is already
+		// the one you are on, so nothing needs pressing" — and printed it under
+		// `FAILED:` with a non-zero exit status. The sentence was correct and the
+		// headline above it said the opposite.
+		//
+		// Completed rather than a tenth response type, so the wire protocol does not
+		// move: the command DID complete, and what distinguishes it is that it
+		// performed nothing — which `completedActions` already reports as zero and
+		// `Result.Status` carries verbatim for anything that needs the difference.
+		return CommandCompleted, ResponseCompleted
 	}
 	return CommandFailed, ResponseFailed
 }

@@ -126,11 +126,39 @@
     {
       "say": "the zoom slider",
       "on": "custom-canvas-paint",
-      "kind": "ambiguous",
+      "kind": "named kind settles it",
       "means": {
         "label": "Zoom",
         "role": "slider",
-        "why": "MEASURED GAP, not a target for this change. A slider and a combo box both called Zoom, and the person said which kind — so the question is answerable from their own sentence. The compatibility check only reconsiders a RESOLVED answer, deliberately, because the instruction for this work was to preserve existing ambiguity behaviour. Expect \"asked unnecessarily\" here, and read it as the next thing to decide rather than as a failure."
+        "why": "A slider and a combo box both called Zoom, and the person said which kind — so the question is answerable from their own sentence. Recorded as a measured gap when this case was written, and closed by ADR-221."
+      }
+    },
+    {
+      "say": "the name button",
+      "on": "explorer-fixture-wide",
+      "kind": "named kind settles it",
+      "means": {
+        "label": "Name",
+        "role": "button",
+        "why": "the column header is the one button among six controls called Name; the other five are the cells"
+      }
+    },
+    {
+      "say": "the close button",
+      "on": "browser-fixture-wide",
+      "kind": "ambiguous",
+      "means": {
+        "ambiguous": true,
+        "why": "REGRESSION CASE for settling by kind. Two buttons, both called Close, and \"button\" fits both — so the kind the person named distinguishes nothing and the question stands. A check that settled this would be choosing by preference."
+      }
+    },
+    {
+      "say": "the zoom control",
+      "on": "custom-canvas-paint",
+      "kind": "ambiguous",
+      "means": {
+        "ambiguous": true,
+        "why": "REGRESSION CASE. \"Control\" is a word set aside but names no kind worth constraining by, so it is not distinguishing evidence and the slider-versus-combo-box question stands. Only \"slider\" settles it."
       }
     },
     {

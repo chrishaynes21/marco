@@ -137,7 +137,9 @@ evidence is not evidence against the rule.
 And it is not wired into execution, which is a product decision rather than a resolution
 detail: acting on "nothing needs doing" means a request can succeed without performing its
 action, and that changes the plan, the policy verdict, the confirmation and the record
-afterwards. `TestSatisfactionIsNotWiredIntoExecution` holds the boundary.
+afterwards. **Taken since, in [[ADR-221-a-question-the-person-already-answered]]**: a satisfied
+request now performs nothing and says so, and `TestSatisfactionIsDecidedInExactlyOnePlace`
+holds the narrower boundary that remains — one place decides it.
 
 ## One oracle I got wrong, recorded rather than quietly fixed
 

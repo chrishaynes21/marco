@@ -174,9 +174,9 @@ type rewordTally struct {
 	// changed is how many cases the literal reading already answered and rewording
 	// answered differently — which must be none.
 	changed []string
-	// reconsidered is the one allowed kind of change: a literal answer whose role
-	// conflicted with the kind the person named, replaced by one that fits.
-	reconsidered []string
+	// allowed is the changes a literal answer is permitted: one whose role
+	// conflicted with the kind the person named, or a question that kind settles.
+	allowed []string
 	// reworded is how many answers were reached by rewording at all.
 	reworded int
 	// baselineCorrect is how many cases the LITERAL reading alone got right.
@@ -246,10 +246,11 @@ func assessRewordSet(out io.Writer, set rewordSet, worlds map[string]directorapi
 		// genuinely conflict with the kind the request named, and the replacement must
 		// genuinely fit it. Anything else is a regression and fails the run.
 		if base.Status != directorapi.ResolutionAbsent && !sameAnswer(base, got) {
-			if reconsidered(c.Say, base, got) {
-				t.reconsidered = append(t.reconsidered, c.Say)
-			} else {
+			switch why := allowedChange(c.Say, base, got); why {
+			case "":
 				t.changed = append(t.changed, c.Say)
+			default:
+				t.allowed = append(t.allowed, c.Say+" ("+why+")")
 			}
 		}
 		if got.Reworded != "" {
@@ -431,22 +432,52 @@ func sameAnswer(a, b directorapi.Resolution) bool {
 	return len(a.Contenders) == len(b.Contenders)
 }
 
-// reconsidered reports whether a changed answer is the ONE change that is allowed: the literal
-// reading chose a control whose role conflicts with the kind of control the person named, and
-// the replacement is a resolved control that fits it.
+// allowedChange names the reason a literal answer was allowed to change, or "" if it was not.
 //
-// Both halves are required. Without the first, any change could claim this exemption; without
-// the second, a replacement could be as wrong as what it replaced.
-func reconsidered(say string, base, got directorapi.Resolution) bool {
+// # Why this is a short closed list rather than a tolerance
+//
+// Because "no literal answer may change" is the property the whole rewording design rests on,
+// and every exception to it has to be a decision somebody took and wrote down. There are two,
+// both from the person's own sentence naming a KIND of control, and each is checked rather
+// than trusted — using the resolver's own `target.RoleFits`, so the measurement and the
+// behaviour cannot drift.
+//
+// RECONSIDERED: the words chose a control whose role conflicts with the kind that was named,
+// and the replacement fits it. [[ADR-219-a-match-is-not-an-answer]].
+//
+// SETTLED: the words could not choose between several controls, and the kind that was named
+// fits exactly one of them. [[ADR-221-a-question-the-person-already-answered]].
+//
+// Anything else is a regression and fails the run.
+func allowedChange(say string, base, got directorapi.Resolution) string {
 	kinds := rephrase.KindNamed(say)
-	if len(kinds) == 0 || base.Target == nil || got.Target == nil {
-		return false
+	if len(kinds) == 0 || got.Target == nil ||
+		got.Status != directorapi.ResolutionResolved {
+		return ""
 	}
-	if got.Status != directorapi.ResolutionResolved {
-		return false
+	if !target.RoleFits(got.Target.Role, kinds) {
+		return ""
 	}
-	return !target.RoleFits(base.Target.Role, kinds) &&
-		target.RoleFits(got.Target.Role, kinds)
+	switch base.Status {
+	case directorapi.ResolutionResolved:
+		if base.Target != nil && !target.RoleFits(base.Target.Role, kinds) {
+			return "reconsidered"
+		}
+	case directorapi.ResolutionAmbiguous:
+		fitting, offered := 0, false
+		for _, c := range base.Contenders {
+			if c.ElementID == got.Target.ElementID {
+				offered = true
+			}
+			if target.RoleFits(c.Role, kinds) {
+				fitting++
+			}
+		}
+		if offered && fitting == 1 {
+			return "settled by the kind they named"
+		}
+	}
+	return ""
 }
 
 func contenderLabels(cs []directorapi.TargetCandidate) string {
@@ -475,9 +506,9 @@ func reportRewordTally(out io.Writer, t rewordTally, cases int) int {
 	// the reader to guess at the old one.
 	fmt.Fprintf(out, "  %-34s %3d → %3d\n", "correct: literal only → reworded",
 		t.baselineCorrect, t.byOutcome[outCorrect])
-	if len(t.reconsidered) > 0 {
-		fmt.Fprintf(out, "  %-34s %3d  %s\n", "literal answers reconsidered",
-			len(t.reconsidered), strings.Join(t.reconsidered, ", "))
+	if len(t.allowed) > 0 {
+		fmt.Fprintf(out, "  %-34s %3d  %s\n", "literal answers changed, allowed",
+			len(t.allowed), strings.Join(t.allowed, ", "))
 	}
 	fmt.Fprintln(out, "\n  (literal) marks an answer rewording had no part in — the literal\n"+
 		"  reading gave it on its own, and this evaluation found it rather than caused it.")

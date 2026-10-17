@@ -145,7 +145,7 @@ apart and can be measured apart: intent parsing, observation, and the join.
    recorded settles it. "Apps is already open" remains the thing that would demonstrate
    reasoning about the computer's state rather than translation of a sentence.
 
-## One clause not independently killable, reported rather than papered over
+## Clauses not independently killable, reported rather than papered over
 
 Mutation on the new code: 12 mutants, 9 killed, 2 refused by the compiler. One survived — the
 clause requiring a reconsidered replacement to FIT the kind that was named. Nothing in either
