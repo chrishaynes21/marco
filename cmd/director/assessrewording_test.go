@@ -43,7 +43,7 @@ func TestRewordingNeverChoosesTheWrongControl(t *testing.T) {
 	held := false
 	for _, set := range sets {
 		var out bytes.Buffer
-		if assessRewordSet(&out, set, worlds, false) != 0 {
+		if assessRewordSet(&out, set, worlds, false, false) != 0 {
 			t.Errorf("%s failed its own evaluation:\n%s", set.Application, out.String())
 		}
 		if set.HeldOut {

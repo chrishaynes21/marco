@@ -107,13 +107,119 @@ func (r *Resolver) resolve(w *directorapi.WorldState, q directorapi.ElementQuery
 	lic directorapi.OperateLicence, verb string, shown Demonstration) directorapi.Resolution {
 
 	res := r.literally(w, q, lic, verb, shown)
-	if res.Status != directorapi.ResolutionAbsent || r.Rephrasing == nil {
+	// A NIL RESOLVER IS A REAL CALLER, and it was tolerated here by accident before this
+	// function had a second half.
+	//
+	// `literally` refuses a query that describes nothing before it reads any of this
+	// Resolver's fields, so a Pipeline assembled without one could always reach that
+	// refusal — and a test that asks the Director to interpret a sentence naming no control
+	// does exactly that. Reading `r.Rephrasing` unconditionally turned that honest refusal
+	// into a crash. The guard is explicit now rather than incidental.
+	if r == nil || r.Rephrasing == nil {
 		return res
 	}
-	if reworded, ok := r.reword(w, q, lic, verb, shown); ok {
-		return reworded
+	switch res.Status {
+	case directorapi.ResolutionAbsent:
+		if reworded, ok := r.reword(w, q, lic, verb, shown, anyAnswer); ok {
+			return reworded
+		}
+	case directorapi.ResolutionResolved:
+		if better, ok := r.reconsider(w, q, lic, verb, shown, res); ok {
+			return better
+		}
 	}
 	return res
+}
+
+// reconsider asks again when the words matched something the person's own sentence says is the
+// wrong SORT of control.
+//
+// # The defect this exists for: a match is not an answer
+//
+// Measured on the Settings Bluetooth page. Asked to open "bluetooth settings", resolution
+// returned the Bluetooth ON/OFF SWITCH — confidently, as a single uncontested candidate at
+// 0.485 — because `textScore` scores a label CONTAINED IN the request at 0.5 and "Bluetooth" is
+// contained in "bluetooth settings". Nothing was wrong with the match. What was wrong is that a
+// plausible match terminated resolution, so the reading that would have answered correctly
+// never ran: asked again with "settings" set aside and destinations tried first, the navigation
+// item resolves and the switch is rejected as the wrong kind of control.
+//
+// The failure is therefore not a missing interpretation. It is that Marco could mistake a match
+// for an answer, and a confident wrong answer reaches the person before anything better does.
+//
+// # Why the person's own noun, and nothing else
+//
+// Because it is evidence rather than preference, which is the line
+// [[ADR-218-a-request-reworded-in-the-screens-own-words]] draws and this must not cross. "A
+// switch is a poor answer to open settings" is only knowable here because the person SAID
+// settings; a rule that preferred navigation items generally would be Marco's taste, and two
+// controls the person did not distinguish must stay undistinguished.
+//
+// So this fires only when the request named a kind of control and the chosen control's role
+// conflicts with it. A request that named no kind reaches none of this.
+//
+// # And it can only ever swap one answer for another
+//
+// Four things it cannot do, which together are why it is safe to put in front of every resolved
+// request:
+//
+//   - It cannot refuse. A reconsideration that finds nothing better leaves the literal answer
+//     exactly as it was, word for word and number for number.
+//   - It cannot raise a new question. Only a RESOLVED re-asking is accepted.
+//   - It cannot choose the same control twice. An answer that re-resolves to the control the
+//     words already chose is the words' own answer, and is returned untouched rather than
+//     relabelled as reworded — which is what keeps "the Storage section" (a LINK, where the
+//     person said "section") bit-identical.
+//   - It cannot accept a control whose role conflicts too. The replacement must FIT the kind
+//     that was named, or there was no reason to prefer it.
+//
+// Nothing about scoring changes. MinScore is untouched and substring matching is untouched:
+// what changes is whether a particular kind of match is allowed to end the search.
+func (r *Resolver) reconsider(w *directorapi.WorldState, q directorapi.ElementQuery,
+	lic directorapi.OperateLicence, verb string, shown Demonstration,
+	res directorapi.Resolution) (directorapi.Resolution, bool) {
+
+	if res.Target == nil {
+		return directorapi.Resolution{}, false
+	}
+	kinds := rephrase.KindNamed(firstNonEmpty(q.Label, q.Text))
+	if len(kinds) == 0 || roleFits(res.Target.Role, kinds) {
+		return directorapi.Resolution{}, false
+	}
+	chosen := res.Target.ElementID
+	return r.reword(w, q, lic, verb, shown, func(got directorapi.Resolution) bool {
+		return got.Status == directorapi.ResolutionResolved &&
+			got.Target.ElementID != chosen && roleFits(got.Target.Role, kinds)
+	})
+}
+
+// RoleFits reports whether a control's role is one of the kinds a request named.
+//
+// Exported for the evaluation, which has to be able to say precisely which literal answers were
+// ALLOWED to change: one whose role conflicted with the kind the person named, replaced by one
+// that fits. A second copy of the rule in the harness would let the measurement and the
+// behaviour drift, and the measurement is the only thing holding the behaviour.
+func RoleFits(got directorapi.ElementRole, kinds []directorapi.ElementRole) bool {
+	return roleFits(got, kinds)
+}
+
+// roleFits reports whether a control's role is one of the kinds the request named, allowing the
+// resolver's own compatibility between near-equivalent kinds — a navigation list member IS the
+// tab of an application whose navigation is a list.
+func roleFits(got directorapi.ElementRole, kinds []directorapi.ElementRole) bool {
+	for _, want := range kinds {
+		if got == want || compatibleRole(got, want) {
+			return true
+		}
+	}
+	return false
+}
+
+// anyAnswer accepts whatever a re-asking resolved or asked, which is what an ABSENT request
+// wants: anything at all is better than nothing matched.
+func anyAnswer(got directorapi.Resolution) bool {
+	return got.Status == directorapi.ResolutionResolved ||
+		got.Status == directorapi.ResolutionAmbiguous
 }
 
 // reword re-asks the request in the screen's own words, and reports whether that answered it.
@@ -130,13 +236,19 @@ func (r *Resolver) resolve(w *directorapi.WorldState, q directorapi.ElementQuery
 // trying to reduce, and acting on the wrong control is the cost we must never buy with it. Two
 // operable controls that a reworded request cannot tell apart are still two controls, and the
 // person is still the one who knows which.
+// `accept` says which answers the caller will take, and is the only difference between the two
+// callers: a request nothing matched will take anything, and a request whose match was the wrong
+// SORT of control will take only a resolved, role-fitting, different one.
 func (r *Resolver) reword(w *directorapi.WorldState, q directorapi.ElementQuery,
-	lic directorapi.OperateLicence, verb string,
-	shown Demonstration) (directorapi.Resolution, bool) {
+	lic directorapi.OperateLicence, verb string, shown Demonstration,
+	accept func(directorapi.Resolution) bool) (directorapi.Resolution, bool) {
 
 	var ambiguous *directorapi.Resolution
 	for _, attempt := range r.Rephrasing.Attempts(w, q) {
 		got := r.literally(w, attempt.Query, lic, verb, shown)
+		if !accept(got) {
+			continue
+		}
 		switch got.Status {
 		case directorapi.ResolutionResolved:
 			return asReworded(got, q, attempt), true

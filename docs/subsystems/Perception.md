@@ -14,6 +14,7 @@ source_paths:
   - internal/director/world
   - internal/director/rephrase
   - internal/director/satisfied
+  - internal/director/meaning
   - pkg/directorapi/observation.go
 ---
 
@@ -608,18 +609,44 @@ Bluetooth page, `bluetooth settings` resolves to the Bluetooth switch rather tha
 [[ADR-218-a-request-reworded-in-the-screens-own-words]] and
 [[Experiment-069-rewording-closes-the-spelling-gap-and-not-the-meaning-gap]].
 
+**A match is not an answer.** The defect that experiment found, fixed. A literal RESOLVED answer
+whose role conflicts with the KIND of control the person's own sentence named is a candidate
+rather than an answer: resolution asks again for one that fits, and keeps the literal answer
+untouched when there is none. All the evidence comes from the request — a rule that preferred
+navigation items in general would be Marco's taste standing in for the person's intent. It cannot
+refuse, cannot raise a new question, cannot re-choose the same control and cannot accept a
+replacement that conflicts too. `MinScore`, substring scoring and ambiguity are all unchanged.
+Settings went **73% → 82%** with extra-word phrasing at **11/11 on both sets** and held-out
+unchanged, which is the right result there: the defect was specific, not everywhere. See
+[[ADR-219-a-match-is-not-an-answer]].
+
+**And an interpreter that is asked and not believed.** The paraphrase gap — `themes`,
+`bookmarks`, `dark mode`, `wifi` — is a knowledge question that no lexical rule reaches, so an
+optional external interpreter may now be asked WHICH OBSERVED CONTROL a request meant: a third
+question on the existing plugin protocol, behind its own `$MARCO_INTERPRETER` switch because it
+is the only one told what is on screen. It is given id, role and label for the addressable
+controls and nothing else, it can only answer with an id that was offered and is still in the
+world, and in this experiment **nothing acts on the answer** — the only caller is the evaluation,
+held there by a tree walk. First run with a local 3B model: 21/39 held out against Marco's 31,
+four cases it would have ADDED and four it would have BROKEN, two abstentions in forty, and
+answers that move between runs. A wash, and not wired in. See
+[[ADR-220-asking-what-a-request-meant-and-believing-none-of-it]] and
+[[Experiment-070-the-interpreter-knows-some-meaning-and-does-not-know-what-it-does-not-know]].
+
 ## Known gaps
 
-- **The literal reading answers requests it only partly matched.** `textScore` scores a label
-  CONTAINED IN the request at 0.5, so on the Settings Bluetooth page `bluetooth settings`
-  resolves confidently to the Bluetooth on/off switch rather than to the page — the single
-  usable candidate, at 0.485, with nothing to contest it. Rewording would have answered it
-  correctly, and never runs, because the literal reading answered first. Found by the oracle in
-  [[Experiment-069-rewording-closes-the-spelling-gap-and-not-the-meaning-gap]] and deliberately
-  not fixed there; it is the largest remaining wrong-control risk in resolution and it is not in
-  the new code. The same clause is also what makes many ordinary extra-word requests work at
-  all, some a hair above `MinScore` — `time and language` resolves at 0.259 against a floor of
-  0.25 — so changing it needs the evaluation re-run, not a patch.
+- ~~The literal reading answers requests it only partly matched.~~ **Fixed 2026-10-17** by
+  [[ADR-219-a-match-is-not-an-answer]], and fixed at the DECISION rather than at the score:
+  `textScore` still rates a label contained in the request at 0.5, because that clause is what
+  makes many ordinary extra-word requests work at all — `time and language` resolves at 0.259
+  against a floor of 0.25. What changed is that such a match no longer ENDS the search when the
+  person named a kind of control it conflicts with.
+- **An ambiguity the person's own words could settle is still a question.** Paint's `Zoom`
+  slider beside its `Zoom` combo box, asked for as "the zoom slider", asks which was meant
+  although the request named the kind that distinguishes them. The reconsideration in ADR-219
+  only looks at a RESOLVED answer, deliberately, to leave ambiguity behaviour untouched. It is
+  in the held-out evaluation set with that reasoning beside it, and it is the cheapest thing
+  left: distinguishing evidence from the request is exactly what ADR-218 permits.
 - **Whether a request is already satisfied cannot be measured on the committed corpus.** The
   rule is `Element.Selected` and is unit-tested; `desktopElement` now records `selected`, but
   every committed sample predates the field, so four evaluation cases report as unmeasured.

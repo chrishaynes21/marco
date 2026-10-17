@@ -177,6 +177,42 @@ func (g *Rephraser) Attempts(w *directorapi.WorldState, q directorapi.ElementQue
 	return out
 }
 
+// KindNamed reports the roles the request's own kind noun names, strictest first, or nil when
+// the request named no kind of control at all.
+//
+// # Why this is exported, and what it is for one tier up
+//
+// Because the person's own sentence is the only evidence in this system about what SORT of
+// control they meant, and resolution needs it for a question rewording cannot answer: whether
+// a control the words matched is a plausible ANSWER as well as a plausible match.
+//
+// Measured: on the Settings Bluetooth page, "bluetooth settings" resolved — literally,
+// confidently, at 0.485 with nothing contesting it — onto the Bluetooth on/off switch, because
+// the label "Bluetooth" is contained in the request. The person said "settings", which names a
+// destination, and a switch is not a destination. That conflict is the whole of the evidence,
+// it comes from the request rather than from a preference, and it is the same table rewording
+// already reads. A second copy of it in the resolver would be two lists of UI vocabulary, which
+// is how two definitions of the same thing drift apart.
+//
+// It reports only what the words NAMED. Whether a role fits, and what to do when it does not,
+// are the resolver's decisions — see target.Resolver.reconsider.
+func KindNamed(request string) []directorapi.ElementRole {
+	var roles []directorapi.ElementRole
+	for _, raw := range strings.Fields(strings.ToLower(request)) {
+		if r, ok := kindNouns[trimWord(raw)]; ok && len(r) > 0 {
+			// The LAST kind noun wins, because English puts the head noun last.
+			roles = r
+		}
+	}
+	return roles
+}
+
+// trimWord strips the punctuation a person types around a word.
+func trimWord(raw string) string {
+	w := strings.Trim(raw, ".,;:!?\"'()[]{}")
+	return strings.Trim(w, "“”‘’")
+}
+
 // Reduction is a request with its wrapping words set aside and its spelling repaired.
 type Reduction struct {
 	// Words are what is left: the content words, in the order the person said them.
@@ -202,8 +238,7 @@ func reduce(request string, vocab vocabulary) Reduction {
 		roles   []directorapi.ElementRole
 	)
 	for _, raw := range words {
-		w := strings.Trim(raw, ".,;:!?\"'()[]{}")
-		w = strings.Trim(w, "“”‘’")
+		w := trimWord(raw)
 		if w == "" {
 			continue
 		}

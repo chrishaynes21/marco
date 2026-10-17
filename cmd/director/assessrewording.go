@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chaynes-simpleclouds/marco/internal/director/rephrase"
 	"github.com/chaynes-simpleclouds/marco/internal/director/satisfied"
 	"github.com/chaynes-simpleclouds/marco/internal/director/target"
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
@@ -131,6 +132,15 @@ func runAssessRewording(args []string) int {
 	corpus := fs.String("corpus", "fixtures/perception/desktop/corpus",
 		"the desktop perception corpus the cases are said against")
 	verbose := fs.Bool("verbose", false, "print every case, not only the failures")
+	// SHADOW MODE, and it is a flag rather than a setting because that is the experiment.
+	//
+	// With it, every case is ALSO put to the configured interpreter ($MARCO_INTERPRETER)
+	// and scored in its own column. Nothing it says reaches resolution, the plan, the
+	// policy or the executor — the proposals are compared with what Marco decided and
+	// then thrown away. See internal/director/meaning.
+	shadow := fs.Bool("interpreter", false,
+		"also ask $MARCO_INTERPRETER which control each request meant, and score its "+
+			"proposals separately (nothing it says is acted on)")
 	_ = fs.Parse(flagsFirst(args))
 
 	sets, err := loadRewordSets(*setPath)
@@ -150,7 +160,7 @@ func runAssessRewording(args []string) int {
 
 	bad := 0
 	for _, set := range sets {
-		if assessRewordSet(os.Stdout, set, worlds, *verbose) != 0 {
+		if assessRewordSet(os.Stdout, set, worlds, *verbose, *shadow) != 0 {
 			bad = 1
 		}
 	}
@@ -164,6 +174,9 @@ type rewordTally struct {
 	// changed is how many cases the literal reading already answered and rewording
 	// answered differently — which must be none.
 	changed []string
+	// reconsidered is the one allowed kind of change: a literal answer whose role
+	// conflicted with the kind the person named, replaced by one that fits.
+	reconsidered []string
 	// reworded is how many answers were reached by rewording at all.
 	reworded int
 	// baselineCorrect is how many cases the LITERAL reading alone got right.
@@ -174,7 +187,7 @@ type rewordTally struct {
 
 // assessRewordSet runs one set and prints its report. Non-zero when the run failed.
 func assessRewordSet(out io.Writer, set rewordSet, worlds map[string]directorapi.WorldState,
-	verbose bool) int {
+	verbose, shadow bool) int {
 
 	// PRODUCTION'S OWN RESOLVER, and a second one with rewording switched off. Not a
 	// reimplementation of either: the same constructor, with one field cleared, so the
@@ -185,6 +198,7 @@ func assessRewordSet(out io.Writer, set rewordSet, worlds map[string]directorapi
 	literal.Rephrasing = nil
 
 	t := rewordTally{byOutcome: map[string]int{}, byKind: map[string]map[string]int{}}
+	shade := newShadowTally()
 
 	held := ""
 	if set.HeldOut {
@@ -224,10 +238,19 @@ func assessRewordSet(out io.Writer, set rewordSet, worlds map[string]directorapi
 		base := literal.ResolveUnder(&w, q, lic, verb)
 		t.literally = append(t.literally, time.Since(started))
 
-		// WHAT DID NOT CHANGE. A case the literal reading answered must be answered
-		// identically, and the only answer rewording may alter is "nothing matched".
+		// WHAT DID NOT CHANGE, and the one class that is allowed to.
+		//
+		// A case the literal reading answered must be answered identically — except where
+		// the control it chose was the wrong SORT of control for what the person said.
+		// That exception is checked rather than trusted: the literal answer's role must
+		// genuinely conflict with the kind the request named, and the replacement must
+		// genuinely fit it. Anything else is a regression and fails the run.
 		if base.Status != directorapi.ResolutionAbsent && !sameAnswer(base, got) {
-			t.changed = append(t.changed, c.Say)
+			if reconsidered(c.Say, base, got) {
+				t.reconsidered = append(t.reconsidered, c.Say)
+			} else {
+				t.changed = append(t.changed, c.Say)
+			}
 		}
 		if got.Reworded != "" {
 			t.reworded++
@@ -255,7 +278,13 @@ func assessRewordSet(out io.Writer, set rewordSet, worlds map[string]directorapi
 		}
 		t.byKind[c.Kind][outcome]++
 
-		if verbose || outcome != outCorrect {
+		shadowOutcome, shadowNote := "", ""
+		if shadow {
+			shadowOutcome, shadowNote = shade.askTheInterpreter(&w, c,
+				outcome == outCorrect)
+		}
+
+		if verbose || outcome != outCorrect || strings.ToUpper(shadowOutcome) == shadowOutcome {
 			fmt.Fprintf(out, "  %-34s %-13s %-13s %s\n", quoted(c.Say), c.Kind,
 				strings.ToUpper(string(got.Status)), outcome)
 			if note != "" {
@@ -264,10 +293,18 @@ func assessRewordSet(out io.Writer, set rewordSet, worlds map[string]directorapi
 			if got.Reworded != "" {
 				fmt.Fprintf(out, "  %-34s   by %s\n", "", got.Reworded)
 			}
+			if shadowOutcome != "" {
+				fmt.Fprintf(out, "  %-34s   interpreter: %s — %s\n", "",
+					shadowOutcome, shadowNote)
+			}
 		}
 	}
 
-	return reportRewordTally(out, t, len(set.Cases))
+	status := reportRewordTally(out, t, len(set.Cases))
+	if shadow {
+		shade.report(out)
+	}
+	return status
 }
 
 // scoreRewordCase compares one answer with what a person said was meant.
@@ -394,6 +431,24 @@ func sameAnswer(a, b directorapi.Resolution) bool {
 	return len(a.Contenders) == len(b.Contenders)
 }
 
+// reconsidered reports whether a changed answer is the ONE change that is allowed: the literal
+// reading chose a control whose role conflicts with the kind of control the person named, and
+// the replacement is a resolved control that fits it.
+//
+// Both halves are required. Without the first, any change could claim this exemption; without
+// the second, a replacement could be as wrong as what it replaced.
+func reconsidered(say string, base, got directorapi.Resolution) bool {
+	kinds := rephrase.KindNamed(say)
+	if len(kinds) == 0 || base.Target == nil || got.Target == nil {
+		return false
+	}
+	if got.Status != directorapi.ResolutionResolved {
+		return false
+	}
+	return !target.RoleFits(base.Target.Role, kinds) &&
+		target.RoleFits(got.Target.Role, kinds)
+}
+
 func contenderLabels(cs []directorapi.TargetCandidate) string {
 	out := make([]string, 0, len(cs))
 	for _, c := range cs {
@@ -420,6 +475,10 @@ func reportRewordTally(out io.Writer, t rewordTally, cases int) int {
 	// the reader to guess at the old one.
 	fmt.Fprintf(out, "  %-34s %3d → %3d\n", "correct: literal only → reworded",
 		t.baselineCorrect, t.byOutcome[outCorrect])
+	if len(t.reconsidered) > 0 {
+		fmt.Fprintf(out, "  %-34s %3d  %s\n", "literal answers reconsidered",
+			len(t.reconsidered), strings.Join(t.reconsidered, ", "))
+	}
 	fmt.Fprintln(out, "\n  (literal) marks an answer rewording had no part in — the literal\n"+
 		"  reading gave it on its own, and this evaluation found it rather than caused it.")
 

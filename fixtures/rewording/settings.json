@@ -85,6 +85,28 @@
     },
 
     {
+      "say": "the bluetooth switch",
+      "on": "settings-bluetooth-wide",
+      "kind": "extra words",
+      "means": {
+        "label": "Bluetooth",
+        "role": "button",
+        "why": "REGRESSION CASE for the role-compatibility check. The same page and almost the same words as \"bluetooth settings\", and the opposite answer: a person who says switch means the on/off control, and the check must NOT fire, because the role it named is compatible with the control the words chose. If this ever reaches the navigation item, the check has stopped being about the person's sentence and become a preference."
+      }
+    },
+    {
+      "say": "the bluetooth toggle",
+      "on": "settings-bluetooth-wide",
+      "kind": "extra words",
+      "means": { "label": "Bluetooth", "role": "button" }
+    },
+    {
+      "say": "the Windows Update page",
+      "on": "settings-bluetooth-wide",
+      "kind": "extra words",
+      "means": { "label": "Windows Update", "role": "list_item" }
+    },
+    {
       "say": "personalisation",
       "on": "settings-bluetooth-wide",
       "kind": "spelling",

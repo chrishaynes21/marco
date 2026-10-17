@@ -42,6 +42,9 @@ type request struct {
 	// asks — a question identified by a field can be added without every existing plugin
 	// having to know a new mode word. See interpret.go.
 	Interpret *interpretRequest `json:"interpret"`
+	// Which, when present, asks WHICH OF THE CONTROLS ON SCREEN the request meant. The
+	// only question that is told what is in front of the person. See which.go.
+	Which *whichRequest `json:"which"`
 }
 
 type response struct {
@@ -70,6 +73,13 @@ func main() {
 	// by a mode word, and a request carrying it is never also a route question.
 	if req.Interpret != nil {
 		emitSemantic(interpret(ctx, cfg, req.Input, req.Interpret.Verbs))
+		return
+	}
+	// WHICH OF THESE CONTROLS DID THEY MEAN — the only question that is told what is on
+	// screen, which is why Marco asks it through its own switch. Identified by its field,
+	// like the one above, so a plugin that does not know it simply never sees it.
+	if req.Which != nil {
+		emitChoice(which(ctx, cfg, req.Input, req.Which.Application, req.Which.Controls))
 		return
 	}
 	if req.Mode == "converse" {

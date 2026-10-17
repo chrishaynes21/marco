@@ -92,6 +92,48 @@
     },
 
     {
+      "say": "the rotate panel",
+      "on": "custom-canvas-paint",
+      "kind": "extra words",
+      "means": {
+        "label": "Rotate",
+        "role": "button",
+        "why": "REGRESSION CASE for the role-compatibility check. \"Panel\" names a destination and Paint has none — so the check fires, finds nothing that fits, and must leave the literal answer exactly where it was. A check that could turn a right answer into a refusal would be worse than the defect it fixes."
+      }
+    },
+    {
+      "say": "the view button",
+      "on": "explorer-fixture-wide",
+      "kind": "extra words",
+      "means": {
+        "label": "View",
+        "role": "button",
+        "why": "the kind the person named is the kind the words found, so nothing is reconsidered"
+      }
+    },
+    {
+      "say": "the address field",
+      "on": "browser-fixture-wide",
+      "kind": "extra words",
+      "means": { "label": "Address and search bar", "role": "text_field" }
+    },
+    {
+      "say": "the color picker button",
+      "on": "custom-canvas-paint",
+      "kind": "extra words",
+      "means": { "label": "Color picker", "role": "button" }
+    },
+    {
+      "say": "the zoom slider",
+      "on": "custom-canvas-paint",
+      "kind": "ambiguous",
+      "means": {
+        "label": "Zoom",
+        "role": "slider",
+        "why": "MEASURED GAP, not a target for this change. A slider and a combo box both called Zoom, and the person said which kind — so the question is answerable from their own sentence. The compatibility check only reconsiders a RESOLVED answer, deliberately, because the instruction for this work was to preserve existing ambiguity behaviour. Expect \"asked unnecessarily\" here, and read it as the next thing to decide rather than as a failure."
+      }
+    },
+    {
       "say": "favourites",
       "on": "browser-fixture-wide",
       "kind": "spelling",
