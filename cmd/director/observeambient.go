@@ -450,10 +450,9 @@ func (a *ambientObserver) run(ctx context.Context, done chan struct{}) {
 			// Deleting this must fail TestWatchingIsNotBlindWhileYouSwitchWindows.
 			continue
 		}
-		a.mu.Lock()
-		gap := a.attention
-		a.mu.Unlock()
-		if !sleepCtx(ctx, gap) {
+		// THE GAP BETWEEN SESSIONS, which is where an open question goes unanswerable.
+		// See attentionNow.
+		if !sleepCtx(ctx, a.attentionNow()) {
 			return
 		}
 	}
@@ -487,12 +486,7 @@ func (a *ambientObserver) watchOnce(ctx context.Context) (moved bool) {
 	// interval — see freshLookInterval — and execution is not slowed by a quiet desktop.
 	//
 	// Deleting this must fail TestAQuietDesktopIsWatchedMoreCheaply.
-	a.mu.Lock()
-	cadence := a.attention
-	a.mu.Unlock()
-	if cadence <= 0 {
-		cadence = ambientBusy
-	}
+	cadence := a.attentionNow()
 	view, err := ambientObserveNow(a.rt, service.ObservePayload{
 		Target:   currentWindowSelector(application),
 		Duration: ambientSession,
@@ -919,6 +913,54 @@ func nextAttention(current time.Duration, changed bool) time.Duration {
 		return ambientIdle
 	}
 	return next
+}
+
+// attentionNow is the attention to schedule by, which is not always the attention the curve has
+// reached.
+//
+// # Why the curve is not the whole answer
+//
+// `attention` grows from a second to eight while nothing on screen changes, and that is right for
+// a desktop nobody is touching. It is wrong for a desktop where Marco has just asked somebody a
+// question and is waiting for them to answer it.
+//
+// Measured live, Experiment-067: across one eighty-five-second watch the gaps between bounded
+// sessions grew 4s, 8s, 16s as the page sat still, and a clarification cannot accept a press
+// between sessions — it is being derived again from a fresh reading. About twenty-eight of those
+// eighty-five seconds could not have received the answer, concentrated at the end, which is
+// exactly when a person who had read the sentence would get round to clicking. One run produced
+// no press at all.
+//
+// A screen nobody is touching while a question is open is not a quiet desktop. It is a person
+// reading. So while a learning interaction is live, this is `ambientBusy` — the same value a
+// desktop somebody is actively using gets, and not faster.
+//
+// # What it does not do
+//
+// It does not touch the stored curve, so when the interaction ends — answered, lapsed or expired
+// — the supervisor goes straight back to whatever backoff it had reached. It is not a burst and
+// has no window of its own: the question
+// [[ADR-214-a-learning-interaction-outlives-the-session-watching-it]] already bounds is the
+// bound. And it changes no observation: the sessions are still twenty seconds, still bounded,
+// still ordinary readings. There are simply fewer dead seconds between them.
+//
+// Deleting this must fail TestAnOpenQuestionKeepsTheSupervisorAttentive.
+func (a *ambientObserver) attentionNow() time.Duration {
+	a.mu.Lock()
+	if a.attention <= 0 {
+		a.attention = ambientBusy
+	}
+	curve := a.attention
+	a.mu.Unlock()
+	if curve <= ambientBusy {
+		return curve
+	}
+	// ASKED OUTSIDE THIS OBSERVER'S LOCK, because the learner has its own and the two
+	// are taken in the other order on the drain path.
+	if a.rt.surfaceLearner().Expecting() {
+		return ambientBusy
+	}
+	return curve
 }
 
 // sleepCtx waits, and reports false if the wait was cut short.
@@ -1431,17 +1473,18 @@ func (a *ambientObserver) quicken(now time.Time) {
 // The attention curve, unless a burst is running. An idle desktop never enters one and its eight
 // seconds are untouched.
 func (a *ambientObserver) pollEvery() time.Duration {
+	// THE SAME DECISION AS THE GAP, so the two halves cannot disagree: a session read
+	// every eight seconds would bank a press and not offer it until the next poll, and a
+	// press offered after the session ends is refused however prompt the gap was.
+	attention := a.attentionNow()
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.attention <= 0 {
-		a.attention = ambientBusy
-	}
 	if !a.burstUntil.IsZero() && time.Now().Before(a.burstUntil) &&
-		burstInterval < a.attention {
+		burstInterval < attention {
 		a.burstPolls++
 		return burstInterval
 	}
-	return a.attention
+	return attention
 }
 
 // The outcomes one noticed crossing can have, in the order `noticed` asks them.

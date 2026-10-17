@@ -554,6 +554,23 @@ was a reporting or lifecycle defect rather than a failure of perception, learnin
 The press was being captured correctly from the first live run; nothing could say where it went.
 See [[Experiment-067-the-whole-loop-ran-on-a-real-desktop]].
 
+**And a person reading is not a quiet desktop.** The same experiment measured the cost of the
+rollover: ambient attention grows from one second to eight while nothing on screen changes, so the
+gaps between bounded sessions reached 4s, 8s and 16s across one watch -- about 28 of 85 seconds in
+which no question could accept a press, concentrated at the end, which is when somebody who has
+read the sentence gets round to clicking. One watch produced no press at all and the report could
+not tell that from nobody having clicked. So the curve is overridden to the busy cadence while a
+learning interaction is live -- a question open, OR an intent between sessions waiting to be
+derived again -- and the stored curve is left untouched, so an interaction that ends returns the
+supervisor to whatever backoff it had reached. It governs the gap between sessions, the session's
+own cadence and the supervisor's poll together, because a prompt gap with an eight-second cadence
+banks a press and offers it after its session has ended. It grants nothing and changes no rule: a
+press is still matched by session and screen state, and this can only shorten the interval in
+which no press could be answered. Two reporting consequences came with it: nobody is invited to
+click at a question that is not open, and the watch now says whether a press COULD have been
+received -- totals, how many gaps, and the longest one, which is the number a person feels. See
+[[ADR-215-a-person-reading-is-not-a-quiet-desktop]].
+
 ## Known gaps
 
 - ~~Vision runs an unrequested pass on every ordinary cycle.~~ **Fixed 2026-08-10.** The

@@ -317,6 +317,32 @@ func (l *surfaceLearner) Awaiting() *awaitingQuestion {
 	return &c
 }
 
+// Expecting reports whether somebody has been asked something and could still answer it.
+//
+// True while a question is open AND while one is between observation sessions waiting to be
+// derived again — both are a live learning interaction, and the second is the one that matters
+// here, because that is the state the supervisor has to shorten rather than back off through.
+//
+// # What it is for, and what it is not
+//
+// It is read by the supervisor to decide how long to wait before looking again. That is all. It
+// grants nothing, licenses nothing and is not consulted by any rule about whether a press is an
+// answer: a press is still matched by session and screen state exactly as before, and this cannot
+// make an unanswerable press answerable. It can only mean the gap in which no press could be
+// answered is shorter.
+//
+// One accessor rather than two reads of Open and Awaiting at the call site, because “somebody is
+// waiting to be asked” is a question about the learner and the answer must not be able to be
+// half-true while the two are swapped under the lock — which is exactly what a rollover does.
+func (l *surfaceLearner) Expecting() bool {
+	if l == nil {
+		return false
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.pending != nil || l.awaiting != nil
+}
+
 // Establish opens the deferred question from a FRESH reading, in the session a press can arrive
 // in, and refuses every way the screen might have moved on since the request.
 //

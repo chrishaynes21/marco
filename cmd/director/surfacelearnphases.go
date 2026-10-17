@@ -271,6 +271,21 @@ func runSurfaceLearn(out io.Writer, instruction, bridge string, maxNodes, second
 	// the Stage, the ambiguity, the durable place, and a request that actually raised the
 	// question. Somebody told to click before this point would be pressing at a screen
 	// with no open question, and the press would be dropped rather than banked.
+	// AND THE INVITATION IS ONLY EVER ISSUED WHILE THE ANSWER CAN BE RECEIVED.
+	//
+	// A press is matched by session and screen state, so between bounded observation
+	// sessions there is no question that could accept one — see
+	// [[ADR-214-a-learning-interaction-outlives-the-session-watching-it]]. Telling somebody
+	// to click then is asking for something that will be refused, and the refusal will look
+	// to them like their demonstration not counting.
+	//
+	// Deleting this must fail TestNobodyIsInvitedToClickAtAQuestionThatIsNotOpen.
+	if rt.surfaceLearner().Open() == nil {
+		fmt.Fprintln(out, "\nSTOP: the question is no longer open, so nobody will be "+
+			"asked to click at it. Its own account:")
+		fmt.Fprint(out, surfaceAccount(rt.surfaceLearner()))
+		return 1
+	}
 	checkpoint(out, checkDemoNeeded)
 	fmt.Fprintf(out, "Click the control, on a part of it the words do not cover. "+
 		"Watching for %ds. Marco will not press anything.\n", seconds)
@@ -440,8 +455,17 @@ func reportDemonstration(out io.Writer, rt *Runtime, app string, seconds int) in
 	l := rt.surfaceLearner()
 	deadline := time.Now().Add(time.Duration(seconds) * time.Second)
 	seen := 0
+	// WHETHER A PRESS COULD HAVE BEEN RECEIVED, sampled on the same tick as everything
+	// else here. See availability for why this is printed rather than inferred.
+	avail := availability{WasOpen: l.Open() != nil}
+	last := time.Now()
 	for time.Now().Before(deadline) {
 		time.Sleep(500 * time.Millisecond)
+		now := time.Now()
+		if line := avail.saw(l.Open() != nil, now.Sub(last)); line != "" {
+			fmt.Fprint(out, line)
+		}
+		last = now
 		// STOP ON A CHANGED FOREGROUND. A press made in another application is not an
 		// answer to this question, and carrying on watching would be waiting for one.
 		if _, _, _, now := rt.ambient().standing(); now != "" && !sameApplication(now, app) {
@@ -477,6 +501,10 @@ func reportDemonstration(out io.Writer, rt *Runtime, app string, seconds int) in
 	// readable. An observed-press line reading false beside an empty account is the report
 	// that sent a live session hunting through the input hook for a press the hook had
 	// delivered.
+	// AVAILABILITY FIRST, because it is what makes a run with no press readable: a person
+	// who clicked into a gap and a person who did not click are the same empty handoff.
+	fmt.Fprint(out, avail.lines())
+
 	fmt.Fprint(out, handoffLines(l.Handoff()))
 
 	// THE THREE FACTS.
@@ -727,7 +755,10 @@ func theDirectorsQuestion(l *surfaceLearner, raisedIn observe.SessionID) (*surfa
 // moved, an application changed or an ambiguity resolved itself, and a phase that waited out its
 // whole timeout before reading that reason would report a stall where there was an answer.
 func nothingLeftToWaitFor(l *surfaceLearner) bool {
-	return l.Awaiting() == nil && l.Open() == nil
+	// THE LEARNER'S OWN ANSWER, not a second reading of its two fields. A rollover swaps
+	// them under the learner's lock, so asking separately can see neither and conclude the
+	// interaction is over in the instant it is being carried to the next session.
+	return !l.Expecting()
 }
 
 // daemonEstablishmentWait is how long the Director is given to establish the question itself.
