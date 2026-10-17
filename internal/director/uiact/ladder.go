@@ -79,6 +79,20 @@ func clickRung(detail string) Rung {
 	return Rung{Mechanism: MechClick, Detail: detail, available: needsBounds}
 }
 
+// confirmingClickRung is a click that declines a control clicking cannot confirm.
+func confirmingClickRung() Rung {
+	return Rung{
+		Mechanism: MechClick, Detail: "click the confirming control",
+		available: func(t Target) (bool, string) {
+			if t.Role == directorapi.RoleTextField {
+				return false, "clicking a text field puts a caret in it rather " +
+					"than confirming what it contains"
+			}
+			return needsBounds(t)
+		},
+	}
+}
+
 func keyRung(chord, detail string) Rung {
 	return Rung{Mechanism: MechKeyboard, Detail: detail, Chord: chord}
 }
@@ -247,8 +261,24 @@ func Ladder(kind directorapi.SemanticActionKind) []Rung {
 	case directorapi.SemanticConfirm:
 		return []Rung{
 			invokeRung("activate the confirming control"),
-			clickRung("click the confirming control"),
-			keyRung("enter", "press Enter, which activates a dialog's default button"),
+			// A CLICK ON A TEXT FIELD CONFIRMS NOTHING, which is where this
+			// confirmation usually lands.
+			//
+			// Measured live on a disposable folder. "Make a new folder called
+			// Reports" typed the name into Explorer's inline editor and then
+			// confirmed. The confirming control resolved to the editor itself —
+			// there is no OK button on an in-place rename — the invoke rung was
+			// unavailable, and the ladder clicked the text field. Clicking a text
+			// field puts a caret in it. The rename was abandoned, the folder stayed
+			// "New folder", and Enter sat one rung BELOW the click that did nothing.
+			//
+			// So the click rung keeps its place for the control it was written for —
+			// a dialog's OK button — and declines the one control for which clicking
+			// is not a confirmation. Narrow on purpose: it is a fact about text
+			// fields, not about Explorer, and nothing else in the ladder moves.
+			confirmingClickRung(),
+			keyRung("enter", "press Enter, which activates a dialog's default "+
+				"button and commits an edit in place"),
 			refuseRung(),
 		}
 	case directorapi.SemanticCancel:

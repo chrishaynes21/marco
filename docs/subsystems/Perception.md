@@ -680,20 +680,18 @@ accuracy, and an interpreter must never be asked about a tie — as plumbing, no
   rule is wired into the lifecycle and tested over the real pipeline, and `desktopElement` now
   records `selected` — but every committed sample predates the field, so those evaluation cases
   report as unmeasured. One fresh capture settles it.
-- **A menu item that disappears because it was clicked verifies as inconclusive.** Measured live:
-  `"make a new folder called Reports"` invoked the New menu, chose Folder, CREATED THE FOLDER —
-  and reported `verify inconclusive: "Folder" is no longer in the world, so its selection could
-  not be read`, which stopped the program two steps before the name was typed. The item's
-  absence IS the evidence that the click landed. See
-  [[Experiment-071-marco-goes-where-you-ask-and-says-when-it-need-not]].
-- **A goal that needs an argument refuses in the wrong words.** `"make a new folder"` with no
-  name answers "I only understand click, focus, move, repeat and text editing so far". Marco has
-  the goal and the Explorer procedure; what it lacks is the name, and the honest sentence is a
-  clarification — a status it already has.
-- **A program step whose state is already set still performs its action.** Satisfaction applies
-  to a person's request and not to a step of a procedure, because a precondition already met
-  means the procedure should continue and the later steps read the record a skipped step would
-  have left. See [[ADR-221-a-question-the-person-already-answered]].
+- ~~A menu item that disappears because it was clicked verifies as inconclusive.~~ **Fixed
+  2026-10-17** by [[ADR-224-a-procedure-is-finished-when-the-person-has-what-they-asked-for]].
+- ~~A goal that needs an argument refuses in the wrong words.~~ **Fixed 2026-10-17**: "make a new
+  folder" is recognised, asks "what should it be called?", and `director clarify "<answer>"`
+  completes the original request — the second half of a conversation Marco could start and
+  nobody could finish.
+- **A rename by NAME does not bind its object.** "Rename notes.txt to summary.txt" fails at the
+  editor step: it acts on the editor for a BOUND object, and only the deictic form — "rename
+  this file" — binds one. See [[Experiment-073-marco-finishes-what-it-starts]].
+- ~~A program step whose state is already set still performs its action.~~ **Fixed 2026-10-17**
+  by [[ADR-224-a-procedure-is-finished-when-the-person-has-what-they-asked-for]]: it is counted,
+  the procedure continues, and no record is written because nothing was performed.
 - ~~Vision runs an unrequested pass on every ordinary cycle.~~ **Fixed 2026-08-10.** The
   opt-in was enforced on `Observe` and not on `ObserveTargeted`, which is the door the
   collector prefers — so every command captured the screen, and every live diagnosis carried a

@@ -67,6 +67,28 @@ var patterns = []pattern{
 	{prefix: "make a new folder called", kind: CreateFolder, nameFollows: true},
 	{prefix: "make a folder called", kind: CreateFolder, nameFollows: true},
 	{prefix: "new folder called", kind: CreateFolder, nameFollows: true},
+	// AND THE SAME REQUESTS WITHOUT A NAME, which are the same request with a question
+	// attached.
+	//
+	// Measured live: "make a new folder called Reports" ran the Explorer procedure, and
+	// "make a new folder" answered *"I only understand click, focus, move, repeat and
+	// text editing so far"* — because no pattern matched, so it was never a goal, so
+	// nothing ever asked what to call it. Marco has the goal, has the Explorer procedure,
+	// and was missing one word.
+	//
+	// Matching them makes the goal recognised and the name MISSING, which is a state this
+	// package already models and already has the sentence for: `Procedure.Missing` reports
+	// it, `Refusal.Question` renders it as "create a folder — what should it be called?",
+	// and the program layer already pauses on a clarification with the goal's values
+	// intact. Nothing new was needed except the admission that the request was understood.
+	//
+	// Safe beside the longer patterns because the match is longest-prefix: "make a new
+	// folder called Reports" still takes the name with it.
+	{prefix: "create a new folder", kind: CreateFolder, nameFollows: true},
+	{prefix: "create a folder", kind: CreateFolder, nameFollows: true},
+	{prefix: "make a new folder", kind: CreateFolder, nameFollows: true},
+	{prefix: "make a folder", kind: CreateFolder, nameFollows: true},
+	{prefix: "new folder", kind: CreateFolder, nameFollows: true},
 
 	// Goals that name a thing to act on.
 	{prefix: "rename", kind: Rename, targetFollows: true},
@@ -186,4 +208,61 @@ func trimQuotes(s string) string {
 		}
 	}
 	return s
+}
+
+// Supplying returns the request the person would have made had they said the missing part.
+//
+// # Why reconstruct the phrase rather than patch the Goal
+//
+// Because `Parse` owns the patterns, and a second path that filled a parameter directly would
+// be a second definition of what "create a folder called X" means. The patterns are the
+// vocabulary; this uses them.
+//
+// And it CHECKS ITSELF. The reconstructed phrase is parsed back, and the answer is only
+// accepted if the parameter landed where it was meant to. So a requirement with no phrasing
+// here, or an answer that breaks the pattern, returns false and the clarification is honestly
+// unresumable rather than silently turned into a different request.
+//
+// Measured live: "make a new folder" asked "what should it be called?" and an answer of
+// "Reports" was re-run as a request to find a control called Reports — because an answer the
+// clarification parser does not recognise is treated as a new command, which is right for
+// everything except an answer that was asked for.
+//
+// Enforced by TestAnAnsweredQuestionBecomesTheRequestThePersonMeant.
+func Supplying(phrase string, missing Requirement, answer string) (string, bool) {
+	answer = strings.TrimSpace(answer)
+	if answer == "" {
+		return "", false
+	}
+	joiner, ok := joiners[missing]
+	if !ok {
+		return "", false
+	}
+	full := strings.TrimRight(strings.TrimSpace(phrase), " .!?,") + joiner + answer
+	g, parsed := Parse(full)
+	if !parsed {
+		return "", false
+	}
+	want := paramFor[missing]
+	if want == "" || g.Param(want) != trimQuotes(answer) {
+		return "", false
+	}
+	return full, true
+}
+
+// joiners are the words that attach an answer to the request it answers.
+//
+// One per requirement that can be answered with a value. A requirement absent here cannot be
+// resumed this way, which is the honest state for `RequiresTarget`: "which one?" is answered by
+// pointing or by choosing from a list, not by appending a word to the sentence.
+var joiners = map[Requirement]string{
+	RequiresName:        " called ",
+	RequiresDestination: " to ",
+}
+
+// paramFor is the parameter each answerable requirement fills, so the self-check knows what to
+// look for.
+var paramFor = map[Requirement]string{
+	RequiresName:        ParamName,
+	RequiresDestination: ParamDestination,
 }

@@ -14,6 +14,7 @@ used_by:
 updated: 2026-10-08
 source_paths:
   - internal/director/program
+  - internal/director/verify/outcome.go
   - internal/director/execute
   - internal/director/plan
   - internal/director/verify
@@ -79,8 +80,33 @@ asked to insert "scroll down" between two clauses they did not think of as separ
 - [[Action-Graph]] — what execution records
 - [[Marco-Boundary]] — how a step reaches the desktop
 
+## A procedure is finished when the person has what they asked for
+
+Not when its steps ran. Measured live: "make a new folder called Reports" invoked the New menu,
+chose the Folder entry, CREATED THE FOLDER — and stopped, because the verifier asked whether the
+control it had pressed still reported itself selected. A menu closes when you choose from it.
+
+Three changes, all in the existing mechanisms:
+
+- **An intermediate action is judged by its transition.** A menu closing, taking all of its
+  items, is evidence the press landed — paired with separate evidence that something appeared
+  OUTSIDE the menu, because Escape closes a menu too. Neither alone concludes.
+- **A step that needed nothing is counted and the procedure continues.** "Rename this file" with
+  the file already selected abandoned a four-step rename at step one. The step was not
+  unverifiable, it was unnecessary. No record is written, because nothing was performed.
+- **Completion is the goal's declared OUTCOME**, stated in the `SuccessConditions` vocabulary
+  that had never been set or read, and observed on a control Marco did NOT itself write to. The
+  first version of that check reported `COMPLETED: text_field "Reports" is there` about an edit
+  box holding Marco's own keystrokes while the folder on disk was still "New folder" — the same
+  trap as the menu, one tier up.
+
+Five bounded workflows then completed or failed honestly on a real desktop. See
+[[ADR-224-a-procedure-is-finished-when-the-person-has-what-they-asked-for]] and
+[[Experiment-073-marco-finishes-what-it-starts]].
+
 ## Decisions
 
+- [[ADR-224-a-procedure-is-finished-when-the-person-has-what-they-asked-for]]
 - [[ADR-143-a-search-is-a-wait-with-a-move-in-it]]
 - [[ADR-142-the-splitter-keeps-no-vocabulary-of-its-own]]
 - [[ADR-005-legal-marco-only]]

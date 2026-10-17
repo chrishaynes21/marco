@@ -70,6 +70,19 @@ type ClarificationPayload struct {
 	// Empty for a question that is not part of a collection iteration, where the
 	// command id already distinguishes offers.
 	EventID string `json:"event_id,omitempty"`
+
+	// Needs names the ARGUMENT this question is asking for — "name", "destination" —
+	// when the question is an open one rather than a choice between controls.
+	//
+	// A clarification comes in two shapes and they are answered differently. "Which of
+	// these two?" is answered with an ordinal and the Candidates are the offer. "What
+	// should it be called?" is answered with a VALUE, there are no candidates, and the
+	// answer is the one word the request was missing. Without this field the second kind
+	// is indistinguishable from a question whose candidate list failed to arrive.
+	//
+	// Set only where the goal layer said what was missing — see execute.ProgramOutcome
+	// Missing — so it is never inferred from the wording of the question.
+	Needs string `json:"needs,omitempty"`
 	// CollectionName and Iteration locate the question inside a bounded set, so a
 	// client can say "iteration 3, 2 already verified".
 	CollectionName string `json:"collection_name,omitempty"`
@@ -79,6 +92,9 @@ type ClarificationPayload struct {
 
 // Program reports whether this question interrupted a sequence.
 func (c ClarificationPayload) Program() bool { return c.ProgramID != "" }
+
+// Open reports whether this question asks for a VALUE rather than a choice between controls.
+func (c ClarificationPayload) Open() bool { return c.Needs != "" && len(c.Candidates) == 0 }
 
 // ClarifyPayload answers a pending question.
 type ClarifyPayload struct {

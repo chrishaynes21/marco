@@ -17,6 +17,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/program"
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
@@ -144,40 +145,70 @@ func TestAppearanceAloneCannotReportARequestAsAlreadyDone(t *testing.T) {
 	}
 }
 
-// AND A STEP OF A PROCEDURE WHOSE STATE IS ALREADY SET STILL RUNS.
+// AND A PROCEDURE CONTINUES PAST A STEP THAT NEEDED NOTHING.
 //
-// The other side of the one line that distinguishes a request from a step, and the case that
-// found it. The rename procedure's first step SELECTS the file the person pointed at. In a
-// window where that file is already selected, treating the step as satisfied ends the request
-// before F2 is ever pressed — and "Alpha.txt is already the one you are on" is a true sentence
-// about a rename that did not happen.
+// Measured live, and it is the same defect class as the menu one step over. "Rename this file
+// to summary.txt" with the file ALREADY SELECTED: step one selected it again, nothing changed,
+// and verification reported
 //
-// A person's request has no next step. A procedure's step one has three.
-func TestAProgramStepWhoseStateIsAlreadySetStillRuns(t *testing.T) {
+//	! verify inconclusive: "notes.txt" reports itself selected and nothing else
+//	  changed to confirm it
+//	UNVERIFIED: step 1 of 4 could not be verified
+//
+// A four-step rename abandoned at step one because step one had nothing to do. The step was not
+// unverifiable; it was unnecessary, and those are different sentences with opposite
+// consequences.
+func TestAProcedureContinuesPastAStepThatNeededNothing(t *testing.T) {
 	// "Accounts" is the current page and nothing else carries that name, so the step
-	// resolves cleanly and is satisfied — which is exactly the case that must still run.
+	// resolves cleanly and needs nothing — which must not end the procedure.
 	page := settingsPage(obs("uia:3", directorapi.RoleListItem, "Apps", rect(16, 136, 280, 36)))
 	for i := range page {
 		if page[i].Label == "Accounts" {
 			page[i] = selectedObs(page[i])
 		}
 	}
-	w := scene(t0, settingsWindow(), page...)
-	h := newHarness(w, w, w)
+	// Distinct moments, because verification refuses to compare a snapshot with itself.
+	at := func(n int) directorapi.WorldState {
+		return scene(t0.Add(time.Duration(n)*time.Second), settingsWindow(), page...)
+	}
+	h := newHarness(at(0), at(1), at(2), at(3), at(4), at(5))
 
 	in := h.pipeline.parseWith(context.Background())("select Accounts")
-	// A BARE context, so what is being tested is `runStep`'s own contribution: it is the
-	// thing that knows this is a step. Handed a context that already said so, this test
-	// would pass with the knowledge deleted.
 	var bare program.Context
 	bare.EnsureValues()
 	bare.EnsureCollections()
-	out := h.pipeline.runStep(ensureBindings(context.Background()), "select Accounts", in, bare)
+	step := h.pipeline.runStep(ensureBindings(context.Background()), "select Accounts", in, bare)
 
-	if out.Status == directorapi.ResultNothingToDo {
-		t.Fatalf("a procedure's step was ended as needing nothing: %q", out.Message)
+	// The STEP says nothing needed doing, truthfully, and performs nothing.
+	if step.Status != directorapi.ResultNothingToDo {
+		t.Fatalf("status %s — %s", step.Status, step.Message)
 	}
-	if out.Record == nil {
-		t.Fatalf("the step produced no record (%s: %s)", out.Status, out.Message)
+	if step.Record != nil {
+		t.Errorf("a record was written for a step that performed nothing: %+v", step.Record)
+	}
+	if len(h.actuator.clicks) > 0 || len(h.operations.ops) > 0 {
+		t.Errorf("a step that needed nothing still touched the desktop")
+	}
+
+	// AND THE PROGRAM CARRIES ON, which is the half the live run lost. Counted as
+	// completed, because the state the next step needs is the state that was already
+	// there.
+	prog := program.Program{Goal: "two steps", Steps: []program.Step{
+		{ID: "s1", Phrase: "select Accounts", Operation: in, FailurePolicy: program.Stop},
+		{ID: "s2", Phrase: "select System", FailurePolicy: program.Stop,
+			Operation: h.pipeline.parseWith(context.Background())("select System")},
+	}}
+	var runCtx program.Context
+	runCtx.EnsureValues()
+	runCtx.EnsureCollections()
+	out := h.pipeline.RunProgram(ensureBindings(context.Background()), prog, runCtx, 0)
+	// PAST STEP ONE is the whole claim. Step two then does whatever this scripted world
+	// lets it do — the fake actuator changes nothing, so it cannot verify a selection —
+	// and asserting its outcome would be asserting the harness rather than the loop.
+	if out.StoppedAt == 1 {
+		t.Fatalf("the procedure stopped at the step that needed nothing: %s", out.Message)
+	}
+	if out.Completed < 1 {
+		t.Errorf("the step that needed nothing was not counted: %s", out.Message)
 	}
 }

@@ -326,6 +326,24 @@ type Procedure struct {
 	// Steps produces the directives for a goal. Deterministic: the same goal in the
 	// same application produces the same steps, every time.
 	Steps func(Goal) ([]Directive, error) `json:"-"`
+
+	// Outcome is what the PERSON asked for, as conditions to check when the steps are
+	// done — not what Marco did.
+	//
+	// Measured live: "make a new folder called Reports" ran its procedure and would have
+	// reported "4 of 4 steps verified", which is a claim about Marco's mechanism. A
+	// procedure whose last step typed into the wrong control and pressed Enter completes
+	// four steps too. The honest claim is that a folder called Reports is there.
+	//
+	// Optional, and a procedure without one behaves exactly as before: the step count is
+	// the claim. That is deliberate — adding this field must not quietly make every
+	// existing procedure assert something nobody wrote down. See
+	// [[ADR-224-a-procedure-is-finished-when-the-person-has-what-they-asked-for]].
+	//
+	// Stated in the vocabulary `directorapi.Plan.SuccessConditions` has always described
+	// and nothing ever set, and evaluated by verify.CheckOutcome — where a condition that
+	// cannot be evaluated is NOT satisfied.
+	Outcome func(Goal) []directorapi.Condition `json:"-"`
 }
 
 // Generic reports whether this procedure serves any application.

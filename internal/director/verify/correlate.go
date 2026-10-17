@@ -129,7 +129,7 @@ func (i Identity) Describe() string {
 	case i.Resource != "":
 		return i.Resource
 	case i.Label != "":
-		return fmt.Sprintf("%q", i.Label)
+		return named(i.Label)
 	case i.NativeID != "":
 		return "id " + i.NativeID
 	}

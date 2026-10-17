@@ -43,6 +43,12 @@ type ProgramOutcome struct {
 	// ordinary sequence. Carried so the action graph and `explain goal` can say WHICH
 	// procedure produced these steps — the steps are the answer, not the working.
 	Goal *goal.Expansion `json:"goal,omitempty"`
+	// Missing names the requirements a recognised goal could not satisfy — "name",
+	// "destination" — when the request was understood and under-specified.
+	//
+	// Carried so the service can ASK and then resume: the Message is the English
+	// question, and this is what an answer supplies. See goal.Supplying.
+	Missing []string `json:"missing,omitempty"`
 	// Confirmation is what happened at the goal-level confirmation gate. Empty for a
 	// request that was not a goal.
 	Confirmation ConfirmationOutcome `json:"confirmation,omitempty"`
@@ -338,6 +344,25 @@ func (p *Pipeline) RunProgram(ctx context.Context, prog program.Program,
 			p.reportStep(prog, step, i+1, total, "needs clarification", stepOut.Message)
 			return out
 
+		case directorapi.ResultNothingToDo:
+			// A PRECONDITION ALREADY MET IS NOT A FAILED STEP.
+			//
+			// Measured live. "Rename this file to summary.txt" with the file already
+			// selected: step one selected it again, nothing changed, and
+			// verification reported `inconclusive: "notes.txt" reports itself
+			// selected and nothing else changed to confirm it`. A four-step rename
+			// abandoned at step one because step one had nothing to do.
+			//
+			// The step is counted and the context advances, exactly as a verified
+			// one — because the state the next step needs is the state that was
+			// already there. What does NOT happen is a record, and that is right:
+			// nothing was performed, and the account says so rather than inventing
+			// an action to describe.
+			out.Completed++
+			pctx = advance(pctx, stepOut)
+			p.reportStep(prog, step, i+1, total, "nothing needed doing", stepOut.Message)
+			continue
+
 		case directorapi.ResultCancelled:
 			out.Program.Status = program.StatusStopped
 			out.Status = directorapi.ResultCancelled
@@ -382,10 +407,98 @@ func (p *Pipeline) RunProgram(ctx context.Context, prog program.Program,
 		}
 	}
 
+	// ── Did the person get what they asked for? ───────────────────────────────
+	//
+	// "N of N steps verified" is a claim about Marco's own mechanism. A procedure whose
+	// last step typed into the wrong control and pressed Enter completes every step too,
+	// and reports it.
+	//
+	// So where the goal declared what it was FOR, that is what decides the outcome — and
+	// it is checked against a world observed now, after everything has settled, rather
+	// than against the snapshot the last step happened to verify against.
+	//
+	// A program whose goal declared nothing is judged exactly as before. That is
+	// deliberate: adding the field must not make every existing procedure assert
+	// something nobody wrote down. See [[ADR-224-a-procedure-is-finished-when-the-person-has-what-they-asked-for]].
+	if len(prog.Outcome) > 0 {
+		return p.concludeByOutcome(ctx, out, prog, total)
+	}
+
 	out.Program.Status = program.StatusCompleted
 	out.Status = directorapi.ResultDone
 	out.Message = fmt.Sprintf("%d of %d steps verified", out.Completed, total)
 	return out
+}
+
+// concludeByOutcome decides a program by what the person asked for rather than by its steps.
+//
+// Three answers, and the third is the one that keeps this honest:
+//
+//	MET        the outcome is there. Done, and the sentence says what is there.
+//	UNMET      the steps ran and the thing is not there. NOT done — this is the case a
+//	           step count would have reported as success.
+//	UNCHECKED  the outcome could not be evaluated. Also not done. "I could not look" is
+//	           not "it worked", and treating it as one would make every condition type
+//	           Marco does not yet understand a silent pass.
+func (p *Pipeline) concludeByOutcome(ctx context.Context, out ProgramOutcome,
+	prog program.Program, total int) ProgramOutcome {
+
+	world, err := p.observeTraced(ctx)
+	if err != nil {
+		out.Program.Status = program.StatusFailed
+		out.Status = directorapi.ResultPartial
+		out.Message = fmt.Sprintf("%d of %d steps ran, and the screen could not be read "+
+			"to check whether %s: %v", out.Completed, total,
+			outcomeAsked(prog), err)
+		return out
+	}
+	got := verify.CheckOutcome(prog.Outcome, &world, touchedBy(out)...)
+	switch {
+	case got.Satisfied():
+		out.Program.Status = program.StatusCompleted
+		out.Status = directorapi.ResultDone
+		out.Message = got.Describe()
+	case len(got.Unmet) > 0:
+		out.Program.Status = program.StatusFailed
+		out.Status = directorapi.ResultFailed
+		out.Message = fmt.Sprintf("%d of %d steps ran, but %s", out.Completed, total,
+			got.Describe())
+	default:
+		out.Program.Status = program.StatusFailed
+		out.Status = directorapi.ResultPartial
+		out.Message = fmt.Sprintf("%d of %d steps ran, and %s", out.Completed, total,
+			got.Describe())
+	}
+	return out
+}
+
+// touchedBy is every control this program's steps acted on.
+//
+// Handed to the outcome check so none of them can be the evidence. Measured: without it, "make
+// a new folder called Reports" reported `COMPLETED: text_field "Reports" is there` about an
+// edit box holding Marco's own keystrokes, while the folder on disk was still "New folder". See
+// verify.CheckOutcome.
+func touchedBy(out ProgramOutcome) []directorapi.ElementID {
+	var ids []directorapi.ElementID
+	for _, step := range out.Steps {
+		if step.Record != nil && step.Record.Target.ElementID != "" {
+			ids = append(ids, step.Record.Target.ElementID)
+		}
+		if step.Resolution != nil && step.Resolution.Target != nil {
+			ids = append(ids, step.Resolution.Target.ElementID)
+		}
+	}
+	return ids
+}
+
+// outcomeAsked is the goal's own description of what it was for, for a message about not having
+// been able to check it.
+func outcomeAsked(prog program.Program) string {
+	var parts []string
+	for _, c := range prog.Outcome {
+		parts = append(parts, c.Describe())
+	}
+	return strings.Join(parts, " and ")
 }
 
 // runStep executes ONE semantic operation, whole: observe, resolve, plan, policy,

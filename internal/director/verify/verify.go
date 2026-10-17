@@ -28,6 +28,7 @@ package verify
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
@@ -394,6 +395,101 @@ func menuOpened(before, after directorapi.WorldState) (bool, string) {
 	return true, detail
 }
 
+// menuClosedTaking detects the menu a control belonged to having been dismissed, taking the
+// control with it — which is what choosing a menu item DOES.
+//
+// # The defect this answers
+//
+// Measured live. "Make a new folder called Reports" invoked Explorer's New menu, chose the
+// Folder entry, and CREATED THE FOLDER. Then:
+//
+//	! verify inconclusive: "Folder" is no longer in the world, so its selection
+//	  could not be read
+//	UNVERIFIED: step 2 of 4 could not be verified
+//
+// The program stopped two steps before the name was typed, leaving a folder called "New
+// folder". Marco was verifying the MECHANISM it used — does the control it pressed still report
+// itself selected — rather than the transition the press was for. A menu closes when you choose
+// from it; the item's absence is the ordinary consequence of success, not a missing proof.
+//
+// # And disappearance alone is NOT success
+//
+// Three things must hold together, because each alone is ambiguous:
+//
+//  1. The control was a MENU MEMBER before. A list item that vanished is a list that changed,
+//     not a menu that closed, and the two call for different readings.
+//  2. SEVERAL visible menu items went with it — the same two-item noise floor `menuOpened` uses
+//     in the other direction, because one item disappearing is a menu bar re-reporting itself.
+//  3. The menu it belonged to is gone as a whole, not merely scrolled: no visible menu item
+//     remains that was visible before.
+//
+// That set is satisfied by a menu dismissed for ANY reason, including Escape or a click
+// elsewhere — so this is evidence that the menu closed, and nothing more. Whether the WORKFLOW
+// advanced is a separate question, asked separately by the caller, and the two are reported as
+// two pieces of evidence rather than one conclusion.
+func menuClosedTaking(id directorapi.ElementID, before, after directorapi.WorldState) (bool, string) {
+	was, ok := before.Element(id)
+	if !ok || was.Role != directorapi.RoleMenuItem {
+		return false, ""
+	}
+	if _, still := after.Element(id); still {
+		return false, ""
+	}
+	gone, left := 0, 0
+	for itemID, el := range before.Elements {
+		if el.Role != directorapi.RoleMenuItem || !el.Visible {
+			continue
+		}
+		now, present := after.Element(itemID)
+		switch {
+		case !present || !now.Visible:
+			gone++
+		default:
+			left++
+		}
+	}
+	// Several went, and none stayed: a menu closed rather than a menu changing.
+	if gone < 2 || left > 0 {
+		return false, ""
+	}
+	return true, fmt.Sprintf("the menu holding %q closed, taking all %d of its items",
+		was.Label, gone)
+}
+
+// somethingElseAppeared reports whether anything that is NOT part of a menu arrived.
+//
+// The second half of reading a menu choice: the menu closing says the press landed on the
+// menu, and a new control elsewhere says the application DID something about it. Explorer's new
+// folder arrives as a fresh list item with an editor in it, which is exactly this.
+//
+// Kept separate from menuClosedTaking on purpose. A menu dismissed by Escape satisfies the
+// first and not the second, and collapsing them would make "the person pressed Escape" read as
+// "the operation succeeded".
+func somethingElseAppeared(before, after directorapi.WorldState) (bool, string) {
+	fresh := 0
+	var sample *directorapi.Element
+	for id, el := range after.Elements {
+		if el.Role == directorapi.RoleMenuItem || el.Role == directorapi.RoleMenu || !el.Visible {
+			continue
+		}
+		if _, had := before.Element(id); had {
+			continue
+		}
+		fresh++
+		if sample == nil && el.Label != "" {
+			sample = el
+		}
+	}
+	if fresh == 0 {
+		return false, ""
+	}
+	detail := fmt.Sprintf("%d new control(s) appeared outside the menu", fresh)
+	if sample != nil {
+		detail += ", including " + sample.ForAccount()
+	}
+	return true, detail
+}
+
 // targetStateChanged reports whether the element acted on changed its own state.
 func targetStateChanged(id directorapi.ElementID, before, after directorapi.WorldState) (bool, string) {
 	was, ok1 := before.Element(id)
@@ -403,11 +499,15 @@ func targetStateChanged(id directorapi.ElementID, before, after directorapi.Worl
 	}
 	switch {
 	case was.Selected != now.Selected:
-		return true, fmt.Sprintf("%q became %s", now.Label, selectedWord(now.Selected))
+		return true, fmt.Sprintf("%s became %s", named(now.Label), selectedWord(now.Selected))
 	case was.Value != now.Value:
-		return true, fmt.Sprintf("%q changed from %q to %q", now.Label, was.Value, now.Value)
+		// THE VALUE THROUGH THE RULE TOO, and this is the site where it matters most: a
+		// text field's value IS the person's writing, and "changed from X to Y" about a
+		// document quotes two versions of it into a status line.
+		return true, fmt.Sprintf("%s changed from %s to %s", named(now.Label),
+			named(was.Value), named(now.Value))
 	case was.Enabled != now.Enabled:
-		return true, fmt.Sprintf("%q became %s", now.Label, enabledWord(now.Enabled))
+		return true, fmt.Sprintf("%s became %s", named(now.Label), enabledWord(now.Enabled))
 	}
 	return false, ""
 }
@@ -426,7 +526,11 @@ func labelOf(w directorapi.WorldState, id directorapi.ElementID) string {
 		return "nothing"
 	}
 	if el, ok := w.Element(id); ok && el.Label != "" {
-		return el.Label
+		// THROUGH THE RULE. This is the site the leak was measured at: the control
+		// that HELD focus is one Marco merely observed, nobody asked about, and
+		// whose label on a Settings Accounts page is the signed-in person's name
+		// and email address.
+		return named(el.Label)
 	}
 	return string(id)
 }
@@ -497,7 +601,7 @@ func saidSomethingDifferent(target directorapi.ResolvedTarget,
 	}
 
 	n := 0
-	var named []string
+	var changes []string
 	for id, now := range after.Elements {
 		if id == target.ElementID {
 			continue
@@ -514,16 +618,17 @@ func saidSomethingDifferent(target directorapi.ResolvedTarget,
 			continue
 		}
 		n++
-		if len(named) < 2 {
-			named = append(named, fmt.Sprintf("%q → %q", was.Label, now.Label))
+		if len(changes) < 2 {
+			changes = append(changes, fmt.Sprintf("%s → %s", named(was.Label),
+				named(now.Label)))
 		}
 	}
 	if n == 0 {
 		return 0, ""
 	}
-	detail := "the application now says " + strings.Join(named, " and ")
-	if n > len(named) {
-		detail = fmt.Sprintf("%d labels changed, including %s", n, strings.Join(named, " and "))
+	detail := "the application now says " + strings.Join(changes, " and ")
+	if n > len(changes) {
+		detail = fmt.Sprintf("%d labels changed, including %s", n, strings.Join(changes, " and "))
 	}
 	return n, detail
 }
@@ -671,7 +776,7 @@ func stateChangedNearby(target directorapi.ResolvedTarget,
 	}
 
 	n := 0
-	var named []string
+	var noted []string
 	for id := range after.Elements {
 		if id == target.ElementID {
 			continue
@@ -687,18 +792,18 @@ func stateChangedNearby(target directorapi.ResolvedTarget,
 			continue
 		}
 		n++
-		if len(named) < 2 {
-			named = append(named, detail)
+		if len(noted) < 2 {
+			noted = append(noted, detail)
 		}
 	}
 	if n == 0 {
 		return 0, ""
 	}
-	if n > len(named) {
+	if n > len(noted) {
 		return n, fmt.Sprintf("%d controls changed state, including %s", n,
-			strings.Join(named, " and "))
+			strings.Join(noted, " and "))
 	}
-	return n, strings.Join(named, " and ")
+	return n, strings.Join(noted, " and ")
 }
 
 // targetWindowTitle is the title of the window the action was AIMED AT.
@@ -780,4 +885,28 @@ func focusedWindowID(w directorapi.WorldState) (directorapi.WindowID, bool) {
 		}
 	}
 	return "", false
+}
+
+// named is how this package quotes a control's label in a message a person reads.
+//
+// ONE function, for every site. The rule — quote what looks like a control's NAME, describe
+// what looks like CONTENT — is only worth having if it is the rule everywhere: a careful
+// `labelOf` beside twenty raw `%q`s is decoration, and the one that leaks is whichever nobody
+// changed. See directorapi.QuotableLabel for what the rule is and what was measured.
+//
+// Enforced by TestNoVerificationMessageQuotesALabelWithoutTheRule, which reads this package's
+// own source.
+func named(label string) string {
+	if text, ok := directorapi.QuotableLabel(label); ok {
+		return strconv.Quote(text)
+	}
+	return describeUnquotable(label)
+}
+
+// describeUnquotable says what was there without saying what it said.
+func describeUnquotable(label string) string {
+	el := &directorapi.Element{Label: label}
+	// ForAccount with no role gives "control (…)"; the shape description is the part
+	// wanted here, and taking it from the same place keeps one rule.
+	return strings.TrimPrefix(el.ForAccount(), "control ")
 }

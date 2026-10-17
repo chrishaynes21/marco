@@ -70,8 +70,8 @@ func (v *Verifier) verifyScroll(where directorapi.ScrollWhere, target directorap
 					"not that the view moved",
 				Source: directorapi.SourceAccessibility,
 			}},
-			Reason: fmt.Sprintf("%q does not report how far it is scrolled, so the view "+
-				"could not be checked", target.Label),
+			Reason: fmt.Sprintf("%s does not report how far it is scrolled, so the view "+
+				"could not be checked", named(target.Label)),
 		}
 	}
 

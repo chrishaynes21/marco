@@ -176,6 +176,15 @@ func Expand(r *Registry, g Goal, b Binder) (Expansion, error) {
 		}
 	}
 
+	// WHAT THE PERSON ASKED FOR, carried alongside the steps.
+	//
+	// Read from the procedure here, where the goal's parameters are known — "a folder
+	// called Reports" needs the name the person supplied. A procedure that declares none
+	// carries none, and its program is judged exactly as it was before: by its steps.
+	if proc.Outcome != nil {
+		prog.Outcome = proc.Outcome(g)
+	}
+
 	ex.Program = prog
 	return ex, nil
 }

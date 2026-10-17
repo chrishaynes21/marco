@@ -84,21 +84,17 @@ operability, drawn again for accounting.
 The answer carries its receipt — which Prop was read, and which sensor said so — because
 "nothing needed doing" without one is indistinguishable from "I did not try".
 
-### And it applies to a person's request, not to a step of a procedure
+### A request and a step get the same answer and different treatment
 
-Found by the rename procedure, whose first step selects the file the person pointed at. In a
-window where that file was already selected, satisfaction ended the request before F2 was ever
-pressed, and *"Alpha.txt" is already the one you are on* was a true sentence about a rename
-that did not happen.
+For a request a person made, "nothing needs doing" IS the outcome. For a step of a procedure it
+is a precondition already met, and the procedure carries on.
 
-A person's "open Apps" has no next step. A procedure's step one has three, and a precondition
-already met means the procedure should CONTINUE. So `program.Context.WithinProgram` says which
-this is, set by `runStep` and by an iteration's turn, and it exists for this one decision.
-
-**The limitation that leaves:** a program step whose state is already set still performs its
-action. Teaching every program to treat a no-op step as a success it can build on is a larger
-change — later steps read the record the skipped step would have left — and it is not needed
-to answer the question this exists for. Recorded rather than hidden.
+That distinction was first written as a refusal to even ASK inside a program, with the
+consequence recorded here as a limitation. A live run found what the limitation cost, and
+[[ADR-224-a-procedure-is-finished-when-the-person-has-what-they-asked-for]] removed it: a step
+that needed nothing is now counted and the program continues. The flag that remains decides one
+narrower thing — after an action has been PERFORMED, in a retry or a replay, the question is
+whether it landed, which is verification's job rather than this one's.
 
 ### Why satisfaction is asked before the clarification
 
@@ -131,6 +127,6 @@ measured failure this fixes.
   the real pipeline with a recording actuator: no clicks, no operations, no focus, no plan, no
   policy verdict, no record), `TestARequestForAPageThatIsNotOpenIsHandledAsBefore`,
   `TestAppearanceAloneCannotReportARequestAsAlreadyDone`,
-  `TestAProgramStepWhoseStateIsAlreadySetStillRuns`.
+  `TestAProcedureContinuesPastAStepThatNeededNothing`.
 - `cmd/director` `TestSatisfactionIsDecidedInExactlyOnePlace`,
   `TestRewordingNeverChoosesTheWrongControl` over the expanded sets.

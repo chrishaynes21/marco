@@ -99,7 +99,7 @@ func (v *Verifier) verifyExpansion(a directorapi.SemanticAction, target director
 	case hasAfter && isState == want && (!hadBefore || wasState != want):
 		ev = append(ev, directorapi.Evidence{
 			Kind: "expanded_state_changed", Observed: true, Weight: 0.95,
-			Detail: fmt.Sprintf("%q now reports itself %s", target.Label, word),
+			Detail: fmt.Sprintf("%s now reports itself %s", named(target.Label), word),
 			Source: directorapi.SourceAccessibility,
 		})
 	case hasAfter && isState != want:
@@ -110,7 +110,7 @@ func (v *Verifier) verifyExpansion(a directorapi.SemanticAction, target director
 			Success: false, Confidence: 0.9,
 			Evidence: []directorapi.Evidence{{
 				Kind: "expanded_state_unchanged", Observed: true, Weight: 0.9,
-				Detail: fmt.Sprintf("%q still reports itself %s", target.Label,
+				Detail: fmt.Sprintf("%s still reports itself %s", named(target.Label),
 					map[bool]string{true: "expanded", false: "collapsed"}[isState]),
 				Source: directorapi.SourceAccessibility,
 			}},
@@ -126,15 +126,15 @@ func (v *Verifier) verifyExpansion(a directorapi.SemanticAction, target director
 	case want && kidsAfter > kidsBefore:
 		ev = append(ev, directorapi.Evidence{
 			Kind: "children_appeared", Observed: true, Weight: 0.85,
-			Detail: fmt.Sprintf("%d child element(s) appeared under %q (%d → %d)",
-				kidsAfter-kidsBefore, target.Label, kidsBefore, kidsAfter),
+			Detail: fmt.Sprintf("%d child element(s) appeared under %s (%d → %d)",
+				kidsAfter-kidsBefore, named(target.Label), kidsBefore, kidsAfter),
 			Source: directorapi.SourceAccessibility,
 		})
 	case !want && kidsAfter < kidsBefore:
 		ev = append(ev, directorapi.Evidence{
 			Kind: "children_disappeared", Observed: true, Weight: 0.85,
-			Detail: fmt.Sprintf("%d child element(s) disappeared from under %q (%d → %d)",
-				kidsBefore-kidsAfter, target.Label, kidsBefore, kidsAfter),
+			Detail: fmt.Sprintf("%d child element(s) disappeared from under %s (%d → %d)",
+				kidsBefore-kidsAfter, named(target.Label), kidsBefore, kidsAfter),
 			Source: directorapi.SourceAccessibility,
 		})
 	}
@@ -144,8 +144,8 @@ func (v *Verifier) verifyExpansion(a directorapi.SemanticAction, target director
 			Success: false,
 			Evidence: []directorapi.Evidence{{
 				Kind: "no_expansion_evidence", Observed: true, Weight: 1,
-				Detail: fmt.Sprintf("%q neither reports itself %s nor changed its children",
-					target.Label, word),
+				Detail: fmt.Sprintf("%s neither reports itself %s nor changed its children",
+					named(target.Label), word),
 			}},
 			Reason: "nothing showed the control was " + word,
 		}
@@ -159,10 +159,38 @@ func (v *Verifier) verifySelection(target directorapi.ResolvedTarget,
 
 	el, ok := after.Element(target.ElementID)
 	if !ok {
+		// A MENU THAT CLOSED IS THE TRANSITION THIS PRESS WAS FOR, not a missing proof.
+		//
+		// Measured live: choosing Explorer's Folder entry created the folder, and this
+		// function reported `"Folder" is no longer in the world, so its selection could
+		// not be read` — which stopped the procedure two steps before the name was
+		// typed. Marco was verifying the MECHANISM it used rather than the transition
+		// the press was for. See menuClosedTaking.
+		//
+		// Two pieces of evidence, kept apart because each alone is ambiguous: the menu
+		// closing says the press landed on the menu, and a new control elsewhere says
+		// the application did something about it. A menu dismissed by Escape satisfies
+		// the first and not the second, and `conclude` decides whether the pair is
+		// enough — rather than a boolean written here.
+		if closed, detail := menuClosedTaking(target.ElementID, before, after); closed {
+			ev := []directorapi.Evidence{{
+				Kind: "menu_closed", Observed: true, Weight: WeightDelivered,
+				Detail: detail, Source: directorapi.SourceAccessibility,
+			}}
+			if appeared, what := somethingElseAppeared(before, after); appeared {
+				ev = append(ev, directorapi.Evidence{
+					Kind: "workflow_advanced", Observed: true, Weight: 0.85,
+					Detail: what, Source: directorapi.SourceAccessibility,
+				})
+			}
+			return conclude(ev, v.MinConfidence,
+				"the menu closed, which is what choosing an item does, but nothing "+
+					"else changed to show the application acted on it")
+		}
 		return directorapi.VerificationResult{
 			Inconclusive: true,
-			Reason: fmt.Sprintf("%q is no longer in the world, so its selection could not be read",
-				target.Label),
+			Reason: fmt.Sprintf("%s is no longer in the world, so its selection could not be read",
+				named(target.Label)),
 		}
 	}
 	// ── A MEASURED LIMITATION, RECORDED RATHER THAN WORKED AROUND ────────────────
@@ -225,13 +253,13 @@ func (v *Verifier) verifySelection(target directorapi.ResolvedTarget,
 		// same class as focus landing on a clicked control: the layer that performed the
 		// action is not the sole witness that it worked.
 		weight := WeightDelivered
-		detail := fmt.Sprintf("%q reports itself %s", target.Label, selectedWord(want))
+		detail := fmt.Sprintf("%s reports itself %s", named(target.Label), selectedWord(want))
 		if wasSelected == want {
 			// It already held the requested state before the action. That is not proof
 			// the action did anything, and reporting it as such would verify a no-op.
 			weight = WeightDelivered / 2
-			detail = fmt.Sprintf("%q is %s, as it already was",
-				target.Label, selectedWord(want))
+			detail = fmt.Sprintf("%s is %s, as it already was",
+				named(target.Label), selectedWord(want))
 		}
 		ev := []directorapi.Evidence{{
 			Kind: EvidenceSelectionState, Observed: true, Weight: weight, Detail: detail,
@@ -259,16 +287,16 @@ func (v *Verifier) verifySelection(target directorapi.ResolvedTarget,
 		// as claiming it did, and the service already keeps UNVERIFIED as its own outcome for
 		// exactly this difference.
 		res.Inconclusive = true
-		res.Reason = fmt.Sprintf("%q reports itself %s and nothing else changed to confirm "+
+		res.Reason = fmt.Sprintf("%s reports itself %s and nothing else changed to confirm "+
 			"it, so the selection could not be independently verified",
-			target.Label, selectedWord(want))
+			named(target.Label), selectedWord(want))
 		return res
 	}
 	return directorapi.VerificationResult{
 		Success: false, Confidence: 0.9,
 		Evidence: []directorapi.Evidence{{
 			Kind: "selection_unchanged", Observed: true, Weight: 0.9,
-			Detail: fmt.Sprintf("%q is %s", target.Label, selectedWord(el.Selected)),
+			Detail: fmt.Sprintf("%s is %s", named(target.Label), selectedWord(el.Selected)),
 			Source: directorapi.SourceAccessibility,
 		}},
 		Reason: "the control is not " + selectedWord(want),
@@ -286,15 +314,15 @@ func (v *Verifier) verifyChecked(target directorapi.ResolvedTarget,
 		// claiming it is not would be as wrong as claiming it is.
 		return directorapi.VerificationResult{
 			Inconclusive: true,
-			Reason: fmt.Sprintf("%q does not report a checked state, so the result could not be read",
-				target.Label),
+			Reason: fmt.Sprintf("%s does not report a checked state, so the result could not be read",
+				named(target.Label)),
 		}
 	}
 	word := map[bool]string{true: "checked", false: "unchecked"}[want]
 	if is == want {
 		return conclude([]directorapi.Evidence{{
 			Kind: "checked_state", Observed: true, Weight: 0.95,
-			Detail: fmt.Sprintf("%q is now %s", target.Label, word),
+			Detail: fmt.Sprintf("%s is now %s", named(target.Label), word),
 			Source: directorapi.SourceAccessibility,
 		}}, v.MinConfidence, "the control is not "+word)
 	}
@@ -302,7 +330,7 @@ func (v *Verifier) verifyChecked(target directorapi.ResolvedTarget,
 		Success: false, Confidence: 0.9,
 		Evidence: []directorapi.Evidence{{
 			Kind: "checked_state_wrong", Observed: true, Weight: 0.9,
-			Detail: fmt.Sprintf("%q is not %s", target.Label, word),
+			Detail: fmt.Sprintf("%s is not %s", named(target.Label), word),
 			Source: directorapi.SourceAccessibility,
 		}},
 		Reason: "the control is not " + word,
@@ -330,14 +358,14 @@ func (v *Verifier) verifyFlipped(target directorapi.ResolvedTarget,
 		}
 		return directorapi.VerificationResult{
 			Inconclusive: true,
-			Reason: fmt.Sprintf("%q does not report a two-state value, so the flip could not be read",
-				target.Label),
+			Reason: fmt.Sprintf("%s does not report a two-state value, so the flip could not be read",
+				named(target.Label)),
 		}
 	}
 	if was != is {
 		return conclude([]directorapi.Evidence{{
 			Kind: "toggled", Observed: true, Weight: 0.95,
-			Detail: fmt.Sprintf("%q changed from %v to %v", target.Label, was, is),
+			Detail: fmt.Sprintf("%s changed from %v to %v", named(target.Label), was, is),
 			Source: directorapi.SourceAccessibility,
 		}}, v.MinConfidence, "the control did not flip")
 	}
@@ -345,7 +373,7 @@ func (v *Verifier) verifyFlipped(target directorapi.ResolvedTarget,
 		Success: false, Confidence: 0.9,
 		Evidence: []directorapi.Evidence{{
 			Kind: "not_toggled", Observed: true, Weight: 0.9,
-			Detail: fmt.Sprintf("%q is still %v", target.Label, is),
+			Detail: fmt.Sprintf("%s is still %v", named(target.Label), is),
 			Source: directorapi.SourceAccessibility,
 		}},
 		Reason: "the control did not change state",
@@ -381,7 +409,7 @@ func (v *Verifier) verifyGone(a directorapi.SemanticAction, target directorapi.R
 			if _, stillThere := after.Element(target.ElementID); !stillThere {
 				ev = append(ev, directorapi.Evidence{
 					Kind: "target_gone", Observed: true, Weight: 0.8,
-					Detail: fmt.Sprintf("%q is no longer present", target.Label),
+					Detail: fmt.Sprintf("%s is no longer present", named(target.Label)),
 					Source: directorapi.SourceAccessibility,
 				})
 			}
@@ -590,7 +618,7 @@ func (v *Verifier) verifyScrolledIntoView(target directorapi.ResolvedTarget,
 	if !el.Offscreen && el.Visible {
 		return conclude([]directorapi.Evidence{{
 			Kind: "target_in_view", Observed: true, Weight: 0.9,
-			Detail: fmt.Sprintf("%q is in view", target.Label),
+			Detail: fmt.Sprintf("%s is in view", named(target.Label)),
 			Source: directorapi.SourceAccessibility,
 		}}, v.MinConfidence, "the element is still out of view")
 	}
@@ -598,7 +626,7 @@ func (v *Verifier) verifyScrolledIntoView(target directorapi.ResolvedTarget,
 		Success: false, Confidence: 0.85,
 		Evidence: []directorapi.Evidence{{
 			Kind: "target_still_offscreen", Observed: true, Weight: 0.85,
-			Detail: fmt.Sprintf("%q is still out of view", target.Label),
+			Detail: fmt.Sprintf("%s is still out of view", named(target.Label)),
 			Source: directorapi.SourceAccessibility,
 		}},
 		Reason: "the element was not brought into view",

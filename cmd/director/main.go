@@ -288,6 +288,10 @@ func main() {
 		os.Exit(runObservations(os.Args[2:]))
 	case "fusion":
 		os.Exit(runFusion(os.Args[2:]))
+	case "clarify":
+		// Answers the QUESTION a running command is waiting on — the other half of a
+		// conversation Marco could start and nobody could finish. See clarifycmd.go.
+		os.Exit(runClarify(os.Args[2:]))
 	case "confirm":
 		os.Exit(runConfirm(os.Args[2:]))
 	case "status":
@@ -372,7 +376,8 @@ func usage() {
                                  -clean. Each prints one CHECKPOINT line
   director demonstrate-surface -check   the preconditions for one live focused
                                  demonstration; reads, and interacts with nothing
-  director confirm [yes|no]      answer the question a running command is waiting on
+  director clarify "<answer>"   answer the question a running command asked
+  director confirm [yes|no]      answer the question a running command is waiting on|no]      answer the question a running command is waiting on
                                  (with no answer it shows the question and decides nothing)
 
 Requests understood so far:

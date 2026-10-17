@@ -108,9 +108,19 @@ func goalRefusal(request string, err error) ProgramOutcome {
 	message := err.Error()
 
 	var refusal goal.Refusal
+	var missing []string
 	if errors.As(err, &refusal) && len(refusal.Missing) > 0 {
 		status = directorapi.ResultNeedsClarification
 		message = refusal.Question()
+		// WHAT IS MISSING, carried out of here rather than left in the sentence.
+		//
+		// The question is English; the requirement is a name the answer path can act
+		// on. Without it the service has a question it cannot resume, and parsing the
+		// requirement back out of its own prose is the kind of thing that works until
+		// somebody rewords the question.
+		for _, m := range refusal.Missing {
+			missing = append(missing, string(m))
+		}
 	}
 	// A deictic target that could not be bound is reported as what it is, and the two
 	// kinds are answered differently: "which of these three?" is a question the user can
@@ -130,6 +140,7 @@ func goalRefusal(request string, err error) ProgramOutcome {
 		Program: program.Program{Goal: request, Status: program.StatusRejected},
 		Status:  status,
 		Message: message,
+		Missing: missing,
 	}
 }
 

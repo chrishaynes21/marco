@@ -19,6 +19,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/edit"
 	"github.com/chaynes-simpleclouds/marco/internal/director/execute"
 	"github.com/chaynes-simpleclouds/marco/internal/director/game"
+	"github.com/chaynes-simpleclouds/marco/internal/director/goal"
 	"github.com/chaynes-simpleclouds/marco/internal/director/intent"
 	"github.com/chaynes-simpleclouds/marco/internal/director/marcoexec"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/diagnostics"
@@ -809,6 +810,23 @@ func (s *Server) complete(requestID string, cmd *ActiveCommand, phrase string,
 			return
 		}
 	}
+	// AND A QUESTION ABOUT A MISSING ARGUMENT IS STILL A QUESTION.
+	//
+	// There are no candidates to offer — the request was understood and under-specified,
+	// so there is nothing on screen to choose between — and the branch above wants a
+	// Resolution it will never have.
+	//
+	// Measured live: "make a new folder" produced exactly the right sentence, "create a
+	// folder — what should it be called?", under a headline that said FAILED with a
+	// non-zero exit. Marco had the goal, had Explorer's procedure, had the question, and
+	// reported not understanding.
+	if ask, ok := openQuestionFor(cmd.ID, phrase, outcome); ok {
+		s.pending.Set(ask)
+		s.registry.Finish(cmd.ID, CommandBlocked, 0, ask.Question)
+		s.convo.Record(cmd.ID, phrase, "")
+		send(NewResponse(requestID, ResponseClarificationRequired, ask))
+		return
+	}
 
 	state, respType := classify(outcome)
 	// A terminal response must never be empty. An outcome that reached here with no
@@ -1240,6 +1258,35 @@ func (s *Server) clarify(requestID string, p ClarifyPayload, send func(ResponseE
 		return
 	}
 
+	// AN ANSWER TO AN OPEN QUESTION IS THE ARGUMENT THAT WAS MISSING.
+	//
+	// Before ParseClarification, because "Reports" is not an ordinal and would fall
+	// through to the branch below — which treats an unrecognised answer as a NEW request
+	// and would go looking for a control called Reports. That is the right reading of an
+	// unrecognised phrase and the wrong reading of an answer Marco asked for.
+	//
+	// The original request is preserved and completed rather than replaced, so the
+	// workflow continues as the person meant it: "make a new folder" plus "Reports"
+	// becomes the request they would have made. goal.Supplying checks its own work by
+	// re-parsing, so an answer that cannot be fitted back into the sentence is refused
+	// rather than turned into something else.
+	if refined, known := intent.ParseClarification(p.Response); ask.Open() &&
+		!(known && refined.Cancel) {
+		full, ok := goal.Supplying(ask.Phrase, goal.Requirement(ask.Needs), p.Response)
+		if !ok {
+			send(NewResponse(requestID, ResponseError, ErrorPayload{
+				Code: "unusable_answer",
+				Message: fmt.Sprintf("%q cannot be used as the %s for %q, so nothing "+
+					"was done — say the whole request instead",
+					p.Response, ask.Needs, ask.Phrase),
+			}))
+			return
+		}
+		s.pending.Clear()
+		s.execute(requestID, ExecutePayload{Phrase: full}, send)
+		return
+	}
+
 	refinement, understood := intent.ParseClarification(p.Response)
 	if !understood {
 		// Not an answer. The phrase is a new request, and treating it as a choice
@@ -1378,4 +1425,34 @@ func activeCollectionsOf(rt Runtime) *collections.Snapshot {
 		return nil
 	}
 	return &snap
+}
+
+// openQuestionFor builds the question to ask when a request was understood and one argument
+// was missing.
+//
+// # Why it is a separate shape from a clarification about controls
+//
+// Because the two are answered differently, and conflating them is how an answer becomes a new
+// command. "Which of these two?" is answered with an ordinal against the candidate list; "what
+// should it be called?" is answered with a VALUE, and there is no list.
+//
+// It carries the requirement by NAME rather than leaving it in the prose, so the answer path
+// can act on it without parsing Marco's own English back — see goal.Supplying.
+//
+// Exactly one missing requirement. Two would be two questions, and asking them as one invites
+// an answer that fills neither.
+func openQuestionFor(id CommandID, phrase string,
+	out execute.Outcome) (ClarificationPayload, bool) {
+
+	if out.Status != directorapi.ResultNeedsClarification {
+		return ClarificationPayload{}, false
+	}
+	po := out.Program
+	if po == nil || len(po.Missing) != 1 || out.Message == "" {
+		return ClarificationPayload{}, false
+	}
+	return ClarificationPayload{
+		CommandID: id, Phrase: phrase, Question: out.Message,
+		Needs: po.Missing[0], AskedAt: time.Now(),
+	}, true
 }

@@ -179,12 +179,34 @@ func vscodeRenameSymbol() Procedure {
 
 // ── folders and files ─────────────────────────────────────────────────────────
 
+// folderCalled is what "create a folder called X" ASKED FOR: a folder with that name, there to
+// be seen.
+//
+// Both create-folder procedures share it, because the outcome belongs to the GOAL and the
+// procedures are two ways of reaching it. Two copies would be two definitions of what the
+// person wanted, and the one nobody edits is the one that goes wrong quietly.
+//
+// Nil without a name, which cannot happen through the ordinary path — the procedure requires
+// one — but a nil outcome is the honest answer to "what would success look like" when nobody
+// said what to call it, and it leaves the program judged as it was before.
+func folderCalled(g Goal) []directorapi.Condition {
+	name := g.Param(ParamName)
+	if name == "" {
+		return nil
+	}
+	return []directorapi.Condition{{
+		Type: directorapi.ConditionTextVisible, Value: name,
+		Description: fmt.Sprintf("a folder called %s is there", quoted(name)),
+	}}
+}
+
 func genericCreateFolder() Procedure {
 	return Procedure{
 		Name: "generic create folder", Goal: CreateFolder,
 		Requires: []Requirement{RequiresName},
 		Safety:   Safety{Mutations: 1, Risk: low},
 		Why:      "a new folder is created empty and named, so nothing existing is touched",
+		Outcome:  folderCalled,
 		Steps: func(g Goal) ([]Directive, error) {
 			return []Directive{
 				{Semantic: directorapi.SemanticInvoke, Role: RoleNewFolderCommand,
@@ -210,6 +232,7 @@ func explorerCreateFolder() Procedure {
 		Requires:     []Requirement{RequiresName},
 		Safety:       Safety{Mutations: 1, Risk: low},
 		Why:          "Explorer creates a folder from its New menu, then names it in place",
+		Outcome:      folderCalled,
 		Steps: func(g Goal) ([]Directive, error) {
 			return []Directive{
 				{Semantic: directorapi.SemanticInvoke, Role: RoleNewSubmenu, Phrase: "invoke the New menu"},

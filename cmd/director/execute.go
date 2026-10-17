@@ -138,6 +138,13 @@ func renderClarification(q service.ClarificationPayload) string {
 		}
 		b.WriteString("\n")
 	}
+	// HOW TO ANSWER DEPENDS ON WHAT WAS ASKED. An open question has no list to index
+	// into, and telling somebody to say "the first one" about a question that asked what
+	// to call a folder is an instruction that cannot be followed.
+	if q.Open() {
+		fmt.Fprintf(&b, "\nAnswer with the %s itself — or \"stop\" to cancel.\n", q.Needs)
+		return b.String()
+	}
 	b.WriteString("\nAnswer with \"the first one\", \"the second one\", a role such as " +
 		"\"the button\" — or \"stop\" to cancel.\n")
 	return b.String()

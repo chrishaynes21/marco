@@ -120,6 +120,13 @@ type Program struct {
 	Goal   string    `json:"goal"`
 	Steps  []Step    `json:"steps"`
 	Status Status    `json:"status"`
+
+	// Outcome is what the person asked for, checked when the steps are done.
+	//
+	// "N of N steps verified" is a claim about Marco's own mechanism; this is the claim
+	// about the request. Empty for a program whose goal declared none, which behaves
+	// exactly as before. See goal.Procedure.Outcome and verify.CheckOutcome.
+	Outcome []directorapi.Condition `json:"outcome,omitempty"`
 }
 
 // MaxSteps bounds a program.

@@ -81,6 +81,23 @@ var explorerWindow = []directorapi.Window{{
 }}
 
 // explorerIdle is Explorer with Alpha.txt selected and no editor open.
+// explorerNothingSelected is the same window with no row selected.
+//
+// For the one test whose claim is about WHERE the first step aims: with the file already
+// selected, the step needs nothing and aims nowhere, which is correct behaviour and the wrong
+// fixture for that question. See TestRenameModeActionTargetsTheBoundFile.
+func explorerNothingSelected(at time.Time) directorapi.WorldState {
+	return scene(at, explorerWindow,
+		obs("uia:win", directorapi.RoleWindow, "live-1", rect(0, 0, 800, 600)),
+		focused(shellRow("uia:alpha", "Alpha.txt", alphaPath)),
+		shellRow("uia:bravo", "Bravo.txt", bravoPath),
+		nameCellObs("uia:cell-alpha", "Alpha.txt"),
+		nameCellObs("uia:cell-bravo", "Bravo.txt"),
+		classed(obs("uia:address", directorapi.RoleTextField, "Address Bar", rect(10, 300, 400, 24)), "TextBox"),
+		obs("uia:rename", directorapi.RoleButton, "Rename", rect(400, 40, 80, 30)),
+	)
+}
+
 func explorerIdle(at time.Time) directorapi.WorldState {
 	return scene(at, explorerWindow,
 		obs("uia:win", directorapi.RoleWindow, "live-1", rect(0, 0, 800, 600)),
@@ -182,7 +199,10 @@ func commitIntent() directorapi.Intent {
 // not on "whatever holds focus", which in a details view is a row that may have moved
 // under the cursor between speaking and acting.
 func TestRenameModeActionTargetsTheBoundFile(t *testing.T) {
-	idle := explorerIdle(t0)
+	// NOTHING SELECTED, because the claim here is about where the first step AIMS. With
+	// the file already selected the step needs nothing and aims nowhere, which is right
+	// and is a different test — see TestAProcedureContinuesPastAStepThatNeededNothing.
+	idle := explorerNothingSelected(t0)
 	h := editorHarness(t, idle, idle, idle)
 	h.pipeline.Goals = &Goals{
 		Registry:    goal.NewRegistry(),

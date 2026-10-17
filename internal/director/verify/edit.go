@@ -66,8 +66,8 @@ func (v *Verifier) verifyEdit(a directorapi.EditAction, target directorapi.Resol
 	if unreadableValue(target) {
 		return directorapi.VerificationResult{
 			Inconclusive: true,
-			Reason: fmt.Sprintf("%q does not report its contents, so the edit could not be "+
-				"checked — it may well have gone in", target.Label),
+			Reason: fmt.Sprintf("%s does not report its contents, so the edit could not be "+
+				"checked — it may well have gone in", named(target.Label)),
 		}
 	}
 
