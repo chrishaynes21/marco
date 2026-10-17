@@ -84,6 +84,48 @@ type surfaceLearner struct {
 	// awaiting is a clarification that was raised in an observation session which had
 	// already ended, and so has not been opened as a question yet.
 	awaiting *awaitingQuestion
+	// interaction is what survives a session rollover: the deadline the person was given
+	// and how many observation sessions this one learning interaction has outlived.
+	interaction learningInteraction
+}
+
+// learningInteraction is the part of a clarification that belongs to the PERSON rather than to
+// an observation session.
+//
+// # The distinction this draws, and the live run that forced it
+//
+// Ambient watching is a supervisor over bounded sessions: `watchOnce` starts one, samples it for
+// `ambientSession`, ends it, and the supervisor starts another. So session ids roll on regardless
+// of what anybody is being asked, while a question stays open for `HowLongAQuestionStaysOpen`.
+// Measured live: the Director established a sound question in observe_2, the person pressed, and
+// the press was refused 36 times naming observe_3, observe_4 and observe_5. Nothing was broken —
+// two numbers disagreed about how long a question lives.
+//
+// The owner's resolution, which is the principle and not just the fix:
+//
+//	Observation sessions are implementation details. User intentions are not. A person
+//	shouldn't have to click within an arbitrary 20-second window just because Marco rotates
+//	its observation session.
+//
+// So a question remains the property of ONE session and keeps strict session and screen-state
+// matching for every press it accepts — that is evidence integrity and is untouched. What
+// survives the rollover is this: the instruction, the application, the durable Place, and the
+// person's own deadline. The question itself is derived again, from a fresh reading, by the
+// establishment path [[ADR-213-a-question-belongs-to-the-session-that-can-answer-it]] already
+// built. Nothing session-local crosses the boundary and no press does either.
+//
+// See [[Experiment-066-the-question-outlives-the-session-that-owns-it]].
+type learningInteraction struct {
+	// Deadline is the ABSOLUTE moment the person's time runs out, set when the interaction
+	// first opens a question and never moved afterwards. Zero before that.
+	//
+	// Absolute rather than a remaining duration because every rollover would have to
+	// subtract, and a subtraction that is skipped once grants a renewal nobody authorised.
+	Deadline time.Time
+	// Rollovers is how many observation sessions this interaction has already outlived, for
+	// the account. It bounds nothing: the deadline does that, and a second bound that could
+	// disagree with it would be a second answer to the same question.
+	Rollovers int
 }
 
 // awaitingQuestion is a clarification raised but not yet established.
@@ -208,9 +250,13 @@ func (l *surfaceLearner) Asked(out execute.Outcome, application, place string,
 				"a later request replaced it before it could be "+
 					"established")
 			l.awaiting = nil
+			l.interaction = learningInteraction{}
 		}
 		return
 	}
+	// A NEW TEACHING INTERACTION, so the person's clock starts again here and only here.
+	// A rollover is the same interaction continuing and does NOT come through this door.
+	l.interaction = learningInteraction{}
 	if l.pending != nil {
 		l.pending.Close("a newer question replaced it")
 		l.note("replaced", l.pending.Request, "a newer question replaced it")
@@ -236,6 +282,9 @@ func (l *surfaceLearner) Asked(out execute.Outcome, application, place string,
 	}
 	l.pending = surface.NewPending(*q, out.Request, application, place, q.WindowID,
 		session, state, now)
+	// THE DEADLINE THE PERSON WAS GIVEN, read back from the question rather than computed
+	// again, so the two cannot drift.
+	l.interaction.Deadline = l.pending.Expires
 	detail := q.Asked
 	if place == "" {
 		// SAID OUT LOUD, because it changes what answering is worth. The question is
@@ -328,12 +377,32 @@ func (l *surfaceLearner) Establish(q surface.Question, application, place string
 			placeOrNone(place))
 	}
 	now := l.clock()
+	// THE PERSON'S OWN DEADLINE, AND NEVER A FRESH ONE.
+	//
+	// Zero means this interaction has never opened a question, so this establishment is
+	// the first and sets the clock. Anything else is a re-establishment after a session
+	// rollover, and deriving the question again is not a reason to grant more time than
+	// the person was told they had. See learningInteraction.
+	deadline := l.interaction.Deadline
+	switch {
+	case deadline.IsZero():
+		deadline = now.Add(surface.HowLongAQuestionStaysOpen)
+	case !now.Before(deadline):
+		l.note("expired", w.Request, fmt.Sprintf("the %s the person had to answer ran "+
+			"out while the clarification was between observation sessions, and "+
+			"deriving it again does not grant more",
+			surface.HowLongAQuestionStaysOpen))
+		l.awaiting = nil
+		l.interaction = learningInteraction{}
+		return false, "the time the person was given to answer has run out"
+	}
 	if l.pending != nil {
 		l.pending.Close("a newer question replaced it")
 		l.note("replaced", l.pending.Request, "a newer question replaced it")
 	}
-	l.pending = surface.NewPending(q, w.Request, application, place, q.WindowID,
-		session, state, now)
+	l.pending = surface.NewPendingUntil(q, w.Request, application, place, q.WindowID,
+		session, state, now, deadline)
+	l.interaction.Deadline = deadline
 	l.awaiting = nil
 	detail := q.Asked
 	if place == "" {
@@ -349,6 +418,16 @@ func (l *surfaceLearner) Establish(q surface.Question, application, place string
 		detail += fmt.Sprintf(" — a press answers it at %v, whose middle is (%d, %d)",
 			where, where.X+where.Width/2, where.Y+where.Height/2)
 	}
+	// AND WHETHER THIS IS A RE-ESTABLISHMENT, with what is left of the person's own time.
+	//
+	// Said out loud because the geometry above may differ from the geometry they were
+	// given a moment ago: it comes from a reading of its own, which is the whole point, and
+	// a reader comparing two accounts needs to know which is which.
+	if l.interaction.Rollovers > 0 {
+		detail += fmt.Sprintf(" (derived again after %d observation session(s) ended "+
+			"under it; %s of the person's own time remains, and this adds none)",
+			l.interaction.Rollovers, deadline.Sub(now).Round(time.Second))
+	}
 	l.note("established", w.Request, detail)
 	return true, fmt.Sprintf("established in %s on %s", session, state)
 }
@@ -359,6 +438,100 @@ func placeOrNone(p string) string {
 		return "none"
 	}
 	return p
+}
+
+// RolledOver retires a question whose observation session has ended, keeping the learning
+// interaction alive for the next one. Reports whether it retired anything.
+//
+// # Called the moment the session ends, not at the next reading
+//
+// Between one ambient session and the next there is a gap of the current attention — up to eight
+// seconds on a quiet desktop. A question that went on looking open across that gap would be
+// accepting presses no session could attribute, which is the silence this whole subsystem was
+// rebuilt to stop. So the supervisor says so as it ends the session.
+//
+// It is also reached from `offerPresses`, because a reading from another session is independent
+// evidence that the question's session is gone and the supervisor may not have been the one to end
+// it. Both doors call the same thing, so there is one statement of what a rollover does.
+//
+// Deleting the supervisor's call must fail TestTheSupervisorRetiresTheQuestionWhenItsSessionEnds.
+func (l *surfaceLearner) RolledOver(active observe.SessionID) bool {
+	if l == nil {
+		return false
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.retireForRollover(active)
+}
+
+// retireForRollover turns the open question back into the intent it came from.
+//
+// Called with the lock held, and it reads no screen and takes no observation: a handful of field
+// comparisons, because one of its two callers is the thread that drains the input log and
+// anything slower there would stall the watching that has to notice what the person did.
+//
+// # What crosses the boundary, and what does not
+//
+// Across: the instruction, the application, the durable Place, and the person's deadline. Those
+// are the learning interaction.
+//
+// Not across: the question, its options, its candidate geometry, the screen state, the session,
+// and any press. Every one of those is session-local or derived from a reading that has ended,
+// and carrying one would be the stale question wearing a new label — the thing ADR-213 exists to
+// refuse. The next session derives its own from its own Stage.
+func (l *surfaceLearner) retireForRollover(active observe.SessionID) bool {
+	p := l.pending
+	if p == nil || p.Session == active {
+		return false
+	}
+	// A SETTLED QUESTION IS NOT WAITING FOR A PRESS ANY MORE, so it does not roll.
+	//
+	// It is waiting for the correlator to attribute a crossing to the press that settled
+	// it, and that conclusion can arrive after the session the press was made in has
+	// ended. Retiring here would throw away a demonstration the person had already given,
+	// which is the opposite of what this is for. Its own deadline still bounds it.
+	if p.Settled() != nil {
+		return false
+	}
+	now := l.clock()
+	// AND NEITHER DOES A QUESTION THAT IS ALREADY OVER. Lapsed and closed are reported by
+	// the paths that own those words; re-establishing one would be reviving it.
+	if open, _ := p.Open(now); !open {
+		return false
+	}
+	deadline := l.interaction.Deadline
+	if deadline.IsZero() {
+		deadline = p.Expires
+	}
+	l.interaction.Deadline = deadline
+	l.interaction.Rollovers++
+	l.awaiting = &awaitingQuestion{
+		Request: p.Request, Application: p.Application, Place: p.Place,
+		RaisedIn: p.Session, At: now,
+		// THE SHORTER OF THE TWO BOUNDS. The wait exists so a clarification whose
+		// screen vanished is refused rather than honoured; the deadline is the
+		// person's. Neither may be exceeded, so the sooner one wins.
+		Expires: soonerOf(now.Add(HowLongAnIntentWaitsToBeEstablished), deadline),
+	}
+	l.handoff.Rolled++
+	l.note("rolled over", p.Request, fmt.Sprintf("observation session %s ended, so "+
+		"the question stopped accepting presses; the instruction, the application "+
+		"and place %s carry to the next session and the question will be derived "+
+		"again from a fresh reading there, with the %s of the person's own time "+
+		"that remains",
+		p.Session, placeOrNone(p.Place), deadline.Sub(now).Round(time.Second)))
+	p.Close("the observation session it was asked in ended, so it is being derived " +
+		"again from a fresh reading in the next one")
+	l.pending = nil
+	return true
+}
+
+// soonerOf is the earlier of two moments, ignoring a zero one.
+func soonerOf(a, b time.Time) time.Time {
+	if b.IsZero() || a.Before(b) {
+		return a
+	}
+	return b
 }
 
 // Cancelled closes the outstanding question, if any.
@@ -374,6 +547,9 @@ func (l *surfaceLearner) Cancelled(why string) {
 	l.pending.Close(why)
 	l.note("cancelled", l.pending.Request, why)
 	l.pending = nil
+	// AND THE INTERACTION, so a cancelled clarification cannot roll over into the next
+	// session carrying the deadline of the one the person cancelled.
+	l.interaction = learningInteraction{}
 }
 
 // ── the press ─────────────────────────────────────────────────────────────────
@@ -415,8 +591,19 @@ func (l *surfaceLearner) offerPresses(look ambientLook) {
 	if l.pending == nil {
 		l.handoff.NoQuestion++
 		if presses > 0 {
-			l.handoff.note("%d press(es) were in the log and no question was open",
-				presses)
+			// WHICH KIND OF NOTHING, because they send a reader to different
+			// places. A press while a clarification is between sessions is a
+			// press that arrived in the gap and is refused on purpose; a press
+			// with nothing waiting at all is somebody using their computer.
+			if l.awaiting != nil {
+				l.handoff.note("%d press(es) were in the log while the "+
+					"clarification was between observation sessions, "+
+					"waiting to be derived again from a fresh reading; a "+
+					"press cannot be carried across that boundary", presses)
+			} else {
+				l.handoff.note("%d press(es) were in the log and no question "+
+					"was open", presses)
+			}
 		}
 		return
 	}
@@ -438,6 +625,17 @@ func (l *surfaceLearner) offerPresses(look ambientLook) {
 		l.handoff.note("the reading is from session %s and the question was asked in "+
 			"%s, so no press in it can be matched to the question's screen",
 			look.Session, l.pending.Session)
+		// THE PRESS IS REFUSED AND THE TEACHING INTERACTION IS NOT.
+		//
+		// Counted and named first, above, so an observed press is never lost at the
+		// boundary: it is on the record as refused for a stated reason, and it is NOT
+		// attached to the session that replaced the question's. Then the interaction
+		// rolls over, so the next reading in this session can derive the question
+		// again and the person can answer it there.
+		//
+		// Ordinarily the supervisor has already retired it as it ended the session and
+		// this finds nothing to do. This door exists for the case where it had not.
+		l.retireForRollover(look.Session)
 		return
 	}
 	if !strings.EqualFold(look.Application, l.pending.Application) {
@@ -681,9 +879,23 @@ func (l *surfaceLearner) readyToEstablish(look ambientLook, active observe.Sessi
 		return awaitingQuestion{}, false
 	}
 	now := l.clock()
+	// THE PERSON'S OWN DEADLINE FIRST, which surviving a session does not extend.
+	//
+	// Separate from the wait below and checked before it, because the two bound different
+	// things and say different sentences: the wait is about a screen nobody is looking at
+	// any more, and this is about time the person has run out of.
+	if d := l.interaction.Deadline; !d.IsZero() && !now.Before(d) {
+		l.note("expired", l.awaiting.Request, fmt.Sprintf("the %s the person had "+
+			"to answer ran out, and outliving an observation session does not "+
+			"add more", surface.HowLongAQuestionStaysOpen))
+		l.awaiting = nil
+		l.interaction = learningInteraction{}
+		return awaitingQuestion{}, false
+	}
 	if !now.Before(l.awaiting.Expires) {
 		l.note("expired", l.awaiting.Request, fmt.Sprintf("no reading in a session a press could arrive in appeared within %s, so the clarification is no longer about a screen anybody is looking at", HowLongAnIntentWaitsToBeEstablished))
 		l.awaiting = nil
+		l.interaction = learningInteraction{}
 		return awaitingQuestion{}, false
 	}
 	// THE READING HAS TO BE ONE A PRESS COULD ARRIVE IN, which is the whole point.

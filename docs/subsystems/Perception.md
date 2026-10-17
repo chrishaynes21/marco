@@ -516,6 +516,22 @@ survive a rollover already exists and was observed stable across the boundary (t
 while screen STATE ids are the session-local part. See
 [[Experiment-066-the-question-outlives-the-session-that-owns-it]].
 
+**So a learning interaction now outlives the session watching it, and a question still does not.**
+The owner's principle, which is the decision rather than a gloss on it: observation sessions are
+implementation details and user intentions are not, so a person should not have to click inside an
+arbitrary twenty-second window because Marco rotated its observation session. A question stays the
+property of one session and keeps strict session and screen-state matching for every press it
+accepts — that is evidence integrity and is untouched. What crosses a rollover is the interaction:
+the instruction, the application, the durable Place, and the person's ORIGINAL absolute deadline,
+set once and never reset, because a question derived again and naively given the full bound would
+renew the person's time every twenty seconds and the only limit would be reset by the thing it
+limits. The next session derives its own question from its own Stage through the ADR-213 path. The
+press at the boundary is counted, named and refused rather than reattached, and the supervisor
+retires the question as it ends the look rather than at the next reading, because the gap between
+sessions is up to eight seconds in which a press could only be refused. A question that has
+already settled does not roll: it is waiting for the correlator, not for a press. Neither constant
+moved. See [[ADR-214-a-learning-interaction-outlives-the-session-watching-it]].
+
 The loop from a human demonstration to a reused instruction has still never run live, under
 any configuration.
 

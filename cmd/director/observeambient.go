@@ -572,6 +572,22 @@ func (a *ambientObserver) watchOnce(ctx context.Context) (moved bool) {
 		}
 	}
 	a.rt.endLook(ctx, id)
+	// AND A QUESTION ASKED IN IT STOPS ACCEPTING PRESSES NOW, not at the next reading.
+	//
+	// A clarification belongs to one session because screen state ids are session-local
+	// counters, so the moment this one ends nothing can attribute a press to the screen the
+	// question was about. Between here and the next session there is a gap of the current
+	// attention — up to eight seconds on a quiet desktop — and a question that went on
+	// looking open across it would be inviting presses that could only be refused.
+	//
+	// The learning interaction is NOT ended: the instruction, the application, the durable
+	// Place and the person's own deadline carry to the next session, where the established
+	// deferred-establishment path derives the question again from a fresh Stage. Nothing
+	// session-local crosses and no observation is taken here — this is a few field
+	// comparisons under the learner's own lock. See surfaceLearner.RolledOver.
+	//
+	// Deleting this must fail TestTheSupervisorRetiresTheQuestionWhenItsSessionEnds.
+	a.rt.surfaceLearner().RolledOver(a.rt.activeObservationID())
 
 	a.mu.Lock()
 	// A SWITCH IS A CHANGE, for the purposes of attention. Somebody who has just moved to

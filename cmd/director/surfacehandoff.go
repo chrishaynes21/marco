@@ -58,6 +58,12 @@ type pressHandoff struct {
 	Lapsed           int
 	OtherSession     int
 	OtherApplication int
+	// Rolled is learning interactions carried from one observation session to the next.
+	//
+	// Not a refusal. It is counted here because it is the OUTCOME of the OtherSession
+	// refusals above and of the supervisor ending a session, and a reader looking at a
+	// column of refused presses needs to see that the interaction went on.
+	Rolled int
 	// NotAPress is a logged input that is not a pointer press, which is ordinary.
 	NotAPress int
 	// The three outcomes the learner acts on, and the one it had no case for.
@@ -95,6 +101,7 @@ func handoffLines(h pressHandoff) string {
 	out += fmt.Sprintf("  question had lapsed ...... %d\n", h.Lapsed)
 	out += fmt.Sprintf("  another session .......... %d\n", h.OtherSession)
 	out += fmt.Sprintf("  another application ...... %d\n", h.OtherApplication)
+	out += fmt.Sprintf("  carried to a new session . %d\n", h.Rolled)
 	out += fmt.Sprintf("  settled .................. %d\n", h.Settled)
 	out += fmt.Sprintf("  undiscriminating ......... %d\n", h.Undiscriminating)
 	out += fmt.Sprintf("  elsewhere ................ %d\n", h.Elsewhere)

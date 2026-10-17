@@ -89,7 +89,7 @@ failed at an **earlier** boundary — a question stamped with a cancelled sessio
 never got far enough to be refused by a *later* one. Each fix exposes the next boundary, and this
 is the fourth.
 
-## What this does not decide
+## What was decided afterwards
 
 The anchor the question needs across a rollover already exists and was observed to be stable: the
 durable Place was `subj_29d46b64b789` in both sessions. Screen **state** ids are the session-local
@@ -97,7 +97,12 @@ part. Whether a question should survive a rollover by re-deriving against a stab
 whether a session should instead stay open while a question is pending, is a design decision about
 what an observation session is — recorded here, not taken.
 
+The first was chosen: a learning interaction survives the rollover by being derived again from a
+fresh reading, carrying only the instruction, the application, the durable Place and the person's
+original absolute deadline. Both constants stayed as they were. See
+[[ADR-214-a-learning-interaction-outlives-the-session-watching-it]].
+
 ## Enforced by
 
-Nothing yet. This records a measured disagreement between two constants; the test belongs with
-whichever fix is chosen.
+`cmd/director` `TestATeachingInteractionSurvivesASessionRollover` and the four tests beside it,
+listed in [[ADR-214-a-learning-interaction-outlives-the-session-watching-it]].

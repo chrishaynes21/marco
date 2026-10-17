@@ -86,17 +86,40 @@ type Pending struct {
 	closed string
 }
 
-// NewPending opens a question about one request.
-//
-// `expires` is taken rather than computed so the caller owns the clock — the same reason
-// `policy.Engine.Now` and `workflowrun`'s grants take theirs.
+// NewPending opens a question about one request, giving the person the full bound to answer it.
 func NewPending(q Question, request, application, place string, window directorapi.WindowID,
 	session observe.SessionID, state observe.ScreenStateID, now time.Time) *Pending {
+
+	return NewPendingUntil(q, request, application, place, window, session, state, now,
+		now.Add(HowLongAQuestionStaysOpen))
+}
+
+// NewPendingUntil opens a question that lapses at a deadline the caller already holds.
+//
+// # Why the deadline is ever somebody else's to supply
+//
+// Because one TEACHING INTERACTION can outlive several observation sessions. Ambient watching
+// runs bounded sessions, so the session a question was asked in ends while the person is still
+// reading the sentence; the clarification is then derived again from a fresh reading in the next
+// session, which is a NEW question about the same instruction.
+//
+// That re-derivation must not hand the person another ninety seconds. If it did, the only bound
+// on a learning interaction would be reset by the very thing that was meant to be bounded, and a
+// request could stay answerable all afternoon by rolling over often enough. So the deadline is
+// set once, when the interaction first opens a question, and carried.
+//
+// `Asked` is still the moment THIS question was asked, because that is what the lapse sentence
+// below is about and what a reader of one question needs; the deadline is the interaction's.
+//
+// Enforced by cmd/director TestTheOriginalDeadlineSurvivesEveryRollover.
+func NewPendingUntil(q Question, request, application, place string,
+	window directorapi.WindowID, session observe.SessionID, state observe.ScreenStateID,
+	now, expires time.Time) *Pending {
 
 	return &Pending{
 		Question: q, Request: request, Application: application, Place: place,
 		WindowID: window, Session: session, State: state,
-		Asked: now, Expires: now.Add(HowLongAQuestionStaysOpen),
+		Asked: now, Expires: expires,
 	}
 }
 

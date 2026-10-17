@@ -439,7 +439,22 @@ func reportDemonstration(out io.Writer, rt *Runtime, app string, seconds int) in
 		for ; seen < len(got); seen++ {
 			fmt.Fprintf(out, "  %s: %s\n", got[seen].Outcome, got[seen].Detail)
 		}
-		if l.Open() == nil && seen > 0 {
+		// AND STOP WHEN THERE IS NOTHING LEFT TO WAIT FOR — which is NOT the same as
+		// no question being open.
+		//
+		// A learning interaction outlives the twenty-second observation session it was
+		// asked in: the question is retired at the rollover and derived again from a
+		// fresh reading in the next session, so there are several moments in an
+		// eighty-five-second watch with nothing open and the interaction very much
+		// alive. Breaking on that would end the watch at the first rollover and tell
+		// the person their demonstration was not seen, about twenty seconds in.
+		//
+		// `nothingLeftToWaitFor` is the shared decision, the same one the
+		// establishment wait uses. See
+		// [[ADR-214-a-learning-interaction-outlives-the-session-watching-it]].
+		//
+		// Deleting this must fail TestTheWatchDoesNotEndAtARollover.
+		if nothingLeftToWaitFor(l) && seen > 0 {
 			break
 		}
 	}
