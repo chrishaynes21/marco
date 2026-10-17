@@ -532,8 +532,27 @@ sessions is up to eight seconds in which a press could only be refused. A questi
 already settled does not roll: it is waiting for the correlator, not for a press. Neither constant
 moved. See [[ADR-214-a-learning-interaction-outlives-the-session-watching-it]].
 
-The loop from a human demonstration to a reused instruction has still never run live, under
-any configuration.
+**The loop ran, end to end, on a real desktop.** 17 Oct 2026, three phases in three processes
+under the augmented configuration. The Director established the question by itself; a human press
+arrived in that session on that screen state and settled the ambiguity by being inside one
+candidate surface and outside the other; the crossing was attributed to one human action; the
+lesson was stored as a relation and a depth against a durable subject id with no absolute
+coordinate in it; a new process reacquired it from a fresh Stage and agreed; and one separately
+authorised guarded click reached the destination screen.
+
+The detail worth keeping: Marco pressed (324, 387) and the person had pressed (398, 387). Both
+correct. The person was sent to the part of the card the words do not cover, because that is the
+press that can tell two candidate surfaces apart; Marco aimed at the middle of the surface the
+relation picked out. The saved fact is not where somebody clicked, it is WHICH SURFACE their
+click identified -- which is the difference between learning a coordinate and learning a control.
+Resolution on the word alone was 0.35; the demonstrated surface carried it. And it still refused
+the third claim: a title change is reported as a title change, and whether the right page opened
+is handed back to a person.
+
+Four boundaries failed in sequence before this run, each hidden behind the last, and every one
+was a reporting or lifecycle defect rather than a failure of perception, learning or execution.
+The press was being captured correctly from the first live run; nothing could say where it went.
+See [[Experiment-067-the-whole-loop-ran-on-a-real-desktop]].
 
 ## Known gaps
 
