@@ -81,10 +81,23 @@ type fakeRuntime struct {
 	windows []directorapi.Window
 	// confirmations is the broker the server publishes questions through.
 	confirmations *ConfirmationBroker
+	// wet is whether this fake claims it can reach the desktop.
+	//
+	// TRUE BY DEFAULT, from newFakeRuntime, because that is the dangerous case: an
+	// ordinary Director started to do real work. A fake that defaulted to dry would let
+	// every existing test pass through the dry-run refusal without noticing it.
+	wet bool
 }
 
 func newFakeRuntime() *fakeRuntime {
-	return &fakeRuntime{graph: actiongraph.NewMemory(), attached: time.Now()}
+	return &fakeRuntime{graph: actiongraph.NewMemory(), attached: time.Now(), wet: true}
+}
+
+// PerformsRealInput is what the service asks before admitting a dry-run request.
+func (f *fakeRuntime) PerformsRealInput() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.wet
 }
 
 func (f *fakeRuntime) Handle(ctx context.Context, phrase string, progress func(ProgressPayload)) execute.Outcome {

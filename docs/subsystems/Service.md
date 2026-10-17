@@ -102,10 +102,18 @@ worth looking at.
 - [[ADR-092-one-director-per-home-one-hand-on-the-keyboard]] — the endpoint file is DISCOVERY;
   ownership is a process-lifetime kernel object claimed before the runtime exists, and the
   physical desktop is a second, machine-wide lease held around a production
+- [[ADR-216-a-dry-run-is-dry-at-the-boundary]] — `ExecutePayload.DryRun` was sent by the client
+  and never read by the server, so `director execute --dry-run` performed real input against any
+  ordinarily started Director. The service now asks `Runtime.PerformsRealInput()` and REFUSES
+  rather than serving a dry run wet, because the host is chosen once at construction and shared
+  by everything in flight. Separately, foregrounding sat outside the host abstraction, so a
+  runtime built with `DryRunHost` could still raise windows; it goes through one guarded door
+  now. Both found by reading, during the Alpha 1 evaluation, before either could be run.
 
 ## Validated by
 
-- `internal/director/service/service_test.go`
+- `internal/director/service/service_test.go`,
+  `internal/director/service/dryrun_test.go`
 - `cmd/director/runtime_test.go`, `cmd/director/flagorder_test.go`,
   `cmd/director/observeguard_test.go`
 

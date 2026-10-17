@@ -77,6 +77,16 @@ var runtimeEpochCounter atomic.Uint64
 // Director construction lives HERE and nowhere else. `marco director` is a pure
 // client that talks to this process; it never builds a Director of its own.
 type Runtime struct {
+	// performsRealInput is whether this Runtime's host can reach the desktop.
+	//
+	// Recorded rather than inferred from the host, because it is asked at the SERVICE
+	// boundary -- before a request is admitted -- and the answer must be available
+	// without reaching into the Theater. Set once, at construction, from the same
+	// boolean that chooses the host; nothing can change it afterwards.
+	//
+	// Deleting its use must fail TestADryRunNeverReachesALiveRuntime.
+	performsRealInput bool
+
 	pipeline *execute.Pipeline
 	graph    *actiongraph.FileGraph
 	tracker  *service.ProviderTracker
@@ -425,7 +435,8 @@ func NewRuntime(bridgePath string, maxNodes int, dryRun bool, g *actiongraph.Fil
 	// tesseract subprocess on the path of every click, to produce evidence that usually
 	// changes nothing. The provider enforces that itself rather than trusting callers.
 	textEngine, textHost, textReason := newOCREngine(defaultOCRBridge())
-	rt := &Runtime{graph: g, tracker: tracker, bridge: bridge, ocrBridge: textHost,
+	rt := &Runtime{performsRealInput: !dryRun,
+		graph: g, tracker: tracker, bridge: bridge, ocrBridge: textHost,
 		ocrUnavailable: textReason, liveMarco: marco, uia: accessibility,
 		// WHY the Accessibility Actor cannot act, when it cannot — on the same terms as
 		// OCR and vision, one line above and one below. The bridge is spawned lazily, so
@@ -931,6 +942,28 @@ func (r *Runtime) stale() bool {
 // to attach hands that request the same cold, shallow tree the old model always saw.
 func (r *Runtime) Warm(ctx context.Context) {
 	_, _ = r.pipeline.Observe(ctx)
+}
+
+// PerformsRealInput reports whether this Runtime's host can reach the desktop.
+//
+// # Why the service has to be able to ask
+//
+// `director execute --dry-run` sent `DryRun: true` in its payload and the server never read
+// it: `execute` called `Handle` unconditionally, so against an ordinary Director the flag
+// documented as "plan and verify without performing real input" performed real input. Only
+// `serve --dry-run` ever made a runtime dry, and nothing said so at the boundary.
+//
+// A flag that claims a safety property and does not have it is worse than no flag, because it
+// is the one somebody reaches for when they are being careful. So the service asks, and
+// refuses the request rather than serving it wet -- see Server.execute.
+//
+// Reported from a field set at construction rather than by type-switching the host, so that a
+// future host which is dry for some calls and not others cannot answer this ambiguously.
+func (r *Runtime) PerformsRealInput() bool {
+	if r == nil {
+		return false
+	}
+	return r.performsRealInput
 }
 
 // Handle runs one phrase.

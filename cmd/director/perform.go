@@ -945,6 +945,33 @@ const ambiguousWhy = " (several windows)"
 //
 // Returns an empty place and a `why` beginning with [ambiguousWhy] when several windows are open
 // and none of them is anywhere Marco knows.
+// raiseWindow brings one window to the front, and refuses to when this Runtime cannot
+// perform real input.
+//
+// # The one door, because the host abstraction has a hole in it
+//
+// Every desktop EFFECT goes through the Theater and its host, so a dry runtime cannot type
+// or click: `DryRunHost.Invoke` logs and returns ok. Foregrounding did not. `winctx.Activate`
+// and `winctx.ActivateTitle` were called straight from this file, outside that abstraction,
+// so a runtime built with `DryRunHost` could still move somebody's desktop.
+//
+// Found while auditing before a read-only evaluation: with an empty store no Place resolves,
+// so `disambiguateWindow` would have walked every `applicationframehost` window in turn --
+// Settings, XBOX, Realtek Audio Console -- raising each one, during what was supposed to be
+// an observation that touched nothing.
+//
+// Refusing rather than pretending to succeed: a disambiguation that cannot look at the
+// candidates has not disambiguated anything, and saying so leaves the ambiguity honest.
+//
+// Deleting the guard must fail TestADryRuntimeMovesNobodysDesktop.
+func (r *Runtime) raiseWindow(title string) error {
+	if !r.PerformsRealInput() {
+		return fmt.Errorf("this Director cannot perform real input, so it will not "+
+			"bring %q to the front", title)
+	}
+	return winctx.ActivateTitle(title)
+}
+
 func (r *Runtime) disambiguateWindow(ctx context.Context, application, why string) (string, string) {
 	titles := r.applicationWindowTitles(ctx, application)
 	if len(titles) < 2 {
@@ -960,7 +987,7 @@ func (r *Runtime) disambiguateWindow(ctx context.Context, application, why strin
 		// live — so without releasing it every candidate would be answered by the first
 		// window's evidence.
 		r.releaseLook(ctx)
-		if err := winctx.ActivateTitle(title); err != nil {
+		if err := r.raiseWindow(title); err != nil {
 			continue // ambiguous or gone; the next candidate is no worse a guess
 		}
 		time.Sleep(foregroundSettle)

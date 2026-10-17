@@ -45,6 +45,12 @@ type stubRuntime struct {
 	confirmations *service.ConfirmationBroker
 }
 
+// PerformsRealInput is what the service asks before admitting a dry-run request.
+//
+// TRUE, because this stub stands in for an ordinary Director. A stub that claimed to be dry would
+// send every test here through the dry-run refusal instead of the request path.
+func (s *stubRuntime) PerformsRealInput() bool { return true }
+
 func (s *stubRuntime) Handle(_ context.Context, phrase string, progress func(service.ProgressPayload)) execute.Outcome {
 	s.phrases = append(s.phrases, phrase)
 	if progress != nil {

@@ -247,6 +247,16 @@ func captureDesktop() desktopBefore {
 // exact window and nothing else; when it cannot be reached, that is reported.
 //
 // Deleting the verification must fail TestRestorationIsCheckedRatherThanAssumed.
+// # Why this is NOT gated on the runtime being able to perform real input
+//
+// It was, briefly, while closing the foregrounding hole [[ADR-216-a-dry-run-is-dry-at-the-boundary]]
+// is about — and two tests refused it, correctly. Restoration is a REPAIR: refusing to put a
+// desktop back leaves the person standing in Marco's experiment with nothing said about it, which
+// is strictly worse than the motion it avoided.
+//
+// The dry case needs no gate, because it closes itself one line below. Nothing moved, so the
+// active window is still the one recorded before, the already-there branch returns, and nothing
+// is activated. A gate here would only suppress the SENTENCE.
 func restoreDesktop(before desktopBefore) service.RestoreView {
 	if before.application == "" {
 		return service.RestoreView{}

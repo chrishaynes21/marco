@@ -571,6 +571,22 @@ click at a question that is not open, and the watch now says whether a press COU
 received -- totals, how many gaps, and the longest one, which is the number a person feels. See
 [[ADR-215-a-person-reading-is-not-a-quiet-desktop]].
 
+**Marco understands, and sees, and does not join the two.** The first evaluation of an unfamiliar
+real application -- Windows Settings, read-only, production observation defaults. Intent parsing
+works: three ordinary instructions decomposed, and "open the Explorer panel" became a semantic
+`open` with a target rather than a blind click. Observation works: 94 elements, 28 named clickable
+controls, 94/94 identity stability across five snapshots, and claims as good as
+`selected_navigation "Apps"`. The JOIN is lexical. `Bluetooth & devices` resolves at 0.97 and
+`bluetooth` at 0.82 "allowing for a keyboard hint" -- but `bluetooth settings`, `the bluetooth
+panel`, `personalisation` and `themes` are all ABSENT against a control plainly on screen. A
+prefix works; an added word, a one-letter spelling variant and a synonym do not. The planner
+carries the person's words through as the target and the resolver matches those words against
+labels, so a system that understands the instruction and can see the interface behaves as though
+it does neither. Two operable controls labelled exactly "Apps" stayed correctly ambiguous, which
+is the behaviour to keep. See
+[[Experiment-068-marco-understands-and-sees-and-does-not-join-the-two]] and the proposal in
+[[ADR-217-proposed-grounding-a-request-in-what-is-on-screen]].
+
 ## Known gaps
 
 - ~~Vision runs an unrequested pass on every ordinary cycle.~~ **Fixed 2026-08-10.** The

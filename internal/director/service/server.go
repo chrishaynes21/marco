@@ -40,6 +40,13 @@ import (
 // stays where it belongs. The service knows about commands, cancellation and
 // connections; it knows nothing about accessibility bridges or input hosts.
 type Runtime interface {
+	// PerformsRealInput reports whether this runtime's host can reach the desktop.
+	//
+	// ON THE INTERFACE because the service refuses a request it cannot honour, and
+	// "can you perform real input" is the only thing it needs to know to decide. A
+	// dry-run request served by a live runtime is the defect this exists to make
+	// impossible; see Server.execute.
+	PerformsRealInput() bool
 	// Handle runs one phrase to completion, reporting progress as it goes.
 	Handle(ctx context.Context, phrase string, progress func(ProgressPayload)) execute.Outcome
 	// HandleClarified re-runs a phrase with a clarification answer applied. The
@@ -700,6 +707,40 @@ func (s *Server) execute(requestID string, p ExecutePayload, send func(ResponseE
 	if phrase == "" {
 		send(NewResponse(requestID, ResponseError, ErrorPayload{
 			Code: "empty_phrase", Message: "nothing was asked",
+		}))
+		return
+	}
+	// A DRY RUN NEVER REACHES A LIVE RUNTIME, however the service was started.
+	//
+	// # The defect
+	//
+	// This field was never read. `director execute --dry-run` sent it, and `execute`
+	// called `Handle` unconditionally -- so against an ordinary Director the flag
+	// documented as "plan and verify without performing real input" typed, clicked
+	// and focused for real. Only `serve --dry-run` made a runtime dry, and the two
+	// facts were never compared.
+	//
+	// # Why refusing, rather than making the request dry here
+	//
+	// Because the host is chosen once, when the runtime is built, and it is shared by
+	// everything in flight. Swapping it per request would mean a window in which a
+	// concurrent command -- or the ambient observer, or a confirmation already
+	// granted -- ran against the wrong one. A preview is not worth that, and a
+	// refusal a person can read is worth more than a preview they cannot trust.
+	//
+	// `director plan` and `director goal --dry-run` remain: both are pure, neither
+	// needs a service, and together they answer what this flag was reached for.
+	//
+	// Deleting this must fail TestADryRunNeverReachesALiveRuntime.
+	if p.DryRun && s.runtime.PerformsRealInput() {
+		send(NewResponse(requestID, ResponseError, ErrorPayload{
+			Code: "dry_run_unavailable",
+			Message: "this Director was started to perform real input, so it " +
+				"cannot preview a request without performing it. Nothing was " +
+				"done. For a preview that touches nothing, use " +
+				"'director plan <request>'; for a Director that cannot " +
+				"reach the desktop at all, start one with " +
+				"'director serve --dry-run'.",
 		}))
 		return
 	}
