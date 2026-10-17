@@ -217,10 +217,14 @@ func runSurfaceLearn(out io.Writer, instruction, bridge string, maxNodes, second
 	// WHERE A PRESS WOULD ACTUALLY ANSWER IT, as a rectangle rather than a description.
 	// "On a part the words do not cover" tells somebody what to avoid; this tells them
 	// where to go, and it is the same area the admission gate required to exist.
-	// THE QUESTION THE PERSON WILL ACTUALLY ANSWER, established from a fresh reading in
-	// the session their press will arrive in. The request's own question is the INTENT and
-	// never the thing opened; see establishInTheNewSession and awaitingQuestion.
-	q, ok := establishInTheNewSession(out, rt, instruction, app, place, session)
+	// THE QUESTION THE PERSON WILL ACTUALLY ANSWER, established BY THE DIRECTOR from a
+	// reading of its own in the session their press will arrive in.
+	//
+	// This phase waits for it and establishes nothing. A harness that opened the question
+	// itself would be a second establishment path, and a demonstration it completed would
+	// be evidence about the harness rather than about the Director anybody will use — the
+	// owner's reason for this change, and the thing the test below holds.
+	q, ok := waitForTheDaemonToEstablish(out, rt, session)
 	if !ok {
 		return 1
 	}
@@ -626,50 +630,97 @@ func reportExecution(out io.Writer, outcome execute.Outcome) {
 // So the question that opens is a question about the screen that is in front NOW. If the place
 // changed, the target is gone, or the ambiguity has resolved itself, nothing opens and the run
 // stops: a clarification that no longer describes the screen is void rather than transferable.
-func establishInTheNewSession(out io.Writer, rt *Runtime, instruction, app, place string,
+// The application is not taken: the Director checks it against its own reading, and a second
+// check here would be this phase having an opinion about a question it did not derive.
+func waitForTheDaemonToEstablish(out io.Writer, rt *Runtime,
 	raisedIn observe.SessionID) (surface.Question, bool) {
 
-	fresh, state, ok := waitForFreshSession(out, rt, raisedIn)
+	fresh, _, ok := waitForFreshSession(out, rt, raisedIn)
 	if !ok {
 		return surface.Question{}, false
 	}
 	fmt.Fprintf(out, "\nthe request ended session %s and watching resumed in %s; the "+
-		"question will be established from a fresh reading in %s\n",
-		sessionOrNone(raisedIn), fresh, fresh)
+		"Director will establish the question itself from a reading of its own\n",
+		sessionOrNone(raisedIn), fresh)
 
-	// A FRESH READING, and the ambiguity asked of it rather than remembered from before.
-	w, now, err := liveStage(rt)
-	if err != nil {
-		fmt.Fprintf(out, "STOP: could not observe the screen again: %v\n", err)
-		return surface.Question{}, false
+	l := rt.surfaceLearner()
+	deadline := time.Now().Add(daemonEstablishmentWait)
+	for time.Now().Before(deadline) {
+		if p, ok := theDirectorsQuestion(l, raisedIn); ok {
+			// ESTABLISHED, BY THE DIRECTOR. Reported from the question that is
+			// open rather than from anything this phase derived, because this
+			// phase derived nothing.
+			fmt.Fprintf(out, "the Director established the question in session %s "+
+				"on %s, at place %s, about %q\n", p.Session, p.State,
+				placeOrNone(p.Place), p.Application)
+			// AND THE ACCOUNT THE DIRECTOR RECORDED, which carries the geometry
+			// it derived rather than any this phase has.
+			fmt.Fprint(out, surfaceAccount(l))
+			return p.Question, true
+		}
+		// AND THE REFUSALS THE DIRECTOR RECORDED, which are the answer when nothing
+		// opens. It refuses a place that moved, an application that changed, a
+		// reading that is not the running session and an ambiguity that resolved
+		// itself — and an intent it could not establish expires rather than waiting.
+		if nothingLeftToWaitFor(l) {
+			fmt.Fprintln(out, "STOP: the Director did not establish a question, and "+
+				"is no longer holding the clarification. Its own account of why:")
+			fmt.Fprint(out, surfaceAccount(l))
+			return surface.Question{}, false
+		}
+		time.Sleep(200 * time.Millisecond)
 	}
-	if !sameApplication(now, app) {
-		fmt.Fprintf(out, "STOP: the request was about %q and %q is in front now, so the "+
-			"clarification no longer describes the screen.\n", app, now)
-		return surface.Question{}, false
-	}
-	q, ok := theAmbiguityIsReallyThere(out, w, instruction)
-	if !ok {
-		return surface.Question{}, false
-	}
+	fmt.Fprintf(out, "STOP: the Director was still holding the clarification after %s "+
+		"without establishing a question from it. Its own account:\n",
+		daemonEstablishmentWait)
+	fmt.Fprint(out, surfaceAccount(l))
+	return surface.Question{}, false
+}
 
-	// AND THE PLACE AND THE SESSION FROM THE SAME MOMENT. Read after the reading, because
-	// the reading is what the question is about.
-	herePlace, hereSession, hereState, _ := rt.ambient().standing()
-	if hereSession != "" {
-		fresh, state = hereSession, hereState
+// theDirectorsQuestion is the open question when it is one the Director established.
+//
+// Separated from the wait because it is the whole of what the wait decides, and because a wait
+// cannot be driven by a test without spending its own timeout. A mutation run made this accept
+// any open question at all, which would let the phase report a question stamped with the session
+// the request ended -- exactly the thing ADR-213 exists to prevent, reintroduced one layer up.
+func theDirectorsQuestion(l *surfaceLearner, raisedIn observe.SessionID) (*surface.Pending, bool) {
+	p := l.Open()
+	if p == nil || p.Session == "" || p.Session == raisedIn {
+		return nil, false
 	}
-	if herePlace != "" {
-		place = herePlace
+	return p, true
+}
+
+// nothingLeftToWaitFor reports that the Director is neither holding a clarification nor has a
+// question open, so waiting longer cannot change anything.
+//
+// The refusal case, and it has to be noticed PROMPTLY: the Director records a reason when a place
+// moved, an application changed or an ambiguity resolved itself, and a phase that waited out its
+// whole timeout before reading that reason would report a stall where there was an answer.
+func nothingLeftToWaitFor(l *surfaceLearner) bool {
+	return l.Awaiting() == nil && l.Open() == nil
+}
+
+// daemonEstablishmentWait is how long the Director is given to establish the question itself.
+//
+// Longer than the intent it is waiting on, deliberately: an intent expires after
+// HowLongAnIntentWaitsToBeEstablished, so a wait that ended first would report a timeout where
+// the Director was about to report a reason. Waiting past the expiry means the account below is
+// always the Director's own words rather than this phase guessing.
+const daemonEstablishmentWait = HowLongAnIntentWaitsToBeEstablished + 15*time.Second
+
+// surfaceAccount is what the learner recorded, in the order it happened.
+func surfaceAccount(l *surfaceLearner) string {
+	lessons := l.Lessons()
+	if len(lessons) == 0 {
+		return "  (the Director recorded nothing at all, which is about the learner " +
+			"rather than the screen)\n"
 	}
-	opened, why := rt.surfaceLearner().Establish(q, now, place, fresh, state,
-		rt.activeObservationID())
-	if !opened {
-		fmt.Fprintf(out, "STOP: the question was not established: %s\n", why)
-		return surface.Question{}, false
+	out := ""
+	for _, g := range lessons {
+		out += fmt.Sprintf("  %s: %s\n", g.Outcome, g.Detail)
 	}
-	fmt.Fprintf(out, "question %s\n", why)
-	return q, true
+	return out
 }
 
 // waitForFreshSession polls until ambient watching is reading again, in a session that is not the

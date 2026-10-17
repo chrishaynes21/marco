@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"os"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -340,6 +341,181 @@ func TestTheAmbiguityIsAskedOfTheReadingItself(t *testing.T) {
 	if _, ok := theAmbiguityIsReallyThere(&empty, directorapi.WorldState{}, "click Settings"); ok {
 		t.Error("a reading with no elements in it produced a surface question")
 	}
+}
+
+// TRY IT OUT WAITS FOR THE DIRECTOR, and reports the question the DIRECTOR established.
+//
+// # Why this test exists
+//
+// Both the harness and the Director could establish a question, and the harness, running
+// synchronously, would usually win. A demonstration completed that way would be evidence about
+// the harness rather than about the Director anybody will use — the owner's words: the harness is
+// not the product. So the harness now establishes nothing and waits, and this holds that the
+// question it reports came from the production path.
+//
+// The establishment here is triggered by the drain, exactly as it is in production: nothing in
+// this test calls Establish, and nothing in the phase can.
+func TestTryItOutWaitsForTheQuestionTheDirectorEstablished(t *testing.T) {
+	rt := testRuntime(t)
+	l := newSurfaceLearner(nil, time.Now)
+	rt.surfaces = l
+	rt.surfacesOnce.Do(func() {})
+	stubObservation(t, rt, menuPair())
+
+	live := aLiveSession(t, rt, "trackmania")
+	l.Asked(clarification(t, "click Settings"), "trackmania", "subj_menu",
+		"observe_0", "state_menu", live)
+	fresh := aReading(string(live), "state_menu", "subj_menu")
+	standsWhere(t, rt, fresh)
+
+	// THE PRODUCTION TRIGGER, and nothing else.
+	rt.ambient().drain(fresh)
+
+	var out strings.Builder
+	q, ok := waitForTheDaemonToEstablish(&out, rt, "observe_0")
+	if !ok {
+		t.Fatalf("the phase gave up waiting for the Director:\n%s", out.String())
+	}
+
+	// THE QUESTION REPORTED IS THE ONE THAT IS OPEN, which the Director opened.
+	p := l.Open()
+	if p == nil {
+		t.Fatal("the phase returned a question while nothing is open")
+	}
+	if p.Session != live {
+		t.Errorf("the open question is in %s, not the running session %s", p.Session, live)
+	}
+	if len(q.Options) == 0 || len(q.Options) != len(p.Question.Options) {
+		t.Errorf("the phase reported a question with %d options and the open one has %d",
+			len(q.Options), len(p.Question.Options))
+	}
+	// AND THE ACCOUNT SAYS THE DIRECTOR DID IT.
+	if established := countLessons(l, "established"); established != 1 {
+		t.Errorf("%d established lessons; the Director should have recorded exactly one",
+			established)
+	}
+	for _, want := range []string{"the Director established the question", "established"} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("the report does not contain %q:\n%s", want, out.String())
+		}
+	}
+	// AND THE GEOMETRY IT REPORTS IS THE DIRECTOR’S OWN.
+	if !strings.Contains(out.String(), "a press answers it at") {
+		t.Errorf("the report carries no candidate geometry:\n%s", out.String())
+	}
+}
+
+// AND THE HARNESS CANNOT ESTABLISH A QUESTION AT ALL.
+//
+// Read from the phase source, because what is being held is the absence of a call rather than the
+// behaviour of one. A second establishment path would not fail any test — it would simply win the
+// race, and the live demonstration would stop being evidence about the Director.
+func TestTheHarnessEstablishesNoQuestionItself(t *testing.T) {
+	src, err := os.ReadFile("surfacelearnphases.go")
+	if err != nil {
+		t.Fatalf("reading the phase source: %v", err)
+	}
+	if strings.Contains(string(src), ".Establish(") {
+		t.Error("the demonstration phase calls Establish itself.\nThat is a second path to an open question, and the harness winning the race would make a successful live demonstration evidence about the harness rather than about the Director.")
+	}
+}
+
+// THE PHASE WAITS FOR A QUESTION THE DIRECTOR ESTABLISHED, and for no other.
+//
+// A question still stamped with the session the request ended is the defect ADR-213 fixed. The
+// phase must not report one as though the Director had established it, which would reintroduce
+// the same mistake one layer up.
+func TestOnlyAQuestionFromANewSessionCountsAsEstablished(t *testing.T) {
+	l := newSurfaceLearner(nil, time.Now)
+
+	if _, ok := theDirectorsQuestion(l, "observe_0"); ok {
+		t.Error("a learner with nothing open offered a question")
+	}
+
+	// OPEN IN THE SESSION THE REQUEST ENDED. Not the Director establishing anything:
+	// this is the stale stamp, and the phase must keep waiting.
+	l.Asked(clarification(t, "click Settings"), "trackmania", "subj_menu",
+		"observe_0", "state_menu", "observe_0")
+	if l.Open() == nil {
+		t.Fatal("the fixture did not open a question at all")
+	}
+	if _, ok := theDirectorsQuestion(l, "observe_0"); ok {
+		t.Error("a question stamped with the session the request ended was reported as one the Director established")
+	}
+
+	// AND ONE FROM THE SESSION THAT REPLACED IT IS.
+	if _, ok := theDirectorsQuestion(l, "observe_x"); !ok {
+		t.Error("a question from a session other than the one the request ended was not recognised")
+	}
+}
+
+// AND A REFUSAL IS NOTICED WITHOUT WAITING OUT THE WHOLE TIMEOUT.
+//
+// The Director records a reason when a place moved, an application changed or an ambiguity
+// resolved itself. A phase that sat through its full wait before reading that would report a
+// stall where there was an answer.
+func TestARefusalIsNoticedRatherThanWaitedOut(t *testing.T) {
+	l := newSurfaceLearner(nil, time.Now)
+	if !nothingLeftToWaitFor(l) {
+		t.Error("a learner holding nothing and with nothing open is still worth waiting for")
+	}
+
+	l.Asked(clarification(t, "click Settings"), "trackmania", "subj_menu",
+		"observe_0", "state_menu", "observe_2")
+	if nothingLeftToWaitFor(l) {
+		t.Error("a clarification the Director is still holding is reported as nothing to wait for")
+	}
+
+	// THE DIRECTOR REFUSES IT: the place moved while nothing was watching.
+	if opened, _ := l.Establish(aQuestion(t), "trackmania", "subj_elsewhere", "observe_2",
+		"state_menu", "observe_2"); opened {
+		t.Fatal("the fixture established a question it should have refused")
+	}
+	if !nothingLeftToWaitFor(l) {
+		t.Error("a refused clarification leaves the phase waiting for something that cannot arrive")
+	}
+}
+
+// THE PHASE STOPS WHEN THE DIRECTOR HAS REFUSED, rather than sitting out its own wait.
+//
+// Driven through the wait itself, and the assertion is the TIME: the decision is held above, but
+// a loop that never consulted it would return the same verdict forty-five seconds later, and a
+// person watching a run would read that as a stall rather than as an answer.
+func TestTheWaitEndsAsSoonAsTheDirectorHasRefused(t *testing.T) {
+	rt := testRuntime(t)
+	l := newSurfaceLearner(nil, time.Now)
+	rt.surfaces = l
+	rt.surfacesOnce.Do(func() {})
+
+	live := aLiveSession(t, rt, "trackmania")
+	standsWhere(t, rt, aReading(string(live), "state_menu", "subj_menu"))
+
+	// Nothing waiting and nothing open: the Director has already refused and said why.
+	var out strings.Builder
+	started := time.Now()
+	q, ok := waitForTheDaemonToEstablish(&out, rt, "observe_0")
+	took := time.Since(started)
+
+	if ok || len(q.Options) != 0 {
+		t.Fatal("the phase reported a question the Director never established")
+	}
+	if took > 10*time.Second {
+		t.Errorf("the phase took %s to notice that the Director had refused, which is the whole of its wait rather than the answer that was already there", took)
+	}
+	if !strings.Contains(out.String(), "did not establish a question") {
+		t.Errorf("the report does not say the Director refused: %s", out.String())
+	}
+}
+
+// countLessons is how many of the learner's recorded outcomes have one name.
+func countLessons(l *surfaceLearner, outcome string) int {
+	n := 0
+	for _, g := range l.Lessons() {
+		if g.Outcome == outcome {
+			n++
+		}
+	}
+	return n
 }
 
 // waitForCondition polls a condition this test owns, never the screen.

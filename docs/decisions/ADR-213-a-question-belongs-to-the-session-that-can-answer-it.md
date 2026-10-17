@@ -122,6 +122,25 @@ evidence is not contradictory evidence; what ends it is the bound, not an invent
 would answer at, from the question that actually opened — not the one the request produced, which
 came from a different reading of a session that has ended.
 
+## One path, because two would not be evidence
+
+The demonstration harness could establish a question too, and being synchronous it would usually
+win the race. A demonstration completed that way would be evidence about the harness rather than
+about the Director anybody will use — the owner's words, and the reason for the final shape:
+
+> the harness is not the product.
+
+So the harness establishes nothing. It waits for the Director, reports the question the Director
+opened — its session, its screen state, its place, and the geometry it derived — and stops at the
+authorisation checkpoints as before. There is one establishment path, and it is the production
+one. `surfaceHypothesisFor` and `Establish` are untouched and shared.
+
+The wait outlasts the intent on purpose: an intent expires after thirty seconds, so a wait that
+ended first would report a stall where the Director was about to report a reason. A refusal is
+noticed as soon as it happens rather than waited out, because the Director records a reason when
+a place moved, an application changed or an ambiguity resolved itself, and that reason is the
+answer.
+
 ## Enforced by
 
 - `TestAQuestionRaisedInAnEndedSessionOpensNothing` — the live shape exactly: `observe_1` on the
@@ -149,6 +168,13 @@ came from a different reading of a session that has ended.
 - `TestAValidReadingTriggersEstablishment` — and the one that must.
 - `TestAFailedObservationLeavesTheClarificationWaiting`.
 - `TestALaterRequestThroughTheDoorAbandonsTheIntent`.
+- `TestTryItOutWaitsForTheQuestionTheDirectorEstablished` — the harness reports the question the
+  Director established, triggered through the drain as in production.
+- `TestTheHarnessEstablishesNoQuestionItself` — read from the phase source, because what is held
+  is the ABSENCE of a call: a second path would fail no test, it would simply win the race.
+- `TestOnlyAQuestionFromANewSessionCountsAsEstablished` — a question still stamped with the
+  session the request ended is not one the Director established.
+- `TestARefusalIsNoticedRatherThanWaitedOut` and `TestTheWaitEndsAsSoonAsTheDirectorHasRefused`.
 
 - `TestOnlyOneEstablishmentRunsAtATime` — twenty readings of the same screen start exactly one
   observation.
