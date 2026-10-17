@@ -569,7 +569,7 @@ func (p *Pipeline) handleParsed(ctx context.Context, request string, parsed dire
 
 	// ── Resolve + plan + policy ───────────────────────────────────────────────
 	built, decision, res, status, msg, diag, asked := p.prepareTraced(ctx, request, world,
-		out.Intent, false, false, add)
+		out.Intent, false, false, pctx.Task, add)
 	out.Binding = diag
 	out.SurfaceQuestion = asked
 	out.Resolution = res
@@ -606,7 +606,7 @@ func (p *Pipeline) handleParsed(ctx context.Context, request string, parsed dire
 			world = fresh
 			out.World = &world
 			built, decision, res, status, msg, diag, asked = p.prepareTraced(ctx,
-				request, world, out.Intent, false, false, add)
+				request, world, out.Intent, false, false, pctx.Task, add)
 			out.Binding, out.Resolution, out.Policy = diag, res, decision
 			out.SurfaceQuestion = asked
 			p.recordVariableOutcome(varName, res)
@@ -635,7 +635,7 @@ func (p *Pipeline) handleParsed(ctx context.Context, request string, parsed dire
 			world = *found
 			out.World = &world
 			built, decision, res, status, msg, diag, asked = p.prepareTraced(ctx,
-				request, world, out.Intent, false, false, add)
+				request, world, out.Intent, false, false, pctx.Task, add)
 			out.Binding, out.Resolution, out.Policy = diag, res, decision
 			out.SurfaceQuestion = asked
 			p.recordVariableOutcome(varName, res)
@@ -742,7 +742,9 @@ func (p *Pipeline) handleParsed(ctx context.Context, request string, parsed dire
 				// which is verification's job. A retry that found the state
 				// already as asked would report that nothing needed doing about
 				// an action it had just taken.
-				p.prepare(ctx, request, retryWorld, out.Intent, true, true, add)
+				// And no licence: a retry re-aims, and a task authorizes the step it
+				// declared rather than wherever a second attempt lands.
+				p.prepare(ctx, request, retryWorld, out.Intent, true, true, nil, add)
 			if retryStatus != "" {
 				add("recover", "the target could not be resolved again: "+retryMsg, false)
 			} else {
@@ -921,12 +923,13 @@ func changed(record directorapi.ActionRecord) bool {
 // is unchanged, because a retry whose binding was re-established somewhere material asks
 // again.
 func (p *Pipeline) prepare(ctx context.Context, request string, world directorapi.WorldState,
-	in directorapi.Intent, confirmed, afterActing bool, add func(string, string, bool)) (
+	in directorapi.Intent, confirmed, afterActing bool, task *directorapi.TaskLicence,
+	add func(string, string, bool)) (
 	*directorapi.Plan, *directorapi.PolicyDecision, *directorapi.Resolution,
 	directorapi.ResultStatus, string) {
 
 	built, decision, res, status, msg, _, _ := p.prepareTraced(ctx, request, world, in,
-		confirmed, afterActing, add)
+		confirmed, afterActing, task, add)
 	return built, decision, res, status, msg
 }
 
@@ -942,7 +945,8 @@ func (p *Pipeline) prepare(ctx context.Context, request string, world directorap
 // state on a shared object, which is the bug this project has twice. Four call sites discard it
 // and say so, which is the cost of being able to see where it goes.
 func (p *Pipeline) prepareTraced(ctx context.Context, request string, world directorapi.WorldState,
-	in directorapi.Intent, confirmed, afterActing bool, add func(string, string, bool)) (
+	in directorapi.Intent, confirmed, afterActing bool, task *directorapi.TaskLicence,
+	add func(string, string, bool)) (
 	*directorapi.Plan, *directorapi.PolicyDecision, *directorapi.Resolution,
 	directorapi.ResultStatus, string, *BindingDiagnostics, *surface.Question) {
 
@@ -1131,7 +1135,8 @@ func (p *Pipeline) prepareTraced(ctx context.Context, request string, world dire
 		// steps would train them to click through prompts — but only when it covers this
 		// action's effect, target, risk and destructiveness. See
 		// coveredByGoalConfirmation for each clause and the case behind it.
-		act := actionConfirmationFor(in, built, reval, decision)
+		act := actionConfirmationFor(in, built, reval, decision, task,
+			applicationOfWorld(world))
 		outcome, cover, message := p.confirmAction(ctx, request, act)
 		diag.Confirmation, diag.Coverage = outcome, &cover
 		if !cover.Covered {
@@ -1174,7 +1179,8 @@ func statusForConfirmation(o ConfirmationOutcome) directorapi.ResultStatus {
 
 // actionConfirmationFor assembles the question for one lowered, revalidated action.
 func actionConfirmationFor(in directorapi.Intent, built directorapi.Plan, reval revalidation,
-	decision directorapi.PolicyDecision) actionConfirmation {
+	decision directorapi.PolicyDecision, task *directorapi.TaskLicence,
+	application string) actionConfirmation {
 
 	act := actionConfirmation{
 		Action: built.Steps[0].Action.Describe(),
@@ -1188,6 +1194,12 @@ func actionConfirmationFor(in directorapi.Intent, built directorapi.Plan, reval 
 		Destructive:    destructiveAction(built.Steps[0].Action),
 		MaterialChange: materialChange(reval),
 		Binding:        reval.Binding,
+		// The request that authorized this step, and the two things no authorization
+		// may override: the planner asking about the CONTROL, and the application this
+		// actually acts in. See coveredByTheRequest.
+		Task:         task,
+		PlannerAsked: built.RequiresConfirmation,
+		Application:  application,
 	}
 	if len(in.Targets) > 0 {
 		act.Target = in.Targets[0].Phrase
@@ -1629,4 +1641,18 @@ func reasonDeliveredNotConfirmed(worldChanged bool) string {
 	}
 	return "the action reached its target and nothing visibly followed, so it cannot be " +
 		"confirmed; not retrying, because repeating it could apply it twice"
+}
+
+// applicationOfWorld names the application the active window belongs to.
+//
+// So an authorization cannot travel: a task authorized against Explorer does not cover a step
+// that finds itself acting in whatever came to the front while the procedure ran.
+func applicationOfWorld(w directorapi.WorldState) string {
+	if w.ActiveWindow == nil {
+		return ""
+	}
+	if win, ok := w.Window(*w.ActiveWindow); ok {
+		return win.Application
+	}
+	return ""
 }

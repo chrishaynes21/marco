@@ -132,7 +132,33 @@ func (p *Pipeline) HandleProgram(ctx context.Context, request string) ProgramOut
 		p.goalProvenance = goalProvenanceOf(request, ex)
 		defer func() { p.goalProvenance = nil }()
 
-		out := p.RunProgram(ctx, ex.Program, program.Context{}, 0)
+		// THE REQUEST, CARRIED TO THE STEPS IT AUTHORIZED.
+		//
+		// A person who asks for a folder has authorized opening the New menu, choosing
+		// Folder, typing the name and committing it. Measured before this existed: each
+		// of three completed workflows stopped partway through to ask whether it might
+		// press Enter, because `confirm` is high-risk by its verb.
+		//
+		// The procedure's own declaration is what makes this safe to say, and Safety's
+		// doc says why it is better evidence than the verb: "only the procedure's author
+		// knows what pressing it MEANS. 'Invoke the Delete menu item' is three low-risk
+		// semantic actions and one irreversible outcome."
+		//
+		// So the envelope is DECLARED, in advance, by hand. A destructive or
+		// irreversible procedure is covered only once its goal question has been
+		// answered, and nothing here can waive a confirmation the planner asked for
+		// about the control itself. See directorapi.TaskLicence.
+		pctx := program.Context{Task: &directorapi.TaskLicence{
+			Request: request, Goal: string(ex.Goal.Kind), Procedure: ex.Procedure,
+			Application: ex.Application,
+			Declared: directorapi.TaskEffects{
+				Risk: ex.Safety.Risk, Mutations: ex.Safety.Mutations,
+				Destructive: ex.Safety.Destructive, External: ex.Safety.External,
+				Irreversible: ex.Safety.Irreversible,
+			},
+			Confirmed: outcome == ConfirmationAccepted,
+		}}
+		out := p.RunProgram(ctx, ex.Program, pctx, 0)
 		out.Goal = &ex
 		out.Confirmation = outcome
 		// The whole-goal verification, run automatically after real execution and before
@@ -515,6 +541,17 @@ func (p *Pipeline) runStep(ctx context.Context, phrase string, in directorapi.In
 	// precondition already met means a procedure CONTINUES, where a person's request
 	// already satisfied means nothing needs doing. See program.Context.WithinProgram.
 	pctx.WithinProgram = true
+	// AND WHICH DECLARED STEP IT IS.
+	//
+	// Per step rather than per task, and copied rather than mutated: the absence of a
+	// phrase on a licence IS the absence of authorization, so a step reached by any path
+	// that does not come through here cannot be covered by a licence lying on the
+	// context. See directorapi.TaskLicence.Step.
+	if pctx.Task != nil {
+		authorized := *pctx.Task
+		authorized.Step = phrase
+		pctx.Task = &authorized
+	}
 	return p.handleParsed(ctx, phrase, in, pctx)
 }
 

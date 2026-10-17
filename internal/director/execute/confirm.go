@@ -388,6 +388,16 @@ type actionConfirmation struct {
 	MaterialChange string
 	Binding        *binding.Binding
 	Replay         *ReplayContext
+
+	// Task is the request that authorized this step, when it is a declared step of a
+	// procedure somebody asked for. Nil for everything else, and nil waives nothing.
+	Task *directorapi.TaskLicence
+	// PlannerAsked is Plan.RequiresConfirmation: the planner saying the CONTROL is what
+	// made this high-risk, rather than the verb. No authorization may remove it.
+	PlannerAsked bool
+	// Application is the window this acts in, so an authorization cannot travel to
+	// another one.
+	Application string
 }
 
 // confirmAction puts the action-level question, unless the goal-level one already
@@ -399,9 +409,22 @@ type actionConfirmation struct {
 func (p *Pipeline) confirmAction(ctx context.Context, request string, act actionConfirmation) (
 	ConfirmationOutcome, CoverageDecision, string) {
 
+	// AN ANSWER SOMEBODY GAVE, first, because it is the stronger of the two.
 	decision := coveredByGoalConfirmation(ctx, act)
 	if decision.Covered {
 		return ConfirmationNotRequired, decision, decision.Reason
+	}
+	// THEN THE REQUEST SOMEBODY MADE. A person who asked for a folder authorized
+	// opening the menu, choosing Folder, typing the name and committing it — and
+	// stopping at the last of those to ask whether Marco might press Enter is what the
+	// live runs did. See coveredByTheRequest for what it cannot waive.
+	if byRequest := coveredByTheRequest(act); byRequest.Covered {
+		return ConfirmationNotRequired, byRequest, byRequest.Reason
+	} else if act.Task != nil {
+		// The task's own reason is the useful one when there was a task: "no
+		// confirmation has been given in this request" is true and unhelpful next to
+		// "this step removes or overwrites something and has not been agreed to".
+		decision = byRequest
 	}
 	outcome, message := p.ask(ctx, p.confirmationRequestFor(ctx, request, act))
 	return outcome, decision, message
@@ -453,4 +476,54 @@ func materialChange(r revalidation) string {
 		}
 	}
 	return ""
+}
+
+// coveredByTheRequest decides whether the task the person asked for already authorizes this
+// step.
+//
+// # The measurement
+//
+// Three completed workflows on a live desktop, and every one stopped partway through to ask
+// whether it might press Enter:
+//
+//	make a new folder called Reports
+//	  [4/4] plan    confirm "Reports" (high risk)
+//	        confirm the confirmation could not be put to you
+//	  BLOCKED: step 4 of 4 did not complete
+//
+// The person asked for a folder. Marco opened the menu, chose Folder and typed the name without
+// asking, then stopped at the keystroke that commits it.
+//
+// # Why this is a different question from coveredByGoalConfirmation
+//
+// That one asks whether an ANSWER somebody gave covers this action, and its clauses are about
+// an agreement: the risk they agreed to, the object the question named, whether the description
+// still holds. This asks whether the REQUEST covers it, and the clauses are about a task: what
+// the procedure declared in advance, which step of it this is, and which application.
+//
+// Kept apart because collapsing them would mean one of the two sets of clauses applying where
+// it does not belong. A yes for medium risk must not cover a high-risk step — that is about an
+// answer. A low-risk procedure's own commit keystroke must not need a second question — that is
+// about a task. Both are true, and neither clause set can state the other.
+//
+// # And the procedure's declaration is why this is safe to say
+//
+// `goal.Safety`'s own doc makes the argument: "only the procedure's author knows what pressing
+// it MEANS. 'Invoke the Delete menu item' is three low-risk semantic actions and one
+// irreversible outcome." The verb's risk floor is a guess made without that knowledge; the
+// declaration is a promise made with it, by hand, in advance.
+//
+// Enforced by TestARequestAuthorizesTheStepsOfTheTaskItAskedFor and its siblings.
+func coveredByTheRequest(act actionConfirmation) CoverageDecision {
+	ok, why := act.Task.Authorizes(act.Application, act.PlannerAsked)
+	if !ok {
+		return CoverageDecision{Reason: why}
+	}
+	// The binding clause, which belongs to both questions: a target that changed
+	// materially after the request was made is not the target the request described.
+	if act.MaterialChange != "" {
+		return CoverageDecision{Reason: "the target changed materially after you asked: " +
+			act.MaterialChange}
+	}
+	return CoverageDecision{Covered: true, Reason: why}
 }

@@ -134,10 +134,11 @@ versions of somebody's writing in a status line.
   editor step acts on the editor for a BOUND object, and naming a file does not bind it. Only
   the deictic form — "rename this file" — binds, so the named form needs the binding layer to
   accept a label. Reported, not fixed.
-- **The confirmation gate on every `confirm`.** Each of these tasks needed a `director confirm
-  yes` because confirming is high-risk. That is policy working as designed, and it is also why
-  none of these tasks is yet something a person could ask for and walk away from. Whether an
-  in-place rename's Enter deserves the same gate as a deletion is a product question.
+- ~~The confirmation gate on every `confirm`.~~ **Fixed 2026-10-17** by
+  [[ADR-225-a-request-authorizes-the-task-it-asked-for]]: a request authorizes the declared steps
+  of the procedure it expanded into, and `make a new folder called Reports` now completes from one
+  request with no prompts. `delete scratch.txt` still asks once, names the file and the effect,
+  and leaves it alone when declined.
 - **Paraphrase**, unchanged, and still the interpreter's job rather than a rule's.
 
 ## Task completion, counted

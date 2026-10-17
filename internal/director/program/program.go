@@ -318,6 +318,15 @@ func (p Program) Describe() string {
 // purpose. That is the whole distinction this milestone rests on, and the two live side
 // by side here precisely so it stays visible.
 type Context struct {
+	// Task is the person's request, standing as authorization for the declared steps of
+	// the procedure it expanded into.
+	//
+	// On the context for the same reason coverage is: it belongs to ONE run, and an
+	// authorization leaking into whatever ran next is the bug every gate here exists to
+	// prevent. Nil for an ordinary request, a replay, or any step nobody declared — and
+	// nil means nothing is waived. See directorapi.TaskLicence.
+	Task *directorapi.TaskLicence `json:"task,omitempty"`
+
 	// WithinProgram says this is a STEP OF A PROCEDURE rather than a request somebody
 	// made.
 	//

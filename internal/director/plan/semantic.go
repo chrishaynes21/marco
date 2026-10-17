@@ -87,11 +87,23 @@ func (p *Planner) semanticPlan(in Input) (directorapi.Plan, error) {
 		el, _ = in.World.Element(in.Resolution.Target.ElementID)
 	}
 
+	// WHO RAISED THE RISK, recorded rather than collapsed into the level.
+	//
+	// A verb has a risk and so does the control it is aimed at: "confirm" means the same
+	// thing on a field holding a folder name and on a button labelled "Delete account".
+	// The level cannot tell them apart, and until something needed to, nothing asked.
+	//
+	// `Plan.RequiresConfirmation` is the planner ASKING, and its doc has always said what
+	// that means — "policy may add one; it may never remove one". So the planner asks when
+	// the TARGET is what made this high-risk, and a request-scoped authorization
+	// (directorapi.TaskLicence) can waive the generic prompt and never this one.
+	risk := semanticRisk(kind, el)
 	return directorapi.Plan{
-		Goal:            kind.Describe() + " " + described,
-		RequestedIntent: in.Intent.Raw,
-		Risk:            semanticRisk(kind, el),
-		MaxAttempts:     p.MaxAttempts,
+		Goal:                 kind.Describe() + " " + described,
+		RequestedIntent:      in.Intent.Raw,
+		Risk:                 risk,
+		RequiresConfirmation: risk != kind.Risk(),
+		MaxAttempts:          p.MaxAttempts,
 		Assumptions: []string{
 			// Stated as an assumption rather than asserted, because it is exactly what
 			// the ladder may find to be false — and when it is, the action refuses

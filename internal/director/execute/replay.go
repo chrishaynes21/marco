@@ -305,8 +305,10 @@ func (p *Pipeline) replayOnce(ctx context.Context, source actiongraph.ActionNode
 	// Carried out rather than asked for, so the satisfaction short-circuit is not offered:
 	// a replay is performing a route Marco learned, and its own verification decides whether
 	// each step landed. See Pipeline.nothingNeeded.
+	// No licence: a replay is carrying out something Marco learned rather than a task
+	// somebody just asked for, and ScopeReplay has its own gate.
 	built, decision, res, status, msg := p.prepare(ctx, source.Intent.Raw, world, in, false,
-		true, discard)
+		true, nil, discard)
 	if status != "" {
 		iter.Reason = msg
 		if status == directorapi.ResultNeedsClarification {
