@@ -80,6 +80,37 @@ type surfaceLearner struct {
 	// handoff is what became of every press offered here. A measurement only: see
 	// surfacehandoff.go for the live run that made its absence the problem.
 	handoff pressHandoff
+	// awaiting is a clarification that was raised in an observation session which had
+	// already ended, and so has not been opened as a question yet.
+	awaiting *awaitingQuestion
+}
+
+// awaitingQuestion is a clarification raised but not yet established.
+//
+// # Why a request cannot open its own question
+//
+// A request makes ambient watching STAND ASIDE: its session is cancelled so that nothing the
+// Director does is folded into evidence about what the person did, and the supervisor starts a
+// fresh one afterwards. That is deliberate. But the question was stamped from the last ambient
+// look, which belongs to the session just cancelled — so every press the person then made
+// arrived in the NEXT session and was refused, correctly, by a rule that exists because screen
+// state ids are session-local counters.
+//
+// Measured live: fourteen presses seen, fifty-four offers refused, every one of them saying the
+// reading was from observe_2 and the question was asked in observe_1.
+//
+// So this holds the INTENT, and nothing executable. What it carries is the request, the
+// application and the durable Place — the one identity that survives a session, because it is
+// the only one that is not a session-local counter. No question, no options, no screen state:
+// those have to come from a fresh reading in the session a press can actually arrive in, or the
+// stale question would simply be wearing a new label.
+type awaitingQuestion struct {
+	Request     string
+	Application string
+	Place       string
+	// RaisedIn is the session that had already ended, kept for the account.
+	RaisedIn observe.SessionID
+	At       time.Time
 }
 
 // surfaceLesson is what became of one question, for a person reading the account.
@@ -133,7 +164,7 @@ func learnLicence() observesession.Licence { return observesession.LearnLicence(
 // person asked for something else, and a press meant for the new instruction must not answer the
 // old one.
 func (l *surfaceLearner) Asked(out execute.Outcome, application, place string,
-	session observe.SessionID, state observe.ScreenStateID) {
+	session observe.SessionID, state observe.ScreenStateID, active observe.SessionID) {
 
 	if l == nil {
 		return
@@ -151,11 +182,38 @@ func (l *surfaceLearner) Asked(out execute.Outcome, application, place string,
 			l.note("replaced", l.pending.Request, "a later request replaced it")
 			l.pending = nil
 		}
+		// AND A DEFERRED ONE GOES WITH IT. An intent that was never established is
+		// still a thing the person asked for, and a later request replaces it for
+		// exactly the reason it replaces an open question.
+		if l.awaiting != nil && l.awaiting.Request != out.Request {
+			l.note("abandoned", l.awaiting.Request,
+				"a later request replaced it before it could be "+
+					"established")
+			l.awaiting = nil
+		}
 		return
 	}
 	if l.pending != nil {
 		l.pending.Close("a newer question replaced it")
 		l.note("replaced", l.pending.Request, "a newer question replaced it")
+	}
+	l.awaiting = nil
+	// THE SESSION A PRESS WILL ARRIVE IN IS NOT THE ONE THIS WOULD BE STAMPED WITH.
+	//
+	// The request that raised this cancelled the observation session it was observed in,
+	// so the stamp available here is of a session that has ended. A question carrying it
+	// can never be answered: every press the person makes afterwards belongs to the
+	// session that replaced it. So the intent is held and the question is not opened.
+	// See awaitingQuestion, and Establish below for the only thing that opens one.
+	if session == "" || session != active {
+		l.awaiting = &awaitingQuestion{Request: out.Request, Application: application,
+			Place: place, RaisedIn: session, At: now}
+		l.note("deferred", out.Request, fmt.Sprintf(
+			"the session this would be stamped with (%s) is not "+
+				"the one a press will arrive in (%s), so the question "+
+				"waits for a fresh reading",
+			sessionOrNone(session), sessionOrNone(active)))
+		return
 	}
 	l.pending = surface.NewPending(*q, out.Request, application, place, q.WindowID,
 		session, state, now)
@@ -167,6 +225,112 @@ func (l *surfaceLearner) Asked(out execute.Outcome, application, place string,
 			"remembered)"
 	}
 	l.note("asked", out.Request, detail)
+}
+
+// sessionOrNone names a session for a person reading the account.
+func sessionOrNone(id observe.SessionID) string {
+	if id == "" {
+		return "none"
+	}
+	return string(id)
+}
+
+// Awaiting is the clarification waiting to be established, nil when none is.
+func (l *surfaceLearner) Awaiting() *awaitingQuestion {
+	if l == nil {
+		return nil
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.awaiting == nil {
+		return nil
+	}
+	c := *l.awaiting
+	return &c
+}
+
+// Establish opens the deferred question from a FRESH reading, in the session a press can arrive
+// in, and refuses every way the screen might have moved on since the request.
+//
+// # What it will not do
+//
+// It will not relabel the stale question. The session is not rewritten and the screen state is
+// not copied across: both are session-local counters, so carrying either would disguise a stale
+// question as a fresh one — which is the thing the session rule exists to prevent. The question
+// handed in here is re-derived by the caller from its own reading of the screen, and everything
+// this checks is checked against that reading.
+//
+// The durable Place is the one identity that may cross, because it is the only one that is not
+// session-local. If it has changed, the person is somewhere else and the clarification is void.
+//
+// Returns whether a question was opened and, either way, the sentence saying why.
+func (l *surfaceLearner) Establish(q surface.Question, application, place string,
+	session observe.SessionID, state observe.ScreenStateID, active observe.SessionID) (bool, string) {
+
+	if l == nil {
+		return false, "there is no learner"
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	w := l.awaiting
+	if w == nil {
+		return false, "no clarification was waiting to be established"
+	}
+	if !q.Open() {
+		l.note("refused", w.Request, "the fresh reading raises no answerable question, "+
+			"so there is nothing to establish")
+		l.awaiting = nil
+		return false, "the fresh reading raises no answerable question"
+	}
+	// THE READING HAS TO BE THE ONE A PRESS WILL ARRIVE IN. Establishing from a session
+	// that has already ended would reproduce the defect this whole path exists to fix.
+	if session == "" || session != active {
+		return false, fmt.Sprintf("the reading offered (%s) is not the session a press "+
+			"will arrive in (%s)", sessionOrNone(session), sessionOrNone(active))
+	}
+	if state == "" {
+		return false, "the reading placed no screen state, so a press could not be tied " +
+			"to the screen the question is about"
+	}
+	if !strings.EqualFold(application, w.Application) {
+		l.note("refused", w.Request, fmt.Sprintf("the clarification was raised about %q "+
+			"and the screen in front is %q", w.Application, application))
+		l.awaiting = nil
+		return false, fmt.Sprintf("the application changed from %q to %q", w.Application,
+			application)
+	}
+	// AND THE PLACE, which is the one identity that survives a session.
+	if place != w.Place {
+		l.note("refused", w.Request, fmt.Sprintf("the clarification was raised at place "+
+			"%q and the screen in front is %q, so the person is somewhere else",
+			placeOrNone(w.Place), placeOrNone(place)))
+		l.awaiting = nil
+		return false, fmt.Sprintf("the place changed from %s to %s", placeOrNone(w.Place),
+			placeOrNone(place))
+	}
+	now := l.clock()
+	if l.pending != nil {
+		l.pending.Close("a newer question replaced it")
+		l.note("replaced", l.pending.Request, "a newer question replaced it")
+	}
+	l.pending = surface.NewPending(q, w.Request, application, place, q.WindowID,
+		session, state, now)
+	l.awaiting = nil
+	detail := q.Asked
+	if place == "" {
+		detail += " (this screen has no durable identity yet, so an answer cannot be " +
+			"remembered)"
+	}
+	l.note("established", w.Request, detail)
+	return true, fmt.Sprintf("established in %s on %s", session, state)
+}
+
+// placeOrNone names a durable place for a person reading the account.
+func placeOrNone(p string) string {
+	if p == "" {
+		return "none"
+	}
+	return p
 }
 
 // Cancelled closes the outstanding question, if any.
@@ -453,4 +617,15 @@ func (l *surfaceLearner) clock() time.Time {
 		return l.now()
 	}
 	return time.Now()
+}
+
+// activeObservationID is which observation session is running now, empty when none is.
+//
+// One accessor, because "which session will a press arrive in" is asked in three places and a
+// second reading of the registry is a second place the answer could be wrong.
+func (r *Runtime) activeObservationID() observe.SessionID {
+	if r == nil || r.observations == nil {
+		return ""
+	}
+	return r.observations.ActiveID()
 }

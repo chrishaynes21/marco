@@ -489,6 +489,19 @@ read anything else. Both reporting defects are fixed and the handoff now says wh
 refused a press. See [[ADR-212-a-silence-is-reported-as-a-silence]] and
 [[Experiment-065-perception-and-capture-both-work-and-the-handoff-is-where-the-press-went]].
 
+**A question now belongs to the session that can answer it.** The live run above found its own
+cause: a request makes ambient watching stand aside, cancelling the observation session so that
+nothing the Director does is folded into evidence about the person, and the question was stamped
+from the look that preceded the request — the session just cancelled. Every press afterwards
+arrived in the next one and was refused by a rule that is correct. A request therefore no longer
+opens a question it cannot have answered: it holds the request, the application and the durable
+Place as an intent, and a separate step establishes the question from a FRESH reading in the
+session a press will arrive in, re-deriving the ambiguity rather than transferring it. The place,
+the application, the screen state and the ambiguity are all confirmed again from that reading,
+and a clarification that no longer describes the screen is void rather than transferable. Session
+matching is unchanged, no session id is rewritten and no session-local screen state crosses a
+boundary. See [[ADR-213-a-question-belongs-to-the-session-that-can-answer-it]].
+
 The loop from a human demonstration to a reused instruction has still never run live, under
 any configuration.
 

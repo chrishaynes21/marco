@@ -976,7 +976,24 @@ func (r *Runtime) Handle(ctx context.Context, phrase string, progress func(servi
 	//
 	// Deleting this must fail TestTheDaemonOpensAQuestionItCannotSettleItself.
 	place, session, state, _ := r.ambient().standing()
-	r.surfaceLearner().Asked(out, r.activeApplication(), place, session, state)
+	// WHICH SESSION A PRESS WILL ACTUALLY ARRIVE IN, handed over beside the one this look
+	// came from.
+	//
+	// They differ, always, for a request that raised a question: the request made ambient
+	// watching stand aside, so the look above belongs to a session that has just been
+	// cancelled and the supervisor is about to start a fresh one. The learner holds the
+	// intent in that case rather than opening a question nothing could answer; see
+	// awaitingQuestion.
+	// NOTHING IN THE SUITE CATCHES A WRONG VALUE HANDED OVER HERE, and that is recorded
+	// rather than papered over: replacing this with the look's own session makes the
+	// learner never defer, and every test still passes, because no test can enter Handle
+	// with a live observation registry. The DECISION is held — eleven of twelve mutants
+	// over this change died on it — and what survives is this one read.
+	active := observe.SessionID("")
+	if r.observations != nil {
+		active = r.observations.ActiveID()
+	}
+	r.surfaceLearner().Asked(out, r.activeApplication(), place, session, state, active)
 	return out
 }
 

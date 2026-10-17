@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/execute"
+	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
 	"github.com/chaynes-simpleclouds/marco/internal/director/service"
 	"github.com/chaynes-simpleclouds/marco/internal/director/surface"
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
@@ -195,8 +196,12 @@ func runSurfaceLearn(out io.Writer, instruction, bridge string, maxNodes, second
 
 	// THE REQUEST. A dry run, so a clarification is the only thing that can come back —
 	// and if something else does, that is reported rather than worked around.
+	//
+	// THE SESSION IT IS ABOUT TO END is read first, so the account can say which one the
+	// clarification was raised in and which one replaced it.
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
+	_, session, _, _ := rt.ambient().standing()
 	outcome := rt.Handle(ctx, instruction, nil)
 	fmt.Fprintf(out, "\nrequest: %s — %s\n", outcome.Status, outcome.Message)
 	if outcome.Status != directorapi.ResultNeedsClarification ||
@@ -213,7 +218,17 @@ func runSurfaceLearn(out io.Writer, instruction, bridge string, maxNodes, second
 	// WHERE A PRESS WOULD ACTUALLY ANSWER IT, as a rectangle rather than a description.
 	// "On a part the words do not cover" tells somebody what to avoid; this tells them
 	// where to go, and it is the same area the admission gate required to exist.
-	if where, ok := outcome.SurfaceQuestion.WhereToPress(); ok {
+	// THE QUESTION THE PERSON WILL ACTUALLY ANSWER, established from a fresh reading in
+	// the session their press will arrive in. The request's own question is the INTENT and
+	// never the thing opened; see establishInTheNewSession and awaitingQuestion.
+	q, ok := establishInTheNewSession(out, rt, instruction, app, place, session)
+	if !ok {
+		return 1
+	}
+
+	// From the ESTABLISHED question rather than the request's, because they are two
+	// derivations from two readings and the person must be told about the one that is open.
+	if where, ok := q.WhereToPress(); ok {
 		fmt.Fprintf(out, "\nwhere a press answers it: %v, whose middle is (%d, %d)\n",
 			where, where.X+where.Width/2, where.Y+where.Height/2)
 	}
@@ -587,4 +602,114 @@ func reportExecution(out io.Writer, outcome execute.Outcome) {
 		fmt.Fprintf(out, "  policy: allowed=%v confirm=%v %s\n", outcome.Policy.Allowed,
 			outcome.Policy.RequiresConfirmation, outcome.Policy.Reason)
 	}
+}
+
+// establishInTheNewSession opens the question in the session a press can arrive in.
+//
+// # The defect this exists for
+//
+// A request makes ambient watching stand aside: its session is cancelled so that nothing the
+// Director does is folded into evidence about what the person did, and the supervisor starts a
+// fresh one afterwards. The question used to be stamped from the look that preceded the request,
+// which belongs to the cancelled session — so every press the person made arrived in the next one
+// and was refused by a rule that is correct. Measured live: fourteen presses seen, fifty-four
+// offers refused, every one saying the reading was from observe_2 and the question was asked in
+// observe_1. See [[ADR-213-a-question-belongs-to-the-session-that-can-answer-it]].
+//
+// # What this does instead
+//
+// Waits for ambient watching to resume, takes a FRESH reading, and re-derives everything from it:
+// the foreground application, the durable Place, the target identity, the candidate surfaces and
+// the ambiguity. Nothing is carried across but the instruction and the Place — the Place because
+// it is the one identity that is not a session-local counter, and the instruction because it is
+// what the person asked for.
+//
+// So the question that opens is a question about the screen that is in front NOW. If the place
+// changed, the target is gone, or the ambiguity has resolved itself, nothing opens and the run
+// stops: a clarification that no longer describes the screen is void rather than transferable.
+func establishInTheNewSession(out io.Writer, rt *Runtime, instruction, app, place string,
+	raisedIn observe.SessionID) (surface.Question, bool) {
+
+	fresh, state, ok := waitForFreshSession(out, rt, raisedIn)
+	if !ok {
+		return surface.Question{}, false
+	}
+	fmt.Fprintf(out, "\nthe request ended session %s and watching resumed in %s; the "+
+		"question will be established from a fresh reading in %s\n",
+		sessionOrNone(raisedIn), fresh, fresh)
+
+	// A FRESH READING, and the ambiguity asked of it rather than remembered from before.
+	w, now, err := liveStage(rt)
+	if err != nil {
+		fmt.Fprintf(out, "STOP: could not observe the screen again: %v\n", err)
+		return surface.Question{}, false
+	}
+	if !sameApplication(now, app) {
+		fmt.Fprintf(out, "STOP: the request was about %q and %q is in front now, so the "+
+			"clarification no longer describes the screen.\n", app, now)
+		return surface.Question{}, false
+	}
+	q, ok := theAmbiguityIsReallyThere(out, w, instruction)
+	if !ok {
+		return surface.Question{}, false
+	}
+
+	// AND THE PLACE AND THE SESSION FROM THE SAME MOMENT. Read after the reading, because
+	// the reading is what the question is about.
+	herePlace, hereSession, hereState, _ := rt.ambient().standing()
+	if hereSession != "" {
+		fresh, state = hereSession, hereState
+	}
+	if herePlace != "" {
+		place = herePlace
+	}
+	opened, why := rt.surfaceLearner().Establish(q, now, place, fresh, state,
+		rt.activeObservationID())
+	if !opened {
+		fmt.Fprintf(out, "STOP: the question was not established: %s\n", why)
+		return surface.Question{}, false
+	}
+	fmt.Fprintf(out, "question %s\n", why)
+	return q, true
+}
+
+// waitForFreshSession polls until ambient watching is reading again, in a session that is not the
+// one the request ended.
+//
+// Bounded, and the bound is short on purpose: the supervisor resumes on its own cadence
+// immediately after standing aside, so a wait this long failing means watching is not running at
+// all rather than that it is slow.
+func waitForFreshSession(out io.Writer, rt *Runtime, raisedIn observe.SessionID) (
+	observe.SessionID, observe.ScreenStateID, bool) {
+
+	deadline := time.Now().Add(freshSessionWait)
+	for time.Now().Before(deadline) {
+		_, session, state, _ := rt.ambient().standing()
+		active := rt.activeObservationID()
+		if session != "" && session != raisedIn && session == active && state != "" {
+			return session, state, true
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	_, session, state, _ := rt.ambient().standing()
+	fmt.Fprintf(out, "STOP: ambient watching did not resume with a reading of its own "+
+		"within %s. The last reading was session %s, state %s, and the active "+
+		"session is %s.\n", freshSessionWait, sessionOrNone(session),
+		stateOrNone(state), sessionOrNone(rt.activeObservationID()))
+	return "", "", false
+}
+
+// freshSessionWait is how long the supervisor is given to resume after a request.
+//
+// Ten seconds: the supervisor's own glance is ambientGlance and it resumes immediately after
+// standing aside, so this is two orders of magnitude of slack. Long enough that a loaded machine
+// is not reported as a broken one, short enough that a person is not left waiting on a wall.
+const freshSessionWait = 10 * time.Second
+
+// stateOrNone names a screen state for a person reading the account.
+func stateOrNone(s observe.ScreenStateID) string {
+	if s == "" {
+		return "none"
+	}
+	return string(s)
 }

@@ -93,7 +93,7 @@ func asked(t *testing.T, place string) (*surfaceLearner, *semanticmemory.Store) 
 	l.Asked(execute.Outcome{
 		Request: "click Settings", Status: directorapi.ResultNeedsClarification,
 		SurfaceQuestion: ptrQuestion(aQuestion(t)),
-	}, "trackmania", place, "observe_1", "state_menu")
+	}, "trackmania", place, "observe_1", "state_menu", "observe_1")
 	if l.Open() == nil {
 		t.Fatal("no question was opened")
 	}
@@ -358,7 +358,7 @@ func TestTheDaemonOpensAQuestionItCannotSettleItself(t *testing.T) {
 	// A LATER REQUEST CLOSES IT. The person asked for something else, and the press they
 	// make next belongs to that.
 	l.Asked(execute.Outcome{Request: "click Resume", Status: directorapi.ResultDone},
-		"trackmania", "subj_menu", "observe_1", "state_menu")
+		"trackmania", "subj_menu", "observe_1", "state_menu", "observe_1")
 	if l.Open() != nil {
 		t.Error("a later request left the old question open")
 	}
@@ -457,7 +457,7 @@ func TestTheDaemonGroundsADemonstratedSurface(t *testing.T) {
 	l.Asked(execute.Outcome{Request: "click Settings",
 		Status:          directorapi.ResultNeedsClarification,
 		SurfaceQuestion: ptrQuestion(aQuestion(t))},
-		"trackmania", place, "observe_1", "state_menu")
+		"trackmania", place, "observe_1", "state_menu", "observe_1")
 	if _, settled, _ := l.Open().Press(onlyTheRow("state_menu"), time.Now()); !settled {
 		t.Fatal("the press did not settle the question")
 	}
