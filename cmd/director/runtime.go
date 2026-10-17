@@ -252,6 +252,14 @@ type Runtime struct {
 	// Held here so an observation session can subscribe for its lifetime and detach when
 	// it ends; retention is session-bounded, never Director-lifetime.
 	navSource *navsource.Source
+	// establishing is held while one background establishment of a deferred surface
+	// clarification is in flight.
+	//
+	// SINGLE FLIGHT. Readings arrive about ten times a second and the observation an
+	// establishment takes is a hundred times slower, so without this every reading would
+	// start another one and they would queue behind the accessibility bridge. See
+	// considerEstablishing.
+	establishing atomic.Bool
 	// padSource observes a controller, nil when none could be built. padUnavailable says
 	// why, and it travels into a session's device records: a missing producer must read as
 	// a device nobody watched, never as a player who pressed nothing.
@@ -975,25 +983,8 @@ func (r *Runtime) Handle(ctx context.Context, phrase string, progress func(servi
 	// that.
 	//
 	// Deleting this must fail TestTheDaemonOpensAQuestionItCannotSettleItself.
-	place, session, state, _ := r.ambient().standing()
-	// WHICH SESSION A PRESS WILL ACTUALLY ARRIVE IN, handed over beside the one this look
-	// came from.
-	//
-	// They differ, always, for a request that raised a question: the request made ambient
-	// watching stand aside, so the look above belongs to a session that has just been
-	// cancelled and the supervisor is about to start a fresh one. The learner holds the
-	// intent in that case rather than opening a question nothing could answer; see
-	// awaitingQuestion.
-	// NOTHING IN THE SUITE CATCHES A WRONG VALUE HANDED OVER HERE, and that is recorded
-	// rather than papered over: replacing this with the look's own session makes the
-	// learner never defer, and every test still passes, because no test can enter Handle
-	// with a live observation registry. The DECISION is held — eleven of twelve mutants
-	// over this change died on it — and what survives is this one read.
-	active := observe.SessionID("")
-	if r.observations != nil {
-		active = r.observations.ActiveID()
-	}
-	r.surfaceLearner().Asked(out, r.activeApplication(), place, session, state, active)
+	// THE ONE DOOR, in a function a test can enter. See surfaceQuestionRaised.
+	r.surfaceQuestionRaised(out)
 	return out
 }
 

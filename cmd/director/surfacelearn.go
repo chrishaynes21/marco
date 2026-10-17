@@ -48,6 +48,7 @@ package main
 // comment for the reason that file gives, and `learnLicence` below is the only place one is made.
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -111,7 +112,24 @@ type awaitingQuestion struct {
 	// RaisedIn is the session that had already ended, kept for the account.
 	RaisedIn observe.SessionID
 	At       time.Time
+	// Expires bounds the wait.
+	//
+	// An intent is waiting for ONE thing: the supervisor to resume and read the
+	// screen again, which it does within a glance of standing aside. So this is not
+	// a person's deadline and is not generous. It exists because the screen the
+	// person asked about can disappear while nothing is watching — they close the
+	// window, a game takes the foreground, the observer never comes back — and an
+	// intent with no bound would sit there until the next request happened to
+	// replace it, then establish a question about a screen that had been gone for
+	// an hour.
+	Expires time.Time
 }
+
+// HowLongAnIntentWaitsToBeEstablished bounds a deferred clarification.
+//
+// Thirty seconds: two orders of magnitude more than the supervisor needs to resume, and short
+// enough that a clarification which outlived its screen is refused rather than honoured.
+const HowLongAnIntentWaitsToBeEstablished = 30 * time.Second
 
 // surfaceLesson is what became of one question, for a person reading the account.
 type surfaceLesson struct {
@@ -207,7 +225,8 @@ func (l *surfaceLearner) Asked(out execute.Outcome, application, place string,
 	// See awaitingQuestion, and Establish below for the only thing that opens one.
 	if session == "" || session != active {
 		l.awaiting = &awaitingQuestion{Request: out.Request, Application: application,
-			Place: place, RaisedIn: session, At: now}
+			Place: place, RaisedIn: session, At: now,
+			Expires: now.Add(HowLongAnIntentWaitsToBeEstablished)}
 		l.note("deferred", out.Request, fmt.Sprintf(
 			"the session this would be stamped with (%s) is not "+
 				"the one a press will arrive in (%s), so the question "+
@@ -320,6 +339,15 @@ func (l *surfaceLearner) Establish(q surface.Question, application, place string
 	if place == "" {
 		detail += " (this screen has no durable identity yet, so an answer cannot be " +
 			"remembered)"
+	}
+	// THE GEOMETRY OF THE QUESTION THAT ACTUALLY OPENED, in the account.
+	//
+	// Not the geometry the request produced: that came from a different reading of a
+	// screen in a session that has ended, and telling somebody to press there would be
+	// the stale question giving directions.
+	if where, ok := q.WhereToPress(); ok {
+		detail += fmt.Sprintf(" — a press answers it at %v, whose middle is (%d, %d)",
+			where, where.X+where.Width/2, where.Y+where.Height/2)
 	}
 	l.note("established", w.Request, detail)
 	return true, fmt.Sprintf("established in %s on %s", session, state)
@@ -629,3 +657,160 @@ func (r *Runtime) activeObservationID() observe.SessionID {
 	}
 	return r.observations.ActiveID()
 }
+
+// readyToEstablish is the cheap question asked of every reading: could this one establish the
+// clarification that is waiting?
+//
+// CHEAP ON PURPOSE, because it is asked on the thread that drains the input log. A few field
+// comparisons under the lock the learner already holds, and nothing that reads the screen: the
+// observation an establishment needs is taken elsewhere, once, off this thread.
+//
+// It also expires an intent that waited too long, because this is the one place a reading and
+// the clock meet. A mismatch of place or application is NOT a refusal here — the person may
+// simply be somewhere else for a moment — so it reports not-yet and lets the expiry decide. The
+// refusals that void a clarification outright live in Establish, where they are recorded.
+func (l *surfaceLearner) readyToEstablish(look ambientLook, active observe.SessionID) (
+	awaitingQuestion, bool) {
+
+	if l == nil {
+		return awaitingQuestion{}, false
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.awaiting == nil {
+		return awaitingQuestion{}, false
+	}
+	now := l.clock()
+	if !now.Before(l.awaiting.Expires) {
+		l.note("expired", l.awaiting.Request, fmt.Sprintf("no reading in a session a press could arrive in appeared within %s, so the clarification is no longer about a screen anybody is looking at", HowLongAnIntentWaitsToBeEstablished))
+		l.awaiting = nil
+		return awaitingQuestion{}, false
+	}
+	// THE READING HAS TO BE ONE A PRESS COULD ARRIVE IN, which is the whole point.
+	if !look.OK || look.Session == "" || look.Session != active || look.State == "" {
+		return awaitingQuestion{}, false
+	}
+	// AND IT HAS TO BE A SESSION THAT REPLACED THE ONE THE REQUEST ENDED. The same
+	// session would mean watching has not resumed yet and this is the dead reading again.
+	if look.Session == l.awaiting.RaisedIn {
+		return awaitingQuestion{}, false
+	}
+	if !strings.EqualFold(look.Application, l.awaiting.Application) {
+		return awaitingQuestion{}, false
+	}
+	if look.Place.Subject != l.awaiting.Place {
+		return awaitingQuestion{}, false
+	}
+	return *l.awaiting, true
+}
+
+// CouldNotObserve records an establishment attempt that could not read the screen.
+//
+// The intent is LEFT WAITING. A failed observation is not evidence that the screen changed, and
+// the next reading may well succeed; what stops this repeating forever is the expiry above
+// rather than a refusal invented here. See the standing rule that missing evidence is not
+// contradictory evidence.
+func (l *surfaceLearner) CouldNotObserve(request, why string) {
+	if l == nil {
+		return
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.awaiting == nil {
+		return
+	}
+	l.note("unavailable", request, why)
+}
+
+// surfaceQuestionRaised is the one door a finished request passes through on its way to the
+// learner.
+//
+// Extracted from Handle so the registry path can be driven by a test. A mutation run over
+// [[ADR-213-a-question-belongs-to-the-session-that-can-answer-it]] left exactly one survivor:
+// handing the look's own session over as the active one made the learner never defer, with the
+// whole suite still green, because nothing could enter Handle with a live observation registry.
+// This can be entered.
+func (r *Runtime) surfaceQuestionRaised(out execute.Outcome) {
+	if r == nil {
+		return
+	}
+	place, session, state, _ := r.ambient().standing()
+	// WHICH SESSION A PRESS WILL ACTUALLY ARRIVE IN, beside the one that look came from.
+	//
+	// They differ, always, for a request that raised a question: the request made ambient
+	// watching stand aside, so the look belongs to a session that has just been cancelled
+	// and the supervisor is about to start a fresh one. The learner holds the intent in
+	// that case rather than opening a question nothing could answer.
+	r.surfaceLearner().Asked(out, r.activeApplication(), place, session, state,
+		r.activeObservationID())
+}
+
+// considerEstablishing hands a waiting clarification to one background establishment.
+//
+// # Where this is called from, and what it must not do there
+//
+// From the drain, which is the one place a reading and the admitted input log are both in hand.
+// So it runs on the supervisor thread, and the only thing it may do there is compare a few
+// fields: a Stage collection on this thread would stall ambient watching, which is the thread
+// that has to notice what the person did. The observation therefore happens on its own
+// goroutine, one at a time.
+//
+// SINGLE FLIGHT, not a loop. Readings arrive about ten times a second and an observation takes
+// a hundred times longer than that, so without the flag every reading would start another one
+// and they would queue behind the accessibility bridge until the intent expired. There is no
+// polling here and no second observation loop: the trigger is a reading the supervisor was
+// taking anyway.
+func (r *Runtime) considerEstablishing(look ambientLook) {
+	if r == nil {
+		return
+	}
+	intent, ok := r.surfaceLearner().readyToEstablish(look, r.activeObservationID())
+	if !ok {
+		return
+	}
+	if !r.establishing.CompareAndSwap(false, true) {
+		return
+	}
+	go func() {
+		defer r.establishing.Store(false)
+		r.establishDeferredQuestion(intent)
+	}()
+}
+
+// establishDeferredQuestion takes one fresh reading and establishes the waiting clarification
+// from it, or records why it could not.
+//
+// Through `pipeline.Observe`, which is the production observation and the same one the request
+// itself used — not a second path with its own idea of what the screen looks like. The question
+// is re-derived from that reading by the same surface evaluation the pipeline runs, and every
+// check lives in Establish: a reading that is not the running session, a place that moved, an
+// application that changed, an ambiguity that resolved itself. Nothing is carried across but the
+// instruction and the durable Place.
+//
+// A reading that raises no question is handed to Establish as an empty one on purpose, so that
+// the refusal is recorded in the one place refusals are recorded.
+func (r *Runtime) establishDeferredQuestion(intent awaitingQuestion) {
+	l := r.surfaceLearner()
+	if r.pipeline == nil || r.pipeline.Observe == nil {
+		l.CouldNotObserve(intent.Request, "there is no observation pipeline")
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), deferredObservationTimeout)
+	defer cancel()
+	w, err := r.pipeline.Observe(ctx)
+	if err != nil {
+		l.CouldNotObserve(intent.Request, "the screen could not be read again: "+err.Error())
+		return
+	}
+	q, _ := surfaceHypothesisFor(w, intent.Request).Question()
+	// THE PLACE, THE SESSION AND THE STATE FROM THE READING, not from the intent.
+	place, session, state, app := r.ambient().standing()
+	l.Establish(q, app, place, session, state, r.activeObservationID())
+}
+
+// deferredObservationTimeout bounds the one observation an establishment takes.
+//
+// Twenty seconds, which is the ordinary request timeout order rather than a tight one: this
+// observation competes for the accessibility bridge with the supervisor that triggered it, so a
+// bound that assumed an idle machine would turn a busy one into a failed establishment.
+const deferredObservationTimeout = 20 * time.Second

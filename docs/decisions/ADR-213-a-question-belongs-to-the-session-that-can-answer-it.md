@@ -86,11 +86,41 @@ it. The press point printed to the operator comes from the **established** quest
 the request's, because those are two derivations from two readings and the person must be told
 about the one that is open.
 
-The daemon path holds an intent rather than opening an unanswerable question. Nothing establishes
-one for it automatically: establishment needs a fresh Stage, and taking one inside the ambient
-observer's own glance would put a full observation on the thread that has to stay responsive. For
-now that path records `deferred` and says why, which is strictly better than a question no press
-could ever reach, and it is recorded here as the remaining gap rather than described as finished.
+## The daemon, which is the path that matters
+
+A harness is not the product. The same sequence has to happen during ordinary operation, so the
+deferred clarification is established by the Director itself:
+
+1. A request needs clarification, and the session it was observed in has already been cancelled.
+2. The intent and the durable Place are held. Nothing executable, no options, no screen state.
+3. The supervisor resumes in a fresh session and reads the screen.
+4. That reading triggers one establishment, which takes a Stage of its own.
+5. The place, the application, the target, the ambiguity, the session and the screen state are
+   all confirmed from that Stage, and the question opens only if every check passes.
+6. The person demonstrates, and the existing guarded learning path is unchanged.
+
+**Where the trigger lives, and what it may not do there.** In the drain — the one place a reading
+and the admitted input log are both in hand, beside the presses being offered. So it runs on the
+supervisor thread, and all it may do there is compare a few fields: a Stage collection on that
+thread would stall the watching that has to notice what the person did. The observation happens
+on its own goroutine instead, **single flight**. Readings arrive about ten times a second and an
+observation is a hundred times slower, so without that flag every reading would start another one
+and they would queue behind the accessibility bridge until the intent expired. There is no polling
+and no second observation loop: the trigger is a reading the supervisor was taking anyway, and the
+observation is `pipeline.Observe` — the production path the request itself used.
+
+**The intent is bounded.** Thirty seconds, which is two orders of magnitude more than the
+supervisor needs to resume. It exists because the screen the person asked about can disappear
+while nothing is watching — they close the window, a game takes the foreground, watching stops —
+and an unbounded intent would sit there until some later request happened to replace it, then
+establish a question about a screen that had been gone for an hour. A reading that merely does not
+match is not a refusal: the person may be elsewhere for a moment, so the trigger reports not-yet
+and the expiry decides. A failed observation leaves the intent waiting too, because missing
+evidence is not contradictory evidence; what ends it is the bound, not an invented refusal.
+
+**The operator is told the new geometry.** The `established` note carries the rectangle a press
+would answer at, from the question that actually opened — not the one the request produced, which
+came from a different reading of a session that has ended.
 
 ## Enforced by
 
@@ -107,12 +137,30 @@ could ever reach, and it is recorded here as the remaining gap rather than descr
 - `TestALaterRequestAbandonsADeferredIntent` — cancellation reaches the intent, and nothing can be
   established afterwards.
 - `TestEstablishmentRefusesWhenNothingIsWaiting`.
+- `TestTheDaemonEstablishesADeferredClarificationFromAFreshReading` — the production sequence end
+  to end, with a real session in the registry: deferred, the supervisor reading again, the
+  question established in that session, and the new geometry in the account.
+- `TestTheDoorHandsOverTheRunningSession` — the line that survived the first mutation run, now
+  entered with a live observation registry.
+- `TestADeferredClarificationExpires` — a clarification nobody could establish does not wait
+  forever, and says how long it waited.
+- `TestOnlyAReadingAPressCouldArriveInTriggersEstablishment` — six readings that must not start
+  one, and the intent left waiting rather than discarded by any of them.
+- `TestAValidReadingTriggersEstablishment` — and the one that must.
+- `TestAFailedObservationLeavesTheClarificationWaiting`.
+- `TestALaterRequestThroughTheDoorAbandonsTheIntent`.
 
-A mutation run over the change killed 11 of 12. The survivor is recorded at the call site rather
-than papered over: replacing the active-session read in `runtime.go` with the look's own session
-makes the learner never defer and every test still passes, because no test can enter `Handle` with
-a live observation registry. Every decision this change makes is held; what survives is that one
-read.
+- `TestOnlyOneEstablishmentRunsAtATime` — twenty readings of the same screen start exactly one
+  observation.
+- `TestTheAmbiguityIsAskedOfTheReadingItself` — the derivation both readers share, and a reading
+  with nothing in it raising nothing.
+
+Three mutation runs over this work, 11 of 12 then 12 of 14 then **14 of 14**. The first run's lone
+survivor was the active-session read: nothing could enter `Handle` with a live observation
+registry, so handing the look's own session over made the learner never defer with the whole suite
+green. That door is now a function a test enters with a real session started in the registry, and
+the mutant dies. The other two survivors — the single-flight flag and the phase's derivation —
+were closed the same way, by entering the thing rather than trusting it.
 
 ## See also
 

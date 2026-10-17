@@ -109,8 +109,7 @@ func theAmbiguityIsReallyThere(out io.Writer, w directorapi.WorldState, instruct
 	surface.Question, bool) {
 
 	words := instructionWords(instruction)
-	h := surface.New().Evaluate(&w, instruction, "click",
-		directorapi.ElementQuery{Text: words})
+	h := surfaceHypothesisFor(w, instruction)
 	fmt.Fprintf(out, "\nthe live Stage: %d Props; %q → %s\n", len(w.Elements), words,
 		h.Decision)
 	if h.Identity != nil {
@@ -712,4 +711,14 @@ func stateOrNone(s observe.ScreenStateID) string {
 		return "none"
 	}
 	return string(s)
+}
+
+// surfaceHypothesisFor is the ONE derivation of a surface hypothesis from one reading.
+//
+// One, because there are now two readers — the demonstration phase, which prints it, and the
+// daemon establishing a deferred clarification, which does not — and two derivations would be
+// two ideas about what the screen offers, diverging the first time either was adjusted.
+func surfaceHypothesisFor(w directorapi.WorldState, instruction string) surface.Hypothesis {
+	return surface.New().Evaluate(&w, instruction, "click",
+		directorapi.ElementQuery{Text: instructionWords(instruction)})
 }

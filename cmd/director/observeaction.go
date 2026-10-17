@@ -163,6 +163,12 @@ func (a *ambientObserver) drain(look ambientLook) []stampedAct {
 	// Deleting this must fail TestAGenuinePressSettlesAnOpenQuestion.
 	if a.rt != nil {
 		a.rt.surfaceLearner().offerPresses(look)
+		// AND WHETHER THIS READING COULD ESTABLISH A WAITING CLARIFICATION.
+		//
+		// Beside the presses because this is the one place a reading is in hand,
+		// and cheap here by construction: the comparisons happen on this thread
+		// and the observation does not. See considerEstablishing.
+		a.rt.considerEstablishing(look)
 	}
 	return coalesce(fresh)
 }
