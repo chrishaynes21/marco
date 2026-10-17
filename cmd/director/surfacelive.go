@@ -195,16 +195,7 @@ func surfacePreconditions(out io.Writer, phrase, bridge string, maxNodes, watch 
 	// Prerequisite 1's first half, and the owner was explicit that the recorded-event tests
 	// are not evidence for it: "Do not treat the existing recorded-event tests as evidence
 	// that live input is captured."
-	if rt.navUnavailable != "" {
-		add(surfaceCheck{Name: "input observation hook installed", Blocking: true,
-			Detail: rt.navUnavailable})
-	} else {
-		add(surfaceCheck{Name: "input observation hook installed", OK: true,
-			Blocking: true,
-			Detail: "navsource reports the hook is installed; it observes a closed " +
-				"vocabulary of intents, refuses injected events, refuses a press " +
-				"on Marco's own surface and never suppresses"})
-	}
+	add(surfaceHooksCheck(rt))
 
 	// ── 5. DURABLE MEMORY ──
 	if rt.semanticMemoryUnavailable != "" {
@@ -723,6 +714,56 @@ func equalFoldASCII(a, b string) bool {
 		}
 	}
 	return true
+}
+
+// surfaceHooksCheck reports whether each input hook actually exists.
+//
+// # Why this is not one boolean
+//
+// It used to be, and the boolean could not be false. `rt.navUnavailable` is the producer being
+// unavailable outright, and on Windows that string was empty whatever `SetWindowsHookEx`
+// returned — so a live run read "input observation hook installed: yes" beside zero events, for
+// a reason the report itself ruled out. The producer now says what became of each hook, and this
+// asks it rather than asking whether it started.
+//
+// A missing hook is BLOCKING: a demonstration answered by a press cannot be given on a desktop
+// whose presses are not observed, and reporting that as a detail would leave the operator to
+// discover it from a silence.
+func surfaceHooksCheck(rt *Runtime) surfaceCheck {
+	var devices []observe.DeviceObservation
+	if rt.navSource != nil {
+		devices = rt.navSource.Stats().Devices
+	}
+	return hooksVerdict(rt.navUnavailable, devices)
+}
+
+// hooksVerdict is the check's reasoning, separated from the live producer.
+//
+// Separated for the reason the provider check was: the reading needs a desktop and a hook,
+// the reasoning needs neither, and a mutation run on the earlier version of that check showed
+// a caller could still ask the wrong question with nothing in the suite failing. What remains
+// unexercised here is the one line above that reads the live stats.
+func hooksVerdict(unavailable string, devices []observe.DeviceObservation) surfaceCheck {
+	const name = "input observation hook installed"
+	if unavailable != "" {
+		return surfaceCheck{Name: name, Blocking: true, Detail: unavailable}
+	}
+	var missing []string
+	for _, d := range devices {
+		if !d.Present {
+			missing = append(missing, fmt.Sprintf("%s: %s", d.Device, d.Unavailable))
+		}
+	}
+	if len(missing) > 0 {
+		return surfaceCheck{Name: name, Blocking: true,
+			Detail: strings.Join(missing, "; ") +
+				"; the producer started, so nothing else reports this, " +
+				"and a press from the device named above cannot arrive"}
+	}
+	return surfaceCheck{Name: name, OK: true, Blocking: true,
+		Detail: "every hook this producer installs returned a handle; it observes a " +
+			"closed vocabulary of intents, refuses injected events, refuses a " +
+			"press on Marco's own surface and never suppresses"}
 }
 
 // surfaceWatchCheck watches for a hand's press and reports whether one arrived.

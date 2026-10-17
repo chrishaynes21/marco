@@ -20,6 +20,11 @@ func (stubBackend) unavailable() string {
 func (stubBackend) start(func(rawEvent) bool) error { return nil }
 func (stubBackend) stop()                           {}
 
+// hookFailures is empty because this build installs no hooks to fail. The whole producer is
+// unavailable, which `unavailable` above already says; naming a per-device failure on top would
+// report two problems where there is one.
+func (stubBackend) hookFailures() (string, string) { return "", "" }
+
 // declined is zero because nothing is ever offered. Not "unknown": a platform with no hook
 // declines nothing, and reporting a refusal here would invent a loss.
 func (stubBackend) declined() (int, int) { return 0, 0 }

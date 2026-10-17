@@ -426,6 +426,12 @@ func reportDemonstration(out io.Writer, rt *Runtime, app string, seconds int) in
 		}
 	}
 
+	// WHERE A PRESS WENT, printed BEFORE the three facts because it is what makes them
+	// readable. An observed-press line reading false beside an empty account is the report
+	// that sent a live session hunting through the input hook for a press the hook had
+	// delivered.
+	fmt.Fprint(out, handoffLines(l.Handoff()))
+
 	// THE THREE FACTS.
 	fmt.Fprintln(out, "\nWHAT WAS ESTABLISHED, as three separate claims:")
 	learned := ""

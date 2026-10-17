@@ -475,6 +475,20 @@ container tie is a property of real software seen through an accessibility tree,
 Settings, chosen because it was safe, is among the worst examples of it. See
 [[Experiment-064-the-augmented-configuration-works-and-settings-is-the-wrong-instrument]].
 
+**Perception and input capture both work on a real desktop, and the press disappears between
+them.** Measured live on a disposable page: a well-formed question about an unnamed container,
+a durable place stable across five readings, the ninety-second bound on a question enforced
+against a press that arrived at ninety-four — and, separately, thirteen admitted events with
+three placed inside the watched window from a witnessed press. So neither half is the blocker.
+A witnessed press still produced no lesson of any kind, which means none was ever offered to
+the question. `offerPresses` had four ways to drop one in silence, the quiet one being a press
+made on a screen state other than the question's: `Pending.Press` returns a zero answer with a
+stated reason and a zero outcome matches none of the learner's cases. Three hours went into the
+input hook first, on the strength of a precondition that read `installed: yes` and could not
+read anything else. Both reporting defects are fixed and the handoff now says which gate
+refused a press. See [[ADR-212-a-silence-is-reported-as-a-silence]] and
+[[Experiment-065-perception-and-capture-both-work-and-the-handoff-is-where-the-press-went]].
+
 The loop from a human demonstration to a reused instruction has still never run live, under
 any configuration.
 

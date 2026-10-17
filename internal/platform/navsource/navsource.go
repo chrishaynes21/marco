@@ -118,6 +118,13 @@ type backend interface {
 	// presses it discarded as injected. Both are losses the worker never hears about, so
 	// nothing downstream can count them and a recording cannot explain its own total.
 	declined() (presses, injected int)
+	// hookFailures is what each hook's installation came to, empty when it worked.
+	//
+	// PER DEVICE, because one can fail while the other installs, and a single boolean
+	// would then report either a working producer that silently sees no presses or a dead
+	// one that is still watching the keyboard. Both readings are wrong and the live run
+	// that prompted this measured the first one.
+	hookFailures() (keyboard, mouse string)
 }
 
 // Source is the live producer of navigation intents.
@@ -224,6 +231,10 @@ func (b *syntheticBackend) start(o func(rawEvent) bool) error {
 	return nil
 }
 func (b *syntheticBackend) stop() { b.offer = nil }
+
+// hookFailures is empty because a synthetic backend installs nothing. Reporting a failure here
+// would make every test that drives it look like a Director with a broken hook.
+func (syntheticBackend) hookFailures() (string, string) { return "", "" }
 
 // VK codes for the admitted navigation keys, so a caller outside this package can drive the
 // synthetic source without restating Windows constants.
@@ -542,13 +553,30 @@ func (s *Source) Stats() Stats {
 	// and splitting them would mean a second set of increments on the hook path for a
 	// number no decision reads; what every decision reads is Observable(), and these two
 	// devices are observable together or not at all.
-	installed := s.why == ""
+	// PER DEVICE, from what the platform says about each hook rather than from one flag.
+	//
+	// `s.why` is the whole producer being unavailable; the two strings beside it are one
+	// hook failing while the other installed. Reporting a device as present because the
+	// producer started is what let a Director print "the hook is installed" about a mouse
+	// hook that did not exist.
+	kbWhy, mouseWhy := "", ""
+	if s.backend != nil {
+		kbWhy, mouseWhy = s.backend.hookFailures()
+	}
 	for _, d := range []observe.NavDevice{observe.DeviceKeyboard, observe.DeviceMouse} {
+		why := s.why
+		if why == "" {
+			if d == observe.DeviceKeyboard {
+				why = kbWhy
+			} else {
+				why = mouseWhy
+			}
+		}
 		rec := observe.DeviceObservation{
-			Device: d, Watched: true, Unavailable: s.why, Present: installed,
+			Device: d, Watched: true, Unavailable: why, Present: why == "",
 			Received: out.Received, Classified: out.Classified, Dropped: out.Dropped,
 		}
-		if !installed {
+		if why != "" {
 			rec.Why = "no hook is installed, so nothing from this device can be seen"
 		}
 		out.Devices = append(out.Devices, rec)

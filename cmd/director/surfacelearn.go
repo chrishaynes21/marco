@@ -77,6 +77,9 @@ type surfaceLearner struct {
 	surfaces observe.SurfaceStore
 	recall   func(application string, sig observe.StructureSignature) observe.Recollection
 	now      func() time.Time
+	// handoff is what became of every press offered here. A measurement only: see
+	// surfacehandoff.go for the live run that made its absence the problem.
+	handoff pressHandoff
 }
 
 // surfaceLesson is what became of one question, for a person reading the account.
@@ -192,16 +195,43 @@ func (l *surfaceLearner) Cancelled(why string) {
 //
 // Deleting this call must fail TestAGenuinePressSettlesAnOpenQuestion.
 func (l *surfaceLearner) offerPresses(look ambientLook) {
-	if l == nil || !look.OK {
+	if l == nil {
 		return
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	// EVERY GATE BELOW IS COUNTED AND NONE OF THEM MOVES. Four of them used to return in
+	// silence, which is how an admitted press came to vanish between the producer and the
+	// question with nothing to read afterwards. See surfacehandoff.go.
+	l.handoff.Offers++
+	if !look.OK {
+		l.handoff.LooksRefused++
+		return
+	}
+	// COUNTED BEFORE THE QUESTION IS CHECKED, so that "a press arrived while nothing was
+	// pending" is a fact rather than an absence. Reading the log is free of consequence:
+	// nothing is consumed here and the same log goes on to the correlator.
+	presses := 0
+	for _, in := range look.Inputs {
+		if in.Event.Intent == observe.NavPoint {
+			presses++
+		} else {
+			l.handoff.NotAPress++
+		}
+	}
+	l.handoff.PressesSeen += presses
 	if l.pending == nil {
+		l.handoff.NoQuestion++
+		if presses > 0 {
+			l.handoff.note("%d press(es) were in the log and no question was open",
+				presses)
+		}
 		return
 	}
 	now := l.clock()
 	if ok, why := l.pending.Open(now); !ok {
+		l.handoff.Lapsed++
+		l.handoff.note("lapsed: %s", why)
 		l.note("lapsed", l.pending.Request, why)
 		l.pending = nil
 		return
@@ -212,9 +242,16 @@ func (l *surfaceLearner) offerPresses(look ambientLook) {
 	// unrelated screens — the same fact `drain` drops its whole cursor over. A press from
 	// another session cannot be matched to this question's screen at all.
 	if look.Session != l.pending.Session {
+		l.handoff.OtherSession++
+		l.handoff.note("the reading is from session %s and the question was asked in "+
+			"%s, so no press in it can be matched to the question's screen",
+			look.Session, l.pending.Session)
 		return
 	}
 	if !strings.EqualFold(look.Application, l.pending.Application) {
+		l.handoff.OtherApplication++
+		l.handoff.note("the reading is of %q and the question is about %q",
+			look.Application, l.pending.Application)
 		return
 	}
 	for _, in := range look.Inputs {
@@ -224,13 +261,29 @@ func (l *surfaceLearner) offerPresses(look ambientLook) {
 		a, settled, why := l.pending.Press(in, now)
 		switch {
 		case settled:
+			l.handoff.Settled++
 			l.note("settled", l.pending.Request, why)
 		case a.Outcome == surface.OutcomeUndiscriminating:
 			// THE CASE THE WHOLE RULE EXISTS FOR, and the person is told, so they
 			// can aim again rather than wonder why nothing happened.
+			l.handoff.Undiscriminating++
 			l.note("undiscriminating", l.pending.Request, why)
 		case a.Outcome == surface.OutcomeElsewhere:
+			l.handoff.Elsewhere++
 			l.note("elsewhere", l.pending.Request, why)
+		default:
+			// THE SILENT ONE, and the reason this whole record exists.
+			//
+			// `Pending.Press` returns a zero Answer with a sentence when the press
+			// was made on a different screen state than the question is about, and
+			// a zero Outcome matches no case above. The press was refused for a
+			// real reason and the account said nothing at all.
+			//
+			// Still no note on the lesson list: this is not an outcome the learner
+			// acts on, and adding one would change what `Lessons` means to every
+			// reader of it. It is recorded here, where measurements live.
+			l.handoff.Unaccounted++
+			l.handoff.note("refused with no outcome the learner acts on: %s", why)
 		}
 	}
 }
@@ -358,6 +411,21 @@ func (l *surfaceLearner) note(outcome, request, detail string) {
 	if len(l.learned) > MaxSurfaceLessons {
 		l.learned = l.learned[len(l.learned)-MaxSurfaceLessons:]
 	}
+}
+
+// Handoff is what became of every press offered to a question, copied under the lock.
+//
+// COPIED, because a reader prints this while ambient watching keeps offering looks — the same
+// reason Lessons below copies.
+func (l *surfaceLearner) Handoff() pressHandoff {
+	if l == nil {
+		return pressHandoff{}
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	h := l.handoff
+	h.Notes = append([]string(nil), l.handoff.Notes...)
+	return h
 }
 
 // Lessons is what became of the recent questions, newest last.

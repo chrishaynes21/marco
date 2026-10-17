@@ -22,14 +22,25 @@ type fakeBackend struct {
 	// BEFORE the queue ever saw it. Settable because the real counters are incremented on
 	// the hook thread, which no test can reach.
 	declinedPresses, declinedInjected int
+	// kbWhy and mouseWhy stand in for a hook the OS refused to install. Settable for the
+	// same reason as the counters above: SetWindowsHookEx is reached only on the hook
+	// thread, so a test can drive the reporting but never the call.
+	kbWhy, mouseWhy string
+	// startErr is a producer that could install nothing at all.
+	startErr error
 }
 
 func (f *fakeBackend) unavailable() string { return "" }
 func (f *fakeBackend) start(o func(rawEvent) bool) error {
+	if f.startErr != nil {
+		return f.startErr
+	}
 	f.offer = o
 	return nil
 }
-func (f *fakeBackend) stop() { f.stopped = true }
+
+func (f *fakeBackend) hookFailures() (string, string) { return f.kbWhy, f.mouseWhy }
+func (f *fakeBackend) stop()                          { f.stopped = true }
 
 func (f *fakeBackend) declined() (int, int) { return f.declinedPresses, f.declinedInjected }
 
@@ -627,6 +638,9 @@ func (unavailableBackend) stop()                           {}
 
 // declined is zero: a backend that is unavailable never saw a press to decline.
 func (unavailableBackend) declined() (int, int) { return 0, 0 }
+
+// hookFailures is empty: the producer is unavailable outright, which is one problem and not two.
+func (unavailableBackend) hookFailures() (string, string) { return "", "" }
 
 // READING THE ACTIONABLES CANNOT RACE THE CLASSIFIER.
 //

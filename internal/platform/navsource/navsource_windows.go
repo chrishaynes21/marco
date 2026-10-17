@@ -3,6 +3,8 @@
 package navsource
 
 import (
+	"errors"
+	"fmt"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -131,11 +133,44 @@ type winBackend struct {
 	// post WM_QUIT. A blocking pump cannot poll for shutdown.
 	ready    chan struct{}
 	threadID atomic.Uint32
+	// installed closes once the pump has ATTEMPTED both hooks, and kbWhy/mouseWhy say
+	// what came of each. Written before the close and read only after it, so the close is
+	// the whole synchronisation.
+	//
+	// Separate from ready, which closes BEFORE the hooks exist so that a stop racing a
+	// start has a thread to wake. A caller asking whether the hooks are there has to wait
+	// for the later moment, and conflating the two would answer "installed" about a thread
+	// that had not tried yet.
+	installed chan struct{}
+	kbWhy     string
+	mouseWhy  string
 }
 
 func newBackend() backend { return &winBackend{} }
 
 func (b *winBackend) unavailable() string { return "" }
+
+// hookFailures is what each hook's installation came to, empty when it succeeded.
+//
+// WHY THIS EXISTS AT ALL. `unavailable` above returns the empty string unconditionally, so
+// before this a Windows Director reported "the hook is installed" whether or not
+// SetWindowsHookEx had returned a handle — both return values were discarded. A live run then
+// measured zero events against a precondition that said yes, which is the one shape of report
+// this package is otherwise careful to refuse: a silence reported as a success.
+//
+// Empty strings before the attempt finishes, so a caller that asks too early is told nothing
+// rather than told everything is fine.
+func (b *winBackend) hookFailures() (keyboard, mouse string) {
+	if b.installed == nil {
+		return "", ""
+	}
+	select {
+	case <-b.installed:
+		return b.kbWhy, b.mouseWhy
+	default:
+		return "", ""
+	}
+}
 
 // declined is what the mouse callback saw and would not offer.
 func (b *winBackend) declined() (presses, injected int) {
@@ -146,6 +181,7 @@ func (b *winBackend) start(offer func(rawEvent) bool) error {
 	b.done = make(chan struct{})
 	b.stopped = make(chan struct{})
 	b.ready = make(chan struct{})
+	b.installed = make(chan struct{})
 	hookOffer.Store(&offer)
 	// RESET WITH THE HOOK, because these are package counters and a second source in one
 	// process would otherwise inherit the first one's tally.
@@ -176,9 +212,32 @@ func (b *winBackend) start(offer func(rawEvent) bool) error {
 		// load-bearing evidence, and losing pointer presses degrades what Marco can
 		// correlate rather than what it can see.
 		kbCB := syscall.NewCallback(keyboardProc)
-		hook, _, _ := procSetWindowsHookExW.Call(whKeyboardLL, kbCB, 0, 0)
+		hook, _, kbErr := procSetWindowsHookExW.Call(whKeyboardLL, kbCB, 0, 0)
 		mouseCB := syscall.NewCallback(mouseProc)
-		mouseHook, _, _ := procSetWindowsHookExW.Call(whMouseLL, mouseCB, 0, 0)
+		mouseHook, _, mouseErr := procSetWindowsHookExW.Call(whMouseLL, mouseCB, 0, 0)
+
+		// WHAT THE OS ACTUALLY SAID, published before anything waits on it.
+		//
+		// A zero handle is the only failure SetWindowsHookEx reports; the error beside it
+		// is meaningful only then, because the call sets it on success too.
+		if hook == 0 {
+			b.kbWhy = fmt.Sprintf("the low-level keyboard hook could not be "+
+				"installed: %v", kbErr)
+		}
+		if mouseHook == 0 {
+			b.mouseWhy = fmt.Sprintf("the low-level mouse hook could not be "+
+				"installed: %v", mouseErr)
+		}
+		close(b.installed)
+		// NOTHING TO PUMP FOR. A pump exists to let Windows deliver callbacks to this
+		// thread, and with no hook installed there are none; blocking here would hold a
+		// thread for nothing and make the failure look like a running observer.
+		//
+		// The deferred close of b.stopped runs, so a stop that arrives later finds a
+		// thread already gone rather than waiting on one.
+		if hook == 0 && mouseHook == 0 {
+			return
+		}
 
 		// A BLOCKING pump, and the blocking is the whole point.
 		//
@@ -216,6 +275,35 @@ func (b *winBackend) start(offer func(rawEvent) bool) error {
 			procUnhookWindowsHookEx.Call(mouseHook)
 		}
 	}()
+
+	// WAIT FOR THE ATTEMPT, so this returns a verdict rather than a hope.
+	//
+	// Two system calls on a thread that has just been started: the wait is microseconds in
+	// practice and bounded so that a thread which never ran cannot wedge a caller — the same
+	// bound and the same reason as the one in stop below.
+	select {
+	case <-b.installed:
+	case <-time.After(2 * time.Second):
+		return errors.New("the input hook thread did not report whether it installed")
+	}
+	return installVerdict(b.kbWhy, b.mouseWhy)
+}
+
+// installVerdict is what two hook outcomes mean for the producer as a whole.
+//
+// Separated from start because the decision is the part that can be driven: no test can
+// make Windows refuse a hook, and a mutation run showed the rule inside start could be
+// deleted with nothing failing. What stays unexercised is the platform call above it.
+func installVerdict(keyboard, mouse string) error {
+	// ONE FAILURE IS NOT FATAL AND BOTH ARE.
+	//
+	// Keyboard navigation is the older and more load-bearing evidence and losing pointer
+	// presses degrades what Marco can correlate rather than what it can see, so a half-
+	// installed producer keeps running and says which half is missing through Stats. With
+	// neither hook there is nothing to observe and the source is unavailable outright.
+	if keyboard != "" && mouse != "" {
+		return errors.New(keyboard + "; and " + mouse)
+	}
 	return nil
 }
 
