@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -55,6 +56,23 @@ type shadowTally struct {
 	proposedTheAbsent int
 	wouldAdd          []string
 	wouldBreak        []string
+	// gatedGain and gatedLoss are the only two numbers that decide whether an interpreter
+	// may be wired in, and they are measured under the narrowest arrangement that could
+	// ever be safe: consulted ONLY where the deterministic reading returned ABSENT.
+	//
+	// Under that gate the interpreter cannot override a correct answer and cannot settle a
+	// tie, because it is never asked about either — so WOULD BREAK goes to zero by
+	// construction and the whole question becomes these two:
+	//
+	//	gatedGain  Marco refused, the control WAS there, and the interpreter named it.
+	//	gatedLoss  Marco refused, nothing there was what was asked for, and the
+	//	           interpreter named something anyway.
+	//
+	// A model with gain above loss has earned a role. A model with any loss at all has
+	// turned an honest refusal into a wrong action, which is the failure a person cannot
+	// see happening.
+	gatedGain []string
+	gatedLoss []string
 	// byKind is accuracy per phrasing, which is the whole point: the deterministic
 	// reading already closes form, and what is being bought is meaning.
 	byKind  map[string]*[2]int
@@ -72,7 +90,7 @@ func newShadowTally() *shadowTally {
 // `marcoWasRight` is what Marco's own answer scored, so ADD and BREAK can be attributed. The
 // interpreter is never told it.
 func (t *shadowTally) askTheInterpreter(w *directorapi.WorldState, c rewordCase,
-	marcoWasRight bool) (string, string) {
+	marcoWasRight bool, marcoRefused bool) (string, string) {
 
 	// NOT ASKED AT ALL when nothing is configured, rather than asked and recorded as an
 	// abstention. The difference matters in the report: forty abstentions reads as an
@@ -118,6 +136,9 @@ func (t *shadowTally) askTheInterpreter(w *directorapi.WorldState, c rewordCase,
 	case c.Means.Absent:
 		t.proposedTheAbsent++
 		t.wrong++
+		if marcoRefused {
+			t.gatedLoss = append(t.gatedLoss, c.Say)
+		}
 		return "PROPOSED THE ABSENT", named + " — " + proposal.Because
 	case c.Means.Ambiguous:
 		t.brokeAmbiguity++
@@ -132,6 +153,9 @@ func (t *shadowTally) askTheInterpreter(w *directorapi.WorldState, c rewordCase,
 		tally[0]++
 		if !marcoWasRight {
 			t.wouldAdd = append(t.wouldAdd, c.Say)
+		}
+		if marcoRefused {
+			t.gatedGain = append(t.gatedGain, c.Say)
 		}
 		return "correct", named + " — " + proposal.Because
 	default:
@@ -164,6 +188,14 @@ func (t *shadowTally) report(out io.Writer) {
 		fmt.Fprintln(out, "    not asked: $MARCO_INTERPRETER is unset")
 		return
 	}
+	// WHICH MODEL THIS WAS, so a result is self-describing. Read from the environment
+	// rather than asked of the plugin: the protocol has no field for it, and inventing one
+	// would be the engine taking an interest in which model answered — which is exactly
+	// what the one-executable boundary exists to avoid. A plugin that ignores the variable
+	// makes this line wrong, which is why it says "told to use" rather than "used".
+	if m := os.Getenv("MARCO_LLM_MODEL"); m != "" {
+		fmt.Fprintf(out, "    the plugin was told to use %s\n", m)
+	}
 	scored := t.asked - t.notScored()
 	fmt.Fprintf(out, "    %-30s %3d\n", "asked", t.asked)
 	fmt.Fprintf(out, "    %-30s %3d  (%.0f%%)\n", "correct", t.correct,
@@ -177,6 +209,19 @@ func (t *shadowTally) report(out io.Writer) {
 		strings.Join(t.wouldAdd, ", "))
 	fmt.Fprintf(out, "    %-30s %3d  %s\n", "WOULD BREAK", len(t.wouldBreak),
 		strings.Join(t.wouldBreak, ", "))
+	// THE ONLY ARRANGEMENT THAT COULD EVER BE SAFE, measured on its own. Consulted only
+	// where the deterministic reading found NOTHING, an interpreter cannot override a
+	// correct answer and cannot settle a tie — it is never asked about either. What is
+	// left is these two numbers, and a model with any loss at all has turned an honest
+	// refusal into a wrong action.
+	fmt.Fprintf(out, "    %-30s +%d / -%d\n", "if asked only where ABSENT",
+		len(t.gatedGain), len(t.gatedLoss))
+	if len(t.gatedGain) > 0 {
+		fmt.Fprintf(out, "      %-28s %s\n", "gained", strings.Join(t.gatedGain, ", "))
+	}
+	if len(t.gatedLoss) > 0 {
+		fmt.Fprintf(out, "      %-28s %s\n", "LOST", strings.Join(t.gatedLoss, ", "))
+	}
 
 	kinds := make([]string, 0, len(t.byKind))
 	for k := range t.byKind {

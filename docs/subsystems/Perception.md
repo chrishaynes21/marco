@@ -655,6 +655,17 @@ answers that move between runs. A wash, and not wired in. See
 [[ADR-220-asking-what-a-request-meant-and-believing-none-of-it]] and
 [[Experiment-070-the-interpreter-knows-some-meaning-and-does-not-know-what-it-does-not-know]].
 
+**And the better model at meaning is the more dangerous one.** Three local models, same oracle,
+same held-out applications. `llama3.1:8b` has the highest accuracy (69% against `qwen2.5:7b`'s
+60%) and, asked only where the deterministic reading found nothing, it converts **all six**
+honest refusals into confident wrong actions — it never abstained once in 86 requests.
+`qwen2.5:7b` gains four and loses none, twice with identical output. And **not one of the three
+preserved a single genuine ambiguity**, across two model families: a model given a list and asked
+which item is meant picks one. So the property to select a model for is ABSTENTION rather than
+accuracy, and an interpreter must never be asked about a tie — as plumbing, not as policy. See
+[[Experiment-072-the-better-model-at-meaning-is-the-more-dangerous-one]] and the proposal in
+[[ADR-223-proposed-an-interpreter-asked-only-where-nothing-matched]].
+
 ## Known gaps
 
 - ~~The literal reading answers requests it only partly matched.~~ **Fixed 2026-10-17** by

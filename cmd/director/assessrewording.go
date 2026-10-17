@@ -282,7 +282,8 @@ func assessRewordSet(out io.Writer, set rewordSet, worlds map[string]directorapi
 		shadowOutcome, shadowNote := "", ""
 		if shadow {
 			shadowOutcome, shadowNote = shade.askTheInterpreter(&w, c,
-				outcome == outCorrect)
+				outcome == outCorrect,
+				got.Status == directorapi.ResolutionAbsent)
 		}
 
 		if verbose || outcome != outCorrect || strings.ToUpper(shadowOutcome) == shadowOutcome {
