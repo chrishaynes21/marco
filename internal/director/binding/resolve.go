@@ -149,6 +149,21 @@ func (r *Resolver) Resolve(phrase string, expected ObjectKind, w *directorapi.Wo
 		}
 	}
 
+	b := r.bindingFor(phrase, expected, kind, primary, via, resource, w)
+	b.Candidates = candidatesOf(sameKind(selected, expected))
+	return b, nil
+}
+
+// bindingFor assembles the Binding for one chosen object.
+//
+// ONE assembly site, shared by the deictic and the named path. Two would be two definitions of
+// what a binding records about the object it names, and the identity evidence — the backing
+// path, the source's own account of it — is the part that must not differ by how the object was
+// chosen. `via` is the one thing that does differ: "focus", "selection", or "name".
+func (r *Resolver) bindingFor(phrase string, expected, kind ObjectKind,
+	primary *directorapi.Element, via, resource string,
+	w *directorapi.WorldState) *Binding {
+
 	b := &Binding{
 		Phrase: phrase, Expected: expected, Resolved: kind,
 		ElementID: string(primary.ID), NativeID: nativeIDOf(primary),
@@ -171,17 +186,13 @@ func (r *Resolver) Resolve(phrase string, expected ObjectKind, w *directorapi.Wo
 			Source: directorapi.SourceAccessibility, Decisive: true,
 		})
 	}
-	// How the source established it, when it said. Carried through so a person reading a
-	// binding can see that the path came from the shell's account of its own selection
-	// rather than from a caption and a folder — which is the distinction the whole
-	// resource-identity path exists to preserve.
-	if r := primary.Resource; r.Known() {
-		b.Identity = r.Clone()
+	if res := primary.Resource; res.Known() {
+		b.Identity = res.Clone()
 		b.Evidence = append(b.Evidence, Evidence{
-			Kind: "resource_" + r.Source, Detail: r.Describe(),
+			Kind: "resource_" + res.Source, Detail: res.Describe(),
 			Source: directorapi.SourceAccessibility, Decisive: true,
 		})
-		for _, why := range r.Evidence {
+		for _, why := range res.Evidence {
 			b.Evidence = append(b.Evidence, Evidence{
 				Kind: "shell", Detail: why, Source: directorapi.SourceAccessibility,
 			})
@@ -192,8 +203,7 @@ func (r *Resolver) Resolve(phrase string, expected ObjectKind, w *directorapi.Wo
 			Kind: "native_id", Detail: b.NativeID, Source: directorapi.SourceAccessibility,
 		})
 	}
-	b.Candidates = candidatesOf(sameKind(selected, expected))
-	return b, nil
+	return b
 }
 
 // Revalidation is what a re-check concluded.
@@ -242,8 +252,13 @@ func (r *Resolver) Revalidate(b *Binding, w *directorapi.WorldState) Revalidatio
 		}}
 	}
 
-	if token := StabilityToken(w); token == b.Stability {
+	if token := StabilityToken(w); token == b.Stability && !b.KindUnconfirmed {
 		// The world is the one the binding was made against. Nothing to re-establish.
+		//
+		// UNLESS the kind was never established. A named binding made before its
+		// object was selected knows WHICH object and not WHAT it is, and taking this
+		// short-circuit would carry that straight past the only check that could
+		// refuse a folder called "notes.txt". See Binding.KindUnconfirmed.
 		return Revalidation{OK: true, Binding: b}
 	}
 
@@ -266,7 +281,17 @@ func (r *Resolver) Revalidate(b *Binding, w *directorapi.WorldState) Revalidatio
 	}
 
 	// Still the object the user was pointing at?
-	if !isCurrent(match, w) {
+	//
+	// Asked of a DEICTIC binding only. "This file" means whatever somebody was looking
+	// at, and acting after their attention moved is how a careless implementation renames
+	// whatever they happened to click. A NAME is not their attention: "notes.txt" is the
+	// same file whether or not it is still highlighted, and the identity checks above —
+	// the backing path, then the source's own id — are what establish that it is. See
+	// Binding.ByName.
+	//
+	// Measured live: "rename notes.txt to summary.txt" could not run at all before named
+	// binding existed, and would have been refused here the moment the selection moved.
+	if !b.ByName && !isCurrent(match, w) {
 		return Revalidation{OK: false, Problem: &Problem{
 			Reason: ReasonChanged,
 			Message: fmt.Sprintf(
@@ -277,6 +302,9 @@ func (r *Resolver) Revalidate(b *Binding, w *directorapi.WorldState) Revalidatio
 	}
 
 	refreshed := *b
+	// The kind is established now, which is what the check above just proved.
+	refreshed.KindUnconfirmed = false
+	refreshed.Resolved = kind
 	refreshed.ElementID = string(match.ID)
 	refreshed.NativeID = nativeIDOf(match)
 	refreshed.WindowID = string(match.WindowID)

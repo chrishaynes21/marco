@@ -37,8 +37,14 @@ type Binder interface {
 
 // BindRequest is everything the resolver needs to bind one directive's target.
 type BindRequest struct {
-	// Phrase is the user's own words for the object ("this file").
+	// Phrase is the user's own words for the object ("this file", or "notes.txt").
 	Phrase string
+	// ByName says the phrase is the object's NAME rather than a way of pointing at it.
+	//
+	// A name is resolved by looking for the object that bears it; a deictic phrase is
+	// resolved from focus and selection. They are the same question — which object? —
+	// asked of the two ways a person can say which, and the answer is the same shape.
+	ByName bool
 	// Expected is the kind the procedure declared its target must be.
 	Expected binding.ObjectKind
 	// Application constrains resolution to the app the procedure was selected for,

@@ -158,8 +158,31 @@ type Binding struct {
 	// ID is the request-scoped handle an action refers to this binding by. Assigned by
 	// Store.Put; empty on a binding that has not been filed.
 	ID ID `json:"id,omitempty"`
-	// Phrase is what the user actually said ("this file").
+	// Phrase is what the user actually said ("this file", or "notes.txt").
 	Phrase string `json:"phrase"`
+	// ByName records that this object was identified by the NAME the person gave rather
+	// than by what they were pointing at.
+	//
+	// It changes exactly one thing, in Revalidate: the requirement that the object still
+	// be the focused or selected one. That rule exists because "this file" means whatever
+	// somebody was looking at, and acting after their attention moved would rename
+	// whatever they happened to click. Nobody's attention identified "notes.txt", so the
+	// rule does not apply to it — and the identity checks that do, the backing path and
+	// the source's own id, are unchanged.
+	ByName bool `json:"by_name,omitempty"`
+	// KindUnconfirmed says the object was identified but nothing had yet established what
+	// KIND of thing it is.
+	//
+	// A kind comes from a backing path, and a file manager reports the path for its
+	// SELECTION — so an unselected item named by the person cannot be classified at all,
+	// and selecting it is step one of the procedure that wants it. The ordering that
+	// resolves that: identify by name now, confirm the kind before anything is changed.
+	//
+	// So a binding carrying this is NOT allowed to skip revalidation on an unchanged
+	// world, and Revalidate requires the kind to satisfy what the procedure expected
+	// before it will say OK. A folder called "notes.txt" is refused there, before the
+	// step that would rename it.
+	KindUnconfirmed bool `json:"kind_unconfirmed,omitempty"`
 	// Expected is the kind the procedure or semantic action requires.
 	Expected ObjectKind `json:"expected_kind"`
 	// Resolved is the kind of the object that was found.

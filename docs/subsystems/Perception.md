@@ -686,9 +686,11 @@ accuracy, and an interpreter must never be asked about a tie — as plumbing, no
   folder" is recognised, asks "what should it be called?", and `director clarify "<answer>"`
   completes the original request — the second half of a conversation Marco could start and
   nobody could finish.
-- **A rename by NAME does not bind its object.** "Rename notes.txt to summary.txt" fails at the
-  editor step: it acts on the editor for a BOUND object, and only the deictic form — "rename
-  this file" — binds one. See [[Experiment-073-marco-finishes-what-it-starts]].
+- ~~A rename by NAME does not bind its object.~~ **Fixed 2026-10-17** by
+  [[ADR-226-naming-a-thing-is-saying-which-thing]]. It leaves one gap, stated there: a named
+  rename is verified by its steps and not against the filesystem, because the correlation needs
+  the backing path before the program runs and a named binding has none until step one selects
+  the file.
 - ~~A program step whose state is already set still performs its action.~~ **Fixed 2026-10-17**
   by [[ADR-224-a-procedure-is-finished-when-the-person-has-what-they-asked-for]]: it is counted,
   the procedure continues, and no record is written because nothing was performed.

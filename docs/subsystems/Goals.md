@@ -11,6 +11,7 @@ used_by:
 updated: 2026-08-06
 source_paths:
   - internal/director/goal
+  - internal/director/binding/named.go
   - cmd/director/goalcmd.go
 ---
 
@@ -61,8 +62,33 @@ order.
 - [[Semantic-Actions]] — the verbs a procedure emits
 - [[Demonstrations]] — the other way a procedure comes to exist
 
+## Naming a thing is saying which thing
+
+Measured live, on the same file in the same window: "rename this file to summary.txt" completed
+and "rename notes.txt to summary.txt" failed at step three with *this step acts on the editor for
+an object nothing bound*. The procedure's editor step acts on the editor for a BOUND object —
+which is why it works at all, because a details view has an Edit control per column per row.
+Pointing bound the file; naming it did not.
+
+An object the person NAMED now binds as readily as one they pointed at, through one binder and
+one assembly site. A name is stronger evidence than a gesture, not weaker: "this file" means
+whatever they were looking at, and "notes.txt" is a name they chose. So the clauses are the same
+shape — one match, several is an ambiguity, none is a refusal — and what differs is how the
+object is found.
+
+Two things it had to get right. A named binding is exempt from revalidation's focused-or-selected
+requirement, because that rule is about ATTENTION and nobody's attention identified a name. And a
+name can identify an object before anything can classify it — a kind comes from a backing path,
+and a file manager reports the path for its SELECTION, so an unselected row cannot be called a
+file and selecting it is step one of the procedure that wants it. The resolution is an ordering:
+identify by name now, carry `KindUnconfirmed`, and check the kind at revalidation, after the
+harmless select and before the rename. A folder called "notes.txt" is refused there.
+
+See [[ADR-226-naming-a-thing-is-saying-which-thing]].
+
 ## Decisions
 
+- [[ADR-226-naming-a-thing-is-saying-which-thing]]
 - [[ADR-005-legal-marco-only]]
 - [[ADR-007-no-progress-no-repetition]]
 

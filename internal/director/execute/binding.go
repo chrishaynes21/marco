@@ -61,7 +61,10 @@ var _ goal.Binder = (*binder)(nil)
 
 // Bind resolves one deictic reference and files it in the request's store.
 func (b *binder) Bind(req goal.BindRequest) (*binding.Binding, *binding.Problem) {
-	res, prob := b.resolver.Resolve(req.Phrase, req.Expected, b.world)
+	// THE TWO WAYS A PERSON SAYS WHICH OBJECT, through one binder. A name is looked for
+	// by the name; a deictic phrase is read off focus and selection. See
+	// binding.Resolver.ResolveNamed.
+	res, prob := b.resolve(req)
 	if prob != nil {
 		return nil, prob
 	}
@@ -437,4 +440,12 @@ func bindingFor(ctx context.Context, in directorapi.Intent) *binding.Binding {
 	}
 	b, _ := store.Get(binding.ID(ref.BindingID))
 	return b
+}
+
+// resolve picks the way this request says which object it means.
+func (b *binder) resolve(req goal.BindRequest) (*binding.Binding, *binding.Problem) {
+	if req.ByName {
+		return b.resolver.ResolveNamed(req.Phrase, req.Expected, b.world)
+	}
+	return b.resolver.Resolve(req.Phrase, req.Expected, b.world)
 }

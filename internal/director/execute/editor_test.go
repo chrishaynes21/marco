@@ -622,3 +622,56 @@ func elementAsObservation(el *directorapi.Element) directorapi.Observation {
 		Resource: el.Resource.Clone(),
 	}
 }
+
+// A NAMED OBJECT IS BOUND, ALL THE WAY THROUGH THE EXPANSION.
+//
+// Measured live: "rename notes.txt to summary.txt" failed at step three with *this step acts on
+// the editor for an object nothing bound*, while "rename this file" completed. And the first
+// attempt to fix it did not work, because THREE sites asked `d.TargetDeictic` — whether to bind,
+// whether to hand the binding to the step, and whether the reference carries it — and changing
+// one left the binding made and discarded.
+//
+// The mutation gate then found that nothing tested any of the three: deleting the binder's named
+// path, the loop's predicate, or the reference's binding id each changed no test at all. So this
+// enters at the production expansion with a real binder over a scripted world, and asserts what
+// has to be true at the far end.
+func TestANamedTargetIsBoundThroughTheWholeExpansion(t *testing.T) {
+	// Nothing selected: the live case, where the row's path is not yet known and the
+	// object can only be identified by its name.
+	idle := explorerNothingSelected(t0)
+	h := editorHarness(t, idle, idle, idle)
+	h.pipeline.Goals = &Goals{
+		Registry:    goal.NewRegistry(),
+		Application: func() string { return "explorer" },
+	}
+	ctx := ensureBindings(context.Background())
+
+	ex, _, isGoal, err := h.pipeline.expandGoal(ctx, "rename Alpha.txt to Budget.txt")
+	if !isGoal || err != nil {
+		t.Fatalf("the named rename did not expand (goal=%v): %v", isGoal, err)
+	}
+
+	// THE BINDER TOOK THE NAMED PATH. A deictic resolve over this world would have read
+	// focus and selection, and nothing is selected.
+	if len(ex.Bindings) == 0 {
+		t.Fatal("the expansion bound nothing, so the editor step has no object")
+	}
+	b := ex.Bindings[0]
+	if !b.ByName {
+		t.Errorf("the object was not bound by its name: %+v", b)
+	}
+	if b.Label != "Alpha.txt" {
+		t.Errorf("it bound %q", b.Label)
+	}
+
+	// AND THE STEP CARRIES IT. A literal reference with no binding id is what the live
+	// run produced after the binding existed: made, and thrown away here.
+	ref := ex.Program.Steps[0].Operation.Targets[0]
+	if ref.BindingID == "" {
+		t.Error("the first step's reference carries no binding, so the editor step " +
+			"three steps later has nothing to find an editor of")
+	}
+	if ref.ExpectedKind == "" {
+		t.Error("the reference does not say what kind of object it must be")
+	}
+}

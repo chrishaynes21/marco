@@ -119,10 +119,17 @@ func Expand(r *Registry, g Goal, b Binder) (Expansion, error) {
 	// another — which is the exact divergence the binding layer exists to prevent.
 	var bound *binding.Binding
 	for i, d := range directives {
-		// A deictic directive is bound BEFORE its intent is built, so the intent it
-		// produces carries a concrete identity rather than "whatever is focused".
-		if d.TargetDeictic {
-			ex.Deictic = true
+		// A directive that names THEIR object — by pointing or by name — is bound
+		// BEFORE its intent is built, so the intent it produces carries a concrete
+		// identity rather than a label to be searched for again three steps later.
+		//
+		// `ex.Deictic` stays deictic-only: a planning-only expansion of a POINTED goal
+		// is unrunnable by construction, and a named one is perfectly runnable from its
+		// label. See namesTheirObject.
+		if bindsTheirObject(proc, d) {
+			if d.TargetDeictic {
+				ex.Deictic = true
+			}
 			if bound == nil {
 				resolved, berr := bindDirective(b, proc, g, d, i)
 				if berr != nil {
@@ -134,10 +141,11 @@ func Expand(r *Registry, g Goal, b Binder) (Expansion, error) {
 				}
 			}
 		}
-		// A non-deictic directive gets no binding, whatever the expansion has bound
-		// elsewhere: a step naming the Rename control by role is not aimed at the file.
+		// A directive that names the PROCEDURE's own control gets no binding, whatever
+		// the expansion has bound elsewhere: a step naming the Rename control by role is
+		// not aimed at the file.
 		step := bound
-		if !d.TargetDeictic {
+		if !bindsTheirObject(proc, d) {
 			step = nil
 		}
 		op, err := directiveIntent(d, proc.Expect, step)
@@ -203,7 +211,7 @@ func Plan(r *Registry, g Goal) (Expansion, error) { return Expand(r, g, nil) }
 // procedure's own controls are named by ROLE and resolved by label at run time, and
 // binding them would be answering a question nobody asked.
 func bindDirective(b Binder, proc Procedure, g Goal, d Directive, i int) (*binding.Binding, error) {
-	if !d.TargetDeictic {
+	if !bindsTheirObject(proc, d) {
 		return nil, nil
 	}
 	// A procedure that points at something and will not say what kind of thing it is
@@ -223,7 +231,7 @@ func bindDirective(b Binder, proc Procedure, g Goal, d Directive, i int) (*bindi
 		phrase = "this"
 	}
 	bound, prob := b.Bind(BindRequest{
-		Phrase: phrase, Expected: proc.Expect,
+		Phrase: phrase, Expected: proc.Expect, ByName: !d.TargetDeictic,
 		Application: g.Context.Application,
 		Semantic:    d.Semantic, Focus: d.Focus,
 		Origin: binding.Origin{
@@ -410,10 +418,27 @@ func reference(d Directive, expect binding.ObjectKind, bound *binding.Binding) (
 		}, true
 	}
 	if d.Target != "" {
-		return directorapi.ReferenceExpression{
+		ref := directorapi.ReferenceExpression{
 			Phrase: d.Target, Kind: directorapi.ReferenceLiteral,
 			Query: &directorapi.ElementQuery{Label: d.Target},
-		}, true
+		}
+		// AND THE OBJECT THAT NAME WAS BOUND TO, when one was.
+		//
+		// Measured live: "rename notes.txt to summary.txt" ran two steps and then
+		// failed with *this step acts on the editor for an object nothing bound*. The
+		// binding was being made — and thrown away here, because a named target built a
+		// literal reference and a literal reference carries no binding.
+		//
+		// A later step that asks for "the editor for the thing I bound" needs the
+		// binding whichever way the person said which thing. The query stays the
+		// label, as it was: the binding is evidence of WHICH object, and revalidation
+		// is what re-establishes it. See namesTheirObject.
+		if bound.Bound() {
+			ref.BindingID = string(bound.ID)
+			ref.ExpectedKind = string(expect)
+			ref.Query = queryFor(bound)
+		}
+		return ref, true
 	}
 	return directorapi.ReferenceExpression{}, false
 }
@@ -446,3 +471,49 @@ func queryFor(b *binding.Binding) *directorapi.ElementQuery {
 
 // boolPtr is the one-line helper a pointer-valued query field needs.
 func boolPtr(b bool) *bool { return &b }
+
+// namesTheirObject reports whether a directive points at an object the PERSON named, as
+// distinct from one they pointed at or one the procedure names for itself.
+//
+// # The defect this answers
+//
+// Measured live, on the same file in the same window:
+//
+//	rename this file to summary.txt    →  COMPLETED
+//	rename notes.txt to summary.txt    →  FAILED at step 3: this step acts on the editor
+//	                                      for an object nothing bound
+//
+// The rename procedure's third step acts on the editor for a BOUND object, which is the whole
+// reason it works: a details view has an Edit control per column per row, and typing into the
+// wrong one changes a caption and renames nothing. Pointing bound the file. Naming it did not,
+// because binding was offered only to a deictic directive.
+//
+// # The three kinds of target, and why only one of them binds
+//
+//	Role      the PROCEDURE's own control — "the Rename command". Named by role and
+//	          resolved by label at run time, so it works when the command bar is
+//	          localised. Binding it would be answering a question nobody asked.
+//	Deictic   "this file". Bound, because the object has to be pinned down before
+//	          somebody's attention moves.
+//	Target    "notes.txt". Bound, because the procedure's later steps need to know WHICH
+//	          object, and a name is a better answer to that than a label resolved again
+//	          three steps later.
+//
+// The discriminator is therefore `Role == "" && Target != ""`, plus the procedure declaring
+// what kind of object it expects — without which nothing can be bound safely, deictic or named.
+// Not an application-specific rule and not a rule about files: it is the same question
+// `TargetDeictic` already answers, asked of the other way a person can say which thing.
+func namesTheirObject(proc Procedure, d Directive) bool {
+	return proc.Expect != "" && d.Role == "" && d.Target != ""
+}
+
+// bindsTheirObject reports whether a directive is aimed at the person's object at all, by
+// either of the two ways they can say which: pointing, or naming.
+//
+// ONE predicate, used at every site that used to ask `d.TargetDeictic`, because the sites have
+// to agree. The first version of this change touched only `bindDirective`, and the expansion
+// loop went on gating on deixis — so the binding was created and then thrown away, and the live
+// run failed with exactly the message it had before.
+func bindsTheirObject(proc Procedure, d Directive) bool {
+	return d.TargetDeictic || namesTheirObject(proc, d)
+}
