@@ -502,6 +502,20 @@ and a clarification that no longer describes the screen is void rather than tran
 matching is unchanged, no session id is rewritten and no session-local screen state crosses a
 boundary. See [[ADR-213-a-question-belongs-to-the-session-that-can-answer-it]].
 
+**And a question still outlives the session that owns it, because an ambient session is twenty
+seconds long.** The first live run where the production path was the ONLY path got further than
+any before it: the Director deferred, re-derived and established the question by itself, in the
+session a press would arrive in, with geometry of its own. The press was then captured and refused
+36 times across three LATER sessions. Ambient watching is a supervisor over bounded sessions --
+`watchOnce` starts one, samples it for `ambientSession` (20s), ends it, and the supervisor starts
+another -- so session ids roll on regardless of what anybody is being asked, while
+`HowLongAQuestionStaysOpen` is 90s. A question has a ninety-second life and a twenty-second window
+in which it can be answered, less whatever establishment spent. Nothing is broken and the press is
+handled correctly at every step; two constants disagree. The anchor a question would need to
+survive a rollover already exists and was observed stable across the boundary (the durable Place),
+while screen STATE ids are the session-local part. See
+[[Experiment-066-the-question-outlives-the-session-that-owns-it]].
+
 The loop from a human demonstration to a reused instruction has still never run live, under
 any configuration.
 
