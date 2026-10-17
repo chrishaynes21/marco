@@ -32,8 +32,24 @@ import (
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 )
 
-// surfacePhase is the shared setup every phase needs: a sandbox, the pixel-only configuration,
-// and a runtime.
+// surfacePhaseUnder is the shared setup every phase needs: a sandbox, one of the three
+// observation configurations, and a runtime.
+//
+// # There is no variant that picks the configuration for you
+//
+// There was: a `surfacePhase` that passed `modePixelOnly` for callers that did not care. Two
+// callers did care and used it anyway — `runSurfaceReground` and `runSurfaceExecute`, which are
+// the REPLAY half of the loop. Both took a `mode` parameter, threaded it from the flag, and then
+// never used it, so `-with-pixels` and `-production-observation` were silently ignored by exactly
+// the two phases that had to agree with the phase that did the learning.
+//
+// Found live: a lesson learned under the augmented configuration could not be reacquired, because
+// reacquisition ran pixel-only, and pixel-only resolved no durable place for the screen —
+// reported honestly as "this screen has no durable place, so nothing stored could be about it",
+// which is true of what it observed and not of the screen. The parameter was dead in both.
+//
+// So the convenience door is gone rather than fixed. A phase must say which configuration it
+// runs under, because a phase that does not say ends up not meaning it.
 //
 // `mode` is which of the three configurations to run under, and it exists because the live
 // runs needed to tell three findings apart: a screen that cannot be recognised, a screen
@@ -45,11 +61,9 @@ import (
 // `wet` is the one difference between the phases that cannot press anything and the one that can,
 // and it is a single boolean passed to `NewRuntime` — so a reader can see which phase is which by
 // looking at one call.
-func surfacePhase(out io.Writer, bridge string, maxNodes int, wet bool) (*Runtime, error) {
-	return surfacePhaseUnder(out, bridge, maxNodes, wet, modePixelOnly)
-}
-
-// surfacePhaseUnder is surfacePhase with the observation configuration named.
+//
+// Deleting the mode at either replay call site must fail
+// TestEveryPhaseRunsUnderTheConfigurationItWasGiven.
 func surfacePhaseUnder(out io.Writer, bridge string, maxNodes int, wet bool,
 	mode observationMode) (*Runtime, error) {
 
@@ -502,7 +516,7 @@ func reportDemonstration(out io.Writer, rt *Runtime, app string, seconds int) in
 func runSurfaceReground(out io.Writer, instruction, bridge string, maxNodes int,
 	mode observationMode) int {
 
-	rt, err := surfacePhase(out, bridge, maxNodes, false)
+	rt, err := surfacePhaseUnder(out, bridge, maxNodes, false, mode)
 	if err != nil {
 		fmt.Fprintf(out, "STOP: %v\n", err)
 		return 1
@@ -553,7 +567,7 @@ func runSurfaceExecute(out io.Writer, instruction, bridge string, maxNodes int,
 			"-authorise-one-click to authorise exactly one click.")
 		return 2
 	}
-	rt, err := surfacePhase(out, bridge, maxNodes, true)
+	rt, err := surfacePhaseUnder(out, bridge, maxNodes, true, mode)
 	if err != nil {
 		fmt.Fprintf(out, "STOP: %v\n", err)
 		return 1
