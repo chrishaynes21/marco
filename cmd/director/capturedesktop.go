@@ -105,6 +105,19 @@ type desktopElement struct {
 	Affords    bool `json:"affords"`
 	Enabled    bool `json:"enabled"`
 	Visible    bool `json:"visible"`
+	// Selected is the interface's OWN report that this is the current choice — the
+	// navigation page you are on, the tab in front.
+	//
+	// Recorded because it is the only honest evidence for a question a capture could not
+	// previously be asked: whether a request is ALREADY SATISFIED. Asked to open a
+	// Settings page that was already open, Marco found two controls with that label and
+	// asked which one was meant; the answer it owed was that nothing needed pressing, and
+	// the fact that would have told it was this one. See internal/director/satisfied.
+	//
+	// The committed samples predate the field and carry it as false throughout, which is
+	// why the rewording evaluation reports the already-satisfied column as unmeasured on
+	// them rather than as zero.
+	Selected bool `json:"selected,omitempty"`
 }
 
 // runCaptureDesktopSample captures one coherent desktop moment.
@@ -358,7 +371,7 @@ func readDesktopWorld(ctx context.Context, bridge string, windows *winprovider.P
 			Bounds:     observe.RelativeTo(el.Bounds, frame),
 			Sources:    dedupeStrings(sources),
 			Actionable: acts.Targetable(), Affords: acts.Affords(),
-			Enabled: el.Enabled, Visible: el.Visible,
+			Enabled: el.Enabled, Visible: el.Visible, Selected: el.Selected,
 		})
 	}
 	return sample, 0

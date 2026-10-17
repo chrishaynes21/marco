@@ -1,0 +1,252 @@
+{
+  "application": "File Explorer, Microsoft Edge and Paint",
+  "held_out": true,
+  "note": "Written AFTER the implementation was finished and not tuned against. Three applications nothing in the kind-noun list or the reduction was built for: a file manager whose navigation is a tree, a browser whose page content is links, and a paint program that is almost entirely toolbar buttons. The failure this is designed to catch is the one this codebase has had eight times — a mechanism that works on the application it was written against.",
+  "cases": [
+    {
+      "say": "Sort",
+      "on": "explorer-fixture-wide",
+      "kind": "exact label",
+      "means": { "label": "Sort", "role": "button" }
+    },
+    {
+      "say": "Extensions",
+      "on": "browser-fixture-wide",
+      "kind": "exact label",
+      "means": { "label": "Extensions", "role": "button" }
+    },
+    {
+      "say": "Appearance",
+      "on": "browser-fixture-wide",
+      "kind": "exact label",
+      "means": { "label": "Appearance", "role": "link" }
+    },
+    {
+      "say": "Pencil",
+      "on": "custom-canvas-paint",
+      "kind": "exact label",
+      "means": { "label": "Pencil", "role": "button" }
+    },
+    {
+      "say": "Edit colors",
+      "on": "custom-canvas-paint",
+      "kind": "exact label",
+      "means": { "label": "Edit colors", "role": "button" }
+    },
+    {
+      "say": "Remove background",
+      "on": "custom-canvas-paint",
+      "kind": "exact label",
+      "means": { "label": "Remove background", "role": "button" }
+    },
+
+    {
+      "say": "the address field",
+      "on": "explorer-fixture-wide",
+      "kind": "extra words",
+      "means": { "label": "Address Bar", "role": "text_field" }
+    },
+    {
+      "say": "the Sort button",
+      "on": "explorer-fixture-wide",
+      "kind": "extra words",
+      "means": { "label": "Sort", "role": "button" }
+    },
+    {
+      "say": "the Storage section",
+      "on": "browser-fixture-wide",
+      "kind": "extra words",
+      "means": {
+        "label": "Storage",
+        "role": "link",
+        "why": "a link is not a tab or a tree item, so the kind the person named must fall back rather than refuse"
+      }
+    },
+    {
+      "say": "the theme dropdown",
+      "on": "browser-fixture-wide",
+      "kind": "extra words",
+      "means": { "label": "Theme", "role": "combo_box" }
+    },
+    {
+      "say": "the display name field",
+      "on": "browser-fixture-wide",
+      "kind": "extra words",
+      "means": { "label": "Display name", "role": "text_field" }
+    },
+    {
+      "say": "the Shapes button",
+      "on": "custom-canvas-paint",
+      "kind": "extra words",
+      "means": { "label": "Shapes", "role": "button" }
+    },
+    {
+      "say": "the Pencil tool",
+      "on": "custom-canvas-paint",
+      "kind": "extra words",
+      "means": {
+        "label": "Pencil",
+        "role": "button",
+        "why": "\"tool\" is NOT in the kind-noun list and was deliberately not added for this set"
+      }
+    },
+
+    {
+      "say": "favourites",
+      "on": "browser-fixture-wide",
+      "kind": "spelling",
+      "means": { "label": "Favorites", "role": "button", "why": "British spelling" }
+    },
+    {
+      "say": "appearence",
+      "on": "browser-fixture-wide",
+      "kind": "spelling",
+      "means": { "label": "Appearance", "role": "link" }
+    },
+    {
+      "say": "magnifer",
+      "on": "custom-canvas-paint",
+      "kind": "spelling",
+      "means": { "label": "Magnifier", "role": "button", "why": "one letter dropped" }
+    },
+    {
+      "say": "refersh",
+      "on": "explorer-fixture-wide",
+      "kind": "spelling",
+      "means": {
+        "label": "Refresh \"marco-perception-fixture\" (F5)",
+        "role": "button",
+        "why": "two letters transposed, which is two edits under a one-edit rule — included to measure the boundary rather than to pass"
+      }
+    },
+
+    {
+      "say": "bookmarks",
+      "on": "browser-fixture-wide",
+      "kind": "paraphrase",
+      "means": {
+        "label": "Favorites",
+        "role": "button",
+        "why": "every other browser's word for the same thing, and nowhere on this screen"
+      }
+    },
+    {
+      "say": "dark mode",
+      "on": "browser-fixture-wide",
+      "kind": "paraphrase",
+      "means": { "label": "Theme", "role": "combo_box" }
+    },
+    {
+      "say": "turn off notifications",
+      "on": "browser-fixture-wide",
+      "kind": "paraphrase",
+      "means": { "label": "Send notifications", "role": "checkbox" }
+    },
+    {
+      "say": "make a new folder",
+      "on": "explorer-fixture-wide",
+      "kind": "paraphrase",
+      "means": { "label": "New", "role": "button" }
+    },
+    {
+      "say": "go up one level",
+      "on": "explorer-fixture-wide",
+      "kind": "paraphrase",
+      "means": { "label": "Up to \"Temp\" (Alt + Up Arrow)", "role": "button" }
+    },
+    {
+      "say": "draw a rectangle",
+      "on": "custom-canvas-paint",
+      "kind": "paraphrase",
+      "means": { "label": "Shapes", "role": "button" }
+    },
+    {
+      "say": "make the brush bigger",
+      "on": "custom-canvas-paint",
+      "kind": "paraphrase",
+      "means": { "label": "Size", "role": "slider" }
+    },
+
+    {
+      "say": "Details",
+      "on": "explorer-fixture-wide",
+      "kind": "ambiguous",
+      "means": {
+        "ambiguous": true,
+        "why": "a toolbar button and a view-mode radio, both operable, both called Details, doing different things"
+      }
+    },
+    {
+      "say": "Name",
+      "on": "explorer-fixture-wide",
+      "kind": "ambiguous",
+      "means": {
+        "ambiguous": true,
+        "why": "the column header and one Name cell per row"
+      }
+    },
+    {
+      "say": "Close",
+      "on": "browser-fixture-wide",
+      "kind": "ambiguous",
+      "means": { "ambiguous": true, "why": "the infobar's Close and the window's Close" }
+    },
+    {
+      "say": "Zoom",
+      "on": "custom-canvas-paint",
+      "kind": "ambiguous",
+      "means": { "ambiguous": true, "why": "a slider and a combo box, both called Zoom" }
+    },
+
+    {
+      "say": "Print",
+      "on": "explorer-fixture-wide",
+      "kind": "absent",
+      "means": { "absent": true }
+    },
+    {
+      "say": "Save",
+      "on": "explorer-fixture-wide",
+      "kind": "absent",
+      "means": { "absent": true }
+    },
+    {
+      "say": "the history panel",
+      "on": "browser-fixture-wide",
+      "kind": "absent",
+      "means": {
+        "absent": true,
+        "why": "not on this screen, and the rewording must not find something merely because two words were set aside"
+      }
+    },
+    {
+      "say": "Downloads",
+      "on": "browser-fixture-wide",
+      "kind": "absent",
+      "means": { "absent": true }
+    },
+    {
+      "say": "Export",
+      "on": "custom-canvas-paint",
+      "kind": "absent",
+      "means": { "absent": true }
+    },
+    {
+      "say": "the airbrush tool",
+      "on": "custom-canvas-paint",
+      "kind": "absent",
+      "means": { "absent": true, "why": "this Paint has no airbrush" }
+    },
+
+    {
+      "say": "Details",
+      "on": "explorer-fixture-wide",
+      "kind": "already satisfied",
+      "verb": "select",
+      "means": {
+        "satisfied": true,
+        "why": "the window is already in Details view, so selecting it changes nothing"
+      }
+    }
+  ]
+}

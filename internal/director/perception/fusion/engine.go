@@ -293,6 +293,21 @@ func resolveCursorTarget(w *directorapi.WorldState) {
 
 // ── snapshot confidence ───────────────────────────────────────────────────────
 
+// ConfidenceOf rates a World State that was not assembled by this engine.
+//
+// It exists for one caller and should keep only that one: a recorded perception sample read
+// back off disk, turned into a world so the real resolver can be asked real questions about
+// a real application without a desktop in front of it.
+//
+// Exported rather than copied, and that is the whole point. The resolver's first question of
+// any world is whether the world could answer at all — shallow, blind, degraded — and a
+// second implementation of that rating in a benchmark would be a benchmark measuring
+// something production does not do. Measured against a fixture whose confidence was assumed
+// instead of derived, every request in a readable window comes back UNOBSERVABLE.
+func ConfidenceOf(w *directorapi.WorldState) directorapi.WorldConfidence {
+	return snapshotConfidence(w)
+}
+
 // snapshotConfidence rates the snapshot across the five dimensions of WorldConfidence.
 //
 // Each answers a different question, and they are kept apart because live testing

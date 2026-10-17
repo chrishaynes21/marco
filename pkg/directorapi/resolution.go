@@ -86,6 +86,27 @@ type Resolution struct {
 	// Blocker names what made the answer unobservable, for the explanation log:
 	// "coverage", "actionability", "degraded_source", "stale".
 	Blocker string `json:"blocker,omitempty"`
+
+	// Reworded says this answer was reached by asking the request again in words the
+	// screen uses, and what was set aside to do it — "setting aside \"the\" and
+	// \"panel\"", "reading personalisation→personalization from the words on screen".
+	//
+	// Empty for every answer reached by the words the person actually used, which is
+	// almost all of them: rewording is reached only where the literal reading found
+	// nothing at all.
+	//
+	// It exists so a reworded answer is VISIBLY reworded. An answer that set a word aside
+	// is a weaker claim than one that matched, and a person reading a wrong answer needs
+	// to be able to see which step was wrong — the words set aside, the spelling repaired,
+	// or the kind of control inferred from their own noun. A confidence alone cannot say
+	// that, and a reworded answer that read like an exact match would be the resolver
+	// overstating what it knows.
+	//
+	// Set on AMBIGUOUS as well as on RESOLVED, because a question raised about a reworded
+	// reading has to be able to say so: "I can see two things that might be what you
+	// called the Apps panel" is a different question from "I can see two things called
+	// Apps".
+	Reworded string `json:"reworded,omitempty"`
 }
 
 // DiscoveryPlan is a bounded search for something that is not on screen yet.

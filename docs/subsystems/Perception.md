@@ -12,6 +12,8 @@ updated: 2026-08-12
 source_paths:
   - internal/director/perception
   - internal/director/world
+  - internal/director/rephrase
+  - internal/director/satisfied
   - pkg/directorapi/observation.go
 ---
 
@@ -587,8 +589,41 @@ is the behaviour to keep. See
 [[Experiment-068-marco-understands-and-sees-and-does-not-join-the-two]] and the proposal in
 [[ADR-217-proposed-grounding-a-request-in-what-is-on-screen]].
 
+**A request reworded in the screen's own words.** The join, half closed, and the half it closed
+is the half that is about FORM. A request the literal reading matched NOTHING is asked again:
+its wrapping words and its kind nouns set aside, its spelling repaired against the vocabulary
+the Stage is showing, and the kind it named carried as evidence about role. Every re-asking goes
+back through the same resolver, so rewording proposes candidates and cannot invent a control,
+make one operable, authorise anything, or break a genuine tie. Reached on ABSENT and nowhere
+else, in one branch of one function, which is what makes "every request the words already
+answered is answered identically" checkable by reading. Measured on sixty-eight ordinary
+instructions against recorded readings of real applications, each with an oracle written down
+first: **60% → 73%** on the application it was built against, **68% → 79%** on three it was not,
+zero wrong controls, every ambiguity preserved, no additional observation, about 50µs a request.
+It closes wrapping words and spellings and closes one paraphrase in thirteen — `themes`,
+`bookmarks`, `dark mode` are knowledge questions and a deterministic reading does not know
+anything. The evaluation also found two defects in the LITERAL reading that rewording never
+reaches, the larger being that a short label contained in a longer request answers it: on the
+Bluetooth page, `bluetooth settings` resolves to the Bluetooth switch rather than the page. See
+[[ADR-218-a-request-reworded-in-the-screens-own-words]] and
+[[Experiment-069-rewording-closes-the-spelling-gap-and-not-the-meaning-gap]].
+
 ## Known gaps
 
+- **The literal reading answers requests it only partly matched.** `textScore` scores a label
+  CONTAINED IN the request at 0.5, so on the Settings Bluetooth page `bluetooth settings`
+  resolves confidently to the Bluetooth on/off switch rather than to the page — the single
+  usable candidate, at 0.485, with nothing to contest it. Rewording would have answered it
+  correctly, and never runs, because the literal reading answered first. Found by the oracle in
+  [[Experiment-069-rewording-closes-the-spelling-gap-and-not-the-meaning-gap]] and deliberately
+  not fixed there; it is the largest remaining wrong-control risk in resolution and it is not in
+  the new code. The same clause is also what makes many ordinary extra-word requests work at
+  all, some a hair above `MinScore` — `time and language` resolves at 0.259 against a floor of
+  0.25 — so changing it needs the evaluation re-run, not a patch.
+- **Whether a request is already satisfied cannot be measured on the committed corpus.** The
+  rule is `Element.Selected` and is unit-tested; `desktopElement` now records `selected`, but
+  every committed sample predates the field, so four evaluation cases report as unmeasured.
+  One fresh capture settles it.
 - ~~Vision runs an unrequested pass on every ordinary cycle.~~ **Fixed 2026-08-10.** The
   opt-in was enforced on `Observe` and not on `ObserveTargeted`, which is the door the
   collector prefers — so every command captured the screen, and every live diagnosis carried a

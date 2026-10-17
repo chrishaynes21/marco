@@ -235,6 +235,8 @@ var valued = map[string]bool{
 	"-sequence": true, "--sequence": true,
 	"-sequences": true, "--sequences": true,
 	"-dir": true, "--dir": true,
+	// assess-rewording: the evaluation set and the corpus it is said against.
+	"-set": true, "--set": true,
 	"-examples": true, "--examples": true,
 	"-iou": true, "--iou": true,
 	"-redact": true, "--redact": true,

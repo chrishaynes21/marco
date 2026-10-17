@@ -153,6 +153,12 @@ func main() {
 		// cost — the three kept separate. Reads; classifies through production. See
 		// assessdesktop.go.
 		os.Exit(runAssessDesktopSample(os.Args[2:]))
+	case "assess-rewording":
+		// Asks ordinary instructions, phrased the way somebody who does not know an
+		// interface phrases them, against recorded readings of real applications — and
+		// scores each answer against what a person said beforehand was meant. Reads;
+		// performs nothing; needs no desktop. See assessrewording.go.
+		os.Exit(runAssessRewording(os.Args[2:]))
 	case "compare-desktop-perception":
 		// Reads one captured moment twice — production fusion and the shadow detector — and
 		// counts. Decides nothing; see comparedesktop.go.

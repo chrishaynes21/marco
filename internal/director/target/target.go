@@ -24,6 +24,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/chaynes-simpleclouds/marco/internal/director/rephrase"
 	"github.com/chaynes-simpleclouds/marco/internal/director/world"
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 )
@@ -40,6 +41,15 @@ type Resolver struct {
 	// Discovery, when set, proposes bounded searches for targets that are hidden
 	// behind something that must be opened first.
 	Discovery *Discoverer
+	// Rephrasing, when set, re-asks a request that matched NOTHING in words the screen
+	// itself uses — "the bluetooth panel" against "Bluetooth & devices".
+	//
+	// Reached on ABSENT and on nothing else, which is the whole of why it is safe to put
+	// here: every request this package already answers is answered by exactly the code
+	// that answered it before, bit for bit, and rewording only ever speaks where the
+	// answer was that nothing matched.
+	// See [[ADR-218-a-request-reworded-in-the-screens-own-words]].
+	Rephrasing *rephrase.Rephraser
 }
 
 // NewResolver returns a Resolver with the default thresholds and discovery enabled.
@@ -48,6 +58,7 @@ func NewResolver() *Resolver {
 		AmbiguityMargin: 0.12,
 		MinScore:        0.25,
 		Discovery:       NewDiscoverer(),
+		Rephrasing:      rephrase.New(),
 	}
 }
 
@@ -81,7 +92,112 @@ func (r *Resolver) ResolveUnder(w *directorapi.WorldState, q directorapi.Element
 // One body, so the licensed, unlicensed and demonstrated entry points cannot diverge: the
 // difference between them is entirely in what they pass, and there is no second ranking, second
 // ambiguity rule or second explanation anywhere in this package.
+//
+// # Where rewording goes, and why it is only here
+//
+// Underneath, `literally` is resolution exactly as it has always been. This function adds one
+// thing: when the literal reading found NOTHING, the request is asked again in words the screen
+// uses, and each re-asking goes back through `literally`.
+//
+// So the first property of [[ADR-218-a-request-reworded-in-the-screens-own-words]] is not a
+// promise, it is the shape of the code. There is one branch on ABSENT, in one function, and no
+// other path into rewording — which is what makes "every request the resolver already answered
+// is answered identically" checkable by reading rather than by testing every caller.
 func (r *Resolver) resolve(w *directorapi.WorldState, q directorapi.ElementQuery,
+	lic directorapi.OperateLicence, verb string, shown Demonstration) directorapi.Resolution {
+
+	res := r.literally(w, q, lic, verb, shown)
+	if res.Status != directorapi.ResolutionAbsent || r.Rephrasing == nil {
+		return res
+	}
+	if reworded, ok := r.reword(w, q, lic, verb, shown); ok {
+		return reworded
+	}
+	return res
+}
+
+// reword re-asks the request in the screen's own words, and reports whether that answered it.
+//
+// # The order the attempts are taken in, which is the whole safety argument
+//
+// The FIRST attempt that resolves wins, and the attempts arrive strictest first — an attempt
+// carrying the role the person's own kind noun named comes before the same words with no role
+// at all. So the looser reading only ever answers a question the stricter one could not, and a
+// kind Marco read wrongly costs a tie-break rather than a control.
+//
+// When nothing resolves, the first AMBIGUOUS answer is returned instead. That ordering is
+// deliberate and it is the one that pays for itself: an unnecessary question is the cost we are
+// trying to reduce, and acting on the wrong control is the cost we must never buy with it. Two
+// operable controls that a reworded request cannot tell apart are still two controls, and the
+// person is still the one who knows which.
+func (r *Resolver) reword(w *directorapi.WorldState, q directorapi.ElementQuery,
+	lic directorapi.OperateLicence, verb string,
+	shown Demonstration) (directorapi.Resolution, bool) {
+
+	var ambiguous *directorapi.Resolution
+	for _, attempt := range r.Rephrasing.Attempts(w, q) {
+		got := r.literally(w, attempt.Query, lic, verb, shown)
+		switch got.Status {
+		case directorapi.ResolutionResolved:
+			return asReworded(got, q, attempt), true
+		case directorapi.ResolutionAmbiguous:
+			if ambiguous == nil {
+				settled := asReworded(got, q, attempt)
+				ambiguous = &settled
+			}
+		}
+	}
+	if ambiguous != nil {
+		return *ambiguous, true
+	}
+	return directorapi.Resolution{}, false
+}
+
+// asReworded marks an answer as reached by rewording and says what was set aside to reach it.
+//
+// Three things it is responsible for, all of them about not overstating:
+//
+// THE QUERY IS THE PERSON'S OWN AGAIN. A resolved target carries its query so the control can be
+// found again in the next snapshot, and the query that goes with it must be the request as the
+// person made it — not Marco's reading of it. Otherwise the reading becomes the record, and the
+// next observation re-finds a control by words nobody said.
+//
+// THE CONFIDENCE IS DISCOUNTED. A reworded match is a weaker claim than a lexical one and must
+// not be able to read as the same thing.
+//
+// AND IT IS DISCOUNTED RATHER THAN FLOORED. ADR-217 proposed that a reworded confidence be
+// "lower than any lexical match", which cannot be implemented as written: the lowest lexical
+// match a usable candidate can have is MinScore, and anything under that is not offered at all,
+// so the literal rule would refuse every reworded answer there is. What the proposal was
+// guarding against — an interpretation beating an exact match — cannot arise, because rewording
+// is only ever reached where the literal reading found nothing to beat.
+func asReworded(res directorapi.Resolution, asked directorapi.ElementQuery,
+	attempt rephrase.Attempt) directorapi.Resolution {
+
+	res.Reworded = attempt.Because
+	if res.Reworded == "" {
+		res.Reworded = "reading the request against the words on screen"
+	}
+	if res.Target != nil {
+		query := asked
+		res.Target.Query = &query
+		res.Target.Confidence *= rewordedDiscount
+		res.Target.Explanation += ", " + res.Reworded
+	}
+	res.Explanation += ", " + res.Reworded
+	return res
+}
+
+// rewordedDiscount is what a reworded match's confidence is multiplied by.
+//
+// Enough to be visible beside a lexical score and not enough to push a real match under the
+// floor: an exact label reached by setting aside the word "panel" lands at 0.78 where the same
+// label said exactly reaches 0.97, and the account prints both the number and the sentence that
+// produced it.
+const rewordedDiscount = 0.8
+
+// literally is resolution by the words the person used, and nothing else.
+func (r *Resolver) literally(w *directorapi.WorldState, q directorapi.ElementQuery,
 	lic directorapi.OperateLicence, verb string, shown Demonstration) directorapi.Resolution {
 
 	if !q.Constrained() {

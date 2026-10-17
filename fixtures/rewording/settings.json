@@ -1,0 +1,254 @@
+{
+  "application": "Windows Settings (the application rewording was built against)",
+  "note": "Said against settings-bluetooth-wide: the Bluetooth & devices page, twelve navigation list_items, a breadcrumb that repeats the page name, and a page full of ordinary controls. Every `means` was written down before the implementation was run against this set.",
+  "cases": [
+    {
+      "say": "Personalization",
+      "on": "settings-bluetooth-wide",
+      "kind": "exact label",
+      "means": { "label": "Personalization", "role": "list_item" }
+    },
+    {
+      "say": "Add device",
+      "on": "settings-bluetooth-wide",
+      "kind": "exact label",
+      "means": { "label": "Add device", "role": "button" }
+    },
+    {
+      "say": "Windows Update",
+      "on": "settings-bluetooth-wide",
+      "kind": "exact label",
+      "means": { "label": "Windows Update", "role": "list_item" }
+    },
+    {
+      "say": "Accessibility",
+      "on": "settings-bluetooth-wide",
+      "kind": "exact label",
+      "means": { "label": "Accessibility", "role": "list_item" }
+    },
+
+    {
+      "say": "bluetooth settings",
+      "on": "settings-bluetooth-wide",
+      "kind": "extra words",
+      "means": {
+        "label": "Bluetooth & devices",
+        "role": "list_item",
+        "why": "the page called Bluetooth & devices, not the Bluetooth on/off switch: a person who says settings means the place, and a person who means the switch says turn bluetooth on"
+      }
+    },
+    {
+      "say": "the bluetooth panel",
+      "on": "settings-bluetooth-wide",
+      "kind": "extra words",
+      "means": { "label": "Bluetooth & devices", "role": "list_item" }
+    },
+    {
+      "say": "the Personalization section",
+      "on": "settings-bluetooth-wide",
+      "kind": "extra words",
+      "means": { "label": "Personalization", "role": "list_item" }
+    },
+    {
+      "say": "the accounts page",
+      "on": "settings-bluetooth-wide",
+      "kind": "extra words",
+      "means": { "label": "Accounts", "role": "list_item" }
+    },
+    {
+      "say": "the Add device button",
+      "on": "settings-bluetooth-wide",
+      "kind": "extra words",
+      "means": { "label": "Add device", "role": "button" }
+    },
+    {
+      "say": "time and language",
+      "on": "settings-bluetooth-wide",
+      "kind": "extra words",
+      "means": {
+        "label": "Time & language",
+        "role": "list_item",
+        "why": "the person spelled out the ampersand the interface printed"
+      }
+    },
+    {
+      "say": "privacy and security",
+      "on": "settings-bluetooth-wide",
+      "kind": "extra words",
+      "means": { "label": "Privacy & security", "role": "list_item" }
+    },
+    {
+      "say": "network and internet settings",
+      "on": "settings-bluetooth-wide",
+      "kind": "extra words",
+      "means": { "label": "Network & internet", "role": "list_item" }
+    },
+
+    {
+      "say": "personalisation",
+      "on": "settings-bluetooth-wide",
+      "kind": "spelling",
+      "means": {
+        "label": "Personalization",
+        "role": "list_item",
+        "why": "British spelling of the same word"
+      }
+    },
+    {
+      "say": "accessibilty",
+      "on": "settings-bluetooth-wide",
+      "kind": "spelling",
+      "means": { "label": "Accessibility", "role": "list_item", "why": "one letter dropped" }
+    },
+    {
+      "say": "the personalisation panel",
+      "on": "settings-bluetooth-wide",
+      "kind": "spelling",
+      "means": { "label": "Personalization", "role": "list_item" }
+    },
+    {
+      "say": "windows updates",
+      "on": "settings-bluetooth-wide",
+      "kind": "spelling",
+      "means": { "label": "Windows Update", "role": "list_item", "why": "plural" }
+    },
+
+    {
+      "say": "themes",
+      "on": "settings-bluetooth-wide",
+      "kind": "paraphrase",
+      "means": {
+        "label": "Personalization",
+        "role": "list_item",
+        "why": "where themes live, and the word themes is nowhere on this screen"
+      }
+    },
+    {
+      "say": "wallpaper",
+      "on": "settings-bluetooth-wide",
+      "kind": "paraphrase",
+      "means": { "label": "Personalization", "role": "list_item" }
+    },
+    {
+      "say": "wifi",
+      "on": "settings-bluetooth-wide",
+      "kind": "paraphrase",
+      "means": { "label": "Network & internet", "role": "list_item" }
+    },
+    {
+      "say": "pair a new device",
+      "on": "settings-bluetooth-wide",
+      "kind": "paraphrase",
+      "means": { "label": "Add device", "role": "button" }
+    },
+    {
+      "say": "uninstall programs",
+      "on": "settings-bluetooth-wide",
+      "kind": "paraphrase",
+      "means": { "label": "Apps", "role": "list_item" }
+    },
+    {
+      "say": "where do I change the clock",
+      "on": "settings-bluetooth-wide",
+      "kind": "paraphrase",
+      "means": { "label": "Time & language", "role": "list_item" }
+    },
+
+    {
+      "say": "Bluetooth & devices",
+      "on": "settings-bluetooth-wide",
+      "kind": "ambiguous",
+      "means": {
+        "ambiguous": true,
+        "why": "two operable controls carry exactly this label and do different things: the navigation item that goes to the page, and the breadcrumb button at the top of the page you are on"
+      }
+    },
+    {
+      "say": "Show more settings",
+      "on": "settings-bluetooth-wide",
+      "kind": "ambiguous",
+      "means": {
+        "ambiguous": true,
+        "why": "one per device in the list, identical labels, different devices"
+      }
+    },
+    {
+      "say": "Devices",
+      "on": "settings-bluetooth-wide",
+      "kind": "exact label",
+      "means": {
+        "label": "Devices",
+        "role": "button",
+        "why": "ORACLE CORRECTED AFTER THE FIRST RUN, and the correction is recorded rather than quietly made. It was written as ambiguous, from reading the labels: two elements carry exactly \"Devices\". But one of them is static text, which is not a control and never was a candidate — so there is exactly one operable Devices on this page and resolving to it is right. The mistake was mine, in the oracle, not Marco's."
+      }
+    },
+
+    {
+      "say": "Save",
+      "on": "settings-bluetooth-wide",
+      "kind": "absent",
+      "means": { "absent": true, "why": "Settings has no Save button; it applies as you go" }
+    },
+    {
+      "say": "Print",
+      "on": "settings-bluetooth-wide",
+      "kind": "absent",
+      "means": { "absent": true }
+    },
+    {
+      "say": "the print button",
+      "on": "settings-bluetooth-wide",
+      "kind": "absent",
+      "means": {
+        "absent": true,
+        "why": "the rewording must not find something merely because the words were set aside"
+      }
+    },
+    {
+      "say": "delete my account",
+      "on": "settings-bluetooth-wide",
+      "kind": "absent",
+      "means": {
+        "absent": true,
+        "why": "Accounts is on screen; deleting one is not, and the two must not be confused"
+      }
+    },
+    {
+      "say": "developer mode",
+      "on": "settings-bluetooth-wide",
+      "kind": "absent",
+      "means": { "absent": true }
+    },
+
+    {
+      "say": "Bluetooth & devices",
+      "on": "settings-bluetooth-wide",
+      "kind": "already satisfied",
+      "verb": "open",
+      "means": {
+        "satisfied": true,
+        "why": "this IS the Bluetooth & devices page — the breadcrumb says so and the navigation item is the current one"
+      }
+    },
+    {
+      "say": "the bluetooth panel",
+      "on": "settings-bluetooth-wide",
+      "kind": "already satisfied",
+      "verb": "open",
+      "means": {
+        "satisfied": true,
+        "why": "same page, asked the way a person would ask"
+      }
+    },
+    {
+      "say": "Mouse",
+      "on": "settings-mouse-wide",
+      "kind": "already satisfied",
+      "verb": "open",
+      "means": {
+        "satisfied": true,
+        "why": "the Mouse page is the one on screen"
+      }
+    }
+  ]
+}
