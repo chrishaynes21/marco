@@ -78,6 +78,19 @@ type visualSession struct {
 	// clock instead. The bound stays: --seconds is still the ceiling, and a forgotten
 	// terminal still stops on its own.
 	stop <-chan struct{}
+	// reader, when set, reads the words on each look BESIDE the loop.
+	//
+	// Beside, never inside: OCR costs hundreds of milliseconds against a cadence of a
+	// hundred, so no live source can ever fill `Look.Text` -- which is look-local by
+	// construction. What it fills is `Look.Readings`, the delayed-arrival channel, and
+	// the observer refuses a reading whose observation generation has moved on.
+	//
+	// `readingEyes` was built for exactly this and `director perform-workflow` was the
+	// only caller. The first human game-menu demonstration found out what that cost:
+	// three clicks, no control read at all, and the one control learned was a 650x214
+	// rectangle with no name. See
+	// [[Experiment-079-the-first-human-game-menu-demonstration]].
+	reader *readingEyes
 }
 
 // visualResult is everything the loop learned that is not in the observer itself.
@@ -94,6 +107,11 @@ type visualResult struct {
 	// ended says the session stopped before its deadline because the person said so.
 	// Empty when it ran to time, which is a different thing from `lost`.
 	ended string
+	// looks counts the looks taken, and readings how many OCR results arrived in time to
+	// be offered to the observer. A reading that arrived after its observation had moved
+	// on is refused by the observer and counted there, not here.
+	looks    int
+	readings int
 }
 
 // watch runs one session, folding every look into obs. It writes nothing.
@@ -217,7 +235,22 @@ func (s visualSession) watch(ctx context.Context, obs *fastobserve.Observer,
 				rects = append(rects, c.Bounds)
 			}
 			lk.Regions = observe.NormaliseRects(img.Image.Bounds(), rects)
+			// AND WHAT THE WORDS SAY, offered to the reader and collected
+			// whenever it has finished one. Non-blocking in both directions:
+			// `offer` drops the frame when a reading is still running, which
+			// is the ordinary case and the number that says how far behind
+			// OCR is.
+			if s.reader.working() {
+				s.reader.offer(readingFrame{
+					img: img.Image, look: res.looks,
+					epoch:      obs.Epoch(),
+					generation: v.Ref.Generation,
+				})
+				lk.Readings = s.reader.ready()
+				res.readings += len(lk.Readings)
+			}
 		}
+		res.looks++
 		if s.each != nil {
 			s.each(lk)
 		}

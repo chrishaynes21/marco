@@ -158,3 +158,94 @@ offer to run it.
 `cmd/director` `TestTheLiveLoopReadsWhatTheScreenSays` holds the gap closed once it is — a live
 session with a reader must produce a look that carries text, and the four offline call sites are
 not evidence that the live one does.
+
+## Afterwards: the baseline, the wiring, and what the words show
+
+### The baseline reacquire, against the live Ark window
+
+Ark was still in front, so this was taken against the real menu rather than against whatever
+covered it. Twice, because the second run had OCR behind it:
+
+```
+blind     250 look(s)   control_1   2% matched, 98% unobservable, 0 collisions
+reading   200 look(s)   control_1   0% matched, 100% unobservable, 0 collisions
+```
+
+**The 650×214 panel is not re-proposed either.** It is not a control that matches everything; on
+this menu it matches almost nothing, which is the other way for a target to be useless. The
+caveat that matters: the demonstration ended on a different screen from the one `control_1` was
+learned on, so a low match rate is expected and the number is a floor rather than a measurement.
+Zero collisions over one control is trivially true.
+
+### The reader, wired and measured
+
+`readingEyes` already existed — a source on its own clock, one frame deep, non-blocking, results
+stamped with the generation and epoch they were computed under — and `director perform-workflow`
+was its only caller. It now lives on `visualSession`, which `observe-screen`,
+`demonstrate-visual` and `reacquire` all share. On by default, `--blind` to opt out.
+
+Measured live against Ark at 10 looks a second:
+
+```
+offered 200, read 33, dropped while busy 165, 1731 word(s), mean 572ms, slowest 734ms
+200 usable look(s)      <- 20 seconds at 10/second, exactly on target
+```
+
+- **5.7 looks late on average, 7.3 at worst.**
+  [[Experiment-043-a-reading-that-arrives-late]] measured the admission window:
+  260 of 300 admitted at 3 looks late, 223 at 8, and the screens MERGE at 12. So the live cost
+  sits inside the working range with margin, and past it the failure is the one that existed
+  before any of this.
+- **The cadence was untouched.** 200 looks in 20 seconds is the 10/second target exactly, with
+  165 of 200 frames dropped while a reading was still running. Dropping is the ordinary case and
+  the number that says how far behind OCR is.
+- **~52 words a look** on this menu, where there were none before.
+
+Degradation is honest in both directions. No plugin prints a warning and records a demonstration
+with unread controls, which is the record this command produced before today. A reading that
+ERRORS publishes nothing at all rather than an empty reading — a screen recorded as having no
+words on it is a screen that can never contradict anything, which is the merge the whole
+mechanism exists to refuse.
+
+### And the words show the granularity problem directly
+
+`director ocr --region 644,322,650,214` — the exact rectangle the click was attributed to, on the
+live Ark window:
+
+```
+accepted 20     rejected_confidence 13     (of 33 engine results)
+capture 29ms    recognise 290ms            total 320ms
+```
+
+**Twenty accepted words inside the one "control"** (24 on a second run). The machinery that would
+name a control from them is already built and already wired —
+`ScreenReading.Words` → `Observer.read` → `ClickTargets.Reading` → `LabelOf(where, read)` →
+`NameCandidates`, with `controlWords` keeping a word only when it was read on a `TextCommon`
+share of looks, because *the person clicked PLAY on the look where OCR had stopped reading the
+word PLAY*.
+
+What it would produce for a 650×214 region is a label naming every button in the block. So the
+reading is necessary and is not sufficient, exactly as the owner said:
+
+> Even perfect OCR wouldn't necessarily fix that. It might read the words inside the panel, but
+> Marco would still need to determine which specific control you clicked.
+
+The candidate that follows from this measurement, and it is a candidate rather than a change: the
+smallest OCR WORD BOX containing the demonstrated click is a target of roughly a button's size,
+and finding it uses the click coordinate without storing it as identity. It is untested, it needs
+a demonstration taken with the reader running, and no part of it has been implemented.
+
+### The mutation run
+
+Eleven mutations across the loop, the two commands and the reader. All eleven killed, after
+three rounds, and two of the rounds say something about structural tests:
+
+| it survived because | the fix |
+|---|---|
+| `if false && s.reader.working()` leaves every line of the OCR block written and unreachable, which a test reading the file cannot see | assert the GUARD — `if s.reader.working() {` — because that one line decides whether any of it runs |
+| asserting on the bare word `mean ` matched a COMMENT about the mean while the reported string had been renamed | assert on `", mean "` with its quotes |
+
+The second is the sharper one. **A test that reads prose is a test of the prose**, and every
+assertion in this file reads a file. They earn their place by covering what a behavioural test
+cannot reach — watching a real window with a real OCR plugin behind it — and they pay for it by
+being this easy to fool.

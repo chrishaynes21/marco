@@ -37,6 +37,7 @@ import (
 	"os"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/bridgehost"
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
@@ -62,6 +63,14 @@ type readingEyes struct {
 	// frames skipped because a reading was still running, which is the ordinary case and
 	// the number that says how far behind OCR is.
 	asked, answered, dropped, words atomic.Int64
+	// readMS is the total milliseconds spent reading, and the count of readings is
+	// `answered`, so the mean is one division.
+	//
+	// Measured rather than cited: Experiment-043 put OCR at 300-600ms on a 1920x1080
+	// frame and derived the working range from it, and that was a replay on this
+	// machine's CPU with no game running. A live session competing with a game for the
+	// same machine is the number that decides whether the window holds.
+	readMS, slowest atomic.Int64
 	// why is why there is no reader, empty when there is one.
 	why string
 }
@@ -134,9 +143,21 @@ func (e *readingEyes) run(ctx context.Context) {
 			return
 		case f := <-e.work:
 			// HALF SIZE, BECAUSE THE DEADLINE IS REAL. See readScale.
+			began := time.Now()
 			got, err := e.eng.Recognize(ctx, ocr.ImageInput{
 				Image: shrink(f.img, readScale),
 			})
+			// TIMED WHETHER OR NOT IT WORKED, because a reading that takes two
+			// seconds and fails is the same problem as one that takes two
+			// seconds and succeeds.
+			ms := time.Since(began).Milliseconds()
+			e.readMS.Add(ms)
+			for {
+				was := e.slowest.Load()
+				if ms <= was || e.slowest.CompareAndSwap(was, ms) {
+					break
+				}
+			}
 			if err != nil {
 				// NOT A SILENT SCREEN. A reading that failed is offered as
 				// nothing at all, so the observer counts it as a source that
@@ -277,7 +298,19 @@ func (e *readingEyes) describe() string {
 	if !e.working() {
 		return "not running"
 	}
-	return "offered " + itoa(e.asked.Load()) + ", read " + itoa(e.answered.Load()) +
+	out := "offered " + itoa(e.asked.Load()) + ", read " + itoa(e.answered.Load()) +
 		", dropped while busy " + itoa(e.dropped.Load()) + ", " +
 		itoa(e.words.Load()) + " word(s)"
+	// AND WHAT IT COST, which is what decides whether the delayed-arrival window holds.
+	// A reading that lands more looks late than the observer will admit was taken and
+	// thrown away, and the count of admitted readings cannot say which.
+	//
+	// Measured rather than cited. Experiment-043 put OCR at 300-600ms on a 1920x1080
+	// frame and derived the working range from it — but that was a replay on an idle
+	// machine, and a live session shares a CPU with the game it is watching.
+	if n := e.answered.Load(); n > 0 {
+		out += ", mean " + itoa(e.readMS.Load()/n) + "ms, slowest " +
+			itoa(e.slowest.Load()) + "ms"
+	}
+	return out
 }

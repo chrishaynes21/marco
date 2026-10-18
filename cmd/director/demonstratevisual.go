@@ -82,6 +82,8 @@ func runDemonstrateVisual(args []string) int {
 	fps := fs.Int("fps", 10, "observations per second")
 	delay := fs.Duration("delay", 5*time.Second, "wait before starting, to switch to the app")
 	dry := fs.Bool("dry-run", false, "report what would be saved and write nothing")
+	blind := fs.Bool("blind", false,
+		"do not read the words on each look, even when OCR is available")
 	_ = fs.Parse(flagsFirst(rest))
 
 	if strings.TrimSpace(name) == "" {
@@ -118,8 +120,28 @@ func runDemonstrateVisual(args []string) int {
 	}
 
 	ctx := context.Background()
+	// THE WORDS, ON BY DEFAULT.
+	//
+	// A demonstration without them produces a control whose only identity is a
+	// rectangle, and the first human game-menu demonstration measured what that is
+	// worth: nothing was read on any of three controls and the one that was learned was
+	// a 650x214 block. So OCR is the default and `--blind` is the opt-out, which is the
+	// right way round for a default that makes the artifact better.
+	//
+	// ITS ABSENCE IS REPORTED AND NEVER FATAL. A machine with no OCR plugin records a
+	// demonstration with unread controls, which is the honest record and exactly what
+	// this command produced before today.
+	var reader *readingEyes
+	if !*blind {
+		reader = newReadingEyes(ctx)
+		if !reader.working() {
+			fmt.Printf("WARNING: the words on each look will NOT be read: %s\n"+
+				"         Every control will be saved with no name.\n\n", reader.why)
+		}
+	}
 	s := visualSession{
 		app: *app, title: *title, seconds: *seconds, interval: interval, delay: *delay,
+		reader: reader,
 		announce: func(ref string, settle int) {
 			fmt.Printf("Watching %s at %d/second for %ds, to learn %q\n",
 				ref, *fps, *seconds, name)
@@ -149,7 +171,7 @@ func runDemonstrateVisual(args []string) int {
 
 	// ── what the session learned ──
 	draft := workflow.Learn(name, obs.Walk(), obs.Clicks(), obs.Registry())
-	reportVisualDemonstration(obs, res, draft)
+	reportVisualDemonstration(obs, res, draft, reader)
 	if len(draft.Steps) == 0 {
 		fmt.Fprintf(os.Stderr,
 			"\ndirector: nothing was demonstrated — no press landed on a settled screen,\n"+
@@ -203,7 +225,8 @@ func runDemonstrateVisual(args []string) int {
 // Printed whether or not the save succeeds, and before it, because a session that watched for
 // forty seconds and learned nothing is evidence about the menu and the person is entitled to it
 // without digging in a file.
-func reportVisualDemonstration(obs *fastobserve.Observer, res visualResult, d workflow.Draft) {
+func reportVisualDemonstration(obs *fastobserve.Observer, res visualResult, d workflow.Draft,
+	reader *readingEyes) {
 	fmt.Printf("%s\n", strings.Repeat("-", 74))
 	fmt.Printf("WHAT THE DEMONSTRATION TAUGHT\n\n")
 	if res.lost != "" {
@@ -211,6 +234,14 @@ func reportVisualDemonstration(obs *fastobserve.Observer, res visualResult, d wo
 	}
 	fmt.Printf("  %d screen(s) seen, %d visited in order, %d demonstrated control(s)\n",
 		len(obs.Screens()), len(obs.Walk()), len(obs.Registry()))
+	// WHAT THE READER DID, including when it did nothing. A demonstration whose controls
+	// have no names is a different report depending on whether OCR was absent, too slow,
+	// or ran and found no words — and the three send a reader to three different places.
+	fmt.Printf("  words: %s\n", reader.describe())
+	if res.readings > 0 {
+		fmt.Printf("  %d reading(s) reached the observer over %d look(s)\n",
+			res.readings, res.looks)
+	}
 	in := res.in
 	// CLASSIFIED, which is what the producer turned into an intent -- and the ignore
 	// reasons beside it, because "no press reached the correlator" and "every press was

@@ -507,3 +507,129 @@ func TestADemonstrationEndsWhenThePersonSaysSo(t *testing.T) {
 		}
 	}
 }
+
+// THE LIVE LOOP READS WHAT THE SCREEN SAYS.
+//
+// [[Experiment-079-the-first-human-game-menu-demonstration]] found the gap by using the product:
+// three clicks in Ark, and `nothing was read on it` for all three controls. `readingEyes` had
+// existed for exactly this and `director perform-workflow` was its only caller, so every other
+// live command ran blind to text by construction.
+//
+// Structural, for the reason every test in this file is: reaching it behaviourally means
+// watching a real window with a real OCR plugin behind it.
+func TestTheLiveLoopReadsWhatTheScreenSays(t *testing.T) {
+	loop, err := os.ReadFile("visualsession.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	l := string(loop)
+
+	// BESIDE THE LOOP, NEVER INSIDE IT. `Look.Text` is look-local by construction and
+	// OCR costs hundreds of milliseconds against a cadence of a hundred, so a live
+	// source can only ever fill `Readings` — the delayed-arrival channel the observer
+	// admits by observation generation.
+	if !strings.Contains(l, "lk.Readings = s.reader.ready()") {
+		t.Error("the loop collects no readings, so every control is saved with no name")
+	}
+	if !strings.Contains(l, "s.reader.offer(readingFrame{") {
+		t.Error("the loop offers no frame to the reader")
+	}
+	// AND THE WORK IS GUARDED BY THE READER'S OWN READINESS and nothing else. A
+	// mutation run reached this: `if false && s.reader.working()` leaves every line of
+	// the block written and unreachable, which a test reading the text cannot see. The
+	// guard is the one line that decides whether any of it runs.
+	if !strings.Contains(l, "if s.reader.working() {") {
+		t.Error("the OCR block is not guarded by s.reader.working() alone, so it may " +
+			"be written and unreachable")
+	}
+	if strings.Contains(l, "lk.Text =") {
+		t.Error("the loop fills Look.Text, which is look-local and which no live source " +
+			"can satisfy — a reading placed there would make one screen's signature " +
+			"depend on whether OCR had landed yet")
+	}
+	// AND THE READING IS STAMPED WITH THE CONTEXT IT WAS TAKEN IN, or the observer
+	// cannot tell a late reading of this screen from a stale reading of the last one.
+	for _, want := range []string{"epoch:      obs.Epoch()", "generation: v.Ref.Generation"} {
+		if !strings.Contains(l, want) {
+			t.Errorf("an offered frame carries no %s, so a stale reading is "+
+				"indistinguishable from a late one", want)
+		}
+	}
+	// AND NOTHING BLOCKS. `offer` drops a frame when a reading is still running, which
+	// is the ordinary case: 165 of 200 frames were dropped in the live Ark run and the
+	// cadence held exactly.
+	if strings.Contains(l, "<-s.reader.done") || strings.Contains(l, "reader.work <-") {
+		t.Error("the loop reaches into the reader's channels, which can block the " +
+			"observation cadence the screen model depends on")
+	}
+
+	// AND THE READER IS ON BY DEFAULT WHERE IT MATTERS, with an opt-out rather than an
+	// opt-in: a demonstration without words produces a control whose only identity is a
+	// rectangle, and the Ark session measured what that is worth.
+	for _, f := range []string{"demonstratevisual.go", "reacquirecmd.go"} {
+		src, rerr := os.ReadFile(f)
+		if rerr != nil {
+			t.Fatal(rerr)
+		}
+		s := string(src)
+		if !strings.Contains(s, "newReadingEyes(") {
+			t.Errorf("%s never starts the reader", f)
+		}
+		if !strings.Contains(s, `fs.Bool("blind"`) {
+			t.Errorf("%s has no --blind opt-out", f)
+		}
+		if !strings.Contains(s, "if !*blind {") {
+			t.Errorf("%s does not read by default", f)
+		}
+		// ITS ABSENCE IS REPORTED AND NEVER FATAL. A machine with no OCR plugin
+		// records a demonstration with unread controls, which is the honest record.
+		if !strings.Contains(s, "reader.why") {
+			t.Errorf("%s does not say why the words will not be read", f)
+		}
+		if !strings.Contains(s, "reader.describe()") {
+			t.Errorf("%s does not report what the reader did, so a run with no "+
+				"names cannot be told from a run with no reader", f)
+		}
+	}
+}
+
+// AND A FAILED READING IS NOT A SILENT SCREEN.
+//
+// The one rule that would be dangerous to get wrong: OCR that errors must produce no reading at
+// all, never an empty one. A screen recorded as having no words on it is a screen that can never
+// contradict anything — which is the merge this whole mechanism exists to refuse.
+func TestAFailedReadingIsOfferedAsNothing(t *testing.T) {
+	src, err := os.ReadFile("readingeyes.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(src)
+	// The error branch must `continue` — publish nothing — rather than send a reading.
+	at := strings.Index(s, "if err != nil {")
+	if at < 0 {
+		t.Fatal("the reader no longer handles a recognition error")
+	}
+	branch := s[at:]
+	if end := strings.Index(branch, "\n\t\t\t}"); end > 0 {
+		branch = branch[:end]
+	}
+	if !strings.Contains(branch, "continue") {
+		t.Errorf("a failed reading does not skip publishing:\n%s", branch)
+	}
+	if strings.Contains(branch, "e.done <-") {
+		t.Error("a failed reading is published, which records a screen as having no " +
+			"words on it rather than as unread")
+	}
+	// AND THE LATENCY IS MEASURED, because it is what decides whether a reading lands
+	// inside the window the observer will admit. Live on Ark: mean 572ms, slowest 734ms,
+	// which is 5.7 looks late against a failure point of 12.
+	// `", mean "` with its quotes, not the bare word: a mutation run found that asserting
+	// on `mean ` matched a COMMENT about the mean while the reported string had been
+	// renamed. A test that reads prose is a test of the prose.
+	for _, want := range []string{"e.readMS.Add(ms)", "e.slowest", `", mean "`} {
+		if !strings.Contains(s, want) {
+			t.Errorf("the reader does not report %q, so nobody can tell whether a "+
+				"reading arrives in time to be used", want)
+		}
+	}
+}

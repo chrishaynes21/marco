@@ -69,6 +69,8 @@ func runReacquire(args []string) int {
 	seconds := fs.Int("seconds", 30, "how long to watch")
 	fps := fs.Int("fps", 10, "observations per second")
 	delay := fs.Duration("delay", 5*time.Second, "wait before starting, to switch to the app")
+	blind := fs.Bool("blind", false,
+		"do not read the words on each look, even when OCR is available")
 	_ = fs.Parse(flagsFirst(rest))
 
 	if strings.TrimSpace(name) == "" {
@@ -91,6 +93,7 @@ func runReacquire(args []string) int {
 		return 2
 	}
 
+	ctx0 := context.Background()
 	store, err := demo.Open(configDir())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "director: %v\n", err)
@@ -121,6 +124,19 @@ func runReacquire(args []string) int {
 		fmt.Fprintf(os.Stderr, "director: %v\n", oerr)
 		return 2
 	}
+	// THE WORDS, BESIDE THE LOOP. Here they inform the SCREEN model rather than the
+	// per-control match: `ReacquireStored` compares rectangles and nothing else, and
+	// wiring a reading into it would be the extra score term the owner ruled out. What
+	// they buy is a screen model that can tell two menus apart while this runs, which is
+	// the context the abstentions below are measured in.
+	var reader *readingEyes
+	if !*blind {
+		reader = newReadingEyes(ctx0)
+		if !reader.working() {
+			fmt.Printf("WARNING: the words on each look will NOT be read: %s\n\n",
+				reader.why)
+		}
+	}
 
 	// THE TALLY, over every look, per target.
 	tally := map[observe.VisualTargetID]*storedTally{}
@@ -130,9 +146,9 @@ func runReacquire(args []string) int {
 	looks := 0
 	collisions := 0
 
-	ctx := context.Background()
 	s := visualSession{
 		app: *app, title: *title, seconds: *seconds, interval: interval, delay: *delay,
+		reader: reader,
 		announce: func(ref string, settle int) {
 			fmt.Printf("Looking for the %d control(s) of %q in %s, at %d/second for %ds\n",
 				len(targets), a.Name, ref, *fps, *seconds)
@@ -165,11 +181,11 @@ func runReacquire(args []string) int {
 			collisions += collidingPairs(at)
 		},
 	}
-	res, code := s.watch(ctx, obs, os.Stderr)
+	res, code := s.watch(ctx0, obs, os.Stderr)
 	if code != 0 {
 		return code
 	}
-	reportStoredReacquire(a.Name, targets, tally, looks, collisions, res)
+	reportStoredReacquire(a.Name, targets, tally, looks, collisions, res, reader)
 	return 0
 }
 
@@ -223,7 +239,8 @@ func collidingPairs(at map[observe.VisualTargetID]observe.Region) int {
 
 // reportStoredReacquire prints the per-control tally.
 func reportStoredReacquire(name string, targets []observe.StoredTarget,
-	tally map[observe.VisualTargetID]*storedTally, looks, collisions int, res visualResult) {
+	tally map[observe.VisualTargetID]*storedTally, looks, collisions int, res visualResult,
+	reader *readingEyes) {
 
 	fmt.Printf("%s\n", strings.Repeat("-", 74))
 	fmt.Printf("CAN THE CONTROLS OF %q BE FOUND AGAIN?\n\n", name)
@@ -235,7 +252,10 @@ func reportStoredReacquire(name string, targets []observe.StoredTarget,
 		fmt.Printf("  found nothing in it, so this says nothing about the controls.\n")
 		return
 	}
-	fmt.Printf("  %d usable look(s)\n\n", looks)
+	fmt.Printf("  %d usable look(s)\n", looks)
+	// WHAT THE READER DID. An abstention rate means something different depending on
+	// whether the screen model could tell two menus apart while this ran.
+	fmt.Printf("  words: %s\n\n", reader.describe())
 	fmt.Printf("  %-14s %8s %10s %13s %s\n",
 		"CONTROL", "matched", "ambiguous", "unobservable", "of those, indistinct")
 	var anyMatched int
