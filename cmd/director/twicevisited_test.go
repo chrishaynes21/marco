@@ -93,7 +93,7 @@ func TestOneButtonOnTwoVisitsIsOneControlInTheReport(t *testing.T) {
 	reg := o.Registry()
 	if len(reg) != 1 {
 		for _, r := range reg {
-			t.Logf("  %s", controlLine(r))
+			t.Logf("  %s", controlLine(r, reg))
 		}
 		t.Fatalf("%d control(s); one button pressed on two visits to one screen is "+
 			"one identity", len(reg))
@@ -138,7 +138,7 @@ func TestOneButtonOnTwoVisitsIsOneControlInTheReport(t *testing.T) {
 // button labelled with nothing.
 func TestTheControlLineSeparatesUnreadFromUnchanged(t *testing.T) {
 	silent := observe.TargetRecord{ID: "target_2", Screen: "visual_3", Presses: 1}
-	line := controlLine(silent)
+	line := controlLine(silent, nil)
 	for _, want := range []string{"target_2", "visual_3", "1 press(es)",
 		"nothing was read on it", "NOTHING CHANGED after it"} {
 		if !strings.Contains(line, want) {
@@ -147,7 +147,7 @@ func TestTheControlLineSeparatesUnreadFromUnchanged(t *testing.T) {
 	}
 	read := controlLine(observe.TargetRecord{ID: "target_1", Screen: "visual_1",
 		Presses: 2, Text: []string{"settings"},
-		Destinations: []observe.TargetDestination{{To: "visual_2"}}})
+		Destinations: []observe.TargetDestination{{To: "visual_2"}}}, nil)
 	if !strings.Contains(read, `read as "settings"`) {
 		t.Errorf("the line does not carry what was read on it: %s", read)
 	}

@@ -143,3 +143,88 @@ states both readings, so the next run that reaches it will say which.
 | the same button on two separate visits | **not yet captured.** One attempt, no mouse clicks in it |
 
 Pixel execution is still blocked, and now by exactly one missing thing rather than two.
+
+## 3. Escape, a few times — and the link nobody had been able to test
+
+The second attempt at the twice-visited demonstration, in full:
+
+```
+  2 screen(s) seen, 4 visited in order, 0 demonstrated control(s)
+  presses: 4 of 15 classified, 7 key_release, 2 no_session, 2 unsupported_navigation
+
+  Steps
+    1 visual_1 -> visual_2 via (no control — the screen changed for another reason)   [none]
+    2 visual_2 -> visual_1 via (no control — the screen changed for another reason)   [none]
+    3 visual_1 -> visual_2 via (no control — the screen changed for another reason)   [none]
+
+"ark twice" is saved: 3 step(s), 2 screen(s), 0 control(s).
+```
+
+The owner's account of it: *there were no clicks, it's just escape a bunch of times.* Four
+Escapes toggling Ark's pause menu, and the fifteen events account for themselves exactly —
+4 classified, 7 releases, 2 unsupported characters, 2 before the subscription opened, and **not
+one pointer press**.
+
+### The result inside the accident
+
+**`2 screen(s) seen, 4 visited in order`.** The menu was left and re-entered twice, and both
+times it came back as `visual_1` rather than as a new screen.
+
+That is the first link of the twice-visited validation, on real Ark pixels, and it is the one
+[[Experiment-080-it-learned-the-word-settings]]'s addendum said could not be established from a
+synthetic fixture:
+
+> The regions fed to the observer are identical on both visits by construction, so the
+> arrangement relation cannot fail; a real menu redrawn with a different highlight, a loading
+> spinner or a changed player count can. That is the live question.
+
+It did not fail. Ark's pause menu, closed and reopened, is recognised as the same screen — and
+the walk `visual_1 -> visual_2 -> visual_1 -> visual_2` is exactly the shape the twice-clicked
+demonstration needs. What is left to establish is only the second link: that two CLICKS on one
+button, across those two visits, merge into one identity.
+
+### And two reporting defects, one of them the direct cause of the confusion
+
+**`presses: 4 of 15 classified` counted four Escapes as four presses.** `InputStats.Classified`
+is incremented on both the key path and the pointer path of the producer — `navsource.go:381` and
+`navsource.go:445` — so the line labelled `presses:` was a count of navigation intents of every
+kind. A reader who trusts the label concludes four clicks were made and attributed, which is the
+opposite of what happened. It was read that way twice, by the owner and by the author, on both
+runs that produced no control.
+
+Now `input: 4 of 15 event(s) classified`, with a separate line that is only ever about pointer
+presses:
+
+```
+  clicks: 0 reached the observer, 0 given to the correlator
+```
+
+`ClickEvidence.Presses` exists for precisely this and says so in its own doc — *a report with
+four subsets and no total cannot tell "nothing was attributed" from "nothing arrived"* — and
+nothing printed it.
+
+**And `0 demonstrated control(s)` was never explained**, because the explanation only ran when
+there was no step either. This session had three steps, so it saved, and the zero went by in
+silence. A walk across four screens with nothing to press on any of them is the case most in
+need of a sentence. It now gets one in the report itself:
+
+```
+  No control was identified.
+    nothing was clicked — 15 event(s) reached the producer and not one of them was a
+    pointer press. A control is learned from a MOUSE CLICK landing inside something the
+    proposer found. Keys move between screens perfectly well — they are watched, they are
+    counted, and they name nothing to press. That is why 2 screen(s) over a walk of 4
+    produced no control: the menu moved and nothing was pressed that the proposer could
+    point at.
+```
+
+Keys are not the mistake. They are the limit, and the limit is now stated in the place where it
+is discovered.
+
+## Where the two validations stand after three runs
+
+| | |
+|---|---|
+| a different real menu is rejected | **done**, 100% geometric match contradicted by 75 readings |
+| the menu is recognised on the way back | **done**, by accident, on Ark's pause menu |
+| two clicks on one button merge into one identity | **not yet.** No click has yet been made in a twice-visited session |

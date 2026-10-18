@@ -166,3 +166,45 @@ func TestAWordTwiceOnOneLookCountsOnce(t *testing.T) {
 		t.Errorf("%d reading(s) folded, want 3", f.Looks())
 	}
 }
+
+// AND AT PANEL SCALE THE WHOLE THING INVERTS.
+//
+// [[Experiment-082-a-control-that-is-half-the-window]]: a human click in Ark's menu produced a
+// control 932x690 pixels across, and `controlWords` read the thirteen words inside it — the
+// menu's whole vocabulary, not including the button that was pressed.
+//
+// `Against` asks `agreedWords`, which needs ONE word in common. So a thirteen-word identity
+// agrees with any menu carrying any one of them, and the evidence that refused a different real
+// menu in [[Experiment-081-the-first-real-negative]] stops discriminating.
+//
+// This is not a defect in this file and nothing here should be changed to paper over it: the
+// rule is `controlWords`' own, a one-word button is the case it was built for, and a reader of
+// `corroborated` has to know it is a statement about the rectangle they were given. It is
+// recorded here because the inversion was asserted in an experiment write-up before it was
+// measured, and an assertion about one's own code is the cheapest kind to get wrong.
+func TestAPanelsVocabularyAgreesWithAlmostAnything(t *testing.T) {
+	panel := []string{"ark", "clug", "discord", "exit", "friends", "main", "menu", "mode",
+		"on", "photo", "settings", "to", "toggle"}
+
+	// A DIFFERENT MENU ENTIRELY. One word in common — the word that is on every screen
+	// of the game with a menu button in the corner — and the verdict is agreement.
+	var elsewhere observe.FreshWords
+	for i := 0; i < 3; i++ {
+		elsewhere.Saw([]string{"inventory", "cryofridge", "20000", "pcs", "exit"})
+	}
+	got, why := elsewhere.Against(panel)
+	if got != observe.TextCorroborated {
+		t.Fatalf("%s — %s", got, why)
+	}
+	if !strings.Contains(why, `"exit"`) {
+		t.Errorf("the reason does not name the one word it rested on: %s", why)
+	}
+
+	// AND THE SAME READING CONTRADICTS THE BUTTON-SCALE IDENTITY of Experiment 080,
+	// which is the comparison that makes the point: one control, one word, and the
+	// evidence does its job.
+	if got, why := elsewhere.Against([]string{"settings"}); got != observe.TextContradicted {
+		t.Errorf("a one-word control was not contradicted by a menu without it: "+
+			"%s — %s", got, why)
+	}
+}

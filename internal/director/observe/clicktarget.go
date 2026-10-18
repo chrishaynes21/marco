@@ -790,6 +790,20 @@ func sameRect(a, b Region) bool {
 // invented threshold this package has a measured history of getting wrong.
 func SameRegion(a, b Region) bool { return sameRect(a, b) }
 
+// Encloses is `encloses`, for a caller outside this package asking whether one rectangle is a
+// container of another.
+//
+// Exported for the same reason as SameRegion: a report that wants to say *this control contains
+// that one, so it is not a button* must use the relation that already decides what a container
+// is, rather than a second opinion free to drift from it. Edges may touch — a menu bar and its
+// first item share a left edge — and two identical rectangles do not enclose each other, which
+// is what the area comparison inside is for.
+//
+// [[Experiment-082-a-control-that-is-half-the-window]] is why anything outside needs to ask: a
+// rectangle recorded as a CONTAINER on one screen became a CONTROL on another, because
+// Containers is screen-local and the proposer offered nothing smaller there.
+func Encloses(outer, inner Region) bool { return encloses(outer, inner) }
+
 // Arrived folds one settled screen change and attributes it, or records that it could not.
 //
 // Attribution is to the MOST RECENT pending press that was made on the screen being left and is

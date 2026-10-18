@@ -110,6 +110,8 @@ func main() {
 		"follow a reloaded workflow through the production contracts, executing nothing")
 	anchor := flag.Bool("anchor", false,
 		"measure how many explicit screen confirmations a saved route needs in a fresh observer")
+	button := flag.Bool("button", false,
+		"ask whether the button somebody clicked can be isolated inside the panel the proposer offered, from the click position, the region proposals and the OCR word boxes")
 	screenid := flag.Bool("screenid", false,
 		"ask whether a demonstrated screen can be recognised again from saved visual evidence")
 	semantic := flag.Bool("semantic", false,
@@ -199,6 +201,13 @@ func main() {
 			}
 			if *semantic {
 				if err := reportSemanticScreens(dir, *limit, *stride); err != nil {
+					fmt.Fprintf(os.Stderr, "perceptionreplay: %s: %v\n", dir, err)
+					os.Exit(1)
+				}
+				continue
+			}
+			if *button {
+				if err := reportButtonTargets(dir, *limit); err != nil {
 					fmt.Fprintf(os.Stderr, "perceptionreplay: %s: %v\n", dir, err)
 					os.Exit(1)
 				}

@@ -244,6 +244,15 @@ func reportVisualDemonstration(w io.Writer, obs *fastobserve.Observer, res visua
 	}
 	fmt.Fprintf(w, "  %d screen(s) seen, %d visited in order, %d demonstrated control(s)\n",
 		len(obs.Screens()), len(obs.Walk()), len(obs.Registry()))
+	// AND WHAT THE STABILISER DID WITH THE LOOKS, because "1 screen seen in 331 looks"
+	// has THREE causes and the report named two. A second screen that appeared and never
+	// held for the settle window is neither "the menu did not move" nor "the two menus
+	// folded into one": it is a screen Marco declined to believe, and `Unsettled` is the
+	// count of precisely that. [[Experiment-082-a-control-that-is-half-the-window]].
+	if sb := obs.Stability(); sb.Looks > 0 {
+		fmt.Fprintf(w, "  looks: %d settled, %d unsettled, %d warming, %d promotion(s)\n",
+			sb.Settled, sb.Unsettled, sb.Warming, sb.Promotions)
+	}
 	// WHAT THE READER DID, including when it did nothing. A demonstration whose controls
 	// have no names is a different report depending on whether OCR was absent, too slow,
 	// or ran and found no words — and the three send a reader to three different places.
@@ -256,13 +265,24 @@ func reportVisualDemonstration(w io.Writer, obs *fastobserve.Observer, res visua
 	// CLASSIFIED, which is what the producer turned into an intent -- and the ignore
 	// reasons beside it, because "no press reached the correlator" and "every press was
 	// refused as unplaceable" send a reader to different places.
-	fmt.Fprintf(w, "  presses: %d of %d classified", in.Classified, in.Received)
+	//
+	// EVENTS, not presses. This line said `presses:` and counted navigation intents of
+	// every kind, so a session of four Escapes and no clicks read as four presses -- and
+	// it was read that way twice, by the owner and by the author, on the two live runs
+	// that produced no control. `Classified` is incremented on both the key path and the
+	// pointer path of the producer; only the clicks line below is about clicks.
+	fmt.Fprintf(w, "  input: %d of %d event(s) classified", in.Classified, in.Received)
 	for why, n := range in.Ignored {
 		fmt.Fprintf(w, ", %d %s", n, why)
 	}
 	if in.Unavailable != "" {
 		fmt.Fprintf(w, " — the mouse was not watched: %s", in.Unavailable)
 	}
+	fmt.Fprintln(w)
+	// AND WHAT BECAME OF THE CLICKS, SEPARATELY, from the observer and the correlator
+	// rather than from the producer. `ClickEvidence.Presses` exists for exactly this and
+	// says so in its own doc: a report with four subsets and no total cannot tell
+	// "nothing was attributed" from "nothing arrived".
 	fmt.Fprintln(w)
 	if len(d.Steps) == 0 {
 		return
@@ -293,8 +313,17 @@ func reportVisualDemonstration(w io.Writer, obs *fastobserve.Observer, res visua
 	if reg := obs.Registry(); len(reg) > 0 {
 		fmt.Fprintf(w, "\n  Controls, and what each press was taken to be\n")
 		for _, r := range reg {
-			fmt.Fprintf(w, "    %s\n", controlLine(r))
+			fmt.Fprintf(w, "    %s\n", controlLine(r, reg))
 		}
+	} else {
+		// AND WHY THERE IS NONE, HERE, not only when there was no step either. The
+		// live run that prompted this had three steps and zero controls and the
+		// report said nothing about the zero: the person had toggled Ark's pause
+		// menu with Escape, which moves between screens perfectly well and can
+		// never name a control. A session that walked four screens and learned
+		// nothing to press is the case most in need of a sentence.
+		fmt.Fprintf(w, "\n  No control was identified.\n    %s\n",
+			whyNoControlWasIdentified(obs, res))
 	}
 	if un := d.Unresolved(); len(un) > 0 {
 		fmt.Fprintf(w, "\n  Unresolved — a person could answer these:\n")
@@ -317,12 +346,16 @@ func shortTarget(id observe.VisualTargetID) string {
 // Its own function because the report around it needs a live observer and a running reader to
 // produce, and the claim being made here is about this one line. See
 // TestTheReportNamesTheScreenEachControlWasDemonstratedOn.
-func controlLine(r observe.TargetRecord) string {
+//
+// `all` is every control of the session, because two of the things most worth saying about one
+// control are statements about the others — see notAButton.
+func controlLine(r observe.TargetRecord, all []observe.TargetRecord) string {
 	said := "nothing was read on it"
 	if len(r.Text) > 0 {
 		said = fmt.Sprintf("read as %q", strings.Join(r.Text, " "))
 	}
-	out := fmt.Sprintf("%-12s on %-10s %d press(es), %s", r.ID, r.Screen, r.Presses, said)
+	out := fmt.Sprintf("%-12s on %-10s %s  %d press(es), %s",
+		r.ID, r.Screen, regionSize(r.Where), r.Presses, said)
 	if len(r.Destinations) > 0 {
 		out += ", led somewhere"
 	} else {
@@ -332,5 +365,69 @@ func controlLine(r observe.TargetRecord) string {
 		out += fmt.Sprintf("  [could not be told from %v on this screen]",
 			r.MaybeOneControlWith)
 	}
+	if why := notAButton(r, all); why != "" {
+		out += "\n                  NOT A BUTTON: " + why
+	}
 	return out
+}
+
+// regionSize is a control's rectangle as a share of the window.
+//
+// Printed on every line, with no judgement attached, because it is the whole difference between
+// the two game-menu demonstrations and neither report showed it:
+// [[Experiment-080-it-learned-the-word-settings]] learned 16%x5% and
+// [[Experiment-082-a-control-that-is-half-the-window]] learned 49%x64%, and the two reports were
+// indistinguishable. A share rather than pixels because that is what the artifact stores; the
+// window's size is not in it, on purpose.
+func regionSize(where []observe.Region) string {
+	if len(where) == 0 {
+		return "   no shape"
+	}
+	w := where[0]
+	return fmt.Sprintf("%3.0f%%x%3.0f%%", w.Width*100, w.Height*100)
+}
+
+// notAButton says why this control cannot be the thing that was pressed, or nothing.
+//
+// Two statements, and NEITHER is a threshold. This subsystem has a measured history of invented
+// numbers being wrong, and "a control bigger than X% of the window is a panel" would be one — so
+// both of these are facts the session already recorded about rectangles it already has:
+//
+//	it is a container     some control of this session recorded this exact rectangle as a
+//	                      container it was distinguished FROM. Containers is screen-local, so
+//	                      on a screen where the proposer offered nothing smaller the same
+//	                      rectangle became a control by default. That is
+//	                      [[Experiment-082-a-control-that-is-half-the-window]], where
+//	                      control_1.containers[0] and control_2.readings[0] are the same
+//	                      rectangle to the last decimal digit.
+//	it contains a control the stronger form of the same thing, and it needs no other screen:
+//	                      a rectangle holding another control of this session is that
+//	                      control's container, whatever the proposer called it.
+//
+// Reporting only. Nothing here refuses a save, changes a match or withholds an identity; the
+// owner's standing instruction is that pixel execution is not authorised, and a report that
+// silently dropped evidence would be a worse answer to it than one that prints the problem.
+func notAButton(r observe.TargetRecord, all []observe.TargetRecord) string {
+	if len(r.Where) == 0 {
+		return ""
+	}
+	mine := r.Where[0]
+	for _, o := range all {
+		for _, c := range o.Containers {
+			if observe.SameRegion(c, mine) {
+				return fmt.Sprintf("this is the rectangle %s was distinguished "+
+					"from, recorded there as a container it is not", o.ID)
+			}
+		}
+	}
+	for _, o := range all {
+		if o.ID == r.ID || len(o.Where) == 0 {
+			continue
+		}
+		if observe.Encloses(mine, o.Where[0]) {
+			return fmt.Sprintf("it contains %s, so it is that control's container",
+				o.ID)
+		}
+	}
+	return ""
 }

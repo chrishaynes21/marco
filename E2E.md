@@ -570,18 +570,65 @@ navigation: it is watched, it is counted, and it names nothing — the first liv
 was twenty-nine events of which one was a pointer press, and that one was the click onto the
 terminal. [[Experiment-081-the-first-real-negative]].
 
+### Pick the button the game lets you click
+
+Not every entry in a game menu is a mouse target. Ark's pause menu navigates by key — the
+owner's account is *there's not a left click for settings, I can click resume to close the
+menu* — and a demonstration of an entry the mouse cannot press is a demonstration of nothing,
+however carefully it is performed.
+
+**The best button for this test is one that CLOSES the menu**, because returning to the menu is
+then the second visit, and the click itself causes the change rather than a key doing it:
+
+| | |
+|---|---|
+| click | the control being learned, pressed on visit one |
+| the key that reopens the menu | how you get back, and it names nothing — which is fine |
+| click again | the same control, on visit two |
+
+Resume, Back, Close, Continue: any of them. The word that gets saved is whatever the control
+reads, and `"resume"` is as good an identity as `"settings"` — better, for the different-menu
+negative, since no other menu carries it.
+
 So demonstrate the SAME button twice, going away and coming back:
 
-1. click the button (say Settings);
-2. come back out of that menu, by whatever the game's own way is -- Escape, or a Back button;
+1. click the button;
+2. come back to that menu, by whatever the game's own way is -- Escape, or a Back button;
 3. click the SAME button again;
 4. ENTER in the terminal.
 
 What changes in the report when it worked:
 
 ```
-target_1   on visual_1   2 press(es), read as "settings", led somewhere
+clicks:    2 reached the observer, 2 given to the correlator
+target_1   on visual_1   16%x  5%  2 press(es), read as "resume", led somewhere
 ```
+
+**The size is the first thing to read, before the words.** A game menu's proposer does not
+reliably box one entry, and the shape of a bad answer looks exactly like a good one everywhere
+else in the report:
+
+```
+target_1   on visual_1   49%x 64%  1 press(es), read as "ark clug discord exit friends
+                                   main menu mode on photo settings to toggle", led somewhere
+target_2   on visual_2   58%x100%  1 press(es), nothing was read on it, led somewhere
+                  NOT A BUTTON: this is the rectangle target_1 was distinguished from,
+                  recorded there as a container it is not
+```
+
+That is [[Experiment-082-a-control-that-is-half-the-window]], measured: a control a third of the
+screen across carrying the menu's whole vocabulary, and a second one that is the first one's
+container to the last decimal digit. `[geometric]`, "led somewhere" and the right walk all held.
+Thirteen words on a control is not a rich identity — it is a reading of every button beside the
+one that was pressed, and at that scale the `reacquire` corroboration becomes a rubber stamp,
+because sharing ONE word is all it asks.
+
+So: a two-digit size and one or two words is a button. A size near the window's and a sentence
+of words is a panel, and nothing further in the report will say so.
+
+The `clicks:` line first, every time. It is the only line in the report that is about pointer
+presses: `input: N of M event(s) classified` counts navigation intents of EVERY kind, including
+keys, and read as a count of clicks it says a session of four Escapes made four presses.
 
 `2 press(es)` is the whole point, and `seen: 2` appears on the saved step. A control pressed
 twice has two readings of its rectangle and two chances to be read, and the step's `unresolved`

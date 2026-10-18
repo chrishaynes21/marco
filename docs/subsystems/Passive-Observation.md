@@ -1567,6 +1567,40 @@ it refuses those looks. Visible is fine; in front is not.
   ever stated, reported as "no press landed on a settled screen — try again more slowly",
   which is the advice for a different failure. `whyNothingWasDemonstrated` now names the first
   broken link of the chain with its own numbers, and the preamble says to click before the run
+- **Ark's pause menu, closed and reopened, comes back as the same screen.** `2 screen(s)
+  seen, 4 visited in order` from a session that was four Escapes and no clicks at all — the
+  first link of the twice-visited validation, on real pixels, which a synthetic fixture could
+  not establish because its regions are identical on both visits by construction. What is
+  left is the second link: two CLICKS on one button merging into one identity.
+  [[Experiment-081-the-first-real-negative]]
+- **`InputStats.Classified` is not a count of clicks, and a report that labelled it `presses:`
+  said four Escapes were four presses.** It is incremented on both the key path and the
+  pointer path of the producer (`navsource.go:381` and `:445`). The line is now `input: N of M
+  event(s) classified` with a separate `clicks:` line built from `fastobserve.Stats.Presses`
+  and `ClickEvidence.Presses` — the total whose own doc says *a report with four subsets and
+  no total cannot tell "nothing was attributed" from "nothing arrived"*, and which nothing
+  printed. [[Experiment-081-the-first-real-negative]]
+- **A demonstrated control came out 932×690 pixels, and a second one was a container byte for
+  byte.** `control_1` is 49%×64% of the window with thirteen words on it — the menu's whole
+  vocabulary, not including the button pressed — and `control_2.readings[0]` is
+  `control_1.containers[0]` to the last decimal digit. Nothing promoted it: `Containers` is
+  screen-local, so on the screen where the proposer offered nothing smaller the container became
+  a control by default, and the report printed `[geometric]`, "led somewhere" and no size at
+  all. **At panel scale the text corroboration inverts** — a rectangle reading thirteen menu
+  words is `corroborated` by any menu carrying one of them, because `agreedWords` needs one — so
+  [[Experiment-081-the-first-real-negative]]'s negative worked BECAUSE the control was one word
+  wide. [[Experiment-082-a-control-that-is-half-the-window]]
+- **The label of the button you click is the one OCR stops reading, so the nearest word is a
+  NEIGHBOUR's label.** Measured on `rl-freeplay-1` against the one button a person established:
+  the existing rule — smallest proposal containing the click — identified it correctly on **both**
+  presses that can be checked, while the nearest word anywhere was `ITEM`, the entry *below* PLAY,
+  and the word box under a second click was `FIELD`, a sub-label. The look's reading carries ITEM
+  SHOP, ROCKET PASS, GARAGE, CLUB, PROFILE, SETTINGS and QUIT and **not** PLAY, because clicking
+  an entry highlights it and a filled bar renders unlike its neighbours. The bias is strongest at
+  the exact moment the rule would be consulted. A one-label-per-proposal rule rescued **nothing**
+  — 0 narrowed of 17 — and 16 of 17 clicks landed in padding. So the blocker is the PROPOSER on
+  Ark's menus offering no button-sized rectangle, not the click-to-target rule and not the text.
+  [[Experiment-083-the-label-of-the-button-you-click-is-the-one-that-is-missing]]
   rather than diagnosing after it. [[Experiment-081-the-first-real-negative]]
 - **Appearance costs five correct recognitions and fixes none of the wrong ones.** The
   ambiguity rule would decline 1 correct answer under arrangement and 5 under palette,
