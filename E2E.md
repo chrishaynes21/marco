@@ -564,6 +564,12 @@ One press is one press. The recorder says so on every step it records from one â
 second press on a separate visit is the only independent evidence about where the first one's
 control was.
 
+**With the MOUSE, every time.** A control is identified from a pointer press landing inside a
+region the proposer found. Moving the highlight with the arrow keys and pressing Enter is
+navigation: it is watched, it is counted, and it names nothing â€” the first live attempt at this
+was twenty-nine events of which one was a pointer press, and that one was the click onto the
+terminal. [[Experiment-081-the-first-real-negative]].
+
 So demonstrate the SAME button twice, going away and coming back:
 
 1. click the button (say Settings);

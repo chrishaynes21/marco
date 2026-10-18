@@ -150,6 +150,14 @@ func runDemonstrateVisual(args []string) int {
 				settle, interval)
 			fmt.Printf("  Perform the routine once, with your own hands. Nothing is " +
 				"injected.\n")
+			// CLICK, NOT KEYS. A control is identified from a pointer press landing
+			// inside something the proposer found; a highlight moved by the arrow
+			// keys is navigation and names nothing. The first live game-menu
+			// attempt was 29 events of which one was a pointer press, and the
+			// report could only be decoded by somebody who knew the ignore
+			// vocabulary. See whyNothingWasDemonstrated.
+			fmt.Printf("  CLICK the controls with the MOUSE. Keys are watched " +
+				"and cannot name a control.\n")
 			fmt.Printf("  Only what the proposer saw is kept: no frames, no screenshots, " +
 				"no press coordinates.\n")
 			fmt.Printf("  Starting in %s. Press ENTER when you are done.\n\n", *delay)
@@ -174,10 +182,11 @@ func runDemonstrateVisual(args []string) int {
 	draft := workflow.Learn(name, obs.Walk(), obs.Clicks(), obs.Registry())
 	reportVisualDemonstration(os.Stdout, obs, res, draft, reader)
 	if len(draft.Steps) == 0 {
-		fmt.Fprintf(os.Stderr,
-			"\ndirector: nothing was demonstrated — no press landed on a settled screen,\n"+
-				"so there is no step to save. Try again more slowly, or check that the\n"+
-				"presses above were attributed.\n")
+		// WHICH LINK OF THE CHAIN BROKE, rather than a guess at one of them. The
+		// first live game-menu attempt was told "try again more slowly" when what
+		// had happened was that the menu was navigated with the keyboard.
+		fmt.Fprintf(os.Stderr, "\ndirector: nothing was demonstrated, so there is no "+
+			"step to save.\n  %s\n", whyNothingWasDemonstrated(obs, res))
 		return 1
 	}
 

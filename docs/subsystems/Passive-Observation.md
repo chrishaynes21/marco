@@ -1554,6 +1554,20 @@ it refuses those looks. Visible is fine; in front is not.
   so 98% means a rectangle of this shape is in this place, not that the settings button is
   there. [[Experiment-080-it-learned-the-word-settings]],
   [[ADR-233-a-match-that-can-be-corroborated-by-its-words]]
+- **A different real menu matched the saved rectangle on EVERY look and its own text refused
+  it.** Ark's saved `settings` control, 312×52, measured against a different Ark menu: 100%
+  matched, 0 collisions, nothing in the geometric half of the report even slightly unsure —
+  and `contradicted`, because 75 fresh readings of that rectangle said "SFX Volume 100". Two
+  runs a geometric matcher cannot tell apart, separated by evidence the demonstration already
+  carried. The synthetic negative proved the mechanism; this proves the behaviour.
+  [[Experiment-081-the-first-real-negative]]
+- **A demonstration can be performed perfectly and teach nothing, because a control is learned
+  from a CLICK.** Twenty-nine events, one pointer press, and it could not be placed in the
+  window: the menu had been navigated with the keyboard. A defensible limit that nothing had
+  ever stated, reported as "no press landed on a settled screen — try again more slowly",
+  which is the advice for a different failure. `whyNothingWasDemonstrated` now names the first
+  broken link of the chain with its own numbers, and the preamble says to click before the run
+  rather than diagnosing after it. [[Experiment-081-the-first-real-negative]]
 - **Appearance costs five correct recognitions and fixes none of the wrong ones.** The
   ambiguity rule would decline 1 correct answer under arrangement and 5 under palette,
   grid or detector, while BIND-WRONG stays at 2 for all of them. The appearance measures
