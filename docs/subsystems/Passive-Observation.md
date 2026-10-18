@@ -1532,6 +1532,16 @@ it refuses those looks. Visible is fine; in front is not.
   screen. No pixel adapter was built.
   [[Experiment-078-the-conjunction-is-two-terms-wearing-three-hats]],
   [[ADR-232-expectation-has-to-come-from-somewhere-else]]
+- **The live loop never sets a look's text, and the first human game-menu demonstration
+  is what found it.** Three clicks in Ark: all three captured, one transition of three
+  observed, and **no control read at all** — the one control learned is a 650×214
+  rectangle with no name, on a screen the proposer had segmented into 253 regions. The
+  cause is one line that does not exist: `fastobserve.Look.Text` is filled only in
+  `cmd/perceptionreplay`, so `observe-screen`, `demonstrate-visual` and `reacquire` all
+  run blind to text by construction. `Control.Text` is documented as the strongest
+  identity evidence an artifact can carry; a live pixel demonstration cannot write it,
+  and nobody knew until a person tried.
+  [[Experiment-079-the-first-human-game-menu-demonstration]]
 - **Appearance costs five correct recognitions and fixes none of the wrong ones.** The
   ambiguity rule would decline 1 correct answer under arrangement and 5 under palette,
   grid or detector, while BIND-WRONG stays at 2 for all of them. The appearance measures
