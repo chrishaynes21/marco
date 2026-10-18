@@ -806,3 +806,67 @@ func (a Artifact) Audit() map[int]string {
 	}
 	return out
 }
+
+// VisualTargets is every demonstrated control of this artifact, WITHOUT a screen binding.
+//
+// # Why there are two of these
+//
+// `Targets` answers "which controls are on the screens I have bound", and it skips a step whose
+// source screen nothing bound — correctly, because the question it serves is scoped to a screen.
+// This answers a different question:
+//
+//	I'd shift the question from "which previously seen screen does this frame resemble?" to
+//	"can I find the particular control I was shown, in the expected local context, with enough
+//	evidence to act?"
+//
+// [[Experiment-076-nothing-the-artifact-carries-says-which-screen-this-is]] is why. Seven
+// measures now fail to separate a correct screen binding from an incorrect one, so a path that
+// must bind a screen before it may look for a control inherits an error rate nothing can detect.
+// `observe.ReacquireStored` never needed the screen — it matches a control's readings against
+// the proposals in front of it — and this is the view that lets it be asked.
+//
+// # What it does NOT claim
+//
+// Dropping the screen drops evidence, and that is the whole cost: a control found "somewhere"
+// is a weaker claim than a control found on the screen it was demonstrated on, and this returns
+// targets whose `Screen` is empty so nothing downstream can mistake one for the other.
+// `Reacquisition.Screen` comes back empty too, and a caller that wants the screen as supporting
+// context must bind it and say so.
+//
+// Enforced by TestVisualTargetsCarryNoScreen and TestVisualTargetsSurviveAnArtifactWithNoScreens.
+func (a Artifact) VisualTargets() []observe.StoredTarget {
+	byLabel := map[string]Control{}
+	for _, c := range a.Controls {
+		byLabel[c.Label] = c
+	}
+	seen := map[string]bool{}
+	var out []observe.StoredTarget
+	for _, st := range a.Steps {
+		if st.Control == "" || seen[st.Control] {
+			continue
+		}
+		c, ok := byLabel[st.Control]
+		if !ok {
+			continue
+		}
+		// A CONTROL WITH NO VISUAL EVIDENCE IS NOT A VISUAL TARGET. A desktop
+		// demonstration's controls carry a role or a label and no readings at all, and
+		// offering one here would be offering a target that can never match anything —
+		// which reads as a reacquisition failure rather than as a control that was
+		// never seen by the proposer.
+		cl, _ := a.clarified(c)
+		if len(cl.Readings) == 0 {
+			continue
+		}
+		seen[st.Control] = true
+		out = append(out, observe.StoredTarget{
+			ID: observe.VisualTargetID(cl.Label),
+			// NO SCREEN. See above: this is the screen-independent view, and an
+			// empty Screen is how a reader can tell which question was asked.
+			Uncertain:  st.Uncertain,
+			Readings:   append([]observe.Region{}, cl.Readings...),
+			Containers: append([]observe.Region{}, cl.Containers...),
+		})
+	}
+	return out
+}

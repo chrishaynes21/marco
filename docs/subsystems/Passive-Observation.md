@@ -1507,6 +1507,17 @@ it refuses those looks. Visible is fine; in front is not.
   does not contain the answer, and the next step is to stop asking it.
   [[Experiment-076-nothing-the-artifact-carries-says-which-screen-this-is]],
   [[ADR-229-proposed-a-single-qualifying-candidate-is-not-permission]]
+- **And the control alone fails worse than the screen alone.** Scored over the same
+  recording in one pass: dropping the screen gained NO match rate (47.7% against 52.4%)
+  and cost 3323 colliding matches over 616 looks, against zero when scoped, plus 2470
+  matches — 78.6% of all of them — on a screen the control had never been demonstrated
+  on. A game menu is a column of near-identical rectangles and `sameRect` cannot tell the
+  third row of one menu from the third row of another, so the screen was never supporting
+  context: it was the discriminator, and the control match was the weaker half. What the
+  design already says to use — expectation from the saved ORDER, agreement from the
+  arrangement, the target from per-control reacquisition — is the conjunction nobody has
+  measured. [[Experiment-077-the-screen-was-not-supporting-context]],
+  [[ADR-230-a-demonstration-from-pixels-and-what-the-screen-was-doing]]
 - **Appearance costs five correct recognitions and fixes none of the wrong ones.** The
   ambiguity rule would decline 1 correct answer under arrangement and 5 under palette,
   grid or detector, while BIND-WRONG stays at 2 for all of them. The appearance measures

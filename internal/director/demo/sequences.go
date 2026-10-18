@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/goal"
+	"github.com/chaynes-simpleclouds/marco/internal/director/program"
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflowstore"
 )
 
@@ -140,11 +141,13 @@ func (s *Store) ForgetSequence(name string) error {
 
 // MostRunsOfASequence is the hard ceiling on a bounded repeat.
 //
-// Twenty-five, and the number matters less than the fact that there is one: a routine asked for
-// "a hundred times" by a slip of the keyboard is a hundred times somebody's desktop is driven.
-// The ordinary step ceiling in `policy` catches it too, and this catches it with a sentence
-// about runs rather than about steps.
-const MostRunsOfASequence = 25
+// `program.MaxRuns` and not a number of its own, because two numbers for one question are two
+// answers to it -- and this one was written as a literal 25 first, beside a literal 25 in the
+// replay path and a third in the program validator.
+//
+// It is still checked HERE as well as there, for the sentence: a refusal at this point can say
+// "runs of my settings tour" while the validator can only say how many steps that came to.
+const MostRunsOfASequence = program.MaxRuns
 
 // runPrefixes are the ways of asking for a saved routine by name.
 //

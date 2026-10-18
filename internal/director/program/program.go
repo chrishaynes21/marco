@@ -127,15 +127,58 @@ type Program struct {
 	// about the request. Empty for a program whose goal declared none, which behaves
 	// exactly as before. See goal.Procedure.Outcome and verify.CheckOutcome.
 	Outcome []directorapi.Condition `json:"outcome,omitempty"`
+
+	// Runs is how many consecutive times this program's BODY appears in Steps.
+	//
+	// Zero and one both mean once, which is every program that is not a repeat. A
+	// program with Runs = 3 and nine steps is three runs of the same three, in order,
+	// and the body is what MaxSteps bounds.
+	//
+	// Declared rather than inferred. Steps could be compared for equality and the
+	// period guessed, but a routine whose second step legitimately repeats its first
+	// would be read as a two-run program with half the body -- and the consequence
+	// would be a limit silently applying to the wrong thing, which is the defect this
+	// field exists to fix.
+	Runs int `json:"runs,omitempty"`
 }
 
-// MaxSteps bounds a program.
+// Body is how many steps one run of this program is.
+//
+// The only way to ask. Reaching for `len(Steps)` means handling Runs at every call site,
+// and the one that forgets applies a complexity limit to a repetition count.
+func (p Program) Body() int {
+	if p.Runs <= 1 {
+		return len(p.Steps)
+	}
+	return len(p.Steps) / p.Runs
+}
+
+// MaxSteps bounds a program's BODY — how far one request decomposes.
 //
 // Ten because a request a person says in one breath does not decompose further than
 // that, and a "plan" longer than it is far more likely to be a decomposition bug than
 // a genuine intention. Exceeding it REJECTS: truncating would run a prefix of
 // something the user did not ask for, which is worse than doing nothing.
+//
+// That rationale is about COMPLEXITY, and it does not reach a repeat. Twenty runs of a
+// three-step routine is not a decomposition bug; it is exactly what somebody asked for,
+// and it decomposes to three. Measured live: `run my settings tour 8 times` was refused
+// as *"the request needs 24 steps and the limit is 10"*, which was this limit answering
+// a question nobody put to it. So a program says how many runs it is, and the body is
+// what this bounds. See Program.Runs and MaxRuns.
 const MaxSteps = 10
+
+// MaxRuns bounds how many times a program's body may repeat.
+//
+// Twenty-five, which is `execute.DefaultMaxIterations` — the ceiling the semantic replay
+// path has used since it existed, for the same thing: how many times one request may
+// drive the desktop. Two different numbers for one question would be two answers to it.
+//
+// The resulting worst case is 10 × 25 = 250 steps, and that is stated rather than capped
+// again with a third number. What makes a long repeat safe is not a smaller ceiling: it
+// is that the plan a person reads lists every step, cancellation is checked before each
+// one, and the count they asked for is honoured or refused and never shortened.
+const MaxRuns = 25
 
 // controlFlow are the words that mean this request is not a sequence.
 //
@@ -164,10 +207,28 @@ func Validate(p Program) error {
 	if len(p.Steps) == 0 {
 		return fmt.Errorf("the request produced no steps")
 	}
-	if len(p.Steps) > MaxSteps {
-		return fmt.Errorf("the request needs %d steps and the limit is %d; "+
+	// THE REPEAT STRUCTURE FIRST, because the two limits below bound different things
+	// and a program that lies about its shape would have them applied to the wrong one.
+	if p.Runs > 1 {
+		if p.Runs > MaxRuns {
+			return fmt.Errorf("the request asks for %d runs and the limit is %d; "+
+				"it is rejected rather than shortened, because stopping early and "+
+				"reporting success would be a lie about what was done",
+				p.Runs, MaxRuns)
+		}
+		if len(p.Steps)%p.Runs != 0 {
+			return fmt.Errorf("%d steps cannot be %d runs of anything, so this "+
+				"program does not describe its own shape", len(p.Steps), p.Runs)
+		}
+	}
+	if p.Body() > MaxSteps {
+		what := fmt.Sprintf("the request needs %d steps", p.Body())
+		if p.Runs > 1 {
+			what = fmt.Sprintf("each run of the request needs %d steps", p.Body())
+		}
+		return fmt.Errorf("%s and the limit is %d; "+
 			"it is rejected rather than shortened, because running part of it "+
-			"would do something you did not ask for", len(p.Steps), MaxSteps)
+			"would do something you did not ask for", what, MaxSteps)
 	}
 	for i, s := range p.Steps {
 		if err := validateStep(i, s); err != nil {

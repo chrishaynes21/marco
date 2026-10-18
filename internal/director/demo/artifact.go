@@ -427,6 +427,10 @@ func ExpandSequence(a workflowstore.Artifact, times int, b goal.Binder) (goal.Ex
 		Name:   fmt.Sprintf("saved sequence %q", a.Name),
 		Goal:   SequenceKind,
 		Safety: sequenceSafety(a),
+		// HOW MANY RUNS THIS IS, so that the program validator bounds the body by its
+		// complexity limit and the count by its repeat limit. Without it a three-step
+		// routine asked for four runs was refused as a twelve-step decomposition.
+		Runs: times,
 		// LEARNED, because it was: the flag is what makes a plan say where its steps
 		// came from, and a person about to watch Marco act on their desktop is entitled
 		// to see that nobody wrote these steps by hand.

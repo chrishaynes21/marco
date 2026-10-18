@@ -307,6 +307,13 @@ type Procedure struct {
 	// Name identifies it in diagnostics ("generic rename", "explorer rename").
 	Name string `json:"name"`
 	Goal Kind   `json:"goal"`
+	// Runs is how many consecutive times this procedure's steps are one request.
+	//
+	// Zero and one both mean once, which is every hand-written procedure. A saved
+	// sequence asked for three times declares three, and `program.Validate` then bounds
+	// the BODY by MaxSteps and the COUNT by MaxRuns -- two limits for two questions. See
+	// program.Program.Runs.
+	Runs int `json:"runs,omitempty"`
 	// Applications this procedure serves. EMPTY MEANS GENERIC — it serves any
 	// application that has no more specific procedure.
 	Applications []string `json:"applications,omitempty"`

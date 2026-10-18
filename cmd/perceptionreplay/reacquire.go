@@ -54,8 +54,16 @@ type targetScore struct {
 	looks                            int
 	matched, ambiguous, unobservable int
 	indistinct                       int
-	uncertain                        bool
-	presses                          int
+	// elsewhere is matches made on a look whose standing screen is NOT the one this
+	// control was demonstrated on.
+	//
+	// The number that decides whether per-control grounding is safe on its own. A replay
+	// looking for one control at a time has no screen to scope by, so every one of these
+	// is a look on which it would have been prepared to press something that is not
+	// there -- and unlike a collision it takes only one control to be wrong.
+	elsewhere int
+	uncertain bool
+	presses   int
 	// verified is a second press that landed where reacquisition said the control was,
 	// contradicted one that landed somewhere else, and declined a second press on a look
 	// where reacquisition had abstained.
@@ -92,6 +100,22 @@ func reportReacquisitionOverRecording(dir string, limit int, onnx string, delay 
 	nextInput := 0
 	scores := map[observe.VisualTargetID]*targetScore{}
 	collisions, collisionLooks := 0, 0
+	// THE SAME MEASUREMENT WITH NO SCREEN, side by side.
+	//
+	// `obs.Reacquire` asks "which of the controls on the screen I think I am standing on
+	// can I find", and [[Experiment-076-nothing-the-artifact-carries-says-which-screen-this-is]]
+	// measured that the screen half of that question has an error rate nothing can detect.
+	// So the owner moved it:
+	//
+	//	Make individual learned controls and transitions the basis for game-menu replay.
+	//	Use whole-screen matching as supporting context, not proof of identity.
+	//
+	// This scores `observe.ReacquireStored` over EVERY demonstrated target on every look,
+	// with the screen dropped, which is what a replay grounded per control would do. Both
+	// tallies come from one pass over one recording, so a difference between them is the
+	// screen and nothing else.
+	free := map[observe.VisualTargetID]*targetScore{}
+	freeCollisions, freeCollisionLooks := 0, 0
 	// THE SLOW SOURCE, if one was recorded. Same discipline as the workflow replay:
 	// ask on a settle, one outstanding, deliver late, and let the observer decide
 	// whether the answer is still about the screen in front of it.
@@ -217,6 +241,69 @@ func reportReacquisitionOverRecording(dir string, limit int, onnx string, delay 
 				}
 			}
 		}
+		// ── AND THE SAME LOOK, WITH NO SCREEN ──
+		//
+		// Every demonstrated target, not only the ones on the screen the observer
+		// believes it is standing on. A replay grounded per control has no screen to
+		// scope by, so this is what it would see.
+		//
+		// The ground-truth check is the same one and it is the number that matters: a
+		// second press on a control is independent evidence about where the first one's
+		// control was, and it does not care which screen anybody thought they were on.
+		if len(lk.Regions) > 0 {
+			freeSeen := map[observe.VisualTargetID]observe.Region{}
+			for _, rec := range obs.Registry() {
+				st := observe.StoredTarget{
+					ID: rec.ID, Readings: rec.Where, Containers: rec.Containers,
+				}
+				r := observe.ReacquireStored(st, lk.Regions)
+				sc := score(free, r)
+				if pressed[rec.ID] {
+					// THE LOOK THAT COULD PROVE IT. Scored as verified,
+					// contradicted or declined, never as an ordinary look.
+					if r.Result != observe.ReacquireMatched {
+						sc.declined++
+						continue
+					}
+					var landed observe.Region
+					for _, w := range lk.Presses {
+						if l, ok := smallestContaining(lk.Regions, w); ok &&
+							agreesWithAny(rec.Where, l) {
+							landed = l
+						}
+					}
+					if sameRegion(r.Where, landed) {
+						sc.verified++
+					} else {
+						sc.contradicted++
+					}
+					continue
+				}
+				sc.looks++
+				switch r.Result {
+				case observe.ReacquireMatched:
+					sc.matched++
+					freeSeen[rec.ID] = r.Where
+					if rec.Screen != obs.Screen() {
+						sc.elsewhere++
+					}
+				case observe.ReacquireAmbiguous:
+					sc.ambiguous++
+				default:
+					sc.unobservable++
+					if r.Indistinct > 0 {
+						sc.indistinct++
+					}
+				}
+			}
+			// TWO TARGETS, ONE RECTANGLE — across the whole registry this time, so a
+			// control from another menu colliding with this one is counted. That is
+			// the cost the screen was paying for, and it has to be visible.
+			if n := collidingPairs(freeSeen); n > 0 {
+				freeCollisions += n
+				freeCollisionLooks++
+			}
+		}
 		// TWO TARGETS, ONE RECTANGLE. At least one is wrong.
 		if n := collidingPairs(seen); n > 0 {
 			collisions += n
@@ -241,6 +328,7 @@ func reportReacquisitionOverRecording(dir string, limit int, onnx string, delay 
 		}
 	}
 	printReacquisition(dir, obs, scores, collisions, collisionLooks, look)
+	printScreenFreeReacquisition(free, freeCollisions, freeCollisionLooks, look)
 	return nil
 }
 
@@ -411,4 +499,95 @@ func printReacquisition(dir string, obs *fastobserve.Observer,
 	fmt.Printf("\n  false matches: %d colliding pair(s) over %d look(s) — two targets "+
 		"on one screen\n                 matched to the same rectangle, so at least "+
 		"one was wrong\n", collisions, collisionLooks)
+}
+
+// printScreenFreeReacquisition reports the same measurement with the screen dropped.
+//
+// Side by side with the screen-scoped one above, because the only useful reading is the
+// difference. Three questions, in the order they decide anything:
+//
+//  1. Did dropping the screen produce WRONG answers? Collisions and contradictions are the two
+//     kinds of wrongness available without a person, and they are printed first.
+//
+//  2. Did it gain reacquisitions? A control found anywhere is a weaker claim than one found on
+//     the screen it was demonstrated on, and the gain is what that weakening buys.
+//
+//  3. Did it gain them where it mattered — on the looks a second press could verify?
+//
+//     Do not assume local matching is reliable merely because global screen matching failed.
+func printScreenFreeReacquisition(scores map[observe.VisualTargetID]*targetScore,
+	collisions, collisionLooks, looks int) {
+
+	fmt.Printf("\n  %s\n", repeat("-", 74))
+	fmt.Printf("  THE SAME CONTROLS, WITH NO SCREEN BOUND\n\n")
+	fmt.Printf("  What a replay grounded per control would see: every demonstrated target\n")
+	fmt.Printf("  against every look, with no screen scoping anything. Experiment 076 is\n")
+	fmt.Printf("  why the question moved — seven measures fail to separate a correct screen\n")
+	fmt.Printf("  binding from an incorrect one.\n\n")
+
+	ids := make([]observe.VisualTargetID, 0, len(scores))
+	for id := range scores {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+
+	var matched, ambiguous, unobservable, indistinct, total, elsewhere int
+	var verified, contradicted, declined int
+	fmt.Printf("  %-12s %7s %7s %9s %12s %11s %s\n",
+		"TARGET", "looks", "matched", "ambiguous", "unobservable", "indistinct",
+		"matched elsewhere")
+	for _, id := range ids {
+		s := scores[id]
+		matched += s.matched
+		ambiguous += s.ambiguous
+		unobservable += s.unobservable
+		indistinct += s.indistinct
+		total += s.looks
+		elsewhere += s.elsewhere
+		verified += s.verified
+		contradicted += s.contradicted
+		declined += s.declined
+		fmt.Printf("  %-12s %7d %7d %9d %12d %11d %d\n",
+			id, s.looks, s.matched, s.ambiguous, s.unobservable, s.indistinct,
+			s.elsewhere)
+	}
+	if total == 0 {
+		fmt.Printf("\n  no target-look to score.\n")
+		return
+	}
+	fmt.Printf("\n  over %d target-look(s), excluding the looks a target was pressed on:\n", total)
+	fmt.Printf("      matched        %5d   %4.1f%%\n", matched, 100*float64(matched)/float64(total))
+	fmt.Printf("      ambiguous      %5d   %4.1f%%   (abstention, not an error)\n",
+		ambiguous, 100*float64(ambiguous)/float64(total))
+	fmt.Printf("      unobservable   %5d   %4.1f%%   (abstention, not an error)\n",
+		unobservable, 100*float64(unobservable)/float64(total))
+	fmt.Printf("        of which %d could not be told from a region that merely CONTAINED "+
+		"the press\n", indistinct)
+
+	// THE NUMBER THAT DECIDES IT, and it takes only one control to be wrong.
+	fmt.Printf("\n  matched on a look of a screen it was NOT demonstrated on: %d"+
+		" (%.1f%% of matches)\n", elsewhere, 100*float64(elsewhere)/float64(max(matched, 1)))
+	if elsewhere > 0 {
+		fmt.Printf("      Every one is a look on which a replay looking for this control\n")
+		fmt.Printf("      alone would have been prepared to press something that is not\n")
+		fmt.Printf("      there. Unlike a collision it takes only one control to be wrong.\n")
+	}
+
+	// THE WRONGNESS, FIRST AMONG THE CONCLUSIONS.
+	fmt.Printf("\n  GROUND TRUTH, from second presses only:\n")
+	fmt.Printf("      %d verified, %d contradicted, %d declined\n",
+		verified, contradicted, declined)
+	fmt.Printf("\n  collisions: %d pair(s) over %d look(s)\n", collisions, collisionLooks)
+	if collisions == 0 {
+		fmt.Printf("      no two controls claimed one rectangle, even with every control\n")
+		fmt.Printf("      of every menu competing. That is the cost the screen was paying\n")
+		fmt.Printf("      for, and on this recording it was zero.\n")
+	} else {
+		fmt.Printf("      AT LEAST %d WRONG. Dropping the screen let controls from\n", collisions)
+		fmt.Printf("      different menus claim one rectangle, which the screen scoping\n")
+		fmt.Printf("      was preventing.\n")
+	}
+	fmt.Printf("\n  A match is not permission, and a match rate is not a rate of right\n")
+	fmt.Printf("  answers. The two numbers above that a person did not label are the\n")
+	fmt.Printf("  contradictions and the collisions.\n")
 }

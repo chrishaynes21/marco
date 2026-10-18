@@ -610,3 +610,99 @@ func TestTheStoreNeverDecidesThatTwoScreensAreTheSame(t *testing.T) {
 		t.Fatal("the store bound a workflow from one screen and its own evidence")
 	}
 }
+
+// THE SCREEN-INDEPENDENT VIEW OF A WORKFLOW'S CONTROLS.
+//
+// [[Experiment-077-the-screen-was-not-supporting-context]] measured what dropping the screen
+// costs — 3323 colliding matches and 2470 matches on screens a control was never demonstrated on
+// — so this view exists to make the weaker question ASKABLE and distinguishable, not preferable.
+// An empty Screen is how a reader can tell which question was asked.
+func TestVisualTargetsCarryNoScreen(t *testing.T) {
+	a := artifactWithRegions(t)
+	scoped := a.Targets(workflowstore.Binding{
+		Screens: map[string]observe.VisualScreenID{"screen_a": "visual_7"},
+	})
+	free := a.VisualTargets()
+	if len(scoped) == 0 || len(free) == 0 {
+		t.Fatalf("scoped %d, free %d — the fixture offers nothing to compare",
+			len(scoped), len(free))
+	}
+	if len(scoped) != len(free) {
+		t.Errorf("the two views disagree about how many controls there are: %d and %d",
+			len(scoped), len(free))
+	}
+	for _, s := range scoped {
+		if s.Screen == "" {
+			t.Error("the SCOPED view returned a target with no screen, so the two " +
+				"views are indistinguishable")
+		}
+	}
+	for _, f := range free {
+		if f.Screen != "" {
+			t.Errorf("the screen-independent view carries screen %q, so a caller "+
+				"could mistake the weaker claim for the stronger one", f.Screen)
+		}
+		if len(f.Readings) == 0 {
+			t.Errorf("%s carries no reading, so it can never match anything", f.ID)
+		}
+	}
+}
+
+// AND A CONTROL WITH NO VISUAL EVIDENCE IS NOT A VISUAL TARGET.
+//
+// A desktop demonstration's controls carry a role or a label and no readings at all. Offering
+// one here would offer a target that can never match any proposal — which reads as a
+// reacquisition FAILURE rather than as a control the proposer has never seen.
+func TestVisualTargetsSkipAControlWithNoVisualEvidence(t *testing.T) {
+	a := workflowstore.Artifact{
+		Version: workflowstore.Version, Name: "a desktop routine",
+		Controls: []workflowstore.Control{
+			{Label: "control_1", Role: "rename_command"},
+			{Label: "control_2", Text: []string{"Gaming"}},
+		},
+		Steps: []workflowstore.Step{
+			{Position: 0, Control: "control_1", Verb: "invoke"},
+			{Position: 1, Control: "control_2", Verb: "open"},
+		},
+	}
+	if got := a.VisualTargets(); len(got) != 0 {
+		t.Errorf("a routine with no pixel evidence offered %d visual target(s): %+v",
+			len(got), got)
+	}
+	// AND THE ARTIFACT IS STILL PERFECTLY VALID. A desktop routine is not a broken
+	// pixel one; it answers a different question and `director reacquire` says so.
+	body, err := a.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := workflowstore.Unmarshal(body); err != nil {
+		t.Errorf("a desktop routine no longer validates: %v", err)
+	}
+}
+
+// artifactWithRegions is a saved workflow whose controls carry pixel evidence.
+func artifactWithRegions(t *testing.T) workflowstore.Artifact {
+	t.Helper()
+	a := workflowstore.Artifact{
+		Version: workflowstore.Version, Name: "enter free play",
+		Screens: []workflowstore.Screen{{Label: "screen_a"}, {Label: "screen_b"}},
+		Controls: []workflowstore.Control{{
+			Label:      "control_1",
+			Readings:   []observe.Region{{X: 0.45, Y: 0.57, Width: 0.09, Height: 0.013}},
+			Containers: []observe.Region{{X: 0.41, Y: 0.56, Width: 0.18, Height: 0.031}},
+		}},
+		Steps: []workflowstore.Step{{
+			Position: 0, From: "screen_a", To: "screen_b",
+			Control: "control_1", Cause: "click", Seen: 1,
+		}},
+	}
+	body, err := a.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	back, err := workflowstore.Unmarshal(body)
+	if err != nil {
+		t.Fatalf("the fixture is not a valid artifact: %v", err)
+	}
+	return back
+}

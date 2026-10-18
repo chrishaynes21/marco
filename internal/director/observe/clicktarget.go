@@ -781,6 +781,15 @@ func sameRect(a, b Region) bool {
 	return containsCentre(a, b) && containsCentre(b, a)
 }
 
+// SameRegion is sameRect, for a caller outside this package that has to ask the same question.
+//
+// Exported for one reason and it is the reason sameRect exists: a caller deciding whether two
+// reacquisitions landed in the same place must use the relation that decides whether two
+// readings are one control, or it would be a second opinion about what "the same control" means,
+// free to drift from the first. An overlap fraction computed by a command would be exactly the
+// invented threshold this package has a measured history of getting wrong.
+func SameRegion(a, b Region) bool { return sameRect(a, b) }
+
 // Arrived folds one settled screen change and attributes it, or records that it could not.
 //
 // Attribution is to the MOST RECENT pending press that was made on the screen being left and is

@@ -1,6 +1,7 @@
 package program_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -254,5 +255,74 @@ func TestRememberIsAProgramStep(t *testing.T) {
 	// whole design — the variable does not exist yet when the program is validated.
 	if got := p.Steps[1].Operation.Targets[0].Phrase; got != "$save" {
 		t.Fatalf("step 2 target = %q, want the unresolved $save", got)
+	}
+}
+
+// COMPLEXITY AND REPETITION ARE TWO LIMITS, not one.
+//
+// Measured live: `run my settings tour 8 times` — a three-step routine — was refused as *"the
+// request needs 24 steps and the limit is 10"*. That is MaxSteps answering a question nobody put
+// to it. Its own doc says what it is for: *"a request a person says in one breath does not
+// decompose further than that, and a plan longer than it is far more likely to be a decomposition
+// bug than a genuine intention"*. Twenty runs of three steps decomposes to three.
+func TestComplexityAndRepetitionAreBoundedSeparately(t *testing.T) {
+	body := func(n int) []program.Step {
+		var out []program.Step
+		for range n {
+			out = append(out, program.Step{
+				Phrase: "click Save", FailurePolicy: program.Stop,
+				Operation: parse()("click Save"),
+			})
+		}
+		return out
+	}
+	runs := func(per, times int) program.Program {
+		p := program.Program{Goal: "run my settings tour", Runs: times}
+		for range times {
+			p.Steps = append(p.Steps, body(per)...)
+		}
+		for i := range p.Steps {
+			p.Steps[i].ID = program.StepID(fmt.Sprintf("s%d", i+1))
+		}
+		return p
+	}
+
+	// THE CASE THAT WAS REFUSED. Twenty-four steps, three per run, well inside both.
+	if err := program.Validate(runs(3, 8)); err != nil {
+		t.Errorf("eight runs of a three-step routine was refused: %v", err)
+	}
+	// AND THE LIMIT STILL BITES ON COMPLEXITY, per run rather than in total.
+	err := program.Validate(runs(program.MaxSteps+1, 2))
+	if err == nil {
+		t.Fatal("a run longer than MaxSteps was accepted")
+	}
+	if !strings.Contains(err.Error(), "each run") {
+		t.Errorf("the refusal does not say it is about one run: %v", err)
+	}
+	// AND ON THE COUNT, with its own sentence.
+	err = program.Validate(runs(1, program.MaxRuns+1))
+	if err == nil {
+		t.Fatal("a run count past MaxRuns was accepted")
+	}
+	if !strings.Contains(err.Error(), "runs") {
+		t.Errorf("the refusal does not say it is about runs: %v", err)
+	}
+	// A PROGRAM THAT LIES ABOUT ITS SHAPE is refused, because the two limits above would
+	// otherwise be applied to the wrong things.
+	crooked := runs(3, 2)
+	crooked.Steps = crooked.Steps[:5]
+	if err := program.Validate(crooked); err == nil {
+		t.Error("five steps were accepted as two runs of anything")
+	}
+	// AND A PROGRAM THAT IS NOT A REPEAT behaves exactly as it did: Runs 0, body is
+	// everything, MaxSteps applies to all of it.
+	plain := program.Program{Goal: "a plain program", Steps: body(program.MaxSteps + 1)}
+	for i := range plain.Steps {
+		plain.Steps[i].ID = program.StepID(fmt.Sprintf("s%d", i+1))
+	}
+	if err := program.Validate(plain); err == nil {
+		t.Error("a non-repeat program longer than MaxSteps was accepted")
+	} else if strings.Contains(err.Error(), "each run") {
+		t.Errorf("a non-repeat program was refused as though it were one: %v", err)
 	}
 }

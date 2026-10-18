@@ -30,11 +30,23 @@ func TestTheScreenObserverIsReachableAndBounded(t *testing.T) {
 		t.Error("main.go dispatches no observe-screen verb")
 	}
 
-	src, err := os.ReadFile("observescreen.go")
+	// BOTH FILES, because the loop moved and the properties did not.
+	//
+	// `director demonstrate-visual` needed the same live loop and the one thing it adds
+	// is the thing this command may not do -- write -- so the loop went to
+	// visualsession.go and the two commands call it. Every assertion below is still
+	// about the observer path; four of them are now satisfied by the shared file. The
+	// write refusal is checked against observescreen.go ALONE, further down, because it
+	// is a property of this command and not of the loop.
+	cmdSrc, err := os.ReadFile("observescreen.go")
 	if err != nil {
 		t.Fatalf("reading the observer command: %v", err)
 	}
-	s := string(src)
+	loopSrc, err := os.ReadFile("visualsession.go")
+	if err != nil {
+		t.Fatalf("reading the shared observer loop: %v", err)
+	}
+	s := string(cmdSrc) + string(loopSrc)
 	if !strings.Contains(s, `if *app == "" {`) {
 		t.Error("the observer does not require --application, so it could watch " +
 			"whatever happened to be in front")
@@ -55,6 +67,8 @@ func TestTheScreenObserverIsReachableAndBounded(t *testing.T) {
 			"reading the output can tell what cadence it actually damped at")
 	}
 	// IT WRITES NOTHING. The output is the terminal; no frames, no pixels, no session.
+	// Against this command AND the shared loop: `demonstrate-visual` writes an artifact,
+	// and it must do that in its own file rather than inside the loop both commands run.
 	for _, forbidden := range []string{"os.WriteFile", "os.Create", "os.MkdirAll", "png."} {
 		if strings.Contains(s, forbidden) {
 			t.Errorf("the observer names %q; it watches and prints, and keeps "+
@@ -339,5 +353,99 @@ func TestTheLiveReportSeparatesNoReturnFromNoMatch(t *testing.T) {
 	if n := len(excluded.order); n != 0 {
 		t.Errorf("%d target(s) tallied on a look they were pressed on: a matcher "+
 			"scored on the frame it learned from reports its own memory", n)
+	}
+}
+
+// A PIXEL DEMONSTRATION IS REACHABLE, AND WRITES ONLY WHERE IT SHOULD.
+//
+// The ninth-case test for the newest command, and a boundary test for the file split that made
+// it possible. `observe-screen` keeps nothing; `demonstrate-visual` runs the same loop and keeps
+// an artifact. The loop must not be the thing that writes, or the refusal above becomes a
+// refusal about nothing.
+func TestAPixelDemonstrationIsReachableAndWritesOnlyWhereItShould(t *testing.T) {
+	main, err := os.ReadFile("main.go")
+	if err != nil {
+		t.Fatalf("reading the dispatch: %v", err)
+	}
+	for _, verb := range []string{`case "demonstrate-visual":`, `case "reacquire":`} {
+		if !strings.Contains(string(main), verb) {
+			t.Errorf("main.go dispatches no %s", strings.Trim(verb, `case ":`))
+		}
+	}
+
+	loop, err := os.ReadFile("visualsession.go")
+	if err != nil {
+		t.Fatalf("reading the shared loop: %v", err)
+	}
+	// THE LOOP WRITES NOTHING, so the property observe-screen's test protects is a
+	// property of the loop and not only of that command's own lines.
+	for _, forbidden := range []string{"workflowstore.SaveWith", "SaveSequence", "demo.Open"} {
+		if strings.Contains(string(loop), forbidden) {
+			t.Errorf("the shared loop names %q; keeping a demonstration belongs in "+
+				"the command that keeps one", forbidden)
+		}
+	}
+
+	src, err := os.ReadFile("demonstratevisual.go")
+	if err != nil {
+		t.Fatalf("reading the demonstrating command: %v", err)
+	}
+	s := string(src)
+	// IT IS BOUNDED AND POINTED, exactly as the observer is: a session that watched
+	// "whatever happened to be in front", or watched forever, is not authorised.
+	if !strings.Contains(s, `*app == "" && *title == ""`) {
+		t.Error("the command does not require a window selector, so it could watch " +
+			"whatever happened to be in front")
+	}
+	if !strings.Contains(s, "*seconds > maxObserveSeconds") {
+		t.Error("the demonstration length is unbounded above")
+	}
+	// AND IT CANNOT ACT. A demonstration is watched, never driven — and Marco cannot
+	// drive one anyway, because navsource discards injected presses at the callback.
+	for _, forbidden := range []string{
+		"SetForegroundWindow", "SendInput", "mouse_event", "keybd_event",
+		"marcoexec", "oshost", "HandleRequest", "HandleProgram",
+	} {
+		if strings.Contains(s, forbidden) {
+			t.Errorf("the demonstrating command names %q", forbidden)
+		}
+	}
+	// AND IT SAVES THROUGH THE ONE PATH, so a pixel routine and a desktop routine are
+	// the same kind of thing in the same store.
+	for _, want := range []string{"workflow.Learn(", "workflowstore.SaveWith(", "SaveSequence("} {
+		if !strings.Contains(s, want) {
+			t.Errorf("the command does not call %s, so it is not producing the "+
+				"artifact desktop replay uses", want)
+		}
+	}
+}
+
+// AND A SAVED PIXEL DEMONSTRATION CARRIES NO COORDINATES.
+//
+//	Avoid storing absolute coordinates as the durable identity of a control; coordinates may
+//	still be recorded as demonstration evidence.
+//
+// The command never has the choice: it hands the draft to `workflowstore.SaveWith`, which has
+// refused press coordinates since it existed, and a control's evidence is its normalised
+// readings. This asserts it over the command's text so a later convenience field cannot appear.
+func TestASavedPixelDemonstrationCarriesNoCoordinates(t *testing.T) {
+	src, err := os.ReadFile("demonstratevisual.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(src)
+	for _, forbidden := range []string{
+		"PointerAt{", ".Presses[", "navSub.Drain()", "image.Pt", "png.",
+	} {
+		if strings.Contains(s, forbidden) {
+			t.Errorf("the demonstrating command names %q, which is either a press "+
+				"position or a frame; neither may reach a durable artifact", forbidden)
+		}
+	}
+	// AND THE OBSERVER IS THE ONLY SOURCE OF WHAT IT SAVES. A command that built a
+	// Control itself could put anything in it.
+	if strings.Contains(s, "workflowstore.Control{") {
+		t.Error("the command builds a Control of its own rather than taking what the " +
+			"session observed")
 	}
 }

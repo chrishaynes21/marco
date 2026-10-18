@@ -130,7 +130,7 @@ func ExpandProcedure(proc Procedure, g Goal, b Binder) (Expansion, error) {
 		Generic: proc.Generic(), Application: g.Context.Application, Planned: b == nil,
 	}
 
-	prog := program.Program{Goal: g.Describe(), Status: program.StatusPlanned}
+	prog := program.Program{Goal: g.Describe(), Status: program.StatusPlanned, Runs: proc.Runs}
 	// ONE binding for the whole expansion, not one per step. "This file" is a single
 	// reference in the user's sentence, and a procedure whose steps each bound
 	// independently could have its select land on one object and its context menu on

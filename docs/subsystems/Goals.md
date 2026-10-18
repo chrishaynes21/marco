@@ -122,8 +122,19 @@ step ceiling the bound.
 See [[ADR-228-a-named-sequence-is-a-demonstration-somebody-kept]] and
 [[Experiment-075-a-demonstration-saved-named-and-replayed]].
 
+## Two limits, not one
+
+`program.MaxSteps` bounds how far one request DECOMPOSES, and that rationale does not reach a
+repeat: eight runs of a three-step routine decomposes to three. So a program says how many runs
+it is, the body is what the step ceiling bounds, and the count is bounded by `program.MaxRuns` --
+the constant the semantic replay path already used for the same question. A count past either is
+refused rather than shortened.
+
+See [[ADR-231-complexity-and-repetition-are-two-limits]].
+
 ## Decisions
 
+- [[ADR-231-complexity-and-repetition-are-two-limits]]
 - [[ADR-228-a-named-sequence-is-a-demonstration-somebody-kept]]
 - [[ADR-227-a-step-may-name-its-own-control]]
 - [[ADR-226-naming-a-thing-is-saying-which-thing]]

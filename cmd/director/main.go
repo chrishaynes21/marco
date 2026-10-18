@@ -98,6 +98,10 @@ func main() {
 		os.Exit(runSave(os.Args[2:]))
 	case "sequences", "sequence":
 		os.Exit(runSequences(os.Args[2:]))
+	case "demonstrate-visual":
+		os.Exit(runDemonstrateVisual(os.Args[2:]))
+	case "reacquire":
+		os.Exit(runReacquire(os.Args[2:]))
 	case "collections":
 		os.Exit(runCollections(os.Args[2:]))
 	case "game":
@@ -369,6 +373,12 @@ func usage() {
                                  demonstrated, run with: execute "run <name>"
   director sequences             what has been saved that way
   director sequences --forget "<name>"   remove one
+  director demonstrate-visual "<name>" --application X
+                                 learn a routine from PIXELS: watch your own
+                                 clicks and keep what the proposer saw
+  director reacquire "<name>" --application X
+                                 can that routine.s controls be found again?
+                                 per control, no screen bound; presses nothing
   director explain procedure <n>   why a learned procedure has the shape it has
   director game                  which game is detected, and what may be automated in it
   director capabilities          what each capability pack contributes

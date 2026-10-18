@@ -31,7 +31,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"image"
 	"io"
 	"os"
 	"sort"
@@ -39,10 +38,7 @@ import (
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/fastobserve"
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
-	"github.com/chaynes-simpleclouds/marco/internal/director/perception/structure"
-	"github.com/chaynes-simpleclouds/marco/internal/director/perception/windowref"
 	"github.com/chaynes-simpleclouds/marco/internal/platform/navsource"
-	"github.com/chaynes-simpleclouds/marco/internal/platform/winprovider"
 )
 
 // maxObserveSeconds bounds a session.
@@ -92,165 +88,27 @@ func runObserveScreen(args []string) int {
 		return 2
 	}
 
-	windows := winprovider.New()
-	tracker := windowref.NewTracker(windows)
-	shots := newCapture(windows)
+	// THE LOOP, shared with `director demonstrate-visual` — see visualsession.go. The
+	// observer is built HERE, from this command's own interval, because a command that
+	// read the AI sampler's interval would reintroduce ADR-175's finding by the back
+	// door and the observer's refusal is what would catch it.
 	ctx := context.Background()
-	v := tracker.AcquireBy(ctx, windows, windowref.NewDirectory(),
-		windowref.Selector{Application: *app})
-	if !v.State.OK() {
-		fmt.Fprintf(os.Stderr, "director: %s (%s)\n", v.Reason, v.State)
-		return 1
+	s := visualSession{
+		app: *app, seconds: *seconds, interval: interval, delay: *delay,
+		announce: func(ref string, settle int) {
+			fmt.Printf("Observing %s at %d/second for %ds\n", ref, *fps, *seconds)
+			fmt.Printf("  settle rule %d consecutive looks, derived from the %s interval\n",
+				settle, interval)
+			fmt.Printf("  Nothing is injected, nothing is remembered, " +
+				"nothing is written to disk.\n")
+			fmt.Printf("  Starting in %s.\n\n", *delay)
+		},
 	}
-
-	// THE MOUSE HALF. navsource owns its own blocking message pump and this only opens a
-	// subscription and drains it, exactly as the observation sampler does. Nothing here
-	// touches the hook thread, and nothing here can inject.
-	navs, navWhy := navsource.New()
-	var navSub *navsource.Subscription
-	if navWhy != "" {
-		fmt.Printf("WARNING: %s\n         Presses will NOT be correlated.\n\n", navWhy)
+	res, code := s.watch(ctx, obs, os.Stderr)
+	if code != 0 {
+		return code
 	}
-
-	fmt.Printf("Observing %s at %d/second for %ds\n", v.Ref.Describe(), *fps, *seconds)
-	fmt.Printf("  settle rule %d consecutive looks, derived from the %s interval\n",
-		obs.SettleLooks(), interval)
-	fmt.Printf("  Nothing is injected, nothing is remembered, nothing is written to disk.\n")
-	fmt.Printf("  Starting in %s.\n\n", *delay)
-	time.Sleep(*delay)
-
-	// THE FRAME BEFORE THE SUBSCRIPTION, so the first press of the session is placeable.
-	//
-	// navsource refuses a press it cannot place, and it can only place one against bounds
-	// pushed BEFORE the press happened — the loop below pushes them, but not until after
-	// its first capture, so every press in that first interval would come back
-	// `unplaceable_pointer`. That is ADR-168's defect at one look's scale: a press
-	// reported as a perception failure when the truth is that nothing had told the
-	// pointer path where the window was yet.
-	//
-	// Re-acquired rather than reused from before the delay. The rectangle from eight
-	// seconds ago is not necessarily where the window is now, and pushing it stamped
-	// `now` would be a small lie the pointer path would then trust.
-	if navs != nil {
-		if w := tracker.Acquire(ctx, *app); w.State.OK() &&
-			w.Ref.Bounds.Width > 0 && w.Ref.Bounds.Height > 0 {
-			navs.SetWindowBounds(w.Ref.Bounds.X, w.Ref.Bounds.Y,
-				w.Ref.Bounds.Width, w.Ref.Bounds.Height, time.Now())
-		}
-		navSub = navs.Open(time.Now())
-		defer navs.CloseSession(navSub)
-		defer func() { _ = navs.Close() }()
-	}
-
-	// A CONSUMER, so the queue is read and the drop count means something. It stands in
-	// for the slow semantic path and does nothing but count — which is the shape the real
-	// one has to have: read, or lose updates, and never make the observer wait.
-	seen := 0
-	go func() {
-		for range obs.Updates() {
-			seen++
-		}
-	}()
-
-	opt := structure.DefaultOptions()
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-	deadline := time.Now().Add(time.Duration(*seconds) * time.Second)
-	lost := ""
-	keys := 0
-	var found reacquireTally
-	// THE STAGES, TIMED SEPARATELY.
-	//
-	// The observer reports its own fold latency, which is the one number that can be
-	// measured without a screen — and the first live run showed exactly why that is not
-	// enough. Six hundred looks in sixty seconds proves the whole look fitted inside its
-	// 100ms slot and says nothing about whether it took twenty or ninety-nine, so the
-	// acquisition figure every cadence decision rests on could not be confirmed against
-	// the thing it was a prediction about.
-	//
-	// [[ADR-177-acquisition-is-a-frame-interval-not-a-cost]] measured 16.7ms for the blit
-	// on a bench and attributed it to a 60Hz compositor. That is a hypothesis about a live
-	// window, so a live window should answer it.
-	var stage stageTimes
-	for time.Now().Before(deadline) {
-		lk := fastobserve.Look{At: time.Now()}
-
-		if navSub != nil {
-			presses, k := splitNav(navSub.Drain())
-			lk.Presses = presses
-			keys += k
-		}
-
-		v := tracker.Acquire(ctx, *app)
-		if !v.State.OK() {
-			lost = fmt.Sprintf("target lost (%s)", v.State)
-			break
-		}
-		lk.Window = fastobserve.WindowRef{
-			ID: v.Ref.ID, Generation: v.Ref.Generation, Bounds: v.Ref.Bounds,
-		}
-		// THE POINTER NEEDS A FRAME, the same as the recorder: navsource refuses a
-		// press it cannot place, and it cannot place one until somebody pushes the
-		// window's rectangle. See ADR-168.
-		if navs != nil && v.Ref.Bounds.Width > 0 && v.Ref.Bounds.Height > 0 {
-			navs.SetWindowBounds(v.Ref.Bounds.X, v.Ref.Bounds.Y,
-				v.Ref.Bounds.Width, v.Ref.Bounds.Height, time.Now())
-		}
-
-		whole := time.Now()
-		shot := time.Now()
-		img, err := shots.CaptureWindow(ctx, windowRefToWindow(v.Ref))
-		stage.capture = append(stage.capture, msSince(shot))
-		if err != nil {
-			lk.Missing = true
-		} else {
-			lk.Front = frontnessOf(frontCandidate(ctx, windows), v.Ref) ==
-				observe.FrontTarget
-			prop := time.Now()
-			res := structure.Propose(img.Image, opt)
-			stage.propose = append(stage.propose, msSince(prop))
-			// THE SAME NORMALISATION THE REPLAY USES. One statement of it, in
-			// observe, so the live observer and the offline measurement are the
-			// same arithmetic on the same proposals.
-			rects := make([]image.Rectangle, 0, len(res.Candidates))
-			for _, c := range res.Candidates {
-				rects = append(rects, c.Bounds)
-			}
-			lk.Regions = observe.NormaliseRects(img.Image.Bounds(), rects)
-		}
-		// REACQUISITION BEFORE THE FOLD, so nothing this look teaches can help
-		// recognise what this look was meant to recognise. The targets this look's
-		// own presses belong to are excluded from the tally for the same reason.
-		if len(obs.Registry()) > 0 {
-			pressed := map[observe.VisualTargetID]bool{}
-			for _, t := range obs.Registry() {
-				for _, w := range lk.Presses {
-					if t.Screen == obs.Screen() && containsAny(t.Where, w) {
-						pressed[t.ID] = true
-					}
-				}
-			}
-			found.fold(obs.Reacquire(lk), pressed)
-		}
-		obs.Observe(lk)
-		stage.whole = append(stage.whole, msSince(whole))
-		<-ticker.C
-	}
-	obs.Close()
-	time.Sleep(50 * time.Millisecond) // let the consumer drain
-
-	// WHAT THE MOUSE PRODUCER ITSELF DID, taken before the deferred Close tears it down.
-	// Without it the report has an attribution count and no account of what reached it.
-	var in observe.InputStats
-	if navs != nil {
-		in = navs.Stats()
-	} else {
-		in.Unavailable = navWhy
-		if in.Unavailable == "" {
-			in.Unavailable = "no mouse producer was started"
-		}
-	}
-	reportObserve(os.Stdout, obs, seen, lost, in, keys, stage, found)
+	reportObserve(os.Stdout, obs, res.seen, res.lost, res.in, res.keys, res.stage, res.found)
 	return 0
 }
 

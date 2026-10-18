@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/actiongraph"
+	"github.com/chaynes-simpleclouds/marco/internal/director/program"
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 )
 
@@ -74,7 +75,11 @@ type ReplaySpec struct {
 }
 
 // DefaultMaxIterations bounds any single replay request.
-const DefaultMaxIterations = 25
+//
+// `program.MaxRuns`, which is the same question asked of a saved sequence: how many times may
+// one request drive the desktop. Written as a literal 25 here first and then again, twice, when
+// bounded repeats were added -- so the constant moved to the one place both can see it.
+const DefaultMaxIterations = program.MaxRuns
 
 // ReplayIteration is one pass of the loop.
 type ReplayIteration struct {

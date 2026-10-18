@@ -516,3 +516,63 @@ func TestASequenceRequestBecomesAnOrdinaryProgram(t *testing.T) {
 		t.Error("recognition needs a binder, so a request costs an observation to reject")
 	}
 }
+
+// A BOUNDED REPEAT DECLARES ITS RUNS, all the way to the program.
+//
+// The defect this is for, measured live: `run my settings tour 8 times` — a three-step routine —
+// was refused as *"the request needs 24 steps and the limit is 10"*, which is the COMPLEXITY
+// ceiling answering a question about REPETITION. See
+// [[ADR-231-complexity-and-repetition-are-two-limits]].
+//
+// Through the production path, because the fix is a value travelling three hops — the artifact's
+// run count to the procedure, the procedure to the expansion, the expansion to the program — and
+// a test that built a Program itself would assert the limit and not the wiring. Deleting any of
+// the three must fail this.
+func TestABoundedRepeatDeclaresItsRunsToTheProgram(t *testing.T) {
+	s, err := demo.Open(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, err := demo.FromDemonstration("my settings tour", tourDemo(), t0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SaveSequence(a); err != nil {
+		t.Fatal(err)
+	}
+
+	// EIGHT RUNS OF THREE STEPS. Twenty-four steps, which is more than program.MaxSteps
+	// and is not a decomposition of anything — it is eight runs of a three-step routine.
+	ex, ok, err := s.ExpandRequest("run my settings tour 8 times", fakeBinder{})
+	if !ok {
+		t.Fatal("the request was not recognised as a sequence")
+	}
+	if err != nil {
+		t.Fatalf("eight runs of a three-step routine was refused: %v", err)
+	}
+	if ex.Program.Runs != 8 {
+		t.Errorf("the program says it is %d run(s), so the limits will be applied to "+
+			"the wrong numbers", ex.Program.Runs)
+	}
+	if got := len(ex.Program.Steps); got != 24 {
+		t.Fatalf("%d steps, want 24", got)
+	}
+	if got := ex.Program.Body(); got != 3 {
+		t.Errorf("one run is %d step(s), want 3", got)
+	}
+	// AND THE ORDINARY VALIDATOR ACCEPTS IT, which is the thing that refused it live.
+	if err := program.Validate(ex.Program); err != nil {
+		t.Errorf("the ordinary validator still refuses a bounded repeat: %v", err)
+	}
+	// A SINGLE RUN DECLARES ONE, so a plain replay is not quietly a repeat of itself.
+	one, _, err := s.ExpandRequest("run my settings tour", fakeBinder{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if one.Program.Runs > 1 {
+		t.Errorf("a single run says it is %d runs", one.Program.Runs)
+	}
+	if one.Program.Body() != 3 {
+		t.Errorf("a single run's body is %d step(s)", one.Program.Body())
+	}
+}
