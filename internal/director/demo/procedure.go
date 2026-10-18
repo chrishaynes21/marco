@@ -192,6 +192,14 @@ func directivesFor(steps []CandidateStep, params []Parameter, g goal.Goal) (
 			d.Target = g.Context.Target
 		case s.Role != "":
 			d.Role = s.Role
+		case s.Label != "":
+			// The control this step NAMED. Last, because a role is the localisable
+			// form and outranks a label wherever one was recorded — and before
+			// nothing, which is what a navigation sequence used to get.
+			//
+			// TargetLabel, not Target: Target is the object the procedure is ABOUT,
+			// and a step carrying one is bound to it.
+			d.TargetLabel = s.Label
 		}
 		if d.Phrase == "" {
 			d.Phrase = s.Describe()

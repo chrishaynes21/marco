@@ -3,6 +3,7 @@ package demo
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/actiongraph"
@@ -80,6 +81,21 @@ type CandidateStep struct {
 	Semantic directorapi.SemanticActionKind `json:"semantic,omitempty"`
 	// Role names the control by MEANING, which is what makes the procedure portable.
 	Role goal.ControlRole `json:"role,omitempty"`
+	// Label is the control this step NAMED, kept when the procedure uses that control as
+	// itself rather than as its subject.
+	//
+	// Measured live. Three navigations — "go to bluetooth settings", "go to accounts",
+	// "go to gaming" — extracted as *open the object the user points at, then open the
+	// focused control, then open the focused control*: the first became the procedure's
+	// parameter and the other two lost what they were aimed at entirely, because a
+	// constant step kept only its ROLE and a navigation item has none. Replaying it would
+	// press whatever held focus, three times.
+	//
+	// A label is SEMANTICS, which is what this package keeps — the forbidden list is
+	// handles, element ids, runtime ids and coordinates, and the serialisation test
+	// asserts exactly those. Role still wins where there is one: a role is the localisable
+	// form, and a label is what to keep when nothing named the control by meaning.
+	Label string `json:"label,omitempty"`
 	// Deictic marks the step that acts on the object the user points at when they ask.
 	Deictic bool `json:"deictic,omitempty"`
 	// DerivedEditor marks a step acting on the editor a previous step opened.
@@ -108,6 +124,8 @@ func (s CandidateStep) Describe() string {
 		what = "the object the user points at"
 	case s.Role != "":
 		what = s.Role.Describe()
+	case s.Label != "":
+		what = strconv.Quote(s.Label)
 	}
 	out := fmt.Sprintf("%s %s", verb, what)
 	if s.Parameter != "" {
@@ -542,6 +560,7 @@ func generalize(d *Demonstration, kind goal.Kind) ([]Parameter, []CandidateStep,
 			Kind:          s.Kind,
 			Semantic:      s.Semantic,
 			Role:          s.Target.Role,
+			Label:         s.Target.Label,
 			Deictic:       s.Target.Deictic,
 			DerivedEditor: s.Target.DerivedEditor,
 			Preconditions: append([]directorapi.Condition{}, s.Preconditions...),

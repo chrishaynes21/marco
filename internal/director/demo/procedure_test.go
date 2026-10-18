@@ -5,6 +5,9 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/chaynes-simpleclouds/marco/internal/director/actiongraph"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/binding"
 	"github.com/chaynes-simpleclouds/marco/internal/director/demo"
@@ -349,4 +352,181 @@ func (fakeBinder) Bind(req goal.BindRequest) (*binding.Binding, *binding.Problem
 		ElementID: "e1", NativeID: "uia:1", Resource: `C:\tmp\Alpha.txt`,
 		Label: "Alpha.txt", WindowID: "hwnd:1", Application: req.Application, Confidence: 1,
 	}, nil
+}
+
+// A NAVIGATION SEQUENCE KEEPS WHAT EACH STEP OPENED.
+//
+// Measured live, in Settings, on three navigations recorded as one demonstration — "go to
+// bluetooth settings", "go to accounts", "go to gaming". All three COMPLETED, and the extraction
+// of them was:
+//
+//	1 open the object the user points at
+//	2 open the focused control
+//	3 open the focused control
+//
+// The first became the procedure's parameter. The other two lost what they were aimed at
+// entirely, because a constant step kept only its ROLE and a navigation item has none — so
+// replaying the procedure would press whatever held focus, three times, and a demonstration of
+// three different destinations became a procedure with one.
+//
+// A label is semantics, which is what this package keeps: the forbidden list is handles, element
+// ids, runtime ids and coordinates, and TestNothingMechanicalSurvivesExtraction asserts exactly
+// those over the serialised form.
+func TestANavigationSequenceKeepsWhatEachStepOpened(t *testing.T) {
+	// Three navigation items. No role — a settings nav item is not one of the semantic
+	// control roles, which is the whole reason the labels were being dropped.
+	d := &demo.Demonstration{
+		ID: "demo-nav", Started: t0, Completed: t0.Add(time.Minute),
+		Status: demo.Completed, Application: "applicationframehost",
+		Requests: []string{"go to bluetooth settings", "go to accounts", "go to gaming"},
+		Steps: []demo.Step{
+			step(1, demo.StepSemantic, directorapi.SemanticOpen,
+				demo.Target{Phrase: "bluetooth settings", Deictic: true,
+					Label: "Bluetooth & devices"}),
+			step(2, demo.StepSemantic, directorapi.SemanticOpen,
+				demo.Target{Label: "Accounts"}),
+			step(3, demo.StepSemantic, directorapi.SemanticOpen,
+				demo.Target{Label: "Gaming"}),
+		},
+		Nodes: []actiongraph.NodeID{"action_1", "action_2", "action_3"},
+	}
+	out := demo.Extract(d)
+	if !out.OK() {
+		t.Fatalf("nothing was extracted: %s", out.Refusal)
+	}
+
+	// WHAT THE PROPOSAL SAYS, because the person reads this before approving it and
+	// "open the focused control" twice is not a description of what they showed.
+	shown := out.Candidate.Describe()
+	for _, want := range []string{`"Accounts"`, `"Gaming"`} {
+		if !strings.Contains(shown, want) {
+			t.Errorf("the proposal does not say it opens %s:\n%s", want, shown)
+		}
+	}
+
+	// AND WHAT THE PROCEDURE DOES, through expansion — the production path, where a
+	// directive with neither role nor target is a step aimed at nothing.
+	l, err := demo.Approve(out, "test", t0)
+	if err != nil {
+		t.Fatalf("approve: %v", err)
+	}
+	r := goal.NewRegistry()
+	r.Register(l.AsProcedure())
+	g := goal.Goal{
+		Kind: l.Goal,
+		Context: goal.Context{
+			Application: "applicationframehost", Target: "accessibility settings",
+		},
+		Phrase: "open accessibility settings",
+	}
+	ex, err := goal.Expand(r, g, fakeBinder{})
+	if err != nil {
+		t.Fatalf("expand: %v", err)
+	}
+	if ex.Procedure != l.Name {
+		t.Fatalf("procedure = %q, want the learned one", ex.Procedure)
+	}
+	// AIMED AT NOTHING, which has two forms and the second is the one that was shipping.
+	// A step with no reference at all is refused by the program layer; a step whose verb
+	// needs no control is aimed at THE FOCUSED CONTEXT, explicitly and legitimately — and
+	// that is what three demonstrated destinations were collapsing into.
+	var aimless int
+	var targets []string
+	for _, s := range ex.Program.Steps {
+		if len(s.Operation.Targets) == 0 {
+			aimless++
+			targets = append(targets, "<nothing>")
+			continue
+		}
+		ref := s.Operation.Targets[0]
+		if ref.Query != nil && ref.Query.Focused != nil && *ref.Query.Focused {
+			aimless++
+			targets = append(targets, "<whatever holds focus>")
+			continue
+		}
+		targets = append(targets, aimedAt(ref))
+	}
+	if aimless > 0 {
+		t.Errorf("%d step(s) of the learned procedure are aimed at nothing: %v",
+			aimless, targets)
+	}
+	if !strings.Contains(strings.Join(targets, " "), "Accounts") ||
+		!strings.Contains(strings.Join(targets, " "), "Gaming") {
+		t.Errorf("the demonstrated destinations did not survive expansion: %v", targets)
+	}
+}
+
+// AND A ROLE STILL OUTRANKS A LABEL, which is the ordering the fix above had to get right.
+//
+// A role is the localisable form: "the rename command" finds Rename, Renommer and 重命名, and
+// the label it happened to bear in the demonstration finds one of them. The rename
+// demonstration's second step has both, and the procedure must carry the role.
+func TestARecordedRoleOutranksTheLabelItBore(t *testing.T) {
+	l := learn(t)
+	var rename demo.CandidateStep
+	for _, s := range l.Steps {
+		if s.Role == goal.RoleRenameCommand {
+			rename = s
+		}
+	}
+	if rename.Role == "" {
+		t.Fatal("the rename demonstration no longer has a step with a role")
+	}
+	if rename.Label == "" {
+		t.Fatal("the fixture's rename command bore no label, so there is nothing to outrank")
+	}
+	// IN THE PROPOSAL TOO, which is what the person reads before approving. A step that
+	// says it invokes "Rename" is making a weaker claim than one that says it invokes the
+	// rename command, and the stronger one is the true one here.
+	if shown := rename.Describe(); !strings.Contains(shown, goal.RoleRenameCommand.Describe()) {
+		t.Errorf("the proposal describes the rename command as %q rather than by its role",
+			shown)
+	}
+
+	r := goal.NewRegistry()
+	r.Register(l.AsProcedure())
+	g := goal.Goal{
+		Kind:       goal.Rename,
+		Parameters: map[string]string{goal.ParamName: "Q3"},
+		Context: goal.Context{
+			Application: "explorer", Target: "this file", TargetIsImplicit: true,
+		},
+		Phrase: "rename this file to Q3",
+	}
+	ex, err := goal.Expand(r, g, fakeBinder{})
+	if err != nil {
+		t.Fatalf("expand: %v", err)
+	}
+	// A ROLE RESOLVES THROUGH ITS WHOLE ALIAS TABLE, which is what makes it the
+	// localisable form; a label resolves through the one name it bore. The canonical
+	// alias happens to BE "Rename" here, so the distinguishing evidence is the table.
+	var found bool
+	for _, s := range ex.Program.Steps {
+		for _, ref := range s.Operation.Targets {
+			if ref.Query == nil || ref.Query.Label != rename.Label {
+				continue
+			}
+			found = true
+			if len(ref.Query.AnyLabel) < 2 {
+				t.Errorf("the rename command is aimed by the label %q alone rather "+
+					"than through the aliases of its role: %+v", rename.Label, ref.Query)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("no step aims at the rename command at all")
+	}
+}
+
+// aimedAt is what one program step points at, role first -- the localisable form.
+//
+// A role's query carries every alias the role knows; a label's carries the one name.
+func aimedAt(ref directorapi.ReferenceExpression) string {
+	if ref.Query != nil && len(ref.Query.AnyLabel) > 1 {
+		return "role:" + ref.Query.Label
+	}
+	if ref.Query != nil && ref.Query.Label != "" {
+		return ref.Query.Label
+	}
+	return ref.Phrase
 }

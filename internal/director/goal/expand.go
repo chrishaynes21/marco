@@ -417,6 +417,16 @@ func reference(d Directive, expect binding.ObjectKind, bound *binding.Binding) (
 			},
 		}, true
 	}
+	if d.TargetLabel != "" {
+		// A control this step NAMED, and nothing more: no binding and no expected kind.
+		// A label a demonstration happened to record is not the object the procedure is
+		// about, and treating it as one aimed all three steps of a learned navigation at
+		// the bound file.
+		return directorapi.ReferenceExpression{
+			Phrase: d.TargetLabel, Kind: directorapi.ReferenceLiteral,
+			Query: &directorapi.ElementQuery{Label: d.TargetLabel},
+		}, true
+	}
 	if d.Target != "" {
 		ref := directorapi.ReferenceExpression{
 			Phrase: d.Target, Kind: directorapi.ReferenceLiteral,

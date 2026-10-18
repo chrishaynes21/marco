@@ -260,6 +260,20 @@ type Directive struct {
 	// aliases plus whatever a platform adapter supplies, so "the control that discards
 	// changes" finds "Nicht speichern" as readily as "Don't Save".
 	Role ControlRole
+	// TargetLabel is a control this step NAMED, by the name it bore when it was
+	// demonstrated, where nothing named it by MEANING.
+	//
+	// Separate from Target because the two are different claims. Target is the object
+	// the procedure is ABOUT — a file, a folder — and a step carrying one is bound, so
+	// that a later step can ask for "the editor for the thing I bound". TargetLabel is
+	// a control the procedure merely passes through, and attaching the procedure's
+	// binding to it aimed every step of a learned navigation at the bound file.
+	//
+	// It IS tied to English, and that is the honest cost rather than an oversight: a
+	// settings navigation item is not one of the semantic control roles, so a
+	// demonstration of one recorded a label and nothing else. Role still outranks it
+	// wherever a role was recorded.
+	TargetLabel string
 	// TargetEditor marks a step acting on the INLINE EDITOR a previous step opened on
 	// the bound object — the in-place rename box, not the item and not whatever holds
 	// focus.
