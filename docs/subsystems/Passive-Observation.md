@@ -1542,6 +1542,18 @@ it refuses those looks. Visible is fine; in front is not.
   identity evidence an artifact can carry; a live pixel demonstration cannot write it,
   and nobody knew until a person tried.
   [[Experiment-079-the-first-human-game-menu-demonstration]]
+- **With the reader connected, it learned the WORD.** Second human demonstration, same
+  menu: the control is 312×52 pixels with `text: ["settings"]` and its container recorded
+  as the whole window, reacquired on **98% of 300 looks** with zero collisions — against
+  650×214, no name and 2% before. The owner's question was whether Marco learns PLAY or a
+  rectangle that happens to contain PLAY, and on this press it learned the word.
+  Two caveats keep it from being more than that. **OCR did not fix the granularity**:
+  `structure.Propose` runs on pixels and knows nothing about words, so 650×214 against
+  312×52 is which button was clicked, and granularity VARIED rather than improved. And
+  **the matcher does not read the word it saved** — `ReacquireStored` compares rectangles,
+  so 98% means a rectangle of this shape is in this place, not that the settings button is
+  there. [[Experiment-080-it-learned-the-word-settings]],
+  [[ADR-233-proposed-a-match-that-can-be-corroborated-by-its-words]]
 - **Appearance costs five correct recognitions and fixes none of the wrong ones.** The
   ambiguity rule would decline 1 correct answer under arrangement and 5 under palette,
   grid or detector, while BIND-WRONG stays at 2 for all of them. The appearance measures
