@@ -110,6 +110,8 @@ func main() {
 		"follow a reloaded workflow through the production contracts, executing nothing")
 	anchor := flag.Bool("anchor", false,
 		"measure how many explicit screen confirmations a saved route needs in a fresh observer")
+	outcome := flag.Bool("outcome", false,
+		"can a demonstrated click's OUTCOME be verified where the screen did not change?")
 	temporal := flag.Bool("temporal", false,
 		"with -button's question, ask the SAME click of the looks before and after it, and report whether the boundary the proposer offers depends on when it is asked")
 	button := flag.Bool("button", false,
@@ -210,6 +212,15 @@ func main() {
 			}
 			if *button {
 				if err := reportButtonTargets(dir, *limit); err != nil {
+					fmt.Fprintf(os.Stderr, "perceptionreplay: %s: %v\n", dir, err)
+					os.Exit(1)
+				}
+				continue
+			}
+			if *outcome {
+				// Did the demonstrated click DO anything, where the global
+				// fold recorded no change? See outcome.go.
+				if err := reportLocalOutcomes(dir, *limit); err != nil {
 					fmt.Fprintf(os.Stderr, "perceptionreplay: %s: %v\n", dir, err)
 					os.Exit(1)
 				}

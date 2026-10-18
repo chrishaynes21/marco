@@ -9,9 +9,11 @@ package workflow_test
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflow"
+	"github.com/chaynes-simpleclouds/marco/internal/director/workflowstore"
 )
 
 func row(y float64) observe.Region {
@@ -699,5 +701,71 @@ func TestOneFactAboutOneControlIsNotRepeatedPerStep(t *testing.T) {
 		Target: "target_1", Cause: observe.CauseClick, Unresolved: []string{unread}}}}
 	if l := one.Unresolved(); len(l) != 1 || !strings.Contains(l[0], "step 0 (visual_1") {
 		t.Errorf("a single step reads as %v", l)
+	}
+}
+
+// A DEMONSTRATED OUTCOME REACHES THE STEP, AND ONLY FROM A VERIFIED ONE.
+//
+// The join between the two halves of [[Experiment-087-the-panel-changed-and-the-verifier-could-say-so]]:
+// `observe` establishes what a press did, and the step has to carry it or a replay has nothing
+// to check. A step whose outcome could not be established comes out EMPTY rather than weak,
+// because `OutcomeHeld` can tell those apart and reports them differently.
+func TestAVerifiedOutcomeReachesTheStepAndAnUnverifiedOneDoesNot(t *testing.T) {
+	good := make([]string, 0, observe.OutcomeWords+2)
+	for _, w := range []string{"presets", "textures", "shadows", "bloom", "foliage",
+		"distance", "epic"} {
+		good = append(good, w)
+	}
+	ev := observe.ClickEvidence{
+		Steps: []observe.RouteStep{
+			{From: "visual_1", To: "visual_2", Cause: observe.CauseClick,
+				Target: "target_1", Count: 1},
+			{From: "visual_2", To: "visual_3", Cause: observe.CauseClick,
+				Target: "target_2", Count: 1},
+		},
+		Outcomes: []observe.LocalOutcome{
+			// VERIFIED: enough words, read on both sides.
+			{Target: "target_1", Screen: "visual_1", Look: 24, Appeared: good,
+				BeforeLooks: 5, AfterLooks: 5},
+			// NOT VERIFIED: two words is not positive evidence of a destination.
+			{Target: "target_2", Screen: "visual_2", Look: 61,
+				Appeared: []string{"one", "two"}, BeforeLooks: 5, AfterLooks: 5},
+		},
+	}
+	reg := []observe.TargetRecord{
+		{ID: "target_1", Screen: "visual_1", Presses: 1},
+		{ID: "target_2", Screen: "visual_2", Presses: 1},
+	}
+	walk := []observe.VisualScreenID{"visual_1", "visual_2", "visual_3"}
+	d := workflow.Learn("ark graphics", walk, ev, reg)
+	if len(d.Steps) != 2 {
+		t.Fatalf("%d step(s) of 2", len(d.Steps))
+	}
+	if len(d.Steps[0].Outcome) != len(good) {
+		t.Errorf("the verified outcome reached the step as %v", d.Steps[0].Outcome)
+	}
+	if len(d.Steps[1].Outcome) != 0 {
+		t.Errorf("an unverified outcome reached the step as %v, and a replay would "+
+			"then look for words the session could not establish",
+			d.Steps[1].Outcome)
+	}
+	// AND IT SURVIVES THE SAVE, because the artifact is what a replay loads.
+	a, err := workflowstore.SaveWith(d, nil, nil, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(a.Steps) != 2 || len(a.Steps[0].Outcome) != len(good) {
+		t.Fatalf("the saved step carries %v", a.Steps[0].Outcome)
+	}
+	// AND IT IS WORDS ONLY: no screen, no target, no rectangle, so nothing
+	// session-local became durable.
+	body, err := a.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, forbidden := range []string{"visual_", "target_", "\"look\""} {
+		if strings.Contains(string(body), forbidden) {
+			t.Errorf("the saved outcome carries %q:\n%s", forbidden, body)
+		}
 	}
 }

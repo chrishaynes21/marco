@@ -740,11 +740,16 @@ Then ask the recording the two targeting questions, neither of which presses any
 ```sh
 go run ./cmd/perceptionreplay -frames -button   .tmp/game-capture-review/ark-menu-1
 go run ./cmd/perceptionreplay -frames -temporal .tmp/game-capture-review/ark-menu-1
+go run ./cmd/perceptionreplay -frames -outcome  .tmp/game-capture-review/ark-menu-1
 ```
 
 `-button` asks whether the clicked button can be isolated inside the panel the proposer offered,
 from the click position, the proposals and the OCR word boxes. `-temporal` asks the same click of
-the looks before and after it. On Rocket League the first found the right button on both presses
+the looks before and after it. `-outcome` asks whether the press DID anything
+that can be verified — the words elsewhere on the window that appeared and stayed, which is the
+only evidence a click has when the screen itself does not change. Read the `EVERY SET OF TERMS`
+table: a rule is only worth having if it verifies real presses AND reports zero outcomes in the
+windows with no input in them. On Rocket League the first found the right button on both presses
 with a known answer and the second found one rescue in seventeen —
 [[Experiment-083-the-label-of-the-button-you-click-is-the-one-that-is-missing]] and
 [[Experiment-084-the-highlight-that-hides-the-label-draws-the-box]].

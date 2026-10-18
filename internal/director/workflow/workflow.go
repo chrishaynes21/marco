@@ -104,6 +104,13 @@ type Step struct {
 	// ADR-180, where mutual centre containment turned out not to be a size test.
 	Readings   []observe.Region `json:"readings,omitempty"`
 	Containers []observe.Region `json:"containers,omitempty"`
+	// Outcome is the words read SOMEWHERE OTHER THAN this control that appeared when
+	// it was pressed and stayed.
+	//
+	// What a replay has to see again where the screen itself does not change. Empty
+	// when the session could not establish one, which is honestly different from an
+	// outcome of no words. See observe/outcome.go.
+	Outcome []string `json:"outcome,omitempty"`
 	// Text is what the demonstration read ON the control, and TextLooks how many
 	// looks of its screen contributed a reading of it.
 	//
@@ -302,6 +309,13 @@ func Learn(name string, walk []observe.VisualScreenID, ev observe.ClickEvidence,
 			From: st.From, To: st.To, Cause: st.Cause,
 			Target: st.Target, Seen: st.Count,
 		}
+		// AND WHAT THE PRESS DID, where the screen did not change enough to say.
+		//
+		// The words a demonstration read somewhere other than the control it
+		// pressed, which appeared and stayed. For a step whose screens are the
+		// SAME label at both ends this is the only evidence that anything
+		// happened at all. See observe/outcome.go.
+		step.Outcome = outcomeOf(ev, st.Target)
 		if rec, ok := records[st.Target]; ok {
 			step.Readings = append([]observe.Region{}, rec.Where...)
 			step.Containers = append([]observe.Region{}, rec.Containers...)
@@ -536,4 +550,30 @@ func (d Draft) Unresolved() []string {
 	out = append(out, d.Notes...)
 	sort.Strings(out)
 	return out
+}
+
+// outcomeOf is the demonstrated local outcome for one target, when the session verified one.
+//
+// The BEST of the occurrences rather than the first or the union: a control pressed twice may
+// have been read well once and badly once, and a union would make a replay look for words that
+// only one visit saw. `Verified` is the four terms holding; an unverified outcome contributes
+// nothing, which is how a step whose outcome could not be established comes out empty rather
+// than coming out weak.
+func outcomeOf(ev observe.ClickEvidence, target observe.VisualTargetID) []string {
+	if target == "" {
+		return nil
+	}
+	var best []string
+	for _, o := range ev.Outcomes {
+		if o.Target != target || !o.Verified() {
+			continue
+		}
+		if len(o.Appeared) > len(best) {
+			best = o.Appeared
+		}
+	}
+	if len(best) == 0 {
+		return nil
+	}
+	return append([]string{}, best...)
 }

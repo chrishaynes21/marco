@@ -1632,6 +1632,19 @@ it refuses those looks. Visible is fine; in front is not.
   contained it, and press 1 resolved to a rectangle with no word in it whose nearest label is
   `RESUME`, 0.052 away — Experiment 083's neighbour effect on a second game.
   [[Experiment-085-the-graphics-tab-is-a-button]]
+- **A click's OUTCOME can be verified where the screen does not change, and the terms are
+  measured on two games rather than one.** Ark's GRAPHICS tab verifies on 36 independent words
+  with 0 false outcomes in 219 windows with no input in them; Rocket League's main menu is
+  refused under every set of terms, correctly, because its words change by themselves. Four
+  terms: positive (words, not a pixel difference), persistent (on every reading of the settled
+  window), independent (not from inside the proposals the action site was approved from), and
+  stationary (the screen does not do this by itself — Ark 0 of 54, RL 2 to 12 of every 25 to 64).
+  Three corrections on the way, each found by running it: independence must FILTER rather than
+  veto (one shared word vetoed 43 good ones), `observe.TextWords` already existed and the
+  hand-rolled normaliser produced `1 \ / d ams`, and **absence from the before window is not
+  absence from the screen** — which is why the window is counted in READINGS, not looks, since
+  Ark's one-reading-per-look density is an artefact of offline OCR and the LIVE path is in Rocket
+  League's one-in-three regime. [[Experiment-087-the-panel-changed-and-the-verifier-could-say-so]]
 - **The one click Marco could identify perfectly is the one it learned nothing from.** Ark's
   GRAPHICS tab meets three of the four replay criteria — a stable pre-state, a 138x30 action site,
   and `GRAPHICS` read on the clicked look — and fails the fourth: the panel below the tab bar

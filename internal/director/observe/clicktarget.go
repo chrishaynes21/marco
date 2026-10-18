@@ -269,6 +269,14 @@ type ClickEvidence struct {
 	// Marco could not segment reads as *here is what you did and here is the part I
 	// cannot repeat* instead of as a number with nothing behind it.
 	BlindPresses []ClickObservation `json:"blind_presses,omitempty"`
+	// Outcomes is what each press DID, where the screen did not change.
+	//
+	// One per press, in the order made. A press that changed the panel below the tab
+	// bar without changing the screen has no transition and no destination, so the
+	// only record that it did anything at all is here. See outcome.go, and
+	// [[Experiment-086-the-tab-changed-the-panel-and-not-the-screen]] for the
+	// measurement that made it necessary.
+	Outcomes []LocalOutcome `json:"outcomes,omitempty"`
 	// Observations is EVERY press, in the order it was made, and
 	// `len(Observations) == Presses`.
 	//
@@ -421,6 +429,13 @@ type ClickTargets struct {
 	arrivedWhere VisualScreenID
 	hasArrived   bool
 
+	// watching is the open outcome watches, one per press, accumulating as readings
+	// arrive.
+	//
+	// Here rather than beside the three interpretation lists because an outcome is
+	// evidence about what a press DID, which neither the transition nor the target can
+	// say where the screen did not change. See outcome.go.
+	watching []outcomeWatch
 	// recent is the last positioned readings, with the screen each was taken on.
 	//
 	// Held because a press is folded before the rectangle it establishes exists, so the
@@ -455,6 +470,10 @@ func (c *ClickTargets) Reading(screen VisualScreenID, read []ReadWord) {
 		}
 		t.said.saw(LabelOf(t.where[0], read))
 	}
+	// AND INTO EVERY OPEN OUTCOME WATCH OF THIS SCREEN, before `recent` is appended
+	// to: a reading taken after a press belongs to that press's AFTER side, and
+	// `recent` is the before side of presses still to come.
+	c.observeOutcome(screen, read)
 	c.recent = append(c.recent, screenReading{screen: screen,
 		words: append([]ReadWord{}, read...)})
 	if len(c.recent) > MaxRecentReadings {
@@ -538,6 +557,10 @@ func (c *ClickTargets) Press(look int, at PointerAt, screen VisualScreenID,
 	}
 	c.pending = append(c.pending, obs)
 	c.observed = append(c.observed, obs)
+	// AND WHAT THIS PRESS DID, which the transition cannot say where the screen did
+	// not change. See outcome.go: the watch takes the readings already held of this
+	// screen as its before side, and later readings fill in the after.
+	c.watch(obs)
 	return obs
 }
 
@@ -1014,6 +1037,7 @@ func (c *ClickTargets) Evidence() ClickEvidence {
 		Inert:            make([]ClickObservation, len(c.inert)),
 		BlindPresses:     make([]ClickObservation, len(c.blindPresses)),
 		Observations:     make([]ClickObservation, len(c.observed)),
+		Outcomes:         c.outcomes(),
 		Unattributed:     make([]VisualTransition, len(c.unattributed)),
 		Presses:          c.presses,
 		Blind:            c.blind,

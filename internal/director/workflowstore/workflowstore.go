@@ -232,6 +232,18 @@ type Step struct {
 	// reading this file has to be able to see what they showed Marco without decoding
 	// `control_2` and a verb.
 	Says string `json:"says,omitempty"`
+	// Outcome is the words this step's demonstration read SOMEWHERE OTHER THAN the
+	// control it pressed, which appeared when the control was pressed and stayed.
+	//
+	// What a replay has to see again. Words only — no screen, no target, no rectangle —
+	// so nothing session-local travels, and the region they may not be read from comes
+	// from the control this step already saved. See outcome.go.
+	//
+	// Empty is the ordinary case for every artifact saved before outcomes were recorded,
+	// and for a step whose screen nobody could read at the time. It is honestly
+	// different from an outcome that was looked for and not found, and `OutcomeHeld`
+	// says so rather than refusing as though the evidence disagreed.
+	Outcome []string `json:"outcome,omitempty"`
 	// Uncertain says the session could not tell this control from another on the same
 	// screen, and Unresolved says what in words a person can answer.
 	Uncertain  bool     `json:"uncertain,omitempty"`
@@ -378,6 +390,9 @@ func SaveWith(d workflow.Draft,
 			Position: i, From: label(s.From), To: label(s.To),
 			Cause: s.Cause, Seen: s.Seen,
 			Uncertain: s.Uncertain, Unresolved: s.Unresolved,
+			// AND WHAT THE PRESS DID, which is the only evidence a step whose
+			// screens share a label has that anything happened. Words only.
+			Outcome: s.Outcome,
 		}
 		if by, ok := s.Confirmation(); ok {
 			st.ConfirmedBy = by

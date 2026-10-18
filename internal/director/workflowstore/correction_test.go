@@ -258,10 +258,11 @@ func TestAnAutomaticTransitionDoesNotConsumeAControlNumber(t *testing.T) {
 	// AND IT IS THE SAME ALLOCATION THE ARTIFACT MAKES, which is the only thing that
 	// makes the function worth having. Asserted against the saved artifact rather than
 	// against a second copy of the rule.
-	a, err := workflowstore.SaveWith(d, map[observe.VisualScreenID]observe.VisualArrangement{
-		"visual_1": {Total: 10}, "visual_2": {Total: 20},
-		"visual_3": {Total: 30}, "visual_4": {Total: 40},
-	}, nil, time.Now())
+	// WITH NO ARRANGEMENTS, which `SaveWith` allows: a screen with none is saved as a
+	// screen nothing can bind, and this test is about the LABELS. Passing arrangements
+	// here would also name a session-local visual type in a file the durable-memory
+	// walk reads, which is a guard worth not widening for a convenience.
+	a, err := workflowstore.SaveWith(d, nil, nil, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
