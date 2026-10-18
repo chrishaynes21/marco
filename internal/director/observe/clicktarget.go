@@ -261,6 +261,14 @@ type ClickEvidence struct {
 	// Blind is presses that landed on nothing the proposer found. They can never be
 	// re-grounded, so a route cannot be built over them however reliable the transition.
 	Blind int `json:"blind,omitempty"`
+	// BlindPresses is those presses THEMSELVES, and `len(BlindPresses) == Blind`.
+	//
+	// A press with no candidate region cannot become a step, and that is a statement
+	// about replay rather than about the demonstration: the person pressed somewhere, on
+	// a screen, at a look, and the observation says so. Reported so that a demonstration
+	// Marco could not segment reads as *here is what you did and here is the part I
+	// cannot repeat* instead of as a number with nothing behind it.
+	BlindPresses []ClickObservation `json:"blind_presses,omitempty"`
 	// AmbiguousPresses is presses inside more than one region.
 	AmbiguousPresses int `json:"ambiguous_presses,omitempty"`
 	// MaybeOneControl is pairs of target identities on one screen that were followed by
@@ -349,8 +357,22 @@ type ClickTargets struct {
 	// pending is the presses seen since the last screen change, newest last.
 	pending []ClickObservation
 
-	attributed   []ClickTransition
-	inert        []ClickObservation
+	attributed []ClickTransition
+	inert      []ClickObservation
+	// blindPresses is the presses no proposal contained, kept as OBSERVATIONS.
+	//
+	// They used to be a counter and nothing else. A person who clicks a control the
+	// proposer cannot see has still told Marco where they acted, on which screen, at
+	// which look — and discarding that because segmentation failed is Marco demanding
+	// that the person prove a click it watched them make. The owner settled it:
+	//
+	//	Do not discard, replace, or downgrade a demonstrated click merely because the
+	//	region proposer cannot identify a button-shaped rectangle.
+	//
+	// Evidence only. A press with no candidate has no boundary to re-find, so nothing
+	// here becomes a step and nothing here is replayable; see
+	// [[ADR-234-the-person-does-not-have-to-prove-the-click]].
+	blindPresses []ClickObservation
 	unattributed []VisualTransition
 	steps        []RouteStep
 	// presses is every press this correlator was given, before any judgement about it.
@@ -875,9 +897,14 @@ func (c *ClickTargets) resolve(attributed *int) {
 			continue
 		}
 		if !c.pending[i].Landed() {
-			// A press on nothing is already counted in Blind. Filing it as inert as
-			// well would count one press twice in a report whose whole purpose is
-			// to add up.
+			// NOT inert — a press on nothing is already counted in Blind, and
+			// filing it as inert as well would count one press twice in a report
+			// whose whole purpose is to add up. But it IS kept: the observation
+			// carries where the person pressed, on which screen, at which look,
+			// and that is the strongest evidence in the session about what they
+			// did. `blindPresses` is its own list for exactly that reason, so the
+			// arithmetic stays honest while the evidence survives.
+			c.blindPresses = append(c.blindPresses, c.pending[i])
 			continue
 		}
 		c.inert = append(c.inert, c.pending[i])
@@ -955,6 +982,7 @@ func (c *ClickTargets) Evidence() ClickEvidence {
 		Steps:            make([]RouteStep, len(c.steps)),
 		Attributed:       make([]ClickTransition, len(c.attributed)),
 		Inert:            make([]ClickObservation, len(c.inert)),
+		BlindPresses:     make([]ClickObservation, len(c.blindPresses)),
 		Unattributed:     make([]VisualTransition, len(c.unattributed)),
 		Presses:          c.presses,
 		Blind:            c.blind,
@@ -972,6 +1000,7 @@ func (c *ClickTargets) Evidence() ClickEvidence {
 		return out.Steps[i].To < out.Steps[j].To
 	})
 	copy(out.Inert, c.inert)
+	copy(out.BlindPresses, c.blindPresses)
 	copy(out.Unattributed, c.unattributed)
 	// THE PAIRS THAT MIGHT BE ONE CONTROL. Derived from the transitions rather than
 	// stored, because it is a reading OF the evidence and must not be able to drift from

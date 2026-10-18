@@ -55,6 +55,8 @@ package workflow
 import (
 	"fmt"
 	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
 )
@@ -478,12 +480,58 @@ func Verify(a Action, from, now observe.VisualScreenID) Verdict {
 // Collected rather than counted: "three ambiguities" is not something anybody can act on, and the
 // owner asked for the workflow to be shown "including what Marco can confidently reproduce and
 // what still requires clarification".
+//
+// # One fact about one control is one line
+//
+// It used to be one line per step, so a control pressed on two visits had the same sentence
+// printed about it twice — and the sentence is about the CONTROL, not about either step. A
+// person reading two identical lines counts two problems and has one. The owner's rule:
+//
+//	Do not ask several small questions when one targeted question would resolve the meaningful
+//	distinction.
+//
+// `workflowstore.Question` already does this on the other side of the same idea: it carries
+// every step that presses the control "so a person can see that answering once settles all of
+// them". So facts that name a target merge across the steps that share it, and facts about a
+// transition — a screen that changed for no reason anybody pressed — stay keyed to the pair,
+// because those really are different occurrences.
 func (d Draft) Unresolved() []string {
-	var out []string
+	type subject struct {
+		target   observe.VisualTargetID
+		from, to observe.VisualScreenID
+		msg      string
+	}
+	steps := map[subject][]int{}
+	var order []subject
 	for i, s := range d.Steps {
 		for _, u := range s.Unresolved {
-			out = append(out, fmt.Sprintf("step %d (%s -> %s): %s", i, s.From, s.To, u))
+			k := subject{msg: u}
+			if s.Target != "" {
+				k.target = s.Target
+			} else {
+				k.from, k.to = s.From, s.To
+			}
+			if _, seen := steps[k]; !seen {
+				order = append(order, k)
+			}
+			steps[k] = append(steps[k], i)
 		}
+	}
+	var out []string
+	for _, k := range order {
+		at := steps[k]
+		if len(at) == 1 {
+			s := d.Steps[at[0]]
+			out = append(out, fmt.Sprintf("step %d (%s -> %s): %s",
+				at[0], s.From, s.To, k.msg))
+			continue
+		}
+		where := make([]string, len(at))
+		for i, n := range at {
+			where[i] = strconv.Itoa(n)
+		}
+		out = append(out, fmt.Sprintf("steps %s (%s): %s",
+			strings.Join(where, ", "), k.target, k.msg))
 	}
 	out = append(out, d.Notes...)
 	sort.Strings(out)

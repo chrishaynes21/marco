@@ -639,3 +639,65 @@ func TestEachVisitOfAPairTakesThatVisitsEvidence(t *testing.T) {
 			"otherwise; one of each was demonstrated", clicked, otherwise)
 	}
 }
+
+// ONE FACT ABOUT ONE CONTROL IS ONE LINE, HOWEVER MANY STEPS PRESS IT.
+//
+// [[ADR-234-the-person-does-not-have-to-prove-the-click]]. A control demonstrated on two visits
+// produced the same sentence twice — *nothing was read on this control* — and the sentence is
+// about the control, not about either step. A person reading two identical lines counts two
+// problems and has one.
+func TestOneFactAboutOneControlIsNotRepeatedPerStep(t *testing.T) {
+	d := workflow.Draft{Name: "ark graphics"}
+	unread := "nothing was read on this control, so a repair has only the workflow's " +
+		"own name to go on"
+	d.Steps = []workflow.Step{
+		{From: "visual_1", To: "visual_2", Target: "target_1",
+			Cause: observe.CauseClick, Unresolved: []string{unread}},
+		{From: "visual_2", To: "visual_1", Cause: observe.CauseAutomatic,
+			Unresolved: []string{"the screen changed by automatic rather than by a click"}},
+		{From: "visual_1", To: "visual_2", Target: "target_1",
+			Cause: observe.CauseClick, Unresolved: []string{unread}},
+	}
+
+	got := d.Unresolved()
+	if len(got) != 2 {
+		t.Fatalf("%d unresolved line(s) for two facts: %v", len(got), got)
+	}
+	// AND THE MERGED LINE NAMES EVERY STEP IT SETTLES, which is why merging is honest
+	// rather than lossy: the person can see that answering once covers both.
+	var merged string
+	for _, l := range got {
+		if strings.Contains(l, "nothing was read") {
+			merged = l
+		}
+	}
+	if merged == "" {
+		t.Fatalf("the control's fact is gone entirely: %v", got)
+	}
+	for _, want := range []string{"steps 0, 2", "target_1"} {
+		if !strings.Contains(merged, want) {
+			t.Errorf("the merged line does not say %q: %s", want, merged)
+		}
+	}
+
+	// AND TWO TRANSITIONS THAT MERELY SHARE A SENTENCE DO NOT MERGE. A screen that
+	// changed for no reason anybody pressed is a different occurrence each time, and
+	// collapsing those would hide how often it happened.
+	same := "the screen changed by automatic rather than by a click"
+	two := workflow.Draft{Steps: []workflow.Step{
+		{From: "visual_1", To: "visual_2", Cause: observe.CauseAutomatic,
+			Unresolved: []string{same}},
+		{From: "visual_3", To: "visual_4", Cause: observe.CauseAutomatic,
+			Unresolved: []string{same}},
+	}}
+	if n := len(two.Unresolved()); n != 2 {
+		t.Errorf("%d line(s) for two separate automatic transitions: %v",
+			n, two.Unresolved())
+	}
+	// AND ONE STEP STILL READS AS ONE STEP, not as "steps 0".
+	one := workflow.Draft{Steps: []workflow.Step{{From: "visual_1", To: "visual_2",
+		Target: "target_1", Cause: observe.CauseClick, Unresolved: []string{unread}}}}
+	if l := one.Unresolved(); len(l) != 1 || !strings.Contains(l[0], "step 0 (visual_1") {
+		t.Errorf("a single step reads as %v", l)
+	}
+}

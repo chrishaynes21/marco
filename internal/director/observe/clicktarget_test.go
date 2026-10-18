@@ -326,3 +326,83 @@ func TestTheLastPressOfADemonstrationIsNotLost(t *testing.T) {
 			"attributed nor inert is one the report cannot explain", n)
 	}
 }
+
+// AND THE PRESS ITSELF IS KEPT, because the person made it and Marco watched them.
+//
+// [[ADR-234-the-person-does-not-have-to-prove-the-click]]. A press no proposal contained used to
+// be an integer and nothing else. The owner's statement:
+//
+//	Do not discard, replace, or downgrade a demonstrated click merely because the region
+//	proposer cannot identify a button-shaped rectangle.
+//
+// The observation carries where, on which screen, at which look. None of it makes the press
+// replayable — there is no boundary to find again — and all of it is the strongest evidence the
+// session has about what the person actually did.
+func TestAPressNoProposalContainedIsKeptAsWhatThePersonDid(t *testing.T) {
+	var c observe.ClickTargets
+	elsewhere := observe.Proposed([]observe.Region{{X: 0, Y: 0, Width: 0.1, Height: 0.1}},
+		0, 0, 0)
+	at := observe.PointerAt{X: 0.505, Y: 0.422}
+	c.Press(123, at, "visual_2", elsewhere)
+	c.Close()
+	e := c.Evidence()
+
+	if len(e.BlindPresses) != 1 {
+		t.Fatalf("%d blind press(es) kept; the person pressed once and the observation "+
+			"is the only record of where", len(e.BlindPresses))
+	}
+	got := e.BlindPresses[0]
+	if got.At != at {
+		t.Errorf("the press is kept at %v and was made at %v", got.At, at)
+	}
+	if got.Screen != "visual_2" {
+		t.Errorf("the press is kept on screen %q; a coordinate without the screen it "+
+			"was made on is not an act", got.Screen)
+	}
+	if got.Look != 123 {
+		t.Errorf("the press is kept at look %d, want 123", got.Look)
+	}
+	// AND THE COUNT STILL MATCHES THE EVIDENCE. Two ways of saying how many presses were
+	// blind must not be able to drift: a report that added up to one number while listing
+	// another is the defect this whole layer's totals exist to prevent.
+	if len(e.BlindPresses) != e.Blind {
+		t.Errorf("%d press(es) listed and %d counted", len(e.BlindPresses), e.Blind)
+	}
+	// AND IT IS STILL NOT REPLAYABLE. Keeping the evidence must not have created a
+	// target, a step or an inert entry — the press is a record of an act, not a thing
+	// to press.
+	if got.Target != "" {
+		t.Errorf("the kept press carries target %q, which would make it look learnable",
+			got.Target)
+	}
+	if len(got.Candidates) != 0 {
+		t.Errorf("the kept press carries %d candidate(s)", len(got.Candidates))
+	}
+	if len(e.Inert) != 0 || len(e.Steps) != 0 || len(e.Attributed) != 0 {
+		t.Errorf("%d inert, %d step(s), %d attributed; a press with no region explains "+
+			"no transition", len(e.Inert), len(e.Steps), len(e.Attributed))
+	}
+}
+
+// AND A PRESS THAT DID LAND IS NOT IN THAT LIST, so the list means what it says.
+//
+// Without this the field could be every press, which would read as "Marco could see nothing"
+// about a session where it saw everything.
+func TestAPressThatLandedIsNotKeptAsABlindOne(t *testing.T) {
+	var c observe.ClickTargets
+	row := observe.Proposed([]observe.Region{{X: 0.4, Y: 0.4, Width: 0.2, Height: 0.05}},
+		0, 0, 0)
+	c.Press(1, observe.PointerAt{X: 0.5, Y: 0.42}, "visual_1", row)
+	c.Close()
+	e := c.Evidence()
+
+	if e.Blind != 0 || len(e.BlindPresses) != 0 {
+		t.Fatalf("a press inside a proposal was counted blind: %d, %d",
+			e.Blind, len(e.BlindPresses))
+	}
+	// It is INERT instead, which is the real outcome: nothing changed after it.
+	if len(e.Inert) != 1 {
+		t.Errorf("%d inert press(es); a press that landed and changed nothing is an "+
+			"outcome and not a silence", len(e.Inert))
+	}
+}

@@ -165,3 +165,18 @@ func whyNothingWasDemonstrated(obs *fastobserve.Observer, res visualResult) stri
 		"WAIT for the menu to settle before clicking again.",
 		len(obs.Registry()), len(obs.Screens()), observe.MaxPressToTransitionLooks)
 }
+
+// blindPressLine is one press no proposal contained, said as the act it was.
+//
+// The screen and the look come first because they are what makes it an act rather than a
+// coordinate: the person pressed on a particular screen at a particular moment. The position is
+// last and is in percentages of the window, which is how it was recorded — a press coordinate is
+// demonstration evidence and never a durable identity, so it is shown and not stored.
+func blindPressLine(p observe.ClickObservation) string {
+	where := "an unrecognised screen"
+	if p.Screen != "" {
+		where = string(p.Screen)
+	}
+	return fmt.Sprintf("on %-10s at %4.1f%%,%4.1f%% of the window, look %d",
+		where, p.At.X*100, p.At.Y*100, p.Look)
+}

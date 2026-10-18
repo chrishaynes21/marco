@@ -325,6 +325,22 @@ func reportVisualDemonstration(w io.Writer, obs *fastobserve.Observer, res visua
 		fmt.Fprintf(w, "\n  No control was identified.\n    %s\n",
 			whyNoControlWasIdentified(obs, res))
 	}
+	// AND WHAT THE PERSON DID THAT MARCO CANNOT REPEAT, as the thing they did rather
+	// than as a number.
+	//
+	// A press no proposal contained used to be one integer on the `clicks:` line. The
+	// person pressed somewhere, on a screen, at a known moment, and Marco watched them do
+	// it; reporting that as `1 landed on nothing the proposer found` tells them their
+	// click was wrong when what happened is that Marco could not see what they pressed.
+	// See [[ADR-234-the-person-does-not-have-to-prove-the-click]].
+	if blind := obs.Clicks().BlindPresses; len(blind) > 0 {
+		fmt.Fprintf(w, "\n  You pressed these, and Marco saw nothing there to press\n")
+		for _, p := range blind {
+			fmt.Fprintf(w, "    %s\n", blindPressLine(p))
+		}
+		fmt.Fprintf(w, "    Kept as evidence of what you did. None of them can be "+
+			"replayed:\n    a press with no region has no boundary to find again.\n")
+	}
 	if un := d.Unresolved(); len(un) > 0 {
 		fmt.Fprintf(w, "\n  Unresolved — a person could answer these:\n")
 		for _, q := range un {

@@ -1622,6 +1622,16 @@ it refuses those looks. Visible is fine; in front is not.
   held by `TestAPanelIsOneControlWithWhicheverButtonSitsOnItsCentre` and
   `TestTwoReadingsCanEachBeTheButtonWithoutBeingEachOther`.
   [[Experiment-084-the-highlight-that-hides-the-label-draws-the-box]]
+- **Ark's proposer DOES offer buttons, and the three experiments that said otherwise were reading
+  an artifact with no pixels in it.** The owner's own 300-frame Ark capture: the three presses
+  resolve to 73x12, 1816x54 and 138x30, each IDENTICAL across all eleven looks around it, and
+  press 3 lands on a 138x30 boundary holding exactly one label — `GRAPHICS` — which `today`,
+  one-label, word-box and nearest all agree on. That is a demonstrated click resolving to one
+  defensible button-level target, the acceptance criterion set two experiments earlier. The other
+  two abstain honestly: press 2 landed in the gap between two tabs so only the six-label bar
+  contained it, and press 1 resolved to a rectangle with no word in it whose nearest label is
+  `RESUME`, 0.052 away — Experiment 083's neighbour effect on a second game.
+  [[Experiment-085-the-graphics-tab-is-a-button]]
   rather than diagnosing after it. [[Experiment-081-the-first-real-negative]]
 - **Appearance costs five correct recognitions and fixes none of the wrong ones.** The
   ambiguity rule would decline 1 correct answer under arrangement and 5 under palette,
