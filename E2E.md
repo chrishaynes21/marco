@@ -574,12 +574,35 @@ So demonstrate the SAME button twice, going away and coming back:
 What changes in the report when it worked:
 
 ```
-target_1   2 press(es), read as "settings", led somewhere
+target_1   on visual_1   2 press(es), read as "settings", led somewhere
 ```
 
 `2 press(es)` is the whole point, and `seen: 2` appears on the saved step. A control pressed
 twice has two readings of its rectangle and two chances to be read, and the step's `unresolved`
 note about a single click disappears.
+
+And **two** controls instead of one is the interesting failure, because there are two ways to get
+there and they need different answers. The screen on the line is what separates them:
+
+```
+target_1   on visual_1   1 press(es), read as "settings", led somewhere
+target_2   on visual_1   1 press(es), read as "settings", led somewhere   <- the presses did not merge
+```
+
+Both on ONE screen: the menu was recognised on the way back and the two presses were not taken
+to be the same button. That is `sameControl` — mutual centre containment — and the two
+rectangles the proposer offered disagreed too much. Evidence about the proposer.
+
+```
+target_1   on visual_1   1 press(es), read as "settings", led somewhere
+target_2   on visual_3   1 press(es), read as "settings", led somewhere   <- a new screen
+```
+
+On TWO screens: the returned menu was not recognised as the menu, so the second press was never
+offered the first one's identity to merge into. A control identity is scoped to a screen on
+purpose, so this is correct behaviour on a wrong premise — evidence about screen identity, and
+`N screen(s) seen, M visited in order` says it too (seen < visited means something was
+revisited).
 
 Then measure it, with the game IN FRONT for the whole run:
 
@@ -618,3 +641,28 @@ colliding matches: 2100
 Twelve of thirteen controls "found" in a game they were never demonstrated in. That is
 [[Experiment-077-the-screen-was-not-supporting-context]] in one screen of output, and it is why
 the collision count is printed before anything else.
+
+### The negative test that needs a real menu
+
+A saved word edited by hand proves the mechanism and not the behaviour. The test that matters is
+a DIFFERENT real menu of the same game, carrying rectangles of a similar shape:
+
+```sh
+./director.exe reacquire "ark menu 2" --application arkascended --seconds 30
+```
+
+Open the other menu BEFORE the delay runs out and stay on it for the whole run. The verdict is
+accumulated across every look of the run, so a run that starts on the demonstrated menu and
+navigates away folds both menus' readings into one answer and no column can be read.
+
+Three honest outcomes, and all three are informative:
+
+| what the report says | what it means |
+|---|---|
+| `0% matched`, `unread` | geometry found nothing of that shape here. The abstention, and the best answer |
+| `N% matched`, `contradicted` | a rectangle of that shape is here and it reads something else. The refusal working |
+| `N% matched`, `unread` | a rectangle of that shape is here and nothing legible is in it. An abstention, NOT agreement |
+
+And one that would be a finding against Marco: `N% matched`, `corroborated` on a menu that has
+no Settings button — the saved word read back off a different control. Check the `readings:` line
+first, because a stale or unusable reading cannot produce it.

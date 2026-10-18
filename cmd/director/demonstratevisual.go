@@ -56,6 +56,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -171,7 +172,7 @@ func runDemonstrateVisual(args []string) int {
 
 	// ── what the session learned ──
 	draft := workflow.Learn(name, obs.Walk(), obs.Clicks(), obs.Registry())
-	reportVisualDemonstration(obs, res, draft, reader)
+	reportVisualDemonstration(os.Stdout, obs, res, draft, reader)
 	if len(draft.Steps) == 0 {
 		fmt.Fprintf(os.Stderr,
 			"\ndirector: nothing was demonstrated — no press landed on a settled screen,\n"+
@@ -225,44 +226,44 @@ func runDemonstrateVisual(args []string) int {
 // Printed whether or not the save succeeds, and before it, because a session that watched for
 // forty seconds and learned nothing is evidence about the menu and the person is entitled to it
 // without digging in a file.
-func reportVisualDemonstration(obs *fastobserve.Observer, res visualResult, d workflow.Draft,
-	reader *readingEyes) {
-	fmt.Printf("%s\n", strings.Repeat("-", 74))
-	fmt.Printf("WHAT THE DEMONSTRATION TAUGHT\n\n")
+func reportVisualDemonstration(w io.Writer, obs *fastobserve.Observer, res visualResult,
+	d workflow.Draft, reader *readingEyes) {
+	fmt.Fprintf(w, "%s\n", strings.Repeat("-", 74))
+	fmt.Fprintf(w, "WHAT THE DEMONSTRATION TAUGHT\n\n")
 	if res.lost != "" {
-		fmt.Printf("  stopped early: %s\n\n", res.lost)
+		fmt.Fprintf(w, "  stopped early: %s\n\n", res.lost)
 	}
-	fmt.Printf("  %d screen(s) seen, %d visited in order, %d demonstrated control(s)\n",
+	fmt.Fprintf(w, "  %d screen(s) seen, %d visited in order, %d demonstrated control(s)\n",
 		len(obs.Screens()), len(obs.Walk()), len(obs.Registry()))
 	// WHAT THE READER DID, including when it did nothing. A demonstration whose controls
 	// have no names is a different report depending on whether OCR was absent, too slow,
 	// or ran and found no words — and the three send a reader to three different places.
-	fmt.Printf("  words: %s\n", reader.describe())
+	fmt.Fprintf(w, "  words: %s\n", reader.describe())
 	if res.readings > 0 {
-		fmt.Printf("  %d reading(s) reached the observer over %d look(s)\n",
+		fmt.Fprintf(w, "  %d reading(s) reached the observer over %d look(s)\n",
 			res.readings, res.looks)
 	}
 	in := res.in
 	// CLASSIFIED, which is what the producer turned into an intent -- and the ignore
 	// reasons beside it, because "no press reached the correlator" and "every press was
 	// refused as unplaceable" send a reader to different places.
-	fmt.Printf("  presses: %d of %d classified", in.Classified, in.Received)
+	fmt.Fprintf(w, "  presses: %d of %d classified", in.Classified, in.Received)
 	for why, n := range in.Ignored {
-		fmt.Printf(", %d %s", n, why)
+		fmt.Fprintf(w, ", %d %s", n, why)
 	}
 	if in.Unavailable != "" {
-		fmt.Printf(" — the mouse was not watched: %s", in.Unavailable)
+		fmt.Fprintf(w, " — the mouse was not watched: %s", in.Unavailable)
 	}
-	fmt.Println()
+	fmt.Fprintln(w)
 	if len(d.Steps) == 0 {
 		return
 	}
-	fmt.Printf("\n  Steps\n")
+	fmt.Fprintf(w, "\n  Steps\n")
 	for i, st := range d.Steps {
 		// WHAT STANDS BEHIND IT, which is the only thing that decides whether this step
 		// could ever be repeated. `SupportGeometric` is the best value there is and it
 		// is not permission — see workflow's own doc.
-		fmt.Printf("    %d %s -> %s via %s   [%s]\n",
+		fmt.Fprintf(w, "    %d %s -> %s via %s   [%s]\n",
 			i+1, st.From, st.To, shortTarget(st.Target), st.Support())
 	}
 	// WHICH CONTROL EACH PRESS WAS ASSOCIATED WITH, which is the thing a person
@@ -272,30 +273,24 @@ func reportVisualDemonstration(obs *fastobserve.Observer, res visualResult, d wo
 	// control and two steps, and the question is about the control. The words are the
 	// strongest identity evidence a demonstration can record and the first thing a person
 	// can check against their own memory of the menu.
+	//
+	// AND THE SCREEN EACH ONE IS ON, because a control identity is scoped to a screen
+	// on purpose -- the same place on two screens is two controls. So when a button
+	// demonstrated on two separate visits comes back as TWO controls, the screen is what
+	// separates the two causes: two controls on ONE screen means the presses did not
+	// merge, and two on TWO screens means the revisited menu was not recognised as the
+	// menu. Those send a reader to different places, and without the screen printed the
+	// report cannot tell them apart.
 	if reg := obs.Registry(); len(reg) > 0 {
-		fmt.Printf("\n  Controls, and what each press was taken to be\n")
+		fmt.Fprintf(w, "\n  Controls, and what each press was taken to be\n")
 		for _, r := range reg {
-			said := "nothing was read on it"
-			if len(r.Text) > 0 {
-				said = fmt.Sprintf("read as %q", strings.Join(r.Text, " "))
-			}
-			fmt.Printf("    %-12s %d press(es), %s", r.ID, r.Presses, said)
-			if len(r.Destinations) > 0 {
-				fmt.Printf(", led somewhere")
-			} else {
-				fmt.Printf(", NOTHING CHANGED after it")
-			}
-			if len(r.MaybeOneControlWith) > 0 {
-				fmt.Printf("  [could not be told from %v on this screen]",
-					r.MaybeOneControlWith)
-			}
-			fmt.Println()
+			fmt.Fprintf(w, "    %s\n", controlLine(r))
 		}
 	}
 	if un := d.Unresolved(); len(un) > 0 {
-		fmt.Printf("\n  Unresolved — a person could answer these:\n")
+		fmt.Fprintf(w, "\n  Unresolved — a person could answer these:\n")
 		for _, q := range un {
-			fmt.Printf("    %s\n", q)
+			fmt.Fprintf(w, "    %s\n", q)
 		}
 	}
 }
@@ -306,4 +301,27 @@ func shortTarget(id observe.VisualTargetID) string {
 		return "(no control — the screen changed for another reason)"
 	}
 	return string(id)
+}
+
+// controlLine is one demonstrated control as the report shows it.
+//
+// Its own function because the report around it needs a live observer and a running reader to
+// produce, and the claim being made here is about this one line. See
+// TestTheReportNamesTheScreenEachControlWasDemonstratedOn.
+func controlLine(r observe.TargetRecord) string {
+	said := "nothing was read on it"
+	if len(r.Text) > 0 {
+		said = fmt.Sprintf("read as %q", strings.Join(r.Text, " "))
+	}
+	out := fmt.Sprintf("%-12s on %-10s %d press(es), %s", r.ID, r.Screen, r.Presses, said)
+	if len(r.Destinations) > 0 {
+		out += ", led somewhere"
+	} else {
+		out += ", NOTHING CHANGED after it"
+	}
+	if len(r.MaybeOneControlWith) > 0 {
+		out += fmt.Sprintf("  [could not be told from %v on this screen]",
+			r.MaybeOneControlWith)
+	}
+	return out
 }

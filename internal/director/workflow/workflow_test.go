@@ -515,3 +515,127 @@ func TestADraftSaysWhenNothingWasReadOnTheControl(t *testing.T) {
 			d.Steps[0].Unresolved)
 	}
 }
+
+// ── the same control, demonstrated on two separate visits ────────────────────
+
+// ONE BUTTON CLICKED ON TWO VISITS IS ONE CONTROL, AND THE CAVEAT GOES AWAY.
+//
+// The validation the owner asked for before any pixel action:
+//
+//	Capture the same Settings button twice across separate visits to the Ark menu. Verify
+//	whether the artifact recognizes the repeated control as one identity.
+//
+// This is that shape, deterministically, so a live run that reports two controls is read as
+// evidence about Ark's menu rather than about this code. The walk leaves and comes back:
+//
+//	visual_1 --click Settings--> visual_2 --Escape--> visual_1 --click Settings--> visual_2
+//
+// Three things have to hold together, and each would fail differently live:
+//
+//   - the revisited screen is the SAME screen, so the second press is offered the same
+//     identity to merge into — which is the demonstration's own job and is NOT what this
+//     test can prove about Ark;
+//   - the two presses merge, which is `sameControl` and is proven on real measured
+//     rectangles by [[Experiment-050-two-readings-of-one-button]];
+//   - the pair (visual_1, visual_2) occurring twice becomes two steps rather than one,
+//     which is ADR-174's rule and the reason `Learn` walks occurrences.
+//
+// And the caveat that stands on every single-press control -- *clicked once, so nothing
+// independent confirms that this control can be found again* -- must be GONE, because that
+// sentence is the whole reason this demonstration is being asked for.
+func TestOneControlClickedOnTwoVisitsIsOneControlWithoutTheCaveat(t *testing.T) {
+	c := &observe.ClickTargets{}
+	all := []observe.Region{panel(), row(0.2), row(0.3), row(0.4)}
+	settings := row(0.3)
+
+	c.Press(1, centre(settings), "visual_1", observe.Proposed(all, 1, 0, 0))
+	c.Arrived(3, observe.VisualTransition{From: "visual_1", To: "visual_2"})
+	// BACK, BY A KEY. No press reaches the correlator, so this leg has no control --
+	// which is the owner's third question: the intervening interaction must not become a
+	// target of its own.
+	c.Arrived(6, observe.VisualTransition{From: "visual_2", To: "visual_1"})
+	c.Press(8, centre(settings), "visual_1", observe.Proposed(all, 8, 0, 0))
+	c.Arrived(10, observe.VisualTransition{From: "visual_1", To: "visual_2"})
+
+	reg := c.Registry()
+	if len(reg) != 1 {
+		t.Fatalf("%d control(s); one button on two visits to one screen is one "+
+			"identity: %+v", len(reg), reg)
+	}
+	if reg[0].Presses != 2 || !reg[0].Repeated() {
+		t.Fatalf("%s records %d press(es), repeated=%v", reg[0].ID, reg[0].Presses,
+			reg[0].Repeated())
+	}
+
+	d := workflow.Learn("ark twice",
+		[]observe.VisualScreenID{"visual_1", "visual_2", "visual_1", "visual_2"},
+		c.Evidence(), reg)
+	if len(d.Steps) != 3 {
+		t.Fatalf("%d step(s) from a walk of four screens, want 3: %+v", len(d.Steps),
+			d.Steps)
+	}
+	first, back, second := d.Steps[0], d.Steps[1], d.Steps[2]
+	if first.Cause != observe.CauseClick || second.Cause != observe.CauseClick {
+		t.Errorf("the two visits are caused by %q and %q, want click twice",
+			first.Cause, second.Cause)
+	}
+	// THE SECOND VISIT NAMES THE SAME CONTROL. A draft whose two legs named different
+	// targets would replay as two buttons and read, in the report, as a near miss.
+	if first.Target != second.Target || first.Target == "" {
+		t.Errorf("visit 1 pressed %q and visit 2 pressed %q", first.Target,
+			second.Target)
+	}
+	// AND THE WAY BACK IS NOT A CONTROL.
+	if back.Cause == observe.CauseClick || back.Target != "" {
+		t.Errorf("the Escape leg was attributed to %q by %q", back.Target, back.Cause)
+	}
+
+	if u := strings.Join(d.Unresolved(), " | "); strings.Contains(u, "clicked once") {
+		t.Errorf("a control clicked on two visits is still reported as clicked "+
+			"once: %q", u)
+	}
+}
+
+// TWO VISITS OF ONE PAIR TAKE THE EVIDENCE OF THAT VISIT, NOT OF THE FIRST.
+//
+// ADR-174 measured a step that was a click on one pass and automatic on the other, which is why
+// `Learn` walks the occurrences of a pair rather than taking its first. A draft that copied the
+// first occurrence onto every later visit would describe a click where nothing was pressed --
+// and it would look right, because the pair and the order would both be correct.
+func TestEachVisitOfAPairTakesThatVisitsEvidence(t *testing.T) {
+	c := &observe.ClickTargets{}
+	all := []observe.Region{panel(), row(0.2), row(0.3), row(0.4)}
+
+	c.Press(1, centre(row(0.3)), "visual_1", observe.Proposed(all, 1, 0, 0))
+	c.Arrived(3, observe.VisualTransition{From: "visual_1", To: "visual_2"})
+	c.Arrived(6, observe.VisualTransition{From: "visual_2", To: "visual_1"})
+	// THE SECOND VISIT HAPPENED BY ITSELF. Nothing was pressed, so this leg has no
+	// control and the right response to it is to wait.
+	c.Arrived(9, observe.VisualTransition{From: "visual_1", To: "visual_2"})
+
+	d := workflow.Learn("ark twice",
+		[]observe.VisualScreenID{"visual_1", "visual_2", "visual_1", "visual_2"},
+		c.Evidence(), c.Registry())
+	if len(d.Steps) != 3 {
+		t.Fatalf("%d step(s) from a walk of four screens, want 3: %+v", len(d.Steps),
+			d.Steps)
+	}
+	var clicked, otherwise int
+	for _, s := range d.Steps {
+		if s.From != "visual_1" || s.To != "visual_2" {
+			continue
+		}
+		if s.Cause == observe.CauseClick {
+			clicked++
+			continue
+		}
+		otherwise++
+		if s.Target != "" {
+			t.Errorf("a leg caused by %q names the control %q", s.Cause, s.Target)
+		}
+	}
+	if clicked != 1 || otherwise != 1 {
+		t.Errorf("the two visits of visual_1 -> visual_2 came out %d click(s) and %d "+
+			"otherwise; one of each was demonstrated", clicked, otherwise)
+	}
+}

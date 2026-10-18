@@ -189,3 +189,77 @@ The same run also exposed a defect in the corroboration's own first version: it 
 the window generation and the observation epoch and not usability. Corroborating against the
 terminal's pixels is worse than not corroborating at all. Fixed, and
 `TestAMatchIsReportedWithWhatItSays` holds the gate.
+
+## Prepared: the two validations that need a real menu
+
+The owner's gate before any pixel action:
+
+> 1. Capture the same Settings button twice across separate visits to the Ark menu.
+> 2. Evaluate the saved Settings target against a different real Ark menu with similar geometry.
+>
+> Do not use a synthetic saved-word substitution as the only negative test.
+
+Both need hands on the game. What was done instead of substituting for them is to make sure a
+live run ANSWERS, and to establish which link in the chain the answer would be about.
+
+### The twice-visited chain works, on the production observer
+
+`TestOneButtonOnTwoVisitsIsOneControlInTheReport` drives `fastobserve.Observer` through the exact
+shape of the demonstration — settle on the menu, press the middle entry, settle on the second
+screen, come back with no press, press the same entry again — and all three links hold:
+
+| link | holds | held by |
+|---|---|---|
+| the revisited menu is the same screen | yes | the arrangement relation, `screens seen < walk` |
+| the two presses merge into one identity | yes | `sameControl`, mutual centre containment |
+| the pair walked twice becomes two steps | yes | ADR-174's occurrence walk |
+
+`Presses: 2`, `Repeated()` true, and the step's caveat — *clicked once, so nothing independent
+confirms that this control can be found again* — is GONE, which is the sentence the whole
+validation exists to retire.
+
+**What that does not prove is the first link on Ark's pixels.** The regions fed to the observer
+are identical on both visits by construction, so the arrangement relation cannot fail; a real
+menu redrawn with a different highlight, a loading spinner or a changed player count can. That
+is the live question, and it is the one the second visit is being asked for.
+
+### So two controls is the interesting result, and the report now says which kind
+
+A control identity is scoped to a screen on purpose, so there are exactly two ways to come back
+with two controls and they need opposite answers. The report printed the control and its press
+count and not its screen, which could not separate them. It now prints the screen:
+
+```
+control_1   on visual_1   1 press(es), read as "settings", led somewhere
+control_2   on visual_1   1 press(es), read as "settings", led somewhere
+```
+
+Two on ONE screen — the menu was recognised and the presses did not merge. Evidence about the
+proposer's rectangles.
+
+```
+control_1   on visual_1   1 press(es), read as "settings", led somewhere
+control_2   on visual_3   1 press(es), read as "settings", led somewhere
+```
+
+Two on TWO screens — the menu was not recognised on the way back, so the second press was never
+offered the first one's identity. Evidence about screen identity, and correct behaviour on a
+wrong premise.
+
+### The different-menu negative needs no code, and one instruction
+
+`reacquire` already separates the four outcomes the owner asked for, and reports geometric
+matches beside them:
+
+```
+  N of M control(s) were found on at least one look.
+  P text-corroborated, Q text-contradicted, R unread.
+```
+
+The one thing a run can get wrong is the operator's: the verdict accumulates over every look of
+the run, so a run that begins on the demonstrated menu and navigates away folds both menus'
+readings into one answer. Stand on the other menu for the whole run. `E2E.md` carries that and
+the three honest outcomes — `0% matched`/`unread` is the abstention, `N% matched`/`contradicted`
+is the refusal working, and `N% matched`/`unread` is an abstention and **not** agreement.
+
+A fourth would be a finding against Marco: `corroborated` on a menu with no Settings button.
