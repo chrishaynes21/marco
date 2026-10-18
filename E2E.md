@@ -491,8 +491,19 @@ Marco only watches. Pick a menu with a few obvious buttons and no timer.
 ```sh
 go build -o director.exe ./cmd/director
 
-# 1. find the window's title
-./director.exe windows | grep -i <game>
+# no daemon needed: this command, and `reacquire` and `sequences` below, all read
+# and write the store directly.
+./director.exe demonstrate-visual "enter free play" --application <exe-name> --seconds 120
+```
+
+The selector is the EXECUTABLE name, which survives a patch -- `arkascended`, not
+`Ark: Survival Ascended (94.34.0)`. Use `--window-title "<substring>"` instead when one
+executable owns several windows, and exactly one of the two: `Selector.Validate` refuses both
+together, because a request naming two has nothing to disambiguate it.
+
+**The game must be in FRONT.** Window capture is not occlusion-safe: `--application` avoids
+stealing focus and returns the covering window's pixels under the target's name, so a
+demonstration recorded against a backgrounded game is a demonstration of your terminal.| grep -i <game>
 
 # 2. start watching, then switch to the game within the 5s delay
 ./director.exe demonstrate-visual "enter free play" --window-title "<title>" --seconds 120
@@ -538,14 +549,30 @@ WHAT THE DEMONSTRATION TAUGHT
 Then inspect and measure what was kept:
 
 ```sh
-./director.exe sequences "enter free play"            # the steps, with how each is aimed
-./director.exe reacquire "enter free play" --window-title "<title>" --seconds 30
+./director.exe sequences                                  # what has been saved
+./director.exe sequences "enter free play"                 # its steps, and how each is aimed
+./director.exe reacquire "enter free play" --application <exe-name> --seconds 30
 ```
 
 `reacquire` presses nothing. It reports, per control, how often it could be found again, and how
 often two controls claimed one rectangle — which is the only wrongness it can detect without you.
 
-**Expect it to be unreliable.** [[Experiment-078-the-conjunction-is-two-terms-wearing-three-hats]]
-measured the grounding rules on a recorded game menu: the best of them is wrong one time in
-thirty-one and ready on 1 look in 449. Nothing authorises a pixel replay yet, and
-`director execute "run <name>"` cannot run a pixel routine at all.
+**Expect it to be unreliable, and expect the report to say so.**
+[[Experiment-078-the-conjunction-is-two-terms-wearing-three-hats]] measured the grounding rules
+on a recorded game menu: the best of them is wrong one time in thirty-one and ready on 1 look in
+449. Nothing authorises a pixel replay yet, and `director sequences "<name>"` says in as many
+words that a pixel routine cannot be run.
+
+The shape of a bad answer, from verifying these commands against a Rocket League artifact in an
+Ark window -- two games that share no menu at all:
+
+```
+12 of 13 control(s) were found on at least one look.
+colliding matches: 2100
+  AT LEAST 2100 WRONG. Two controls matched one rectangle on the same look,
+  and they cannot both be the thing in that place.
+```
+
+Twelve of thirteen controls "found" in a game they were never demonstrated in. That is
+[[Experiment-077-the-screen-was-not-supporting-context]] in one screen of output, and it is why
+the collision count is printed before anything else.

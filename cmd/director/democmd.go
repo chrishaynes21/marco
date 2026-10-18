@@ -432,11 +432,11 @@ func runSequences(args []string) int {
 	// their desktop wants its steps, not a row in a table.
 	if fs.NArg() > 0 {
 		want := strings.Join(fs.Args(), " ")
-		out, code := demoRequest(service.DemonstrationPayload{Action: service.DemoSequences})
+		list, code := savedSequences()
 		if code != 0 {
 			return code
 		}
-		for _, a := range out.Sequences {
+		for _, a := range list {
 			if strings.EqualFold(a.Name, want) {
 				if *jsonOut {
 					return printJSON(a)
@@ -449,26 +449,40 @@ func runSequences(args []string) int {
 		return 1
 	}
 
-	out, code := demoRequest(service.DemonstrationPayload{Action: service.DemoSequences})
+	list, code := savedSequences()
 	if code != 0 {
 		return code
 	}
 	if *jsonOut {
-		return printJSON(out)
+		return printJSON(list)
 	}
-	if len(out.Sequences) == 0 {
+	if len(list) == 0 {
 		fmt.Println("Nothing has been saved as a named sequence yet.")
-		fmt.Println("  director demonstrate start      then perform the task once")
-		fmt.Println("  director demonstrate stop")
-		fmt.Println(`  director save "my settings tour"`)
+		fmt.Println("  from the accessibility tree:")
+		fmt.Println("    director demonstrate start    then perform the task once")
+		fmt.Println("    director demonstrate stop")
+		fmt.Println(`    director save "my settings tour"`)
+		fmt.Println("  from PIXELS, with your own hands:")
+		fmt.Println(`    director demonstrate-visual "enter free play" --application X`)
 		return 0
 	}
 	fmt.Printf("%-28s  %-5s  %s\n", "NAME", "STEPS", "SAVED")
-	for _, a := range out.Sequences {
+	for _, a := range list {
 		fmt.Printf("%-28s  %-5d  %s\n",
 			truncate(a.Name, 28), len(a.Steps), a.SavedAt.Local().Format("2006-01-02 15:04"))
 	}
-	fmt.Printf("\nRun one with: director execute \"run %s\"\n", out.Sequences[0].Name)
+	// ONLY A ROUTINE THAT COULD RUN IS OFFERED AS ONE. A pixel routine has no verbs, and
+	// pointing somebody at `execute` for it is a confusing failure rather than a feature.
+	// See runnable.
+	for _, a := range list {
+		if runnable(a) {
+			fmt.Printf("\nRun one with: director execute \"run %s\"\n", a.Name)
+			return 0
+		}
+	}
+	fmt.Printf("\nNone of these can be run: they were learned from PIXELS and carry no\n")
+	fmt.Printf("verbs. Measure one instead:\n")
+	fmt.Printf("  director reacquire %q --application <app>\n", list[0].Name)
 	return 0
 }
 
@@ -492,6 +506,15 @@ func renderSequence(a workflowstore.Artifact) string {
 	fmt.Fprintf(&b, "\nSteps\n")
 	for _, st := range a.Steps {
 		c := byLabel[st.Control]
+		// WHAT IT IS AIMED AT, in the artifact's own order of preference — and a step
+		// with only VISUAL evidence says so.
+		//
+		// "the focused control" was the fallback for all of them, which on a pixel
+		// routine is a plain lie: a control with readings and no name was not aimed at
+		// focus, it was aimed at a shape the proposer found. The two are the opposite
+		// claims — one is resolved at run time by asking what has focus, the other by
+		// comparing rectangles — and a person deciding whether to trust a routine has
+		// to see which.
 		what := "the focused control"
 		switch {
 		case c.Editor:
@@ -502,8 +525,19 @@ func renderSequence(a workflowstore.Artifact) string {
 			what = fmt.Sprintf("%s (by role)", goal.ControlRole(c.Role).Describe())
 		case len(c.Text) > 0:
 			what = fmt.Sprintf("%q (by name)", c.Text[0])
+		case len(c.Readings) > 0:
+			what = fmt.Sprintf("%s — a shape on screen, by sight only", c.Label)
 		}
-		line := fmt.Sprintf("  %d %s %s", st.Position+1, st.Verb, what)
+		// AND THE VERB, which a pixel step has none of: a frame recording observes a
+		// press and a screen change and cannot know what the person meant by pressing.
+		verb := st.Verb
+		if verb == "" {
+			verb = "go from " + st.From + " to " + st.To + ", pressing"
+			if st.Control == "" {
+				verb, what = "go from "+st.From+" to "+st.To, "(nothing was pressed)"
+			}
+		}
+		line := fmt.Sprintf("  %d %s %s", st.Position+1, verb, what)
 		if st.Value != "" {
 			line += fmt.Sprintf(" = %q", st.Value)
 		}
@@ -512,5 +546,70 @@ func renderSequence(a workflowstore.Artifact) string {
 		}
 		fmt.Fprintln(&b, line)
 	}
+	if !runnable(a) {
+		fmt.Fprintf(&b, "\n  THIS ROUTINE CANNOT BE RUN YET. Its steps carry visual\n")
+		fmt.Fprintf(&b, "  evidence and no verb, so there is nothing for the ordinary\n")
+		fmt.Fprintf(&b, "  execution path to do with them. What you can do is measure\n")
+		fmt.Fprintf(&b, "  whether its controls are findable again:\n")
+		fmt.Fprintf(&b, "    director reacquire %q --application <app>\n", a.Name)
+	}
 	return b.String()
+}
+
+// runnable reports whether the ordinary execution path could do anything with this routine.
+//
+// A routine learned from the accessibility tree carries a verb and a role or a name per step,
+// and `director execute "run <name>"` runs it. One learned from PIXELS carries neither: a frame
+// recording observes a press and a screen change and cannot know what the press MEANT.
+//
+// Asked rather than assumed, because the alternative was printing *Run one with: director
+// execute "run enter free play"* under a routine that cannot run — which sends somebody to a
+// confusing failure at step three of a walkthrough.
+//
+// Enforced by TestAPixelRoutineIsNotOfferedAsRunnable.
+func runnable(a workflowstore.Artifact) bool {
+	for _, st := range a.Steps {
+		if st.Verb == "" {
+			return false
+		}
+	}
+	return len(a.Steps) > 0
+}
+
+// savedSequences is the saved routines, from the daemon when it is running and from the store
+// when it is not.
+//
+// # Why this one request does not need the service
+//
+// Every other demonstration request does, and for a reason that does not apply here: the daemon
+// is what RECORDS, so "start recording" and "what is being recorded" have exactly one answer and
+// it lives there. A saved sequence is a file, read fresh from disk every time it is asked for —
+// `Store.Sequence` opens it on every call and the daemon holds no copy — so a direct read and a
+// request through the service are the same bytes.
+//
+// It matters because of the shape of the teaching flow. `director demonstrate-visual` and
+// `director reacquire` both work without a daemon, so a person teaching Marco a game menu had to
+// start a service for the one command in the middle that only lists files. That is the kind of
+// seam that makes a walkthrough fail at step three.
+//
+// The daemon is still PREFERRED, so a future daemon that did hold state stays authoritative, and
+// its absence is not reported as an error — a store nobody has written to is empty, which is the
+// ordinary answer.
+//
+// Enforced by TestListingSavedSequencesWorksWithoutTheService.
+func savedSequences() ([]workflowstore.Artifact, int) {
+	if client, err := connect(false); err == nil {
+		defer client.Close()
+		if out, derr := client.Demonstration(service.DemonstrationPayload{
+			Action: service.DemoSequences,
+		}); derr == nil {
+			return out.Sequences, 0
+		}
+	}
+	store, err := demo.Open(configDir())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "director: %v\n", err)
+		return nil, 1
+	}
+	return store.Sequences(), 0
 }
