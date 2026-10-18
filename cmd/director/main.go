@@ -389,8 +389,8 @@ func usage() {
   director correct "<name>" --drop <n|last> --because "<words>"
                                  take one step out of what Marco learned; your
                                  demonstration itself is kept unchanged
-  director what-i-did "<name>"   what you actually did to teach it: every press
-                                 with its position, every key with its edges
+  director what-i-did "<name>"   what you actually did when you showed it: every
+                                 press with its position, every key with its edges
   director reacquire "<name>" --application X
                                  can that routine.s controls be found again?
                                  per control, no screen bound; presses nothing

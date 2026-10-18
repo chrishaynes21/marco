@@ -159,6 +159,31 @@ const OutcomeSettleLooks = 5
 // MaxOutcomeWatches bounds how many presses a session accumulates outcome evidence for.
 const MaxOutcomeWatches = 64
 
+// OutcomeSkipReadings is how many readings immediately after an action are not evidence.
+//
+// # TWO, and the number is measured twice from the same recording
+//
+// The readings taken straight after a press describe the application MID-RESPONSE. On Ark's
+// capture the tab bar is partly rendered and the panel body missing entirely —
+// [[Experiment-086-the-tab-changed-the-panel-and-not-the-screen]] names the frame.
+//
+// The persistence term requires a word on EVERY reading of the settled window, so including a
+// mid-draw frame makes every word of the new panel appear on four readings of five and fall out
+// as transient. That is not a subtle effect. With no skip the correlator reported `everything
+// that appeared was transient` for all three of Ark's presses and learned ONE step; with a skip
+// of one it reported exactly the same thing; with two it verifies presses 2 and 3 on 19 and 36
+// words and learns THREE steps — the same two numbers `perceptionreplay -frames -outcome`
+// produces with its own `OutcomeSkipLooks = 2`.
+//
+// So the live path and the offline measurement agree because they skip the same amount, and not
+// by coincidence. Getting it wrong by one looked exactly like fixing the wrong thing, which is
+// why the amount is written down here with what it was measured against.
+//
+// A transition longer than two readings still fails the persistence term and is refused as
+// transient, which is the safe direction: a verifier that waited until it agreed would be
+// looking for a reason to say yes.
+const OutcomeSkipReadings = 2
+
 // LocalOutcome is what a press changed somewhere other than the control it pressed.
 type LocalOutcome struct {
 	// Target is the control that was pressed, empty for a press that resolved to none.
@@ -233,6 +258,9 @@ type outcomeWatch struct {
 	// before is the readings of this screen taken before the press, oldest first, and
 	// after the readings taken since.
 	before, after [][]ReadWord
+	// skipped is how many readings after the press were dropped as mid-response. See
+	// OutcomeSkipReadings.
+	skipped int
 }
 
 // watch opens an outcome watch for one press, with whatever was read on this screen before it.
@@ -267,6 +295,16 @@ func (c *ClickTargets) observeOutcome(screen VisualScreenID, read []ReadWord) {
 	for i := range c.watching {
 		w := &c.watching[i]
 		if w.screen != screen || len(w.after) >= OutcomeSettleLooks {
+			continue
+		}
+		// THE READING TAKEN MID-RESPONSE IS NOT EVIDENCE EITHER WAY.
+		//
+		// Counted and dropped. See OutcomeSkipReadings: including it made every
+		// word of Ark's new panel transient, because the persistence term wants a
+		// word on every reading of the window and the panel is not drawn yet on
+		// the first one.
+		if w.skipped < OutcomeSkipReadings {
+			w.skipped++
 			continue
 		}
 		w.after = append(w.after, append([]ReadWord{}, read...))

@@ -1632,6 +1632,20 @@ it refuses those looks. Visible is fine; in front is not.
   contained it, and press 1 resolved to a rectangle with no word in it whose nearest label is
   `RESUME`, 0.052 away — Experiment 083's neighbour effect on a second game.
   [[Experiment-085-the-graphics-tab-is-a-button]]
+- **Four things stood between a demonstration and an executable click, and one of them reported
+  success over a click that never happened.** The execution path is pixel-native in all but one
+  of the owner's eight requirements — it collected no post-action evidence, which
+  `Report.Verified` said itself. Implementing that found three more: a step whose two ends are
+  the same screen label had its destination established on the FIRST look and the run finished
+  with `every one of the 1 step(s) was reached` having clicked nothing; `Learn` ignored inert
+  presses, so the one demonstrated click in this project with a corroborated button-level target
+  was not in the procedure at all; and the verifier's window included the mid-draw readings,
+  which inverted its own answer — 0 of 3 against the offline measurement's 2 of 3, on the same
+  recording, until the skip matched at two readings. With all four fixed, Ark's capture learns
+  THREE steps where it learned one, and the GRAPHICS press carries a 36-word outcome
+  expectation. A fifth was diagnosed, implemented, reported and WRONG: `Close` already files
+  every pending press, and the mutation gate said so by surviving.
+  [[Experiment-088-four-things-between-a-demonstration-and-a-click]]
 - **A click's OUTCOME can be verified where the screen does not change, and the terms are
   measured on two games rather than one.** Ark's GRAPHICS tab verifies on 36 independent words
   with 0 false outcomes in 219 windows with no input in them; Rocket League's main menu is

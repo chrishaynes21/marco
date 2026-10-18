@@ -503,6 +503,16 @@ func TestAVisualScreenCannotReachDurableMemory(t *testing.T) {
 		filepath.Join(store, "reached_test.go"):   true,
 		filepath.Join(run, "workflowrun.go"):      true,
 		filepath.Join(run, "workflowrun_test.go"): true,
+		// `verify.go` is the post-action evidence on a clock, and it is allowed here
+		// for the reason `workflowrun.go` is: it holds a screen id to SCOPE a
+		// verification to the screen the action was taken on, and nothing it holds
+		// outlives the run. No JSON tags, no field of `Artifact`, nothing marshals.
+		//
+		// What reaches the durable side from a verification is the WORDS, through
+		// `Step.Outcome`, and `TestTheSaveCarriesTheDemonstratedOutcome` asserts that
+		// no screen, target or look travels with them.
+		filepath.Join(run, "verify.go"):      true,
+		filepath.Join(run, "verify_test.go"): true,
 		// `thinarrival_test.go` builds an artifact and a look to drive the
 		// coordinator's thin-arrival policy through the real establishment path, so it
 		// names both. It writes nothing durable: a `SessionBinding` is not marshalled.

@@ -104,6 +104,11 @@ type Step struct {
 	// ADR-180, where mutual centre containment turned out not to be a size test.
 	Readings   []observe.Region `json:"readings,omitempty"`
 	Containers []observe.Region `json:"containers,omitempty"`
+	// look is the look this step's own press happened on, for ordering only.
+	//
+	// Unexported so it can never serialise: it is a session-local index and the saved
+	// artifact carries `Position` instead, assigned at the save from the order here.
+	look int
 	// Outcome is the words read SOMEWHERE OTHER THAN this control that appeared when
 	// it was pressed and stayed.
 	//
@@ -316,6 +321,10 @@ func Learn(name string, walk []observe.VisualScreenID, ev observe.ClickEvidence,
 		// SAME label at both ends this is the only evidence that anything
 		// happened at all. See observe/outcome.go.
 		step.Outcome = outcomeOf(ev, st.Target)
+		// AND WHEN IT HAPPENED, for ordering against the panel steps below.
+		if len(st.Looks) > 0 {
+			step.look = st.Looks[0]
+		}
 		if rec, ok := records[st.Target]; ok {
 			step.Readings = append([]observe.Region{}, rec.Where...)
 			step.Containers = append([]observe.Region{}, rec.Containers...)
@@ -348,9 +357,30 @@ func Learn(name string, walk []observe.VisualScreenID, ev observe.ClickEvidence,
 		}
 		d.Steps = append(d.Steps, step)
 	}
+	// ── AND THE PRESSES THAT CHANGED SOMETHING WITHOUT CHANGING THE SCREEN ──
+	//
+	// A step has always needed a TRANSITION, which is why Ark's GRAPHICS click produced
+	// none: it changes the panel under a persistent tab bar, the screen model records no
+	// change, and the press is filed as inert. So the one demonstrated click in this
+	// project with a corroborated button-level target was not in the procedure at all,
+	// and no verifier could have helped — there was nothing to verify.
+	//
+	// Admitted here on ONE condition: the press has a VERIFIED local outcome. That is
+	// positive evidence, persistent across the settled window, read outside the control
+	// itself, on a screen that holds still — see observe/outcome.go for the four terms and
+	// [[Experiment-087-the-panel-changed-and-the-verifier-could-say-so]] for the
+	// measurement. An inert press WITHOUT one stays out: a click that did nothing
+	// observable is not a step, and that is most of them.
+	//
+	// Both ends are the same screen, which is true and is what the replay path now
+	// handles: such a step can never arrive and is finished by its own outcome.
+	if panels := panelSteps(ev, records); len(panels) > 0 {
+		d.Steps = mergeByLook(d.Steps, panels)
+	}
 	if len(d.Steps) == 0 {
 		d.Notes = append(d.Notes, "the demonstration never settled on two screens in a "+
-			"row, so there is no step in it")
+			"row, and no press changed anything that could be verified, so there is "+
+			"no step in it")
 	}
 	return d
 }
@@ -576,4 +606,93 @@ func outcomeOf(ev observe.ClickEvidence, target observe.VisualTargetID) []string
 		return nil
 	}
 	return append([]string{}, best...)
+}
+
+// panelSteps is the presses that changed something without changing the screen.
+//
+// One step per INERT press whose local outcome verified. Both ends are the same screen, which
+// is what happened: the person pressed a control, the panel under it changed, and the screen
+// model recorded no transition. See `Learn` for why this is admitted and on what condition.
+//
+// A press with no target is skipped whatever its outcome: a control with no identity has no
+// boundary to find again, so there is nothing a replay could press. That is
+// [[ADR-234-the-person-does-not-have-to-prove-the-click]] unchanged — the press is still kept
+// as evidence, in the raw demonstration, and what it cannot be is a step.
+func panelSteps(ev observe.ClickEvidence,
+	records map[observe.VisualTargetID]observe.TargetRecord) []Step {
+
+	verified := map[observe.VisualTargetID]observe.LocalOutcome{}
+	for _, o := range ev.Outcomes {
+		if o.Target == "" || !o.Verified() {
+			continue
+		}
+		// THE BEST OF THE OCCURRENCES, as `outcomeOf` takes it: a control pressed
+		// twice may have been read well once and badly once.
+		if len(o.Appeared) > len(verified[o.Target].Appeared) {
+			verified[o.Target] = o
+		}
+	}
+	var out []Step
+	for _, p := range ev.Inert {
+		o, ok := verified[p.Target]
+		if !ok || p.Target == "" || p.Screen == "" {
+			continue
+		}
+		step := Step{
+			From: p.Screen, To: p.Screen, Cause: observe.CauseClick,
+			Target: p.Target, Seen: 1,
+			Outcome: append([]string{}, o.Appeared...),
+			look:    p.Look,
+		}
+		if rec, ok := records[p.Target]; ok {
+			step.Readings = append([]observe.Region{}, rec.Where...)
+			step.Containers = append([]observe.Region{}, rec.Containers...)
+			step.Text = append([]string{}, rec.Text...)
+			step.TextLooks = rec.TextLooks
+		}
+		// AND WHAT A READER HAS TO KNOW ABOUT IT. This step cannot be finished by
+		// arriving anywhere, so a run that could not check its outcome can never
+		// complete it — and that is worth saying in the file rather than discovering
+		// at replay.
+		step.Unresolved = append(step.Unresolved, fmt.Sprintf("this press changed "+
+			"the window without changing the screen, so it is finished by its "+
+			"own outcome (%d word(s)) and never by arriving somewhere",
+			len(o.Appeared)))
+		out = append(out, step)
+	}
+	return out
+}
+
+// mergeByLook puts the panel steps into the walk at the moment they were performed.
+//
+// A MERGE and not a sort. The walk's own order is not touched: `byPair` already walked it in
+// the order the demonstration visited its screens, and an earlier version that re-sorted
+// everything by look moved two legs of a twice-visited walk past each other — because a step
+// whose transition recorded no look sorted as though it happened first.
+//
+// So each walk step keeps its place, a look is inherited forward across the ones that recorded
+// none, and a panel step goes after every walk step that happened at or before it. A panel step
+// whose screen the walk has already left is still placed in time rather than dropped: a replay
+// that cannot reach it refuses it, and refusing a step somebody demonstrated is honest where
+// silently omitting it is not.
+func mergeByLook(walk, panels []Step) []Step {
+	sort.SliceStable(panels, func(i, j int) bool { return panels[i].look < panels[j].look })
+	looks := make([]int, len(walk))
+	last := 0
+	for i, s := range walk {
+		if s.look > 0 {
+			last = s.look
+		}
+		looks[i] = last
+	}
+	out := make([]Step, 0, len(walk)+len(panels))
+	next := 0
+	for i, s := range walk {
+		for next < len(panels) && panels[next].look < looks[i] {
+			out = append(out, panels[next])
+			next++
+		}
+		out = append(out, s)
+	}
+	return append(out, panels[next:]...)
 }

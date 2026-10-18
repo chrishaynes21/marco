@@ -111,6 +111,8 @@ func runPerformWorkflow(args []string) int {
 	explore := fs.Bool("explore", false,
 		"authorise the whole session at launch instead of asking for each action. "+
 			"Bounded by -max-actions and -seconds; every other check is unchanged")
+	verifyFor := fs.Duration("verify-for", workflowrun.DefaultVerifyDeadline,
+		"how long after an action to wait for the readings that verify its outcome")
 	dwell := fs.Duration("dwell", workflowrun.DefaultDwell,
 		"how long the pointer rests on a control before the click. 0 sends the click "+
 			"alone, which a game menu ignores")
@@ -303,6 +305,11 @@ func runPerformWorkflow(args []string) int {
 		// passing nil, must make the runner refuse every action — see
 		// TestPerformWorkflowInstallsItsGates.
 		WithConfirm(stillThere(obs, tracker, windows, *app)).
+		// HOW LONG AN ACTION'S OWN EVIDENCE IS WAITED FOR, which is a different
+		// scarcity from patience: patience counts LOOKS of an unestablished screen,
+		// and this counts TIME for enough readings to decide whether the action did
+		// what it did when it was shown. See workflowrun/verify.go.
+		WithVerifyDeadline(*verifyFor).
 		WithPatience(*patience)
 
 	fmt.Printf("Performing %q against %s\n", art.Name, v.Ref.Describe())
@@ -1147,6 +1154,41 @@ func printRun(rep workflowrun.Report, art workflowstore.Artifact, book *recordho
 				"    against too few saved words to refuse",
 				rep.ThinWords, rep.Reached)
 		}
+	}
+	// ── WHAT EACH ACTION'S OWN EVIDENCE SAID ──
+	//
+	// The three verdicts, counted apart. An UNCONFIRMED outcome is not a failed action
+	// and not a successful one — the question could not be put — and a report with one
+	// `verified` number would hide which of the two a run rested on.
+	//
+	// Printed before the causal claim below, because they are different claims: this is
+	// what the application did, and that is whether the press caused it.
+	if n := len(rep.Verifications); n > 0 {
+		fmt.Printf("  %-42s %d verified, %d contradicted, %d unconfirmed\n",
+			"action outcomes checked", rep.VerifiedOK, rep.Contradicted,
+			rep.Unconfirmed)
+		for _, v := range rep.Verifications {
+			fmt.Printf("      %s\n", v.Summary())
+		}
+		// AND THE SELF-TEST ON THE SCREEN THAT WAS ACTED ON. A screen that
+		// produces an outcome with nothing done to it has outcomes that mean
+		// nothing, and the verifier refuses on them rather than guessing.
+		for _, v := range rep.Verifications {
+			if v.Quiet > 0 {
+				fmt.Printf("      screen held still in %d of %d window(s) "+
+					"with no action in them\n", v.Quiet-v.Moved, v.Quiet)
+			}
+		}
+	}
+	// AND THE RATE THE READINGS ARRIVED AT, which is what revises the deadline.
+	//
+	// The verification deadline was chosen from an OFFLINE reading rate of about one look
+	// in three, and the live rate is not that number: `readingEyes` drops a frame
+	// whenever a reading is still running. Printed on every run that read anything, so
+	// the next deadline comes from data rather than from a second guess.
+	if rep.ReadingsPerSecond > 0 {
+		fmt.Printf("  %-42s %d at %.2f/second\n", "readings admitted",
+			rep.Readings, rep.ReadingsPerSecond)
 	}
 	ok, why := rep.Verified()
 	if ok {

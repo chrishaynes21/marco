@@ -240,6 +240,14 @@ const (
 	OutcomeArrived Outcome = "destination established"
 	// OutcomePressed: a program was lowered, compiled and run.
 	OutcomePressed Outcome = "pressed"
+	// OutcomeVerified: the action's own post-action evidence says it did what it did
+	// when it was demonstrated.
+	//
+	// The ONE outcome in this vocabulary that rests on evidence collected AFTER an
+	// action rather than on a screen identity, and the only one that advances a step
+	// without an arrival. It is still not a claim that the press CAUSED it — nothing
+	// else changed on the screen is not something this can know. See verify.go.
+	OutcomeVerified Outcome = "outcome verified"
 	// OutcomeRefused: the coordinator would not act. `Because` says which refusal.
 	OutcomeRefused Outcome = "refused"
 	// OutcomeFailed: Marco was asked and did not complete. The desktop may or may not
@@ -266,6 +274,10 @@ type Attempt struct {
 	// Arrival is what this observation said about a step's destination, set only when one
 	// was asked about.
 	Arrival *workflowstore.Arrival
+	// Verified is what the post-action evidence said, set only when a verdict was
+	// decided or timed out. See verify.go: VERIFIED, CONTRADICTED and UNCONFIRMED are
+	// three answers and the third is not a failure.
+	Verified *Verification
 	// Intent is what was authorised, set only when somebody was asked.
 	Intent *Intent
 	// Real says the executor this ran through reaches a computer.
@@ -303,6 +315,23 @@ type Runner struct {
 	eyes     Eyes
 	grounder Grounder
 	granter  Granter
+
+	// ── THE POST-ACTION EVIDENCE. See verify.go. ──
+	//
+	// reads is the recent admitted readings with the screen each was taken on, verify
+	// the evidence being gathered for the step just acted on, and verifications what
+	// each action's evidence said. verifyFor is the deadline; zero means the default.
+	//
+	// readings, firstRead and lastRead are how many readings arrived and over what
+	// span, which is the only way the deadline gets corrected from data rather than
+	// guessed a second time.
+	reads         []screenRead
+	verify        *verification
+	verifications []Verification
+	verifyFor     time.Duration
+	readings      int
+	firstRead     time.Time
+	lastRead      time.Time
 
 	// exec is the ONE path to an effect. Nil means this runner cannot act, which is what
 	// it is built as.
@@ -610,6 +639,13 @@ func (r *Runner) Advance(ctx context.Context, s *workflowstore.SessionBinding,
 		a.Outcome, a.Because = OutcomeUnobserved, why
 		return r.record(a)
 	}
+	// AND WHAT WAS READ ON IT IS KEPT, before anything else is decided.
+	//
+	// Here rather than beside the readiness question, because this look's reading is the
+	// BEFORE side of an action that has not happened yet — and the AFTER side of one that
+	// has. Both sides come through this one call, which is why it is unconditional and
+	// early. See verify.go.
+	r.noteReading(at)
 
 	// ── 2. SOMEBODY ELSE GROUNDS THE SCREEN ──
 	if r.grounder != nil {
@@ -642,6 +678,45 @@ func (r *Runner) Advance(ctx context.Context, s *workflowstore.SessionBinding,
 	// It establishes nothing. The grounder above has already run the establishment path
 	// over this observation and this reads the result — see `workflowstore.DestinationAt`.
 	arrival := r.art.DestinationAt(r.cursor, s, now)
+	// ── A DESTINATION THAT WAS ALREADY STANDING IS NOT EVIDENCE OF AN ACTION ──
+	//
+	// The defect this guards was found by pointing this coordinator at a PIXEL artifact
+	// for the first time. Ark's settings menu changes the panel under a persistent tab
+	// bar, so a step learned there has the SAME screen label at both ends — and the
+	// grounder establishes that screen on the first look, before anything is pressed.
+	// `DestinationAt` then reported the step as arrived, `advance` moved the cursor, and
+	// the run finished with `every one of the 1 step(s) was reached` **having clicked
+	// nothing at all**.
+	//
+	// That is the worst failure shape available to this subsystem: not a refusal, not a
+	// wrong click, but a report of success over an action that never happened. It is
+	// exactly what the owner warned about — *do not mistake a successful command
+	// invocation for supported pixel execution*.
+	//
+	// The rule is narrow on purpose. Where a step's two ends are the same label the
+	// arrival test is VACUOUS — the destination is standing whenever the source is, so
+	// its establishment carries no information about the press, BEFORE the action or
+	// after it. The first version of this guard only covered "before", and the step then
+	// advanced on the look after the press for the identical reason. Such a step can only
+	// be finished by its own post-action evidence, which is what verify.go is for, and a
+	// step with no outcome recorded runs out of patience instead — which is the honest
+	// end for a file that cannot be checked.
+	//
+	// Steps with two different ends are untouched.
+	if arrival.Established() &&
+		r.art.Steps[r.cursor].Control != "" &&
+		r.art.Steps[r.cursor].From == r.art.Steps[r.cursor].To {
+
+		arrival = workflowstore.Arrival{
+			Step:        r.cursor,
+			Destination: r.art.Steps[r.cursor].To,
+			Because: fmt.Sprintf("%s is both ends of step %d, so it is standing "+
+				"before the action as well as after it and its establishment "+
+				"says nothing about whether the action happened; this step is "+
+				"finished by its own outcome instead",
+				r.art.Steps[r.cursor].To, r.cursor),
+		}
+	}
 	if arrival.Established() {
 		a.Arrival = &arrival
 		// A DESTINATION THAT ARRIVED IS A SCREEN THAT CHANGED.
@@ -691,6 +766,44 @@ func (r *Runner) Advance(ctx context.Context, s *workflowstore.SessionBinding,
 		// the press from one that responded in a way nobody recognised.
 		if at.Screen != r.actedAt.Screen || at.Epoch != r.actedAt.Epoch {
 			r.changed = true
+		}
+		// ── 4a. AND WHAT THE POST-ACTION EVIDENCE SAYS ──
+		//
+		// Asked here because this is where a press that produced no SCREEN change
+		// used to wait out its patience and refuse. Ark's settings menu changes the
+		// panel under a persistent tab bar, so its destination can never be
+		// established and the arrival above is permanently unanswered — while the
+		// panel itself is plain evidence that the press worked.
+		//
+		// Three answers and they are not two. A verdict that could not distinguish
+		// "the evidence disagrees" from "the evidence has not arrived yet" would
+		// report success whenever OCR was slow, and that is the most dangerous
+		// thing a verifier can do. See verify.go.
+		if v, why := r.verdict(r.clock()); v.Decided() || v == VerdictUnconfirmed {
+			out := r.closeVerification(v, why, r.clock())
+			a.Verified = &out
+			switch v {
+			case VerdictVerified:
+				// THE STEP IS DONE, on post-action evidence rather than on
+				// a screen identity. This is the only path in this
+				// subsystem that advances a step without an arrival, and
+				// it is why a pixel workflow can be performed at all.
+				a.Outcome = OutcomeVerified
+				a.Because = out.Because
+				r.advance()
+				return r.record(a)
+			default:
+				// REFUSED, AND THE RUN STOPS. A contradiction is evidence
+				// against the action; an unconfirmed verdict is no
+				// evidence either way. Neither proceeds to another action.
+				a.Outcome = OutcomeRefused
+				a.Stage = workflowstore.StepScreenUnestablished
+				a.Because = fmt.Sprintf("the action for step %d was "+
+					"performed and its outcome is %s: %s",
+					r.cursor, v, out.Because)
+				r.lastStage, r.lastBecause = a.Stage, a.Because
+				return r.record(a)
+			}
 		}
 		r.looks++
 		if r.looks > r.patience {
@@ -990,6 +1103,11 @@ func (r *Runner) press(ctx context.Context, a Attempt, ready workflowstore.StepR
 		r.looks = 0
 		r.sent++
 		r.actedAt = at
+		// AND THE POST-ACTION EVIDENCE STARTS GATHERING, with the readings
+		// already taken as its before side. Opened HERE, at the press, because a
+		// window that began afterwards would compare the new panel against
+		// itself. See verify.go.
+		r.openVerification(r.cursor, at.Screen, r.clock())
 	case res.Status == marcoexec.StatusCancelled:
 		a.Outcome, a.Because = OutcomeStopped, res.Summary()
 		r.lastStage, r.lastBecause = ready.Stage, a.Because
@@ -1196,6 +1314,22 @@ func (r *Runner) clock() time.Time {
 // Report is what the whole run did.
 type Report struct {
 	Workflow string
+	// ── THE POST-ACTION EVIDENCE. See verify.go. ──
+	//
+	// Verifications is what each action's evidence said, and the three counts are it
+	// tallied. Counted apart on purpose: an UNCONFIRMED verdict is not a failed action
+	// and not a successful one, and a report with one `verified` number would hide
+	// which of the two a run rested on.
+	Verifications                         []Verification
+	VerifiedOK, Contradicted, Unconfirmed int
+	// Readings is how many admitted readings arrived and ReadingsPerSecond the rate.
+	//
+	// Load-bearing rather than informational. The verification deadline was chosen from
+	// an OFFLINE reading rate of about one look in three, and the live rate is not that
+	// number: `readingEyes` drops a frame whenever a reading is still running. This is
+	// what revises the deadline from data instead of guessing it a second time.
+	Readings          int
+	ReadingsPerSecond float64
 	// Progress distinguishes a completed workflow from one that stopped partway, in
 	// `workflowstore`'s own words. A run interacts with something that changes after every
 	// action, so stopping partway is the ordinary case and reporting it as either success
@@ -1287,9 +1421,22 @@ func (r Report) Verified() (bool, string) {
 	// Borrowing the arrival's whole sentence here would have this run report that nothing
 	// was executed immediately below a line counting what it executed. The part that is
 	// load-bearing is shared; the part that is a fact about this run is this run's.
-	return false, fmt.Sprintf("%d action(s) were performed and no post-action evidence "+
-		"is collected about any of them; and %s", r.Sent,
-		workflowstore.ArrivalIsNotCausation)
+	//
+	// AND THE SECOND HALF OF THAT SENTENCE IS NO LONGER TRUE OF EVERY RUN. Post-action
+	// evidence IS collected now — see verify.go — so a run that gathered some must not go
+	// on saying none was. What has not changed is the claim this method makes: a verified
+	// outcome is a change that was absent before, present after, persistent and from
+	// outside the control that was pressed, and it is still not proof that the press
+	// caused it. Nothing else changed on the screen is not something this can know.
+	if len(r.Verifications) == 0 {
+		return false, fmt.Sprintf("%d action(s) were performed and no post-action "+
+			"evidence was collected about any of them; and %s", r.Sent,
+			workflowstore.ArrivalIsNotCausation)
+	}
+	return false, fmt.Sprintf("%d action(s) were performed, and of the %d whose outcome "+
+		"was checked %d verified, %d were contradicted and %d could not be "+
+		"confirmed in time; and %s", r.Sent, len(r.Verifications), r.VerifiedOK,
+		r.Contradicted, r.Unconfirmed, workflowstore.ArrivalIsNotCausation)
 }
 
 // Report builds the record of the run so far.
@@ -1297,7 +1444,8 @@ func (r *Runner) Report() (out Report) {
 	out = Report{
 		Workflow: r.art.Name, Attempts: r.attempts, Real: r.real,
 		Budget: r.budget, Sent: r.sent, Changed: r.changed, Dwell: r.dwell,
-		Repairs: r.repairs,
+		Repairs:       r.repairs,
+		Verifications: r.Verifications(), Readings: r.readings,
 		Progress: workflowstore.Progress{
 			Steps: len(r.art.Steps), Reached: r.cursor, Stopped: -1,
 			Stage: r.lastStage, Because: r.lastBecause, Acted: r.sent,
@@ -1381,6 +1529,8 @@ func (r *Runner) Report() (out Report) {
 			out.Unrecognised++
 		}
 	}
+	// AND THE POST-ACTION EVIDENCE, tallied from the list rather than kept beside it.
+	r.tallyVerifications(&out)
 	return out
 }
 

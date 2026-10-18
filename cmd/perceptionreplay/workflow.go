@@ -145,11 +145,33 @@ func reportWorkflowOverRecording(dir string, limit int, onnx string, delay int,
 	fmt.Println()
 	obs.Close()
 
-	draft := workflow.Learn("enter free play", obs.Walk(), obs.Clicks(), obs.Registry())
+	ev := obs.Clicks()
+	draft := workflow.Learn("enter free play", obs.Walk(), ev, obs.Registry())
 
 	fmt.Printf("\n%s\n", repeat("=", 78))
 	fmt.Printf("THE WORKFLOW LEARNED FROM %s\n", filepath.Base(dir))
 	fmt.Printf("%s\n", repeat("=", 78))
+	// WHAT EACH PRESS DID, where the screen did not change. The evidence behind a
+	// panel step, printed so a reader can see why one became a step and another did not.
+	if outs := ev.Outcomes; len(outs) > 0 {
+		fmt.Printf("\n  what each press DID, where the screen did not change:\n")
+		for _, o := range outs {
+			fmt.Printf("    %-10s on %-10s look %3d  %d before, %d after, "+
+				"%d appeared%s\n", o.Target, o.Screen, o.Look,
+				o.BeforeLooks, o.AfterLooks, len(o.Appeared),
+				verifiedMark(o))
+			if !o.Verified() {
+				fmt.Printf("      %s\n", o.Why())
+				fmt.Printf("      transient(%d): %s\n",
+					len(o.Transient), capped(o.Transient, 12))
+				fmt.Printf("      vanished(%d): %s\n",
+					len(o.Vanished), capped(o.Vanished, 8))
+				fmt.Printf("      reused(%d)\n", len(o.Reused))
+			}
+		}
+		fmt.Printf("    inert: %d, blind: %d, attributed: %d\n",
+			len(ev.Inert), ev.Blind, len(ev.Attributed))
+	}
 	fmt.Printf("  %d look(s), %d screen(s), %d step(s) in the demonstration's own order\n\n",
 		looks, len(obs.Screens()), len(draft.Steps))
 	fmt.Printf("  %-4s %-10s %-10s %-10s %-10s %-10s %s\n",
@@ -507,4 +529,12 @@ func foldRecording(dir string, frames []frameRecord, inputs []inputRecord,
 		}
 	}
 	return look, nil
+}
+
+// verifiedMark is a one-word verdict for a press's local outcome.
+func verifiedMark(o observe.LocalOutcome) string {
+	if o.Verified() {
+		return "  VERIFIED"
+	}
+	return ""
 }

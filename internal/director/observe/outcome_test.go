@@ -396,3 +396,87 @@ func TestTheControlsOwnWordCannotBeItsOutcome(t *testing.T) {
 		}
 	}
 }
+
+// A PRESS THE SCREEN NEVER ANSWERED IS REPORTED, AND `Close` IS WHAT DOES IT.
+//
+// Worth a test because the author spent a round of this work convinced it was broken.
+// `ClickTargets.Close` calls `resolve(nil)`, which files every press still pending — so a press
+// followed by no screen change for the rest of the session has always come out as inert, and
+// the code added to `Evidence` to "fix" it was reverted. The diagnosis was wrong and the
+// mutation gate is what said so: the replacement survived every test here, because `Close` had
+// already done the work.
+func TestAPressTheScreenNeverAnsweredIsInertAtTheClose(t *testing.T) {
+	var c observe.ClickTargets
+	row := []observe.Region{{X: 0.4, Y: 0.4, Width: 0.1, Height: 0.05}}
+	c.Press(10, observe.PointerAt{X: 0.45, Y: 0.42}, "visual_1",
+		observe.Proposed(row, 0, 0, 0))
+	c.Press(14, observe.PointerAt{X: 0.88, Y: 0.70}, "visual_1", nil)
+
+	// BEFORE THE CLOSE the presses are pending, which is right: either could still be
+	// attributed to a change that has not happened yet.
+	if ev := c.Evidence(); len(ev.Inert) != 0 {
+		t.Errorf("a press that could still be attributed is reported inert: %+v",
+			ev.Inert)
+	}
+	c.Close()
+
+	ev := c.Evidence()
+	if len(ev.Inert) != 1 {
+		t.Fatalf("%d inert press(es) after the close, want the one that landed",
+			len(ev.Inert))
+	}
+	if ev.Inert[0].Look != 10 {
+		t.Errorf("the reported press is %+v", ev.Inert[0])
+	}
+	// AND THE ONE NO PROPOSAL CONTAINED IS KEPT AS ITSELF, never as inert.
+	if len(ev.BlindPresses) != 1 || ev.Blind != 1 {
+		t.Errorf("%d blind press(es) kept of %d counted", len(ev.BlindPresses),
+			ev.Blind)
+	}
+}
+
+// THE MID-RESPONSE READINGS ARE NOT EVIDENCE, AND INCLUDING THEM INVERTS THE ANSWER.
+//
+// The defect that made the live correlator answer 0 of 3 where the offline measurement answered
+// 2 of 3, on the same recording. The persistence term wants a word on EVERY reading of the
+// settled window, and on the readings straight after a press the new panel is not drawn yet —
+// so every word of it appears on three readings of five and falls out as transient.
+//
+// See observe.OutcomeSkipReadings for why the amount is two and how it was measured.
+func TestTheReadingsTakenMidResponseAreNotEvidence(t *testing.T) {
+	var c observe.ClickTargets
+	bar := inBar("audio", "video", "graphics")
+	was := inPanel("resolution", "window", "mode")
+	// WHAT A HALF-DRAWN FRAME READS AS: the bar, and none of the panel.
+	drawing := bar
+	now := inPanel("presets", "textures", "shadows", "bloom", "foliage")
+
+	for i := 0; i < observe.OutcomeSettleLooks; i++ {
+		c.Reading("visual_1", join(bar, was))
+	}
+	c.Press(10, observe.PointerAt{X: 0.414, Y: 0.251}, "visual_1",
+		observe.Proposed([]observe.Region{tabBar}, 0, 0, 0))
+	// THE TRANSITION, then the panel standing.
+	for i := 0; i < observe.OutcomeSkipReadings; i++ {
+		c.Reading("visual_1", drawing)
+	}
+	for i := 0; i < observe.OutcomeSettleLooks; i++ {
+		c.Reading("visual_1", join(bar, now))
+	}
+
+	outs := c.Evidence().Outcomes
+	if len(outs) != 1 {
+		t.Fatalf("%d outcome(s) for one press", len(outs))
+	}
+	if !outs[0].Verified() {
+		t.Fatalf("the panel stood for %d readings after the transition and the "+
+			"outcome was not verified: %s\n  transient: %v",
+			observe.OutcomeSettleLooks, outs[0].Why(), outs[0].Transient)
+	}
+	for _, want := range []string{"presets", "textures", "shadows", "bloom", "foliage"} {
+		if !has(outs[0].Appeared, want) {
+			t.Errorf("%q stood throughout and is not in the outcome: %v", want,
+				outs[0].Appeared)
+		}
+	}
+}

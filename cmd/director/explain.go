@@ -256,6 +256,9 @@ var valued = map[string]bool{
 	"-patience": true, "--patience": true,
 	"-max-actions": true, "--max-actions": true,
 	"-answer": true, "--answer": true,
+	// `perform-workflow --verify-for 8s`. Caught by this table's own test the moment the
+	// flag was declared, which is the eighth time.
+	"-verify-for": true, "--verify-for": true,
 	"-dwell": true, "--dwell": true,
 	"-repair": true, "--repair": true,
 }

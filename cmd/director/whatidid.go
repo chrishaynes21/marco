@@ -78,7 +78,7 @@ func runWhatIDid(args []string) int {
 // reportRawDemonstration prints the record as a sequence of acts.
 func reportRawDemonstration(w io.Writer, a workflowstore.Artifact, e workflowstore.Evidence) {
 	fmt.Fprintf(w, "%s\n", strings.Repeat("-", 74))
-	fmt.Fprintf(w, "WHAT YOU DID, to teach %q\n\n", a.Name)
+	fmt.Fprintf(w, "WHAT YOU DID, and what %q was learned from\n\n", a.Name)
 	where := e.Window.Application
 	if e.Window.Title != "" {
 		where = fmt.Sprintf("the window matching %q", e.Window.Title)

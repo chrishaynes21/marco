@@ -769,3 +769,114 @@ func TestAVerifiedOutcomeReachesTheStepAndAnUnverifiedOneDoesNot(t *testing.T) {
 		}
 	}
 }
+
+// A PRESS THAT CHANGED THE PANEL AND NOT THE SCREEN IS A STEP, IF ITS OUTCOME VERIFIED.
+//
+// The missing link for a pixel replay, and it was in the LEARNER rather than the verifier. A
+// step has always needed a TRANSITION, so Ark's GRAPHICS click produced none: it changes the
+// panel under a persistent tab bar, the screen model records no change, and the press is filed
+// as inert. The one demonstrated click in this project with a corroborated button-level target
+// was not in the procedure at all — and no verifier could have helped, because there was
+// nothing to verify. [[Experiment-087-the-panel-changed-and-the-verifier-could-say-so]].
+func TestAnInertPressWithAVerifiedOutcomeBecomesAStep(t *testing.T) {
+	good := []string{"bloom", "foliage", "presets", "shadows", "textures", "distance"}
+	ev := observe.ClickEvidence{
+		Steps: []observe.RouteStep{{From: "visual_1", To: "visual_2",
+			Cause: observe.CauseClick, Target: "target_1", Count: 1,
+			Looks: []int{123}}},
+		// THE TWO PRESSES THE SCREEN DID NOT NOTICE, in the order they were made.
+		Inert: []observe.ClickObservation{
+			{Look: 183, Screen: "visual_2", Target: "target_2",
+				At: observe.PointerAt{X: 0.333, Y: 0.273}},
+			{Look: 249, Screen: "visual_2", Target: "target_3",
+				At: observe.PointerAt{X: 0.414, Y: 0.261}},
+		},
+		Outcomes: []observe.LocalOutcome{
+			{Target: "target_2", Screen: "visual_2", Look: 183,
+				Appeared: good, BeforeLooks: 5, AfterLooks: 5},
+			// AND ONE WHOSE OUTCOME DID NOT VERIFY: two words is not positive
+			// evidence of a destination, so this press stays out.
+			{Target: "target_3", Screen: "visual_2", Look: 249,
+				Appeared: []string{"one", "two"}, BeforeLooks: 5, AfterLooks: 5},
+		},
+	}
+	reg := []observe.TargetRecord{
+		{ID: "target_1", Screen: "visual_1", Presses: 1},
+		{ID: "target_2", Screen: "visual_2", Presses: 1,
+			Where: []observe.Region{{X: 0.33, Y: 0.23, Width: 0.07, Height: 0.03}}},
+		{ID: "target_3", Screen: "visual_2", Presses: 1},
+	}
+	d := workflow.Learn("ark graphics", []observe.VisualScreenID{"visual_1", "visual_2"},
+		ev, reg)
+
+	if len(d.Steps) != 2 {
+		for i, s := range d.Steps {
+			t.Logf("  %d %s -> %s via %s outcome %v", i, s.From, s.To, s.Target,
+				s.Outcome)
+		}
+		t.Fatalf("%d step(s): the walk's one transition and the one inert press whose "+
+			"outcome verified", len(d.Steps))
+	}
+	// THE WALK'S STEP IS STILL FIRST, in the order it was demonstrated.
+	if d.Steps[0].Target != "target_1" {
+		t.Errorf("step 0 presses %q", d.Steps[0].Target)
+	}
+	// AND THE PANEL STEP IS THE VERIFIED ONE, with the same screen at both ends.
+	p := d.Steps[1]
+	if p.Target != "target_2" {
+		t.Fatalf("step 1 presses %q, want the press whose outcome verified", p.Target)
+	}
+	if p.From != "visual_2" || p.To != "visual_2" {
+		t.Errorf("the panel step goes %s -> %s, and the screen did not change",
+			p.From, p.To)
+	}
+	if p.Cause != observe.CauseClick {
+		t.Errorf("the panel step's cause is %q", p.Cause)
+	}
+	if len(p.Outcome) != len(good) {
+		t.Errorf("the panel step carries %v", p.Outcome)
+	}
+	// AND IT CARRIES THE CONTROL'S EVIDENCE, or a replay could not find it again.
+	if len(p.Readings) == 0 {
+		t.Error("the panel step carries no readings, so nothing could re-acquire it")
+	}
+	// AND IT SAYS WHAT IT IS, because a run that cannot check its outcome can never
+	// finish it and that belongs in the file rather than at replay.
+	if len(p.Unresolved) == 0 ||
+		!strings.Contains(strings.Join(p.Unresolved, " "), "without changing the screen") {
+		t.Errorf("the panel step does not say how it is finished: %v", p.Unresolved)
+	}
+}
+
+// AND AN INERT PRESS WITH NO VERIFIED OUTCOME STAYS OUT.
+//
+// Most inert presses are clicks that did nothing observable, and those are not steps. The press
+// itself is still kept — in the raw demonstration, with where it was made — which is
+// [[ADR-234-the-person-does-not-have-to-prove-the-click]] unchanged.
+func TestAnInertPressWithNothingToVerifyIsNotAStep(t *testing.T) {
+	ev := observe.ClickEvidence{
+		Steps: []observe.RouteStep{{From: "visual_1", To: "visual_2",
+			Cause: observe.CauseClick, Target: "target_1", Count: 1}},
+		Inert: []observe.ClickObservation{
+			{Look: 183, Screen: "visual_2", Target: "target_2"},
+			// AND ONE WITH NO TARGET AT ALL, which has no boundary to find
+			// again whatever its outcome said.
+			{Look: 190, Screen: "visual_2"},
+		},
+		Outcomes: []observe.LocalOutcome{
+			{Target: "target_2", Screen: "visual_2", Look: 183,
+				Appeared: []string{"one"}, BeforeLooks: 5, AfterLooks: 5},
+			{Target: "", Screen: "visual_2", Look: 190,
+				Appeared:    []string{"a", "b", "c", "d", "e", "f"},
+				BeforeLooks: 5, AfterLooks: 5},
+		},
+	}
+	reg := []observe.TargetRecord{{ID: "target_1", Screen: "visual_1", Presses: 1}}
+	d := workflow.Learn("ark", []observe.VisualScreenID{"visual_1", "visual_2"}, ev, reg)
+	if len(d.Steps) != 1 {
+		for i, s := range d.Steps {
+			t.Logf("  %d %s -> %s via %s", i, s.From, s.To, s.Target)
+		}
+		t.Fatalf("%d step(s), want only the walk's transition", len(d.Steps))
+	}
+}

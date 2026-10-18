@@ -277,3 +277,58 @@ func TestAFailedReadingIsCountedApartFromASilentScreen(t *testing.T) {
 		t.Errorf("a silent reading refused %d merge(s)", st.ReadingsRefusedMerge)
 	}
 }
+
+// A PRESS THE SCREEN NEVER ANSWERED COMES OUT OF A WHOLE SESSION AS INERT.
+//
+// Ark's shape, through the production observer: the person presses a tab, the panel under it
+// changes, and the screen model records no transition for the rest of the recording. The press
+// is pending throughout and `ClickTargets.Close` files it, which `obs.Close` calls.
+//
+// Kept because the author spent a round of this work believing that case was broken — the
+// symptom was a recording learning one step where it should learn three — and added code to
+// `Evidence` to report pending presses itself. The real causes were elsewhere, the replacement
+// survived every mutation because `Close` had already done the work, and it was reverted. This
+// enters through `Observe` so the claim is about the path a session actually takes.
+func TestAPressTheScreenNeverAnsweredIsInertAfterAWholeSession(t *testing.T) {
+	o, err := fastobserve.New(100*time.Millisecond, 8)
+	if err != nil {
+		t.Fatal(err)
+	}
+	menu := []observe.Region{
+		{X: 0.027, Y: 0.230, Width: 0.946, Height: 0.050},
+		{X: 0.410, Y: 0.241, Width: 0.072, Height: 0.028},
+	}
+	t0 := time.Unix(1700000000, 0).UTC()
+	n := 0
+	look := func(presses ...observe.PointerAt) {
+		n++
+		o.Observe(fastobserve.Look{
+			At:      t0.Add(time.Duration(n) * 100 * time.Millisecond),
+			Window:  fastobserve.WindowRef{Generation: 1},
+			Regions: menu, Front: true, Presses: presses,
+		})
+	}
+	for i := 0; i < o.SettleLooks()+1; i++ {
+		look()
+	}
+	look(observe.PointerAt{X: 0.414, Y: 0.261})
+	// AND THE SCREEN NEVER CHANGES AGAIN, which is the whole case: the press can never
+	// be attributed to a transition, and nothing flushes it.
+	for i := 0; i < observe.MaxPressToTransitionLooks+2; i++ {
+		look()
+	}
+	o.Close()
+
+	ev := o.Clicks()
+	if ev.Presses != 1 {
+		t.Fatalf("%d press(es) reached the correlator", ev.Presses)
+	}
+	if len(ev.Inert) != 1 {
+		t.Fatalf("%d inert press(es): a press the screen never answered is what "+
+			"`Close` files, and a session that lost one would learn no step "+
+			"from it", len(ev.Inert))
+	}
+	if ev.Inert[0].Target == "" {
+		t.Errorf("the reported press resolved to no control: %+v", ev.Inert[0])
+	}
+}
