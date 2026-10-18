@@ -56,7 +56,22 @@ Press 3, with OCR's word boxes:
 ```
 
 **All four candidate rules agree, and the boundary holds exactly one label.** That is the
-acceptance criterion the owner set two experiments ago, met:
+acceptance criterion the owner set two experiments ago, met — and the agreement is worth less
+than it looks, which the owner said before this record was a day old:
+
+> One point I'd challenge in Claude's report: four methods agreeing does not make them four
+> independent witnesses. They may all depend on the same region proposal, click position, or
+> OCR reading.
+
+Correct, and it is checkable from the rules themselves rather than a matter of opinion. `today`
+and `one-label` both pick from the proposals containing the press; `word box` and `nearest` both
+read the same OCR phrase boxes of the same look. All four consume ONE region proposal set, ONE
+click position and ONE OCR reading, so a wrong proposal or a wrong reading moves all four
+together. What the agreement rules out is a disagreement BETWEEN the rules — which was a real
+possibility, because Experiment 083 measured `nearest` naming the wrong label on this exact
+shape of evidence. It is one corroborated observation, not four.
+
+The specific observation stands on its own terms:
 
 > The acceptance criterion is a demonstrated click resolving to one defensible button-level
 > target, not merely a smaller or more frequently matched rectangle.
@@ -94,6 +109,16 @@ One of three, two honest abstentions, no wrong answers.
 | Ark's proposer offers no button-sized rectangle | it offers 73 × 12, 1816 × 54 and 138 × 30, all stable |
 | a demonstrated click on Ark has nothing to resolve to | one of three resolves to a single-label button |
 | the blocker is the proposer | the blocker was a conclusion from an artifact with no pixels |
+
+And what it does NOT change, in the owner's words:
+
+> Likewise, the fact that one Ark button was found disproves the earlier blanket claim that Ark
+> offers no button-level proposals. It does not establish that the proposer can identify every
+> button or that its rectangle-identity relation is reliable.
+
+One of three. The other two abstain, and
+[[Experiment-084-the-highlight-that-hides-the-label-draws-the-box]]'s two measured limits of the
+identity relation are untouched by anything here.
 
 Three reports in a row localised a blocker in perception and each one moved it. The thing that
 was never in doubt in any of them was the press. That is the subject of

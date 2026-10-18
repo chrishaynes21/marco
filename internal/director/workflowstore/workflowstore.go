@@ -88,6 +88,17 @@ type Artifact struct {
 	// could not settle. Evidence with provenance, never a rule: an answer is about
 	// one control of this workflow and reaches nothing else.
 	Clarifications []Answer `json:"clarifications,omitempty"`
+	// Corrections are the steps a person took OUT of this procedure, and why.
+	//
+	// Provenance, not instruction: a corrected step is already absent from `Steps`, so a
+	// reader that knows nothing about this field performs exactly the corrected
+	// procedure. That is why it needed no version bump, and it is asserted rather than
+	// assumed — see correction.go, which is also where the one way to make one lives.
+	Corrections []Correction `json:"corrections,omitempty"`
+	// CorrectedAt is when the procedure was last changed by a person, zero when it never
+	// was. SEPARATE from SavedAt, which stays the instant the demonstration was saved
+	// because it is the link to the raw record beside it.
+	CorrectedAt time.Time `json:"corrected_at,omitzero"`
 }
 
 // Screen is a label and what the demonstration saw, never a name from the session.
@@ -258,6 +269,32 @@ func Labels(d workflow.Draft) map[observe.VisualScreenID]string {
 			if _, ok := out[id]; !ok {
 				out[id] = screenLabel(len(out))
 			}
+		}
+	}
+	return out
+}
+
+// ControlLabels is which artifact label each session control was given.
+//
+// The companion to `Labels`, for the same reason and with the same rule: SAVE-TIME ONLY, a
+// function of the draft alone, and the same allocation `SaveWith` performs — so the two cannot
+// disagree about which target became `control_2`.
+//
+// It exists because the RAW DEMONSTRATION beside a saved routine records each press by the
+// routine's own label rather than by a session identity, which is what keeps
+// `TestAVisualScreenCannotReachDurableMemory` true of a file that nevertheless records every
+// press. See evidence.go.
+//
+// Allocated in step order over the steps that HAVE a target, which is exactly what `SaveWith`
+// does: an automatic transition mints no control, so it must not consume a number either.
+func ControlLabels(d workflow.Draft) map[observe.VisualTargetID]string {
+	out := map[observe.VisualTargetID]string{}
+	for _, s := range d.Steps {
+		if s.Target == "" {
+			continue
+		}
+		if _, ok := out[s.Target]; !ok {
+			out[s.Target] = controlLabel(len(out))
 		}
 	}
 	return out

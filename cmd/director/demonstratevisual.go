@@ -158,8 +158,15 @@ func runDemonstrateVisual(args []string) int {
 			// vocabulary. See whyNothingWasDemonstrated.
 			fmt.Printf("  CLICK the controls with the MOUSE. Keys are watched " +
 				"and cannot name a control.\n")
-			fmt.Printf("  Only what the proposer saw is kept: no frames, no screenshots, " +
-				"no press coordinates.\n")
+			// WHAT IS KEPT, SAID EXACTLY. This line used to say "no press
+			// coordinates", and that promise is no longer true: the raw
+			// demonstration keeps every press with its position, because
+			// otherwise the only account of a click Marco could not identify
+			// was a counter. A person watching their own screen be recorded is
+			// owed the accurate sentence and not the reassuring one.
+			fmt.Printf("  No frames and no screenshots are kept. Your presses ARE " +
+				"kept, with where\n  you made them, as the record of what you " +
+				"did — see `director what-i-did`.\n")
 			fmt.Printf("  Starting in %s. Press ENTER when you are done.\n\n", *delay)
 		},
 	}
@@ -222,8 +229,28 @@ func runDemonstrateVisual(args []string) int {
 		fmt.Fprintf(os.Stderr, "director: %v\n", err)
 		return 1
 	}
+	// ── AND THE RAW DEMONSTRATION, BESIDE IT ──
+	//
+	// Written second and reported separately, because a failure here is not a failure of
+	// the routine: a person who demonstrated something and got working steps must not be
+	// told the demonstration failed because a companion file could not be written.
+	//
+	// What goes in it is what the person DID — every press with its coordinate, every
+	// keypress with its edges and its own timestamp, the look each arrived on, and the
+	// window the session ran against. The artifact above is unchanged and still carries
+	// no coordinate. See workflowstore/evidence.go for why the two are separate files
+	// and [[ADR-234-the-person-does-not-have-to-prove-the-click]] for why the raw record
+	// outranks what Marco made of it.
+	kept := ""
+	if err := store.SaveEvidence(rawDemonstration(a, *app, *title, obs, draft, res)); err != nil {
+		fmt.Fprintf(os.Stderr, "director: the routine is saved and the raw "+
+			"demonstration is not: %v\n", err)
+	} else {
+		kept = fmt.Sprintf("  director what-i-did %q    what you actually did\n", a.Name)
+	}
 	fmt.Printf("\n%q is saved: %d step(s), %d screen(s), %d control(s).\n",
 		a.Name, len(a.Steps), len(a.Screens), len(a.Controls))
+	fmt.Print(kept)
 	fmt.Printf("  director sequences %q        what it kept\n", a.Name)
 	fmt.Printf("  director reacquire %q        whether its controls can be found again\n",
 		a.Name)
@@ -446,4 +473,63 @@ func notAButton(r observe.TargetRecord, all []observe.TargetRecord) string {
 		}
 	}
 	return ""
+}
+
+// rawDemonstration is the companion record: what the person physically did.
+//
+// The CONTENT comes from the session and never from the draft, deliberately: the draft is
+// Marco's reading of the demonstration and leaves things out — a press no proposal contained, a
+// key whose effect was never observed, a release that bounded a hold. Those are exactly the
+// things a person asks about afterwards, and the record they are in must not be derived from
+// the reading that discarded them.
+//
+// The draft is taken for its LABELS alone, below. Nothing is dropped because the draft does not
+// mention it: a press on a screen the route never kept is recorded without a label.
+//
+// The window SELECTOR as the person typed it, never the live title: a game window's title is
+// the commonest place an account name appears, which is why `capture-game-session` refuses to
+// record one.
+func rawDemonstration(a workflowstore.Artifact, app, title string,
+	obs *fastobserve.Observer, d workflow.Draft, res visualResult) workflowstore.Evidence {
+
+	// ── THE ROUTINE'S OWN LABELS, NOT THE SESSION'S IDENTITIES ──
+	//
+	// `visual_1` and `target_2` are session-local and mean nothing in a file; worse, a
+	// durable file carrying one invites a later reader to match on it across sessions,
+	// which is what `TestAVisualScreenCannotReachDurableMemory` refuses. So the record
+	// speaks the artifact's language — `screen_a`, `control_1` — and the translation is
+	// the same function `SaveWith` used, so the two files cannot disagree.
+	//
+	// A press on a screen the route does not contain gets no label and keeps its LOOK,
+	// which is the stronger reference anyway.
+	screens, controls := workflowstore.Labels(d), workflowstore.ControlLabels(d)
+	presses := make([]workflowstore.DemonstratedPress, 0, len(obs.Clicks().Observations))
+	for _, p := range obs.Clicks().Observations {
+		presses = append(presses, workflowstore.DemonstratedPress{
+			Look: p.Look, At: p.At,
+			Screen: screens[p.Screen], Control: controls[p.Target],
+			Containing: len(p.Candidates), Ambiguous: p.Ambiguous,
+		})
+	}
+	moments := make([]workflowstore.Moment, 0, len(res.moments))
+	for _, m := range res.moments {
+		m.Screen = screens[observe.VisualScreenID(m.Screen)]
+		moments = append(moments, m)
+	}
+	return workflowstore.Evidence{
+		Name: a.Name,
+		// THE ARTIFACT'S OWN INSTANT, which is the link. A second clock here would
+		// drift from the thing this file claims to describe.
+		SavedAt: a.SavedAt,
+		Window: workflowstore.WindowWatched{
+			Application: app, Title: title,
+			Generations: len(res.generations),
+		},
+		Moments: moments,
+		// EVERY PRESS, including the ones Marco understood. `Observations` is the
+		// record of the act; Attributed, Inert and BlindPresses are readings of it.
+		Presses: presses,
+		Counts:  res.in,
+		Looks:   res.looks,
+	}
 }

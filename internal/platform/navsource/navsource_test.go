@@ -157,13 +157,30 @@ func TestRawKeyIdentityCannotCrossTheBoundary(t *testing.T) {
 		//     strictly less than the intent already says.
 		//   - The vocabulary is asserted closed and asserted SMALL immediately below, so
 		//     this cannot grow into a device-name field one constant at a time.
+		//
+		// Widened a FOURTH time on 2026-10-18, to admit observe.InputEdge for
+		// InputEvent.Edge:
+		//
+		//   - It is three words — a press, a release, a repeat — and the press is the
+		//     empty value, so every event that existed before it is one. Closed and
+		//     asserted small immediately below, beside Device's own assertion.
+		//   - It carries NO identity. An edge is stamped with the intent its own press
+		//     was classified as and nothing else; a release of a key nobody recognised
+		//     is never emitted at all. `t` held down and `t` tapped are both absent from
+		//     this record, before and after.
+		//   - What it adds is WHEN a press ended. Without it a tap, a hold, two rapid
+		//     presses and a chord are one record, and the owner's requirement is
+		//     precisely that they stay distinguishable. The edges reach no correlator:
+		//     they are a separate collection on the subscription, which is what
+		//     TestAnEdgeIsNotNavigation holds.
 		switch f.Type {
 		case reflect.TypeOf(observe.NavIntent("")),
 			reflect.TypeOf(int64(0)),
 			reflect.TypeOf(observe.PointerAt{}),
 			reflect.TypeOf(false),
 			reflect.TypeOf(&observe.SemanticTarget{}),
-			reflect.TypeOf(observe.NavDevice("")):
+			reflect.TypeOf(observe.NavDevice("")),
+			reflect.TypeOf(observe.InputEdge("")):
 		default:
 			t.Errorf("observe.InputEvent.%s is a %s, which is outside the closed set of "+
 				"shapes allowed to cross the semantic boundary", f.Name, f.Type)

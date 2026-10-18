@@ -228,6 +228,11 @@ var valued = map[string]bool{
 	"-detections": true, "--detections": true,
 	"-accessibility": true, "--accessibility": true,
 	"-instruction": true, "--instruction": true,
+	// `correct "<name>" --drop last --because "that click was accidental"`. Caught by
+	// this table's own test the moment the flags were declared, which is the seventh
+	// time and is why the walk reads the source.
+	"-drop": true, "--drop": true,
+	"-because": true, "--because": true,
 	"-backend": true, "--backend": true,
 	"-control": true, "--control": true,
 	"-corpus": true, "--corpus": true,

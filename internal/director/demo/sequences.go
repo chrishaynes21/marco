@@ -255,3 +255,52 @@ func (s *Store) ExpandRequest(request string, b goal.Binder) (goal.Expansion, bo
 	}
 	return ex, true, nil
 }
+
+// ── THE RAW DEMONSTRATION, BESIDE THE ROUTINE IT BELONGS TO ──
+//
+// A fourth directory, for the reason the other three are separate: an artifact is what Marco
+// made of a demonstration and this is the demonstration. They are written together and read
+// apart — `director perform-workflow` loads the artifact and must not be able to reach this,
+// and a person asking what they actually did must not have to read an executable file.
+//
+// Same file name, different directory, so the pair is findable by name alone. The LINK is
+// checked rather than assumed: `Evidence` returns nothing for a record whose name and instant
+// do not match the artifact beside it, because a routine that was re-demonstrated leaves the
+// old session's hands on disk and reading them as the new session's evidence is the one way
+// this could lie about what somebody did.
+const evidenceDir = "evidence"
+
+// SaveEvidence writes the raw demonstration for a named routine.
+//
+// Failure here is NOT failure to save the routine. The caller writes the artifact first and
+// reports this separately: a person who demonstrated something and got a working routine must
+// not be told the demonstration failed because a companion file could not be written.
+func (s *Store) SaveEvidence(e workflowstore.Evidence) error {
+	if strings.TrimSpace(e.Name) == "" {
+		return fmt.Errorf("evidence with no routine to belong to cannot be stored")
+	}
+	if err := os.MkdirAll(filepath.Join(s.dir, evidenceDir), 0o755); err != nil {
+		return fmt.Errorf("demo: preparing %s: %w", evidenceDir, err)
+	}
+	body, err := workflowstore.MarshalEvidence(e)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(s.path(evidenceDir, safeName(e.Name)), body, 0o644)
+}
+
+// Evidence reads back the raw demonstration behind a saved routine.
+//
+// Takes the ARTIFACT rather than the name, so the link is checked on every read and a caller
+// cannot accidentally ask for "whatever evidence is filed under this name".
+func (s *Store) Evidence(a workflowstore.Artifact) (workflowstore.Evidence, bool) {
+	raw, err := os.ReadFile(s.path(evidenceDir, safeName(a.Name)))
+	if err != nil {
+		return workflowstore.Evidence{}, false
+	}
+	e, err := workflowstore.UnmarshalEvidence(raw)
+	if err != nil || !e.Describes(a) {
+		return workflowstore.Evidence{}, false
+	}
+	return e, true
+}

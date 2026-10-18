@@ -269,6 +269,18 @@ type ClickEvidence struct {
 	// Marco could not segment reads as *here is what you did and here is the part I
 	// cannot repeat* instead of as a number with nothing behind it.
 	BlindPresses []ClickObservation `json:"blind_presses,omitempty"`
+	// Observations is EVERY press, in the order it was made, and
+	// `len(Observations) == Presses`.
+	//
+	// The raw record, from which the three subsets above are readings. Attributed keeps
+	// a transition and a look; Inert and BlindPresses keep the press. Nothing kept the
+	// press that Marco UNDERSTOOD, so the coordinate of the one click in a session that
+	// actually worked was the one coordinate the session discarded.
+	//
+	// It is demonstration evidence and nothing else. A coordinate here is never a
+	// durable identity and never a replay target — ADR-181 and ADR-183 unchanged — and
+	// the artifact still refuses to carry one.
+	Observations []ClickObservation `json:"observations,omitempty"`
 	// AmbiguousPresses is presses inside more than one region.
 	AmbiguousPresses int `json:"ambiguous_presses,omitempty"`
 	// MaybeOneControl is pairs of target identities on one screen that were followed by
@@ -373,6 +385,20 @@ type ClickTargets struct {
 	// here becomes a step and nothing here is replayable; see
 	// [[ADR-234-the-person-does-not-have-to-prove-the-click]].
 	blindPresses []ClickObservation
+	// observed is EVERY press, in the order it was made, before any judgement about it.
+	//
+	// Separate from the three subsets above because those are INTERPRETATIONS: a press
+	// becomes attributed, inert or blind according to what the screen did afterwards and
+	// what the proposer had found, and two of those three threw the press itself away.
+	// An attributed press kept only its look, so the one thing a demonstration is made
+	// of — the person put the pointer here and pressed — survived only for the presses
+	// Marco had failed to understand.
+	//
+	// So the record of the act comes first and the reading of it comes after, which is
+	// [[ADR-234-the-person-does-not-have-to-prove-the-click]] applied to the press that
+	// WORKED as well as to the press that did not. `len(Observations) == Presses` by
+	// construction: both are written in Press and nowhere else.
+	observed     []ClickObservation
 	unattributed []VisualTransition
 	steps        []RouteStep
 	// presses is every press this correlator was given, before any judgement about it.
@@ -467,6 +493,9 @@ func (c *ClickTargets) Press(look int, at PointerAt, screen VisualScreenID,
 
 	c.presses++
 	obs := ClickObservation{Look: look, At: at, Screen: screen}
+	// THE PRESS IS WRITTEN DOWN BEFORE IT IS JUDGED. Appended at the end of this
+	// function, once the candidates and the hypothesis are on it; the counter is
+	// incremented here so the two can never be read apart.
 	for _, cand := range cands {
 		if !containsPoint(cand.Region, at) {
 			continue
@@ -508,6 +537,7 @@ func (c *ClickTargets) Press(look int, at PointerAt, screen VisualScreenID,
 		c.recordTarget(obs)
 	}
 	c.pending = append(c.pending, obs)
+	c.observed = append(c.observed, obs)
 	return obs
 }
 
@@ -983,6 +1013,7 @@ func (c *ClickTargets) Evidence() ClickEvidence {
 		Attributed:       make([]ClickTransition, len(c.attributed)),
 		Inert:            make([]ClickObservation, len(c.inert)),
 		BlindPresses:     make([]ClickObservation, len(c.blindPresses)),
+		Observations:     make([]ClickObservation, len(c.observed)),
 		Unattributed:     make([]VisualTransition, len(c.unattributed)),
 		Presses:          c.presses,
 		Blind:            c.blind,
@@ -1001,6 +1032,7 @@ func (c *ClickTargets) Evidence() ClickEvidence {
 	})
 	copy(out.Inert, c.inert)
 	copy(out.BlindPresses, c.blindPresses)
+	copy(out.Observations, c.observed)
 	copy(out.Unattributed, c.unattributed)
 	// THE PAIRS THAT MIGHT BE ONE CONTROL. Derived from the transitions rather than
 	// stored, because it is a reading OF the evidence and must not be able to drift from

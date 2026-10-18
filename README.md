@@ -63,6 +63,23 @@ What this builds is a map, not a macro: *this place, that action, that place*.
 It is additive — `marco do` needs none of it — and it is how Marco comes to know
 where things are rather than only what is in front of it right now.
 
+
+### And when it misreads you, you correct it rather than start again
+
+A demonstration is kept twice, on purpose, because "what I did" and "what Marco learned" are
+different questions and only one of them should ever change:
+
+```sh
+director what-i-did "ark graphics"     # every press with its position, every key with its length
+director correct "ark graphics" --drop last --because "that click was accidental"
+```
+
+`what-i-did` reads the raw record of your own hands — including the clicks Marco could not
+identify, which are kept and named rather than counted. `correct` takes a step out of what Marco
+will **do**, with your reason, and leaves the record of what you **did** untouched. Clicking
+something that isn't a button and pressing a key that does nothing are ordinary parts of teaching
+somebody a routine, and neither one costs you the demonstration.
+
 ### And you can name something to ask for it later
 
 ```

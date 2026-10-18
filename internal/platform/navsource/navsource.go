@@ -151,7 +151,17 @@ type Source struct {
 	mu    sync.Mutex
 	sub   *Subscription
 	stats Stats
-	held  map[uint16]bool
+	// held is the keys currently down, and what each one's press was classified AS.
+	//
+	// It was a set, for auto-repeat suppression alone. It carries the classification now
+	// because the quiet edges have to be emitted with the SAME intent their press
+	// carried, and this is the only place that knows it: by the time a key-up arrives the
+	// classifier has nothing but a scan code, and re-classifying it would read the screen
+	// context of the release rather than of the press.
+	//
+	// The code is the map KEY and never leaves this process — the same arrangement as
+	// before. What is stored against it is a closed navigation word.
+	held map[uint16]heldKey
 	// screen is what the last observation said the screen looked like, and when.
 	//
 	// Guarded by mu and read ONLY from the classifier worker. The hook callback never
@@ -266,7 +276,7 @@ func newWith(b backend) (*Source, string) {
 		backend:  b,
 		raw:      make(chan rawEvent, QueueDepth),
 		consents: make(chan Consent, ConsentDepth),
-		held:     map[uint16]bool{},
+		held:     map[uint16]heldKey{},
 		done:     make(chan struct{}),
 	}
 	s.wg.Add(1)
@@ -297,6 +307,38 @@ func (s *Source) offer(e rawEvent) bool {
 	}
 }
 
+// heldKey is one key that is currently down, and what its press was classified as.
+//
+// The zero value is a key that is held and is not navigation — an unmapped character, a consent
+// reply, a key refused because nothing was watching. It is deliberately the zero value: the
+// auto-repeat set has to contain every held key whatever it meant, and the ones that meant
+// nothing emit no edge.
+type heldKey struct {
+	// intent is the press's own navigation word, empty when it was not classified.
+	intent observe.NavIntent
+	// conditional is whether the press was admitted only because the screen looked like
+	// a set of choices. Carried onto the edges so a release does not quietly become a
+	// stronger claim than the press it closes.
+	conditional bool
+}
+
+// edge emits one quiet edge of a press that was classified.
+//
+// The press's intent, never a re-classification: by the time a key-up arrives the only thing
+// left is a scan code, and classifying it again would read the screen context of the RELEASE.
+// A key held across a menu closing would then release as a different meaning from the one it
+// was pressed with.
+//
+// Session-bounded like everything else here. No subscription means nothing is being
+// demonstrated, so there is nothing for an edge to be evidence for.
+func (s *Source) edge(h heldKey, at time.Time, kind observe.InputEdge) {
+	if h.intent == "" || s.sub == nil {
+		return
+	}
+	s.sub.add(h.intent, at, h.conditional, observe.PointerAt{}, nil,
+		observe.DeviceKeyboard, kind)
+}
+
 // classify is the worker. Everything that is not "put it in the queue" happens here.
 func (s *Source) classify() {
 	defer s.wg.Done()
@@ -320,24 +362,44 @@ func (s *Source) handle(e rawEvent) {
 		return
 	}
 
-	// Key-up only clears the held set. It is not navigation, and emitting on both edges
-	// would double every intent — but it is COUNTED, because it was received.
+	// Key-up is not navigation, and emitting the INTENT on both edges would double every
+	// one of them — so it is still counted as ignored, and `admissibleInputs` still
+	// refuses it on the correlation side.
 	//
-	// This was the one path that incremented Received and then returned without landing
-	// in any subset of it, and the first live observation is what found it: eleven
+	// It is no longer thrown away. A release is the only evidence that a press ENDED, and
+	// without it a tap, a hold and a chord are the same record. It is emitted as an EDGE
+	// of the press it closes, carrying that press's own intent, and only when that press
+	// was classified: a release of a key nobody recognised closes nothing.
+	//
+	// This was also the one path that incremented Received and then returned without
+	// landing in any subset of it, and the first live observation is what found it: eleven
 	// received, eight classified, one ignored, two unaccounted. See IgnoreKeyRelease.
 	if !e.down {
 		s.ignore(ReasonKeyRelease)
+		if h, ok := s.held[e.code]; ok {
+			s.edge(h, e.at, observe.EdgeRelease)
+		}
 		delete(s.held, e.code)
 		return
 	}
 	// Auto-repeat. A low-level hook reports a held key as a stream of key-downs with no
 	// repeat flag, so held state is the only way to tell one press from forty.
-	if s.held[e.code] {
+	//
+	// Emitted as an edge for the same reason: forty repeats and one press are the
+	// difference between leaning on a key and tapping it, and the person who leaned on it
+	// did something Marco should be able to describe.
+	if h, ok := s.held[e.code]; ok {
 		s.ignore(ReasonRepeat)
+		s.edge(h, e.at, observe.EdgeRepeat)
 		return
 	}
-	s.held[e.code] = true
+	// HELD FROM HERE, CLASSIFIED OR NOT. Recorded before the consent and classification
+	// branches below for the reason it always was: a key nobody recognised still
+	// auto-repeats, and a set that only held the recognised ones would report forty
+	// `unsupported_navigation` where one person leaned on one key. The intent is filled
+	// in below if there turns out to be one; `heldKey`'s zero value is "held, and not
+	// navigation", which emits no edge.
+	s.held[e.code] = heldKey{}
 
 	// ── AN ANSWER, NOT AN OBSERVATION ──
 	//
@@ -389,7 +451,12 @@ func (s *Source) handle(e rawEvent) {
 	if intent == observe.NavConfirm {
 		target = s.controls.focused(e.at)
 	}
-	s.sub.add(intent, e.at, conditional, observe.PointerAt{}, target, observe.DeviceKeyboard)
+	// AND WHAT THIS PRESS WAS, so its own release and its own repeats can be emitted as
+	// edges of it. Written after every refusal above: a press that was never admitted
+	// has no edges to close.
+	s.held[e.code] = heldKey{intent: intent, conditional: conditional}
+	s.sub.add(intent, e.at, conditional, observe.PointerAt{}, target,
+		observe.DeviceKeyboard, observe.EdgePress)
 }
 
 // handlePointer turns a pointer press into a placed navigation, or refuses it.
@@ -481,7 +548,7 @@ func (s *Source) handlePointer(e rawEvent) {
 	// beside it from evidence that was already on this side of the boundary. Resolution
 	// failing — a stale index, a press between controls, no index at all — costs the
 	// enrichment and never the event. Interpretation failure is not capture failure.
-	s.sub.add(observe.NavPoint, e.at, false, where, target, observe.DeviceMouse)
+	s.sub.add(observe.NavPoint, e.at, false, where, target, observe.DeviceMouse, observe.EdgePress)
 }
 
 // MaxPointerAttributions bounds the per-press diagnostic record.
@@ -863,7 +930,7 @@ func (s *Source) Open(t0 time.Time) *Subscription {
 	s.sub = sub
 	// Held state is cleared so a key already down when the session began does not have its
 	// release misread, and so nothing from before the session can survive into it.
-	s.held = map[uint16]bool{}
+	s.held = map[uint16]heldKey{}
 	s.mu.Unlock()
 	return sub
 }
@@ -899,9 +966,14 @@ func (s *Source) Close() error {
 
 // Subscription accumulates one session's navigation.
 type Subscription struct {
-	mu     sync.Mutex
-	t0     time.Time
-	buf    []observe.InputEvent
+	mu  sync.Mutex
+	t0  time.Time
+	buf []observe.InputEvent
+	// edges is the releases and repeats of the presses in buf, kept apart from them.
+	//
+	// Bounded by the same MaxPending, separately: a person leaning on a key fills this
+	// and must not be able to push a navigation intent out of the buffer that matters.
+	edges  []observe.InputEvent
 	closed bool
 }
 
@@ -909,22 +981,44 @@ type Subscription struct {
 const MaxPending = 256
 
 func (u *Subscription) add(intent observe.NavIntent, at time.Time, conditional bool,
-	where observe.PointerAt, target *observe.SemanticTarget, device observe.NavDevice) {
+	where observe.PointerAt, target *observe.SemanticTarget, device observe.NavDevice,
+	edge observe.InputEdge) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
-	if u.closed || len(u.buf) >= MaxPending {
+	if u.closed {
 		return
 	}
 	// Session-relative, from the same monotonic basis the session's own clock uses. A
 	// wall-clock stamp would make correlation depend on two independent clocks agreeing.
-	u.buf = append(u.buf, observe.InputEvent{
+	ev := observe.InputEvent{
 		Intent:      intent,
 		AtMS:        at.Sub(u.t0).Milliseconds(),
 		Conditional: conditional,
 		Where:       where,
 		Target:      target,
 		Device:      device,
-	})
+		Edge:        edge,
+	}
+	// ── TWO BUFFERS, AND THAT IS THE WHOLE OF WHY THE EDGES ARE SAFE ──
+	//
+	// A release and a repeat carry their press's own intent, so putting them in the
+	// navigation buffer would correlate one physical press with a screen change three
+	// times over. `Drain` is therefore exactly what it was — one event per press — and
+	// an edge cannot reach a correlator, a hypothesis or a step by any route, because it
+	// is not in the collection those read.
+	//
+	// They are not filtered out of one buffer either. A filter is a thing somebody
+	// removes; a separate collection is a thing somebody would have to go and ask for.
+	if edge != observe.EdgePress {
+		if len(u.edges) < MaxPending {
+			u.edges = append(u.edges, ev)
+		}
+		return
+	}
+	if len(u.buf) >= MaxPending {
+		return
+	}
+	u.buf = append(u.buf, ev)
 }
 
 // Peek is how many events are pending, without consuming them.
@@ -935,6 +1029,9 @@ func (u *Subscription) Peek() int {
 }
 
 // Drain returns everything since the last drain and clears the buffer.
+//
+// NAVIGATION ONLY: one event per press, as it has always been. The quiet edges of those
+// presses come back from DrainEdges, and nothing that correlates calls it.
 func (u *Subscription) Drain() []observe.InputEvent {
 	u.mu.Lock()
 	defer u.mu.Unlock()
@@ -947,9 +1044,35 @@ func (u *Subscription) Drain() []observe.InputEvent {
 	return out
 }
 
+// DrainEdges returns the releases and repeats since the last drain, and clears them.
+//
+// # What they are for
+//
+// Writing down what the person actually did. A press and its release bound a HOLD; a press
+// with repeats between its edges was LEANED ON; two presses whose intervals overlap are a
+// CHORD; two that do not are two presses, however close together. None of that is derivable
+// from a count, and a count is what the record used to keep.
+//
+// # Why a caller has to ask separately
+//
+// Because an edge is evidence and not navigation, and the separation is the collection rather
+// than a rule. See `add`. A caller merging the two streams for a timeline should use
+// `observe.MergeInputs`, which is stable on equal timestamps.
+func (u *Subscription) DrainEdges() []observe.InputEvent {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if len(u.edges) == 0 {
+		return nil
+	}
+	out := u.edges
+	u.edges = nil
+	sort.SliceStable(out, func(a, b int) bool { return out[a].AtMS < out[b].AtMS })
+	return out
+}
+
 func (u *Subscription) close() {
 	u.mu.Lock()
-	u.closed, u.buf = true, nil
+	u.closed, u.buf, u.edges = true, nil, nil
 	u.mu.Unlock()
 }
 

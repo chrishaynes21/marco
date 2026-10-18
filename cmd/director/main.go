@@ -98,6 +98,16 @@ func main() {
 		os.Exit(runSave(os.Args[2:]))
 	case "sequences", "sequence":
 		os.Exit(runSequences(os.Args[2:]))
+	case "correct":
+		// A person changing what Marco learned, without changing what they did. Drops
+		// one step from the saved procedure and records why; the raw demonstration is
+		// read and never written. See correctcmd.go.
+		os.Exit(runCorrect(os.Args[2:]))
+	case "what-i-did":
+		// The RAW demonstration behind a saved routine: every press with its position,
+		// every key with its edges, in order. Reads, prints, and performs nothing. See
+		// whatidid.go.
+		os.Exit(runWhatIDid(os.Args[2:]))
 	case "demonstrate-visual":
 		os.Exit(runDemonstrateVisual(os.Args[2:]))
 	case "reacquire":
@@ -376,6 +386,11 @@ func usage() {
   director demonstrate-visual "<name>" --application X
                                  learn a routine from PIXELS: watch your own
                                  clicks and keep what the proposer saw
+  director correct "<name>" --drop <n|last> --because "<words>"
+                                 take one step out of what Marco learned; your
+                                 demonstration itself is kept unchanged
+  director what-i-did "<name>"   what you actually did to teach it: every press
+                                 with its position, every key with its edges
   director reacquire "<name>" --application X
                                  can that routine.s controls be found again?
                                  per control, no screen bound; presses nothing

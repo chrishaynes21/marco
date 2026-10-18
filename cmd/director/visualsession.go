@@ -43,6 +43,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/structure"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/windowref"
+	"github.com/chaynes-simpleclouds/marco/internal/director/workflowstore"
 	"github.com/chaynes-simpleclouds/marco/internal/platform/navsource"
 	"github.com/chaynes-simpleclouds/marco/internal/platform/winprovider"
 )
@@ -112,6 +113,48 @@ type visualResult struct {
 	// on is refused by the observer and counted there, not here.
 	looks    int
 	readings int
+	// moments is every look that carried input, with what arrived on it.
+	//
+	// The raw demonstration. `splitNav` took the pointer positions out of each drain and
+	// counted the rest, and the events themselves — every keypress, every release, every
+	// repeat, with its own timestamp and its own intent — were dropped on the floor one
+	// look at a time. So the production teaching path kept counters while
+	// `capture-game-session` kept a timeline, and the owner's architecture needs the
+	// timeline on the path a person actually teaches through:
+	//
+	//	Marco remembers what it thinks the user taught it better than it remembers
+	//	exactly what the user did.
+	//
+	// Collected here and WRITTEN nowhere: this file's own wiring test asserts that the
+	// shared loop names nothing that writes. See demonstratevisual.go.
+	moments []workflowstore.Moment
+	// generations is the distinct window identities the session ran against.
+	//
+	// More than one means the window was replaced mid-demonstration, which invalidates
+	// comparing geometry across the join. Recorded, never repaired.
+	generations map[uint64]bool
+}
+
+// note keeps one look's inputs as a moment of the raw demonstration.
+//
+// Only looks that CARRIED input become moments: a demonstration is thirty seconds of looks and
+// four seconds of hands, and a record with a moment per look would be mostly empty objects.
+// The look index is the reference into the visual evidence, and it is kept whether or not
+// anything was made of what arrived.
+func (r *visualResult) note(look int, since time.Duration, screen observe.VisualScreenID,
+	front bool, in []observe.InputEvent) {
+
+	if len(in) == 0 {
+		return
+	}
+	r.moments = append(r.moments, workflowstore.Moment{
+		// THE SESSION ID, held in memory only. It is translated into the
+		// routine's own label when the record is written, because a durable
+		// file may not carry a session-local visual identity. See
+		// demonstratevisual.go's rawDemonstration.
+		Look: look, Screen: string(screen), AtMS: since.Milliseconds(),
+		Front: front, Inputs: in,
+	})
 }
 
 // watch runs one session, folding every look into obs. It writes nothing.
@@ -184,7 +227,11 @@ func (s visualSession) watch(ctx context.Context, obs *fastobserve.Observer,
 	opt := structure.DefaultOptions()
 	ticker := time.NewTicker(s.interval)
 	defer ticker.Stop()
-	deadline := time.Now().Add(time.Duration(s.seconds) * time.Second)
+	// THE SESSION'S OWN ZERO, so every time in the raw record is relative to the start of
+	// the demonstration and correlates with nothing outside it. The same rule
+	// `navsource.Subscription` applies to its own stamps, and the same reason.
+	t0 := time.Now()
+	deadline := t0.Add(time.Duration(s.seconds) * time.Second)
 	for time.Now().Before(deadline) {
 		select {
 		case <-s.stop:
@@ -195,11 +242,34 @@ func (s visualSession) watch(ctx context.Context, obs *fastobserve.Observer,
 			break
 		}
 		lk := fastobserve.Look{At: time.Now()}
+		// WHAT ARRIVED ON THIS LOOK, and the screen that was standing when it
+		// did. Kept here and written down below, once frontness is known.
+		var arrived []observe.InputEvent
+		var standing observe.VisualScreenID
+		look := res.looks
 
 		if navSub != nil {
-			presses, k := splitNav(navSub.Drain())
+			// THE NAVIGATION, AND THE EDGES OF IT, merged into one timeline.
+			//
+			// Two drains because they are two collections: an edge carries its
+			// press's own intent and must never reach a correlator, which is why
+			// `DrainEdges` is separate. `lk.Presses` is unchanged — only the
+			// pointer positions fold into the look — and the whole batch is kept
+			// as the moment it arrived on.
+			nav := navSub.Drain()
+			presses, k := splitNav(nav)
 			lk.Presses = presses
 			res.keys += k
+			// THE SCREEN THAT WAS STANDING, read BEFORE this look is folded:
+			// the inputs arrived while the previous screen was up, and
+			// attributing them to the screen they may have just caused would
+			// be this layer deciding the causality it exists to record.
+			//
+			// The moment itself is kept further down, once this look's
+			// frontness is known — a press made while something covered the
+			// target is a different fact from one made on the application.
+			arrived, standing = observe.MergeInputs(nav, navSub.DrainEdges()),
+				obs.Screen()
 		}
 
 		v := tracker.Acquire(ctx, s.app)
@@ -210,6 +280,10 @@ func (s visualSession) watch(ctx context.Context, obs *fastobserve.Observer,
 		lk.Window = fastobserve.WindowRef{
 			ID: v.Ref.ID, Generation: v.Ref.Generation, Bounds: v.Ref.Bounds,
 		}
+		if res.generations == nil {
+			res.generations = map[uint64]bool{}
+		}
+		res.generations[v.Ref.Generation] = true
 		if navs != nil && v.Ref.Bounds.Width > 0 && v.Ref.Bounds.Height > 0 {
 			navs.SetWindowBounds(v.Ref.Bounds.X, v.Ref.Bounds.Y,
 				v.Ref.Bounds.Width, v.Ref.Bounds.Height, time.Now())
@@ -251,6 +325,8 @@ func (s visualSession) watch(ctx context.Context, obs *fastobserve.Observer,
 			}
 		}
 		res.looks++
+		// THE MOMENT, with the frontness of the look the inputs arrived on.
+		res.note(look, lk.At.Sub(t0), standing, lk.Front, arrived)
 		if s.each != nil {
 			s.each(lk)
 		}

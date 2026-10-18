@@ -1632,7 +1632,38 @@ it refuses those looks. Visible is fine; in front is not.
   contained it, and press 1 resolved to a rectangle with no word in it whose nearest label is
   `RESUME`, 0.052 away — Experiment 083's neighbour effect on a second game.
   [[Experiment-085-the-graphics-tab-is-a-button]]
-  rather than diagnosing after it. [[Experiment-081-the-first-real-negative]]
+- **The one click Marco could identify perfectly is the one it learned nothing from.** Ark's
+  GRAPHICS tab meets three of the four replay criteria — a stable pre-state, a 138x30 action site,
+  and `GRAPHICS` read on the clicked look — and fails the fourth: the panel below the tab bar
+  changes completely and the SCREEN does not. 2 screens over 300 looks, **one visit each**, the
+  same under the pixel fold and the text fold, because stability is measured across a VISIT and
+  this visit holds both panels, so `visual_2`'s stable words are exactly the tab labels the two
+  panels share. The whole recording learns ONE step, and it is press 1 — the honest abstain —
+  lowered to `Point with X 960, Y 458`. Presses 2 and 3 are inert. Verdict: DO NOT CLICK, and the
+  missing evidence is a second visit rather than a better detector.
+  [[Experiment-086-the-tab-changed-the-panel-and-not-the-screen]]
+- **The production teaching path kept counters, and `capture-game-session` had kept a timeline
+  since before any of it.** `input: 6 of 11 event(s) classified, 3 key_release, 2 no_session` was
+  the whole record of a person's hands: eleven events, none of which could be named, placed in
+  time, or recognised as the thing the person remembers doing. The events were drained from the
+  subscription on every look and dropped inside `splitNav`, which took the pointer positions and
+  counted the rest. The record is now written durably beside the routine, assembled from the
+  session rather than from the draft. [[ADR-235-three-records-and-only-one-of-them-may-act]]
+- **A press that WORKED was the one press whose coordinate was discarded.** `ClickTargets` filed
+  each press as attributed, inert or blind; the last two kept the observation and the first kept
+  only a look. So the coordinate of the one click in a session Marco UNDERSTOOD was the one it
+  threw away, and ADR-234's fix had reached only the presses it had failed to interpret.
+  `ClickEvidence.Observations` is now every press in the order made, with
+  `len(Observations) == Presses` by construction.
+  [[ADR-235-three-records-and-only-one-of-them-may-act]]
+- **A tap, a hold, two rapid presses and a chord were one record, and three words separate them.**
+  The releasing edge and the auto-repeats were counted and dropped — correctly, because emitting
+  the intent on both edges doubles every one of them — so `received: 11, classified: 6,
+  key_release: 3` is all four shapes at once. They are now emitted as EDGES of their press, into
+  a separate collection on the subscription, carrying the intent the press was classified as and
+  no key identity: a key nobody recognised emits none. The navigation stream is unchanged by
+  construction rather than by a filter, which is what `TestAnEdgeIsNotNavigation` holds.
+  [[ADR-235-three-records-and-only-one-of-them-may-act]]
 - **Appearance costs five correct recognitions and fixes none of the wrong ones.** The
   ambiguity rule would decline 1 correct answer under arrangement and 5 under palette,
   grid or detector, while BIND-WRONG stays at 2 for all of them. The appearance measures

@@ -49,6 +49,13 @@ func TestAnInputEventCannotCarryText(t *testing.T) {
 			// MEANS rather than asserting the player sat still. It holds no key, code or
 			// name, and the closed-vocabulary assertion lives in navsource_test.go's
 			// TestRawKeyIdentityCannotCrossTheBoundary, which also keeps it to three.
+		case reflect.TypeOf(observe.InputEdge("")):
+			// Widened a fourth time, for InputEvent.Edge: three words saying which edge
+			// of a physical press this is — the press, its release, one auto-repeat.
+			// Without them a tap, a hold, two rapid presses and a chord are one record.
+			// It holds no key, code or name: an edge is stamped with the intent its own
+			// press was classified as, and a key nobody recognised emits none. The
+			// closed-vocabulary assertion is immediately below.
 		case reflect.TypeOf(&observe.SemanticTarget{}):
 			// Widened a second time, deliberately, for InputEvent.Target — the
 			// goal-centric milestone's one privacy change. A target carries what the
@@ -65,6 +72,25 @@ func TestAnInputEventCannotCarryText(t *testing.T) {
 				f.Name, f.Type)
 		}
 	}
+	// AND THE EDGE VOCABULARY STAYS THREE, for the reason NavDevice's does: the type is a
+	// string underneath, so what stops it holding anything is that there are three words
+	// and a membership check.
+	edges := observe.InputEdges()
+	if len(edges) != 3 {
+		t.Errorf("InputEdge has %d words: %v. Three is the argument for admitting it",
+			len(edges), edges)
+	}
+	for _, e := range edges {
+		switch e {
+		case observe.EdgePress, observe.EdgeRelease, observe.EdgeRepeat:
+		default:
+			t.Errorf("InputEdge %q is not one of the three edges", e)
+		}
+	}
+	if observe.InputEdge("t").Known() {
+		t.Error("a key name passes the edge vocabulary check; admission is not closed")
+	}
+
 	// PointerAt is likewise numbers only.
 	pt := reflect.TypeOf(observe.PointerAt{})
 	for i := 0; i < pt.NumField(); i++ {

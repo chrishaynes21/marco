@@ -11,6 +11,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/actiongraph"
 	"github.com/chaynes-simpleclouds/marco/internal/director/demo"
 	"github.com/chaynes-simpleclouds/marco/internal/director/goal"
+	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
 	"github.com/chaynes-simpleclouds/marco/internal/director/program"
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflowstore"
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
@@ -574,5 +575,68 @@ func TestABoundedRepeatDeclaresItsRunsToTheProgram(t *testing.T) {
 	}
 	if one.Program.Body() != 3 {
 		t.Errorf("a single run's body is %d step(s)", one.Program.Body())
+	}
+}
+
+// ── THE RAW DEMONSTRATION, BESIDE THE ROUTINE, LINKED TO IT ──
+//
+// A fourth directory in the same store. The LINK is the thing this tests: a routine that was
+// re-demonstrated leaves the earlier session's hands on disk under the same name, and reading
+// those as evidence of the new one is the single way a companion record could lie about what
+// somebody did. A mutation run found this unguarded from this side, which is where it belongs:
+// the check lives in the store, so a store test is what must kill it.
+func TestEvidenceIsReturnedOnlyForTheSaveItDescribes(t *testing.T) {
+	s, err := demo.Open(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, err := demo.FromDemonstration("My Settings Tour", tourDemo(), t0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SaveSequence(a); err != nil {
+		t.Fatal(err)
+	}
+	raw := workflowstore.Evidence{
+		Name: a.Name, SavedAt: a.SavedAt,
+		Moments: []workflowstore.Moment{{Look: 3, Inputs: []observe.InputEvent{
+			{Intent: observe.NavBack, AtMS: 300},
+		}}},
+	}
+	if err := s.SaveEvidence(raw); err != nil {
+		t.Fatal(err)
+	}
+	back, ok := s.Evidence(a)
+	if !ok {
+		t.Fatal("the raw demonstration was not found beside the routine")
+	}
+	if len(back.Moments) != 1 || len(back.Moments[0].Inputs) != 1 {
+		t.Errorf("the record came back as %+v", back.Moments)
+	}
+
+	// ── AND A SECOND SAVE OF THE SAME NAME DOES NOT INHERIT IT ──
+	later := a
+	later.SavedAt = a.SavedAt.Add(time.Hour)
+	if _, ok := s.Evidence(later); ok {
+		t.Error("the earlier session's evidence was returned for a later save of the " +
+			"same name; a routine re-demonstrated would report the wrong hands")
+	}
+	renamed := a
+	renamed.Name = "Some Other Tour"
+	if _, ok := s.Evidence(renamed); ok {
+		t.Error("evidence was returned for a routine of a different name")
+	}
+	// AND A ROUTINE WITH NO RECORD IS ABSENT RATHER THAN EMPTY. A routine taught before
+	// the raw record existed has none, and that is not a corrupt file.
+	other, err := demo.FromDemonstration("Untaught Tour", tourDemo(), t0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := s.Evidence(other); ok {
+		t.Error("a routine nobody kept a demonstration of reports one")
+	}
+	// AND A RECORD BELONGING TO NO ROUTINE IS REFUSED AT THE WRITE.
+	if err := s.SaveEvidence(workflowstore.Evidence{}); err == nil {
+		t.Error("a record with no routine to belong to was written")
 	}
 }

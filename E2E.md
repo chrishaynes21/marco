@@ -722,9 +722,11 @@ first, because a stale or unusable reading cannot produce it.
 
 ## Recording a game menu for investigation (needs your hands, ~1 min)
 
-`demonstrate-visual` keeps **no frames, no screenshots and no press coordinates** — that is the
-right design for a saved routine and it makes the artifact useless for asking *where was the
-button?* after the fact. The L0 recorder keeps all three on one clock and executes nothing:
+`demonstrate-visual` keeps **no frames and no screenshots**, and keeps every press with its
+position in a separate raw record (`director what-i-did`) that nothing executes. That is the right
+design for a saved routine and it still makes the ARTIFACT useless for asking *where was the
+button?* — the readings are rectangles the proposer offered, not the frame they came from. The L0
+recorder keeps the frames too, on one clock, and executes nothing:
 
 ```sh
 ./director.exe capture-game-session --application arkascended --session ark-menu-1 --seconds 45
@@ -753,3 +755,50 @@ Two things to read first, because they decide whether the run says anything at a
 |---|---|
 | `N press(es) with a position` | zero means a keyboard-only capture. Neither question can be asked |
 | `N look(s) carrying word boxes` | zero means `words.jsonl` predates boxes. Delete it and run `-frames -semantic` again |
+
+## Teaching with a mistake in it, and correcting it (needs your hands, ~2 min)
+
+The point of this one is that you are **meant** to get it wrong. Click something that isn't a
+control, press a key that does nothing, click one entry you didn't mean to — then fix what Marco
+learned without doing the whole thing again.
+
+```sh
+./director.exe demonstrate-visual "ark graphics" --application arkascended --seconds 45
+```
+
+Click two or three entries with the mouse, include one deliberate mistake, press ENTER when done.
+Two files are written, and they answer two different questions:
+
+```sh
+./director.exe sequences  "ark graphics"      what Marco will DO        (sequences/*.json)
+./director.exe what-i-did "ark graphics"      what you actually DID     (evidence/*.json)
+```
+
+`what-i-did` prints every press with its position and the screen it was made on — including the
+ones no proposal contained, which say `nothing was proposed there` rather than vanishing — and
+every key as a press with a duration, so a tap, a key you leaned on and two keys held together
+are three different lines. It reads and writes nothing.
+
+Then take the mistake out of the procedure:
+
+```sh
+./director.exe correct "ark graphics" --drop last --because "that click was accidental"
+./director.exe correct "ark graphics" --drop 2 --dry-run
+```
+
+The step comes out of what Marco will do and stays in the routine's own `corrections` with your
+words. **Your demonstration is not touched** — run `what-i-did` again afterwards and the press
+is still there with its position. That is the whole arrangement: see
+[[ADR-235-three-records-and-only-one-of-them-may-act]].
+
+Three things worth checking by hand:
+
+| check | what you should see |
+|---|---|
+| `--drop 9` on a three-step routine | refused, naming how many there are — never rounded down |
+| a key that changed nothing | counted in `what-i-did`, and no step to correct. That is correct |
+| `what-i-did` on a routine taught before today | *no raw demonstration of it is* — the record is new, and old routines have none |
+
+If something else was in front for part of it — an overlay, a notification, Marco's own window —
+`what-i-did` says which looks, because a window capture is not occlusion-safe and an input that
+arrived on one of those looks may never have reached the game. It is named, not discarded.

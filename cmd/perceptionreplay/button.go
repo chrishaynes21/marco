@@ -37,10 +37,15 @@ package main
 //
 // # What this cannot measure, stated before any number
 //
-// There is no Ark capture with frames and click positions. `demonstrate-visual` keeps neither
-// on purpose — *no frames, no screenshots, no press coordinates* — and
-// `director capture-game-session`, which keeps both, has never been run on Ark. So the Ark panel
-// click itself cannot be inspected, and this runs on `rl-freeplay-1`: 900 frames, 19 pointer
+// There is no Ark capture with frames and click positions. `demonstrate-visual` keeps no frames
+// on purpose, and at the time of writing it kept no press position either — it keeps every
+// press now, in the raw record beside the routine, and still keeps no frames, so the Ark panel
+// click could not have been inspected from one then and could not be now. The recording
+// `director capture-game-session` writes is the only thing that keeps both, and on the day this
+// was written it had never been run on Ark; it has since (see
+// [[Experiment-085-the-graphics-tab-is-a-button]], which answered this).
+//
+// So this runs on `rl-freeplay-1`: 900 frames, 19 pointer
 // presses with positions, and 300 looks of OCR carrying each phrase's rectangle, on Rocket
 // League's main menu — a panel with twelve labels in it, which is the ambiguous case the
 // investigation asks for.

@@ -385,6 +385,21 @@ func TestAPixelDemonstrationIsReachableAndWritesOnlyWhereItShould(t *testing.T) 
 				"the command that keeps one", forbidden)
 		}
 	}
+	// AND EACH MOMENT CARRIES ITS OWN LOOK'S FRONTNESS.
+	//
+	// Asserted over the text, which is what this test does for the loop generally and is
+	// the only way available here: reaching the frontness decision behaviourally needs a
+	// real window, a real capture and a second real window covering it. A mutation that
+	// replaced `lk.Front` with a constant survived every behavioural test in the package,
+	// because they all build the record by hand — and a record that claims the
+	// application was in front for a moment when it was not is worse than one that does
+	// not mention frontness at all.
+	if !strings.Contains(string(loop),
+		"res.note(look, lk.At.Sub(t0), standing, lk.Front, arrived)") {
+		t.Error("the loop does not record each moment with its own look's frontness; " +
+			"a press made while something covered the target may never have " +
+			"reached the application, and the record has to be able to say so")
+	}
 
 	src, err := os.ReadFile("demonstratevisual.go")
 	if err != nil {
@@ -447,6 +462,61 @@ func TestASavedPixelDemonstrationCarriesNoCoordinates(t *testing.T) {
 	if strings.Contains(s, "workflowstore.Control{") {
 		t.Error("the command builds a Control of its own rather than taking what the " +
 			"session observed")
+	}
+	// ── AND THE COMPANION RECORD IS THE OTHER HALF OF THE SAME SENTENCE ──
+	//
+	// The owner's instruction has always had two clauses and this test used to assert
+	// one:
+	//
+	//	Avoid storing absolute coordinates as the durable identity of a control;
+	//	coordinates may still be recorded as demonstration evidence.
+	//
+	// So a coordinate IS now written durably, to a different file, and the distinction
+	// is what makes that safe: the artifact above is the executable interpretation and
+	// still refuses one, while `evidence/<name>.json` is the record of what the person
+	// physically did and nothing reads it to act. Asserted here so the two cannot
+	// quietly become one file.
+	if !strings.Contains(s, "store.SaveEvidence(") {
+		t.Error("the demonstrating command keeps no raw demonstration; a person who " +
+			"clicked something Marco could not segment has no account of it")
+	}
+	if !strings.Contains(s, "store.SaveSequence(a)") {
+		t.Error("the demonstrating command no longer saves the routine itself")
+	}
+}
+
+// THE TWO RECORDS ARE TWO FILES, AND ONLY ONE OF THEM MAY BE ACTED ON.
+//
+//	Raw demonstration: every actual click, keypress, release, coordinate, timestamp, focus
+//	change, and associated observation. Preserved durably.
+//	Learned procedure: the subset of actions Marco has interpreted as intentional and
+//	repeatable.
+//
+// The separation is the safety argument for keeping a coordinate at all, so it is asserted
+// rather than described: the raw record goes in through the store's own evidence path, and the
+// artifact handed to `SaveWith` is built from the draft, which has never had a press position
+// in it.
+func TestTheRawRecordAndTheExecutableArtifactAreSeparate(t *testing.T) {
+	src, err := os.ReadFile("demonstratevisual.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(src)
+	// THE RECORD IS ASSEMBLED FROM THE SESSION, not from the draft: a draft is Marco's
+	// reading of the demonstration and leaves out the parts a person asks about.
+	if !strings.Contains(s, "rawDemonstration(a, *app, *title, obs, draft, res)") {
+		t.Error("the raw record is not built from the observer and the session result")
+	}
+	// AND THE ARTIFACT IS STILL BUILT FROM THE DRAFT ALONE.
+	if !strings.Contains(s, "workflowstore.SaveWith(draft, arr, said,") {
+		t.Error("the artifact is no longer built from the draft, the arrangements and " +
+			"what was read")
+	}
+	// AND A FAILURE TO KEEP THE RECORD IS NOT A FAILURE TO KEEP THE ROUTINE. A person
+	// who demonstrated something and got working steps must not be told the
+	// demonstration failed because a companion file could not be written.
+	if !strings.Contains(s, "the routine is saved and the raw ") {
+		t.Error("a failed evidence write is not reported as the separate thing it is")
 	}
 }
 

@@ -196,7 +196,77 @@ type InputEvent struct {
 	// Empty is not a defect and not a fourth device — it is a producer that did not state
 	// one, and it is treated as unattributed rather than guessed.
 	Device NavDevice `json:"device,omitempty"`
+	// Edge is which edge of a physical press this is: empty for the press itself,
+	// and `release` or `repeat` for the two that used to be counted and thrown away.
+	//
+	// See InputEdge for why the three cannot be collapsed. The intent is the same closed
+	// word on all three edges and no key identity rides on any of them: the edges add
+	// WHEN a press ended and whether it was held, which is the difference between a tap
+	// and a hold, and between one hold and two presses.
+	Edge InputEdge `json:"edge,omitempty"`
 }
+
+// InputEdge is which edge of a physical press an event is, from a closed vocabulary.
+//
+// # Why the quiet edges had to become events
+//
+// Because a count cannot be put in order. `IgnoreKeyRelease` and `IgnoreRepeat` were already
+// honest — the releasing edge is not navigation, and emitting on both edges would double every
+// intent — but counting them discards the only evidence that separates four things a person
+// routinely does:
+//
+//	a tap                 one down, one release, close together
+//	a hold                one down, repeats, one release much later
+//	two rapid presses     two downs and two releases, interleaved as pairs
+//	a chord               two downs whose releases come after BOTH downs
+//
+// A session that kept `received: 11, classified: 6, key_release: 3` could not tell any of them
+// from any other, and the owner's requirement is exactly that distinction:
+//
+//	Rapid keypresses, chords, held keys, auto-repeat, and delayed UI transitions must remain
+//	distinguishable. Do not solve race conditions using blanket debouncing or by inventing a
+//	settled UI state between every event.
+//
+// # What it deliberately does not add
+//
+// Not identity. An edge carries the SAME closed intent word its press carried, so the record
+// still cannot express "the user typed p" — see the note at the top of this file, which is
+// unchanged. Chords are detectable as overlapping intervals of two intents and never as which
+// two keys were held.
+//
+// # And why an edge is not navigation
+//
+// `admissibleInputs` drops every non-empty edge, so the correlation stream is exactly what it
+// was: one event per press, per intent. An edge is demonstration evidence, read from the
+// subscription by whoever is writing the demonstration down, and it reaches no correlator, no
+// hypothesis and no step.
+type InputEdge string
+
+const (
+	// EdgePress is the press itself, and is the empty value: every event that existed
+	// before edges existed is one, on disk and in memory, without a migration.
+	EdgePress InputEdge = ""
+	// EdgeRelease is the releasing edge of a press whose own edge was classified.
+	EdgeRelease InputEdge = "release"
+	// EdgeRepeat is one auto-repeat while a key is held. A low-level hook reports a held
+	// key as a stream of key-downs, so these are the stream, named.
+	EdgeRepeat InputEdge = "repeat"
+)
+
+var inputEdges = []InputEdge{EdgePress, EdgeRelease, EdgeRepeat}
+
+// Known reports whether an edge is in the closed vocabulary.
+func (e InputEdge) Known() bool {
+	for _, k := range inputEdges {
+		if k == e {
+			return true
+		}
+	}
+	return false
+}
+
+// InputEdges returns the vocabulary.
+func InputEdges() []InputEdge { return append([]InputEdge{}, inputEdges...) }
 
 // admissibleInputs filters a batch down to the closed vocabulary.
 //
@@ -211,6 +281,19 @@ func admissibleInputs(in []InputEvent) []InputEvent {
 	out := make([]InputEvent, 0, len(in))
 	for _, e := range in {
 		if !e.Intent.Known() {
+			continue
+		}
+		// AN EDGE IS NOT NAVIGATION. A release and a repeat carry their press's own
+		// intent, so admitting them would correlate one physical press with a screen
+		// change two and three times over — which is the reason the producer refused
+		// them in the first place, and that reason has not changed. They are kept
+		// where they belong: on the subscription, for whoever writes the
+		// demonstration down. See InputEdge.
+		//
+		// An unrecognised edge word is dropped WITH its event rather than cleared,
+		// unlike Device and Target: clearing it would turn a release into a press and
+		// put an event that never happened into the correlation.
+		if e.Edge != EdgePress {
 			continue
 		}
 		if e.Intent != NavPoint {
