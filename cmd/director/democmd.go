@@ -7,7 +7,9 @@ import (
 	"strings"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/demo"
+	"github.com/chaynes-simpleclouds/marco/internal/director/goal"
 	"github.com/chaynes-simpleclouds/marco/internal/director/service"
+	"github.com/chaynes-simpleclouds/marco/internal/director/workflowstore"
 )
 
 // The demonstration commands.
@@ -342,5 +344,173 @@ func wrap(s string) string {
 		line += " " + w
 	}
 	b.WriteString(line)
+	return b.String()
+}
+
+// ── saved sequences ───────────────────────────────────────────────────────────
+
+// runSave is `director save "<name>" [<demonstration id>]`.
+//
+//	The user names and saves the sequence.
+//
+// The name comes first because it is the point: everything else about this command has a
+// sensible default, and the name has none. With no id it saves the most recent completed
+// demonstration, which is what somebody who just finished one means.
+func runSave(args []string) int {
+	name, rest := "", args
+	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		name, rest = args[0], args[1:]
+	}
+	fs := flag.NewFlagSet("save", flag.ExitOnError)
+	jsonOut := fs.Bool("json", false, "print as JSON")
+	_ = fs.Parse(flagsFirst(rest))
+	if strings.TrimSpace(name) == "" {
+		fmt.Fprintln(os.Stderr,
+			`director: say what to call it, e.g. director save "my settings tour"`)
+		return 2
+	}
+	id := ""
+	if fs.NArg() > 0 {
+		id = fs.Arg(0)
+	} else {
+		// THE MOST RECENT COMPLETED ONE. Asked for here rather than defaulted in the
+		// service, because "the last demonstration" is a thing a person means and not a
+		// thing a protocol should decide.
+		list, code := demoRequest(service.DemonstrationPayload{Action: service.DemoList})
+		if code != 0 {
+			return code
+		}
+		for _, d := range list.Demonstrations {
+			if d.Status == demo.Completed {
+				id = string(d.ID)
+				break
+			}
+		}
+		if id == "" {
+			fmt.Fprintln(os.Stderr,
+				"director: nothing has been demonstrated yet. Record one with:\n"+
+					"  director demonstrate start   then perform the task once")
+			return 1
+		}
+	}
+
+	out, code := demoRequest(service.DemonstrationPayload{
+		Action: service.DemoSave, ID: id, Name: name,
+	})
+	if code != 0 {
+		return code
+	}
+	if *jsonOut {
+		return printJSON(out)
+	}
+	if out.Sequence != nil {
+		fmt.Println(renderSequence(*out.Sequence))
+		fmt.Println()
+	}
+	fmt.Println(wrap(out.Message))
+	return 0
+}
+
+// runSequences is `director sequences [--forget <name>]`.
+func runSequences(args []string) int {
+	fs := flag.NewFlagSet("sequences", flag.ExitOnError)
+	jsonOut := fs.Bool("json", false, "print as JSON")
+	forget := fs.String("forget", "", "remove the sequence with this name")
+	_ = fs.Parse(flagsFirst(args))
+
+	if *forget != "" {
+		out, code := demoRequest(service.DemonstrationPayload{
+			Action: service.DemoDrop, Name: *forget,
+		})
+		if code != 0 {
+			return code
+		}
+		fmt.Println(wrap(out.Message))
+		return 0
+	}
+	// ONE NAMED, shown in full: a person asking about a routine that is about to drive
+	// their desktop wants its steps, not a row in a table.
+	if fs.NArg() > 0 {
+		want := strings.Join(fs.Args(), " ")
+		out, code := demoRequest(service.DemonstrationPayload{Action: service.DemoSequences})
+		if code != 0 {
+			return code
+		}
+		for _, a := range out.Sequences {
+			if strings.EqualFold(a.Name, want) {
+				if *jsonOut {
+					return printJSON(a)
+				}
+				fmt.Println(renderSequence(a))
+				return 0
+			}
+		}
+		fmt.Fprintf(os.Stderr, "director: nothing called %q has been saved\n", want)
+		return 1
+	}
+
+	out, code := demoRequest(service.DemonstrationPayload{Action: service.DemoSequences})
+	if code != 0 {
+		return code
+	}
+	if *jsonOut {
+		return printJSON(out)
+	}
+	if len(out.Sequences) == 0 {
+		fmt.Println("Nothing has been saved as a named sequence yet.")
+		fmt.Println("  director demonstrate start      then perform the task once")
+		fmt.Println("  director demonstrate stop")
+		fmt.Println(`  director save "my settings tour"`)
+		return 0
+	}
+	fmt.Printf("%-28s  %-5s  %s\n", "NAME", "STEPS", "SAVED")
+	for _, a := range out.Sequences {
+		fmt.Printf("%-28s  %-5d  %s\n",
+			truncate(a.Name, 28), len(a.Steps), a.SavedAt.Local().Format("2006-01-02 15:04"))
+	}
+	fmt.Printf("\nRun one with: director execute \"run %s\"\n", out.Sequences[0].Name)
+	return 0
+}
+
+// renderSequence is a saved routine, step by step, as a person reads it.
+//
+// What it is aimed at, in the artifact's own order of preference: the role it was named by, the
+// label it bore, or one of the three ways a step addresses a control without naming it. A reader
+// deciding whether to run this needs to see which, because a role survives a change of language
+// and a label does not.
+func renderSequence(a workflowstore.Artifact) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s\n", a.Name)
+	fmt.Fprintf(&b, "  saved %s\n", a.SavedAt.Local().Format("2006-01-02 15:04"))
+	for _, n := range a.Notes {
+		fmt.Fprintf(&b, "  %s\n", n)
+	}
+	byLabel := map[string]workflowstore.Control{}
+	for _, c := range a.Controls {
+		byLabel[c.Label] = c
+	}
+	fmt.Fprintf(&b, "\nSteps\n")
+	for _, st := range a.Steps {
+		c := byLabel[st.Control]
+		what := "the focused control"
+		switch {
+		case c.Editor:
+			what = "the editor the previous step opened"
+		case c.Deictic:
+			what = "the object the person pointed at"
+		case c.Role != "":
+			what = fmt.Sprintf("%s (by role)", goal.ControlRole(c.Role).Describe())
+		case len(c.Text) > 0:
+			what = fmt.Sprintf("%q (by name)", c.Text[0])
+		}
+		line := fmt.Sprintf("  %d %s %s", st.Position+1, st.Verb, what)
+		if st.Value != "" {
+			line += fmt.Sprintf(" = %q", st.Value)
+		}
+		if st.Seen > 1 {
+			line += fmt.Sprintf("   [addressed %d times]", st.Seen)
+		}
+		fmt.Fprintln(&b, line)
+	}
 	return b.String()
 }

@@ -9,6 +9,7 @@ package workflowstore_test
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -525,7 +526,12 @@ func TestAnUnknownVersionIsRefusedRatherThanRead(t *testing.T) {
 		{"none", `"version": 0`, "not a workflow artifact"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			bad := bytes.Replace(b, []byte(`"version": 2`), []byte(c.v), 1)
+			// BUILT FROM THE CONSTANT, not from a literal. Written as `"version": 2`
+			// first, and bumping the format to 3 then failed this test with "the
+			// fixture did not change the version" -- a version test that silently
+			// stops testing versions on the next bump.
+			current := fmt.Sprintf(`"version": %d`, workflowstore.Version)
+			bad := bytes.Replace(b, []byte(current), []byte(c.v), 1)
 			if bytes.Equal(bad, b) {
 				t.Fatal("the fixture did not change the version")
 			}

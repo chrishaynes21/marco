@@ -685,7 +685,11 @@ func parentForStep(pctx program.Context) *actiongraph.NodeID {
 func (p *Pipeline) HandleRequest(ctx context.Context, request string) Outcome {
 	ctx = ensureBindings(ctx)
 
-	if p.IsGoal(request) {
+	// A GOAL OR A SAVED SEQUENCE. Both become one program, and the clause splitter
+	// below would cut either of them into pieces that mean nothing -- "rename this file
+	// to Budget" at " to ", and "run my settings tour" wherever the name happens to
+	// contain a joining word.
+	if p.IsGoal(request) || p.IsSaved(request) {
 		return Collapse(request, p.HandleProgram(ctx, request))
 	}
 

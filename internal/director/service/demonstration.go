@@ -109,6 +109,26 @@ func (s *Server) demonstration(p DemonstrationPayload) (DemonstrationResponse, e
 
 	case DemoLearned:
 		return DemonstrationResponse{Procedures: s.runtime.LearnedProcedures()}, nil
+
+	case DemoSave:
+		a, err := s.runtime.SaveSequence(demo.ID(p.ID), p.Name)
+		if err != nil {
+			return DemonstrationResponse{}, err
+		}
+		return DemonstrationResponse{Sequence: a, Message: fmt.Sprintf(
+			"%q is saved: %d step(s). Run it with: director execute %q",
+			a.Name, len(a.Steps), "run "+a.Name)}, nil
+
+	case DemoSequences:
+		return DemonstrationResponse{Sequences: s.runtime.SavedSequences()}, nil
+
+	case DemoDrop:
+		if err := s.runtime.DropSequence(p.Name); err != nil {
+			return DemonstrationResponse{}, err
+		}
+		return DemonstrationResponse{Message: fmt.Sprintf(
+			"%q is gone. The running service forgets it at once, because a sequence is "+
+				"read from the store every time it is asked for.", p.Name)}, nil
 	}
 	return DemonstrationResponse{}, fmt.Errorf(
 		"%q is not something that can be done with a demonstration", p.Action)

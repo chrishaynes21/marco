@@ -367,3 +367,137 @@ func TestAnUnboundActionStillNeedsNoBinding(t *testing.T) {
 	}
 	var _ = binding.KindFile
 }
+
+// AND THE PRODUCTION ENTRY POINT REACHES A SAVED SEQUENCE, which is the same regression
+// one layer later.
+//
+// `HandleRequest` routes on `IsGoal`, and the sequence check was written inside `expandGoal` —
+// which `HandleProgram` reaches and `HandleRequest` never got to. Live, with the routine sitting
+// in the store and listed by `director sequences` one command away:
+//
+//	director execute "run my settings tour"
+//	  ! intent    I only understand click, focus, move, repeat and text editing so far
+//	  FAILED: I only understand click, focus, move, repeat and text editing so far
+//
+// So the router asks a second question. Deleting `p.IsSaved(request)` from HandleRequest must
+// fail this test, and so must deleting the `expandSequence` call inside expandGoal.
+func TestARequestForASavedSequenceReachesTheProgramPath(t *testing.T) {
+	h := newHarness(
+		scene(t0, nil, settingsNav()...),
+		scene(t0.Add(1), nil, settingsNav()...),
+		scene(t0.Add(2), nil, settingsNav()...),
+	)
+	h.pipeline.Goals = &Goals{Registry: goal.NewRegistry()}
+	h.pipeline.Saved = savedTour{}
+
+	out := h.pipeline.HandleRequest(context.Background(), "run my settings tour")
+
+	if out.Program == nil || out.Program.Goal == nil {
+		t.Fatalf("the request never reached the program path: %s — %s\nstages: %+v",
+			out.Status, out.Message, out.Stages)
+	}
+	if out.Program.Goal.Procedure != `saved sequence "my settings tour"` {
+		t.Errorf("it ran %q", out.Program.Goal.Procedure)
+	}
+	// The specific misreading that made this fail live.
+	if strings.Contains(out.Message, "I only understand") {
+		t.Errorf("the request was read as an ordinary action: %s", out.Message)
+	}
+	// AND A REQUEST FOR A NAME NOBODY SAVED IS UNTOUCHED, which is what makes adding the
+	// second question safe: the router must not have widened into claiming every "run".
+	plain := newHarness(scene(t0, nil, settingsNav()...), scene(t0.Add(1), nil, settingsNav()...))
+	plain.pipeline.Goals = &Goals{Registry: goal.NewRegistry()}
+	plain.pipeline.Saved = savedTour{}
+	if got := plain.pipeline.HandleRequest(context.Background(), "click Gaming"); got.Program != nil {
+		t.Errorf("an ordinary click became a program: %+v", got.Program)
+	}
+}
+
+// settingsNav is a navigation pane: items with labels and no semantic control role, which is
+// the shape that made a demonstrated navigation unsaveable before ADR-227.
+func settingsNav() []directorapi.Observation {
+	return []directorapi.Observation{
+		obs("uia:1", directorapi.RoleWindow, "Settings", rect(100, 100, 800, 600)),
+		obs("uia:2", directorapi.RoleListItem, "Gaming", rect(110, 140, 200, 30)),
+		obs("uia:3", directorapi.RoleListItem, "Accessibility", rect(110, 175, 200, 30)),
+	}
+}
+
+// savedTour is a Sequences that knows one routine.
+//
+// It builds the expansion the way `demo.ExpandSequence` does — a procedure whose steps are the
+// demonstrated directives verbatim, through `goal.ExpandProcedure` — and it has to, because
+// `demo` imports this package and a test here cannot import it back. What that leaves untested
+// HERE is how a demonstration becomes those directives, which is `demo`'s own
+// TestASavedSequenceReplaysThroughTheOrdinaryProgramPath. What it tests here is the only thing
+// the live failure was about: whether the ROUTER reaches the program path for a request that
+// names a saved routine.
+type savedTour struct{}
+
+func (savedTour) ExpandRequest(request string, b goal.Binder) (goal.Expansion, bool, error) {
+	if !strings.EqualFold(strings.TrimSpace(request), "run my settings tour") {
+		return goal.Expansion{}, false, nil
+	}
+	steps := []goal.Directive{
+		{Semantic: directorapi.SemanticOpen, TargetLabel: "Gaming", Phrase: `open "Gaming"`},
+		{Semantic: directorapi.SemanticOpen, TargetLabel: "Accessibility",
+			Phrase: `open "Accessibility"`},
+	}
+	proc := goal.Procedure{
+		Name: `saved sequence "my settings tour"`, Goal: goal.Kind("run"), Learned: true,
+		Why:    "saved from a demonstration",
+		Safety: goal.Safety{Risk: directorapi.RiskLow},
+		Steps:  func(goal.Goal) ([]goal.Directive, error) { return steps, nil },
+	}
+	g := goal.Goal{
+		Kind: goal.Kind("run"), Phrase: "run my settings tour",
+		Context: goal.Context{Target: "my settings tour"},
+	}
+	ex, err := goal.ExpandProcedure(proc, g, b)
+	return ex, true, err
+}
+
+// AND ASKING WHETHER A REQUEST NAMES A SEQUENCE DOES NOT OBSERVE THE SCREEN.
+//
+// `IsGoal`'s own comment is about this property: the router's questions are asked BEFORE
+// anything observes, so asking cannot change what is in front of the user. A sequence lookup
+// reads a store, which is the honest cost of addressing something by a name a person chose — but
+// it must not reach for a binder, because a binder is an observation and an ordinary request
+// would then pay for one on its way to being an ordinary request.
+//
+// Pinned separately from the router test because it is a different claim, and because the
+// mutation that removes the early check is otherwise invisible: with the second answer returned
+// honestly, deleting it changes the cost and not the outcome.
+func TestRecognisingASequenceCostsNoObservation(t *testing.T) {
+	h := newHarness(scene(t0, nil, settingsNav()...), scene(t0.Add(1), nil, settingsNav()...))
+	h.pipeline.Goals = &Goals{Registry: goal.NewRegistry()}
+	spy := &bindingSpy{}
+	h.pipeline.Saved = spy
+
+	// A REQUEST THAT IS NOT A SEQUENCE, through HandleProgram -- which is where
+	// expandGoal is reached, and the one entry the router does not already guard. The
+	// recognition question is put, and it is put with nothing to observe with.
+	h.pipeline.HandleProgram(context.Background(), "click Gaming")
+
+	if spy.asked == 0 {
+		t.Fatal("the router never asked whether this was a saved sequence")
+	}
+	if spy.withBinder > 0 {
+		t.Errorf("recognising a request cost %d observation(s); a request that is not a "+
+			"sequence must not pay for one", spy.withBinder)
+	}
+}
+
+// bindingSpy counts how a Sequences was asked, and knows no sequences at all.
+type bindingSpy struct {
+	asked      int
+	withBinder int
+}
+
+func (s *bindingSpy) ExpandRequest(_ string, b goal.Binder) (goal.Expansion, bool, error) {
+	s.asked++
+	if b != nil {
+		s.withBinder++
+	}
+	return goal.Expansion{}, false, nil
+}

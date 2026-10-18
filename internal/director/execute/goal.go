@@ -49,6 +49,29 @@ func (p *Pipeline) IsGoal(request string) bool {
 	return ok
 }
 
+// IsSaved reports whether a request asks for a named sequence somebody demonstrated.
+//
+// The router's second question, and it has to be asked there rather than only inside
+// expandGoal — which is what the first live run found. `HandleRequest` routes on `IsGoal`, so a
+// sequence recognised only further down was never reached: "run my settings tour" came back *I
+// only understand click, focus, move, repeat and text editing so far* with the sequence sitting
+// in the store, listed by `director sequences`, one command away.
+//
+// It reads the store, which `IsGoal` does not, and that is the honest cost of addressing
+// something by a name a person chose. It still observes NOTHING: no focus change, no input, no
+// capability call, so asking cannot change what is in front of the user — which is the property
+// IsGoal's own comment is about.
+//
+// Enforced by TestARequestForASavedSequenceReachesTheProgramPath, which enters through
+// HandleRequest. Deleting this method's use in the router must fail it.
+func (p *Pipeline) IsSaved(request string) bool {
+	if p.Saved == nil {
+		return false
+	}
+	_, ok, _ := p.Saved.ExpandRequest(request, nil)
+	return ok
+}
+
 // expandGoal turns a request into a program, reporting false when it is not a goal.
 //
 // The Expansion travels back alongside the program so the caller can record WHY these
@@ -60,6 +83,17 @@ func (p *Pipeline) IsGoal(request string) bool {
 func (p *Pipeline) expandGoal(ctx context.Context, request string) (
 	goal.Expansion, *directorapi.WorldState, bool, error) {
 
+	// A SAVED SEQUENCE FIRST, because it is addressed by a name somebody chose and the
+	// goal parser would read the words that name is made of. It can only match when a
+	// sequence of that name exists, so trying it first takes nothing away — see
+	// demo.Store.Asked.
+	//
+	// What comes back is an ordinary Expansion, which is the whole point: confirmation,
+	// the task licence, provenance, per-step verification and cancellation are all the
+	// ones a goal gets, because after this line there is no difference between the two.
+	if ex, w, ok, err := p.expandSequence(ctx, request); ok {
+		return ex, w, true, err
+	}
 	if p.Goals == nil || p.Goals.Registry == nil {
 		return goal.Expansion{}, nil, false, nil
 	}
@@ -195,4 +229,62 @@ func goalProvenanceOf(request string, ex goal.Expansion) *actiongraph.GoalProven
 		Goal: string(ex.Goal.Kind), Procedure: ex.Procedure, Request: request,
 		ProcedureGeneric: ex.Generic, Application: ex.Application,
 	}
+}
+
+// ── a saved sequence ──────────────────────────────────────────────────────────
+
+// Sequences is a source of named routines somebody demonstrated and saved.
+//
+// One method, and it answers the only question this layer has: does this request ask for a
+// saved sequence, and if so what program is it. How a sequence is stored, parsed or named
+// stays on the other side of it — `demo.Store` is the implementation and nothing here knows
+// that.
+//
+// A nil Sequences is a Director that cannot replay saved routines, which is a correct
+// Director: the CLI's own stub is one.
+type Sequences interface {
+	ExpandRequest(request string, b goal.Binder) (goal.Expansion, bool, error)
+}
+
+// expandSequence turns a request for a named routine into a program, reporting false when the
+// request is not one.
+//
+// Deliberately shaped exactly like expandGoal, including the binder over ONE observation and
+// the rule that a refusal is reported rather than swallowed into "this is not a sequence". A
+// saved routine whose first step cannot be found should say so; falling through would answer
+// with "I only understand click, focus, move and text editing" about a routine Marco saved.
+func (p *Pipeline) expandSequence(ctx context.Context, request string) (
+	goal.Expansion, *directorapi.WorldState, bool, error) {
+
+	if p.Saved == nil {
+		return goal.Expansion{}, nil, false, nil
+	}
+	// ASKED BEFORE OBSERVING, with a nil binder, so a request that is not a sequence
+	// costs a name lookup and does not touch the screen. ExpandRequest reports whether
+	// it recognised the request separately from whether it could expand it.
+	if _, ok, _ := p.Saved.ExpandRequest(request, nil); !ok {
+		return goal.Expansion{}, nil, false, nil
+	}
+	b, err := p.newBinder(ctx)
+	if err != nil {
+		return goal.Expansion{}, nil, true, fmt.Errorf(
+			"the screen could not be observed, so %q could not be resolved to concrete "+
+				"controls and nothing was done: %w", request, err)
+	}
+	// AND THE SECOND ANSWER IS THE ONE RETURNED, not a hardcoded true.
+	//
+	// Written as `true` first, and the mutation run found that deleting the early check
+	// above changed no test: with a constant here, a Director whose recognition check was
+	// removed would claim EVERY request as a sequence and refuse it, and the only thing
+	// standing between that and a desktop was the router asking the same question first.
+	// Two independent answers to one question, one of which could not be wrong, is not
+	// defence in depth — it is one check wearing two hats.
+	ex, ok, err := p.Saved.ExpandRequest(request, b)
+	if !ok {
+		return goal.Expansion{}, b.world, false, nil
+	}
+	if err != nil {
+		return goal.Expansion{}, b.world, true, err
+	}
+	return ex, b.world, true, nil
 }

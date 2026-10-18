@@ -13,9 +13,13 @@ package main
 // of those already. So the independence is asserted rather than assumed.
 
 import (
+	"io"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
+	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 )
 
 // topLeft and bottomRight are two arrangements no similarity could confuse: the rectangles are in
@@ -81,11 +85,11 @@ func TestTheBindingFoldsShareNothing(t *testing.T) {
 		readable[i] = true
 	}
 
-	a, err := foldRange(frames, regions, readable, 0, half)
+	a, err := foldRange(frames, regions, readable, nil, 0, half)
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := foldRange(frames, regions, readable, half, len(frames))
+	b, err := foldRange(frames, regions, readable, nil, half, len(frames))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,4 +216,84 @@ func check(t *testing.T, got []bindingOutcome, want []struct {
 				g.from.id, g.counterpart, w.counterpart)
 		}
 	}
+}
+
+// EVERY BINDING DISCRIMINATOR IS REPORTED.
+//
+// [[Experiment-076-nothing-the-artifact-carries-says-which-screen-this-is]] is a NEGATIVE result
+// about four things at once: the score floor, the words, the margin to the runner-up, and the
+// number of candidates that qualified. A report that quietly stopped printing one of them would
+// read as a result about the other three, and the conclusion drawn from it —
+// [[ADR-229-proposed-a-single-qualifying-candidate-is-not-permission]] — would be standing on
+// evidence nobody could see.
+//
+// So this holds the report's shape rather than its numbers. Deleting any of the four sections
+// must fail it.
+func TestEveryBindingDiscriminatorIsReported(t *testing.T) {
+	// Two screens, each with a reading, bound against themselves and against each other:
+	// enough that every section has something to say.
+	out := []bindingOutcome{
+		{
+			from:   foldScreen{id: "visual_1", truth: "visual_1", said: read("play", "free")},
+			best:   foldScreen{id: "visual_9", truth: "visual_1", said: read("play", "free")},
+			result: "bound", correct: true, offered: 4,
+			bestSim: 0.9, secondSim: 0.4,
+			bothRead: true, textSim: 0.8,
+		},
+		{
+			from:   foldScreen{id: "visual_2", truth: "visual_2", said: read("garage")},
+			best:   foldScreen{id: "visual_7", truth: "visual_5", said: read("options")},
+			result: "bound", correct: false, offered: 4,
+			bestSim: 0.88, secondSim: 0.5,
+			bothRead: true, textSim: 0.1, disagree: true, disWhy: "nothing in common",
+		},
+	}
+	// THROUGH THE REPORT, not through the two functions. Written as two direct calls
+	// first, and the mutation run found that deleting either one from `printBinding`
+	// changed no test: the sections were being exercised and the REPORT was not.
+	a := []foldScreen{out[0].from, out[1].from}
+	b := []foldScreen{out[0].best, out[1].best}
+	got := capture(func() { printBinding("fixture", 900, 450, a, b, out) })
+	for _, want := range []string{
+		// the words
+		"would the WORDS have separated them",
+		"wrong, and the words reject it",
+		"correct, and the words reject it",
+		// the margin
+		"would the MARGIN to the runner-up",
+		"correct bindings had gaps",
+		// the qualifier count, which is the rule BindScreens already acts on
+		"how many candidates qualified",
+		"qualified of 4 offered",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the report no longer says %q:\n%s", want, got)
+		}
+	}
+	// AND THE COST LINE IS THE ONE A READER LOOKS FOR. A discriminator that rejects
+	// correct bindings is worse than none, so that number is never implicit.
+	if !strings.Contains(got, "<- the cost") {
+		t.Errorf("the report does not mark what the words cost:\n%s", got)
+	}
+}
+
+// read is a screen's reading, from OCR.
+func read(words ...string) observe.ScreenText {
+	return observe.TextOf(directorapi.SourceOCR, words)
+}
+
+// capture is what a print function wrote to stdout.
+func capture(f func()) string {
+	old := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		return ""
+	}
+	os.Stdout = w
+	f()
+	_ = w.Close()
+	os.Stdout = old
+	var b strings.Builder
+	_, _ = io.Copy(&b, r)
+	return b.String()
 }

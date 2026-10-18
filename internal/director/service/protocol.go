@@ -53,6 +53,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/timeline"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/windowref"
 	"github.com/chaynes-simpleclouds/marco/internal/director/values"
+	"github.com/chaynes-simpleclouds/marco/internal/director/workflowstore"
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 	"github.com/chaynes-simpleclouds/marco/pkg/playbill"
 	"time"
@@ -391,6 +392,12 @@ const (
 	DemoExplain  DemonstrationAction = "explain"
 	DemoLearned  DemonstrationAction = "learned"
 	DemoProposal DemonstrationAction = "proposal"
+	// DemoSave keeps a demonstration as a NAMED SEQUENCE -- an arbitrary routine,
+	// saved under a name the person chose, rather than a procedure for a goal.
+	// DemoSequences lists them and DemoDrop removes one.
+	DemoSave      DemonstrationAction = "save"
+	DemoSequences DemonstrationAction = "sequences"
+	DemoDrop      DemonstrationAction = "drop"
 )
 
 // DemonstrationPayload is a DEMONSTRATION request.
@@ -398,7 +405,9 @@ type DemonstrationPayload struct {
 	Action DemonstrationAction `json:"action"`
 	// ID names a recorded demonstration, for show, extract, explain and approve.
 	ID string `json:"id,omitempty"`
-	// Name names a learned procedure, for explain and forget.
+	// Name names a learned procedure, for explain and forget -- and a SAVED SEQUENCE,
+	// for save, sequences and drop. The person's own words in that case: a sequence name
+	// is not checked against any vocabulary.
 	Name string `json:"name,omitempty"`
 	// Reason explains an abandonment.
 	Reason string `json:"reason,omitempty"`
@@ -424,6 +433,9 @@ type DemonstrationResponse struct {
 	// Learned is an approved procedure, and Procedures the list of them.
 	Learned    *demo.Learned   `json:"learned,omitempty"`
 	Procedures []*demo.Learned `json:"procedures,omitempty"`
+	// Sequence is a saved named routine, and Sequences the list of them.
+	Sequence  *workflowstore.Artifact  `json:"sequence,omitempty"`
+	Sequences []workflowstore.Artifact `json:"sequences,omitempty"`
 	// Message is one sentence for a person.
 	Message string `json:"message,omitempty"`
 }

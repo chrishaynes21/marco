@@ -85,7 +85,7 @@ func reportAnchoring(dir string, limit int, onnx string) error {
 		return aerr
 	}
 	defer a.obs.Close()
-	oracle, oerr := foldRange(frames, regions, readable, 0, len(frames))
+	oracle, oerr := foldRange(frames, regions, readable, nil, 0, len(frames))
 	if oerr != nil {
 		return oerr
 	}

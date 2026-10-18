@@ -6,6 +6,7 @@ import (
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/demo"
 	"github.com/chaynes-simpleclouds/marco/internal/director/goal"
+	"github.com/chaynes-simpleclouds/marco/internal/director/workflowstore"
 )
 
 // Demonstration recording in the daemon.
@@ -155,4 +156,51 @@ func (r *Runtime) LearnedProcedures() []*demo.Learned {
 		return nil
 	}
 	return r.demoStore.Learned()
+}
+
+// ── saved sequences ───────────────────────────────────────────────────────────
+
+// SaveSequence keeps a demonstration as a named routine.
+//
+// Deliberately NOT routed through extraction. `ApproveProcedure` above recovers a goal, reduces
+// the demonstration to a parameterized procedure and installs it as a way of achieving that
+// goal; this keeps the steps as they were demonstrated and gives them the name the person said.
+// Two products of one recording, and the difference is the whole of
+// [[ADR-228-a-named-sequence-is-a-demonstration-somebody-kept]].
+//
+// Nothing is registered. A sequence is addressed by name and has no goal, no pattern and no
+// place in the procedure registry — so there is no restart-to-take-effect problem to solve and
+// no shadowing check to run.
+func (r *Runtime) SaveSequence(id demo.ID, name string) (*workflowstore.Artifact, error) {
+	if r.demoStore == nil {
+		return nil, fmt.Errorf("this Director has no demonstration store")
+	}
+	d, err := r.demoStore.Demonstration(id)
+	if err != nil {
+		return nil, err
+	}
+	a, err := demo.FromDemonstration(name, d, time.Now())
+	if err != nil {
+		return nil, err
+	}
+	if err := r.demoStore.SaveSequence(a); err != nil {
+		return nil, err
+	}
+	return &a, nil
+}
+
+// SavedSequences is what has been saved that way.
+func (r *Runtime) SavedSequences() []workflowstore.Artifact {
+	if r.demoStore == nil {
+		return nil
+	}
+	return r.demoStore.Sequences()
+}
+
+// DropSequence removes one.
+func (r *Runtime) DropSequence(name string) error {
+	if r.demoStore == nil {
+		return fmt.Errorf("this Director has no demonstration store")
+	}
+	return r.demoStore.ForgetSequence(name)
 }

@@ -106,8 +106,25 @@ See [[ADR-227-a-step-may-name-its-own-control]] and
 [[Experiment-074-two-halves-of-teach-and-replay]], which measures the whole teach-and-replay
 workflow and reports that naming and reachability are the halves that do not exist.
 
+## A named sequence
+
+An arbitrary demonstrated routine is not a goal and must not be forced into one. It is saved as a
+workflow artifact carrying a SEMANTIC BODY -- a verb and a value per step, a role or a label per
+control -- under a name the person chose, which means nothing to Marco. It is addressed only by
+that name, through a router question that can match only when a saved name exists, so adding the
+invocation path took nothing away from the ordinary request path.
+
+Replay goes through `goal.ExpandProcedure`, the half of `Expand` after the registry lookup, so
+confirmation, policy, fresh grounding, per-step verification and cancellation are the ones every
+request gets. A bounded repeat is the steps again rather than a loop, which makes the ordinary
+step ceiling the bound.
+
+See [[ADR-228-a-named-sequence-is-a-demonstration-somebody-kept]] and
+[[Experiment-075-a-demonstration-saved-named-and-replayed]].
+
 ## Decisions
 
+- [[ADR-228-a-named-sequence-is-a-demonstration-somebody-kept]]
 - [[ADR-227-a-step-may-name-its-own-control]]
 - [[ADR-226-naming-a-thing-is-saying-which-thing]]
 - [[ADR-005-legal-marco-only]]
@@ -123,15 +140,16 @@ workflow and reports that naming and reachability are the halves that do not exi
 
 ## Known gaps
 
+- **A demonstration can now be given a name**, as a sequence rather than as a procedure --
+  [[ADR-228-a-named-sequence-is-a-demonstration-somebody-kept]]. What stays missing is a goal
+  phrasing for `open_file`, below, so a LEARNED PROCEDURE is still unreachable even though a
+  named sequence is not.
 - **`goal.OpenFile` has no phrasing.** Nothing in the pattern table produces it, so
   `genericOpenFile` has never been reachable from a request — and neither is a learned procedure
   approved to override it. `director goal "open gaming"` answers *Not a goal*. Adding a bare
   `open` prefix would reroute every *"open the file menu"* away from `uiact`, because `IsGoal` is
   consulted first, so this is a routing decision rather than a missing line. Measured in
   [[Experiment-074-two-halves-of-teach-and-replay]].
-- **A demonstration cannot be given a name.** `demo` reads one as a better way to achieve a goal
-  Director already has a word for, generalizing the first step into the procedure's parameter and
-  freezing the rest, so there is nothing for a person's name to name. Same experiment.
 - **None of this is live-tested.** Every claim is against fixtures, not a running
   application. The live rename has never completed.
 - The editor's `ValuePattern` reported *Unsupported* from PowerShell against the real

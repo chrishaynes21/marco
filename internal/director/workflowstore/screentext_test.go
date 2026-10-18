@@ -13,6 +13,7 @@ package workflowstore_test
 // a route of screens that said nothing.
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -93,7 +94,11 @@ func TestASavedScreenCarriesWhatItSaid(t *testing.T) {
 // screens — and a silent screen, under the rule in observe, is one that can never disagree with
 // anything. The honest reading of an absent field is that the evidence was never collected.
 func TestAnArtifactWithNoTextIsUnreadRatherThanSilent(t *testing.T) {
-	old := `{"version":2,"name":"enter free play","saved_at":"2026-10-13T00:00:00Z",` +
+	// THE CURRENT VERSION with no `text` key, which is what every artifact on disk
+	// has. Written as a literal 2 first, and the format bump to 3 turned it into a
+	// version-refusal test that no longer said anything about text.
+	old := fmt.Sprintf(`{"version":%d,"name":"enter free play"`, workflowstore.Version) +
+		`,"saved_at":"2026-10-13T00:00:00Z",` +
 		`"screens":[{"label":"screen_a","arrangement":{"cells":{"0,0":9},"total":9}},` +
 		`{"label":"screen_b","arrangement":{"cells":{"1,1":7},"total":7}}],` +
 		`"controls":[{"label":"control_1","readings":[` +

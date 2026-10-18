@@ -172,6 +172,10 @@ var valued = map[string]bool{
 	"-watch": true, "--watch": true,
 	"-hold": true, "--hold": true,
 	"-subject": true, "--subject": true,
+	// `sequences --forget "<name>"`. The same table, the fifth time, and the clearest
+	// case yet of why it is a test rather than a convention: this one was caught by
+	// TestEveryValueTakingFlagIsInTheReorderingTable before it was ever run.
+	"-forget": true, "--forget": true,
 	// `reach --from <subject>` asks what Marco would do from somewhere it is not standing.
 	// Caught by this table's own test before it ever ran, which is the fourth time.
 	"-from": true, "--from": true,

@@ -65,7 +65,11 @@ import (
 // Version 2 added Clarifications. A version-1 file is refused rather than read without them:
 // the field is where a person's answer about a control's identity lives, and a reader that
 // ignored it would quietly match a control the person had said was something else.
-const Version = 2
+// Version 3 added the SEMANTIC BODY — a step's verb and value, and a control's role and the
+// three ways it can be addressed without a name. A version-2 reader given one of these files
+// would see a walk between screens that do not exist and press nothing, which is why the
+// refusal is on the version rather than on the fields.
+const Version = 3
 
 // Artifact is one durable workflow: inert, evidence-bearing, and unable to act.
 type Artifact struct {
@@ -156,6 +160,26 @@ type Control struct {
 	// it decides anything, and held by a test on both branches. A fallback that nothing
 	// could ever prefer over would quietly become the only rule there is.
 	Text []string `json:"text,omitempty"`
+	// Role names this control by what it MEANS — the rename command, the confirm
+	// button — and is the strongest identity evidence of all, stronger than Text,
+	// because it is the only one that survives a change of language.
+	//
+	// Empty wherever nothing named the control by meaning, which is most of a settings
+	// pane and all of a game menu. Then Text is what there is, and ADR-227 says why
+	// that is the honest answer rather than a shortfall.
+	Role string `json:"role,omitempty"`
+	// Deictic marks the control the DEMONSTRATION pointed at rather than named — "this
+	// file". Carried so that replay refuses to guess: a saved step that acted on
+	// whatever the person was looking at cannot be replayed from the artifact alone,
+	// and saying so is the whole of what this field does.
+	Deictic bool `json:"deictic,omitempty"`
+	// Editor marks the inline editor a previous step opened on the object a previous
+	// step acted on — the in-place rename box, resolved at run time and never searched
+	// for by name.
+	Editor bool `json:"editor,omitempty"`
+	// Focused marks a step addressed to the focused context, which is what a verb that
+	// names no control — confirm, undo — is aimed at.
+	Focused bool `json:"focused,omitempty"`
 }
 
 // Step is one demonstrated move, at its position in the walk.
@@ -170,6 +194,33 @@ type Step struct {
 	Control string                  `json:"control,omitempty"`
 	Cause   observe.TransitionCause `json:"cause"`
 	Seen    int                     `json:"seen"`
+	// Verb is WHAT THIS STEP DID, as a semantic action: open, select, invoke, confirm,
+	// focus, edit.
+	//
+	// # Why a visual walk never had one
+	//
+	// Because it could not. A recorded demonstration over frames observes a press and a
+	// screen change, and `Cause` is the strongest statement available about why the
+	// screen changed — not about what the person meant by pressing. A Director
+	// demonstration knows, because the step WAS a semantic action that Marco performed
+	// and verified, so the verb is recorded rather than inferred.
+	//
+	// Empty for every artifact a frame recording produced, and those keep working: a
+	// step with no verb is a transition, which is what they always were.
+	Verb string `json:"verb,omitempty"`
+	// Value is the text an edit step set, and is empty for every other verb.
+	//
+	// Never a secret. `Unsafe` refuses a demonstration containing one before extraction
+	// begins, and `FromDemonstration` refuses a sensitive step again here rather than
+	// trusting that — a password written into a durable file is the one mistake in this
+	// package that cannot be taken back.
+	Value string `json:"value,omitempty"`
+	// Says is the step's own sentence, for the plan line and the trace.
+	//
+	// Provenance, not instruction: nothing parses it back. It exists because a person
+	// reading this file has to be able to see what they showed Marco without decoding
+	// `control_2` and a verb.
+	Says string `json:"says,omitempty"`
 	// Uncertain says the session could not tell this control from another on the same
 	// screen, and Unresolved says what in words a person can answer.
 	Uncertain  bool     `json:"uncertain,omitempty"`

@@ -26,6 +26,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/uiact"
 	"github.com/chaynes-simpleclouds/marco/internal/director/values"
 	waitengine "github.com/chaynes-simpleclouds/marco/internal/director/wait/engine"
+	"github.com/chaynes-simpleclouds/marco/internal/director/workflowstore"
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 	"github.com/chaynes-simpleclouds/marco/pkg/playbill"
 )
@@ -359,6 +360,12 @@ func (s *stubRuntime) ApproveProcedure(demo.ID, string) (*demo.Learned, error) {
 }
 func (s *stubRuntime) ForgetProcedure(string) error       { return errNoDemonstrations }
 func (s *stubRuntime) LearnedProcedures() []*demo.Learned { return nil }
+
+func (s *stubRuntime) SaveSequence(demo.ID, string) (*workflowstore.Artifact, error) {
+	return nil, errors.New("this stub keeps nothing")
+}
+func (s *stubRuntime) SavedSequences() []workflowstore.Artifact { return nil }
+func (s *stubRuntime) DropSequence(string) error                { return nil }
 
 var errNoDemonstrations = errors.New("this stub Director does not record demonstrations")
 

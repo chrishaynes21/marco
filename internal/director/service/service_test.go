@@ -29,6 +29,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/uiact"
 	"github.com/chaynes-simpleclouds/marco/internal/director/values"
 	waitengine "github.com/chaynes-simpleclouds/marco/internal/director/wait/engine"
+	"github.com/chaynes-simpleclouds/marco/internal/director/workflowstore"
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 	"github.com/chaynes-simpleclouds/marco/pkg/playbill"
 )
@@ -1123,6 +1124,30 @@ func (f *fakeRuntime) ForgetProcedure(name string) error {
 }
 func (f *fakeRuntime) LearnedProcedures() []*demo.Learned {
 	return f.demoRuntime().store.Learned()
+}
+
+// The saved sequences, through the same store -- so a service test that saves one and asks for
+// it back is exercising the real store rather than a map that agrees with itself.
+func (f *fakeRuntime) SaveSequence(id demo.ID, name string) (*workflowstore.Artifact, error) {
+	st := f.demoRuntime().store
+	d, err := st.Demonstration(id)
+	if err != nil {
+		return nil, err
+	}
+	a, err := demo.FromDemonstration(name, d, time.Now())
+	if err != nil {
+		return nil, err
+	}
+	if err := st.SaveSequence(a); err != nil {
+		return nil, err
+	}
+	return &a, nil
+}
+func (f *fakeRuntime) SavedSequences() []workflowstore.Artifact {
+	return f.demoRuntime().store.Sequences()
+}
+func (f *fakeRuntime) DropSequence(name string) error {
+	return f.demoRuntime().store.ForgetSequence(name)
 }
 
 // demoFake is a recorder and a store over a temp directory.

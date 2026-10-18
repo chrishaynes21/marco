@@ -806,6 +806,10 @@ func NewRuntime(bridgePath string, maxNodes int, dryRun bool, g *actiongraph.Fil
 			Registry:    goals,
 			Application: rt.activeApplication,
 		},
+		// Saved replays a routine somebody demonstrated and named. The SAME store the
+		// demonstrations and the learned procedures live in, because all three are what
+		// this Director has learned from this person.
+		Saved: demoStore,
 		// The production confirmation gate. The same field the unit tests set, reached
 		// by the same requests, so the daemon's path IS the tested path.
 		Confirmer: rt.confirmations,

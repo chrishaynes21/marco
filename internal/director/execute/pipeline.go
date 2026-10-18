@@ -93,6 +93,10 @@ type Pipeline struct {
 	// pipeline behaves exactly as it did before, which is how a caller that has not
 	// opted in stays unaffected.
 	Goals *Goals
+	// Saved replays a routine somebody demonstrated and named. Optional, and its
+	// absence means a request to run one is an ordinary request that nothing
+	// recognises -- which is what it was before saved sequences existed.
+	Saved Sequences
 	// Confirmer puts a goal-level confirmation to the user before its first step
 	// runs. Optional, and its absence REFUSES a goal that needs one rather than
 	// defaulting to yes — see ConfirmationUnavailable.

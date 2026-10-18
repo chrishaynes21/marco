@@ -94,6 +94,10 @@ func main() {
 		os.Exit(runDemonstration(os.Args[2:]))
 	case "extract":
 		os.Exit(runExtract(os.Args[2:]))
+	case "save":
+		os.Exit(runSave(os.Args[2:]))
+	case "sequences", "sequence":
+		os.Exit(runSequences(os.Args[2:]))
 	case "collections":
 		os.Exit(runCollections(os.Args[2:]))
 	case "game":
@@ -361,6 +365,10 @@ func usage() {
   director demonstration <id>    one recorded session, step by step
   director extract <id>          the procedure it suggests (installs nothing)
   director extract <id> --approve  accept it into the procedure registry
+  director save "<name>" [<id>]  keep it as a NAMED SEQUENCE -- every step as
+                                 demonstrated, run with: execute "run <name>"
+  director sequences             what has been saved that way
+  director sequences --forget "<name>"   remove one
   director explain procedure <n>   why a learned procedure has the shape it has
   director game                  which game is detected, and what may be automated in it
   director capabilities          what each capability pack contributes

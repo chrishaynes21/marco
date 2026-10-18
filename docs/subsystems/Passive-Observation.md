@@ -1497,6 +1497,16 @@ it refuses those looks. Visible is fine; in front is not.
   and 0.559 for arrangement, 1.000 and 0.996 for palette and detector. Those are
   Experiment-029’s two wrong bindings, located: nothing can say “none of these”.
   [[Experiment-036-recognising-a-screen-you-were-shown]]
+- **And two more measures fail, which makes seven.** The WORDS on the screen — the only
+  candidate that is not a function of the pixels' layout — agree MORE on the two wrong
+  bindings (0.818, 0.692) than on the correct ones (0.500, 0.250), and `TextsDisagree`
+  rejects none of them. The margin to the runner-up does not separate them either (widest
+  wrong 0.343, against a correct 0.110), and all four bindings made — right and wrong
+  alike — were the only candidate the evidence supported, out of ten offered. Counted as
+  ACTIONS rather than hits: 4 of 11 screens acted on, 2 of them wrong. So the artifact
+  does not contain the answer, and the next step is to stop asking it.
+  [[Experiment-076-nothing-the-artifact-carries-says-which-screen-this-is]],
+  [[ADR-229-proposed-a-single-qualifying-candidate-is-not-permission]]
 - **Appearance costs five correct recognitions and fixes none of the wrong ones.** The
   ambiguity rule would decline 1 correct answer under arrangement and 5 under palette,
   grid or detector, while BIND-WRONG stays at 2 for all of them. The appearance measures

@@ -31,6 +31,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/uiact"
 	"github.com/chaynes-simpleclouds/marco/internal/director/values"
 	waitengine "github.com/chaynes-simpleclouds/marco/internal/director/wait/engine"
+	"github.com/chaynes-simpleclouds/marco/internal/director/workflowstore"
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 	"github.com/chaynes-simpleclouds/marco/pkg/playbill"
 )
@@ -172,6 +173,13 @@ type Runtime interface {
 	ForgetProcedure(name string) error
 	// LearnedProcedures is what has been learned.
 	LearnedProcedures() []*demo.Learned
+	// SaveSequence keeps a demonstration as a named routine -- an arbitrary sequence of
+	// the steps that were demonstrated, under a name the person chose, which is a
+	// different claim from a procedure for a goal.
+	SaveSequence(id demo.ID, name string) (*workflowstore.Artifact, error)
+	// SavedSequences is what has been saved that way, and DropSequence removes one.
+	SavedSequences() []workflowstore.Artifact
+	DropSequence(name string) error
 
 	// ── capability packs ──────────────────────────────────────────────────────
 	//

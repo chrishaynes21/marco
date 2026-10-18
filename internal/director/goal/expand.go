@@ -98,7 +98,25 @@ func Expand(r *Registry, g Goal, b Binder) (Expansion, error) {
 			Reason: fmt.Sprintf("%s needs more than the request gave it", g.Kind.Describe()),
 		}
 	}
+	return ExpandProcedure(proc, g, b)
+}
 
+// ExpandProcedure is Expand once the procedure has been chosen.
+//
+// Separated so that something which is NOT a parsed goal can reach the same expansion. A named
+// sequence -- an arbitrary routine somebody demonstrated and called "my settings tour" -- is not
+// a goal, has no pattern, and must not acquire one: a phrase table entry for it would hijack the
+// words it is made of. What it needs is everything AFTER the lookup, which is this: one binding
+// for the whole expansion, a reference built per directive, the ordinary program validator, and
+// the bound validator when a binder was supplied.
+//
+// No behaviour moved. `Expand` keeps all four of its checks and calls this for its fifth step,
+// which is how it was already written -- the extraction is where the function ended, not a
+// relaxation of what it did.
+//
+// Enforced by TestASavedSequenceReplaysThroughTheOrdinaryProgramPath, which runs a sequence
+// through here and then through the same validator every request goes through.
+func ExpandProcedure(proc Procedure, g Goal, b Binder) (Expansion, error) {
 	directives, err := proc.Steps(g)
 	if err != nil {
 		return Expansion{}, err

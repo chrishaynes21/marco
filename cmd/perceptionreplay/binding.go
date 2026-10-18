@@ -52,6 +52,13 @@ type foldScreen struct {
 	id    observe.VisualScreenID
 	arr   observe.VisualArrangement
 	looks int
+	// said is what this screen was READ to say, from the same fold that minted it.
+	//
+	// Collected by `fold` from the beginning and never consulted by `bind`, which is
+	// what this experiment's second half is about: the two wrong bindings it found were
+	// not ambiguous, they were UNOPPOSED, and a score cannot separate unopposed from
+	// right. A second term that is not a function of the first can.
+	said observe.ScreenText
 	// proposals is the mean number of rectangles the proposer offered on the looks this
 	// fold called this screen. Carried because the owner asked whether identities survive
 	// a change in proposal count, and a fold that saw a screen at a different yield is the
@@ -82,6 +89,28 @@ type bindingOutcome struct {
 	// counterpart is whether fold B saw this screen at all. A screen with no counterpart
 	// MUST NOT bind, and binding one is a false positive rather than a miss.
 	counterpart bool
+
+	// ── the second term ──
+	//
+	// What the WORDS say about the binding the arrangement proposed. Reported beside the
+	// score rather than folded into it, because the question is whether text carries a
+	// distinction the score does not -- and a combined number would hide the answer.
+	//
+	// textSim is 0 and bothRead false whenever either screen went unread, which is the
+	// honest case and not a disagreement: a screen nobody read can never contradict
+	// anything, and treating silence as agreement is the mistake observe's own
+	// ScreenText.Read exists to prevent.
+	bothRead bool
+	textSim  float64
+	// offered is how many candidates were put forward for this saved screen. The
+	// denominator of the one rule `BindScreens` already acts on: one qualifier of many
+	// offered is "the only candidate the evidence supports", and whether THAT is enough
+	// is the question this experiment's second half exists to answer.
+	offered int
+	// disagree is observe.TextsDisagree on the two readings: a positive statement that
+	// these are not the same screen, from evidence the arrangement never saw.
+	disagree bool
+	disWhy   string
 }
 
 // reportScreenBinding folds the recording three times and tries to bind one fold's screens to
@@ -101,17 +130,24 @@ func reportScreenBinding(dir string, limit int) error {
 	// identical rectangles, or a difference in binding could be a difference in
 	// segmentation and nobody could tell which.
 	regions, readable := proposeAll(dir, frames)
+	// AND WHAT EACH LOOK SAID, from the cache beside the recording. Optional: a run with
+	// no reading answers the text question with "nothing was read", which is a fact about
+	// the recording rather than about the hypothesis.
+	words, werr := readWords(dir, frames, 0, nil)
+	if werr != nil {
+		fmt.Printf("  words: none (%v)\n", werr)
+	}
 
 	half := len(frames) / 2
-	oracle, err := foldRange(frames, regions, readable, 0, len(frames))
+	oracle, err := foldRange(frames, regions, readable, words, 0, len(frames))
 	if err != nil {
 		return err
 	}
-	a, err := foldRange(frames, regions, readable, 0, half)
+	a, err := foldRange(frames, regions, readable, words, 0, half)
 	if err != nil {
 		return err
 	}
-	b, err := foldRange(frames, regions, readable, half, len(frames))
+	b, err := foldRange(frames, regions, readable, words, half, len(frames))
 	if err != nil {
 		return err
 	}
@@ -146,8 +182,11 @@ type fold struct {
 // Fresh is the point: a new `fastobserve.Observer` has no screens, no targets and a counter that
 // starts at one, so `visual_1` in one fold and `visual_1` in another are two unrelated names that
 // happen to collide. Nothing is passed between them.
+// `words` is what each look was READ to say, by index, and may be nil or short -- a recording
+// nobody ran OCR over produces folds whose screens are unread, which is the honest record and
+// not a claim that they were silent.
 func foldRange(frames []frameRecord, regions [][]observe.Region, readable []bool,
-	lo, hi int) (fold, error) {
+	words []observe.ScreenText, lo, hi int) (fold, error) {
 	obs, err := fastobserve.New(100*time.Millisecond, 64)
 	if err != nil {
 		return fold{}, err
@@ -177,6 +216,13 @@ func foldRange(frames []frameRecord, regions [][]observe.Region, readable []bool
 		// look that saw nothing, not one nobody could take.
 		if !readable[i] {
 			lk.Missing = true
+		}
+		// AND WHAT IT SAID, synchronously. The delayed-arrival path semantic.go
+		// exercises is a question about when a reading lands; this one is about
+		// whether the words separate two screens at all, and mixing the two would
+		// leave a failure attributable to either.
+		if i < len(words) && words[i].Read() {
+			lk.Text = words[i]
 		}
 		obs.Observe(lk)
 		f.at[i] = obs.Screen()
@@ -219,7 +265,7 @@ func summarise(f fold, oracle fold, regions [][]observe.Region) []foldScreen {
 	}
 	var out []foldScreen
 	for id, a := range by {
-		fs := foldScreen{id: id, arr: f.arr[id], looks: a.looks}
+		fs := foldScreen{id: id, arr: f.arr[id], said: f.said[id], looks: a.looks}
 		if a.looks > 0 {
 			fs.proposals = float64(a.proposals) / float64(a.looks)
 		}
@@ -245,7 +291,7 @@ func summarise(f fold, oracle fold, regions [][]observe.Region) []foldScreen {
 func bind(from, to []foldScreen) []bindingOutcome {
 	var out []bindingOutcome
 	for _, s := range from {
-		o := bindingOutcome{from: s, result: "unobservable"}
+		o := bindingOutcome{from: s, result: "unobservable", offered: len(to)}
 		for _, t := range to {
 			if t.truth == s.truth && s.truth != "" {
 				o.counterpart = true
@@ -266,6 +312,14 @@ func bind(from, to []foldScreen) []bindingOutcome {
 		case o.bestSim >= observe.VisualScreenMatch:
 			o.result = "bound"
 			o.correct = o.best.truth == s.truth && s.truth != ""
+		}
+		// AND WHAT THE WORDS SAY ABOUT IT, computed for the binding the arrangement
+		// chose and reported separately. Nothing here changes the binding: the point
+		// is to find out whether this term would have, before anything depends on it.
+		if s.said.Read() && o.best.said.Read() {
+			o.bothRead = true
+			o.textSim = observe.TextSimilarity(s.said, o.best.said)
+			o.disagree, o.disWhy = observe.TextsDisagree(s.said, o.best.said)
 		}
 		out = append(out, o)
 	}
@@ -388,4 +442,146 @@ func printBinding(dir string, frames, half int, a, b []foldScreen, out []binding
 	}
 	fmt.Printf("\n  A WRONG BINDING IS THE EXPENSIVE ONE. A miss says \"I do not know where I\n")
 	fmt.Printf("  am\"; a wrong binding performs a saved workflow on the wrong screen.\n")
+	printTextTerm(out)
+	printMargin(out)
+}
+
+// printTextTerm asks whether the WORDS carry the distinction the score does not.
+//
+// Reported as its own section because it answers a different question from everything above.
+// The score section asks whether a better threshold exists; this asks whether a second term
+// exists. Experiment 029's two wrong bindings were not ambiguous — they were UNOPPOSED, bound to
+// a screen the other fold had never seen — and no ranking of one measure can reject a candidate
+// that nothing competes with. Only evidence the first measure never saw can.
+func printTextTerm(out []bindingOutcome) {
+	fmt.Printf("\n  and would the WORDS have separated them?\n")
+	var read, unread int
+	for _, o := range out {
+		if o.result != "bound" {
+			continue
+		}
+		if o.bothRead {
+			read++
+		} else {
+			unread++
+		}
+	}
+	if read == 0 {
+		fmt.Printf("      NOTHING WAS READ. %d binding(s) were made and no screen on either\n",
+			unread)
+		fmt.Printf("      side carries a reading, so this question cannot be answered from\n")
+		fmt.Printf("      this run. That is a fact about the recording and not about the\n")
+		fmt.Printf("      hypothesis: a screen nobody read can never contradict anything,\n")
+		fmt.Printf("      and treating silence as agreement is the mistake ScreenText.Read\n")
+		fmt.Printf("      exists to prevent.\n")
+		return
+	}
+	fmt.Printf("      A          oracle       result   arr     text   words\n")
+	for _, o := range out {
+		if o.result != "bound" {
+			continue
+		}
+		verdict := "CORRECT"
+		if !o.correct {
+			verdict = "WRONG  "
+		}
+		words := "both read"
+		switch {
+		case !o.bothRead:
+			words = "one side unread -- no statement"
+		case o.disagree:
+			words = "DISAGREE: " + o.disWhy
+		}
+		fmt.Printf("      %-10s %-12s %-8s %.3f  %.3f   %s\n",
+			o.from.id, o.from.truth, verdict, o.bestSim, o.textSim, words)
+	}
+	// THE ONE NUMBER THAT MATTERS: does a text disagreement reject the wrong bindings
+	// without rejecting the right ones? Anything less is a measure that costs more than
+	// it buys.
+	var wrongRejected, wrongKept, rightRejected, rightKept int
+	for _, o := range out {
+		if o.result != "bound" || !o.bothRead {
+			continue
+		}
+		switch {
+		case !o.correct && o.disagree:
+			wrongRejected++
+		case !o.correct:
+			wrongKept++
+		case o.disagree:
+			rightRejected++
+		default:
+			rightKept++
+		}
+	}
+	fmt.Printf("\n      of the bindings where both sides were read:\n")
+	fmt.Printf("        wrong, and the words reject it    %d\n", wrongRejected)
+	fmt.Printf("        wrong, and the words allow it     %d\n", wrongKept)
+	fmt.Printf("        correct, and the words reject it  %d   <- the cost\n", rightRejected)
+	fmt.Printf("        correct, and the words allow it   %d\n", rightKept)
+	if unread > 0 {
+		fmt.Printf("        unreadable on one side            %d   <- no statement either way\n",
+			unread)
+	}
+}
+
+// printMargin asks whether the GAP to the runner-up separates right from wrong.
+//
+// The third candidate discriminator, after the score and the words, and the last one available
+// from what the artifact carries. A confident binding might be one that beat its nearest rival
+// by a wide margin — "the only candidate, and nothing else came close" — which is a different
+// claim from "the highest score" and is not implied by it.
+func printMargin(out []bindingOutcome) {
+	fmt.Printf("\n  and would the MARGIN to the runner-up have separated them?\n")
+	var right, badly []float64
+	for _, o := range out {
+		if o.result != "bound" {
+			continue
+		}
+		gap := o.bestSim - o.secondSim
+		if o.correct {
+			right = append(right, gap)
+		} else {
+			badly = append(badly, gap)
+		}
+	}
+	sort.Float64s(right)
+	sort.Float64s(badly)
+	fmt.Printf("      correct bindings had gaps %s\n", scores(right))
+	fmt.Printf("      wrong   bindings had gaps %s\n", scores(badly))
+	switch {
+	case len(badly) == 0 || len(right) == 0:
+		fmt.Printf("      not enough of both to say.\n")
+	case badly[len(badly)-1] < right[0]:
+		fmt.Printf("      YES: every wrong binding had a narrower margin than every\n")
+		fmt.Printf("      correct one. A margin floor would separate them here.\n")
+	default:
+		beaten := 0
+		for _, r := range right {
+			if r < badly[len(badly)-1] {
+				beaten++
+			}
+		}
+		fmt.Printf("      NO. The widest WRONG margin was %.3f, wider than %d of the %d\n",
+			badly[len(badly)-1], beaten, len(right))
+		fmt.Printf("      correct ones. Being unopposed is not evidence of being right.\n")
+	}
+	// AND HOW MANY CANDIDATES QUALIFIED AT ALL, which is the fourth thing one might
+	// hope separates them and the one `BindScreens` already acts on.
+	fmt.Printf("\n      how many candidates qualified, for each binding that was made:\n")
+	for _, o := range out {
+		if o.result != "bound" {
+			continue
+		}
+		verdict := "CORRECT"
+		if !o.correct {
+			verdict = "WRONG  "
+		}
+		qualified := 1
+		if o.secondSim >= observe.VisualScreenMatch {
+			qualified = 2
+		}
+		fmt.Printf("        %-10s %s  %d qualified of %d offered\n",
+			o.from.id, verdict, qualified, o.offered)
+	}
 }
