@@ -1601,6 +1601,27 @@ it refuses those looks. Visible is fine; in front is not.
   — 0 narrowed of 17 — and 16 of 17 clicks landed in padding. So the blocker is the PROPOSER on
   Ark's menus offering no button-sized rectangle, not the click-to-target rule and not the text.
   [[Experiment-083-the-label-of-the-button-you-click-is-the-one-that-is-missing]]
+- **And the same highlight that hides the label is what draws the box, so the frames BEFORE a
+  click are worse evidence, not better.** The owner's hypothesis, measured: one press of
+  seventeen was rescued by an earlier look, against **four** where the click's own look held the
+  smallest boundary of its whole window — on press 7 the button exists on no other look in the
+  window. Five further rescues came from LATER looks and are confounded by the transition the
+  press caused (press 11 navigated, and the smaller rectangle belongs to the next screen). On
+  both presses with a known answer the boundary at the press was ALREADY correct, so no rule
+  reaching for another frame can be shown better on this evidence — stated as a limit of the
+  oracle, not a result. Away from the press the proposer offered the known button on only 12 of
+  22 looks. [[Experiment-084-the-highlight-that-hides-the-label-draws-the-box]]
+- **Mutual centre containment calls a panel one control with whichever button sits on its
+  centre, and it is not transitive.** A 49%x64% panel and a 16%x5% button on its centre point
+  each contain the other's centre; a button away from the centre is correctly separated, so this
+  is a limit rather than a blanket failure. It means no comparison of rectangles alone can
+  establish that [[Experiment-082-a-control-that-is-half-the-window]] learned the wrong thing.
+  And two real readings of one button — 353x44 and 90x33 on adjacent looks — are each one control
+  with the button a person established while not being one control with each other, so a
+  DIFFERENT-control verdict from this relation is not evidence of a different control. Both are
+  held by `TestAPanelIsOneControlWithWhicheverButtonSitsOnItsCentre` and
+  `TestTwoReadingsCanEachBeTheButtonWithoutBeingEachOther`.
+  [[Experiment-084-the-highlight-that-hides-the-label-draws-the-box]]
   rather than diagnosing after it. [[Experiment-081-the-first-real-negative]]
 - **Appearance costs five correct recognitions and fixes none of the wrong ones.** The
   ambiguity rule would decline 1 correct answer under arrangement and 5 under palette,

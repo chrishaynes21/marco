@@ -110,6 +110,8 @@ func main() {
 		"follow a reloaded workflow through the production contracts, executing nothing")
 	anchor := flag.Bool("anchor", false,
 		"measure how many explicit screen confirmations a saved route needs in a fresh observer")
+	temporal := flag.Bool("temporal", false,
+		"with -button's question, ask the SAME click of the looks before and after it, and report whether the boundary the proposer offers depends on when it is asked")
 	button := flag.Bool("button", false,
 		"ask whether the button somebody clicked can be isolated inside the panel the proposer offered, from the click position, the region proposals and the OCR word boxes")
 	screenid := flag.Bool("screenid", false,
@@ -208,6 +210,13 @@ func main() {
 			}
 			if *button {
 				if err := reportButtonTargets(dir, *limit); err != nil {
+					fmt.Fprintf(os.Stderr, "perceptionreplay: %s: %v\n", dir, err)
+					os.Exit(1)
+				}
+				continue
+			}
+			if *temporal {
+				if err := reportTemporalTargets(dir, *limit); err != nil {
 					fmt.Fprintf(os.Stderr, "perceptionreplay: %s: %v\n", dir, err)
 					os.Exit(1)
 				}

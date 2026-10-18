@@ -152,3 +152,72 @@ func TestTheSamePlaceOnTwoScreensIsNotOneControl(t *testing.T) {
 		t.Fatalf("%d target(s); two screens are two places", n)
 	}
 }
+
+// WHAT MUTUAL CENTRE CONTAINMENT CANNOT DO, MEASURED ON REAL RECTANGLES.
+//
+// Two limits of `SameRegion`, both found while measuring whether the frames around a press carry
+// a better boundary than the press's own frame
+// ([[Experiment-084-the-highlight-that-hides-the-label-draws-the-box]]). Neither is a bug: the
+// relation is threshold-free and symmetric on purpose, and the alternative was an invented
+// overlap fraction this subsystem has a measured history of getting wrong. They are limits, and
+// they are written down because the owner asked three separate questions about a learned control
+// and this relation is the whole of the answer to the second one:
+//
+//	Recognition: Can Marco distinguish that button from similar but incorrect controls?
+func TestAPanelIsOneControlWithWhicheverButtonSitsOnItsCentre(t *testing.T) {
+	// Experiment 082's learned Ark control -- 49%x64% of the window -- and a button of
+	// Experiment 080's size placed where a menu's MIDDLE entry would be: on the panel's
+	// centre point. Nothing contrived: a pause menu with an odd number of entries has one
+	// there by construction.
+	panel := observe.Region{X: 0.171875, Y: 0.3611111111111111,
+		Width: 0.48541666666666666, Height: 0.6388888888888888}
+	midX := panel.X + panel.Width/2
+	midY := panel.Y + panel.Height/2
+	middle := observe.Region{X: midX - 0.08, Y: midY - 0.024, Width: 0.1625, Height: 0.0481}
+
+	if !observe.Encloses(panel, middle) {
+		t.Fatal("the fixture button is not inside the panel")
+	}
+	// SO THE PANEL AND THAT BUTTON ARE ONE CONTROL, and no comparison of rectangles alone
+	// can say which of them was pressed. This is [[Experiment-082-a-control-that-is-half-
+	// the-window]] in its smallest form.
+	if !observe.SameRegion(panel, middle) {
+		t.Errorf("the relation separates a %0.0f%%x%0.0f%% panel from the button on its "+
+			"centre; if that is now true the finding has changed and this test should "+
+			"be rewritten from the new measurement, not relaxed",
+			panel.Width*100, panel.Height*100)
+	}
+
+	// AND A BUTTON AWAY FROM THE CENTRE IS CORRECTLY SEPARATED, which is what makes the
+	// case above a limit of the relation rather than a claim that it never works.
+	edge := observe.Region{X: panel.X + 0.01, Y: panel.Y + 0.01,
+		Width: 0.1625, Height: 0.0481}
+	if !observe.Encloses(panel, edge) {
+		t.Fatal("the fixture edge button is not inside the panel")
+	}
+	if observe.SameRegion(panel, edge) {
+		t.Error("every button inside the panel is one control with it, which would make " +
+			"the relation useless rather than limited")
+	}
+}
+
+// AND THE RELATION IS NOT TRANSITIVE, so a chain of reacquisitions can drift.
+//
+// Measured on two real proposals for ONE button -- Experiment 050's PLAY entry -- taken from
+// adjacent looks of `rl-freeplay-1`: 353x44 at (13,468) on the look of the press, and 90x33 at
+// (75,472) on the look after it. Each is one control with the button a person established.
+// They are not one control with each other.
+func TestTwoReadingsCanEachBeTheButtonWithoutBeingEachOther(t *testing.T) {
+	button := observe.Region{X: 26.0 / 1920, Y: 468.0 / 1080,
+		Width: 166.0 / 1920, Height: 40.0 / 1080}
+	wide := observe.Region{X: 0.007, Y: 0.433, Width: 0.184, Height: 0.041}
+	narrow := observe.Region{X: 0.039, Y: 0.437, Width: 0.047, Height: 0.031}
+
+	if !observe.SameRegion(wide, button) || !observe.SameRegion(narrow, button) {
+		t.Fatal("the fixture pair are not both readings of the button")
+	}
+	if observe.SameRegion(wide, narrow) {
+		t.Error("the relation is transitive on this triple, so the drift this test " +
+			"records cannot happen and the test should be deleted rather than relaxed")
+	}
+}

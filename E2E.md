@@ -719,3 +719,37 @@ Three honest outcomes, and all three are informative:
 And one that would be a finding against Marco: `N% matched`, `corroborated` on a menu that has
 no Settings button — the saved word read back off a different control. Check the `readings:` line
 first, because a stale or unusable reading cannot produce it.
+
+## Recording a game menu for investigation (needs your hands, ~1 min)
+
+`demonstrate-visual` keeps **no frames, no screenshots and no press coordinates** — that is the
+right design for a saved routine and it makes the artifact useless for asking *where was the
+button?* after the fact. The L0 recorder keeps all three on one clock and executes nothing:
+
+```sh
+./director.exe capture-game-session --application arkascended --session ark-menu-1 --seconds 45
+```
+
+Open the menu and click two or three entries **with the mouse**. Nothing is injected; every input
+in the recording is observed from hardware. It stops on its own.
+
+Then ask the recording the two targeting questions, neither of which presses anything:
+
+```sh
+go run ./cmd/perceptionreplay -frames -button   .tmp/game-capture-review/ark-menu-1
+go run ./cmd/perceptionreplay -frames -temporal .tmp/game-capture-review/ark-menu-1
+```
+
+`-button` asks whether the clicked button can be isolated inside the panel the proposer offered,
+from the click position, the proposals and the OCR word boxes. `-temporal` asks the same click of
+the looks before and after it. On Rocket League the first found the right button on both presses
+with a known answer and the second found one rescue in seventeen —
+[[Experiment-083-the-label-of-the-button-you-click-is-the-one-that-is-missing]] and
+[[Experiment-084-the-highlight-that-hides-the-label-draws-the-box]].
+
+Two things to read first, because they decide whether the run says anything at all:
+
+| line | what it means |
+|---|---|
+| `N press(es) with a position` | zero means a keyboard-only capture. Neither question can be asked |
+| `N look(s) carrying word boxes` | zero means `words.jsonl` predates boxes. Delete it and run `-frames -semantic` again |
