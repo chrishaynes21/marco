@@ -130,6 +130,7 @@ func reportScreenBinding(dir string, limit int) error {
 	// identical rectangles, or a difference in binding could be a difference in
 	// segmentation and nobody could tell which.
 	regions, readable := proposeAll(dir, frames)
+	pressAt := pressesByLook(dir, frames)
 	// AND WHAT EACH LOOK SAID, from the cache beside the recording. Optional: a run with
 	// no reading answers the text question with "nothing was read", which is a fact about
 	// the recording rather than about the hypothesis.
@@ -139,15 +140,15 @@ func reportScreenBinding(dir string, limit int) error {
 	}
 
 	half := len(frames) / 2
-	oracle, err := foldRange(frames, regions, readable, words, 0, len(frames))
+	oracle, err := foldRange(frames, regions, readable, words, pressAt, 0, len(frames))
 	if err != nil {
 		return err
 	}
-	a, err := foldRange(frames, regions, readable, words, 0, half)
+	a, err := foldRange(frames, regions, readable, words, pressAt, 0, half)
 	if err != nil {
 		return err
 	}
-	b, err := foldRange(frames, regions, readable, words, half, len(frames))
+	b, err := foldRange(frames, regions, readable, words, pressAt, half, len(frames))
 	if err != nil {
 		return err
 	}
@@ -175,6 +176,15 @@ type fold struct {
 	// 34 looks of the page a step starts on. Empty for a fold nobody read, which
 	// `SaveWith` writes as unread rather than as silent.
 	said map[observe.VisualScreenID]observe.ScreenText
+	// walk, clicks and registry are what this fold DEMONSTRATED, taken from the observer
+	// before it is closed.
+	//
+	// Carried because a fold that learns a workflow has to hand the whole demonstration
+	// over, and `workflow.Learn` wants all three: the walk is the ORDER, the evidence is
+	// the edges, and the registry is what each control has been seen as.
+	walk     []observe.VisualScreenID
+	clicks   observe.ClickEvidence
+	registry []observe.TargetRecord
 }
 
 // foldRange runs ONE fresh observer over one slice of the recording.
@@ -185,8 +195,15 @@ type fold struct {
 // `words` is what each look was READ to say, by index, and may be nil or short -- a recording
 // nobody ran OCR over produces folds whose screens are unread, which is the honest record and
 // not a claim that they were silent.
+// `presses` is each look's mouse presses, by look index, and may be nil.
+//
+// Nil for the folds that only need screens, which is what every caller wanted until a
+// measurement needed the CONTROLS a fold demonstrated. Without them a fold identifies no
+// control, every screen change comes back `unknown`, and a rule with a control term abstains on
+// every look -- which reads as a finding about the rule and is a fact about the harness. It cost
+// one round of believing the corpus could not answer the question.
 func foldRange(frames []frameRecord, regions [][]observe.Region, readable []bool,
-	words []observe.ScreenText, lo, hi int) (fold, error) {
+	words []observe.ScreenText, presses [][]observe.PointerAt, lo, hi int) (fold, error) {
 	obs, err := fastobserve.New(100*time.Millisecond, 64)
 	if err != nil {
 		return fold{}, err
@@ -224,6 +241,9 @@ func foldRange(frames []frameRecord, regions [][]observe.Region, readable []bool
 		if i < len(words) && words[i].Read() {
 			lk.Text = words[i]
 		}
+		if i < len(presses) {
+			lk.Presses = presses[i]
+		}
 		obs.Observe(lk)
 		f.at[i] = obs.Screen()
 	}
@@ -233,6 +253,9 @@ func foldRange(frames []frameRecord, regions [][]observe.Region, readable []bool
 			f.said[s.ID] = t
 		}
 	}
+	f.walk = obs.Walk()
+	f.clicks = obs.Clicks()
+	f.registry = obs.Registry()
 	return f, nil
 }
 
@@ -584,4 +607,30 @@ func printMargin(out []bindingOutcome) {
 		fmt.Printf("        %-10s %s  %d qualified of %d offered\n",
 			o.from.id, verdict, qualified, o.offered)
 	}
+}
+
+// pressesByLook is each look's mouse presses, read from the recording's input log.
+//
+// One statement of it, because two harnesses now need it and they must agree: a fold that was
+// fed presses and one that was not are different observers of the same pixels, and a difference
+// between them would be attributed to whatever the measurement was about.
+//
+// Only POINT intents. A key or a controller button is navigation and carries no position, so it
+// cannot identify a control — and treating one as a press would attribute a screen change to a
+// rectangle nobody clicked.
+func pressesByLook(dir string, frames []frameRecord) [][]observe.PointerAt {
+	inputs, _ := readJSONL[inputRecord](filepath.Join(dir, "input.jsonl"))
+	sort.Slice(inputs, func(i, j int) bool { return inputs[i].AtMS < inputs[j].AtMS })
+	out := make([][]observe.PointerAt, len(frames))
+	next := 0
+	for i, fr := range frames {
+		for next < len(inputs) && inputs[next].AtMS <= fr.AtMS {
+			in := inputs[next]
+			next++
+			if observe.NavIntent(in.Intent) == observe.NavPoint {
+				out[i] = append(out[i], in.Where)
+			}
+		}
+	}
+	return out
 }

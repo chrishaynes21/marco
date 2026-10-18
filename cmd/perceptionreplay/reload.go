@@ -203,7 +203,7 @@ func reportReloadOverRecording(dir string, limit int, onnx string, delay int,
 		return berr
 	}
 	defer b.obs.Close()
-	oracle, oerr := foldRange(frames, regions, readable, nil, 0, len(frames))
+	oracle, oerr := foldRange(frames, regions, readable, nil, nil, 0, len(frames))
 	if oerr != nil {
 		return oerr
 	}

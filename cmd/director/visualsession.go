@@ -72,6 +72,12 @@ type visualSession struct {
 	// way, inside this loop, and a caller measuring a SAVED routine needs the same
 	// ordering against evidence the observer has never seen.
 	each func(lk fastobserve.Look)
+	// stop, when set, ends the session early -- the person saying "that's it".
+	//
+	// A demonstration is a thing somebody DOES, and a fixed duration makes them watch a
+	// clock instead. The bound stays: --seconds is still the ceiling, and a forgotten
+	// terminal still stops on its own.
+	stop <-chan struct{}
 }
 
 // visualResult is everything the loop learned that is not in the observer itself.
@@ -85,6 +91,9 @@ type visualResult struct {
 	keys  int
 	stage stageTimes
 	found reacquireTally
+	// ended says the session stopped before its deadline because the person said so.
+	// Empty when it ran to time, which is a different thing from `lost`.
+	ended string
 }
 
 // watch runs one session, folding every look into obs. It writes nothing.
@@ -159,6 +168,14 @@ func (s visualSession) watch(ctx context.Context, obs *fastobserve.Observer,
 	defer ticker.Stop()
 	deadline := time.Now().Add(time.Duration(s.seconds) * time.Second)
 	for time.Now().Before(deadline) {
+		select {
+		case <-s.stop:
+			res.ended = "you ended it"
+		default:
+		}
+		if res.ended != "" {
+			break
+		}
 		lk := fastobserve.Look{At: time.Now()}
 
 		if navSub != nil {

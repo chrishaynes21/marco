@@ -45,15 +45,15 @@ func reportScreenRecognition(dir string, limit int, onnx string) error {
 	}
 
 	half := len(frames) / 2
-	oracle, oerr := foldRange(frames, regions, readable, nil, 0, len(frames))
+	oracle, oerr := foldRange(frames, regions, readable, nil, nil, 0, len(frames))
 	if oerr != nil {
 		return oerr
 	}
-	a, aerr := foldRange(frames, regions, readable, nil, 0, half)
+	a, aerr := foldRange(frames, regions, readable, nil, nil, 0, half)
 	if aerr != nil {
 		return aerr
 	}
-	b, berr := foldRange(frames, regions, readable, nil, half, len(frames))
+	b, berr := foldRange(frames, regions, readable, nil, nil, half, len(frames))
 	if berr != nil {
 		return berr
 	}

@@ -52,6 +52,7 @@ package main
 // what you showed me".
 
 import (
+	"bufio"
 	"context"
 	"flag"
 	"fmt"
@@ -128,9 +129,19 @@ func runDemonstrateVisual(args []string) int {
 				"injected.\n")
 			fmt.Printf("  Only what the proposer saw is kept: no frames, no screenshots, " +
 				"no press coordinates.\n")
-			fmt.Printf("  Starting in %s.\n\n", *delay)
+			fmt.Printf("  Starting in %s. Press ENTER when you are done.\n\n", *delay)
 		},
 	}
+	// "THAT'S IT" IS A LINE ON ITS OWN, so a demonstration ends when the person is done
+	// rather than when a clock runs out. `--seconds` stays the ceiling, so a forgotten
+	// terminal still stops by itself.
+	stop := make(chan struct{})
+	go func() {
+		defer close(stop)
+		_, _ = bufio.NewReader(os.Stdin).ReadString('\n')
+	}()
+	s.stop = stop
+
 	res, code := s.watch(ctx, obs, os.Stderr)
 	if code != 0 {
 		return code
@@ -222,6 +233,33 @@ func reportVisualDemonstration(obs *fastobserve.Observer, res visualResult, d wo
 		// is not permission — see workflow's own doc.
 		fmt.Printf("    %d %s -> %s via %s   [%s]\n",
 			i+1, st.From, st.To, shortTarget(st.Target), st.Support())
+	}
+	// WHICH CONTROL EACH PRESS WAS ASSOCIATED WITH, which is the thing a person
+	// demonstrating wants to see: did Marco understand what I clicked on?
+	//
+	// From the registry rather than from the steps, because a control pressed twice is one
+	// control and two steps, and the question is about the control. The words are the
+	// strongest identity evidence a demonstration can record and the first thing a person
+	// can check against their own memory of the menu.
+	if reg := obs.Registry(); len(reg) > 0 {
+		fmt.Printf("\n  Controls, and what each press was taken to be\n")
+		for _, r := range reg {
+			said := "nothing was read on it"
+			if len(r.Text) > 0 {
+				said = fmt.Sprintf("read as %q", strings.Join(r.Text, " "))
+			}
+			fmt.Printf("    %-12s %d press(es), %s", r.ID, r.Presses, said)
+			if len(r.Destinations) > 0 {
+				fmt.Printf(", led somewhere")
+			} else {
+				fmt.Printf(", NOTHING CHANGED after it")
+			}
+			if len(r.MaybeOneControlWith) > 0 {
+				fmt.Printf("  [could not be told from %v on this screen]",
+					r.MaybeOneControlWith)
+			}
+			fmt.Println()
+		}
 	}
 	if un := d.Unresolved(); len(un) > 0 {
 		fmt.Printf("\n  Unresolved — a person could answer these:\n")

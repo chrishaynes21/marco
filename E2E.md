@@ -477,3 +477,75 @@ page (Settings grounds cleanly; Explorer cannot be pointed at — see Experiment
    - PASS: highlights appear only at the moment their decision is made, are gone when the
      phase moves on or the session ends, and a status read after the moment prints the
      sentence with no box. Nothing lingers waiting for a timer.
+
+## Teaching Marco a game-menu routine (needs your hands)
+
+Marco cannot demonstrate to itself. `navsource` discards injected presses at the callback as not
+coming from a hand, so a session driven by Marco's own clicks records zero attributed presses.
+That separation is deliberate — it is what makes a demonstration mean something — so this one
+walkthrough has to be performed by a person. It takes about two minutes.
+
+Use an **offline or single-player** menu. Nothing here injects input, so the game is never driven;
+Marco only watches. Pick a menu with a few obvious buttons and no timer.
+
+```sh
+go build -o director.exe ./cmd/director
+
+# 1. find the window's title
+./director.exe windows | grep -i <game>
+
+# 2. start watching, then switch to the game within the 5s delay
+./director.exe demonstrate-visual "enter free play" --window-title "<title>" --seconds 120
+```
+
+Then, with your own mouse:
+
+1. click one menu entry, and wait a second for the next screen to settle;
+2. click a second entry, wait again;
+3. click a third;
+4. come back to the terminal and press **ENTER**.
+
+Marco prints what it observed before it saves anything:
+
+```
+WHAT THE DEMONSTRATION TAUGHT
+  ended because you ended it.
+  4 screen(s) seen, 4 visited in order, 3 demonstrated control(s)
+  presses: 3 of 3 classified
+
+  Steps
+    1 visual_1 -> visual_2 via target_1   [geometric]
+    2 visual_2 -> visual_3 via target_2   [geometric]
+    3 visual_3 -> visual_4 via target_3   [geometric]
+
+  Controls, and what each press was taken to be
+    target_1     1 press(es), read as "PLAY", led somewhere
+    target_2     1 press(es), read as "FREE PLAY", led somewhere
+    target_3     1 press(es), nothing was read on it, led somewhere
+```
+
+**What to check, in this order:**
+
+- `presses: N of N classified`. A press refused as `unplaceable_pointer` was outside the watched
+  window. A press counted as `pointer_injected` did not come from a hand.
+- **Does each `read as` match the button you actually clicked?** That is the one line only you can
+  verify, and it is the strongest identity evidence the artifact carries.
+- `nothing was read on it` is honest, not broken — an unlabelled icon reads as nothing.
+- `NOTHING CHANGED after it` means the press was seen and no screen change was attributed to it.
+- `0 demonstrated control(s)` with presses classified means no press landed on a *settled* screen:
+  click more slowly, leaving a second between clicks.
+
+Then inspect and measure what was kept:
+
+```sh
+./director.exe sequences "enter free play"            # the steps, with how each is aimed
+./director.exe reacquire "enter free play" --window-title "<title>" --seconds 30
+```
+
+`reacquire` presses nothing. It reports, per control, how often it could be found again, and how
+often two controls claimed one rectangle — which is the only wrongness it can detect without you.
+
+**Expect it to be unreliable.** [[Experiment-078-the-conjunction-is-two-terms-wearing-three-hats]]
+measured the grounding rules on a recorded game menu: the best of them is wrong one time in
+thirty-one and ready on 1 look in 449. Nothing authorises a pixel replay yet, and
+`director execute "run <name>"` cannot run a pixel routine at all.

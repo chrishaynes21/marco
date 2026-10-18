@@ -81,6 +81,8 @@ func main() {
 	near := flag.String("near", "",
 		"with -propose, a rectangle in frame pixels as x,y,w,h: the candidates that "+
 			"overlap it, and how much of it each covers")
+	conjunction := flag.Bool("conjunction", false,
+		"measure ADR-186's rule -- expectation, agreement and the demonstrated control together -- over two independent folds")
 	bindscreens := flag.Bool("bind", false,
 		"with -frames, split the recording into two independent observation "+
 			"folds that share no screen identities, and measure whether a screen "+
@@ -163,6 +165,13 @@ func main() {
 						fmt.Fprintf(os.Stderr, "perceptionreplay: %s: %v\n", dir, err)
 						os.Exit(1)
 					}
+				}
+				continue
+			}
+			if *conjunction {
+				if err := reportConjunction(dir, *limit); err != nil {
+					fmt.Fprintf(os.Stderr, "perceptionreplay: %s: %v\n", dir, err)
+					os.Exit(1)
 				}
 				continue
 			}

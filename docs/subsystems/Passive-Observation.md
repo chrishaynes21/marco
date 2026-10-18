@@ -1518,6 +1518,20 @@ it refuses those looks. Visible is fine; in front is not.
   arrangement, the target from per-control reacquisition — is the conjunction nobody has
   measured. [[Experiment-077-the-screen-was-not-supporting-context]],
   [[ADR-230-a-demonstration-from-pixels-and-what-the-screen-was-doing]]
+- **ADR-186's conjunction is two terms wearing three hats, and the third one fixes it.**
+  Measured for the first time over two independent folds: the conjunction is wrong 50.5%
+  of the time against 52.5% for agreement alone and 53.0% for the control alone — two
+  percentage points. The reason is in the advances: 17 of 19 are wrong, because the
+  expectation is established by comparing the look to the saved DESTINATION, which is an
+  arrangement comparison and therefore the agreement term again. A rule cannot corroborate
+  itself. Taking the expectation from Marco's OWN ACT instead — it was ready, it would
+  have pressed, and the look no longer agrees with the step's SOURCE, which is the desktop
+  verifier's `menuClosedTaking` rule — gives **1 wrong in 31 (3.2%)**, and advances 1 step
+  of 19. Nearly always right and nearly never ready, which moves the problem somewhere
+  useful rather than solving it: not ready is an abstention, wrong is a press on the wrong
+  screen. No pixel adapter was built.
+  [[Experiment-078-the-conjunction-is-two-terms-wearing-three-hats]],
+  [[ADR-232-expectation-has-to-come-from-somewhere-else]]
 - **Appearance costs five correct recognitions and fixes none of the wrong ones.** The
   ambiguity rule would decline 1 correct answer under arrangement and 5 under palette,
   grid or detector, while BIND-WRONG stays at 2 for all of them. The appearance measures

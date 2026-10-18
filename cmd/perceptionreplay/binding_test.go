@@ -85,11 +85,11 @@ func TestTheBindingFoldsShareNothing(t *testing.T) {
 		readable[i] = true
 	}
 
-	a, err := foldRange(frames, regions, readable, nil, 0, half)
+	a, err := foldRange(frames, regions, readable, nil, nil, 0, half)
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := foldRange(frames, regions, readable, nil, half, len(frames))
+	b, err := foldRange(frames, regions, readable, nil, nil, half, len(frames))
 	if err != nil {
 		t.Fatal(err)
 	}

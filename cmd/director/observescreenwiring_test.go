@@ -449,3 +449,61 @@ func TestASavedPixelDemonstrationCarriesNoCoordinates(t *testing.T) {
 			"session observed")
 	}
 }
+
+// A DEMONSTRATION ENDS WHEN THE PERSON SAYS SO.
+//
+//	Eventually, I want you to say "Marco, watch this." Perform the menu routine, then say
+//	"Save that as Enter Free Play." […] it should remain the UX contract.
+//
+// One step toward it. A fixed `--seconds` makes somebody demonstrate against a clock, which is
+// the opposite of showing another person how to do something. So ENTER ends it — and `--seconds`
+// stays the CEILING, because a forgotten terminal must still stop watching on its own.
+func TestADemonstrationEndsWhenThePersonSaysSo(t *testing.T) {
+	cmd, err := os.ReadFile("demonstratevisual.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := string(cmd)
+	if !strings.Contains(c, "s.stop = stop") {
+		t.Error("nothing ends the session early, so a demonstration runs against a clock")
+	}
+	if !strings.Contains(c, "Press ENTER when you are done") {
+		t.Error("the person is not told how to end it")
+	}
+	// THE CEILING SURVIVES. An early end is a convenience; the bound is the rule.
+	if !strings.Contains(c, "*seconds > maxObserveSeconds") {
+		t.Error("the duration ceiling was removed along with the wait")
+	}
+
+	loop, err := os.ReadFile("visualsession.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	l := string(loop)
+	// AND THE LOOP STILL STOPS ON ITS OWN DEADLINE. A stop channel that replaced the
+	// deadline would make an unattended session unbounded.
+	if !strings.Contains(l, "for time.Now().Before(deadline)") {
+		t.Error("the loop no longer bounds itself by its deadline")
+	}
+	if !strings.Contains(l, "case <-s.stop:") {
+		t.Error("the loop does not watch for the person ending it")
+	}
+	// AND THE TWO ENDINGS ARE DISTINGUISHABLE. "You ended it" and "the window went away"
+	// send a reader to different places.
+	if !strings.Contains(l, `res.ended = "you ended it"`) {
+		t.Error("an early end is not recorded, so it is indistinguishable from the " +
+			"window being lost")
+	}
+
+	// AND THE REPORT ANSWERS THE QUESTION A PERSON DEMONSTRATING ACTUALLY HAS: did Marco
+	// understand what I clicked on? The words read on a control are the one line only
+	// they can verify.
+	for _, want := range []string{
+		"Controls, and what each press was taken to be",
+		"read as %q", "nothing was read on it", "NOTHING CHANGED after it",
+	} {
+		if !strings.Contains(c, want) {
+			t.Errorf("the demonstration report no longer says %q", want)
+		}
+	}
+}
