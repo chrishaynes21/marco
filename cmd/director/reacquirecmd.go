@@ -55,6 +55,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/demo"
 	"github.com/chaynes-simpleclouds/marco/internal/director/fastobserve"
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
+	"github.com/chaynes-simpleclouds/marco/internal/director/workflowstore"
 )
 
 func runReacquire(args []string) int {
@@ -145,6 +146,13 @@ func runReacquire(args []string) int {
 	}
 	looks := 0
 	collisions := 0
+	// readLooks is how many looks carried a reading the observer would admit, and `fresh`
+	// what each matched rectangle has been read to say over those looks.
+	readLooks := 0
+	fresh := map[observe.VisualTargetID]*observe.FreshWords{}
+	for _, t := range targets {
+		fresh[t.ID] = &observe.FreshWords{}
+	}
 
 	s := visualSession{
 		app: *app, title: *title, seconds: *seconds, interval: interval, delay: *delay,
@@ -166,6 +174,46 @@ func runReacquire(args []string) int {
 				return
 			}
 			looks++
+			// A LOOK THAT CANNOT HOST A READING IS NOT EVIDENCE ABOUT THE WORDS.
+			//
+			// `intakeReadings` refuses a reading on a look whose window is not in
+			// FRONT, because window capture is not occlusion-safe: a covered window
+			// returns the covering window's pixels under the target's name, and a
+			// covered window's words are another application's.
+			//
+			// The first version of this corroborated from readings the observer had
+			// refused — it asked `Admissible`, which checks the window generation and
+			// the observation epoch and not usability — and the live run said so in
+			// its own output: `37 offered, 0 admitted, 37 on a look that could host
+			// none`, printed beside a confident "corroborated" built from 28 of them.
+			// Corroborating against the terminal's pixels is worse than not
+			// corroborating at all.
+			usable := lk.Front
+			// THE WORDS THIS LOOK CARRIES, if the observer would admit them.
+			//
+			// Asked with the observer's own rule rather than a second one:
+			// `Admissible` is the method `intakeReadings` calls, with the same two
+			// arguments, one step earlier in the same look. A reading whose window
+			// generation or observation epoch has moved describes a screen that has
+			// gone, and corroborating a match against it would be corroborating
+			// against the last menu.
+			//
+			// Counted separately from what the observer admitted, because OCR
+			// producing words and the observer accepting them are two different
+			// facts and the report shows both.
+			var words []observe.ReadWord
+			for _, r := range lk.Readings {
+				if !usable || !r.Admissible(lk.Window.Generation, obs.Epoch()) {
+					continue
+				}
+				if len(r.Words) > 0 {
+					words = r.Words
+				}
+			}
+			if len(words) > 0 {
+				readLooks++
+			}
+
 			// WHERE EACH MATCH LANDED THIS LOOK, so two controls matching one
 			// place can be counted. A control that matched in two places at once
 			// cannot have been right in both, and that is the one correctness
@@ -174,8 +222,17 @@ func runReacquire(args []string) int {
 			for _, t := range targets {
 				got := observe.ReacquireStored(t, lk.Regions)
 				tally[t.ID].fold(got)
-				if got.Result == observe.ReacquireMatched {
-					at[t.ID] = got.Where
+				if got.Result != observe.ReacquireMatched {
+					continue
+				}
+				at[t.ID] = got.Where
+				// AND WHAT THE MATCHED RECTANGLE SAYS, from the words inside
+				// IT rather than from the screen or from the container.
+				// `LabelOf` is what named the control when it was
+				// demonstrated, so the question is asked the way the answer
+				// was recorded.
+				if len(words) > 0 {
+					fresh[t.ID].Saw(observe.LabelOf(got.Where, words))
 				}
 			}
 			collisions += collidingPairs(at)
@@ -185,7 +242,8 @@ func runReacquire(args []string) int {
 	if code != 0 {
 		return code
 	}
-	reportStoredReacquire(a.Name, targets, tally, looks, collisions, res, reader)
+	reportStoredReacquire(a, targets, tally, looks, collisions, readLooks, fresh, res,
+		reader, obs)
 	return 0
 }
 
@@ -238,9 +296,12 @@ func collidingPairs(at map[observe.VisualTargetID]observe.Region) int {
 }
 
 // reportStoredReacquire prints the per-control tally.
-func reportStoredReacquire(name string, targets []observe.StoredTarget,
-	tally map[observe.VisualTargetID]*storedTally, looks, collisions int, res visualResult,
-	reader *readingEyes) {
+func reportStoredReacquire(a workflowstore.Artifact, targets []observe.StoredTarget,
+	tally map[observe.VisualTargetID]*storedTally, looks, collisions, readLooks int,
+	said map[observe.VisualTargetID]*observe.FreshWords, res visualResult,
+	reader *readingEyes, obs *fastobserve.Observer) {
+
+	name := a.Name
 
 	fmt.Printf("%s\n", strings.Repeat("-", 74))
 	fmt.Printf("CAN THE CONTROLS OF %q BE FOUND AGAIN?\n\n", name)
@@ -253,23 +314,58 @@ func reportStoredReacquire(name string, targets []observe.StoredTarget,
 		return
 	}
 	fmt.Printf("  %d usable look(s)\n", looks)
-	// WHAT THE READER DID. An abstention rate means something different depending on
-	// whether the screen model could tell two menus apart while this ran.
-	fmt.Printf("  words: %s\n\n", reader.describe())
-	fmt.Printf("  %-14s %8s %10s %13s %s\n",
-		"CONTROL", "matched", "ambiguous", "unobservable", "of those, indistinct")
-	var anyMatched int
+	// WHAT OCR PRODUCED, which is a different fact from what the observer admitted —
+	// printed first so the pair reads as a chain.
+	fmt.Printf("  words: %s\n", reader.describe())
+	// WHAT THE OBSERVER DID WITH THE READINGS, which is a different fact from what OCR
+	// produced and is the distinction that could not be made in Experiment 080: the
+	// screens carried no text though thirty readings had been delivered, and the report
+	// said only how many reached the loop.
+	st := obs.Stats()
+	fmt.Printf("  readings: %d offered, %d admitted", st.ReadingsOffered, st.ReadingsAdmitted)
+	if st.ReadingsStaleEpoch > 0 || st.ReadingsStaleWindow > 0 {
+		fmt.Printf(", %d stale (epoch %d, window %d)",
+			st.ReadingsStaleEpoch+st.ReadingsStaleWindow,
+			st.ReadingsStaleEpoch, st.ReadingsStaleWindow)
+	}
+	if st.ReadingsSilent > 0 {
+		fmt.Printf(", %d read nothing", st.ReadingsSilent)
+	}
+	if st.ReadingsRefusedMerge > 0 {
+		fmt.Printf(", %d refused a merge", st.ReadingsRefusedMerge)
+	}
+	if st.ReadingsUnusable > 0 {
+		fmt.Printf(", %d on a look that could host none", st.ReadingsUnusable)
+	}
+	fmt.Printf("\n  %d of %d look(s) carried a reading this report could use\n\n",
+		readLooks, looks)
+
+	fmt.Printf("  %-14s %8s %10s %13s %10s %s\n",
+		"CONTROL", "matched", "ambiguous", "unobservable", "indistinct", "words")
+	var anyMatched, corroborated, contradicted int
 	for _, t := range targets {
 		s := tally[t.ID]
 		if s.matched > 0 {
 			anyMatched++
 		}
-		fmt.Printf("  %-14s %7d%% %9d%% %12d%% %d\n", t.ID,
+		// THE FOURTH COLUMN, and it decides nothing. The match above was made by
+		// rectangle and is unchanged; this says what it was worth.
+		verdict, why := said[t.ID].Against(savedWords(a, t.ID))
+		switch verdict {
+		case observe.TextCorroborated:
+			corroborated++
+		case observe.TextContradicted:
+			contradicted++
+		}
+		fmt.Printf("  %-14s %7d%% %9d%% %12d%% %10d %s\n", t.ID,
 			pctOf(s.matched, looks), pctOf(s.ambiguous, looks),
-			pctOf(s.unobservable, looks), s.indistinct)
+			pctOf(s.unobservable, looks), s.indistinct, verdict)
+		fmt.Printf("  %-14s %s\n", "", why)
 	}
 	fmt.Printf("\n  %d of %d control(s) were found on at least one look.\n",
 		anyMatched, len(targets))
+	fmt.Printf("  %d text-corroborated, %d text-contradicted, %d unread.\n",
+		corroborated, contradicted, len(targets)-corroborated-contradicted)
 
 	// THE ONE CORRECTNESS STATEMENT AVAILABLE HERE. A rate of matches is not a rate of
 	// right answers, and saying so is the whole of this paragraph.
@@ -300,4 +396,19 @@ func pctOf(n, total int) int {
 		return 0
 	}
 	return n * 100 / total
+}
+
+// savedWords is what one control of a saved routine was read to say when it was demonstrated.
+//
+// From the ARTIFACT rather than from the StoredTarget, because `StoredTarget` carries the
+// rectangles a match is made from and deliberately not the words: the matcher compares geometry,
+// and handing it text would make the comparison depend on a reading that may not have arrived.
+// The words are evidence ABOUT the match, fetched where they live.
+func savedWords(a workflowstore.Artifact, id observe.VisualTargetID) []string {
+	for _, c := range a.Controls {
+		if c.Label == string(id) {
+			return c.Text
+		}
+	}
+	return nil
 }

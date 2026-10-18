@@ -633,3 +633,77 @@ func TestAFailedReadingIsOfferedAsNothing(t *testing.T) {
 		}
 	}
 }
+
+// A MATCH IS CORROBORATED BY THE WORDS INSIDE THE MATCHED RECTANGLE, OR IT IS NOT CORROBORATED.
+//
+//	Marco has learned the word "Settings." It has not yet proved that it uses that word to
+//	recognize the Settings button.
+//
+// Measurement only: nothing here changes which rectangle matches, and the three outcomes the
+// owner named are reported beside it. The semantics are `observe.FreshWords`, tested in that
+// package; this holds the wiring, which is where the first version went wrong.
+func TestAMatchIsReportedWithWhatItSays(t *testing.T) {
+	src, err := os.ReadFile("reacquirecmd.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(src)
+
+	// THE WORDS COME FROM THE MATCHED RECTANGLE, not from the screen and not from the
+	// container. `LabelOf` is what named the control when it was demonstrated, so the
+	// question is asked the way the answer was recorded.
+	if !strings.Contains(s, "observe.LabelOf(got.Where, words)") {
+		t.Error("the corroboration does not read the words inside the matched " +
+			"rectangle, so it is about the screen rather than the control")
+	}
+	// AND ONLY FROM A LOOK THE OBSERVER WOULD ACCEPT.
+	//
+	// The defect the live run printed in its own output: `37 offered, 0 admitted, 37 on
+	// a look that could host none`, beside a confident "corroborated" built from 28 of
+	// them. `Admissible` checks the window generation and the observation epoch; it does
+	// NOT check whether the look could host a reading at all, and a covered window
+	// returns the covering window's pixels under the target's name.
+	if !strings.Contains(s, "usable := lk.Front") {
+		t.Error("readings are taken from looks whose window is not in front, so the " +
+			"corroboration can be against another application's words")
+	}
+	if !strings.Contains(s, "if !usable || !r.Admissible(") {
+		t.Error("the usability gate is not applied to each reading")
+	}
+
+	// THE OBSERVER'S OWN COUNTERS, because OCR producing words and the observer
+	// admitting them are two different facts — and the difference is what explained
+	// Experiment 080's silent screens.
+	for _, want := range []string{
+		"st.ReadingsOffered", "st.ReadingsAdmitted", "st.ReadingsStaleEpoch",
+		"st.ReadingsSilent", "st.ReadingsRefusedMerge", "st.ReadingsUnusable",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("the report does not print %s", want)
+		}
+	}
+	// AND THE TWO FACTS ARE PRINTED SEPARATELY. A single number for "readings" would
+	// lose the distinction the counters exist to make.
+	if !strings.Contains(s, "look(s) carried a reading this report could use") {
+		t.Error("the report does not say how many looks the corroboration could use, " +
+			"which is a different number from how many readings arrived")
+	}
+
+	// THE SAVED WORDS COME FROM THE ARTIFACT, never from the StoredTarget: the matcher
+	// compares geometry, and giving it text would make the match depend on a reading.
+	if !strings.Contains(s, "savedWords(a, t.ID)") {
+		t.Error("the corroboration does not compare against the saved words")
+	}
+	if strings.Contains(s, "t.Text") {
+		t.Error("the corroboration reads text off the StoredTarget, which carries " +
+			"rectangles and deliberately not words")
+	}
+	// AND IT DECIDES NOTHING. No threshold, and the match is unchanged.
+	if strings.Contains(s, "TextCorroborated {\n\t\t\tcontinue") {
+		t.Error("the corroboration skips a match, which makes it a filter rather " +
+			"than an observation")
+	}
+	if !strings.Contains(s, "Nothing was pressed. A match is not permission.") {
+		t.Error("the report no longer says it presses nothing")
+	}
+}

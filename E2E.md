@@ -557,6 +557,48 @@ Then inspect and measure what was kept:
 `reacquire` presses nothing. It reports, per control, how often it could be found again, and how
 often two controls claimed one rectangle — which is the only wrongness it can detect without you.
 
+## Clicking the same control twice
+
+One press is one press. The recorder says so on every step it records from one —
+*clicked once, so nothing independent confirms that this control can be found again* — and a
+second press on a separate visit is the only independent evidence about where the first one's
+control was.
+
+So demonstrate the SAME button twice, going away and coming back:
+
+1. click the button (say Settings);
+2. come back out of that menu, by whatever the game's own way is -- Escape, or a Back button;
+3. click the SAME button again;
+4. ENTER in the terminal.
+
+What changes in the report when it worked:
+
+```
+target_1   2 press(es), read as "settings", led somewhere
+```
+
+`2 press(es)` is the whole point, and `seen: 2` appears on the saved step. A control pressed
+twice has two readings of its rectangle and two chances to be read, and the step's `unresolved`
+note about a single click disappears.
+
+Then measure it, with the game IN FRONT for the whole run:
+
+```sh
+./director.exe reacquire "<name>" --application <exe-name> --seconds 30
+```
+
+The `words` column is what to read. `corroborated` means the rectangle it matched reads what the
+control was saved as; `contradicted` means it reads something else, over repeated readings; and
+`unread` means there was not enough fresh evidence, which is NOT agreement.
+
+The game must be in front for the whole run or every reading is refused as unusable and the
+column is honestly `unread`. The `readings:` line says which happened:
+
+```
+readings: 35 offered, 31 admitted, 4 stale (epoch 4, window 0)        <- good
+readings: 37 offered, 0 admitted, 37 on a look that could host none   <- the window was behind
+```
+
 **Expect it to be unreliable, and expect the report to say so.**
 [[Experiment-078-the-conjunction-is-two-terms-wearing-three-hats]] measured the grounding rules
 on a recorded game menu: the best of them is wrong one time in thirty-one and ready on 1 look in

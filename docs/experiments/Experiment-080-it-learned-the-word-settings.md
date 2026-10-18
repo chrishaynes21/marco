@@ -144,4 +144,48 @@ independent confirms that this control can be found again.*
 
 What it licenses is a far narrower next step than a visual target model: the word is already
 saved and the matcher does not read it. See
-[[ADR-233-proposed-a-match-that-can-be-corroborated-by-its-words]].
+[[ADR-233-a-match-that-can-be-corroborated-by-its-words]].
+
+## Afterwards: the corroboration, and the counter that explained the silence
+
+[[ADR-233-a-match-that-can-be-corroborated-by-its-words]] is implemented as measurement only.
+Re-run on the same saved control, with Ark genuinely in front:
+
+```
+readings: 35 offered, 31 admitted, 4 stale (epoch 4, window 0)
+control_1   99% matched   corroborated
+            it still reads "settings", from 27 readings
+```
+
+**The rectangle Marco matches is the rectangle that reads "settings".** That statement did not
+exist in this experiment's first half.
+
+And the controlled negative, with the SAVED word changed to "inventory" and the geometry and the
+fresh reading both real:
+
+```
+control_1   100% matched   contradicted
+            it was saved as "inventory" and now reads "settings", over 18 readings
+```
+
+Geometry matched completely and the text refused it.
+
+### The silence, explained
+
+The first run of the corroboration printed this, and it is the answer to the open question above:
+
+```
+readings: 37 offered, 0 admitted, 37 on a look that could host none
+```
+
+**`ReadingsUnusable`.** `intakeReadings` refuses a reading on a look whose window is not in
+FRONT, because window capture is not occlusion-safe and a covered window's words are another
+application's. The person had alt-tabbed to the terminal to press ENTER, so the looks that
+carried readings were looks of a window that was no longer in front — and nobody printed that
+counter, so three explanations had stayed open.
+
+The same run also exposed a defect in the corroboration's own first version: it reported
+`corroborated` from 28 of those 37 refused readings, because it asked `Admissible` — which checks
+the window generation and the observation epoch and not usability. Corroborating against the
+terminal's pixels is worse than not corroborating at all. Fixed, and
+`TestAMatchIsReportedWithWhatItSays` holds the gate.

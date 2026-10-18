@@ -1,6 +1,6 @@
 ---
 type: adr
-status: proposed
+status: accepted
 date: 2026-10-17
 decision: PROPOSED — the smallest next change is not word-box targeting but corroboration: a saved control now carries the word it was read as, and the matcher that finds it again compares rectangles only, so a rectangle match should be reported beside whether the words inside it agree with what was saved; the word-box tightening for the panel case is contingent on that corroboration showing the words are reliable at control scale
 supersedes: []
@@ -12,7 +12,7 @@ source_paths:
   - cmd/director/reacquirecmd.go
 ---
 
-# ADR-233 — proposed: a match that can be corroborated by its words
+# ADR-233 — a match that can be corroborated by its words
 
 ## What the evidence says
 
@@ -97,8 +97,46 @@ and `ReadingsRefusedMerge` without showing any of them. Three explanations are o
 session cannot choose between them. Printing those counters is a prerequisite for diagnosing it
 and changes no behaviour.
 
+## What it measured, live
+
+Accepted and implemented as measurement only. On Ark, with the game genuinely in front:
+
+```
+readings: 35 offered, 31 admitted, 4 stale (epoch 4, window 0)
+control_1   99% matched   corroborated
+            it still reads "settings", from 27 readings
+```
+
+**The rectangle Marco matches is the rectangle that reads "settings".** That statement did not
+exist before this change.
+
+And the controlled negative, with the saved word deliberately changed to "inventory" and the
+geometry and the fresh reading both real:
+
+```
+control_1   100% matched   contradicted
+            it was saved as "inventory" and now reads "settings", over 18 readings
+```
+
+Geometry matched completely and the text refused it, which is the demonstration the owner asked
+for. It is a synthetic SAVED word on real pixels, so it proves the mechanism and does not replace
+the test of a different menu with similar geometry -- that one needs a person's hands.
+
+## The defect this found in its own first version
+
+The first run printed `37 offered, 0 admitted, 37 on a look that could host none` beside a
+confident "corroborated" built from 28 of those refused readings. `Admissible` checks the window
+generation and the observation epoch; it does NOT check whether the look could host a reading at
+all, and `intakeReadings` refuses one whose window is not in FRONT -- because window capture is
+not occlusion-safe, so a covered window returns the covering window's pixels under the target's
+name. Corroborating against the terminal's pixels is worse than not corroborating.
+
+That same counter is what explained [[Experiment-080-it-learned-the-word-settings]]'s silent
+screens: the readings were refused as UNUSABLE, because the person had alt-tabbed to the terminal
+to end the session. Nobody printed `ReadingsUnusable`, so three explanations had stayed open.
+
 ## Status
 
-Proposed. Nothing in this ADR is implemented, no threshold has moved, and pixel execution remains
-blocked: one control, one press, and the recorder's own note on the step that *clicked once, so
-nothing independent confirms that this control can be found again*.
+Pixel execution remains blocked: one control, one press, and the recorder's own note on the step
+that *clicked once, so nothing independent confirms that this control can be found again*. The
+next evidence is a demonstration that clicks the same control twice across separate visits.

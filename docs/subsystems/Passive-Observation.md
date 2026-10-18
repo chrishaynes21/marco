@@ -1553,7 +1553,7 @@ it refuses those looks. Visible is fine; in front is not.
   **the matcher does not read the word it saved** — `ReacquireStored` compares rectangles,
   so 98% means a rectangle of this shape is in this place, not that the settings button is
   there. [[Experiment-080-it-learned-the-word-settings]],
-  [[ADR-233-proposed-a-match-that-can-be-corroborated-by-its-words]]
+  [[ADR-233-a-match-that-can-be-corroborated-by-its-words]]
 - **Appearance costs five correct recognitions and fixes none of the wrong ones.** The
   ambiguity rule would decline 1 correct answer under arrangement and 5 under palette,
   grid or detector, while BIND-WRONG stays at 2 for all of them. The appearance measures
