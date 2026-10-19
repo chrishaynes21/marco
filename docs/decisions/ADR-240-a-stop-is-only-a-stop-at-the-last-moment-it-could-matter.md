@@ -2,13 +2,14 @@
 type: adr
 status: accepted
 date: 2026-10-19
-decision: "ACCEPTED — ten conditions found by two rounds of review of the supervised-run lifecycle are closed, under three rules. (1) A STOP IS ONLY A STOP AT THE LAST MOMENT IT COULD MATTER: the stop key is read once more immediately before input is sent, it is bridged onto the executor's own context, it is honoured before a runner exists, and a consent question may not consume it. (2) AUTHORISATION IS NOT EVIDENCE: the look taken after a person authorises reports what the STABILISER made of it, because the stabiliser damps a change for three looks and keeps answering with the standing screen while it settles — which is exactly the window an authorisation arrives in. An unsettled look, an unreadable one, and a settled screen with nothing under the approved point are each a refusal, and the standing claim is read off the fresh look so the order cannot be got wrong. (3) A RECORD IS THE ATTEMPT IT NAMES: the whole evidence namespace — the record and the frames directory — is RESERVED before the reference is printed and retried on collision, `saveRun` may only write where a reservation already is, every exit past the citation finalises, and the one-word outcome is read from how far the workflow got as well as from each action's verdict."
+decision: "ACCEPTED — eleven conditions found by three rounds of review of the supervised-run lifecycle are closed, under three rules. (1) A STOP IS ONLY A STOP AT THE LAST MOMENT IT COULD MATTER: the stop key is read once more immediately before input is sent, it is bridged onto the executor's own context, it is honoured before a runner exists, and a consent question may not consume it. (2) AUTHORISATION IS NOT EVIDENCE: the look taken after a person authorises reports what the STABILISER made of it, because the stabiliser damps a change for three looks and keeps answering with the standing screen while it settles — which is exactly the window an authorisation arrives in. An unsettled look, an unreadable one, and a settled screen with nothing under the approved point are each a refusal, and the standing claim is read off the fresh look so the order cannot be got wrong. On a screen whose identity words have been separating, a look that agrees by ARRANGEMENT ALONE is not enough either: the reading of that capture is asked for by frame and waited for inside a bounded, cancellable budget, because the reading of the frame before it is admissible while the epoch is still and agrees with the screen the plan was made on. (3) A RECORD IS THE ATTEMPT IT NAMES: the whole evidence namespace — the record and the frames directory — is RESERVED before the reference is printed and retried on collision, `saveRun` may only write where a reservation already is, every exit past the citation finalises, and the one-word outcome is read from how far the workflow got as well as from each action's verdict."
 supersedes: []
 affects:
   - execution
   - safety
 source_paths:
   - cmd/director/performworkflow.go
+  - cmd/director/readingeyes.go
   - cmd/director/consentdesk.go
   - cmd/director/runrecord.go
   - internal/director/workflowrun/workflowrun.go
@@ -62,6 +63,17 @@ same first fix not having gone far enough:
     into the same frames directory. And the test for it demanded 64 distinct draws from 65,536,
     which is a 3% chance of failing a correct implementation while testing the wrong property.
 
+A third round found one more, and it is the second round's own fix one layer down:
+
+11. **The boundary look's words were the previous frame's words.** Text was put on the boundary
+    look the way the loop puts it on an ordinary one: `offer` the capture, `ready()` in the same
+    breath, take whatever OCR has FINISHED. For a loop that looks ten times a second that is
+    right. At a boundary it means the look carried a reading of the frame BEFORE it — and while
+    the stabiliser damps a change the epoch does not move, so that reading is admissible, agrees
+    with the standing screen, and confirms the screen the plan was made on. A panel swapped for
+    one of the same shape then had nothing left to refuse it: the arrangement agreed, the point
+    was still inside something, and the words were the words of the panel that had gone.
+
 ## The decision
 
 Three rules, each of which generalises past the condition that found it.
@@ -103,10 +115,24 @@ name of the counter that moved goes into the refusal. Three refusals rather than
   row that went away, a panel swapped for one of the same overall shape. Asked of the fresh
   look's own proposals, which is the same evidence a control is found by.
 
-Text goes onto the boundary look the way the loop puts it on an ordinary one, so the
-stabiliser's own text rule can separate a panel of the same shape that reads differently.
-Nothing new is measured and no threshold is invented: reporting a counter is not a second
-opinion about screen identity.
+**And the words have to be the words of THIS capture, which took a third round to get right.**
+The first version of this put text on the boundary look the way the loop puts it on an ordinary
+one — offer, then drain whatever has finished — and that is the defect with the capture added.
+OCR costs hundreds of milliseconds against a cadence of a hundred, so what `ready()` returns
+describes an earlier frame; the epoch does not move while a change is settling, so the earlier
+frame's reading is admissible by the rule that exists to refuse stale evidence; and it agrees
+with the standing screen, because it is a reading OF the standing screen. The one change the
+geometric terms cannot see was being confirmed by the panel it replaced.
+
+So the boundary makes a different request from the loop's: this frame, by id, waited for inside
+`boundaryTextWait`, cancellable, and refused when it does not arrive. Nothing drains the loop's
+queue. And it is asked **only where it could decide anything** — a screen with no corroborated
+vocabulary cannot be contradicted by a reading, so there a look agreeing on pixels is the whole
+of what the grounding policy has ever had, and demanding words would refuse presses for evidence
+the stabiliser could not have used.
+
+Nothing new is measured and no threshold is invented: reporting a counter is not a second opinion
+about screen identity, and the text rule that rules on the reading is the stabiliser's own.
 
 **And the standing claim comes back ON the evidence.** The look is what moves it, so reading it
 before looking compares the plan against the state the plan was made in — the original defect
@@ -168,6 +194,18 @@ Freshness at the boundary:
   damped window, and the test asserts the standing claim really did not move.
 - `TestAPanelThatReadsDifferentlyIsRefusedThoughItsShapeAgrees`: same geometry, conflicting text,
   refused by the stabiliser's own text rule.
+- `cmd/director/boundarytext_test.go` — the production fold over a reader whose engine this test
+  starts and stops, which is the only way to describe a boundary that clicked before its answer
+  arrived. `TestAPanelWhoseWordsHaveNotArrivedIsNotPressed`: identical arrangement, a finished
+  reading of the loop's last frame waiting in the queue the boundary used to drain, and no answer
+  for the capture — refused, and the stale reading is still sitting there.
+  `TestAStepIsNotPressedWhileItsOwnWordsAreUnavailable`: the same, through the real runner, zero
+  host calls. `TestWordsThatArriveLateStillRefuseTheSameShape`: the withheld answer released,
+  refused by the text rule. `TestAnUnchangedPanelWhoseWordsArriveIsPressed`: the positive
+  control, one move and one click, and the two boundary readings one press costs.
+  `TestAScreenNobodyHasReadIsStillPressedOnItsPixels`: the limit of the rule — an unread screen
+  is pressed on its pixels and no reading is asked for at all.
+  `TestABoundaryWaitingForWordsIsCancellable`: a cancellation ends the wait.
 - `TestAPointWithNothingUnderItIsRefusedOnASettledScreen`: a settled screen with nothing under
   the approved coordinate.
 - `TestAChangedPanelUnderAnAuthorisedStepSendsNoInput`: the real runner, with that boundary
@@ -208,10 +246,12 @@ Evidence and the exits:
   record points at;
   `TestAReservationThatIsNeverFinalisedIsVisibleAsSuch` keeps `started` legible as a defect.
 - `cmd/director/runlifecycle_test.go` — `TestAWindowThatCannotBeAcquiredIsRecordedAsFailed`.
-- `cmd/director/performworkflowwiring_test.go` — `TestPerformWorkflowInstallsItsGates` holds the
-  three things no behavioural test in the package can reach: that the standing claim is read off
-  the fresh look in one statement after the observation, and that the boundary look is given a
-  reader, offers it a frame, and drains it.
+- `cmd/director/performworkflowwiring_test.go` — `TestPerformWorkflowInstallsItsGates` holds what
+  no behavioural test in the package can reach: that the standing claim is read off the fresh
+  look in one statement after the observation; that the boundary is given a reader and asks it
+  for the words of its own frame, with the production budget; and that the capture carries an id
+  the reading is compared against, which matters on the day somebody routes this back through
+  the shared queue.
 
 ## Links
 

@@ -1767,6 +1767,20 @@ it refuses those looks. Visible is fine; in front is not.
   of the first mutation pass survived and each named a real gap rather than a missing assertion —
   including an ORDERING that two source-pinned strings cannot hold. 25 mutations, all killed.
   [[ADR-240-a-stop-is-only-a-stop-at-the-last-moment-it-could-matter]]
+- **And a third round found the same lesson in the evidence rather than the claim: the boundary
+  look's words were the words of the frame before it.** Text was put on the boundary look the way
+  the loop puts it on an ordinary one — offer the capture, drain whatever OCR has finished — and
+  OCR answers about twice a second against a loop that looks ten times. The admission rule that
+  refuses stale readings refuses on a moved epoch, and the epoch is precisely what does not move
+  while a change is settling, so the earlier frame's reading was admissible, agreed with the
+  standing screen, and confirmed the screen the plan was made on. A panel swapped for one of the
+  SAME SHAPE was being cleared by the words of the panel it replaced — the one case geometry
+  cannot decide. The fix is a different request and not a different rule: this frame, by id,
+  waited for inside `boundaryTextWait` (1.5s, from a slowest measured reading of 920ms plus the
+  tail of the one call that can be ahead of it), cancellable, refused when it does not arrive —
+  and asked only where words could decide anything, since a screen with no corroborated
+  vocabulary cannot be contradicted by a reading and is pressed on its pixels as it always was.
+  [[ADR-240-a-stop-is-only-a-stop-at-the-last-moment-it-could-matter]]
 - **A click's OUTCOME can be verified where the screen does not change, and the terms are
   measured on two games rather than one.** Ark's GRAPHICS tab verifies on 36 independent words
   with 0 false outcomes in 219 windows with no input in them; Rocket League's main menu is

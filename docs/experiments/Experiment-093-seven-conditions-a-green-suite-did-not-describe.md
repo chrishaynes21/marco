@@ -5,7 +5,7 @@ date: 2026-10-19
 backend:
   - structure
 fixture: "Source review of the supervised-run lifecycle as committed in `cec983d`, `7ae9dd1` and `22fd169` — all three with a green 101-package suite — followed by one reproducing test per traced condition and a mutation run on every new call site."
-result: "Ten conditions closed over two rounds. Every one was reproducible by a test that could have been written against the committed code, and not one of the committed tests described it. The first round: five timing (the moment a stop is read, the moment a target is measured, the moment a deadline applies) and two identity (which attempt a record belongs to, what a whole run's one-word outcome is). The second round, reviewing the first round's fixes, found three more — and all three were the same fix not having gone far enough: a fresh look that reached the observer and was never asked what the observer made of it, three exits past the citation that the first round had not enumerated, and a reservation that guarded the record while the pixels were already being shared. Twenty-five mutations across both rounds; three survived the first pass and each named a real gap, including an ORDERING that two source-pinned strings could not hold. Two limitations traced and deliberately left open."
+result: "Eleven conditions closed over three rounds. Every one was reproducible by a test that could have been written against the committed code, and not one of the committed tests described it. The first round: five timing (the moment a stop is read, the moment a target is measured, the moment a deadline applies) and two identity (which attempt a record belongs to, what a whole run's one-word outcome is). The second round, reviewing the first round's fixes, found three more — and all three were the same fix not having gone far enough: a fresh look that reached the observer and was never asked what the observer made of it, three exits past the citation that the first round had not enumerated, and a reservation that guarded the record while the pixels were already being shared. The third round found the second round's own fix one layer down: the boundary look took whatever OCR had FINISHED, which is a reading of the frame before it, admissible while the epoch is still and agreeing with the screen the plan was made on. Thirty-nine mutations across three rounds; three survived the first pass and each named a real gap, including an ORDERING that two source-pinned strings could not hold. Two limitations traced and deliberately left open."
 supersedes: []
 affects:
   - execution
@@ -95,6 +95,48 @@ caller to get wrong. The second and third were vacuous tests of exactly the kind
 passes for a reason other than the one it names.
 
 Twenty-five mutations across both rounds, all killed at the end.
+
+## The third round, which is the same lesson one layer down
+
+The second round's fix asked the stabiliser what it made of the boundary look, and gave that look
+text the way the loop gives text to an ordinary look: offer the capture, drain whatever has
+finished. Reviewing it found that this is **the first defect again, in the evidence rather than
+in the claim**.
+
+OCR answers about twice a second against a loop that looks ten times, so `ready()` returns a
+reading of an earlier frame. The admission rule that exists to refuse stale readings cannot
+refuse this one: it refuses on a moved epoch, and the epoch is exactly what does NOT move while
+the stabiliser damps a change. So the boundary look of a changed panel carried the words of the
+panel before it, those words agreed with the standing screen, and the one change that geometry
+cannot see was confirmed by the thing it replaced.
+
+The shape is worth naming because it is now three for three:
+
+> a guard that asks for fresh evidence and accepts whatever evidence is lying about.
+
+The capture was fresh. The counters were read in the right order. The text was stale, and text
+was the only term that could have decided the case.
+
+The fix is a different REQUEST rather than a different rule: this frame, by id, waited for inside
+a budget, cancellable, refused when it does not arrive — and asked only where words could decide
+anything, because a screen nobody has read cannot be contradicted by a reading and demanding one
+would refuse presses for evidence the stabiliser never had.
+
+Fourteen mutations on the third round, all killed. Two of the fourteen are killed only by the
+source pins and are reported as such: `readNow` answers on a channel of its own, so no test in
+the package can hand the boundary a foreign reading and watch the id refuse it. The id is there
+for the day somebody routes this through the shared queue again.
+
+**And one mutation survived twice before the fixture was honest enough to kill it.** `readNow`
+answers on a buffered channel, because a bridge call cannot be interrupted once it is written:
+the reading of an abandoned boundary finishes with nobody waiting for it, and on an unbuffered
+channel it would park a goroutine for the rest of the run. Removing the buffer survived — because
+the gated engine in the test honoured the cancelled context and returned an error, so the
+abandoned reading never existed. The real engine cannot do that: `bridgehost.Invoke` writes a
+request line and reads the answer, and no context reaches it. The fixture is now deaf in the same
+place the bridge is deaf, and the mutation dies. A fixture more cooperative than the thing it
+stands for cannot produce the condition it was built to describe.
+
 ## What this does NOT establish
 
 The one-action live demonstration from [[Experiment-092-the-first-human-taught-pixel-macro]]
