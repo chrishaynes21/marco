@@ -1736,6 +1736,22 @@ it refuses those looks. Visible is fine; in front is not.
   evidence was collected" while holding 25 readings. Plus two summary lines that denied the
   verdict printed three lines above them.
   [[Experiment-092-the-first-human-taught-pixel-macro]]
+- **Seven conditions a green suite did not describe, and five of them are moments.** The
+  supervised-run lifecycle shipped with tests; a review sweep then traced seven failure
+  conditions none of those tests described. Five are about WHEN a working mechanism runs rather
+  than whether it works: a stop read before `exec.Do` and acted on after it, a stop arriving
+  before the runner exists, a stop among the stale keys a consent question DRAINS, a target
+  measured against the look that produced the question rather than against the screen the person
+  approved, and a verification window with SOME positive evidence waiting past its own deadline
+  — the last because `OutcomeHeld` answering true feels like a reason to keep waiting and is
+  exactly the case where waiting is least justified. Two are about identity: a second is not
+  unique, so two attempts shared an id and one record became the other's; and a run's one-word
+  outcome was read off its best action, so a workflow that verified step one and refused step
+  two was `verified`. Thirteen mutations, thirteen killed. Two limitations left open on purpose:
+  the control centre's Stop does not reach a standalone play, and a step on a different screen
+  can arrive while a previous step's verification is still pending.
+  [[Experiment-093-seven-conditions-a-green-suite-did-not-describe]]
+  [[ADR-240-a-stop-is-only-a-stop-at-the-last-moment-it-could-matter]]
 - **A click's OUTCOME can be verified where the screen does not change, and the terms are
   measured on two games rather than one.** Ark's GRAPHICS tab verifies on 36 independent words
   with 0 false outcomes in 219 windows with no input in them; Rocket League's main menu is
