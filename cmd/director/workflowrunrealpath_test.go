@@ -105,7 +105,7 @@ func TestAWorkflowStepReachesTheHostAsOneRealLeftClickThroughTheMarcoCompiler(t 
 	grant := &permits{epoch: 5, generation: 1}
 	r := workflowrun.New(art, nil, answers{"now_1": "screen_a"}, grant).
 		WithExecutor(marcoexec.New(marco), false).
-		WithConfirm(func(context.Context, workflowrun.Sighting) (bool, string) {
+		WithConfirm(func(context.Context, workflowrun.Sighting, observe.PointerAt) (bool, string) {
 			return true, ""
 		})
 
@@ -179,7 +179,7 @@ func TestTheSameRealPathSendsNothingWhenNobodyAuthorisesIt(t *testing.T) {
 	}
 	r := workflowrun.New(art, nil, answers{"now_1": "screen_a"}, nil).
 		WithExecutor(marcoexec.New(marco), false).
-		WithConfirm(func(context.Context, workflowrun.Sighting) (bool, string) {
+		WithConfirm(func(context.Context, workflowrun.Sighting, observe.PointerAt) (bool, string) {
 			return true, ""
 		})
 

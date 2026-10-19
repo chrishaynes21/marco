@@ -71,7 +71,10 @@ func TestARunRecordKeepsTheFourAnswersApart(t *testing.T) {
 // is worse than no citation, because somebody will go looking.
 func TestARunRecordIsWrittenWhereItsReferenceSaysItIs(t *testing.T) {
 	t.Setenv("MARCO_HOME", t.TempDir())
-	id := newRun(time.Date(2026, 10, 18, 23, 7, 24, 0, time.UTC))
+	id, _, rerr := reserveRun(time.Date(2026, 10, 18, 23, 7, 24, 0, time.UTC), "", nil)
+	if rerr != nil {
+		t.Fatalf("reserving: %v", rerr)
+	}
 	// THE TIMESTAMP IS THE HALF A PERSON READS, and the suffix is the half that
 	// makes it an identity — two attempts in one second used to share an id and one
 	// record replaced the other.

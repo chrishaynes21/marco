@@ -234,7 +234,7 @@ func newRouteRig(t *testing.T, artifact, from string, step int) *routeRig {
 
 	run := workflowrun.New(art, nil, ground, &alwaysGranted{}).
 		WithExecutor(marcoexec.New(marco), false).
-		WithConfirm(func(context.Context, workflowrun.Sighting) (bool, string) {
+		WithConfirm(func(context.Context, workflowrun.Sighting, observe.PointerAt) (bool, string) {
 			return true, ""
 		})
 	return &routeRig{obs: obs, run: run, session: session, ground: ground,

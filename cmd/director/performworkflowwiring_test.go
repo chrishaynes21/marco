@@ -117,11 +117,34 @@ func TestPerformWorkflowInstallsItsGates(t *testing.T) {
 		// back would agree with itself forever and every refusal below would still
 		// pass. A mutation run found exactly that, so the gap is held here, weakly
 		// and on purpose.
-		{"Screen: obs.Screen(),",
-			"the re-observation must read the screen standing NOW; passing the " +
-				"planned one back would make the check agree with itself"},
-		{"Epoch: obs.Epoch(),",
-			"the same, for the observation generation"},
+		{"now.Epoch, now.Screen = now.Fresh.Epoch, now.Fresh.Screen",
+			"the re-observation must read the screen and the observation " +
+				"generation standing NOW, and it must read them off the " +
+				"fresh look; passing the planned ones back would make the " +
+				"check agree with itself, and reading the observer here " +
+				"would reinstate the ordering mistake below"},
+		// AND THE STAMPS COME FROM AFTER THE LOOK, NOT BEFORE IT.
+		//
+		// The look is what moves them, so a version that read them first and then
+		// looked would compare the plan against the state the plan was made in —
+		// which is the defect the fresh look exists to close, and it passed every
+		// test in this package when a mutation tried it. There is now exactly one
+		// place either value is read and it is this statement, inside `freshLook`,
+		// immediately after the observation. Pinned as ONE string, because the
+		// order is the thing being held and two strings cannot hold an order.
+		{"e := freshOf(was, obs.Stability(), lk.Regions, point)\n\t\te.Epoch, e.Screen = obs.Epoch(), obs.Screen()",
+			"the verdict and the standing claim have to be read together and " +
+				"after the look; split apart, one of them can drift above " +
+				"`obs.Observe` and describe the screen the plan was made on"},
+		{"now.Fresh = relook(ctx, v, point)",
+			"without it the world check reads the stabiliser's standing claim " +
+				"only, and a change that is still settling answers " +
+				"'unchanged' for the whole of the window a person's " +
+				"authorisation arrives in"},
+		{"was := obs.Stability()",
+			"without the counters either side of the look, nothing knows what " +
+				"the stabiliser made of THIS look, and a look that was " +
+				"counted Unsettled is indistinguishable from one that agreed"},
 		// THE SLOW TEXT SOURCE, offered and drained. Either half alone is a
 		// source that does nothing: offering without draining reads frames and
 		// throws every answer away, and draining without offering drains an
@@ -174,17 +197,34 @@ func TestPerformWorkflowInstallsItsGates(t *testing.T) {
 		{"r.Stop()",
 			"without the stop function the stop key is a key that prints " +
 				"something"},
-		// AND THE CONFIRMATION LOOKS AGAIN RATHER THAN REMEMBERING. The
-		// observation loop is blocked inside `Advance` while somebody is
-		// asked to authorise, so the observer's cached epoch and screen are
-		// the plan's own. Without this call the check compares the plan
-		// against itself and a panel that changed under the pointer passes.
-		{"relook(ctx, v)",
-			"without it the world check reads the stamps the plan was made " +
-				"from, and a changed panel is cleared to press"},
 		{"freshLook(shots, obs, windows,",
 			"without the fresh look installed the confirmation has nothing " +
 				"to take a look with"},
+		// AND THE BOUNDARY LOOK GETS WHATEVER OCR HAS FINISHED.
+		//
+		// Three strings, because all three are needed and each can be removed on its
+		// own. Without the seam the look is built before `reader` exists and closes
+		// over nil forever; without the offer OCR is never given the boundary's
+		// frame; without the drain every reading is computed and discarded. The
+		// stabiliser's text rule is the only thing that can separate a panel swapped
+		// for one of the SAME SHAPE, and with any of these missing a boundary look
+		// carries no words for it to rule on.
+		//
+		// Held here rather than behaviourally because the behavioural version needs
+		// OCR running against a live window, which the suite cannot arrange. Three
+		// mutations — nil seam, dropped offer, discarded drain — survived everything
+		// else in this package.
+		{"func() *readingEyes { return reader }",
+			"the boundary look is installed above the place the reader is made, " +
+				"so without a closure over the variable it sees nil for the " +
+				"whole run"},
+		{"e.offer(readingFrame{",
+			"without it OCR is never given the frame the boundary looked at, and " +
+				"a changed panel of the same shape has no words to be " +
+				"refused by"},
+		{"lk.Readings = e.ready()",
+			"without it the boundary's readings are computed and thrown away, " +
+				"and the stabiliser rules on geometry alone"},
 		// AND IT REACHES THE RUNNER SAFELY. The desk's goroutine starts while
 		// `run` is still nil, so a stop key pressed during initialisation
 		// dereferenced nil and took the process down; afterwards it was an
@@ -233,7 +273,11 @@ func TestWorldMovedRefusesEachWayTheWorldCanHaveMoved(t *testing.T) {
 	// THE APPLICATION IS ON THE WORLD NOW, because the scope is rechecked at the instant
 	// of the press and `worldMoved` is where that case lives.
 	held := worldNow{Alive: true, Generation: 3, Epoch: 7, Front: observe.FrontTarget,
-		Screen: "now_1", Application: "rocketleague"}
+		Screen: "now_1", Application: "rocketleague",
+		// AND A FRESH LOOK THAT AGREED, so the three fresh cases are not what
+		// these refusals are testing. They have their own table below.
+		Fresh: freshEvidence{Took: true, Agreed: true, Counted: "settled",
+			Target: true}}
 	scope := workflowstore.NormaliseScope("rocketleague")
 
 	for _, tc := range []struct {
@@ -304,7 +348,9 @@ func TestTheApplicationIsRecheckedAtTheInstantOfThePress(t *testing.T) {
 	scope := workflowstore.NormaliseScope("solasta")
 	planned := workflowrun.Sighting{Generation: 3, Epoch: 7, Screen: "now_1"}
 	standing := worldNow{Alive: true, Generation: 3, Epoch: 7,
-		Front: observe.FrontTarget, Screen: "now_1", Application: "solasta"}
+		Front: observe.FrontTarget, Screen: "now_1", Application: "solasta",
+		Fresh: freshEvidence{Took: true, Agreed: true, Counted: "settled",
+			Target: true}}
 
 	// THE WORLD THAT DID NOT MOVE IS ALLOWED, so the refusals below are about the
 	// application and not about the function refusing everything.
@@ -362,7 +408,7 @@ func TestTheRunnerRechecksAgainstTheArtifactsOwnScope(t *testing.T) {
 	// MATCHED UP TO THE SCOPE AND NO FURTHER. This pinned the whole call, so adding an
 	// argument to `stillThere` failed a test about where the SCOPE comes from — which is
 	// a test that fails for a reason it does not describe.
-	if !strings.Contains(src, "stillThere(obs, tracker, windows, target, art.Application,") {
+	if !strings.Contains(src, "windows, target, art.Application,") {
 		t.Error("the runner's world re-check is not given the artifact's own scope; " +
 			"a scope taken from the command line would always agree with itself")
 	}

@@ -376,7 +376,7 @@ func TestAnActedStepIsAnsweredEvenWhenNobodyCanNameTheScreen(t *testing.T) {
 		&grants{epoch: 5, generation: 1}).
 		WithExecutor(marcoexec.New(&notebook{}), false).
 		WithClock(func() time.Time { return now }).
-		WithConfirm(func(context.Context, workflowrun.Sighting) (bool, string) {
+		WithConfirm(func(context.Context, workflowrun.Sighting, observe.PointerAt) (bool, string) {
 			return true, ""
 		}).
 		WithPatience(50).

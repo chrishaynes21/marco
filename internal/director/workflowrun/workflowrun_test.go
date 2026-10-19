@@ -204,8 +204,8 @@ func newRig(t *testing.T) *rig {
 	g.run = workflowrun.New(art, nil,
 		oracle{"now_1": "screen_a", "now_2": "screen_b", "now_3": "screen_c"}, auth).
 		WithExecutor(marcoexec.New(book), false).
-		WithConfirm(func(ctx context.Context, planned workflowrun.Sighting) (
-			bool, string) {
+		WithConfirm(func(ctx context.Context, planned workflowrun.Sighting,
+			_ observe.PointerAt) (bool, string) {
 			if g.moved {
 				return false, "the screen changed while the question was open"
 			}
@@ -366,7 +366,7 @@ func TestNothingIsPressedWithoutAnExecutor(t *testing.T) {
 	}
 	r := workflowrun.New(art, nil, oracle{"now_1": "screen_a"},
 		&grants{epoch: 5, generation: 1}).
-		WithConfirm(func(context.Context, workflowrun.Sighting) (bool, string) {
+		WithConfirm(func(context.Context, workflowrun.Sighting, observe.PointerAt) (bool, string) {
 			return true, ""
 		}).
 		WithClock(func() time.Time { return looked })
@@ -500,8 +500,8 @@ func TestNobodyAuthorisedMeansNothingIsSent(t *testing.T) {
 			g.run = workflowrun.New(g.art, nil,
 				oracle{"now_1": "screen_a"}, nil).
 				WithExecutor(marcoexec.New(g.book), false).
-				WithConfirm(func(context.Context,
-					workflowrun.Sighting) (bool, string) {
+				WithConfirm(func(context.Context, workflowrun.Sighting,
+					observe.PointerAt) (bool, string) {
 					return true, ""
 				}).
 				WithClock(func() time.Time { return looked })
@@ -773,7 +773,8 @@ func TestAWorldThatMovedWhileTheQuestionWasOpenSendsNothing(t *testing.T) {
 func TestTheRecheckIsToldWhichObservationThePlanWasMadeFrom(t *testing.T) {
 	g := newRig(t)
 	var saw []workflowrun.Sighting
-	g.run.WithConfirm(func(ctx context.Context, planned workflowrun.Sighting) (bool, string) {
+	g.run.WithConfirm(func(ctx context.Context, planned workflowrun.Sighting,
+		_ observe.PointerAt) (bool, string) {
 		saw = append(saw, planned)
 		return true, ""
 	})
@@ -829,7 +830,7 @@ func TestAWaitAdvancesByArrivingAndPressesNothing(t *testing.T) {
 	r := workflowrun.New(art, nil, oracle{"now_1": "screen_a", "now_2": "screen_b"},
 		&grants{epoch: 5, generation: 1}).
 		WithExecutor(marcoexec.New(book), false).
-		WithConfirm(func(context.Context, workflowrun.Sighting) (bool, string) {
+		WithConfirm(func(context.Context, workflowrun.Sighting, observe.PointerAt) (bool, string) {
 			return true, ""
 		}).
 		WithClock(func() time.Time { return looked })
@@ -943,7 +944,7 @@ func TestRunStopsSafelyPartwayAndSaysSo(t *testing.T) {
 		oracle{"now_1": "screen_a", "now_2": "screen_b", "now_3": "screen_c"},
 		&grants{epoch: 5, generation: 1}).
 		WithExecutor(marcoexec.New(g.book), false).
-		WithConfirm(func(context.Context, workflowrun.Sighting) (bool, string) {
+		WithConfirm(func(context.Context, workflowrun.Sighting, observe.PointerAt) (bool, string) {
 			return true, ""
 		}).
 		WithClock(func() time.Time { return looked }).

@@ -46,7 +46,6 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"sort"
 	"strings"
 	"sync/atomic"
@@ -156,10 +155,7 @@ func runPerformWorkflow(args []string) int {
 	// there — that is the artifact's scope, checked below against the window actually
 	// acquired. Keeping the two apart is what stops a discovered application from quietly
 	// satisfying a scope check.
-	// THE RUN'S OWN REFERENCE, minted before anything can fail, so a run that dies
-	// early still gave somebody something to cite.
 	began := time.Now()
-	runID := newRun(began)
 	var waited bool
 	// ── WHEN NOBODY NAMED THE APPLICATION, WAIT BEFORE LOOKING ──
 	//
@@ -241,15 +237,25 @@ func runPerformWorkflow(args []string) int {
 		return code
 	}
 
-	// ── THIS RUN'S OWN PIXELS, UNDER THIS RUN'S OWN NAME ──
+	// ── THIS RUN'S OWN NAMESPACE, CLAIMED BEFORE ANYTHING IS WRITTEN INTO IT ──
 	//
-	// The hover probe writes `01-before.png` and `01-after.png`, so two runs sharing a
-	// --frames directory overwrote each other and an earlier record then pointed at a
-	// later run's images. The record keeps the directory it actually wrote to, which is
-	// the one its reference can retrieve.
-	framesDir := ""
-	if *frames != "" {
-		framesDir = filepath.Join(*frames, runID)
+	// The record and the pixels at once. The hover probe writes `01-before.png` and
+	// `01-after.png`, so two runs sharing a --frames directory overwrote each other and an
+	// earlier record then pointed at a later run's images; and the record's own guard used
+	// to be a refusal at SAVE time, by which point both attempts had been printing the
+	// same reference for the length of a run.
+	//
+	// `reserveRun` claims both places by the same id and tries another id if either is
+	// taken, so an attempt that gets this far has a reference nothing else can write to.
+	// It is claimed before the reference is printed, which is the ordering the whole thing
+	// turns on.
+	runID, framesDir, rerr := reserveRun(began, *frames, nil)
+	if rerr != nil {
+		// NO REFERENCE, SO NOTHING TO CITE. Reported as what it is rather than
+		// as a run that failed, because nothing has been attempted yet.
+		fmt.Fprintf(os.Stderr, "director: a run reference could not be "+
+			"reserved: %v\n", rerr)
+		return 1
 	}
 
 	// ── ONE FINALISATION PATH, FROM HERE TO EVERY EXIT ──
@@ -279,7 +285,15 @@ func runPerformWorkflow(args []string) int {
 			Unconfirmed: rep.Unconfirmed, Frames: framesDir,
 		})
 	}
-	endedEarly := func(out RunOutcome, because string) int {
+	// ── AND THE EXIT THAT USES IT, WITH THE CODE THE EXIT WOULD HAVE RETURNED ──
+	//
+	// The code is an argument because a usage refusal past this point is still a usage
+	// refusal: `--step` out of range and a selector nobody narrowed both exit 2, and
+	// both of them happen AFTER the reference has been printed, because the selector
+	// cannot be checked until the foreground has been resolved and that cannot happen
+	// until the countdown is over. Folding them into exit 1 to get a record would change
+	// what the exit code means; leaving them unrecorded cites a run id nobody kept.
+	endedEarly := func(code int, out RunOutcome, because string) int {
 		if p, err := keep(out, because, workflowrun.Report{}); err != nil {
 			fmt.Fprintf(os.Stderr,
 				"director: the run record could not be written: %v\n", err)
@@ -287,15 +301,9 @@ func runPerformWorkflow(args []string) int {
 		} else {
 			fmt.Printf("%s   (%s)\n", citeRun(runID, p), out)
 		}
-		return 1
+		return code
 	}
 
-	// ── THIS RUN'S OWN PIXELS, UNDER THIS RUN'S OWN NAME ──
-	//
-	// The hover probe writes `01-before.png` and `01-after.png`, so two runs
-	// sharing a --frames directory overwrote each other and an earlier record then
-	// pointed at a later run's images. The record keeps the directory it actually
-	// wrote to, which is the one a reference can retrieve.
 	// THE REFERENCE, BEFORE ANYBODY IS ASKED TO PREPARE. A run worth citing is usually
 	// one that went wrong, and the ones that go wrong earliest used to print it last.
 	fmt.Printf("%s\n", citeRun(runID, runPath(runID)))
@@ -319,7 +327,7 @@ func runPerformWorkflow(args []string) int {
 		if why != "" {
 			fmt.Fprintf(os.Stderr, "director: no key hook is available, so "+
 				"--hotkeys has no way to hear an answer: %s\n", why)
-			return endedEarly(RunFailed, "no key hook was available, so "+
+			return endedEarly(1, RunFailed, "no key hook was available, so "+
 				"there was no way to hear a start or a stop: "+why)
 		}
 		src = s
@@ -343,7 +351,7 @@ func runPerformWorkflow(args []string) int {
 		if started(ctx, src, *delay) == startCancelled {
 			fmt.Println("  cancelled before anything was observed; no input " +
 				"was sent")
-			return endedEarly(RunCancelled,
+			return endedEarly(1, RunCancelled,
 				"cancelled at the start prompt, before any window was "+
 					"acquired or anything was observed")
 		}
@@ -361,7 +369,7 @@ func runPerformWorkflow(args []string) int {
 			// nothing to wind back and nothing could have been pressed.
 			fmt.Println("  cancelled before the application was discovered; " +
 				"nothing was observed and no input was sent")
-			return endedEarly(RunCancelled, "cancelled during the preparation "+
+			return endedEarly(1, RunCancelled, "cancelled during the preparation "+
 				"wait, before any window was acquired")
 		}
 		waited = true
@@ -372,7 +380,8 @@ func runPerformWorkflow(args []string) int {
 		fmt.Fprintf(os.Stderr, "director: which application? %s\n"+
 			"  name it: director perform-workflow --application solasta "+
 			"--workflow routine.json\n", targetWhy)
-		return 2
+		return endedEarly(2, RunFailed, "no application was named and none "+
+			"could be identified: "+targetWhy)
 	}
 
 	// ── ONE STEP, EXTRACTED, WHEN THAT IS WHAT WAS ASKED FOR ──
@@ -391,7 +400,8 @@ func runPerformWorkflow(args []string) int {
 		one, serr := art.JustStep(*step)
 		if serr != nil {
 			fmt.Fprintf(os.Stderr, "director: %v\n", serr)
-			return 2
+			return endedEarly(2, RunFailed, fmt.Sprintf("--step %d is not a "+
+				"step of this routine: %v", *step, serr))
 		}
 		art = one
 		fmt.Printf("Performing step %d of %q on its own: %s -> %s via %s\n",
@@ -411,7 +421,7 @@ func runPerformWorkflow(args []string) int {
 		if !known {
 			fmt.Fprintf(os.Stderr, "director: %q carries no screen called %q\n",
 				art.Name, *from)
-			return endedEarly(RunFailed, fmt.Sprintf("--from named %q, which "+
+			return endedEarly(1, RunFailed, fmt.Sprintf("--from named %q, which "+
 				"this workflow does not carry", *from))
 		}
 	}
@@ -420,7 +430,8 @@ func runPerformWorkflow(args []string) int {
 	obs, err := fastobserve.New(interval, observeQueue)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "director: %v\n", err)
-		return 2
+		return endedEarly(2, RunFailed, "the observer could not be started: "+
+			err.Error())
 	}
 
 	// ── THE EXECUTOR. One Host is the whole of the --live decision. ──
@@ -439,7 +450,7 @@ func runPerformWorkflow(args []string) int {
 		release, err := claim()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "director: the desktop is not available: %v\n", err)
-			return endedEarly(RunFailed,
+			return endedEarly(1, RunFailed,
 				"the desktop was not available: "+err.Error())
 		}
 		defer release()
@@ -460,7 +471,7 @@ func runPerformWorkflow(args []string) int {
 					"--pid. Neither authorises anything: the artifact's "+
 					"scope is still checked against the window acquired.")
 		}
-		return endedEarly(RunFailed, "the window could not be acquired: "+v.Reason)
+		return endedEarly(1, RunFailed, "the window could not be acquired: "+v.Reason)
 	}
 	// AND THE TARGET NAME BECOMES THE OBSERVED ONE, not the one that was asked for.
 	//
@@ -497,7 +508,7 @@ func runPerformWorkflow(args []string) int {
 		// REFUSED RATHER THAN FAILED. The scope gate working is not the run
 		// breaking, and a record that called it a failure would send somebody
 		// looking for a fault in Marco rather than at which application is in front.
-		return endedEarly(RunRefused, "the workflow's application scope did not "+
+		return endedEarly(1, RunRefused, "the workflow's application scope did not "+
 			"allow the window acquired; nothing was pressed")
 	}
 	ask := bufio.NewReader(os.Stdin)
@@ -577,16 +588,27 @@ func runPerformWorkflow(args []string) int {
 	// milliseconds, and an ordinary run neither needs it nor pays for it.
 	var repairs *regrounder
 	if *repair != "" {
-		words := newWordReader(shots, windowNow)
+		words := openWordReader(shots, windowNow)
 		if !words.working() {
 			fmt.Fprintf(os.Stderr, "director: --repair needs the OCR plugin and "+
 				"it is not available: %s\n", words.why)
-			return 1
+			return endedEarly(1, RunFailed, "--repair needs the OCR plugin and "+
+				"it is not available: "+words.why)
 		}
 		repairs = &regrounder{art: art, out: os.Stdout, words: words.read}
 	}
 
 	probe := &hoverProbe{shots: shots, moved: 8, frames: framesDir, window: windowNow}
+
+	// ── THE SLOW TEXT SOURCE, DECLARED BEFORE THE RUNNER THAT CONSULTS IT ──
+	//
+	// Built further down, with --reading, because OCR costs hundreds of milliseconds and
+	// an ordinary run neither needs it nor pays for it. Declared HERE because the
+	// authorisation-boundary look wants whatever it has finished reading, and the closure
+	// that takes that look is installed on the runner above the place the reader is made.
+	// A closure over the variable rather than its value, so the look sees the reader that
+	// exists when the look is taken.
+	var reader *readingEyes
 
 	run = workflowrun.New(art, nil, ground, grant).
 		WithExecutor(marcoexec.New(marco), *live).
@@ -603,8 +625,9 @@ func runPerformWorkflow(args []string) int {
 		// THE WORLD, RE-OBSERVED AT THE INSTANT OF THE PRESS. Deleting this call, or
 		// passing nil, must make the runner refuse every action — see
 		// TestPerformWorkflowInstallsItsGates.
-		WithConfirm(stillThere(obs, tracker, windows, target, art.Application,
-			freshLook(shots, obs, windows, structure.DefaultOptions()))).
+		WithConfirm(stillThere(tracker, windows, target, art.Application,
+			freshLook(shots, obs, windows, structure.DefaultOptions(),
+				func() *readingEyes { return reader }))).
 		// HOW LONG AN ACTION'S OWN EVIDENCE IS WAITED FOR, which is a different
 		// scarcity from patience: patience counts LOOKS of an unestablished screen,
 		// and this counts TIME for enough readings to decide whether the action did
@@ -639,7 +662,8 @@ func runPerformWorkflow(args []string) int {
 		select {
 		case <-time.After(*delay):
 		case <-ctx.Done():
-			return 1
+			return endedEarly(1, RunCancelled, "cancelled during the "+
+				"preparation delay, before the run began")
 		}
 	}
 
@@ -651,22 +675,23 @@ func runPerformWorkflow(args []string) int {
 
 	// THE SECOND SOURCE, on its own clock. See learnedeyes.go.
 	var eyes *learnedEyes
-	var reader *readingEyes
 	if *learned {
-		eyes = newLearnedEyes(ctx)
+		eyes = openLearnedEyes(ctx)
 		if !eyes.working() {
 			fmt.Fprintf(os.Stderr, "director: --learned asked for the detector "+
 				"and it is not available: %s\n", eyes.why)
-			return 1
+			return endedEarly(1, RunFailed, "--learned asked for the detector "+
+				"and it is not available: "+eyes.why)
 		}
 		fmt.Printf("  the learned detector is running beside the loop.\n")
 	}
 	if *reading {
-		reader = newReadingEyes(ctx)
+		reader = openReadingEyes(ctx)
 		if !reader.working() {
 			fmt.Fprintf(os.Stderr, "director: --reading asked for OCR "+
 				"and it is not available: %s\n", reader.why)
-			return 1
+			return endedEarly(1, RunFailed, "--reading asked for OCR and it is "+
+				"not available: "+reader.why)
 		}
 		fmt.Printf("  the words on each look are read beside the loop.\n")
 	}
@@ -992,15 +1017,81 @@ type worldNow struct {
 	Screen observe.VisualScreenID
 	// Front is what the desktop says about the target leading it.
 	Front observe.Frontness
+	// Fresh is what the look taken at this instant said about ITSELF.
+	//
+	// ── WHY THE FOUR TERMS ABOVE ARE NOT ENOUGH ──
+	//
+	// Every one of them is read off the observer's STANDING claim, and the stabiliser
+	// deliberately keeps that claim still while a changed arrangement settles: a look
+	// that differs from the standing screen is counted `Unsettled` and the OLD screen is
+	// returned, for VisualSettleLooks looks. That damping is correct and is not being
+	// changed — ADR-170 measured 150 raw adjacent-frame changes it suppresses.
+	//
+	// But it means a changed interface answers "unchanged" to all four terms for as long
+	// as it is settling, and a person's authorisation arrives inside exactly that window.
+	// So the fresh look is asked what the stabiliser made of IT, rather than what the
+	// stabiliser is still saying about the screen before it. An unsettled or unreadable
+	// look is not evidence that nothing moved; it is the absence of evidence that nothing
+	// did, and this check needs the positive kind.
+	Fresh freshEvidence
+}
+
+// freshEvidence is what one look taken at the authorisation boundary says about itself.
+//
+// Reported by `freshLook` from the stabiliser's own counters, before and after the look. No new
+// threshold and no second similarity measure: the stabiliser has already decided what this look
+// was, and the only thing missing was anybody asking it.
+type freshEvidence struct {
+	// Took says a look was taken at all. False means the boundary had no fresh evidence —
+	// which is a refusal, not a pass.
+	Took bool
+	// Agreed says the stabiliser counted this look as a look at the standing screen.
+	//
+	// Derived from VisualStability.Settled moving. Every other counter moving means
+	// something else happened to this look: Unsettled (it differed and has not become a
+	// screen), Warming (there is no screen yet), Unobserved (nothing was found in the
+	// pixels), Promotions (it was a DIFFERENT screen, which the epoch term also catches),
+	// Interrupted (the thing being looked at changed).
+	Agreed bool
+	// Counted is which counter moved, for the sentence.
+	Counted string
+	// Target says the planned point still sits inside something this look proposed.
+	//
+	// The second half of "current target evidence", and a different question from whether
+	// the screen is the same one: an interface can keep its overall arrangement, settle
+	// clean, and have nothing under the approved coordinate. A click there lands on
+	// whatever is behind it.
+	Target bool
+	// Epoch and Screen are the observer's standing claim AFTER this look.
+	//
+	// ── CARRIED HERE SO THE ORDER CANNOT BE GOT WRONG ──
+	//
+	// The look is what MOVES the standing claim, so reading the claim before taking
+	// the look compares the plan against the state the plan was made in — which is
+	// the original defect, restated. `stillThere` used to read them itself, and a
+	// mutation that swapped the two statements survived every test in the package:
+	// two source-pinned strings pin two statements and say nothing about which came
+	// first.
+	//
+	// So there is exactly one place either value is read, and it is after
+	// `obs.Observe`. A caller cannot order them wrongly because a caller does not
+	// order them at all.
+	Epoch  uint64
+	Screen observe.VisualScreenID
 }
 
 // worldMoved reports whether the world is still the one an action was planned against.
 //
-// Four refusals, each with its own sentence, and the last of them is the one that only exists
-// because a person was asked something. A prompt is an unbounded pause in the middle of the one
-// sequence that must not have one: by the time the answer arrives, the look that found the
-// control may describe a screen that has gone, and the point is then a coordinate on a screen
-// that is no longer standing.
+// Seven refusals, each with its own sentence, in two groups.
+//
+// The first four are read off the observer's STANDING claim, and they exist because a person
+// was asked something: a prompt is an unbounded pause in the middle of the one sequence that
+// must not have one, so by the time the answer arrives the look that found the control may
+// describe a screen that has gone, and the point is then a coordinate on a screen that is no
+// longer standing.
+//
+// The last three are read off a look taken HERE, and they exist because the first four cannot
+// see a change that is still settling. See worldNow.Fresh.
 func worldMoved(app string, scope workflowstore.Scope, now worldNow,
 	planned workflowrun.Sighting) (bool, string) {
 
@@ -1036,6 +1127,46 @@ func worldMoved(app string, scope workflowstore.Scope, now worldNow,
 		return false, fmt.Sprintf("a different screen is standing now (%s, was %s), "+
 			"so the control this point was found on is not what is in front of "+
 			"the pointer", now.Screen, planned.Screen)
+	case !now.Fresh.Took:
+		// ── NO FRESH EVIDENCE IS NOT GOOD EVIDENCE ──
+		//
+		// First of the two fresh terms, because the other two cannot be read
+		// without it. A boundary that could not look has nothing to say about
+		// now, and the four terms above all answer from the observer's standing
+		// claim, which is the claim the plan was made from.
+		return false, "no look could be taken at the instant of the press, so " +
+			"nothing was asked about the screen this point was approved on"
+	case !now.Fresh.Agreed:
+		// ── A SETTLING CHANGE IS STILL A CHANGE ──
+		//
+		// The stabiliser returns the standing screen for a look that differs from
+		// it, for as long as the difference is settling. That is correct damping
+		// and it is untouched; what is wrong is reading it as "nothing moved". At
+		// ten looks a second a settle takes three looks, and a person's F7 lands
+		// well inside that, so both confirmations before a click could see the old
+		// screen and the old epoch while the interface in front of the pointer had
+		// already changed.
+		//
+		// The stabiliser's own counter says which: this look was Unsettled,
+		// Warming, Unobserved, or of a window that had been replaced.
+		return false, fmt.Sprintf("the look taken at the instant of the press did "+
+			"not agree with the screen this point was approved on (%s), so the "+
+			"screen may be changing underneath it and a change that is still "+
+			"settling is still a change", now.Fresh.Counted)
+	case !now.Fresh.Target:
+		// ── AND THE CONTROL ITSELF, IN THIS LOOK'S OWN PROPOSALS ──
+		//
+		// An interface can keep its arrangement closely enough to settle clean and
+		// still have nothing under the approved coordinate — a panel swapped for
+		// one of the same shape, a list that scrolled, a row that went away. Every
+		// term above would agree, and the click would land on whatever is now
+		// behind that point.
+		//
+		// Asked of the fresh look's proposals, which is the same evidence a
+		// control is found by in the first place; nothing new is measured here.
+		return false, "nothing was proposed under the approved point in the look " +
+			"taken at the instant of the press, so the control it was found on " +
+			"is no longer there and a click would land on whatever is"
 	}
 	return true, ""
 }
@@ -1045,13 +1176,33 @@ func worldMoved(app string, scope workflowstore.Scope, now worldNow,
 // The one line in this file a test cannot supply for itself, for the same reason `windowLeads` is
 // a package variable: a real answer needs a live window and a real desktop. Everything it
 // decides is in worldMoved, which is tested.
-func stillThere(obs *fastobserve.Observer, tracker *windowref.Tracker,
+func stillThere(tracker *windowref.Tracker,
 	windows *winprovider.Provider, app string, scope workflowstore.Scope,
-	relook func(context.Context, windowref.Validation)) func(context.Context,
-	workflowrun.Sighting) (bool, string) {
+	relook func(context.Context, windowref.Validation, observe.PointerAt) freshEvidence) func(
+	context.Context, workflowrun.Sighting, observe.PointerAt) (bool, string) {
 
-	return func(ctx context.Context, planned workflowrun.Sighting) (bool, string) {
+	return func(ctx context.Context, planned workflowrun.Sighting,
+		point observe.PointerAt) (bool, string) {
+
 		v := tracker.Acquire(ctx, app)
+		now := worldNow{Alive: v.State.OK(), State: string(v.State),
+			Generation: v.Ref.Generation}
+		if !now.Alive {
+			// NOTHING TO LOOK AT. `worldMoved` refuses on this first, and
+			// capturing a window the tracker has given up on would be a
+			// screenshot of whatever inherited the handle.
+			return worldMoved(app, scope, now, planned)
+		}
+		now.Front = frontnessOf(frontCandidate(ctx, windows), v.Ref)
+		// AND WHAT THE WINDOW LAYER SAYS THIS APPLICATION IS, NOW.
+		//
+		// The scope is compared against this and never against the argument: the
+		// argument is what somebody asked for and cannot have changed, while this
+		// is what `Acquire` just resolved. The comparison itself is a case in
+		// `worldMoved`, which is a pure function and therefore testable without a
+		// desktop — see TestTheApplicationIsRecheckedAtTheInstantOfThePress.
+		now.Application = v.Ref.Application
+
 		// ── A FRESH LOOK, BECAUSE THE CACHED ONE IS THE PLAN'S OWN ──
 		//
 		// `obs.Epoch()` and `obs.Screen()` are whatever the observer last saw, and
@@ -1066,31 +1217,27 @@ func stillThere(obs *fastobserve.Observer, tracker *windowref.Tracker,
 		// while the point that was approved now sits on a different interface.
 		//
 		// So a look is TAKEN here rather than remembered. It goes through the same
-		// observer as every other look, which is deliberate: the comparison below
-		// is unchanged, the relation that decides what is standing is unchanged,
-		// and what changes is only that its inputs describe now. Inventing a
-		// similarity threshold for this one moment would be a second opinion about
-		// screen identity, and two of those eventually disagree.
-		if relook != nil && v.State.OK() {
-			relook(ctx, v)
-		}
-		now := worldNow{
-			Alive: v.State.OK(), State: string(v.State),
-			Generation: v.Ref.Generation, Epoch: obs.Epoch(),
-			Screen: obs.Screen(),
-		}
-		if now.Alive {
-			now.Front = frontnessOf(frontCandidate(ctx, windows), v.Ref)
-		}
-		// AND WHAT THE WINDOW LAYER SAYS THIS APPLICATION IS, NOW.
+		// observer as every other look, which is deliberate: the relation that
+		// decides what is standing is unchanged, and what changes is only that its
+		// inputs describe now. Inventing a similarity threshold for this one
+		// moment would be a second opinion about screen identity, and two of those
+		// eventually disagree.
 		//
-		// The scope is compared against this and never against the argument: the
-		// argument is what somebody asked for and cannot have changed, while
-		// this is what `Acquire` just resolved. The comparison itself is a case
-		// in `worldMoved`, which is a pure function and therefore testable
-		// without a desktop — see TestTheApplicationIsRecheckedAtTheInstantOfThePress.
-		if now.Alive {
-			now.Application = v.Ref.Application
+		// AND IT REPORTS WHAT THE STABILISER MADE OF IT, which taking the look was
+		// not enough on its own to establish. The stabiliser damps a change for
+		// VisualSettleLooks looks and keeps answering with the STANDING screen
+		// while it settles, so a check reading only `obs.Screen()` and
+		// `obs.Epoch()` saw "unchanged" throughout exactly the window a person's
+		// authorisation arrives in. See worldNow.Fresh and freshLook.
+		//
+		// `relook` nil leaves Fresh zero, which `worldMoved` refuses — a boundary
+		// with no fresh evidence is not a boundary that passed.
+		if relook != nil {
+			// AND THE STANDING CLAIM COMES BACK WITH IT. The look is what
+			// moves the claim, so nothing here may read `obs.Epoch()` or
+			// `obs.Screen()` — see freshEvidence.Epoch.
+			now.Fresh = relook(ctx, v, point)
+			now.Epoch, now.Screen = now.Fresh.Epoch, now.Fresh.Screen
 		}
 		return worldMoved(app, scope, now, planned)
 	}
@@ -1894,32 +2041,51 @@ func started(ctx context.Context, src *navsource.Source, within time.Duration) s
 // F9 at the start prompt and then read the record the command left behind.
 var newKeySource = navsource.New
 
-// freshLook takes one look right now and gives it to the observer.
+// freshLook takes one look right now, gives it to the observer, and reports what the observer
+// made of it.
 //
-// # Why the confirmation needs its own look
+// # Why a look has to be taken here at all
 //
 // The observation loop captures, proposes and observes once a tick — and then calls `Advance`,
 // which BLOCKS while somebody is asked to authorise an action. Nothing looks during that wait.
 // So the "is the world still as planned" check read the observer's cached epoch and screen,
 // which are the very ones the plan was made from, and compared the plan against itself.
 //
-// The case that misses is the one it most needs: an application that changes a panel inside the
-// same window, same geometry, still in front. Every other term agrees and the approved point is
-// now on a different interface.
+// # Why taking it was not enough
 //
-// # Through the same observer, deliberately
+// The stabiliser damps change on purpose: a look that differs from the standing screen is
+// counted `Unsettled` and the STANDING screen is returned, for VisualSettleLooks consecutive
+// looks. At ten looks a second that is three looks, and a person's F7 lands inside it — so
+// both confirmations before an ordinary click could take a fresh look of a CHANGED interface
+// and still read back the old screen and the old epoch, and clear the check.
 //
-// The look goes where every other look goes. The comparison in `worldMoved` is unchanged and
-// the relation that decides what is standing is unchanged; what changes is that its inputs
-// describe now. A private similarity check for this one moment would be a second opinion about
-// screen identity, and two of those eventually disagree about a press.
+// The damping is correct and is not weakened here. What this does instead is ask the
+// stabiliser what it made of this particular look, which it already knew: `Stability()` before
+// and after says whether the look was counted as a look at the standing screen or as something
+// else. Reporting a counter is not a second opinion about screen identity.
+//
+// # And the control, not only the screen
+//
+// Geometry similar enough to settle clean can still have nothing under the approved
+// coordinate. So the point is checked against this look's own proposals — the same evidence a
+// control is found by in the first place.
+//
+// # Text
+//
+// Whatever OCR has finished is drained onto the look exactly as the loop drains it, so a
+// changed panel that reads differently can be refused by the stabiliser's own text rule rather
+// than having to differ geometrically. `reader` is resolved at call time because the look is
+// built before the reader exists.
 //
 // It costs one capture per authorised action, on the goroutine that is already waiting, and it
 // is counted as the look it is.
 func freshLook(shots *wincapture.Capture, obs *fastobserve.Observer, windows *winprovider.Provider,
-	opt structure.Options) func(context.Context, windowref.Validation) {
+	opt structure.Options, reader func() *readingEyes) func(context.Context,
+	windowref.Validation, observe.PointerAt) freshEvidence {
 
-	return func(ctx context.Context, v windowref.Validation) {
+	return func(ctx context.Context, v windowref.Validation,
+		point observe.PointerAt) freshEvidence {
+
 		lk := fastobserve.Look{
 			At: time.Now(),
 			Window: fastobserve.WindowRef{
@@ -1929,11 +2095,14 @@ func freshLook(shots *wincapture.Capture, obs *fastobserve.Observer, windows *wi
 		img, err := shots.CaptureWindow(ctx, windowRefToWindow(v.Ref))
 		if err != nil {
 			// NO PIXELS IS NOT "UNCHANGED". A look nobody could take is
-			// recorded as missing, and `worldMoved` decides what that means
-			// from the same evidence it always uses.
+			// recorded as missing and reported as evidence that was not
+			// obtained, which `worldMoved` refuses.
 			lk.Missing = true
 			obs.Observe(lk)
-			return
+			// NO PIXELS, AND STILL THE CLAIM AS IT STANDS, because the missing
+			// look was offered to the observer and may have moved it.
+			return freshEvidence{Counted: "no pixels could be captured",
+				Epoch: obs.Epoch(), Screen: obs.Screen()}
 		}
 		lk.Front = frontnessOf(frontCandidate(ctx, windows), v.Ref) == observe.FrontTarget
 		res := structure.Propose(img.Image, opt)
@@ -1942,6 +2111,96 @@ func freshLook(shots *wincapture.Capture, obs *fastobserve.Observer, windows *wi
 			rects = append(rects, c.Bounds)
 		}
 		lk.Regions = observe.NormaliseRects(img.Image.Bounds(), rects)
+		if r := reader; r != nil {
+			if e := r(); e.working() {
+				e.offer(readingFrame{
+					img: img.Image, look: -1,
+					epoch:      obs.Epoch(),
+					generation: v.Ref.Generation,
+				})
+				lk.Readings = e.ready()
+			}
+		}
+		was := obs.Stability()
 		obs.Observe(lk)
+		// THE VERDICT AND THE STANDING CLAIM, BOTH FROM AFTER THE LOOK.
+		//
+		// One statement, because they are one answer: what the stabiliser made of this
+		// look, and what it is standing on now that it has seen it. Reading either
+		// before `obs.Observe` above would be reading the state the plan was made in.
+		e := freshOf(was, obs.Stability(), lk.Regions, point)
+		e.Epoch, e.Screen = obs.Epoch(), obs.Screen()
+		return e
 	}
 }
+
+// freshOf reads the stabiliser's verdict on one look out of its counters.
+//
+// Separate from `freshLook` and pure, because this is the part that can be wrong in a way
+// nobody would notice: taking a look is visible in a capture count, and misreading which
+// counter moved is not visible anywhere.
+//
+// `Settled` is the only counter whose movement means "this was a look at the screen that is
+// standing". Every other one names something else that happened to the look, and the name goes
+// into the refusal so a person is told which.
+func freshOf(was, now observe.VisualStability, proposed []observe.Region,
+	point observe.PointerAt) freshEvidence {
+
+	e := freshEvidence{Took: true}
+	switch {
+	case now.Settled > was.Settled:
+		e.Agreed, e.Counted = true, "settled"
+	case now.Promotions > was.Promotions:
+		e.Counted = "it promoted a different screen"
+	case now.Interrupted > was.Interrupted:
+		e.Counted = "the window being looked at had been replaced"
+	case now.Unobservable > was.Unobservable:
+		e.Counted = "nothing has been observable for long enough to give the " +
+			"screen up"
+	case now.Unobserved > was.Unobserved:
+		e.Counted = "nothing was found in the pixels"
+	case now.Unsettled > was.Unsettled:
+		e.Counted = "it differed from the standing screen and has not settled " +
+			"into a new one"
+	case now.Warming > was.Warming:
+		e.Counted = "no screen has settled yet"
+	default:
+		// NO COUNTER MOVED. The look reached the stabiliser and the
+		// stabiliser classified it as none of the above, which is not a
+		// case this knows how to read — so it is not an agreement.
+		e.Counted = "the look was not classified"
+	}
+	// AND THE POINT, IN THIS LOOK'S OWN PROPOSALS.
+	//
+	// Asked whatever the screen verdict was, because the sentence a person gets should
+	// name the thing that is actually wrong, and a settled screen with nothing under the
+	// point is a different afternoon from a screen that changed.
+	for _, r := range proposed {
+		if holdsPoint(r, point) {
+			e.Target = true
+			break
+		}
+	}
+	return e
+}
+
+// holdsPoint reports whether a normalised region contains a normalised point.
+//
+// Half-open on the far edges, which is the convention `observe.Region` is built with: a point
+// exactly on the right or bottom edge of one region is inside the next.
+func holdsPoint(r observe.Region, p observe.PointerAt) bool {
+	return p.X >= r.X && p.X < r.X+r.Width && p.Y >= r.Y && p.Y < r.Y+r.Height
+}
+
+// ── THE THREE OPTIONAL SOURCES, BEHIND SEAMS ──
+//
+// Variables rather than direct calls, for the same reason as `newKeySource`: each of these can
+// be asked for and be absent, and each absence is a `return` past the printed reference. All
+// three of those returns wrote no record until a review traced them, and the only way a test
+// can reach one is to make the source unavailable on purpose — the machine running the suite
+// has no say in whether a plugin is installed.
+var (
+	openLearnedEyes = newLearnedEyes
+	openReadingEyes = newReadingEyes
+	openWordReader  = newWordReader
+)

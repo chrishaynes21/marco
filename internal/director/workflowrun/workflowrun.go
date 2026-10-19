@@ -382,7 +382,7 @@ type Runner struct {
 	// Nil means the question cannot be asked, and a runner that cannot ask it REFUSES to
 	// act rather than assuming: an unverifiable precondition on an operation that clicks
 	// wherever the pointer is, is not a precondition.
-	confirm func(ctx context.Context, planned Sighting) (bool, string)
+	confirm func(ctx context.Context, planned Sighting, point observe.PointerAt) (bool, string)
 
 	patience int
 	// dwell is how long the pointer rests on the control before the click. Zero sends the
@@ -492,7 +492,8 @@ func (r *Runner) WithExecutor(e *marcoexec.Executor, real bool) *Runner {
 // Supplied by the composition root because only the platform can answer it. Deleting the call
 // must fail TestARunnerThatCannotRecheckTheWorldRefusesToAct, and passing nil must fail it too —
 // the two are different mistakes and a source-level check can only see the first.
-func (r *Runner) WithConfirm(f func(ctx context.Context, planned Sighting) (bool, string)) *Runner {
+func (r *Runner) WithConfirm(f func(ctx context.Context, planned Sighting,
+	point observe.PointerAt) (bool, string)) *Runner {
 	r.confirm = f
 	return r
 }
@@ -1040,7 +1041,7 @@ func (r *Runner) press(ctx context.Context, a Attempt, ready workflowstore.StepR
 		r.lastStage, r.lastBecause = ready.Stage, a.Because
 		return a
 	}
-	if ok, why := r.confirm(ctx, at); !ok {
+	if ok, why := r.confirm(ctx, at, ready.Action.At); !ok {
 		a.Outcome = OutcomeRefused
 		a.Because = "the world is no longer the one this action was planned against, " +
 			"so nothing was sent: " + why
@@ -1124,7 +1125,7 @@ func (r *Runner) press(ctx context.Context, a Attempt, ready workflowstore.StepR
 		}
 
 		// AND THE WORLD AGAIN, because the dwell is a gap like any other.
-		if ok, why := r.confirm(ctx, at); !ok {
+		if ok, why := r.confirm(ctx, at, ready.Action.At); !ok {
 			a.Outcome = OutcomeRefused
 			a.Because = "the pointer was moved to the control and the world " +
 				"changed before the press, so nothing was clicked: " + why

@@ -104,7 +104,7 @@ func aTabRun(t *testing.T, now *time.Time) (*workflowrun.Runner, *workflowstore.
 		// THE WORLD RE-CHECK AT THE INSTANT OF THE PRESS, which the coordinator
 		// refuses to click without: an unverifiable precondition on an operation
 		// that clicks wherever the pointer is, is not a precondition.
-		WithConfirm(func(context.Context, workflowrun.Sighting) (bool, string) {
+		WithConfirm(func(context.Context, workflowrun.Sighting, observe.PointerAt) (bool, string) {
 			return true, ""
 		}).
 		WithPatience(50)
@@ -298,7 +298,7 @@ func TestAStepWithNoOutcomeExpectationIsNeverVerifiedOrContradicted(t *testing.T
 		&grants{epoch: 5, generation: 1}).
 		WithExecutor(marcoexec.New(&notebook{}), false).
 		WithClock(func() time.Time { return now }).
-		WithConfirm(func(context.Context, workflowrun.Sighting) (bool, string) {
+		WithConfirm(func(context.Context, workflowrun.Sighting, observe.PointerAt) (bool, string) {
 			return true, ""
 		}).
 		WithPatience(6)

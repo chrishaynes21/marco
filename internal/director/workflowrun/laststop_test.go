@@ -43,7 +43,7 @@ func aRunStoppedFrom(t *testing.T, now *time.Time, from string) (
 			}
 			return false, "a fixture hover"
 		}).
-		WithConfirm(func(context.Context, workflowrun.Sighting) (bool, string) {
+		WithConfirm(func(context.Context, workflowrun.Sighting, observe.PointerAt) (bool, string) {
 			if from == "confirm" {
 				run.Stop()
 			}

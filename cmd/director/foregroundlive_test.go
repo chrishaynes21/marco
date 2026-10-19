@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/fastobserve"
+	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/windowref"
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflowrun"
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflowstore"
@@ -101,8 +102,8 @@ func TestTheRealBoundaryRefusesATargetThatLostTheDesktop(t *testing.T) {
 	// workflow would carry.
 	scope := workflowstore.NormaliseScope(v.Ref.Application)
 
-	ok, why := stillThere(obs, tracker, windows, app, scope, noRelook)(
-		context.Background(), planned)
+	ok, why := stillThere(tracker, windows, app, scope, noRelook)(
+		context.Background(), planned, observe.PointerAt{X: 0.5, Y: 0.5})
 	if ok {
 		t.Fatalf("a target that does not lead the desktop was cleared to press: %s", why)
 	}
@@ -150,8 +151,8 @@ func TestTheRealBoundaryRefusesAnApplicationTheWorkflowDoesNotBelongTo(t *testin
 		t.Skip("this window belongs to the application the test uses as the wrong one")
 	}
 
-	ok, why := stillThere(obs, tracker, windows, app, elsewhere, noRelook)(
-		context.Background(), planned)
+	ok, why := stillThere(tracker, windows, app, elsewhere, noRelook)(
+		context.Background(), planned, observe.PointerAt{X: 0.5, Y: 0.5})
 	if ok {
 		t.Fatalf("a workflow for %q was cleared to press into %q: %s",
 			string(elsewhere), v.Ref.Application, why)
@@ -166,8 +167,8 @@ func TestTheRealBoundaryRefusesAnApplicationTheWorkflowDoesNotBelongTo(t *testin
 		}
 	}
 	// AND AN UNSCOPED WORKFLOW IS REFUSED HERE TOO, which is the last place it can be.
-	if ok, why := stillThere(obs, tracker, windows, app, "", noRelook)(
-		context.Background(), planned); ok {
+	if ok, why := stillThere(tracker, windows, app, "", noRelook)(
+		context.Background(), planned, observe.PointerAt{X: 0.5, Y: 0.5}); ok {
 		t.Error("an unscoped workflow was cleared to press")
 	} else if !strings.Contains(why, "UNSCOPED") {
 		t.Errorf("the unscoped refusal at the boundary is %q", why)
@@ -207,6 +208,12 @@ func TestTheLiveBoundaryTestsCannotEmitInput(t *testing.T) {
 // noRelook is the fresh look these tests deliberately do not take.
 //
 // They drive `stillThere` against a REAL desktop to exercise the frontness and scope cases,
-// and a capture here would add a second source of failure to a test about neither. The
-// freshness of the screen stamps is a separate question, held by its own test.
-func noRelook(context.Context, windowref.Validation) {}
+// and a capture here would add a second source of failure to a test about neither. What a fresh
+// look says about itself is a separate question with its own tests.
+//
+// It answers as a look that AGREED, and that is what keeps these tests about what they are
+// about: the application and frontness cases come before the three fresh ones in `worldMoved`,
+// so a stub that refused would let both of these pass on the wrong refusal.
+func noRelook(context.Context, windowref.Validation, observe.PointerAt) freshEvidence {
+	return freshEvidence{Took: true, Agreed: true, Counted: "settled", Target: true}
+}

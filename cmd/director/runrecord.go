@@ -61,6 +61,10 @@ const (
 	RunContradicted RunOutcome = "contradicted"
 	// RunFailed: the run could not start — no window, no artifact, a refused scope.
 	RunFailed RunOutcome = "failed"
+	// RunStarted: reserved and not finalised. A record that still says this is an
+	// attempt that left by a path which wrote no outcome — which is a defect in this
+	// command and not a thing that happened to the application.
+	RunStarted RunOutcome = "started"
 )
 
 // RunRecord is one supervised attempt, as a person would cite it in a bug report.
@@ -93,23 +97,21 @@ type RunRecord struct {
 	Frames string `json:"frames,omitempty"`
 }
 
-// newRun mints a reference for this attempt.
+// runCandidate proposes a reference for this attempt.
 //
-// Sortable, second-resolution, and local time because the person reading it is in it. Two runs
-// in one second would collide; two supervised runs in one second is not a thing a person does,
-// and a reference nobody can type is worse than one that could theoretically collide.
-func newRun(at time.Time) string {
+// Sortable, second-resolution, and local time because the person reading it is in it. A
+// PROPOSAL and not an identity: `reserveRun` decides whether it is free, because randomness
+// reduces collisions and does not prevent them.
+func runCandidate(at time.Time) string {
 	// AND A SUFFIX, BECAUSE A SECOND IS NOT UNIQUE.
 	//
-	// The timestamp is the sortable half and a person reads it; it is not an identity.
-	// Two attempts started in the same second — a script, a retry, two terminals —
-	// produced the same id, and `saveRun` overwrote, so one attempt's record silently
-	// became the other's. The one thing a reference must do is retrieve the attempt it
-	// names.
+	// The timestamp is the sortable half and a person reads it. Two attempts started in
+	// the same second — a script, a retry, two terminals — produced the same id, and the
+	// one thing a reference must do is retrieve the attempt it names.
 	//
-	// Four hex characters from the system's randomness, which is short enough to type
-	// and read aloud. If it cannot be read, the nanosecond stands in: a worse suffix is
-	// better than a colliding one, and this must never fail a run.
+	// Four hex characters from the system's randomness, which is short enough to type and
+	// read aloud. If it cannot be read, the nanosecond stands in: a worse suffix is
+	// better than none, and this must never fail a run.
 	var b [2]byte
 	if _, err := rand.Read(b[:]); err != nil {
 		return fmt.Sprintf("run-%s-%04x", at.Format("20060102-150405"),
@@ -118,29 +120,121 @@ func newRun(at time.Time) string {
 	return fmt.Sprintf("run-%s-%02x%02x", at.Format("20060102-150405"), b[0], b[1])
 }
 
+// runReserveTries is how many candidates are tried before giving up.
+//
+// Ten, which is not a probability argument. Each try is a fresh draw against a namespace
+// nobody is competing for in earnest, so ten failures in a row means something other than
+// bad luck — a read-only directory, a full disk, a clock that does not move — and that is
+// worth reporting rather than retrying forever.
+const runReserveTries = 10
+
+// reserveRun claims a whole evidence namespace for this attempt, before anything is written
+// into it and before the reference is printed.
+//
+// # Why reservation and not a check at the end
+//
+// The record used to be the only thing guarded: `saveRun` wrote with `O_EXCL`, so a second
+// attempt with the same id was refused its JSON. By then both attempts had been printing the
+// same reference for a minute and the hover probe had been writing `01-before.png` into the
+// same frames directory — so the refusal protected the record and not the evidence it points
+// at, and the attempt that was refused had already overwritten the other's images.
+//
+// So the id is claimed FIRST, and claimed across both places it means something: a provisional
+// record under `runs/`, created exclusively, and this run's own frames directory, created
+// exclusively when frames were asked for. A candidate that loses either is abandoned whole —
+// the record it already made is removed — and the next one is tried. Two attempts that propose
+// the same id therefore end up with two namespaces, and neither can reach the other's.
+//
+// The provisional record is a real record saying `started`. An attempt that dies before
+// finalisation is then retrievable as what it was, rather than retrieving nothing, which is
+// how the exits in the next section were found.
+func reserveRun(at time.Time, framesRoot string, propose func(time.Time) string) (
+	id string, framesDir string, err error) {
+
+	if propose == nil {
+		propose = runCandidate
+	}
+	if e := os.MkdirAll(filepath.Join(configDir(), runsDir), 0o755); e != nil {
+		return "", "", e
+	}
+	for try := 0; try < runReserveTries; try++ {
+		id = propose(at)
+		p := runPath(id)
+		f, e := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+		if e != nil {
+			if os.IsExist(e) {
+				continue
+			}
+			return "", "", e
+		}
+		b, _ := json.MarshalIndent(RunRecord{
+			Version: 1, Run: id,
+			Started: at.Format(time.RFC3339),
+			Outcome: RunStarted,
+			Because: "reserved; this attempt had not finished when the " +
+				"record was last written",
+		}, "", "  ")
+		_, werr := f.Write(b)
+		cerr := f.Close()
+		if werr != nil || cerr != nil {
+			_ = os.Remove(p)
+			if werr != nil {
+				return "", "", werr
+			}
+			return "", "", cerr
+		}
+		if framesRoot == "" {
+			return id, "", nil
+		}
+		// AND THE PIXELS' OWN NAMESPACE, claimed by the same id.
+		//
+		// `MkdirAll` on the parent and a bare `Mkdir` on this run's own
+		// element: the first is shared and must succeed if it is missing,
+		// the second must FAIL if somebody else has it. MkdirAll on the
+		// whole path would succeed on an existing directory and claim
+		// nothing, which is the hole this closes.
+		if e := os.MkdirAll(framesRoot, 0o755); e != nil {
+			_ = os.Remove(p)
+			return "", "", e
+		}
+		d := filepath.Join(framesRoot, id)
+		if e := os.Mkdir(d, 0o755); e != nil {
+			_ = os.Remove(p)
+			if os.IsExist(e) {
+				continue
+			}
+			return "", "", e
+		}
+		return id, d, nil
+	}
+	return "", "", fmt.Errorf("no free run reference after %d tries", runReserveTries)
+}
+
 // runPath is where a run's record is written.
 func runPath(id string) string { return filepath.Join(configDir(), runsDir, id+".json") }
 
-// saveRun writes the record and returns the path, or the reason it could not.
+// saveRun writes the record into this run's OWN reservation and returns the path.
 //
 // A failure here is NOT a failure of the run. The run already happened; losing its record
 // loses the ability to cite it, which is worth a line on stderr and nothing more.
+//
+// # It may only write where a reservation already is
+//
+// No O_CREATE, which is the whole guard. `reserveRun` created this file exclusively, so the
+// file EXISTING is the proof that this id belongs to this attempt; opening without O_CREATE
+// means a record for an id nobody reserved cannot be written at all, and a record for an id
+// somebody else holds was never reachable because they hold it.
+//
+// The earlier version guarded the other way round — O_CREATE|O_EXCL at save time — which
+// refused the second writer after both had been printing the same reference and writing into
+// the same frames directory for the length of a run.
 func saveRun(r RunRecord) (string, error) {
-	if err := os.MkdirAll(filepath.Join(configDir(), runsDir), 0o755); err != nil {
-		return "", err
-	}
 	b, err := json.MarshalIndent(r, "", "  ")
 	if err != nil {
 		return "", err
 	}
-	// WRITTEN ONCE, NEVER OVER.
-	//
-	// `os.WriteFile` truncates whatever is there, so a colliding id replaced an earlier
-	// attempt's record and the earlier reference then retrieved somebody else's run.
-	// O_EXCL makes that a refusal rather than a silent substitution: the record that
-	// exists is the one that was written first, and the caller is told.
 	p := runPath(r.Run)
-	f, err := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	f, err := os.OpenFile(p, os.O_WRONLY|os.O_TRUNC, 0o644)
 	if err != nil {
 		return "", err
 	}

@@ -79,7 +79,7 @@ func newKeyRig(t *testing.T, budget int) *keyRig {
 	run = workflowrun.New(art, nil, answers{"now_1": "screen_a"}, grant).
 		WithExecutor(marcoexec.New(marco), false).
 		WithBudget(budget).
-		WithConfirm(func(context.Context, workflowrun.Sighting) (bool, string) {
+		WithConfirm(func(context.Context, workflowrun.Sighting, observe.PointerAt) (bool, string) {
 			return true, ""
 		})
 
