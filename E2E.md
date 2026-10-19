@@ -833,3 +833,84 @@ Three things to check by hand:
 
 The last one is the important one: the check at startup is not permission for a press that
 happens seconds later.
+
+## Deriving a one-step routine from captures, and what it refuses (no hands, ~3 min)
+
+The pixel execution path needs an artifact, and an artifact normally needs a person's hand on
+the mouse. `perceptionreplay -fixture` builds one from two captures instead — every rectangle,
+label and outcome word measured from the recorded pixels, nothing written down by hand:
+
+```sh
+# the two looks come from ONE recording, so the recording itself says what caused the change
+go run ./cmd/perceptionreplay -frames \
+    -fixture GRAPHICS -fixture-look 245 -fixture-after-look 262 \
+    -fixture-after .tmp/game-capture-review/ark-menu-1 \
+    -fixture-name "ark graphics tab" -fixture-save "$TMP/ark-fixture.json" \
+    .tmp/game-capture-review/ark-menu-1
+```
+
+`-frames` is a BOOL and the directory is POSITIONAL. What it should print:
+
+```
+control       7.2%x2.8% at 0.410,0.241, holding exactly "GRAPHICS"
+containers    1 proposal(s) enclose it, and the outcome may not be read there
+caused by     an observed mouse press at 0.414,0.261 24892ms into the recording, inside
+              this control's own rectangle and between the two looks measured; that press
+              is evidence of what caused the difference and is NOT a replay coordinate
+outcome       36 word(s) on every reading of 5 look(s): adjust advanced bloom blur …
+discarded     0 transient, 1 reused by the control, 17 vanished
+held still    0 of 1 window(s) before the action changed by themselves
+scope: true … and it is refused for any other application
+```
+
+Six things have to be true before it will write anything, and each refuses on its own:
+
+| check | what it refuses |
+|---|---|
+| a press was SEEN inside the control between the two looks | a difference no action of this control's caused |
+| the after state is after the before state | a window that runs backwards |
+| both looks are the same application | a workflow derived from two games |
+| the label sits alone in some proposal | the tab bar, mistaken for the tab |
+| five words appeared and STOOD on every reading | a half-drawn panel, or OCR flicker |
+| the before window held still | a clock, a ping counter, a rotating news panel |
+
+The first one is the one worth running deliberately, because it is the one four perception terms
+could not catch. Point it at a keyboard-only recording:
+
+```sh
+go run ./cmd/perceptionreplay -frames \
+    -fixture SETTINGS -fixture-look 100 -fixture-after-look 542 \
+    -fixture-after .tmp/game-capture-review/tm-menu-steps-sanitized \
+    .tmp/game-capture-review/tm-menu-steps-sanitized
+```
+
+```
+tm-menu-steps-sanitized saw no mouse press inside this control between look 100 (9068ms)
+and look 542 (38533ms) — 0 press(es) and 31 input(s) in the whole recording. Whatever
+differs between those two looks was not this control's doing, and an outcome is only an
+outcome OF something
+```
+
+Without that check it produced twelve outcome words for a press nobody made. See
+[[ADR-237-an-outcome-is-only-an-outcome-of-something]].
+
+**Two separate recordings** share no input timeline, so the question cannot be asked at all —
+which is deliberately the controlled test menu's shape, since it serves its before and after
+states from a URL and nobody has to click to capture either one. There `-fixture-asserted` is
+REQUIRED, and what it says is written onto the step:
+
+```sh
+go run ./cmd/perceptionreplay -frames -fixture GRAPHICS \
+    -fixture-after "$TMP/menu-graphics" \
+    -fixture-asserted "the test menu serves ?panel=graphics, which is where its GRAPHICS tab points" \
+    -fixture-save "$TMP/menu-fixture.json" "$TMP/menu-display"
+```
+
+Leave `-fixture-asserted` off and it refuses rather than assuming the link. A derivation whose
+causal claim rests on somebody's word has to say whose, in the artifact, where whoever reads the
+verdict will see it.
+
+**What a derived routine is, and is not.** The step says `ASSEMBLED` — not acquired by the live
+correlator while a person demonstrated it. It validates the execution path: ground, authorise,
+press, verify. It claims nothing about what a live demonstration would produce, and a live claim
+still needs a live demonstration.

@@ -116,6 +116,15 @@ func main() {
 		"with -fixture, the capture directory of the state the action produces")
 	fixtureName := flag.String("fixture-name", "fixture menu",
 		"with -fixture, what to call the derived workflow")
+	fixtureLook := flag.Int("fixture-look", -1,
+		"with -fixture, the look of the BEFORE capture to measure (-1 = the last readable one)")
+	fixtureAfterLook := flag.Int("fixture-after-look", -1,
+		"with -fixture, the look of the AFTER capture to measure")
+	fixtureAsserted := flag.String("fixture-asserted", "",
+		"with -fixture and two different capture directories, who or what asserts "+
+			"that the after capture is the state the control produces. Written "+
+			"onto the step, because such a link is somebody's word and not a "+
+			"measurement")
 	fixtureSave := flag.String("fixture-save", "",
 		"with -fixture, where to write the derived workflow")
 	outcome := flag.Bool("outcome", false,
@@ -230,7 +239,9 @@ func main() {
 				// application it will run in. CONSTRUCTED, not
 				// demonstrated. See fixture.go.
 				if err := reportFixtureWorkflow(dir, *fixtureAfter,
-					*fixture, *fixtureName, *fixtureSave); err != nil {
+					*fixture, *fixtureName, *fixtureSave,
+					*fixtureAsserted,
+					*fixtureLook, *fixtureAfterLook); err != nil {
 					fmt.Fprintf(os.Stderr,
 						"perceptionreplay: %v\n", err)
 					os.Exit(1)

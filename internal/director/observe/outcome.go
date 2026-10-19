@@ -317,48 +317,72 @@ func (c *ClickTargets) outcomes() []LocalOutcome {
 	for _, w := range c.watching {
 		o := OutcomeBetween(w.excluded, w.before, w.after)
 		o.Target, o.Screen, o.Look = w.target, w.screen, w.look
-		// AND THE INDEPENDENCE TERM, which filters rather than vetoes.
-		//
-		// The first version refused the whole outcome when ANY appeared word was
-		// also inside the pressed control, and the Ark measurement showed the cost:
-		// the GRAPHICS panel body says `Advanced Graphics`, so the single word
-		// `graphics` vetoed forty-three others that could not have come from the
-		// tab. The requirement is that the outcome does not REST on the site's
-		// words, not that the two share no vocabulary.
-		// `site` is the words read INSIDE the control, and the filter that keeps it
-		// to those cannot change a verdict. A mutation run proved it: collecting
-		// every before-word instead survives every test, because the extra ones are
-		// exactly the words `OutcomeBetween`'s before-term has already excluded —
-		// anything read elsewhere before the press can never be in `Appeared`.
-		//
-		// Kept anyway, and not deleted as the unreachable guard in
-		// `clickLookIsSmallest` was: that one was a condition nothing could satisfy,
-		// and this one is what makes `site` mean what its name says. A reader of
-		// `Reused` has to be able to trust that those words came from the control.
-		site := map[string]bool{}
-		for _, read := range w.before {
-			for _, word := range read {
-				if elsewhere(w.excluded, word) {
-					continue
-				}
-				for _, t := range TextWords(word.Text) {
-					site[t] = true
-				}
-			}
-		}
-		kept := o.Appeared[:0]
-		for _, t := range o.Appeared {
-			if site[t] {
-				o.Reused = append(o.Reused, t)
-				continue
-			}
-			kept = append(kept, t)
-		}
-		o.Appeared = kept
-		sort.Strings(o.Reused)
-		out = append(out, o)
+		out = append(out, Independent(w.excluded, w.before, o))
 	}
 	return out
+}
+
+// Independent is the independence term, as a filter over an outcome already measured.
+//
+// # Why it filters rather than vetoes
+//
+// The first version refused the whole outcome when ANY appeared word was also inside the
+// pressed control, and the Ark measurement showed the cost: the GRAPHICS panel body says
+// `Advanced Graphics`, so the single word `graphics` vetoed forty-three others that could not
+// have come from the tab. The requirement is that the outcome does not REST on the site's
+// words, not that the two share no vocabulary.
+//
+// `site` is the words read INSIDE the excluded regions, and the filter that keeps it to those
+// cannot change a verdict. A mutation run proved it: collecting every before-word instead
+// survives every test, because the extra ones are exactly the words `OutcomeBetween`'s
+// before-term has already excluded — anything read elsewhere before the press can never be in
+// `Appeared`.
+//
+// Kept anyway, and not deleted as the unreachable guard in `clickLookIsSmallest` was: that one
+// was a condition nothing could satisfy, and this one is what makes `site` mean what its name
+// says. A reader of `Reused` has to be able to trust that those words came from the control.
+//
+// # And it is exported because the second caller got it wrong twice
+//
+// `perceptionreplay -fixture` derives a step's expectation from two captures rather than from a
+// demonstration, and it hand-rolled this term and the persistence term instead of calling
+// these. Both hand-rolled versions were wrong, and measurably:
+//
+//	the independence term    37 words against the correlator's 36 on the same Ark capture.
+//	                         The extra one was `graphics`, which the tab says and the panel it
+//	                         opens says too, so the expectation rested by one word on the
+//	                         evidence the action site had been approved from.
+//	the persistence term     TWELVE words of outcome on a Trackmania recording the fold
+//	                         measures as ONE screen, 862 looks, one visit. A single look each
+//	                         side cannot ask whether a word STOOD, so OCR flicker and a
+//	                         highlight bar moving off a row both read as a destination.
+//
+// One word of thirty-seven changed no verdict and twelve words of noise would have minted a
+// workflow. Two paths that disagree about what an outcome IS will eventually disagree about one
+// that matters, so there is one function now and both callers use it.
+func Independent(excluded []Region, before [][]ReadWord, o LocalOutcome) LocalOutcome {
+	site := map[string]bool{}
+	for _, read := range before {
+		for _, word := range read {
+			if elsewhere(excluded, word) {
+				continue
+			}
+			for _, t := range TextWords(word.Text) {
+				site[t] = true
+			}
+		}
+	}
+	kept := o.Appeared[:0]
+	for _, t := range o.Appeared {
+		if site[t] {
+			o.Reused = append(o.Reused, t)
+			continue
+		}
+		kept = append(kept, t)
+	}
+	o.Appeared = kept
+	sort.Strings(o.Reused)
+	return o
 }
 
 // elsewhereWords is one reading's words from outside the excluded regions, deduplicated.

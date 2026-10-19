@@ -1658,6 +1658,22 @@ it refuses those looks. Visible is fine; in front is not.
   expectation. A fifth was diagnosed, implemented, reported and WRONG: `Close` already files
   every pending press, and the mutation gate said so by surviving.
   [[Experiment-088-four-things-between-a-demonstration-and-a-click]]
+- **All four outcome terms passed on a press nobody made.** `perceptionreplay -fixture` derives
+  a workflow from two captures so the pixel path can be tested without a demonstration. On the
+  owner's Trackmania recording it said pressing SETTINGS produces twelve words — positive,
+  persistent on all five readings, independent of the control, and on a screen that held still,
+  0 transient and 0 of 1 windows moved. The recording is keyboard-only: 31 inputs, not one
+  press. The two looks were the same pause menu with the highlight on a different row, and a row
+  whose text stops being inverted becomes readable and STAYS readable. No perception term can
+  catch that, because the missing fact is attribution: an outcome is only an outcome OF
+  something, and within one recording the observed input timeline answers it — Ark's carries a
+  press at `0.414,0.261` inside the GRAPHICS rectangle between the two looks, Trackmania's
+  carries none. Across two recordings the question cannot be asked and the link must be
+  asserted out loud, onto the step. Two hand-rolled copies of production terms were wrong on the
+  way: 37 words against the correlator's 36, and one look per side where persistence needs a
+  window. 21 mutations killed, 7 survivors found on a second round and closed.
+  [[Experiment-089-four-terms-passed-and-nobody-pressed-the-button]]
+  [[ADR-237-an-outcome-is-only-an-outcome-of-something]]
 - **A click's OUTCOME can be verified where the screen does not change, and the terms are
   measured on two games rather than one.** Ark's GRAPHICS tab verifies on 36 independent words
   with 0 false outcomes in 219 windows with no input in them; Rocket League's main menu is
