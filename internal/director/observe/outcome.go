@@ -50,7 +50,10 @@ package observe
 // Not proof of causation either. `Arrival.Verified` stays false and still says why: arriving
 // where a step expected is not by itself proof that the step's action caused it.
 
-import "sort"
+import (
+	"fmt"
+	"sort"
+)
 
 // OutcomeBetween is the whole rule, as a pure function over two sets of readings.
 //
@@ -105,6 +108,13 @@ func OutcomeBetween(excluded []Region, before, after [][]ReadWord) LocalOutcome 
 	sort.Strings(o.Appeared)
 	sort.Strings(o.Vanished)
 	sort.Strings(o.Transient)
+	// AND WHETHER THE AFTER SIDE REACHED THE SIZE PERSISTENCE NEEDS.
+	//
+	// The default, here, because this is where `len(after)` means something: a window
+	// of one reading makes every word it carries persistent by vacuity, and a caller
+	// that has not said otherwise is asking the ordinary question. A caller whose unit
+	// IS its window — the stationarity self-test compares two halves — says so itself.
+	o.Settled = len(after) >= OutcomeSettleLooks
 	return o
 }
 
@@ -132,6 +142,10 @@ func Stationary(excluded []Region, windows [][][]ReadWord) (quiet, moved int) {
 		if o.BeforeLooks == 0 || o.AfterLooks == 0 {
 			continue
 		}
+		// THESE WINDOWS ARE COMPLETE BY CONSTRUCTION. The self-test compares two
+		// consecutive windows of readings it was handed, and those windows ARE its
+		// settled unit — there is no larger one it is waiting for. See Settled.
+		o.Settled = true
 		quiet++
 		if o.Verified() {
 			moved++
@@ -214,11 +228,32 @@ type LocalOutcome struct {
 	// side means the question was not asked, which is not a refusal.
 	BeforeLooks int `json:"before_looks,omitempty"`
 	AfterLooks  int `json:"after_looks,omitempty"`
+	// Settled says the after window reached the size persistence needs, and is what makes
+	// "on every reading of the settled window" mean anything.
+	//
+	// # Why it is a field and not a comparison inside the rule
+	//
+	// `OutcomeBetween` cannot know how many readings were REQUIRED — it is handed two
+	// windows and says what appeared across them. Its CALLER knows: the demonstration
+	// correlator wants `OutcomeSettleLooks` readings after a press, and the stationarity
+	// self-test deliberately compares two halves, which are complete by construction.
+	//
+	// # The defect it closes
+	//
+	// Without it `Verified` asked for one reading on each side, so a window of ONE reading
+	// was persistent by vacuity: every word it carried appeared on all one of its
+	// readings. A watch cut short — by a third screen closing it, or by the session ending
+	// just after a transition restarted it — could therefore hand `outcomeOf` and
+	// `panelSteps` a VERIFIED outcome built from a single look, and that became the saved
+	// step's expectation. Found by review of the live-demonstration fix, which carried the
+	// screen-scoping correction across from the run side and left this behind.
+	Settled bool `json:"settled,omitempty"`
 }
 
 // Verified reports whether the outcome is positive, persistent and independent.
 func (o LocalOutcome) Verified() bool {
-	return len(o.Appeared) >= OutcomeWords && o.BeforeLooks > 0 && o.AfterLooks > 0
+	return o.Settled && len(o.Appeared) >= OutcomeWords &&
+		o.BeforeLooks > 0 && o.AfterLooks > 0
 }
 
 // Why says what the evidence was, or what was missing.
@@ -237,6 +272,15 @@ func (o LocalOutcome) Why() string {
 	case len(o.Appeared) < OutcomeWords:
 		return "only a few words appeared and stayed, which is not positive evidence " +
 			"of a destination"
+	case !o.Settled:
+		// THE WORDS ARE THERE AND PERSISTENCE WAS NEVER ASKED. Said separately
+		// from the cases above, because this one is not about the application:
+		// the watch was cut short — a third screen closed it, or the session
+		// ended — and an answer from it would be a window of one reading
+		// agreeing with itself.
+		return fmt.Sprintf("the window was cut short at %d of the %d reading(s) "+
+			"persistence needs, so these words were read and never shown to "+
+			"stand", o.AfterLooks, OutcomeSettleLooks)
 	default:
 		return "words appeared elsewhere on the window and stayed, none of them from " +
 			"inside the control that was pressed"

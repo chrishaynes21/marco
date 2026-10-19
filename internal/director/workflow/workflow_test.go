@@ -726,10 +726,10 @@ func TestAVerifiedOutcomeReachesTheStepAndAnUnverifiedOneDoesNot(t *testing.T) {
 		Outcomes: []observe.LocalOutcome{
 			// VERIFIED: enough words, read on both sides.
 			{Target: "target_1", Screen: "visual_1", Look: 24, Appeared: good,
-				BeforeLooks: 5, AfterLooks: 5},
+				BeforeLooks: 5, AfterLooks: 5, Settled: true},
 			// NOT VERIFIED: two words is not positive evidence of a destination.
 			{Target: "target_2", Screen: "visual_2", Look: 61,
-				Appeared: []string{"one", "two"}, BeforeLooks: 5, AfterLooks: 5},
+				Appeared: []string{"one", "two"}, BeforeLooks: 5, AfterLooks: 5, Settled: true},
 		},
 	}
 	reg := []observe.TargetRecord{
@@ -793,11 +793,11 @@ func TestAnInertPressWithAVerifiedOutcomeBecomesAStep(t *testing.T) {
 		},
 		Outcomes: []observe.LocalOutcome{
 			{Target: "target_2", Screen: "visual_2", Look: 183,
-				Appeared: good, BeforeLooks: 5, AfterLooks: 5},
+				Appeared: good, BeforeLooks: 5, AfterLooks: 5, Settled: true},
 			// AND ONE WHOSE OUTCOME DID NOT VERIFY: two words is not positive
 			// evidence of a destination, so this press stays out.
 			{Target: "target_3", Screen: "visual_2", Look: 249,
-				Appeared: []string{"one", "two"}, BeforeLooks: 5, AfterLooks: 5},
+				Appeared: []string{"one", "two"}, BeforeLooks: 5, AfterLooks: 5, Settled: true},
 		},
 	}
 	reg := []observe.TargetRecord{
@@ -865,10 +865,10 @@ func TestAnInertPressWithNothingToVerifyIsNotAStep(t *testing.T) {
 		},
 		Outcomes: []observe.LocalOutcome{
 			{Target: "target_2", Screen: "visual_2", Look: 183,
-				Appeared: []string{"one"}, BeforeLooks: 5, AfterLooks: 5},
+				Appeared: []string{"one"}, BeforeLooks: 5, AfterLooks: 5, Settled: true},
 			{Target: "", Screen: "visual_2", Look: 190,
 				Appeared:    []string{"a", "b", "c", "d", "e", "f"},
-				BeforeLooks: 5, AfterLooks: 5},
+				BeforeLooks: 5, AfterLooks: 5, Settled: true},
 		},
 	}
 	reg := []observe.TargetRecord{{ID: "target_1", Screen: "visual_1", Presses: 1}}

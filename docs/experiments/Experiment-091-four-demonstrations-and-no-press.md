@@ -130,6 +130,31 @@ instructions. The owner's standing instruction is the right measure of that:
 
 Two of the four were exactly that.
 
+## The window that was cut short
+
+A defect of this change, found by review rather than by running it, and it is the same vacuous
+persistence the run side was corrected for on the same day. `LocalOutcome.Verified` asked for
+ONE reading on each side, so a window of one reading was persistent by vacuity: every word it
+carried appeared on all one of its readings. A watch cut short — by a third screen closing it,
+or by the session ending just after a transition restarted it — could hand `outcomeOf` and
+`panelSteps` a VERIFIED outcome built from a single look, and that becomes the saved step's
+expectation.
+
+The fix is a `Settled` term set where the window size is KNOWN. `OutcomeBetween` cannot know how
+many readings were required — it is handed two windows and says what appeared across them — so
+the caller says: the demonstration correlator wants `OutcomeSettleLooks` readings, and the
+stationarity self-test deliberately compares two halves, which are complete by construction. The
+single-reading comparison that DETECTS a transition is untouched, because it asks
+`len(o.Appeared) >= OutcomeWords` and never asks whether the outcome is verified.
+
+## And the gate I did not run
+
+The review also caught that `74008e4` was reported green without `go test -tags corpus
+./cmd/perceptionreplay/`, which `CLAUDE.md` requires for a perception change. `internal/director/observe`
+is perception, so it was required and omitted — the same suite had been run for the commit
+before it, which is the shape of an omission rather than a judgement. Its result is recorded
+with the commit that carries this fix.
+
 ## Enforced by
 
 `cmd/director` `TestASessionNobodyCanEndRunsToItsCeiling` and `TestSomebodySayingSoStillEndsIt`,
@@ -142,6 +167,18 @@ over a seam extracted for them: the reader was inline, which is why nothing coul
 mutation run found the restart and the skip surviving on the demonstration side, having been
 copied from the run side without tests behind them, which is the gap that let the original
 defect live.
+
+And `internal/director/workflow` `TestAWatchCutShortByAThirdScreenSavesNoExpectation`,
+`TestASessionEndingJustAfterARestartSavesNoExpectation` and
+`TestAFullWindowAcrossAGenuineScreenChangeStillSaves`, which assert through `Learn` and
+`SaveWith` rather than the observation helper, because the consumer is where the harm is.
+
+And `internal/director/observe` `TestTheSelfTestWorksOnTheHalvedWindowsItIsActuallyGiven` and
+`TestTheSettledBoundaryIsTheWindowSize`, both added after a mutation run survived twice. The
+first is the one worth keeping: moving the settled default into the rule made `Stationary`'s
+override load-bearing, and every existing case there used full five-reading windows while the
+real caller hands it HALVES — two and three. Without the override the self-test would have
+reported that nothing ever moves, and a screen that changes by itself would have passed it.
 
 ## See also
 

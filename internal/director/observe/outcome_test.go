@@ -280,7 +280,7 @@ func TestTheCorrelatorRecordsWhatAPressDid(t *testing.T) {
 		t.Fatalf("the press resolved to no control, so there is no outcome to record")
 	}
 	// AND FIVE READINGS OF WHAT STOOD AFTERWARDS.
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 7; i++ {
 		c.Reading("visual_1", join(bar, now))
 	}
 
@@ -410,7 +410,7 @@ func TestTheControlsOwnWordCannotBeItsOutcome(t *testing.T) {
 		observe.Proposed([]observe.Region{tabBar}, 0, 0, 0))
 	// AFTER: the panel says `graphics` too, in `Advanced Graphics` and `Graphics
 	// Presets`, beside five words that are genuinely new.
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 7; i++ {
 		c.Reading("visual_1", join(bar, inPanel("graphics", "presets", "advanced",
 			"textures", "shadows", "bloom", "foliage")))
 	}
@@ -625,5 +625,70 @@ func TestAScreenThatNeverSettlesStillAnswersWhileDemonstrating(t *testing.T) {
 	}
 	if outs[0].Verified() {
 		t.Errorf("a screen of churn verified this press: %v", outs[0].Appeared)
+	}
+}
+
+// THE SELF-TEST AT THE WINDOW SIZE ITS REAL CALLER HANDS IT.
+//
+// `workflowrun.windowsOf` splits the readings before an action into HALVES — two and three of
+// them, not five — because each side should be as long as the evidence a real verification
+// rests on. So `Stationary` is asked about windows SHORTER than `OutcomeSettleLooks`, and the
+// settled term it sets on its own comparisons is what keeps it working there.
+//
+// Without that override the term silently reports that nothing ever moves, which is the
+// dangerous direction: a screen that changes by itself would pass the self-test and its
+// outcomes would mean nothing. A mutation run found it, because every existing case here used
+// full five-reading windows and could not tell the two apart.
+func TestTheSelfTestWorksOnTheHalvedWindowsItIsActuallyGiven(t *testing.T) {
+	halves := func(reads [][]observe.ReadWord) [][][]observe.ReadWord {
+		half := len(reads) / 2
+		return [][][]observe.ReadWord{reads[:half], reads[half:]}
+	}
+	// FIVE READINGS OF A ROTATING PANEL, halved exactly as the run halves them.
+	rotating := append(
+		window(2, inPanel("play", "garage", "profile", "tournament", "season")),
+		window(3, inPanel("play", "garage", "profile", "challenge", "weekly",
+			"rewards", "complete", "three", "games"))...)
+	quiet, moved := observe.Stationary(nil, halves(rotating))
+	if quiet == 0 {
+		t.Fatal("no window was examined, so this asserts nothing")
+	}
+	if moved == 0 {
+		t.Errorf("a panel that changes by itself moved 0 of %d halved window(s), so "+
+			"the stationarity term does nothing where the run actually uses it",
+			quiet)
+	}
+	// AND A PANEL THAT HOLDS STILL IS STILL QUIET at the same window size.
+	still := window(5, inPanel("presets", "textures", "shadows"))
+	if _, moved := observe.Stationary(nil, halves(still)); moved != 0 {
+		t.Errorf("a panel reading the same words every time moved %d time(s)", moved)
+	}
+}
+
+// AND THE SETTLED BOUNDARY IS EXACTLY OutcomeSettleLooks.
+//
+// One reading short is one reading short: persistence is "on every reading of the settled
+// window", and a window that never reached its size has not asked the question. A mutation
+// weakening this to `OutcomeSettleLooks-1` survived every other test here, because they use a
+// window of one (plainly short) or of five or more (plainly full) and nothing sat on the edge.
+func TestTheSettledBoundaryIsTheWindowSize(t *testing.T) {
+	before := window(5, inPanel("resolution", "window", "mode"))
+	is := inPanel("presets", "textures", "shadows", "bloom", "foliage")
+
+	short := observe.OutcomeBetween(nil, before, window(observe.OutcomeSettleLooks-1, is))
+	if short.Settled {
+		t.Errorf("%d reading(s) counted as a settled window of %d",
+			short.AfterLooks, observe.OutcomeSettleLooks)
+	}
+	if short.Verified() {
+		t.Errorf("a window one reading short verified: %v", short.Appeared)
+	}
+	full := observe.OutcomeBetween(nil, before, window(observe.OutcomeSettleLooks, is))
+	if !full.Settled {
+		t.Fatalf("%d reading(s) did not count as a settled window of %d",
+			full.AfterLooks, observe.OutcomeSettleLooks)
+	}
+	if !full.Verified() {
+		t.Errorf("a full window did not verify: %s", full.Why())
 	}
 }

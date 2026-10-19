@@ -469,29 +469,36 @@ func TestAVisualScreenCannotReachDurableMemory(t *testing.T) {
 		// takes from it is the WORDS — `Step.Outcome`, a list of strings, with no
 		// screen, no target and no rectangle — so the thing this walk exists to stop
 		// cannot travel. See workflowstore's own outcome test.
-		filepath.Join(dir, "outcome.go"):              true,
-		filepath.Join(dir, "outcome_test.go"):         true,
-		filepath.Join(dir, "cause_test.go"):           true,
-		filepath.Join(dir, "reacquire.go"):            true,
-		filepath.Join(dir, "reacquire_test.go"):       true,
-		filepath.Join(fast, "fastobserve.go"):         true,
-		filepath.Join(fast, "fastobserve_test.go"):    true,
-		filepath.Join(fast, "slow_test.go"):           true,
-		filepath.Join(fast, "boundary_test.go"):       true,
-		filepath.Join(fast, "reading_test.go"):        true,
-		filepath.Join(flow, "workflow.go"):            true,
-		filepath.Join(flow, "workflow_test.go"):       true,
-		filepath.Join(flow, "boundary_test.go"):       true,
-		filepath.Join(store, "workflowstore.go"):      true,
-		filepath.Join(store, "clarify.go"):            true,
-		filepath.Join(store, "clarify_test.go"):       true,
-		filepath.Join(store, "anchor.go"):             true,
-		filepath.Join(store, "stepplan.go"):           true,
-		filepath.Join(store, "arrival.go"):            true,
-		filepath.Join(store, "arrival_test.go"):       true,
-		filepath.Join(store, "stepplan_test.go"):      true,
-		filepath.Join(store, "anchor_test.go"):        true,
-		filepath.Join(store, "workflowstore_test.go"): true,
+		filepath.Join(dir, "outcome.go"):           true,
+		filepath.Join(dir, "outcome_test.go"):      true,
+		filepath.Join(dir, "cause_test.go"):        true,
+		filepath.Join(dir, "reacquire.go"):         true,
+		filepath.Join(dir, "reacquire_test.go"):    true,
+		filepath.Join(fast, "fastobserve.go"):      true,
+		filepath.Join(fast, "fastobserve_test.go"): true,
+		filepath.Join(fast, "slow_test.go"):        true,
+		filepath.Join(fast, "boundary_test.go"):    true,
+		filepath.Join(fast, "reading_test.go"):     true,
+		filepath.Join(flow, "workflow.go"):         true,
+		filepath.Join(flow, "workflow_test.go"):    true,
+		// `incompletewindow_test.go` drives a press and its readings through the
+		// correlator, `Learn` and `SaveWith`, to hold the rule that an interrupted
+		// outcome window cannot become a saved expectation. It names both tiers
+		// because the defect lives between them: the correlator produced the verdict
+		// and the artifact persisted it. It writes nothing durable — `SaveWith`
+		// returns an artifact the test reads and drops.
+		filepath.Join(flow, "incompletewindow_test.go"): true,
+		filepath.Join(flow, "boundary_test.go"):         true,
+		filepath.Join(store, "workflowstore.go"):        true,
+		filepath.Join(store, "clarify.go"):              true,
+		filepath.Join(store, "clarify_test.go"):         true,
+		filepath.Join(store, "anchor.go"):               true,
+		filepath.Join(store, "stepplan.go"):             true,
+		filepath.Join(store, "arrival.go"):              true,
+		filepath.Join(store, "arrival_test.go"):         true,
+		filepath.Join(store, "stepplan_test.go"):        true,
+		filepath.Join(store, "anchor_test.go"):          true,
+		filepath.Join(store, "workflowstore_test.go"):   true,
 		// `juststep.go` extracts one step into a workflow of its own, and its test
 		// asserts that the starting screen's ARRANGEMENT travels — the evidence that
 		// makes such a step plannable at all. Allowed for the reason
