@@ -531,6 +531,14 @@ func TestAVisualScreenCannotReachDurableMemory(t *testing.T) {
 		// coordinator's thin-arrival policy through the real establishment path, so it
 		// names both. It writes nothing durable: a `SessionBinding` is not marshalled.
 		filepath.Join(run, "thinarrival_test.go"): true,
+		// `twostep_test.go` drives a TWO-ACTION walk through the real establishment
+		// path, so it names the screen ids its looks carry and the target its
+		// re-acquisitions name — for the reason `thinarrival_test.go` does, and with
+		// the same cost: nothing it builds is marshalled. What it asserts is an
+		// ORDER — that the second action is not asked about until the first action's
+		// outcome is decided — and the only way to put that question is to walk
+		// three screens and a control on each.
+		filepath.Join(run, "twostep_test.go"): true,
 	}
 	root := filepath.Join("..", "..", "..")
 	names := []string{

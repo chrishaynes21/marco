@@ -201,9 +201,9 @@ larger than a lifecycle fix:
 
 - **Control-centre Stop** (`cmd/marco/watchui.go:426`) reaches service cancellation without the
   standalone-play cancellation broadcast, so Stop there does not reach a standalone play.
-- **Inter-step verification** (`internal/director/workflowrun/workflowrun.go`) can advance a
-  different-screen step on destination arrival while a previous step's outcome verification is
-  still pending.
+- ~~**Inter-step verification**~~ — CLOSED by
+  [[ADR-242-the-second-action-waits-for-the-first-ones-answer]]. A step whose two ends differ no
+  longer finishes on its destination arriving while its own outcome is still being decided.
 
 Both are named so the next session does not rediscover them.
 

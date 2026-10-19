@@ -335,14 +335,31 @@ func aRoutineFromALookAt(t *testing.T, windows *winprovider.Provider,
 		t.Skipf("the window in front proposes %d region(s); a routine needs a "+
 			"control to re-acquire and an arrangement to settle", len(regions))
 	}
-	// THE BIGGEST REGION AS THE CONTROL, because the largest thing on a screen is the
-	// likeliest to still be there on the next look — this test is about the sequence,
-	// not about how little evidence a reacquisition can work from.
-	best := regions[0]
-	for _, r := range regions[1:] {
+	// THE BIGGEST CONTROL-SHAPED REGION, which is not the biggest region.
+	//
+	// Measured, on a live Ark window: the largest thing the proposer finds spans the full
+	// height of the window, and the coordinator refuses it — *the middle of it is the
+	// middle of the window and not the position of anything in it; this step has no point
+	// to press and no substitute for one will be invented*. That guard is right and this
+	// fixture was wrong: a demonstration's control is a control, so the region has to be
+	// bounded in both axes the way one is.
+	//
+	// Among those, the largest, because the largest thing is the likeliest to still be
+	// there on the next look — this test is about the sequence, not about how little
+	// evidence a reacquisition can work from.
+	best := observe.Region{}
+	for _, r := range regions {
+		if r.Width > 0.5 || r.Height > 0.25 || r.Width <= 0 || r.Height <= 0 {
+			continue
+		}
 		if r.Width*r.Height > best.Width*best.Height {
 			best = r
 		}
+	}
+	if best.Width <= 0 {
+		t.Skipf("the window in front proposes %d region(s) and none of them is "+
+			"control-shaped, so there is nothing a demonstration could have "+
+			"been of", len(regions))
 	}
 	return workflowstore.Artifact{
 		Version: workflowstore.Version, Name: "the window in front",

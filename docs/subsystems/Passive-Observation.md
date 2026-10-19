@@ -1735,6 +1735,22 @@ it refuses those looks. Visible is fine; in front is not.
   confirmed or declined by a real keypress. Taking the top candidate without asking would spend
   an unasked authorisation on a screen nobody had looked at.
   [[ADR-241-a-name-you-demonstrated-is-a-name-you-can-use]]
+- **And the second action now waits for the first one's answer.** The gap ADR-240 traced and
+  deferred: a step whose two ends are DIFFERENT screens finished the moment its destination
+  arrived, with its own post-action evidence never consulted — so on a two-action routine the
+  second press could be authorised and sent while the first action's outcome was still being
+  decided, and the verdict then reached about a screen the second press had already changed. The
+  same-screen case never had the hole, and not by design: such a step cannot arrive, so
+  `verify.go` was the only way to finish it and `verify.go`'s policy was already right. A screen
+  change is weaker evidence than an outcome, not stronger — the destination arriving says the
+  interface moved, the outcome says it moved the way it was shown to — so the arrival is kept,
+  counted and reported, and what it may not do is carry the walk forward by itself. Verified
+  advances; contradicted and unconfirmed both stop the run, and nobody is asked to authorise an
+  action whose predecessor did not work. Bounded by the verification deadline rather than by
+  patience, and a step demonstrated with NO outcome still arrives exactly as it did before —
+  gating on a question nobody can answer would stop every routine saved before outcomes were
+  recorded.
+  [[ADR-242-the-second-action-waits-for-the-first-ones-answer]]
 - **Four live demonstrations on a real game, and no press.** The demonstration half works: a
   person's click was recorded with its coordinate as evidence, a control found at 8%x3% where
   the offline capture measured the same tab at 7.2%x2.8%, scoped to the watched window, saved

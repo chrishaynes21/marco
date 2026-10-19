@@ -789,6 +789,44 @@ func (r *Runner) Advance(ctx context.Context, s *workflowstore.SessionBinding,
 			r.lastStage, r.lastBecause = a.Stage, a.Because
 			return r.record(a)
 		}
+		// ── AND AN OUTCOME STILL BEING DECIDED IS NOT A STEP THAT IS FINISHED ──
+		//
+		// The gap [[ADR-240-a-stop-is-only-a-stop-at-the-last-moment-it-could-matter]]
+		// named and deferred: a step whose two ends differ advanced the moment its
+		// destination was established, and its own post-action evidence was never
+		// consulted. So on a two-step workflow the second action could be authorised
+		// and sent while the first action's outcome was still being decided — and
+		// then decided, in the report, about a screen the second press had already
+		// changed.
+		//
+		// A screen change is weaker evidence than an outcome, not stronger. The
+		// destination arriving says the interface moved; the outcome says it moved
+		// the way the demonstration showed. `verify.go` already holds the policy for
+		// the same-screen case — *nothing proceeds to another action on an
+		// unconfirmed one* — and this is that policy reaching the path it had been
+		// written around.
+		//
+		// The same shape as the thin-arrival rule above: the arrival is kept,
+		// counted and reported with everything it rested on, and what it may not do
+		// is carry the walk forward by itself.
+		//
+		// Bounded by the verification deadline rather than by patience: past it the
+		// verdict is `unconfirmed` and the run stops, which is why this cannot wait
+		// forever. A step demonstrated with no outcome is `VerdictUnasked` and
+		// arrives exactly as it did before — there is nothing to wait for, and
+		// gating on a question nobody can answer would stop every routine saved
+		// before outcomes were recorded.
+		if r.awaitingOutcome() {
+			if r.settled(&a) {
+				return r.record(a)
+			}
+			a.Outcome = OutcomeWaiting
+			a.Because = fmt.Sprintf("step %d's destination %s was established, and "+
+				"its own outcome is still being decided — a screen that "+
+				"changed is not the same evidence as a screen that changed "+
+				"the way it was demonstrated to", r.cursor, arrival.Destination)
+			return r.record(a)
+		}
 		a.Outcome, a.Because = OutcomeArrived, arrival.Because
 		r.advance()
 		return r.record(a)

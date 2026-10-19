@@ -1060,6 +1060,48 @@ test that should have caught it.
 See [[ADR-241-a-name-you-demonstrated-is-a-name-you-can-use]].
 
 
+
+## Two actions, and the second waiting for the first (CLI, needs your hands, ~4 min)
+
+The step that makes a WORKFLOW out of a single guarded action. Nothing new to demonstrate: a
+routine with two presses in it already has everything this needs, as long as each step carries an
+outcome expectation.
+
+```sh
+./director.exe sequences "<name>"      # read this FIRST: it says which steps can be verified
+./director.exe perform-workflow --name "<name>" --live --reading --hotkeys
+```
+
+`--reading` is not optional here and the reason is the whole point: a step's outcome IS words, so
+without OCR there is no evidence either way, the verdict is `unconfirmed`, and the run stops
+before the second action. That is the correct refusal, and it is also the most likely way to see
+this behave as though it were broken.
+
+What should happen, in this order:
+
+1. **F7** to start, then name the screen you are on (**F7** if Marco's candidate is right);
+2. step 1: agree (**F7**), then authorise the press (**F7**) — the control is pressed;
+3. the panel changes. **The run does not move on yet.** The transcript says the destination
+   arrived and the outcome is still being decided — *a screen that changed is not the same
+   evidence as a screen that changed the way it was demonstrated to*;
+4. the words of step 1's outcome appear and hold for a full settled window: `step 0: outcome
+   verified`;
+5. **only now** is step 2 put to you. Agree, authorise, and the second press goes out.
+
+What to check, beyond "both presses happened":
+
+- the run reference's record (`%MARCO_HOME%\runs\<id>.json`) says `verified` with `actions_sent` 2;
+- **the negative half, which matters more.** Run it again and, when step 1's panel appears, make
+  the outcome false — go somewhere else in the menu, or start from a screen whose panel does not
+  contain step 1's expected words. The run must refuse at step 1 with `contradicted` or
+  `unconfirmed`, `actions_sent` must be 1, and **step 2 must never be put to you at all**. A
+  workflow that asked you to authorise an action whose predecessor did not work would be a
+  workflow whose verification is a log line;
+- a step saved with no outcome expectation (`sequences` tells you which) still advances on its
+  destination arriving, and the report says its action could not be verified. That is the honest
+  end for a file that cannot be checked, not a regression.
+
+See [[ADR-242-the-second-action-waits-for-the-first-ones-answer]].
 ## When it does not work: asking where the words went (~1 min, no hands)
 
 Three things, in the order to reach for them.

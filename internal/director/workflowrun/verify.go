@@ -501,3 +501,31 @@ func hasScreen(seen []observe.VisualScreenID, id observe.VisualScreenID) bool {
 	}
 	return false
 }
+
+// awaitingOutcome reports whether the step the walk is on has an outcome still being decided.
+//
+// # Why this is not "is there a verification open"
+//
+// Because two of the three states that `verdict` calls `VerdictUnasked` mean opposite things to
+// the walk. A step demonstrated with NO outcome expectation can never be verified — there is
+// nothing to check against, every artifact saved before outcomes were recorded is in that state,
+// and a walk that waited for it would wait forever. A step whose evidence has not settled yet is
+// also `Unasked`, and that one is a question in flight.
+//
+// So the test is the step's own file: an outcome was recorded, and this is the step that acted.
+// Without it the arrival path would either advance over a pending verdict (the defect) or stall
+// on a question nobody can answer (the overcorrection).
+//
+// `v.step != r.cursor` is structural rather than load-bearing, and the reason it is here is that
+// a stale verification really does outlive the cursor: `advance` does not clear `r.verify`, and a
+// step with no outcome expectation is never closed — it advances on its arrival with its
+// verification still open. Every path today reaches the right answer without this clause, because
+// such a step's `Outcome` is empty either way. What it holds is that the question asked is about
+// THE STEP THE WALK IS ON, which is the only question whose answer may gate an action.
+func (r *Runner) awaitingOutcome() bool {
+	v := r.verify
+	if v == nil || v.step != r.cursor || v.step >= len(r.art.Steps) {
+		return false
+	}
+	return len(r.art.Steps[v.step].Outcome) > 0
+}
