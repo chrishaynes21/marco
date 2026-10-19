@@ -312,6 +312,27 @@ func Directives(a workflowstore.Artifact) ([]goal.Directive, error) {
 		d := goal.Directive{Phrase: st.Says}
 		switch st.Verb {
 		case "":
+			// AND IT SAYS WHAT CAN BE DONE WITH IT INSTEAD.
+			//
+			// A step demonstrated from PIXELS carries visual evidence and no
+			// verb, so this path — the ordinary execution path, which acts on
+			// verbs — has nothing to act on. That is true and it is not the
+			// whole answer: `perform-workflow` grounds such a control in the
+			// pixels and presses it, which is how the first human-taught pixel
+			// macro ran.
+			//
+			// Reported live by the owner, who asked the overlay to run a routine
+			// they had demonstrated an hour earlier and was told Marco only
+			// understands click, focus, move and text editing. The same shape as
+			// the defect ADR-239 closed in `director sequences`: the product
+			// denying a capability it has.
+			if len(a.VisualTargets()) > 0 {
+				return nil, fmt.Errorf("%q was demonstrated from pixels, so its "+
+					"steps carry no verb for this path to act on. Run it by "+
+					"sight instead:\n"+
+					"  director perform-workflow --name %q --live --reading",
+					a.Name, a.Name)
+			}
 			return nil, fmt.Errorf("step %d of %q says nothing to do -- it is a "+
 				"recorded transition rather than a demonstrated action",
 				st.Position, a.Name)
