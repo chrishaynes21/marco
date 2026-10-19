@@ -383,9 +383,21 @@ func (r *Runner) verdict(now time.Time) (Verdict, string) {
 	switch {
 	case held && settled:
 		return VerdictVerified, why
-	case held:
+	case held && now.Before(v.deadline):
 		// STANDING, AND NOT YET FOR LONG ENOUGH. Keep waiting rather than
 		// answering: the words are there and the question is whether they stay.
+		//
+		// WHILE THERE IS STILL TIME, and that clause is the fix. This branch
+		// returned `Unasked` unconditionally, so a window holding one qualifying
+		// reading and then receiving no more waited past its own deadline — the
+		// verification deadline existed and could not expire, and the run went on
+		// until some other bound ended it. Positive partial evidence is the one
+		// case where waiting feels most reasonable and is least justified: the
+		// whole question is whether those words STAY, and readings have stopped.
+		//
+		// Past the deadline this falls through to the unconfirmed branches below,
+		// which is the honest answer — the words were seen and never shown to
+		// stand.
 		return VerdictUnasked, fmt.Sprintf("the %d expected word(s) are standing on "+
 			"%d of the %d reading(s) persistence needs",
 			len(r.art.Steps[v.step].Outcome), len(v.after),
