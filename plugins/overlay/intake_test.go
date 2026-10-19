@@ -11,6 +11,7 @@ import (
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/intent"
 	"github.com/chaynes-simpleclouds/marco/internal/invoke"
+	"github.com/chaynes-simpleclouds/marco/internal/platform/navsource"
 	"github.com/chaynes-simpleclouds/marco/internal/stopsignal"
 )
 
@@ -626,5 +627,99 @@ func TestALearnChildIsGivenTheStopKey(t *testing.T) {
 	if !strings.Contains(src, `streamChild(h, false, "learn", name)`) {
 		t.Error("the overlay no longer spawns `learn` for a demonstration; the guard above " +
 			"is now naming something that does not happen")
+	}
+}
+
+// TestASupervisedRunSaysWhatItIsWaitingFor.
+//
+// # The condition
+//
+// A run performed by sight cannot proceed without the person: it counts down so they can bring
+// the game in front, then asks for each single action and waits for a function key it is
+// structurally unable to press itself. Both of those are states in which NOTHING is happening and
+// the reason is on a transcript nobody is reading — a person who typed the name of something they
+// demonstrated is, by then, looking at the game.
+//
+// So the always-visible line has to carry them. Without it the run's patience expires and, from
+// the person's side, Marco ignored them.
+func TestASupervisedRunSaysWhatItIsWaitingFor(t *testing.T) {
+	yes := navsource.ConsentKeys[navsource.ConsentApprove]
+	no := navsource.ConsentKeys[navsource.ConsentRefuse]
+	stop := navsource.ConsentKeys[navsource.ConsentStop]
+
+	// THE RUNNER'S OWN TWO QUESTIONS, built from the same map it prints them from. Both
+	// are one thing to a person reading a status bar: it is waiting for you.
+	for _, line := range []string{
+		"  Do you agree this is a step Marco should perform?  " + yes +
+			" yes   " + no + " no   " + stop + " stop   (20s)",
+		"  May Marco SEND a left click there, once?  " + yes + " yes   " + no +
+			" no   " + stop + " stop   (20s)",
+	} {
+		st, ok := directorStatusLine(line)
+		if !ok {
+			t.Errorf("a question nothing but a keypress can answer is not on the "+
+				"status line: %q", line)
+			continue
+		}
+		if !strings.HasPrefix(st, questionStatus) {
+			t.Errorf("%q does not read as Marco waiting on you", st)
+		}
+		if !strings.Contains(st, yes) {
+			t.Errorf("%q does not say which key allows it, so a person has to "+
+				"go and find out", st)
+		}
+	}
+
+	// AND THE COUNTDOWN, which is the one window in which they have something to do.
+	st, ok := directorStatusLine("  Starting in 5s.")
+	if !ok || !strings.Contains(st, "5s") {
+		t.Errorf("the preparation countdown is not on the status line: %q (%v)", st, ok)
+	}
+	if !strings.Contains(st, "front") {
+		t.Errorf("%q does not say what to do with the five seconds", st)
+	}
+
+	// AND A QUESTION THAT CLOSED UNANSWERED STOPS ASKING. Otherwise the line above
+	// stands there asking for a key that no longer does anything.
+	if st, ok := directorStatusLine("  nobody answered within 20s, so nothing was sent"); !ok ||
+		strings.Contains(st, questionStatus) {
+		t.Errorf("an expired question still reads as a question: %q (%v)", st, ok)
+	}
+
+	// AND THE RUN REFERENCE IS NOT STATUS, because it is not something to act on. It
+	// belongs in the log, where every line of the transcript already goes.
+	if st, ok := directorStatusLine(`  run run-20261019-201500-abcd   C:\home\runs\r.json`); ok {
+		t.Errorf("the run reference churned the status line: %q", st)
+	}
+}
+
+// AND THE WHOLE TRANSCRIPT OF A SUPERVISED RUN REACHES THE HUD, through the production streamer.
+//
+// The status line carries the two states a person must act on; everything else — what was
+// performed, the run reference, how it ended — is read rather than acted on, and it has to be
+// somewhere a person can find it. That somewhere is the log tail, and the only way to know those
+// lines arrive is to put a run's transcript through the real child streamer.
+func TestASupervisedRunsTranscriptReachesTheLog(t *testing.T) {
+	h := newModel()
+	ref := `  run run-20261019-201500-abcd   C:\home\runs\run-20261019-201500-abcd.json`
+	r := runEchoChild(t, h, strings.Join([]string{
+		`Performing "ark graphics live" against arkascended (hwnd:1)`,
+		ref,
+		"  Starting in 5s.",
+		ref + "   (verified)",
+		"[result] performed",
+	}, "\n")+"\n")
+
+	log := strings.Join(h.snapshot().logs, "\n")
+	for _, want := range []string{"ark graphics live", "run-20261019-201500-abcd", "verified"} {
+		if !strings.Contains(log, want) {
+			t.Errorf("the HUD log does not carry %q:\n%s", want, log)
+		}
+	}
+	// AND THE RUN'S OWN OUTCOME CAME BACK ON THE WIRE, which is what the history row and
+	// the announcement are both built from. `[result]` is consumed rather than logged: it
+	// is for this program, not for a person reading the HUD.
+	if r.result != string(outcome.Performed) {
+		t.Errorf("the child reported %q", r.result)
 	}
 }

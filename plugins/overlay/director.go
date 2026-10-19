@@ -4,6 +4,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/chaynes-simpleclouds/marco/internal/platform/navsource"
 )
 
 // What is left of the overlay's involvement in semantic desktop control, and its
@@ -88,11 +90,50 @@ func directorEnabled() bool {
 // panel and the always-visible hint all say it the same way.
 const questionStatus = "Marco has a question"
 
+// ── A SUPERVISED RUN, WHICH IS A DIFFERENT KIND OF WAITING ─────────────────
+//
+// Everything above is Marco working and occasionally asking. A run performed by SIGHT — the thing
+// a person demonstrated with their own hands — cannot proceed at all without them: it counts down
+// so they can bring the game in front, then asks for each single action and waits for a function
+// key it is structurally unable to press itself (see the input-provenance rule).
+//
+// Which makes the always-visible line load-bearing in a way it is not for anything else. A person
+// who types the name of something they demonstrated and then looks at the game has no reason to
+// know that Marco is waiting on F7, and the question is on a transcript they are not reading.
+// Nothing happens, the run's own patience expires, and from their side Marco ignored them.
+//
+// The words are the RUNNER's, as everything else here is, and the keys come from
+// `navsource.ConsentKeys` — the same map the runner prints from, so one binding cannot be
+// advertised while another is listened for.
+//
+// Deleting either arm must fail TestASupervisedRunSaysWhatItIsWaitingFor.
+
+// awaitingKey is the ONE spelling of "a run is waiting for a key", for the same reason
+// `questionStatus` is one: this file writes it and the panel colours itself by it.
+var awaitingKey = questionStatus + " — press " +
+	navsource.ConsentKeys[navsource.ConsentApprove] + " to allow this action"
+
 func directorStatusLine(line string) (string, bool) {
 	s := strings.TrimSpace(line)
 	switch {
 	case strings.HasPrefix(s, "heard: "):
 		return "heard " + strconv.Quote(strings.TrimPrefix(s, "heard: ")), true
+	case strings.Contains(s, navsource.ConsentKeys[navsource.ConsentApprove]+" yes"):
+		// A QUESTION ABOUT ONE ACTION, answerable only by a real key. Matched on the
+		// key and the word beside it rather than on the sentence, because there are
+		// two such questions — whether a step belongs in the run at all, and whether
+		// Marco may press it now — and both are the same thing to a person looking at
+		// a status bar: it is waiting for you.
+		return awaitingKey, true
+	case strings.HasPrefix(s, "nobody answered within"):
+		// AND THE QUESTION CLOSING UNANSWERED, because the line above would
+		// otherwise stand there asking for a key that no longer does anything.
+		return "nothing was sent — the question closed unanswered", true
+	case strings.HasPrefix(s, "Starting in "):
+		// THE PREPARATION COUNTDOWN. The one window in which a person has something
+		// to do and a deadline to do it in: the run acts on the window it acquires,
+		// and a click only lands if that window leads the desktop.
+		return strings.TrimSuffix(s, ".") + " — bring the application in front", true
 	case strings.HasPrefix(s, "CLARIFICATION_REQUIRED"):
 		q := strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(s, "CLARIFICATION_REQUIRED"), ":"))
 		if q == "" {

@@ -118,7 +118,14 @@ func runInvocation(d orchestrator.Deps, req invoke.Request) (Outcome, error) {
 	if req.Play == nil {
 		req.Pending = pendingQuestion()
 	}
-	dec := invoke.Decide(d.Reg, req)
+	// BOTH DURABLE HALVES, HANDED TO THE ONE DOOR TOGETHER.
+	//
+	// `d.Reg` is what Marco can RUN and `demoSights` is what the person SHOWED it. Two
+	// stores, two performers, one decision — a front end that consulted them in turn
+	// would be a second router, which is the defect `invoke` exists to have ended.
+	//
+	// Deleting the sights argument must fail TestADemonstratedRoutineIsReachedByItsName.
+	dec := invoke.Decide(d.Reg, demoSights{dir: directorDir()}, req)
 	traceIntake(dec, req)
 
 	switch dec.Kind {
@@ -126,6 +133,8 @@ func runInvocation(d orchestrator.Deps, req invoke.Request) (Outcome, error) {
 		return runControl(), nil
 	case invoke.KindPlay:
 		return performDecidedPlay(d, dec, req)
+	case invoke.KindDemonstration:
+		return performDemonstration(dec, req)
 	default:
 		return askDirector(d, dec, req)
 	}

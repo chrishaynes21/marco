@@ -74,6 +74,48 @@ type Plays interface {
 	Resolve(app, name string) (routes.Route, bool)
 }
 
+// Sights is the OTHER durable half: what a person has demonstrated by hand.
+//
+// # Why a second resolver rather than a second entrance
+//
+// A demonstration is not a play. A play is Marco source with verbs in it, and `marco` runs it. A
+// demonstration learned from PIXELS carries no verb — it carries the screens it was shown on, the
+// controls it was shown, and what the person's own click did — and only the Director's supervised
+// runner can perform one: ground the control on a fresh look, ask, press at the moment that was
+// authorised, verify. So the two cannot share a store, and they cannot share a performer.
+//
+// They can and must share the DOOR. The alternative was a front end that checked one store, then
+// another, then fell through to Director — which is three places deciding what a phrase means,
+// which is the defect this package exists to have ended. See [[ADR-239-running-what-you-
+// demonstrated-by-the-name-you-gave-it]] for the name, and
+// [[ADR-240-a-stop-is-only-a-stop-at-the-last-moment-it-could-matter]] for what performing one
+// costs.
+//
+// One method, like `Plays`, and for the same reason: it keeps `Decide` free of a filesystem, and
+// it makes "a demonstration is never looked up when the words already matched a play" provable by
+// handing in a resolver that records every call and asserting it was not asked.
+type Sights interface {
+	Demonstration(app, name string) (Demonstrated, bool)
+}
+
+// Demonstrated is a saved demonstration, in the terms the door needs and no others.
+//
+// Deliberately not the artifact. `Decide` has no business knowing what a demonstration contains,
+// and a front end that received the whole thing would be tempted to read it instead of handing it
+// to the one runner that can perform it.
+type Demonstrated struct {
+	// Name is what the person saved it under, exactly as they said it — the identity the
+	// runner's `--name` resolves through the same store this came from.
+	Name string
+	// Application is what it was demonstrated in, from the artifact's own scope.
+	//
+	// Carried because performing one needs a window to watch, and the alternative is the
+	// foreground — which, at the moment somebody types a name into the overlay, is the
+	// overlay. It is a SELECTOR and not a permission: the runner still checks the
+	// artifact's scope against the window it actually acquired. See ADR-236.
+	Application string
+}
+
 // Request is one invocation, as the entrance received it.
 type Request struct {
 	// Text is what the Audience said or typed, unedited.
@@ -112,6 +154,12 @@ const (
 	KindControl Kind = "control"
 	// KindPlay is a durable behaviour Marco already has.
 	KindPlay Kind = "play"
+	// KindDemonstration is something the person showed Marco by hand, performed by sight.
+	//
+	// Separate from KindPlay because the performer is different, not because the intent is:
+	// a demonstration has no verbs to run and is carried out by the Director's supervised
+	// runner, which grounds the control on a fresh look and asks before each action.
+	KindDemonstration Kind = "demonstration"
 	// KindDirector is intent Marco does not already have a Play for.
 	KindDirector Kind = "director"
 )
@@ -122,6 +170,8 @@ type Decision struct {
 	Kind Kind
 	// Play is which durable behaviour, when Kind is KindPlay.
 	Play routes.Route
+	// Demonstration is which saved demonstration, when Kind is KindDemonstration.
+	Demonstration Demonstrated
 	// Explicit says the Play came from the surface's own identity rather than from the words.
 	Explicit bool
 	// Phrase is what Director receives, when Kind is KindDirector. The Audience's words,
@@ -140,10 +190,20 @@ type Decision struct {
 //  2. A PENDING QUESTION captures the words. Director asked something; these are the answer.
 //  3. AN EXPLICIT IDENTITY performs that Play. The words are not read.
 //  4. AN EXACT DURABLE MATCH performs that Play.
-//  5. Everything else is for Director.
+//  5. AN EXACT DEMONSTRATION is performed by sight.
+//  6. Everything else is for Director.
+//
+// Four and five are in that order so that nothing a person can run today changes meaning: a name
+// that resolves to a play has always been that play, and a demonstration saved under the same
+// name does not take it over. The door that does change is the one past it — a name that used to
+// fall through to Director, which would read the words against the screen and find nothing it had
+// been shown by hand.
+//
+// `sights` nil means this entrance cannot see demonstrations at all, and arm five is skipped. One
+// production caller passes the real store; the wiring test beside it holds that.
 //
 // Deleting or reordering any arm must fail a test in invoke_test.go named for it.
-func Decide(plays Plays, req Request) Decision {
+func Decide(plays Plays, sights Sights, req Request) Decision {
 	text := strings.TrimSpace(req.Text)
 
 	// 1. CONTROL — before everything, including a pending question and an explicit identity.
@@ -222,7 +282,29 @@ func Decide(plays Plays, req Request) Decision {
 		return Decision{Kind: KindPlay, Play: rt, Why: "an exact match for a play Marco has"}
 	}
 
-	// 5. DIRECTOR. Marco does not already know this one, so it is a question about the world.
+	// 5. AN EXACT DEMONSTRATION, performed by sight.
+	//
+	// After the play arm, so that no name which runs something today starts meaning
+	// something else. Before Director, because a demonstration IS a thing Marco already
+	// has: reading its name against the screen would be Director hunting for a control
+	// somebody had already pointed at, and what that did in practice was answer
+	// `nothing matching "ark graphics live" is present in the observed window` about a
+	// routine demonstrated on that very window.
+	//
+	// The store's own lookup decides what matching means, case-insensitively and exactly,
+	// and `Decide` does not fold the name itself: the name the runner is given has to be
+	// the name the store answered to, or the second lookup can land somewhere else. Same
+	// rule as an explicit play identity, one arm up.
+	//
+	// Deleting this arm must fail TestADemonstrationIsPerformedBySight.
+	if sights != nil {
+		if d, ok := sights.Demonstration(req.App, text); ok {
+			return Decision{Kind: KindDemonstration, Demonstration: d,
+				Why: "an exact match for something the person demonstrated"}
+		}
+	}
+
+	// 6. DIRECTOR. Marco does not already know this one, so it is a question about the world.
 	return Decision{Kind: KindDirector, Phrase: text,
 		Why: "no play answers to this, so Director reads it against what is on screen"}
 }
@@ -248,6 +330,13 @@ func (d Decision) Trace(req Request) string {
 		}
 		if d.Explicit {
 			b.WriteString(" explicit=yes")
+		}
+	case KindDemonstration:
+		b.WriteString(" demonstration=")
+		b.WriteString(strconv.Quote(d.Demonstration.Name))
+		if d.Demonstration.Application != "" {
+			b.WriteString(" app=")
+			b.WriteString(d.Demonstration.Application)
 		}
 	case KindDirector, KindControl:
 		if d.Phrase != "" {

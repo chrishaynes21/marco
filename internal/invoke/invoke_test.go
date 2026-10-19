@@ -66,7 +66,7 @@ func TestSourceCannotChangeTheDecision(t *testing.T) {
 		for i, src := range everySource {
 			req := c.req
 			req.Source = src
-			got := invoke.Decide(newPlays(mouse), req)
+			got := invoke.Decide(newPlays(mouse), nil, req)
 			if got.Kind != c.want {
 				t.Errorf("%s from %s: decided %q, want %q", c.name, src, got.Kind, c.want)
 			}
@@ -105,7 +105,7 @@ func TestStopIsNeverOrdinaryText(t *testing.T) {
 			} {
 				req := extra
 				req.Text, req.Source = word, src
-				got := invoke.Decide(plays, req)
+				got := invoke.Decide(plays, nil, req)
 				if got.Kind != invoke.KindControl {
 					t.Fatalf("%q from %s (pending=%v explicit=%v) decided %q — a stop that "+
 						"is not a stop cannot stop anything",
@@ -115,7 +115,7 @@ func TestStopIsNeverOrdinaryText(t *testing.T) {
 		}
 	}
 	// And an ordinary phrase that merely CONTAINS stop is not a control phrase.
-	if got := invoke.Decide(plays, invoke.Request{Text: "stop the music"}); got.Kind == invoke.KindControl {
+	if got := invoke.Decide(plays, nil, invoke.Request{Text: "stop the music"}); got.Kind == invoke.KindControl {
 		t.Error("\"stop the music\" was taken as a cancellation")
 	}
 }
@@ -137,7 +137,7 @@ func TestAnExactlyKnownPlayIsNeverInterpreted(t *testing.T) {
 		"   open mouse settings   ",
 		"open  mouse  settings",
 	} {
-		got := invoke.Decide(plays, invoke.Request{Text: text, Source: invoke.SourceSpoken, App: "discord"})
+		got := invoke.Decide(plays, nil, invoke.Request{Text: text, Source: invoke.SourceSpoken, App: "discord"})
 		if got.Kind != invoke.KindPlay {
 			t.Errorf("%q decided %q — Director was asked about a play Marco already has", text, got.Kind)
 			continue
@@ -174,7 +174,7 @@ func TestANearMissIsAMissAndGoesToDirector(t *testing.T) {
 		"just settings",         // a real play name plus a head
 		"open the file menu",    // shares words with two plays and means neither
 	} {
-		got := invoke.Decide(plays, invoke.Request{Text: text})
+		got := invoke.Decide(plays, nil, invoke.Request{Text: text})
 		if got.Kind != invoke.KindDirector {
 			t.Errorf("%q decided %q (play %q) — a guess was made where Director should have "+
 				"read the screen", text, got.Kind, got.Play.Slug)
@@ -188,7 +188,7 @@ func TestANearMissIsAMissAndGoesToDirector(t *testing.T) {
 		{"settings", "settings"},
 		{"open", "open"},
 	} {
-		got := invoke.Decide(plays, invoke.Request{Text: c.text})
+		got := invoke.Decide(plays, nil, invoke.Request{Text: c.text})
 		if got.Kind != invoke.KindPlay || got.Play.Slug != c.slug {
 			t.Errorf("%q decided %q/%q, want a play %q", c.text, got.Kind, got.Play.Slug, c.slug)
 		}
@@ -204,7 +204,7 @@ func TestAnExplicitPlayIsNeverLookedUpAgain(t *testing.T) {
 	other := routes.Route{App: "notepad", Slug: "open-mouse-settings"}
 	plays := newPlays(other)
 
-	got := invoke.Decide(plays, invoke.Request{
+	got := invoke.Decide(plays, nil, invoke.Request{
 		Text: "open mouse settings", Source: invoke.SourceControlCentre, App: "notepad",
 		Play: &mouse,
 	})
@@ -234,7 +234,7 @@ func TestAnAnswerToAPendingQuestionIsNotAPlay(t *testing.T) {
 	// arm 1 claims it before a question is ever considered.)
 	plays := newPlays(mouse, routes.Route{Slug: "the-second-one"})
 	for _, text := range []string{"the second one", "the first", "1"} {
-		got := invoke.Decide(plays, invoke.Request{Text: text, Pending: true})
+		got := invoke.Decide(plays, nil, invoke.Request{Text: text, Pending: true})
 		if got.Kind != invoke.KindDirector {
 			t.Errorf("%q with a question pending decided %q — the question was discarded and "+
 				"something else started", text, got.Kind)
@@ -265,7 +265,7 @@ func TestAStalePendingQuestionDoesNotHijackAKnownPlay(t *testing.T) {
 	for _, text := range []string{
 		"open mouse settings", "Open Mouse Settings", "open-mouse-settings",
 	} {
-		got := invoke.Decide(plays, invoke.Request{Text: text, Pending: true})
+		got := invoke.Decide(plays, nil, invoke.Request{Text: text, Pending: true})
 		if got.Kind != invoke.KindPlay {
 			t.Errorf("%q with a stale question pending decided %q — a play Marco has was "+
 				"delivered to Director as an answer", text, got.Kind)
@@ -275,11 +275,11 @@ func TestAStalePendingQuestionDoesNotHijackAKnownPlay(t *testing.T) {
 		}
 	}
 	// A request Marco has no play for still reaches Director, question or no question.
-	if got := invoke.Decide(plays, invoke.Request{Text: "turn bluetooth off", Pending: true}); got.Kind != invoke.KindDirector {
+	if got := invoke.Decide(plays, nil, invoke.Request{Text: "turn bluetooth off", Pending: true}); got.Kind != invoke.KindDirector {
 		t.Errorf("an unknown request decided %q", got.Kind)
 	}
 	// And a control phrase still beats everything, including a pending question.
-	if got := invoke.Decide(plays, invoke.Request{Text: "stop", Pending: true}); got.Kind != invoke.KindControl {
+	if got := invoke.Decide(plays, nil, invoke.Request{Text: "stop", Pending: true}); got.Kind != invoke.KindControl {
 		t.Errorf("stop with a question pending decided %q", got.Kind)
 	}
 }
@@ -293,7 +293,7 @@ func TestDirectorReceivesTheWordsAsSpoken(t *testing.T) {
 		"open dad's settings",
 		"what's on screen?",
 	} {
-		got := invoke.Decide(plays, invoke.Request{Text: text})
+		got := invoke.Decide(plays, nil, invoke.Request{Text: text})
 		if got.Kind != invoke.KindDirector {
 			t.Fatalf("%q decided %q", text, got.Kind)
 		}
@@ -303,7 +303,7 @@ func TestDirectorReceivesTheWordsAsSpoken(t *testing.T) {
 		}
 	}
 	// Only surrounding whitespace is taken off, because it is not part of anything.
-	if got := invoke.Decide(plays, invoke.Request{Text: "  turn bluetooth off  "}); got.Phrase != "turn bluetooth off" {
+	if got := invoke.Decide(plays, nil, invoke.Request{Text: "  turn bluetooth off  "}); got.Phrase != "turn bluetooth off" {
 		t.Errorf("phrase %q", got.Phrase)
 	}
 }
@@ -325,12 +325,12 @@ func TestAmbiguityIsResolvedByTheStoresRuleNotByOrder(t *testing.T) {
 		}
 	}
 	// Same question, many times: the answer may not wander.
-	first := invoke.Decide(reg, invoke.Request{Text: "open mouse settings", App: "settings"})
+	first := invoke.Decide(reg, nil, invoke.Request{Text: "open mouse settings", App: "settings"})
 	if first.Kind != invoke.KindPlay {
 		t.Fatalf("decided %q", first.Kind)
 	}
 	for i := 0; i < 50; i++ {
-		got := invoke.Decide(reg, invoke.Request{Text: "open mouse settings", App: "settings"})
+		got := invoke.Decide(reg, nil, invoke.Request{Text: "open mouse settings", App: "settings"})
 		if got.Play != first.Play {
 			t.Fatalf("the same invocation chose %+v then %+v — the answer depends on "+
 				"iteration order", first.Play, got.Play)
@@ -341,9 +341,9 @@ func TestAmbiguityIsResolvedByTheStoresRuleNotByOrder(t *testing.T) {
 			first.Play, inApp)
 	}
 	// And from elsewhere it is still deterministic.
-	away := invoke.Decide(reg, invoke.Request{Text: "open mouse settings", App: "discord"})
+	away := invoke.Decide(reg, nil, invoke.Request{Text: "open mouse settings", App: "discord"})
 	for i := 0; i < 50; i++ {
-		if got := invoke.Decide(reg, invoke.Request{Text: "open mouse settings", App: "discord"}); got.Play != away.Play {
+		if got := invoke.Decide(reg, nil, invoke.Request{Text: "open mouse settings", App: "discord"}); got.Play != away.Play {
 			t.Fatal("the from-elsewhere answer wanders")
 		}
 	}
@@ -360,7 +360,7 @@ func TestAStagedPlayDoesNotInterceptAnInvocation(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, src := range everySource {
-		got := invoke.Decide(reg, invoke.Request{Text: "open bluetooth", Source: src, App: "settings"})
+		got := invoke.Decide(reg, nil, invoke.Request{Text: "open bluetooth", Source: src, App: "settings"})
 		if got.Kind != invoke.KindDirector {
 			t.Fatalf("a saved-but-unregistered play answered a %s invocation as %q", src, got.Kind)
 		}
@@ -369,7 +369,7 @@ func TestAStagedPlayDoesNotInterceptAnInvocation(t *testing.T) {
 	if err := reg.Register(rt); err != nil {
 		t.Fatal(err)
 	}
-	if got := invoke.Decide(reg, invoke.Request{Text: "open bluetooth", App: "discord"}); got.Kind != invoke.KindPlay {
+	if got := invoke.Decide(reg, nil, invoke.Request{Text: "open bluetooth", App: "discord"}); got.Kind != invoke.KindPlay {
 		t.Fatal("a registered play still does not answer")
 	}
 }
@@ -388,7 +388,7 @@ func TestAPlayNamedWithTheGrammarIsStillReachable(t *testing.T) {
 		{"wait then click", "wait-then-click"},
 		{"log in with google", "log-in-with-google"},
 	} {
-		got := invoke.Decide(plays, invoke.Request{Text: c.text})
+		got := invoke.Decide(plays, nil, invoke.Request{Text: c.text})
 		if got.Kind != invoke.KindPlay || got.Play.Slug != c.slug {
 			t.Errorf("%q decided %q/%q — its own name was read as a chain or an argument "+
 				"list before anybody checked whether it was a play", c.text, got.Kind, got.Play.Slug)
@@ -412,7 +412,7 @@ func TestTheTraceSaysHowAnInvocationWasRouted(t *testing.T) {
 		{invoke.Request{Text: "x", Source: invoke.SourceControlCentre, Play: &mouse},
 			[]string{"decision=play", "explicit=yes"}},
 	} {
-		got := invoke.Decide(plays, c.req).Trace(c.req)
+		got := invoke.Decide(plays, nil, c.req).Trace(c.req)
 		for _, want := range c.want {
 			if !strings.Contains(got, want) {
 				t.Errorf("trace %q is missing %q", got, want)
@@ -428,12 +428,146 @@ func TestTheTraceSaysHowAnInvocationWasRouted(t *testing.T) {
 func TestNothingSaidDecidesNothing(t *testing.T) {
 	plays := newPlays(mouse)
 	for _, text := range []string{"", "   "} {
-		got := invoke.Decide(plays, invoke.Request{Text: text})
+		got := invoke.Decide(plays, nil, invoke.Request{Text: text})
 		if got.Kind != invoke.KindDirector || got.Phrase != "" {
 			t.Errorf("%q decided %+v", text, got)
 		}
 		if len(plays.asked) != 0 {
 			t.Errorf("an empty phrase was looked up: %v", plays.asked)
 		}
+	}
+}
+
+// ── what the person showed Marco by hand ─────────────────────────────────────
+
+// fakeSights answers for a fixed set of demonstration names and RECORDS every question.
+//
+// Recorded for the same reason `fakePlays` records: the claims that matter here are about calls
+// that must NOT happen. A control phrase, a pending answer, an explicit identity and a name that
+// already resolves to a play must each be decided without this being asked anything at all.
+type fakeSights struct {
+	known map[string]invoke.Demonstrated
+	asked []string
+}
+
+func (f *fakeSights) Demonstration(app, name string) (invoke.Demonstrated, bool) {
+	f.asked = append(f.asked, app+"|"+name)
+	// CASE-INSENSITIVELY, which is what the real store does: a person asking for
+	// "ark graphics live" is asking for the thing they called "Ark Graphics Live".
+	d, ok := f.known[strings.ToLower(strings.TrimSpace(name))]
+	return d, ok
+}
+
+func newSights(ds ...invoke.Demonstrated) *fakeSights {
+	f := &fakeSights{known: map[string]invoke.Demonstrated{}}
+	for _, d := range ds {
+		f.known[strings.ToLower(d.Name)] = d
+	}
+	return f
+}
+
+var arkGraphics = invoke.Demonstrated{Name: "ark graphics live", Application: "arkascended"}
+
+// A NAME SOMEBODY DEMONSTRATED IS PERFORMED BY SIGHT.
+//
+// # The failure this guards
+//
+// A demonstration is the half of the product a person makes with their own hands: they show
+// Marco a game menu, it saves the screens, the control and what the click did. Typing that name
+// back reached arm five — Director — which read the words against the screen and reported that
+// nothing matching them was present in the observed window. It was present. It had been pointed
+// at. The words went to the half that guesses rather than the half that was told.
+//
+// Mutation: delete the arm, or move it behind Director. This fails.
+func TestADemonstrationIsPerformedBySight(t *testing.T) {
+	plays, sights := newPlays(mouse), newSights(arkGraphics)
+	for _, text := range []string{"ark graphics live", "Ark Graphics Live", "  ark graphics live  "} {
+		got := invoke.Decide(plays, sights, invoke.Request{Text: text,
+			Source: invoke.SourceTyped, App: "arkascended"})
+		if got.Kind != invoke.KindDemonstration {
+			t.Fatalf("%q decided %q (%s), want a demonstration",
+				text, got.Kind, got.Why)
+		}
+		// AND THE NAME IS THE STORE'S, not the words. The runner looks it up again,
+		// and a name that reached it as typed would be a second chance to miss.
+		if got.Demonstration.Name != arkGraphics.Name {
+			t.Errorf("%q carried the name %q", text, got.Demonstration.Name)
+		}
+		// AND THE APPLICATION COMES WITH IT. Without it the runner watches the
+		// foreground, and at the moment somebody types a name the foreground is
+		// whatever they typed it into.
+		if got.Demonstration.Application != arkGraphics.Application {
+			t.Errorf("%q carried the application %q", text,
+				got.Demonstration.Application)
+		}
+	}
+	// AND IT SHOWS IN THE TRACE, which is how an acceptance run says where words went.
+	line := invoke.Decide(plays, sights, invoke.Request{Text: "ark graphics live",
+		Source: invoke.SourceSpoken}).Trace(invoke.Request{Source: invoke.SourceSpoken})
+	for _, want := range []string{"decision=demonstration", `demonstration="ark graphics live"`} {
+		if !strings.Contains(line, want) {
+			t.Errorf("the trace %q does not carry %q", line, want)
+		}
+	}
+}
+
+// AND A PLAY OF THE SAME NAME STILL WINS, WITHOUT THE DEMONSTRATION BEING ASKED ABOUT.
+//
+// The order is the compatibility guarantee: every name that runs something today runs the same
+// thing tomorrow. A person who has a play called "open the map" and later demonstrates something
+// under that name has not silently replaced what the words do — and the proof is that the
+// demonstration store is never even consulted.
+func TestAPlayStillWinsOverADemonstrationOfTheSameName(t *testing.T) {
+	both := routes.Route{App: "arkascended", Slug: "ark-graphics-live"}
+	plays, sights := newPlays(both), newSights(arkGraphics)
+	got := invoke.Decide(plays, sights, invoke.Request{Text: "ark graphics live"})
+	if got.Kind != invoke.KindPlay {
+		t.Fatalf("decided %q (%s); a name that already runs a play must keep "+
+			"running it", got.Kind, got.Why)
+	}
+	if len(sights.asked) != 0 {
+		t.Errorf("the demonstration store was asked %v for a name that resolved "+
+			"to a play, so the two stores are being consulted in parallel "+
+			"rather than in order", sights.asked)
+	}
+}
+
+// AND NOTHING ABOVE THE ARM CONSULTS IT.
+//
+// Each of these is decided by an arm above five, and each one asking would be a bug of its own:
+// "stop" looked up as a demonstration is a stop that went shopping, "the second one" looked up is
+// an answer being matched as a name, and an explicit identity looked up is the lookup that
+// ADR-029's door exists to make unnecessary.
+func TestADemonstrationIsNotConsultedAboveItsArm(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		req  invoke.Request
+	}{
+		{"a control phrase", invoke.Request{Text: "stop"}},
+		{"an answer to a question", invoke.Request{Text: "the second one", Pending: true}},
+		{"an identity the surface holds", invoke.Request{Text: "ark graphics live",
+			Play: &mouse}},
+		{"nothing said at all", invoke.Request{Text: "   "}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			sights := newSights(arkGraphics)
+			invoke.Decide(newPlays(), sights, tc.req)
+			if len(sights.asked) != 0 {
+				t.Errorf("the demonstration store was asked %v",
+					sights.asked)
+			}
+		})
+	}
+}
+
+// AND AN ENTRANCE WITH NO SIGHT OF DEMONSTRATIONS STILL ANSWERS.
+//
+// `nil` is not a crash and not a refusal: it is an entrance that cannot see that store, and the
+// words then belong to Director exactly as they did before the arm existed. The production
+// wiring is held where production is, beside the intake.
+func TestAnEntranceWithNoSightOfDemonstrationsFallsThroughToDirector(t *testing.T) {
+	got := invoke.Decide(newPlays(), nil, invoke.Request{Text: "ark graphics live"})
+	if got.Kind != invoke.KindDirector {
+		t.Fatalf("decided %q (%s)", got.Kind, got.Why)
 	}
 }

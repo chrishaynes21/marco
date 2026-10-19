@@ -57,6 +57,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/structure"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/windowref"
+	"github.com/chaynes-simpleclouds/marco/internal/director/runref"
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflowrun"
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflowstore"
 	"github.com/chaynes-simpleclouds/marco/internal/oshost"
@@ -66,6 +67,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/platform/wincapture"
 	"github.com/chaynes-simpleclouds/marco/internal/platform/winprovider"
 	"github.com/chaynes-simpleclouds/marco/internal/runtime"
+	"github.com/chaynes-simpleclouds/marco/internal/stopsignal"
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 )
 
@@ -186,6 +188,26 @@ func runPerformWorkflow(args []string) int {
 	ctx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stopSignals()
 
+	// ── AND SO DOES THE WORD "STOP", FROM WHEREVER IT WAS SAID ──
+	//
+	// Ctrl-C is a terminal's stop and F9 is a desktop's. Neither is the product's: a
+	// person who typed or said "stop" to the overlay reaches `marco`'s one stop, which
+	// raises the local generation every running Play watches and tells the Director
+	// service to drop what it is holding. This run is neither of those things — it is a
+	// command, started by a front end, with no terminal to interrupt — so until now the
+	// one word a person is most likely to use could not reach the one thing most worth
+	// stopping.
+	//
+	// `stopsignal.Watch` is the same mechanism and the same home every Play already
+	// watches, so there is no second broadcast and nothing new to raise. A cancelled
+	// context is how the rest of this command already hears a stop, and the classifier
+	// already reads `ctx.Err()` as cancellation — so a run stopped this way records
+	// itself as cancelled, which is not a run that failed.
+	//
+	// Deleting this must fail TestAStopSaidAnywhereReachesASupervisedRun.
+	ctx, stopWatching := stopsignal.Watch(ctx, stopsignal.Home())
+	defer stopWatching()
+
 	// ── AND WHICH WINDOW, when one executable owns two ──
 	//
 	// An executable name is the weakest selector and the only one that can be ambiguous.
@@ -299,7 +321,7 @@ func runPerformWorkflow(args []string) int {
 				"director: the run record could not be written: %v\n", err)
 			fmt.Printf("%s\n", citeRun(runID, ""))
 		} else {
-			fmt.Printf("%s   (%s)\n", citeRun(runID, p), out)
+			fmt.Printf("%s\n", runref.Ended(runID, p, out))
 		}
 		return code
 	}
@@ -936,8 +958,8 @@ func runPerformWorkflow(args []string) int {
 			"director: the run record could not be written: %v\n", err)
 		fmt.Printf("\n%s\n", citeRun(runID, ""))
 	} else {
-		fmt.Printf("\n%s   (%s)\n", citeRun(runID, p),
-			outcomeOfRun(rep, ctx.Err() != nil || stoppedByKey.Load()))
+		fmt.Printf("\n%s\n", runref.Ended(runID, p,
+			outcomeOfRun(rep, ctx.Err() != nil || stoppedByKey.Load())))
 	}
 	if desk != nil {
 		stray, drained := desk.counts()

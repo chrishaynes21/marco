@@ -34,37 +34,30 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/chaynes-simpleclouds/marco/internal/director/runref"
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflowrun"
 )
 
 // runsDir is where run records are kept, beside the routines they were run from.
 const runsDir = "runs"
 
-// RunOutcome is how a supervised run ended, in the four ways a person asks about.
+// RunOutcome and its seven words live in internal/director/runref, because the reference that
+// carries them is printed by this command and READ by whatever asked for the run.
 //
-// Four and not two. "It did not work" covers a refusal before anything was pressed, a press
-// whose outcome contradicted the expectation, and a press nobody could confirm either way —
-// and those send somebody to three different places. Cancellation is the fourth because a run
-// somebody stopped is not a run that failed.
-type RunOutcome string
+// Named here as they always were: this file is where the record is written, and a reader of
+// `RunVerified` should not have to learn a second spelling to follow it. One definition, two
+// spellings of the same constant, and no second vocabulary — see runref.Outcome for what each
+// word means and why there are seven.
+type RunOutcome = runref.Outcome
 
 const (
-	// RunCancelled: a person stopped it. Nothing is implied about the application.
-	RunCancelled RunOutcome = "cancelled"
-	// RunRefused: Marco declined before sending input, or stopped without arriving.
-	RunRefused RunOutcome = "refused"
-	// RunVerified: an action was performed and its outcome was verified.
-	RunVerified RunOutcome = "verified"
-	// RunUnconfirmed: an action was performed and its outcome could not be decided.
-	RunUnconfirmed RunOutcome = "unconfirmed"
-	// RunContradicted: an action was performed and the evidence disagreed with it.
-	RunContradicted RunOutcome = "contradicted"
-	// RunFailed: the run could not start — no window, no artifact, a refused scope.
-	RunFailed RunOutcome = "failed"
-	// RunStarted: reserved and not finalised. A record that still says this is an
-	// attempt that left by a path which wrote no outcome — which is a defect in this
-	// command and not a thing that happened to the application.
-	RunStarted RunOutcome = "started"
+	RunCancelled    = runref.Cancelled
+	RunRefused      = runref.Refused
+	RunVerified     = runref.Verified
+	RunUnconfirmed  = runref.Unconfirmed
+	RunContradicted = runref.Contradicted
+	RunFailed       = runref.Failed
+	RunStarted      = runref.Started
 )
 
 // RunRecord is one supervised attempt, as a person would cite it in a bug report.
@@ -288,10 +281,6 @@ func outcomeOfRun(rep workflowrun.Report, cancelled bool) RunOutcome {
 	return RunUnconfirmed
 }
 
-// citeRun is the line a person copies into a bug report.
-func citeRun(id, path string) string {
-	if path == "" {
-		return fmt.Sprintf("  run %s   (its record could not be written)", id)
-	}
-	return fmt.Sprintf("  run %s   %s", id, path)
-}
+// citeRun is the line a person copies into a bug report, and the line a front end that spawned
+// this run reads back. One shape, in runref, for exactly that reason.
+func citeRun(id, path string) string { return runref.Cite(id, path) }

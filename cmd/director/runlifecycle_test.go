@@ -18,6 +18,7 @@ import (
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/demo"
 	"github.com/chaynes-simpleclouds/marco/internal/platform/navsource"
+	"github.com/chaynes-simpleclouds/marco/internal/stopsignal"
 )
 
 // aSavedRoutine puts a named pixel routine in a temporary home and returns its name.
@@ -121,5 +122,70 @@ func TestAStartPromptCancellationIsRecordedAsCancelled(t *testing.T) {
 	}
 	if rec.Sent != 0 {
 		t.Errorf("%d action(s) sent by a run cancelled at the start prompt", rec.Sent)
+	}
+}
+
+// TestAStopSaidAnywhereReachesASupervisedRun.
+//
+// # The condition
+//
+// Three things can stop this command, and until now only two of them could. Ctrl-C is a
+// terminal's stop and F9 is a desktop's; the one a person actually uses is the word. Typed into
+// the overlay or spoken, "stop" reaches `marco`'s one stop, which raises the local generation
+// every running Play watches and tells the Director service to drop what it is holding — and a
+// supervised run is neither of those. It is a command, started by a front end, with no terminal
+// to interrupt.
+//
+// So the moment the product could start a run from the widget, it could start one it could not
+// stop by the only means the widget offers. That is the wrong way round for a path whose whole
+// design is that a person stays in charge of every action.
+//
+// Nothing new is raised and no second broadcast exists: this watches the same generation in the
+// same home that `marco do stop` already raises. And because a stop arrives as a cancelled
+// context, the classifier already reads it as cancellation rather than failure.
+func TestAStopSaidAnywhereReachesASupervisedRun(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("MARCO_HOME", home)
+	aSavedRoutine(t, "a routine")
+
+	// A HOOK THAT NEVER ANSWERS, so the start prompt would wait out its own patience
+	// and the only thing that can end this run is the word.
+	was := newKeySource
+	t.Cleanup(func() { newKeySource = was })
+	src, _ := navsource.NewSynthetic()
+	t.Cleanup(func() { _ = src.Close() })
+	newKeySource = func() (*navsource.Source, string) { return src, "" }
+
+	// AND THE WORD, FROM SOMEWHERE ELSE ENTIRELY. This is what `marco do stop` does,
+	// in the same home, through the same one definition.
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		if err := stopsignal.Raise(home); err != nil {
+			t.Errorf("the stop could not be published: %v", err)
+		}
+	}()
+
+	began := time.Now()
+	code := runPerformWorkflow([]string{
+		"--application", "nosuchapplicationanywhere",
+		"--name", "a routine", "--hotkeys", "--delay", "30s", "--seconds", "5",
+	})
+	took := time.Since(began)
+
+	if code == 0 {
+		t.Error("a stopped run reported success")
+	}
+	// AND IT STOPPED WHEN IT WAS TOLD, not when its own patience ran out. The delay
+	// alone is thirty seconds; a run that waited that out heard nothing.
+	if took > 10*time.Second {
+		t.Errorf("the run took %s to hear a stop, so the word did not reach it", took)
+	}
+	rec := theOnlyRecord(t)
+	if rec.Outcome != RunCancelled {
+		t.Errorf("outcome %q, want %q — a run somebody stopped is not a run that "+
+			"failed", rec.Outcome, RunCancelled)
+	}
+	if rec.Sent != 0 {
+		t.Errorf("%d action(s) sent by a run that was stopped", rec.Sent)
 	}
 }

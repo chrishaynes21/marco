@@ -936,3 +936,44 @@ func (a Artifact) VisualTargets() []observe.StoredTarget {
 	}
 	return out
 }
+
+// ── WHAT A SAVED ROUTINE CAN ACTUALLY DO, IN ONE PLACE ───────────────────────
+//
+// Three states, and they are not degrees of the same thing. A routine with a verb on every step
+// is run by the ordinary execution path. A routine learned from PIXELS has no verb to run and is
+// performed by sight — grounded on a fresh look, authorised, pressed, verified. A routine with
+// neither is a record of something that happened and is not a thing to run at all.
+//
+// Asked of the artifact because it is a property of the artifact, and because three surfaces need
+// the answer: the listing that tells a person how to run one, the one door that decides what a
+// typed name means, and the runner's own refusals. Three copies of this predicate would drift the
+// first time one of them learned something, and the shape of that drift is the defect ADR-239
+// closed — Marco reporting, of a routine it had just learned to perform, that it could not be run.
+
+// RunnableByVerbs reports whether the ordinary execution path can act on this routine.
+//
+// EVERY step, because a routine that is half verbs is not something the verb path can carry out:
+// it would act on the steps it understood and silently skip the ones it did not.
+func (a Artifact) RunnableByVerbs() bool {
+	for _, st := range a.Steps {
+		if st.Verb == "" {
+			return false
+		}
+	}
+	return len(a.Steps) > 0
+}
+
+// PerformableBySight reports whether the supervised pixel runner can perform this routine.
+//
+// Three conditions, each of which is a different refusal if it fails:
+//
+//   - it is not a verb routine. Those belong to the ordinary path, and claiming one here would
+//     quietly change what a name a person already uses does;
+//   - it carries visual control evidence. Without readings there is nothing to ground on a fresh
+//     look, and a run would refuse at its first step having told somebody it was starting;
+//   - it is SCOPED. An unscoped routine is valid for no application rather than for all of
+//     them — the identity has to come from an observed window and nothing can invent one — so
+//     the runner would refuse it, and offering it is offering something that cannot happen.
+func (a Artifact) PerformableBySight() bool {
+	return !a.RunnableByVerbs() && len(a.VisualTargets()) > 0 && a.Scoped()
+}

@@ -570,14 +570,13 @@ func renderSequence(a workflowstore.Artifact) string {
 // execute "run enter free play"* under a routine that cannot run — which sends somebody to a
 // confusing failure at step three of a walkthrough.
 //
+// ONE DEFINITION, on the artifact: the listing, the one door that decides what a typed name
+// means, and the runner all need this answer, and three copies would drift. See
+// `workflowstore.Artifact.RunnableByVerbs` and its sibling `PerformableBySight`.
+//
 // Enforced by TestAPixelRoutineIsNotOfferedAsRunnable.
 func runnable(a workflowstore.Artifact) bool {
-	for _, st := range a.Steps {
-		if st.Verb == "" {
-			return false
-		}
-	}
-	return len(a.Steps) > 0
+	return a.RunnableByVerbs()
 }
 
 // savedSequences is the saved routines, from the daemon when it is running and from the store

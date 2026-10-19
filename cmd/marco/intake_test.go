@@ -86,7 +86,7 @@ func intakeWorld(t *testing.T) orchestrator.Deps {
 // running it would need a desktop.
 func decideAs(t *testing.T, d orchestrator.Deps, src invoke.Source, text string) invoke.Decision {
 	t.Helper()
-	return invoke.Decide(d.Reg, invoke.Request{Text: text, Source: src, App: d.App()})
+	return invoke.Decide(d.Reg, nil, invoke.Request{Text: text, Source: src, App: d.App()})
 }
 
 // Typed, spoken and CLI all reach the SAME play for a name Marco already has.
@@ -208,7 +208,7 @@ func TestARegisteredPlayInterceptsBeforeDirector(t *testing.T) {
 	// A CONTEXT play answers only in its own application, and that is not a failure to
 	// intercept — it is the scope doing its job. With Notepad in front it intercepts; with
 	// Discord in front the words are a request Director should read against the screen.
-	inApp := invoke.Decide(d.Reg, invoke.Request{
+	inApp := invoke.Decide(d.Reg, nil, invoke.Request{
 		Text: "save and close", Source: invoke.SourceSpoken, App: "notepad"})
 	if inApp.Kind != invoke.KindPlay || inApp.Play.Slug != "save-and-close" {
 		t.Fatalf("in its own application a context play decided %q/%q",
@@ -825,7 +825,7 @@ func TestAPlayNameBeatsTheInvocationGrammar(t *testing.T) {
 		{"log in with google", "log-in-with-google"},
 		{"wait then click", "wait-then-click"},
 	} {
-		got := invoke.Decide(d.Reg, invoke.Request{Text: c.text, App: "discord"})
+		got := invoke.Decide(d.Reg, nil, invoke.Request{Text: c.text, App: "discord"})
 		if got.Kind != invoke.KindPlay || got.Play.Slug != c.want {
 			t.Errorf("%q decided %q/%q, want the play %q", c.text, got.Kind, got.Play.Slug, c.want)
 		}
