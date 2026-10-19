@@ -723,3 +723,27 @@ func TestASupervisedRunsTranscriptReachesTheLog(t *testing.T) {
 		t.Errorf("the child reported %q", r.result)
 	}
 }
+
+// AND "WHERE AM I" IS NOT DESCRIBED AS AN ACTION.
+//
+// The first question a person typing a routine's name ever sees is which saved screen they are
+// standing on — a question about the world, asked before anything is proposed. Reading it out as
+// "press F7 to allow this action" would name the wrong thing at the one moment a person is
+// deciding whether Marco knows where it is.
+func TestTheScreenQuestionReadsAsAQuestionAboutTheScreen(t *testing.T) {
+	yes := navsource.ConsentKeys[navsource.ConsentApprove]
+	st, ok := directorStatusLine("  Is that the screen you are on?  " + yes +
+		" yes   F8 no   F9 stop   (8s)")
+	if !ok {
+		t.Fatal("the screen question is not on the status line")
+	}
+	if !strings.HasPrefix(st, questionStatus) || !strings.Contains(st, yes) {
+		t.Errorf("%q does not read as Marco waiting on you with a key", st)
+	}
+	if strings.Contains(st, "action") {
+		t.Errorf("%q calls naming a screen an action", st)
+	}
+	if !strings.Contains(st, "screen") {
+		t.Errorf("%q does not say what is being asked", st)
+	}
+}

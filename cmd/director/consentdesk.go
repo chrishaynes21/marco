@@ -226,6 +226,11 @@ type hotkeyGranter struct {
 	granted  int
 	proposed int
 	agreed   int
+	// screens and placed are the SCREENS somebody was asked to confirm and confirmed.
+	// A fifth and sixth number for the same reason: saying "yes, that is the screen I am
+	// looking at" is a third question, and it is the one that used to be unanswerable.
+	screens int
+	placed  int
 }
 
 func (g *hotkeyGranter) clock() time.Time {
@@ -304,4 +309,52 @@ func (g *hotkeyGranter) agree(ctx context.Context, step int, control, from, to s
 		return true
 	}
 	return false
+}
+
+// confirmScreen asks whether the saved screen Marco thinks it is looking at is the screen the
+// person is actually on.
+//
+// # The third question, and the only one that is not about an action
+//
+// A run has to know where it is standing before it can know what the next step is. The typed
+// path asks for that by printing the candidates and reading a label off standard input — and
+// `--hotkeys` exists precisely because typing an answer takes the foreground away from the
+// application, which then refuses the press the answer permitted. So in hotkey mode nobody could
+// be asked at all, and the run refused every first observation with *name the screen with --from
+// and start again*. From a widget there is no terminal to name it in: the one path a person had
+// to the half of the product they made with their own hands dead-ended here.
+//
+// # Why one yes/no is enough, and why it is not a silent choice
+//
+// The ranking is an arrangement similarity over the artifact's own saved screens, and it cannot
+// say whether the right answer is in the list — that is ADR-186's whole point, and it is what a
+// person adds. So Marco names its best candidate and the SCORE it rests on, and the person says
+// yes or no with the same key that authorises everything else.
+//
+// A no is not a worse answer: the screen is declined exactly as `none` declines it on the typed
+// path, nothing is pressed, and the run goes on looking. Taking the top candidate without asking
+// would be the thing this must not do — it would spend an unasked authorisation on a screen
+// nobody had looked at.
+func (g *hotkeyGranter) confirmScreen(ctx context.Context, label string, score float64) (
+	navsource.Consent, bool) {
+
+	g.screens++
+	fmt.Fprintf(g.out, "\n  Marco thinks the screen in front of you is %s "+
+		"(its arrangement agrees %.3f).\n", label, score)
+	fmt.Fprintf(g.out, "  Is that the screen you are on?  %s yes   %s no   %s stop"+
+		"   (%s)\n",
+		navsource.ConsentKeys[navsource.ConsentApprove],
+		navsource.ConsentKeys[navsource.ConsentRefuse],
+		navsource.ConsentKeys[navsource.ConsentStop], g.within)
+	c, answered := g.desk.ask(ctx, g.within)
+	if !answered {
+		fmt.Fprintf(g.out, "  nobody answered within %s, so the screen is not "+
+			"established and nothing was pressed\n", g.within)
+		return "", false
+	}
+	fmt.Fprintf(g.out, "  answered %s\n", c)
+	if c == navsource.ConsentApprove {
+		g.placed++
+	}
+	return c, true
 }

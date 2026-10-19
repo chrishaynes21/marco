@@ -1723,6 +1723,17 @@ it refuses those looks. Visible is fine; in front is not.
   And a supervised run now watches the stop generation, so the word "stop" reaches it like it
   reaches everything else — which also makes the overlay's leader key true for the one child it
   has no handle on.
+  **And one question still had no answer from there, which the first attempt missed.** A run has
+  to know which saved screen it is standing on before it knows what its next step is, and that
+  correspondence is a person's to make. The typed path reads a label off standard input;
+  `--hotkeys` exists because typing takes the foreground away from the application, so hotkey
+  mode was SILENT and refused every first observation with *name the screen with --from and start
+  again*. From a widget there is no terminal to name a screen in, so the first invocation could
+  not have reached its first action however correct everything else was — found by inspection,
+  missed by an integration test that cancelled at the preparation prompt. The keys that authorise
+  every action now answer this one too: one ranked candidate, named with the score it rests on,
+  confirmed or declined by a real keypress. Taking the top candidate without asking would spend
+  an unasked authorisation on a screen nobody had looked at.
   [[ADR-241-a-name-you-demonstrated-is-a-name-you-can-use]]
 - **Four live demonstrations on a real game, and no press.** The demonstration half works: a
   person's click was recorded with its coordinate as evidence, a control found at 8%x3% where

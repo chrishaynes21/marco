@@ -594,6 +594,15 @@ func runPerformWorkflow(args []string) int {
 		keys = &hotkeyGranter{desk: desk, out: os.Stdout, live: *live,
 			within: *answer, life: 10 * time.Second}
 		grant = keys
+		// AND THE SAME KEYS ANSWER THE ONE QUESTION THAT IS NOT ABOUT AN ACTION.
+		//
+		// Which saved screen is in front of you. Without this a hotkey run — the
+		// only kind a widget can start — refuses every first observation with
+		// "name the screen with --from and start again", and from a widget there
+		// is no terminal to name it in. See promptGrounder.byKey.
+		//
+		// Deleting this must fail TestAHotkeyRunEstablishesItsScreenByKey.
+		ground.byKey = keys.confirmScreen
 	}
 
 	windowNow := func() (directorapi.Window, bool) {
@@ -963,7 +972,9 @@ func runPerformWorkflow(args []string) int {
 	}
 	if desk != nil {
 		stray, drained := desk.counts()
-		fmt.Printf("\n  %-42s %d of %d\n", "steps agreed to by key",
+		fmt.Printf("\n  %-42s %d of %d\n", "screens named by key",
+			keys.placed, keys.screens)
+		fmt.Printf("  %-42s %d of %d\n", "steps agreed to by key",
 			keys.agreed, keys.proposed)
 		fmt.Printf("  %-42s %d of %d\n", "presses permitted by key",
 			keys.granted, keys.asked)
@@ -1367,9 +1378,26 @@ type promptGrounder struct {
 	// firstSeen is the screen the last observation carried, so a claim is spent on one
 	// that has stood for two rather than on a fold still settling.
 	firstSeen observe.VisualScreenID
-	// silent says nobody can be asked, because answering would take the foreground. The
-	// ranking is still printed: somebody who cannot answer can still read.
+	// silent says nobody can be asked IN WORDS, because typing an answer would take the
+	// foreground. The ranking is still printed: somebody who cannot answer can still read.
 	silent bool
+	// byKey is how a silent run asks anyway: one candidate, one function key.
+	//
+	// ── WHY THIS EXISTS AT ALL ──
+	//
+	// `silent` used to mean "nobody can be asked", and the run then refused every first
+	// observation with *name the screen with --from and start again*. That was true of a
+	// person at a terminal in another window, who can read the ranking and start again
+	// with a flag. It is not true of a person at a WIDGET: there is no terminal to name a
+	// screen in, so the one path to the half of the product they made with their own hands
+	// dead-ended on a question nobody could answer.
+	//
+	// The keys that authorise every action can answer this one too. Nil where nobody holds
+	// them — an exploring session, authorised at launch precisely so that it does not stop
+	// to ask, still has `--from` and still refuses without it. See
+	// hotkeyGranter.confirmScreen for why one yes/no is enough and why it is not a silent
+	// choice.
+	byKey func(ctx context.Context, label string, score float64) (navsource.Consent, bool)
 }
 
 func (p *promptGrounder) Establish(ctx context.Context, s *workflowstore.SessionBinding,
@@ -1454,6 +1482,51 @@ func (p *promptGrounder) Establish(ctx context.Context, s *workflowstore.Session
 	}
 	fmt.Fprintf(p.out, "    (a ranking cannot say whether the right answer is in the "+
 		"list; that is what you are adding)\n")
+	// ── ONE CANDIDATE, ONE KEY, WHERE THERE IS NO TERMINAL TO ANSWER IN ──
+	//
+	// The ranking proposes and the person decides, which is the same division
+	// [[ADR-186-a-person-can-say-where-they-are]] settled for the typed path — the
+	// difference is only which device the answer arrives on. The top candidate is named
+	// with the score it rests on, because a person about to let Marco act on a screen
+	// should be told how sure the arrangement is.
+	//
+	// A refusal declines this screen exactly as `none` does below: nothing is pressed,
+	// the question is not asked again in this observation, and the run goes on looking.
+	if p.silent && p.byKey != nil {
+		if best := p.ranked(); len(best) > 0 && best[0].label != "" {
+			c, answered := p.byKey(ctx, best[0].label, best[0].score)
+			switch {
+			case !answered:
+				p.declined[at.Screen], p.standing = at.Epoch, ""
+				return fmt.Errorf("nobody said whether %s is %s, so the "+
+					"screen it is standing on is not established",
+					at.Screen, best[0].label)
+			case c == navsource.ConsentApprove:
+				if err := s.Confirm(best[0].label, at.Screen, at.Epoch,
+					at.Generation, "the person at the keyboard ("+
+						navsource.ConsentKeys[navsource.ConsentApprove]+
+						")", time.Now()); err != nil {
+					return err
+				}
+				p.standing = best[0].label
+				fmt.Fprintf(p.out, "  %s established by key, in observation "+
+					"%d/%d\n", best[0].label, at.Epoch, at.Generation)
+				return nil
+			case c == navsource.ConsentStop:
+				// THE RUN IS ALREADY STOPPING. The desk's stop callback
+				// reaches the runner itself; this says what the look made
+				// of the question so the report is not silent about it.
+				p.declined[at.Screen], p.standing = at.Epoch, ""
+				return fmt.Errorf("the run was stopped while %s was being "+
+					"named", at.Screen)
+			}
+			p.declined[at.Screen], p.standing = at.Epoch, ""
+			return fmt.Errorf("%s is not %s, said the person at the keyboard, "+
+				"so the screen it is standing on is not established",
+				at.Screen, best[0].label)
+		}
+	}
+
 	// NOBODY CAN BE ASKED. The ranking above is printed anyway, because it is what
 	// somebody reading the other monitor needs in order to decide whether to start again
 	// with a different --from. Refusing silently would make an unanswerable question look

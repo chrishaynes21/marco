@@ -197,6 +197,17 @@ func TestPerformWorkflowInstallsItsGates(t *testing.T) {
 		{"r.Stop()",
 			"without the stop function the stop key is a key that prints " +
 				"something"},
+		// AND THE KEYS ANSWER THE ONE QUESTION THAT IS NOT ABOUT AN ACTION.
+		//
+		// Which saved screen is in front of you. Without this a hotkey run — the only
+		// kind a widget can start — refuses every first observation with "name the
+		// screen with --from and start again", and a widget has no terminal to name a
+		// screen in. The behavioural half is in groundbykey_test.go; this holds the
+		// one line that connects the desk to the grounder, which is a line a test
+		// driving the grounder directly supplies for itself.
+		{"ground.byKey = keys.confirmScreen",
+			"without it the grounder is silent with no way to be asked, and a run " +
+				"started from the widget cannot reach its first action"},
 		{"freshLook(shots, obs, windows,",
 			"without the fresh look installed the confirmation has nothing " +
 				"to take a look with"},

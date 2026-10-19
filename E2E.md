@@ -1026,12 +1026,19 @@ Then, with the game running and a routine already demonstrated and scoped to it:
 1. press the leader key, type the routine's **name** — nothing else, no verb, no flags — and
    press Enter;
 2. the status line says **Starting in 5s — bring the application in front**. Do that;
-3. it says **Marco has a question — press F7 to allow this action**. Look at the game: the
-   pointer is resting on the control. Press **F7** on the keyboard — not through anything Marco
-   can reach, which is the point;
-4. the control is pressed, the outcome is checked against what your demonstration saw, and the
+3. it asks **where you are**: *Marco has a question — press F7 if this is the screen you are on.*
+   The transcript names the saved screen it thinks you are looking at and how closely the
+   arrangement agrees. Press **F7** if that is right. This is the question that used to be
+   unanswerable from the widget — a hotkey run had no way to be told which screen it was on and
+   refused every first observation, so nothing below this line could ever happen;
+4. it asks about the **step**: *press F7 to allow this action*. Press F7, and it asks once more
+   about the **press** itself — agreeing that a step belongs and permitting it to happen now are
+   two questions on purpose;
+5. look at the game before that last F7: the pointer is resting on the control. Press **F7** on
+   the keyboard — not through anything Marco can reach, which is the point;
+6. the control is pressed, the outcome is checked against what your demonstration saw, and the
    HUD's log tail carries the whole transcript including the `run …` reference;
-5. the history row says **performed** (verified), **unverified** (nothing could decide), or
+7. the history row says **performed** (verified), **unverified** (nothing could decide), or
    **refused**.
 
 What to check, beyond "it worked":
@@ -1039,6 +1046,8 @@ What to check, beyond "it worked":
 - **F8** refuses one action and the run ends having sent nothing.
 - **F9**, or typing `stop`, or the leader key — all three end the run, and the record says
   `cancelled` rather than `failed`. Typing `stop` is the one that used not to reach it at all.
+- Pressing **F8** at the screen question stops the run instead of guessing: the record says the
+  screen was not established and nothing was pressed.
 - A name you have NOT demonstrated behaves exactly as it did before: Director reads it against
   the screen. A name that is also a play runs the **play**.
 - `./director.exe sequences` after the run, and the `run …` reference from the log tail, retrieve

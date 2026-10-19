@@ -118,6 +118,18 @@ func directorStatusLine(line string) (string, bool) {
 	switch {
 	case strings.HasPrefix(s, "heard: "):
 		return "heard " + strconv.Quote(strings.TrimPrefix(s, "heard: ")), true
+	case strings.Contains(s, "screen you are on"):
+		// WHERE AM I, which is a question about the WORLD and not about an action.
+		//
+		// A run cannot know what its next step is until it knows which saved screen
+		// it is standing on, and that correspondence is a person's to make: no
+		// measure can say whether the right answer is in the list. Told apart from
+		// the action questions below because "press F7 to allow this action" would
+		// be describing the wrong thing, and this is the first question a person
+		// typing a routine's name ever sees.
+		return questionStatus + " — press " +
+			navsource.ConsentKeys[navsource.ConsentApprove] +
+			" if this is the screen you are on", true
 	case strings.Contains(s, navsource.ConsentKeys[navsource.ConsentApprove]+" yes"):
 		// A QUESTION ABOUT ONE ACTION, answerable only by a real key. Matched on the
 		// key and the word beside it rather than on the sentence, because there are

@@ -2,7 +2,7 @@
 type: adr
 status: accepted
 date: 2026-10-19
-decision: "ACCEPTED — the one door gains a SIXTH arm: a name that exactly matches something the person demonstrated, after the play arm and before Director, resolved through the same demo store the runner reads. It is performed by spawning the ONE supervised runner — `director perform-workflow --name --application --live --hotkeys --reading` — whose transcript is passed through to the stream every front end already reads, and whose one-word outcome is taken from the run REFERENCE and translated into the seven words every surface already knows. The reference's shape and vocabulary move to `internal/director/runref` so the two binaries cannot drift. The door only claims a routine the runner can actually perform (`Artifact.PerformableBySight`), so a promise is never made that the runner then declines. And a supervised run now watches the stop generation, so the word 'stop' — typed, spoken, or the leader key — reaches it like it reaches every other running thing."
+decision: "ACCEPTED — the one door gains a SIXTH arm: a name that exactly matches something the person demonstrated, after the play arm and before Director, resolved through the same demo store the runner reads. It is performed by spawning the ONE supervised runner — `director perform-workflow --name --application --live --hotkeys --reading` — whose transcript is passed through to the stream every front end already reads, and whose one-word outcome is taken from the run REFERENCE and translated into the seven words every surface already knows. The reference's shape and vocabulary move to `internal/director/runref` so the two binaries cannot drift. The door only claims a routine the runner can actually perform (`Artifact.PerformableBySight`), so a promise is never made that the runner then declines. And a supervised run now watches the stop generation, so the word 'stop' — typed, spoken, or the leader key — reaches it like it reaches every other running thing. The question a widget had no way to answer — WHICH SAVED SCREEN you are standing on — is now asked with the same keys: one ranked candidate named with its score, confirmed or declined by a real keypress, because taking the top candidate without asking would spend an unasked authorisation on a screen nobody looked at."
 supersedes: []
 affects:
   - execution
@@ -98,6 +98,33 @@ one:
 
 **Nothing authorises more than one action.** `--explore` is a measurement flag and must never be
 what a typed name gets.
+
+### And the one question a widget had no way to answer
+
+A run cannot know what its next step is until it knows which saved screen it is standing on, and
+[[ADR-186-a-person-can-say-where-they-are]] settled that the correspondence is a person's to
+make: no measure can say whether the right answer is in the list. The typed path asks by printing
+the candidates and reading a label off standard input — and `--hotkeys` exists precisely because
+typing an answer takes the foreground away from the application, so the press the answer permits
+is then refused for want of frontness.
+
+So in hotkey mode nobody could be asked at all. `silent` meant "print the ranking and refuse",
+with the sentence *name the screen with --from and start again* — which is a fine answer for a
+person at a terminal in another window, and no answer at all for a person at a widget, who has no
+terminal to name a screen in. **The first invocation from the widget could not have reached its
+first action**, however correct everything else was. The architect found it by inspection; the
+integration test missed it because it cancelled at the preparation prompt, before grounding.
+
+The keys that authorise every action answer this one too. Marco names its best candidate and the
+score it rests on — `hotkeyGranter.confirmScreen` — and the person says yes or no with the same
+key. It is not a silent choice and must not become one: taking the top candidate without asking
+would spend an unasked authorisation on a screen nobody had looked at, and `--from` remains the
+way an exploring session (authorised at launch precisely so that it does not stop to ask) names
+its screen. A no declines the screen exactly as `none` does on the typed path: nothing is pressed,
+the question is not asked again in that observation, and the run goes on looking.
+
+The widget tells those two questions apart, because *press F7 to allow this action* would be
+naming the wrong thing at the one moment a person is deciding whether Marco knows where it is.
 
 ### One reference, read by two programs
 
@@ -198,6 +225,26 @@ Both binaries, from the same revision:
 - `cmd/marco/packaging_test.go` — `TestThePackagedLayoutIsWhatMarcoLooksFor` already holds that
   `director.exe` ships beside `marco.exe`, which is what makes the lookup this path depends on
   true of an installed Marco.
+
+Naming the screen, which is what the first invocation could not do:
+
+- `cmd/director/groundbykey_test.go` — `TestAHotkeyRunEstablishesItsScreenByKey` drives the
+  production grounder and the production desk over a synthetic hook, one case per answer: yes
+  establishes it, no declines it, silence establishes nothing, and a stop is a stop.
+  `TestTheScreenOfferedByKeyIsTheRankedCandidateWithItsScore` holds that the candidate is the one
+  the arrangement ranks first — not the first saved screen, which would be a silent choice wearing
+  a question's clothes — and that the score and the key are both on the line.
+- `TestAHotkeyRunReachesAnAuthorisedActionWithoutFrom` is the one that answers the finding: the
+  production command, with no `--from`, start to action — the start key, the screen named by key,
+  the step agreed to by key, the press authorised by key, and the program that authorisation
+  produced written down. Against the FOREGROUND window, because nothing can be grounded on a
+  window that does not lead the desktop and bringing one forward from a test is taking somebody's
+  focus; with a routine built from a real look at those pixels, so its control can be re-acquired;
+  and without `--live`, so the authorised action is compiled and written down rather than sent.
+- `cmd/director/performworkflowwiring_test.go` holds `ground.byKey = keys.confirmScreen`, the one
+  line connecting the desk to the grounder — which a test driving the grounder directly supplies
+  for itself.
+- `plugins/overlay/intake_test.go` — `TestTheScreenQuestionReadsAsAQuestionAboutTheScreen`.
 
 The reference:
 
