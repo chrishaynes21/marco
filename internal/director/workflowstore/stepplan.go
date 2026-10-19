@@ -48,6 +48,14 @@ const (
 	// observation. The commonest honest answer, and the one that must never be relaxed
 	// by reaching back to an earlier generation.
 	StepScreenUnestablished StepStage = "screen not established here"
+	// StepScreenUnread: the screen IS established and has not been READ yet, and this
+	// step's outcome can only be verified against a reading taken before the action.
+	//
+	// A separate stage from StepScreenUnestablished because the two are different facts
+	// and a reader told the wrong one looks in the wrong place: established is about
+	// whether Marco knows WHERE it is, read is about whether anybody has looked at the
+	// words. A step can be perfectly recognised on a screen nobody has read.
+	StepScreenUnread StepStage = "screen not read yet"
 	// StepNeedsClarification: the control's identity was never settled by the
 	// demonstration and nobody has answered the question.
 	StepNeedsClarification StepStage = "clarification unresolved"

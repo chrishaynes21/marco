@@ -914,3 +914,54 @@ verdict will see it.
 correlator while a person demonstrated it. It validates the execution path: ground, authorise,
 press, verify. It claims nothing about what a live demonstration would produce, and a live claim
 still needs a live demonstration.
+
+## The five guarded pixel cases, on a surface that keeps its own score (~10 min)
+
+The point of this one is that **Marco's report is not the evidence**. Marco is the thing being
+tested, so a run that says `pressed` and `verified` is a run agreeing with itself. The test menu
+therefore counts the presses it actually receives and publishes them, with the standing panel,
+in its own window title:
+
+```
+FXM <panel-index> <presses>        0=DISPLAY 1=GRAPHICS 2=AUDIO 3=CONTROLS
+```
+
+Read it from outside Marco, before and after every run:
+
+```sh
+powershell -c "Get-Process msedge | ? { \$_.MainWindowTitle -like 'FXM*' } | % { \$_.MainWindowTitle }"
+```
+
+Serve the menu in an app window with its own profile — a fresh profile each time, or the
+previous window's press counter comes back through session restore and the witness lies:
+
+```sh
+msedge --user-data-dir=<fresh dir> --no-first-run --window-size=1280,860 \
+       --window-position=80,60 --app="file:///<path>/menu.html?panel=display"
+```
+
+Then, with that window in front and selected exactly (`--pid`, because one executable can own
+two windows and the person's own browser usually does):
+
+| case | command | what you should see |
+|---|---|---|
+| correct menu | `--from=screen_a --delay=5s` | *outcome verified — 18 of the 18 word(s) … stayed for 5 reading(s)*, exit 0, witness `0 0` → `1 1` |
+| wrong application | foreground Notepad, `--foreground` | refused naming both applications, *Nothing was pressed.*, Notepad untouched |
+| reset and repeat | kill the window, relaunch, run again | verified again — a repeated action is where the bodies are |
+| foreground switch | `--dwell=4s`, then take the foreground ~1s into the dwell | *the pointer was moved to the control and the world changed before the press* — and the witness still says **0 presses** |
+| verification timeout | `--verify-for=200ms` | *unconfirmed … whether it worked is unknown — which is not the same as its having failed* |
+
+The last two are the ones worth running deliberately. The foreground case proves a check that
+passed at invocation is not permission for a press four seconds later, and the witness is what
+turns "Marco refused" into "nothing was clicked". The timeout case is interesting *because* the
+press works: the witness goes `0 0` → `1 1` while Marco says unconfirmed, which is the honest
+answer when it had 293ms and needed five readings.
+
+**What `--from` buys and what it hides.** Establishing the first screen is a person's claim, not
+a pixel match ([[ADR-186-a-person-can-say-where-they-are]]). Run without `--from` and the right
+menu and the wrong one refuse identically — *nobody could say which saved screen visual_1 is* —
+so a refusal there says nothing about which menu you were on. Run the control before trusting a
+refusal.
+
+See [[Experiment-090-the-first-guarded-pixel-action]] for the seven defects this batch found,
+five of them in the verifier, and every one of them a false verdict about an action that worked.

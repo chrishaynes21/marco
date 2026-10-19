@@ -153,6 +153,20 @@ type Sighting struct {
 	// decided what a region said would be deciding its own click target.
 	Candidates []observe.Region
 	Words      []observe.ReadWord
+	// WordsSeq says WHICH reading Words is: equal values are the same reading, and a
+	// greater value is a later one. Zero means the caller does not distinguish them.
+	//
+	// It exists because OCR answers about twice a second against a loop that looks ten
+	// times, so the last reading stands for the looks that follow it — and this package
+	// was counting one reading once per look. Measured live on the controlled test menu:
+	// a press was reported CONTRADICTED 572ms later on "5 fresh reading(s)" of the screen
+	// after it, which were five copies of the single reading taken BEFORE the press. The
+	// application had not had time to respond and was blamed for not having responded.
+	//
+	// Deliberately an identity and not a timestamp. The question is whether this is
+	// another reading, which the caller knows exactly; when a reading was captured is a
+	// different question that generations and epochs already answer.
+	WordsSeq int
 	// At is when the look was taken.
 	At time.Time
 }
@@ -332,6 +346,9 @@ type Runner struct {
 	readings      int
 	firstRead     time.Time
 	lastRead      time.Time
+	// lastWordsSeq is the last reading counted, so one reading standing for several
+	// looks is one piece of evidence. See Sighting.WordsSeq.
+	lastWordsSeq int
 
 	// exec is the ONE path to an effect. Nil means this runner cannot act, which is what
 	// it is built as.
@@ -824,6 +841,40 @@ func (r *Runner) Advance(ctx context.Context, s *workflowstore.SessionBinding,
 		return r.record(a)
 	}
 
+	// ── 4b. THE SCREEN MUST HAVE BEEN READ BEFORE IT IS ACTED ON ──
+	//
+	// A step carrying an outcome expectation is verified by comparing readings taken
+	// BEFORE the action against readings taken after it. If nothing was read before, the
+	// comparison has one side and the verdict cannot be anything but "the question was not
+	// asked" — decided the moment the press goes out, whatever the application then does.
+	//
+	// Measured live on the controlled test menu, and it is why this exists: `--from`
+	// established the screen on observation 1, the press went out on observation 2, and
+	// the first reading arrived after it. The press WORKED — the window's own title went
+	// from `FXM 0 0` to `FXM 1 1`, an independent witness saying one press was received
+	// and the expected panel was standing — and the run reported the outcome contradicted.
+	//
+	// So it waits, within the same patience every other not-ready-yet case gets. OCR runs
+	// beside the loop at around 250ms a reading, so this ordinarily costs one observation.
+	//
+	// BEFORE SECTION 5, AND THAT POSITION IS THE WHOLE FIX. Placed after section 6 it
+	// waited correctly and the run still sent nothing: the exploration grant is taken in 6
+	// and `--max-actions 1` was spent on the observation that waited — "the session
+	// authorised 1 action(s) and has used them all", for an action that never happened. A
+	// wait must cost no permission.
+	if len(r.art.Steps[r.cursor].Outcome) > 0 && r.readsOf(at.Screen) == 0 {
+		r.looks++
+		if r.looks > r.patience {
+			return r.record(r.impatient(a, workflowstore.StepScreenUnread))
+		}
+		a.Outcome = OutcomeWaiting
+		a.Because = fmt.Sprintf("this step expects %d word(s) to appear when it is "+
+			"pressed, and %s has not been read yet — so an action now could not "+
+			"be verified either way. Waiting for one reading of it",
+			len(r.art.Steps[r.cursor].Outcome), at.Screen)
+		return r.record(a)
+	}
+
 	// ── 5. HOW FAR DOES THE STEP GET AGAINST THIS OBSERVATION ──
 	//
 	// `Authorised` is false here, deliberately and always. Asking first with no permission
@@ -1107,7 +1158,7 @@ func (r *Runner) press(ctx context.Context, a Attempt, ready workflowstore.StepR
 		// already taken as its before side. Opened HERE, at the press, because a
 		// window that began afterwards would compare the new panel against
 		// itself. See verify.go.
-		r.openVerification(r.cursor, at.Screen, r.clock())
+		r.openVerification(r.cursor, at, r.clock())
 	case res.Status == marcoexec.StatusCancelled:
 		a.Outcome, a.Because = OutcomeStopped, res.Summary()
 		r.lastStage, r.lastBecause = ready.Stage, a.Because

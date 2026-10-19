@@ -1674,6 +1674,23 @@ it refuses those looks. Visible is fine; in front is not.
   window. 21 mutations killed, 7 survivors found on a second round and closed.
   [[Experiment-089-four-terms-passed-and-nobody-pressed-the-button]]
   [[ADR-237-an-outcome-is-only-an-outcome-of-something]]
+- **The first guarded, verified pixel action — and seven defects in its way, five of them in the
+  verifier.** Run live on a disposable HTML menu that publishes the presses it RECEIVES in its
+  own window title, so the acceptance evidence comes from outside Marco: `FXM 0 0` to `FXM 1 1`
+  on a correct press, and `FXM 0 0` with zero presses when the foreground was taken away during
+  the dwell. Five of five cases behaved as required — verify, refuse by scope, verify again after
+  a reset, refuse at the final boundary, and UNCONFIRMED on a 293ms deadline over a press that
+  had in fact worked. The defects: one reading standing for six looks was counted six times, so a
+  press was contradicted 572ms later on five copies of the reading taken BEFORE it; a
+  contradiction was declared on evidence with one side; the run acted before it had ever read the
+  screen, which made that unanswerable by construction; the wait that fixes it cost an
+  authorisation until it was moved ahead of the granter; a screen change big enough to be NAMED
+  turned the verifier off, discarding the eighteen words that proved the press worked; and the
+  restart that fixes THAT verified on one reading, where persistence says nothing. Plus two
+  outside the verifier: `--application` was ambiguous with no reachable way through, and a
+  capture recorded the application it was ASKED for — which becomes a derived workflow's SCOPE.
+  [[Experiment-090-the-first-guarded-pixel-action]]
+  [[ADR-238-a-verdict-needs-both-sides-and-a-window-of-its-own]]
 - **A click's OUTCOME can be verified where the screen does not change, and the terms are
   measured on two games rather than one.** Ark's GRAPHICS tab verifies on 36 independent words
   with 0 false outcomes in 219 windows with no input in them; Rocket League's main menu is

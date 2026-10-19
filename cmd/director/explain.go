@@ -161,6 +161,11 @@ var valued = map[string]bool{
 	"-samples": true, "--samples": true,
 	"-gap": true, "--gap": true,
 	"-window-id": true, "--window-id": true,
+	// `capture-game-session`'s --pid, the FIFTH time. It was added so a capture could
+	// name one process where an executable owns two windows, and without it here
+	// `--pid 66592 --session x` reordered to `--pid --session x 66592` and the flag
+	// package reported `invalid value "--session" for flag -pid`.
+	"-pid": true, "--pid": true,
 	"-window-title": true, "--window-title": true,
 	"-process": true, "--process": true,
 	"-region": true, "--region": true,

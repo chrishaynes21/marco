@@ -151,9 +151,19 @@ func TestPerformWorkflowInstallsItsGates(t *testing.T) {
 		{"at.Candidates = append(",
 			"without it readiness sees no regions, so no word can be attributed " +
 				"to one and no match can ever be contradicted"},
-		{"at.Words = said",
-			"without it the words are read, admitted, and never reach the only " +
-				"place that could refuse a match with them"},
+		{"at.Words, at.WordsSeq = said, saidSeq",
+			"without the words the reading is admitted and never reaches the only " +
+				"place that could refuse a match with them; and without the " +
+				"sequence the run cannot tell one reading standing for six " +
+				"looks from six readings, which filled a verification window " +
+				"from a single pre-action reading and contradicted a press " +
+				"572ms after sending it"},
+		// AND THE SEQUENCE ADVANCES ONLY WHEN THE READING DOES. Bumping it per look
+		// would make every look its own reading again, which is the defect with the
+		// counter added.
+		{"if rd.FromLook != saidLook {",
+			"without it the sequence counts looks rather than readings, and one " +
+				"reading fills a five-reading window on its own"},
 		// AND THEY ARE DROPPED WHEN THE OBSERVATION MOVES ON. A reading held
 		// across a screen change is a reading of a screen that has gone, and
 		// using it to refuse a match on a new one is the defect ADR-195 exists

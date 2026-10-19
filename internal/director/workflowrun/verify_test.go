@@ -362,26 +362,36 @@ func TestTheReplayIgnoresTheReadingsTakenMidResponse(t *testing.T) {
 	}
 }
 
-// AND ANOTHER SCREEN'S READINGS ARE NOT THIS ACTION'S EVIDENCE.
+// AND A SCREEN CHANGE AFTER THE ACTION IS STILL THE ACTION'S EVIDENCE.
 //
-// The verification is scoped to the screen the action was taken on. Without that, any later
-// reading of anywhere would fill in the after side and the action would be credited with
-// whatever Marco looked at next.
-func TestAnotherScreensReadingsDoNotVerifyTheAction(t *testing.T) {
+// This test used to assert the opposite, and the opposite was measured wrong. The
+// verification was scoped to the screen id the action was sent to, so a change big enough to
+// mint a new screen discarded every reading that proved it had happened.
+//
+// Measured live on the controlled test menu, where the press WORKED: the run observed
+// `visual_1 -> visual_2`, visual_2's words were the eighteen the step expected, and not one of
+// them reached the verifier. The check exists for the case where the screen does NOT change
+// ([[Experiment-086-the-tab-changed-the-panel-and-not-the-screen]]); a change large enough to
+// be named must not be the one thing that turns it off.
+//
+// What the old scoping was reaching for is kept below, one window at a time: the fear was that
+// "any later reading of anywhere would fill in the after side", and ANYWHERE means another
+// window. Inside one window, a reading saying the words this step SAVED is the outcome — that
+// overlap is the test, not the label the fold happened to give the pixels.
+func TestAScreenChangeAfterTheActionIsStillTheActionsEvidence(t *testing.T) {
 	start := time.Date(2026, 10, 13, 14, 0, 0, 0, time.UTC)
 	now := start
 	run, s := aTabRun(t, &now)
 	run.WithVerifyDeadline(2 * time.Second)
 	press(t, run, s, &now, panelWords("resolution", "window", "mode"))
 
-	// READINGS OF A DIFFERENT SCREEN, saying exactly what the step expected. The
-	// grounder establishes `screen_a` from whatever screen is standing, so the step's
-	// source stays established and only the SCREEN NAME differs.
+	// THE SAME WINDOW, A NEW SCREEN NAME, and the words the step expected.
 	is := panelWords("presets", "textures", "shadows", "bloom", "foliage")
 	var got workflowrun.Attempt
 	for i := 0; i < 40; i++ {
 		now = now.Add(100 * time.Millisecond)
 		at := seeing(5, now, is)
+		at.WordsSeq = 10 + i
 		at.Screen = "now_2"
 		at.Outcomes[0].Screen = "now_2"
 		got = run.Advance(context.Background(), s, at)
@@ -392,12 +402,49 @@ func TestAnotherScreensReadingsDoNotVerifyTheAction(t *testing.T) {
 	if got.Verified == nil {
 		t.Fatalf("the deadline passed and no verdict was produced: %s", got.Because)
 	}
+	if got.Verified.Verdict != workflowrun.VerdictVerified {
+		t.Fatalf("the verdict is %q: %s — the readings that prove the action worked "+
+			"were discarded because the screen was renamed",
+			got.Verified.Verdict, got.Verified.Because)
+	}
+}
+
+// AND ANOTHER WINDOW'S READINGS ARE NOT THIS ACTION'S EVIDENCE.
+//
+// The guard the screen scoping was reaching for, kept at the level it belongs to. A reading
+// taken under a different window generation is a reading of a different window — or of the same
+// one after it was replaced — and crediting an action with it would credit the action with
+// whatever Marco looked at next.
+func TestAnotherWindowsReadingsDoNotVerifyTheAction(t *testing.T) {
+	start := time.Date(2026, 10, 13, 14, 0, 0, 0, time.UTC)
+	now := start
+	run, s := aTabRun(t, &now)
+	run.WithVerifyDeadline(2 * time.Second)
+	press(t, run, s, &now, panelWords("resolution", "window", "mode"))
+
+	is := panelWords("presets", "textures", "shadows", "bloom", "foliage")
+	var got workflowrun.Attempt
+	for i := 0; i < 40; i++ {
+		now = now.Add(100 * time.Millisecond)
+		at := seeing(5, now, is)
+		at.WordsSeq = 10 + i
+		// A DIFFERENT WINDOW GENERATION, which is another window or a replaced one.
+		at.Generation = 2
+		at.Outcomes[0].Screen = "now_1"
+		got = run.Advance(context.Background(), s, at)
+		if got.Verified != nil {
+			break
+		}
+	}
+	if got.Verified == nil {
+		t.Fatalf("the deadline passed and no verdict was produced: %s", got.Because)
+	}
 	if got.Verified.Verdict == workflowrun.VerdictVerified {
-		t.Fatalf("another screen's readings verified the action: %s",
+		t.Fatalf("another window's readings verified the action: %s",
 			got.Verified.Because)
 	}
 	if got.Verified.Readings != 0 {
-		t.Errorf("%d reading(s) of another screen were counted as this action's "+
+		t.Errorf("%d reading(s) of another window were counted as this action's "+
 			"evidence", got.Verified.Readings)
 	}
 }

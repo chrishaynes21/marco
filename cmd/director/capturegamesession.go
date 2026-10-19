@@ -259,6 +259,31 @@ func encodeFrame(enc png.Encoder, path string, img image.Image) error {
 	return f.Close()
 }
 
+// windowSelector is which window a command was asked for, in order of exactness.
+//
+// An ephemeral id names one window and nothing else. A pid names one process. `--foreground`
+// names the window in front, resolved once. An executable name is the weakest of the four and
+// is the only one that can be ambiguous, so it comes last.
+//
+// EXACTLY ONE, and the first version carried the application name alongside a pid so that a
+// name disagreeing with the pid could not resolve. `windowref` refuses a selector with two
+// fields set — "more than one window selector was given" — so that combination resolved
+// nothing at all. The check it was reaching for exists and is stronger: the artifact's scope is
+// asked of the executable of the window actually acquired, so a pid naming the wrong
+// application is refused by provenance rather than by the request.
+func windowSelector(app, windowID string, pid uint32, foreground bool) windowref.Selector {
+	switch {
+	case windowID != "":
+		return windowref.Selector{EphemeralID: windowID}
+	case pid != 0:
+		return windowref.Selector{ProcessID: pid}
+	case foreground:
+		return windowref.Selector{Foreground: true}
+	default:
+		return windowref.Selector{Application: app}
+	}
+}
+
 func runCaptureGameSession(args []string) int {
 	fs := flag.NewFlagSet("capture-game-session", flag.ExitOnError)
 	app := fs.String("application", "", "the application whose window to capture")
@@ -267,13 +292,36 @@ func runCaptureGameSession(args []string) int {
 	fps := fs.Int("fps", 10, "frames per second to attempt")
 	outDir := fs.String("out", ".tmp/game-capture-review", "scratch directory (must not be a corpus)")
 	delay := fs.Duration("delay", 5*time.Second, "wait before recording, to switch to the game")
+	// ── WHICH WINDOW, when the executable name is not enough ──
+	//
+	// `--application` alone is ambiguous the moment one executable owns two windows, and
+	// the refusal it produced pointed at `director windows --window-id`: a flag this
+	// command did not have, listed by a command that needs the daemon running. So the
+	// advice was unfollowable, and on a machine with no daemon there was no way through
+	// at all. Measured live: an Edge app window hosting a test page could not be captured
+	// because the user's own Edge was showing a floating `Search bar`.
+	//
+	// `--foreground` is what `windowref.Selector.Foreground` was built for — "the only
+	// honest way to say watch what the person is using" — and it is exact where a name is
+	// a guess. It resolves ONCE, at the start, and pins the answer; it does not follow
+	// focus, and the stale-capture rule is untouched.
+	fg := fs.Bool("foreground", false,
+		"capture THE WINDOW IN FRONT, resolved once at the start, instead of searching "+
+			"by name. Exact where --application is ambiguous")
+	pid := fs.Uint("pid", 0, "capture the window of exactly this process")
+	windowID := fs.String("window-id", "",
+		"capture the window with this ephemeral id from `director windows`")
 	_ = fs.Parse(flagsFirst(args))
 
-	if *app == "" || *session == "" {
+	named := *app != "" || *fg || *pid != 0 || *windowID != ""
+	if !named || *session == "" {
 		fmt.Fprintln(os.Stderr,
-			"director: --application and --session are both required\n"+
+			"director: --session and one of --application, --foreground, --pid or "+
+				"--window-id are required\n"+
 				"  example: director capture-game-session --application rocketleague "+
-				"--session rocketleague-menu-steps --seconds 45")
+				"--session rocketleague-menu-steps --seconds 45\n"+
+				"  or:      director capture-game-session --foreground "+
+				"--session whatever-is-in-front --seconds 20")
 		return 2
 	}
 	if *fps < 1 || *fps > 60 {
@@ -296,9 +344,17 @@ func runCaptureGameSession(args []string) int {
 
 	ctx := context.Background()
 	v := tracker.AcquireBy(ctx, windows, windowref.NewDirectory(),
-		windowref.Selector{Application: *app})
+		windowSelector(*app, *windowID, uint32(*pid), *fg))
 	if !v.State.OK() {
 		fmt.Fprintf(os.Stderr, "director: %s (%s)\n", v.Reason, v.State)
+		if v.State == windowref.Ambiguous {
+			fmt.Fprintln(os.Stderr,
+				"  one executable can own two windows. Foreground the window you "+
+					"mean and pass --foreground, or name its process with "+
+					"--pid. The earlier advice to use `director windows "+
+					"--window-id` needs the daemon running and this command "+
+					"had no such flag.")
+		}
 		return 1
 	}
 
@@ -569,7 +625,16 @@ func runCaptureGameSession(args []string) int {
 	}
 
 	meta := gameSession{
-		Session: *session, Application: *app,
+		// THE APPLICATION OBSERVED, NOT THE ONE ASKED FOR.
+		//
+		// This recorded `*app`, the flag, which is empty under `--foreground` and is a
+		// caller's word in every other case. Everything downstream treats this field as
+		// provenance — `perceptionreplay -fixture` makes it the derived workflow's
+		// APPLICATION SCOPE, and a scope is what stops an Ark routine running against
+		// another game. A scope taken from a flag is a scope taken from whoever typed
+		// it. `v.Ref.Application` is the executable name of the window that was actually
+		// acquired, which is the same identity `windowref` reacquires by.
+		Session: *session, Application: v.Ref.Application,
 		Privacy: "captured_private",
 		Note: "Frames and observed navigation intents on one clock. NOTHING here states " +
 			"what is selected; that is annotation, and it is a separate act by a person. " +

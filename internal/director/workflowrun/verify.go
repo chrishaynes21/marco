@@ -103,8 +103,23 @@ type verification struct {
 	// skipped is how many readings after the action were dropped as mid-response. See
 	// observe.OutcomeSkipReadings.
 	skipped int
+	// restarts is how many times a transition landed inside the window and it began
+	// again. Reported, because a verdict reached after three restarts rests on a screen
+	// that changed three times and a reader should know.
+	restarts int
 	// acted is when the action went out and deadline when waiting stops.
 	acted, deadline time.Time
+	// generation is the window generation the action was sent under. The after-readings are
+	// scoped to it rather than to the screen id, so a change that mints a new screen does
+	// not discard the evidence that it happened.
+	generation uint64
+	// sawScreens is every screen id the after-readings were taken under, for the report: a
+	// verdict reached across a screen change is worth saying out loud.
+	sawScreens []observe.VisualScreenID
+	// actedSeq is WHICH reading was standing when the action went out. Every reading up
+	// to and including it describes the screen the press landed on, so only a later one
+	// is after-evidence. See Sighting.WordsSeq.
+	actedSeq int
 }
 
 // WithVerifyDeadline sets how long after an action its evidence is waited for.
@@ -131,6 +146,19 @@ func (r *Runner) noteReading(at Sighting) {
 	if len(at.Words) == 0 || at.Screen == "" {
 		return
 	}
+	// ── ONE READING IS ONE PIECE OF EVIDENCE, HOWEVER MANY LOOKS IT STANDS FOR ──
+	//
+	// OCR answers about twice a second against a loop that looks ten times, so the same
+	// reading arrives on several consecutive sightings. Counting it once per sighting
+	// filled a five-reading window from a single reading, and did it faster than any
+	// application could respond. See Sighting.WordsSeq for the live measurement.
+	//
+	// Guarded on WordsSeq being set, so a caller that does not distinguish readings keeps
+	// the old behaviour rather than silently collapsing everything to one.
+	if at.WordsSeq != 0 && at.WordsSeq == r.lastWordsSeq {
+		return
+	}
+	r.lastWordsSeq = at.WordsSeq
 	r.reads = append(r.reads, screenRead{screen: at.Screen, words: at.Words, at: at.At})
 	if len(r.reads) > maxKeptReadings {
 		r.reads = r.reads[len(r.reads)-maxKeptReadings:]
@@ -145,8 +173,31 @@ func (r *Runner) noteReading(at Sighting) {
 	// Scoped to the screen the action was taken on, for the reason the demonstration's
 	// own watch is: without it any later reading of anywhere would fill in the after
 	// side, and the action would be credited with whatever Marco looked at next.
-	if r.verify != nil && r.verify.screen == at.Screen &&
-		len(r.verify.after) < observe.OutcomeSettleLooks {
+	// ── SCOPED TO THE WINDOW ACTED ON, NOT TO THE SCREEN HYPOTHESIS ──
+	//
+	// This required the after-readings to carry the SAME screen id as the one the action
+	// was sent to, so that a later reading of somewhere else could not be credited to the
+	// action. The window is what that rule was reaching for, and the screen id is a
+	// stricter thing that breaks the case it matters most in.
+	//
+	// Measured live on the controlled test menu: the press worked, the run itself observed
+	// `visual_1 -> visual_2`, and visual_2's words were the eighteen the step expected —
+	// and not one of them reached the verifier, because they were read under a new screen
+	// id. The check was built for the case where the screen does NOT change
+	// ([[Experiment-086-the-tab-changed-the-panel-and-not-the-screen]]); a change big
+	// enough to mint a screen must not be the one thing that disables it.
+	//
+	// What stops an unrelated screen being credited is not the id: it is that the words
+	// read have to overlap the expectation this step SAVED, by `OutcomeWords` of them.
+	// The window generation keeps it to the same window across the same lifetime, which
+	// is the fact the rule actually needs.
+	if r.verify != nil && at.Generation == r.verify.generation &&
+		len(r.verify.after) < observe.OutcomeSettleLooks &&
+		// AND IT MUST BE A READING TAKEN AFTER THE ACTION, not the one that was
+		// already standing when the action went out. That one describes the screen
+		// the press landed on and is the BEFORE side's evidence; admitting it here
+		// as well would be comparing a reading against itself.
+		(at.WordsSeq == 0 || at.WordsSeq > r.verify.actedSeq) {
 
 		// THE READING TAKEN MID-RESPONSE IS NOT EVIDENCE EITHER WAY.
 		//
@@ -160,7 +211,41 @@ func (r *Runner) noteReading(at Sighting) {
 			r.verify.skipped++
 			return
 		}
+		// ── A TRANSITION LANDING INSIDE THE WINDOW RESTARTS IT ──
+		//
+		// `OutcomeSkipReadings` drops the readings taken mid-response, and TWO is the
+		// number measured offline on a recording read at every look. Live, OCR
+		// answers about four times a second and an application may take longer than
+		// two readings to redraw — so the window straddles the change, the new
+		// panel's words are on its later readings only, and the persistence term
+		// correctly calls every one of them TRANSIENT.
+		//
+		// Measured live on the controlled test menu: the press worked and the run
+		// reported `everything that appeared was transient` on five readings
+		// spanning 2.196s, because the first of them still showed the old panel.
+		//
+		// So a reading that brings `OutcomeWords` words the previous one did not have
+		// is the transition itself, and the window starts again from there. A fixed
+		// skip cannot know when the response happened; this asks.
+		//
+		// Through `OutcomeBetween`, which is the one statement of what "appeared"
+		// means, over a window of one reading each side. And bounded, because a
+		// screen that keeps changing substantially would restart forever — past the
+		// bound the readings are taken as they come and the verdict is whatever they
+		// say, which on a screen like that is a refusal.
+		if n := len(r.verify.after); n > 0 && r.verify.restarts < observe.OutcomeSettleLooks {
+			o := observe.OutcomeBetween(r.art.OutcomeExcluded(r.verify.step),
+				[][]observe.ReadWord{r.verify.after[n-1]},
+				[][]observe.ReadWord{at.Words})
+			if len(o.Appeared) >= observe.OutcomeWords {
+				r.verify.after = nil
+				r.verify.restarts++
+			}
+		}
 		r.verify.after = append(r.verify.after, at.Words)
+		if at.Screen != r.verify.screen && !hasScreen(r.verify.sawScreens, at.Screen) {
+			r.verify.sawScreens = append(r.verify.sawScreens, at.Screen)
+		}
 	}
 }
 
@@ -171,10 +256,13 @@ const maxKeptReadings = 4 * observe.OutcomeSettleLooks
 //
 // Called at the press, because the BEFORE side is the readings already taken — a window that
 // began after the action would compare the new panel against itself.
-func (r *Runner) openVerification(step int, screen observe.VisualScreenID, at time.Time) {
+func (r *Runner) openVerification(step int, seen Sighting, at time.Time) {
+	screen := seen.Screen
 	v := &verification{
 		step: step, screen: screen,
 		acted: at, deadline: at.Add(r.VerifyDeadline()),
+		actedSeq:   r.lastWordsSeq,
+		generation: seen.Generation,
 	}
 	for _, rd := range r.reads {
 		if rd.screen != screen {
@@ -194,6 +282,35 @@ func (r *Runner) openVerification(step int, screen observe.VisualScreenID, at ti
 	v.quiet, v.moved = observe.Stationary(r.art.OutcomeExcluded(step),
 		windowsOf(v.before))
 	r.verify = v
+}
+
+// readsOf is how many readings of one screen this run is holding.
+//
+// The question `openVerification` would ask, asked BEFORE the action instead of after it: a
+// step whose outcome has to be verified may not be acted on until the screen it stands on has
+// been read at least once, or the verdict is decided against the application by an omission of
+// Marco's. See the wait in `Advance`.
+//
+// # The per-screen filter is defence in depth, and a mutation run says so
+//
+// Removing it — counting every reading this run holds — survives the suite, and it is not a
+// coverage gap that a test would close. Reaching it needs a run that has read screen X while
+// standing on unread screen Y, and `Advance` cannot produce that: `noteReading` is called after
+// the usability gate and before establishment, so the reading and the step both belong to
+// whatever screen the look carried. A look Marco could act on is a look Marco read.
+//
+// Kept because the screen is what the verification is opened on, and a reader of this function
+// has to be able to trust that "read" means read HERE. The day a grounder holds a screen across
+// a change, this is already right. The same argument the `asked` term in `verdict` makes, and
+// the same one `observe.Independent`'s site filter makes about a word it cannot change.
+func (r *Runner) readsOf(screen observe.VisualScreenID) int {
+	n := 0
+	for _, rd := range r.reads {
+		if rd.screen == screen {
+			n++
+		}
+	}
+	return n
 }
 
 // windowsOf splits a run of readings into consecutive pairs of windows for the self-test.
@@ -226,15 +343,62 @@ func (r *Runner) verdict(now time.Time) (Verdict, string) {
 		return VerdictUnasked, "this step was demonstrated without an outcome, so " +
 			"there is nothing its action could be verified against"
 	}
-	enough := len(v.after) >= observe.OutcomeSettleLooks
+	// ── A CONTRADICTION NEEDS BOTH SIDES OF THE ACTION ──
+	//
+	// `enough` counted the readings AFTER the action only. So an action with five
+	// readings after it and NONE before it was reported CONTRADICTED — on the evidence
+	// that the question had not been asked.
+	//
+	// Measured live on the controlled test menu, and it is the first guarded pixel action
+	// this project has sent: the press landed, the panel arrived, and the window's own
+	// title went from `FXM 0 0` to `FXM 1 1` — an independent witness, outside Marco,
+	// saying one press was received and the expected panel was standing. The run called
+	// the outcome contradicted. That is blaming the application for a reading Marco never
+	// took, and it is the difference between "it did not work" and "I did not look".
+	// And it is UNREACHABLE from `Advance` while the wait in section 4b stands, which a
+	// mutation run confirms by surviving: 4b will not let a step with an outcome be acted
+	// on until the screen it stands on has been read, and `openVerification` takes the
+	// before side from the readings of that same screen. So `asked` is false only if this
+	// is reached another way.
+	//
+	// Kept, because it is the statement of what a contradiction IS, and because the live
+	// defect it closes was exactly this branch's absence: the run that produced it had a
+	// reading of the screen nowhere and blamed the application. A verdict function that
+	// could not express "one side is missing" would have to be trusted never to be handed
+	// it. See the comment above for what that cost.
+	asked := len(v.before) > 0
+	// ── AND A VERDICT EITHER WAY NEEDS A FULL SETTLED WINDOW ──
+	//
+	// The persistence term is "on every reading of the settled window", and over a window
+	// of ONE reading it says nothing at all: the first reading after a transition always
+	// carries every word it carries. So a verified verdict on one reading is a verdict
+	// with the persistence term switched off, and it was reachable — the window restart
+	// above empties `after`, and the next reading filled it and verified.
+	//
+	// Measured live on the controlled test menu: `verified after 774ms on 1 fresh
+	// reading(s)`, 18 of 18 expected words, and the press really had worked. The right
+	// answer for the right reason is still a verdict this package is not entitled to yet.
+	settled := len(v.after) >= observe.OutcomeSettleLooks
 	held, why := r.art.OutcomeHeld(v.step, v.before, v.after, v.quiet, v.moved)
 	switch {
-	case held:
+	case held && settled:
 		return VerdictVerified, why
-	case enough:
+	case held:
+		// STANDING, AND NOT YET FOR LONG ENOUGH. Keep waiting rather than
+		// answering: the words are there and the question is whether they stay.
+		return VerdictUnasked, fmt.Sprintf("the %d expected word(s) are standing on "+
+			"%d of the %d reading(s) persistence needs",
+			len(r.art.Steps[v.step].Outcome), len(v.after),
+			observe.OutcomeSettleLooks)
+	case asked && settled:
 		// ENOUGH EVIDENCE, AND IT DOES NOT AGREE. The only case in which a refusal
 		// is a statement about the application rather than about the evidence.
 		return VerdictContradicted, why
+	case !now.Before(v.deadline) && !asked:
+		return VerdictUnconfirmed, fmt.Sprintf("%s elapsed after the action and the "+
+			"screen it was sent to was never read BEFORE it, so the %d reading(s) "+
+			"since have nothing to be compared against (%s)",
+			now.Sub(v.acted).Round(time.Millisecond), len(v.after), why)
 	case !now.Before(v.deadline):
 		return VerdictUnconfirmed, fmt.Sprintf("%s elapsed after the action and %d of "+
 			"the %d reading(s) the check needs arrived (%s), so whether it "+
@@ -255,6 +419,7 @@ func (r *Runner) closeVerification(v Verdict, why string, now time.Time) Verific
 		Took:     now.Sub(r.verify.acted),
 		Readings: len(r.verify.after), Before: len(r.verify.before),
 		Quiet: r.verify.quiet, Moved: r.verify.moved,
+		Restarts: r.verify.restarts, SawScreens: r.verify.sawScreens,
 	}
 	r.verifications = append(r.verifications, out)
 	r.verify = nil
@@ -274,6 +439,10 @@ type Verification struct {
 	Before   int
 	// Quiet and Moved are the stationarity self-test on the screen that was acted on.
 	Quiet, Moved int
+	// Restarts is how many times a transition landed inside the settled window, and
+	// SawScreens the other screen ids the after-readings were taken under.
+	Restarts   int
+	SawScreens []observe.VisualScreenID
 }
 
 // Summary is one line about one verification.
@@ -309,4 +478,14 @@ func (r *Runner) tallyVerifications(out *Report) {
 	if span := r.lastRead.Sub(r.firstRead); span > 0 && r.readings > 1 {
 		out.ReadingsPerSecond = float64(r.readings-1) / span.Seconds()
 	}
+}
+
+// hasScreen reports whether a screen id is already noted.
+func hasScreen(seen []observe.VisualScreenID, id observe.VisualScreenID) bool {
+	for _, s := range seen {
+		if s == id {
+			return true
+		}
+	}
+	return false
 }

@@ -115,6 +115,14 @@ func runPerformWorkflow(args []string) int {
 		"perform only this step of the workflow, extracted on its own (-1 = all)")
 	verifyFor := fs.Duration("verify-for", workflowrun.DefaultVerifyDeadline,
 		"how long after an action to wait for the readings that verify its outcome")
+	fg := fs.Bool("foreground", false,
+		"act on THE WINDOW IN FRONT, resolved once at the start, instead of searching "+
+			"by name. Exact where --application is ambiguous, and it authorises "+
+			"nothing: the artifact's scope is still checked against the window "+
+			"actually acquired")
+	pid := fs.Uint("pid", 0, "act on the window of exactly this process")
+	windowID := fs.String("window-id", "",
+		"act on the window with this ephemeral id from `director windows`")
 	dwell := fs.Duration("dwell", workflowrun.DefaultDwell,
 		"how long the pointer rests on a control before the click. 0 sends the click "+
 			"alone, which a game menu ignores")
@@ -130,9 +138,21 @@ func runPerformWorkflow(args []string) int {
 	// acquired. Keeping the two apart is what stops a discovered application from quietly
 	// satisfying a scope check.
 	target, targetWhy := resolveApplication(context.Background(), *app)
+	// ── AND WHICH WINDOW, when one executable owns two ──
+	//
+	// An executable name is the weakest selector and the only one that can be ambiguous.
+	// Measured live, on this machine: a controlled test page in an Edge app window could
+	// not be acted on at all, because the person's own Edge was also showing a floating
+	// `Search bar`. The refusal pointed at `director windows --window-id` — a command that
+	// needs the daemon running, naming a flag this command did not have.
+	//
+	// This chooses what to LOOK AT and authorises nothing. The scope check below is asked
+	// of `v.Ref.Application`, the executable of the window actually acquired, so naming a
+	// pid cannot make an artifact valid anywhere its scope does not already allow.
+	sel := windowSelector(target, *windowID, uint32(*pid), *fg)
 
 	switch {
-	case target == "":
+	case sel.Zero():
 		fmt.Fprintf(os.Stderr, "director: which application? %s\n"+
 			"  name it: director perform-workflow --application solasta "+
 			"--workflow routine.json\n", targetWhy)
@@ -248,11 +268,25 @@ func runPerformWorkflow(args []string) int {
 	defer stop()
 
 	v := tracker.AcquireBy(ctx, windows, windowref.NewDirectory(),
-		windowref.Selector{Application: target})
+		sel)
 	if !v.State.OK() {
 		fmt.Fprintf(os.Stderr, "director: %s (%s)\n", v.Reason, v.State)
+		if v.State == windowref.Ambiguous {
+			fmt.Fprintln(os.Stderr,
+				"  one executable can own two windows. Foreground the one you "+
+					"mean and pass --foreground, or name its process with "+
+					"--pid. Neither authorises anything: the artifact's "+
+					"scope is still checked against the window acquired.")
+		}
 		return 1
 	}
+	// AND THE TARGET NAME BECOMES THE OBSERVED ONE, not the one that was asked for.
+	//
+	// Reacquisition searches by application name, so under `--foreground` or `--pid` it
+	// had nothing to search by — and under `--application` it would search by a caller's
+	// word. The window layer reports the executable of the window it actually acquired,
+	// which is the identity reacquisition is meant to use.
+	target = v.Ref.Application
 
 	// ── THE SCOPE GATE, BEFORE ANYTHING ELSE IS BUILT ──
 	//
@@ -431,6 +465,16 @@ func runPerformWorkflow(args []string) int {
 	// screen change is recorded, not the moment a different screen is standing.
 	var said []observe.ReadWord
 	var saidGen, saidEpoch uint64
+	// saidSeq is WHICH reading `said` is, and saidLook the look it describes.
+	//
+	// OCR answers about twice a second against a loop that looks ten times, so the last
+	// reading stands for the looks that follow it — and the run was counting that one
+	// reading once per look. Measured live: a press whose panel had not arrived yet was
+	// contradicted 572ms later on "5 fresh reading(s)", which were five copies of the
+	// single reading taken before the press. A verdict needs five readings, not one
+	// reading five times.
+	var saidSeq, saidLook int
+	saidLook = -1
 	// AND WHAT IT SAID AS A VOCABULARY, which is a different question from where each
 	// word was. `said` carries positions and is what a control is found by; this is what
 	// a SCREEN is recognised by, and the destination test needs the second. Kept on the
@@ -566,11 +610,15 @@ func runPerformWorkflow(args []string) int {
 			if !rd.Admissible(v.Ref.Generation, up.Epoch) || len(rd.Words) == 0 {
 				continue
 			}
+			if rd.FromLook != saidLook {
+				saidSeq++
+				saidLook = rd.FromLook
+			}
 			said, saidGen, saidEpoch = rd.Words, rd.Generation, rd.Epoch
 			saidText = rd.Text
 		}
 		if observe.Current(saidGen, saidEpoch, v.Ref.Generation, up.Epoch) {
-			at.Words = said
+			at.Words, at.WordsSeq = said, saidSeq
 		} else {
 			said, saidText = nil, observe.ScreenText{}
 		}
