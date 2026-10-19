@@ -43,11 +43,25 @@ func TestAPixelRoutineIsNotOfferedAsRunnable(t *testing.T) {
 	if strings.Contains(shown, "director execute") {
 		t.Errorf("the detail view offers to execute a pixel routine:\n%s", shown)
 	}
-	if !strings.Contains(shown, "CANNOT BE RUN YET") {
+	// IT CANNOT BE RUN, AND THE REASON CHANGED. This asserted "CANNOT BE RUN YET", which
+	// was about carrying no verb — true of every pixel routine when it was written, and
+	// false once `perform-workflow` could ground a saved control from pixels and press it.
+	// This fixture is UNSCOPED, which is the reason it cannot be run now: an artifact
+	// saved before workflows recorded their application is valid for no application.
+	// See howToRun and [[ADR-239-running-what-you-demonstrated-by-the-name-you-gave-it]].
+	if !strings.Contains(shown, "CANNOT BE RUN AS SAVED") {
 		t.Errorf("the detail view does not say it cannot run:\n%s", shown)
 	}
+	if !strings.Contains(shown, "UNSCOPED") {
+		t.Errorf("the detail view does not say WHY it cannot run:\n%s", shown)
+	}
+	// AND IT IS NOT SENT TO THE COMMAND THAT WOULD REFUSE IT.
+	if strings.Contains(shown, "perform-workflow") {
+		t.Errorf("an unscoped routine is offered to the execution path:\n%s", shown)
+	}
 	if !strings.Contains(shown, "director reacquire") {
-		t.Errorf("the detail view does not say what CAN be done with it:\n%s", shown)
+		t.Errorf("the detail view does not say what CAN be done with it — measuring "+
+			"the controls needs no scope:\n%s", shown)
 	}
 	// AND A CONTROL WITH ONLY VISUAL EVIDENCE SAYS SO. "the focused control" was the
 	// fallback for all of them, which is the opposite claim: one is resolved at run time

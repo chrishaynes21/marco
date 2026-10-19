@@ -480,9 +480,13 @@ func runSequences(args []string) int {
 			return 0
 		}
 	}
-	fmt.Printf("\nNone of these can be run: they were learned from PIXELS and carry no\n")
-	fmt.Printf("verbs. Measure one instead:\n")
-	fmt.Printf("  director reacquire %q --application <app>\n", list[0].Name)
+	// NONE RUNNABLE BY VERB IS NOT NONE RUNNABLE AT ALL. See howToRun: a pixel routine is
+	// run by sight, and this used to say it could not be run.
+	fmt.Printf("\nNone of these carry verbs for the ordinary execution path. What the\n")
+	fmt.Printf("first one can do instead:\n")
+	for _, line := range howToRun(list[0]) {
+		fmt.Printf("  %s\n", line)
+	}
 	return 0
 }
 
@@ -547,11 +551,11 @@ func renderSequence(a workflowstore.Artifact) string {
 		fmt.Fprintln(&b, line)
 	}
 	if !runnable(a) {
-		fmt.Fprintf(&b, "\n  THIS ROUTINE CANNOT BE RUN YET. Its steps carry visual\n")
-		fmt.Fprintf(&b, "  evidence and no verb, so there is nothing for the ordinary\n")
-		fmt.Fprintf(&b, "  execution path to do with them. What you can do is measure\n")
-		fmt.Fprintf(&b, "  whether its controls are findable again:\n")
-		fmt.Fprintf(&b, "    director reacquire %q --application <app>\n", a.Name)
+		fmt.Fprintf(&b, "\n  Its steps carry visual evidence and no verb, so the ordinary\n")
+		fmt.Fprintf(&b, "  execution path has nothing to act on. What it can do instead:\n")
+		for _, line := range howToRun(a) {
+			fmt.Fprintf(&b, "    %s\n", line)
+		}
 	}
 	return b.String()
 }
@@ -612,4 +616,75 @@ func savedSequences() ([]workflowstore.Artifact, int) {
 		return nil, 1
 	}
 	return store.Sequences(), 0
+}
+
+// howToRun is what a person can actually do with a saved routine, in the order of what it
+// carries. One statement of it, because the list and the single-routine view both need it and
+// two copies would eventually disagree about which commands exist.
+//
+// # The defect this closes
+//
+// Both views said a pixel routine CANNOT BE RUN and sent the person to `reacquire`, which
+// measures whether a control can be found again and presses nothing. That was true when it was
+// written: `runnable` asks whether the ORDINARY execution path can act, and a pixel routine
+// carries no verb for it to act on.
+//
+// It stopped being true when `perform-workflow` learned to ground a saved control from pixels,
+// authorise it, press it and verify the outcome. Marco was telling people the thing it had just
+// learned to do was impossible — and the three Ark routines on this machine, demonstrated by
+// hand, were each reported unrunnable.
+//
+// # And an unscoped routine really cannot be run
+//
+// Routines saved before workflows recorded their application are UNSCOPED, which is valid for
+// no application rather than for all of them. That is not a nearly-runnable routine and must
+// not read like one: the honest answer is to demonstrate it again, because the application
+// identity has to come from an observed window and nothing here can invent it.
+func howToRun(a workflowstore.Artifact) []string {
+	if runnable(a) {
+		return []string{fmt.Sprintf("director execute %q", "run "+a.Name)}
+	}
+	if len(a.VisualTargets()) == 0 {
+		return []string{
+			"This routine carries neither a verb nor visual control evidence, so",
+			"there is nothing to run and nothing to look for.",
+		}
+	}
+	if !a.Scoped() {
+		// AND `reacquire` STAYS HERE, because it is still true. Measuring whether
+		// this routine's controls can be found again needs no application scope —
+		// it looks and reports and presses nothing. The first version of this
+		// dropped it along with the false claim, and dropped something real: an
+		// unscoped routine cannot be RUN and can still be MEASURED.
+		return []string{
+			"THIS ROUTINE CANNOT BE RUN AS SAVED: it is UNSCOPED. It was saved before",
+			"routines recorded which application they belong to, so it is readable and",
+			"valid for no application — an application identity has to come from a",
+			"window that was observed, and nothing here can invent one.",
+			"",
+			"Demonstrate it again to run it:",
+			fmt.Sprintf("  director demonstrate-visual %q --application <app>", a.Name),
+			"Or measure whether its controls are still findable, which presses nothing:",
+			fmt.Sprintf("  director reacquire %q --application <app>", a.Name),
+		}
+	}
+	out := []string{
+		"Run it by sight — its controls are grounded in the pixels, authorised, and",
+		"the outcome is checked against what the demonstration saw:",
+		fmt.Sprintf("  director perform-workflow --name %q --live --reading", a.Name),
+	}
+	// AND WHETHER ANYTHING WILL CHECK IT. A step saved before outcomes were recorded can
+	// be performed and cannot be verified, and a person about to drive their desktop
+	// should be told which of the two they are getting.
+	for _, st := range a.Steps {
+		if len(st.Outcome) == 0 {
+			out = append(out,
+				"",
+				"Step "+fmt.Sprint(st.Position+1)+" carries no outcome expectation, so",
+				"its action can be performed and cannot be verified. Demonstrating it",
+				"again records one.")
+			break
+		}
+	}
+	return out
 }

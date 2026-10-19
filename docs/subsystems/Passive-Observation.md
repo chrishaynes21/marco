@@ -1691,6 +1691,21 @@ it refuses those looks. Visible is fine; in front is not.
   capture recorded the application it was ASKED for — which becomes a derived workflow's SCOPE.
   [[Experiment-090-the-first-guarded-pixel-action]]
   [[ADR-238-a-verdict-needs-both-sides-and-a-window-of-its-own]]
+- **The two halves were joined by nothing, and the product said so.** `demonstrate-visual` saves
+  a demonstration under the person's own name, scoped to the window it watched; `correct`,
+  `reacquire` and `what-i-did` all take that name; and the one command that ACTS took a file
+  path. Worse, `director sequences` reported of every pixel routine *None of these can be run:
+  they were learned from PIXELS and carry no verbs* and sent the person to `reacquire`, which
+  measures and presses nothing — true when written, and false from the moment the pixel
+  execution path existed. Three routines demonstrated by hand against Ark were each reported
+  unrunnable. Now `perform-workflow --name` resolves through the same store, exclusive with
+  `--workflow` and never a fallback, and every saved routine is offered what it can actually do —
+  including the two cases it cannot: UNSCOPED is not offered to a command that would refuse it,
+  and a step with no outcome expectation says its action can be performed and cannot be
+  verified. Measured on those three Ark routines: no `application` field and no `outcome` field,
+  so the first human-demonstrated pixel action needs a fresh demonstration — a fact about the
+  evidence they hold rather than a gap in the path.
+  [[ADR-239-running-what-you-demonstrated-by-the-name-you-gave-it]]
 - **A click's OUTCOME can be verified where the screen does not change, and the terms are
   measured on two games rather than one.** Ark's GRAPHICS tab verifies on 36 independent words
   with 0 false outcomes in 219 windows with no input in them; Rocket League's main menu is

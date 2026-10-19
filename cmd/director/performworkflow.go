@@ -50,6 +50,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chaynes-simpleclouds/marco/internal/director/demo"
 	"github.com/chaynes-simpleclouds/marco/internal/director/fastobserve"
 	"github.com/chaynes-simpleclouds/marco/internal/director/marcoexec"
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
@@ -76,7 +77,22 @@ const maxPerformSeconds = 300
 func runPerformWorkflow(args []string) int {
 	fs := flag.NewFlagSet("perform-workflow", flag.ExitOnError)
 	app := fs.String("application", "", "the application whose window to watch and act on")
-	file := fs.String("workflow", "", "the saved workflow artifact to perform")
+	file := fs.String("workflow", "", "the saved workflow artifact FILE to perform")
+	// ── AND THE NAME THE PERSON GAVE IT ──
+	//
+	// The gap between the two halves of this product, and it was one flag wide. A person
+	// demonstrates a menu action, `demonstrate-visual` scopes it to the application it
+	// watched and saves it in the demo store BY NAME, and `correct`, `reacquire` and
+	// `what-i-did` all take that name. The one command that ACTS took a file path, so the
+	// only way to run what you had just demonstrated was to find its JSON in the config
+	// directory and pass that.
+	//
+	// `--workflow` stays, and stays a file: a derived fixture is a file that was never
+	// saved by name, and the controlled execution tests run from one.
+	named := fs.String("name", "",
+		"the name a demonstration was saved under, as `director sequences` lists "+
+			"it. Use "+
+			"this to run what you demonstrated; --workflow is for an artifact file")
 	live := fs.Bool("live", false,
 		"send REAL input. Without this the whole path runs and nothing is pressed")
 	seconds := fs.Int("seconds", 120, "how long the run may take")
@@ -157,8 +173,11 @@ func runPerformWorkflow(args []string) int {
 			"  name it: director perform-workflow --application solasta "+
 			"--workflow routine.json\n", targetWhy)
 		return 2
-	case *file == "":
-		fmt.Fprintln(os.Stderr, "director: --workflow is required (a saved artifact)")
+	case *file == "" && *named == "":
+		fmt.Fprintln(os.Stderr,
+			"director: name what to perform.\n"+
+				"  --name \"graphics tab\"      a demonstration you saved\n"+
+				"  --workflow routine.json   an artifact file")
 		return 2
 	case *seconds < 1 || *seconds > maxPerformSeconds:
 		fmt.Fprintf(os.Stderr, "director: --seconds must be between 1 and %d\n",
@@ -178,17 +197,9 @@ func runPerformWorkflow(args []string) int {
 		return 2
 	}
 
-	raw, err := os.ReadFile(*file)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "director: %v\n", err)
-		return 1
-	}
-	art, err := workflowstore.Unmarshal(raw)
-	if err != nil {
-		// A refusal from the artifact's own validation: an unknown version, a
-		// clarification attached to nothing, a step naming a screen it does not carry.
-		fmt.Fprintf(os.Stderr, "director: %v\n", err)
-		return 1
+	art, code := workflowToPerform(*file, *named)
+	if code != 0 {
+		return code
 	}
 	// ── ONE STEP, EXTRACTED, WHEN THAT IS WHAT WAS ASKED FOR ──
 	//
@@ -1428,4 +1439,73 @@ func printScreensSeenTo(w io.Writer, obs *fastobserve.Observer) {
 func allowsNow(scope workflowstore.Scope, application string) bool {
 	ok, _ := scope.Allows(application)
 	return ok
+}
+
+// workflowToPerform is the artifact this run will perform, from a name or from a file.
+//
+// # Why a name at all
+//
+// Because the product's two halves were joined by nothing. A person demonstrates a menu action
+// and `demonstrate-visual` saves it in the demo store under the name they gave it, scoped to
+// the application it watched, with the raw demonstration beside it. `correct`, `reacquire` and
+// `what-i-did` all accept that name. This command — the only one that ACTS — accepted a file
+// path, so running what you had just taught meant finding its JSON under the config directory.
+//
+// That is the whole of the integration gap between "Marco can record what a person
+// demonstrates" and "Marco can execute and verify a pixel action".
+//
+// # Exactly one of the two
+//
+// Not a fallback and not a search. A name that is also a path, or a path treated as a name,
+// turns a typo into a different routine running — and this one presses a mouse button. Both
+// given is a refusal; neither is a refusal; and a name that is not saved says so and lists
+// nothing, because guessing which saved routine somebody meant is how the wrong one runs.
+func workflowToPerform(file, named string) (workflowstore.Artifact, int) {
+	switch {
+	case file != "" && named != "":
+		fmt.Fprintln(os.Stderr, "director: --name and --workflow both given; one "+
+			"names a saved demonstration and the other names a file, and\n"+
+			"  running whichever was meant is not a guess this command makes")
+		return workflowstore.Artifact{}, 2
+	case named != "":
+		store, err := demo.Open(configDir())
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "director: %v\n", err)
+			return workflowstore.Artifact{}, 1
+		}
+		a, ok := store.Sequence(named)
+		if !ok {
+			// THE SAME TWO ANSWERS `reacquire` GIVES, because they send somebody
+			// to different places: a routine that cannot be READ is a file to
+			// look at, and a routine that was never saved is a demonstration to
+			// give.
+			if why := store.SequenceProblem(named); why != "" {
+				fmt.Fprintf(os.Stderr, "director: %q cannot be read: %s\n",
+					named, why)
+				return workflowstore.Artifact{}, 1
+			}
+			// NAMING COMMANDS THAT EXIST. The first version of this said
+			// `director demos`, which is not a command — a refusal that
+			// sends somebody to a second refusal.
+			fmt.Fprintf(os.Stderr, "director: nothing called %q has been saved.\n"+
+				"  director sequences                   what you have shown it\n"+
+				"  director demonstrate-visual %q ...   show it this one\n",
+				named, named)
+			return workflowstore.Artifact{}, 1
+		}
+		return a, 0
+	}
+	raw, err := os.ReadFile(file)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "director: %v\n", err)
+		return workflowstore.Artifact{}, 1
+	}
+	art, err := workflowstore.Unmarshal(raw)
+	if err != nil {
+		// A refusal from the artifact's own validation: an unknown version, a
+		// clarification attached to nothing, a step naming a screen it does not carry.
+		fmt.Fprintf(os.Stderr, "director: %v\n", err)
+		return workflowstore.Artifact{}, 1
+	}
+	return art, 0
 }

@@ -965,3 +965,43 @@ refusal.
 
 See [[Experiment-090-the-first-guarded-pixel-action]] for the seven defects this batch found,
 five of them in the verifier, and every one of them a false verdict about an action that worked.
+
+## Running what you demonstrated, by name (needs your hands for the first half, ~4 min)
+
+The two halves of the product, joined. Demonstrate a menu action, then run it by the name you
+gave it — no file paths, no JSON:
+
+```sh
+# 1. you demonstrate it. Switch to the game within the delay and click ONE menu control.
+./director.exe demonstrate-visual "graphics tab" --application <app> --seconds 20
+
+# 2. it is saved, scoped to the window that was WATCHED, with the raw demonstration beside it
+./director.exe sequences                      # what you have shown it
+./director.exe sequences "graphics tab"       # its steps, and what it can do
+./director.exe what-i-did "graphics tab"      # what you actually did, coordinates and all
+
+# 3. reset the menu by hand, then run it
+./director.exe perform-workflow --name "graphics tab" --live --reading --from screen_a
+```
+
+`--name` and `--workflow` are exclusive: one names a demonstration you saved, the other an
+artifact file, and given both this refuses rather than choosing. A name that was never saved
+lists nothing and tells you the two commands that would help.
+
+**What `sequences` now tells you, and what it used to.** It used to say of every pixel routine
+*None of these can be run: they were learned from PIXELS and carry no verbs* and send you to
+`reacquire`, which measures and presses nothing. That was written before the pixel execution
+path existed. Now each routine is offered what it can actually do:
+
+| what it carries | what you are told |
+|---|---|
+| verbs | `director execute "run <name>"` |
+| visual evidence, scoped | `director perform-workflow --name <name> --live --reading` |
+| visual evidence, unscoped | nothing to run — demonstrate it again |
+| no outcome expectation | runnable, and *its action can be performed and cannot be verified* |
+
+That last row is worth reading before you run anything: a routine saved before outcomes were
+recorded will press the control and then have nothing to check the result against, so it reports
+UNCONFIRMED rather than success. Demonstrating it again records the expectation.
+
+See [[ADR-239-running-what-you-demonstrated-by-the-name-you-gave-it]].
