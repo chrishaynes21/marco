@@ -2,7 +2,7 @@
 type: adr
 status: accepted
 date: 2026-10-19
-decision: "ACCEPTED — eleven conditions found by three rounds of review of the supervised-run lifecycle are closed, under three rules. (1) A STOP IS ONLY A STOP AT THE LAST MOMENT IT COULD MATTER: the stop key is read once more immediately before input is sent, it is bridged onto the executor's own context, it is honoured before a runner exists, and a consent question may not consume it. (2) AUTHORISATION IS NOT EVIDENCE: the look taken after a person authorises reports what the STABILISER made of it, because the stabiliser damps a change for three looks and keeps answering with the standing screen while it settles — which is exactly the window an authorisation arrives in. An unsettled look, an unreadable one, and a settled screen with nothing under the approved point are each a refusal, and the standing claim is read off the fresh look so the order cannot be got wrong. On a screen whose identity words have been separating, a look that agrees by ARRANGEMENT ALONE is not enough either: the reading of that capture is asked for by frame and waited for inside a bounded, cancellable budget, because the reading of the frame before it is admissible while the epoch is still and agrees with the screen the plan was made on. (3) A RECORD IS THE ATTEMPT IT NAMES: the whole evidence namespace — the record and the frames directory — is RESERVED before the reference is printed and retried on collision, `saveRun` may only write where a reservation already is, every exit past the citation finalises, and the one-word outcome is read from how far the workflow got as well as from each action's verdict."
+decision: "ACCEPTED — twelve conditions found by four rounds of review of the supervised-run lifecycle are closed, under three rules. (1) A STOP IS ONLY A STOP AT THE LAST MOMENT IT COULD MATTER: the stop key is read once more immediately before input is sent, it is bridged onto the executor's own context, it is honoured before a runner exists, and a consent question may not consume it. (2) AUTHORISATION IS NOT EVIDENCE: the look taken after a person authorises reports what the STABILISER made of it, because the stabiliser damps a change for three looks and keeps answering with the standing screen while it settles — which is exactly the window an authorisation arrives in. An unsettled look, an unreadable one, and a settled screen with nothing under the approved point are each a refusal, and the standing claim is read off the fresh look so the order cannot be got wrong. On a screen whose identity words have been separating, a look that agrees by ARRANGEMENT ALONE is not enough either: the reading of that capture is asked for by frame and waited for inside a bounded, cancellable budget, because the reading of the frame before it is admissible while the epoch is still and agrees with the screen the plan was made on — and a request that came back having read nothing is not that evidence either, because a reading below the stabiliser's own bar for a claim could not have refused the merge however different what it said was. (3) A RECORD IS THE ATTEMPT IT NAMES: the whole evidence namespace — the record and the frames directory — is RESERVED before the reference is printed and retried on collision, `saveRun` may only write where a reservation already is, every exit past the citation finalises, and the one-word outcome is read from how far the workflow got as well as from each action's verdict."
 supersedes: []
 affects:
   - execution
@@ -74,6 +74,16 @@ A third round found one more, and it is the second round's own fix one layer dow
     one of the same shape then had nothing left to refuse it: the arrangement agreed, the point
     was still inside something, and the words were the words of the panel that had gone.
 
+And a fourth round found the edge of that fix:
+
+12. **A request that completed having read nothing satisfied the requirement.** `VisualScreens.Read`
+    counts every reading it is handed, including one whose source answered and found no words —
+    correctly, because "read and silent" and "never answered" are different facts about a screen.
+    The boundary's term was reading that counter as "the words arrived", so OCR returning
+    successfully with nothing on it cleared the press: empty text cannot contradict an identity,
+    so the same-shape change went through on the strength of a request having returned. A reading
+    too thin to be a claim did the same thing.
+
 ## The decision
 
 Three rules, each of which generalises past the condition that found it.
@@ -131,8 +141,20 @@ vocabulary cannot be contradicted by a reading, so there a look agreeing on pixe
 of what the grounding policy has ever had, and demanding words would refuse presses for evidence
 the stabiliser could not have used.
 
+**And a request that returned is not evidence that arrived**, which is the same mistake in
+miniature and took a fourth round. `Read` counts a reading whose source answered and found
+nothing, because "read and silent" is a fact about the screen and "never answered" is not — and
+the boundary was reading that counter as the words having arrived. So a successful reading of
+nothing cleared the press, and so did a reading of one or two words. The term now requires the
+reading to say enough to be a claim, at the stabiliser's own bar: below
+`observe.TextDisagreementWords`, `TextsDisagree` declines to call either side a claim, so a
+reading that thin could not have refused this merge however different what it said was. The
+stabiliser is still given the reading either way; what it may not do is stand in for evidence
+nothing was ever going to consult.
+
 Nothing new is measured and no threshold is invented: reporting a counter is not a second opinion
-about screen identity, and the text rule that rules on the reading is the stabiliser's own.
+about screen identity, the bar is the one the text rule already applies, and the rule that rules
+on the reading is the stabiliser's own.
 
 **And the standing claim comes back ON the evidence.** The look is what moves it, so reading it
 before looking compares the plan against the state the plan was made in — the original defect
@@ -206,6 +228,12 @@ Freshness at the boundary:
   `TestAScreenNobodyHasReadIsStillPressedOnItsPixels`: the limit of the rule — an unread screen
   is pressed on its pixels and no reading is asked for at all.
   `TestABoundaryWaitingForWordsIsCancellable`: a cancellation ends the wait.
+- `TestASuccessfulReadingOfNothingIsNotEvidence` and `TestAReadingTooThinToBeAClaimIsNotEvidence`:
+  a request that completed and read nothing, and one that read fewer words than it takes to be a
+  claim — refused, with the first asserting that the stabiliser's counter DID move, which is the
+  trap. `TestAStepIsNotPressedOnAnEmptyOrThinReading` carries both through the real runner for
+  zero host calls. The bar is load-bearing in both directions: the positive control clears on
+  exactly `observe.TextDisagreementWords` words.
 - `TestAPointWithNothingUnderItIsRefusedOnASettledScreen`: a settled screen with nothing under
   the approved coordinate.
 - `TestAChangedPanelUnderAnAuthorisedStepSendsNoInput`: the real runner, with that boundary

@@ -1780,6 +1780,12 @@ it refuses those looks. Visible is fine; in front is not.
   tail of the one call that can be ahead of it), cancellable, refused when it does not arrive —
   and asked only where words could decide anything, since a screen with no corroborated
   vocabulary cannot be contradicted by a reading and is pressed on its pixels as it always was.
+  A fourth round then found the edge of that: `Read` counts a reading whose source answered and
+  found NOTHING — rightly, because read-and-silent is a fact about a screen — and the boundary was
+  reading that counter as the words having arrived, so a successful reading of nothing cleared the
+  press. The term now needs the reading to say enough to be a claim, at the bar the text rule
+  already applies (`TextDisagreementWords`), below which `TextsDisagree` will not call either side
+  a claim. **A request completing is not evidence arriving.**
   [[ADR-240-a-stop-is-only-a-stop-at-the-last-moment-it-could-matter]]
 - **A click's OUTCOME can be verified where the screen does not change, and the terms are
   measured on two games rather than one.** Ark's GRAPHICS tab verifies on 36 independent words

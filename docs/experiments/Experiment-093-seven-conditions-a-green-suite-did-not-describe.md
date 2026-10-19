@@ -5,7 +5,7 @@ date: 2026-10-19
 backend:
   - structure
 fixture: "Source review of the supervised-run lifecycle as committed in `cec983d`, `7ae9dd1` and `22fd169` — all three with a green 101-package suite — followed by one reproducing test per traced condition and a mutation run on every new call site."
-result: "Eleven conditions closed over three rounds. Every one was reproducible by a test that could have been written against the committed code, and not one of the committed tests described it. The first round: five timing (the moment a stop is read, the moment a target is measured, the moment a deadline applies) and two identity (which attempt a record belongs to, what a whole run's one-word outcome is). The second round, reviewing the first round's fixes, found three more — and all three were the same fix not having gone far enough: a fresh look that reached the observer and was never asked what the observer made of it, three exits past the citation that the first round had not enumerated, and a reservation that guarded the record while the pixels were already being shared. The third round found the second round's own fix one layer down: the boundary look took whatever OCR had FINISHED, which is a reading of the frame before it, admissible while the epoch is still and agreeing with the screen the plan was made on. Thirty-nine mutations across three rounds; three survived the first pass and each named a real gap, including an ORDERING that two source-pinned strings could not hold. Two limitations traced and deliberately left open."
+result: "Twelve conditions closed over four rounds. Every one was reproducible by a test that could have been written against the committed code, and not one of the committed tests described it. The first round: five timing (the moment a stop is read, the moment a target is measured, the moment a deadline applies) and two identity (which attempt a record belongs to, what a whole run's one-word outcome is). The second round, reviewing the first round's fixes, found three more — and all three were the same fix not having gone far enough: a fresh look that reached the observer and was never asked what the observer made of it, three exits past the citation that the first round had not enumerated, and a reservation that guarded the record while the pixels were already being shared. The third round found the second round's own fix one layer down: the boundary look took whatever OCR had FINISHED, which is a reading of the frame before it, admissible while the epoch is still and agreeing with the screen the plan was made on. The fourth found the edge of THAT fix: a request that completed having read nothing still satisfied the requirement, because the stabiliser counts a silent reading as a look it read. Forty-three mutations across four rounds; three survived the first pass and each named a real gap, including an ORDERING that two source-pinned strings could not hold. Two limitations traced and deliberately left open."
 supersedes: []
 affects:
   - execution
@@ -136,6 +136,29 @@ abandoned reading never existed. The real engine cannot do that: `bridgehost.Inv
 request line and reads the answer, and no context reaches it. The fixture is now deaf in the same
 place the bridge is deaf, and the mutation dies. A fixture more cooperative than the thing it
 stands for cannot produce the condition it was built to describe.
+
+## The fourth round, which is the third round's own edge
+
+The third round's term asked two questions: did a reading come back for this capture, and did the
+stabiliser count a reading on this look. Both can be yes while nothing has been established.
+`VisualScreens.Read` increments `TextRead` for **every** reading it is handed, including one whose
+source answered and found no words — and that is right for its own accounting, because "read and
+silent" is a fact about a screen and "nobody answered" is not. The boundary was reading that
+counter as the words having arrived. So OCR completing successfully with nothing on it cleared the
+press, and a reading of one or two words did the same.
+
+Four rounds, and the same pattern each time. This one sharpens the sentence:
+
+> a request completing is not evidence arriving.
+
+The fix asks for enough of a reading to be a claim, at the bar the text rule already applies
+(`observe.TextDisagreementWords`), because below it `TextsDisagree` will not call either side a
+claim — so a reading that thin could not have refused the merge however different what it said
+was. Accepting it would have been accepting a measurement nothing was ever going to consult. The
+stabiliser is still handed the reading either way: it is entitled to everything that was read.
+
+Four mutations, four killed, and the bar is pinned in both directions — one word lower fails the
+thin case, one word higher fails the positive control, which clears on exactly three.
 
 ## What this does NOT establish
 
