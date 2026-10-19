@@ -492,7 +492,14 @@ func TestAVisualScreenCannotReachDurableMemory(t *testing.T) {
 		filepath.Join(store, "stepplan_test.go"):      true,
 		filepath.Join(store, "anchor_test.go"):        true,
 		filepath.Join(store, "workflowstore_test.go"): true,
-		filepath.Join(store, "screentext_test.go"):    true,
+		// `juststep.go` extracts one step into a workflow of its own, and its test
+		// asserts that the starting screen's ARRANGEMENT travels — the evidence that
+		// makes such a step plannable at all. Allowed for the reason
+		// `workflowstore_test.go` is: it names the type to say what an artifact
+		// carries, and the durable side is unchanged by the extraction.
+		filepath.Join(store, "juststep.go"):        true,
+		filepath.Join(store, "juststep_test.go"):   true,
+		filepath.Join(store, "screentext_test.go"): true,
 		// `reached.go` establishes a workflow's destination from the look in front of
 		// it, so it has to be handed an arrangement and name the screen standing. It is
 		// allowed here for the same reason `anchor.go` is: what it writes is a `Bound`

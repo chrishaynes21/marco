@@ -110,6 +110,14 @@ func main() {
 		"follow a reloaded workflow through the production contracts, executing nothing")
 	anchor := flag.Bool("anchor", false,
 		"measure how many explicit screen confirmations a saved route needs in a fresh observer")
+	fixture := flag.String("fixture", "",
+		"derive a one-step workflow from two captures of a test application: the word its control says")
+	fixtureAfter := flag.String("fixture-after", "",
+		"with -fixture, the capture directory of the state the action produces")
+	fixtureName := flag.String("fixture-name", "fixture menu",
+		"with -fixture, what to call the derived workflow")
+	fixtureSave := flag.String("fixture-save", "",
+		"with -fixture, where to write the derived workflow")
 	outcome := flag.Bool("outcome", false,
 		"can a demonstrated click's OUTCOME be verified where the screen did not change?")
 	temporal := flag.Bool("temporal", false,
@@ -213,6 +221,18 @@ func main() {
 			if *button {
 				if err := reportButtonTargets(dir, *limit); err != nil {
 					fmt.Fprintf(os.Stderr, "perceptionreplay: %s: %v\n", dir, err)
+					os.Exit(1)
+				}
+				continue
+			}
+			if *fixture != "" {
+				// A one-step workflow derived from two captures of the
+				// application it will run in. CONSTRUCTED, not
+				// demonstrated. See fixture.go.
+				if err := reportFixtureWorkflow(dir, *fixtureAfter,
+					*fixture, *fixtureName, *fixtureSave); err != nil {
+					fmt.Fprintf(os.Stderr,
+						"perceptionreplay: %v\n", err)
 					os.Exit(1)
 				}
 				continue

@@ -111,6 +111,8 @@ func runPerformWorkflow(args []string) int {
 	explore := fs.Bool("explore", false,
 		"authorise the whole session at launch instead of asking for each action. "+
 			"Bounded by -max-actions and -seconds; every other check is unchanged")
+	step := fs.Int("step", -1,
+		"perform only this step of the workflow, extracted on its own (-1 = all)")
 	verifyFor := fs.Duration("verify-for", workflowrun.DefaultVerifyDeadline,
 		"how long after an action to wait for the readings that verify its outcome")
 	dwell := fs.Duration("dwell", workflowrun.DefaultDwell,
@@ -167,6 +169,31 @@ func runPerformWorkflow(args []string) int {
 		// clarification attached to nothing, a step naming a screen it does not carry.
 		fmt.Fprintf(os.Stderr, "director: %v\n", err)
 		return 1
+	}
+	// ── ONE STEP, EXTRACTED, WHEN THAT IS WHAT WAS ASKED FOR ──
+	//
+	// A workflow runs from step 0 forward, and the first step of a real demonstration is
+	// not always the one worth performing first: Ark's capture learned three, and step 0
+	// presses a target that ABSTAINED — a 73x12 rectangle with no word in it. Reaching
+	// step 2 by running the file means pressing that on the way.
+	//
+	// Extracted IN MEMORY rather than written out, which is the narrowest thing that
+	// works: no second file to run by mistake, no new format, and the step keeps its own
+	// starting screen, its control's evidence, its outcome expectation, the application
+	// scope and the instant that links it to the raw demonstration. See
+	// workflowstore/juststep.go for what travels and what does not.
+	if *step >= 0 {
+		one, serr := art.JustStep(*step)
+		if serr != nil {
+			fmt.Fprintf(os.Stderr, "director: %v\n", serr)
+			return 2
+		}
+		art = one
+		fmt.Printf("Performing step %d of %q on its own: %s -> %s via %s\n",
+			*step, art.Name, art.Steps[0].From, art.Steps[0].To,
+			art.Steps[0].Control)
+		fmt.Printf("  the steps before it are not in this run and are not implied " +
+			"by it\n")
 	}
 
 	if *from != "" {
