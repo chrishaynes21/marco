@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflowrun"
+	"github.com/chaynes-simpleclouds/marco/internal/director/workflowstore"
 )
 
 func TestARunRecordKeepsTheFourAnswersApart(t *testing.T) {
@@ -27,15 +28,26 @@ func TestARunRecordKeepsTheFourAnswersApart(t *testing.T) {
 		want      RunOutcome
 	}{
 		{"cancelled outranks everything, including a verified action",
-			workflowrun.Report{Pressed: 1, VerifiedOK: 1}, true, RunCancelled},
+			workflowrun.Report{Pressed: 1, VerifiedOK: 1, Progress: done(1)},
+			true, RunCancelled},
 		{"nothing pressed is a refusal",
 			workflowrun.Report{Pressed: 0}, false, RunRefused},
-		{"a verified action",
-			workflowrun.Report{Pressed: 1, VerifiedOK: 1}, false, RunVerified},
+		{"a verified action on a workflow that finished",
+			workflowrun.Report{Pressed: 1, VerifiedOK: 1, Progress: done(1)},
+			false, RunVerified},
+		// ── THE DEFECT THIS CLASSIFIER WAS CHANGED FOR ──
+		{"first verified, second refused before execution",
+			workflowrun.Report{Pressed: 1, VerifiedOK: 1, Progress: stoppedAt(2, 1)},
+			false, RunRefused},
+		{"first verified, second still pending at the deadline",
+			workflowrun.Report{Pressed: 2, VerifiedOK: 1, Progress: stoppedAt(2, 1)},
+			false, RunUnconfirmed},
 		{"evidence against the action",
-			workflowrun.Report{Pressed: 1, Contradicted: 1}, false, RunContradicted},
+			workflowrun.Report{Pressed: 1, Contradicted: 1, Progress: done(1)},
+			false, RunContradicted},
 		{"no evidence either way",
-			workflowrun.Report{Pressed: 1, Unconfirmed: 1}, false, RunUnconfirmed},
+			workflowrun.Report{Pressed: 1, Unconfirmed: 1, Progress: done(1)},
+			false, RunUnconfirmed},
 		// PRESSED AND NEVER CHECKED is the case `--step` on a routine with no
 		// outcome expectation lands in, and it must not read as a success.
 		{"pressed and never checked is not verified",
@@ -43,8 +55,8 @@ func TestARunRecordKeepsTheFourAnswersApart(t *testing.T) {
 		// AND A CONTRADICTION IS NOT HIDDEN BY A VERIFICATION beside it: a run that
 		// verified one action and was contradicted on another did not go well.
 		{"a contradiction outranks a verification",
-			workflowrun.Report{Pressed: 2, VerifiedOK: 1, Contradicted: 1}, false,
-			RunContradicted},
+			workflowrun.Report{Pressed: 2, VerifiedOK: 1, Contradicted: 1,
+				Progress: done(2)}, false, RunContradicted},
 	} {
 		if got := outcomeOfRun(c.rep, c.cancelled); got != c.want {
 			t.Errorf("%s: outcome %q, want %q", c.name, got, c.want)
@@ -60,8 +72,11 @@ func TestARunRecordKeepsTheFourAnswersApart(t *testing.T) {
 func TestARunRecordIsWrittenWhereItsReferenceSaysItIs(t *testing.T) {
 	t.Setenv("MARCO_HOME", t.TempDir())
 	id := newRun(time.Date(2026, 10, 18, 23, 7, 24, 0, time.UTC))
-	if id != "run-20261018-230724" {
-		t.Fatalf("run id %q is not sortable and second-resolution", id)
+	// THE TIMESTAMP IS THE HALF A PERSON READS, and the suffix is the half that
+	// makes it an identity — two attempts in one second used to share an id and one
+	// record replaced the other.
+	if !strings.HasPrefix(id, "run-20261018-230724-") {
+		t.Fatalf("run id %q is not the sortable timestamp a person reads", id)
 	}
 	want := runPath(id)
 
@@ -104,4 +119,15 @@ func TestACitationSaysSoWhenThereIsNothingToRetrieve(t *testing.T) {
 	if got := citeRun("run-x", "C:/x/run-x.json"); !strings.Contains(got, "run-x.json") {
 		t.Errorf("a citation does not name the file: %q", got)
 	}
+}
+
+// done is a workflow that reached every step and stopped at none.
+func done(steps int) workflowstore.Progress {
+	return workflowstore.Progress{Steps: steps, Reached: steps, Stopped: -1, Acted: steps}
+}
+
+// stoppedAt is a workflow that got partway and stopped at a step.
+func stoppedAt(steps, reached int) workflowstore.Progress {
+	return workflowstore.Progress{Steps: steps, Reached: reached, Stopped: reached,
+		Acted: reached}
 }

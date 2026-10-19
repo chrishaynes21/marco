@@ -101,7 +101,7 @@ func TestTheRealBoundaryRefusesATargetThatLostTheDesktop(t *testing.T) {
 	// workflow would carry.
 	scope := workflowstore.NormaliseScope(v.Ref.Application)
 
-	ok, why := stillThere(obs, tracker, windows, app, scope)(
+	ok, why := stillThere(obs, tracker, windows, app, scope, noRelook)(
 		context.Background(), planned)
 	if ok {
 		t.Fatalf("a target that does not lead the desktop was cleared to press: %s", why)
@@ -150,7 +150,7 @@ func TestTheRealBoundaryRefusesAnApplicationTheWorkflowDoesNotBelongTo(t *testin
 		t.Skip("this window belongs to the application the test uses as the wrong one")
 	}
 
-	ok, why := stillThere(obs, tracker, windows, app, elsewhere)(
+	ok, why := stillThere(obs, tracker, windows, app, elsewhere, noRelook)(
 		context.Background(), planned)
 	if ok {
 		t.Fatalf("a workflow for %q was cleared to press into %q: %s",
@@ -166,7 +166,7 @@ func TestTheRealBoundaryRefusesAnApplicationTheWorkflowDoesNotBelongTo(t *testin
 		}
 	}
 	// AND AN UNSCOPED WORKFLOW IS REFUSED HERE TOO, which is the last place it can be.
-	if ok, why := stillThere(obs, tracker, windows, app, "")(
+	if ok, why := stillThere(obs, tracker, windows, app, "", noRelook)(
 		context.Background(), planned); ok {
 		t.Error("an unscoped workflow was cleared to press")
 	} else if !strings.Contains(why, "UNSCOPED") {
@@ -203,3 +203,10 @@ func TestTheLiveBoundaryTestsCannotEmitInput(t *testing.T) {
 		}
 	}
 }
+
+// noRelook is the fresh look these tests deliberately do not take.
+//
+// They drive `stillThere` against a REAL desktop to exercise the frontness and scope cases,
+// and a capture here would add a second source of failure to a test about neither. The
+// freshness of the screen stamps is a separate question, held by its own test.
+func noRelook(context.Context, windowref.Validation) {}

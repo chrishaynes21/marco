@@ -1133,12 +1133,34 @@ func (r *Runner) press(ctx context.Context, a Attempt, ready workflowstore.StepR
 		}
 	}
 
+	// ── AND THE LAST THING BEFORE THE CLICK IS WHETHER TO CLICK ──
+	//
+	// The stop check above happens before the hover probe, the pointer query and the
+	// world re-confirmation — each of which takes a screenshot or asks the operating
+	// system something, and together they are the better part of a second. A stop
+	// arriving in that window was heard by nobody and the click went out anyway.
+	//
+	// `Stop` sets a flag and does not cancel this context, so the executor could not
+	// learn about it either. Both halves are closed: the flag is asked again here, at
+	// the last instruction before the effect, and `stopping` below gives the executor a
+	// context that a stop actually cancels — so a stop landing DURING the press reaches
+	// the host rather than being noticed afterwards.
+	if stopped, why := r.halted(ctx); stopped {
+		a.Outcome = OutcomeStopped
+		a.Because = "the pointer was moved to the control and the run was stopped " +
+			"before the press: " + why
+		r.lastStage, r.lastBecause = ready.Stage, a.Because
+		return a
+	}
+
 	op := marcoexec.Operation{
 		Kind:  marcoexec.KindClick,
 		Count: 1,
 		At:    point,
 	}
-	res, err := r.exec.Do(ctx, op)
+	sendCtx, endSend := r.stopping(ctx)
+	defer endSend()
+	res, err := r.exec.Do(sendCtx, op)
 	a.Result = &res
 	switch {
 	case err == nil && res.Status == marcoexec.StatusCompleted:
@@ -1668,3 +1690,47 @@ func (r *Runner) settled(a *Attempt) bool {
 	}
 	return true
 }
+
+// stopping is ctx, cancelled when somebody stops the run.
+//
+// `Stop` sets an atomic flag. Everything that polls `halted` sees it at the next check, and the
+// one operation that cannot be polled is the one in flight — `exec.Do` is given a context and
+// then it is the host's. A stop arriving while a click is being sent had no way to reach it.
+//
+// So the flag is bridged onto a context here. The watcher polls rather than waiting on a
+// channel because the flag IS the stop signal and there is exactly one of it; a channel would
+// be a second representation of the same fact, and the two would eventually disagree about
+// whether a run had been stopped.
+//
+// Returned with its own cancel so the goroutine ends with the operation, stop or no stop.
+func (r *Runner) stopping(ctx context.Context) (context.Context, func()) {
+	out, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() {
+		t := time.NewTicker(stopPollInterval)
+		defer t.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-out.Done():
+				return
+			case <-t.C:
+				if r.stopped.Load() {
+					cancel()
+					return
+				}
+			}
+		}
+	}()
+	return out, func() {
+		close(done)
+		cancel()
+	}
+}
+
+// stopPollInterval is how often an operation in flight asks whether it has been stopped.
+//
+// Short enough that a person pressing stop during a click does not wait for it, long enough
+// that it is not a spin. A click is milliseconds; this exists for the host that takes longer.
+const stopPollInterval = 10 * time.Millisecond

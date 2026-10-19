@@ -27,6 +27,7 @@ package main
 // id so that the reference retrieves THAT attempt's evidence rather than the last one's.
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -97,7 +98,25 @@ type RunRecord struct {
 // Sortable, second-resolution, and local time because the person reading it is in it. Two runs
 // in one second would collide; two supervised runs in one second is not a thing a person does,
 // and a reference nobody can type is worse than one that could theoretically collide.
-func newRun(at time.Time) string { return "run-" + at.Format("20060102-150405") }
+func newRun(at time.Time) string {
+	// AND A SUFFIX, BECAUSE A SECOND IS NOT UNIQUE.
+	//
+	// The timestamp is the sortable half and a person reads it; it is not an identity.
+	// Two attempts started in the same second — a script, a retry, two terminals —
+	// produced the same id, and `saveRun` overwrote, so one attempt's record silently
+	// became the other's. The one thing a reference must do is retrieve the attempt it
+	// names.
+	//
+	// Four hex characters from the system's randomness, which is short enough to type
+	// and read aloud. If it cannot be read, the nanosecond stands in: a worse suffix is
+	// better than a colliding one, and this must never fail a run.
+	var b [2]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return fmt.Sprintf("run-%s-%04x", at.Format("20060102-150405"),
+			at.Nanosecond()&0xffff)
+	}
+	return fmt.Sprintf("run-%s-%02x%02x", at.Format("20060102-150405"), b[0], b[1])
+}
 
 // runPath is where a run's record is written.
 func runPath(id string) string { return filepath.Join(configDir(), runsDir, id+".json") }
@@ -114,8 +133,22 @@ func saveRun(r RunRecord) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	// WRITTEN ONCE, NEVER OVER.
+	//
+	// `os.WriteFile` truncates whatever is there, so a colliding id replaced an earlier
+	// attempt's record and the earlier reference then retrieved somebody else's run.
+	// O_EXCL makes that a refusal rather than a silent substitution: the record that
+	// exists is the one that was written first, and the caller is told.
 	p := runPath(r.Run)
-	if err := os.WriteFile(p, b, 0o644); err != nil {
+	f, err := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err != nil {
+		return "", err
+	}
+	if _, err := f.Write(b); err != nil {
+		_ = f.Close()
+		return "", err
+	}
+	if err := f.Close(); err != nil {
 		return "", err
 	}
 	return p, nil
@@ -126,6 +159,9 @@ func saveRun(r RunRecord) (string, error) {
 // In the order a reader needs them: what a person did, then what Marco refused, then what the
 // evidence said. A run that was cancelled is cancelled whatever else is true of it.
 func outcomeOfRun(rep workflowrun.Report, cancelled bool) RunOutcome {
+	// A VERDICT IS NOT A WHOLE RUN. Counted apart, because the overall answer depends on
+	// how far the workflow got as well as on what each action's evidence said.
+	decided := rep.VerifiedOK + rep.Contradicted + rep.Unconfirmed
 	switch {
 	case cancelled:
 		return RunCancelled
@@ -133,16 +169,28 @@ func outcomeOfRun(rep workflowrun.Report, cancelled bool) RunOutcome {
 		return RunContradicted
 	case rep.Unconfirmed > 0:
 		return RunUnconfirmed
-	case rep.VerifiedOK > 0:
+	case rep.Pressed > decided:
+		// AN ACTION WENT OUT AND NOTHING EVER ANSWERED FOR IT. A later action
+		// whose verification was still gathering when the run's own deadline
+		// arrived lands here, and so does `--step` on a routine with no outcome
+		// expectation. Neither is a verified run.
+		return RunUnconfirmed
+	case rep.VerifiedOK > 0 && rep.Progress.Complete():
 		return RunVerified
+	case rep.VerifiedOK > 0:
+		// VERIFIED SOMETHING AND DID NOT FINISH.
+		//
+		// The defect this closes: the classifier returned `verified` on any
+		// positive count, so a workflow whose first step verified and whose second
+		// refused before execution was recorded, as a whole, as verified. The
+		// per-action counts are kept — that first action did verify — and they do
+		// not promote an incomplete run to success.
+		return RunRefused
 	case rep.Pressed == 0:
 		// NOTHING WAS SENT. Whether it stopped early or never started, from the
 		// person's side this is Marco declining to act.
 		return RunRefused
 	}
-	// SOMETHING WAS PRESSED AND NOTHING WAS CHECKED, which is not a verified run and
-	// must not read as one. `--step` on a routine with no outcome expectation lands
-	// here, and so does a run that stopped before its verdict.
 	return RunUnconfirmed
 }
 

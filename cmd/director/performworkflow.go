@@ -46,6 +46,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync/atomic"
@@ -63,6 +64,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/platform/marcorunner"
 	"github.com/chaynes-simpleclouds/marco/internal/platform/navsource"
 	"github.com/chaynes-simpleclouds/marco/internal/platform/recordhost"
+	"github.com/chaynes-simpleclouds/marco/internal/platform/wincapture"
 	"github.com/chaynes-simpleclouds/marco/internal/platform/winprovider"
 	"github.com/chaynes-simpleclouds/marco/internal/runtime"
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
@@ -239,6 +241,17 @@ func runPerformWorkflow(args []string) int {
 		return code
 	}
 
+	// ── THIS RUN'S OWN PIXELS, UNDER THIS RUN'S OWN NAME ──
+	//
+	// The hover probe writes `01-before.png` and `01-after.png`, so two runs sharing a
+	// --frames directory overwrote each other and an earlier record then pointed at a
+	// later run's images. The record keeps the directory it actually wrote to, which is
+	// the one its reference can retrieve.
+	framesDir := ""
+	if *frames != "" {
+		framesDir = filepath.Join(*frames, runID)
+	}
+
 	// ── ONE FINALISATION PATH, FROM HERE TO EVERY EXIT ──
 	//
 	// `keep` writes the record for this attempt and `endedEarly` is the exit that uses it
@@ -263,7 +276,7 @@ func runPerformWorkflow(args []string) int {
 			Outcome: out, Because: because,
 			Sent: rep.Pressed, Real: rep.Real,
 			Verified: rep.VerifiedOK, Contradicted: rep.Contradicted,
-			Unconfirmed: rep.Unconfirmed, Frames: *frames,
+			Unconfirmed: rep.Unconfirmed, Frames: framesDir,
 		})
 	}
 	endedEarly := func(out RunOutcome, because string) int {
@@ -277,6 +290,12 @@ func runPerformWorkflow(args []string) int {
 		return 1
 	}
 
+	// ── THIS RUN'S OWN PIXELS, UNDER THIS RUN'S OWN NAME ──
+	//
+	// The hover probe writes `01-before.png` and `01-after.png`, so two runs
+	// sharing a --frames directory overwrote each other and an earlier record then
+	// pointed at a later run's images. The record keeps the directory it actually
+	// wrote to, which is the one a reference can retrieve.
 	// THE REFERENCE, BEFORE ANYBODY IS ASKED TO PREPARE. A run worth citing is usually
 	// one that went wrong, and the ones that go wrong earliest used to print it last.
 	fmt.Printf("%s\n", citeRun(runID, runPath(runID)))
@@ -498,6 +517,9 @@ func runPerformWorkflow(args []string) int {
 	// `run` is declared before the desk so the STOP key can reach it. A desk built with
 	// no way to stop the run would make F9 a key that prints something.
 	var run *workflowrun.Runner
+	// stopper is how the key goroutine reaches the runner: published once, read
+	// atomically, and nil until there is something to stop. See the desk callback.
+	var stopper atomic.Pointer[workflowrun.Runner]
 	var session0 *sessionGrant
 	var grant workflowrun.Granter = &promptGranter{in: ask, out: os.Stdout, live: *live}
 	var keys *hotkeyGranter
@@ -518,9 +540,22 @@ func runPerformWorkflow(args []string) int {
 		// THE SAME SOURCE THE START KEY WAS HEARD ON, handed over to the desk now
 		// that nothing else is reading it. A second `navsource.New` here would
 		// install a second desktop-wide hook for the rest of the run.
+		// ── THE STOP CALLBACK OUTLIVES NOTHING AND WAITS FOR NOTHING ──
+		//
+		// It used to call `run.Stop()` directly, and the desk's goroutine starts
+		// HERE while `run` is assigned fifty lines below — so a stop key pressed
+		// in between dereferenced a nil runner and took the process down with it.
+		// Afterwards it was an unsynchronised read of a pointer another goroutine
+		// had written, which is a race whether or not it ever misbehaved.
+		//
+		// An atomic pointer fixes both, and the flag is what makes an early stop
+		// mean something rather than being dropped: whoever publishes the runner
+		// below asks whether a stop already arrived.
 		desk = newConsentDesk(src.Consents(), func() {
 			stoppedByKey.Store(true)
-			run.Stop()
+			if r := stopper.Load(); r != nil {
+				r.Stop()
+			}
 		})
 		go desk.run(ctx)
 		keys = &hotkeyGranter{desk: desk, out: os.Stdout, live: *live,
@@ -551,7 +586,7 @@ func runPerformWorkflow(args []string) int {
 		repairs = &regrounder{art: art, out: os.Stdout, words: words.read}
 	}
 
-	probe := &hoverProbe{shots: shots, moved: 8, frames: *frames, window: windowNow}
+	probe := &hoverProbe{shots: shots, moved: 8, frames: framesDir, window: windowNow}
 
 	run = workflowrun.New(art, nil, ground, grant).
 		WithExecutor(marcoexec.New(marco), *live).
@@ -568,13 +603,22 @@ func runPerformWorkflow(args []string) int {
 		// THE WORLD, RE-OBSERVED AT THE INSTANT OF THE PRESS. Deleting this call, or
 		// passing nil, must make the runner refuse every action — see
 		// TestPerformWorkflowInstallsItsGates.
-		WithConfirm(stillThere(obs, tracker, windows, target, art.Application)).
+		WithConfirm(stillThere(obs, tracker, windows, target, art.Application,
+			freshLook(shots, obs, windows, structure.DefaultOptions()))).
 		// HOW LONG AN ACTION'S OWN EVIDENCE IS WAITED FOR, which is a different
 		// scarcity from patience: patience counts LOOKS of an unestablished screen,
 		// and this counts TIME for enough readings to decide whether the action did
 		// what it did when it was shown. See workflowrun/verify.go.
 		WithVerifyDeadline(*verifyFor).
 		WithPatience(*patience)
+
+	// AND NOW THERE IS SOMETHING TO STOP. Published before the first observation,
+	// and a stop that arrived while it was being built is honoured here rather than
+	// dropped — the key was pressed, so the run does not start.
+	stopper.Store(run)
+	if stoppedByKey.Load() {
+		run.Stop()
+	}
 
 	fmt.Printf("Performing %q against %s\n", art.Name, v.Ref.Describe())
 	fmt.Printf("  %d step(s), %d screen(s), %d control(s)\n",
@@ -1002,12 +1046,34 @@ func worldMoved(app string, scope workflowstore.Scope, now worldNow,
 // a package variable: a real answer needs a live window and a real desktop. Everything it
 // decides is in worldMoved, which is tested.
 func stillThere(obs *fastobserve.Observer, tracker *windowref.Tracker,
-	windows *winprovider.Provider, app string,
-	scope workflowstore.Scope) func(context.Context,
+	windows *winprovider.Provider, app string, scope workflowstore.Scope,
+	relook func(context.Context, windowref.Validation)) func(context.Context,
 	workflowrun.Sighting) (bool, string) {
 
 	return func(ctx context.Context, planned workflowrun.Sighting) (bool, string) {
 		v := tracker.Acquire(ctx, app)
+		// ── A FRESH LOOK, BECAUSE THE CACHED ONE IS THE PLAN'S OWN ──
+		//
+		// `obs.Epoch()` and `obs.Screen()` are whatever the observer last saw, and
+		// the observation loop is BLOCKED inside `Advance` while somebody is asked
+		// to authorise — so nothing has looked since the plan was made, and asking
+		// the observer what is standing returns the same answer that produced the
+		// plan. The check compared the plan against itself.
+		//
+		// What that misses is the case it most needs to catch: the application
+		// changes a panel inside the same window, with the same geometry, still in
+		// front. Window validity and frontness are refreshed and all three agree,
+		// while the point that was approved now sits on a different interface.
+		//
+		// So a look is TAKEN here rather than remembered. It goes through the same
+		// observer as every other look, which is deliberate: the comparison below
+		// is unchanged, the relation that decides what is standing is unchanged,
+		// and what changes is only that its inputs describe now. Inventing a
+		// similarity threshold for this one moment would be a second opinion about
+		// screen identity, and two of those eventually disagree.
+		if relook != nil && v.State.OK() {
+			relook(ctx, v)
+		}
 		now := worldNow{
 			Alive: v.State.OK(), State: string(v.State),
 			Generation: v.Ref.Generation, Epoch: obs.Epoch(),
@@ -1827,3 +1893,55 @@ func started(ctx context.Context, src *navsource.Source, within time.Duration) s
 // helpers, it was in which of them the command reached. A seam here is what lets a test press
 // F9 at the start prompt and then read the record the command left behind.
 var newKeySource = navsource.New
+
+// freshLook takes one look right now and gives it to the observer.
+//
+// # Why the confirmation needs its own look
+//
+// The observation loop captures, proposes and observes once a tick — and then calls `Advance`,
+// which BLOCKS while somebody is asked to authorise an action. Nothing looks during that wait.
+// So the "is the world still as planned" check read the observer's cached epoch and screen,
+// which are the very ones the plan was made from, and compared the plan against itself.
+//
+// The case that misses is the one it most needs: an application that changes a panel inside the
+// same window, same geometry, still in front. Every other term agrees and the approved point is
+// now on a different interface.
+//
+// # Through the same observer, deliberately
+//
+// The look goes where every other look goes. The comparison in `worldMoved` is unchanged and
+// the relation that decides what is standing is unchanged; what changes is that its inputs
+// describe now. A private similarity check for this one moment would be a second opinion about
+// screen identity, and two of those eventually disagree about a press.
+//
+// It costs one capture per authorised action, on the goroutine that is already waiting, and it
+// is counted as the look it is.
+func freshLook(shots *wincapture.Capture, obs *fastobserve.Observer, windows *winprovider.Provider,
+	opt structure.Options) func(context.Context, windowref.Validation) {
+
+	return func(ctx context.Context, v windowref.Validation) {
+		lk := fastobserve.Look{
+			At: time.Now(),
+			Window: fastobserve.WindowRef{
+				ID: v.Ref.ID, Generation: v.Ref.Generation, Bounds: v.Ref.Bounds,
+			},
+		}
+		img, err := shots.CaptureWindow(ctx, windowRefToWindow(v.Ref))
+		if err != nil {
+			// NO PIXELS IS NOT "UNCHANGED". A look nobody could take is
+			// recorded as missing, and `worldMoved` decides what that means
+			// from the same evidence it always uses.
+			lk.Missing = true
+			obs.Observe(lk)
+			return
+		}
+		lk.Front = frontnessOf(frontCandidate(ctx, windows), v.Ref) == observe.FrontTarget
+		res := structure.Propose(img.Image, opt)
+		rects := make([]image.Rectangle, 0, len(res.Candidates))
+		for _, c := range res.Candidates {
+			rects = append(rects, c.Bounds)
+		}
+		lk.Regions = observe.NormaliseRects(img.Image.Bounds(), rects)
+		obs.Observe(lk)
+	}
+}

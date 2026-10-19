@@ -106,7 +106,29 @@ func (d *consentDesk) run(ctx context.Context) {
 		drain:
 			for {
 				select {
-				case <-d.keys:
+				case c, ok := <-d.keys:
+					if !ok {
+						return
+					}
+					// A STOP IS NEVER STALE.
+					//
+					// This drained every queued key without looking at
+					// it, so a stop sitting in the channel when a
+					// question opened was COUNTED as answering nothing
+					// and thrown away. Discarding a premature approval
+					// is the point of this loop — an approval answers
+					// one question and must not answer the next one.
+					// A stop answers no question at all: it ends the
+					// run, and it means that whenever it was pressed.
+					//
+					// The same rule the ordinary branch below applies,
+					// which is why it is spelled the same way.
+					if c == navsource.ConsentStop {
+						if d.stop != nil {
+							d.stop()
+						}
+						continue
+					}
 					d.drained++
 				default:
 					break drain

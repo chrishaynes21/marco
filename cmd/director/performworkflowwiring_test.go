@@ -171,9 +171,28 @@ func TestPerformWorkflowInstallsItsGates(t *testing.T) {
 		{"observe.Current(saidGen, saidEpoch,",
 			"without the check the last words read stand forever, and a menu " +
 				"left and returned to is judged by what the old one said"},
-		{"run.Stop()",
+		{"r.Stop()",
 			"without the stop function the stop key is a key that prints " +
 				"something"},
+		// AND THE CONFIRMATION LOOKS AGAIN RATHER THAN REMEMBERING. The
+		// observation loop is blocked inside `Advance` while somebody is
+		// asked to authorise, so the observer's cached epoch and screen are
+		// the plan's own. Without this call the check compares the plan
+		// against itself and a panel that changed under the pointer passes.
+		{"relook(ctx, v)",
+			"without it the world check reads the stamps the plan was made " +
+				"from, and a changed panel is cleared to press"},
+		{"freshLook(shots, obs, windows,",
+			"without the fresh look installed the confirmation has nothing " +
+				"to take a look with"},
+		// AND IT REACHES THE RUNNER SAFELY. The desk's goroutine starts while
+		// `run` is still nil, so a stop key pressed during initialisation
+		// dereferenced nil and took the process down; afterwards it was an
+		// unsynchronised read of a pointer another goroutine had written. An
+		// atomic pointer is both the nil guard and the publication.
+		{"stopper.Store(run)",
+			"without publishing the runner the stop key reaches nothing, and " +
+				"reading the bare pointer from the key goroutine is a race"},
 		// AND THE STOP KEY IS REMEMBERED, not just obeyed.
 		//
 		// `run.Stop()` stops the RUN and does not cancel the command's context, so
@@ -340,7 +359,10 @@ func TestTheApplicationIsRecheckedAtTheInstantOfThePress(t *testing.T) {
 // always agrees with itself.
 func TestTheRunnerRechecksAgainstTheArtifactsOwnScope(t *testing.T) {
 	src := readSource(t, "performworkflow.go")
-	if !strings.Contains(src, "stillThere(obs, tracker, windows, target, art.Application)") {
+	// MATCHED UP TO THE SCOPE AND NO FURTHER. This pinned the whole call, so adding an
+	// argument to `stillThere` failed a test about where the SCOPE comes from — which is
+	// a test that fails for a reason it does not describe.
+	if !strings.Contains(src, "stillThere(obs, tracker, windows, target, art.Application,") {
 		t.Error("the runner's world re-check is not given the artifact's own scope; " +
 			"a scope taken from the command line would always agree with itself")
 	}
