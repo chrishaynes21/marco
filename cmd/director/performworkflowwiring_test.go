@@ -171,9 +171,27 @@ func TestPerformWorkflowInstallsItsGates(t *testing.T) {
 		{"observe.Current(saidGen, saidEpoch,",
 			"without the check the last words read stand forever, and a menu " +
 				"left and returned to is judged by what the old one said"},
-		{"newConsentDesk(src.Consents(), func() { run.Stop() })",
+		{"run.Stop()",
 			"without the stop function the stop key is a key that prints " +
 				"something"},
+		// AND THE STOP KEY IS REMEMBERED, not just obeyed.
+		//
+		// `run.Stop()` stops the RUN and does not cancel the command's context, so
+		// a classifier handed only `ctx.Err()` cannot tell an attempt somebody
+		// stopped from one that ended on its own — and an F9-stopped run was
+		// recorded as refused, unconfirmed or even verified depending on what had
+		// happened before the key.
+		//
+		// This is a source assertion and it proves the call site exists, not that
+		// the flag reaches the record. It is here because the behavioural test
+		// needs a window to acquire, and a deleted `Store` otherwise survives every
+		// test in this package.
+		{"stoppedByKey.Store(true)",
+			"without it an attempt somebody stopped is classified from whatever " +
+				"the report happened to say"},
+		{"ctx.Err() != nil || stoppedByKey.Load()",
+			"without the stop flag in the classifier the run record cannot " +
+				"report a cancellation at all"},
 	} {
 		if !strings.Contains(string(src), want.call) {
 			t.Errorf("the assembly does not install %s\n\t%s", want.call, want.why)

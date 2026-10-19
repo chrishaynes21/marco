@@ -48,6 +48,7 @@ import (
 	"os/signal"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/demo"
@@ -238,6 +239,54 @@ func runPerformWorkflow(args []string) int {
 		return code
 	}
 
+	// ── ONE FINALISATION PATH, FROM HERE TO EVERY EXIT ──
+	//
+	// `keep` writes the record for this attempt and `endedEarly` is the exit that uses it
+	// before a run ever starts. Both exist because the record used to be written at one
+	// place — the bottom — and every return above it left nothing behind: pressing F9 at
+	// the start prompt, Ctrl-C during either wait, a window that could not be acquired, a
+	// scope that refused. Those are the attempts somebody is most likely to ask about,
+	// and they were the attempts with no reference and no record.
+	//
+	// `RunFailed` was declared and never produced for the same reason: nothing on a
+	// startup path reached a classifier.
+	//
+	// A zero `Report` gives zero actions sent, which is what a cancelled-before-anything
+	// attempt should say, and the counts are carried through unchanged when there is a
+	// report — a run cancelled after an action verified did verify that action.
+	keep := func(out RunOutcome, because string, rep workflowrun.Report) (string, error) {
+		return saveRun(RunRecord{
+			Version: 1, Run: runID, Workflow: art.Name,
+			Application: string(art.Application), Step: *step,
+			Started: began.Format(time.RFC3339),
+			Ended:   time.Now().Format(time.RFC3339),
+			Outcome: out, Because: because,
+			Sent: rep.Pressed, Real: rep.Real,
+			Verified: rep.VerifiedOK, Contradicted: rep.Contradicted,
+			Unconfirmed: rep.Unconfirmed, Frames: *frames,
+		})
+	}
+	endedEarly := func(out RunOutcome, because string) int {
+		if p, err := keep(out, because, workflowrun.Report{}); err != nil {
+			fmt.Fprintf(os.Stderr,
+				"director: the run record could not be written: %v\n", err)
+			fmt.Printf("%s\n", citeRun(runID, ""))
+		} else {
+			fmt.Printf("%s   (%s)\n", citeRun(runID, p), out)
+		}
+		return 1
+	}
+
+	// THE REFERENCE, BEFORE ANYBODY IS ASKED TO PREPARE. A run worth citing is usually
+	// one that went wrong, and the ones that go wrong earliest used to print it last.
+	fmt.Printf("%s\n", citeRun(runID, runPath(runID)))
+
+	// stoppedByKey is set by the stop key, which stops the RUN and does not cancel this
+	// command's context — so without it an F9-stopped attempt was classified from
+	// whatever the report happened to say and could be recorded as refused, unconfirmed
+	// or even verified. Atomic because the desk sets it from its own goroutine.
+	var stoppedByKey atomic.Bool
+
 	// ── THE KEY SOURCE, OPENED ONCE FOR THE WHOLE RUN ──
 	//
 	// Needed here because START is a key press, and needed again below for the consent
@@ -247,11 +296,12 @@ func runPerformWorkflow(args []string) int {
 	// when the command returns, owned by one reader at a time.
 	var src *navsource.Source
 	if *hotkeys && !*explore {
-		s, why := navsource.New()
+		s, why := newKeySource()
 		if why != "" {
 			fmt.Fprintf(os.Stderr, "director: no key hook is available, so "+
 				"--hotkeys has no way to hear an answer: %s\n", why)
-			return 1
+			return endedEarly(RunFailed, "no key hook was available, so "+
+				"there was no way to hear a start or a stop: "+why)
 		}
 		src = s
 		defer src.Close()
@@ -270,9 +320,19 @@ func runPerformWorkflow(args []string) int {
 	//
 	// The same key the desk uses, so there is one thing to learn, and it is heard while
 	// the game keeps the foreground — which is the whole reason the desk uses keys.
-	if src != nil && started(ctx, src, *delay) == startCancelled {
-		fmt.Println("  cancelled before anything was observed; no input was sent")
-		return 1
+	if src != nil {
+		if started(ctx, src, *delay) == startCancelled {
+			fmt.Println("  cancelled before anything was observed; no input " +
+				"was sent")
+			return endedEarly(RunCancelled,
+				"cancelled at the start prompt, before any window was "+
+					"acquired or anything was observed")
+		}
+		// AND THE PREPARATION IS SPENT. Pressing F7 used to fall through to the
+		// `Starting in %s` countdown below and wait the delay all over again —
+		// so saying "ready" cost a second wait, and letting Start time out cost
+		// two. One preparation gate, however it ends.
+		waited = true
 	}
 	if src == nil && lookAfterWaiting(*app, *delay) {
 		fmt.Printf("  Switch to the application now — what is in front in %s is what "+
@@ -282,7 +342,8 @@ func runPerformWorkflow(args []string) int {
 			// nothing to wind back and nothing could have been pressed.
 			fmt.Println("  cancelled before the application was discovered; " +
 				"nothing was observed and no input was sent")
-			return 1
+			return endedEarly(RunCancelled, "cancelled during the preparation "+
+				"wait, before any window was acquired")
 		}
 		waited = true
 	}
@@ -331,7 +392,8 @@ func runPerformWorkflow(args []string) int {
 		if !known {
 			fmt.Fprintf(os.Stderr, "director: %q carries no screen called %q\n",
 				art.Name, *from)
-			return 1
+			return endedEarly(RunFailed, fmt.Sprintf("--from named %q, which "+
+				"this workflow does not carry", *from))
 		}
 	}
 
@@ -358,7 +420,8 @@ func runPerformWorkflow(args []string) int {
 		release, err := claim()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "director: the desktop is not available: %v\n", err)
-			return 1
+			return endedEarly(RunFailed,
+				"the desktop was not available: "+err.Error())
 		}
 		defer release()
 	}
@@ -378,7 +441,7 @@ func runPerformWorkflow(args []string) int {
 					"--pid. Neither authorises anything: the artifact's "+
 					"scope is still checked against the window acquired.")
 		}
-		return 1
+		return endedEarly(RunFailed, "the window could not be acquired: "+v.Reason)
 	}
 	// AND THE TARGET NAME BECOMES THE OBSERVED ONE, not the one that was asked for.
 	//
@@ -412,7 +475,11 @@ func runPerformWorkflow(args []string) int {
 				art.Name, v.Ref.Application)
 		}
 		fmt.Fprintf(os.Stderr, "  Nothing was pressed.\n")
-		return 1
+		// REFUSED RATHER THAN FAILED. The scope gate working is not the run
+		// breaking, and a record that called it a failure would send somebody
+		// looking for a fault in Marco rather than at which application is in front.
+		return endedEarly(RunRefused, "the workflow's application scope did not "+
+			"allow the window acquired; nothing was pressed")
 	}
 	ask := bufio.NewReader(os.Stdin)
 	session := workflowstore.NewSessionBinding()
@@ -451,7 +518,10 @@ func runPerformWorkflow(args []string) int {
 		// THE SAME SOURCE THE START KEY WAS HEARD ON, handed over to the desk now
 		// that nothing else is reading it. A second `navsource.New` here would
 		// install a second desktop-wide hook for the rest of the run.
-		desk = newConsentDesk(src.Consents(), func() { run.Stop() })
+		desk = newConsentDesk(src.Consents(), func() {
+			stoppedByKey.Store(true)
+			run.Stop()
+		})
 		go desk.run(ctx)
 		keys = &hotkeyGranter{desk: desk, out: os.Stdout, live: *live,
 			within: *answer, life: 10 * time.Second}
@@ -507,10 +577,6 @@ func runPerformWorkflow(args []string) int {
 		WithPatience(*patience)
 
 	fmt.Printf("Performing %q against %s\n", art.Name, v.Ref.Describe())
-	// THE REFERENCE, PRINTED BEFORE ANYTHING HAPPENS. A run somebody has to cite is
-	// usually one that went wrong, and an id printed only at the end is an id a crashed
-	// run never gave them.
-	fmt.Printf("%s\n", citeRun(runID, runPath(runID)))
 	fmt.Printf("  %d step(s), %d screen(s), %d control(s)\n",
 		len(art.Steps), len(art.Screens), len(art.Controls))
 	if *live {
@@ -795,21 +861,14 @@ func runPerformWorkflow(args []string) int {
 	//
 	// Written last, because it carries the outcome, and reported separately because
 	// losing the record does not lose the run.
-	rec := RunRecord{
-		Version: 1, Run: runID, Workflow: art.Name,
-		Application: string(art.Application), Step: *step,
-		Started: began.Format(time.RFC3339), Ended: time.Now().Format(time.RFC3339),
-		Outcome: outcomeOfRun(rep, ctx.Err() != nil),
-		Because: rep.Progress.Summary(), Sent: rep.Pressed, Real: rep.Real,
-		Verified: rep.VerifiedOK, Contradicted: rep.Contradicted,
-		Unconfirmed: rep.Unconfirmed, Frames: *frames,
-	}
-	if p, err := saveRun(rec); err != nil {
+	if p, err := keep(outcomeOfRun(rep, ctx.Err() != nil || stoppedByKey.Load()),
+		rep.Progress.Summary(), rep); err != nil {
 		fmt.Fprintf(os.Stderr,
 			"director: the run record could not be written: %v\n", err)
 		fmt.Printf("\n%s\n", citeRun(runID, ""))
 	} else {
-		fmt.Printf("\n%s   (%s)\n", citeRun(runID, p), rec.Outcome)
+		fmt.Printf("\n%s   (%s)\n", citeRun(runID, p),
+			outcomeOfRun(rep, ctx.Err() != nil || stoppedByKey.Load()))
 	}
 	if desk != nil {
 		stray, drained := desk.counts()
@@ -1759,3 +1818,12 @@ func started(ctx context.Context, src *navsource.Source, within time.Duration) s
 		}
 	}
 }
+
+// newKeySource opens the desktop key hook this command listens to.
+//
+// A variable so a test can drive the REAL orchestration with a synthetic source. The start
+// prompt, the countdown and the record were each tested on their own and all three passed while
+// the production path returned before any of them wrote anything — the gap was never in the
+// helpers, it was in which of them the command reached. A seam here is what lets a test press
+// F9 at the start prompt and then read the record the command left behind.
+var newKeySource = navsource.New
