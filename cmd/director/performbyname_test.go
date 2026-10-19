@@ -194,3 +194,33 @@ func TestARoutineThatCannotBeReadSaysSoRatherThanThatItWasNeverTaught(t *testing
 		t.Errorf("refusal = %q, want it to say the routine cannot be read", said)
 	}
 }
+
+// TestDiscoveryWaitsForThePersonToSwitchAndNamingDoesNot.
+//
+// `--delay` exists so a person can start a run and then switch to the thing it watches.
+// Foreground discovery ran at the command's first instruction, so it read whatever was in front
+// while they were still typing — their terminal. Measured live, and it blocked a test outright:
+//
+//	this workflow was demonstrated against "arkascended" and the application resolved now is
+//	"code"
+//
+// with `--delay 10s` on the command line and the game one alt-tab away. The scope gate was
+// right; the question was asked at the wrong moment.
+func TestDiscoveryWaitsForThePersonToSwitchAndNamingDoesNot(t *testing.T) {
+	if !lookAfterWaiting("", 10*time.Second) {
+		t.Error("a run that has to DISCOVER the application looked before the person " +
+			"could switch to it, which reads their terminal")
+	}
+	// NAMING IT IS SOMEBODY SAYING WHICH ONE THEY MEAN. Making them wait to be told
+	// what they already said is a delay spent on nothing.
+	if lookAfterWaiting("arkascended", 10*time.Second) {
+		t.Error("a named application still waited before resolving")
+	}
+	if lookAfterWaiting("  arkascended  ", 10*time.Second) {
+		t.Error("a named application with spaces around it was treated as unnamed")
+	}
+	// AND NO DELAY IS NOTHING TO SPEND.
+	if lookAfterWaiting("", 0) {
+		t.Error("a run with no delay waited anyway")
+	}
+}

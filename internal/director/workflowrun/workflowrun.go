@@ -641,6 +641,13 @@ func (r *Runner) Advance(ctx context.Context, s *workflowstore.SessionBinding,
 		return r.record(a)
 	}
 	if r.cursor >= len(r.art.Steps) {
+		// THE WORKFLOW IS FINISHED, AND IT IS NOT A STEP.
+		//
+		// `a.Step` is the cursor, which has just moved PAST the last step — so a
+		// one-step workflow printed `step 1: complete` about a step that does not
+		// exist, directly under `step 0: outcome verified`. A reader counts two
+		// steps and the file has one. Numbered to the last step that ran.
+		a.Step = len(r.art.Steps) - 1
 		a.Outcome = OutcomeComplete
 		a.Because = fmt.Sprintf("every one of the %d step(s) was reached",
 			len(r.art.Steps))
@@ -667,6 +674,21 @@ func (r *Runner) Advance(ctx context.Context, s *workflowstore.SessionBinding,
 	// ── 2. SOMEBODY ELSE GROUNDS THE SCREEN ──
 	if r.grounder != nil {
 		if err := r.grounder.Establish(ctx, s, at); err != nil {
+			// ── AND A STEP ALREADY ACTED ON IS ANSWERED ANYWAY ──
+			//
+			// Its question is about readings of the window, not about a
+			// screen anybody can name, and `noteReading` above has been
+			// collecting them. Without this, a press whose result nobody
+			// could identify waited out its patience and reported that no
+			// post-action evidence was collected — while holding it.
+			//
+			// This is the ordinary case rather than a corner: a press that
+			// changes a panel changes what the screen LOOKS like, which is
+			// exactly when the fold stops recognising it. Measured live on
+			// the first human-demonstrated action this project executed.
+			if r.acted == r.cursor && r.settled(&a) {
+				return r.record(a)
+			}
 			a.Outcome = OutcomeWaiting
 			a.Because = "the screen could not be established: " + err.Error()
 			r.looks++
@@ -796,31 +818,8 @@ func (r *Runner) Advance(ctx context.Context, s *workflowstore.SessionBinding,
 		// "the evidence disagrees" from "the evidence has not arrived yet" would
 		// report success whenever OCR was slow, and that is the most dangerous
 		// thing a verifier can do. See verify.go.
-		if v, why := r.verdict(r.clock()); v.Decided() || v == VerdictUnconfirmed {
-			out := r.closeVerification(v, why, r.clock())
-			a.Verified = &out
-			switch v {
-			case VerdictVerified:
-				// THE STEP IS DONE, on post-action evidence rather than on
-				// a screen identity. This is the only path in this
-				// subsystem that advances a step without an arrival, and
-				// it is why a pixel workflow can be performed at all.
-				a.Outcome = OutcomeVerified
-				a.Because = out.Because
-				r.advance()
-				return r.record(a)
-			default:
-				// REFUSED, AND THE RUN STOPS. A contradiction is evidence
-				// against the action; an unconfirmed verdict is no
-				// evidence either way. Neither proceeds to another action.
-				a.Outcome = OutcomeRefused
-				a.Stage = workflowstore.StepScreenUnestablished
-				a.Because = fmt.Sprintf("the action for step %d was "+
-					"performed and its outcome is %s: %s",
-					r.cursor, v, out.Because)
-				r.lastStage, r.lastBecause = a.Stage, a.Because
-				return r.record(a)
-			}
+		if r.settled(&a) {
+			return r.record(a)
 		}
 		r.looks++
 		if r.looks > r.patience {
@@ -1619,4 +1618,53 @@ func (r *Runner) Run(ctx context.Context, s *workflowstore.SessionBinding, looks
 	r.lastBecause = fmt.Sprintf("the run used its %d observation(s) without reaching "+
 		"step %d", looks, r.cursor)
 	return r.Report(), nil
+}
+
+// settled asks what the post-action evidence says, and fills the attempt in when it answers.
+//
+// # Why this is its own method
+//
+// Because it must be reachable from more than one place. It lived inside section 4, which is
+// reached only after the grounder has established a screen — and a step that has been ACTED ON
+// does not need one. Its question is about readings of the window, which `noteReading` collects
+// unconditionally and early, before any of that.
+//
+// Measured live on the owner's Ark session, on the first human-demonstrated action this project
+// executed: the press went out under per-action authorisation, 25 readings were admitted after
+// it, the screen could not be named, and the run reported
+//
+//	1 action(s) were performed and no post-action evidence was collected about any of them
+//
+// while holding the evidence. The verdict was never asked, because section 2 returns at the
+// first look whose screen nobody can name and section 4a is two hundred lines below it.
+//
+// Three answers and they are not two. A verdict that could not distinguish "the evidence
+// disagrees" from "the evidence has not arrived yet" would report success whenever OCR was
+// slow, which is the most dangerous thing a verifier can do. See verify.go.
+func (r *Runner) settled(a *Attempt) bool {
+	v, why := r.verdict(r.clock())
+	if !v.Decided() && v != VerdictUnconfirmed {
+		return false
+	}
+	out := r.closeVerification(v, why, r.clock())
+	a.Verified = &out
+	switch v {
+	case VerdictVerified:
+		// THE STEP IS DONE, on post-action evidence rather than on a screen
+		// identity. This is the only path in this subsystem that advances a step
+		// without an arrival, and it is why a pixel workflow can be performed at all.
+		a.Outcome = OutcomeVerified
+		a.Because = out.Because
+		r.advance()
+	default:
+		// REFUSED, AND THE RUN STOPS. A contradiction is evidence against the
+		// action; an unconfirmed verdict is no evidence either way. Neither
+		// proceeds to another action.
+		a.Outcome = OutcomeRefused
+		a.Stage = workflowstore.StepScreenUnestablished
+		a.Because = fmt.Sprintf("the action for step %d was performed and its "+
+			"outcome is %s: %s", r.cursor, v, out.Because)
+		r.lastStage, r.lastBecause = a.Stage, a.Because
+	}
+	return true
 }

@@ -13,11 +13,13 @@ package workflowrun_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/chaynes-simpleclouds/marco/internal/director/marcoexec"
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflowrun"
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflowstore"
@@ -327,5 +329,78 @@ func TestTheWaitForAReadingIsBoundedByPatience(t *testing.T) {
 	if got.Stage != workflowstore.StepScreenUnread {
 		t.Errorf("stage %q, want the one that names the missing fact as the screen "+
 			"not having been read", got.Stage)
+	}
+}
+
+// losesTheScreen establishes until a press has gone out, and then cannot name anything.
+//
+// Which is the ordinary case and not a corner: a press that changes a panel changes what the
+// screen LOOKS like, and that is exactly when the fold stops recognising it.
+type losesTheScreen struct{ lost *bool }
+
+func (g losesTheScreen) Establish(ctx context.Context, s *workflowstore.SessionBinding,
+	at workflowrun.Sighting) error {
+
+	if *g.lost {
+		return errors.New("nobody could say which saved screen visual_9 is")
+	}
+	err := s.Confirm("screen_a", at.Screen, at.Epoch, at.Generation,
+		"SIMULATED fixture", at.At)
+	if err != nil && strings.Contains(err.Error(), "already") {
+		return nil
+	}
+	return err
+}
+
+// TestAnActedStepIsAnsweredEvenWhenNobodyCanNameTheScreen.
+//
+// Measured live on the owner's Ark session, on the first human-demonstrated action this project
+// executed: the press went out under per-action authorisation, 25 readings were admitted after
+// it, nobody could name the screen, and the run reported
+//
+//	1 action(s) were performed and no post-action evidence was collected about any of them
+//
+// while holding the evidence. Section 2 returns at the first look whose screen nobody can name,
+// and the post-action verdict was two hundred lines below it — so a press whose result could
+// not be IDENTIFIED was also a press whose result was never READ.
+func TestAnActedStepIsAnsweredEvenWhenNobodyCanNameTheScreen(t *testing.T) {
+	start := time.Date(2026, 10, 13, 14, 0, 0, 0, time.UTC)
+	now := start
+	lost := false
+	art := aTabStep()
+	s := workflowstore.NewSessionBinding()
+	if err := s.ConfirmStep(0, "SIMULATED fixture"); err != nil {
+		t.Fatal(err)
+	}
+	run := workflowrun.New(art, nil, losesTheScreen{lost: &lost},
+		&grants{epoch: 5, generation: 1}).
+		WithExecutor(marcoexec.New(&notebook{}), false).
+		WithClock(func() time.Time { return now }).
+		WithConfirm(func(context.Context, workflowrun.Sighting) (bool, string) {
+			return true, ""
+		}).
+		WithPatience(50).
+		WithVerifyDeadline(4 * time.Second)
+
+	_, seq := pressSeq(t, run, s, &now, panelWords("resolution", "window", "mode"), 1)
+	// FROM HERE NOBODY CAN NAME THE SCREEN, and the panel the press produced is
+	// standing in front of the observer the whole time.
+	lost = true
+	is := panelWords("presets", "textures", "shadows", "bloom", "foliage")
+	var got workflowrun.Attempt
+	for i := 0; i < 40; i++ {
+		now = now.Add(100 * time.Millisecond)
+		seq++
+		got = run.Advance(context.Background(), s, seeingSeq(5, now, is, seq))
+		if got.Verified != nil {
+			break
+		}
+	}
+	if got.Verified == nil {
+		t.Fatalf("the press was never answered: %s / %s — the evidence was "+
+			"collected and the verdict was never asked", got.Outcome, got.Because)
+	}
+	if got.Verified.Verdict != workflowrun.VerdictVerified {
+		t.Errorf("the verdict is %q: %s", got.Verified.Verdict, got.Verified.Because)
 	}
 }

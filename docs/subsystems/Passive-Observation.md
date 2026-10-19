@@ -1721,6 +1721,21 @@ it refuses those looks. Visible is fine; in front is not.
   as nothing, so a screen established at demonstration time cannot be recognised at replay —
   and `--from` is by design a claim about one screen, not a standing answer.
   [[Experiment-091-four-demonstrations-and-no-press]]
+- **The first human-taught pixel macro, end to end on a real game.** A person clicked Ark's
+  settings tab strip once; Marco recorded the press with its coordinate, scoped it to the window
+  it WATCHED, saved it under their name with a 61-word outcome expectation — and later, from a
+  reset menu and with no edit to the artifact, re-grounded that control from fresh pixels
+  (`1816x54 at 52,248`, reading `AUDIO GRAPHICS Ul oD`), took per-step and per-press
+  authorisation, pressed it through legal Marco, and VERIFIED on 25 independent words that stood
+  across a full settled window — while the global screen never changed, which is the case the
+  local verifier exists for. Repeated on the unchanged artifact: verified on 24. From the pause
+  menu: refused with nothing pressed and authorisation never requested. Two defects were fixed to
+  get there, both found by the attempts that failed: `--from` was spent on a four-look fold
+  nobody read, and an acted step could not be answered unless its screen could be NAMED — which
+  made the verifier unreachable in exactly the case it was built for, reporting "no post-action
+  evidence was collected" while holding 25 readings. Plus two summary lines that denied the
+  verdict printed three lines above them.
+  [[Experiment-092-the-first-human-taught-pixel-macro]]
 - **A click's OUTCOME can be verified where the screen does not change, and the terms are
   measured on two games rather than one.** Ark's GRAPHICS tab verifies on 36 independent words
   with 0 false outcomes in 219 windows with no input in them; Rocket League's main menu is

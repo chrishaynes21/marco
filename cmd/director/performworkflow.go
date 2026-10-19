@@ -153,6 +153,28 @@ func runPerformWorkflow(args []string) int {
 	// there — that is the artifact's scope, checked below against the window actually
 	// acquired. Keeping the two apart is what stops a discovered application from quietly
 	// satisfying a scope check.
+	var waited bool
+	// ── WHEN NOBODY NAMED THE APPLICATION, WAIT BEFORE LOOKING ──
+	//
+	// `--delay` exists so a person can start the run and then switch to the thing it
+	// watches. Discovery ran HERE, at the first instruction of the command, so it read
+	// whatever was in front while they were still typing — their terminal.
+	//
+	// Measured live, and it blocked the owner's own test outright:
+	//
+	//	this workflow was demonstrated against "arkascended" and the application
+	//	resolved now is "code"
+	//
+	// with `--delay 10s` on the command line and the game one alt-tab away. The scope
+	// gate was right and the question was asked at the wrong moment. Waiting only when
+	// the application is DISCOVERED keeps `--application` instant, which is what somebody
+	// naming it explicitly is asking for.
+	if lookAfterWaiting(*app, *delay) {
+		fmt.Printf("  Switch to the application now — what is in front in %s is what "+
+			"this will watch.\n", *delay)
+		time.Sleep(*delay)
+		waited = true
+	}
 	target, targetWhy := resolveApplication(context.Background(), *app)
 	// ── AND WHICH WINDOW, when one executable owns two ──
 	//
@@ -431,11 +453,17 @@ func runPerformWorkflow(args []string) int {
 			"down instead of pressing anything.\n")
 	}
 	fmt.Printf("  Ctrl-C stops the run. Nothing is written to disk.\n")
-	fmt.Printf("  Starting in %s.\n\n", *delay)
-	select {
-	case <-time.After(*delay):
-	case <-ctx.Done():
-		return 1
+	if waited {
+		// ALREADY SPENT, before the application was discovered. Waiting a second
+		// time would double a delay somebody asked for once.
+		fmt.Printf("  Starting now; the delay was spent finding the application.\n\n")
+	} else {
+		fmt.Printf("  Starting in %s.\n\n", *delay)
+		select {
+		case <-time.After(*delay):
+		case <-ctx.Done():
+			return 1
+		}
 	}
 
 	// A CONSUMER, so the observer's queue is read and its drop count means something.
@@ -901,6 +929,9 @@ type promptGrounder struct {
 	// stops.
 	claim string
 	spent bool
+	// firstSeen is the screen the last observation carried, so a claim is spent on one
+	// that has stood for two rather than on a fold still settling.
+	firstSeen observe.VisualScreenID
 	// silent says nobody can be asked, because answering would take the foreground. The
 	// ranking is still printed: somebody who cannot answer can still read.
 	silent bool
@@ -948,6 +979,27 @@ func (p *promptGrounder) Establish(ctx context.Context, s *workflowstore.Session
 	}
 
 	// ── OR THE CLAIM SOMEBODY MADE BEFORE THE RUN STARTED, SPENT ONCE ──
+	//
+	// AND NOT ON A SCREEN THAT HAS NOT STOOD YET. The claim is about where the person
+	// is, and a fold that lasts four looks and is never read is not where anybody is —
+	// it is the observer still settling. Spending the one answer there leaves the screen
+	// they ARE on unnameable for the rest of the run.
+	//
+	// Measured live on the owner's Ark session:
+	//
+	//	visual_1    4 look(s)   nobody read it
+	//	visual_2  136 look(s)   ...
+	//
+	// `--from` was spent on visual_1 and the run then refused for 200 observations.
+	//
+	// So the claim waits for the same screen twice. That is NOT making it a standing
+	// answer — it is still one answer about one screen, spent once and never offered
+	// again. It only stops it being spent on a screen nobody was looking at.
+	if p.claim != "" && !p.spent && at.Screen != p.firstSeen {
+		p.firstSeen = at.Screen
+		return fmt.Errorf("%s has only just appeared, so the --from answer is not "+
+			"spent on it yet", at.Screen)
+	}
 	if p.claim != "" && !p.spent {
 		if err := s.Confirm(p.claim, at.Screen, at.Epoch, at.Generation,
 			"the person who started the run (--from)", time.Now()); err != nil {
@@ -1277,6 +1329,18 @@ func printRun(rep workflowrun.Report, art workflowstore.Artifact, book *recordho
 	case rep.Changed:
 		fmt.Printf("  %-42s %s\n", "the screen changed after the action",
 			"YES — something happened; what, is the next line's question")
+	case rep.VerifiedOK > 0:
+		// THE SCREEN DID NOT CHANGE AND THE APPLICATION PLAINLY RESPONDED.
+		//
+		// This said "the application did not visibly respond" directly above a
+		// verified outcome listing twenty-five words of the panel the press had
+		// just opened. The two lines are about different things — one is the
+		// global screen identity, the other is what appeared on it — and read
+		// together the summary contradicted its own verdict. Measured on the
+		// first human-demonstrated action this project verified, where somebody
+		// skimming the summary would have concluded nothing had happened.
+		fmt.Printf("  %-42s %s\n", "the screen changed after the action",
+			"NO — and the outcome verified anyway, which is this whole case")
 	default:
 		fmt.Printf("  %-42s %s\n", "the screen changed after the action",
 			"NO — the application did not visibly respond")
@@ -1508,4 +1572,14 @@ func workflowToPerform(file, named string) (workflowstore.Artifact, int) {
 		return workflowstore.Artifact{}, 1
 	}
 	return art, 0
+}
+
+// lookAfterWaiting reports whether the delay belongs BEFORE the application is discovered.
+//
+// Only when nobody named one. `--application rocketleague` is somebody saying which application
+// they mean, and making them wait to be told what they already said would be a delay spent on
+// nothing. Discovery is the case where the answer depends on what the person does next — switch
+// to the game — and reading the foreground before they have is reading their terminal.
+func lookAfterWaiting(app string, delay time.Duration) bool {
+	return strings.TrimSpace(app) == "" && delay > 0
 }
