@@ -1006,6 +1006,50 @@ UNCONFIRMED rather than success. Demonstrating it again records the expectation.
 
 See [[ADR-239-running-what-you-demonstrated-by-the-name-you-gave-it]].
 
+## Running it from the widget, by typing its name (needs your hands, ~3 min)
+
+The same thing again with the terminal taken away, which is the version a person actually gets.
+Nothing new is being tested about the run itself — this is about whether the product can be
+*used*: the only path to a routine you had demonstrated used to be the command above.
+
+Build both binaries from the same tree, or the front end has nothing to spawn:
+
+```sh
+go build -o marco.exe ./cmd/marco
+go build -o director.exe ./cmd/director     # beside marco.exe, see CLAUDE.md
+go -C plugins/overlay build -o overlay.exe .
+.\overlay.cmd
+```
+
+Then, with the game running and a routine already demonstrated and scoped to it:
+
+1. press the leader key, type the routine's **name** — nothing else, no verb, no flags — and
+   press Enter;
+2. the status line says **Starting in 5s — bring the application in front**. Do that;
+3. it says **Marco has a question — press F7 to allow this action**. Look at the game: the
+   pointer is resting on the control. Press **F7** on the keyboard — not through anything Marco
+   can reach, which is the point;
+4. the control is pressed, the outcome is checked against what your demonstration saw, and the
+   HUD's log tail carries the whole transcript including the `run …` reference;
+5. the history row says **performed** (verified), **unverified** (nothing could decide), or
+   **refused**.
+
+What to check, beyond "it worked":
+
+- **F8** refuses one action and the run ends having sent nothing.
+- **F9**, or typing `stop`, or the leader key — all three end the run, and the record says
+  `cancelled` rather than `failed`. Typing `stop` is the one that used not to reach it at all.
+- A name you have NOT demonstrated behaves exactly as it did before: Director reads it against
+  the screen. A name that is also a play runs the **play**.
+- `./director.exe sequences` after the run, and the `run …` reference from the log tail, retrieve
+  the attempt you just made rather than the last one.
+
+If the status line never mentions F7, the run is asking on a terminal nobody has: that is
+`--hotkeys` missing from the spawn, and `TestADemonstrationIsPerformedWithTheFlagsItNeeds` is the
+test that should have caught it.
+
+See [[ADR-241-a-name-you-demonstrated-is-a-name-you-can-use]].
+
 ## Demonstrating in a real game, and what goes wrong (needs your hands, ~5 min)
 
 Four live demonstrations against Ark produced three artifacts and zero presses. What that

@@ -1706,6 +1706,24 @@ it refuses those looks. Visible is fine; in front is not.
   so the first human-demonstrated pixel action needs a fresh demonstration — a fact about the
   evidence they hold rather than a gap in the path.
   [[ADR-239-running-what-you-demonstrated-by-the-name-you-gave-it]]
+- **And the widget could not reach any of it.** The runner was repaired four times over and the
+  only path to it was a developer's command line: a name typed into the overlay reached the one
+  door, which knew about PLAYS, found none, and handed the words to Director — which read them
+  against the screen and reported that nothing matching them was present in the observed window.
+  It was present; it had been pointed at. The door now has a sixth arm for an exact
+  DEMONSTRATION, after the play arm so no existing name changes meaning and before Director
+  because a demonstration is something Marco already has, and it only claims a routine the runner
+  can actually perform (not a verb routine, carrying visual evidence, scoped). It is carried out
+  by spawning the one supervised runner with `--live --hotkeys --reading` and the routine's own
+  application, whose transcript passes through to the stream every front end reads and whose
+  one-word outcome is taken from the run REFERENCE — whose shape and seven words now live in
+  `internal/director/runref`, because that line is a contract between two binaries and there is
+  no compiler between them. The always-visible line gained the two states a person must act on,
+  in the runner's own words: the countdown, and a question only a real function key can answer.
+  And a supervised run now watches the stop generation, so the word "stop" reaches it like it
+  reaches everything else — which also makes the overlay's leader key true for the one child it
+  has no handle on.
+  [[ADR-241-a-name-you-demonstrated-is-a-name-you-can-use]]
 - **Four live demonstrations on a real game, and no press.** The demonstration half works: a
   person's click was recorded with its coordinate as evidence, a control found at 8%x3% where
   the offline capture measured the same tab at 7.2%x2.8%, scoped to the watched window, saved

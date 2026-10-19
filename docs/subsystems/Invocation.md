@@ -17,6 +17,8 @@ source_paths:
   - cmd/marco/bind.go
   - cmd/marco/edit.go
   - internal/director/intent/clarify.go
+  - cmd/marco/demonstrated.go
+  - internal/director/runref
   - plugins/overlay/intake.go
   - plugins/overlay/outcome.go
 ---
@@ -99,10 +101,11 @@ Arguments follow identity. A Binding carries its own (`` `e = enter freeplay wit
 clicked Run carries none; only a phrase has to be read for them. Re-reading a phrase that carried
 none, over cargo that did, would silently drop arguments somebody supplied.
 
-## The precedence — five arms, in this order
+## The precedence — six arms, in this order
 
-`invoke.Decide(plays, Request) Decision` is pure. It reads a resolver and returns a verdict; it
-performs nothing, connects to nothing, and cannot be told what to decide by the surface asking.
+`invoke.Decide(plays, sights, Request) Decision` is pure. It reads two resolvers and returns a
+verdict; it performs nothing, connects to nothing, and cannot be told what to decide by the
+surface asking.
 
 | # | arm | fires when | why it sits here |
 |---|---|---|---|
@@ -110,7 +113,8 @@ performs nothing, connects to nothing, and cannot be told what to decide by the 
 | 2 | **pending question** | `Request.Pending` | Director asked something; these words are the answer |
 | 3 | **explicit identity** | `Request.Play != nil` | the surface already knows; the words are not read |
 | 4 | **exact durable match** | `plays.Resolve(app, text)` succeeds | Marco already knows precisely this |
-| 5 | **Director** | everything else | Marco does not know it, so it is a question about the world |
+| 5 | **exact demonstration** | `sights.Demonstration(app, text)` succeeds | the person SHOWED Marco this one; it is performed by sight |
+| 6 | **Director** | everything else | Marco does not know it, so it is a question about the world |
 
 **1 — control, always first, from every entrance.** "stop" said while a play is running has to
 reach the thing that is running before anything else looks at it. A "stop" that went to Play
@@ -147,7 +151,28 @@ which exists. The grammar (`ParseInvocation`, `SplitChain`) gets its turn afterw
 otherwise "turn the lights on then make coffee" is one request for Director rather than two offers
 to record a demonstration. `TestAPlayNamedWithTheGrammarIsStillReachable`.
 
-**5 — Director gets the words as spoken**, trimmed and no more. Director reads sentences, and
+**5 — a demonstration is the OTHER durable half, and it is not a Play.** A routine a person
+showed Marco by hand carries no verbs, lives in the demo store rather than the registry, and can
+only be carried out by the Director's supervised runner — grounded on a fresh look, authorised one
+action at a time, verified. So the two cannot share a store or a performer; what they share is
+this door, because a front end that checked one store, then another, then fell through to Director
+would be three places deciding what a phrase means.
+
+It sits AFTER the play arm, which is the compatibility guarantee: a name that runs something today
+keeps running it, and a demonstration saved under that name does not take it over
+(`TestAPlayStillWinsOverADemonstrationOfTheSameName`, which also asserts the demonstration store is
+never consulted when a play answered). It sits BEFORE Director, because a demonstration IS
+something Marco already has — reading its name against the screen was Director hunting for a
+control somebody had already pointed at, and what that did in practice was answer *nothing
+matching "ark graphics live" is present in the observed window* about a routine demonstrated on
+that very window.
+
+The arm only claims a routine the runner can actually perform — `Artifact.PerformableBySight`, one
+definition on the artifact — because a door that promised one it would decline is Marco accepting
+a request and then arguing with itself. [[ADR-241-a-name-you-demonstrated-is-a-name-you-can-use]],
+`TestADemonstrationIsPerformedBySight`.
+
+**6 — Director gets the words as spoken**, trimmed and no more. Director reads sentences, and
 rewriting one changes its meaning. `TestDirectorReceivesTheWordsAsSpoken`.
 
 ### Resolution is still not permission
@@ -313,12 +338,15 @@ and not a file.
 
 | fact | decided by |
 |---|---|
-| what an invocation means | `invoke.Decide` — the five arms, in order |
+| what an invocation means | `invoke.Decide` — the six arms, in order |
 | whether a phrase is a control phrase | `intent.IsControlPhrase`, the one definition |
 | whether Director is mid-question | `cmd/marco/intake.go` `directorPending`, from `Status().Clarification` |
 | which Play a name reaches | `routes.Registry.Resolve` (exact, via `routes.Slug`) |
+| which demonstration a name reaches | `demo.Store.Sequence`, through `cmd/marco`'s `demoSights` |
 | whether it may be performed | `orchestrator.Authorize` |
 | how a learned Play is performed | `performLearned` → the Director's PERFORM command |
+| how a demonstration is performed | `performDemonstration` → `director perform-workflow`, one authorised action at a time |
+| how a run says what it was and how it ended | `internal/director/runref` — the reference, printed by the runner and read by the front end |
 | what happened | `Outcome`, announced on `[result] ` |
 | how a front end renders it | `plugins/overlay/outcome.go`, reading that line |
 

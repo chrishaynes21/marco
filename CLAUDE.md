@@ -96,11 +96,19 @@ and generated routes are checked against Core's vocabulary.
 ```sh
 go build ./... && go test ./...        # 73 packages, deterministic
 go build -o marco.exe ./cmd/marco
+go build -o director.exe ./cmd/director   # REQUIRED beside marco.exe: see below
 go build -o marco-macros.exe ./cmd/marco-macros
 go -C plugins/overlay build -o overlay.exe .
 plugins/vision/build.cmd                 # Windows: the ONNX backend (needs gcc)
 .\overlay.cmd                          # Windows: launches the overlay stack
 ```
+- **`director.exe` must sit beside `marco.exe`.** `marco` finds it by looking next to its own
+  executable (`$DIRECTOR_BIN` overrides), and it is not optional: it is what starts the Director
+  service, and it is what performs a routine somebody demonstrated — typing the name of a pixel
+  routine into the overlay spawns `director perform-workflow`, so a tree built without it reports
+  `unavailable` for the half of the product a person made with their own hands. The installer
+  already ships both (`cmd/marco` `TestThePackagedLayoutIsWhatMarcoLooksFor`); this line is for a
+  dev build, which used not to mention it.
 - **`director capture-game-session` is the L0 recorder** (frames + observed inputs on one
   clock, nothing injected) and `go run ./cmd/perceptionreplay -frames -stride N <dir>` replays
   the pixels through the production perception path. `-frames` is a BOOL and the directory is
