@@ -1000,6 +1000,21 @@ func runRecordTracked(h *model, name string, track bool, args ...string) childRu
 	h.setStatus(statusLine(out, disp))
 	h.log(fmt.Sprintf("%s  %s  %s", out, disp, fmtDur(r.dur)))
 	h.addHistory(disp, string(out), r.dur)
+	// AND IN THE LOG, AT INFO, BECAUSE THE HUD IS NOT A LOG.
+	//
+	// The status line holds one sentence and the history row holds the last few; both are
+	// a glance, and both are gone by the time somebody is debugging. The console behind
+	// `overlay.cmd` is where a person goes to find out why something did not work, and it
+	// carried the request at INFO and nothing about the answer — so a run that failed and
+	// a run that was never dispatched looked identical in it.
+	//
+	// `r.err` is the child never starting, which is a different thing from the child
+	// reporting a failure, and the two used to be equally silent here.
+	kv := []any{"name", disp, "outcome", string(out), "took", fmtDur(r.dur)}
+	if r.err != nil {
+		kv = append(kv, "err", r.err)
+	}
+	mlogI("overlay: finished", kv...)
 	return r
 }
 

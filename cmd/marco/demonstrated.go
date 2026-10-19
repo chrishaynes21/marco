@@ -128,6 +128,11 @@ func performDemonstration(dec invoke.Decision, _ invoke.Request) (Outcome, error
 		fmt.Fprintf(os.Stderr, "marco: the supervised runner could not be started: %v\n", err)
 		return OutcomeUnavailable, nil
 	}
+	// THE REFERENCE, AT INFO. It is the one thing that retrieves this attempt, and a
+	// person reading a log to find out what happened should not have to go and find the
+	// transcript to learn that the record exists or where it went.
+	mlog.Info("intake: the supervised run ended", "name", d.Name,
+		"run", ref.ID, "record", ref.Path, "ran", string(ref.Outcome))
 	if ref.Outcome == "" {
 		// IT RAN AND SAID NOTHING ABOUT HOW IT ENDED. The reference is the one line
 		// whose job is to say, so its absence is not "it worked": it is a run nobody

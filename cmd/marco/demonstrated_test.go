@@ -24,6 +24,8 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -33,7 +35,9 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/runref"
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflowstore"
 	"github.com/chaynes-simpleclouds/marco/internal/invoke"
+	"github.com/chaynes-simpleclouds/marco/internal/mlog"
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
+	"github.com/chaynes-simpleclouds/marco/internal/platform/navsource"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
 )
 
@@ -373,5 +377,329 @@ func TestTheTranscriptIsPassedThroughAndTheReferenceReadOutOfIt(t *testing.T) {
 	if got := referenceFrom(strings.NewReader(later), io.Discard); got.Outcome != runref.Unconfirmed {
 		t.Errorf("a later line with no outcome left the reference saying %q",
 			got.Outcome)
+	}
+}
+
+// ── WHAT HAPPENED, AT INFO, IN THE LOG A PERSON ACTUALLY READS ───────────────
+
+// recordedLog swaps the default logger for a buffer a test can read.
+func recordedLog(t *testing.T) *strings.Builder {
+	t.Helper()
+	var b strings.Builder
+	was := mlog.Default
+	t.Cleanup(func() { mlog.Default = was })
+	mlog.Default = mlog.New(&b, mlog.LevelInfo)
+	return &b
+}
+
+// EVERY INVOCATION SAYS HOW IT ENDED.
+//
+// # The condition
+//
+// The log said what was asked for and never what happened. Watching the console behind the
+// overlay, a person saw their own words go in — `overlay: intake`, then `intake: routed` — and
+// then nothing at all. The outcome went to the HUD's status line and history row, which are a
+// glance and are gone by the time anybody is debugging, and to the `[result]` wire line, which is
+// for the front end rather than for a person.
+//
+// So a run that failed, a run that was refused, and a run that was never dispatched were the same
+// thing in the log: silence after the request.
+//
+// Mutation: delete the `intake: finished` line, or move it into one arm instead of after all of
+// them. This fails.
+func TestEveryInvocationSaysHowItEndedAtInfo(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		set    func(t *testing.T)
+		req    invoke.Request
+		decide string
+		out    Outcome
+	}{
+		{
+			name: "something demonstrated, performed",
+			set: func(t *testing.T) {
+				aHomeHolding(t, aPixelDemonstration("ark graphics live"))
+				aSpawnThatAnswers(t, runref.Verified)
+			},
+			req:    invoke.Request{Text: "ark graphics live"},
+			decide: "demonstration",
+			out:    OutcomePerformed,
+		},
+		{
+			name: "something demonstrated, refused",
+			set: func(t *testing.T) {
+				aHomeHolding(t, aPixelDemonstration("ark graphics live"))
+				aSpawnThatAnswers(t, runref.Refused)
+			},
+			req:    invoke.Request{Text: "ark graphics live"},
+			decide: "demonstration",
+			out:    OutcomeRefused,
+		},
+		{
+			// THE WORD, which reaches a different half and must also report.
+			name:   "a stop",
+			set:    func(t *testing.T) { t.Setenv("MARCO_HOME", t.TempDir()) },
+			req:    invoke.Request{Text: "stop"},
+			decide: "control",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.set(t)
+			said := recordedLog(t)
+			d := depsForIntake(t)
+			out, err := runInvocation(d, tc.req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			log := said.String()
+			// RENDERED, not as written: mlog turns the "component: detail" convention
+			// into "component - detail", which is what a person greps for.
+			if !strings.Contains(log, "intake - finished") {
+				t.Fatalf("nothing in the log says how it ended:\n%s", log)
+			}
+			for _, want := range []string{
+				"decision=" + tc.decide,
+				"outcome=" + string(out),
+			} {
+				if !strings.Contains(log, want) {
+					t.Errorf("the log does not carry %q:\n%s", want, log)
+				}
+			}
+			if tc.out != "" && out != tc.out {
+				t.Errorf("outcome %q, want %q", out, tc.out)
+			}
+		})
+	}
+}
+
+// AND A SUPERVISED RUN'S REFERENCE IS IN THERE TOO.
+//
+// It is the one thing that retrieves the attempt, and a person reading a log to find out what
+// happened should not have to go hunting through a transcript to learn that the record exists or
+// where it went.
+func TestTheRunReferenceIsLoggedAtInfo(t *testing.T) {
+	aHomeHolding(t, aPixelDemonstration("ark graphics live"))
+	aSpawnThatAnswers(t, runref.Unconfirmed)
+	said := recordedLog(t)
+	if _, err := runInvocation(depsForIntake(t),
+		invoke.Request{Text: "ark graphics live"}); err != nil {
+		t.Fatal(err)
+	}
+	log := said.String()
+	for _, want := range []string{"run=run-20261019-201500-abcd", "ran=unconfirmed"} {
+		if !strings.Contains(log, want) {
+			t.Errorf("the log does not carry %q:\n%s", want, log)
+		}
+	}
+}
+
+// ── ASKING WHERE WORDS WOULD GO, WITHOUT GOING THERE ────────────────────────
+
+// saidByExplain runs the production explanation and returns what it printed.
+func saidByExplain(t *testing.T, req invoke.Request) string {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	saved := os.Stdout
+	os.Stdout = w
+	done := make(chan string, 1)
+	go func() {
+		b, _ := io.ReadAll(r)
+		done <- string(b)
+	}()
+	explainInvocation(depsForIntake(t), req)
+	os.Stdout = saved
+	_ = w.Close()
+	out := <-done
+	_ = r.Close()
+	return out
+}
+
+// TestExplainSaysWhereTheWordsWouldGoAndPerformsNothing.
+//
+// # The condition
+//
+// A demonstrated routine, typed into the widget, and the surface said *failed*. The reason was
+// three processes away and the only way to watch the decision was to make it, because `marco do`
+// performs. So finding out which half of the product had taken the words meant reading source —
+// and the answer, when it came, was that a recorded play of the same name had answered first.
+//
+// The one thing this must never do is act. A diagnostic that performed the thing it was
+// describing would be a worse version of the command it is meant to replace.
+func TestExplainSaysWhereTheWordsWouldGoAndPerformsNothing(t *testing.T) {
+	aHomeHolding(t, aPixelDemonstration("ark graphics live"))
+	asked := aSpawnThatAnswers(t, runref.Verified)
+
+	said := saidByExplain(t, invoke.Request{Text: "ark graphics live"})
+
+	for _, want := range []string{
+		`"ark graphics live"`,
+		"demonstration",
+		"perform-workflow",
+		"--live",
+		"--hotkeys",
+		navsource.ConsentKeys[navsource.ConsentApprove],
+	} {
+		if !strings.Contains(said, want) {
+			t.Errorf("the explanation does not carry %q:\n%s", want, said)
+		}
+	}
+	// AND NOTHING RAN. The one property that makes this safe to type at any moment.
+	if len(*asked) != 0 {
+		t.Fatalf("explaining performed the run: %v", *asked)
+	}
+}
+
+// AND IT NAMES A DEMONSTRATION THE PLAY ARM IS SHADOWING.
+//
+// The live failure, in one line. One name, two artifacts: a recorded play of raw coordinates and
+// a pixel demonstration with screens, control readings and an outcome expectation. The play arm
+// answers first, so typing the name ran the coordinates — and from the outside the two were
+// indistinguishable, because nothing said which of the two things you taught had just happened.
+func TestExplainNamesTheDemonstrationAPlayIsShadowing(t *testing.T) {
+	aHomeHolding(t, aPixelDemonstration("ark graphics live"))
+	d := depsForIntake(t)
+	// A PLAY OF THE SAME NAME, which is what `learn <name>` leaves behind.
+	shadow := routes.Route{App: "arkascended", Slug: "ark-graphics-live"}
+	said := saidByExplainWith(t, d, shadow, invoke.Request{
+		Text: "ark graphics live", App: "arkascended"})
+
+	if !strings.Contains(said, "decision     play") {
+		t.Fatalf("the play did not answer first, so this is not the shadowing "+
+			"case:\n%s", said)
+	}
+	for _, want := range []string{"ALSO saved", "perform-workflow"} {
+		if !strings.Contains(said, want) {
+			t.Errorf("the explanation does not say a demonstration is being "+
+				"shadowed (%q):\n%s", want, said)
+		}
+	}
+}
+
+// AND IT SAYS WHY A SAVED ROUTINE CANNOT BE RUN BY SIGHT.
+//
+// A routine that exists and cannot be performed is indistinguishable, from the outside, from a
+// name nobody ever saved — and the two send a person to completely different places: one to
+// demonstrate it, the other to fix what is wrong with the one they have.
+func TestExplainSaysWhyASavedRoutineCannotBeRunBySight(t *testing.T) {
+	unscoped := aPixelDemonstration("ark menu 2")
+	unscoped.Application = ""
+	aHomeHolding(t, unscoped)
+
+	said := saidByExplain(t, invoke.Request{Text: "ark menu 2"})
+	if !strings.Contains(said, "decision     director") {
+		t.Fatalf("an unscoped routine was claimed after all:\n%s", said)
+	}
+	for _, want := range []string{"IS saved", "UNSCOPED", "demonstrate-visual"} {
+		if !strings.Contains(said, want) {
+			t.Errorf("the explanation does not say why (%q):\n%s", want, said)
+		}
+	}
+}
+
+// saidByExplain with a registry that answers for one play, so the shadowing case can be driven
+// without writing Marco source to disk.
+func saidByExplainWith(t *testing.T, d orchestrator.Deps, rt routes.Route,
+	req invoke.Request) string {
+
+	t.Helper()
+	dir := t.TempDir()
+	sub := filepath.Join(dir, rt.App, "context")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// THE PLAY AS A FILE, because that is what the registry reads. A recorded play's
+	// source is exactly this shape -- see `marco learn`.
+	src := "// a recorded play\nuse os.\n\nthe T is an actor.\n\nthis can Run.\n" +
+		"this's Run does...\n    the p1 is a Point with X 10, Y 10, RelX 10, RelY 10.\n" +
+		"    do OS's Click with p1.\n    this is ok!\n\nthe App is a script.\n\n" +
+		"do T's Run...\n    when ok?\n        log \"done\".\n    or?\n        log that's error.\n"
+	if err := os.WriteFile(filepath.Join(sub, rt.Slug+".marco"), []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	d.Reg = routes.Registry{Dir: dir}
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	saved := os.Stdout
+	os.Stdout = w
+	done := make(chan string, 1)
+	go func() {
+		b, _ := io.ReadAll(r)
+		done <- string(b)
+	}()
+	explainInvocation(d, req)
+	os.Stdout = saved
+	_ = w.Close()
+	out := <-done
+	_ = r.Close()
+	return out
+}
+
+// AND EXPLAINING NEVER PERFORMS.
+//
+// The fork itself, not the function behind it. `--explain` sets a flag and the branch that
+// explains has to LEAVE — a missing return would explain the invocation and then carry it out,
+// which is the worst possible failure for a diagnostic somebody types because they are unsure
+// what is about to happen.
+//
+// Driven through `doOrExplain`, the production fork, with the spawn stubbed: if the explanation
+// falls through, the runner is asked to perform and this says so.
+func TestExplainingNeverPerforms(t *testing.T) {
+	aHomeHolding(t, aPixelDemonstration("ark graphics live"))
+	asked := aSpawnThatAnswers(t, runref.Verified)
+	d := depsForIntake(t)
+	req := invoke.Request{Text: "ark graphics live"}
+
+	if code := doOrExplain(d, req, true); code != 0 {
+		t.Errorf("explaining exited %d", code)
+	}
+	if len(*asked) != 0 {
+		t.Fatalf("explaining performed the run: %v", *asked)
+	}
+
+	// AND WITHOUT THE FLAG THE SAME FORK DOES PERFORM, so this test cannot pass
+	// against a build where nothing works at all.
+	if code := doOrExplain(d, req, false); code != 0 {
+		t.Errorf("performing a verified run exited %d", code)
+	}
+	if len(*asked) == 0 {
+		t.Fatal("without --explain the run was not performed")
+	}
+}
+
+// AND THE ENTRANCE NEVER PUTS A FLAG IN THE PHRASE.
+//
+// An unrecognised flag falls into the words. The phrase then matches nothing, the invocation goes
+// to Director, and it is PERFORMED — so a `--explain` nobody parsed is the one thing that makes
+// the thing happen. Held over every flag the entrance takes, not just the new one.
+func TestTheEntranceNeverPutsAFlagInThePhrase(t *testing.T) {
+	req, explain := parseDoArgs([]string{"--explain", "--source=typed",
+		"ark", "graphics", "live"})
+	if !explain {
+		t.Error("--explain was not recognised, so it is part of the phrase and " +
+			"the invocation would be performed instead of described")
+	}
+	if req.Text != "ark graphics live" {
+		t.Errorf("the phrase came out as %q", req.Text)
+	}
+	if req.Source != invoke.SourceTyped {
+		t.Errorf("the source came out as %q", req.Source)
+	}
+	// AND THE OTHER FLAGS STILL DO WHAT THEY DID.
+	req, explain = parseDoArgs([]string{"--play=open-mouse-settings", "--app=settings",
+		"--focus"})
+	if explain {
+		t.Error("nothing asked for an explanation")
+	}
+	if req.Play == nil || req.Play.Slug != "open-mouse-settings" ||
+		req.Play.App != "settings" || !req.Play.Focus {
+		t.Errorf("the identity came out as %+v", req.Play)
+	}
+	if req.Text != "" {
+		t.Errorf("a flag ended up in the phrase: %q", req.Text)
 	}
 }

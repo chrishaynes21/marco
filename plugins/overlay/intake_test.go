@@ -747,3 +747,39 @@ func TestTheScreenQuestionReadsAsAQuestionAboutTheScreen(t *testing.T) {
 		t.Errorf("%q does not say what is being asked", st)
 	}
 }
+
+// AND THE LOG SAYS HOW A COMMAND ENDED, AT INFO.
+//
+// # The condition
+//
+// The console behind `overlay.cmd` is where a person goes when something did not work, and it
+// carried the request at INFO and nothing about the answer. The outcome went to the status line
+// and the history row — one sentence and the last few rows, both a glance, both gone by the time
+// anybody is debugging — so a command that failed and a command that was never dispatched looked
+// identical in the log.
+func TestTheLogSaysHowACommandEnded(t *testing.T) {
+	var said strings.Builder
+	was := mlogW
+	t.Cleanup(func() { mlogW = was })
+	mlogW = &said
+	t.Setenv("MARCO_LOG", "info")
+
+	// THE ECHO HELPER AS THE CHILD, announcing an outcome on the wire the way a real
+	// `marco do` does -- so what is logged is the RUN.S answer and not the error of a
+	// child that could not be started.
+	t.Setenv("MARCO_BIN", os.Args[0])
+	t.Setenv("MARCO_OVERLAY_ECHO", "[result] refused\n")
+	h := newModel()
+	runRecordTracked(h, "ark graphics live", false,
+		"-test.run=TestOverlayEchoHelper")
+
+	got := said.String()
+	if !strings.Contains(got, "overlay - finished") {
+		t.Fatalf("nothing in the log says how it ended:\n%s", got)
+	}
+	for _, want := range []string{"name=ark graphics live", "outcome=refused"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the log does not carry %q:\n%s", want, got)
+		}
+	}
+}

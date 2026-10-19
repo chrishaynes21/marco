@@ -118,12 +118,34 @@ func newDeps() orchestrator.Deps {
 //
 // Deleting the runInvocation call must fail TestEveryEntranceRoutesThroughTheOneIntake.
 func runAssistantDo(args []string) {
+	req, explain := parseDoArgs(args)
+	if req.Text == "" && req.Play == nil {
+		fmt.Fprintln(os.Stderr, `usage: marco do "<name>" [--explain]`)
+		os.Exit(2)
+	}
+	os.Exit(doOrExplain(newDeps(), req, explain))
+}
+
+// parseDoArgs reads the entrance's argv: the words, and the few flags a surface may add.
+//
+// Separated from the entrance so that one property can be held — **a flag is never part of the
+// phrase.** An unrecognised `--explain` falls into `words`, and the phrase then matches nothing,
+// and the invocation goes to Director and is PERFORMED: a diagnostic somebody typed because they
+// were unsure what was about to happen would be the one thing that made it happen. The same is
+// true of every flag here, which is why this is held over all of them rather than over the new
+// one.
+//
+// Deleting an arm must fail TestTheEntranceNeverPutsAFlagInThePhrase.
+func parseDoArgs(args []string) (invoke.Request, bool) {
 	req := invoke.Request{Source: invoke.SourceCLI}
 	var explicit routes.Route
 	var haveExplicit bool
+	var explain bool
 	var words []string
 	for i := 0; i < len(args); i++ {
 		switch a := args[i]; {
+		case a == "--explain":
+			explain = true
 		case strings.HasPrefix(a, "--source="):
 			req.Source = invoke.Source(strings.TrimPrefix(a, "--source="))
 		case strings.HasPrefix(a, "--play="):
@@ -142,16 +164,30 @@ func runAssistantDo(args []string) {
 	if haveExplicit {
 		req.Play = &explicit
 	}
-	if req.Text == "" && req.Play == nil {
-		fmt.Fprintln(os.Stderr, `usage: marco do "<name>"`)
-		os.Exit(2)
+	return req, explain
+}
+
+// doOrExplain is the last fork of the entrance: say where the words would go, or go there.
+//
+// Split out, and returning the exit code the way `runPerformWorkflow` does, for one property that
+// could not otherwise be held: **--explain performs nothing.** The branch that explains has to
+// LEAVE, and a missing return would leave it explaining and then doing the thing it had just
+// described — the worst possible failure for a diagnostic somebody types precisely because they
+// are unsure what is about to happen. With `os.Exit` inline there was no way to drive this fork
+// from a test at all.
+//
+// Deleting the early return must fail TestExplainingNeverPerforms.
+func doOrExplain(d orchestrator.Deps, req invoke.Request, explain bool) int {
+	if explain {
+		explainInvocation(d, req)
+		return 0
 	}
-	out, err := runInvocation(newDeps(), req)
+	out, err := runInvocation(d, req)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 	}
 	announce(out)
-	os.Exit(out.Exit())
+	return out.Exit()
 }
 
 // playJSON is the wire shape BOTH `marco routes --json` and `marco plays --json` emit.

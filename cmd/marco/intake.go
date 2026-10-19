@@ -128,6 +128,40 @@ func runInvocation(d orchestrator.Deps, req invoke.Request) (Outcome, error) {
 	dec := invoke.Decide(d.Reg, demoSights{dir: directorDir()}, req)
 	traceIntake(dec, req)
 
+	out, err := carryOut(d, dec, req)
+
+	// ── AND WHAT BECAME OF IT, AT INFO, WHERE THE DECISION WAS MADE ──
+	//
+	// The log said what was asked for and never what happened. A person watching the
+	// console behind the overlay saw their own words go in and then nothing: the outcome
+	// reached the HUD's history row and the `[result]` wire line, both of which are
+	// renderings for a surface, and neither of which is in the log a person reads when
+	// they are trying to find out why something did not work.
+	//
+	// One line, at INFO, carrying the three facts that answer "why did that not work":
+	// which half of the product took the words, what it ended as, and the error if there
+	// was one. The decision line above says where the words went; this says where they
+	// got to.
+	kv := []any{"decision", string(dec.Kind), "outcome", string(out), "words", req.Text}
+	switch dec.Kind {
+	case invoke.KindPlay:
+		kv = append(kv, "play", dec.Play.Slug)
+	case invoke.KindDemonstration:
+		kv = append(kv, "demonstration", dec.Demonstration.Name)
+	}
+	if err != nil {
+		kv = append(kv, "err", err)
+	}
+	mlog.Info("intake: finished", kv...)
+	return out, err
+}
+
+// carryOut hands the verdict to whichever half of the product performs it.
+//
+// Separated from `runInvocation` so that every one of the four arms is followed by the same
+// report. Four `return`s with a log line before each is four places to forget it, and the one
+// that would get forgotten is whichever arm is added next.
+func carryOut(d orchestrator.Deps, dec invoke.Decision, req invoke.Request) (Outcome, error) {
 	switch dec.Kind {
 	case invoke.KindControl:
 		return runControl(), nil

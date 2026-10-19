@@ -189,7 +189,17 @@ func TestTheFastLooksRideOnTheSample(t *testing.T) {
 		if l.Discovery == 0 || l.DiscoveredAt.IsZero() || l.At.IsZero() {
 			t.Errorf("a fast look carries no provenance: %+v", l)
 		}
-		if !l.At.After(l.DiscoveredAt) {
+		// NOT BEFORE, rather than STRICTLY AFTER.
+		//
+		// The claim is that a look cannot have been read before the geometry it was
+		// read from existed. Equality is not a violation of that and it happens: on
+		// Windows the monotonic clock's granularity is coarse enough that two
+		// successive `time.Now()` calls return the identical instant, and this
+		// failed intermittently in the full suite with `read` and `discovered`
+		// printing the same value down to the monotonic offset. Measured, not
+		// supposed — the failing line was
+		// `read … m=+113.311121101, discovered … m=+113.311121101`.
+		if l.At.Before(l.DiscoveredAt) {
 			t.Errorf("a fast look claims to have been read before the geometry was "+
 				"discovered: read %v, discovered %v", l.At, l.DiscoveredAt)
 		}

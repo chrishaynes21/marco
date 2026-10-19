@@ -1059,6 +1059,52 @@ test that should have caught it.
 
 See [[ADR-241-a-name-you-demonstrated-is-a-name-you-can-use]].
 
+
+## When it does not work: asking where the words went (~1 min, no hands)
+
+Three things, in the order to reach for them.
+
+```sh
+marco do "<name>" --explain     # where those words would go, performing NOTHING
+set MARCO_LOG=debug             # before overlay.cmd: the engine's and the overlay's own logs
+set MARCO_TRACE_INTAKE=1        # one line per invocation: source, decision, why
+```
+
+`--explain` is the one to start with, and it is the only one that is safe to type when you do not
+know what is about to happen. It prints which half of the product would take the words, why, and
+what would carry them out — and it performs nothing at all, which is held by
+`TestExplainingNeverPerforms` and `TestTheEntranceNeverPutsAFlagInThePhrase`.
+
+**The failure it was written for.** One name, two artifacts:
+
+```
+words        "ark graphics live"
+application  arkascended (what is in front now)
+decision     play
+because      an exact match for a play Marco has
+would run    the play ark-graphics-live (scoped to arkascended)
+but note     "ark graphics live" is ALSO saved as something you demonstrated, and the
+             play above answers first. To perform what you demonstrated instead:
+             director.exe perform-workflow --name "ark graphics live" ...
+```
+
+A recorded play of raw coordinates and a pixel demonstration under one name. The play arm answers
+first (see [[Invocation]]), so typing the name ran the coordinates — and `learn <name>` recreates
+that play every time it is used, because the two acquisition paths write to two different stores.
+Until that is settled, a demonstrated routine wants a name no play answers to.
+
+And in the log, at INFO, both sides of the process boundary now say how it ended:
+
+```
+[INFO] overlay - intake source=typed phrase=ark graphics live
+[INFO] intake - routed trace=source=typed decision=demonstration ...
+[INFO] intake - the supervised run ended name=... run=run-20261019-121500-abcd ran=verified
+[INFO] intake - finished decision=demonstration outcome=performed words=ark graphics live
+[INFO] overlay - finished name=ark graphics live outcome=performed took=12.4s
+```
+
+The log used to carry the request and nothing about the answer, so a command that failed and a
+command that was never dispatched looked the same in it.
 ## Demonstrating in a real game, and what goes wrong (needs your hands, ~5 min)
 
 Four live demonstrations against Ark produced three artifacts and zero presses. What that

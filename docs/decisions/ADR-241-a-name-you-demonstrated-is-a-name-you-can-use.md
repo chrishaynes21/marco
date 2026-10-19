@@ -176,6 +176,31 @@ transcript nobody is reading — a person who typed the name of something they d
 then, looking at the game. The keys come from `navsource.ConsentKeys`, the same map the runner
 prints from, so one binding cannot be advertised while another is listened for.
 
+## What the first live trial found, which no test had
+
+Two things, within minutes, and neither was the code this ADR is about.
+
+**One name, two artifacts.** `learn "ark graphics live"` had left a recorded play of raw
+coordinates — `Click(1047,463)`, sleep 3520ms, `Click(851,278)` — and `demonstrate-visual "ark
+graphics live"` had saved the pixel demonstration. The play arm answers first, and that play is
+scoped `context` to `arkascended`, so it resolved *exactly while the game was in front*: the only
+condition under which anybody would run it. Typing the name ran the coordinates. The owner's
+decision was to keep the arm order and remove the play — and then `learn` under the same name
+recreated it inside a minute, because the two acquisition paths write to two different stores and
+nothing says so. **The trap is not closed**, only visible: a demonstrated routine wants a name no
+play answers to, and `marco do --explain` is what says which of the two just happened.
+
+**The log said what was asked for and never what happened.** Both sides of the process boundary
+logged the request at INFO — `overlay: intake`, `intake: routed` — and the outcome went to the
+HUD's status line and history row, which are a glance and are gone by the time anybody is
+debugging, and to the `[result]` wire line, which is for a front end. So a command that failed, a
+command that was refused and a command that was never dispatched were the same thing in the log:
+silence after the request. There are now three lines at INFO — the engine's `intake: finished`
+(decision, outcome, and the error if there was one), the run's own reference and word, and the
+overlay's `overlay: finished` — and `marco do --explain`, which answers "where would these words
+go" without going there. That last one is the diagnostic the failure needed and could not be had:
+the only way to watch the decision was to make it, because `marco do` performs.
+
 ## What this does not do
 
 - **It is not a live confirmation.** Everything here is deterministic: the real runner is built
@@ -245,6 +270,18 @@ Naming the screen, which is what the first invocation could not do:
   line connecting the desk to the grounder — which a test driving the grounder directly supplies
   for itself.
 - `plugins/overlay/intake_test.go` — `TestTheScreenQuestionReadsAsAQuestionAboutTheScreen`.
+
+Saying what happened, and saying where words would go:
+
+- `cmd/marco/demonstrated_test.go` — `TestEveryInvocationSaysHowItEndedAtInfo` sweeps the arms and
+  requires `intake: finished` with the decision and the outcome on each;
+  `TestTheRunReferenceIsLoggedAtInfo`; `TestExplainSaysWhereTheWordsWouldGoAndPerformsNothing`;
+  `TestExplainNamesTheDemonstrationAPlayIsShadowing` (the live failure, in one line);
+  `TestExplainSaysWhyASavedRoutineCannotBeRunBySight`; and the two that hold the only property
+  that makes a diagnostic safe — `TestExplainingNeverPerforms` and
+  `TestTheEntranceNeverPutsAFlagInThePhrase`, because an unparsed `--explain` falls into the
+  phrase and the invocation is then performed.
+- `plugins/overlay/intake_test.go` — `TestTheLogSaysHowACommandEnded`.
 
 The reference:
 
