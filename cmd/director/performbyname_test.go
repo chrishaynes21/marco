@@ -12,6 +12,7 @@ package main
 // in a temporary MARCO_HOME.
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -222,5 +223,52 @@ func TestDiscoveryWaitsForThePersonToSwitchAndNamingDoesNot(t *testing.T) {
 	// AND NO DELAY IS NOTHING TO SPEND.
 	if lookAfterWaiting("", 0) {
 		t.Error("a run with no delay waited anyway")
+	}
+}
+
+// TestACancelledCountdownProceedsToNothing.
+//
+// The countdown was an unconditional `time.Sleep`, and the cancellation context was created
+// three hundred lines below it — so the window in which somebody is most likely to change their
+// mind was the one window nothing could interrupt. Ctrl-C killed the process instead of
+// stopping the run, and a killed process says nothing about how far it got.
+//
+// What has to hold is that a cancelled countdown returns false: everything the run could press
+// is built after it returns, so false is the whole of "zero input was emitted".
+func TestACancelledCountdownProceedsToNothing(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if countdown(ctx, time.Hour) {
+		t.Error("a cancelled countdown ran to completion, so the run would have " +
+			"gone on to acquire a window and ask to press something")
+	}
+	// AND IT DOES NOT WAIT OUT THE CLOCK TO NOTICE. An hour-long delay that returns
+	// immediately is the point: cancellation is heard, not polled for.
+	start := time.Now()
+	ctx2, cancel2 := context.WithCancel(context.Background())
+	go func() { time.Sleep(20 * time.Millisecond); cancel2() }()
+	if countdown(ctx2, time.Hour) {
+		t.Error("a countdown cancelled while waiting ran to completion")
+	}
+	if took := time.Since(start); took > 5*time.Second {
+		t.Errorf("cancellation took %s to be noticed", took)
+	}
+}
+
+// TestAnUninterruptedCountdownProceeds, because a cancel that fires on its own stops every run.
+func TestAnUninterruptedCountdownProceeds(t *testing.T) {
+	if !countdown(context.Background(), time.Millisecond) {
+		t.Error("an uninterrupted countdown reported cancellation")
+	}
+	// AND NO DELAY IS NOT A CANCELLATION EITHER.
+	if !countdown(context.Background(), 0) {
+		t.Error("a run with no delay was treated as cancelled")
+	}
+	// BUT AN ALREADY-CANCELLED RUN WITH NO DELAY IS STILL CANCELLED: the absence of a
+	// wait is not permission to proceed.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if countdown(ctx, 0) {
+		t.Error("a cancelled run with no delay proceeded")
 	}
 }

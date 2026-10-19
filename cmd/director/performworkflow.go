@@ -153,6 +153,10 @@ func runPerformWorkflow(args []string) int {
 	// there — that is the artifact's scope, checked below against the window actually
 	// acquired. Keeping the two apart is what stops a discovered application from quietly
 	// satisfying a scope check.
+	// THE RUN'S OWN REFERENCE, minted before anything can fail, so a run that dies
+	// early still gave somebody something to cite.
+	began := time.Now()
+	runID := newRun(began)
 	var waited bool
 	// ── WHEN NOBODY NAMED THE APPLICATION, WAIT BEFORE LOOKING ──
 	//
@@ -169,13 +173,20 @@ func runPerformWorkflow(args []string) int {
 	// gate was right and the question was asked at the wrong moment. Waiting only when
 	// the application is DISCOVERED keeps `--application` instant, which is what somebody
 	// naming it explicitly is asking for.
-	if lookAfterWaiting(*app, *delay) {
-		fmt.Printf("  Switch to the application now — what is in front in %s is what "+
-			"this will watch.\n", *delay)
-		time.Sleep(*delay)
-		waited = true
-	}
-	target, targetWhy := resolveApplication(context.Background(), *app)
+	// ── AND CTRL-C REACHES THE WAIT ITSELF ──
+	//
+	// This was an unconditional `time.Sleep` and the cancellation context was created
+	// three hundred lines below it, so the one window in which a person is most likely to
+	// change their mind — they have just started a run and are looking at the game — was
+	// the one window nothing could interrupt. Ctrl-C killed the process instead of
+	// stopping the run, which is a different thing: a stopped run says how far it got.
+	//
+	// Hoisted rather than duplicated. `signal.NotifyContext` installs a handler and
+	// nothing else, so creating it earlier costs nothing and the whole command now runs
+	// under one cancellation.
+	ctx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stopSignals()
+
 	// ── AND WHICH WINDOW, when one executable owns two ──
 	//
 	// An executable name is the weakest selector and the only one that can be ambiguous.
@@ -187,14 +198,7 @@ func runPerformWorkflow(args []string) int {
 	// This chooses what to LOOK AT and authorises nothing. The scope check below is asked
 	// of `v.Ref.Application`, the executable of the window actually acquired, so naming a
 	// pid cannot make an artifact valid anywhere its scope does not already allow.
-	sel := windowSelector(target, *windowID, uint32(*pid), *fg)
-
 	switch {
-	case sel.Zero():
-		fmt.Fprintf(os.Stderr, "director: which application? %s\n"+
-			"  name it: director perform-workflow --application solasta "+
-			"--workflow routine.json\n", targetWhy)
-		return 2
 	case *file == "" && *named == "":
 		fmt.Fprintln(os.Stderr,
 			"director: name what to perform.\n"+
@@ -219,10 +223,78 @@ func runPerformWorkflow(args []string) int {
 		return 2
 	}
 
+	// ── THE ROUTINE IS LOADED BEFORE ANYBODY IS ASKED TO WAIT ──
+	//
+	// A name that was never saved is knowable without looking at a screen, and finding
+	// out after a countdown means somebody alt-tabbed to their game and waited to be told
+	// they mistyped. Measured on the first run of this code.
+	//
+	// AFTER the usage checks above and before the countdown below, and both halves of
+	// that matter. Moved above the checks, a bad `--workflow` path exits 1 where a usage
+	// refusal should exit 2 — which `TestPerformWorkflowIsDispatchedAndReachable` caught
+	// the first time this was reordered.
 	art, code := workflowToPerform(*file, *named)
 	if code != 0 {
 		return code
 	}
+
+	// ── THE KEY SOURCE, OPENED ONCE FOR THE WHOLE RUN ──
+	//
+	// Needed here because START is a key press, and needed again below for the consent
+	// desk. ONE install: `navsource.New` puts a low-level hook on the whole desktop, and
+	// two of those is the shape of defect CLAUDE.md names — a second install is a second
+	// callback on every keystroke everybody makes. Opened before the countdown, closed
+	// when the command returns, owned by one reader at a time.
+	var src *navsource.Source
+	if *hotkeys && !*explore {
+		s, why := navsource.New()
+		if why != "" {
+			fmt.Fprintf(os.Stderr, "director: no key hook is available, so "+
+				"--hotkeys has no way to hear an answer: %s\n", why)
+			return 1
+		}
+		src = s
+		defer src.Close()
+	}
+
+	// ── NOW THE PERSON IS ASKED TO SWITCH, AND ONLY NOW ──
+	//
+	// Everything above is knowable without looking at a screen: a flag out of range, a
+	// name nobody saved, a file that is not an artifact. Asking somebody to alt-tab to
+	// their game and then telling them they mistyped is the order this used to run in.
+	//
+	// WITH A KEY WHEN THERE IS ONE, because a clock is a guess about when somebody is
+	// ready and this is the moment the owner asked to stop guessing:
+	//
+	//	An explicit Start interaction after the user has prepared the trial.
+	//
+	// The same key the desk uses, so there is one thing to learn, and it is heard while
+	// the game keeps the foreground — which is the whole reason the desk uses keys.
+	if src != nil && started(ctx, src, *delay) == startCancelled {
+		fmt.Println("  cancelled before anything was observed; no input was sent")
+		return 1
+	}
+	if src == nil && lookAfterWaiting(*app, *delay) {
+		fmt.Printf("  Switch to the application now — what is in front in %s is what "+
+			"this will watch.  Ctrl-C cancels.\n", *delay)
+		if !countdown(ctx, *delay) {
+			// NOTHING HAS BEEN ACQUIRED, AUTHORISED OR BUILT YET, so there is
+			// nothing to wind back and nothing could have been pressed.
+			fmt.Println("  cancelled before the application was discovered; " +
+				"nothing was observed and no input was sent")
+			return 1
+		}
+		waited = true
+	}
+	target, targetWhy := resolveApplication(context.Background(), *app)
+	sel := windowSelector(target, *windowID, uint32(*pid), *fg)
+	if sel.Zero() {
+		fmt.Fprintf(os.Stderr, "director: which application? %s\n"+
+			"  name it: director perform-workflow --application solasta "+
+			"--workflow routine.json\n", targetWhy)
+		return 2
+	}
+
 	// ── ONE STEP, EXTRACTED, WHEN THAT IS WHAT WAS ASKED FOR ──
 	//
 	// A workflow runs from step 0 forward, and the first step of a real demonstration is
@@ -294,11 +366,6 @@ func runPerformWorkflow(args []string) int {
 	windows := winprovider.New()
 	tracker := windowref.NewTracker(windows)
 	shots := newCapture(windows)
-
-	// CTRL-C STOPS THE RUN RATHER THAN KILLING IT, so a press in flight is refused and
-	// the report still says how far it got.
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer stop()
 
 	v := tracker.AcquireBy(ctx, windows, windowref.NewDirectory(),
 		sel)
@@ -380,14 +447,10 @@ func runPerformWorkflow(args []string) int {
 		}
 		grant = session0
 	}
-	if *hotkeys && !*explore {
-		src, why := navsource.New()
-		if why != "" {
-			fmt.Fprintf(os.Stderr, "director: no key hook is available, so "+
-				"--hotkeys has no way to hear an answer: %s\n", why)
-			return 1
-		}
-		defer src.Close()
+	if src != nil {
+		// THE SAME SOURCE THE START KEY WAS HEARD ON, handed over to the desk now
+		// that nothing else is reading it. A second `navsource.New` here would
+		// install a second desktop-wide hook for the rest of the run.
 		desk = newConsentDesk(src.Consents(), func() { run.Stop() })
 		go desk.run(ctx)
 		keys = &hotkeyGranter{desk: desk, out: os.Stdout, live: *live,
@@ -444,6 +507,10 @@ func runPerformWorkflow(args []string) int {
 		WithPatience(*patience)
 
 	fmt.Printf("Performing %q against %s\n", art.Name, v.Ref.Describe())
+	// THE REFERENCE, PRINTED BEFORE ANYTHING HAPPENS. A run somebody has to cite is
+	// usually one that went wrong, and an id printed only at the end is an id a crashed
+	// run never gave them.
+	fmt.Printf("%s\n", citeRun(runID, runPath(runID)))
 	fmt.Printf("  %d step(s), %d screen(s), %d control(s)\n",
 		len(art.Steps), len(art.Screens), len(art.Controls))
 	if *live {
@@ -723,6 +790,27 @@ func runPerformWorkflow(args []string) int {
 			blind, rep.Looks, blindWhy)
 	}
 	printRun(rep, art, book, *live, lost, eyes, reader, obs.Stats(), obs)
+
+	// ── AND THE RECORD OF THIS ATTEMPT, by the reference printed at the start ──
+	//
+	// Written last, because it carries the outcome, and reported separately because
+	// losing the record does not lose the run.
+	rec := RunRecord{
+		Version: 1, Run: runID, Workflow: art.Name,
+		Application: string(art.Application), Step: *step,
+		Started: began.Format(time.RFC3339), Ended: time.Now().Format(time.RFC3339),
+		Outcome: outcomeOfRun(rep, ctx.Err() != nil),
+		Because: rep.Progress.Summary(), Sent: rep.Pressed, Real: rep.Real,
+		Verified: rep.VerifiedOK, Contradicted: rep.Contradicted,
+		Unconfirmed: rep.Unconfirmed, Frames: *frames,
+	}
+	if p, err := saveRun(rec); err != nil {
+		fmt.Fprintf(os.Stderr,
+			"director: the run record could not be written: %v\n", err)
+		fmt.Printf("\n%s\n", citeRun(runID, ""))
+	} else {
+		fmt.Printf("\n%s   (%s)\n", citeRun(runID, p), rec.Outcome)
+	}
 	if desk != nil {
 		stray, drained := desk.counts()
 		fmt.Printf("\n  %-42s %d of %d\n", "steps agreed to by key",
@@ -1582,4 +1670,92 @@ func workflowToPerform(file, named string) (workflowstore.Artifact, int) {
 // to the game — and reading the foreground before they have is reading their terminal.
 func lookAfterWaiting(app string, delay time.Duration) bool {
 	return strings.TrimSpace(app) == "" && delay > 0
+}
+
+// countdown waits out a delay, and reports false when it was cancelled instead.
+//
+// # Why this is a function and not three lines
+//
+// Because the three lines were an unconditional `time.Sleep` with the cancellation context
+// created three hundred lines below them. The one window in which a person is most likely to
+// change their mind — they have just started a run and are looking at the application — was the
+// one window nothing could interrupt, and Ctrl-C killed the process rather than stopping the
+// run. A killed process says nothing about how far it got.
+//
+// Separated so the cancellation can be tested without a clock: what has to hold is that a
+// cancelled countdown returns false and the caller then does nothing at all. Everything the run
+// could press is built after this returns.
+func countdown(ctx context.Context, d time.Duration) bool {
+	if d <= 0 {
+		return ctx.Err() == nil
+	}
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-t.C:
+		return true
+	case <-ctx.Done():
+		return false
+	}
+}
+
+// startState is how a supervised run began.
+type startState int
+
+const (
+	// startPressed: somebody said go.
+	startPressed startState = iota
+	// startTimedOut: nobody pressed anything and the delay elapsed, which is the
+	// unattended path and is not a refusal.
+	startTimedOut
+	// startCancelled: the stop key, or Ctrl-C.
+	startCancelled
+)
+
+// started waits for the person to say go, and reports how the wait ended.
+//
+// # Why a key and not a clock
+//
+//	Goal: make a supervised Marco trial possible without guessing when capture or execution
+//	starts. […] An explicit Start interaction after the user has prepared the trial.
+//
+// `--delay` is a guess about when somebody will be ready, and every live trial tonight was
+// either too short — the foreground was still the terminal when discovery ran — or long enough
+// to be spent waiting. A key is the person saying they are ready, and it is heard while the
+// application keeps the foreground, which is the same reason the consent desk uses keys.
+//
+// The delay stays as the CEILING, so an unattended run still starts and a forgotten terminal
+// still stops by itself. Pressing stop here is a cancellation and not a refusal of a question:
+// nothing has been asked yet, nothing acquired, and nothing could have been pressed.
+func started(ctx context.Context, src *navsource.Source, within time.Duration) startState {
+	if within <= 0 {
+		within = time.Minute
+	}
+	fmt.Printf("  Prepare the application, then press %s to start.  %s or Ctrl-C "+
+		"cancels.  (starts by itself in %s)\n",
+		navsource.ConsentKeys[navsource.ConsentApprove],
+		navsource.ConsentKeys[navsource.ConsentStop], within)
+	t := time.NewTimer(within)
+	defer t.Stop()
+	for {
+		select {
+		case c, ok := <-src.Consents():
+			if !ok {
+				return startTimedOut
+			}
+			switch c {
+			case navsource.ConsentApprove:
+				return startPressed
+			case navsource.ConsentStop:
+				return startCancelled
+			}
+			// A REFUSAL KEY ANSWERS NOTHING HERE. No question is open, and
+			// treating it as a cancellation would make the three keys mean
+			// something different before the run than during it.
+		case <-t.C:
+			return startTimedOut
+		case <-ctx.Done():
+			return startCancelled
+		}
+	}
 }
