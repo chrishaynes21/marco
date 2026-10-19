@@ -1081,13 +1081,17 @@ type freshEvidence struct {
 	// on a screen whose identity words have been separating, that is the one change left
 	// for this check to catch.
 	//
-	// It needs both halves. The reading has to come back for this capture — correlated by
-	// `readingFrame.look` — and the stabiliser has to have counted a reading on this look.
-	// The first without the second means the words never reached the text rule. The second
-	// without the first is the defect: the boundary used to offer its frame and drain in
-	// the same breath, so what it put on its look was a reading of the frame BEFORE it,
-	// admissible because the epoch had not moved, agreeing with the screen the plan was
-	// made on.
+	// It needs every half, and each one was a way through. The reading has to come back
+	// for THIS capture — correlated by `readingFrame.look` — it has to say enough to be a
+	// claim, and the stabiliser has to have counted a reading on this look.
+	//
+	// The last without the first is the original defect: the boundary offered its frame
+	// and drained in the same breath, so what it put on its look was a reading of the
+	// frame BEFORE it, admissible because the epoch had not moved, agreeing with the
+	// screen the plan was made on. The last without the second is the same mistake in
+	// miniature: OCR answering a frame and reading nothing on it moves `TextRead` too,
+	// and a successful reading of nothing cannot contradict anything. And the first two
+	// without the last would mean words that never reached the text rule at all.
 	Said bool
 	// Epoch and Screen are the observer's standing claim AFTER this look.
 	//
@@ -1194,12 +1198,14 @@ func worldMoved(app string, scope workflowstore.Scope, now worldNow,
 		// described the frame before it, and an unchanged epoch made them
 		// admissible. The reading is now asked for BY FRAME and waited for inside
 		// a budget; a budget that expires is this refusal, which is the direction
-		// to fail in.
+		// to fail in. So is a reading that came back having read nothing: a
+		// request completing is not evidence arriving.
 		return false, "the look taken at the instant of the press agreed with " +
 			"the screen this point was approved on by its arrangement alone, " +
 			"and that screen is one words have been separating: no reading of " +
-			"this look's own pixels arrived in time, and an arrangement two " +
-			"panels of one shape share is not evidence that this is the same one"
+			"this look's own pixels arrived in time, or the one that did said " +
+			"too little to be a claim, and an arrangement two panels of one " +
+			"shape share is not evidence that this is the same one"
 	case !now.Fresh.Target:
 		// ── AND THE CONTROL ITSELF, IN THIS LOOK'S OWN PROPOSALS ──
 		//
@@ -2247,7 +2253,28 @@ func freshFrom(ctx context.Context, obs *fastobserve.Observer, reader *readingEy
 		// have counted this look's words — an inadmissible reading is dropped in
 		// there and the boundary refuses for want of it.
 		if got && rd.FromLook == id {
-			lk.Readings, own = []observe.ScreenReading{rd}, true
+			// THE STABILISER GETS IT EITHER WAY, because a reading is a fact
+			// about the screen whatever it found, and the vocabulary is built
+			// from all of them.
+			lk.Readings = []observe.ScreenReading{rd}
+			// ── BUT A REQUEST THAT RETURNED IS NOT EVIDENCE THAT ARRIVED ──
+			//
+			// OCR can answer a frame and read nothing on it: a panel mid-fade,
+			// a capture that came out black, a tesseract that found no glyphs
+			// it believed. `VisualScreens.Read` counts that look as read,
+			// because a source DID answer and that distinction matters to its
+			// own accounting — see ReadingsSilent. For this check it is the
+			// wrong answer: empty text cannot contradict an identity, so a
+			// boundary that took a successful reading of nothing would clear a
+			// same-shape change on the strength of a request completing.
+			//
+			// The bar is the stabiliser's own and not a new one. Below
+			// `TextDisagreementWords` words, `TextsDisagree` declines to call
+			// either side a claim at all — so a reading that thin could not
+			// have refused this merge however different what it said was, and
+			// accepting it as the evidence this screen needs would be accepting
+			// a measurement that was never going to be consulted.
+			own = len(rd.Text.Words) >= observe.TextDisagreementWords
 		}
 	}
 	was := obs.Stability()
@@ -2273,11 +2300,13 @@ func freshFrom(ctx context.Context, obs *fastobserve.Observer, reader *readingEy
 // standing". Every other one names something else that happened to the look, and the name goes
 // into the refusal so a person is told which.
 //
-// `ownText` is the caller saying it put a reading of THIS look's own pixels on the look. Both
-// halves are required for `Said` and neither is sufficient: the counter alone cannot tell a
-// reading of these pixels from a stale one the epoch rule happened to admit, and the caller
-// alone cannot say whether the words ever reached the text rule — an inadmissible or unusable
-// reading is dropped inside the observer, silently and correctly.
+// `ownText` is the caller saying it put a reading of THIS look's own pixels on the look, and
+// that the reading said enough to be a claim. Both halves are required for `Said` and neither
+// is sufficient: the counter alone cannot tell a reading of these pixels from a stale one the
+// epoch rule happened to admit, nor a reading that found words from one that found none — it
+// counts a source having ANSWERED. And the caller alone cannot say whether the words ever
+// reached the text rule, because an inadmissible or unusable reading is dropped inside the
+// observer, silently and correctly.
 func freshOf(was, now observe.VisualStability, proposed []observe.Region,
 	point observe.PointerAt, ownText bool) freshEvidence {
 

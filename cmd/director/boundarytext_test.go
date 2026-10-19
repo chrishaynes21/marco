@@ -451,6 +451,121 @@ func TestAnUnchangedPanelWhoseWordsArriveIsPressed(t *testing.T) {
 	}
 }
 
+// AND A SUCCESSFUL READING OF NOTHING IS NOT EVIDENCE EITHER.
+//
+// The request completed, inside its budget, for this capture, and the stabiliser counted the
+// look as read — because a source DID answer, which is a distinction its own accounting needs.
+// None of that is evidence about which panel is in front of the pointer: empty text cannot
+// contradict an identity, so every term would agree and the press would go out on the strength
+// of a request having returned.
+//
+// This is the same mistake as the stale queue in miniature, and it is why `Said` is about what
+// arrived rather than about what was asked.
+func TestASuccessfulReadingOfNothingIsNotEvidence(t *testing.T) {
+	g := &gatedReader{calls: make(chan *ocrAsk, 4)}
+	eyes := readerOver(t, g)
+	shape := aPanel(0.30, 12)
+	o, planned := settledWithWords(t, shape)
+
+	// OCR ANSWERS, PROMPTLY, AND READS NOTHING. A panel mid-fade, a capture that came
+	// out black, a tesseract that believed none of the glyphs it found.
+	serving(t, g)
+	ok, why, e := askWithWords(t, o, eyes, planned, shape, 2*time.Second)
+	if ok {
+		t.Fatalf("a press was cleared on a screen words separate by a reading "+
+			"that read nothing: %+v", e)
+	}
+	if !strings.Contains(why, "arrangement alone") {
+		t.Errorf("the refusal is %q, which is not the missing-words one", why)
+	}
+	if e.Said {
+		t.Error("a reading with no words in it is reported as words that " +
+			"arrived, so a request completing is being read as evidence")
+	}
+	// AND THE STABILISER DID COUNT THE LOOK AS READ, which is the trap: the counter
+	// moved, and the counter alone would have cleared the press.
+	if st := o.Stability(); st.TextRead == 0 {
+		t.Error("the reading never reached the stabiliser, so this test is not " +
+			"about telling an answer from an empty answer")
+	}
+}
+
+// AND A READING TOO THIN TO BE A CLAIM IS NOT EVIDENCE.
+//
+// The bar is the stabiliser's own: below `observe.TextDisagreementWords` words `TextsDisagree`
+// declines to call either side a claim, so a reading that thin could not have refused this merge
+// however different what it said was. Accepting it as the evidence a text-dependent screen needs
+// would be accepting a measurement nothing was ever going to consult.
+//
+// Two words here, and the positive control above says three — the bar itself is load-bearing in
+// both directions.
+func TestAReadingTooThinToBeAClaimIsNotEvidence(t *testing.T) {
+	g := &gatedReader{calls: make(chan *ocrAsk, 4)}
+	eyes := readerOver(t, g)
+	shape := aPanel(0.30, 12)
+	o, planned := settledWithWords(t, shape)
+
+	thin := theWordsOfTheScreen[:observe.TextDisagreementWords-1]
+	serving(t, g, thin...)
+	ok, why, e := askWithWords(t, o, eyes, planned, shape, 2*time.Second)
+	if ok {
+		t.Fatalf("a press was cleared on %d word(s), fewer than the %d it takes "+
+			"to be a claim: %+v", len(thin), observe.TextDisagreementWords, e)
+	}
+	if !strings.Contains(why, "arrangement alone") {
+		t.Errorf("the refusal is %q, which is not the missing-words one", why)
+	}
+	if e.Said {
+		t.Errorf("%d word(s) are reported as a claim", len(thin))
+	}
+}
+
+// AND NOTHING REACHES THE HOST IN EITHER CASE. The real runner, both thin answers.
+func TestAStepIsNotPressedOnAnEmptyOrThinReading(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		words []string
+	}{
+		{"a reading that found nothing", nil},
+		{"a reading too thin to be a claim",
+			theWordsOfTheScreen[:observe.TextDisagreementWords-1]},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			g := &gatedReader{calls: make(chan *ocrAsk, 4)}
+			eyes := readerOver(t, g)
+			shape := aPanel(0.49, 12)
+			o, seen := settledWithWords(t, shape)
+			serving(t, g, tc.words...)
+
+			book, s, r := aRunnerWatching(t, func(ctx context.Context,
+				at workflowrun.Sighting,
+				point observe.PointerAt) (bool, string) {
+
+				now := worldNow{Alive: true, State: "valid",
+					Generation: 3, Front: observe.FrontTarget,
+					Application: "thegame"}
+				now.Fresh = freshFrom(ctx, o, eyes, boundaryLook(shape),
+					aFrame(), point, 2*time.Second)
+				now.Epoch, now.Screen = now.Fresh.Epoch, now.Fresh.Screen
+				return worldMoved("thegame",
+					workflowstore.NormaliseScope("thegame"), now, seen)
+			})
+			got := r.Advance(context.Background(), s, theStepsLook())
+
+			if lines := book.Lines(); len(lines) != 0 {
+				t.Fatalf("%d call(s) reached the host:\n%s", len(lines),
+					strings.Join(lines, "\n"))
+			}
+			if got.Outcome != workflowrun.OutcomeRefused {
+				t.Errorf("the step ended %q (%s)", got.Outcome, got.Because)
+			}
+			if !strings.Contains(got.Because, "arrangement alone") {
+				t.Errorf("the refusal is %q", got.Because)
+			}
+		})
+	}
+}
+
 // AND A SCREEN NOBODY HAS READ IS STILL PRESSED ON ITS PIXELS.
 //
 // The limit of the rule, and the reason it is a rule about the screen rather than about the
