@@ -5,7 +5,7 @@ date: 2026-10-19
 backend:
   - structure
 fixture: "Source review of the supervised-run lifecycle as committed in `cec983d`, `7ae9dd1` and `22fd169` — all three with a green 101-package suite — followed by one reproducing test per traced condition and a mutation run on every new call site."
-result: "Seven conditions closed. Every one of them was reproducible by a test that could have been written against the committed code, and not one of the committed tests described it. Five are timing: the moment a stop is read, the moment a target is measured, the moment a deadline applies. Two are identity: which attempt a record belongs to, and what a whole run's one-word outcome is. Thirteen mutations across the seven fixes, thirteen killed. Two further limitations were traced and deliberately left open."
+result: "Ten conditions closed over two rounds. Every one was reproducible by a test that could have been written against the committed code, and not one of the committed tests described it. The first round: five timing (the moment a stop is read, the moment a target is measured, the moment a deadline applies) and two identity (which attempt a record belongs to, what a whole run's one-word outcome is). The second round, reviewing the first round's fixes, found three more — and all three were the same fix not having gone far enough: a fresh look that reached the observer and was never asked what the observer made of it, three exits past the citation that the first round had not enumerated, and a reservation that guarded the record while the pixels were already being shared. Twenty-five mutations across both rounds; three survived the first pass and each named a real gap, including an ORDERING that two source-pinned strings could not hold. Two limitations traced and deliberately left open."
 supersedes: []
 affects:
   - execution
@@ -57,15 +57,44 @@ whole.
 ## What was done
 
 One reproducing test per condition, written to fail against the committed code first. Then the
-fix. Then a mutation run on every new call site, as the mutation-gate discipline requires:
-thirteen mutations, thirteen killed, including both mutations of the new deadline clause (drop
-it; invert it).
+fix. Then a mutation run on every new call site, as the mutation-gate discipline requires.
 
-Three of the fixes are two lines. `freshLook` is the expensive one — it takes a real capture
-per authorised action, fed through the same observer, so that `worldMoved`'s inputs describe
-the present. That cost buys the only guarantee that mattered: a click lands on the control the
-person said yes to, not on the one that was there when they were asked.
+## The second round, which is the part worth keeping
 
+The three conditions found by reviewing the first round's fixes are all the same shape: **the
+fix did the visible half**.
+
+`freshLook` took a real capture. That was the visible half, and it is the half a reviewer
+reading the diff sees working. The other half is that the stabiliser deliberately keeps the
+standing screen still while a change settles — so a look of a changed interface was taken,
+offered, folded, and answered for with the SCREEN BEFORE IT, for as long as a person takes to
+press F7. The fix had added a capture to a check that reads a cached claim, and the capture did
+not change what the check read.
+
+Nine is the same thing: the first round fixed the exits it had *listed*. A list is the visible
+half of "every exit finalises". The guard now walks the function.
+
+Ten likewise: `O_EXCL` on the record is the visible half of "a reference retrieves its own
+attempt". The reference also names a frames directory, and the refusal arrived after a run's
+worth of images had already been overwritten.
+
+**The mutation gate is what found this in our own work.** Three of the first pass's mutations
+survived, and each one named a real gap rather than a missing assertion:
+
+| Mutation | Why it survived |
+|---|---|
+| Read the standing stamps *before* taking the look | Two source-pinned strings pin two statements and say nothing about which came first |
+| `holdsPoint` with the lower-Y bound removed | The only off-region case also missed on X, and the X check gets there first |
+| `saveRun` with `O_CREATE` restored | The runs directory did not exist in that test, so the write failed for the wrong reason |
+
+The first is the one worth remembering: the answer was not a third pinned string but a change of
+shape. `freshEvidence` now carries the standing claim, read in one statement after the
+observation, and `stillThere` no longer holds the observer — so there is no longer an order for a
+caller to get wrong. The second and third were vacuous tests of exactly the kind
+[[Experiment-089-four-terms-passed-and-nobody-pressed-the-button]] catalogues: an assertion that
+passes for a reason other than the one it names.
+
+Twenty-five mutations across both rounds, all killed at the end.
 ## What this does NOT establish
 
 The one-action live demonstration from [[Experiment-092-the-first-human-taught-pixel-macro]]

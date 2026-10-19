@@ -2,7 +2,7 @@
 type: adr
 status: accepted
 date: 2026-10-19
-decision: "ACCEPTED — seven conditions found by review of the supervised-run lifecycle are closed, under three rules. (1) A STOP IS ONLY A STOP AT THE LAST MOMENT IT COULD MATTER: the stop key is read once more immediately before input is sent, it is bridged onto the executor's own context, it is honoured before a runner exists, and a consent question may not consume it. (2) AUTHORISATION IS NOT EVIDENCE: the screen a click is aimed at is re-measured after a person authorises, not re-read from the look that produced the question. (3) A RECORD IS THE ATTEMPT IT NAMES: a run id carries randomness, its record is written with O_EXCL, its frames live under its own id, and its one-word outcome is read from how far the workflow got as well as from each action's verdict — so an incomplete run is not `verified` and a window holding partial positive evidence still expires at its deadline."
+decision: "ACCEPTED — ten conditions found by two rounds of review of the supervised-run lifecycle are closed, under three rules. (1) A STOP IS ONLY A STOP AT THE LAST MOMENT IT COULD MATTER: the stop key is read once more immediately before input is sent, it is bridged onto the executor's own context, it is honoured before a runner exists, and a consent question may not consume it. (2) AUTHORISATION IS NOT EVIDENCE: the look taken after a person authorises reports what the STABILISER made of it, because the stabiliser damps a change for three looks and keeps answering with the standing screen while it settles — which is exactly the window an authorisation arrives in. An unsettled look, an unreadable one, and a settled screen with nothing under the approved point are each a refusal, and the standing claim is read off the fresh look so the order cannot be got wrong. (3) A RECORD IS THE ATTEMPT IT NAMES: the whole evidence namespace — the record and the frames directory — is RESERVED before the reference is printed and retried on collision, `saveRun` may only write where a reservation already is, every exit past the citation finalises, and the one-word outcome is read from how far the workflow got as well as from each action's verdict."
 supersedes: []
 affects:
   - execution
@@ -46,6 +46,22 @@ answer in each case was "not at the moment that matters":
    second shared an id; `os.WriteFile` truncated; `--frames` wrote to one directory for every
    run.
 
+A second round of review on the fixes for those seven found three more, and all three are the
+same first fix not having gone far enough:
+
+8. **The fresh capture could still approve a changed interface.** The look reached the observer
+   and the observer, correctly, kept answering with the standing screen while the change
+   settled. So the two confirmations before a click could both see the old screen and the old
+   epoch. And the look carried geometry without text, so a panel of the same shape that read
+   differently went on matching.
+9. **Three exits past the citation still wrote no record.** The delay cancellation for an
+   explicitly named application, and each of the three optional sources that can be asked for
+   and be absent. The first round had fixed the exits it had enumerated.
+10. **Reservation protected the JSON and not the evidence namespace.** `O_EXCL` at save time
+    refuses the second writer *after* both have been printing the same reference and writing
+    into the same frames directory. And the test for it demanded 64 distinct draws from 65,536,
+    which is a 3% chance of failing a correct implementation while testing the wrong property.
+
 ## The decision
 
 Three rules, each of which generalises past the condition that found it.
@@ -64,18 +80,71 @@ the stop, instead of being counted and dropped.
 
 A person's approval is permission to act on the world as it is *now*. `freshLook` takes a real
 look, fed through the same observer, so the inputs `worldMoved` reasons about describe the
-present rather than the moment the question was asked. This costs one capture per authorised
-action and buys the only guarantee that mattered: a click lands on the control a person said
-yes to.
+present rather than the moment the question was asked.
+
+**Taking the look was not enough, and a second round of review found why.** The stabiliser
+damps change on purpose — a look that differs from the standing screen is counted `Unsettled`
+and the STANDING screen is returned, for `VisualSettleLooks` looks. ADR-170 measured the 150 raw
+adjacent-frame changes that suppresses, and it is correct. But at ten looks a second that window
+is three looks, and a person's F7 lands inside it: both confirmations before an ordinary click
+could take a fresh look at a changed interface, read back the old screen and the old epoch, and
+clear the check. Every term above the fresh ones answers from the standing claim, which is the
+claim the plan was made from.
+
+So the fresh look reports what the stabiliser made of IT. `Stability()` before and after says
+whether the look was counted as a look at the standing screen or as something else, and the
+name of the counter that moved goes into the refusal. Three refusals rather than one, because
+"no evidence" and "evidence that disagrees" send a person to different places:
+
+- **No look could be taken.** `freshEvidence` zero. Not a pass.
+- **The look did not agree.** Unsettled, warming, unobserved, a replaced window, a promotion.
+- **Nothing was proposed under the approved point.** A different question from screen identity:
+  an interface can settle clean and have nothing under the coordinate — a list that scrolled, a
+  row that went away, a panel swapped for one of the same overall shape. Asked of the fresh
+  look's own proposals, which is the same evidence a control is found by.
+
+Text goes onto the boundary look the way the loop puts it on an ordinary one, so the
+stabiliser's own text rule can separate a panel of the same shape that reads differently.
+Nothing new is measured and no threshold is invented: reporting a counter is not a second
+opinion about screen identity.
+
+**And the standing claim comes back ON the evidence.** The look is what moves it, so reading it
+before looking compares the plan against the state the plan was made in — the original defect
+restated. A mutation that swapped those two statements survived every test in the package, which
+is what two source-pinned strings are worth against an ordering. There is now exactly one place
+either value is read, inside `freshLook` immediately after the observation, and `stillThere` no
+longer holds the observer at all.
+
+This costs one capture per authorised action, and buys the only guarantee that mattered: a click
+lands on the control a person said yes to.
 
 ### A record is the attempt it names
 
-A reference whose single job is retrieval must retrieve. Four hex characters of system
-randomness make an id unique within a second; `O_EXCL` turns a collision into a refusal
-instead of a silent substitution; frames go under `<root>/<run-id>/`. And the one-word outcome
-is a property of the run, not of its best action: `rep.Progress.Complete()` gates `verified`,
-`rep.Pressed > decided` catches an action nobody ever answered for, and a verification window
-with partial positive evidence expires `unconfirmed` at its deadline like any other.
+A reference whose single job is retrieval must retrieve, and **the record is not the only thing
+a reference points at**. The first version guarded only the JSON, with `O_EXCL` at save time —
+so two attempts that proposed one id had both been printing the same reference for the length of
+a run and the hover probe had been writing `01-before.png` into the same frames directory before
+the refusal arrived. The guard protected the record and not the evidence.
+
+So the whole namespace is **reserved** before anything is written into it and before the
+reference is printed: a provisional record under `runs/`, created exclusively, and this run's own
+frames directory, created with a bare `Mkdir` so an existing one is a refusal rather than a
+silent share. A candidate that loses either is abandoned whole and the next is tried. `saveRun`
+then opens **without** `O_CREATE`, so the file existing is the proof that this attempt holds this
+id, and a record for an id nobody reserved has nowhere to go.
+
+The provisional record says `started`, which is what makes an unfinalised exit findable: before
+it, an exit that wrote nothing left the reference pointing at a file that did not exist, and that
+reads as a citation bug rather than as a path that forgot to finalise. **Every exit past the
+citation now finalises**, including the three usage refusals that exit 2 — `endedEarly` takes the
+exit code, because folding them into exit 1 to get a record would change what the code means. A
+test walks the function and requires it of every return, which is the half a newly added exit
+cannot be written around.
+
+And the one-word outcome is a property of the run, not of its best action:
+`rep.Progress.Complete()` gates `verified`, `rep.Pressed > decided` catches an action nobody ever
+answered for, and a verification window with partial positive evidence expires `unconfirmed` at
+its deadline like any other.
 
 ## What this does not do
 
@@ -92,21 +161,57 @@ Both are named so the next session does not rediscover them.
 
 ## Enforced by
 
-- `cmd/director/freshconfirm_test.go` — `TestTheTargetIsCheckedAgainstAFreshLook`: a target
-  that moved between the question and the approval is refused.
-- `cmd/director/consentstop_test.go` — `TestADrainedStopIsHonoured`: a stop queued before a
-  consent question ends the run.
-- `cmd/director/runlifecycle_test.go` — stop injected from the hover and from the confirm
-  callback; stop before a runner exists.
-- `cmd/director/runrecord_test.go` — an incomplete run with one verified action is not
-  `verified`; a pressed action with no verdict is `unconfirmed`.
-- `cmd/director/runevidence_test.go` — two runs in one second get two records; a second write
-  to one id is refused; frames land under the run id.
+Freshness at the boundary:
+
+- `cmd/director/freshconfirm_test.go` — `TestASettlingChangeIsRefusedOnEveryLookOfItsSettleRun`:
+  the real observer, settled on one panel and then shown another, refuses on every look of the
+  damped window, and the test asserts the standing claim really did not move.
+- `TestAPanelThatReadsDifferentlyIsRefusedThoughItsShapeAgrees`: same geometry, conflicting text,
+  refused by the stabiliser's own text rule.
+- `TestAPointWithNothingUnderItIsRefusedOnASettledScreen`: a settled screen with nothing under
+  the approved coordinate.
+- `TestAChangedPanelUnderAnAuthorisedStepSendsNoInput`: the real runner, with that boundary
+  installed — zero host calls.
+- `TestABoundaryWithNoFreshEvidenceRefuses`, `TestFreshOfNamesWhatTheStabiliserCountedThisLookAs`,
+  `TestHoldsPointIsBoundedOnEveryEdge`: no look is not a pass; one case per stabiliser counter;
+  one case per edge of the region.
+
+Stop:
+
+- `cmd/director/consentstop_test.go` — `TestAStopQueuedAsAQuestionOpensIsNotDiscarded`.
+- `internal/director/workflowrun/laststop_test.go` — `TestAStopFromTheHoverProbeStopsTheClick`
+  and `TestAStopFromTheWorldCheckStopsTheClick`: a stop arriving after the last check sends no
+  input.
+- `cmd/director/runlifecycle_test.go` — `TestAStartPromptCancellationIsRecordedAsCancelled`:
+  a stop before a runner exists.
+
+Classification and the deadline:
+
+- `cmd/director/runrecord_test.go` — `TestARunRecordKeepsTheFourAnswersApart`: an incomplete run
+  with one verified action is not `verified`; a pressed action with no verdict is `unconfirmed`.
 - `internal/director/workflowrun/deadlinehold_test.go` —
   `TestOneQualifyingReadingDoesNotWaitForever`: one qualifying reading and then silence expires
   `unconfirmed` with no cursor advance.
-- `internal/director/workflowrun/laststop_test.go` — a stop arriving after the last check sends
-  no input.
+
+Evidence and the exits:
+
+- `cmd/director/runevidence_test.go` — `TestTwoAttemptsProposingOneIdGetTwoNamespaces`,
+  `TestNeitherAttemptCanWriteTheOthersEvidence`,
+  `TestARecordCannotBeWrittenWhereNothingWasReserved`,
+  `TestAReservationThatCannotClaimThePixelsClaimsNothing`: every one of them forces a collision
+  rather than hoping for none.
+- `cmd/director/runexits_test.go` — `TestEveryExitPastTheReferenceIsFinalised` walks the
+  function and requires every exit past the citation to finalise;
+  `TestAnAbsentOptionalSourceIsRecordedAsAStartupFailure` and
+  `TestRepairWithoutOCRIsRecordedAsAStartupFailure` drive two of them through the production
+  command with the source forced absent, and the second also asserts the frames directory the
+  record points at;
+  `TestAReservationThatIsNeverFinalisedIsVisibleAsSuch` keeps `started` legible as a defect.
+- `cmd/director/runlifecycle_test.go` — `TestAWindowThatCannotBeAcquiredIsRecordedAsFailed`.
+- `cmd/director/performworkflowwiring_test.go` — `TestPerformWorkflowInstallsItsGates` holds the
+  three things no behavioural test in the package can reach: that the standing claim is read off
+  the fresh look in one statement after the observation, and that the boundary look is given a
+  reader, offers it a frame, and drains it.
 
 ## Links
 

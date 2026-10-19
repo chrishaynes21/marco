@@ -1752,6 +1752,21 @@ it refuses those looks. Visible is fine; in front is not.
   can arrive while a previous step's verification is still pending.
   [[Experiment-093-seven-conditions-a-green-suite-did-not-describe]]
   [[ADR-240-a-stop-is-only-a-stop-at-the-last-moment-it-could-matter]]
+- **And a second round on those fixes found three more, all of them the fix having done the
+  visible half.** `freshLook` took a real capture, which is the half a reviewer reading the diff
+  sees working — and the stabiliser deliberately keeps the standing screen still while a change
+  settles, so a look of a CHANGED interface was taken, folded, and answered for with the screen
+  before it, for as long as a person takes to press F7. A capture had been added to a check that
+  reads a cached claim and the capture did not change what the check read. The fix: the look now
+  reports what `Stability()` made of IT, in three refusals — no look taken, the look did not
+  agree, and nothing proposed under the approved point — and the standing claim comes back ON the
+  evidence, read in one statement after the observation, so there is no order for a caller to get
+  wrong. The other two are the same shape: the first round fixed the exits it had LISTED (the
+  guard now walks the function), and `O_EXCL` on the record arrived after a run's worth of frames
+  had been overwritten (the whole namespace is reserved before the reference is printed). Three
+  of the first mutation pass survived and each named a real gap rather than a missing assertion —
+  including an ORDERING that two source-pinned strings cannot hold. 25 mutations, all killed.
+  [[ADR-240-a-stop-is-only-a-stop-at-the-last-moment-it-could-matter]]
 - **A click's OUTCOME can be verified where the screen does not change, and the terms are
   measured on two games rather than one.** Ark's GRAPHICS tab verifies on 36 independent words
   with 0 false outcomes in 219 windows with no input in them; Rocket League's main menu is
