@@ -107,18 +107,21 @@ func settledOn(t *testing.T, regions []observe.Region,
 // askBoundary is the decision half of `stillThere`, driven with a look offered here.
 //
 // Everything `stillThere` does apart from acquiring the window and asking the desktop what is
-// in front: the look goes to the real observer, the real counters either side of it say what
-// the stabiliser made of it, and the real `worldMoved` decides. The ORDER is the production
-// order — look first, then read the standing claim — because reading it first is the defect.
+// in front: the production `freshFrom` folds the look through the real observer, the real
+// counters either side of it say what the stabiliser made of it, and the real `worldMoved`
+// decides. Nothing here re-implements the order the fold reads things in, which is the half a
+// harness gets wrong.
+//
+// NO READER AND NO PIXELS, so these cases are the run a person gets without `--reading`: words
+// are not load-bearing for any screen, the policy is pixels, and a reading handed to the
+// stabiliser directly is the stabiliser's own input. The boundary's dependence on the words of
+// its OWN capture is in boundarytext_test.go, which has a reader it can stop and start.
 func askBoundary(o *fastobserve.Observer, scope workflowstore.Scope,
 	planned workflowrun.Sighting, lk fastobserve.Look) (bool, string) {
 
 	now := worldNow{Alive: true, State: "valid", Generation: 3,
 		Front: observe.FrontTarget, Application: "thegame"}
-	was := o.Stability()
-	o.Observe(lk)
-	now.Fresh = freshOf(was, o.Stability(), lk.Regions, theControl)
-	now.Fresh.Epoch, now.Fresh.Screen = o.Epoch(), o.Screen()
+	now.Fresh = freshFrom(context.Background(), o, nil, lk, nil, theControl, 0)
 	now.Epoch, now.Screen = now.Fresh.Epoch, now.Fresh.Screen
 	return worldMoved("thegame", scope, now, planned)
 }
@@ -279,11 +282,8 @@ func TestAChangedPanelUnderAnAuthorisedStepSendsNoInput(t *testing.T) {
 
 			now := worldNow{Alive: true, State: "valid", Generation: 3,
 				Front: observe.FrontTarget, Application: "thegame"}
-			lk := boundaryLook(changed)
-			was := o.Stability()
-			o.Observe(lk)
-			now.Fresh = freshOf(was, o.Stability(), lk.Regions, point)
-			now.Fresh.Epoch, now.Fresh.Screen = o.Epoch(), o.Screen()
+			now.Fresh = freshFrom(ctx, o, nil, boundaryLook(changed), nil,
+				point, 0)
 			now.Epoch, now.Screen = now.Fresh.Epoch, now.Fresh.Screen
 			return worldMoved("thegame", scope, now, seen)
 		})
@@ -389,7 +389,7 @@ func TestFreshOfNamesWhatTheStabiliserCountedThisLookAs(t *testing.T) {
 			now := was
 			now.Looks++
 			tc.moved(&now)
-			got := freshOf(was, now, in, theControl)
+			got := freshOf(was, now, in, theControl, false)
 			if !got.Took {
 				t.Fatal("a look that reached the stabiliser is reported as " +
 					"one nobody took")
@@ -412,12 +412,40 @@ func TestFreshOfNamesWhatTheStabiliserCountedThisLookAs(t *testing.T) {
 	// AND THE POINT IS ASKED OF THIS LOOK'S OWN PROPOSALS.
 	was := observe.VisualStability{}
 	now := observe.VisualStability{Settled: 1}
-	if got := freshOf(was, now, nil, theControl); got.Target {
+	if got := freshOf(was, now, nil, theControl, false); got.Target {
 		t.Error("a look that proposed nothing is reported as holding the control")
 	}
 	away := []observe.Region{{X: 0.0, Y: 0.5, Width: 0.2, Height: 0.1}}
-	if got := freshOf(was, now, away, theControl); got.Target {
+	if got := freshOf(was, now, away, theControl, false); got.Target {
 		t.Error("a region nowhere near the point is reported as holding it")
+	}
+
+	// AND `Said` TAKES BOTH HALVES, neither of which is sufficient.
+	//
+	// The counter alone cannot tell a reading of these pixels from a stale one the
+	// epoch rule happened to admit — which is the whole defect. The caller alone
+	// cannot say the words reached the text rule, because an inadmissible or
+	// unusable reading is dropped inside the observer.
+	for _, tc := range []struct {
+		name string
+		own  bool
+		read int
+		want bool
+	}{
+		{"this look's reading, applied", true, 1, true},
+		{"this look's reading, never applied", true, 0, false},
+		{"a reading of some other frame", false, 1, false},
+		{"no reading at all", false, 0, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			was := observe.VisualStability{Settled: 3, TextRead: 4}
+			now := was
+			now.Settled++
+			now.TextRead += tc.read
+			if got := freshOf(was, now, in, theControl, tc.own); got.Said != tc.want {
+				t.Errorf("said=%v, want %v", got.Said, tc.want)
+			}
+		})
 	}
 }
 

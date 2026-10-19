@@ -47,6 +47,11 @@ import (
 )
 
 // readingFrame is one frame handed to OCR, with the observation it came from.
+//
+// `look` is the frame's identity and the only thing that ties a reading back to the pixels it
+// describes. The loop numbers its looks from zero; the authorisation boundary takes a NEGATIVE
+// number of its own from `nextBoundaryRead`, so a reading of one boundary capture can never be
+// mistaken for a reading of the loop's last frame or of the other boundary in the same press.
 type readingFrame struct {
 	img        image.Image
 	look       int
@@ -56,13 +61,21 @@ type readingFrame struct {
 
 // readingEyes is OCR running on its own clock.
 type readingEyes struct {
-	eng  *ocrclient.Engine
+	// eng is the engine. An interface rather than the concrete bridge client because the
+	// authorisation boundary now DEPENDS on when a reading arrives, and a test that
+	// cannot decide when one arrives cannot describe that dependence.
+	eng  ocr.Engine
 	work chan readingFrame
 	done chan observe.ScreenReading
 	// asked and answered count frames offered and readings returned; dropped counts
 	// frames skipped because a reading was still running, which is the ordinary case and
 	// the number that says how far behind OCR is.
 	asked, answered, dropped, words atomic.Int64
+	// atBoundary counts readings asked for AT an authorisation boundary, and tooLate how
+	// many of those did not arrive inside their budget. A run with tooLate above zero is
+	// a run that refused presses for want of words, which is the correct refusal and
+	// still the number somebody would want to see.
+	atBoundary, tooLate atomic.Int64
 	// readMS is the total milliseconds spent reading, and the count of readings is
 	// `answered`, so the mean is one division.
 	//
@@ -142,78 +155,142 @@ func (e *readingEyes) run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case f := <-e.work:
-			// HALF SIZE, BECAUSE THE DEADLINE IS REAL. See readScale.
-			began := time.Now()
-			got, err := e.eng.Recognize(ctx, ocr.ImageInput{
-				Image: shrink(f.img, readScale),
-			})
-			// TIMED WHETHER OR NOT IT WORKED, because a reading that takes two
-			// seconds and fails is the same problem as one that takes two
-			// seconds and succeeds.
-			ms := time.Since(began).Milliseconds()
-			e.readMS.Add(ms)
-			for {
-				was := e.slowest.Load()
-				if ms <= was || e.slowest.CompareAndSwap(was, ms) {
-					break
-				}
-			}
-			if err != nil {
-				// NOT A SILENT SCREEN. A reading that failed is offered as
-				// nothing at all, so the observer counts it as a source that
-				// could not answer rather than as a screen with no words on
-				// it — see ScreenText and ReadingsSilent.
+			r, ok := e.recognise(ctx, f)
+			if !ok {
 				continue
 			}
-			e.answered.Add(1)
-			// THE FRAME THAT WAS ACTUALLY READ, which is the shrunken one, so
-			// every box comes back in its coordinates and not the window's.
-			b := shrink(f.img, readScale).Bounds()
-			w, h := float64(b.Dx()), float64(b.Dy())
-			var phrases []string
-			var placed []observe.ReadWord
-			for _, g := range got {
-				if g.Text == "" || g.Bounds.Empty() {
-					continue
-				}
-				phrases = append(phrases, g.Text)
-				if w <= 0 || h <= 0 {
-					continue
-				}
-				// EACH WORD SEPARATELY, because a phrase's rectangle is the
-				// span of several words and a span is not inside the row one
-				// of them sits in. The box is shared by the words it holds:
-				// the engine reports a line, and splitting its rectangle on
-				// character counts would invent positions nothing measured.
-				for _, word := range strings.Fields(g.Text) {
-					placed = append(placed, observe.ReadWord{
-						Text: word,
-						Where: observe.Region{
-							X:      float64(g.Bounds.Min.X-b.Min.X) / w,
-							Y:      float64(g.Bounds.Min.Y-b.Min.Y) / h,
-							Width:  float64(g.Bounds.Dx()) / w,
-							Height: float64(g.Bounds.Dy()) / h,
-						},
-					})
-				}
-			}
-			r := observe.ScreenReading{
-				Text:     observe.TextOf(directorapi.SourceOCR, phrases),
-				Words:    placed,
-				FromLook: f.look,
-				// THE CONTEXT THE PIXELS WERE READ IN, which is the whole of
-				// what makes a late reading safe. The observer refuses one
-				// whose window or observation generation has moved.
-				Generation: f.generation,
-				Epoch:      f.epoch,
-			}
-			e.words.Add(int64(len(r.Text.Words)))
 			select {
 			case e.done <- r:
 			default: // nobody drained; the next look will have a fresher one anyway
 			}
 		}
 	}
+}
+
+// readNow reads ONE frame and waits for THAT frame's words, up to a budget.
+//
+// # Why the queue is not the way to ask
+//
+// `offer` and `ready` are a pipeline for the loop: the queue is one deep, the newest frame
+// wins, and `ready` returns whatever has FINISHED — which is the reading of some earlier
+// frame, or nothing. That is exactly right for a loop that looks ten times a second and will
+// look again, and it is wrong for a question whose answer decides whether a click is sent.
+//
+// The authorisation boundary offered its capture and drained in the same breath, so the words
+// it put on its look were the words of the frame BEFORE the one it had just taken. With the
+// observation epoch unchanged — which it is, for as long as the stabiliser is damping the
+// change — those stale words are admissible, agree with the standing screen, and CONFIRM the
+// screen the plan was made on. A panel swapped for one of the same shape then had nothing left
+// to refuse it. See freshFrom.
+//
+// So this is a different request with a different shape: this frame, this answer, bounded, and
+// cancellable. It bypasses the queue rather than competing for it — the bridge serialises its
+// own calls, so at worst this waits behind the one reading already in flight, and the loop's
+// pipeline is left exactly as it was. The caller is a goroutine that is already waiting for a
+// person, not the observation loop.
+//
+// `false` means no reading of THIS frame could be had inside the budget, which the boundary
+// treats as missing evidence rather than as agreement.
+func (e *readingEyes) readNow(ctx context.Context, f readingFrame,
+	within time.Duration) (observe.ScreenReading, bool) {
+
+	if !e.working() {
+		return observe.ScreenReading{}, false
+	}
+	e.atBoundary.Add(1)
+	ctx, cancel := context.WithTimeout(ctx, within)
+	defer cancel()
+	// BUFFERED, so the reading goroutine is never left blocked on a send nobody is
+	// waiting for any more. A bridge call cannot be interrupted once it has been
+	// written, so giving up here means giving up on the ANSWER and not on the work.
+	out := make(chan observe.ScreenReading, 1)
+	go func() {
+		if r, ok := e.recognise(ctx, f); ok {
+			out <- r
+		}
+	}()
+	select {
+	case r := <-out:
+		return r, true
+	case <-ctx.Done():
+		e.tooLate.Add(1)
+		return observe.ScreenReading{}, false
+	}
+}
+
+// recognise reads one frame and returns it as a reading, or false if it could not be read.
+//
+// The one place a reading is made, for both the loop's pipeline and the boundary's bounded
+// request. Shared rather than written twice because the SCALE is part of the evidence: the
+// vocabulary every screen was recognised by was read at `readScale`, and a boundary reading
+// taken at full size would come back with measurably different words — 181 distinct against
+// 217 over the same frames — and disagree with the screen it is a reading of.
+func (e *readingEyes) recognise(ctx context.Context, f readingFrame) (
+	observe.ScreenReading, bool) {
+
+	// HALF SIZE, BECAUSE THE DEADLINE IS REAL. See readScale.
+	img := shrink(f.img, readScale)
+	began := time.Now()
+	got, err := e.eng.Recognize(ctx, ocr.ImageInput{Image: img})
+	// TIMED WHETHER OR NOT IT WORKED, because a reading that takes two seconds and
+	// fails is the same problem as one that takes two seconds and succeeds.
+	ms := time.Since(began).Milliseconds()
+	e.readMS.Add(ms)
+	for {
+		was := e.slowest.Load()
+		if ms <= was || e.slowest.CompareAndSwap(was, ms) {
+			break
+		}
+	}
+	if err != nil {
+		// NOT A SILENT SCREEN. A reading that failed is offered as nothing at all,
+		// so the observer counts it as a source that could not answer rather than
+		// as a screen with no words on it — see ScreenText and ReadingsSilent.
+		return observe.ScreenReading{}, false
+	}
+	e.answered.Add(1)
+	// THE FRAME THAT WAS ACTUALLY READ, which is the shrunken one, so every box comes
+	// back in its coordinates and not the window's.
+	b := img.Bounds()
+	w, h := float64(b.Dx()), float64(b.Dy())
+	var phrases []string
+	var placed []observe.ReadWord
+	for _, g := range got {
+		if g.Text == "" || g.Bounds.Empty() {
+			continue
+		}
+		phrases = append(phrases, g.Text)
+		if w <= 0 || h <= 0 {
+			continue
+		}
+		// EACH WORD SEPARATELY, because a phrase's rectangle is the span of several
+		// words and a span is not inside the row one of them sits in. The box is
+		// shared by the words it holds: the engine reports a line, and splitting its
+		// rectangle on character counts would invent positions nothing measured.
+		for _, word := range strings.Fields(g.Text) {
+			placed = append(placed, observe.ReadWord{
+				Text: word,
+				Where: observe.Region{
+					X:      float64(g.Bounds.Min.X-b.Min.X) / w,
+					Y:      float64(g.Bounds.Min.Y-b.Min.Y) / h,
+					Width:  float64(g.Bounds.Dx()) / w,
+					Height: float64(g.Bounds.Dy()) / h,
+				},
+			})
+		}
+	}
+	r := observe.ScreenReading{
+		Text:     observe.TextOf(directorapi.SourceOCR, phrases),
+		Words:    placed,
+		FromLook: f.look,
+		// THE CONTEXT THE PIXELS WERE READ IN, which is the whole of what makes a
+		// late reading safe. The observer refuses one whose window or observation
+		// generation has moved.
+		Generation: f.generation,
+		Epoch:      f.epoch,
+	}
+	e.words.Add(int64(len(r.Text.Words)))
+	return r, true
 }
 
 // readScale is how much the frame is reduced before it is read.
@@ -311,6 +388,14 @@ func (e *readingEyes) describe() string {
 	if n := e.answered.Load(); n > 0 {
 		out += ", mean " + itoa(e.readMS.Load()/n) + "ms, slowest " +
 			itoa(e.slowest.Load()) + "ms"
+	}
+	// AND WHAT THE BOUNDARY ASKED FOR, which is a different request from the loop's and
+	// the only one anything waits on. `tooLate` above zero is a press refused for want of
+	// the words that would have told it whether the panel under the pointer is still the
+	// panel somebody authorised — see readNow.
+	if n := e.atBoundary.Load(); n > 0 {
+		out += ", at an authorisation boundary " + itoa(n) + " (" +
+			itoa(e.tooLate.Load()) + " too late)"
 	}
 	return out
 }

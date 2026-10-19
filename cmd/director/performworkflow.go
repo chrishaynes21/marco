@@ -1062,6 +1062,33 @@ type freshEvidence struct {
 	// clean, and have nothing under the approved coordinate. A click there lands on
 	// whatever is behind it.
 	Target bool
+	// Needed says words are load-bearing for the screen this point was approved on.
+	//
+	// True when there is a text source running AND that screen has a vocabulary of its
+	// own — which is the state the stabiliser's text rule needs on the screen's side
+	// before it can refuse a merge at all. Without a reader, or on a screen nobody has
+	// read, the grounding policy is and always was pixels, and demanding words would
+	// refuse every press for evidence this run was never going to have.
+	Needed bool
+	// Said says the stabiliser applied a reading of THIS look's own pixels to it.
+	//
+	// ── WHY AGREEING GEOMETRY IS NOT ENOUGH WHEN A SCREEN HAS WORDS ──
+	//
+	// Two panels of one shape agree by arrangement: ADR-194 measured Rocket League's
+	// Training page and its Free Play submenu at 0.721 against a threshold of 0.55, and
+	// only the words kept them apart. So a boundary look that settles onto the standing
+	// screen by arrangement ALONE has established nothing about a same-shape change, and
+	// on a screen whose identity words have been separating, that is the one change left
+	// for this check to catch.
+	//
+	// It needs both halves. The reading has to come back for this capture — correlated by
+	// `readingFrame.look` — and the stabiliser has to have counted a reading on this look.
+	// The first without the second means the words never reached the text rule. The second
+	// without the first is the defect: the boundary used to offer its frame and drain in
+	// the same breath, so what it put on its look was a reading of the frame BEFORE it,
+	// admissible because the epoch had not moved, agreeing with the screen the plan was
+	// made on.
+	Said bool
 	// Epoch and Screen are the observer's standing claim AFTER this look.
 	//
 	// ── CARRIED HERE SO THE ORDER CANNOT BE GOT WRONG ──
@@ -1082,7 +1109,7 @@ type freshEvidence struct {
 
 // worldMoved reports whether the world is still the one an action was planned against.
 //
-// Seven refusals, each with its own sentence, in two groups.
+// Eight refusals, each with its own sentence, in two groups.
 //
 // The first four are read off the observer's STANDING claim, and they exist because a person
 // was asked something: a prompt is an unbounded pause in the middle of the one sequence that
@@ -1090,7 +1117,7 @@ type freshEvidence struct {
 // describe a screen that has gone, and the point is then a coordinate on a screen that is no
 // longer standing.
 //
-// The last three are read off a look taken HERE, and they exist because the first four cannot
+// The last four are read off a look taken HERE, and they exist because the first four cannot
 // see a change that is still settling. See worldNow.Fresh.
 func worldMoved(app string, scope workflowstore.Scope, now worldNow,
 	planned workflowrun.Sighting) (bool, string) {
@@ -1153,6 +1180,26 @@ func worldMoved(app string, scope workflowstore.Scope, now worldNow,
 			"not agree with the screen this point was approved on (%s), so the "+
 			"screen may be changing underneath it and a change that is still "+
 			"settling is still a change", now.Fresh.Counted)
+	case now.Fresh.Needed && !now.Fresh.Said:
+		// ── AGREEING BY ARRANGEMENT ALONE, ON A SCREEN WORDS DECIDE ──
+		//
+		// The look agreed, and on a screen that has a vocabulary that agreement
+		// is only as good as the arrangement threshold. Two panels of one shape
+		// clear it — 0.721 against 0.55, measured — and the words are what
+		// separate them, so a look nobody read is not evidence that this is still
+		// that panel.
+		//
+		// This is the term the first fix did not have. The boundary offered its
+		// capture to OCR and drained in the same breath, so the words on its look
+		// described the frame before it, and an unchanged epoch made them
+		// admissible. The reading is now asked for BY FRAME and waited for inside
+		// a budget; a budget that expires is this refusal, which is the direction
+		// to fail in.
+		return false, "the look taken at the instant of the press agreed with " +
+			"the screen this point was approved on by its arrangement alone, " +
+			"and that screen is one words have been separating: no reading of " +
+			"this look's own pixels arrived in time, and an arrangement two " +
+			"panels of one shape share is not evidence that this is the same one"
 	case !now.Fresh.Target:
 		// ── AND THE CONTROL ITSELF, IN THIS LOOK'S OWN PROPOSALS ──
 		//
@@ -2072,10 +2119,11 @@ var newKeySource = navsource.New
 //
 // # Text
 //
-// Whatever OCR has finished is drained onto the look exactly as the loop drains it, so a
-// changed panel that reads differently can be refused by the stabiliser's own text rule rather
-// than having to differ geometrically. `reader` is resolved at call time because the look is
-// built before the reader exists.
+// On a screen words have been separating, agreeing geometry is not an answer — so the look's
+// own reading is asked for BY FRAME and waited for inside a budget. That is `freshFrom`, which
+// is where everything this decides lives; the capture and the proposal are here because only
+// they need a desktop. `reader` is resolved at call time because the look is built before the
+// reader exists.
 //
 // It costs one capture per authorised action, on the goroutine that is already waiting, and it
 // is counted as the look it is.
@@ -2111,27 +2159,108 @@ func freshLook(shots *wincapture.Capture, obs *fastobserve.Observer, windows *wi
 			rects = append(rects, c.Bounds)
 		}
 		lk.Regions = observe.NormaliseRects(img.Image.Bounds(), rects)
-		if r := reader; r != nil {
-			if e := r(); e.working() {
-				e.offer(readingFrame{
-					img: img.Image, look: -1,
-					epoch:      obs.Epoch(),
-					generation: v.Ref.Generation,
-				})
-				lk.Readings = e.ready()
-			}
+		var eyes *readingEyes
+		if reader != nil {
+			eyes = reader()
 		}
-		was := obs.Stability()
-		obs.Observe(lk)
-		// THE VERDICT AND THE STANDING CLAIM, BOTH FROM AFTER THE LOOK.
-		//
-		// One statement, because they are one answer: what the stabiliser made of this
-		// look, and what it is standing on now that it has seen it. Reading either
-		// before `obs.Observe` above would be reading the state the plan was made in.
-		e := freshOf(was, obs.Stability(), lk.Regions, point)
-		e.Epoch, e.Screen = obs.Epoch(), obs.Screen()
-		return e
+		return freshFrom(ctx, obs, eyes, lk, img.Image, point, boundaryTextWait)
 	}
+}
+
+// boundaryTextWait is how long a boundary waits for the words of its own capture.
+//
+// # The arithmetic
+//
+// A reading costs 516ms at `readScale` on this machine, and the slowest measured was 920ms —
+// see readScale, where both numbers were taken on these frames through this tesseract. At most
+// one reading can be ahead of it: the observation loop is BLOCKED inside `Advance` for as long
+// as somebody is being asked, so nothing new is offered while this waits, and the bridge
+// serialises the one call that was already in flight when the question was posed. That call
+// started before a person could answer, so most of it is already spent.
+//
+// One second and a half is the slowest measured reading plus most of another. Past it the honest
+// answer is that the words did not arrive, and the honest answer is a refusal — a person presses
+// F7 again and the second attempt has a quiet reader in front of it.
+//
+// It is paid per boundary, and there are two before an ordinary click (the hover probe and the
+// world check). A press that waits three seconds and lands on the control somebody authorised
+// is a better press than one that waits none and lands on the panel that replaced it.
+const boundaryTextWait = 1500 * time.Millisecond
+
+// boundaryReads numbers boundary captures, so a reading can be tied to the pixels it describes.
+//
+// Negative and descending, which keeps it out of the loop's own look numbering, and distinct per
+// capture so the hover probe's boundary and the world check's boundary — two captures a quarter
+// of a second apart, on one screen, with one epoch — cannot be credited with each other's words.
+var boundaryReads atomic.Int64
+
+func nextBoundaryRead() int { return int(-1 - boundaryReads.Add(1)) }
+
+// freshFrom folds one boundary look and reports what the stabiliser made of it.
+//
+// Everything the boundary DECIDES, which is why it is here rather than inside the closure above:
+// the capture and the proposal need a desktop and this does not.
+//
+// # The reading of this look, and not of the one before it
+//
+// `offer` then `ready` in the same breath is the pipeline the loop uses, and for the loop it is
+// right: the queue is one deep, the newest frame wins, and whatever has finished describes a
+// frame a few looks back. At a boundary it is the defect. The epoch does not move while the
+// stabiliser damps a change, so a reading of the PREVIOUS frame is admissible, agrees with the
+// standing screen, and confirms the very screen the plan was made on — and a panel swapped for
+// one of the same shape has nothing left to refuse it.
+//
+// So the reading is asked for by frame, with an id of this capture's own, and waited for inside
+// a budget. Nothing here drains `ready()`: a reading that is not of these pixels is not evidence
+// about these pixels, however current its stamps are.
+//
+// # And whether words were needed at all
+//
+// Asked BEFORE the look, of the screen standing then — which is the screen the point was
+// approved on. After the look the question would be about a vocabulary this very look's reading
+// had just contributed to. A screen nobody has read, or a run with no reader, is folded exactly
+// as it always was: text can only refuse a merge, so where there is no text there is nothing to
+// withhold and pixels are the whole of the policy.
+func freshFrom(ctx context.Context, obs *fastobserve.Observer, reader *readingEyes,
+	lk fastobserve.Look, img image.Image, point observe.PointerAt,
+	within time.Duration) freshEvidence {
+
+	needed := reader.working() && obs.SaidBy(obs.Screen()).Said()
+	own := false
+	// ONLY WHERE THE ANSWER COULD DECIDE ANYTHING. A screen with no vocabulary cannot
+	// be contradicted by a reading, so waiting for one would spend a second and a half
+	// of a person's time, twice per press, to learn nothing.
+	if needed && img != nil {
+		id := nextBoundaryRead()
+		rd, got := reader.readNow(ctx, readingFrame{
+			img: img, look: id,
+			epoch:      obs.Epoch(),
+			generation: lk.Window.Generation,
+		}, within)
+		// THIS FRAME'S READING, AND NO OTHER.
+		//
+		// The id is what says the words came from the pixels this look is made
+		// of. Nothing else is asked here: whether a reading is still admissible
+		// is the observer's own rule and is applied inside `intakeReadings`,
+		// where every late reading goes through it. Asking it twice would be two
+		// statements of one rule, and `Said` already requires the stabiliser to
+		// have counted this look's words — an inadmissible reading is dropped in
+		// there and the boundary refuses for want of it.
+		if got && rd.FromLook == id {
+			lk.Readings, own = []observe.ScreenReading{rd}, true
+		}
+	}
+	was := obs.Stability()
+	obs.Observe(lk)
+	// THE VERDICT AND THE STANDING CLAIM, BOTH FROM AFTER THE LOOK.
+	//
+	// One statement, because they are one answer: what the stabiliser made of this
+	// look, and what it is standing on now that it has seen it. Reading either
+	// before `obs.Observe` above would be reading the state the plan was made in.
+	e := freshOf(was, obs.Stability(), lk.Regions, point, own)
+	e.Epoch, e.Screen = obs.Epoch(), obs.Screen()
+	e.Needed = needed
+	return e
 }
 
 // freshOf reads the stabiliser's verdict on one look out of its counters.
@@ -2143,10 +2272,16 @@ func freshLook(shots *wincapture.Capture, obs *fastobserve.Observer, windows *wi
 // `Settled` is the only counter whose movement means "this was a look at the screen that is
 // standing". Every other one names something else that happened to the look, and the name goes
 // into the refusal so a person is told which.
+//
+// `ownText` is the caller saying it put a reading of THIS look's own pixels on the look. Both
+// halves are required for `Said` and neither is sufficient: the counter alone cannot tell a
+// reading of these pixels from a stale one the epoch rule happened to admit, and the caller
+// alone cannot say whether the words ever reached the text rule — an inadmissible or unusable
+// reading is dropped inside the observer, silently and correctly.
 func freshOf(was, now observe.VisualStability, proposed []observe.Region,
-	point observe.PointerAt) freshEvidence {
+	point observe.PointerAt, ownText bool) freshEvidence {
 
-	e := freshEvidence{Took: true}
+	e := freshEvidence{Took: true, Said: ownText && now.TextRead > was.TextRead}
 	switch {
 	case now.Settled > was.Settled:
 		e.Agreed, e.Counted = true, "settled"

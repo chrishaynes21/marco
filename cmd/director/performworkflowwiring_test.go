@@ -132,7 +132,7 @@ func TestPerformWorkflowInstallsItsGates(t *testing.T) {
 		// place either value is read and it is this statement, inside `freshLook`,
 		// immediately after the observation. Pinned as ONE string, because the
 		// order is the thing being held and two strings cannot hold an order.
-		{"e := freshOf(was, obs.Stability(), lk.Regions, point)\n\t\te.Epoch, e.Screen = obs.Epoch(), obs.Screen()",
+		{"e := freshOf(was, obs.Stability(), lk.Regions, point, own)\n\te.Epoch, e.Screen = obs.Epoch(), obs.Screen()",
 			"the verdict and the standing claim have to be read together and " +
 				"after the look; split apart, one of them can drift above " +
 				"`obs.Observe` and describe the screen the plan was made on"},
@@ -200,31 +200,41 @@ func TestPerformWorkflowInstallsItsGates(t *testing.T) {
 		{"freshLook(shots, obs, windows,",
 			"without the fresh look installed the confirmation has nothing " +
 				"to take a look with"},
-		// AND THE BOUNDARY LOOK GETS WHATEVER OCR HAS FINISHED.
+		// AND THE BOUNDARY LOOK IS GIVEN THE WORDS OF ITS OWN CAPTURE.
 		//
-		// Three strings, because all three are needed and each can be removed on its
-		// own. Without the seam the look is built before `reader` exists and closes
-		// over nil forever; without the offer OCR is never given the boundary's
-		// frame; without the drain every reading is computed and discarded. The
-		// stabiliser's text rule is the only thing that can separate a panel swapped
-		// for one of the SAME SHAPE, and with any of these missing a boundary look
-		// carries no words for it to rule on.
-		//
-		// Held here rather than behaviourally because the behavioural version needs
-		// OCR running against a live window, which the suite cannot arrange. Three
-		// mutations — nil seam, dropped offer, discarded drain — survived everything
-		// else in this package.
+		// Not whatever OCR has finished, which is what it used to take: `offer` and
+		// `ready` in one breath put the reading of the PREVIOUS frame on the look,
+		// and an unchanged epoch made it admissible, so a panel swapped for one of
+		// the same shape was confirmed by the words of the panel it replaced. See
+		// freshFrom and readNow. The behavioural half of this is in
+		// boundarytext_test.go, which gates the engine; what is held here is what
+		// that test cannot see.
 		{"func() *readingEyes { return reader }",
 			"the boundary look is installed above the place the reader is made, " +
 				"so without a closure over the variable it sees nil for the " +
 				"whole run"},
-		{"e.offer(readingFrame{",
-			"without it OCR is never given the frame the boundary looked at, and " +
-				"a changed panel of the same shape has no words to be " +
-				"refused by"},
-		{"lk.Readings = e.ready()",
-			"without it the boundary's readings are computed and thrown away, " +
-				"and the stabiliser rules on geometry alone"},
+		{"freshFrom(ctx, obs, eyes, lk, img.Image, point, boundaryTextWait)",
+			"the production budget is this constant; a boundary that passed its " +
+				"own number, or none, would wait for a length of time no " +
+				"measurement decided"},
+		{"rd, got := reader.readNow(ctx, readingFrame{",
+			"without the by-frame request the boundary is back to draining " +
+				"whatever has finished, which is a reading of the frame " +
+				"before the one it just took"},
+		// AND THE CAPTURE IS IDENTIFIED, AND THE READING IS CHECKED AGAINST IT.
+		//
+		// Structural on purpose. `readNow` answers on a channel of its own, so no
+		// test in this package can hand the boundary a foreign reading and watch the
+		// id refuse it — and the day somebody routes this through the shared queue
+		// again, the id is the only thing standing between a boundary and the words
+		// of the look before it. Two captures a quarter of a second apart, under one
+		// epoch, is the case it exists for.
+		{"img: img, look: id,",
+			"a frame offered without an id of its own cannot be told from any " +
+				"other frame read under the same epoch"},
+		{"if got && rd.FromLook == id {",
+			"without the comparison the id is decoration, and any reading that " +
+				"arrives becomes evidence about these pixels"},
 		// AND IT REACHES THE RUNNER SAFELY. The desk's goroutine starts while
 		// `run` is still nil, so a stop key pressed during initialisation
 		// dereferenced nil and took the process down; afterwards it was an
