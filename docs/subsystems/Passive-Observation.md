@@ -1632,6 +1632,18 @@ it refuses those looks. Visible is fine; in front is not.
   contained it, and press 1 resolved to a rectangle with no word in it whose nearest label is
   `RESUME`, 0.052 away — Experiment 083's neighbour effect on a second game.
   [[Experiment-085-the-graphics-tab-is-a-button]]
+- **An executable workflow did not know which application it belonged to, so an Ark routine
+  could be pointed at another game with nothing but a person's answer in the way.** Found while
+  answering a different question — which game is in front — and release-blocking for pixel
+  execution. A workflow now records the executable image name of the window that was WATCHED,
+  never the `--application` argument, and may act on that application and no other: checked
+  before anything that can press exists, and again immediately before every press, because a
+  valid check at invocation is not permanent authorisation. An artifact saved without a scope is
+  UNSCOPED — readable, and valid for no application until it is bound from observed provenance —
+  because the dangerous reading of an empty field is "matches anything". And `--application`
+  became optional: Marco reads the foreground itself, cold, with no daemon, refusing in four
+  named ways rather than guessing.
+  [[ADR-236-a-workflow-belongs-to-the-application-it-was-shown-in]]
 - **Four things stood between a demonstration and an executable click, and one of them reported
   success over a click that never happened.** The execution path is pixel-native in all but one
   of the owner's eight requirements — it collected no post-action evidence, which

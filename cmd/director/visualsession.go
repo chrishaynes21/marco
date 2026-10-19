@@ -128,6 +128,13 @@ type visualResult struct {
 	// Collected here and WRITTEN nowhere: this file's own wiring test asserts that the
 	// shared loop names nothing that writes. See demonstratevisual.go.
 	moments []workflowstore.Moment
+	// application is the executable image name of the window actually watched.
+	//
+	// OBSERVED, never the selector the person typed: a selector is what somebody asked
+	// to watch and the image is what they watched, and the one time those differ is the
+	// one time it matters. It is what the saved workflow is scoped to — see
+	// workflowstore.Scope.
+	application string
 	// generations is the distinct window identities the session ran against.
 	//
 	// More than one means the window was replaced mid-demonstration, which invalidates
@@ -284,6 +291,9 @@ func (s visualSession) watch(ctx context.Context, obs *fastobserve.Observer,
 			res.generations = map[uint64]bool{}
 		}
 		res.generations[v.Ref.Generation] = true
+		// AND WHAT THE WINDOW LAYER SAYS THIS APPLICATION IS, which is what the
+		// saved workflow will be scoped to.
+		res.application = v.Ref.Application
 		if navs != nil && v.Ref.Bounds.Width > 0 && v.Ref.Bounds.Height > 0 {
 			navs.SetWindowBounds(v.Ref.Bounds.X, v.Ref.Bounds.Y,
 				v.Ref.Bounds.Width, v.Ref.Bounds.Height, time.Now())

@@ -95,6 +95,20 @@ type Artifact struct {
 	// procedure. That is why it needed no version bump, and it is asserted rather than
 	// assumed — see correction.go, which is also where the one way to make one lives.
 	Corrections []Correction `json:"corrections,omitempty"`
+	// Application is which application this workflow was demonstrated against, empty
+	// for one saved before workflows recorded it.
+	//
+	// The executable image name, which is the identity that survives a restart. EMPTY
+	// IS NOT UNIVERSAL: an unscoped workflow is readable and is valid for no
+	// application until it is bound to one from observed provenance. See scope.go for
+	// why it is not a PID, a handle or a title, and for the defect it closes — a
+	// workflow demonstrated against one game could be pointed at another, with nothing
+	// but a person's answer in the way.
+	//
+	// Additive, so every artifact already on disk still loads. A reader that ignored it
+	// would perform the same steps; what it would lose is the refusal, which is why
+	// the refusal lives in the command path and not only here.
+	Application Scope `json:"application,omitempty"`
 	// CorrectedAt is when the procedure was last changed by a person, zero when it never
 	// was. SEPARATE from SavedAt, which stays the instant the demonstration was saved
 	// because it is the link to the raw record beside it.

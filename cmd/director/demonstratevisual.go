@@ -213,6 +213,20 @@ func runDemonstrateVisual(args []string) int {
 		fmt.Fprintf(os.Stderr, "director: %v\n", err)
 		return 1
 	}
+	// ── AND WHICH APPLICATION IT BELONGS TO ──
+	//
+	// From the window that was actually WATCHED, never from `--application`: a selector is
+	// what somebody asked for and the image name is what they got, and the one time those
+	// differ is the one time it matters. An unscoped workflow is valid for no application,
+	// so failing to bind one saves a routine that cannot be run live — which is why this
+	// is an error rather than a warning. See workflowstore.Scope.
+	scoped, serr := a.ScopedTo(res.application)
+	if serr != nil {
+		fmt.Fprintf(os.Stderr, "director: the demonstration cannot be scoped to an "+
+			"application: %v\n", serr)
+		return 1
+	}
+	a = scoped
 	if *dry {
 		fmt.Printf("\n--dry-run: %q would be saved with %d step(s), %d screen(s) and "+
 			"%d control(s). Nothing was written.\n",

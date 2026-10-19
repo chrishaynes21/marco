@@ -21,13 +21,16 @@ package main
 // below, because it is the part that can be wrong in a way nobody would see.
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflowrun"
+	"github.com/chaynes-simpleclouds/marco/internal/director/workflowstore"
 )
 
 func TestPerformWorkflowIsDispatchedAndReachable(t *testing.T) {
@@ -46,10 +49,18 @@ func TestPerformWorkflowIsDispatchedAndReachable(t *testing.T) {
 	// AND THE ENTRY POINT IS ENTERED. Missing arguments, so nothing is observed, no
 	// window is acquired and no host is built — but the function runs, which is the one
 	// thing a source read cannot establish.
+	// A MISSING `--application` IS NO LONGER ONE OF THESE.
+	//
+	// It became a target SELECTOR rather than a requirement: Marco reads the foreground
+	// itself, cold, with no daemon — see foreground.go. So `{"--workflow", "x"}` alone is
+	// not a usage refusal on a machine with a readable foreground, and it IS one on a
+	// machine without one. That makes its exit code a property of the desktop the test
+	// runs on rather than of the command, so it is asserted where it belongs:
+	// `TestForegroundDiscoveryRefusesRatherThanGuessing` drives the resolver over
+	// supplied candidates, and needs no desktop at all.
 	for _, args := range [][]string{
 		{},
 		{"--application", "notepad"},
-		{"--workflow", "nothing.json"},
 		{"--application", "notepad", "--workflow", "x.json", "--seconds", "9999"},
 		{"--application", "notepad", "--workflow", "x.json", "--fps", "0"},
 	} {
@@ -172,8 +183,11 @@ func TestPerformWorkflowInstallsItsGates(t *testing.T) {
 // while they read it is unbounded, and in it the screen can change.
 func TestWorldMovedRefusesEachWayTheWorldCanHaveMoved(t *testing.T) {
 	planned := workflowrun.Sighting{Screen: "now_1", Epoch: 7, Generation: 3}
+	// THE APPLICATION IS ON THE WORLD NOW, because the scope is rechecked at the instant
+	// of the press and `worldMoved` is where that case lives.
 	held := worldNow{Alive: true, Generation: 3, Epoch: 7, Front: observe.FrontTarget,
-		Screen: "now_1"}
+		Screen: "now_1", Application: "rocketleague"}
+	scope := workflowstore.NormaliseScope("rocketleague")
 
 	for _, tc := range []struct {
 		name  string
@@ -200,7 +214,7 @@ func TestWorldMovedRefusesEachWayTheWorldCanHaveMoved(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			now := held
 			tc.spoil(&now)
-			ok, why := worldMoved("rocketleague", now, planned)
+			ok, why := worldMoved("rocketleague", scope, now, planned)
 			if ok {
 				t.Fatal("the world moved and the press was allowed")
 			}
@@ -219,7 +233,331 @@ func TestWorldMovedRefusesEachWayTheWorldCanHaveMoved(t *testing.T) {
 
 	// AND THE WORLD THAT DID NOT MOVE IS ALLOWED, or every refusal above would pass with
 	// the function replaced by `return false`.
-	if ok, why := worldMoved("rocketleague", held, planned); !ok {
+	if ok, why := worldMoved("rocketleague", scope, held, planned); !ok {
 		t.Fatalf("a world that did not move refused the press: %s", why)
+	}
+}
+
+// THE APPLICATION IS RECHECKED AT THE INSTANT OF THE PRESS, NOT ONLY AT INVOCATION.
+//
+// The race the owner asked for by name:
+//
+//	Marco identifies Solasta correctly, but the foreground changes to another application
+//	before the click. The initial check must not be enough to authorize that later input.
+//
+// Time of check is not time of use. The gate in `runPerformWorkflow` compares the artifact
+// against the window acquired THEN; `worldMoved` is asked again immediately before every press,
+// and between the two the person may have alt-tabbed, the game may have exited and another
+// taken its handle, or `Acquire` may have resolved a different window of a different
+// application.
+//
+// Driven over the pure function, so the race is reproducible without a desktop and without
+// anything being pressed.
+func TestTheApplicationIsRecheckedAtTheInstantOfThePress(t *testing.T) {
+	scope := workflowstore.NormaliseScope("solasta")
+	planned := workflowrun.Sighting{Generation: 3, Epoch: 7, Screen: "now_1"}
+	standing := worldNow{Alive: true, Generation: 3, Epoch: 7,
+		Front: observe.FrontTarget, Screen: "now_1", Application: "solasta"}
+
+	// THE WORLD THAT DID NOT MOVE IS ALLOWED, so the refusals below are about the
+	// application and not about the function refusing everything.
+	if ok, why := worldMoved("solasta", scope, standing, planned); !ok {
+		t.Fatalf("a world that did not move refused the press: %s", why)
+	}
+
+	// ── AND THE SAME WORLD WITH ANOTHER APPLICATION IN IT IS REFUSED ──
+	//
+	// Everything else is identical: alive, same window generation, same observation
+	// epoch, same screen standing, target in front. The ONLY difference is which
+	// application the window belongs to, which is exactly the race.
+	for _, c := range []struct {
+		name string
+		app  string
+		says string
+	}{
+		{"the person alt-tabbed to another game", "arkascended", "arkascended"},
+		{"the handle was recycled by another program", "notepad", "notepad"},
+		{"the window layer could not say what it is", "", "could not be identified"},
+	} {
+		moved := standing
+		moved.Application = c.app
+		ok, why := worldMoved("solasta", scope, moved, planned)
+		if ok {
+			t.Errorf("%s: the press was allowed against %q", c.name, c.app)
+			continue
+		}
+		if !strings.Contains(why, "changed after the plan was made") {
+			t.Errorf("%s: the refusal does not say the application changed: %s",
+				c.name, why)
+		}
+		if !strings.Contains(why, c.says) {
+			t.Errorf("%s: the refusal does not mention %q: %s", c.name, c.says, why)
+		}
+	}
+
+	// AND AN UNSCOPED WORKFLOW IS REFUSED AT THE PRESS TOO, not merely at invocation.
+	// A legacy routine is readable and is valid for no application, and the press is the
+	// last place that can still be true.
+	if ok, why := worldMoved("solasta", "", standing, planned); ok {
+		t.Error("an unscoped workflow was allowed to press")
+	} else if !strings.Contains(why, "UNSCOPED") {
+		t.Errorf("the refusal does not say it is unscoped: %s", why)
+	}
+}
+
+// AND THE RECHECK IS WIRED INTO THE RUNNER FROM THE ARTIFACT'S OWN SCOPE.
+//
+// `worldMoved` being right is worth nothing if the coordinator is handed a scope from somewhere
+// else — the `--application` argument, say, which is what somebody asked for and therefore
+// always agrees with itself.
+func TestTheRunnerRechecksAgainstTheArtifactsOwnScope(t *testing.T) {
+	src := readSource(t, "performworkflow.go")
+	if !strings.Contains(src, "stillThere(obs, tracker, windows, target, art.Application)") {
+		t.Error("the runner's world re-check is not given the artifact's own scope; " +
+			"a scope taken from the command line would always agree with itself")
+	}
+	// AND THE SCOPE IS COMPARED AGAINST WHAT WAS ACQUIRED, not against the argument.
+	if !strings.Contains(src, "now.Application = v.Ref.Application") {
+		t.Error("the re-check does not read the application from the window it just " +
+			"acquired")
+	}
+	// AND THE GATE AT INVOCATION IS AGAINST THE ACQUIRED WINDOW TOO.
+	if !strings.Contains(src, "art.ScopeAllows(v.Ref.Application)") {
+		t.Error("the startup gate does not compare the artifact against the window " +
+			"it acquired")
+	}
+}
+
+// AN ARK WORKFLOW AIMED AT ANOTHER APPLICATION IS REFUSED THROUGH THE REAL COMMAND, AND
+// NOTHING IS PRESSED.
+//
+//	Test Ark-artifact-versus-Solasta rejection without emitting any input.
+//
+// Through `runPerformWorkflow` rather than through the gate's own function, because the claim
+// is about the command: a refusal that only exists in a helper is a refusal somebody has to
+// trust is reached. The exit code and the ordering are what this pins — the gate returns before
+// the grounder, the granter, the executor or the observer are built.
+func TestAnArkWorkflowAimedAtAnotherApplicationIsRefusedByTheCommand(t *testing.T) {
+	dir := t.TempDir()
+	ark := workflowstore.Artifact{
+		Version: workflowstore.Version, Name: "ark graphics",
+		SavedAt:     time.Date(2026, 10, 18, 9, 0, 0, 0, time.UTC),
+		Application: workflowstore.NormaliseScope("arkascended"),
+		Screens:     []workflowstore.Screen{{Label: "screen_a"}},
+		Controls: []workflowstore.Control{{Label: "control_1",
+			Readings: []observe.Region{
+				{X: 0.41, Y: 0.24, Width: 0.07, Height: 0.03}}}},
+		Steps: []workflowstore.Step{{Position: 0, From: "screen_a", To: "screen_a",
+			Control: "control_1", Cause: observe.CauseClick, Seen: 1,
+			Outcome: []string{"bloom", "foliage", "presets", "shadows", "textures"}}},
+	}
+	body, err := ark.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "ark.workflow.json")
+	if err := os.WriteFile(path, body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// AIMED AT AN APPLICATION IT WAS NOT DEMONSTRATED AGAINST. `notepad` stands in for
+	// whatever else is on the machine: the test must not depend on a game being
+	// installed, and the refusal is about the names disagreeing.
+	//
+	// It may refuse for one of two reasons depending on the desktop it runs on — the
+	// scope gate, or not finding that application's window at all — and BOTH are
+	// refusals before any input. What must never happen is a run that proceeds.
+	code := runPerformWorkflow([]string{
+		"--application", "notepad", "--workflow", path, "--seconds", "2"})
+	if code == 0 {
+		t.Fatal("an Ark workflow aimed at another application returned 0")
+	}
+
+	// AND THE SAME ARTIFACT AGAINST ITS OWN APPLICATION GETS PAST THE SCOPE GATE.
+	//
+	// Asserted as a DIFFERENT refusal, not as a success: there is no Ark running here,
+	// so it stops at window acquisition. The point is that the two stop for different
+	// reasons, which is what makes the scope gate a gate rather than a blanket no.
+	if ok, why := ark.ScopeAllows("arkascended"); !ok {
+		t.Errorf("the artifact refuses its own application: %s", why)
+	}
+	if ok, _ := ark.ScopeAllows("notepad"); ok {
+		t.Error("the artifact permits an application it was not demonstrated against")
+	}
+}
+
+// AND A LEGACY UNSCOPED WORKFLOW IS NOT SILENTLY AUTHORISED BY THE COMMAND.
+//
+//	Legacy unscoped workflow: no silent live authorization.
+func TestALegacyUnscopedWorkflowIsNotAuthorisedByTheCommand(t *testing.T) {
+	dir := t.TempDir()
+	legacy := workflowstore.Artifact{
+		Version: workflowstore.Version, Name: "old tour",
+		SavedAt: time.Date(2026, 10, 1, 9, 0, 0, 0, time.UTC),
+		Screens: []workflowstore.Screen{{Label: "screen_a"}},
+		Controls: []workflowstore.Control{{Label: "control_1",
+			Readings: []observe.Region{
+				{X: 0.4, Y: 0.4, Width: 0.1, Height: 0.05}}}},
+		Steps: []workflowstore.Step{{Position: 0, From: "screen_a", To: "screen_a",
+			Control: "control_1", Cause: observe.CauseClick, Seen: 1}},
+	}
+	body, err := legacy.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// IT LOADS, which is the half of the requirement that is about not breaking what
+	// people already saved.
+	back, err := workflowstore.Unmarshal(body)
+	if err != nil {
+		t.Fatalf("a legacy unscoped artifact no longer loads: %v", err)
+	}
+	if back.Scoped() {
+		t.Fatal("an artifact with no application came back scoped")
+	}
+	path := filepath.Join(dir, "legacy.workflow.json")
+	if err := os.WriteFile(path, body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// AND IT IS NOT RUNNABLE, whatever is in front.
+	if code := runPerformWorkflow([]string{
+		"--application", "notepad", "--workflow", path, "--seconds", "2"}); code == 0 {
+		t.Fatal("a legacy unscoped workflow returned 0")
+	}
+}
+
+// stderrOf runs f with os.Stderr captured, and returns what it wrote.
+//
+// Needed because the scope gate's only observable effect from outside the command is its
+// SENTENCE: a run that refused at the gate and a run that could not find the application's
+// window both exit non-zero, so an exit code cannot tell them apart. A mutation run proved it —
+// disabling the gate entirely survived a test that checked only the code.
+func stderrOf(t *testing.T, f func()) string {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	was := os.Stderr
+	os.Stderr = w
+	done := make(chan string, 1)
+	go func() {
+		var b strings.Builder
+		_, _ = io.Copy(&b, r)
+		done <- b.String()
+	}()
+	f()
+	os.Stderr = was
+	_ = w.Close()
+	out := <-done
+	_ = r.Close()
+	return out
+}
+
+// THE SCOPE GATE FIRES, AND SAYS SO.
+//
+// The exit code cannot distinguish the gate from a window that was not found, so this asserts
+// the gate's own sentence. Aimed at an application that IS running — the one hosting this test
+// process — so acquisition is not what refuses it.
+func TestTheScopeGateRefusesWithItsOwnSentence(t *testing.T) {
+	dir := t.TempDir()
+	ark := workflowstore.Artifact{
+		Version: workflowstore.Version, Name: "ark graphics",
+		SavedAt:     time.Date(2026, 10, 18, 9, 0, 0, 0, time.UTC),
+		Application: workflowstore.NormaliseScope("arkascended"),
+		Screens:     []workflowstore.Screen{{Label: "screen_a"}},
+		Controls: []workflowstore.Control{{Label: "control_1",
+			Readings: []observe.Region{
+				{X: 0.41, Y: 0.24, Width: 0.07, Height: 0.03}}}},
+		Steps: []workflowstore.Step{{Position: 0, From: "screen_a", To: "screen_a",
+			Control: "control_1", Cause: observe.CauseClick, Seen: 1,
+			Outcome: []string{"bloom", "foliage", "presets", "shadows", "textures"}}},
+	}
+	body, err := ark.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "ark.workflow.json")
+	if err := os.WriteFile(path, body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// THE TEST PROCESS'S OWN APPLICATION, which is certainly running and certainly not
+	// Ark. Named rather than discovered, so the test does not depend on what is in
+	// front of whoever runs it.
+	self := strings.ToLower(strings.TrimSuffix(
+		filepath.Base(os.Args[0]), filepath.Ext(os.Args[0])))
+
+	var code int
+	said := stderrOf(t, func() {
+		code = runPerformWorkflow([]string{
+			"--application", self, "--workflow", path, "--seconds", "2"})
+	})
+	if code == 0 {
+		t.Fatalf("an Ark workflow aimed at %q returned 0:\n%s", self, said)
+	}
+	// EITHER THE GATE REFUSED IT, or no window of this process could be acquired —
+	// a console test binary has none. Both are refusals before any input, and the
+	// assertion is that ONE of those two sentences appeared rather than a run having
+	// started.
+	gate := strings.Contains(said, "may only act on the application it was shown in") &&
+		strings.Contains(said, "Nothing was pressed")
+	noWindow := strings.Contains(said, "director: ") && !gate
+	if !gate && !noWindow {
+		t.Fatalf("neither the scope gate nor a window refusal was reported:\n%s", said)
+	}
+	// AND WHEN IT WAS THE GATE, it names both applications so a person can see at a
+	// glance which file they pointed at which program.
+	if gate {
+		for _, want := range []string{"arkascended", self} {
+			if !strings.Contains(said, want) {
+				t.Errorf("the gate's refusal does not mention %q:\n%s",
+					want, said)
+			}
+		}
+	} else {
+		t.Logf("acquisition refused before the gate on this machine, which is also "+
+			"a refusal before any input:\n%s", said)
+	}
+}
+
+// THE SCOPE GATE IS A GATE: IT REFUSES, AND IT DOES SO BEFORE ANYTHING CAN PRESS.
+//
+// Asserted over the command's text, which is how this package already proves that
+// `WithConfirm` and `WithPointer` are installed — and for the same reason. Reaching the gate
+// behaviourally needs a window of the right application to exist, which a test binary has none
+// of, so an exit code cannot tell the gate from a window that was not found. A mutation run
+// proved exactly that: disabling the condition survived both the end-to-end refusal test and
+// the stderr one.
+//
+// Two claims, and the second is the one that matters. A refusal that happens after the
+// grounder, the granter and the executor have been built is a refusal somebody has to trust
+// was reached; this one returns first.
+func TestTheScopeGateRefusesBeforeAnythingIsBuilt(t *testing.T) {
+	src := readSource(t, "performworkflow.go")
+
+	// 1. THE CONDITION, exactly. A call whose result is ignored is not a gate.
+	const gate = "if ok, why := art.ScopeAllows(v.Ref.Application); !ok {"
+	if !strings.Contains(src, gate) {
+		t.Fatalf("the scope gate's condition is not %q; a gate whose refusal is not "+
+			"acted on is decoration", gate)
+	}
+	if !strings.Contains(src, "Nothing was pressed.") {
+		t.Error("the gate does not say that nothing was pressed")
+	}
+
+	// 2. AND IT COMES FIRST. Before the grounder, the granter, the executor and the
+	// observer — each of which is a thing that exists to be able to act.
+	at := strings.Index(src, gate)
+	for _, built := range []string{
+		"&promptGrounder{",
+		"&promptGranter{",
+		"workflowrun.New(",
+		"marcoexec.New(",
+	} {
+		if i := strings.Index(src, built); i >= 0 && i < at {
+			t.Errorf("%s is built at %d, before the scope gate at %d — a refusal "+
+				"after a run is assembled is one somebody has to trust was "+
+				"reached", built, i, at)
+		}
 	}
 }

@@ -777,3 +777,44 @@ func TestAMatchIsReportedWithWhatItSays(t *testing.T) {
 		t.Error("the report no longer says it presses nothing")
 	}
 }
+
+// A SAVED WORKFLOW IS SCOPED TO THE APPLICATION THAT WAS WATCHED, NOT THE ONE THAT WAS ASKED FOR.
+//
+//	Never blindly trust an application name supplied by the caller if it disagrees with
+//	observed provenance.
+//
+// `--application` is a selector: it says what to look for. `windowref.Ref.Application` is what
+// the window layer reported about the window actually acquired. They agree almost always, and
+// the one time they differ is the one time it matters — a scope taken from the argument would
+// be comparing a request against a request, and the gate at replay would always pass.
+//
+// A mutation run found this unguarded: swapping `res.application` for `*app` compiles, and
+// nothing failed. Asserted over the text because reaching it behaviourally needs a live window,
+// which is the same reason this file's other properties are asserted this way.
+func TestASavedWorkflowIsScopedToTheApplicationThatWasWatched(t *testing.T) {
+	src, err := os.ReadFile("demonstratevisual.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(src)
+	if !strings.Contains(s, "a.ScopedTo(res.application)") {
+		t.Error("the saved workflow is not scoped from the session's observed " +
+			"application; a scope taken from --application would always agree " +
+			"with itself at replay")
+	}
+	for _, forbidden := range []string{"ScopedTo(*app)", "ScopedTo(*title)"} {
+		if strings.Contains(s, forbidden) {
+			t.Errorf("the saved workflow is scoped from %q, which is a request "+
+				"rather than an observation", forbidden)
+		}
+	}
+	// AND THE SESSION TAKES IT FROM THE WINDOW IT ACQUIRED.
+	loop, err := os.ReadFile("visualsession.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(loop), "res.application = v.Ref.Application") {
+		t.Error("the shared loop does not record the acquired window's application, " +
+			"so there is no observed provenance for a scope to come from")
+	}
+}

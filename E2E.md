@@ -807,3 +807,29 @@ Three things worth checking by hand:
 If something else was in front for part of it — an overlay, a notification, Marco's own window —
 `what-i-did` says which looks, because a window capture is not occlusion-safe and an input that
 arrived on one of those looks may never have reached the game. It is named, not discarded.
+
+## Pointing the wrong routine at the wrong game (no hands, ~10s)
+
+A saved routine belongs to the application it was demonstrated against, and `--application` is
+now optional — Marco reads the foreground itself:
+
+```sh
+./director.exe perform-workflow --workflow ark-graphics.json            # no --application
+./director.exe perform-workflow --application solasta --workflow ark-graphics.json
+```
+
+The first discovers whatever is in front. The second is the one worth running deliberately: an
+Ark routine aimed at another game is refused **before anything is built**, naming both
+applications, and nothing is pressed. See
+[[ADR-236-a-workflow-belongs-to-the-application-it-was-shown-in]].
+
+Three things to check by hand:
+
+| check | what you should see |
+|---|---|
+| a routine saved before today | *UNSCOPED* — readable, and valid for no application until bound |
+| nothing in the foreground (lock the screen) | a refusal naming which of the four cases it is, not a guess |
+| alt-tab away mid-run | *the application changed after the plan was made* — the press is refused |
+
+The last one is the important one: the check at startup is not permission for a press that
+happens seconds later.

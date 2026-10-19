@@ -118,11 +118,22 @@ func runPerformWorkflow(args []string) int {
 			"alone, which a game menu ignores")
 	_ = fs.Parse(flagsFirst(args))
 
+	// ── WHICH APPLICATION, DISCOVERED WHEN IT WAS NOT NAMED ──
+	//
+	// `--application` is now a TARGET SELECTOR and no longer required: Marco reads the
+	// foreground itself, cold, with no daemon running. See foreground.go.
+	//
+	// It selects what to LOOK AT and decides nothing about whether the workflow may act
+	// there — that is the artifact's scope, checked below against the window actually
+	// acquired. Keeping the two apart is what stops a discovered application from quietly
+	// satisfying a scope check.
+	target, targetWhy := resolveApplication(context.Background(), *app)
+
 	switch {
-	case *app == "":
-		fmt.Fprintln(os.Stderr, "director: --application is required\n"+
-			"  example: director perform-workflow --application rocketleague "+
-			"--workflow freeplay.workflow.json")
+	case target == "":
+		fmt.Fprintf(os.Stderr, "director: which application? %s\n"+
+			"  name it: director perform-workflow --application solasta "+
+			"--workflow routine.json\n", targetWhy)
 		return 2
 	case *file == "":
 		fmt.Fprintln(os.Stderr, "director: --workflow is required (a saved artifact)")
@@ -210,12 +221,38 @@ func runPerformWorkflow(args []string) int {
 	defer stop()
 
 	v := tracker.AcquireBy(ctx, windows, windowref.NewDirectory(),
-		windowref.Selector{Application: *app})
+		windowref.Selector{Application: target})
 	if !v.State.OK() {
 		fmt.Fprintf(os.Stderr, "director: %s (%s)\n", v.Reason, v.State)
 		return 1
 	}
 
+	// ── THE SCOPE GATE, BEFORE ANYTHING ELSE IS BUILT ──
+	//
+	// A workflow may only act on the application it was demonstrated against, and the
+	// comparison is against the window that was ACQUIRED — `v.Ref.Application`, the
+	// executable image the window layer reports — never against `--application`, which is
+	// a request rather than an observation.
+	//
+	// This is the defect the owner called release-blocking: `Artifact` recorded no
+	// application at all, so an Ark workflow pointed at Solasta would acquire Solasta's
+	// window and start resolving Ark's controls against it, with nothing in the way but a
+	// person answering a screen question. See workflowstore/scope.go.
+	//
+	// Checked HERE, before the grounder, the granter, the executor or the observer exist:
+	// a refusal that happens after a run has been assembled is a refusal somebody has to
+	// trust was reached, and this one returns before anything can press.
+	if ok, why := art.ScopeAllows(v.Ref.Application); !ok {
+		fmt.Fprintf(os.Stderr, "director: %s\n", why)
+		if !art.Scoped() {
+			fmt.Fprintf(os.Stderr, "  Demonstrate it again to record which "+
+				"application it belongs to:\n"+
+				"    director demonstrate-visual %q --application %s\n",
+				art.Name, v.Ref.Application)
+		}
+		fmt.Fprintf(os.Stderr, "  Nothing was pressed.\n")
+		return 1
+	}
 	ask := bufio.NewReader(os.Stdin)
 	session := workflowstore.NewSessionBinding()
 	ground := &promptGrounder{art: art, in: ask, out: os.Stdout,
@@ -265,7 +302,7 @@ func runPerformWorkflow(args []string) int {
 	}
 
 	windowNow := func() (directorapi.Window, bool) {
-		v := tracker.Acquire(ctx, *app)
+		v := tracker.Acquire(ctx, target)
 		if !v.State.OK() {
 			return directorapi.Window{}, false
 		}
@@ -304,7 +341,7 @@ func runPerformWorkflow(args []string) int {
 		// THE WORLD, RE-OBSERVED AT THE INSTANT OF THE PRESS. Deleting this call, or
 		// passing nil, must make the runner refuse every action — see
 		// TestPerformWorkflowInstallsItsGates.
-		WithConfirm(stillThere(obs, tracker, windows, *app)).
+		WithConfirm(stillThere(obs, tracker, windows, target, art.Application)).
 		// HOW LONG AN ACTION'S OWN EVIDENCE IS WAITED FOR, which is a different
 		// scarcity from patience: patience counts LOOKS of an unestablished screen,
 		// and this counts TIME for enough readings to decide whether the action did
@@ -388,7 +425,7 @@ func runPerformWorkflow(args []string) int {
 		if ctx.Err() != nil {
 			break
 		}
-		v := tracker.Acquire(ctx, *app)
+		v := tracker.Acquire(ctx, target)
 		if !v.State.OK() {
 			lost = fmt.Sprintf("the target was lost (%s)", v.State)
 			break
@@ -629,6 +666,14 @@ type worldNow struct {
 	// of it when it is not.
 	Alive bool
 	State string
+	// Application is the executable image the window layer reports for the window
+	// acquired NOW, which is what a scope is compared against.
+	//
+	// Carried on the world rather than closed over, so the check is a case in
+	// `worldMoved` — a pure function a test can drive without a desktop. The race it
+	// exists for cannot be reproduced any other way: Marco resolves Solasta, the
+	// person alt-tabs, and the press is sent to whatever took the foreground.
+	Application string
 	// Generation is the window generation now, and Epoch the observation generation now.
 	Generation uint64
 	Epoch      uint64
@@ -651,10 +696,27 @@ type worldNow struct {
 // sequence that must not have one: by the time the answer arrives, the look that found the
 // control may describe a screen that has gone, and the point is then a coordinate on a screen
 // that is no longer standing.
-func worldMoved(app string, now worldNow, planned workflowrun.Sighting) (bool, string) {
+func worldMoved(app string, scope workflowstore.Scope, now worldNow,
+	planned workflowrun.Sighting) (bool, string) {
+
 	switch {
 	case !now.Alive:
 		return false, fmt.Sprintf("%s is no longer there (%s)", app, now.State)
+	case !allowsNow(scope, now.Application):
+		// ── TIME OF CHECK IS NOT TIME OF USE ──
+		//
+		// The gate at startup compared the artifact against the window
+		// acquired THEN. This is a different moment, and in between the
+		// person may have alt-tabbed, the game may have exited and another
+		// taken the handle, or `Acquire` may have resolved a different
+		// window of a different application.
+		//
+		// The owner asked for exactly this: a valid application check at
+		// invocation must not become permanent authorisation. First among
+		// the cases below, because it is the one that decides whether this
+		// press may go to this application at all.
+		_, why := scope.Allows(now.Application)
+		return false, "the application changed after the plan was made: " + why
 	case now.Generation != planned.Generation:
 		return false, fmt.Sprintf("the window was replaced since this was planned "+
 			"(generation %d, was %d)", now.Generation, planned.Generation)
@@ -679,7 +741,8 @@ func worldMoved(app string, now worldNow, planned workflowrun.Sighting) (bool, s
 // a package variable: a real answer needs a live window and a real desktop. Everything it
 // decides is in worldMoved, which is tested.
 func stillThere(obs *fastobserve.Observer, tracker *windowref.Tracker,
-	windows *winprovider.Provider, app string) func(context.Context,
+	windows *winprovider.Provider, app string,
+	scope workflowstore.Scope) func(context.Context,
 	workflowrun.Sighting) (bool, string) {
 
 	return func(ctx context.Context, planned workflowrun.Sighting) (bool, string) {
@@ -692,7 +755,17 @@ func stillThere(obs *fastobserve.Observer, tracker *windowref.Tracker,
 		if now.Alive {
 			now.Front = frontnessOf(frontCandidate(ctx, windows), v.Ref)
 		}
-		return worldMoved(app, now, planned)
+		// AND WHAT THE WINDOW LAYER SAYS THIS APPLICATION IS, NOW.
+		//
+		// The scope is compared against this and never against the argument: the
+		// argument is what somebody asked for and cannot have changed, while
+		// this is what `Acquire` just resolved. The comparison itself is a case
+		// in `worldMoved`, which is a pure function and therefore testable
+		// without a desktop — see TestTheApplicationIsRecheckedAtTheInstantOfThePress.
+		if now.Alive {
+			now.Application = v.Ref.Application
+		}
+		return worldMoved(app, scope, now, planned)
 	}
 }
 
@@ -1270,4 +1343,14 @@ func printScreensSeenTo(w io.Writer, obs *fastobserve.Observer) {
 	fmt.Fprintf(w, "      %-14s settled %d, unsettled %d, warming %d, text refused a "+
 		"merge %d time(s)%s\n", "and the fold", st.Settled, st.Unsettled,
 		st.Warming, st.TextRefusedMerge, alone)
+}
+
+// allowsNow is the scope check at the instant of a press.
+//
+// Separated so `worldMoved` reads as a list of ways the world can have moved. An UNSCOPED
+// workflow answers false here as it does everywhere: a legacy routine is readable and is valid
+// for no application until it is bound to one.
+func allowsNow(scope workflowstore.Scope, application string) bool {
+	ok, _ := scope.Allows(application)
+	return ok
 }
