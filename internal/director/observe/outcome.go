@@ -261,6 +261,13 @@ type outcomeWatch struct {
 	// skipped is how many readings after the press were dropped as mid-response. See
 	// OutcomeSkipReadings.
 	skipped int
+	// restarts is how many times a transition landed inside the settled window and it
+	// began again. Bounded, because a screen that keeps changing would restart forever.
+	restarts int
+	// to is the one screen this press LED to, learned from the first reading after it
+	// that is not of the screen it was made on. A third screen closes the watch.
+	to     VisualScreenID
+	closed bool
 }
 
 // watch opens an outcome watch for one press, with whatever was read on this screen before it.
@@ -294,7 +301,39 @@ func (c *ClickTargets) watch(obs ClickObservation) {
 func (c *ClickTargets) observeOutcome(screen VisualScreenID, read []ReadWord) {
 	for i := range c.watching {
 		w := &c.watching[i]
-		if w.screen != screen || len(w.after) >= OutcomeSettleLooks {
+		// ── NOT SCOPED TO THE SCREEN THE PRESS WAS MADE ON ──
+		//
+		// This required the after-readings to carry the SAME screen id as the press,
+		// so a press that CHANGED the screen recorded no outcome at all — every
+		// reading of the thing it produced was discarded for being a reading of the
+		// thing it produced.
+		//
+		// Invisible offline, and that is worth saying. On `ark-menu-1` the GRAPHICS
+		// tab changes the panel and NOT the global screen
+		// ([[Experiment-086-the-tab-changed-the-panel-and-not-the-screen]]), so the
+		// watch's screen still matched and 36 words were recorded. Measured live on
+		// the same game and the same control, the panel changed enough to mint a new
+		// screen — `visual_1 -> visual_2` — and the same press recorded nothing.
+		// Three live demonstrations produced three artifacts with no expectation.
+		//
+		// The run side had the identical defect and was fixed first; this is the
+		// other half of [[ADR-238-a-verdict-needs-both-sides-and-a-window-of-its-own]].
+		// A watch belongs to a press in a session, and what makes its words an
+		// outcome is the four terms, not the label the fold happened to give the
+		// pixels.
+		if w.closed || len(w.after) >= OutcomeSettleLooks {
+			continue
+		}
+		// WHERE THE PRESS LANDED, OR THE ONE PLACE IT LED. A third screen closes the
+		// window: that is "whatever Marco looked at next", which is what the old
+		// scoping was reaching for and the only part of it that was right.
+		switch {
+		case screen == w.screen:
+		case w.to == "":
+			w.to = screen
+		case screen == w.to:
+		default:
+			w.closed = true
 			continue
 		}
 		// THE READING TAKEN MID-RESPONSE IS NOT EVIDENCE EITHER WAY.
@@ -306,6 +345,20 @@ func (c *ClickTargets) observeOutcome(screen VisualScreenID, read []ReadWord) {
 		if w.skipped < OutcomeSkipReadings {
 			w.skipped++
 			continue
+		}
+		// AND A TRANSITION LANDING INSIDE THE WINDOW STARTS IT AGAIN.
+		//
+		// `OutcomeSkipReadings` is two, measured on a recording read at every look.
+		// Live, OCR answers two or three times a second and an application may take
+		// longer than two readings to redraw, so the window straddles the change and
+		// the persistence term correctly calls every word of the new panel transient.
+		// The same correction the run side needed, for the same measured reason.
+		if n := len(w.after); n > 0 && w.restarts < OutcomeSettleLooks {
+			o := OutcomeBetween(w.excluded,
+				[][]ReadWord{w.after[n-1]}, [][]ReadWord{read})
+			if len(o.Appeared) >= OutcomeWords {
+				w.after, w.restarts = nil, w.restarts+1
+			}
 		}
 		w.after = append(w.after, append([]ReadWord{}, read...))
 	}

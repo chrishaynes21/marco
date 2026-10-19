@@ -1005,3 +1005,54 @@ recorded will press the control and then have nothing to check the result agains
 UNCONFIRMED rather than success. Demonstrating it again records the expectation.
 
 See [[ADR-239-running-what-you-demonstrated-by-the-name-you-gave-it]].
+
+## Demonstrating in a real game, and what goes wrong (needs your hands, ~5 min)
+
+Four live demonstrations against Ark produced three artifacts and zero presses. What that
+walkthrough taught is mostly about the three ways it fails before perception is even reached.
+
+```sh
+./director.exe demonstrate-visual "ark graphics tab" --application arkascended \
+    --delay 15s --seconds 28
+```
+
+**Bring the game to the front yourself, and then look at it.** The session only uses looks where
+the target leads the desktop. Two demonstrations were lost to this: the first because the game
+lost focus while the recorder ran, the second because the instructions were on another monitor
+and six presses landed in the browser. `what-i-did` says so afterwards:
+
+```
+Something else was in front for 14 of the 16 moment(s) that carried input
+  look(s) 5, 16, 17, 22, 23, 24, 25, 26, and 6 more
+```
+
+**Dwell on both sides of the click.** The outcome expectation is measured from readings taken
+before the press and after it. OCR answers two or three times a second on a 1920x1080 game, and
+the window needs about five readings each side — so wait a few seconds, click once, then leave
+the result standing for ten. A demonstration that clicks immediately and moves on records a
+step that can be performed and never verified, and `director sequences` will tell you so.
+
+**Check what it kept before trusting it:**
+
+```sh
+./director.exe sequences "ark graphics tab"      # the steps, and what it can do
+./director.exe what-i-did "ark graphics tab"     # your presses, with coordinates
+```
+
+A good one reads `1 press(es)` on a control a few percent of the window across — Ark's GRAPHICS
+tab measures 8%x3%. A control at 100%x82% is the whole screen and is reported as `NOT A BUTTON`.
+
+**And the one that is not your fault.** On Ark the fold does not hold still:
+
+```
+the screens this run saw   4 screen(s) over 43 look(s)
+  visual_1   1 look(s)   nobody read it
+  visual_2   2 look(s)   nobody read it
+  visual_3  20 look(s)   read, and no word was there twice
+  visual_4   3 look(s)   nobody read it
+```
+
+That is one static settings menu. A screen established while demonstrating cannot be recognised
+again at replay, and `--from` is spent once, on one screen, by design. Everything downstream —
+grounding, pressing, verifying — is unreachable there. See
+[[Experiment-091-four-demonstrations-and-no-press]].

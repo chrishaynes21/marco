@@ -14,6 +14,7 @@ package observe_test
 // capture and on `rl-freeplay-1`. See [[Experiment-087-the-panel-changed-and-the-verifier-could-say-so]].
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 
@@ -311,20 +312,26 @@ func TestTheCorrelatorRecordsWhatAPressDid(t *testing.T) {
 	}
 }
 
-// AND A READING OF ANOTHER SCREEN IS NOT THIS PRESS'S OUTCOME.
+// A PRESS THAT CHANGED THE SCREEN STILL HAS AN OUTCOME.
 //
-// The watch is scoped to the screen that was standing. Without that, any later reading of
-// anywhere would fill in the after side, and a press would be credited with whatever Marco
-// happened to look at next.
-func TestAnotherScreensReadingsAreNotThisPressesOutcome(t *testing.T) {
+// This asserted the opposite, and the opposite cost three live demonstrations. The watch was
+// scoped to the screen the press was made ON, so every reading of the thing the press PRODUCED
+// was discarded for being a reading of the thing the press produced.
+//
+// Invisible offline, which is why it survived: on `ark-menu-1` the GRAPHICS tab changes the
+// panel and not the global screen ([[Experiment-086-the-tab-changed-the-panel-and-not-the-screen]]),
+// so the watch's screen still matched and 36 words were recorded. Measured live on the same
+// game and the same control, the panel changed enough to mint a new screen and the same press
+// recorded nothing at all.
+func TestAPressThatChangedTheScreenStillHasAnOutcome(t *testing.T) {
 	var c observe.ClickTargets
 	for i := 0; i < 5; i++ {
 		c.Reading("visual_1", inPanel("resolution", "window", "mode"))
 	}
 	c.Press(10, observe.PointerAt{X: 0.414, Y: 0.251}, "visual_1",
 		observe.Proposed([]observe.Region{tabBar}, 0, 0, 0))
-	// FIVE READINGS OF A DIFFERENT SCREEN ENTIRELY.
-	for i := 0; i < 5; i++ {
+	// THE SCREEN THE PRESS LED TO, which is where its outcome is.
+	for i := 0; i < 8; i++ {
 		c.Reading("visual_2", inPanel("presets", "textures", "shadows", "bloom",
 			"foliage", "distance"))
 	}
@@ -333,12 +340,49 @@ func TestAnotherScreensReadingsAreNotThisPressesOutcome(t *testing.T) {
 	if len(outs) != 1 {
 		t.Fatalf("%d outcome(s) for one press", len(outs))
 	}
-	if outs[0].Verified() {
-		t.Errorf("another screen's readings verified this press: %v", outs[0].Appeared)
+	if !outs[0].Verified() {
+		t.Fatalf("a press that changed the screen recorded no outcome: %s",
+			outs[0].Why())
 	}
-	if outs[0].AfterLooks != 0 {
-		t.Errorf("%d reading(s) of another screen were folded into this press's "+
-			"outcome", outs[0].AfterLooks)
+	for _, want := range []string{"presets", "textures", "shadows", "bloom", "foliage"} {
+		if !has(outs[0].Appeared, want) {
+			t.Errorf("%q is in the panel the press produced and not in the "+
+				"outcome: %v", want, outs[0].Appeared)
+		}
+	}
+}
+
+// AND A THIRD SCREEN IS NOT THIS PRESS'S OUTCOME.
+//
+// The part of the old scoping that was right, kept at the level its own stated fear belongs to:
+// "any later reading of anywhere would fill in the after side, and a press would be credited
+// with whatever Marco happened to look at next." Where the press landed, or the one place it
+// led — a third place closes the watch.
+func TestAThirdScreenIsNotThisPressesOutcome(t *testing.T) {
+	var c observe.ClickTargets
+	for i := 0; i < 5; i++ {
+		c.Reading("visual_1", inPanel("resolution", "window", "mode"))
+	}
+	c.Press(10, observe.PointerAt{X: 0.414, Y: 0.251}, "visual_1",
+		observe.Proposed([]observe.Region{tabBar}, 0, 0, 0))
+	// THE SKIP, then ONE reading of where it led, then somewhere else entirely.
+	for i := 0; i < 3; i++ {
+		c.Reading("visual_2", inPanel("presets", "textures"))
+	}
+	for i := 0; i < 8; i++ {
+		c.Reading("visual_9", inPanel("inventory", "crafting", "engrams",
+			"tribe", "tames", "beacons"))
+	}
+
+	outs := c.Evidence().Outcomes
+	if len(outs) != 1 {
+		t.Fatalf("%d outcome(s) for one press", len(outs))
+	}
+	for _, w := range []string{"inventory", "crafting", "engrams", "tribe", "tames"} {
+		if has(outs[0].Appeared, w) {
+			t.Fatalf("%q came from a third screen and was credited to this "+
+				"press: %v", w, outs[0].Appeared)
+		}
 	}
 }
 
@@ -478,5 +522,108 @@ func TestTheReadingsTakenMidResponseAreNotEvidence(t *testing.T) {
 			t.Errorf("%q stood throughout and is not in the outcome: %v", want,
 				outs[0].Appeared)
 		}
+	}
+}
+
+// A TRANSITION LANDING INSIDE THE WINDOW STARTS IT AGAIN, ON THE DEMONSTRATION SIDE TOO.
+//
+// `OutcomeSkipReadings` is two, measured on a recording read at every look. Live, OCR answers
+// two or three times a second and an application may take longer than two readings to redraw,
+// so the settled window straddles the change and the persistence term correctly calls every
+// word of the new panel TRANSIENT. The run side needed this correction first; this is the same
+// one, and without it a live demonstration records no expectation for a press that worked.
+func TestATransitionInsideTheWindowRestartsItWhileDemonstrating(t *testing.T) {
+	var c observe.ClickTargets
+	was := inPanel("resolution", "window", "mode")
+	for i := 0; i < 5; i++ {
+		c.Reading("visual_1", was)
+	}
+	c.Press(10, observe.PointerAt{X: 0.414, Y: 0.251}, "visual_1",
+		observe.Proposed([]observe.Region{tabBar}, 0, 0, 0))
+	// THE OLD PANEL IS STILL THERE past the skip, and then the new one arrives.
+	for i := 0; i < 5; i++ {
+		c.Reading("visual_1", was)
+	}
+	for i := 0; i < 6; i++ {
+		c.Reading("visual_2", inPanel("presets", "textures", "shadows", "bloom",
+			"foliage", "distance"))
+	}
+
+	outs := c.Evidence().Outcomes
+	if len(outs) != 1 {
+		t.Fatalf("%d outcome(s) for one press", len(outs))
+	}
+	if !outs[0].Verified() {
+		t.Fatalf("the window straddled the redraw and recorded nothing: %s — %v "+
+			"appeared, %v were transient", outs[0].Why(), outs[0].Appeared,
+			outs[0].Transient)
+	}
+}
+
+// AND THE READINGS TAKEN MID-RESPONSE ARE NOT EVIDENCE EITHER WAY.
+//
+// The skip exists because the first readings after a press describe the application
+// MID-RESPONSE — on Ark's capture the tab bar is partly drawn and the panel body missing. With
+// no skip, every word of the new panel appears on four readings of five and falls out as
+// transient: the correlator reported `everything that appeared was transient` for all three of
+// that recording's presses and learned ONE step instead of three.
+func TestTheReadingsTakenMidResponseAreSkippedWhileDemonstrating(t *testing.T) {
+	var c observe.ClickTargets
+	for i := 0; i < 5; i++ {
+		c.Reading("visual_1", inPanel("resolution", "window", "mode"))
+	}
+	c.Press(10, observe.PointerAt{X: 0.414, Y: 0.251}, "visual_1",
+		observe.Proposed([]observe.Region{tabBar}, 0, 0, 0))
+	// TWO HALF-DRAWN READINGS, each carrying a different fragment of the new panel, and
+	// then the panel standing. Without the skip the fragments are in the window and
+	// nothing persists across all of it.
+	c.Reading("visual_1", inPanel("presets"))
+	c.Reading("visual_1", inPanel("presets", "textures"))
+	for i := 0; i < 6; i++ {
+		c.Reading("visual_1", inPanel("presets", "textures", "shadows", "bloom",
+			"foliage", "distance"))
+	}
+
+	outs := c.Evidence().Outcomes
+	if len(outs) != 1 {
+		t.Fatalf("%d outcome(s) for one press", len(outs))
+	}
+	if !outs[0].Verified() {
+		t.Fatalf("the half-drawn readings were taken as evidence and nothing "+
+			"persisted: %s — %v transient", outs[0].Why(), outs[0].Transient)
+	}
+}
+
+// AND THE RESTART IS BOUNDED, so a screen that never settles still answers.
+//
+// A screen changing substantially on every reading would start the window again on every
+// reading and never conclude. Past the bound the readings are taken as they come — and on a
+// screen like that nothing persists, so the answer is a refusal rather than silence. Ark's
+// pause menu over live gameplay is exactly this screen: it changed "by unknown" ten times in
+// thirty seconds.
+func TestAScreenThatNeverSettlesStillAnswersWhileDemonstrating(t *testing.T) {
+	var c observe.ClickTargets
+	for i := 0; i < 5; i++ {
+		c.Reading("visual_1", inPanel("resolution", "window", "mode"))
+	}
+	c.Press(10, observe.PointerAt{X: 0.414, Y: 0.251}, "visual_1",
+		observe.Proposed([]observe.Region{tabBar}, 0, 0, 0))
+	// EVERY READING BRINGS FIVE WORDS THE LAST ONE DID NOT HAVE.
+	for i := 0; i < 40; i++ {
+		n := strconv.Itoa(i)
+		c.Reading("visual_1", inPanel("alpha"+n, "bravo"+n, "delta"+n,
+			"gamma"+n, "kilo"+n))
+	}
+
+	outs := c.Evidence().Outcomes
+	if len(outs) != 1 {
+		t.Fatalf("%d outcome(s) for one press", len(outs))
+	}
+	if outs[0].AfterLooks == 0 {
+		t.Fatal("a screen that changes on every reading filled no window at all, " +
+			"so the restart never stopped and the press can never be answered")
+	}
+	if outs[0].Verified() {
+		t.Errorf("a screen of churn verified this press: %v", outs[0].Appeared)
 	}
 }

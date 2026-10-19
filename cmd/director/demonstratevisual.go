@@ -173,11 +173,7 @@ func runDemonstrateVisual(args []string) int {
 	// "THAT'S IT" IS A LINE ON ITS OWN, so a demonstration ends when the person is done
 	// rather than when a clock runs out. `--seconds` stays the ceiling, so a forgotten
 	// terminal still stops by itself.
-	stop := make(chan struct{})
-	go func() {
-		defer close(stop)
-		_, _ = bufio.NewReader(os.Stdin).ReadString('\n')
-	}()
+	stop := endsWhenSomebodySaysSo(os.Stdin)
 	s.stop = stop
 
 	res, code := s.watch(ctx, obs, os.Stderr)
@@ -546,4 +542,31 @@ func rawDemonstration(a workflowstore.Artifact, app, title string,
 		Counts:  res.in,
 		Looks:   res.looks,
 	}
+}
+
+// endsWhenSomebodySaysSo closes when a line is read, and never when there is nobody to read.
+//
+// # EOF is not somebody saying they are done
+//
+// It is a session with no terminal attached. This used to end the session on any error from
+// `ReadString`, EOF included — so run from a shell with no console, the reader returned
+// immediately, the channel closed, and the session ended before it began. The report said
+//
+//	0 screen(s) seen, 0 visited in order, 0 demonstrated control(s)
+//	words: offered 0, read 0, dropped while busy 0, 0 word(s)
+//
+// which reads as a perception failure and is a closed stdin. It cost two of the owner's own
+// clicks into a live game before anybody looked at the reader.
+//
+// So a session nobody can end by hand runs to its `--seconds` ceiling, which is what that
+// ceiling is for: "a forgotten terminal still stops by itself".
+func endsWhenSomebodySaysSo(r io.Reader) chan struct{} {
+	stop := make(chan struct{})
+	go func() {
+		if _, err := bufio.NewReader(r).ReadString('\n'); err != nil {
+			return
+		}
+		close(stop)
+	}()
+	return stop
 }

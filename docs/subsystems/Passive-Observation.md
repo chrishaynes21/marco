@@ -1706,6 +1706,21 @@ it refuses those looks. Visible is fine; in front is not.
   so the first human-demonstrated pixel action needs a fresh demonstration — a fact about the
   evidence they hold rather than a gap in the path.
   [[ADR-239-running-what-you-demonstrated-by-the-name-you-gave-it]]
+- **Four live demonstrations on a real game, and no press.** The demonstration half works: a
+  person's click was recorded with its coordinate as evidence, a control found at 8%x3% where
+  the offline capture measured the same tab at 7.2%x2.8%, scoped to the watched window, saved
+  under their own name and offered to the execution path. Two defects were found because
+  somebody was sitting there. A session with no terminal ended BEFORE IT BEGAN — the reader for
+  "press ENTER when you are done" ended on any error, EOF included, and reported `0 screen(s)
+  seen, words offered 0`, which reads as a perception failure and is a closed stdin; it cost two
+  of the owner's clicks. And the correlator discarded the outcome of any press that CHANGED the
+  screen, throwing away every reading of the panel the press produced — invisible offline,
+  because on `ark-menu-1` that same tab changes the panel and not the global screen. Three
+  refusals were all correct, on three states nobody wrote a test for. The blocker is neither
+  defect: Ark folds FOUR screens over 43 looks of one static settings menu, three of them read
+  as nothing, so a screen established at demonstration time cannot be recognised at replay —
+  and `--from` is by design a claim about one screen, not a standing answer.
+  [[Experiment-091-four-demonstrations-and-no-press]]
 - **A click's OUTCOME can be verified where the screen does not change, and the terms are
   measured on two games rather than one.** Ark's GRAPHICS tab verifies on 36 independent words
   with 0 false outcomes in 219 windows with no input in them; Rocket League's main menu is
