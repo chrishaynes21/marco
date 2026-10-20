@@ -62,6 +62,13 @@ func runActsCheck(home string) int {
 		if !s.Runnable {
 			state = "NOT READY: " + s.Why
 		}
+		// AND READY IS NOT THE WHOLE ANSWER. An Act whose starting screen was
+		// never read preflights perfectly and can only wait for it; the window
+		// says both, and a check that said only the first would be the reason
+		// somebody trusted it. See waitsBecause.
+		if s.Waits != "" {
+			state += "\n      WILL WAIT, NOT PRESS: " + s.Waits
+		}
 		fmt.Printf("  %-28s from %-24s %v\n      %s\n", s.Name, s.From,
 			s.Interactions, state)
 	}

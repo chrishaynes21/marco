@@ -34,9 +34,23 @@
  #live{border:1px solid var(--warn);padding:8px;margin-bottom:8px}
  #live.on{border-color:var(--no);background:#2a1618}
  .tag{font-size:11px;padding:1px 5px;border:1px solid #3a404c;color:var(--dim)}
+ .steps{color:var(--dim);border:1px solid var(--line);padding:6px 10px;background:#1b1e24}
+ .steps b{color:var(--key)}
+ .step{display:flex;gap:8px;align-items:baseline;padding:3px 0 3px 6px}
+ .step .what{flex:1;min-width:0}
+ .use{white-space:nowrap}
 </style>
 
 <h1>Marco Studio — acts you composed from what you demonstrated</h1>
+
+<!-- WHERE A PERSON IS, IN THREE STEPS. Five numbered panels in two columns do not say which
+     three of them are the way in, and the owner's first question on opening this window was
+     "how do I use it". -->
+<div class="wide steps">
+  <b>1</b> use an interaction Marco can perform &nbsp;→&nbsp;
+  <b>2</b> give the Act a name and save it &nbsp;→&nbsp;
+  <b>4</b> press Play. &nbsp; 3 is what you have, 5 is what happened.
+</div>
 
 <section>
   <h2>1 · What you have demonstrated</h2>
@@ -72,7 +86,9 @@
 <section>
   <h2>4 · Perform one</h2>
   <div class="row"><label style="width:7em">act</label>
-    <input type="text" id="actToRun" placeholder="pick one above"></div>
+    <input type="text" id="actToRun" placeholder="pick one above"
+      oninput="paintReady()"></div>
+  <div class="muted" id="playNote" style="margin-top:6px"></div>
   <div class="row" style="margin-top:10px">
     <button class="go" id="playBtn" onclick="play(true)">Play</button>
     <button id="tryBtn" onclick="play(false)">Try it without clicking</button>
@@ -162,7 +178,7 @@
      window.go.main.Backend.Loaded(innerWidth + 'x' + innerHeight +
        ' acts-surface bindings=' + Object.keys(window.go.main).join('+'))
    }
-   paintLive(); loadDemos(); loadActs(); poll()
+   paintLive(); loadDemos(); loadActs(); paintReady(); poll()
  })
 
  // WHAT --live MEANS, SAID BOTH WAYS. The default is off, and off is not "nothing happens":
@@ -179,7 +195,17 @@
  function loadDemos(){
    acts.Demonstrations().then(ds => {
      const ul = $('demos'); ul.innerHTML = ''
-     text($('demoNote'), ds.length + ' saved')
+     const presses = d => (d.steps || []).filter(s => s.pressable)
+     const checks = d => presses(d).filter(s => s.verifiable)
+     // WHAT CAN BE DONE WITH IT FIRST, not the name. Eight demonstrations of one game
+     // are called "ark graphics", "ark graphics live", "ark graphics tab", "ark menu 2":
+     // the name is the one thing that does not tell them apart, and alphabetical order
+     // put the only usable one in the middle of seven that are not.
+     const rank = d => checks(d).length ? 0 : (presses(d).length ? 1 : 2)
+     ds = ds.slice().sort((x, y) => rank(x) - rank(y))
+     const ready = ds.filter(d => checks(d).length).length
+     text($('demoNote'), ds.length + ' saved · ' + ready +
+       (ready === 1 ? ' has' : ' have') + ' an interaction Marco can perform and check')
      ds.forEach(d => {
        const li = document.createElement('li')
        const head = document.createElement('div')
@@ -190,39 +216,67 @@
          const p = document.createElement('div')
          p.className = 'no'; p.textContent = d.problem; li.appendChild(p)
        }
-       // WHAT EACH INTERACTION IS, in things that are on the person's own screen.
+       // WHAT IS IN IT, AS ONE SENTENCE, before any of the rows.
+       const sum = document.createElement('div')
+       const can = presses(d).length, chk = checks(d).length
+       sum.className = chk ? 'ok' : 'muted'
+       sum.textContent = !can
+         ? 'nothing in this one presses anything, so no Act can be made from it'
+         : chk + ' of its ' + (d.steps || []).length + ' steps ' +
+           (chk === 1 ? 'is a press' : 'are presses') + ' Marco can perform and check'
+       li.appendChild(sum)
+       // AND A DEMONSTRATION WITH NOTHING IN IT IS ONE LINE, NOT THIRTEEN DEAD ROWS.
        //
-       // `control_2` is a name this machine gave itself: it cannot be recognised, cannot
-       // be told from `control_1`, and gives no hint that one of them is the row of tabs
-       // across the top of their settings page. So the words the demonstration READ on
-       // the control are what labels it, and the outcome is described by how much was
-       // seen to change and some of what it said.
+       // This is what made the panel unusable. Every step of every demonstration was a
+       // link-styled button, the unclickable ones the same shape as the clickable ones
+       // and only fainter: about forty-five rows, forty of which did nothing when
+       // pressed and said `screen_d to screen_b — nothing was pressed` while doing it.
+       if (!can) { ul.appendChild(li); return }
        ;(d.steps || []).forEach(s => {
          const row = document.createElement('div')
-         const add = document.createElement('button')
-         add.className = 'pick'
-         const reads = (s.reads || []).join(' · ')
-         add.textContent = reads ? 'the one that reads “' + reads + '”' : s.says
-         add.disabled = !s.pressable
-         add.onclick = () => addPicked(d.name, s.position)
-         row.appendChild(add)
-         const tags = document.createElement('span')
-         tags.className = 'muted'
-         // AND WHETHER IT CAN BE CHECKED AFTERWARDS, which is the single most
-         // surprising thing about running an Act and belongs here rather than in a
-         // refusal halfway through one.
-         let says = ''
+         row.className = 'step'
+         const what = document.createElement('span')
+         what.className = 'what'
+         // A STEP THAT PRESSES NOTHING IS NOT A CONTROL, so it is not shaped like
+         // one: no button, and nothing in it a person is invited to act on.
          if (!s.pressable) {
-           says = '  nothing was pressed here'
-         } else if (s.outcome_words) {
-           says = '  afterwards: ' + s.outcome_words + ' words appeared and stayed' +
-             ((s.outcome_seen || []).length
-               ? ' (' + s.outcome_seen.join(', ') + '…)' : '')
-         } else {
-           says = '  nothing was recorded to check afterwards'
+           what.className = 'what muted'
+           what.textContent = 'no press here — the screen changed on its own'
+           row.appendChild(what); li.appendChild(row); return
          }
-         tags.textContent = says
-         row.appendChild(tags)
+         const add = document.createElement('button')
+         add.className = 'use'
+         add.textContent = 'Use this one'
+         add.onclick = () => addPicked(d.name, s.position, s.reads || [])
+         row.appendChild(add)
+         // WHAT IT IS, in things that are on the person's own screen.
+         //
+         // `control_2` and `screen_a` are names this machine gave itself. They
+         // cannot be recognised, cannot be told from `control_1` and `screen_b`,
+         // and give no hint that one of them is the row of tabs across the top of
+         // their own settings page — the owner, reading a list of them: "it's
+         // screen_a to screen_b, how am I supposed to know what that means". So the
+         // words READ on the control name it, the words read on the screen say where
+         // it is, and the outcome says how much changed and some of what it said.
+         const reads = (s.reads || []).join(' · ')
+         const on = (s.on || []).join(' · ')
+         const said = reads ? 'the one that reads “' + reads + '”'
+           : 'a press on something the demonstration read no words on'
+         const where = on ? 'on the screen that reads “' + on + '”'
+           : 'Marco cannot recognise the screen this starts on — it read no words ' +
+             'there, so a run would wait instead of pressing'
+         const after = s.outcome_words
+           ? 'afterwards ' + s.outcome_words + ' words appeared and stayed' +
+             ((s.outcome_seen || []).length
+               ? ' (' + s.outcome_seen.join(', ') + '…)' : '') +
+             ' — so Marco can check it worked'
+           : 'nothing was recorded here to check afterwards, so Marco cannot tell ' +
+             'you whether it worked'
+         what.innerHTML = '<div>' + esc(said) + '</div>' +
+           '<div class="' + (on ? 'muted' : 'no') + '">' + esc(where) + '</div>' +
+           '<div class="' + (s.outcome_words ? 'muted' : 'warn') + '">' +
+           esc(after) + '</div>'
+         row.appendChild(what)
          li.appendChild(row)
        })
        ul.appendChild(li)
@@ -230,15 +284,31 @@
    })
  }
 
- function addPicked(from, position){
+ // USING AN INTERACTION FILLS IN EVERYTHING THAT CAN BE FILLED IN.
+ //
+ // Three empty text fields stood between somebody and their first Act: the demonstration, the
+ // Act's name, and a name for every interaction. Two of the three are already known at this
+ // point. The one that is not is the Act's own name, so that is where the cursor goes.
+ function addPicked(from, position, reads){
    if (!$('from').value) $('from').value = from
    if ($('from').value !== from) {
      alert('An Act performs interactions from one demonstration. This one is from "' +
        from + '" and you have already picked from "' + $('from').value + '".')
      return
    }
-   picked.push({position, name: ''})
+   picked.push({position, name: defaultName(picked.length), reads: reads || []})
    paintPicked()
+   if (!$('actname').value) $('actname').focus()
+ }
+
+ // A NAME THAT WORKS SO THAT NOTHING BLOCKS — and theirs the moment they want it.
+ //
+ // The play SAYS this word, so the person's own is better and the field is right there. It is
+ // deliberately not guessed from the words on the control: the words of a row of tabs are every
+ // tab, so "the audio control" would be a confident lie about which one of them gets pressed.
+ const ordinals = ['the first', 'the second', 'the third', 'the fourth', 'the fifth']
+ function defaultName(i){
+   return (ordinals[i] || 'the ' + (i + 1) + 'th') + ' interaction'
  }
  function clearPicked(){ picked = []; paintPicked() }
  function paintPicked(){
@@ -247,7 +317,9 @@
      const li = document.createElement('li')
      li.className = 'row'
      li.innerHTML = '<span class="muted" style="width:2em">' + (i + 1) + '.</span>' +
-       '<span class="tag">interaction ' + p.position + '</span>'
+       '<span class="tag">' + ((p.reads || []).length
+         ? 'reads “' + esc((p.reads || []).join(' · ')) + '”'
+         : 'interaction ' + p.position) + '</span>'
      const nm = document.createElement('input')
      nm.type = 'text'; nm.placeholder = 'what you call it — the play will say this'
      nm.value = p.name
@@ -269,6 +341,7 @@
      out.className = ''
      text(out, c.play + '\nsaved to ' + c.path)
      $('actToRun').value = c.act
+     paintReady()
      loadActs()
    })
  }
@@ -278,12 +351,22 @@
      listed = as
      const ul = $('acts'); ul.innerHTML = ''
      text($('actNote'), as.length + ' composed')
+     // AN EMPTY PANEL SAYS WHAT TO DO. "0 composed" over an empty list is where the
+     // owner's first trial stopped: "there's zero acts, I can't click into section one".
+     if (!as.length) {
+       const li = document.createElement('li')
+       li.className = 'muted'
+       li.textContent = 'none yet — press "Use this one" on an interaction in 1, ' +
+         'name it in 2, and press Compose and save'
+       ul.appendChild(li)
+     }
      as.forEach(a => {
        const li = document.createElement('li')
        const pick = document.createElement('button')
        pick.className = 'pick'; pick.textContent = a.name
        pick.onclick = () => {
          $('actToRun').value = a.name
+         paintReady()
          $('runapp').value = a.application || ''
          const out = $('composed'); out.hidden = false; out.className = ''
          text(out, a.play)
@@ -298,6 +381,15 @@
        state.className = a.runnable ? 'ok' : 'no'
        state.textContent = a.runnable ? 'ready' : a.why
        li.appendChild(state)
+       // AND WHAT WOULD HAPPEN ANYWAY. "ready" was true and insufficient: an Act whose
+       // starting screen the demonstration never read preflights perfectly and can only
+       // wait for it. Both sentences at once, because both are true. See waitsBecause.
+       if (a.waits) {
+         const wait = document.createElement('div')
+         wait.className = 'warn'
+         wait.textContent = 'it will wait, not press: ' + a.waits
+         li.appendChild(wait)
+       }
        ul.appendChild(li)
      })
    })
@@ -340,6 +432,13 @@
    })
  }
  function cancel(){ acts.Cancel().then(e => { if (e) alert(e) }) }
+
+ // WHY PLAY IS NOT AVAILABLE, when it is not. The buttons themselves belong to poll() — one
+ // place decides, so there is no second opinion about them — and this is the sentence beside.
+ function paintReady(){
+   text($('playNote'), $('actToRun').value.trim() ? ''
+     : 'no Act chosen yet — compose one in 1 and 2, or pick one from 3')
+ }
  function inspect(){
    acts.Inspect($('ref').dataset.id || '').then(r => {
      const el = $('record'); el.hidden = false
@@ -452,7 +551,15 @@
      //
      // Stop is the one control that is live for the whole of a run — including while it
      // is paused, which is exactly when somebody is most likely to want it.
-     for (const b of ['runBtn', 'playBtn', 'tryBtn']) { $(b).disabled = w.active }
+     // AND NOTHING TO PRESS UNTIL THERE IS AN ACT TO PRESS IT ON. Both conditions in
+     // one place, because this is the only place that knows whether a run is in flight.
+     // A Play button that is live with nothing chosen answers a press with "pick an Act
+     // above first", which is a window telling somebody off for pressing what it offered.
+     const nothingChosen = !$('actToRun').value.trim()
+     for (const b of ['runBtn', 'playBtn', 'tryBtn']) {
+       $(b).disabled = w.active || nothingChosen
+     }
+     if (!w.active) { paintReady() }
      $('cancelBtn').disabled = !w.active
    }).finally(() => setTimeout(poll, 400))
  }

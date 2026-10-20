@@ -126,7 +126,7 @@ type Acts struct {
 	// forward: what windows there are, and raising one. Nil in every production path;
 	// see play.go.
 	listing func() []windowref.Candidate
-	lifting func(h uintptr) bool
+	lifting func(h uintptr, pid uint32) (leading, checked bool)
 	// transcript is what the run has said so far, which is the whole of what a person
 	// watching it has to go on.
 	transcript []string
@@ -185,6 +185,16 @@ type Interaction struct {
 	// older artifact says `control_2` and nothing else. A surface that only ever showed
 	// the label would have hidden the difference between the two.
 	Reads []string `json:"reads,omitempty"`
+	// On is some of the words read on the screen this step STARTS on, the steadiest
+	// first, and empty when the demonstration read none there.
+	//
+	// It is the only recognisable name that screen has, and its absence is a warning.
+	// `screen_a` is a name this machine gave itself — the owner's verdict on reading a
+	// list of it was "it's screen_a to screen_b, how am I supposed to know what that
+	// means" — and Marco is in the same position: an Act's starting screen is
+	// established by matching the words on it, so a saved screen with none cannot be
+	// positively identified and a run over it pauses rather than pressing. See onWordsOf.
+	On []string `json:"on,omitempty"`
 	// OutcomeWords is how many words the demonstration saw appear and STAY after this
 	// press, and OutcomeSeen a few of them.
 	//
@@ -228,6 +238,7 @@ func (a *Acts) Demonstrations() []Demonstration {
 				Pressable:  s.Control != "",
 				Verifiable: len(s.Outcome) > 0,
 				Reads:      readsOf(art, s),
+				On:         onWordsOf(art, s),
 			}
 			in.OutcomeWords = len(s.Outcome)
 			in.OutcomeSeen = someOf(s.Outcome, outcomeShown)
@@ -250,10 +261,74 @@ func readsOf(art workflowstore.Artifact, s workflowstore.Step) []string {
 	}
 	for _, c := range art.Controls {
 		if c.Label == s.Control {
-			return someOf(c.Text, controlWordsShown)
+			return wordsToShow(c.Text, controlWordsShown)
 		}
 	}
 	return nil
+}
+
+// onWordsOf is some of the words the demonstration read on the screen a step starts on.
+//
+// Empty means two things at once, and they are the same thing: nothing to show a person, and
+// nothing for Marco to match. See the field it fills.
+func onWordsOf(art workflowstore.Artifact, s workflowstore.Step) []string {
+	for _, sc := range art.Screens {
+		if sc.Label != s.From {
+			continue
+		}
+		said := sc.Said()
+		if !said.Said() {
+			return nil
+		}
+		return wordsToShow(byHowOftenSeen(said.Words), screenWordsShown)
+	}
+	return nil
+}
+
+// byHowOftenSeen orders a screen's words by how many looks read them, the steadiest first.
+//
+// A stored screen's words are accumulated over every look that reached it, so the count is how
+// reliably each one was there: a word read on every look is one the person will see too, and a
+// word read once is as likely to be an OCR ghost. Ties go alphabetically, because a label that
+// reshuffles itself on every Refresh is a label nobody can use to recognise anything.
+func byHowOftenSeen(words map[string]int) []string {
+	out := make([]string, 0, len(words))
+	for w := range words {
+		out = append(out, w)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if words[out[i]] != words[out[j]] {
+			return words[out[i]] > words[out[j]]
+		}
+		return out[i] < out[j]
+	})
+	return out
+}
+
+// wordsToShow is the first n words worth showing somebody.
+//
+// Words of one or two characters are dropped while there are longer ones to show: reading a
+// game's own UI produces `od` and `ul` beside `cosmetics` and `graphics`, and a label that says
+// "audio · camera · cosmetics · graphics · od · ul" has spent two of its six on noise and
+// reads like noise entirely. Not a wordlist and not per-application — a length, applied to every
+// screen and control alike.
+//
+// If nothing survives it, the short words are shown anyway: a control whose only word is "OK"
+// reads "OK", and saying nothing about it would be worse than two characters.
+func wordsToShow(all []string, n int) []string {
+	kept := make([]string, 0, n)
+	for _, w := range all {
+		if len([]rune(w)) > 2 {
+			kept = append(kept, w)
+		}
+		if len(kept) == n {
+			return kept
+		}
+	}
+	if len(kept) > 0 {
+		return kept
+	}
+	return someOf(all, n)
 }
 
 // controlWordsShown and outcomeShown are how many words of each a person is shown.
@@ -263,6 +338,7 @@ func readsOf(art workflowstore.Artifact, s workflowstore.Step) []string {
 // of them, rather than three words and no idea how much was behind them.
 const (
 	controlWordsShown = 6
+	screenWordsShown  = 6
 	outcomeShown      = 3
 )
 
@@ -340,6 +416,17 @@ func (a *Acts) Compose(from, act string, picked []string) Composed {
 		named = append(named, demonstrated.Named{Position: n,
 			Name: strings.TrimSpace(name)})
 	}
+	// AND AN ACT IS NOT ONE OF ITS OWN INTERACTIONS. Both become declarations in the play
+	// this writes, so one name for two things is a compile error that reads `graph: 16:1:
+	// duplicate declaration: AudioTab` — true, and not a sentence to hand somebody
+	// composing their first Act.
+	for _, n := range named {
+		if strings.EqualFold(strings.TrimSpace(n.Name), strings.TrimSpace(act)) {
+			return Composed{Error: fmt.Sprintf("this Act and one of its "+
+				"interactions are both called %q — give the Act a name of "+
+				"its own", n.Name)}
+		}
+	}
 	src, binds, cerr := demonstrated.Compose(art, act, named, time.Now(), marcoChecks{})
 	if cerr != nil {
 		return Composed{Error: cerr.Error()}
@@ -403,6 +490,22 @@ type Act struct {
 	//
 	// The digest alone was not enough, and it looked like it was — see identityOf.
 	Identity string `json:"identity,omitempty"`
+	// Waits is why a run of this Act would wait rather than press, when it would, and
+	// empty when nothing here can say that it would.
+	//
+	// # The run this is for
+	//
+	// The owner composed an Act over an interaction whose starting screen the
+	// demonstration had read no words on, pressed Play, and watched thirty seconds of
+	// nothing end in "refused — 0 of 2 interactions verified". The runner behaved
+	// correctly throughout: it paused, repeatedly, saying "screen_b was saved without
+	// any words, so a reading cannot identify it". But the Act was listed as "ready",
+	// and ready is what a person reads as "this will work".
+	//
+	// Separate from `Why` because the two are different claims and both are true at
+	// once: the preflight says this Act CAN be performed, and this says a performance of
+	// it will wait for something it cannot recognise. See waitsBecause.
+	Waits string `json:"waits,omitempty"`
 	// Runnable is whether it preflights RIGHT NOW, and Why the refusal when it does not.
 	//
 	// Asked here rather than guessed, through the production preflight: the bindings may
@@ -473,6 +576,9 @@ func (a *Acts) Saved() []Act {
 		}
 		// AND THE WHOLE OF IT AS ONE TERM, which is what a page can hand back.
 		act.Identity = identityOf(act)
+		if serr == nil {
+			act.Waits = waitsBecause(store, binds)
+		}
 		if serr != nil {
 			act.Why = serr.Error()
 		} else if _, perr := demonstrated.Preflight(src, binds, store,
@@ -485,6 +591,43 @@ func (a *Acts) Saved() []Act {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out
+}
+
+// waitsBecause is why a run of this Act would wait instead of pressing, or "".
+//
+// One cause, because it is the one that can be answered from the artifact alone and the one that
+// has already cost a trial: an Act starts on the screen its FIRST interaction was demonstrated
+// on, and that screen is established by matching the words read on it. A screen saved without
+// words cannot be positively identified — the arrangement alone has been measured to confuse two
+// screens of one menu — so the run pauses, every look, until its deadline.
+//
+// Not a refusal and not a preflight failure: the Act is composed correctly and would perform
+// perfectly against a screen Marco could recognise. What is missing is in the DEMONSTRATION, and
+// the remedy is to show it again more slowly, so this says that.
+func waitsBecause(store *demo.Store, binds demonstrated.Bindings) string {
+	if store == nil || len(binds.Scenes) == 0 {
+		return ""
+	}
+	first := binds.Scenes[0]
+	art, ok := store.Sequence(first.Routine)
+	if !ok {
+		return ""
+	}
+	for _, s := range art.Steps {
+		if s.Position != first.Position {
+			continue
+		}
+		if len(onWordsOf(art, s)) > 0 {
+			return ""
+		}
+		return "its first interaction starts on a screen the demonstration read " +
+			"no words on, so Marco cannot confirm you are there: a run will " +
+			"wait for it instead of pressing, and end without doing anything. " +
+			"Demonstrate it again, resting on that screen long enough to be " +
+			"read, or choose an interaction whose screen has words beside it " +
+			"above."
+	}
+	return ""
 }
 
 func routineOf(b demonstrated.Bindings) string {

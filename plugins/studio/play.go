@@ -229,10 +229,26 @@ func (a *Acts) bringForward(app string) string {
 		return fmt.Sprintf("%s does not seem to be running — start it and press "+
 			"Play again", app)
 	}
-	// BEST EFFORT, AND THE RUNNER DECIDES. Not a refusal: see above — what this
-	// cannot do, the occlusion and foreground guards will say in their own words at
-	// the instant it matters, which is the instant of the press and not this one.
-	_ = a.lift(c.Handle)
+	// AND IF IT IS NOT IN FRONT AFTERWARDS, SAY SO NOW.
+	//
+	// This used to be best effort in silence — `_ = a.lift(...)`, on the grounds that
+	// the runner's own guards decide. They do, and what that looked like to the owner
+	// was this: Play, nothing visible, thirty seconds, "refused". The run had paused
+	// correctly and repeatedly about a screen it could not see, in a window they were
+	// looking at instead of the game, because the game was never brought forward.
+	//
+	// A raise that did not work is therefore answered here, where the sentence can say
+	// what to do about it, and the run is not started: it could only pause for its whole
+	// deadline. `checked` keeps this honest — a platform that cannot tell where the
+	// foreground is says nothing and starts the run, exactly as before.
+	leading, checked := a.lift(c.Handle, c.ProcessID)
+	if checked && !leading {
+		return fmt.Sprintf("Windows would not bring %s to the front, and Marco "+
+			"will not press anything it cannot see — click %s's own window "+
+			"yourself, then press Play again. (Windows only lets the window "+
+			"you last clicked hand the foreground on, so pressing Play while "+
+			"a full-screen game is behind it can be refused.)", app, app)
+	}
 	return ""
 }
 
@@ -299,9 +315,9 @@ func (a *Acts) windowsNow() []windowref.Candidate {
 // A seam of its own rather than part of `raising`, so a test can let the real choosing happen and
 // still see WHICH window the choice reached. The restore branch for a minimized window is behind
 // a Windows syscall; what a test can hold is that the decision gets there with the right handle.
-func (a *Acts) lift(h uintptr) bool {
+func (a *Acts) lift(h uintptr, pid uint32) (leading, checked bool) {
 	if a.lifting != nil {
-		return a.lifting(h)
+		return a.lifting(h, pid)
 	}
-	return raiseWindow(h)
+	return raiseWindow(h, pid)
 }

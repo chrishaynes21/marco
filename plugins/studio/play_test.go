@@ -395,6 +395,9 @@ func TestAnActReplacedBetweenPlayAndTheAuthorisationIsNotAuthorised(t *testing.T
 func aWindow(app string, h uintptr, w, ht int, minimized bool) windowref.Candidate {
 	return windowref.Candidate{
 		ID: directorapi.WindowID("hwnd:" + strconv.Itoa(int(h))), Handle: h,
+		// THE PROCESS, because that is what "it came forward" means: an
+		// application brought forward need not leave the same window in front.
+		ProcessID:   uint32(h) * 100,
 		Application: app, Bounds: directorapi.Rect{Width: w, Height: ht},
 		Minimized: minimized, Visible: !minimized, OnScreen: !minimized,
 	}
@@ -415,7 +418,12 @@ func aWindow(app string, h uintptr, w, ht int, minimized bool) windowref.Candida
 func TestAMinimizedApplicationIsRestoredRatherThanRefused(t *testing.T) {
 	a, _ := aStoreWithADemonstration(t)
 	lifted := []uintptr{}
-	a.lifting = func(h uintptr) bool { lifted = append(lifted, h); return true }
+	pids := []uint32{}
+	a.lifting = func(h uintptr, pid uint32) (bool, bool) {
+		lifted = append(lifted, h)
+		pids = append(pids, pid)
+		return true, true
+	}
 	// ONE WINDOW, MINIMIZED. Its bounds are what Windows reports for an iconic window:
 	// a size it will restore to, at a position off every monitor.
 	a.listing = func() []windowref.Candidate {
@@ -427,6 +435,77 @@ func TestAMinimizedApplicationIsRestoredRatherThanRefused(t *testing.T) {
 	}
 	if len(lifted) != 1 || lifted[0] != 77 {
 		t.Fatalf("the minimised window was not the one raised: %v", lifted)
+	}
+	// AND THE PROCESS WENT WITH IT, which is what the foreground is then checked
+	// against: the window raised and the window in front afterwards are not always
+	// the same one.
+	if len(pids) != 1 || pids[0] != 7700 {
+		t.Fatalf("the raise was asked about process %v, and the window belongs "+
+			"to 7700", pids)
+	}
+}
+
+// AND AN APPLICATION WINDOWS WILL NOT BRING FORWARD IS SAID, NOT STARTED.
+//
+// # The run this is for
+//
+// Studio raised the window and ignored the answer: `_ = a.lift(...)`, on the stated grounds
+// that the runner's own guards decide. They do decide, and this is what deciding looked like to
+// the owner — Play, nothing visible, thirty seconds, "refused — 0 of 2 interactions verified".
+// The runner had paused correctly on every look, saying it could not see the screen the Act
+// starts on, while the game sat behind the window they were watching. Their words: "play just
+// starts a new director, it doesn't try and do anything because it doesn't foreground ark".
+//
+// So a raise that did not take is answered here, where a sentence can say what to do about it,
+// and no run is started — it could only wait for its whole deadline. A platform that cannot
+// tell where the foreground is says so instead (`checked` false), and the run proceeds as
+// before, because "nobody could say" is not "it is not there".
+func TestAnApplicationWindowsWillNotBringForwardIsSaidBeforeAnythingStarts(t *testing.T) {
+	for _, c := range []struct {
+		name            string
+		leading, known  bool
+		refusedContains string
+		starts          bool
+	}{
+		{"it came forward", true, true, "", true},
+		{"it did not, and this machine can tell", false, true,
+			"click ArkAscended.exe's own window", false},
+		{"nobody here can tell where the foreground is", false, false, "", true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			a := aPlayableAct(t, "the audio page")
+			// THE PRODUCTION CHOOSING, with the desktop's two answers
+			// stood in for: which windows there are, and what the raise
+			// achieved.
+			a.raising = nil
+			a.listing = func() []windowref.Candidate {
+				return []windowref.Candidate{
+					aWindow("ArkAscended.exe", 5, 1920, 1080,
+						false)}
+			}
+			a.lifting = func(uintptr, uint32) (bool, bool) {
+				return c.leading, c.known
+			}
+
+			why := a.Play("the audio page", false, "")
+			if c.refusedContains == "" {
+				if why != "" {
+					t.Fatalf("Play was refused: %s", why)
+				}
+			} else if !strings.Contains(why, c.refusedContains) {
+				t.Fatalf("the refusal does not say what to do: %q", why)
+			}
+			if !c.starts {
+				if w := a.Watch(); w.Active {
+					t.Error("a run was started for a window that is " +
+						"not in front, which can only wait")
+				}
+				return
+			}
+			if said := waitForTranscript(t, a); !strings.Contains(said, "--play") {
+				t.Errorf("no run was started:\n%s", said)
+			}
+		})
 	}
 }
 
@@ -598,6 +677,19 @@ func TestThePageIsTheFlowThatWasAskedFor(t *testing.T) {
 			"the screen it expects looks like a run doing nothing"},
 		{"s.reads", "the page labels an interaction by its machine name rather " +
 			"than by the words that are on the person's own screen"},
+		{"s.on", "the page does not say which screen an interaction starts on in " +
+			"words that are on it, so `screen_a` is what somebody is asked " +
+			"to recognise"},
+		{"a.waits", "the page lists an Act that can only wait for a screen it " +
+			"cannot recognise as plain `ready`"},
+		{"Use this one", "what can be performed is not a button of its own, so a " +
+			"step that does nothing when pressed looks like one that does"},
+		{"no press here", "a step that presses nothing is still shaped like a " +
+			"control"},
+		{"none yet", "an empty Act list says `0 composed` and nothing about how to " +
+			"compose one"},
+		{"nothingChosen", "Play is live with no Act chosen, so pressing it is " +
+			"answered by being told off for pressing it"},
 		{"s.outcome_words", "the page does not say whether an interaction can be " +
 			"checked afterwards, which is the most surprising thing about one"},
 	} {

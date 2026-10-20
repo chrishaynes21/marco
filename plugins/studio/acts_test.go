@@ -23,6 +23,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/runstate"
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflowstore"
 	"github.com/chaynes-simpleclouds/marco/internal/stopsignal"
+	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 )
 
 // aStoreWithADemonstration puts one two-interaction routine in a temporary store and points this
@@ -37,14 +38,33 @@ func aStoreWithADemonstration(t *testing.T) (*Acts, workflowstore.Artifact) {
 		return workflowstore.Control{Label: label,
 			Readings: []observe.Region{{X: 0.41, Y: y, Width: 0.07, Height: 0.03}}}
 	}
+	// AND ONE CONTROL THAT WAS READ, because `control_2` is a name this machine gave
+	// itself and the words on it are the only thing in the artifact that is also on
+	// somebody's screen. Two of them are OCR fragments, which is what reading a game's
+	// own interface actually produces.
+	read := func(c workflowstore.Control, words ...string) workflowstore.Control {
+		c.Text = words
+		return c
+	}
 	art := workflowstore.Artifact{
 		Version: workflowstore.Version, Name: "ark graphics live",
 		SavedAt:     time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC),
 		Application: "ArkAscended.exe",
 		Screens: []workflowstore.Screen{
-			{Label: "screen_a"}, {Label: "screen_b"}},
+			// ONE SCREEN WITH WORDS AND ONE WITHOUT, which is the
+			// difference between an Act that can start and an Act that can
+			// only wait: a starting screen is established by matching the
+			// words read on it, and a screen saved without any cannot be
+			// positively identified at all.
+			{Label: "screen_a"},
+			{Label: "screen_b", Text: &observe.ScreenText{
+				From: directorapi.SourceOCR, Looks: 5,
+				Words: map[string]int{"graphics": 5, "audio": 5,
+					"settings": 5, "brightness": 2, "od": 1}}}},
 		Controls: []workflowstore.Control{
-			control("control_1", 0.24), control("control_2", 0.29)},
+			control("control_1", 0.24),
+			read(control("control_2", 0.29), "audio", "camera",
+				"cosmetics", "graphics", "od", "ul", "video")},
 		Steps: []workflowstore.Step{
 			// ONE PRESSES AND CANNOT BE VERIFIED, ONE PRESSES AND CAN, and one
 			// presses nothing at all. The three states a person has to be able to
