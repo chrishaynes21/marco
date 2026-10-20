@@ -151,7 +151,7 @@ of them.
   step, what is happening and what to do, Stop in the rail, run history, Report a problem, the
   words on controls and screens, the waiting warning, and the engineering run labelled as not a
   rehearsal.
-- `plugins/studio/page_test.go` — `TestThePageBeginsWithItsDoctype`, which is why a text node in
+- `plugins/studio/page_test.go` — `TestThePageBeginsAsADocument`, which is why a text node in
   front of the doctype cannot come back.
 - And the window itself: `studio.exe -seconds N -evidence <file>` renders the page and the page
   reports back LAST, after setting itself up, so the evidence line is proof that the script ran

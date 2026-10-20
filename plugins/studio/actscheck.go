@@ -73,6 +73,21 @@ func runActsCheck(home string) int {
 			s.Interactions, state)
 	}
 
+	// AND WHAT HAPPENED BEFORE, which is the third place in the window.
+	past := a.History()
+	fmt.Printf("\nRUNS  %d kept\n", len(past))
+	for i, h := range past {
+		if i >= 5 {
+			fmt.Printf("  \u2026and %d more\n", len(past)-i)
+			break
+		}
+		fmt.Printf("  %-26s %-13s %s\n      %s\n", h.Reference,
+			h.Outcome, h.When, h.Said)
+		if h.Next != "" {
+			fmt.Printf("      WHAT TO DO: %s\n", h.Next)
+		}
+	}
+
 	// AND WHAT THE PAGE WOULD POLL, so a reader can see the shape it renders.
 	w, _ := json.Marshal(a.Watch())
 	fmt.Printf("\nWATCH  %s\n", w)
