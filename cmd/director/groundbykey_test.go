@@ -286,8 +286,26 @@ func TestAHotkeyRunReachesAnAuthorisedActionWithoutFrom(t *testing.T) {
 	// 4. AND THE AUTHORISED ACTION HAPPENED — written down, not pressed.
 	rec := theOnlyRecord(t)
 	if rec.Sent == 0 {
-		t.Errorf("no action was performed after one was authorised (%s: %s)",
-			rec.Outcome, rec.Because)
+		// AND WHICH WINDOW IT WAS LOOKING AT WHEN IT DID NOT.
+		//
+		// This assertion's verdict is a function of the desktop it ran on. The
+		// routine above is built from a photograph of the window in front, and the
+		// run looks AGAIN at the press instant; a refusal here is usually the world
+		// re-check declining a look whose pixels no longer agree with the screen the
+		// point was approved on. That is the guard working, on a window that did not
+		// hold still — and it is indistinguishable, from this line, from a guard
+		// that has started refusing a screen that did.
+		//
+		// It has failed that way: four times in ten full-package runs, in one early
+		// cluster, with no mechanism established. See
+		// docs/experiments/Experiment-094-four-failures-no-mechanism-and-a-window-that-has-to-hold-still.md
+		// — which had to be reconstructed from scrollback, because nothing recorded
+		// which window the run was grounded against. Now it does.
+		t.Errorf("no action was performed after one was authorised (%s: %s)\n"+
+			"  grounded against %s — %q %v, which is the window in front of "+
+			"whoever ran this; see Experiment-094 if the reason above is about "+
+			"the screen the point was approved on",
+			rec.Outcome, rec.Because, front.Application, front.Title, front.Bounds)
 	}
 	if rec.Real {
 		t.Fatal("the run sent REAL input; this test must never do that")

@@ -503,7 +503,11 @@ together, because a request naming two has nothing to disambiguate it.
 
 **The game must be in FRONT.** Window capture is not occlusion-safe: `--application` avoids
 stealing focus and returns the covering window's pixels under the target's name, so a
-demonstration recorded against a backgrounded game is a demonstration of your terminal.| grep -i <game>
+demonstration recorded against a backgrounded game is a demonstration of your terminal.
+
+```sh
+# 1. find the window title
+./director.exe windows | grep -i <game>
 
 # 2. start watching, then switch to the game within the 5s delay
 ./director.exe demonstrate-visual "enter free play" --window-title "<title>" --seconds 120
@@ -511,10 +515,21 @@ demonstration recorded against a backgrounded game is a demonstration of your te
 
 Then, with your own mouse:
 
-1. click one menu entry, and wait a second for the next screen to settle;
-2. click a second entry, wait again;
+1. click one menu entry, then **wait, and wait longer than feels necessary** — several seconds,
+   until the new panel has plainly been sitting there doing nothing;
+2. click a second entry, and wait the same way again;
 3. click a third;
 4. come back to the terminal and press **ENTER**.
+
+**A second is not enough, and that is what a demonstration with no outcomes looks like.** For a
+step to remember an OUTCOME — words that appeared somewhere other than the control you pressed and
+STAYED — the readings after your click have to carry it: the first two are dropped as mid-response
+(`observe.OutcomeSkipReadings`) and five more have to agree (`OutcomeSettleLooks`), and a reading
+is an OCR pass that finishes when it finishes. Click again before that and the window is cut short
+— the step is still learned, it still arrives somewhere, and it has nothing to verify against. So
+the pause between the clicks is not politeness, it is the evidence. And see
+[[ADR-242-the-second-action-waits-for-the-first-ones-answer]] for what it buys: a two-action Act
+can only hold the second press back if the first press has an outcome to be waited on.
 
 Marco prints what it observed before it saves anything:
 
@@ -1067,6 +1082,12 @@ The step that makes a WORKFLOW out of a single guarded action. Nothing new to de
 routine with two presses in it already has everything this needs, as long as each step carries an
 outcome expectation.
 
+Which is the thing to settle BEFORE running anything. If `sequences` says a step cannot be
+verified, it is the demonstration that needs redoing and not the run: a two-action trial over a
+step with no outcome does not test the waiting, it tests the honest shrug for a file that cannot
+be checked. The pause between the two clicks is what records it — see the teaching walkthrough
+above.
+
 ```sh
 ./director.exe sequences "<name>"      # read this FIRST: it says which steps can be verified
 ./director.exe perform-workflow --name "<name>" --live --reading --hotkeys
@@ -1276,9 +1297,18 @@ Act; it is a test of the account, and the only way to check an account is to wat
 thing it describes.
 
 ```sh
+go build -o director.exe ./cmd/director
 go -C plugins/studio build -tags "desktop,production" -ldflags "-H windowsgui" -o studio.exe .
+copy director.exe plugins\studio\director.exe
 plugins\studio\studio.exe
 ```
+
+**The copy is not optional.** Studio spawns the supervised runner from `director.exe` beside its
+own executable, falling back to whatever the PATH answers; a Studio without one reports every run
+as failing to start, which reads as a broken Act rather than a missing binary. And launch it with
+no `-home` and no `-isolate`: the store then resolves the way `marco` and `director` resolve it, so
+the demonstrations listed are the ones you made. `-isolate` is for the shell proof, and a window
+on an empty temporary store lists nothing and looks like lost work.
 
 Pick the Act, leave **live** off for the first pass, and press Run. Then watch the top line of the
 run panel, not the transcript, and check each of these AS IT HAPPENS — a screenshot afterwards
@@ -1291,6 +1321,14 @@ cannot tell you any of them:
 2. **The key offered is a key that works.** At the start prompt the panel offers two — yes and
    cancel. There must be no "no" on offer there: `started` ignores it, and a key that does nothing
    reads as a run that is not listening.
+
+   **And every question reads as a question about something you recognise.** This is the one
+   check only a person can make, and it is not about the keys: read each prompt as it arrives and
+   ask whether somebody who did not compose this Act could tell what they were agreeing to. The
+   words are the runner's own, verbatim — Studio does not paraphrase them, deliberately, because
+   a window's summary of a consent prompt is a different question from the one being answered. If
+   a prompt names a control instead of the thing you called it, or asks about a screen in terms
+   you did not choose, write the sentence down: the fix belongs in the runner's words.
 3. **The phase moves through `starting` before anything is asked.** Acquisition and bringing up
    perception take seconds, and during them the window must say `starting` and show no question.
 4. **The interaction is named the way you named it, and numbered the way the Act is.** `1 of 2 ·
@@ -1303,10 +1341,32 @@ cannot tell you any of them:
    being shown as a press.
 6. **The second interaction is not mentioned until the first has a verdict.** Same guarantee as
    step 7 of the walkthrough above, read off the panel instead of the transcript.
+7. **The mode the panel claims is the mode the run is in.** The tag beside the Act reads `dry`
+   or a red `LIVE`, and it comes from the run's own account rather than from the checkbox. Tick
+   the live box WHILE the dry run is in flight: the tag must stay `dry`, because the run in front
+   of you is a dry one and a window that re-labelled it would be lying about what the next F7
+   does. In the dry pass nothing moves on screen and the record ends up saying `"live": false`
+   with `"actions_sent"` above zero — the whole run happened and every click was written down.
+8. **Cancelling ends the run, and the run says it was cancelled.** Press **F9** (or the Cancel
+   button, which raises the same one stop broadcast) while a question is up. The outcome tag must
+   become `cancelled` and not `refused` — a run somebody stopped and a run that would not proceed
+   are different endings — the Cancel button must go dark, and the panel must NOT say INCOMPLETE,
+   because a cancelled run ends by saying so. Cancel once AFTER authorising a press, too: the stop
+   is read at the last moment it could matter, so the record's `"actions_sent"` must leave no doubt
+   which side of the press the stop landed on.
+9. **The final display and the saved record agree.** When it has ended, press **Inspect the
+   record** and read the JSON against the tags above, field by field: `run` against the reference,
+   `outcome` against the outcome tag, `live` against the mode tag, `act` against the Act, and
+   `verified` / `contradicted` / `unconfirmed` against what the phase line said as it went. The
+   file is `%MARCO_HOME%\runs\<reference>.json`, and it is the artefact a bug report cites — so a
+   panel that showed `verified` over a record that says `unconfirmed` means the thing you can cite
+   disagrees with the thing you watched, and the record wins.
 
 Then produce the one case no test can produce on a real screen: while a question is on the panel,
-**kill the runner** (`taskkill /IM director.exe /F`, or `director stop` and then close it). The
-panel must say INCOMPLETE and must STOP offering the keys — the question stays visible as what it
-was ("it was asking this when it last said anything"), and nothing invites you to press F7 at a
-process that has gone. If the keys are still offered, a person can answer a question nobody is
-listening to and watch nothing happen.
+**kill the runner** — `taskkill /IM director.exe /F`, and only that. NOT `director stop`: that
+raises the cooperative stop, which is check 8 above, and a stopped run ends by saying it was
+cancelled — you would be shown a complete run and this case would go untested. A hard kill is the
+only way to leave a stream with no ending in it. The panel must say INCOMPLETE and must STOP
+offering the keys — the question stays visible as what it was ("it was asking this when it last
+said anything"), and nothing invites you to press F7 at a process that has gone. If the keys are
+still offered, a person can answer a question nobody is listening to and watch nothing happen.

@@ -818,6 +818,16 @@ long `verifying` stands, whether a countdown looks right while a game is loading
 press prompt arrives before a person has finished reading the one before it. Those are the owner's
 trial, not a test's.
 
+And the suite this was gated on is not reliably green, which is a different sentence from the one
+the gate run supports. `cmd/director`'s `TestAHotkeyRunReachesAnAuthorisedActionWithoutFrom`
+grounds against the real window in front of the desktop and looks at it again at the press
+instant, so its verdict depends on that window holding still; it failed four times in ten
+full-package runs in this tree, in one early cluster, against eight of eight in a baseline at
+`cc97a1d`, and passed twelve of twelve alone in both. No mechanism was established and the change
+is not established as unrelated. Recorded apart from the gate result, with the protocol and what
+it cannot say, in
+[[Experiment-094-four-failures-no-mechanism-and-a-window-that-has-to-hold-still]].
+
 The Wails prototype under `plugins/studio/` remains SHELL EVIDENCE. Its store defaults to an
 isolated one per launch and it refuses to attach to a service it did not start, which closes the
 launch defect; it establishes nothing about supervised consent keys, and its own evidence says so.
@@ -825,6 +835,7 @@ launch defect; it establishes nothing about supervised consent keys, and its own
 ## Links
 
 - [[ADR-242-the-second-action-waits-for-the-first-ones-answer]]
+- [[Experiment-094-four-failures-no-mechanism-and-a-window-that-has-to-hold-still]]
 - [[ADR-183-remembering-recognising-and-being-allowed-to-act]]
 - [[ADR-068-the-theater-is-the-durable-semantic-world]]
 - [[ADR-028-a-learned-play-is-a-file-with-a-past]]
