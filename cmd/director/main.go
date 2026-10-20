@@ -96,6 +96,14 @@ func main() {
 		os.Exit(runExtract(os.Args[2:]))
 	case "save":
 		os.Exit(runSave(os.Args[2:]))
+	case "compose-act":
+		// AN ACT, COMPOSED FROM A DEMONSTRATION SOMEBODY ALREADY GAVE.
+		//
+		// The half `perform-workflow --play` cannot do: it selects a saved Act and
+		// nothing created one. Writes the play, its bindings and its provenance, and
+		// prints the play — an Act is legal Marco so that a person can read it. It
+		// performs nothing. See composeact.go.
+		os.Exit(runComposeAct(os.Args[2:]))
 	case "sequences", "sequence":
 		os.Exit(runSequences(os.Args[2:]))
 	case "correct":
@@ -383,6 +391,11 @@ func usage() {
                                  demonstrated, run with: execute "run <name>"
   director sequences             what has been saved that way
   director sequences --forget "<name>"   remove one
+  director compose-act --from "<demonstration>" --name "<act>"
+      --interaction '0=what you call it' ...
+                                 compose an ACT: a .marco play whose own
+                                 sentences are the order, from interactions you
+                                 demonstrated. Prints the play. Presses nothing
   director demonstrate-visual "<name>" --application X
                                  learn a routine from PIXELS: watch your own
                                  clicks and keep what the proposer saw
