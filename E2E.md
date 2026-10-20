@@ -1363,10 +1363,30 @@ cannot tell you any of them:
    disagrees with the thing you watched, and the record wins.
 
 Then produce the one case no test can produce on a real screen: while a question is on the panel,
-**kill the runner** — `taskkill /IM director.exe /F`, and only that. NOT `director stop`: that
-raises the cooperative stop, which is check 8 above, and a stopped run ends by saying it was
-cancelled — you would be shown a complete run and this case would go untested. A hard kill is the
-only way to leave a stream with no ending in it. The panel must say INCOMPLETE and must STOP
-offering the keys — the question stays visible as what it was ("it was asking this when it last
-said anything"), and nothing invites you to press F7 at a process that has gone. If the keys are
-still offered, a person can answer a question nobody is listening to and watch nothing happen.
+**kill THAT runner** — the one Studio spawned, by its own process id. Studio starts it as a child
+of itself, so that is how to find it:
+
+```powershell
+# the Studio run's own director.exe, and nothing else wearing that name
+Get-CimInstance Win32_Process -Filter "Name='director.exe'" |
+  Select-Object ProcessId, ParentProcessId, CommandLine
+taskkill /PID <the one whose CommandLine says perform-workflow> /F
+```
+
+**Not `/IM director.exe`.** That kills every Director process on the machine, including a daemon
+somebody else is depending on and anything else mid-run; what this case needs is one supervised
+runner gone, with the rest of the machine untouched. And not `director stop` either: that raises
+the cooperative stop, which is check 8 above, and a stopped run ends by saying it was cancelled —
+you would be shown a complete run and this case would go untested. A hard kill of the one child is
+the only way to leave a stream with no ending in it.
+
+Three things must then hold, and the third is why the kill is targeted:
+
+- the panel says INCOMPLETE;
+- it STOPS offering the keys — the question stays visible as what it was ("it was asking this when
+  it last said anything"), and nothing invites you to press F7 at a process that has gone. If the
+  keys are still offered, a person can answer a question nobody is listening to and watch nothing
+  happen;
+- every OTHER `director.exe` is still running. Re-run the `Get-CimInstance` line above: a daemon
+  that went down with the runner means the kill was not the one this case is about, and whatever
+  the panel then said is evidence about a different event.
