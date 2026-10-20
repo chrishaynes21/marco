@@ -52,6 +52,7 @@ import (
 	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/demo"
+	"github.com/chaynes-simpleclouds/marco/internal/director/demonstrated"
 	"github.com/chaynes-simpleclouds/marco/internal/director/fastobserve"
 	"github.com/chaynes-simpleclouds/marco/internal/director/marcoexec"
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
@@ -97,6 +98,11 @@ func runPerformWorkflow(args []string) int {
 		"the name a demonstration was saved under, as `director sequences` lists "+
 			"it. Use "+
 			"this to run what you demonstrated; --workflow is for an artifact file")
+	play := fs.String("play", "",
+		"the name of a saved demonstrated ACT: a `.marco` play whose own sentences "+
+			"are the order. Its bindings are resolved and the play rebuilt from "+
+			"them before anything is grounded, and the routine it performs comes "+
+			"from the play rather than from --name")
 	live := fs.Bool("live", false,
 		"send REAL input. Without this the whole path runs and nothing is pressed")
 	seconds := fs.Int("seconds", 120, "how long the run may take")
@@ -220,10 +226,35 @@ func runPerformWorkflow(args []string) int {
 	// of `v.Ref.Application`, the executable of the window actually acquired, so naming a
 	// pid cannot make an artifact valid anywhere its scope does not already allow.
 	switch {
-	case *file == "" && *named == "":
+	case *play != "" && *step >= 0:
+		// --play AND --step WOULD PERFORM THE WRONG INTERACTION.
+		//
+		// `--step` extracts one step into a one-step artifact IN MEMORY, which
+		// renumbers it to position 0. A play's bindings name ORIGINAL positions, and
+		// nothing renumbers them — so `--play X --step 1` leaves the play's first
+		// Scene bound to position 0 while position 0 now holds what used to be
+		// interaction 1. The sentence a person reads would press the other control,
+		// with every gate satisfied and nothing to notice.
+		//
+		// Refused rather than reconciled: an Act already says which interactions it
+		// performs and in what order, so narrowing it with a flag is asking two things
+		// to decide one question. Perform the whole Act, or compose one from the
+		// interaction you want.
+		fmt.Fprintln(os.Stderr, "director: --play and --step cannot be used "+
+			"together.\n"+
+			"  An Act already says which interactions it performs, and --step "+
+			"renumbers\n"+
+			"  the demonstration underneath it — so the play's first Scene would "+
+			"perform\n"+
+			"  whichever interaction --step moved into its place. Run the whole "+
+			"Act, or\n"+
+			"  compose one from the interaction you want.")
+		return 2
+	case *file == "" && *named == "" && *play == "":
 		fmt.Fprintln(os.Stderr,
 			"director: name what to perform.\n"+
 				"  --name \"graphics tab\"      a demonstration you saved\n"+
+				"  --play \"graphics tab\"      a play composed from one\n"+
 				"  --workflow routine.json   an artifact file")
 		return 2
 	case *seconds < 1 || *seconds > maxPerformSeconds:
@@ -254,7 +285,7 @@ func runPerformWorkflow(args []string) int {
 	// that matter. Moved above the checks, a bad `--workflow` path exits 1 where a usage
 	// refusal should exit 2 — which `TestPerformWorkflowIsDispatchedAndReachable` caught
 	// the first time this was reordered.
-	art, code := workflowToPerform(*file, *named)
+	art, plan, code := whatToPerform(*file, *named, *play)
 	if code != 0 {
 		return code
 	}
@@ -296,8 +327,15 @@ func runPerformWorkflow(args []string) int {
 	// attempt should say, and the counts are carried through unchanged when there is a
 	// report — a run cancelled after an action verified did verify that action.
 	keep := func(out RunOutcome, because string, rep workflowrun.Report) (string, error) {
+		// THE ACT'S OWN IDENTITY, beside the demonstration it performs. Empty for an
+		// ordinary workflow run, which is what `omitempty` is for.
+		actName, actSource := "", ""
+		if plan != nil {
+			actName, actSource = *play, plan.Source
+		}
 		return saveRun(RunRecord{
 			Version: 1, Run: runID, Workflow: art.Name,
+			Act: actName, ActSource: actSource,
 			Application: string(art.Application), Step: *step,
 			Started: began.Format(time.RFC3339),
 			Ended:   time.Now().Format(time.RFC3339),
@@ -727,35 +765,45 @@ func runPerformWorkflow(args []string) int {
 		fmt.Printf("  the words on each look are read beside the loop.\n")
 	}
 
-	var blind int
-	var blindWhy string
-	var look int
-	// WHAT WAS LAST READ, AND THE CONTEXT THAT KEEPS IT CURRENT.
-	//
-	// Held across looks because OCR answers far less often than the loop looks, and
-	// dropped the moment `observe.Current` stops being true of it — which is the moment a
-	// screen change is recorded, not the moment a different screen is standing.
-	var said []observe.ReadWord
-	var saidGen, saidEpoch uint64
-	// saidSeq is WHICH reading `said` is, and saidLook the look it describes.
-	//
-	// OCR answers about twice a second against a loop that looks ten times, so the last
-	// reading stands for the looks that follow it — and the run was counting that one
-	// reading once per look. Measured live: a press whose panel had not arrived yet was
-	// contradicted 572ms later on "5 fresh reading(s)", which were five copies of the
-	// single reading taken before the press. A verdict needs five readings, not one
-	// reading five times.
-	var saidSeq, saidLook int
-	saidLook = -1
-	// AND WHAT IT SAID AS A VOCABULARY, which is a different question from where each
-	// word was. `said` carries positions and is what a control is found by; this is what
-	// a SCREEN is recognised by, and the destination test needs the second. Kept on the
-	// same stamps so one admission rule covers both.
-	var saidText observe.ScreenText
+	// WHAT THE LOOP CARRIES IS THE LOOP'S. `blind`, `blindWhy`, the last reading and its
+	// stamps all moved into `looker` with the body that uses them; what is read back here
+	// for the report comes off it. See observationloop.go.
 	opt := structure.DefaultOptions()
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	deadline := time.Now().Add(time.Duration(*seconds) * time.Second)
+
+	// ── AND THE DEADLINE IS IN THE CONTEXT, so everything that waits inherits it ──
+	//
+	// # What checking it at the top of a look was not enough for
+	//
+	// `looker.next` refuses to START another look past the deadline, which stops the loop
+	// — and stops nothing that is already waiting. The press-authorisation prompt is the
+	// case: it opens before expiry, the desk waits up to `--answer` for a key, and a
+	// person pressing F7 four seconds into a `--seconds 3` run was given a FRESH
+	// authorisation. The runner's boundary checks ask whether the world still holds; none
+	// of them asks what time it is. So the click could still be sent, after the run's
+	// advertised limit, with every other guard satisfied.
+	//
+	// Carrying it in the context is the whole correction, because the context is already
+	// what everything that waits is given: the consent desk selects on `ctx.Done()` and
+	// WITHDRAWS its question (`consentDesk.ask`), the capture takes it, the coordinator
+	// takes it per observation, and the verification windows close with it. One deadline,
+	// inherited by all of them, rather than a clock each of them would have to remember
+	// to consult.
+	//
+	// Shadowing `ctx` on purpose: every use below this line is in the run, and a second
+	// name would be a second thing to pass correctly at each call site.
+	//
+	// # And expiry is NOT a cancellation
+	//
+	// `context.WithDeadline` says which happened — `DeadlineExceeded` against `Canceled` —
+	// and the two mean different things to a person. Somebody pressed stop; or the run
+	// took longer than they allowed it. See `endedBecause` below, which keeps them apart
+	// all the way into the record.
+	ctx, pastDeadline := context.WithDeadline(ctx, deadline)
+	defer pastDeadline()
+
 	if session0 != nil {
 		// THE SESSION'S CLOCK, started with the run. Set here and not where the
 		// grant was built, because --delay is time nobody may act in and a session
@@ -763,175 +811,109 @@ func runPerformWorkflow(args []string) int {
 		session0.until = deadline
 	}
 	lost := ""
+	// act is the play's account when this run performed one, and nil when it walked an
+	// artifact. What the run is judged by, below.
+	var act *demonstrated.Account
 
-	for time.Now().Before(deadline) {
-		if ctx.Err() != nil {
-			break
-		}
-		v := tracker.Acquire(ctx, target)
-		if !v.State.OK() {
-			lost = fmt.Sprintf("the target was lost (%s)", v.State)
-			break
-		}
-		lk := fastobserve.Look{
-			At: time.Now(),
-			Window: fastobserve.WindowRef{
-				ID: v.Ref.ID, Generation: v.Ref.Generation, Bounds: v.Ref.Bounds,
-			},
-		}
-		img, cerr := shots.CaptureWindow(ctx, windowRefToWindow(v.Ref))
-		if cerr != nil {
-			// WHY THE PIXELS DID NOT ARRIVE. Discarding this turned a capture
-			// that failed 410 times out of 417 into "no pixels were obtained",
-			// which names the symptom and not one cause.
-			lk.Missing = true
-			blind++
-			if blindWhy == "" {
-				blindWhy = cerr.Error()
+	// ONE LOOK PER ITERATION, BUILT IN ONE PLACE. See observationloop.go, which is this
+	// loop's body with the state it carried turned into fields — moved there verbatim
+	// when a second caller arrived, because a second place that builds a Sighting would
+	// be two copies of ordering that is several ADRs deep.
+	// THE WALL CLOCK GOES WITH THE LOOKS, so both drivers are bound by `--seconds` and
+	// not only the one that happened to check it. The closure reads `deadline`, which the
+	// cursor loop also moves forward to fall out early with its report intact.
+	looks := newLooker(tracker, target, shots, windows, obs, opt, eyes, reader,
+		probe, repairs, ground, art, session, func() (bool, string) {
+			if time.Now().Before(deadline) {
+				return true, ""
 			}
-		} else {
-			// THE FRAME THE PLAN IS MADE FROM, kept so the hover probe can
-			// compare the control against itself a quarter of a second later.
-			probe.before = img.Image
-			lk.Front = frontnessOf(frontCandidate(ctx, windows), v.Ref) ==
-				observe.FrontTarget
-			res := structure.Propose(img.Image, opt)
-			rects := make([]image.Rectangle, 0, len(res.Candidates))
-			for _, c := range res.Candidates {
-				rects = append(rects, c.Bounds)
-			}
-			lk.Regions = observe.NormaliseRects(img.Image.Bounds(), rects)
+			return false, fmt.Sprintf("the run reached its time limit of %ds "+
+				"(--seconds)", *seconds)
+		})
 
-			// THE SLOW SOURCE. Offering is non-blocking and the queue holds
-			// one frame, so a busy detector costs detections and never
-			// costs cadence; the candidates it returns describe a frame
-			// about ten looks old and carry the epoch and generation that
-			// says so. See [[ADR-184-two-speeds-of-looking]].
-			if eyes.working() {
-				eyes.offer(learnedFrame{
-					img: img.Image, look: look,
-					epoch:      obs.Epoch(),
-					generation: v.Ref.Generation,
-				})
-				lk.Slow = eyes.ready()
-			}
-
-			// THE SLOW TEXT SOURCE, offered and drained exactly as the detector
-			// is, and for the same reason: OCR costs hundreds of milliseconds
-			// against a cadence of a hundred, so what comes back describes a
-			// frame several looks old and carries the window generation and
-			// observation epoch that say which. The observer refuses one whose
-			// context has moved -- see fastobserve.intakeReadings -- and an
-			// admitted one may do exactly one thing: refuse to believe the
-			// standing screen is the screen the arrangement says.
-			if reader.working() {
-				reader.offer(readingFrame{
-					img: img.Image, look: look,
-					epoch:      obs.Epoch(),
-					generation: v.Ref.Generation,
-				})
-				lk.Readings = reader.ready()
-			}
-		}
-		look++
-		// RE-ACQUISITION BEFORE THE FOLD, so nothing this look teaches can help
-		// recognise what this look was meant to recognise.
-		outcomes := reacquireStored(art, session, obs, lk)
-		up := obs.Observe(lk)
-
-		at := workflowrun.Sighting{
-			Screen: up.Screen, Epoch: up.Epoch, Generation: v.Ref.Generation,
-			Window: v.Ref.ID, Bounds: v.Ref.Bounds,
-			Front: lk.Front, Missing: lk.Missing, Unobserved: up.Unobserved,
-			Outcomes: outcomes, At: lk.At,
-		}
-		// THE ARRANGEMENT OF THIS LOOK, not of the screen standing.
-		//
-		// `obs.Arrangement(id)` is a signature fixed when that screen was minted and
-		// never updated, so standing on a page that merged onto an older identity it
-		// answers with the OLDER PAGE's arrangement -- which is what
-		// [[Experiment-048-the-destination-a-workflow-can-see-for-itself]] measured
-		// the destination being compared against for sixty observations. The regions
-		// of the look in front of us are right here, and the saved Training page
-		// agrees with a Training look at 0.600 and with a Play look at 0.448.
-		ground.arrangement = observe.ArrangeLook(lk.Regions)
-
-		// WHAT THE SOURCES FOUND ON THIS LOOK, handed over because neither the
-		// repair nor the coordinator can look for itself. Both sources, and only
-		// regions that locate something: a band is never a candidate for
-		// replacing a band.
-		at.Candidates = append(append([]observe.Region{}, lk.Regions...),
-			fresh(lk.Slow, obs.Epoch(), v.Ref.Generation)...)
-		if repairs != nil {
-			repairs.candidates = at.Candidates
-		}
-
-		// AND WHAT WAS READ ON IT, WHICH IS OLDER THAN IT AND STILL CURRENT.
-		//
-		// OCR answers about twice a second against a loop that looks ten times, so
-		// most looks have no reading of their own and the last one stands. What
-		// makes that safe is the same rule the readings themselves go through:
-		// `observe.Current` is true only while NO SCREEN CHANGE has happened since
-		// the frame was captured, which is a demonstrably continuous interval and
-		// not the weaker "the same screen is standing".
-		// See [[ADR-195-a-reading-that-arrives-after-the-look-it-describes]].
-		for _, rd := range lk.Readings {
-			if ok, _ := at.Usable(); !ok {
-				break
-			}
-			if !rd.Admissible(v.Ref.Generation, up.Epoch) || len(rd.Words) == 0 {
-				continue
-			}
-			if rd.FromLook != saidLook {
-				saidSeq++
-				saidLook = rd.FromLook
-			}
-			said, saidGen, saidEpoch = rd.Words, rd.Generation, rd.Epoch
-			saidText = rd.Text
-		}
-		if observe.Current(saidGen, saidEpoch, v.Ref.Generation, up.Epoch) {
-			at.Words, at.WordsSeq = said, saidSeq
-		} else {
-			said, saidText = nil, observe.ScreenText{}
-		}
-		// WHAT THE DESTINATION TEST MAY USE: the same reading, admitted by the same
-		// rule. Set after the admission check rather than inside the loop, so a
-		// reading the epoch has outrun cannot corroborate an arrival.
-		ground.read = saidText
-
-		a := run.Advance(ctx, session, at)
+	// ── AND WHERE THE ORDER COMES FROM, WHICH IS THE ONE THING --play CHANGES ──
+	//
+	// A workflow's order is the artifact's, and the cursor below walks it. A demonstrated
+	// ACT's order is its own sentences', so the play drives and the coordinator is told
+	// which interaction each sentence means. Everything else above this line and below the
+	// loop is shared: the window, the scope gate, the screens, the desk, the probes, the
+	// stop key, the report and the reference.
+	//
+	// `betweenLooks` is what the cursor loop does after each attempt, handed to the play
+	// driver so the step-agreement question is asked in the same place rather than twice.
+	betweenLooks := func(c context.Context, a workflowrun.Attempt) (bool, string) {
 		reportAttempt(a)
-
-		// A STEP NOBODY HAS AGREED TO IS A QUESTION, NOT A REFUSAL.
-		//
-		// Asked here rather than inside the coordinator because agreeing to a step and
-		// permitting a press are two different sentences, and a build that put them
-		// behind one prompt would let a person answer one and be taken to have
-		// answered the other.
 		if a.Stage == workflowstore.StepUnconfirmed {
 			if *explore {
-				// THE SESSION AGREED TO THE ROUTE, once, at launch. Still
-				// recorded per step and still attributed, because a
-				// confirmation with no author is indistinguishable from a
-				// default — see SessionBinding.ConfirmStep.
 				if err := session.ConfirmStep(a.Step,
 					"the person who authorised this exploration"); err != nil {
-					lost = err.Error()
-					break
+					return false, err.Error()
 				}
-				continue
+			} else if !agreeToStep(c, keys, ask, os.Stdout, art, a.Step, session) {
+				return false, "nobody agreed to step " + fmt.Sprint(a.Step)
 			}
-			if !agreeToStep(ctx, keys, ask, os.Stdout, art, a.Step, session) {
-				lost = "nobody agreed to step " + fmt.Sprint(a.Step)
-				break
+		}
+		<-ticker.C
+		return true, ""
+	}
+	if plan != nil {
+		acc, perr := performDemonstratedPlay(ctx, runID, *plan,
+			// THE LOOP'S CONTEXT TRAVELS WITH THE LOOK, so a cancelled run
+			// stops capturing rather than finishing its look budget.
+			demonstrated.NewSupervised(run, session,
+				func() (workflowrun.Sighting, bool) { return looks.next(ctx) },
+				*patience*len(plan.Steps)+looksPerPlay).
+				WithWatch(betweenLooks).WithRunContext(ctx),
+			os.Stdout)
+		if perr != nil {
+			// THE RUNTIME's error: a play that could not be compiled or run at
+			// all. How the ROUTINE went is the account, printed below.
+			fmt.Fprintf(os.Stderr, "director: %v\n", perr)
+		}
+		// AND THE ACCOUNT IS WHAT THE RUN IS JUDGED BY, not only printed from.
+		//
+		// It reaches the record, the reference and the exit code below — see
+		// outcomeOfAct. Printing it and then classifying from the artifact cursor was
+		// the defect: an Act that is a subset of a longer demonstration, or its
+		// interactions in another order, verified everything it asked for and was
+		// recorded REFUSED because the cursor never reached the artifact's end.
+		act = acc
+		// AND WHY LOOKING STOPPED, when it was the clock or the window rather than a
+		// sentence. `Cut` is how a run that did not reach every sentence says so, and
+		// it is what puts the time limit into the account's own account of itself.
+		if looks.lost != "" {
+			acc.Cut(looks.lost, false)
+			if lost == "" {
+				lost = looks.lost
 			}
+		}
+		fmt.Printf("\n  %s\n", acc.Short())
+		for _, k := range acc.Asked() {
+			fmt.Printf("  %-28s %s\n", k.Name, demonstrated.Sentence(k.Verdict,
+				k.Because))
+		}
+		deadline = time.Now() // the report below is written from the same runner
+	}
+	for plan == nil && time.Now().Before(deadline) {
+		at, more := looks.next(ctx)
+		if !more {
+			break
+		}
+		a := run.Advance(ctx, session, at)
+		// WHAT HAPPENS BETWEEN LOOKS, in the one place both drivers use. The
+		// step-agreement question lives in there: agreeing that a step belongs in this
+		// run and permitting a press are two different sentences, and a build that put
+		// them behind one prompt would let a person answer one and be taken to have
+		// answered the other.
+		if carryOn, why := betweenLooks(ctx, a); !carryOn {
+			lost = why
+			break
 		}
 		switch a.Outcome {
 		case workflowrun.OutcomeComplete, workflowrun.OutcomeRefused,
 			workflowrun.OutcomeFailed, workflowrun.OutcomeStopped:
 			deadline = time.Now() // fall out of the loop with the report intact
 		}
-		<-ticker.C
 	}
 	obs.Close()
 
@@ -951,9 +933,24 @@ func runPerformWorkflow(args []string) int {
 				"workflow itself is untouched.\n", len(rep.Repairs), *repair)
 		}
 	}
-	if blind > 0 {
+	// AND WHY LOOKING STOPPED, when it was the loop that stopped it. `looks.lost` is the
+	// window going away; `lost` is a refusal this function reached. The first does not
+	// overwrite the second: a run that stopped because nobody agreed to a step says that,
+	// even if the window closed afterwards.
+	if lost == "" {
+		lost = looks.lost
+	}
+	// WHICH OF THE TWO ENDED IT, computed HERE rather than at the record below, because
+	// `printRun` is what shows a person the reason and it runs first. The first version
+	// of this worked it out after the printout: the record said the clock, and the run
+	// itself said nothing about why it stopped.
+	expired, stopped := endedBecause(ctx, stoppedByKey.Load())
+	if expired && lost == "" {
+		lost = fmt.Sprintf("the run reached its time limit of %ds (--seconds)", *seconds)
+	}
+	if looks.blind > 0 {
 		fmt.Printf("\n  %d of %d capture(s) returned nothing. The first said: %s\n",
-			blind, rep.Looks, blindWhy)
+			looks.blind, rep.Looks, looks.blindWhy)
 	}
 	printRun(rep, art, book, *live, lost, eyes, reader, obs.Stats(), obs)
 
@@ -961,14 +958,33 @@ func runPerformWorkflow(args []string) int {
 	//
 	// Written last, because it carries the outcome, and reported separately because
 	// losing the record does not lose the run.
-	if p, err := keep(outcomeOfRun(rep, ctx.Err() != nil || stoppedByKey.Load()),
-		rep.Progress.Summary(), rep); err != nil {
+	//
+	// WHICH COMPLETION IS BEING ASKED ABOUT MATTERS. `outcomeOfRun` takes "did it finish"
+	// from the artifact cursor, which is right for a workflow and wrong for an ACT: an Act
+	// may legitimately be a subset of a longer demonstration, or its interactions in
+	// another order, and such a run verified everything it asked for while the cursor
+	// never reached the artifact's end. It was recorded as REFUSED. See outcomeOfAct,
+	// which takes completion from the play's own account and leaves every per-action count
+	// exactly where it was.
+	// WHICH OF THE TWO ENDED IT, because they are not the same thing to a person.
+	//
+	// Somebody pressed stop, or the run took longer than they allowed it. Reporting expiry
+	// as a cancellation would say the first about the second — and `--seconds` passing is
+	// not somebody declining, it is Marco running out of the time it was given. The
+	// per-action counts then classify it honestly: an action that went out with nothing
+	// answering is `unconfirmed`, and a run that pressed nothing is `refused`.
+	out := outcomeOfRun(rep, stopped)
+	because := rep.Progress.Summary()
+	if act != nil {
+		out = outcomeOfAct(act, stopped)
+		because = act.Short()
+	}
+	if p, err := keep(out, because, rep); err != nil {
 		fmt.Fprintf(os.Stderr,
 			"director: the run record could not be written: %v\n", err)
 		fmt.Printf("\n%s\n", citeRun(runID, ""))
 	} else {
-		fmt.Printf("\n%s\n", runref.Ended(runID, p,
-			outcomeOfRun(rep, ctx.Err() != nil || stoppedByKey.Load())))
+		fmt.Printf("\n%s\n", runref.Ended(runID, p, out))
 	}
 	if desk != nil {
 		stray, drained := desk.counts()
@@ -980,6 +996,18 @@ func runPerformWorkflow(args []string) int {
 			keys.granted, keys.asked)
 		fmt.Printf("  %-42s %d before a question, %d with none open\n",
 			"key presses that answered nothing", drained, stray)
+	}
+	// AND THE EXIT SAYS THE SAME THING THE RECORD DOES.
+	//
+	// For a workflow that is the cursor reaching the end. For an Act it is the account —
+	// the same question asked of the thing that knows: every sentence the play has,
+	// verified. A subset Act that did exactly what it said would otherwise exit 1 while
+	// its own report said every interaction verified.
+	if act != nil {
+		if out == RunVerified {
+			return 0
+		}
+		return 1
 	}
 	if rep.Progress.Complete() {
 		return 0

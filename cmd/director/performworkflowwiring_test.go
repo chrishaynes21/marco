@@ -83,10 +83,13 @@ func TestPerformWorkflowIsDispatchedAndReachable(t *testing.T) {
 }
 
 func TestPerformWorkflowInstallsItsGates(t *testing.T) {
-	src, err := os.ReadFile(filepath.Join(".", "performworkflow.go"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	// THE WHOLE ASSEMBLY, which is two files now.
+	//
+	// The observation loop moved to observationloop.go when a second caller arrived, and
+	// a guard that read only one file reported six installed gates as missing — a MOVE
+	// read as a deletion. Reading the assembly is what this test always meant: what
+	// matters is that the line is in the code that runs, not which file holds it.
+	src := []byte(theAssembly(t))
 	for _, want := range []struct{ call, why string }{
 		{"WithExecutor(marcoexec.New(marco), *live)",
 			"without it the runner cannot act at all, and --live would be a flag " +
@@ -153,7 +156,7 @@ func TestPerformWorkflowInstallsItsGates(t *testing.T) {
 		{"reader.offer(readingFrame{",
 			"without it OCR is never given a frame and --reading is a flag that " +
 				"starts a process and reads nothing"},
-		{"lk.Readings = reader.ready()",
+		{"lk.Readings = l.reader.ready()",
 			"without it every reading is computed and discarded, and the run " +
 				"reports words it never used"},
 		// AND THE READING CARRIES THE CONTEXT ITS FRAME WAS CAPTURED IN, which
@@ -174,7 +177,7 @@ func TestPerformWorkflowInstallsItsGates(t *testing.T) {
 		{"at.Candidates = append(",
 			"without it readiness sees no regions, so no word can be attributed " +
 				"to one and no match can ever be contradicted"},
-		{"at.Words, at.WordsSeq = said, saidSeq",
+		{"at.Words, at.WordsSeq = l.said, l.saidSeq",
 			"without the words the reading is admitted and never reaches the only " +
 				"place that could refuse a match with them; and without the " +
 				"sequence the run cannot tell one reading standing for six " +
@@ -184,14 +187,14 @@ func TestPerformWorkflowInstallsItsGates(t *testing.T) {
 		// AND THE SEQUENCE ADVANCES ONLY WHEN THE READING DOES. Bumping it per look
 		// would make every look its own reading again, which is the defect with the
 		// counter added.
-		{"if rd.FromLook != saidLook {",
+		{"if rd.FromLook != l.saidLook {",
 			"without it the sequence counts looks rather than readings, and one " +
 				"reading fills a five-reading window on its own"},
 		// AND THEY ARE DROPPED WHEN THE OBSERVATION MOVES ON. A reading held
 		// across a screen change is a reading of a screen that has gone, and
 		// using it to refuse a match on a new one is the defect ADR-195 exists
 		// to prevent, arriving by a different door.
-		{"observe.Current(saidGen, saidEpoch,",
+		{"observe.Current(l.saidGen, l.saidEpoch,",
 			"without the check the last words read stand forever, and a menu " +
 				"left and returned to is judged by what the old one said"},
 		{"r.Stop()",
@@ -269,9 +272,25 @@ func TestPerformWorkflowInstallsItsGates(t *testing.T) {
 		{"stoppedByKey.Store(true)",
 			"without it an attempt somebody stopped is classified from whatever " +
 				"the report happened to say"},
-		{"ctx.Err() != nil || stoppedByKey.Load()",
+		{"endedBecause(ctx, stoppedByKey.Load())",
 			"without the stop flag in the classifier the run record cannot " +
-				"report a cancellation at all"},
+				"report a cancellation at all — and without going through " +
+				"endedBecause it cannot tell a run somebody stopped from one " +
+				"that used the time it was given, which are different " +
+				"sentences to whoever reads the record"},
+		// AND THE DEADLINE IS IN THE CONTEXT.
+		//
+		// Checking it before each look stops the loop and stops nothing already
+		// waiting. The press-authorisation prompt is the case: it opens before expiry,
+		// the desk waits its full `--answer`, and a key pressed after the limit minted
+		// a FRESH authorisation — so the click went out past the time the run
+		// advertised, with every other guard satisfied. The context is what every wait
+		// is already given, so putting the deadline there reaches the desk, the
+		// capture, the coordinator and the verification windows at once.
+		{"context.WithDeadline(ctx, deadline)",
+			"without the deadline in the context a prompt already open outlives " +
+				"--seconds, and a person answering it afterwards is given a " +
+				"fresh authorisation to press something"},
 	} {
 		if !strings.Contains(string(src), want.call) {
 			t.Errorf("the assembly does not install %s\n\t%s", want.call, want.why)
@@ -677,4 +696,23 @@ func TestTheScopeGateRefusesBeforeAnythingIsBuilt(t *testing.T) {
 				"reached", built, i, at)
 		}
 	}
+}
+
+// theAssembly is every file the supervised run is built from, concatenated.
+//
+// Two files, because the observation loop lives in its own one. A source guard that named a
+// single file would turn any future move into a false alarm, and what is being guarded is that
+// the gate is INSTALLED — not where it is written down.
+func theAssembly(t *testing.T) string {
+	t.Helper()
+	var b strings.Builder
+	for _, name := range []string{"performworkflow.go", "observationloop.go"} {
+		raw, err := os.ReadFile(filepath.Join(".", name))
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		b.Write(raw)
+		b.WriteString("\n")
+	}
+	return b.String()
 }

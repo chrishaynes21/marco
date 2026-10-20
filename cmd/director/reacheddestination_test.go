@@ -207,12 +207,11 @@ func TestTheGrounderWillNotArriveWhileTheLookIsStillTheSourcePage(t *testing.T) 
 // the same reason `windowLeads` is a package variable — so what is checked is the line itself,
 // the way `navsource`'s pump test checks for hook sites rather than naming them.
 func TestTheDestinationIsScoredAgainstThisLookAndNotTheStandingScreensSignature(t *testing.T) {
-	src, err := os.ReadFile("performworkflow.go")
-	if err != nil {
-		t.Fatal(err)
-	}
+	// THE WHOLE ASSEMBLY: the arrangement is fed from the observation loop, which is its
+	// own file. See theAssembly.
+	src := []byte(theAssembly(t))
 	body := string(src)
-	const feeds = "ground.arrangement = "
+	const feeds = "ground.arrangement = observe.ArrangeLook("
 	i := strings.Index(body, feeds)
 	if i < 0 {
 		t.Fatalf("nothing feeds the grounder an arrangement any more; if that moved, "+

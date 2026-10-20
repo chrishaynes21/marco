@@ -86,6 +86,20 @@ type RunRecord struct {
 	Verified     int `json:"verified"`
 	Contradicted int `json:"contradicted"`
 	Unconfirmed  int `json:"unconfirmed"`
+	// Act and ActSource are the PLAY this run performed, when it performed one: the name
+	// it was selected by and the digest of its own source.
+	//
+	// Beside `Workflow` rather than instead of it, because they answer different
+	// questions and an audit needs both: `Workflow` is the demonstration the interactions
+	// came from, and these two are the composition that chose which of them to perform
+	// and in what order. A record with only the first could not tell two Acts over one
+	// demonstration apart, and a record with only the second could not say which
+	// demonstration was pressed.
+	//
+	// `ActSource` is the digest rather than the source: the play is on disk under its own
+	// name, and a record that embedded it would be a second copy to drift.
+	Act       string `json:"act,omitempty"`
+	ActSource string `json:"act_source,omitempty"`
 	// Frames is where the pixel evidence went, when any was asked for.
 	Frames string `json:"frames,omitempty"`
 }

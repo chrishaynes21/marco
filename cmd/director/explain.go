@@ -246,6 +246,8 @@ var valued = map[string]bool{
 	"-fixture": true, "--fixture": true,
 	"-max-nodes": true, "--max-nodes": true,
 	"-name": true, "--name": true,
+	"-play": true, "--play": true,
+	"-interaction": true, "--interaction": true,
 	"-sequence": true, "--sequence": true,
 	"-sequences": true, "--sequences": true,
 	"-dir": true, "--dir": true,
