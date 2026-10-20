@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/chaynes-simpleclouds/marco/internal/compile"
+	"github.com/chaynes-simpleclouds/marco/internal/demonstratedmod"
 	"github.com/chaynes-simpleclouds/marco/internal/graph"
 	"github.com/chaynes-simpleclouds/marco/internal/lexer"
 	"github.com/chaynes-simpleclouds/marco/internal/osmod"
@@ -43,6 +44,8 @@ func builtinModule(name string) (string, bool) {
 		return screenmod.Source, true
 	case "theater":
 		return theatermod.Source, true
+	case "demonstrated":
+		return demonstratedmod.Source, true
 	}
 	return "", false
 }

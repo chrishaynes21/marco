@@ -1,0 +1,39 @@
+// demonstrated.marco — the act of doing ONE thing somebody demonstrated.
+//
+// # What a Press is, and what it is not
+//
+// A Press is one interaction a person performed with their own hands while Marco watched, asked
+// for again by the name they gave it. The name is a REFERENCE to a demonstration Marco has
+// saved, not a search string the play invented — and which demonstration it refers to is written
+// in the play's binding record, not in the play, because a digest is not something a reader of a
+// play should have to read.
+//
+// Everything that makes it safe happens below this line and none of it is a Marco noun: the
+// control is found again in a fresh look at the screen, the person is asked about this press at
+// the moment it is about to happen, and whether it worked is decided from what the screen says
+// afterwards. The play asks for an interaction. It does not describe how one is found, who
+// permits it, or what counts as having worked.
+//
+// # Why this is not Theater's Activate
+//
+// Because `Theater's Activate` means "do to this target what pressing it would do", resolved by
+// whichever Actor the stage can cast tonight — the accessibility tree today, sight tomorrow. That
+// is a different authority: it finds a control BY NAME among whatever is in front, and it is
+// right that it does. A demonstrated press may only ever land on the thing somebody pointed at,
+// re-found from that demonstration's own evidence, with a person agreeing to each one.
+//
+// A single sentence that meant one of those two things depending on who was running the file
+// would be the worst of both: the play would read the same, and what it did to the computer would
+// not. See [[ADR-243-a-door-of-its-own-and-the-order-in-the-file]].
+//
+// # Ok means verified
+//
+// `ok` is returned only when the action's demonstrated outcome stood in fresh evidence after the
+// press. Everything else is a failure carrying the sentence that says which: the screen was
+// wrong, the control could not be found, the person declined, the evidence said something else,
+// the deadline passed with nothing to go on, or the run was cancelled. So a play that continues
+// inside `when ok?` continues on a verified action and on nothing weaker.
+
+the Demonstrated is an act.
+
+this exports Press.   // press the demonstrated interaction of this name
