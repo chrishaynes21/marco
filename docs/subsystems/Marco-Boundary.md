@@ -202,3 +202,12 @@ untouched, because none of them ever asked a person: the screen question is repl
 (the shape a gate, the words the discriminator, no second saved screen allowed to fit) and a run
 that cannot identify the screen PAUSES with a sentence instead of pressing.
 [[ADR-244-pressing-play-is-the-authorisation]]
+
+**And the surface shows one task at a time.** A rail of three places — Acts, Scenes, Run history
+— with one of them open, and a run that replaces what was being looked at while keeping Stop in
+front of the person. An Act's detail is what it will do before anything happens, in the words
+read off the person's own screen rather than `control_2` and `screen_a`; `ready` is no longer the
+whole answer, because an Act whose starting screen was never read preflights perfectly and can
+only wait; the ordered preview sends nothing, and the engineering run with input disabled is no
+longer offered as a rehearsal of an Act it cannot reach the second step of.
+[[ADR-245-one-task-at-a-time]]

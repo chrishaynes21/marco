@@ -1,0 +1,163 @@
+---
+type: adr
+status: accepted
+date: 2026-10-20
+decision: "ACCEPTED — Studio shows ONE task at a time. A rail of three places (Acts, Scenes, Run history) with one of them open, and a run that replaces whatever was being looked at while keeping Stop in front of the person. An Act's detail is what it will do before anything happens: the application, the screen it has to start on in the words read on that screen, and its interactions in order with what each one presses and what it expects afterwards. That ordered preview is the honest kind — it sends nothing — and the engineering run with input disabled is no longer offered as a rehearsal of an Act, because its first press never happens and it therefore cannot reach the second interaction. A run says what is happening in the words of the thing the person asked for (`Preparing Ark…`, `Step 1 of 2 · open the audio settings`, `Checking that it worked…`, `Paused before step 2 · <the run's own reason>`), and when it ends it says what happened AND what to do about it, keyed on the outcome and on what this surface already knows about the Act. Machine names never reach a person: a control is named by the words read on it, a screen by the words read on it, and a screen with no words is said to be unrecognisable rather than shown as `screen_a`. Run history is the canonical records the runner wrote, newest first, and Report a problem gathers one of them into a file the person can send — it sends nothing anywhere. There is no Resume button, because there is no pause/resume operation in the runner: a paused run re-evaluates and proceeds by itself, and the window says that instead."
+supersedes: []
+affects:
+  - interface
+  - execution
+source_paths:
+  - plugins/studio/frontend/index.html
+  - plugins/studio/acts.go
+  - plugins/studio/doing.go
+  - plugins/studio/history.go
+  - plugins/studio/play.go
+  - plugins/studio/said.go
+---
+
+# One task at a time
+
+## The verdict this comes from
+
+The window that preceded this was five numbered panels in two columns — demonstrations, compose,
+Acts, perform, the run — all of it on screen at once. Everything needed to run an Act was
+present and nothing said in what order to touch it. The owner, opening it for the first time:
+
+> how do i use it, it's unintuitive. There's zero acts, I can't click into section one, there's
+> eight saved and I have no clue what I'm looking at here
+
+and then, about the one panel they did reach:
+
+> Okay I kinda get it, except it's screen_a to screen_b how tf am I supposed to know what that
+> means
+
+The Architect's reading of the same screen: *"The existing screen makes the user assemble the
+workflow mentally. Adding explanations to its five panels will not fix that."* That is the
+decision. What follows is what replaced it, and what was deliberately left out.
+
+## What a person does
+
+A rail with three places, one open at a time.
+
+**Acts** is what you have. Each one says its application, how many steps, and whether it is
+ready — and `ready` is no longer the whole answer (below). Choosing one shows **what it will
+do**: the application, the screen it has to start on, and its interactions in order, each one
+saying what it presses, where, and what it expects to see afterwards. Play is under that, with
+one sentence: this press authorises the Act once.
+
+**Scenes** is what you have shown Marco, and the vocabulary is stated rather than implied: a
+Scene is one interaction, an Act puts Scenes in order. An interaction Marco can perform is a
+button; one it cannot is a sentence; a demonstration with nothing performable in it is one card
+rather than thirteen rows that do nothing when pressed. Using one adds it to an ordered builder
+with a name you can change, Move up, Move down and Remove — no positions, and no `2=name`.
+
+**Run history** is every run this machine kept a record of, newest first, each with what it
+meant and what to do about it. Selecting one offers **Report a problem**.
+
+**A run** takes the main area the moment it starts and keeps Stop in the rail as well as on the
+run screen, because somebody who has navigated away has not stopped caring.
+
+## The four things this gets right that the old screen did not
+
+### Machine names never reach a person
+
+`control_2` and `screen_a` are names this machine gave itself. They cannot be recognised, cannot
+be told apart from `control_1` and `screen_b`, and give no hint that one of them is the row of
+tabs across the top of somebody's own settings page. So a control is named by the words READ on
+it, a screen by the words read on it, and the artifact's own labels are not shown at all.
+
+Two consequences worth stating. Fragments of one or two characters are dropped from a label
+while there are longer words to show — reading a game's interface produces `od` and `ul` beside
+`cosmetics` and `graphics` — but if nothing survives that, the short words are shown anyway: a
+control whose only word is `OK` reads `OK`. And a screen with NO words is described as
+unrecognisable, which is not a gap in the description but the warning in the next section.
+
+### `ready` was true and insufficient
+
+An Act starts on the screen its first interaction was demonstrated on, and that screen is
+established by matching the words read on it. A screen saved without words cannot be positively
+identified — the arrangement alone has been measured to confuse two screens of one menu — so a
+run over it pauses, every look, until its deadline, and ends having pressed nothing.
+
+That is exactly what happened in the owner's first live trial. The Act was listed as `ready`,
+which was true: it preflights, and it would perform perfectly against a screen Marco could
+recognise. The run paused correctly thirty-odd times, saying `screen_b was saved without any
+words, so a reading cannot identify it`, and refused with 0 actions sent.
+
+So an Act now carries both sentences, and the second one says where the missing thing is — in
+the demonstration — and what to do about it: show it again, resting on that screen long enough
+to be read. The same sentence is what a refused run offers as its next action, because the
+remedy for that refusal is not another press of Play.
+
+### The preview is honest, and the dry run is not a rehearsal
+
+An Act's ordered preview sends nothing: it is the interactions, in order, with what each one
+presses and expects, read out of the demonstration. That is what Play is pressed against.
+
+A run with input disabled is a different thing and is no longer offered as a product gesture. It
+runs the whole path and writes each press down instead of sending it — which means the first
+press never happens, so the second interaction's screen never arrives, so a two-step Act cannot
+be rehearsed by it at all. It stays, behind Technical details, labelled as what it is.
+
+### A run speaks about the task
+
+`doingOf` maps the runner's own account of itself onto the thing the person asked for, with one
+message per situation a run can be in, and `nextOf` says what to do about each way one can end.
+Both in Go rather than in the page, for the reason `said.go` already gives: a page with a switch
+over these has no way of saying which situations it covers, and these have a test that walks all
+of them.
+
+## What was asked for and deliberately NOT built
+
+- **A Resume button.** There is no pause/resume operation in the runner. A paused run
+  re-evaluates its world every look and proceeds by itself the moment the world matches, so a
+  Resume button would be decorative — it would claim an operation that does not exist. The
+  window says what the run is waiting for and that it goes on by itself, and keeps Stop.
+- **Guided learning.** Studio lists what has been demonstrated; it has no learn operation of its
+  own. The empty library says what it is for and sends somebody to Scenes, which is honest about
+  what exists today rather than offering a button that would do nothing.
+- **Scene reuse across demonstrations.** An Act performs interactions from ONE demonstration.
+  The builder says so where somebody would otherwise discover it from a refusal.
+- **Visual previews.** The target, the starting screen and the result are described in words
+  read off them, not shown as images; the artifact retains no such pictures to show. Words are
+  what there is, and they are better than labels — they are not a substitute for a picture.
+- **Sending a problem report anywhere.** This window reads the owner's own store. A button that
+  posted their run — the application, the words read off their screen, the reference and the
+  authority — to a service would be a surface deciding to publish somebody's desktop. So Report
+  a problem gathers the record, what the run said, and the Act as it stands into one file, and
+  says plainly that nothing has been sent.
+
+## Enforced by
+
+- `plugins/studio/doing_test.go` — `TestEverySituationARunCanBeInIsSaidAsATask` (one case per row
+  of the specified table, including the two where nobody could say which step it was on, and the
+  ended case that deliberately says nothing because `saidOf` is the headline then);
+  `TestEveryEndingSaysWhatToDoAboutIt` (all eight outcomes, and that a refusal whose cause this
+  surface already knows offers THAT remedy rather than the generic one).
+- `plugins/studio/history_test.go` — `TestTheRunsThisMachineKeptAreListedNewestFirst` (order by
+  the run's own start time, the fields read back, what it meant and what to do, the authority, a
+  record with no ending marked as unfinished rather than failed, and a record that will not parse
+  still listed); `TestAStoreWithNoRunsIsAnEmptyHistoryAndNotAFailure`;
+  `TestReportingAProblemWritesTheRunAndTheActIntoOneFile` (the reference, the record, the
+  transcript, the Act, and that it says nothing was sent); `TestAProblemWithNoRunToReportIsRefused`.
+- `plugins/studio/words_test.go` — `TestAnInteractionIsDescribedByWhatWasReadOnTheScreen`;
+  `TestTheOnlyWordsThereAreGetShown` (the length rule, and the `OK` case it must not swallow);
+  `TestAnActThatCouldOnlyWaitSaysSoBeforeItIsRun`;
+  `TestAnActPreviewsWhatItWillDoInOrder` (the ordered preview, what each step expects, and where
+  the Act has to start); `TestAnActCannotBeCalledWhatOneOfItsInteractionsIsCalled`.
+- `plugins/studio/play_test.go` — `TestThePageIsTheFlowThatWasAskedFor`, twenty source guards
+  over the page: the rail, the empty library, the vocabulary, the ordered preview and the marked
+  step, what is happening and what to do, Stop in the rail, run history, Report a problem, the
+  words on controls and screens, the waiting warning, and the engineering run labelled as not a
+  rehearsal.
+- `plugins/studio/page_test.go` — `TestThePageBeginsWithItsDoctype`, which is why a text node in
+  front of the doctype cannot come back.
+- And the window itself: `studio.exe -seconds N -evidence <file>` renders the page and the page
+  reports back LAST, after setting itself up, so the evidence line is proof that the script ran
+  rather than only that it parsed.
+
+## Related
+
+[[ADR-244-pressing-play-is-the-authorisation]] is the contract this is a surface for.
+[[ADR-243-a-door-of-its-own-and-the-order-in-the-file]] is the Act itself.

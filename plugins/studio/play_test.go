@@ -670,8 +670,14 @@ func TestThePageIsTheFlowThatWasAskedFor(t *testing.T) {
 			"are recomposed onto different interactions, so that term agrees " +
 			"in exactly the case it is there to catch"},
 		{">Stop<", "the stop control is not called Stop"},
-		{"Try it without clicking", "there is no way to perform an Act without " +
-			"touching the machine"},
+		{"id=\"cancelBtn\"", "Stop is not in the rail, so navigating away from the " +
+			"run screen takes away the one control that is live for the whole " +
+			"of a run"},
+		{"Run with input disabled", "the engineering run is still offered as a " +
+			"rehearsal \u2014 its first press never happens, so it cannot reach the " +
+			"second interaction and must not be described as trying the Act"},
+		{"Not a rehearsal", "the page does not say what a run with input disabled " +
+			"cannot prove"},
 		{"w.said", "the page shows the outcome word and not what it means"},
 		{"'paused'", "the page does not show a paused run, so a run waiting for " +
 			"the screen it expects looks like a run doing nothing"},
@@ -686,12 +692,32 @@ func TestThePageIsTheFlowThatWasAskedFor(t *testing.T) {
 			"step that does nothing when pressed looks like one that does"},
 		{"no press here", "a step that presses nothing is still shaped like a " +
 			"control"},
-		{"none yet", "an empty Act list says `0 composed` and nothing about how to " +
-			"compose one"},
+		{"Teach Marco your first interaction", "an empty library says `0 " +
+			"composed` over an empty list and nothing about what to do, which " +
+			"is where the owner's first trial stopped"},
+		{"A Scene is one interaction", "the page never establishes the two words it " +
+			"is built out of, so somebody has to infer what an Act is from a " +
+			"list of them"},
 		{"nothingChosen", "Play is live with no Act chosen, so pressing it is " +
 			"answered by being told off for pressing it"},
 		{"s.outcome_words", "the page does not say whether an interaction can be " +
 			"checked afterwards, which is the most surprising thing about one"},
+		// ── THE ONE-TASK-AT-A-TIME SHAPE ──
+		{"rail-history", "there is no rail, so every task is on screen at once and " +
+			"the person assembles the workflow in their head"},
+		{"w.doing", "the run screen shows the runner's phase instead of what is " +
+			"happening to the thing they asked for"},
+		{"w.next", "a run that ended says what happened and not what to do about it"},
+		{"acts.History()", "there is no run history, so a run is unrecoverable the " +
+			"moment the window moves on from it"},
+		{"acts.Report(", "there is no way to report a problem with the run " +
+			"reference already attached"},
+		{"starts_on", "the Act's detail does not say which screen it has to start " +
+			"on, which is the thing a person has to do before pressing Play"},
+		{"stepsHTML(", "there is no ordered preview of what an Act will do, so Play " +
+			"is pressed on a name"},
+		{"w.active ? at : -1", "the run screen does not mark which step is in hand, " +
+			"so the preview and the run do not line up"},
 	} {
 		if !strings.Contains(page, want.text) {
 			t.Errorf("%s (looked for %q)", want.why, want.text)

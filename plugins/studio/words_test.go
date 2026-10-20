@@ -150,3 +150,61 @@ func TestAnActCannotBeCalledWhatOneOfItsInteractionsIsCalled(t *testing.T) {
 		t.Errorf("the refused Act was saved anyway: %v", a.Saved())
 	}
 }
+
+// AN ACT SAYS WHAT IT WILL DO, IN ORDER, BEFORE ANYTHING HAPPENS.
+//
+// The preview is the whole of "what will this do", and it is the honest kind: it describes the
+// ordered interactions and what each one expects without sending anything. A run with input
+// disabled is not this — its first press never happens, so it can never reach the second
+// interaction at all, and calling it a rehearsal of a two-step Act would be a lie about what was
+// tried.
+func TestAnActPreviewsWhatItWillDoInOrder(t *testing.T) {
+	a, _ := aStoreWithADemonstration(t)
+	if r := a.Compose("ark graphics live", "both tabs",
+		[]string{"0=the graphics tab", "1=the audio tab"}); r.Error != "" {
+		t.Fatal(r.Error)
+	}
+	if r := a.Compose("ark graphics live", "just the tabs",
+		[]string{"1=the audio tab"}); r.Error != "" {
+		t.Fatal(r.Error)
+	}
+
+	both := actCalled(t, a, "both tabs")
+	if len(both.Steps) != 2 {
+		t.Fatalf("an Act of two interactions previews %d", len(both.Steps))
+	}
+	if both.Steps[0].Name != "the graphics tab" || both.Steps[1].Name != "the audio tab" {
+		t.Errorf("the preview is out of order: %+v", both.Steps)
+	}
+	// THE ONE THAT CAN BE CHECKED SAYS WHAT IT EXPECTS, in words off the screen.
+	second := both.Steps[1]
+	if strings.Join(second.Reads, " ") != "audio camera cosmetics graphics video" {
+		t.Errorf("the control it presses is described as %v", second.Reads)
+	}
+	if strings.Join(second.On, " ") != "audio graphics settings brightness" {
+		t.Errorf("the screen it presses from is described as %v", second.On)
+	}
+	if second.Expect != 1 || strings.Join(second.Expected, " ") != "master" {
+		t.Errorf("what it expects afterwards is %d words %v", second.Expect,
+			second.Expected)
+	}
+	// AND THE ONE THAT CANNOT SAYS NOTHING RATHER THAN SOMETHING VAGUE.
+	if both.Steps[0].Expect != 0 {
+		t.Errorf("an interaction with no recorded outcome expects %d words",
+			both.Steps[0].Expect)
+	}
+
+	// WHERE IT HAS TO START is the first interaction's screen, and the Act that starts
+	// somewhere nothing was read says so instead.
+	if len(both.StartsOn) != 0 || both.Waits == "" {
+		t.Errorf("an Act starting on an unread screen says it starts on %v (waits: %q)",
+			both.StartsOn, both.Waits)
+	}
+	one := actCalled(t, a, "just the tabs")
+	if strings.Join(one.StartsOn, " ") != "audio graphics settings brightness" {
+		t.Errorf("the Act says it starts on %v", one.StartsOn)
+	}
+	if one.Waits != "" {
+		t.Errorf("an Act that can start is warned about anyway: %q", one.Waits)
+	}
+}

@@ -459,6 +459,23 @@ func (a *Acts) applicationFor(act string) string {
 	return ""
 }
 
+// waitsFor is why a run of this Act would wait rather than press, or "".
+//
+// Asked of the Act as it stands now, which is the only honest time to ask it: the remedy for a
+// run that waited is a change to the demonstration, and whether that change has been made is a
+// question about today.
+func (a *Acts) waitsFor(act string) string {
+	if act == "" {
+		return ""
+	}
+	for _, c := range a.Saved() {
+		if strings.EqualFold(c.Name, act) {
+			return c.Waits
+		}
+	}
+	return ""
+}
+
 // reg is the route store, built the same way director's is.
 func (a *Acts) reg() routes.Registry { return routes.Registry{Dir: a.routesDir} }
 
@@ -472,10 +489,22 @@ type Act struct {
 	// demonstration apart.
 	From     string `json:"from"`
 	Revision string `json:"revision"`
-	// Interactions is what it performs, in the order it performs them.
-	Interactions []string `json:"interactions"`
-	Application  string   `json:"application"`
-	Play         string   `json:"play"`
+	// Interactions is what it performs, in the order it performs them, and Steps is
+	// the same list with what each one does.
+	//
+	// Both, because they answer different questions: the names are the Act, and the
+	// steps are what a person is about to let happen — the control each name presses,
+	// the screen it is on, and what the demonstration saw change afterwards. An ordered
+	// preview of that is the whole of "what will this do", and it can be shown without
+	// running anything, which a dry run cannot claim: a dry run of two interactions
+	// never performs the first, so it cannot reach the second.
+	Interactions []string  `json:"interactions"`
+	Steps        []ActStep `json:"steps,omitempty"`
+	// StartsOn is the words read on the screen its first interaction starts from, and
+	// empty when the demonstration read none there — which is what `Waits` is about.
+	StartsOn    []string `json:"starts_on,omitempty"`
+	Application string   `json:"application"`
+	Play        string   `json:"play"`
 	// Source is the digest of the play the bindings were written with, and Bound is what
 	// each interaction NAME means — the demonstrated position it resolves to.
 	//
@@ -513,6 +542,28 @@ type Act struct {
 	// changed by hand. A person should see that before they start, not after.
 	Runnable bool   `json:"runnable"`
 	Why      string `json:"why,omitempty"`
+}
+
+// ActStep is one interaction of an Act, in the order it is performed.
+//
+// Everything in it was READ during the demonstration. `control_2` and `screen_a` are available
+// here and deliberately absent: they are names this machine gave itself, and a person deciding
+// whether to let something happen cannot recognise either of them.
+type ActStep struct {
+	// Name is what the person called it, which is also what the play says.
+	Name string `json:"name"`
+	// Reads is the words on the control it presses, On the words on the screen it
+	// presses them from. Empty means the demonstration read nothing there.
+	Reads []string `json:"reads,omitempty"`
+	On    []string `json:"on,omitempty"`
+	// Expect is how many words the demonstration saw appear and STAY afterwards, and
+	// Expected a few of them. Zero is an interaction whose result cannot be checked, so
+	// nothing after it will be performed.
+	Expect   int      `json:"expect"`
+	Expected []string `json:"expected,omitempty"`
+	// Position is the demonstrated interaction this name resolves to. Evidence about
+	// where it came from, never a label.
+	Position int `json:"position"`
 }
 
 // BoundNameFor is one interaction name and the demonstrated position it resolves to.
@@ -577,7 +628,7 @@ func (a *Acts) Saved() []Act {
 		// AND THE WHOLE OF IT AS ONE TERM, which is what a page can hand back.
 		act.Identity = identityOf(act)
 		if serr == nil {
-			act.Waits = waitsBecause(store, binds)
+			act.StartsOn, act.Steps, act.Waits = describeAct(store, binds)
 		}
 		if serr != nil {
 			act.Why = serr.Error()
@@ -593,41 +644,59 @@ func (a *Acts) Saved() []Act {
 	return out
 }
 
-// waitsBecause is why a run of this Act would wait instead of pressing, or "".
+// describeAct is what an Act will do, where it has to start, and why it would wait instead.
 //
-// One cause, because it is the one that can be answered from the artifact alone and the one that
-// has already cost a trial: an Act starts on the screen its FIRST interaction was demonstrated
-// on, and that screen is established by matching the words read on it. A screen saved without
-// words cannot be positively identified — the arrangement alone has been measured to confuse two
-// screens of one menu — so the run pauses, every look, until its deadline.
+// One pass over the demonstration behind it, because all three answers come from the same place
+// and a second pass is a second chance to describe a different artifact.
 //
-// Not a refusal and not a preflight failure: the Act is composed correctly and would perform
-// perfectly against a screen Marco could recognise. What is missing is in the DEMONSTRATION, and
-// the remedy is to show it again more slowly, so this says that.
-func waitsBecause(store *demo.Store, binds demonstrated.Bindings) string {
-	if store == nil || len(binds.Scenes) == 0 {
-		return ""
+// # The waiting
+//
+// An Act starts on the screen its FIRST interaction was demonstrated on, and that screen is
+// established by matching the words read on it. A screen saved without words cannot be
+// positively identified — the arrangement alone has been measured to confuse two screens of one
+// menu — so the run pauses, every look, until its deadline. Not a refusal and not a preflight
+// failure: the Act is composed correctly and would perform perfectly against a screen Marco
+// could recognise. What is missing is in the DEMONSTRATION, so the sentence says that.
+func describeAct(store *demo.Store, binds demonstrated.Bindings) (startsOn []string,
+	steps []ActStep, waits string) {
+	if store == nil {
+		return nil, nil, ""
 	}
-	first := binds.Scenes[0]
-	art, ok := store.Sequence(first.Routine)
-	if !ok {
-		return ""
-	}
-	for _, s := range art.Steps {
-		if s.Position != first.Position {
+	for i, sc := range binds.Scenes {
+		step := ActStep{Name: sc.Name, Position: sc.Position}
+		art, ok := store.Sequence(sc.Routine)
+		if !ok {
+			// THE DEMONSTRATION IS GONE. Said by the preflight in its own
+			// words; this lists the interaction with nothing claimed about it
+			// rather than leaving it out of the order.
+			steps = append(steps, step)
 			continue
 		}
-		if len(onWordsOf(art, s)) > 0 {
-			return ""
+		for _, in := range art.Steps {
+			if in.Position != sc.Position {
+				continue
+			}
+			step.Reads = readsOf(art, in)
+			step.On = onWordsOf(art, in)
+			step.Expect = len(in.Outcome)
+			step.Expected = someOf(in.Outcome, outcomeShown)
+			break
 		}
-		return "its first interaction starts on a screen the demonstration read " +
-			"no words on, so Marco cannot confirm you are there: a run will " +
-			"wait for it instead of pressing, and end without doing anything. " +
-			"Demonstrate it again, resting on that screen long enough to be " +
-			"read, or choose an interaction whose screen has words beside it " +
-			"above."
+		if i == 0 {
+			startsOn = step.On
+			if len(step.On) == 0 {
+				waits = "its first interaction starts on a screen the " +
+					"demonstration read no words on, so Marco cannot " +
+					"confirm you are there: a run will wait for it " +
+					"instead of pressing, and end without doing " +
+					"anything. Demonstrate it again, resting on that " +
+					"screen long enough to be read, or build an Act " +
+					"from an interaction whose screen has words."
+			}
+		}
+		steps = append(steps, step)
 	}
-	return ""
+	return startsOn, steps, waits
 }
 
 func routineOf(b demonstrated.Bindings) string {
@@ -670,6 +739,12 @@ type Running struct {
 	// Said is how it went, in a sentence. The outcome word beside it is still shown; see
 	// said.go.
 	Said string `json:"said,omitempty"`
+	// Doing is what is happening NOW, in the words of the thing the person asked for:
+	// "Preparing Ark…", "Step 1 of 2 · open the audio settings", "Checking that it
+	// worked…". Empty once the run has ended, where `Said` is the headline. See doing.go.
+	Doing string `json:"doing,omitempty"`
+	// Next is what to do about how it ended, when there is something to do. See nextOf.
+	Next string `json:"next,omitempty"`
 	// Complete says the run ENDED — it said so itself, with a final event. Incomplete
 	// says the child is gone and never did, which is not the same as having failed:
 	// one is a run with an answer and the other is a run nobody can speak for.
@@ -1023,6 +1098,12 @@ func (a *Acts) Watch() Running {
 	// The outcome word is kept and shown; this is the sentence beside it. See said.go for
 	// why a person is not left to learn what `unconfirmed` means about their own run.
 	w.Said = saidOf(w.Act, runref.Outcome(w.Outcome), w.Reason)
+	// AND WHAT IT IS DOING, in the same words. The application comes from the Act rather
+	// than from the event: the run knows which window it is grounding against and does
+	// not publish it, and "Preparing…" with nothing named is a window withholding the
+	// one thing that would tell somebody which program to go and look at.
+	w.Doing = doingOf(a.applicationFor(w.Act), w.State, w.Active)
+	w.Next = nextOf(runref.Outcome(w.Outcome), a.waitsFor(w.Act))
 	// AN INCOMPLETE RUN: the child is gone and it never said how it ended.
 	//
 	// Not a failure, and reported apart from one. A run that refused says so in a final

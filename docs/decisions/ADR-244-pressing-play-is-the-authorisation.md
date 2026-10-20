@@ -294,6 +294,16 @@ application typed by hand. Two contracts, one runner, and the surface says which
   run said. Turning "screen_c was saved without any words" into "re-demonstrate this, pausing
   after each click" is a product sentence nobody has written yet.
 
+## What came of it
+
+The first live trial of this contract worked and pressed nothing. The grant was read, the run
+said `starting` at once, nothing was asked of anybody, and the record names the authority as the
+person who pressed Play — and then it paused on every look for thirty seconds, correctly, because
+the Act's first interaction starts on a screen the demonstration had read no words on, and
+refused with nothing sent. Two things were wrong on the surface's side of the line, both of them
+now closed: Studio raised the window and ignored the answer, and the Act was listed as `ready`.
+[[ADR-245-one-task-at-a-time]] is what replaced the window that said that.
+
 ## Enforced by
 
 - `cmd/director/actgrant_test.go` — `TestAGrantThatIsNotADecisionIsRefused` (six ways a surface

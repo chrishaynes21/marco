@@ -1,167 +1,278 @@
 <!doctype html>
 <meta charset="utf-8">
 <title>Marco Studio</title>
+
+<!-- ONE TASK AT A TIME.
+     The page this replaces was five numbered panels in two columns: demonstrations, compose,
+     Acts, perform, the run. Everything was on screen at once and the person had to assemble the
+     workflow in their head from it. The owner, opening it for the first time: "how do i use it,
+     it's unintuitive. There's zero acts, I can't click into section one, there's eight saved and
+     I have no clue what I'm looking at here."
+
+     So: a rail with three places, one of them open at a time. Acts is what you have and what
+     each one will do. Scenes is what you have shown Marco. Run history is what happened. A run
+     replaces whatever you were looking at and keeps Stop in front of you.
+
+     What this page does NOT do, and must never do: decide anything. Every sentence it shows
+     about a run came from the run, every refusal came from the code that refused, and the order
+     an Act performs in is the play's, not this file's. -->
+
 <style>
  :root{--bg:#14161a;--panel:#1b1e24;--line:#2d323c;--ink:#d7dae0;--dim:#8a93a0;
        --key:#4b7bec;--ok:#3fb950;--warn:#d29922;--no:#f85149}
  *{box-sizing:border-box}
- body{font:13px/1.55 Consolas,"Cascadia Mono",monospace;background:var(--bg);color:var(--ink);
-      margin:0;padding:14px;display:grid;gap:12px;grid-template-columns:1fr 1fr}
- h1{grid-column:1/-1;font-size:13px;color:var(--dim);font-weight:400;margin:0;
-    letter-spacing:.1em;text-transform:uppercase}
- section{background:var(--panel);border:1px solid var(--line);padding:10px 12px;min-width:0}
- section>h2{font-size:12px;color:var(--key);margin:0 0 8px;font-weight:400;
-            text-transform:uppercase;letter-spacing:.08em}
- .wide{grid-column:1/-1}
+ body{font:13px/1.6 Consolas,"Cascadia Mono",monospace;background:var(--bg);color:var(--ink);
+      margin:0;height:100vh;display:flex;overflow:hidden}
+ /* ── the rail ── */
+ #rail{width:190px;flex:0 0 190px;background:#101216;border-right:1px solid var(--line);
+       display:flex;flex-direction:column;padding:14px 0}
+ .brand{font-size:11px;color:var(--dim);letter-spacing:.14em;text-transform:uppercase;
+        padding:0 16px 14px}
+ .railbtn{display:block;width:100%;text-align:left;font:13px Consolas,monospace;
+          background:none;border:0;border-left:2px solid transparent;color:var(--dim);
+          padding:7px 16px;cursor:pointer}
+ .railbtn:hover{color:var(--ink);background:#15181d}
+ .railbtn.on{color:var(--ink);border-left-color:var(--key);background:#181b21}
+ .railfoot{margin-top:auto;padding:12px 16px 0;font-size:11px;border-top:1px solid var(--line)}
+ /* ── the main area ── */
+ main{flex:1;min-width:0;overflow-y:auto;padding:22px 26px}
+ h1{font-size:17px;font-weight:400;margin:0 0 2px;letter-spacing:.01em}
+ h2{font-size:12px;color:var(--key);margin:22px 0 8px;font-weight:400;
+    text-transform:uppercase;letter-spacing:.08em}
+ .sub{color:var(--dim);margin:0 0 18px}
+ .card{background:var(--panel);border:1px solid var(--line);padding:11px 13px;margin-bottom:8px}
+ .card.pick{cursor:pointer}
+ .card.pick:hover{border-color:#3f4654}
+ .card.on{border-color:var(--key)}
+ .card h3{font-size:13px;font-weight:400;margin:0 0 3px}
+ .muted{color:var(--dim)} .ok{color:var(--ok)} .no{color:var(--no)} .warn{color:var(--warn)}
+ .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+ .grow{flex:1;min-width:0}
  button{font:12px Consolas,monospace;background:#232730;color:var(--ink);
         border:1px solid #3a404c;padding:5px 11px;cursor:pointer}
  button:hover:not(:disabled){background:#2c313b}
  button:disabled{opacity:.4;cursor:default}
- button.go{border-color:var(--key)}
+ button.go{border-color:var(--key);background:#1d2536}
+ button.stop{border-color:var(--no)}
  input[type=text]{font:12px Consolas,monospace;background:#101216;color:var(--ink);
-        border:1px solid #3a404c;padding:4px 6px;width:100%}
+        border:1px solid #3a404c;padding:5px 7px;width:100%}
  label{color:var(--dim)}
- ul{list-style:none;margin:0;padding:0}
- li{padding:4px 0;border-bottom:1px solid #22262e}
- li:last-child{border-bottom:0}
- .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
- .pick{cursor:pointer;color:var(--key);background:none;border:0;padding:0;font:inherit;
-       text-decoration:underline}
- .muted{color:var(--dim)}
- .ok{color:var(--ok)} .no{color:var(--no)} .warn{color:var(--warn)}
+ .tag{font-size:11px;padding:1px 6px;border:1px solid #3a404c;color:var(--dim)}
+ .tag.live{border-color:var(--no);color:#ffb3ae}
  pre{margin:6px 0 0;white-space:pre-wrap;word-break:break-word;max-height:300px;
      overflow-y:auto;background:#101216;border:1px solid #22262e;padding:8px;font-size:12px}
- #live{border:1px solid var(--warn);padding:8px;margin-bottom:8px}
- #live.on{border-color:var(--no);background:#2a1618}
- .tag{font-size:11px;padding:1px 5px;border:1px solid #3a404c;color:var(--dim)}
- .steps{color:var(--dim);border:1px solid var(--line);padding:6px 10px;background:#1b1e24}
- .steps b{color:var(--key)}
- .step{display:flex;gap:8px;align-items:baseline;padding:3px 0 3px 6px}
- .step .what{flex:1;min-width:0}
- .use{white-space:nowrap}
+ details{margin-top:14px;border-top:1px solid var(--line);padding-top:10px}
+ summary{color:var(--dim);cursor:pointer}
+ .step{display:flex;gap:10px;align-items:baseline;padding:4px 0}
+ .step .n{color:var(--dim);width:2.4em;flex:0 0 2.4em}
+ .step.now{background:#1a2030;outline:1px solid var(--key)}
+ /* ── the run screen ── */
+ #doing{font-size:16px;line-height:1.45;margin:4px 0 6px}
+ .banner{border:1px solid var(--warn);background:#241f12;padding:10px 12px;margin:10px 0}
+ .banner.bad{border-color:var(--no);background:#2a1618}
+ .banner.good{border-color:var(--ok);background:#15241a}
+ .hide{display:none}
 </style>
 
-<h1>Marco Studio — acts you composed from what you demonstrated</h1>
-
-<!-- WHERE A PERSON IS, IN THREE STEPS. Five numbered panels in two columns do not say which
-     three of them are the way in, and the owner's first question on opening this window was
-     "how do I use it". -->
-<div class="wide steps">
-  <b>1</b> use an interaction Marco can perform &nbsp;→&nbsp;
-  <b>2</b> give the Act a name and save it &nbsp;→&nbsp;
-  <b>4</b> press Play. &nbsp; 3 is what you have, 5 is what happened.
-</div>
-
-<section>
-  <h2>1 · What you have demonstrated</h2>
-  <div class="row"><button onclick="loadDemos()">Refresh</button>
-    <span class="muted" id="demoNote"></span></div>
-  <ul id="demos"></ul>
-</section>
-
-<section>
-  <h2>2 · Compose an Act</h2>
-  <div class="row"><label style="width:7em">from</label>
-    <input type="text" id="from" placeholder="a demonstration above"></div>
-  <div class="row" style="margin-top:6px"><label style="width:7em">call it</label>
-    <input type="text" id="actname" placeholder="a name of its own"></div>
-  <p class="muted" style="margin:8px 0 4px">Interactions, in the order they should be
-    performed. Click one above to add it.</p>
-  <ul id="picked"></ul>
-  <div class="row" style="margin-top:8px">
-    <button class="go" onclick="compose()">Compose and save</button>
-    <button onclick="clearPicked()">Clear</button>
-    <span class="muted">presses nothing</span>
+<nav id="rail">
+  <div class="brand">Marco Studio</div>
+  <button class="railbtn" id="rail-acts" onclick="show('acts')">Acts</button>
+  <button class="railbtn" id="rail-scenes" onclick="show('scenes')">Scenes</button>
+  <button class="railbtn" id="rail-history" onclick="show('history')">Run history</button>
+  <!-- STOP, WHEREVER THEY ARE. A run can be stopped from any of the three places, because
+       somebody who has navigated away is not somebody who has stopped caring. -->
+  <div class="railfoot">
+    <div id="railrun" class="hide">
+      <div class="muted" id="railphase"></div>
+      <button class="stop" id="cancelBtn" onclick="cancel()" style="margin-top:8px"
+        >Stop</button>
+    </div>
+    <div class="muted" id="where"></div>
   </div>
-  <pre id="composed" hidden></pre>
-</section>
+</nav>
 
-<section>
-  <h2>3 · Acts on this machine</h2>
-  <div class="row"><button onclick="loadActs()">Refresh</button>
-    <span class="muted" id="actNote"></span></div>
-  <ul id="acts"></ul>
-</section>
+<main>
 
-<section>
-  <h2>4 · Perform one</h2>
-  <div class="row"><label style="width:7em">act</label>
-    <input type="text" id="actToRun" placeholder="pick one above"
-      oninput="paintReady()"></div>
-  <div class="muted" id="playNote" style="margin-top:6px"></div>
-  <div class="row" style="margin-top:10px">
-    <button class="go" id="playBtn" onclick="play(true)">Play</button>
-    <button id="tryBtn" onclick="play(false)">Try it without clicking</button>
-    <button id="cancelBtn" onclick="cancel()" disabled>Stop</button>
+<!-- ─────────────────────────── ACTS ─────────────────────────── -->
+<section id="view-acts" class="hide">
+  <h1>Acts</h1>
+  <p class="sub">An Act is something you can ask Marco to do. Choose one to see what it will
+    do, in order, before anything happens.</p>
+
+  <!-- AN EMPTY LIBRARY SAYS WHAT TO DO FIRST. "0 composed" over an empty list is where the
+       owner's first trial stopped. -->
+  <div id="actsEmpty" class="card hide">
+    <h3>Teach Marco your first interaction</h3>
+    <div class="muted">Show Marco one click and what should happen afterward. A Scene is one
+      interaction; an Act puts Scenes in order.</div>
+    <div class="row" style="margin-top:10px">
+      <button class="go" onclick="show('scenes')">Build an Act from a Scene</button>
+      <span class="muted" id="emptyNote"></span>
+    </div>
   </div>
-  <p class="muted" style="margin:8px 0 0"><b>Play</b> really clicks, on the screen in
-    front of you. <b>Try it without clicking</b> runs the whole thing and writes each
-    click down instead of pressing it. Either way Marco brings the application forward,
-    checks it is on the screen your Act starts on, and checks each interaction worked
-    before it goes on to the next — and <b>Stop</b> ends it at any point.</p>
-  <p class="muted" style="margin:6px 0 0">Pressing Play is what authorises these
-    interactions, once. Marco will not ask again, and it will not press anything this Act
-    does not name.</p>
-  <details style="margin-top:8px">
-    <summary class="muted">the engineering path: one key per press</summary>
-    <p class="muted" style="margin:6px 0">The supervised contract E2E.md's acceptance
-      checklist drives: every press asked for and answered on the keyboard —
-      <b>F7</b> yes, <b>F8</b> no, <b>F9</b> stop — with the screen named by key too.
-      Nothing here is needed to use an Act.</p>
-    <div id="live">
-      <div class="row">
-        <input type="checkbox" id="liveOn" onchange="paintLive()">
-        <label for="liveOn" id="liveLabel"></label>
+
+  <div id="actList"></div>
+
+  <div id="actDetail" class="hide">
+    <h2>What this will do</h2>
+    <div class="card">
+      <h3 id="adName"></h3>
+      <div class="muted" id="adWhere"></div>
+      <div id="adStart" class="muted" style="margin-top:6px"></div>
+      <div id="adWaits" class="banner hide"></div>
+      <div id="adNotReady" class="banner bad hide"></div>
+      <!-- THE PREVIEW, AND IT IS HONEST. The ordered actions and what each one expects,
+           shown without sending anything. A dry run is not this: its first click never
+           happens, so it cannot reach the second interaction at all. -->
+      <div id="adSteps" style="margin-top:10px"></div>
+      <div class="row" style="margin-top:14px">
+        <button class="go" id="playBtn" onclick="play(true)">Play</button>
+        <span class="muted" id="playNote"></span>
       </div>
+      <details>
+        <summary>Technical details</summary>
+        <div class="row" style="margin-top:8px">
+          <button id="tryBtn" onclick="play(false)">Run with input disabled</button>
+          <span class="muted">engineering only: every press is written down instead
+            of sent, so the first click never happens and nothing after it is reached.
+            Not a rehearsal of the Act.</span>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <input type="checkbox" id="liveOn" onchange="paintLive()">
+          <label for="liveOn" id="liveLabel"></label>
+        </div>
+        <div class="row" style="margin-top:6px"><label style="width:7em">application</label>
+          <input type="text" id="runapp" placeholder="the Act's own, unless you say"></div>
+        <div class="row" style="margin-top:6px">
+          <input type="checkbox" id="readingOn" checked>
+          <label for="readingOn">read the screen (needed to verify an outcome)</label>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <button id="runBtn" onclick="run()">Run, asking by key</button>
+          <span class="muted">the supervised contract: F7 yes, F8 no, F9 stop</span>
+        </div>
+        <pre id="adPlay"></pre>
+      </details>
     </div>
-    <div class="row"><label style="width:7em">application</label>
-      <input type="text" id="runapp" placeholder="the Act's own, unless you say"></div>
-    <div class="row" style="margin-top:6px">
-      <input type="checkbox" id="readingOn" checked>
-      <label for="readingOn">read the screen (needed to verify an outcome)</label>
-    </div>
-    <div class="row" style="margin-top:8px">
-      <button id="runBtn" onclick="run()">Run, asking by key</button>
-      <button onclick="inspect()">Inspect the record</button>
-    </div>
-  </details>
+  </div>
 </section>
 
-<section class="wide">
-  <h2>5 · The run
-    <span class="tag" id="runact"></span>
-    <span class="tag" id="runmode"></span>
-    <span class="tag" id="ref">no run yet</span>
-    <span class="tag" id="outcome"></span></h2>
-  <div id="phase" class="muted">Nothing has run in this window yet.</div>
-  <!-- WHAT IT MEANS, beside the word. See said.go: `unconfirmed` is the outcome and
-       "Marco performed it and could not tell whether it worked" is what happened. -->
-  <div id="said" hidden style="margin-top:6px"></div>
+<!-- ────────────────────────── SCENES ────────────────────────── -->
+<section id="view-scenes" class="hide">
+  <h1>Scenes</h1>
+  <p class="sub">A Scene is one interaction — one click, and what should happen afterward.
+    An Act puts Scenes in order. These are the interactions Marco has watched you perform.</p>
+
+  <div class="row">
+    <button onclick="loadDemos()">Refresh</button>
+    <span class="muted" id="demoNote"></span>
+  </div>
+
+  <h2>Build an Act</h2>
+  <div class="card">
+    <div id="builderEmpty" class="muted">Press <b>Use this one</b> on an interaction below.
+      It will appear here, in the order it will be performed.</div>
+    <div id="builder"></div>
+    <div class="row" style="margin-top:10px"><label style="width:7em">call it</label>
+      <input type="text" id="actname" placeholder="what you will ask Marco for"></div>
+    <div class="row" style="margin-top:10px">
+      <button class="go" onclick="compose()">Save Act</button>
+      <button onclick="clearPicked()">Clear</button>
+      <span class="muted">presses nothing</span>
+    </div>
+    <div class="muted" style="margin-top:8px">One Act performs interactions from one
+      demonstration. Combining Scenes you showed Marco separately is not built yet.</div>
+    <pre id="composed" class="hide"></pre>
+  </div>
+
+  <h2>What you have shown Marco</h2>
+  <div id="demos"></div>
+</section>
+
+<!-- ───────────────────────── HISTORY ────────────────────────── -->
+<section id="view-history" class="hide">
+  <h1>Run history</h1>
+  <p class="sub">Every run this machine kept a record of, newest first.</p>
+  <div class="row"><button onclick="loadHistory()">Refresh</button>
+    <span class="muted" id="histNote"></span></div>
+  <div id="histList" style="margin-top:10px"></div>
+  <div id="histDetail" class="hide">
+    <h2>That run</h2>
+    <div class="card">
+      <div id="hdSaid"></div>
+      <div id="hdNext" class="muted" style="margin-top:6px"></div>
+      <div class="muted" id="hdWho" style="margin-top:6px"></div>
+      <div class="row" style="margin-top:12px">
+        <button onclick="report()">Report a problem</button>
+        <button onclick="inspect()">Show the record</button>
+        <span class="muted" id="hdRef"></span>
+      </div>
+      <div id="hdReport" class="muted hide" style="margin-top:8px"></div>
+      <pre id="hdRecord" class="hide"></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────── A RUN ────────────────────────── -->
+<section id="view-run" class="hide">
+  <h1 id="runTitle">The run</h1>
+  <p class="sub"><span class="tag" id="runmode"></span> <span class="tag" id="ref"></span></p>
+
+  <!-- WHAT IS HAPPENING, IN THE WORDS OF THE THING THEY ASKED FOR. See doing.go. -->
+  <div id="doing"></div>
   <!-- NOT PROCEEDING, AND WHY. A pause is not a failure and not a question: the run is
        looking, the reason says what it is looking for, and Stop is still there. -->
-  <div id="paused" hidden class="warn" style="margin-top:6px;border:1px solid var(--warn);
-       padding:8px"></div>
-  <!-- AND ANYTHING THE SURFACE ITSELF HAS TO SAY, in the same place. -->
-  <div id="surface" hidden class="no" style="margin-top:6px"></div>
-  <div id="asking" hidden></div>
-  <details style="margin-top:8px">
-    <summary class="muted">transcript</summary>
-    <pre id="transcript">nothing yet</pre>
-  </details>
+  <div id="paused" class="banner hide"></div>
+  <!-- HOW IT WENT, AND WHAT TO DO ABOUT IT. See said.go and nextOf. -->
+  <div id="said" class="banner hide"></div>
+  <div id="next" class="muted hide" style="margin-top:8px"></div>
+  <!-- AND ANYTHING THIS WINDOW ITSELF HAS TO SAY, in the same place. -->
+  <div id="surface" class="banner bad hide"></div>
+
+  <div id="runSteps" style="margin-top:16px"></div>
+
+  <div class="row" style="margin-top:16px">
+    <button class="stop" id="cancelBtn2" onclick="cancel()">Stop</button>
+    <button id="backBtn" onclick="leaveRun()">Done</button>
+    <button id="reportBtn" onclick="report()">Report a problem</button>
+    <span class="muted" id="runReport"></span>
+  </div>
+
+  <!-- THE KEYBOARD QUESTION, when there is one. Only the engineering path asks; a run
+       authorised by a press of Play is never waiting on an answer. -->
+  <div id="asking" class="banner hide" style="margin-top:14px"></div>
+
   <details>
-    <summary class="muted">the record it kept</summary>
-    <pre id="record">press “Inspect the record” above</pre>
+    <summary>Technical details</summary>
+    <div class="muted" style="margin-top:6px" id="phase"></div>
+    <pre id="transcript">nothing yet</pre>
+    <pre id="record" class="hide"></pre>
   </details>
 </section>
+
+</main>
 
 <script>
  const $ = id => document.getElementById(id)
  const text = (el, s) => { el.textContent = s }
- let picked = []
- // THE ACTS THIS PAGE IS SHOWING, kept so that pressing Play can say which version of an
- // Act was on screen when it was pressed. See play().
- let listed = []
+ const showing = (el, on) => { el.classList.toggle('hide', !on) }
+ const esc = s => String(s == null ? '' : s).replace(/[&<>]/g,
+   c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))
+ const words = ws => (ws || []).join(' · ')
+
  let acts = null
+ let view = 'acts'
+ // THE ACTS THIS PAGE IS SHOWING, kept so that pressing Play can say which version of an Act
+ // was on screen when it was pressed. See play().
+ let listed = []
+ let chosen = ''
+ let picked = []
+ let history = []
+ let chosenRun = ''
+ // WHETHER THE RUN SCREEN IS IN FRONT. A run takes the main area when it starts; after it has
+ // ended the person says when they are done with it, because an ending is a thing to read.
+ let onRun = false
+ let seenRun = ''
 
  // WAIT FOR THE BINDINGS rather than assuming them. Wails injects window.go asynchronously,
  // and a top-level call throws a ReferenceError that takes the whole script with it.
@@ -171,118 +282,259 @@
  }
  ready(() => {
    acts = window.go.main.Acts
-   // THE PAGE REPORTS ITSELF. A `-H windowsgui` binary has no console, so this callback
-   // is the only evidence that the window opened, WebView2 came up, the embedded asset
-   // was served, this script ran, and the Go bindings are reachable from it.
+   paintLive(); show('acts'); loadActs(); loadDemos(); loadHistory(); poll()
+   // THE PAGE REPORTS ITSELF, LAST. A `-H windowsgui` binary has no console, so this
+   // callback is the only evidence that the window opened, WebView2 came up, the embedded
+   // asset was served, this script ran, and the Go bindings are reachable from it.
+   //
+   // After setting the page up rather than before, which is the difference between
+   // evidence that the script PARSED and evidence that it also RAN: a reference error in
+   // any of the five calls above now means no callback, and a build that rendered an empty
+   // window would be indistinguishable from one whose webview never came up.
    if (window.go.main.Backend) {
      window.go.main.Backend.Loaded(innerWidth + 'x' + innerHeight +
        ' acts-surface bindings=' + Object.keys(window.go.main).join('+'))
    }
-   paintLive(); loadDemos(); loadActs(); paintReady(); poll()
  })
 
- // WHAT --live MEANS, SAID BOTH WAYS. The default is off, and off is not "nothing happens":
- // the whole path runs and each program is written down instead of pressed. A person has to
- // know which of those they are about to do.
- function paintLive(){
-   const on = $('liveOn').checked
-   $('live').className = on ? 'on' : ''
-   text($('liveLabel'), on
-     ? 'LIVE — Marco will really click, on the screen in front of you.'
-     : 'Dry — the whole run happens and each click is written down instead of pressed.')
+ // ── WHERE YOU ARE ──────────────────────────────────────────────────────────
+
+ function show(which){
+   view = which
+   onRun = false
+   paintViews()
+   if (which === 'history') { loadHistory() }
  }
+ function paintViews(){
+   for (const v of ['acts', 'scenes', 'history']) {
+     showing($('view-' + v), !onRun && view === v)
+     $('rail-' + v).classList.toggle('on', view === v)
+   }
+   showing($('view-run'), onRun)
+ }
+ function leaveRun(){ onRun = false; paintViews(); loadHistory() }
+
+ // ── ACTS ───────────────────────────────────────────────────────────────────
+
+ function loadActs(){
+   acts.Saved().then(as => {
+     listed = as
+     const list = $('actList'); list.innerHTML = ''
+     showing($('actsEmpty'), as.length === 0)
+     if (chosen && !as.some(a => a.name === chosen)) { chosen = '' }
+     as.forEach(a => {
+       const card = document.createElement('div')
+       card.className = 'card pick' + (a.name === chosen ? ' on' : '')
+       card.onclick = () => { chosen = a.name; loadActs(); renderAct() }
+       const steps = (a.interactions || []).length
+       card.innerHTML = '<h3>' + esc(a.name) + '</h3>' +
+         '<div class="muted">' + esc(a.application || 'no application recorded') +
+         ' · ' + steps + ' step' + (steps === 1 ? '' : 's') + '</div>' +
+         '<div class="' + (a.runnable ? (a.waits ? 'warn' : 'ok') : 'no') + '">' +
+         esc(a.runnable ? (a.waits ? 'ready, but it will wait rather than press'
+                                   : 'ready') : 'cannot be performed as it stands') +
+         '</div>'
+       list.appendChild(card)
+     })
+     renderAct()
+   })
+ }
+
+ function actNamed(name){ return listed.find(a => a.name === name) }
+
+ function renderAct(){
+   const a = actNamed(chosen)
+   showing($('actDetail'), !!a)
+   if (!a) { paintReady(); return }
+   text($('adName'), a.name)
+   text($('adWhere'), (a.application || 'no application recorded') +
+     '  ·  from what you showed Marco in "' + a.from + '"')
+   // WHERE IT HAS TO START, in words that are on the screen rather than `screen_a`.
+   text($('adStart'), (a.starts_on || []).length
+     ? 'It starts on the screen that reads “' + words(a.starts_on) +
+       '” — be there before you press Play.'
+     : '')
+   showing($('adWaits'), !!a.waits)
+   if (a.waits) { text($('adWaits'), 'It will wait, not press: ' + a.waits) }
+   showing($('adNotReady'), !a.runnable)
+   if (!a.runnable) { text($('adNotReady'), a.why || 'it cannot be performed as it stands') }
+   $('adSteps').innerHTML = stepsHTML(a.steps || [], -1)
+   text($('adPlay'), a.play || '')
+   $('runapp').value = a.application || ''
+   paintReady()
+ }
+
+ // stepsHTML is the ordered preview, and the same markup is the run's own step list.
+ //
+ // `now` is the one being performed, counting from 1, or -1 for a preview. One function for
+ // both, so what a person approves and what they then watch cannot describe the Act
+ // differently.
+ function stepsHTML(steps, now){
+   return steps.map((s, i) => {
+     const reads = (s.reads || []).length
+       ? 'presses the control that reads “' + words(s.reads) + '”'
+       : 'presses a control the demonstration read no words on'
+     const on = (s.on || []).length
+       ? ', on the screen that reads “' + words(s.on) + '”'
+       : ', on a screen the demonstration read no words on'
+     const after = s.expect
+       ? 'then expects ' + s.expect + ' words to appear and stay' +
+         ((s.expected || []).length ? ' (' + esc(s.expected.join(', ')) + '…)' : '')
+       : 'nothing was recorded to check it worked, so nothing after it is performed'
+     return '<div class="step' + (now === i + 1 ? ' now' : '') + '">' +
+       '<span class="n">' + (i + 1) + '.</span>' +
+       '<span class="grow"><b>' + esc(s.name) + '</b>' +
+       '<div class="muted">' + esc(reads) + esc(on) + '</div>' +
+       '<div class="' + (s.expect ? 'muted' : 'warn') + '">' + after + '</div></span></div>'
+   }).join('')
+ }
+
+ // PLAY: the one gesture that performs an Act.
+ //
+ // A refusal goes in front of the person rather than into the transcript. Everything Play can
+ // refuse is something they can act on — no Act by that name, an Act whose demonstration has
+ // moved under it, an application that is not running or will not come to the front — and all
+ // of it is decided BEFORE anything is raised or started.
+ function play(live){
+   const act = chosen
+   if (!act) { say('choose an Act first'); return }
+   say('')
+   // THE IDENTITY THIS PAGE WAS SHOWING, handed back with the press.
+   //
+   // Not for the backend to trust — it reads the Act itself, once, and this is what it
+   // compares against. The WHOLE identity and not the play digest: a recompose that only
+   // moves which demonstrated interaction each name means leaves that digest untouched. An
+   // Act can be composed again between being listed and being performed, with the same names
+   // in the same order meaning different interactions, and then what somebody pressed Play on
+   // is not what would be pressed.
+   const seen = (listed.find(a => a.name === act) || {}).identity || ''
+   acts.Play(act, live, seen).then(err => {
+     if (err) { say(err); return }
+     onRun = true; paintViews()
+   })
+ }
+ function run(){
+   acts.Run(chosen, $('runapp').value, $('liveOn').checked,
+            $('readingOn').checked).then(err => {
+     if (err) { say(err); return }
+     onRun = true; paintViews()
+   })
+ }
+ function cancel(){ acts.Cancel().then(e => { if (e) say(e) }) }
+
+ // WHAT --live MEANS, SAID BOTH WAYS, for the engineering path that still offers the choice.
+ function paintLive(){
+   text($('liveLabel'), $('liveOn').checked
+     ? 'LIVE — Marco will really click, on the screen in front of you.'
+     : 'input disabled — every press is written down instead of sent.')
+ }
+
+ // WHY PLAY IS NOT AVAILABLE, when it is not. The buttons themselves belong to poll() — one
+ // place decides, so there is no second opinion about them — and this is the sentence beside.
+ function paintReady(){
+   const a = actNamed(chosen)
+   text($('playNote'), !a ? 'choose an Act above'
+     : (!a.runnable ? 'this Act cannot be performed as it stands'
+        : 'one press authorises this Act, once. Marco will not ask again, and will not ' +
+          'press anything this Act does not name.'))
+ }
+
+ function say(s){
+   const el = $('surface')
+   showing(el, !!s)
+   text(el, s)
+ }
+
+ // ── SCENES ─────────────────────────────────────────────────────────────────
 
  function loadDemos(){
    acts.Demonstrations().then(ds => {
-     const ul = $('demos'); ul.innerHTML = ''
+     const list = $('demos'); list.innerHTML = ''
      const presses = d => (d.steps || []).filter(s => s.pressable)
      const checks = d => presses(d).filter(s => s.verifiable)
-     // WHAT CAN BE DONE WITH IT FIRST, not the name. Eight demonstrations of one game
-     // are called "ark graphics", "ark graphics live", "ark graphics tab", "ark menu 2":
-     // the name is the one thing that does not tell them apart, and alphabetical order
-     // put the only usable one in the middle of seven that are not.
+     // WHAT CAN BE DONE WITH IT FIRST, not the name. Eight demonstrations of one game are
+     // called "ark graphics", "ark graphics live", "ark graphics tab", "ark menu 2": the
+     // name is the one thing that does not tell them apart, and alphabetical order put the
+     // only usable one in the middle of seven that are not.
      const rank = d => checks(d).length ? 0 : (presses(d).length ? 1 : 2)
      ds = ds.slice().sort((x, y) => rank(x) - rank(y))
-     const ready = ds.filter(d => checks(d).length).length
-     text($('demoNote'), ds.length + ' saved · ' + ready +
-       (ready === 1 ? ' has' : ' have') + ' an interaction Marco can perform and check')
+     const usable = ds.filter(d => checks(d).length).length
+     text($('demoNote'), ds.length + ' saved · ' + usable +
+       (usable === 1 ? ' has' : ' have') + ' an interaction Marco can perform and check')
+     text($('emptyNote'), usable
+       ? usable + ' of what you have shown Marco can be performed and checked'
+       : 'nothing you have shown Marco yet can be both performed and checked')
      ds.forEach(d => {
-       const li = document.createElement('li')
-       const head = document.createElement('div')
-       head.innerHTML = '<b>' + esc(d.name) + '</b> <span class="muted">' +
-         esc(d.application || 'no application') + ' · ' + esc(d.saved_at) + '</span>'
-       li.appendChild(head)
-       if (d.problem) {
-         const p = document.createElement('div')
-         p.className = 'no'; p.textContent = d.problem; li.appendChild(p)
-       }
-       // WHAT IS IN IT, AS ONE SENTENCE, before any of the rows.
-       const sum = document.createElement('div')
+       const card = document.createElement('div')
+       card.className = 'card'
        const can = presses(d).length, chk = checks(d).length
-       sum.className = chk ? 'ok' : 'muted'
-       sum.textContent = !can
-         ? 'nothing in this one presses anything, so no Act can be made from it'
-         : chk + ' of its ' + (d.steps || []).length + ' steps ' +
-           (chk === 1 ? 'is a press' : 'are presses') + ' Marco can perform and check'
-       li.appendChild(sum)
-       // AND A DEMONSTRATION WITH NOTHING IN IT IS ONE LINE, NOT THIRTEEN DEAD ROWS.
+       card.innerHTML = '<h3>' + esc(d.name) + '</h3>' +
+         '<div class="muted">' + esc(d.application || 'no application') + ' · ' +
+         esc(d.saved_at) + '</div>' +
+         (d.problem ? '<div class="no">' + esc(d.problem) + '</div>' : '') +
+         '<div class="' + (chk ? 'ok' : 'muted') + '">' + (!can
+           ? 'nothing in this one presses anything, so no Act can be made from it'
+           : chk + ' of its ' + (d.steps || []).length + ' steps ' +
+             (chk === 1 ? 'is a press' : 'are presses') +
+             ' Marco can perform and check') + '</div>'
+       // AND A DEMONSTRATION WITH NOTHING IN IT IS ONE CARD, NOT THIRTEEN DEAD ROWS.
        //
-       // This is what made the panel unusable. Every step of every demonstration was a
-       // link-styled button, the unclickable ones the same shape as the clickable ones
-       // and only fainter: about forty-five rows, forty of which did nothing when
-       // pressed and said `screen_d to screen_b — nothing was pressed` while doing it.
-       if (!can) { ul.appendChild(li); return }
-       ;(d.steps || []).forEach(s => {
-         const row = document.createElement('div')
-         row.className = 'step'
-         const what = document.createElement('span')
-         what.className = 'what'
-         // A STEP THAT PRESSES NOTHING IS NOT A CONTROL, so it is not shaped like
-         // one: no button, and nothing in it a person is invited to act on.
-         if (!s.pressable) {
-           what.className = 'what muted'
-           what.textContent = 'no press here — the screen changed on its own'
-           row.appendChild(what); li.appendChild(row); return
-         }
-         const add = document.createElement('button')
-         add.className = 'use'
-         add.textContent = 'Use this one'
-         add.onclick = () => addPicked(d.name, s.position, s.reads || [])
-         row.appendChild(add)
-         // WHAT IT IS, in things that are on the person's own screen.
-         //
-         // `control_2` and `screen_a` are names this machine gave itself. They
-         // cannot be recognised, cannot be told from `control_1` and `screen_b`,
-         // and give no hint that one of them is the row of tabs across the top of
-         // their own settings page — the owner, reading a list of them: "it's
-         // screen_a to screen_b, how am I supposed to know what that means". So the
-         // words READ on the control name it, the words read on the screen say where
-         // it is, and the outcome says how much changed and some of what it said.
-         const reads = (s.reads || []).join(' · ')
-         const on = (s.on || []).join(' · ')
-         const said = reads ? 'the one that reads “' + reads + '”'
-           : 'a press on something the demonstration read no words on'
-         const where = on ? 'on the screen that reads “' + on + '”'
-           : 'Marco cannot recognise the screen this starts on — it read no words ' +
-             'there, so a run would wait instead of pressing'
-         const after = s.outcome_words
-           ? 'afterwards ' + s.outcome_words + ' words appeared and stayed' +
-             ((s.outcome_seen || []).length
-               ? ' (' + s.outcome_seen.join(', ') + '…)' : '') +
-             ' — so Marco can check it worked'
-           : 'nothing was recorded here to check afterwards, so Marco cannot tell ' +
-             'you whether it worked'
-         what.innerHTML = '<div>' + esc(said) + '</div>' +
-           '<div class="' + (on ? 'muted' : 'no') + '">' + esc(where) + '</div>' +
-           '<div class="' + (s.outcome_words ? 'muted' : 'warn') + '">' +
-           esc(after) + '</div>'
-         row.appendChild(what)
-         li.appendChild(row)
-       })
-       ul.appendChild(li)
+       // This is what made the old panel unusable: every step of every demonstration was
+       // a link-styled button, the unclickable ones the same shape as the clickable ones
+       // and only fainter — about forty-five rows, forty of which did nothing when pressed
+       // and said `screen_d to screen_b — nothing was pressed` while doing it.
+       if (can) {
+         (d.steps || []).forEach(s => {
+           const row = document.createElement('div')
+           row.className = 'step'
+           // A STEP THAT PRESSES NOTHING IS NOT A CONTROL, so it is not shaped
+           // like one: no button, and nothing in it to act on.
+           if (!s.pressable) {
+             row.innerHTML = '<span class="n"></span><span class="grow muted">' +
+               'no press here — the screen changed on its own</span>'
+             card.appendChild(row); return
+           }
+           const use = document.createElement('button')
+           use.textContent = 'Use this one'
+           use.onclick = () => addPicked(d.name, s.position, s.reads || [])
+           row.appendChild(use)
+           // WHAT IT IS, in things that are on the person's own screen.
+           //
+           // `control_2` and `screen_a` are names this machine gave itself. They
+           // cannot be recognised, cannot be told apart from `control_1` and
+           // `screen_b`, and give no hint that one of them is the row of tabs across
+           // the top of their own settings page — the owner, reading a list of them:
+           // "it's screen_a to screen_b, how tf am I supposed to know what that
+           // means".
+           const what = document.createElement('span')
+           what.className = 'grow'
+           what.innerHTML =
+             '<div>' + ((s.reads || []).length
+               ? 'the one that reads “' + esc(words(s.reads)) + '”'
+               : 'a press on something the demonstration read no words on') + '</div>' +
+             '<div class="' + ((s.on || []).length ? 'muted' : 'no') + '">' +
+               ((s.on || []).length
+                 ? 'on the screen that reads “' + esc(words(s.on)) + '”'
+                 : 'Marco cannot recognise the screen this starts on — it read no ' +
+                   'words there, so a run would wait instead of pressing') + '</div>' +
+             '<div class="' + (s.outcome_words ? 'muted' : 'warn') + '">' +
+               (s.outcome_words
+                 ? 'afterwards ' + s.outcome_words + ' words appeared and stayed' +
+                   ((s.outcome_seen || []).length
+                     ? ' (' + esc(s.outcome_seen.join(', ')) + '…)' : '') +
+                   ' — so Marco can check it worked'
+                 : 'nothing was recorded here to check afterwards, so Marco cannot ' +
+                   'tell you whether it worked') + '</div>'
+           row.appendChild(what)
+           card.appendChild(row)
+         })
+       }
+       list.appendChild(card)
      })
    })
  }
+
+ // ── THE BUILDER: ordered cards, no positions, no "2=name" ──────────────────
 
  // USING AN INTERACTION FILLS IN EVERYTHING THAT CAN BE FILLED IN.
  //
@@ -290,15 +542,54 @@
  // Act's name, and a name for every interaction. Two of the three are already known at this
  // point. The one that is not is the Act's own name, so that is where the cursor goes.
  function addPicked(from, position, reads){
-   if (!$('from').value) $('from').value = from
-   if ($('from').value !== from) {
-     alert('An Act performs interactions from one demonstration. This one is from "' +
-       from + '" and you have already picked from "' + $('from').value + '".')
+   if (picked.length && picked[0].from !== from) {
+     say('An Act performs interactions from one demonstration. These are from "' +
+       picked[0].from + '".')
      return
    }
-   picked.push({position, name: defaultName(picked.length), reads: reads || []})
+   picked.push({from, position, reads: reads || [], name: defaultName(picked.length)})
    paintPicked()
    if (!$('actname').value) $('actname').focus()
+ }
+ function clearPicked(){ picked = []; paintPicked() }
+ function movePicked(i, by){
+   const j = i + by
+   if (j < 0 || j >= picked.length) { return }
+   const held = picked[i]
+   picked[i] = picked[j]
+   picked[j] = held
+   paintPicked()
+ }
+ function paintPicked(){
+   const b = $('builder'); b.innerHTML = ''
+   showing($('builderEmpty'), picked.length === 0)
+   picked.forEach((p, i) => {
+     const row = document.createElement('div')
+     row.className = 'step'
+     row.innerHTML = '<span class="n">' + (i + 1) + '.</span>'
+     const box = document.createElement('span')
+     box.className = 'grow'
+     const nm = document.createElement('input')
+     nm.type = 'text'; nm.value = p.name
+     nm.placeholder = 'what you call it — the play will say this'
+     nm.oninput = e => { picked[i].name = e.target.value }
+     box.appendChild(nm)
+     const what = document.createElement('div')
+     what.className = 'muted'
+     what.textContent = (p.reads || []).length
+       ? 'the one that reads “' + words(p.reads) + '”'
+       : 'interaction ' + p.position + ' of "' + p.from + '"'
+     box.appendChild(what)
+     row.appendChild(box)
+     const up = document.createElement('button')
+     up.textContent = '↑'; up.onclick = () => movePicked(i, -1)
+     const down = document.createElement('button')
+     down.textContent = '↓'; down.onclick = () => movePicked(i, 1)
+     const rm = document.createElement('button')
+     rm.textContent = '×'; rm.onclick = () => { picked.splice(i, 1); paintPicked() }
+     row.appendChild(up); row.appendChild(down); row.appendChild(rm)
+     b.appendChild(row)
+   })
  }
 
  // A NAME THAT WORKS SO THAT NOTHING BLOCKS — and theirs the moment they want it.
@@ -307,263 +598,192 @@
  // deliberately not guessed from the words on the control: the words of a row of tabs are every
  // tab, so "the audio control" would be a confident lie about which one of them gets pressed.
  const ordinals = ['the first', 'the second', 'the third', 'the fourth', 'the fifth']
- function defaultName(i){
-   return (ordinals[i] || 'the ' + (i + 1) + 'th') + ' interaction'
- }
- function clearPicked(){ picked = []; paintPicked() }
- function paintPicked(){
-   const ul = $('picked'); ul.innerHTML = ''
-   picked.forEach((p, i) => {
-     const li = document.createElement('li')
-     li.className = 'row'
-     li.innerHTML = '<span class="muted" style="width:2em">' + (i + 1) + '.</span>' +
-       '<span class="tag">' + ((p.reads || []).length
-         ? 'reads “' + esc((p.reads || []).join(' · ')) + '”'
-         : 'interaction ' + p.position) + '</span>'
-     const nm = document.createElement('input')
-     nm.type = 'text'; nm.placeholder = 'what you call it — the play will say this'
-     nm.value = p.name
-     nm.oninput = e => { picked[i].name = e.target.value }
-     nm.style.flex = '1'
-     li.appendChild(nm)
-     const rm = document.createElement('button')
-     rm.textContent = '×'; rm.onclick = () => { picked.splice(i, 1); paintPicked() }
-     li.appendChild(rm)
-     ul.appendChild(li)
-   })
- }
+ function defaultName(i){ return (ordinals[i] || 'the ' + (i + 1) + 'th') + ' interaction' }
 
  function compose(){
+   if (!picked.length) { say('use an interaction below first'); return }
    const spec = picked.map(p => p.position + '=' + p.name)
-   acts.Compose($('from').value, $('actname').value, spec).then(c => {
-     const out = $('composed'); out.hidden = false
+   acts.Compose(picked[0].from, $('actname').value, spec).then(c => {
+     const out = $('composed')
+     showing(out, true)
      if (c.error) { out.className = 'no'; text(out, c.error); return }
      out.className = ''
      text(out, c.play + '\nsaved to ' + c.path)
-     $('actToRun').value = c.act
-     paintReady()
+     chosen = c.act
+     picked = []; paintPicked()
+     $('actname').value = ''
      loadActs()
+     show('acts')
    })
  }
 
- function loadActs(){
-   acts.Saved().then(as => {
-     listed = as
-     const ul = $('acts'); ul.innerHTML = ''
-     text($('actNote'), as.length + ' composed')
-     // AN EMPTY PANEL SAYS WHAT TO DO. "0 composed" over an empty list is where the
-     // owner's first trial stopped: "there's zero acts, I can't click into section one".
-     if (!as.length) {
-       const li = document.createElement('li')
-       li.className = 'muted'
-       li.textContent = 'none yet — press "Use this one" on an interaction in 1, ' +
-         'name it in 2, and press Compose and save'
-       ul.appendChild(li)
-     }
-     as.forEach(a => {
-       const li = document.createElement('li')
-       const pick = document.createElement('button')
-       pick.className = 'pick'; pick.textContent = a.name
-       pick.onclick = () => {
-         $('actToRun').value = a.name
-         paintReady()
-         $('runapp').value = a.application || ''
-         const out = $('composed'); out.hidden = false; out.className = ''
-         text(out, a.play)
-       }
-       li.appendChild(pick)
-       const meta = document.createElement('div')
-       meta.className = 'muted'
-       meta.textContent = 'from "' + a.from + '" @' + (a.revision || '?').slice(0, 8) +
-         ' · ' + (a.interactions || []).join(' → ')
-       li.appendChild(meta)
-       const state = document.createElement('div')
-       state.className = a.runnable ? 'ok' : 'no'
-       state.textContent = a.runnable ? 'ready' : a.why
-       li.appendChild(state)
-       // AND WHAT WOULD HAPPEN ANYWAY. "ready" was true and insufficient: an Act whose
-       // starting screen the demonstration never read preflights perfectly and can only
-       // wait for it. Both sentences at once, because both are true. See waitsBecause.
-       if (a.waits) {
-         const wait = document.createElement('div')
-         wait.className = 'warn'
-         wait.textContent = 'it will wait, not press: ' + a.waits
-         li.appendChild(wait)
-       }
-       ul.appendChild(li)
+ // ── RUN HISTORY ────────────────────────────────────────────────────────────
+
+ function loadHistory(){
+   acts.History().then(hs => {
+     history = hs
+     const list = $('histList'); list.innerHTML = ''
+     text($('histNote'), hs.length ? hs.length + ' kept' : 'no runs on this machine yet')
+     hs.forEach(h => {
+       const card = document.createElement('div')
+       card.className = 'card pick' + (h.reference === chosenRun ? ' on' : '')
+       card.onclick = () => { chosenRun = h.reference; loadHistory(); renderRun() }
+       card.innerHTML = '<div class="row"><span class="grow">' +
+         '<b>' + esc(h.act || h.routine || h.reference) + '</b> ' +
+         '<span class="muted">' + esc(h.when || '') + '</span></span>' +
+         '<span class="tag ' + (h.live ? 'live' : '') + '">' +
+           (h.live ? 'LIVE' : 'input disabled') + '</span>' +
+         '<span class="tag">' + esc(h.outcome) + '</span></div>' +
+         '<div class="muted">' + esc(h.said || '') + '</div>' +
+         (h.unfinished ? '<div class="warn">it never said how it ended</div>' : '') +
+         '<div class="muted">' + h.sent + ' press' + (h.sent === 1 ? '' : 'es') +
+           ' sent · ' + h.verified + ' checked</div>'
+       list.appendChild(card)
      })
+     renderRun()
    })
  }
+ function renderRun(){
+   const h = history.find(x => x.reference === chosenRun)
+   showing($('histDetail'), !!h)
+   if (!h) { return }
+   text($('hdSaid'), h.said || h.outcome)
+   text($('hdNext'), h.next ? 'What to do: ' + h.next : '')
+   text($('hdWho'), h.authority || 'no authority recorded for this run')
+   text($('hdRef'), h.reference)
+ }
 
- // PLAY: the one gesture that performs an Act.
+ // REPORT A PROBLEM, WITH THE RUN REFERENCE ALREADY IN IT.
  //
- // A refusal goes in front of the person rather than into the transcript. Everything Play can
- // refuse is something they can act on — no Act by that name, an Act whose demonstration has
- // moved under it, an application that is not running — and all of it is decided BEFORE
- // anything is raised or started.
- function play(live){
-   const act = $('actToRun').value
-   if (!act) { say('pick an Act above first'); return }
-   say('')
-   // THE IDENTITY THIS PAGE WAS SHOWING, handed back with the press.
-   //
-   // Not for the backend to trust — it reads the Act itself, once, and this is what it
-   // compares against. The WHOLE identity and not the play digest: a recompose that only
-   // moves which demonstrated interaction each name means leaves that digest untouched.
-   // An Act can be composed again between being listed and being performed, with the
-   // same names in the same order meaning different interactions, and then what somebody
-   // pressed Play on is not what would be pressed. Empty when they typed a name instead of
-   // clicking one of the Acts above, which is the honest answer: this page was not showing
-   // them anything about it.
-   const seen = (listed.find(a => a.name === act) || {}).identity || ''
-   acts.Play(act, live, seen).then(err => { if (err) { say(err) } })
- }
- // say puts a sentence from the surface itself where the run's own sentence goes, so a person
- // reads one place for "what is happening" whichever of the two is talking.
- function say(s){
-   const el = $('surface')
-   el.hidden = !s
-   text(el, s)
- }
- function run(){
-   acts.Run($('actToRun').value, $('runapp').value,
-            $('liveOn').checked, $('readingOn').checked).then(err => {
-     if (err) { say(err) }
+ // Nothing is sent anywhere: this window reads the owner's own store, and a button that posted
+ // their run to a service would be a surface deciding to publish somebody's desktop. It gathers
+ // the record, what the run said, and the Act as it stands, into one file they can send.
+ function report(){
+   const ref = onRun ? ($('ref').dataset.id || '') : chosenRun
+   acts.Report(ref).then(r => {
+     const where = onRun ? $('runReport') : $('hdReport')
+     showing(where, true)
+     text(where, r.error ? r.error : 'written to ' + r.path + ' — it holds ' + r.holds)
    })
- }
- function cancel(){ acts.Cancel().then(e => { if (e) alert(e) }) }
-
- // WHY PLAY IS NOT AVAILABLE, when it is not. The buttons themselves belong to poll() — one
- // place decides, so there is no second opinion about them — and this is the sentence beside.
- function paintReady(){
-   text($('playNote'), $('actToRun').value.trim() ? ''
-     : 'no Act chosen yet — compose one in 1 and 2, or pick one from 3')
  }
  function inspect(){
-   acts.Inspect($('ref').dataset.id || '').then(r => {
-     const el = $('record'); el.hidden = false
+   const ref = onRun ? ($('ref').dataset.id || '') : chosenRun
+   acts.Inspect(ref).then(r => {
+     const el = onRun ? $('record') : $('hdRecord')
+     showing(el, true)
      text(el, JSON.stringify(r, null, 2))
    })
  }
 
- // THE RUN, POLLED — AS STATE, WITH THE TRANSCRIPT BEHIND IT.
+ // ── THE RUN, POLLED ────────────────────────────────────────────────────────
  //
- // What a person needs is the stage, the question in front of them, and how it ended. The
- // transcript is the evidence for all three and belongs in details, not in their face.
+ // What a person needs is what is happening, what to do when it stops, and Stop. The phase, the
+ // transcript and the record are the evidence for all three and belong behind Technical
+ // details, not in their face.
  //
  // The Act and the live/dry mode come from the RUN, not from the controls above: somebody who
  // ticks the live box while something is running must not be shown a dry run described as live.
  function poll(){
    acts.Watch().then(w => {
+     // A RUN THAT STARTED SOMEWHERE ELSE STILL TAKES THE SCREEN. Pressing Play puts the
+     // run in front at once; this catches one that began before the window was looking.
+     if (w.active && w.reference && w.reference !== seenRun) {
+       seenRun = w.reference; onRun = true; paintViews()
+     }
      if (w.transcript && w.transcript.length) {
        text($('transcript'), w.transcript.join('\n'))
        $('transcript').scrollTop = $('transcript').scrollHeight
      }
-     // THE RUNNER'S OWN ACCOUNT. Not read out of the transcript: Studio used to match
-     // on sentences, so improving the wording of a consent prompt would silently have
-     // changed what this showed somebody about a press they were about to authorise.
      const st = w.state
-     let phase = 'Nothing has run in this window yet.'
-     if (st) {
-       phase = st.phase
-       // WHICH INTERACTION, IN THE ACT'S OWN NUMBERING, under the name the person
-       // gave it — and the verdict beside it rather than in place of it. All four
-       // come off the event; this window does not count sentences for itself.
-       const at = st.interaction
-       if (at) {
-         let who = at.name || at.control || ('step ' + at.step)
-         if (at.index && at.of) { who = at.index + ' of ' + at.of + ' · ' + who }
-         phase += ' · ' + who
-         if (at.verdict) { phase += ' · ' + at.verdict }
-       }
-       // THE COUNTDOWN, COMPUTED HERE AND DECIDED BY THE RUNNER. Studio may show
-       // the time remaining to the runner's own deadline; preparation is over when
-       // the run says it is, never because this arithmetic reached zero.
-       if (st.preparation) {
-         const left = Math.max(0, Math.round(
-           (new Date(st.preparation) - new Date()) / 1000))
-         phase += ' · ' + left + 's left to get ready'
-       }
-     } else if (w.active) {
-       phase = 'starting'
-     }
-     if (w.incomplete) {
-       phase = 'INCOMPLETE — the run stopped without saying how it ended'
-     }
-     text($('phase'), phase)
-     $('phase').className = w.incomplete ? 'no' : 'muted'
-
-     // ── NOT PROCEEDING, AND WHY ──
-     //
-     // A paused run is looking for something it was told to expect and cannot see: the
-     // application is not in front, the screen is not the one the Act starts on, two
-     // saved screens fit it equally. The reason is the runner's own sentence and says
-     // what a person can do about it, so it is shown as prominently as the phase and
-     // NOT styled as a failure — nothing has failed, and it resolves by itself the
-     // moment the world matches.
-     const pausedNow = st && st.phase === 'paused' && w.active
-     $('paused').hidden = !pausedNow
-     if (pausedNow) {
-       text($('paused'), 'Waiting: ' + (st.reason || 'something is not as this Act ' +
-         'expects') + '  —  Stop ends it.')
-     }
-     // AND HOW IT WENT, in a sentence, once it has gone. See said.go.
-     $('said').hidden = !w.said
-     if (w.said) {
-       text($('said'), w.said)
-       $('said').className = w.outcome === 'verified' ? 'ok' : 'warn'
-     }
-
-     // THE QUESTION, VERBATIM, because it is one somebody is about to answer with a key
-     // — and putting this window's own words on a consent prompt would be writing
-     // somebody else's question. A question that has been answered is absent from the
-     // next snapshot, so a stale prompt cannot survive here.
-     //
-     // AND ONLY WHILE SOMEBODY CAN ANSWER IT. `asking` is the runner's question
-     // while there is a process listening for the keys; `state.question` is what it
-     // was waiting for whenever it last spoke. A child that exited with a question
-     // open leaves the second and not the first, and offering its keys then invites
-     // somebody to press F7 at nothing.
-     const q = w.asking
-     const last = !q && st && st.question ? st.question : null
-     const ask = $('asking')
-     ask.hidden = !q && !last
-     if (q) {
-       const keys = (q.keys || []).map(k => k.key + ' ' + k.means).join('   ')
-       ask.innerHTML = '<b>' + esc(q.asks) + '</b>' +
-         (keys ? '<div class="warn">answer on your keyboard: ' + esc(keys) +
-           '</div>' : '')
-     } else if (last) {
-       ask.innerHTML = '<span class="muted">it was asking this when it last said ' +
-         'anything, and nothing is waiting for an answer now: ' +
-         esc(last.asks) + '</span>'
-     }
-     // THE RUN'S OWN ACT AND MODE.
-     $('runact').textContent = w.act || ''
-     $('runmode').textContent = w.act ? (w.live ? 'LIVE' : 'dry') : ''
-     $('runmode').className = 'tag ' + (w.live ? 'no' : 'muted')
+     text($('runTitle'), w.act ? w.act : 'The run')
+     $('runmode').textContent = w.act ? (w.live ? 'LIVE' : 'input disabled') : ''
+     $('runmode').className = 'tag ' + (w.live ? 'live' : '')
      $('ref').textContent = w.reference || 'no run yet'
      $('ref').dataset.id = w.reference || ''
-     $('outcome').textContent = w.outcome || (w.active ? 'running' : '')
-     $('outcome').className = 'tag ' + (w.outcome === 'verified' ? 'ok'
-       : w.outcome ? 'no' : '')
-     // ONE RUN AT A TIME, AND STOP WHENEVER THERE IS ONE.
+
+     // WHAT IS HAPPENING, FROM THE RUNNER'S OWN ACCOUNT OF ITSELF.
      //
-     // Stop is the one control that is live for the whole of a run — including while it
-     // is paused, which is exactly when somebody is most likely to want it.
-     // AND NOTHING TO PRESS UNTIL THERE IS AN ACT TO PRESS IT ON. Both conditions in
-     // one place, because this is the only place that knows whether a run is in flight.
-     // A Play button that is live with nothing chosen answers a press with "pick an Act
-     // above first", which is a window telling somebody off for pressing what it offered.
-     const nothingChosen = !$('actToRun').value.trim()
+     // Not derived from the transcript: Studio used to match on sentences — "May Marco",
+     // "Is that the screen you are on?" — so improving the wording of a consent prompt
+     // would silently have changed what this window showed somebody about a press they
+     // were about to authorise.
+     let doing = w.doing || ''
+     if (w.incomplete) { doing = 'It stopped without saying how it ended.' }
+     text($('doing'), doing)
+     $('doing').className = w.incomplete ? 'no' : ''
+     text($('phase'), st ? ('phase ' + st.phase + (st.interaction
+       ? ' · interaction ' + (st.interaction.index || '?') + ' of ' +
+         (st.interaction.of || '?') + ' · step ' + st.interaction.step +
+         (st.interaction.verdict ? ' · ' + st.interaction.verdict : '')
+       : '')) : 'the run has not said anything yet')
+
+     // NOT PROCEEDING, AND WHY. Shown as prominently as what it is doing and NOT styled
+     // as a failure — nothing has failed, and it resolves by itself the moment the world
+     // matches what the Act expects. There is no Resume to press: the run looks again.
+     const pausedNow = st && st.phase === 'paused' && w.active
+     showing($('paused'), pausedNow)
+     if (pausedNow) {
+       text($('paused'), 'Waiting: ' + (st.reason || 'something is not as this Act ' +
+         'expects') + '  —  it goes on by itself when that changes. Stop ends it.')
+     }
+     // AND HOW IT WENT, with what to do about it under it. See said.go and nextOf.
+     showing($('said'), !!w.said)
+     if (w.said) {
+       text($('said'), w.said)
+       $('said').className = 'banner ' + (w.outcome === 'verified' ? 'good'
+         : w.outcome === 'cancelled' ? '' : 'bad')
+     }
+     showing($('next'), !!w.next)
+     if (w.next) { text($('next'), 'What to do: ' + w.next) }
+
+     // THE STEPS, WITH THE ONE IN HAND MARKED. The same markup as the preview, so what
+     // was approved and what is being watched cannot describe the Act differently.
+     const running = actNamed(w.act) || actNamed(chosen)
+     const at = st && st.interaction ? (st.interaction.index || -1) : -1
+     $('runSteps').innerHTML = running ? stepsHTML(running.steps || [],
+       w.active ? at : -1) : ''
+
+     // THE QUESTION, VERBATIM, because it is one somebody is about to answer with a key —
+     // and putting this window's own words on a consent prompt would be writing somebody
+     // else's question. Only while there is a process listening for the keys: a child that
+     // exited with a question open leaves a snapshot that still carries it, and offering
+     // its keys then invites somebody to press F7 at nothing.
+     const q = w.asking
+     const last = !q && st && st.question ? st.question : null
+     showing($('asking'), !!q || !!last)
+     if (q) {
+       const keys = (q.keys || []).map(k => k.key + ' ' + k.means).join('   ')
+       $('asking').innerHTML = '<b>' + esc(q.asks) + '</b>' +
+         (keys ? '<div class="warn">answer on your keyboard: ' + esc(keys) + '</div>' : '')
+     } else if (last) {
+       // WHERE A STOPPED RUN GOT TO, as what it is. A child that exited with a
+       // question open leaves it in the snapshot; shown as history, with no keys
+       // offered, because nothing is listening for them.
+       $('asking').innerHTML = '<span class="muted">it was asking this when it last ' +
+         'said anything, and nothing is waiting for an answer now: ' +
+         esc(last.asks) + '</span>'
+     }
+
+     // ONE RUN AT A TIME, AND NOTHING TO PRESS UNTIL THERE IS AN ACT TO PRESS IT ON.
+     //
+     // Both conditions in one place, because this is the only place that knows whether a
+     // run is in flight. A Play button that is live with nothing chosen answers a press
+     // with "choose an Act first", which is a window telling somebody off for pressing
+     // what it offered them.
+     const picked2 = actNamed(chosen)
+     const nothingChosen = !picked2 || !picked2.runnable
      for (const b of ['runBtn', 'playBtn', 'tryBtn']) {
        $(b).disabled = w.active || nothingChosen
      }
-     if (!w.active) { paintReady() }
+     // STOP IS LIVE FOR THE WHOLE OF A RUN — including while it is paused, which is
+     // exactly when somebody is most likely to want it — and it is in the rail as well as
+     // on the run screen, so navigating away does not take it away.
      $('cancelBtn').disabled = !w.active
+     $('cancelBtn2').disabled = !w.active
+     showing($('railrun'), w.active)
+     text($('railphase'), w.active ? (w.doing || 'a run is in flight') : '')
+     $('backBtn').disabled = w.active
+     $('reportBtn').disabled = !w.reference
    }).finally(() => setTimeout(poll, 400))
  }
-
- function esc(s){ return String(s == null ? '' : s).replace(/[&<>]/g,
-   c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) }
 </script>
