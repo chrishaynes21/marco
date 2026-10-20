@@ -1,0 +1,313 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Marco Studio</title>
+<style>
+ :root{--bg:#14161a;--panel:#1b1e24;--line:#2d323c;--ink:#d7dae0;--dim:#8a93a0;
+       --key:#4b7bec;--ok:#3fb950;--warn:#d29922;--no:#f85149}
+ *{box-sizing:border-box}
+ body{font:13px/1.55 Consolas,"Cascadia Mono",monospace;background:var(--bg);color:var(--ink);
+      margin:0;padding:14px;display:grid;gap:12px;grid-template-columns:1fr 1fr}
+ h1{grid-column:1/-1;font-size:13px;color:var(--dim);font-weight:400;margin:0;
+    letter-spacing:.1em;text-transform:uppercase}
+ section{background:var(--panel);border:1px solid var(--line);padding:10px 12px;min-width:0}
+ section>h2{font-size:12px;color:var(--key);margin:0 0 8px;font-weight:400;
+            text-transform:uppercase;letter-spacing:.08em}
+ .wide{grid-column:1/-1}
+ button{font:12px Consolas,monospace;background:#232730;color:var(--ink);
+        border:1px solid #3a404c;padding:5px 11px;cursor:pointer}
+ button:hover:not(:disabled){background:#2c313b}
+ button:disabled{opacity:.4;cursor:default}
+ button.go{border-color:var(--key)}
+ input[type=text]{font:12px Consolas,monospace;background:#101216;color:var(--ink);
+        border:1px solid #3a404c;padding:4px 6px;width:100%}
+ label{color:var(--dim)}
+ ul{list-style:none;margin:0;padding:0}
+ li{padding:4px 0;border-bottom:1px solid #22262e}
+ li:last-child{border-bottom:0}
+ .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+ .pick{cursor:pointer;color:var(--key);background:none;border:0;padding:0;font:inherit;
+       text-decoration:underline}
+ .muted{color:var(--dim)}
+ .ok{color:var(--ok)} .no{color:var(--no)} .warn{color:var(--warn)}
+ pre{margin:6px 0 0;white-space:pre-wrap;word-break:break-word;max-height:300px;
+     overflow-y:auto;background:#101216;border:1px solid #22262e;padding:8px;font-size:12px}
+ #live{border:1px solid var(--warn);padding:8px;margin-bottom:8px}
+ #live.on{border-color:var(--no);background:#2a1618}
+ .tag{font-size:11px;padding:1px 5px;border:1px solid #3a404c;color:var(--dim)}
+</style>
+
+<h1>Marco Studio — acts you composed from what you demonstrated</h1>
+
+<section>
+  <h2>1 · What you have demonstrated</h2>
+  <div class="row"><button onclick="loadDemos()">Refresh</button>
+    <span class="muted" id="demoNote"></span></div>
+  <ul id="demos"></ul>
+</section>
+
+<section>
+  <h2>2 · Compose an Act</h2>
+  <div class="row"><label style="width:7em">from</label>
+    <input type="text" id="from" placeholder="a demonstration above"></div>
+  <div class="row" style="margin-top:6px"><label style="width:7em">call it</label>
+    <input type="text" id="actname" placeholder="a name of its own"></div>
+  <p class="muted" style="margin:8px 0 4px">Interactions, in the order they should be
+    performed. Click one above to add it.</p>
+  <ul id="picked"></ul>
+  <div class="row" style="margin-top:8px">
+    <button class="go" onclick="compose()">Compose and save</button>
+    <button onclick="clearPicked()">Clear</button>
+    <span class="muted">presses nothing</span>
+  </div>
+  <pre id="composed" hidden></pre>
+</section>
+
+<section>
+  <h2>3 · Acts on this machine</h2>
+  <div class="row"><button onclick="loadActs()">Refresh</button>
+    <span class="muted" id="actNote"></span></div>
+  <ul id="acts"></ul>
+</section>
+
+<section>
+  <h2>4 · Run one</h2>
+  <div id="live">
+    <div class="row">
+      <input type="checkbox" id="liveOn" onchange="paintLive()">
+      <label for="liveOn" id="liveLabel"></label>
+    </div>
+  </div>
+  <div class="row"><label style="width:7em">act</label>
+    <input type="text" id="actToRun" placeholder="pick one above"></div>
+  <div class="row" style="margin-top:6px"><label style="width:7em">application</label>
+    <input type="text" id="runapp" placeholder="the executable, e.g. ArkAscended.exe"></div>
+  <div class="row" style="margin-top:6px">
+    <input type="checkbox" id="readingOn" checked>
+    <label for="readingOn">read the screen (needed to verify an outcome)</label>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <button class="go" id="runBtn" onclick="run()">Run</button>
+    <button id="cancelBtn" onclick="cancel()" disabled>Cancel</button>
+    <button onclick="inspect()">Inspect the record</button>
+  </div>
+  <p class="warn" style="margin:8px 0 0">Marco asks before every press. Answer on your
+    keyboard: <b>F7</b> yes, <b>F8</b> no, <b>F9</b> stop. The questions appear below.</p>
+</section>
+
+<section class="wide">
+  <h2>5 · The run
+    <span class="tag" id="runact"></span>
+    <span class="tag" id="runmode"></span>
+    <span class="tag" id="ref">no run yet</span>
+    <span class="tag" id="outcome"></span></h2>
+  <div id="phase" class="muted">Nothing has run in this window yet.</div>
+  <div id="asking" hidden></div>
+  <p class="muted" id="derived" hidden>Read from what the run printed — the runner has no
+    structured event stream yet, so treat this as a summary of the words below.</p>
+  <details style="margin-top:8px">
+    <summary class="muted">transcript</summary>
+    <pre id="transcript">nothing yet</pre>
+  </details>
+  <details>
+    <summary class="muted">the record it kept</summary>
+    <pre id="record">press “Inspect the record” above</pre>
+  </details>
+</section>
+
+<script>
+ const $ = id => document.getElementById(id)
+ const text = (el, s) => { el.textContent = s }
+ let picked = []
+ let acts = null
+
+ // WAIT FOR THE BINDINGS rather than assuming them. Wails injects window.go asynchronously,
+ // and a top-level call throws a ReferenceError that takes the whole script with it.
+ const ready = (fn, tries = 100) => {
+   if (window.go && window.go.main && window.go.main.Acts) return fn()
+   if (tries > 0) setTimeout(() => ready(fn, tries - 1), 50)
+ }
+ ready(() => {
+   acts = window.go.main.Acts
+   // THE PAGE REPORTS ITSELF. A `-H windowsgui` binary has no console, so this callback
+   // is the only evidence that the window opened, WebView2 came up, the embedded asset
+   // was served, this script ran, and the Go bindings are reachable from it.
+   if (window.go.main.Backend) {
+     window.go.main.Backend.Loaded(innerWidth + 'x' + innerHeight +
+       ' acts-surface bindings=' + Object.keys(window.go.main).join('+'))
+   }
+   paintLive(); loadDemos(); loadActs(); poll()
+ })
+
+ // WHAT --live MEANS, SAID BOTH WAYS. The default is off, and off is not "nothing happens":
+ // the whole path runs and each program is written down instead of pressed. A person has to
+ // know which of those they are about to do.
+ function paintLive(){
+   const on = $('liveOn').checked
+   $('live').className = on ? 'on' : ''
+   text($('liveLabel'), on
+     ? 'LIVE — Marco will really click, on the screen in front of you.'
+     : 'Dry — the whole run happens and each click is written down instead of pressed.')
+ }
+
+ function loadDemos(){
+   acts.Demonstrations().then(ds => {
+     const ul = $('demos'); ul.innerHTML = ''
+     text($('demoNote'), ds.length + ' saved')
+     ds.forEach(d => {
+       const li = document.createElement('li')
+       const head = document.createElement('div')
+       head.innerHTML = '<b>' + esc(d.name) + '</b> <span class="muted">' +
+         esc(d.application || 'no application') + ' · ' + esc(d.saved_at) + '</span>'
+       li.appendChild(head)
+       if (d.problem) {
+         const p = document.createElement('div')
+         p.className = 'no'; p.textContent = d.problem; li.appendChild(p)
+       }
+       ;(d.steps || []).forEach(s => {
+         const row = document.createElement('div')
+         const add = document.createElement('button')
+         add.className = 'pick'
+         add.textContent = s.position + ' · ' + s.says
+         add.disabled = !s.pressable
+         add.onclick = () => addPicked(d.name, s.position)
+         row.appendChild(add)
+         const tags = document.createElement('span')
+         tags.className = 'muted'
+         tags.textContent = (s.pressable ? '' : '  presses nothing') +
+           (s.verifiable ? '' : '  no outcome recorded')
+         row.appendChild(tags)
+         li.appendChild(row)
+       })
+       ul.appendChild(li)
+     })
+   })
+ }
+
+ function addPicked(from, position){
+   if (!$('from').value) $('from').value = from
+   if ($('from').value !== from) {
+     alert('An Act performs interactions from one demonstration. This one is from "' +
+       from + '" and you have already picked from "' + $('from').value + '".')
+     return
+   }
+   picked.push({position, name: ''})
+   paintPicked()
+ }
+ function clearPicked(){ picked = []; paintPicked() }
+ function paintPicked(){
+   const ul = $('picked'); ul.innerHTML = ''
+   picked.forEach((p, i) => {
+     const li = document.createElement('li')
+     li.className = 'row'
+     li.innerHTML = '<span class="muted" style="width:2em">' + (i + 1) + '.</span>' +
+       '<span class="tag">interaction ' + p.position + '</span>'
+     const nm = document.createElement('input')
+     nm.type = 'text'; nm.placeholder = 'what you call it — the play will say this'
+     nm.value = p.name
+     nm.oninput = e => { picked[i].name = e.target.value }
+     nm.style.flex = '1'
+     li.appendChild(nm)
+     const rm = document.createElement('button')
+     rm.textContent = '×'; rm.onclick = () => { picked.splice(i, 1); paintPicked() }
+     li.appendChild(rm)
+     ul.appendChild(li)
+   })
+ }
+
+ function compose(){
+   const spec = picked.map(p => p.position + '=' + p.name)
+   acts.Compose($('from').value, $('actname').value, spec).then(c => {
+     const out = $('composed'); out.hidden = false
+     if (c.error) { out.className = 'no'; text(out, c.error); return }
+     out.className = ''
+     text(out, c.play + '\nsaved to ' + c.path)
+     $('actToRun').value = c.act
+     loadActs()
+   })
+ }
+
+ function loadActs(){
+   acts.Saved().then(as => {
+     const ul = $('acts'); ul.innerHTML = ''
+     text($('actNote'), as.length + ' composed')
+     as.forEach(a => {
+       const li = document.createElement('li')
+       const pick = document.createElement('button')
+       pick.className = 'pick'; pick.textContent = a.name
+       pick.onclick = () => {
+         $('actToRun').value = a.name
+         $('runapp').value = a.application || ''
+         const out = $('composed'); out.hidden = false; out.className = ''
+         text(out, a.play)
+       }
+       li.appendChild(pick)
+       const meta = document.createElement('div')
+       meta.className = 'muted'
+       meta.textContent = 'from "' + a.from + '" @' + (a.revision || '?').slice(0, 8) +
+         ' · ' + (a.interactions || []).join(' → ')
+       li.appendChild(meta)
+       const state = document.createElement('div')
+       state.className = a.runnable ? 'ok' : 'no'
+       state.textContent = a.runnable ? 'ready' : a.why
+       li.appendChild(state)
+       ul.appendChild(li)
+     })
+   })
+ }
+
+ function run(){
+   acts.Run($('actToRun').value, $('runapp').value,
+            $('liveOn').checked, $('readingOn').checked).then(err => {
+     if (err) { text($('transcript'), err) }
+   })
+ }
+ function cancel(){ acts.Cancel().then(e => { if (e) alert(e) }) }
+ function inspect(){
+   acts.Inspect($('ref').dataset.id || '').then(r => {
+     const el = $('record'); el.hidden = false
+     text(el, JSON.stringify(r, null, 2))
+   })
+ }
+
+ // THE RUN, POLLED — AS STATE, WITH THE TRANSCRIPT BEHIND IT.
+ //
+ // What a person needs is the stage, the question in front of them, and how it ended. The
+ // transcript is the evidence for all three and belongs in details, not in their face.
+ //
+ // The Act and the live/dry mode come from the RUN, not from the controls above: somebody who
+ // ticks the live box while something is running must not be shown a dry run described as live.
+ function poll(){
+   acts.Watch().then(w => {
+     if (w.transcript && w.transcript.length) {
+       text($('transcript'), w.transcript.join('\n'))
+       $('transcript').scrollTop = $('transcript').scrollHeight
+     }
+     const st = w.stage || {}
+     text($('phase'), w.active || w.outcome
+       ? (st.phase || 'starting') : 'Nothing has run in this window yet.')
+     // THE QUESTION, VERBATIM, because it is one somebody is about to answer with a key.
+     const ask = $('asking')
+     ask.hidden = !st.asking
+     if (st.asking) {
+       ask.innerHTML = '<b>' + esc(st.asking) + '</b>' +
+         (st.keys ? '<div class="warn">answer on your keyboard: ' + esc(st.keys) +
+           '</div>' : '')
+     }
+     $('derived').hidden = !(st.derived && (w.active || w.outcome))
+     // THE RUN'S OWN ACT AND MODE.
+     $('runact').textContent = w.act || ''
+     $('runmode').textContent = w.act ? (w.live ? 'LIVE' : 'dry') : ''
+     $('runmode').className = 'tag ' + (w.live ? 'no' : 'muted')
+     $('ref').textContent = w.reference || 'no run yet'
+     $('ref').dataset.id = w.reference || ''
+     $('outcome').textContent = w.outcome || (w.active ? 'running' : '')
+     $('outcome').className = 'tag ' + (w.outcome === 'verified' ? 'ok'
+       : w.outcome ? 'no' : '')
+     $('runBtn').disabled = w.active
+     $('cancelBtn').disabled = !w.active
+   }).finally(() => setTimeout(poll, 400))
+ }
+
+ function esc(s){ return String(s == null ? '' : s).replace(/[&<>]/g,
+   c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) }
+</script>

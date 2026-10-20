@@ -1,0 +1,81 @@
+package main
+
+// THE ACT SURFACE, EXERCISED WITHOUT A WINDOW.
+//
+// `studio -acts <store>` drives every read-only verb the page calls and prints what it got. It
+// opens nothing, presses nothing, and spawns no runner — so it can be pointed at a copy of
+// somebody's store, or at a temporary one, and tell you whether the surface would have anything
+// to show before a window is ever put on their desktop.
+//
+// It deliberately does NOT exercise `Run`: that spawns the supervised runner, which asks a person
+// to press keys and may touch the machine. A check that did would be a check nobody could run
+// safely.
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+)
+
+// runActsCheck prints what the Act surface would show. Returns an exit code.
+func runActsCheck(home string) int {
+	if home == "" {
+		fmt.Println("FAIL  -acts needs a store to read: -acts <dir>")
+		return 2
+	}
+	// THE SAME ENVIRONMENT THE WINDOW WOULD HAVE. `newActs` reads $MARCO_ROUTES for the
+	// routes tree exactly as marco and director do, so the check has to set it the same
+	// way or it would be looking somewhere else.
+	if err := os.Setenv("MARCO_HOME", home); err != nil {
+		fmt.Printf("FAIL  %v\n", err)
+		return 1
+	}
+	// AND THE ROUTES TREE IS LEFT TO RESOLVE AS THE WINDOW RESOLVES IT.
+	//
+	// The first version defaulted it to `<home>/routes`, which is tidier and WRONG: the
+	// window uses director's rule — $MARCO_ROUTES, else `routes` beside wherever Studio
+	// was launched from — so a check that invented a different answer would report Acts
+	// out of a directory the window never looks at. A check has to look where the thing
+	// it is checking looks, even when that is the less tidy of the two.
+	a := newActs(home)
+
+	fmt.Printf("ACT SURFACE\n  store      %s\n  routes     %s\n\n", home, a.routesDir)
+
+	demos := a.Demonstrations()
+	fmt.Printf("DEMONSTRATIONS  %d\n", len(demos))
+	for _, d := range demos {
+		fmt.Printf("  %-28s %-18s %s\n", d.Name, d.Application, d.SavedAt)
+		if d.Problem != "" {
+			fmt.Printf("      cannot be read: %s\n", d.Problem)
+		}
+		for _, s := range d.Steps {
+			fmt.Printf("      %d  %-46s %s%s\n", s.Position, s.Says,
+				mark(s.Pressable, "presses", "presses nothing"),
+				mark(s.Verifiable, ", can verify", ", no outcome recorded"))
+		}
+	}
+
+	saved := a.Saved()
+	fmt.Printf("\nACTS  %d\n", len(saved))
+	for _, s := range saved {
+		state := "ready"
+		if !s.Runnable {
+			state = "NOT READY: " + s.Why
+		}
+		fmt.Printf("  %-28s from %-24s %v\n      %s\n", s.Name, s.From,
+			s.Interactions, state)
+	}
+
+	// AND WHAT THE PAGE WOULD POLL, so a reader can see the shape it renders.
+	w, _ := json.Marshal(a.Watch())
+	fmt.Printf("\nWATCH  %s\n", w)
+	fmt.Printf("\n  Nothing was run, nothing was pressed, and no window was opened.\n")
+	return 0
+}
+
+func mark(yes bool, when, otherwise string) string {
+	if yes {
+		return when
+	}
+	return otherwise
+}
