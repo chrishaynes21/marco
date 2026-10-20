@@ -70,28 +70,45 @@
 </section>
 
 <section>
-  <h2>4 · Run one</h2>
-  <div id="live">
-    <div class="row">
-      <input type="checkbox" id="liveOn" onchange="paintLive()">
-      <label for="liveOn" id="liveLabel"></label>
-    </div>
-  </div>
+  <h2>4 · Perform one</h2>
   <div class="row"><label style="width:7em">act</label>
     <input type="text" id="actToRun" placeholder="pick one above"></div>
-  <div class="row" style="margin-top:6px"><label style="width:7em">application</label>
-    <input type="text" id="runapp" placeholder="the executable, e.g. ArkAscended.exe"></div>
-  <div class="row" style="margin-top:6px">
-    <input type="checkbox" id="readingOn" checked>
-    <label for="readingOn">read the screen (needed to verify an outcome)</label>
+  <div class="row" style="margin-top:10px">
+    <button class="go" id="playBtn" onclick="play(true)">Play</button>
+    <button id="tryBtn" onclick="play(false)">Try it without clicking</button>
+    <button id="cancelBtn" onclick="cancel()" disabled>Stop</button>
   </div>
-  <div class="row" style="margin-top:8px">
-    <button class="go" id="runBtn" onclick="run()">Run</button>
-    <button id="cancelBtn" onclick="cancel()" disabled>Cancel</button>
-    <button onclick="inspect()">Inspect the record</button>
-  </div>
-  <p class="warn" style="margin:8px 0 0">Marco asks before every press. Answer on your
-    keyboard: <b>F7</b> yes, <b>F8</b> no, <b>F9</b> stop. The questions appear below.</p>
+  <p class="muted" style="margin:8px 0 0"><b>Play</b> really clicks, on the screen in
+    front of you. <b>Try it without clicking</b> runs the whole thing and writes each
+    click down instead of pressing it. Either way Marco brings the application forward,
+    checks it is on the screen your Act starts on, and checks each interaction worked
+    before it goes on to the next — and <b>Stop</b> ends it at any point.</p>
+  <p class="muted" style="margin:6px 0 0">Pressing Play is what authorises these
+    interactions, once. Marco will not ask again, and it will not press anything this Act
+    does not name.</p>
+  <details style="margin-top:8px">
+    <summary class="muted">the engineering path: one key per press</summary>
+    <p class="muted" style="margin:6px 0">The supervised contract E2E.md's acceptance
+      checklist drives: every press asked for and answered on the keyboard —
+      <b>F7</b> yes, <b>F8</b> no, <b>F9</b> stop — with the screen named by key too.
+      Nothing here is needed to use an Act.</p>
+    <div id="live">
+      <div class="row">
+        <input type="checkbox" id="liveOn" onchange="paintLive()">
+        <label for="liveOn" id="liveLabel"></label>
+      </div>
+    </div>
+    <div class="row"><label style="width:7em">application</label>
+      <input type="text" id="runapp" placeholder="the Act's own, unless you say"></div>
+    <div class="row" style="margin-top:6px">
+      <input type="checkbox" id="readingOn" checked>
+      <label for="readingOn">read the screen (needed to verify an outcome)</label>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <button id="runBtn" onclick="run()">Run, asking by key</button>
+      <button onclick="inspect()">Inspect the record</button>
+    </div>
+  </details>
 </section>
 
 <section class="wide">
@@ -101,6 +118,15 @@
     <span class="tag" id="ref">no run yet</span>
     <span class="tag" id="outcome"></span></h2>
   <div id="phase" class="muted">Nothing has run in this window yet.</div>
+  <!-- WHAT IT MEANS, beside the word. See said.go: `unconfirmed` is the outcome and
+       "Marco performed it and could not tell whether it worked" is what happened. -->
+  <div id="said" hidden style="margin-top:6px"></div>
+  <!-- NOT PROCEEDING, AND WHY. A pause is not a failure and not a question: the run is
+       looking, the reason says what it is looking for, and Stop is still there. -->
+  <div id="paused" hidden class="warn" style="margin-top:6px;border:1px solid var(--warn);
+       padding:8px"></div>
+  <!-- AND ANYTHING THE SURFACE ITSELF HAS TO SAY, in the same place. -->
+  <div id="surface" hidden class="no" style="margin-top:6px"></div>
   <div id="asking" hidden></div>
   <details style="margin-top:8px">
     <summary class="muted">transcript</summary>
@@ -161,18 +187,38 @@
          const p = document.createElement('div')
          p.className = 'no'; p.textContent = d.problem; li.appendChild(p)
        }
+       // WHAT EACH INTERACTION IS, in things that are on the person's own screen.
+       //
+       // `control_2` is a name this machine gave itself: it cannot be recognised, cannot
+       // be told from `control_1`, and gives no hint that one of them is the row of tabs
+       // across the top of their settings page. So the words the demonstration READ on
+       // the control are what labels it, and the outcome is described by how much was
+       // seen to change and some of what it said.
        ;(d.steps || []).forEach(s => {
          const row = document.createElement('div')
          const add = document.createElement('button')
          add.className = 'pick'
-         add.textContent = s.position + ' · ' + s.says
+         const reads = (s.reads || []).join(' · ')
+         add.textContent = reads ? 'the one that reads “' + reads + '”' : s.says
          add.disabled = !s.pressable
          add.onclick = () => addPicked(d.name, s.position)
          row.appendChild(add)
          const tags = document.createElement('span')
          tags.className = 'muted'
-         tags.textContent = (s.pressable ? '' : '  presses nothing') +
-           (s.verifiable ? '' : '  no outcome recorded')
+         // AND WHETHER IT CAN BE CHECKED AFTERWARDS, which is the single most
+         // surprising thing about running an Act and belongs here rather than in a
+         // refusal halfway through one.
+         let says = ''
+         if (!s.pressable) {
+           says = '  nothing was pressed here'
+         } else if (s.outcome_words) {
+           says = '  afterwards: ' + s.outcome_words + ' words appeared and stayed' +
+             ((s.outcome_seen || []).length
+               ? ' (' + s.outcome_seen.join(', ') + '…)' : '')
+         } else {
+           says = '  nothing was recorded to check afterwards'
+         }
+         tags.textContent = says
          row.appendChild(tags)
          li.appendChild(row)
        })
@@ -253,10 +299,29 @@
    })
  }
 
+ // PLAY: the one gesture that performs an Act.
+ //
+ // A refusal goes in front of the person rather than into the transcript. Everything Play can
+ // refuse is something they can act on — no Act by that name, an Act whose demonstration has
+ // moved under it, an application that is not running — and all of it is decided BEFORE
+ // anything is raised or started.
+ function play(live){
+   const act = $('actToRun').value
+   if (!act) { say('pick an Act above first'); return }
+   say('')
+   acts.Play(act, live).then(err => { if (err) { say(err) } })
+ }
+ // say puts a sentence from the surface itself where the run's own sentence goes, so a person
+ // reads one place for "what is happening" whichever of the two is talking.
+ function say(s){
+   const el = $('surface')
+   el.hidden = !s
+   text(el, s)
+ }
  function run(){
    acts.Run($('actToRun').value, $('runapp').value,
             $('liveOn').checked, $('readingOn').checked).then(err => {
-     if (err) { text($('transcript'), err) }
+     if (err) { say(err) }
    })
  }
  function cancel(){ acts.Cancel().then(e => { if (e) alert(e) }) }
@@ -314,6 +379,27 @@
      text($('phase'), phase)
      $('phase').className = w.incomplete ? 'no' : 'muted'
 
+     // ── NOT PROCEEDING, AND WHY ──
+     //
+     // A paused run is looking for something it was told to expect and cannot see: the
+     // application is not in front, the screen is not the one the Act starts on, two
+     // saved screens fit it equally. The reason is the runner's own sentence and says
+     // what a person can do about it, so it is shown as prominently as the phase and
+     // NOT styled as a failure — nothing has failed, and it resolves by itself the
+     // moment the world matches.
+     const pausedNow = st && st.phase === 'paused' && w.active
+     $('paused').hidden = !pausedNow
+     if (pausedNow) {
+       text($('paused'), 'Waiting: ' + (st.reason || 'something is not as this Act ' +
+         'expects') + '  —  Stop ends it.')
+     }
+     // AND HOW IT WENT, in a sentence, once it has gone. See said.go.
+     $('said').hidden = !w.said
+     if (w.said) {
+       text($('said'), w.said)
+       $('said').className = w.outcome === 'verified' ? 'ok' : 'warn'
+     }
+
      // THE QUESTION, VERBATIM, because it is one somebody is about to answer with a key
      // — and putting this window's own words on a consent prompt would be writing
      // somebody else's question. A question that has been answered is absent from the
@@ -347,7 +433,11 @@
      $('outcome').textContent = w.outcome || (w.active ? 'running' : '')
      $('outcome').className = 'tag ' + (w.outcome === 'verified' ? 'ok'
        : w.outcome ? 'no' : '')
-     $('runBtn').disabled = w.active
+     // ONE RUN AT A TIME, AND STOP WHENEVER THERE IS ONE.
+     //
+     // Stop is the one control that is live for the whole of a run — including while it
+     // is paused, which is exactly when somebody is most likely to want it.
+     for (const b of ['runBtn', 'playBtn', 'tryBtn']) { $(b).disabled = w.active }
      $('cancelBtn').disabled = !w.active
    }).finally(() => setTimeout(poll, 400))
  }

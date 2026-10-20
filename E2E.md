@@ -1289,7 +1289,68 @@ some of a longer demonstration — the completion that matters is the play's, no
 
 ---
 
-## 60. Watching the same run from Studio, where the state is the thing being checked
+## 60. Pressing Play (needs your hands, ~2 min)
+
+The flow a person uses. Nothing here asks you to manage a window, race a countdown, read JSON or
+kill a process — if any of that turns out to be necessary, that is the finding.
+
+```sh
+go build -o director.exe ./cmd/director
+go -C plugins/studio build -tags "desktop,production" -ldflags "-H windowsgui" -o studio.exe .
+copy director.exe plugins\studio\director.exe
+plugins\studio\studio.exe
+```
+
+Have the game running, on the screen your Act starts on. You do not need it in front — Marco
+brings it forward, because Windows only lets the window you just clicked in do that.
+
+1. **Pick the interaction you want performed.** Under *1 · What you have demonstrated*, each one
+   is described by the words the demonstration read on it — `the one that reads “audio · camera ·
+   cosmetics · graphics · video”` — with what can be checked afterwards beside it: `afterwards: 61
+   words appeared and stayed (advanced, bloom, brightness…)`, or `nothing was recorded to check
+   afterwards`. If it says the second thing, pick something else or demonstrate it again: an
+   interaction with no outcome can be performed and can never be verified.
+2. **Name the Act and save it.** Give it a name you would say out loud — and NOT the same words as
+   one of its interactions, which generates two declarations of one name and is refused. The play
+   it saved is printed; it is meant to be readable.
+3. **Press Play**, or **Try it without clicking** for a pass where every click is written down
+   instead of pressed. That press IS the authorisation: Marco will perform the interactions this
+   Act names, on the application it was demonstrated against, and will not ask you anything.
+4. **Watch the run panel.** `1 of 1 · the audio tab`, then `verifying · 1 of 1 · the audio tab`
+   while it checks, then the same line with the verdict. **Stop** is live the whole time.
+5. **Read the result.** A sentence, not a word: *It worked. Marco performed "the audio page" and
+   the screen changed the way it did when you showed it.* The outcome word is beside it for the
+   record.
+
+What to check, and what each failure would mean:
+
+- **Nothing is ever asked.** No countdown, no "which screen are you looking at", no "may Marco
+  press this". If any question appears, the run is not under the authorisation it was given.
+- **Marco brings the game forward by itself.** If it does not, and the panel says it cannot see
+  the application, Windows refused the raise — note what was in front at the time.
+- **A pause is a sentence you can act on.** If Marco cannot tell which saved screen you are on it
+  says so and keeps looking: *what is on screen agrees with screen_c at 0.41, below 0.55 — this
+  does not look like the screen "the audio page" starts on.* Navigate to that screen; it should
+  proceed by itself, with nobody pressing anything. **A pause that nobody could act on is the
+  defect to report**, and so is one whose sentence names something only an engineer would
+  recognise.
+- **`control_2` must not appear anywhere you are choosing or authorising.** It is a name this
+  machine gave itself.
+- **The two words that matter.** If it ends `refused`, nothing was pressed. If it ends
+  `contradicted`, something WAS pressed and the screen did not change the way you showed it. The
+  sentence says which; if it does not, that is the defect.
+
+Then, for the record: the run reference is in the panel, and *Inspect the record* shows the JSON
+with `authority` naming the press of Play that permitted it. That is engineering evidence and
+nothing in the flow above needs it.
+
+## 61. The engineering path: watching the same run, where the state is the thing being checked
+
+**This is the supervised contract, not the product one.** Every press asked for and answered by
+key, the screen named by key, the application typed by hand — behind *the engineering path* in
+Studio's run section. It is kept because it is the only way to exercise the consent desk from a
+window, and because the account it produces is the thing being checked here. What a person does
+is §60.
 
 `plugins/studio` spawns exactly the run above — `director perform-workflow --play …` — and shows
 what it says about itself rather than reading its prose. So this step is not a second test of the

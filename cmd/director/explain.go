@@ -247,6 +247,11 @@ var valued = map[string]bool{
 	"-max-nodes": true, "--max-nodes": true,
 	"-name": true, "--name": true,
 	"-play": true, "--play": true,
+	// perform-workflow's --granted: the file holding the authorisation a person gave by
+	// pressing Play. Missing from here it would fail the way this table's comment
+	// describes — `--granted <path> --live` reordered to `--granted --live <path>`, and
+	// the flag package reading "--live" as the path to the grant.
+	"-granted": true, "--granted": true,
 	"-interaction": true, "--interaction": true,
 	"-events": true, "--events": true,
 	"-sequence": true, "--sequence": true,

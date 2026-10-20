@@ -191,3 +191,14 @@ performs it through the same assembly a workflow run uses, differing in one thin
 comes from the play's sentences rather than from the artifact's cursor. The observation loop moved
 to its own file so that both drivers share it rather than copying it, and the between-looks work,
 including the step-agreement question, is handed to the play driver rather than reimplemented.
+
+**And a person authorises it once, by pressing Play.** `--granted <file>` performs an Act under an
+authorisation given in advance — the Act, its revision, its application, its interactions by the
+names somebody gave them — and the run then asks nobody anything: no start countdown, no screen
+question, no agree-then-authorise pair per press. Nothing is auto-answered and nothing simulates a
+keypress; the authorisation is its own type, checked against the preflighted plan before anything
+is observed, and refused per press for anything it does not name. Every execution guard is
+untouched, because none of them ever asked a person: the screen question is replaced by evidence
+(the shape a gate, the words the discriminator, no second saved screen allowed to fit) and a run
+that cannot identify the screen PAUSES with a sentence instead of pressing.
+[[ADR-244-pressing-play-is-the-authorisation]]

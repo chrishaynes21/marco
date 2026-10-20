@@ -211,6 +211,29 @@ func TestPerformWorkflowInstallsItsGates(t *testing.T) {
 		{"ground.byKey = keys.confirmScreen",
 			"without it the grounder is silent with no way to be asked, and a run " +
 				"started from the widget cannot reach its first action"},
+		// ── AND THE AUTHORISATION CONTRACT, WHERE IT IS ONE LINE ──
+		//
+		// Two call sites, both of which fail QUIETLY and plausibly. A granted run
+		// whose granter was never installed falls back to the terminal one and waits
+		// on a pipe nobody is at — a run that looks hung — and its record would say
+		// it was performed under a grant that permitted nothing. A granted run that
+		// never records the step confirmation performs the presses and reports that
+		// nobody agreed to the steps they were for.
+		//
+		// Both are held here rather than behaviourally because the tests that drive
+		// the contract supply the granter themselves: actgrant_test.go hands
+		// `grantedGranter` to the real coordinator, which is the only way to watch a
+		// press happen under one, and in doing so it cannot see whether the command
+		// would have used it.
+		{"grant = byGrant",
+			"without it a granted run's presses are permitted by the terminal " +
+				"granter reading stdin: nobody is at a terminal, so the run " +
+				"waits on a pipe, and the authorisation in its record " +
+				"permitted nothing"},
+		{"byGrant.agreed(a.Step, session)",
+			"without it the session never records that the grant covered each " +
+				"step, so a run performs the presses a person authorised and " +
+				"its report says nobody agreed to them"},
 		{"freshLook(shots, obs, windows,",
 			"without the fresh look installed the confirmation has nothing " +
 				"to take a look with"},

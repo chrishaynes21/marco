@@ -101,6 +101,26 @@ const (
 	// `acting`, because nothing was emitted between the press and the answer. Set means
 	// the coordinator has answered, and the next event says what follows from it.
 	Verifying Phase = "verifying"
+	// Paused is a run that is not proceeding and has not ended, with `Reason` saying why.
+	//
+	// # Why a run can be in this state at all
+	//
+	// Because of the authorisation contract. A run performed under a grant — one press of
+	// Play, over the interactions an Act names — has nobody to put a question to when
+	// something is not as the Act expects: the application cannot be found or does not
+	// lead the desktop, the screen in front is not the one the Act starts on, or two
+	// saved screens fit it equally well and nothing tells them apart.
+	//
+	// The old contract turned each of those into a question, and the honest shape of the
+	// new one is a run that says exactly what is wrong and waits. It is not an ending: the
+	// person navigates to the screen their Act starts on, or brings the game forward, and
+	// the next look proceeds. It is not a refusal either — nothing has been refused yet.
+	//
+	// `Reason` is written to be read by the person who pressed Play. It says what was
+	// expected, what is there, and therefore what they can do about it. A front end shows
+	// it and keeps Stop available; it must not show it as a failure, and it must not show
+	// a question, because there is none.
+	Paused Phase = "paused"
 	// Ended is over. Carried only on a final event.
 	Ended Phase = "ended"
 )
@@ -199,9 +219,14 @@ type Event struct {
 	// so, and a window that acted on its own clock would be deciding something it is not
 	// in a position to know.
 	Preparation time.Time `json:"preparation,omitzero"`
-	// Outcome and Reason are how it ended, on the final event only.
+	// Outcome is how it ended, on the final event only.
 	Outcome runref.Outcome `json:"outcome,omitempty"`
-	Reason  string         `json:"reason,omitempty"`
+	// Reason is why, in the words the person reading it needs.
+	//
+	// On a final event: why the run ended. On a `paused` event: why it is not proceeding,
+	// and therefore what the person can do about it — see Paused. Empty everywhere else,
+	// because a phase that speaks for itself does not need a sentence.
+	Reason string `json:"reason,omitempty"`
 	// Final marks the last event of a run. A stream without one describes a run nobody
 	// can speak for; see the package comment.
 	Final bool `json:"final,omitempty"`

@@ -109,6 +109,12 @@ func runPerformWorkflow(args []string) int {
 			"are the order. Its bindings are resolved and the play rebuilt from "+
 			"them before anything is grounded, and the routine it performs comes "+
 			"from the play rather than from --name")
+	granted := fs.String("granted", "",
+		"perform the Act under the authorisation in `path`, given in advance: the "+
+			"person chose these interactions and said to perform them, so the "+
+			"run does not ask again. One Act, one revision, one application, one "+
+			"run — and a press of anything the file does not name is refused. "+
+			"Requires --play; see actgrant.go for what a grant is and is not")
 	live := fs.Bool("live", false,
 		"send REAL input. Without this the whole path runs and nothing is pressed")
 	seconds := fs.Int("seconds", 120, "how long the run may take")
@@ -296,6 +302,37 @@ func runPerformWorkflow(args []string) int {
 		return code
 	}
 
+	// ── THE AUTHORISATION, READ AND CHECKED BEFORE ANYTHING IS OBSERVED ──
+	//
+	// A grant is a decision somebody already made about a thing they were shown, so every
+	// way it can fail to be that is answerable here: an unreadable file, a grant for
+	// another Act, a revision that has been composed again since, an interaction the play
+	// does not perform. All of them exit before a window is acquired, because the one
+	// thing this must never do is fall back to performing under a guess about what the
+	// person meant.
+	//
+	// Exit 2 and not 1 for the usage half — `--granted` without `--play` is a wrong
+	// invocation — and 1 for a grant that does not match, which is a correct invocation
+	// pointed at something that cannot be performed.
+	var grantedBy *actGrant
+	if *granted != "" {
+		if plan == nil {
+			fmt.Fprintln(os.Stderr, "director: --granted authorises an ACT, so it "+
+				"needs --play; there is nothing for it to authorise here")
+			return 2
+		}
+		g, gerr := readActGrant(*granted)
+		if gerr != nil {
+			fmt.Fprintf(os.Stderr, "director: %v\n", gerr)
+			return 2
+		}
+		if aerr := g.agrees(*play, *plan); aerr != nil {
+			fmt.Fprintf(os.Stderr, "director: %v\n", aerr)
+			return 1
+		}
+		grantedBy = &g
+	}
+
 	// ── THIS RUN'S OWN NAMESPACE, CLAIMED BEFORE ANYTHING IS WRITTEN INTO IT ──
 	//
 	// The record and the pixels at once. The hover probe writes `01-before.png` and
@@ -339,9 +376,14 @@ func runPerformWorkflow(args []string) int {
 		if plan != nil {
 			actName, actSource = *play, plan.Source
 		}
+		// AND WHAT PERMITTED THE PRESSES, when it was not a key per press.
+		authority := ""
+		if grantedBy != nil {
+			authority = grantedBy.describe()
+		}
 		return saveRun(RunRecord{
 			Version: 1, Run: runID, Workflow: art.Name,
-			Act: actName, ActSource: actSource,
+			Act: actName, ActSource: actSource, Authority: authority,
 			Application: string(art.Application), Step: *step,
 			Started: began.Format(time.RFC3339),
 			Ended:   time.Now().Format(time.RFC3339),
@@ -440,7 +482,23 @@ func runPerformWorkflow(args []string) int {
 	//
 	// The same key the desk uses, so there is one thing to learn, and it is heard while
 	// the game keeps the foreground — which is the whole reason the desk uses keys.
-	if src != nil {
+	// ── OR THERE IS NOTHING TO PREPARE, BECAUSE SOMEBODY ALREADY DID ──
+	//
+	// A granted run does not ask anybody to get ready and does not count down to a guess
+	// about when they are. Pressing Play IS the "I am ready": the person was looking at
+	// the surface, chose the Act, and said to perform it. The run acquires the window,
+	// brings it forward and begins.
+	//
+	// Said as `starting` immediately, which is the same thing the keyed path says the
+	// instant its gate ends — so a window has one phase to render for "working on it,
+	// nothing is being asked" whichever contract the run is under.
+	if grantedBy != nil {
+		waited = true
+		fmt.Printf("  Performing %q under the authorisation of %s.\n\n", *play,
+			grantedBy.describe())
+		say.Say(runstate.Event{Phase: runstate.Starting})
+	}
+	if src != nil && grantedBy == nil {
 		// THE PREPARATION DEADLINE, SAID BY THE THING THAT HOLDS IT.
 		//
 		// A front end may count down to this instant and show what it computes.
@@ -484,7 +542,7 @@ func runPerformWorkflow(args []string) int {
 		// coming DOWN rather than a phase change beside it.
 		say.Say(runstate.Event{Phase: runstate.Starting})
 	}
-	if src == nil && lookAfterWaiting(*app, *delay) {
+	if src == nil && grantedBy == nil && lookAfterWaiting(*app, *delay) {
 		fmt.Printf("  Switch to the application now — what is in front in %s is what "+
 			"this will watch.  Ctrl-C cancels.\n", *delay)
 		// THE SAME DEADLINE, ON THE PATH WITH NO KEYS. A clock-only preparation is
@@ -663,7 +721,7 @@ func runPerformWorkflow(args []string) int {
 		// foreground, and an exploring session is authorised precisely so that it
 		// does not stop to ask. Every screen after --from is inferred from the
 		// workflow's own demonstrated transitions, or the run stops and says so.
-		claim: *from, silent: *hotkeys || *explore}
+		claim: *from, silent: *hotkeys || *explore, events: say}
 
 	// ── WHO IS ASKED, AND HOW THEY ANSWER ──
 	//
@@ -680,6 +738,14 @@ func runPerformWorkflow(args []string) int {
 	var grant workflowrun.Granter = &promptGranter{in: ask, out: os.Stdout, live: *live}
 	var keys *hotkeyGranter
 	var desk *consentDesk
+	// byGrant is the authorisation given in advance, when there is one.
+	//
+	// It REPLACES the desk as the thing that permits a press, and it is assigned before
+	// the hotkey branch below so that a granted run with `--hotkeys` still installs the
+	// hook — for the stop key only. F9 is the one key that means something under this
+	// contract, the desk obeys stop whether or not anything is being asked, and F7 or F8
+	// pressed at a granted run are counted as strays and change nothing.
+	var byGrant *grantedGranter
 	if *explore {
 		// THE CLOCK STARTS WHEN THE RUN DOES, which is why `until` is set below
 		// rather than here. Started here it would already be running through
@@ -717,19 +783,45 @@ func runPerformWorkflow(args []string) int {
 		// THE DESK SAYS WHAT IT ASKS, in the structured account as well as on the
 		// terminal. See consentdesk.go: the thing that puts a question is the thing
 		// that knows it was put, and that it came down again.
-		keys = &hotkeyGranter{desk: desk, out: os.Stdout, live: *live,
-			within: *answer, life: 10 * time.Second, events: say,
-			scenes: scenes}
-		grant = keys
-		// AND THE SAME KEYS ANSWER THE ONE QUESTION THAT IS NOT ABOUT AN ACTION.
+		// ── AND UNDER A GRANT, THE DESK PERMITS NOTHING ──
 		//
-		// Which saved screen is in front of you. Without this a hotkey run — the
-		// only kind a widget can start — refuses every first observation with
-		// "name the screen with --from and start again", and from a widget there
-		// is no terminal to name it in. See promptGrounder.byKey.
-		//
-		// Deleting this must fail TestAHotkeyRunEstablishesItsScreenByKey.
-		ground.byKey = keys.confirmScreen
+		// The hook above is still installed and still reaches the stop callback, so
+		// F9 stops a granted run. What the desk does NOT do is hold the
+		// authorisation or answer the screen question: neither is built, rather than
+		// being built and auto-answered, because a run that answered its own
+		// questions would write "the person at the keyboard (F7)" into the record of
+		// a press nobody pressed a key for. See actgrant.go.
+		if grantedBy == nil {
+			keys = &hotkeyGranter{desk: desk, out: os.Stdout, live: *live,
+				within: *answer, life: 10 * time.Second, events: say,
+				scenes: scenes}
+			grant = keys
+			// AND THE SAME KEYS ANSWER THE ONE QUESTION THAT IS NOT ABOUT AN
+			// ACTION.
+			//
+			// Which saved screen is in front of you. Without this a hotkey run
+			// refuses every first observation with "name the screen with
+			// --from and start again", and from a widget there is no terminal
+			// to name it in. See promptGrounder.byKey.
+			//
+			// Deleting this must fail
+			// TestAHotkeyRunEstablishesItsScreenByKey.
+			ground.byKey = keys.confirmScreen
+		}
+	}
+	// ── THE GRANT IS WHAT PERMITS A PRESS, WITH OR WITHOUT A KEY HOOK ──
+	//
+	// Outside the branch above because it does not depend on one: a granted run with no
+	// `--hotkeys` installs no hook at all, and Stop still works — it is the one stop
+	// broadcast this product has, raised by `director stop` and by the surface's own Stop
+	// button, and it is watched on this run's context well above here.
+	if grantedBy != nil {
+		byGrant = &grantedGranter{grant: *grantedBy, out: os.Stdout, live: *live,
+			life: 10 * time.Second, events: say, scenes: scenes}
+		grant = byGrant
+		// AND THE SCREEN IS IDENTIFIED RATHER THAN ASKED ABOUT. See
+		// promptGrounder.identify and workflowstore.Standing.
+		ground.identify = grantedBy.describe()
 	}
 
 	windowNow := func() (directorapi.Window, bool) {
@@ -940,6 +1032,21 @@ func runPerformWorkflow(args []string) int {
 					"the person who authorised this exploration"); err != nil {
 					return false, err.Error()
 				}
+			} else if byGrant != nil {
+				// AGREED WHEN THE ACT WAS COMPOSED, AND RECORDED AS THAT.
+				//
+				// The agreement question asked whether a step belongs in
+				// this run at all. For an Act that is what composing it
+				// answered: these interactions, in this order, named by the
+				// person who then pressed Play. So the session records the
+				// confirmation with the grant as its authority instead of
+				// putting the question a second time — recorded and not
+				// skipped, because the session's account of why each step
+				// was performed is what the report and the record read.
+				if !byGrant.agreed(a.Step, session) {
+					return false, "the step confirmation could not be " +
+						"recorded for step " + fmt.Sprint(a.Step)
+				}
 			} else if !agreeToStep(c, keys, ask, os.Stdout, art, a.Step, session) {
 				return false, "nobody agreed to step " + fmt.Sprint(a.Step)
 			}
@@ -1088,7 +1195,7 @@ func runPerformWorkflow(args []string) int {
 	// which is a different thing from a run that failed.
 	say.Say(runstate.Event{Phase: runstate.Ended, Final: true,
 		Outcome: out, Reason: because})
-	if desk != nil {
+	if desk != nil && keys != nil {
 		stray, drained := desk.counts()
 		fmt.Printf("\n  %-42s %d of %d\n", "screens named by key",
 			keys.placed, keys.screens)
@@ -1098,6 +1205,28 @@ func runPerformWorkflow(args []string) int {
 			keys.granted, keys.asked)
 		fmt.Printf("  %-42s %d before a question, %d with none open\n",
 			"key presses that answered nothing", drained, stray)
+	}
+	// ── AND WHAT A GRANTED RUN DID WITH THE AUTHORISATION IT WAS GIVEN ──
+	//
+	// The same four numbers' worth of account, for the contract that replaced the keys.
+	// `refused` is the one to read: it is presses this run proposed and the authorisation
+	// did not cover, which should be zero on every run and names what was attempted when
+	// it is not.
+	if byGrant != nil {
+		fmt.Printf("\n  %-42s %s\n", "performed under", byGrant.grant.describe())
+		fmt.Printf("  %-42s %d\n", "presses the authorisation permitted",
+			byGrant.granted)
+		fmt.Printf("  %-42s %d\n", "steps it covered", byGrant.proposed)
+		fmt.Printf("  %-42s %d\n", "presses REFUSED as unauthorised",
+			byGrant.refused)
+		for _, what := range byGrant.outside {
+			fmt.Printf("    %s was not authorised\n", what)
+		}
+		if desk != nil {
+			stray, drained := desk.counts()
+			fmt.Printf("  %-42s %d before a question, %d with none open\n",
+				"key presses that answered nothing", drained, stray)
+		}
 	}
 	// AND THE EXIT SAYS THE SAME THING THE RECORD DOES.
 	//
@@ -1511,6 +1640,23 @@ type promptGrounder struct {
 	// silent says nobody can be asked IN WORDS, because typing an answer would take the
 	// foreground. The ranking is still printed: somebody who cannot answer can still read.
 	silent bool
+	// identify is the authority a granted run performs under, and the switch that makes
+	// this grounder identify a screen instead of asking about one.
+	//
+	// Non-empty only under a grant — one press of Play over named interactions — where
+	// there is nobody mid-run to put the question to. The evidence replacing them is in
+	// `workflowstore.Standing`: the shape as a gate, the words as the discriminator, and
+	// no second saved screen allowed to fit. This string is what the binding records as
+	// the authority, so a run's own account says a press was made under a grant rather
+	// than that somebody answered something.
+	identify string
+	// events is the structured account, for the one thing this grounder has to say to a
+	// front end: that the run is PAUSED, and why. Nil when nobody asked for one.
+	events *runstate.Writer
+	// paused is the last pause reason said, so a reason is emitted when it CHANGES
+	// rather than ten times a second. A snapshot stream tolerates repetition and a
+	// person reading the file afterwards does not.
+	paused string
 	// byKey is how a silent run asks anyway: one candidate, one function key.
 	//
 	// ── WHY THIS EXISTS AT ALL ──
@@ -1602,6 +1748,16 @@ func (p *promptGrounder) Establish(ctx context.Context, s *workflowstore.Session
 		fmt.Fprintf(p.out, "  %s established from --from, in observation %d/%d\n",
 			p.claim, at.Epoch, at.Generation)
 		return nil
+	}
+
+	// ── OR NOBODY IS ASKED, BECAUSE THE AUTHORISATION WAS GIVEN IN ADVANCE ──
+	//
+	// A granted run has no question to put: the person pressed Play and went to their
+	// game. So the screen is identified from its own evidence or the run pauses saying
+	// why, and this is checked before the asking paths below rather than after, because
+	// asking is exactly what this contract replaces.
+	if p.identify != "" {
+		return p.byEvidence(s, at)
 	}
 
 	// ── OTHERWISE SOMEBODY IS ASKED, WITH THE CANDIDATES RANKED AND THE RANKING
@@ -1727,6 +1883,69 @@ func (p *promptGrounder) arrangementOf(label string) observe.VisualArrangement {
 type labelScore struct {
 	label string
 	score float64
+}
+
+// byEvidence identifies the screen in front of a granted run, or pauses the run saying why not.
+//
+// # Why every saved screen is tried rather than the one the Act starts on
+//
+// Because `Standing` already carries the term that makes trying them safe: it refuses if a
+// second saved screen fits the same look and reading. So at most one of these calls can succeed,
+// and the one that does is the screen this look IS — not the screen the Act hoped for. That
+// matters for the step after the first: the walk asks about whatever screen is standing, and a
+// grounder that only ever looked for the Act's starting screen would go blind the moment the
+// first press changed it.
+//
+// # Why nothing is recorded in `declined`
+//
+// That map exists so a question is not put twice in one observation. There is no question here.
+// The evidence is re-read on every look, which is what makes the pause RESOLVE by itself: the
+// person navigates to the screen their Act starts on and the next look establishes it, with
+// nobody pressing anything.
+func (p *promptGrounder) byEvidence(s *workflowstore.SessionBinding,
+	at workflowrun.Sighting) error {
+
+	var first error
+	for _, c := range p.ranked() {
+		b, err := s.Standing(p.art, c.label, at.Screen, p.arrangement, p.read,
+			at.Epoch, at.Generation, p.identify, time.Now())
+		if err == nil {
+			p.standing = b.Label
+			p.pause("")
+			fmt.Fprintf(p.out, "  %s\n", b.Because)
+			return nil
+		}
+		// THE BEST CANDIDATE'S REASON, because `ranked` is ordered by agreement and
+		// the first one is the thing a person is most likely to be looking at. The
+		// others are a list of screens they are not on, which is not the sentence
+		// they need.
+		if first == nil {
+			first = err
+		}
+	}
+	if first == nil {
+		first = fmt.Errorf("%q has no saved screens with an arrangement, so there is "+
+			"nothing to recognise", p.art.Name)
+	}
+	p.standing = ""
+	p.pause(first.Error())
+	return first
+}
+
+// pause says that the run is not proceeding and why, when the reason changes.
+//
+// Not a failure and not an ending: a front end renders this and keeps Stop available, and the
+// run goes on looking. Emitting on change rather than per look keeps the stream readable — the
+// grounder is consulted ten times a second and the answer is the same ten times.
+func (p *promptGrounder) pause(why string) {
+	if why == p.paused {
+		return
+	}
+	p.paused = why
+	if why == "" {
+		return
+	}
+	p.events.Say(runstate.Event{Phase: runstate.Paused, Reason: why})
 }
 
 func (p *promptGrounder) ranked() []labelScore {

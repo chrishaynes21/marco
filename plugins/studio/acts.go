@@ -118,6 +118,9 @@ type Acts struct {
 	// it is where the race lived, and there is no way to be inside it from outside. Nil
 	// in every production path.
 	afterReserve func()
+	// raising stands in for bringing the application forward, which needs a real one
+	// running on a real desktop. Nil in every production path; see play.go.
+	raising func(app string) string
 	// transcript is what the run has said so far, which is the whole of what a person
 	// watching it has to go on.
 	transcript []string
@@ -161,6 +164,30 @@ type Interaction struct {
 	// surprising thing about running an Act, and the one a person should know BEFORE
 	// composing rather than after a run stops.
 	Verifiable bool `json:"verifiable"`
+	// Reads is the words the demonstration read ON the control it pressed.
+	//
+	// # Why this is here and `control_2` is not
+	//
+	// Because `control_2` is a name this machine gave itself. A person choosing which
+	// interaction they want performed cannot recognise it, cannot tell it from
+	// `control_1`, and has no way to know that one of them is the row of tabs across the
+	// top of their own settings screen. The words are the only thing in the artifact that
+	// exists on their screen as well as in the file.
+	//
+	// Empty when the demonstration read nothing there, which is honest and used to be
+	// the only case: `Control.Text` went unwritten by every recorder for a while, so an
+	// older artifact says `control_2` and nothing else. A surface that only ever showed
+	// the label would have hidden the difference between the two.
+	Reads []string `json:"reads,omitempty"`
+	// OutcomeWords is how many words the demonstration saw appear and STAY after this
+	// press, and OutcomeSeen a few of them.
+	//
+	// The count is the evidence — five is the floor a verdict needs — and the sample is
+	// what makes it recognisable: "61 words, among them advanced, bloom, brightness" is a
+	// thing somebody can look at their own screen and agree with. `Verifiable` is the
+	// same fact as a yes or no, kept because a page needs both.
+	OutcomeWords int      `json:"outcome_words"`
+	OutcomeSeen  []string `json:"outcome_seen,omitempty"`
 }
 
 // Demonstration is one saved routine and its interactions.
@@ -189,17 +216,59 @@ func (a *Acts) Demonstrations() []Demonstration {
 			SavedAt:     art.SavedAt.Local().Format("2006-01-02 15:04"),
 			Problem:     store.SequenceProblem(art.Name)}
 		for _, s := range art.Steps {
-			d.Steps = append(d.Steps, Interaction{
+			in := Interaction{
 				Position:   s.Position,
 				Says:       saysOf(s),
 				Pressable:  s.Control != "",
 				Verifiable: len(s.Outcome) > 0,
-			})
+				Reads:      readsOf(art, s),
+			}
+			in.OutcomeWords = len(s.Outcome)
+			in.OutcomeSeen = someOf(s.Outcome, outcomeShown)
+			d.Steps = append(d.Steps, in)
 		}
 		out = append(out, d)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out
+}
+
+// readsOf is the words the demonstration read on the control this step pressed.
+//
+// Capped, and in the artifact's own order: the first few are what a person reads first on their
+// own screen, and a row of tabs can carry a dozen. Empty for a step that pressed nothing, which
+// is the one case where there is no control to have read anything on.
+func readsOf(art workflowstore.Artifact, s workflowstore.Step) []string {
+	if s.Control == "" {
+		return nil
+	}
+	for _, c := range art.Controls {
+		if c.Label == s.Control {
+			return someOf(c.Text, controlWordsShown)
+		}
+	}
+	return nil
+}
+
+// controlWordsShown and outcomeShown are how many words of each a person is shown.
+//
+// Enough to recognise the thing and not enough to be a wall of OCR. The outcome's COUNT is shown
+// in full beside its sample, so nothing is hidden by the cap — a person sees "61 words" and three
+// of them, rather than three words and no idea how much was behind them.
+const (
+	controlWordsShown = 6
+	outcomeShown      = 3
+)
+
+// someOf is the first n of a list, copied.
+//
+// Copied because these are the artifact's own slices and a surface that handed its caller a
+// window onto the store's memory would be one edit away from changing it.
+func someOf(all []string, n int) []string {
+	if len(all) > n {
+		all = all[:n]
+	}
+	return append([]string(nil), all...)
 }
 
 // saysOf is a step in words, preferring the demonstration's own sentence.
@@ -276,6 +345,25 @@ func (a *Acts) Compose(from, act string, picked []string) Composed {
 	raw, _ := binds.Marshal()
 	return Composed{Act: act, Play: src, Bindings: string(raw),
 		Path: a.reg().Path(rt)}
+}
+
+// applicationFor is the executable an Act was demonstrated against, or "".
+//
+// From the Act's own bindings, which is where the demonstration's selector was recorded when it
+// was composed. Asking a person to retype it is asking for something already written down, and
+// a typo in it is a run that grounds against the wrong window or refuses for a reason that is
+// about a selector rather than about their Act.
+func (a *Acts) applicationFor(act string) string {
+	for _, rt := range a.reg().List() {
+		_, binds, err := demonstrated.Load(a.reg(), rt)
+		if err != nil {
+			continue
+		}
+		if binds.Act == act || rt.Slug == act {
+			return binds.Application
+		}
+	}
+	return ""
 }
 
 // reg is the route store, built the same way director's is.
@@ -376,6 +464,9 @@ type Running struct {
 	Asking *runstate.Question `json:"asking,omitempty"`
 	// Reason is why it ended, from the final event.
 	Reason string `json:"reason,omitempty"`
+	// Said is how it went, in a sentence. The outcome word beside it is still shown; see
+	// said.go.
+	Said string `json:"said,omitempty"`
 	// Complete says the run ENDED — it said so itself, with a final event. Incomplete
 	// says the child is gone and never did, which is not the same as having failed:
 	// one is a run with an answer and the other is a run nobody can speak for.
@@ -391,6 +482,21 @@ type Running struct {
 // `live` is the whole of the decision to touch the machine, and it is the caller's: without it
 // the entire path runs and the host writes each program down instead of pressing anything.
 func (a *Acts) Run(act, application string, live, reading bool) string {
+	// THE ENGINEERING PATH, KEPT. Every press asked for by key, the application typed by
+	// hand, reading optional: the shape the acceptance checklist in E2E.md drives, and
+	// the only way to exercise the keyed consent desk from this surface. `Play` is what a
+	// person presses; see play.go.
+	return a.start(Performance{Act: act, Application: application, Live: live,
+		Reading: reading})
+}
+
+// start claims the one run slot and spawns the supervised runner.
+//
+// One body for both contracts, because everything below the arguments is the same problem: one
+// child at a time, one transcript, one structured stream, and a window that can stop it. What
+// differs is four flags, and a second copy of this plumbing is how the two would drift.
+func (a *Acts) start(p Performance) string {
+	act, application, live, reading := p.Act, p.Application, p.Live, p.Reading
 	// THE SLOT IS CLAIMED UNDER THE SAME LOCK THAT TESTED IT. See `busy`.
 	a.mu.Lock()
 	if a.closing {
@@ -434,6 +540,39 @@ func (a *Acts) Run(act, application string, live, reading bool) string {
 	args := []string{"perform-workflow", "--play", act, "--hotkeys"}
 	if saying != "" {
 		args = append(args, "--events", saying)
+	}
+	// ── THE AUTHORISATION, WHEN THIS IS A PERSON PRESSING PLAY ──
+	//
+	// Written before the child starts and handed to it by path. `--hotkeys` is still
+	// passed: the hook is what makes F9 stop a run from anywhere, and under a grant it
+	// answers nothing else — the runner does not build a consent desk to ask with. See
+	// cmd/director/actgrant.go.
+	if p.Granted {
+		chosen, found := a.chosen(act)
+		if !found {
+			release()
+			return fmt.Sprintf("there is no Act called %q any more", act)
+		}
+		path, gerr := a.granted(chosen)
+		if gerr != nil {
+			// NOT A RUN WITHOUT ONE. The authorisation IS the permission, and a
+			// run started without it would be one asking questions nobody is
+			// there to answer.
+			release()
+			return "the authorisation for this run could not be written, so " +
+				"nothing was started: " + gerr.Error()
+		}
+		args = append(args, "--granted", path)
+	}
+	// THE APPLICATION THE ACT ALREADY KNOWS, when the caller did not name one.
+	//
+	// The demonstration recorded which executable it was shown against and the Act is
+	// pinned to that demonstration, so asking a person to type `arkascended` is asking
+	// them for something already written down — and getting it wrong is a run that
+	// grounds against the wrong window, or refuses for a reason about a selector rather
+	// than about their Act.
+	if application == "" {
+		application = a.applicationFor(act)
 	}
 	if application != "" {
 		args = append(args, "--application", application)
@@ -665,6 +804,11 @@ func (a *Acts) Watch() Running {
 			w.Outcome, w.Reason = string(e.Outcome), e.Reason
 		}
 	}
+	// ── AND WHAT THAT MEANS FOR WHAT THEY ASKED FOR ──
+	//
+	// The outcome word is kept and shown; this is the sentence beside it. See said.go for
+	// why a person is not left to learn what `unconfirmed` means about their own run.
+	w.Said = saidOf(w.Act, runref.Outcome(w.Outcome), w.Reason)
 	// AN INCOMPLETE RUN: the child is gone and it never said how it ended.
 	//
 	// Not a failure, and reported apart from one. A run that refused says so in a final

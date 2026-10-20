@@ -67,6 +67,21 @@ const (
 	// [[Experiment-048-the-destination-a-workflow-can-see-for-itself]] for the
 	// measurement that bounds it.
 	GroundReached Ground = "reached"
+	// GroundIdentified: nobody was asked, and the screen said which one it is.
+	//
+	// The ground an Act's starting screen is established on when the authorisation was
+	// given in advance — one press of Play, over named interactions — so there is nobody
+	// mid-run to put the question to. The shape is a gate at `observe.VisualScreenMatch`,
+	// the words are the discriminator and must POSITIVELY identify it, and no other saved
+	// screen may pass both terms. See standing.go for the measurement that makes the
+	// words and not the shape the thing that tells two screens apart.
+	//
+	// Distinct from all three above, and the distinction is the point of this vocabulary:
+	// nobody said yes while looking at it (`confirmed`), nothing was followed from a
+	// binding already made (`inferred`), and no demonstrated step led here, which is what
+	// `reached` rests on. A report that folded this into `confirmed` would say a person
+	// answered a question that was deliberately not asked.
+	GroundIdentified Ground = "identified"
 )
 
 // Bound is one saved screen, established as one current screen, in one observation.

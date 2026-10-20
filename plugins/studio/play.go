@@ -1,0 +1,220 @@
+package main
+
+// PRESS PLAY, AND MARCO PERFORMS THE ACT.
+//
+// # What this replaces
+//
+// A person who wanted to run something they had demonstrated had to: tick a box that said what
+// live meant, type the executable name, tick a second box about reading the screen, press Run,
+// find their game, bring it forward without clicking anything in it, race a five-second
+// countdown, press F7 to say they were ready, answer a question about which saved screen they
+// were looking at by agreeing with an arrangement score, and then answer two more questions per
+// interaction. The owner's verdict on operating that: an engineering acceptance checklist handed
+// over as a product.
+//
+// Every one of those except the first is now Marco's to do or to have already answered. What a
+// person does is choose an Act and press Play.
+//
+// # What Play actually does, in order
+//
+//	1. finds the Act, and refuses now if it would not run — before anything is raised
+//	2. writes the AUTHORISATION: this Act, this revision, these interactions, by them, now
+//	3. brings the application the Act is pinned to forward
+//	4. starts the supervised runner under that authorisation
+//
+// # Why the raising happens HERE and not in the runner
+//
+// Because Windows refuses it anywhere else. `SetForegroundWindow` is rejected for a process that
+// does not already own the foreground — the foreground lock — and it was measured on this machine
+// from a harness trying to raise a window from outside: the call returned false and the
+// foreground did not move. The supervised runner is a child process nobody is looking at, so it
+// cannot raise anything.
+//
+// Studio can, and only at this instant: the person just clicked a button in it, so it owns the
+// foreground and may hand it on. That is the same split `plugins/fixture` already draws and says
+// so in its own words — the surface may put the window in front, and Marco's own foreground guard
+// is what CHECKS that it is there at the instant of execution. Nothing here presses anything, and
+// nothing here simulates a keypress to get around the lock.
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/chaynes-simpleclouds/marco/internal/platform/winprovider"
+	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
+)
+
+// actGrantVersion is the shape the runner reads. See cmd/director/actgrant.go, which is the only
+// other place this number appears: a surface writing a version the runner does not perform is
+// refused rather than guessed at.
+const actGrantVersion = 1
+
+// grant is the authorisation a person gives by pressing Play, as the runner reads it.
+//
+// Written here and never remembered: one file per run, in a temporary directory, naming exactly
+// what the person was looking at when they pressed. It is not a session flag and not a
+// preference — the next run writes another one, because the next run is another decision.
+type grant struct {
+	Version      int       `json:"version"`
+	Act          string    `json:"act"`
+	Revision     string    `json:"revision,omitempty"`
+	Application  string    `json:"application,omitempty"`
+	Interactions []string  `json:"interactions"`
+	By           string    `json:"by"`
+	At           time.Time `json:"at"`
+}
+
+// Performance is one press of Play, with everything the surface knows about it.
+type Performance struct {
+	// Act is the one to perform, by the name the person gave it.
+	Act string
+	// Live is the whole of the decision to touch the machine, and it is still the
+	// person's: without it the entire path runs and each press is written down.
+	Live bool
+	// Granted says the authorisation is this press of Play, over the Act's own
+	// interactions — the product contract. False is the engineering path: a run that
+	// asks for every press by key, which is what `Run` keeps for the acceptance
+	// checklist.
+	Granted bool
+	// Application and Reading are overrides the person does not normally supply. Empty
+	// and true respectively under Play: the Act knows which executable it was
+	// demonstrated against, and a run that cannot read the screen cannot verify an
+	// outcome, which is the thing that makes an Act more than a macro.
+	Application string
+	Reading     bool
+}
+
+// Play performs an Act under the authorisation of this press.
+//
+// Returns "" when a run started, or the sentence to show the person. Every refusal here happens
+// BEFORE anything is raised or started, because a window that came forward and then said no is
+// worse than a sentence in the surface they were already looking at.
+func (a *Acts) Play(act string, live bool) string {
+	chosen, found := a.chosen(act)
+	switch {
+	case !found:
+		return fmt.Sprintf("there is no Act called %q on this machine", act)
+	case !chosen.Runnable:
+		// THE PREFLIGHT'S OWN WORDS. It has already asked whether the play still
+		// matches its bindings, whether the demonstration is still the revision it
+		// was pinned to, and whether every interaction is real. A person needs that
+		// sentence, not "it would not run".
+		return "this Act cannot be performed as it stands: " + chosen.Why
+	case len(chosen.Interactions) == 0:
+		return "this Act performs no interactions"
+	}
+	// AND THE APPLICATION HAS TO BE THERE, which is answerable now and otherwise
+	// becomes a run paused about a window that was never open.
+	if why := a.raise(chosen.Application); why != "" {
+		return why
+	}
+	return a.start(Performance{Act: chosen.Name, Live: live, Granted: true,
+		Reading: true})
+}
+
+// chosen is the Act by name, as the surface lists it.
+func (a *Acts) chosen(act string) (Act, bool) {
+	for _, c := range a.Saved() {
+		if strings.EqualFold(c.Name, act) {
+			return c, true
+		}
+	}
+	return Act{}, false
+}
+
+// granted writes the authorisation for one performance and returns its path.
+//
+// A failure to write it is a refusal of the run and not something to proceed without: the
+// authorisation IS the permission, and a run started without one would be a run asking questions
+// nobody is there to answer.
+func (a *Acts) granted(c Act) (string, error) {
+	f, err := os.CreateTemp("", "studio-granted-*.json")
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	raw, err := json.Marshal(grant{
+		Version: actGrantVersion, Act: c.Name, Revision: c.Revision,
+		Application: c.Application, Interactions: c.Interactions,
+		// WHAT IT WAS, in words, because this sentence ends up in the run record
+		// and in the binding that establishes the screen. "The person who pressed
+		// Play in Studio" and "the person at the keyboard (F7)" are two different
+		// claims about how a press came to be allowed, and the record keeps them
+		// apart.
+		By: "the person who pressed Play in Studio", At: time.Now(),
+	})
+	if err != nil {
+		return "", err
+	}
+	if _, err := f.Write(raw); err != nil {
+		return "", err
+	}
+	return f.Name(), nil
+}
+
+// raise brings the application forward, through the desktop or through a test's stand-in.
+//
+// A seam of the same kind as `afterReserve`: what is under test in this package is the surface's
+// own bookkeeping, and raising a real window needs a real application running — so a test says
+// what the desktop would have said instead of needing one. Nil everywhere in production, where
+// the next function is what happens.
+func (a *Acts) raise(app string) string {
+	if a.raising != nil {
+		return a.raising(app)
+	}
+	return a.bringForward(app)
+}
+
+// bringForward finds the application an Act is pinned to and raises it.
+//
+// Returns "" when the run may proceed, or the sentence to show the person instead.
+//
+// # Why a failure to RAISE is not a refusal
+//
+// Because the runner checks it anyway, and its check is the one that matters. Raising is best
+// effort — the foreground lock can refuse it, a full-screen game can decline to come forward,
+// another window can be above it — and the honest division is that this tries and the run's own
+// occlusion and foreground guards decide. A run that cannot see the window pauses saying so,
+// which is a sentence about what is actually wrong rather than a guess made here.
+//
+// Not being able to FIND it is different, and is refused: nothing can be performed against an
+// application that is not running, and saying so now costs the person nothing.
+func (a *Acts) bringForward(app string) string {
+	if app == "" {
+		// NO APPLICATION RECORDED. The run then grounds against whatever leads the
+		// desktop, which is the old `--foreground` behaviour and is still honest —
+		// there is nothing to raise and nothing to check against.
+		return ""
+	}
+	windows := winprovider.New()
+	var best directorapi.WindowID
+	var bestArea int
+	for _, c := range windows.AllCandidates(context.Background()) {
+		if !strings.EqualFold(c.Application, app) || c.Minimized {
+			continue
+		}
+		// THE BIGGEST ONE, where an executable owns several windows. A game's
+		// splash, its launcher and its main window are all `arkascended`, and the
+		// one somebody is looking at is the one with the pixels.
+		if area := c.Bounds.Width * c.Bounds.Height; area > bestArea {
+			best, bestArea = c.ID, area
+		}
+	}
+	if best == "" {
+		return fmt.Sprintf("%s does not seem to be running, or its window is "+
+			"minimised — start it, bring it up, and press Play again", app)
+	}
+	h, ok := winprovider.ParseHandle(best)
+	if !ok {
+		return ""
+	}
+	// BEST EFFORT, AND THE RUNNER DECIDES. Not a refusal: see above — what this
+	// cannot do, the occlusion and foreground guards will say in their own words at
+	// the instant it matters, which is the instant of the press and not this one.
+	_ = raiseWindow(h)
+	return ""
+}

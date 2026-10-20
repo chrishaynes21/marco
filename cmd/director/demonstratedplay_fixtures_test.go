@@ -303,15 +303,31 @@ func dpARun(t *testing.T, art workflowstore.Artifact, now *time.Time) (
 	*dpAnswersWhereItWasAsked, *dpAWalkingGrounder, *dpNotebook) {
 
 	t.Helper()
+	grant := &dpAnswersWhereItWasAsked{}
+	run, s, ground, book := dpARunUnder(t, art, now, grant)
+	return run, s, grant, ground, book
+}
+
+// dpARunUnder is the same run under a granter the caller supplies.
+//
+// Split out for the authorisation contract: a granted run's presses are permitted by
+// `grantedGranter` reading a decision somebody already made, and the only way to test that
+// against the real coordinator, verifier and runtime is to hand the production granter to this
+// harness. Everything else here is unchanged, which is the point — the runner cannot tell one
+// granter from another, and every check it makes on an authorisation is the same either way.
+func dpARunUnder(t *testing.T, art workflowstore.Artifact, now *time.Time,
+	grant workflowrun.Granter) (*workflowrun.Runner, *workflowstore.SessionBinding,
+	*dpAWalkingGrounder, *dpNotebook) {
+
+	t.Helper()
 	s := workflowstore.NewSessionBinding()
-	// BOTH INTERACTIONS AGREED TO as belonging in the run, so what is under test is the
+	// EVERY INTERACTION AGREED TO as belonging in the run, so what is under test is the
 	// outcome gate rather than the separate question of whether a step belongs at all.
 	for i := range art.Steps {
 		if err := s.ConfirmStep(i, "SIMULATED fixture"); err != nil {
 			t.Fatal(err)
 		}
 	}
-	grant := &dpAnswersWhereItWasAsked{}
 	ground := &dpAWalkingGrounder{says: map[observe.VisualScreenID]string{
 		"now_1": "screen_a", "now_2": "screen_b", "now_3": "screen_c",
 	}}
@@ -323,7 +339,7 @@ func dpARun(t *testing.T, art workflowstore.Artifact, now *time.Time) (
 			return true, ""
 		}).
 		WithPatience(60)
-	return run, s, grant, ground, book
+	return run, s, ground, book
 }
 
 // dpATwoTapPanel is two interactions ON ONE SCREEN, each with an outcome of its own.

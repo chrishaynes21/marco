@@ -834,6 +834,7 @@ launch defect; it establishes nothing about supervised consent keys, and its own
 
 ## Links
 
+- [[ADR-244-pressing-play-is-the-authorisation]]
 - [[ADR-242-the-second-action-waits-for-the-first-ones-answer]]
 - [[Experiment-094-four-failures-no-mechanism-and-a-window-that-has-to-hold-still]]
 - [[ADR-183-remembering-recognising-and-being-allowed-to-act]]

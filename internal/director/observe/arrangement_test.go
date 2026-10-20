@@ -513,8 +513,18 @@ func TestAVisualScreenCannotReachDurableMemory(t *testing.T) {
 		// in a `SessionBinding`, which has no JSON tags, is not a field of `Artifact`,
 		// and nothing marshals. A reached arrival dies with its observation, and
 		// `TestAReachedArrivalDoesNotSurviveTheObservationItWasMadeIn` holds that.
-		filepath.Join(store, "reached.go"):        true,
-		filepath.Join(store, "reached_test.go"):   true,
+		filepath.Join(store, "reached.go"):      true,
+		filepath.Join(store, "reached_test.go"): true,
+		// `standing.go` identifies the screen an Act STARTS on, with nobody to ask,
+		// so it is handed the same two things `reached.go` is and for the same
+		// reason — and it is allowed here on the same terms: what it writes is a
+		// `Bound` in a `SessionBinding`, which has no JSON tags, is not a field of
+		// `Artifact`, and nothing marshals. It is, if anything, further from the
+		// durable side than a reached arrival: it mints no identity, folds no
+		// vocabulary, and the ground it records (`identified`) exists so that an
+		// audit cannot mistake it for a person's confirmation.
+		filepath.Join(store, "standing.go"):       true,
+		filepath.Join(store, "standing_test.go"):  true,
 		filepath.Join(run, "workflowrun.go"):      true,
 		filepath.Join(run, "workflowrun_test.go"): true,
 		// `verify.go` is the post-action evidence on a clock, and it is allowed here

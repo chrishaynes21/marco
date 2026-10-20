@@ -100,6 +100,17 @@ type RunRecord struct {
 	// name, and a record that embedded it would be a second copy to drift.
 	Act       string `json:"act,omitempty"`
 	ActSource string `json:"act_source,omitempty"`
+	// Authority is what permitted this run's presses, when it was not somebody
+	// answering at the keyboard press by press.
+	//
+	// The sentence a grant describes itself with: who gave it, when, and over which
+	// interactions. Empty for a run under the keyed contract, where every press was
+	// permitted by a key and the attempt records say so one at a time.
+	//
+	// Here because the record is what a bug report cites, and "what authorised this" is
+	// the first question anybody asks about a press that should not have happened. A
+	// record that only said `live: true` could not answer it.
+	Authority string `json:"authority,omitempty"`
 	// Frames is where the pixel evidence went, when any was asked for.
 	Frames string `json:"frames,omitempty"`
 }
