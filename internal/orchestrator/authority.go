@@ -52,6 +52,30 @@ func (r Resolved) Learned() bool {
 	return r.Kind == routes.KindLearned && r.Provenance.Verified()
 }
 
+// Composed reports a play MARCO wrote, from behaviour it watched, still matching its provenance.
+//
+// # Why this exists beside Learned
+//
+// Because the reason a learned play is asked about is not that it was rehearsed — it is that
+// *the user has never read the file*. `NeedsConfirmation`'s own comment says so: "Marco wrote
+// this one from something it watched; 'you asked for it' is weaker evidence of consent when the
+// thing asked for was composed by the thing being asked."
+//
+// That argument is about authorship, and it applies word for word to a DEMONSTRATED play: the
+// person demonstrated the interactions, Marco composed them into the file, and nobody has read
+// it. A demonstrated play reaching this door without a case of its own would have fallen through
+// to `Allowed`/`ReasonOrdinary` — treated as the user's own writing because nothing named it —
+// which is the quiet kind of wrong that nobody notices because no error appears.
+//
+// `Learned` keeps its exact meaning for everything that asks specifically about rehearsal.
+func (r Resolved) Composed() bool { return composedKind(r.Kind) && r.Provenance.Verified() }
+
+// composedKind is which kinds Marco itself wrote. The one list, so a new kind cannot be added to
+// the policy and forgotten by the predicate.
+func composedKind(k routes.Kind) bool {
+	return k == routes.KindLearned || k == routes.KindDemonstrated
+}
+
 // Verdict is what the authority seam decided. Discrete, and never a score.
 type Verdict string
 
@@ -124,12 +148,12 @@ type Gate interface {
 // verified, so the learned policy has nothing to apply to; and refusing it would be refusing the
 // user's own writing, which no other play suffers.
 func Authorize(r Resolved, g Gate) Decision {
-	if r.Kind == routes.KindLearned && r.Provenance == routes.OriginEdited {
+	if composedKind(r.Kind) && r.Provenance == routes.OriginEdited {
 		return Decision{Verdict: Allowed, Reason: ReasonEditedSinceLearned,
 			Sentence: "You have changed this one since Marco wrote it, so it runs like " +
 				"anything else you have written."}
 	}
-	if !r.Learned() {
+	if !r.Composed() {
 		return Decision{Verdict: Allowed, Reason: ReasonOrdinary}
 	}
 	if g == nil {

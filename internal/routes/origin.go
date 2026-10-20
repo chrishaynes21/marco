@@ -55,6 +55,24 @@ const (
 	KindTaught Kind = "taught"
 	// KindLearned is a play Director watched, rehearsed, verified and wrote down.
 	KindLearned Kind = "learned"
+	// KindDemonstrated is a play composed from interactions a person demonstrated, whose
+	// every action is grounded, authorised and verified afresh when it runs.
+	//
+	// # Why it is not `learned`
+	//
+	// Because `learned` says REHEARSED AND VERIFIED, and this was neither. A demonstrated
+	// Act is written from a saved demonstration without Marco ever having performed it:
+	// nothing has been tried, nothing has been confirmed to work, and the first time anybody
+	// finds out is the first time somebody runs it under supervision. Filing it as learned
+	// would borrow confidence from a rehearsal that never happened.
+	//
+	// # And why it is not `taught`
+	//
+	// Because TEACH is reserved for Marco guiding a person, and `taught` is already spoken
+	// for by a play generated from a recorded keystroke demonstration — a different artifact
+	// with a different execution path. See
+	// [[ADR-048-learn-teach-and-do-are-three-different-sentences]].
+	KindDemonstrated Kind = "demonstrated"
 )
 
 // Origin is the minimum durable provenance for one saved play.

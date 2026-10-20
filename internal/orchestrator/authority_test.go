@@ -438,3 +438,38 @@ func TestPermissionIsNotRemembered(t *testing.T) {
 		}
 	}
 }
+
+// A DEMONSTRATED PLAY IS ASKED ABOUT LIKE A LEARNED ONE.
+//
+// The reason a learned play is put to the person is not that it was rehearsed — it is that THEY
+// HAVE NEVER READ THE FILE. `NeedsConfirmation`'s own comment says so: "Marco wrote this one from
+// something it watched; 'you asked for it' is weaker evidence of consent when the thing asked for
+// was composed by the thing being asked."
+//
+// That argument is about authorship, and it applies word for word to a demonstrated play: the
+// person demonstrated the interactions, Marco composed them into the file, and nobody has read
+// it. Without a case of its own this kind fell through to `Allowed`/`ReasonOrdinary` — treated as
+// the person's own writing because nothing named it, which is the quiet kind of wrong that raises
+// no error.
+//
+// Deleting `composedKind`'s second kind must fail this.
+func TestADemonstratedPlayIsAskedAboutLikeALearnedOne(t *testing.T) {
+	d := orchestrator.Authorize(orchestrator.Resolved{
+		Kind: routes.KindDemonstrated, Provenance: routes.OriginIntact,
+	}, nil)
+	// Nil gate: no way to ask, so a play that NEEDS asking is refused. An ordinary play
+	// would be allowed, which is what makes this the discriminating assertion.
+	if d.Verdict != orchestrator.Refused {
+		t.Fatalf("a demonstrated play with no way to ask was %q; an ordinary play is "+
+			"allowed here and this one must not be", d.Verdict)
+	}
+	// AND AN EDITED ONE IS THE PERSON'S OWN WRITING, exactly as an edited learned play is:
+	// it is no longer the artifact Marco composed, and refusing it would be refusing their
+	// own file.
+	e := orchestrator.Authorize(orchestrator.Resolved{
+		Kind: routes.KindDemonstrated, Provenance: routes.OriginEdited,
+	}, nil)
+	if e.Verdict != orchestrator.Allowed {
+		t.Fatalf("an edited demonstrated play was %q, want allowed", e.Verdict)
+	}
+}

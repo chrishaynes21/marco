@@ -257,6 +257,8 @@ func KindWord(k routes.Kind) string {
 		return "Learned"
 	case routes.KindTaught:
 		return "Recorded"
+	case routes.KindDemonstrated:
+		return "Demonstrated"
 	default:
 		return "Authored"
 	}
@@ -269,6 +271,9 @@ func KindSays(k routes.Kind) string {
 		return "Marco watched you, worked out how to do this, and wrote it down."
 	case routes.KindTaught:
 		return "You demonstrated this once and Marco kept the recording."
+	case routes.KindDemonstrated:
+		return "You demonstrated each of these interactions, and Marco composed them " +
+			"into a play it performs one action at a time, asking you each time."
 	default:
 		return "Written by hand."
 	}
