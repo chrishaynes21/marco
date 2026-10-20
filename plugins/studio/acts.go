@@ -392,14 +392,17 @@ type Act struct {
 	// Source is the digest of the play the bindings were written with, and Bound is what
 	// each interaction NAME means — the demonstrated position it resolves to.
 	//
-	// Together they are the Act's identity, and the names and the revision are not. The
-	// same Act can be composed again over the same demonstration with the same names in
-	// the same order bound to different positions: everything a person sees is unchanged
-	// and every control that would be pressed is different. So both travel to the page,
-	// which hands the identity it was SHOWN back when somebody presses Play, and into the
-	// authorisation, which the runner checks against the plan it preflighted.
+	// Both travel into the authorisation, which the runner checks against the plan it
+	// preflighted: the same Act can be composed again over the same demonstration with
+	// the same names in the same order bound to different positions, and then everything
+	// a person sees is unchanged and every control that would be pressed is different.
 	Source string         `json:"source,omitempty"`
 	Bound  []BoundNameFor `json:"bound,omitempty"`
+	// Identity is all of that in one string, and it is the term the page hands back when
+	// somebody presses Play on this Act.
+	//
+	// The digest alone was not enough, and it looked like it was — see identityOf.
+	Identity string `json:"identity,omitempty"`
 	// Runnable is whether it preflights RIGHT NOW, and Why the refusal when it does not.
 	//
 	// Asked here rather than guessed, through the production preflight: the bindings may
@@ -413,6 +416,34 @@ type Act struct {
 type BoundNameFor struct {
 	Name     string `json:"name"`
 	Position int    `json:"position"`
+}
+
+// identityOf is everything about an Act that decides what it would press, as one string.
+//
+// # Why not the digest of the play
+//
+// Because the play cannot see the thing this has to catch. Compose an Act over one
+// demonstration with the same names in the same order bound to different positions and the
+// generated Marco is BYTE-IDENTICAL, with the same bindings digest — proven, not argued, by
+// cmd/director TestRecomposingTheSameNamesChangesNothingTheOldTermsCouldSee. So a page that
+// handed back the digest it was displaying handed back a term that had already agreed, and the
+// one change a person cannot see was the one change nothing checked.
+//
+// # What is in it
+//
+// The digest, the demonstration revision, the application, and every interaction name with the
+// position it resolves to, in run order. Anything that moves one of those makes a different
+// string, and a press of Play under the old one is refused.
+//
+// Plain text rather than a hash on purpose: when two of these disagree, they say WHICH part
+// moved, to anybody reading them side by side.
+func identityOf(c Act) string {
+	parts := []string{"play=" + c.Source, "revision=" + c.Revision,
+		"application=" + c.Application}
+	for _, b := range c.Bound {
+		parts = append(parts, fmt.Sprintf("%s=%d", b.Name, b.Position))
+	}
+	return strings.Join(parts, " ")
 }
 
 // Saved is every Act on this machine, with whether each one would run.
@@ -440,6 +471,8 @@ func (a *Acts) Saved() []Act {
 			act.Bound = append(act.Bound, BoundNameFor{Name: s.Name,
 				Position: s.Position})
 		}
+		// AND THE WHOLE OF IT AS ONE TERM, which is what a page can hand back.
+		act.Identity = identityOf(act)
 		if serr != nil {
 			act.Why = serr.Error()
 		} else if _, perr := demonstrated.Preflight(src, binds, store,
@@ -574,13 +607,17 @@ func (a *Acts) start(p Performance) string {
 	// passed: the hook is what makes F9 stop a run from anywhere, and under a grant it
 	// answers nothing else — the runner does not build a consent desk to ask with. See
 	// cmd/director/actgrant.go.
-	if p.Granted {
-		chosen, found := a.chosen(act)
-		if !found {
-			release()
-			return fmt.Sprintf("there is no Act called %q any more", act)
-		}
-		path, gerr := a.granted(chosen)
+	if p.Grant != nil {
+		// THE ACT SOMEBODY CHOSE, NOT THE ONE ON DISK NOW.
+		//
+		// This used to read the store again here and authorise whatever it found,
+		// which is a second chance to pick up a different Act: `Play` checked one
+		// version and the grant was written from another. A replacement in that
+		// interval was not refused by either of them — it was authorised, because
+		// the grant and the plan the runner preflights would then agree about an Act
+		// nobody had read. What arrives here is the snapshot `Play` checked, and
+		// nothing between the two instants can change it.
+		path, gerr := a.granted(*p.Grant)
 		if gerr != nil {
 			// NOT A RUN WITHOUT ONE. The authorisation IS the permission, and a
 			// run started without it would be one asking questions nobody is
@@ -599,7 +636,14 @@ func (a *Acts) start(p Performance) string {
 	// grounds against the wrong window, or refuses for a reason about a selector rather
 	// than about their Act.
 	if application == "" {
-		application = a.applicationFor(act)
+		if p.Grant != nil {
+			// FROM THE SNAPSHOT, for the same reason as the authorisation
+			// above: a read of the store here is another chance to aim this
+			// run at a window belonging to a different version of the Act.
+			application = p.Grant.Application
+		} else {
+			application = a.applicationFor(act)
+		}
 	}
 	if application != "" {
 		args = append(args, "--application", application)

@@ -315,13 +315,15 @@
    say('')
    // THE IDENTITY THIS PAGE WAS SHOWING, handed back with the press.
    //
-   // Not for the backend to trust — it re-reads the Act and this is what it compares
-   // against. An Act can be composed again between being listed and being performed, with the
+   // Not for the backend to trust — it reads the Act itself, once, and this is what it
+   // compares against. The WHOLE identity and not the play digest: a recompose that only
+   // moves which demonstrated interaction each name means leaves that digest untouched.
+   // An Act can be composed again between being listed and being performed, with the
    // same names in the same order meaning different interactions, and then what somebody
    // pressed Play on is not what would be pressed. Empty when they typed a name instead of
    // clicking one of the Acts above, which is the honest answer: this page was not showing
    // them anything about it.
-   const seen = (listed.find(a => a.name === act) || {}).source || ''
+   const seen = (listed.find(a => a.name === act) || {}).identity || ''
    acts.Play(act, live, seen).then(err => { if (err) { say(err) } })
  }
  // say puts a sentence from the surface itself where the run's own sentence goes, so a person

@@ -122,18 +122,34 @@ disagree the first time one changes.
 
 ### And the window between selecting an Act and performing it
 
-Studio re-reads the Act when it writes the grant, so the same replacement could happen between a
-person reading the list and pressing the button. The page therefore hands back the digest it was
-**displaying**, and Studio refuses when the Act on disk is no longer that one — sending them to
-read it again, which is the only honest instruction. Empty when they typed a name instead of
-clicking a listed Act: the page was not showing them anything about it, and says so rather than
-pretending.
+The same replacement can happen between a person reading the list and pressing the button, so the
+page hands back the identity it was **displaying** and Studio refuses when the Act on disk is no
+longer that one — sending them to read it again, which is the only honest instruction. Empty when
+they typed a name instead of clicking a listed Act: the page was not showing them anything about
+it, and says so rather than pretending.
 
-`demonstrated.Save` already refuses to write over a play that exists, which narrows this a long
-way — an Act cannot be recomposed in place. It does not close it: the pair can be removed and
-composed again, and the bindings are a file somebody can edit while the play's digest stays what
-it was. `TestAnActReplacedBetweenPlayAndStartupIsRefused` does it the way a person would, through
-the command, and asserts the refusal lands before any observation and leaves no record.
+**The whole identity, and not the play digest.** The first version of this handed back the digest,
+which is the one term the dangerous recompose leaves untouched — the same argument as above, and
+the same measurement. So that check agreed with itself in exactly the case it was written for.
+What travels now is the digest, the revision, the application and what every interaction name
+means, in run order (`identityOf`), and anything that moves one of those is a different string.
+
+**One read, carried through.** Studio used to read the Act twice: once in `Play`, to check it and
+refuse it, and again at the launch, to write the grant from whatever it found then. The
+authorisation came out of the second read, so an Act replaced between them was caught by neither
+check — it became the authorised version, and the grant and the plan the runner preflights would
+have agreed with each other about an Act nobody had read. The snapshot `Play` checked is now what
+travels into the grant and what aims the run at an application; `Performance.Grant` is the Act
+itself rather than a flag beside its name, because a flag left the reading to the other end.
+
+The interval itself cannot be closed from here — it is a filesystem, and two commands can replace
+an Act in it. What is closed is which version a replacement can authorise: none. `demonstrated.Save`
+refuses to write over a play that exists, which narrows it further — an Act cannot be recomposed
+in place — but not to nothing: the pair can be removed and composed again, and the bindings are a
+file somebody can edit while the play's digest stays what it was. Past that point the runner is
+the one that refuses: `TestAnActReplacedBetweenPlayAndStartupIsRefused` does it the way a person
+would, through the command, and asserts the refusal lands before any observation and leaves no
+record.
 
 ### What it is not
 
@@ -313,7 +329,12 @@ application typed by hand. Two contracts, one runner, and the surface says which
   `TestAnActWhoseDemonstrationMovedIsRefusedWithTheReason`;
   `TestAnApplicationThatIsNotRunningIsSaidSoBeforeAnythingStarts` (the production
   `bringForward`); `TestAnActComposedAgainSinceItWasListedIsRefused` (the selection window, both
-  ways: stale digest refused, the listed one performed);
+  ways: a stale identity refused, the listed one performed);
+  `TestTheSameNamesMovedToOtherInteractionsIsRefused` (the recompose a digest cannot see, with the
+  premise asserted in the same test: same digest, same revision, same names and order, different
+  meanings);
+  `TestAnActReplacedBetweenPlayAndTheAuthorisationIsNotAuthorised` (the second read, through the
+  seam that stands inside the interval: the grant carries what was chosen, not what replaced it);
   `TestAMinimizedApplicationIsRestoredRatherThanRefused` (the decision reaches the restore with
   the right handle); `TestTheWindowRaisedIsTheOneSomebodyIsLookingAt` (six cases of the choice);
   `TestEveryOutcomeIsSaidInWords` (all eight);

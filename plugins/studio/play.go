@@ -82,14 +82,18 @@ type Performance struct {
 	// Live is the whole of the decision to touch the machine, and it is still the
 	// person's: without it the entire path runs and each press is written down.
 	Live bool
-	// Granted says the authorisation is this press of Play, over the Act's own
-	// interactions — the product contract. False is the engineering path: a run that
-	// asks for every press by key, which is what `Run` keeps for the acceptance
-	// checklist.
-	Granted bool
+	// Grant is the Act to perform under the authorisation of this press — the product
+	// contract — and it is the SNAPSHOT `Play` read and checked, not a name for the
+	// other end to look up again. Nil is the engineering path: a run that asks for every
+	// press by key, which is what `Run` keeps for the acceptance checklist.
+	//
+	// A pointer to the Act itself rather than a flag beside its name, because a flag left
+	// the reading to `start`, which looked the name up again and granted whatever it
+	// found then. One read, one decision, one authorisation.
+	Grant *Act
 	// Application and Reading are overrides the person does not normally supply. Empty
-	// and true respectively under Play: the Act knows which executable it was
-	// demonstrated against, and a run that cannot read the screen cannot verify an
+	// and true respectively under Play: the Act in `Grant` carries which executable it
+	// was demonstrated against, and a run that cannot read the screen cannot verify an
 	// outcome, which is the thing that makes an Act more than a macro.
 	Application string
 	Reading     bool
@@ -100,20 +104,28 @@ type Performance struct {
 // Returns "" when a run started, or the sentence to show the person. Every refusal here happens
 // BEFORE anything is raised or started, because a window that came forward and then said no is
 // worse than a sentence in the surface they were already looking at.
-// `shown` is the digest the page was displaying for this Act when the button was pressed, or ""
-// when it has none — somebody typed a name rather than clicking a listed Act. It closes the
-// window between selecting an Act and performing it: Studio re-reads the Act here, and an Act
-// that has been composed again in between is a different set of controls under the same name.
+// `shown` is the Act's identity as the page was displaying it when the button was pressed — its
+// digest, revision, application and what each interaction name means, as one string (see
+// identityOf) — or "" when the page has none, because somebody typed a name rather than clicking
+// a listed Act. It closes the window between selecting an Act and performing it: Studio reads the
+// Act here, once, refuses it if it is no longer the one they read, and hands that same snapshot
+// to the run. An Act composed again in between is a different set of controls under the same
+// name, and it must not inherit a decision made about the old one.
 func (a *Acts) Play(act string, live bool, shown string) string {
 	chosen, found := a.chosen(act)
 	switch {
 	case !found:
 		return fmt.Sprintf("there is no Act called %q on this machine", act)
-	case shown != "" && chosen.Source != "" && shown != chosen.Source:
+	case shown != "" && shown != chosen.Identity:
 		// COMPOSED AGAIN SINCE IT WAS LISTED. Not performed under the decision
 		// somebody made about the old one: the names can be identical and mean
 		// different interactions, so what they were looking at when they pressed is
 		// not what this would press. Refused, and sent back to look at it.
+		//
+		// The term compared is the Act's whole identity and was once only the play
+		// digest, which a recompose of the same names onto different positions
+		// leaves untouched — so the check passed in exactly the case it was written
+		// for. See identityOf.
 		return "this Act has been composed again since it was listed, so it may " +
 			"perform different interactions than the ones you were looking at — " +
 			"press Refresh and read it again before performing it"
@@ -131,7 +143,9 @@ func (a *Acts) Play(act string, live bool, shown string) string {
 	if why := a.raise(chosen.Application); why != "" {
 		return why
 	}
-	return a.start(Performance{Act: chosen.Name, Live: live, Granted: true,
+	// AND THE ACT ITSELF TRAVELS, not just its name. Everything from here on performs
+	// the version read and checked above.
+	return a.start(Performance{Act: chosen.Name, Live: live, Grant: &chosen,
 		Reading: true})
 }
 

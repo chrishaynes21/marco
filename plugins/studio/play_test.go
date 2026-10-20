@@ -16,15 +16,18 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/demo"
+	"github.com/chaynes-simpleclouds/marco/internal/director/demonstrated"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/windowref"
 	"github.com/chaynes-simpleclouds/marco/internal/director/runref"
 	"github.com/chaynes-simpleclouds/marco/internal/director/runstate"
+	"github.com/chaynes-simpleclouds/marco/internal/routes"
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 )
 
@@ -232,21 +235,159 @@ func TestAnActComposedAgainSinceItWasListedIsRefused(t *testing.T) {
 	if w := a.Watch(); w.Active {
 		t.Error("a refused Play started a run anyway")
 	}
-	// AND THE DIGEST IT IS SHOWING WORKS, so what is being tested is staleness and not
-	// the presence of the argument.
-	shown := ""
-	for _, c := range a.Saved() {
-		if c.Name == "the audio page" {
-			shown = c.Source
-		}
-	}
+	// AND THE IDENTITY IT IS SHOWING WORKS, so what is being tested is staleness and
+	// not the presence of the argument.
+	shown := actCalled(t, a, "the audio page").Identity
 	if shown == "" {
-		t.Fatal("the Act is listed with no digest, so a page has nothing to hand back")
+		t.Fatal("the Act is listed with no identity, so a page has nothing to " +
+			"hand back")
 	}
 	if err := a.Play("the audio page", false, shown); err != "" {
-		t.Fatalf("the Act was refused under the digest it is listed with: %s", err)
+		t.Fatalf("the Act was refused under the identity it is listed with: %s", err)
 	}
 }
+
+// actCalled is one Act as the page lists it.
+func actCalled(t *testing.T, a *Acts, name string) Act {
+	t.Helper()
+	for _, c := range a.Saved() {
+		if c.Name == name {
+			return c
+		}
+	}
+	t.Fatalf("there is no Act called %q", name)
+	return Act{}
+}
+
+// aTwoTabAct composes one Act over two of the demonstration's interactions, in that order.
+func aTwoTabAct(t *testing.T, picked ...string) *Acts {
+	t.Helper()
+	a, _ := aStoreWithADemonstration(t)
+	if r := a.Compose("ark graphics live", "both tabs", picked); r.Error != "" {
+		t.Fatal(r.Error)
+	}
+	a.raising = func(string) string { return "" }
+	t.Setenv("DIRECTOR_BIN", os.Args[0])
+	t.Setenv("STUDIO_STANDIN_RUNNER", "1")
+	t.Setenv("STUDIO_STANDIN_QUICK", "1")
+	return a
+}
+
+// composedAgain replaces an Act in place, the way a person would have to.
+//
+// `demonstrated.Save` refuses to write over a play that already exists — "give this one a
+// different name rather than replacing it" — so changing an Act means removing the pair and
+// composing again. Two commands, and nothing stops anybody running them between being listed
+// and pressing Play.
+func composedAgain(t *testing.T, a *Acts, picked ...string) {
+	t.Helper()
+	rt := routes.Route{Slug: routes.Slug("both tabs")}
+	if err := os.Remove(a.reg().Path(rt)); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(demonstrated.BindingsPath(a.reg(), rt)); err != nil {
+		t.Fatal(err)
+	}
+	if r := a.Compose("ark graphics live", "both tabs", picked); r.Error != "" {
+		t.Fatal(r.Error)
+	}
+}
+
+// THE RECOMPOSE A DIGEST CANNOT SEE IS THE ONE THAT HAD TO BE CAUGHT.
+//
+// # Why the digest was not enough, although it looked like it was
+//
+// The check above was over the play digest. Compose an Act over one demonstration with the same
+// names in the same order bound to DIFFERENT interactions and the generated Marco is
+// byte-identical, with the same bindings digest — so the page handed back a term that already
+// agreed, Studio compared two equal strings, and the run proceeded under a decision somebody made
+// about other controls. The one change a person cannot see was the one change nothing checked.
+//
+// The premise is asserted here rather than argued. If a recompose did move the digest, the first
+// three assertions would say so and the whole identity would be unnecessary.
+func TestTheSameNamesMovedToOtherInteractionsIsRefused(t *testing.T) {
+	a := aTwoTabAct(t, "0=the graphics tab", "1=the audio tab")
+	was := actCalled(t, a, "both tabs")
+
+	composedAgain(t, a, "1=the graphics tab", "0=the audio tab")
+	now := actCalled(t, a, "both tabs")
+
+	if now.Source != was.Source {
+		t.Fatalf("the premise is gone: the digest moved with the positions, "+
+			"%q then %q", was.Source, now.Source)
+	}
+	if now.Revision != was.Revision ||
+		strings.Join(now.Interactions, "|") != strings.Join(was.Interactions, "|") {
+		t.Fatalf("the premise is gone: something an older term checked moved too, "+
+			"%v then %v", was, now)
+	}
+	if fmt.Sprint(now.Bound) == fmt.Sprint(was.Bound) {
+		t.Fatalf("nothing was recomposed: the names still mean %v", now.Bound)
+	}
+	// AND THE TERM THE PAGE HANDS BACK DID MOVE.
+	if now.Identity == was.Identity {
+		t.Fatalf("the identity is blind to the recompose as well: %q", now.Identity)
+	}
+
+	why := a.Play("both tabs", false, was.Identity)
+	if why == "" {
+		t.Fatal("an Act was performed with every one of its interactions pointing " +
+			"somewhere else, under a decision made about the old ones")
+	}
+	if !strings.Contains(why, "composed again since it was listed") {
+		t.Errorf("the refusal does not say what happened: %q", why)
+	}
+	if w := a.Watch(); w.Active {
+		t.Error("a refused Play started a run anyway")
+	}
+}
+
+// AND AN ACT REPLACED AFTER PLAY WAS PRESSED IS NOT THE ONE AUTHORISED.
+//
+// # The second window
+//
+// `Play` read the Act and checked it, and then the launch read it AGAIN to write the
+// authorisation. Two reads with an interval between them, and the authorisation came out of the
+// second one — so an Act replaced in that interval was caught by neither check. It became the
+// authorised version: the grant named the new positions, the runner preflighted the new play, the
+// two agreed with each other, and Marco would press controls nobody had read about.
+//
+// What travels now is the snapshot `Play` checked. The interval still exists — it is a
+// filesystem, and two commands can replace an Act in it — but what comes out of it is an
+// authorisation for the version somebody saw, which the runner then refuses against the play on
+// disk (cmd/director, TestAnActReplacedBetweenPlayAndStartupIsRefused). Refused is the point;
+// authorised was the defect.
+func TestAnActReplacedBetweenPlayAndTheAuthorisationIsNotAuthorised(t *testing.T) {
+	a := aTwoTabAct(t, "0=the graphics tab", "1=the audio tab")
+	was := actCalled(t, a, "both tabs")
+	// INSIDE THE INTERVAL. `afterReserve` runs between claiming the run slot and
+	// writing the authorisation, which is the gap this is about; see acts.go.
+	a.afterReserve = func() {
+		composedAgain(t, a, "1=the graphics tab", "0=the audio tab")
+	}
+
+	if err := a.Play("both tabs", false, was.Identity); err != "" {
+		t.Fatalf("Play would not start: %s", err)
+	}
+	g := grantedIn(t, waitForTranscript(t, a))
+
+	if fmt.Sprint(g.Bound) != fmt.Sprint(was.Bound) {
+		t.Errorf("the authorisation is over %v, and what was chosen was %v — the "+
+			"Act was read again after the decision was made, so the "+
+			"replacement became the authorised version", g.Bound, was.Bound)
+	}
+	if g.Source != was.Source || g.Revision != was.Revision {
+		t.Errorf("the authorisation names play %q revision %q, and what was chosen "+
+			"was %q / %q", g.Source, g.Revision, was.Source, was.Revision)
+	}
+	// AND THE RUN IS AIMED BY THE SNAPSHOT TOO, not by a further read of the store.
+	if g.Application != was.Application {
+		t.Errorf("the authorisation names the application %q, and the Act names %q",
+			g.Application, was.Application)
+	}
+}
+
+// ── BRINGING THE APPLICATION FORWARD
 
 // ── BRINGING THE APPLICATION FORWARD ────────────────────────────────────────
 
@@ -445,6 +586,10 @@ func TestThePageIsTheFlowThatWasAskedFor(t *testing.T) {
 			"version of the Act it was showing, so an Act composed again " +
 			"between being listed and being performed is performed under a " +
 			"decision made about different interactions"},
+		{"}).identity", "the page hands back something other than the Act's whole " +
+			"identity — the play digest does not move when the same names " +
+			"are recomposed onto different interactions, so that term agrees " +
+			"in exactly the case it is there to catch"},
 		{">Stop<", "the stop control is not called Stop"},
 		{"Try it without clicking", "there is no way to perform an Act without " +
 			"touching the machine"},
