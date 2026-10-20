@@ -17,6 +17,7 @@ source_paths:
   - internal/director/demonstrated/store.go
   - internal/director/workflowrun/begin.go
   - cmd/director/demonstratedplay.go
+  - cmd/director/interactionidentity.go
   - cmd/director/observationloop.go
   - cmd/director/performplay.go
   - cmd/director/composeact.go
@@ -708,6 +709,97 @@ Act. playbill has no "which screen are you on", and a supervised run's permissio
 per press. Reusing that type would have meant adding words to it the service never emits. What IS
 reused is `runref.Outcome`, the seven words both binaries already share.
 
+### Snapshots do not make a prompt fresh; the producer has to emit every transition
+
+The first version of this got the transport right and the lifecycle wrong, in three places, and
+all three are the same mistake: assuming the shape of the stream would do the work that only an
+emission can do.
+
+**Preparation never explicitly resolved.** The start question went up with a deadline, and
+pressing start — or letting the delay run out — emitted nothing. So the latest snapshot stayed a
+deadline and an open question through window acquisition and provider start-up: a window counting
+down to an instant that had passed, offering a key nothing was listening for, for seconds at a
+time. Now both endings emit the question DOWN, with no question and no deadline, and `Starting`
+is the phase they emit — a stage of its own, because leaving `Preparing` standing is exactly what
+the defect looked like. The clock-only gate on the no-hotkey path says the same two things, and
+has its own test, because a correction applied to one of two preparation gates is the shape of
+defect this file keeps recording.
+
+That question also advertised all three consent keys, and `started` deliberately ignores the
+refusal key: no question about an action is open yet, and treating "no" as a cancellation there
+would make the keys mean something different before the run from what they mean during it. So it
+advertises the two it accepts. The failure of the third was worse than useless — a person presses
+it, nothing happens, and the natural next thought is that the run is not listening at all.
+
+**The interaction's identity was the demonstration's.** An Act is composed BY PICKING, so its
+position and the step it was demonstrated at are different numbers, and the emitters published the
+second under the name of the first: index from the step, `of` unset, and the control's identifier
+— or, between looks, the word of a verdict — where the name the person gave it belongs. A window
+showing "2" about the first of one, over the machine's word for a thing somebody had named
+themselves, is telling a person something false about a press they are about to authorise.
+
+The fix is that the thing which SELECTED the interaction says which it is, and the emitters read
+it: `cmd/director/interactionidentity.go`. The `Demonstrated` host resolved the name out of the
+play's own sentence, so it is the only party that knows which Scene is in hand — the consent desk
+and the between-looks report are handed a step, and a step does not identify a Scene, because an
+Act may name one position twice. `Plan.Order` carries the play's sentence order for the numbering,
+`Interaction.Control` carries the control as evidence rather than as a name, and
+`Interaction.Verdict` carries the verdict BESIDE the name instead of in place of it.
+
+**And the verification interval was a gap.** Emission happened on the press and on the verdict,
+so the whole wait between them — the longest part of an interaction, and the part a person is
+actually waiting through — said nothing, and a front end rendering the latest snapshot showed
+`acting` for all of it. "Marco is pressing" for several seconds of Marco watching. The missing
+fact is the coordinator's and nobody outside can derive it: `workflowrun.Attempt.Awaiting` is
+whether this step's press has gone out with its outcome still open, and without it an attempt
+waiting for evidence and an attempt waiting for a screen to be established are both `waiting`
+with no result and no verdict. Three states now, and `Verifying` with an empty verdict is the
+wait while `Verifying` with one is the answer.
+
+### A question outlives its runner as evidence, never as an invitation
+
+Snapshots make a prompt disappear when it is ANSWERED. They say nothing about the other way a
+question stops being answerable: the process that asked it going away. A child killed, crashed or
+stopped from outside leaves a stream whose last event still carries an open question — and Studio
+reported the run as incomplete and handed the page that question anyway, with its keys and its
+countdown, and the page drew it. Somebody pressing F7 at that is pressing it at nothing, in a
+window that has just told them a press is waiting on their answer.
+
+So `Running.Asking` is a second field making a different claim. `State.Question` is what the run
+was waiting for when it last said anything, which is part of the account of it and is kept;
+`Asking` is an invitation to press a key, and it is set only while there is a process on the other
+end of the hook to hear it. The page draws the prompt from `Asking` and shows the other as what it
+is: the question a stopped run was waiting on, which nothing is waiting for now.
+
+### Enforced by, for the three above
+
+`cmd/director/preparationend_test.go` drives the real command for both endings of the preparation
+gate — the key pressed early, and the delay running out with nothing pressed — plus the clock-only
+gate on its own branch, and asserts the ending arrives BEFORE the next question is put, which is
+the first moment a stale prompt could be answered twice. It also asserts the start question offers
+exactly the two keys `started` accepts while the consent questions after it still offer three, so
+this is one question narrowed and not the key vocabulary.
+
+`cmd/director/interactionidentity_test.go` holds the numbering: an Act's own index and count under
+the person's own name, the verdict beside it, the step and control carried as evidence, a copy per
+snapshot, and index 0 — "nobody could say" — when an aim has outlived its interaction.
+`TestAReorderedActsSnapshotsAreNumberedAndNamedByThePlay` runs a BACKWARDS two-interaction Act
+through the production path and asserts the whole emitted sequence, including that each
+interaction was watched before it was answered and that the first was answered before the second
+was so much as mentioned — ADR-242, visible in the stream.
+`internal/director/workflowrun/awaiting_test.go` holds `Awaiting` across the four instants that
+matter. `plugins/studio/asking_test.go` holds the offer: the same stream, offered while the run is
+in flight and not offered once the child is gone, with the question kept as evidence either way.
+
+**Fifteen mutations, all fifteen killed** — the two emissions of each preparation ending, the
+deadline on the clock-only path, the start keys, a question left standing on the ending, the
+missing wait case, the old step-as-position identity, `Awaiting` in `record`, the host's aim, the
+host's release, `Plan.Order`, the workflow's step numbering, the aim's step check, and Studio's
+answerable guard. Two of them are held by SOURCE guards rather than by behaviour and say so where
+they are: the host's release of a Scene has no observable consequence today, because every reader
+of the identity runs inside a sentence, and the page's rendering is JavaScript that nothing here
+can run.
+
 ## What is still unproven
 
 The path is connected and refuses before input, and that is all the deterministic tests can say.
@@ -718,6 +810,13 @@ And one thing about the structured events is proven only in parts: the EMISSION 
 `cmd/director` and the READING in `plugins/studio`, each against the other's format, but no test
 watches a real supervised run drive a real window. The seam between them is a file, which is the
 thing a test can stand on either side of and a person cannot.
+
+Within that, the sequence a window reads IS now asserted end to end on one side of the seam — a
+reordered Act through the production coordinator, verifier and runtime, with scripted looks where
+the screen would be. What the scripted looks cannot say is how the phases read in real time: how
+long `verifying` stands, whether a countdown looks right while a game is loading, whether the
+press prompt arrives before a person has finished reading the one before it. Those are the owner's
+trial, not a test's.
 
 The Wails prototype under `plugins/studio/` remains SHELL EVIDENCE. Its store defaults to an
 isolated one per launch and it refuses to attach to a service it did not start, which closes the

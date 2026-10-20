@@ -80,7 +80,7 @@ func TestAFlatPlayWouldPressTheSecondControlAfterTheFirstFailed(t *testing.T) {
 	}
 	sup := &dpRefusesEverything{}
 	var said strings.Builder
-	h, err := performDemonstratedPlay(context.Background(), dpTheRun, plan, sup, &said)
+	h, err := performDemonstratedPlay(context.Background(), dpTheRun, plan, sup, nil, &said)
 	if err != nil {
 		t.Fatalf("the flat play did not run at all: %v", err)
 	}
@@ -139,7 +139,7 @@ do Reaching's Run...
 	var said strings.Builder
 	_, err := performDemonstratedPlay(context.Background(), dpTheRun,
 		demonstrated.Plan{Name: "reaching", Play: src, Steps: map[string]int{}},
-		sup, &said)
+		sup, nil, &said)
 	if err != nil {
 		t.Fatalf("the play did not run at all: %v", err)
 	}

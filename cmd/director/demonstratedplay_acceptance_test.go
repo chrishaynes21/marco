@@ -101,7 +101,7 @@ func dpPerform(t *testing.T, s dpSaved, art workflowstore.Artifact, st *dpStage,
 	st.book = book
 	st.now = now
 	sup := demonstrated.NewSupervised(run, bind, st.look, 120)
-	h, rerr := performDemonstratedPlay(ctx, dpTheRun, plan, sup, io.Discard)
+	h, rerr := performDemonstratedPlay(ctx, dpTheRun, plan, sup, nil, io.Discard)
 	return h, grant, ground, book, run, rerr
 }
 
@@ -612,7 +612,7 @@ func TestPatienceIsSpentPerInteractionNotPerRun(t *testing.T) {
 		st := dpAPanel(dpPanelWords(dpFirstOutcome()...), dpPanelWords(dpSecondOutcome()...))
 		st.book, st.now = book, &now
 		h, _ := performDemonstratedPlay(context.Background(), dpTheRun, plan,
-			demonstrated.NewSupervised(run, bind, st.look, 120), io.Discard)
+			demonstrated.NewSupervised(run, bind, st.look, 120), nil, io.Discard)
 		if got := h.Outcome(); got != c.want {
 			t.Fatalf("patience %d: the run ended %q, want %q: %+v",
 				c.patience, got, c.want, h.Asked())
@@ -692,7 +692,7 @@ func TestANameNothingIsBoundToIsRefusedWithoutAnyInput(t *testing.T) {
 		Play:  dpSave(t, art, dpTheNames()).src,
 		Steps: map[string]int{"apply changes": 1}}
 	h, _ := performDemonstratedPlay(context.Background(), dpTheRun, plan,
-		demonstrated.NewSupervised(run, bind, st.look, 120), io.Discard)
+		demonstrated.NewSupervised(run, bind, st.look, 120), nil, io.Discard)
 
 	if book.clicks() != 0 {
 		t.Fatalf("%d press(es) went out for a name nothing is bound to", book.clicks())
@@ -740,7 +740,7 @@ func TestAStoppedRunAsksNobodyAboutTheNextInteraction(t *testing.T) {
 		}
 	}
 	sup := demonstrated.NewSupervised(run, bind, st.look, 120)
-	h, _ := performDemonstratedPlay(context.Background(), dpTheRun, plan, sup,
+	h, _ := performDemonstratedPlay(context.Background(), dpTheRun, plan, sup, nil,
 		io.Discard)
 
 	if book.clicks() != 1 {
@@ -781,7 +781,7 @@ func TestARunCancelledBeforeItStartedIsReportedAsCancelled(t *testing.T) {
 	cancel()
 
 	h, _ := performDemonstratedPlay(ctx, dpTheRun, plan,
-		demonstrated.NewSupervised(run, bind, st.look, 120), io.Discard)
+		demonstrated.NewSupervised(run, bind, st.look, 120), nil, io.Discard)
 
 	if book.clicks() != 0 {
 		t.Fatalf("%d press(es) went out for a run that was cancelled first",

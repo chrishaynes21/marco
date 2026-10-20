@@ -363,6 +363,17 @@ type Running struct {
 	// consent prompt would have silently changed what a window showed somebody about a
 	// press they were about to authorise. See internal/director/runstate.
 	State *runstate.Event `json:"state,omitempty"`
+	// Asking is the question somebody CAN STILL ANSWER, which is not every question the
+	// state carries.
+	//
+	// A separate field because the two claims are different and only one of them is about
+	// the keyboard. `State.Question` is what the run was waiting for when it last said
+	// anything — evidence, kept. This is an invitation to press a key, and it is only
+	// honest while there is a process on the other end of the hook to hear it: a child
+	// that exited with a question open left a snapshot that still carried it, and the page
+	// went on offering its keys. Somebody pressing F7 at that is pressing it at nothing,
+	// in a window that just told them a press was waiting on their answer.
+	Asking *runstate.Question `json:"asking,omitempty"`
 	// Reason is why it ended, from the final event.
 	Reason string `json:"reason,omitempty"`
 	// Complete says the run ENDED — it said so itself, with a final event. Incomplete
@@ -662,6 +673,14 @@ func (a *Acts) Watch() Running {
 	// is that nobody can speak for what happened.
 	if !w.Active && !w.Complete {
 		w.Incomplete = true
+	}
+	// ── AND WHETHER ANYBODY CAN STILL ANSWER WHAT IT WAS ASKING ──
+	//
+	// Last, because it depends on both answers above. A run that ENDED has no open
+	// question by construction — a final event carries none — and a run whose child is
+	// GONE may well have one, which is exactly the case this is here for. See `Asking`.
+	if w.Active && !w.Complete && !w.Incomplete && w.State != nil {
+		w.Asking = w.State.Question
 	}
 	return w
 }

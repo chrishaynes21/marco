@@ -62,6 +62,14 @@ type demonstratedHost struct {
 	plan demonstrated.Plan
 	sup  demonstrated.Supervisor
 	acc  *demonstrated.Account
+	// scenes is where this host says WHICH of the Act's interactions it is performing,
+	// for the run's structured account of itself. Nil does nothing.
+	//
+	// Here because this is the only place that knows: the name came out of the play's own
+	// sentence, and everything downstream is handed a step — which does not identify a
+	// Scene, and for an Act composed by picking is not the number a person is watching.
+	// See interactionidentity.go.
+	scenes *performedInteractions
 }
 
 // Invoke is the foreign action. One capability, and `ok` means verified.
@@ -86,6 +94,11 @@ func (h *demonstratedHost) Invoke(c runtime.HostCall) (string, runtime.Value, er
 		h.acc.Note(demonstrated.Ask{Name: name, Step: -1, Refused: why})
 		return "", runtime.Value{}, fmt.Errorf("%s", why)
 	}
+	// AIMED BEFORE THE PRESS AND RELEASED AFTER IT, so every question put and every
+	// verdict reported while this sentence is running carries the Scene's own identity —
+	// and nothing asked between two sentences claims to be about either.
+	h.scenes.aim(h.position(name), name, step)
+	defer h.scenes.over()
 	v, because, err := h.sup.Press(c.Ctx, step)
 	verdict := demonstrated.VerdictOf(v)
 	if err != nil {
@@ -112,6 +125,20 @@ func (h *demonstratedHost) Invoke(c runtime.HostCall) (string, runtime.Value, er
 	return "ok", runtime.Absent(), nil
 }
 
+// position is where in the ACT an interaction of this name is, counting from 1, or 0.
+//
+// The play's sentence order, which `Plan.Order` carries because it is not recoverable from the
+// bindings map: a subset or a reordered Act numbers its own interactions and the demonstration
+// numbers its steps, and those are different numbers.
+func (h *demonstratedHost) position(name string) int {
+	for i, n := range h.plan.Order {
+		if n == name {
+			return i + 1
+		}
+	}
+	return 0
+}
+
 // performDemonstratedPlay runs a saved play's PERSISTED BYTES and returns the account.
 //
 // The path rather than a string, deliberately: "the saved source controls execution" is a claim
@@ -124,7 +151,7 @@ func (h *demonstratedHost) Invoke(c runtime.HostCall) (string, runtime.Value, er
 // report itself, which is the run being ended from outside before every sentence was reached.
 func performDemonstratedPlay(ctx context.Context, reference string,
 	plan demonstrated.Plan, sup demonstrated.Supervisor,
-	out io.Writer) (*demonstrated.Account, error) {
+	scenes *performedInteractions, out io.Writer) (*demonstrated.Account, error) {
 
 	if plan.Play == "" {
 		return demonstrated.NewAccount(reference, 0),
@@ -132,7 +159,7 @@ func performDemonstratedPlay(ctx context.Context, reference string,
 				"preflighted are performed")
 	}
 	acc := demonstrated.NewAccount(reference, len(plan.Steps))
-	h := &demonstratedHost{plan: plan, sup: sup, acc: acc}
+	h := &demonstratedHost{plan: plan, sup: sup, acc: acc, scenes: scenes}
 	// AND THE STOP REACHES THE COORDINATOR, not only the runtime.
 	//
 	// `HostCall.Ctx` is the calling FRAME's context, and there is a window between the run

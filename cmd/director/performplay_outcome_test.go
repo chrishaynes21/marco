@@ -41,7 +41,7 @@ func anActOver(t *testing.T, picked []demonstrated.Named,
 	st := world()
 	st.book, st.now = book, &now
 	acc, _ := performDemonstratedPlay(context.Background(), dpTheRun, plan,
-		demonstrated.NewSupervised(run, bind, st.look, 240), io.Discard)
+		demonstrated.NewSupervised(run, bind, st.look, 240), nil, io.Discard)
 	return acc, run.Report().Progress.Complete(), book.clicks()
 }
 

@@ -127,7 +127,7 @@ func TestReplacingThePlayAfterPreflightDoesNotChangeWhatRuns(t *testing.T) {
 	st.book, st.now = book, &now
 	var said strings.Builder
 	h, _ := performDemonstratedPlay(context.Background(), dpTheRun, plan,
-		demonstrated.NewSupervised(run, bind, st.look, 120), &said)
+		demonstrated.NewSupervised(run, bind, st.look, 120), nil, &said)
 
 	if strings.Contains(said.String(), "REPLACEMENT RAN") {
 		t.Fatalf("the replacement was executed: %q", said.String())
@@ -173,7 +173,7 @@ func TestAPlanWithNoValidatedBytesPerformsNothing(t *testing.T) {
 	st.book, st.now = book, &now
 	h, err := performDemonstratedPlay(context.Background(), dpTheRun,
 		demonstrated.Plan{Routine: art, Steps: map[string]int{"the graphics tab": 0}},
-		demonstrated.NewSupervised(run, bind, st.look, 120), io.Discard)
+		demonstrated.NewSupervised(run, bind, st.look, 120), nil, io.Discard)
 	if err == nil {
 		t.Fatal("a plan carrying no play was performed")
 	}
@@ -222,7 +222,7 @@ this exports SomethingElse.
 	st := dpAWorkingStage()
 	st.book, st.now = book, &now
 	h, rerr := performDemonstratedPlay(context.Background(), dpTheRun, plan,
-		demonstrated.NewSupervised(run, bind, st.look, 120), io.Discard)
+		demonstrated.NewSupervised(run, bind, st.look, 120), nil, io.Discard)
 	if rerr != nil {
 		t.Fatalf("a file beside the play changed what it compiles to: %v", rerr)
 	}

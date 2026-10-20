@@ -222,6 +222,12 @@ type hotkeyGranter struct {
 	// events is the structured account of what this desk asked and what came back. Nil
 	// when nobody asked for one, and every emission is safe on nil.
 	events *runstate.Writer
+	// scenes is WHICH interaction a step is, asked rather than guessed.
+	//
+	// The desk is handed a step by the coordinator, and a step is not an identity: for an
+	// Act composed by picking it is not the position a person is watching, and it carries
+	// nothing of the name the person gave it. See interactionidentity.go.
+	scenes *performedInteractions
 	// asked and granted are the PRESSES somebody was asked about and allowed; proposed
 	// and agreed are the STEPS. Four numbers and not two, because agreeing to a step and
 	// permitting a press are two questions and a report that counted only one of them
@@ -264,7 +270,7 @@ func (g *hotkeyGranter) Authorise(ctx context.Context, in workflowrun.Intent) (
 		navsource.ConsentKeys[navsource.ConsentStop], g.within)
 
 	// THE QUESTION, SAID BY THE THING THAT ASKS IT. See `asking`.
-	at := &runstate.Interaction{Index: in.Step, Name: in.Control, Step: in.Step}
+	at := g.scenes.at(in.Step, "")
 	g.asking(fmt.Sprintf("press-%d-%d", in.Step, g.asked), runstate.Asking, at,
 		fmt.Sprintf("May Marco %s a left click on %s, once?", what,
 			in.Target(1920, 1080)))
@@ -314,7 +320,7 @@ func (g *hotkeyGranter) agree(ctx context.Context, step int, control, from, to s
 		navsource.ConsentKeys[navsource.ConsentApprove],
 		navsource.ConsentKeys[navsource.ConsentRefuse],
 		navsource.ConsentKeys[navsource.ConsentStop], g.within)
-	at := &runstate.Interaction{Index: step, Name: control, Step: step}
+	at := g.scenes.at(step, "")
 	g.asking(fmt.Sprintf("agree-%d-%d", step, g.proposed), runstate.Agreeing, at,
 		"Do you agree this is a step Marco should perform?")
 	c, answered := g.desk.ask(ctx, g.within)
@@ -428,5 +434,22 @@ func consentKeys() []runstate.Key {
 		{Key: navsource.ConsentKeys[navsource.ConsentApprove], Means: "yes"},
 		{Key: navsource.ConsentKeys[navsource.ConsentRefuse], Means: "no"},
 		{Key: navsource.ConsentKeys[navsource.ConsentStop], Means: "stop"},
+	}
+}
+
+// startKeys is what the START question accepts, which is NOT what a consent question accepts.
+//
+// `started` listens for yes and for stop, and a refusal key answers nothing there: no question
+// about an action is open yet, and treating "no" as a cancellation would make the three keys mean
+// something different before the run from what they mean during it.
+//
+// So the start question advertises two. Advertising all three was a window telling somebody a key
+// would answer a question that the thing holding the key hook deliberately ignores — and the
+// honest failure of that is worse than useless: a person presses it, nothing happens, and the
+// natural next thought is that the run is not listening at all.
+func startKeys() []runstate.Key {
+	return []runstate.Key{
+		{Key: navsource.ConsentKeys[navsource.ConsentApprove], Means: "yes, start now"},
+		{Key: navsource.ConsentKeys[navsource.ConsentStop], Means: "cancel the run"},
 	}
 }

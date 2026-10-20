@@ -1265,3 +1265,48 @@ Three refusals worth producing on purpose, because each one is a guarantee:
 
 An Act whose interactions all verify exits 0 and records `verified`, even when it performs only
 some of a longer demonstration — the completion that matters is the play's, not the artifact's.
+
+---
+
+## 60. Watching the same run from Studio, where the state is the thing being checked
+
+`plugins/studio` spawns exactly the run above — `director perform-workflow --play …` — and shows
+what it says about itself rather than reading its prose. So this step is not a second test of the
+Act; it is a test of the account, and the only way to check an account is to watch it beside the
+thing it describes.
+
+```sh
+go -C plugins/studio build -tags "desktop,production" -ldflags "-H windowsgui" -o studio.exe .
+plugins\studio\studio.exe
+```
+
+Pick the Act, leave **live** off for the first pass, and press Run. Then watch the top line of the
+run panel, not the transcript, and check each of these AS IT HAPPENS — a screenshot afterwards
+cannot tell you any of them:
+
+1. **The countdown counts down, and stops when you say so.** `preparing · Ns left to get ready`.
+   Press F7 before it reaches zero: the countdown must VANISH in the same beat, not run on. If it
+   keeps counting after you have pressed start, the run's end of preparation is not reaching the
+   window and everything below is suspect.
+2. **The key offered is a key that works.** At the start prompt the panel offers two — yes and
+   cancel. There must be no "no" on offer there: `started` ignores it, and a key that does nothing
+   reads as a run that is not listening.
+3. **The phase moves through `starting` before anything is asked.** Acquisition and bringing up
+   perception take seconds, and during them the window must say `starting` and show no question.
+4. **The interaction is named the way you named it, and numbered the way the Act is.** `1 of 2 ·
+   the graphics tab`. If it says the demonstration's step number, or the control's identifier
+   (`control_1`), stop — that is the window telling you something false about the press you are
+   about to authorise.
+5. **`verifying` stands while Marco is watching.** After the press the panel must read
+   `verifying · 1 of 2 · the graphics tab` with no verdict, for as long as the check takes, and
+   then the same line WITH the verdict. If it says `acting` through that interval, the wait is
+   being shown as a press.
+6. **The second interaction is not mentioned until the first has a verdict.** Same guarantee as
+   step 7 of the walkthrough above, read off the panel instead of the transcript.
+
+Then produce the one case no test can produce on a real screen: while a question is on the panel,
+**kill the runner** (`taskkill /IM director.exe /F`, or `director stop` and then close it). The
+panel must say INCOMPLETE and must STOP offering the keys — the question stays visible as what it
+was ("it was asking this when it last said anything"), and nothing invites you to press F7 at a
+process that has gone. If the keys are still offered, a person can answer a question nobody is
+listening to and watch nothing happen.

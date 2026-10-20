@@ -451,7 +451,9 @@ func runPerformWorkflow(args []string) int {
 			Preparation: time.Now().Add(*delay),
 			Question: &runstate.Question{ID: "start",
 				Asks: "Prepare the application, then say when you are ready.",
-				Keys: consentKeys(), Until: time.Now().Add(*delay)}})
+				// WHAT START ACTUALLY ACCEPTS, which is two keys and
+				// not three. See startKeys.
+				Keys: startKeys(), Until: time.Now().Add(*delay)}})
 		if started(ctx, src, *delay) == startCancelled {
 			say.Say(runstate.Event{Phase: runstate.Ended, Final: true,
 				Outcome: RunCancelled,
@@ -468,10 +470,29 @@ func runPerformWorkflow(args []string) int {
 		// so saying "ready" cost a second wait, and letting Start time out cost
 		// two. One preparation gate, however it ends.
 		waited = true
+		// ── AND IT IS SAID TO BE SPENT, AT THE INSTANT IT WAS ──
+		//
+		// However it ended: somebody pressed start, or the delay ran out and the
+		// run began by itself. Both are preparation OVER, and neither used to be
+		// emitted — so the last thing a front end had heard was a deadline and a
+		// question, and it went on counting down to an instant that had passed
+		// and offering a key that nothing was listening for, through acquisition
+		// and provider start-up. Seconds of showing somebody a live prompt that
+		// was not live.
+		//
+		// No question and no deadline, which is what makes this the question
+		// coming DOWN rather than a phase change beside it.
+		say.Say(runstate.Event{Phase: runstate.Starting})
 	}
 	if src == nil && lookAfterWaiting(*app, *delay) {
 		fmt.Printf("  Switch to the application now — what is in front in %s is what "+
 			"this will watch.  Ctrl-C cancels.\n", *delay)
+		// THE SAME DEADLINE, ON THE PATH WITH NO KEYS. A clock-only preparation is
+		// still preparation, and a front end counting down to it is counting down to
+		// something real. No question, because there is nothing anybody can answer:
+		// this gate ends when the clock says so.
+		say.Say(runstate.Event{Phase: runstate.Preparing,
+			Preparation: time.Now().Add(*delay)})
 		if !countdown(ctx, *delay) {
 			// NOTHING HAS BEEN ACQUIRED, AUTHORISED OR BUILT YET, so there is
 			// nothing to wind back and nothing could have been pressed.
@@ -481,6 +502,9 @@ func runPerformWorkflow(args []string) int {
 				"wait, before any window was acquired")
 		}
 		waited = true
+		// AND SPENT, said here too: the deadline above has passed and a window
+		// still showing it would be showing a countdown that ended.
+		say.Say(runstate.Event{Phase: runstate.Starting})
 	}
 	target, targetWhy := resolveApplication(context.Background(), *app)
 	sel := windowSelector(target, *windowID, uint32(*pid), *fg)
@@ -621,6 +645,19 @@ func runPerformWorkflow(args []string) int {
 	}
 	ask := bufio.NewReader(os.Stdin)
 	session := workflowstore.NewSessionBinding()
+	// ── WHICH INTERACTION EACH SNAPSHOT IS ABOUT ──
+	//
+	// Two numberings meet here. The coordinator counts the DEMONSTRATION's steps, and an
+	// Act counts its own sentences — a subset, in an order of its own — so an Act that
+	// names interaction 2 of a three-step routine is on its FIRST. Publishing the step as
+	// the Act's position said "2" about the first of one. See interactionidentity.go.
+	//
+	// A walk of an artifact is the case where the two agree, and it says so rather than
+	// relying on them agreeing.
+	scenes := workflowInteractions(art)
+	if plan != nil {
+		scenes = actInteractions(art, len(plan.Order))
+	}
 	ground := &promptGrounder{art: art, in: ask, out: os.Stdout,
 		// NOBODY CAN BE ASKED in either mode: answering by keyboard would take the
 		// foreground, and an exploring session is authorised precisely so that it
@@ -681,7 +718,8 @@ func runPerformWorkflow(args []string) int {
 		// terminal. See consentdesk.go: the thing that puts a question is the thing
 		// that knows it was put, and that it came down again.
 		keys = &hotkeyGranter{desk: desk, out: os.Stdout, live: *live,
-			within: *answer, life: 10 * time.Second, events: say}
+			within: *answer, life: 10 * time.Second, events: say,
+			scenes: scenes}
 		grant = keys
 		// AND THE SAME KEYS ANSWER THE ONE QUESTION THAT IS NOT ABOUT AN ACTION.
 		//
@@ -894,22 +932,8 @@ func runPerformWorkflow(args []string) int {
 	// driver so the step-agreement question is asked in the same place rather than twice.
 	betweenLooks := func(c context.Context, a workflowrun.Attempt) (bool, string) {
 		reportAttempt(a)
-		// ── WHAT THE COORDINATOR JUST DECIDED, SAID BY IT ──
-		//
-		// The verdict in particular, because it is what gates the next action: the
-		// second interaction is not asked about until the first one is verified
-		// (ADR-242), and a front end reading the stream can see that ordering rather
-		// than take it on faith. Emitted from the attempt the coordinator returned,
-		// not inferred from anything printed.
-		if a.Result != nil || a.Verified != nil {
-			phase := runstate.Acting
-			if a.Verified != nil {
-				phase = runstate.Verifying
-			}
-			say.Say(runstate.Event{Phase: phase,
-				Interaction: &runstate.Interaction{Index: a.Step,
-					Step: a.Step, Name: verdictWord(a)}})
-		}
+		// WHAT THE COORDINATOR JUST DECIDED, SAID BY IT. See the function.
+		sayWhatTheCoordinatorDecided(say, scenes, a)
 		if a.Stage == workflowstore.StepUnconfirmed {
 			if *explore {
 				if err := session.ConfirmStep(a.Step,
@@ -931,7 +955,7 @@ func runPerformWorkflow(args []string) int {
 				func() (workflowrun.Sighting, bool) { return looks.next(ctx) },
 				*patience*len(plan.Steps)+looksPerPlay).
 				WithWatch(betweenLooks).WithRunContext(ctx),
-			os.Stdout)
+			scenes, os.Stdout)
 		if perr != nil {
 			// THE RUNTIME's error: a play that could not be compiled or run at
 			// all. How the ROUTINE went is the account, printed below.

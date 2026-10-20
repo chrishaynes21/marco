@@ -15,9 +15,18 @@
 // always inferring a state that something else already knew for certain.
 //
 // So the decisions emit. Every event here is written at the point the runner decides something —
-// the start wait beginning, a question being put, a question being answered or withdrawn, an
-// action going out, a verdict arriving, the run ending — and the words a person reads are carried
-// INSIDE the event, for the transcript, never parsed back out of it.
+// the start wait beginning and ENDING, a question being put, a question being answered or
+// withdrawn, an action going out, the evidence for it being collected, a verdict arriving, the
+// run ending — and the words a person reads are carried INSIDE the event, for the transcript,
+// never parsed back out of it.
+//
+// EVERY TRANSITION, which is the part that is easy to get wrong while the transport is right. A
+// snapshot stream makes a prompt disappear when the next snapshot arrives; it does nothing at all
+// about a transition nobody emitted. The run's own preparation used to end without a word, so the
+// latest snapshot stayed a deadline and an open question through acquisition and provider
+// start-up; and the interval between a press and its verdict was emitted at neither end, so a
+// front end showed `acting` for the whole of the longest part of an interaction. Both looked
+// exactly like a working front end, which is why they are named here.
 //
 // # Snapshots, not deltas
 //
@@ -67,6 +76,15 @@ const (
 	// Preparing is before anything has been asked: the delay, and waiting for the
 	// person to say they are ready. The only phase with a deadline of its own.
 	Preparing Phase = "preparing"
+	// Starting is preparation OVER and nothing being asked yet: the window is being
+	// acquired, the perception providers are coming up, the first look has not landed.
+	//
+	// A phase of its own because the alternative was leaving `Preparing` standing. The
+	// run's preparation ends the instant somebody presses start — and acquisition and
+	// provider start-up take seconds after it, during which a front end still showing
+	// `preparing` is showing a countdown to a deadline that has already been spent, next
+	// to a question nobody is waiting on an answer to.
+	Starting Phase = "starting"
 	// Naming is asking which of the saved screens the person is on.
 	Naming Phase = "naming"
 	// Agreeing is asking whether a step belongs in this run at all, which is a
@@ -76,7 +94,12 @@ const (
 	Asking Phase = "asking"
 	// Acting is a press that has gone out.
 	Acting Phase = "acting"
-	// Verifying is waiting for the evidence that says whether it worked.
+	// Verifying is the post-action evidence: being collected, and then answered.
+	//
+	// `Interaction.Verdict` is which of the two. Empty means the press has gone out and
+	// the run is still waiting for evidence — the interval a front end used to show as
+	// `acting`, because nothing was emitted between the press and the answer. Set means
+	// the coordinator has answered, and the next event says what follows from it.
 	Verifying Phase = "verifying"
 	// Ended is over. Carried only on a final event.
 	Ended Phase = "ended"
@@ -108,13 +131,46 @@ type Question struct {
 }
 
 // Interaction is which of an Act's interactions is in hand.
+//
+// # Two numberings, and only one of them is the Act's
+//
+// An Act is composed BY PICKING: it names a subset of a demonstration's interactions, in an
+// order of its own. So the position of an interaction in the ACT and the position of the step it
+// was demonstrated at are different numbers, and the first draft of this published the second
+// one under the name of the first — an Act naming interaction 2 of a three-step routine said
+// `index 2` about its FIRST interaction, left `of` unset, and put the control identifier where
+// the name the person gave it belongs. A window showing "2" about the first of one is telling
+// somebody something false about a press they are about to authorise.
+//
+// So they are separate fields, filled by the thing that SELECTED the interaction — which is the
+// only party that knows which Scene a sentence meant. See cmd/director/interactionidentity.go.
 type Interaction struct {
-	// Index is its position in the ACT, Of how many the Act has, and Name what the
-	// person called it. Step is the position in the underlying demonstration.
-	Index int    `json:"index"`
-	Of    int    `json:"of"`
-	Name  string `json:"name"`
-	Step  int    `json:"step"`
+	// Index is its position in the performance, counting from 1, and Of how many that
+	// performance has. Zero means nobody could say.
+	//
+	// "The performance" is the Act when an Act is being performed and the artifact walk
+	// otherwise, because those are the two things a run can be: a run of three sentences
+	// is on 2 of 3 whatever the demonstration underneath it is numbered.
+	Index int `json:"index"`
+	Of    int `json:"of"`
+	// Name is what the PERSON called it — the Scene's name in the play. Empty for a
+	// workflow walk, which has no named scenes.
+	Name string `json:"name"`
+	// Step is the position in the underlying demonstration, and Control the identifier
+	// the demonstration recorded for the thing being pressed.
+	//
+	// Both are evidence about where this came from and neither is a name: a window that
+	// showed `Control` as the interaction's name was showing a person the machine's word
+	// for a thing they had given a word of their own.
+	Step    int    `json:"step"`
+	Control string `json:"control,omitempty"`
+	// Verdict is what the coordinator's post-action evidence said, once it has said
+	// anything: `verified`, `contradicted`, `unconfirmed`, `unasked`.
+	//
+	// A field and not part of the name, which is what it was. Empty means the question is
+	// still open — which, during `Verifying`, is the difference between evidence being
+	// collected and an answer having arrived.
+	Verdict string `json:"verdict,omitempty"`
 }
 
 // Event is the whole state of a run at one moment.

@@ -292,6 +292,17 @@ type Attempt struct {
 	// decided or timed out. See verify.go: VERIFIED, CONTRADICTED and UNCONFIRMED are
 	// three answers and the third is not a failure.
 	Verified *Verification
+	// Awaiting says post-action evidence is OPEN for this step: the press has gone out
+	// and the verdict has not been reached.
+	//
+	// Carried because nobody outside can derive it. An attempt waiting for evidence and
+	// an attempt waiting for a screen to be established are both `waiting` with no
+	// result and no verdict, and the difference between them is the difference between
+	// "Marco pressed it and is watching" and "Marco has not pressed anything yet" — which
+	// a front end was showing as `acting` for the whole of the longest part of an
+	// interaction. True on the attempt that pressed, too: verification opens with the
+	// action.
+	Awaiting bool
 	// Intent is what was authorised, set only when somebody was asked.
 	Intent *Intent
 	// Real says the executor this ran through reaches a computer.
@@ -1409,7 +1420,12 @@ func (r *Runner) advance() {
 }
 
 // record keeps the attempt and returns it.
+//
+// AND STAMPS WHAT THE RUNNER KNOWS AND THE ATTEMPT CANNOT SAY FOR ITSELF. One place, because
+// every return from `Advance` comes through here and a field set at some of them would be a field
+// whose absence means two things.
 func (r *Runner) record(a Attempt) Attempt {
+	a.Awaiting = r.verify != nil && r.verify.step == a.Step
 	r.attempts = append(r.attempts, a)
 	return a
 }

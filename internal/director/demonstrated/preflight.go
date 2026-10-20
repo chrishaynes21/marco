@@ -67,6 +67,14 @@ type Plan struct {
 	Revision string
 	// Steps is name-in-the-play to interaction position.
 	Steps map[string]int
+	// Order is the interaction names IN THE ORDER THE PLAY PERFORMS THEM.
+	//
+	// What makes "interaction 2 of 3" a true sentence about the Act rather than about the
+	// demonstration underneath it. `Steps` cannot answer that: it is a map, and the
+	// position it holds is the DEMONSTRATION's, which for an Act composed by picking is a
+	// different number from the one a person is watching. See
+	// cmd/director/interactionidentity.go for what that cost before it was carried.
+	Order []string
 	// Source is the play's own digest, for the record and the report.
 	Source string
 }
@@ -194,11 +202,16 @@ func Preflight(src string, b Bindings, in Routines, check Plays) (Plan, error) {
 	// reach off by one — and `Compose` refuses that case above, which is the one place a
 	// duplicate name is refused at all.
 	steps := map[string]int{}
+	// AND THE ORDER, which is the Act's own numbering and is not recoverable from the
+	// map: `b.Scenes` is the order the generator wrote the sentences in, and the rebuild
+	// above is what establishes that the play performs them in it.
+	order := make([]string, 0, len(b.Scenes))
 	for _, s := range b.Scenes {
 		steps[s.Name] = s.Position
+		order = append(order, s.Name)
 	}
-	return Plan{Routine: art, Revision: revision, Steps: steps, Source: b.Source,
-		Play: src}, nil
+	return Plan{Routine: art, Revision: revision, Steps: steps, Order: order,
+		Source: b.Source, Play: src}, nil
 }
 
 // PlayName labels this play in an error message. It is not a path and nothing opens it.

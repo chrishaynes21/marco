@@ -1,4 +1,4 @@
-$("outcome").textContent = w.outcome || (w.active ? "running" : "")<!doctype html>
+<!doctype html>
 <meta charset="utf-8">
 <title>Marco Studio</title>
 <style>
@@ -287,8 +287,15 @@ $("outcome").textContent = w.outcome || (w.active ? "running" : "")<!doctype htm
      let phase = 'Nothing has run in this window yet.'
      if (st) {
        phase = st.phase
-       if (st.interaction && st.interaction.name) {
-         phase += ' · ' + st.interaction.name
+       // WHICH INTERACTION, IN THE ACT'S OWN NUMBERING, under the name the person
+       // gave it — and the verdict beside it rather than in place of it. All four
+       // come off the event; this window does not count sentences for itself.
+       const at = st.interaction
+       if (at) {
+         let who = at.name || at.control || ('step ' + at.step)
+         if (at.index && at.of) { who = at.index + ' of ' + at.of + ' · ' + who }
+         phase += ' · ' + who
+         if (at.verdict) { phase += ' · ' + at.verdict }
        }
        // THE COUNTDOWN, COMPUTED HERE AND DECIDED BY THE RUNNER. Studio may show
        // the time remaining to the runner's own deadline; preparation is over when
@@ -311,14 +318,25 @@ $("outcome").textContent = w.outcome || (w.active ? "running" : "")<!doctype htm
      // — and putting this window's own words on a consent prompt would be writing
      // somebody else's question. A question that has been answered is absent from the
      // next snapshot, so a stale prompt cannot survive here.
-     const q = st && st.question
+     //
+     // AND ONLY WHILE SOMEBODY CAN ANSWER IT. `asking` is the runner's question
+     // while there is a process listening for the keys; `state.question` is what it
+     // was waiting for whenever it last spoke. A child that exited with a question
+     // open leaves the second and not the first, and offering its keys then invites
+     // somebody to press F7 at nothing.
+     const q = w.asking
+     const last = !q && st && st.question ? st.question : null
      const ask = $('asking')
-     ask.hidden = !q
+     ask.hidden = !q && !last
      if (q) {
        const keys = (q.keys || []).map(k => k.key + ' ' + k.means).join('   ')
        ask.innerHTML = '<b>' + esc(q.asks) + '</b>' +
          (keys ? '<div class="warn">answer on your keyboard: ' + esc(keys) +
            '</div>' : '')
+     } else if (last) {
+       ask.innerHTML = '<span class="muted">it was asking this when it last said ' +
+         'anything, and nothing is waiting for an answer now: ' +
+         esc(last.asks) + '</span>'
      }
      // THE RUN'S OWN ACT AND MODE.
      $('runact').textContent = w.act || ''
