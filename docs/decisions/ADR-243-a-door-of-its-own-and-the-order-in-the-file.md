@@ -20,6 +20,7 @@ source_paths:
   - cmd/director/observationloop.go
   - cmd/director/performplay.go
   - cmd/director/composeact.go
+  - internal/director/runstate/runstate.go
   - plugins/studio/acts.go
   - cmd/marco/demonstratedwiring.go
   - internal/routes/origin.go
@@ -670,11 +671,53 @@ interaction can never be verified, so an Act cannot continue past it.
 and presses nothing, so it can be pointed at a copy of somebody's store before a window is ever
 put on their desktop.
 
+### The run's state is the run's, not read out of its prose
+
+Studio first DERIVED what was happening from the transcript, matching on sentences like "May
+Marco". Two defects in one coat. A window whose behaviour depends on the exact wording of a
+consent prompt breaks when somebody improves the wording — silently, and in the direction of
+showing a person the wrong thing about a press they are about to authorise. And prose is not
+authoritative: the sentence is printed NEAR the decision, not BY it, so a reader of prose is
+always inferring a state that something else already knew for certain.
+
+`internal/director/runstate` is the run's own account, emitted at the points it decides something
+— the start wait beginning, a question going up, the same question coming down answered or
+withdrawn, an action going out, a verdict arriving, the run ending — and `--events <path>` asks
+for it. The ordinary terminal output does not change: these are a second account of the same
+decisions, not a replacement for the one a person reads.
+
+SNAPSHOTS rather than deltas, so a front end renders the latest and is correct by construction: a
+question that has been answered is absent from the event after it, and a stale prompt — the
+likeliest thing for a person to answer twice — cannot survive on screen. The words a person reads
+are carried INSIDE the event for the transcript and are never parsed back out of it, which is the
+property `TestRewordingAQuestionChangesNothingStudioDoes` holds: the same question in two
+completely different sentences, and everything the window decides from is identical.
+
+The preparation deadline is the runner's. Studio counts down to that instant and shows what it
+computes; preparation is over when the run says it is, because a window acting on its own
+arithmetic would be deciding something it is not in a position to know.
+
+And a run that exits without a FINAL event is INCOMPLETE rather than failed. A refusal is an
+answer and says so in a final event — which is why every early exit emits one too. A child that
+vanished leaves a stream with no end to it, and the honest thing to show a person is that nobody
+can speak for what happened.
+
+The phases are not `pkg/playbill`'s, and that is a choice rather than an oversight: playbill is
+the account the SERVICE gives of a command, and this is the account a SUPERVISED RUN gives of an
+Act. playbill has no "which screen are you on", and a supervised run's permission is asked once
+per press. Reusing that type would have meant adding words to it the service never emits. What IS
+reused is `runref.Outcome`, the seven words both binaries already share.
+
 ## What is still unproven
 
 The path is connected and refuses before input, and that is all the deterministic tests can say.
 `--play` has never performed a press on a real screen, and no Act has been run through Studio by
 a person. The owner's trial is what settles both. The widget stays frozen.
+
+And one thing about the structured events is proven only in parts: the EMISSION is tested in
+`cmd/director` and the READING in `plugins/studio`, each against the other's format, but no test
+watches a real supervised run drive a real window. The seam between them is a file, which is the
+thing a test can stand on either side of and a person cannot.
 
 The Wails prototype under `plugins/studio/` remains SHELL EVIDENCE. Its store defaults to an
 isolated one per launch and it refuses to attach to a service it did not start, which closes the

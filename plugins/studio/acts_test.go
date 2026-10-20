@@ -20,6 +20,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/demo"
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
 	"github.com/chaynes-simpleclouds/marco/internal/director/runref"
+	"github.com/chaynes-simpleclouds/marco/internal/director/runstate"
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflowstore"
 	"github.com/chaynes-simpleclouds/marco/internal/stopsignal"
 )
@@ -294,6 +295,23 @@ func TestMain(m *testing.M) {
 			}
 			os.Exit(0)
 		}
+		// AND IT WRITES A STREAM WHERE IT WAS TOLD TO, which is how a test sees
+		// that Studio asked for one and reads what the child really wrote.
+		for i, arg := range os.Args {
+			if arg != "--events" || i+1 >= len(os.Args) {
+				continue
+			}
+			if w, werr := runstate.NewWriter(os.Args[i+1], "run-standin",
+				"an act", "a routine", false); werr == nil {
+				w.Say(runstate.Event{Phase: runstate.Naming,
+					Question: &runstate.Question{ID: "screen-1",
+						Asks: "which screen?",
+						Keys: []runstate.Key{
+							{Key: "F7", Means: "yes"}},
+						Until: time.Now().Add(time.Minute)}})
+				w.Close()
+			}
+		}
 		if os.Getenv("STUDIO_STANDIN_QUICK") == "1" {
 			os.Exit(0)
 		}
@@ -364,10 +382,16 @@ func TestLiveIsPassedOnlyWhenItWasAskedFor(t *testing.T) {
 				t.Errorf("the run was started without %q:\n%s", always, said)
 			}
 		}
-		// AND THE CANONICAL REFERENCE WAS READ off the runner's own citation,
-		// rather than invented here.
-		if ref := a.Watch().Reference; ref != "run-20261019-000000-aaaa" {
-			t.Errorf("the surface read the reference as %q", ref)
+		// AND THE CANONICAL REFERENCE CAME FROM THE RUN, not from anything this
+		// surface invented.
+		//
+		// From its EVENT rather than its citation line, now that there is one: the
+		// stand-in prints a citation naming one reference and writes a stream
+		// naming another, so this says which of the two the surface believes. The
+		// event was written by the thing that decided; the line is prose.
+		if ref := a.Watch().Reference; ref != "run-standin" {
+			t.Errorf("the surface read the reference as %q, so it is still "+
+				"taking it from the printed citation", ref)
 		}
 	}
 }
@@ -522,75 +546,12 @@ func TestClosingWithNothingRunningIsHarmless(t *testing.T) {
 	}
 }
 
-// THE STAGE A PERSON SEES, READ FROM WHAT THE RUN SAID.
-//
-// Derived, and the window says it is derived — the runner has no structured event stream and the
-// right fix is for it to have one. What this holds is that the derivation is honest about the two
-// things that matter: the stage it reports, and the question it puts in front of somebody.
-func TestTheStageIsReadFromWhatTheRunSaid(t *testing.T) {
-	for _, c := range []struct {
-		name  string
-		said  []string
-		phase string
-		asks  string
-	}{
-		{"nothing yet", nil, "", ""},
-		{"waiting to start",
-			[]string{"  press F7 to start.  F9 or Ctrl-C cancels."},
-			"starting", "press F7 to start"},
-		{"naming the screen",
-			[]string{"  press F7 to start.", "  Is that the screen you are on?  F7 yes   F8 no"},
-			"preparing", "Is that the screen you are on?"},
-		{"agreeing a step",
-			[]string{"  Do you agree this is a step Marco should perform?  F7 yes"},
-			"asking", "Do you agree this is a step"},
-		{"asking for the press",
-			[]string{"  May Marco SEND a left click there, once?  F7 yes   F8 no"},
-			"asking", "May Marco SEND a left click there"},
-		{"answered, so nothing is being asked",
-			[]string{"  May Marco SEND a left click there, once?  F7 yes",
-				"  answered F7"},
-			"acting", ""},
-		{"ended",
-			[]string{"  May Marco SEND a left click there, once?  F7 yes",
-				"  answered F7",
-				"  verified — 1 of 1 interaction(s) verified"},
-			"ended", ""},
-	} {
-		t.Run(c.name, func(t *testing.T) {
-			got := stageOf(c.said)
-			if got.Phase != c.phase {
-				t.Errorf("phase = %q, want %q", got.Phase, c.phase)
-			}
-			if c.asks == "" && got.Asking != "" {
-				t.Errorf("it shows a question nobody is being asked: %q", got.Asking)
-			}
-			if c.asks != "" && !strings.Contains(got.Asking, c.asks) {
-				t.Errorf("the question reads %q, want it to contain %q",
-					got.Asking, c.asks)
-			}
-			// AND IT NEVER CLAIMS TO BE ANYTHING BUT DERIVED, so a person knows
-			// which half of the window is certain.
-			if !got.Derived {
-				t.Error("the stage does not say it was read from prose")
-			}
-		})
-	}
-}
-
-// AND A QUESTION ALREADY ANSWERED IS CLEARED.
-//
-// The likeliest thing to be answered twice is a prompt still on the screen after somebody
-// answered it — and a second F7 lands on whatever is asked next.
-func TestAnAnsweredQuestionIsNotStillShown(t *testing.T) {
-	s := stageOf([]string{
-		"  May Marco SEND a left click there, once?  F7 yes   F8 no   F9 stop",
-		"  answered F7",
-	})
-	if s.Asking != "" || s.Keys != "" {
-		t.Fatalf("an answered question is still being shown: %+v", s)
-	}
-}
+// The two tests that used to sit here read the stage out of the runner's PROSE, and the
+// mechanism they tested is gone: Studio reads structured events now, so matching on sentences
+// like "May Marco" is not something the surface does any more. They are deleted rather than
+// adapted, because a test of a derivation that no longer exists would be describing the
+// product's past. What they held is held better in events_test.go, which proves the stronger
+// property: rewording a question changes nothing the window does.
 
 // AND THE RUN'S OWN ACT AND MODE ARE WHAT IS REPORTED, not the controls.
 func TestTheSurfaceReportsTheRunsOwnActAndMode(t *testing.T) {
@@ -775,5 +736,46 @@ func TestClosingDuringALaunchStartsNothing(t *testing.T) {
 	// on every invocation, so a line here would mean a runner really started.
 	if said := strings.Join(a.Watch().Transcript, "\n"); strings.Contains(said, "ARGS ") {
 		t.Errorf("a runner was started after all:\n%s", said)
+	}
+}
+
+// STUDIO ASKS THE RUN FOR ITS STRUCTURED STATE, AND READS WHAT IT WROTE.
+//
+// End to end through the real plumbing: the surface makes a path, passes `--events`, and the
+// child writes a stream there which the surface then reports. Without the flag the window would
+// have nothing but prose, which is what this whole task exists to stop.
+func TestStudioAsksForEventsAndReadsThem(t *testing.T) {
+	a, _ := aStoreWithADemonstration(t)
+	if r := a.Compose("ark graphics live", "asks for events",
+		[]string{"1=the audio tab"}); r.Error != "" {
+		t.Fatal(r.Error)
+	}
+	t.Setenv("DIRECTOR_BIN", os.Args[0])
+	t.Setenv("STUDIO_STANDIN_RUNNER", "1")
+	t.Setenv("STUDIO_STANDIN_QUICK", "1")
+	if err := a.Run("asks for events", "ArkAscended.exe", false, false); err != "" {
+		t.Fatal(err)
+	}
+	said := waitForTranscript(t, a)
+	if !strings.Contains(said, "--events ") {
+		t.Fatalf("Studio did not ask the run for its state:\n%s", said)
+	}
+	// AND WHAT THE CHILD WROTE IS WHAT THE SURFACE REPORTS.
+	w := a.Watch()
+	if w.State == nil {
+		t.Fatalf("the surface read no state from the stream it asked for:\n%s", said)
+	}
+	if w.State.Phase != runstate.Naming {
+		t.Errorf("the phase reads %q", w.State.Phase)
+	}
+	if w.State.Question == nil || w.State.Question.ID != "screen-1" {
+		t.Errorf("the question reads %+v", w.State.Question)
+	}
+	if len(w.State.Question.Keys) == 0 {
+		t.Error("the question arrived with no keys")
+	}
+	// AND THE REFERENCE CAME OFF THE EVENT, not off a citation line.
+	if w.Reference != "run-standin" {
+		t.Errorf("the reference reads %q", w.Reference)
 	}
 }

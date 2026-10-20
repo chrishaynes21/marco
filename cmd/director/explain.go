@@ -248,6 +248,7 @@ var valued = map[string]bool{
 	"-name": true, "--name": true,
 	"-play": true, "--play": true,
 	"-interaction": true, "--interaction": true,
+	"-events": true, "--events": true,
 	"-sequence": true, "--sequence": true,
 	"-sequences": true, "--sequences": true,
 	"-dir": true, "--dir": true,

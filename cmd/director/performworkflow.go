@@ -59,6 +59,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/structure"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/windowref"
 	"github.com/chaynes-simpleclouds/marco/internal/director/runref"
+	"github.com/chaynes-simpleclouds/marco/internal/director/runstate"
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflowrun"
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflowstore"
 	"github.com/chaynes-simpleclouds/marco/internal/oshost"
@@ -98,6 +99,11 @@ func runPerformWorkflow(args []string) int {
 		"the name a demonstration was saved under, as `director sequences` lists "+
 			"it. Use "+
 			"this to run what you demonstrated; --workflow is for an artifact file")
+	events := fs.String("events", "",
+		"write this run's structured state to `path`, one JSON object per line: the "+
+			"phase, the question in front of the person and the keys it accepts, "+
+			"the preparation deadline, and how it ended. For a front end; the "+
+			"ordinary output on this terminal is unchanged")
 	play := fs.String("play", "",
 		"the name of a saved demonstrated ACT: a `.marco` play whose own sentences "+
 			"are the order. Its bindings are resolved and the play rebuilt from "+
@@ -353,7 +359,18 @@ func runPerformWorkflow(args []string) int {
 	// cannot be checked until the foreground has been resolved and that cannot happen
 	// until the countdown is over. Folding them into exit 1 to get a record would change
 	// what the exit code means; leaving them unrecorded cites a run id nobody kept.
+	// THE STRUCTURED ACCOUNT, DECLARED HERE AND OPENED BELOW.
+	//
+	// Declared before `endedEarly` because every early refusal goes through that, and a
+	// refusal is a COMPLETE answer: a run that exits with no final event is one nobody
+	// can speak for, and calling an honest refusal that would be a lie about it. Nil
+	// until the reference is minted, and `Say` on nil does nothing — an exit before the
+	// writer exists leaves no stream at all, which a reader can tell from an incomplete
+	// one.
+	var say *runstate.Writer
 	endedEarly := func(code int, out RunOutcome, because string) int {
+		say.Say(runstate.Event{Phase: runstate.Ended, Final: true,
+			Outcome: out, Reason: because})
 		if p, err := keep(out, because, workflowrun.Report{}); err != nil {
 			fmt.Fprintf(os.Stderr,
 				"director: the run record could not be written: %v\n", err)
@@ -367,6 +384,22 @@ func runPerformWorkflow(args []string) int {
 	// THE REFERENCE, BEFORE ANYBODY IS ASKED TO PREPARE. A run worth citing is usually
 	// one that went wrong, and the ones that go wrong earliest used to print it last.
 	fmt.Printf("%s\n", citeRun(runID, runPath(runID)))
+
+	// ── THE STRUCTURED ACCOUNT OF THIS RUN, FOR A FRONT END ──
+	//
+	// Opened here because the reference is minted just above and belongs on every event:
+	// a reader of any single line knows which run it is about. Nil when nobody asked for
+	// one, and every emission is safe on nil, so no call site below has to check.
+	//
+	// The ordinary output on this terminal does not change. These are a second account of
+	// the same decisions, not a replacement for the one a person reads.
+	w, serr := runstate.NewWriter(*events, runID, *play, art.Name, *live)
+	if serr != nil {
+		fmt.Fprintf(os.Stderr, "director: %v\n", serr)
+		return endedEarly(1, RunFailed, serr.Error())
+	}
+	say = w
+	defer say.Close()
 
 	// stoppedByKey is set by the stop key, which stops the RUN and does not cancel this
 	// command's context — so without it an F9-stopped attempt was classified from
@@ -408,7 +441,22 @@ func runPerformWorkflow(args []string) int {
 	// The same key the desk uses, so there is one thing to learn, and it is heard while
 	// the game keeps the foreground — which is the whole reason the desk uses keys.
 	if src != nil {
+		// THE PREPARATION DEADLINE, SAID BY THE THING THAT HOLDS IT.
+		//
+		// A front end may count down to this instant and show what it computes.
+		// It may not decide that preparation is over: the run ends its own
+		// preparation, and a window acting on its own arithmetic would be
+		// deciding something it is not in a position to know.
+		say.Say(runstate.Event{Phase: runstate.Preparing,
+			Preparation: time.Now().Add(*delay),
+			Question: &runstate.Question{ID: "start",
+				Asks: "Prepare the application, then say when you are ready.",
+				Keys: consentKeys(), Until: time.Now().Add(*delay)}})
 		if started(ctx, src, *delay) == startCancelled {
+			say.Say(runstate.Event{Phase: runstate.Ended, Final: true,
+				Outcome: RunCancelled,
+				Reason: "cancelled at the start prompt, before any window " +
+					"was acquired or anything was observed"})
 			fmt.Println("  cancelled before anything was observed; no input " +
 				"was sent")
 			return endedEarly(1, RunCancelled,
@@ -629,8 +677,11 @@ func runPerformWorkflow(args []string) int {
 			}
 		})
 		go desk.run(ctx)
+		// THE DESK SAYS WHAT IT ASKS, in the structured account as well as on the
+		// terminal. See consentdesk.go: the thing that puts a question is the thing
+		// that knows it was put, and that it came down again.
 		keys = &hotkeyGranter{desk: desk, out: os.Stdout, live: *live,
-			within: *answer, life: 10 * time.Second}
+			within: *answer, life: 10 * time.Second, events: say}
 		grant = keys
 		// AND THE SAME KEYS ANSWER THE ONE QUESTION THAT IS NOT ABOUT AN ACTION.
 		//
@@ -843,6 +894,22 @@ func runPerformWorkflow(args []string) int {
 	// driver so the step-agreement question is asked in the same place rather than twice.
 	betweenLooks := func(c context.Context, a workflowrun.Attempt) (bool, string) {
 		reportAttempt(a)
+		// ── WHAT THE COORDINATOR JUST DECIDED, SAID BY IT ──
+		//
+		// The verdict in particular, because it is what gates the next action: the
+		// second interaction is not asked about until the first one is verified
+		// (ADR-242), and a front end reading the stream can see that ordering rather
+		// than take it on faith. Emitted from the attempt the coordinator returned,
+		// not inferred from anything printed.
+		if a.Result != nil || a.Verified != nil {
+			phase := runstate.Acting
+			if a.Verified != nil {
+				phase = runstate.Verifying
+			}
+			say.Say(runstate.Event{Phase: phase,
+				Interaction: &runstate.Interaction{Index: a.Step,
+					Step: a.Step, Name: verdictWord(a)}})
+		}
 		if a.Stage == workflowstore.StepUnconfirmed {
 			if *explore {
 				if err := session.ConfirmStep(a.Step,
@@ -986,6 +1053,17 @@ func runPerformWorkflow(args []string) int {
 	} else {
 		fmt.Printf("\n%s\n", runref.Ended(runID, p, out))
 	}
+	// ── AND THE FINAL EVENT, WHICH IS THE SAME ANSWER THE RECORD GOT ──
+	//
+	// The same `out` and the same `because` that were just written down, from the same
+	// two variables. Computing it again here would be a second classifier, and two
+	// accounts of one run that could disagree is worse than either on its own.
+	//
+	// It is the last thing said, and it is what makes an INCOMPLETE run recognisable: a
+	// front end that sees a child exit without this knows the run cannot be spoken for,
+	// which is a different thing from a run that failed.
+	say.Say(runstate.Event{Phase: runstate.Ended, Final: true,
+		Outcome: out, Reason: because})
 	if desk != nil {
 		stray, drained := desk.counts()
 		fmt.Printf("\n  %-42s %d of %d\n", "screens named by key",

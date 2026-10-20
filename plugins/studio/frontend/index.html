@@ -1,4 +1,4 @@
-<!doctype html>
+$("outcome").textContent = w.outcome || (w.active ? "running" : "")<!doctype html>
 <meta charset="utf-8">
 <title>Marco Studio</title>
 <style>
@@ -102,8 +102,6 @@
     <span class="tag" id="outcome"></span></h2>
   <div id="phase" class="muted">Nothing has run in this window yet.</div>
   <div id="asking" hidden></div>
-  <p class="muted" id="derived" hidden>Read from what the run printed — the runner has no
-    structured event stream yet, so treat this as a summary of the words below.</p>
   <details style="margin-top:8px">
     <summary class="muted">transcript</summary>
     <pre id="transcript">nothing yet</pre>
@@ -282,18 +280,46 @@
        text($('transcript'), w.transcript.join('\n'))
        $('transcript').scrollTop = $('transcript').scrollHeight
      }
-     const st = w.stage || {}
-     text($('phase'), w.active || w.outcome
-       ? (st.phase || 'starting') : 'Nothing has run in this window yet.')
-     // THE QUESTION, VERBATIM, because it is one somebody is about to answer with a key.
+     // THE RUNNER'S OWN ACCOUNT. Not read out of the transcript: Studio used to match
+     // on sentences, so improving the wording of a consent prompt would silently have
+     // changed what this showed somebody about a press they were about to authorise.
+     const st = w.state
+     let phase = 'Nothing has run in this window yet.'
+     if (st) {
+       phase = st.phase
+       if (st.interaction && st.interaction.name) {
+         phase += ' · ' + st.interaction.name
+       }
+       // THE COUNTDOWN, COMPUTED HERE AND DECIDED BY THE RUNNER. Studio may show
+       // the time remaining to the runner's own deadline; preparation is over when
+       // the run says it is, never because this arithmetic reached zero.
+       if (st.preparation) {
+         const left = Math.max(0, Math.round(
+           (new Date(st.preparation) - new Date()) / 1000))
+         phase += ' · ' + left + 's left to get ready'
+       }
+     } else if (w.active) {
+       phase = 'starting'
+     }
+     if (w.incomplete) {
+       phase = 'INCOMPLETE — the run stopped without saying how it ended'
+     }
+     text($('phase'), phase)
+     $('phase').className = w.incomplete ? 'no' : 'muted'
+
+     // THE QUESTION, VERBATIM, because it is one somebody is about to answer with a key
+     // — and putting this window's own words on a consent prompt would be writing
+     // somebody else's question. A question that has been answered is absent from the
+     // next snapshot, so a stale prompt cannot survive here.
+     const q = st && st.question
      const ask = $('asking')
-     ask.hidden = !st.asking
-     if (st.asking) {
-       ask.innerHTML = '<b>' + esc(st.asking) + '</b>' +
-         (st.keys ? '<div class="warn">answer on your keyboard: ' + esc(st.keys) +
+     ask.hidden = !q
+     if (q) {
+       const keys = (q.keys || []).map(k => k.key + ' ' + k.means).join('   ')
+       ask.innerHTML = '<b>' + esc(q.asks) + '</b>' +
+         (keys ? '<div class="warn">answer on your keyboard: ' + esc(keys) +
            '</div>' : '')
      }
-     $('derived').hidden = !(st.derived && (w.active || w.outcome))
      // THE RUN'S OWN ACT AND MODE.
      $('runact').textContent = w.act || ''
      $('runmode').textContent = w.act ? (w.live ? 'LIVE' : 'dry') : ''

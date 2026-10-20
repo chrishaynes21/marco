@@ -48,6 +48,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/demo"
 	"github.com/chaynes-simpleclouds/marco/internal/director/demonstrated"
 	"github.com/chaynes-simpleclouds/marco/internal/director/runref"
+	"github.com/chaynes-simpleclouds/marco/internal/director/runstate"
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflowstore"
 	"github.com/chaynes-simpleclouds/marco/internal/driver"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
@@ -83,6 +84,10 @@ type Acts struct {
 	busy bool
 	// running is the child, while there is one. Nil between runs and after shutdown.
 	running *exec.Cmd
+	// saying is where this run writes its structured state, and said whether anything
+	// was ever read from it. One file per run, in a temporary directory: it is a
+	// conversation between two processes and not something a person keeps.
+	saying string
 	// stopRun cancels the child's context, and done closes when the run has fully
 	// finished — exited and drained. Both nil between runs. See Close.
 	stopRun func()
@@ -351,8 +356,20 @@ type Running struct {
 	Outcome    string   `json:"outcome"`
 	Transcript []string `json:"transcript"`
 	Active     bool     `json:"active"`
-	// Stage is where the run has got to and what it is asking. Derived; see Stage.
-	Stage Stage `json:"stage"`
+	// State is the RUNNER'S OWN latest account of itself, when there is one.
+	//
+	// Not derived from the transcript any more. Studio used to match on sentences —
+	// "May Marco", "Is that the screen you are on?" — so improving the wording of a
+	// consent prompt would have silently changed what a window showed somebody about a
+	// press they were about to authorise. See internal/director/runstate.
+	State *runstate.Event `json:"state,omitempty"`
+	// Reason is why it ended, from the final event.
+	Reason string `json:"reason,omitempty"`
+	// Complete says the run ENDED — it said so itself, with a final event. Incomplete
+	// says the child is gone and never did, which is not the same as having failed:
+	// one is a run with an answer and the other is a run nobody can speak for.
+	Complete   bool `json:"complete"`
+	Incomplete bool `json:"incomplete"`
 }
 
 // Run performs an Act through `director perform-workflow --play`.
@@ -376,7 +393,7 @@ func (a *Acts) Run(act, application string, live, reading bool) string {
 	}
 	a.busy = true
 	a.transcript, a.reference, a.outcome = nil, "", ""
-	a.act, a.live = act, live
+	a.act, a.live, a.saying = act, live, ""
 	a.mu.Unlock()
 	// AND RELEASED AGAIN ON EVERY PATH THAT DOES NOT REACH A RUNNING CHILD. A slot
 	// claimed and then abandoned is a Studio that refuses every later run.
@@ -393,7 +410,20 @@ func (a *Acts) Run(act, application string, live, reading bool) string {
 		pause()
 	}
 
+	// WHERE THIS RUN WILL SAY WHAT IT IS DOING. One file per run in a temporary
+	// directory: a conversation between two processes, not something a person keeps.
+	// A failure to make it is not a reason to refuse the run — the transcript still
+	// arrives, and a window with no structured state is worse than no window only if
+	// it pretends otherwise, which `Incomplete` prevents.
+	saying := ""
+	if f, ferr := os.CreateTemp("", "studio-run-*.jsonl"); ferr == nil {
+		saying = f.Name()
+		_ = f.Close()
+	}
 	args := []string{"perform-workflow", "--play", act, "--hotkeys"}
+	if saying != "" {
+		args = append(args, "--events", saying)
+	}
 	if application != "" {
 		args = append(args, "--application", application)
 	}
@@ -468,7 +498,7 @@ func (a *Acts) Run(act, application string, live, reading bool) string {
 		release()
 		return err.Error()
 	}
-	a.running, a.stopRun, a.done = cmd, stop, finished
+	a.running, a.stopRun, a.done, a.saying = cmd, stop, finished, saying
 	a.mu.Unlock()
 	pw.Close()
 
@@ -587,14 +617,53 @@ func (a *Acts) read(pr *os.File) {
 // Watch is the run as it stands, for the page to poll.
 func (a *Acts) Watch() Running {
 	a.mu.Lock()
-	defer a.mu.Unlock()
 	// THE RUN'S OWN ACT AND MODE, not the page's controls. A person who ticks the live
 	// box while something is running must not be shown a dry run described as live.
-	return Running{Act: a.act, Live: a.live,
+	w := Running{Act: a.act, Live: a.live,
 		Reference: a.reference, Outcome: a.outcome,
 		Transcript: append([]string(nil), a.transcript...),
-		Active:     a.busy,
-		Stage:      stageOf(a.transcript)}
+		Active:     a.busy}
+	path, started := a.saying, a.saying != ""
+	a.mu.Unlock()
+	if !started {
+		return w
+	}
+
+	// ── AND WHAT THE RUN SAYS ABOUT ITSELF, WHICH OUTRANKS EVERYTHING ABOVE ──
+	//
+	// The latest snapshot is the whole current state, so rendering it cannot leave a
+	// stale prompt on screen: a question that has been answered is simply absent from
+	// the event after it.
+	//
+	// Where the event and this surface's own bookkeeping both have an answer, the
+	// event's wins — it was written by the thing that decided. The bookkeeping covers
+	// the window before the first event arrives, which is real: the run has been
+	// started and has not said anything yet.
+	e, final, err := runstate.Latest(path)
+	if err == nil && e.Version != 0 {
+		w.State = &e
+		w.Complete = final
+		if e.Run != "" {
+			w.Reference = e.Run
+		}
+		if e.Act != "" {
+			w.Act = e.Act
+		}
+		w.Live = e.Live
+		if e.Outcome != "" {
+			w.Outcome, w.Reason = string(e.Outcome), e.Reason
+		}
+	}
+	// AN INCOMPLETE RUN: the child is gone and it never said how it ended.
+	//
+	// Not a failure, and reported apart from one. A run that refused says so in a final
+	// event; a child that vanished — killed, crashed, or stopped by something outside
+	// Marco — leaves a stream with no end to it, and the honest thing to show a person
+	// is that nobody can speak for what happened.
+	if !w.Active && !w.Complete {
+		w.Incomplete = true
+	}
+	return w
 }
 
 // ── CANCEL: the one cross-process stop ────────────────────────────────────────
@@ -632,78 +701,4 @@ func (a *Acts) Inspect(reference string) map[string]any {
 	}
 	rec["path"] = p
 	return rec
-}
-
-// ── WHAT A PERSON NEEDS TO SEE, AS STATE RATHER THAN AS A TRANSCRIPT ──────────
-//
-// # What this is and what it is not
-//
-// A transcript is what the runner SAID. A person running an Act needs to know what is happening:
-// which stage it is in, what it is asking them right now, and how far it has got. Those are
-// different things, and a window that only showed the first would be a terminal in a frame.
-//
-// This derives the second from the first, and that is an acknowledged compromise rather than the
-// design. The runner has no structured output mode: `perform-workflow` prints for a person at a
-// terminal, and the only machine-readable thing it emits is the run citation. The right fix is a
-// structured event stream from the runner — the same events the transcript is rendered from —
-// and it is not done. Until it is, this reads the transcript and says so, and nothing here is
-// treated as more certain than the words it came from.
-//
-// Deliberately NOT derived: whether an action verified, what was pressed, or any outcome. Those
-// come from the run record, which the runner writes and `Inspect` reads. A window that guessed
-// them from text would be inventing evidence.
-
-// Stage is roughly where a run has got to, read from what it has said.
-type Stage struct {
-	// Phase is one of: starting, preparing, asking, acting, ended — or empty before
-	// anything. Coarse on purpose: a finer reading of prose would be a finer guess.
-	Phase string `json:"phase"`
-	// Asking is the question in front of the person right now, verbatim, or empty.
-	//
-	// Verbatim because it is a question somebody is about to answer with a key, and
-	// paraphrasing it would be putting words into a consent prompt.
-	Asking string `json:"asking"`
-	// Keys is the answer line that went with it, so the window shows the same options
-	// the runner offered rather than a set this page decided on.
-	Keys string `json:"keys"`
-	// Derived says all of the above was read from prose rather than reported by the
-	// runner. Shown in the window: a person should know which parts of what they are
-	// looking at are certain.
-	Derived bool `json:"derived"`
-}
-
-// stageOf reads a run's stage out of what it has said so far.
-func stageOf(lines []string) Stage {
-	s := Stage{Derived: true}
-	for _, l := range lines {
-		t := strings.TrimSpace(l)
-		switch {
-		case strings.Contains(t, "to start"):
-			s.Phase, s.Asking, s.Keys = "starting", t, keysIn(t)
-		case strings.Contains(t, "Is that the screen you are on?"):
-			s.Phase, s.Asking, s.Keys = "preparing", t, keysIn(t)
-		case strings.Contains(t, "Do you agree this is a step"):
-			s.Phase, s.Asking, s.Keys = "asking", t, keysIn(t)
-		case strings.Contains(t, "May Marco"):
-			s.Phase, s.Asking, s.Keys = "asking", t, keysIn(t)
-		case strings.HasPrefix(t, "answered ") || strings.Contains(t, "  answered "):
-			// ANSWERED, SO NOTHING IS BEING ASKED. The question is cleared rather
-			// than left on screen, because a prompt a person has already answered
-			// is the likeliest thing to be answered twice.
-			s.Asking, s.Keys = "", ""
-			s.Phase = "acting"
-		case strings.Contains(t, "interaction(s) verified"):
-			s.Phase, s.Asking, s.Keys = "ended", "", ""
-		}
-	}
-	return s
-}
-
-// keysIn is the answer options the runner offered, taken from its own line.
-func keysIn(line string) string {
-	at := strings.Index(line, "F7")
-	if at < 0 {
-		return ""
-	}
-	return strings.TrimSpace(line[at:])
 }

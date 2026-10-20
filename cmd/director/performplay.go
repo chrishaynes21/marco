@@ -28,6 +28,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/demo"
 	"github.com/chaynes-simpleclouds/marco/internal/director/demonstrated"
 	"github.com/chaynes-simpleclouds/marco/internal/director/runref"
+	"github.com/chaynes-simpleclouds/marco/internal/director/workflowrun"
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflowstore"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
 )
@@ -196,4 +197,16 @@ func endedBecause(ctx context.Context, stoppedByKey bool) (expired, stopped bool
 	default:
 		return false, true
 	}
+}
+
+// verdictWord is an attempt's verdict as one word, for the structured account.
+//
+// The verdict and not a sentence: a front end deciding what to show needs "verified" against
+// "contradicted" against "unconfirmed", and the sentence that explains it is in the transcript
+// beside it. Empty while nothing has been decided.
+func verdictWord(a workflowrun.Attempt) string {
+	if a.Verified == nil {
+		return ""
+	}
+	return string(a.Verified.Verdict)
 }

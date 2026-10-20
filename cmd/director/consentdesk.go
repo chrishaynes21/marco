@@ -43,6 +43,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/chaynes-simpleclouds/marco/internal/director/runstate"
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflowrun"
 	"github.com/chaynes-simpleclouds/marco/internal/platform/navsource"
 )
@@ -218,6 +219,9 @@ type hotkeyGranter struct {
 	within time.Duration
 	life   time.Duration
 	now    func() time.Time
+	// events is the structured account of what this desk asked and what came back. Nil
+	// when nobody asked for one, and every emission is safe on nil.
+	events *runstate.Writer
 	// asked and granted are the PRESSES somebody was asked about and allowed; proposed
 	// and agreed are the STEPS. Four numbers and not two, because agreeing to a step and
 	// permitting a press are two questions and a report that counted only one of them
@@ -259,17 +263,29 @@ func (g *hotkeyGranter) Authorise(ctx context.Context, in workflowrun.Intent) (
 		navsource.ConsentKeys[navsource.ConsentRefuse],
 		navsource.ConsentKeys[navsource.ConsentStop], g.within)
 
+	// THE QUESTION, SAID BY THE THING THAT ASKS IT. See `asking`.
+	at := &runstate.Interaction{Index: in.Step, Name: in.Control, Step: in.Step}
+	g.asking(fmt.Sprintf("press-%d-%d", in.Step, g.asked), runstate.Asking, at,
+		fmt.Sprintf("May Marco %s a left click on %s, once?", what,
+			in.Target(1920, 1080)))
 	c, answered := g.desk.ask(ctx, g.within)
 	if !answered {
 		fmt.Fprintf(g.out, "  nobody answered within %s, so nothing was sent\n", g.within)
+		// WITHDRAWN. Absent from the next snapshot, so no front end can leave it
+		// on screen for somebody to answer a second time.
+		g.answered(runstate.Verifying, at)
 		return workflowrun.Authorisation{}, false
 	}
 	if c != navsource.ConsentApprove {
 		fmt.Fprintf(g.out, "  answered %s\n", c)
+		g.answered(runstate.Verifying, at)
 		return workflowrun.Authorisation{}, false
 	}
 	g.granted++
 	fmt.Fprintf(g.out, "  answered %s\n", c)
+	// PERMITTED, so a press is what happens next — which the asker knows for certain
+	// and a reader of prose would have had to infer.
+	g.answered(runstate.Acting, at)
 	return workflowrun.Authorisation{
 		Step: in.Step,
 		By: fmt.Sprintf("the person at the keyboard (%s)",
@@ -298,16 +314,23 @@ func (g *hotkeyGranter) agree(ctx context.Context, step int, control, from, to s
 		navsource.ConsentKeys[navsource.ConsentApprove],
 		navsource.ConsentKeys[navsource.ConsentRefuse],
 		navsource.ConsentKeys[navsource.ConsentStop], g.within)
+	at := &runstate.Interaction{Index: step, Name: control, Step: step}
+	g.asking(fmt.Sprintf("agree-%d-%d", step, g.proposed), runstate.Agreeing, at,
+		"Do you agree this is a step Marco should perform?")
 	c, answered := g.desk.ask(ctx, g.within)
 	if !answered {
 		fmt.Fprintf(g.out, "  nobody answered within %s\n", g.within)
+		g.answered(runstate.Agreeing, at)
 		return false
 	}
 	fmt.Fprintf(g.out, "  answered %s\n", c)
 	if c == navsource.ConsentApprove {
 		g.agreed++
+		// AGREED, so the next thing asked is permission for the press itself.
+		g.answered(runstate.Asking, at)
 		return true
 	}
+	g.answered(runstate.Agreeing, at)
 	return false
 }
 
@@ -346,15 +369,64 @@ func (g *hotkeyGranter) confirmScreen(ctx context.Context, label string, score f
 		navsource.ConsentKeys[navsource.ConsentApprove],
 		navsource.ConsentKeys[navsource.ConsentRefuse],
 		navsource.ConsentKeys[navsource.ConsentStop], g.within)
+	g.asking(fmt.Sprintf("screen-%s-%d", label, g.screens), runstate.Naming, nil,
+		fmt.Sprintf("Marco thinks the screen in front of you is %s (its arrangement "+
+			"agrees %.3f). Is that the screen you are on?", label, score))
 	c, answered := g.desk.ask(ctx, g.within)
 	if !answered {
 		fmt.Fprintf(g.out, "  nobody answered within %s, so the screen is not "+
 			"established and nothing was pressed\n", g.within)
+		g.answered(runstate.Naming, nil)
 		return "", false
 	}
 	fmt.Fprintf(g.out, "  answered %s\n", c)
 	if c == navsource.ConsentApprove {
 		g.placed++
 	}
+	g.answered(runstate.Naming, nil)
 	return c, true
+}
+
+// ── THE STRUCTURED ACCOUNT OF A QUESTION, SAID BY THE THING THAT ASKS IT ──────
+//
+// Every prompt below emits three times: the question going up, and then exactly one of the two
+// ways it comes down — answered, or withdrawn unanswered. A front end rendering the latest
+// snapshot therefore cannot leave a stale prompt on screen, which is the likeliest thing for a
+// person to answer twice.
+//
+// The words are carried INSIDE the event for the transcript and are never what a reader decides
+// from. That is the whole point: Studio used to match on "May Marco", so improving the wording of
+// a consent prompt would have silently changed what a window showed somebody about a press they
+// were about to authorise.
+
+// say emits one snapshot for this granter's stream, when there is one.
+func (g *hotkeyGranter) say(e runstate.Event) { g.events.Say(e) }
+
+// asking is the question going up: the phase, the words, the keys it accepts, and when it stops
+// accepting them.
+func (g *hotkeyGranter) asking(id string, phase runstate.Phase, in *runstate.Interaction,
+	asks string) {
+
+	g.say(runstate.Event{Phase: phase, Interaction: in,
+		Question: &runstate.Question{ID: id, Asks: asks,
+			Keys:  consentKeys(),
+			Until: g.clock().Add(g.within)}})
+}
+
+// answered is the question coming down, either way.
+//
+// `phase` is where the run goes next, which the ASKER knows and a reader of prose would have to
+// guess: a permitted press is about to happen, a refused one is not.
+func (g *hotkeyGranter) answered(phase runstate.Phase, in *runstate.Interaction) {
+	g.say(runstate.Event{Phase: phase, Interaction: in})
+}
+
+// consentKeys is what every consent question accepts, taken from the key vocabulary itself so a
+// front end shows the keys the runner is really listening for.
+func consentKeys() []runstate.Key {
+	return []runstate.Key{
+		{Key: navsource.ConsentKeys[navsource.ConsentApprove], Means: "yes"},
+		{Key: navsource.ConsentKeys[navsource.ConsentRefuse], Means: "no"},
+		{Key: navsource.ConsentKeys[navsource.ConsentStop], Means: "stop"},
+	}
 }
