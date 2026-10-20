@@ -2,7 +2,7 @@
 type: adr
 status: accepted
 date: 2026-10-20
-decision: "ACCEPTED — a person authorises an Act ONCE, by pressing Play on it, and the run performs its named interactions without asking again. The authorisation is an explicit GRANT: the Act, the demonstration revision somebody was shown, the application it is pinned to, the interactions by the names the person gave them, who gave it and when. It is checked against the preflighted plan before anything is observed, it permits exactly those interactions and refuses any other press mid-run, and it is recorded as the authority in the run record — nothing simulates a keypress and no provenance rule is relaxed. The keypress ceremony it replaces is gone: no start countdown, no screen-identification question, no agree-then-authorise pair per interaction. Everything that made a supervised press safe stays exactly where it was, in the runner, because none of it ever asked anybody anything: the occlusion refusal, the world re-check at the instant of the press, the pointer-arrival measurement, the outcome gate between interactions, the stop signal, the deadline and the action cap. The screen question is replaced by EVIDENCE — the shape as a gate at `observe.VisualScreenMatch`, the words as the discriminator at `observe.TextKept`, and no second saved screen allowed to fit — and when that evidence does not identify the screen the run PAUSES with a sentence a person can act on, rather than refusing or guessing. Bringing the application forward belongs to the surface, because Windows refuses it to anybody else."
+decision: "ACCEPTED — a person authorises an Act ONCE, by pressing Play on it, and the run performs its named interactions without asking again. The authorisation is an explicit GRANT: the Act, the demonstration revision somebody was shown, the digest of the play its interactions were bound to, WHAT EACH NAME MEANS as a demonstrated position, the application it is pinned to, the interactions by the names the person gave them, who gave it and when. The mapping is the term the others cannot carry: the same Act recomposed over the same demonstration with the same names in the same order on different interactions leaves the revision, the names, the order and the play's own digest all unchanged, and changes every control that would be pressed. It is checked against the preflighted plan before anything is observed, it permits exactly those interactions and refuses any other press mid-run, and it is recorded as the authority in the run record — nothing simulates a keypress and no provenance rule is relaxed. The keypress ceremony it replaces is gone: no start countdown, no screen-identification question, no agree-then-authorise pair per interaction. Everything that made a supervised press safe stays exactly where it was, in the runner, because none of it ever asked anybody anything: the occlusion refusal, the world re-check at the instant of the press, the pointer-arrival measurement, the outcome gate between interactions, the stop signal, the deadline and the action cap. The screen question is replaced by EVIDENCE — the shape as a gate at `observe.VisualScreenMatch`, the words as the discriminator at `observe.TextKept`, and no second saved screen allowed to fit — and when that evidence does not identify the screen the run PAUSES with a sentence a person can act on, rather than refusing or guessing. Bringing the application forward belongs to the surface, because Windows refuses it to anybody else."
 supersedes: []
 affects:
   - execution
@@ -81,8 +81,8 @@ the interactions it performs, by the names the person gave THEM
 who gave it, and when
 ```
 
-ADR-183 refuses a session flag. This is narrower than one in four ways at once — **one Act, one
-revision, one application, one run** — and each of them is a check with a test:
+ADR-183 refuses a session flag. This is narrower than one in five ways at once — **one Act, one
+revision, one play, one meaning per name, one run** — and each of them is a check with a test:
 
 - the Act, so a grant cannot be spent on a different one (`TestAGrantForAnotherActStopsTheCommand`);
 - the revision, so an Act composed again between the press and the run is refused rather than
@@ -92,6 +92,48 @@ revision, one application, one run** — and each of them is a check with a test
 - the order, because a grant is given over a sequence somebody read. The same two interactions the
   other way round are a different thing to have agreed to: the second press is made on the screen
   the first one produced.
+
+### And what each name MEANS, which none of the above can carry
+
+The first version of this ADR shipped with the four terms above and a hole the Architect found by
+reading them: an Act can be composed again over the **same demonstration** with the **same names**
+in the **same order**, bound to **different interactions**. Then the revision is the
+demonstration's and the demonstration did not move; the names and their order are what the person
+typed; the application is the demonstration's; and the generated play is *byte-identical*, because
+its sentences are those names. Everything a person can see is unchanged and every control that
+would be pressed is different.
+
+That premise is not argued, it is measured:
+`TestRecomposingTheSameNamesChangesNothingTheOldTermsCouldSee` composes one demonstration both
+ways round through the production composer and asserts the two plays are identical, the bindings
+record the same digest, and the names and revisions match — with only the positions differing. If
+that test ever fails, the hole has closed itself.
+
+So the grant carries the mapping — `name → demonstrated interaction` — and the play's own digest,
+and `agrees` checks both against the preflighted plan. A grant given for "the graphics tab"
+meaning interaction 0 is refused when that name now means interaction 1, before anything is
+observed.
+
+**Required, not optional.** `readActGrant` refuses a grant that omits the revision, the digest or
+the mapping, and refuses one whose mapping does not name the same interactions as its order. An
+optional identity check is one that can be skipped by leaving a field out, and two lists of one
+fact is the shape this repository already keeps a note about: they agree when they are written and
+disagree the first time one changes.
+
+### And the window between selecting an Act and performing it
+
+Studio re-reads the Act when it writes the grant, so the same replacement could happen between a
+person reading the list and pressing the button. The page therefore hands back the digest it was
+**displaying**, and Studio refuses when the Act on disk is no longer that one — sending them to
+read it again, which is the only honest instruction. Empty when they typed a name instead of
+clicking a listed Act: the page was not showing them anything about it, and says so rather than
+pretending.
+
+`demonstrated.Save` already refuses to write over a play that exists, which narrows this a long
+way — an Act cannot be recomposed in place. It does not close it: the pair can be removed and
+composed again, and the bindings are a file somebody can edit while the play's digest stays what
+it was. `TestAnActReplacedBetweenPlayAndStartupIsRefused` does it the way a person would, through
+the command, and asserts the refusal lands before any observation and leaves no record.
 
 ### What it is not
 
@@ -188,6 +230,24 @@ A refusal to FIND the application is a different thing and is answered before an
 nothing can be performed against an application that is not running, and saying so in the window
 somebody is already looking at costs them nothing.
 
+### A minimized window is restored, not complained about
+
+The first version chose between windows before raising one and skipped minimized candidates, then
+told the person their application "does not seem to be running, or its window is minimised — bring
+it up and press Play again". Two things wrong with it: that is the surface asking for something it
+can do itself, and `raiseWindow` restores before it activates — so the restore branch was
+unreachable for exactly the windows it was written for.
+
+Minimized windows are candidates now. What the choice prefers is a window already on screen, and
+then the biggest: an executable owns a launcher, a splash and the main window, and the one
+somebody is looking at is the one with the pixels. A minimized window's reported bounds are not
+evidence of a size on Windows — an iconic window reports an off-screen position and whatever it
+will restore to — so it loses to anything that is up, and minimized windows are compared with each
+other on the same arithmetic because there is nothing better to compare them on.
+
+The restore itself is a syscall and no Go test can watch it happen. What is held is that the
+decision reaches it, with the handle of the window that is down.
+
 ## 5. What a person does now
 
 	choose an Act          its interactions shown by the words they read on the screen,
@@ -222,7 +282,15 @@ application typed by hand. Two contracts, one runner, and the surface says which
 
 - `cmd/director/actgrant_test.go` — `TestAGrantThatIsNotADecisionIsRefused` (six ways a surface
   can hand over something that is not a decision, plus a missing file);
-  `TestAGrantIsForTheActSomebodyWasShown` (the four narrowings, one case each);
+  `TestAGrantIsForTheActSomebodyWasShown` (the narrowings, one case each);
+  `TestTheSameNamesBoundToDifferentInteractionsAreRefused` (the mapping term, and that the other
+  four all pass for the same case — so it is the term doing the work and not a second copy of one
+  that already held);
+  `TestRecomposingTheSameNamesChangesNothingTheOldTermsCouldSee` (the premise, through the
+  production composer);
+  `TestAnActReplacedBetweenPlayAndStartupIsRefused` (the whole window, end to end through the
+  command: composed, authorised, recomposed the other way round, refused before any observation
+  and with no record kept);
   `TestAGrantAgreesWithTheApplicationTheActIsPinnedTo`;
   `TestAPressTheGrantDoesNotNameIsRefused` (the edge at the press: permitted, stamped, expiring —
   then refused twice, with nothing sent);
@@ -244,7 +312,11 @@ application typed by hand. Two contracts, one runner, and the surface says which
   (and `--reading` always on); `TestPlayRefusesWhatItCanAnswerBeforeStartingAnything`;
   `TestAnActWhoseDemonstrationMovedIsRefusedWithTheReason`;
   `TestAnApplicationThatIsNotRunningIsSaidSoBeforeAnythingStarts` (the production
-  `bringForward`); `TestEveryOutcomeIsSaidInWords` (all eight);
+  `bringForward`); `TestAnActComposedAgainSinceItWasListedIsRefused` (the selection window, both
+  ways: stale digest refused, the listed one performed);
+  `TestAMinimizedApplicationIsRestoredRatherThanRefused` (the decision reaches the restore with
+  the right handle); `TestTheWindowRaisedIsTheOneSomebodyIsLookingAt` (six cases of the choice);
+  `TestEveryOutcomeIsSaidInWords` (all eight);
   `TestWhatTheWindowShowsSaysWhatHappened`; `TestThePageIsTheFlowThatWasAskedFor` (seven source
   guards over the page).
 - `cmd/director/performworkflowwiring_test.go` — `grant = byGrant` and

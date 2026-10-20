@@ -17,12 +17,15 @@ package main
 import (
 	"encoding/json"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/demo"
+	"github.com/chaynes-simpleclouds/marco/internal/director/perception/windowref"
 	"github.com/chaynes-simpleclouds/marco/internal/director/runref"
 	"github.com/chaynes-simpleclouds/marco/internal/director/runstate"
+	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 )
 
 // aPlayableAct is a store with one demonstration and an Act over its verifiable interaction.
@@ -76,7 +79,7 @@ func grantedIn(t *testing.T, said string) grant {
 func TestPlayHandsTheRunnerAnAuthorisationForTheChosenAct(t *testing.T) {
 	a := aPlayableAct(t, "the audio page")
 
-	if err := a.Play("the audio page", false); err != "" {
+	if err := a.Play("the audio page", false, ""); err != "" {
 		t.Fatalf("Play would not start: %s", err)
 	}
 	said := waitForTranscript(t, a)
@@ -102,6 +105,18 @@ func TestPlayHandsTheRunnerAnAuthorisationForTheChosenAct(t *testing.T) {
 	if len(g.Interactions) != 1 || g.Interactions[0] != "the audio tab" {
 		t.Errorf("the authorisation is over %v", g.Interactions)
 	}
+	// AND WHAT THE NAME MEANS, which is the part of an Act's identity nothing else here
+	// pins. The same name over the same demonstration at a different position is a
+	// different control, and a grant that did not say which would be spendable on it.
+	if len(g.Bound) != 1 || g.Bound[0].Name != "the audio tab" ||
+		g.Bound[0].Position != 1 {
+		t.Errorf("the authorisation does not say what its interaction means: %+v",
+			g.Bound)
+	}
+	if g.Source == "" {
+		t.Error("the authorisation names no play digest, so it does not pin which " +
+			"version of the Act was authorised")
+	}
 	if !strings.Contains(g.By, "pressed Play") {
 		t.Errorf("the authorisation does not say who gave it: %q", g.By)
 	}
@@ -118,7 +133,7 @@ func TestPlayHandsTheRunnerAnAuthorisationForTheChosenAct(t *testing.T) {
 func TestTryingItWithoutClickingDoesNotPassLive(t *testing.T) {
 	for _, live := range []bool{false, true} {
 		a := aPlayableAct(t, "the audio page")
-		if err := a.Play("the audio page", live); err != "" {
+		if err := a.Play("the audio page", live, ""); err != "" {
 			t.Fatalf("live=%v: Play would not start: %s", live, err)
 		}
 		said := waitForTranscript(t, a)
@@ -144,7 +159,7 @@ func TestPlayRefusesWhatItCanAnswerBeforeStartingAnything(t *testing.T) {
 	a := aPlayableAct(t, "the audio page")
 
 	// ── AN ACT THAT IS NOT THERE.
-	if err := a.Play("something nobody composed", false); !strings.Contains(err,
+	if err := a.Play("something nobody composed", false, ""); !strings.Contains(err,
 		"no Act called") {
 		t.Errorf("playing an Act that does not exist said %q", err)
 	}
@@ -178,7 +193,7 @@ func TestAnActWhoseDemonstrationMovedIsRefusedWithTheReason(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	why := a.Play("moved", false)
+	why := a.Play("moved", false, "")
 	if why == "" {
 		t.Fatal("an Act pinned to a revision that no longer exists was performed")
 	}
@@ -187,6 +202,128 @@ func TestAnActWhoseDemonstrationMovedIsRefusedWithTheReason(t *testing.T) {
 	}
 	if w := a.Watch(); w.Active {
 		t.Error("a refused Play started a run anyway")
+	}
+}
+
+// AND AN ACT COMPOSED AGAIN SINCE IT WAS LISTED IS NOT PERFORMED UNDER THE OLD DECISION.
+//
+// # The window this closes
+//
+// Between a person reading an Act in the list and pressing Play on it, the Act can be composed
+// again — by them in the panel above, or by `director compose-act` in a terminal. The dangerous
+// version of that is the one where nothing they can see has changed: the same names, in the same
+// order, over the same demonstration, bound to different interactions. The list said "the audio
+// tab"; the Act now presses something else under that name.
+//
+// So the page hands back the digest it was displaying, and Studio refuses when the Act on disk
+// is no longer that one. The person is sent to look at it again, which is the only honest
+// instruction: what they read is out of date.
+func TestAnActComposedAgainSinceItWasListedIsRefused(t *testing.T) {
+	a := aPlayableAct(t, "the audio page")
+
+	why := a.Play("the audio page", false, "a digest from a version that has gone")
+	if why == "" {
+		t.Fatal("an Act was performed under a decision made about a different " +
+			"version of it")
+	}
+	if !strings.Contains(why, "composed again since it was listed") {
+		t.Errorf("the refusal does not say what happened: %q", why)
+	}
+	if w := a.Watch(); w.Active {
+		t.Error("a refused Play started a run anyway")
+	}
+	// AND THE DIGEST IT IS SHOWING WORKS, so what is being tested is staleness and not
+	// the presence of the argument.
+	shown := ""
+	for _, c := range a.Saved() {
+		if c.Name == "the audio page" {
+			shown = c.Source
+		}
+	}
+	if shown == "" {
+		t.Fatal("the Act is listed with no digest, so a page has nothing to hand back")
+	}
+	if err := a.Play("the audio page", false, shown); err != "" {
+		t.Fatalf("the Act was refused under the digest it is listed with: %s", err)
+	}
+}
+
+// ── BRINGING THE APPLICATION FORWARD ────────────────────────────────────────
+
+// aWindow is one candidate as the window system would report it.
+func aWindow(app string, h uintptr, w, ht int, minimized bool) windowref.Candidate {
+	return windowref.Candidate{
+		ID: directorapi.WindowID("hwnd:" + strconv.Itoa(int(h))), Handle: h,
+		Application: app, Bounds: directorapi.Rect{Width: w, Height: ht},
+		Minimized: minimized, Visible: !minimized, OnScreen: !minimized,
+	}
+}
+
+// A MINIMIZED APPLICATION IS RESTORED, NOT REFUSED.
+//
+// # The defect
+//
+// The first version skipped minimized windows while choosing, and then told the person the
+// application "does not seem to be running, or its window is minimised — bring it up and press
+// Play again". Two things wrong with that: it is the surface asking for something it can do
+// itself, and `raiseWindow` already restores before it activates — so that branch was
+// unreachable for exactly the windows it was written for.
+//
+// The restore itself is a Windows syscall and no Go test can observe it. What is held here is
+// that the DECISION reaches it, with the handle of the window that is down.
+func TestAMinimizedApplicationIsRestoredRatherThanRefused(t *testing.T) {
+	a, _ := aStoreWithADemonstration(t)
+	lifted := []uintptr{}
+	a.lifting = func(h uintptr) bool { lifted = append(lifted, h); return true }
+	// ONE WINDOW, MINIMIZED. Its bounds are what Windows reports for an iconic window:
+	// a size it will restore to, at a position off every monitor.
+	a.listing = func() []windowref.Candidate {
+		return []windowref.Candidate{aWindow("arkascended", 77, 1920, 1080, true)}
+	}
+
+	if why := a.bringForward("arkascended"); why != "" {
+		t.Fatalf("a running application was refused for being minimised: %s", why)
+	}
+	if len(lifted) != 1 || lifted[0] != 77 {
+		t.Fatalf("the minimised window was not the one raised: %v", lifted)
+	}
+}
+
+// AND THE ONE THAT IS UP WINS OVER THE ONE THAT IS DOWN.
+//
+// An executable owns several windows — a launcher, a splash, the main one — and a minimized
+// window's reported size is not evidence of anything. So being on screen decides first, and size
+// decides between windows in the same state.
+func TestTheWindowRaisedIsTheOneSomebodyIsLookingAt(t *testing.T) {
+	for _, c := range []struct {
+		name  string
+		have  []windowref.Candidate
+		want  uintptr
+		found bool
+	}{
+		{"the only one", []windowref.Candidate{
+			aWindow("arkascended", 1, 800, 600, false)}, 1, true},
+		{"the bigger of two that are up", []windowref.Candidate{
+			aWindow("arkascended", 1, 400, 300, false),
+			aWindow("arkascended", 2, 1920, 1080, false)}, 2, true},
+		{"the one that is up, even when it is smaller", []windowref.Candidate{
+			aWindow("arkascended", 1, 1920, 1080, true),
+			aWindow("arkascended", 2, 400, 300, false)}, 2, true},
+		{"a minimized one when that is all there is", []windowref.Candidate{
+			aWindow("arkascended", 1, 1920, 1080, true)}, 1, true},
+		{"nothing of another application", []windowref.Candidate{
+			aWindow("notepad", 1, 800, 600, false)}, 0, false},
+		{"nothing with no handle", []windowref.Candidate{
+			aWindow("arkascended", 0, 800, 600, false)}, 0, false},
+	} {
+		got, found := theWindowToRaise(c.have, "ArkAscended")
+		if found != c.found {
+			t.Errorf("%s: found=%v, want %v", c.name, found, c.found)
+			continue
+		}
+		if found && got.Handle != c.want {
+			t.Errorf("%s: raised window %d, want %d", c.name, got.Handle, c.want)
+		}
 	}
 }
 
@@ -301,8 +438,13 @@ func TestThePageIsTheFlowThatWasAskedFor(t *testing.T) {
 	}
 	page := string(raw)
 	for _, want := range []struct{ text, why string }{
-		{"acts.Play(act, live)", "the page does not perform an Act by pressing " +
-			"Play, so the authorisation contract is not reachable from it"},
+		{"acts.Play(act, live, seen)", "the page does not perform an Act by " +
+			"pressing Play, so the authorisation contract is not reachable " +
+			"from it"},
+		{"listed.find(a => a.name === act)", "the page does not hand back the " +
+			"version of the Act it was showing, so an Act composed again " +
+			"between being listed and being performed is performed under a " +
+			"decision made about different interactions"},
 		{">Stop<", "the stop control is not called Stop"},
 		{"Try it without clicking", "there is no way to perform an Act without " +
 			"touching the machine"},

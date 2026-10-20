@@ -44,8 +44,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chaynes-simpleclouds/marco/internal/director/perception/windowref"
 	"github.com/chaynes-simpleclouds/marco/internal/platform/winprovider"
-	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 )
 
 // actGrantVersion is the shape the runner reads. See cmd/director/actgrant.go, which is the only
@@ -59,13 +59,20 @@ const actGrantVersion = 1
 // what the person was looking at when they pressed. It is not a session flag and not a
 // preference — the next run writes another one, because the next run is another decision.
 type grant struct {
-	Version      int       `json:"version"`
-	Act          string    `json:"act"`
-	Revision     string    `json:"revision,omitempty"`
-	Application  string    `json:"application,omitempty"`
-	Interactions []string  `json:"interactions"`
-	By           string    `json:"by"`
-	At           time.Time `json:"at"`
+	Version      int      `json:"version"`
+	Act          string   `json:"act"`
+	Revision     string   `json:"revision,omitempty"`
+	Application  string   `json:"application,omitempty"`
+	Interactions []string `json:"interactions"`
+	// Source is the digest of the play these interactions were bound to, and Bound is
+	// what each name MEANS. Both because neither the names nor the revision pin it: the
+	// same Act can be composed again over the same demonstration with the same names in
+	// the same order and different positions, which changes every control that would be
+	// pressed and nothing a person can see. See cmd/director/actgrant.go.
+	Source string         `json:"source,omitempty"`
+	Bound  []BoundNameFor `json:"bound,omitempty"`
+	By     string         `json:"by"`
+	At     time.Time      `json:"at"`
 }
 
 // Performance is one press of Play, with everything the surface knows about it.
@@ -93,11 +100,23 @@ type Performance struct {
 // Returns "" when a run started, or the sentence to show the person. Every refusal here happens
 // BEFORE anything is raised or started, because a window that came forward and then said no is
 // worse than a sentence in the surface they were already looking at.
-func (a *Acts) Play(act string, live bool) string {
+// `shown` is the digest the page was displaying for this Act when the button was pressed, or ""
+// when it has none — somebody typed a name rather than clicking a listed Act. It closes the
+// window between selecting an Act and performing it: Studio re-reads the Act here, and an Act
+// that has been composed again in between is a different set of controls under the same name.
+func (a *Acts) Play(act string, live bool, shown string) string {
 	chosen, found := a.chosen(act)
 	switch {
 	case !found:
 		return fmt.Sprintf("there is no Act called %q on this machine", act)
+	case shown != "" && chosen.Source != "" && shown != chosen.Source:
+		// COMPOSED AGAIN SINCE IT WAS LISTED. Not performed under the decision
+		// somebody made about the old one: the names can be identical and mean
+		// different interactions, so what they were looking at when they pressed is
+		// not what this would press. Refused, and sent back to look at it.
+		return "this Act has been composed again since it was listed, so it may " +
+			"perform different interactions than the ones you were looking at — " +
+			"press Refresh and read it again before performing it"
 	case !chosen.Runnable:
 		// THE PREFLIGHT'S OWN WORDS. It has already asked whether the play still
 		// matches its bindings, whether the demonstration is still the revision it
@@ -140,6 +159,7 @@ func (a *Acts) granted(c Act) (string, error) {
 	raw, err := json.Marshal(grant{
 		Version: actGrantVersion, Act: c.Name, Revision: c.Revision,
 		Application: c.Application, Interactions: c.Interactions,
+		Source: c.Source, Bound: c.Bound,
 		// WHAT IT WAS, in words, because this sentence ends up in the run record
 		// and in the binding that establishes the screen. "The person who pressed
 		// Play in Studio" and "the person at the keyboard (F7)" are two different
@@ -190,31 +210,84 @@ func (a *Acts) bringForward(app string) string {
 		// there is nothing to raise and nothing to check against.
 		return ""
 	}
-	windows := winprovider.New()
-	var best directorapi.WindowID
-	var bestArea int
-	for _, c := range windows.AllCandidates(context.Background()) {
-		if !strings.EqualFold(c.Application, app) || c.Minimized {
-			continue
-		}
-		// THE BIGGEST ONE, where an executable owns several windows. A game's
-		// splash, its launcher and its main window are all `arkascended`, and the
-		// one somebody is looking at is the one with the pixels.
-		if area := c.Bounds.Width * c.Bounds.Height; area > bestArea {
-			best, bestArea = c.ID, area
-		}
-	}
-	if best == "" {
-		return fmt.Sprintf("%s does not seem to be running, or its window is "+
-			"minimised — start it, bring it up, and press Play again", app)
-	}
-	h, ok := winprovider.ParseHandle(best)
-	if !ok {
-		return ""
+	c, found := theWindowToRaise(a.windowsNow(), app)
+	if !found {
+		return fmt.Sprintf("%s does not seem to be running — start it and press "+
+			"Play again", app)
 	}
 	// BEST EFFORT, AND THE RUNNER DECIDES. Not a refusal: see above — what this
 	// cannot do, the occlusion and foreground guards will say in their own words at
 	// the instant it matters, which is the instant of the press and not this one.
-	_ = raiseWindow(h)
+	_ = a.lift(c.Handle)
 	return ""
+}
+
+// theWindowToRaise picks which of an application's windows to bring forward.
+//
+// # Why a minimized window is a candidate
+//
+// Because it is running, and somebody who pressed Play on an Act for it meant that window. The
+// first version of this skipped minimized windows and then told them the application "does not
+// seem to be running, or its window is minimised — bring it up and press Play again", which is
+// the surface asking for a thing it can do itself: `raiseWindow` restores before it activates,
+// and that branch was unreachable for exactly the windows it was written for.
+//
+// # What it prefers
+//
+// A window already on screen, and then the biggest. An executable owns several windows — a
+// launcher, a splash, the main one — and the one somebody is looking at is the one with the
+// pixels. Minimized bounds are not a reliable size on Windows (an iconic window reports an
+// off-screen position and whatever size it will restore to), so a minimized window loses to any
+// window that is up, and among themselves they are compared on the same arithmetic because there
+// is nothing better to compare them on.
+func theWindowToRaise(cands []windowref.Candidate, app string) (windowref.Candidate, bool) {
+	var best windowref.Candidate
+	found := false
+	for _, c := range cands {
+		if !strings.EqualFold(c.Application, app) || c.Handle == 0 {
+			continue
+		}
+		if !found || betterToRaise(c, best) {
+			best, found = c, true
+		}
+	}
+	return best, found
+}
+
+// betterToRaise says whether one window is a better thing to bring forward than another.
+func betterToRaise(c, than windowref.Candidate) bool {
+	if c.Minimized != than.Minimized {
+		// THE ONE THAT IS UP, whichever of the two that is.
+		return than.Minimized
+	}
+	return onScreenArea(c) > onScreenArea(than)
+}
+
+// onScreenArea is a window's area, never negative.
+func onScreenArea(c windowref.Candidate) int {
+	w, h := c.Bounds.Width, c.Bounds.Height
+	if w < 0 || h < 0 {
+		return 0
+	}
+	return w * h
+}
+
+// windowsNow is every top-level window, or what a test says there is.
+func (a *Acts) windowsNow() []windowref.Candidate {
+	if a.listing != nil {
+		return a.listing()
+	}
+	return winprovider.New().AllCandidates(context.Background())
+}
+
+// lift raises one window, through the desktop or through a test's stand-in.
+//
+// A seam of its own rather than part of `raising`, so a test can let the real choosing happen and
+// still see WHICH window the choice reached. The restore branch for a minimized window is behind
+// a Windows syscall; what a test can hold is that the decision gets there with the right handle.
+func (a *Acts) lift(h uintptr) bool {
+	if a.lifting != nil {
+		return a.lifting(h)
+	}
+	return raiseWindow(h)
 }

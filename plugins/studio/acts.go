@@ -47,6 +47,7 @@ import (
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/demo"
 	"github.com/chaynes-simpleclouds/marco/internal/director/demonstrated"
+	"github.com/chaynes-simpleclouds/marco/internal/director/perception/windowref"
 	"github.com/chaynes-simpleclouds/marco/internal/director/runref"
 	"github.com/chaynes-simpleclouds/marco/internal/director/runstate"
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflowstore"
@@ -121,6 +122,11 @@ type Acts struct {
 	// raising stands in for bringing the application forward, which needs a real one
 	// running on a real desktop. Nil in every production path; see play.go.
 	raising func(app string) string
+	// listing and lifting stand in for the two halves of bringing an application
+	// forward: what windows there are, and raising one. Nil in every production path;
+	// see play.go.
+	listing func() []windowref.Candidate
+	lifting func(h uintptr) bool
 	// transcript is what the run has said so far, which is the whole of what a person
 	// watching it has to go on.
 	transcript []string
@@ -383,6 +389,17 @@ type Act struct {
 	Interactions []string `json:"interactions"`
 	Application  string   `json:"application"`
 	Play         string   `json:"play"`
+	// Source is the digest of the play the bindings were written with, and Bound is what
+	// each interaction NAME means — the demonstrated position it resolves to.
+	//
+	// Together they are the Act's identity, and the names and the revision are not. The
+	// same Act can be composed again over the same demonstration with the same names in
+	// the same order bound to different positions: everything a person sees is unchanged
+	// and every control that would be pressed is different. So both travel to the page,
+	// which hands the identity it was SHOWN back when somebody presses Play, and into the
+	// authorisation, which the runner checks against the plan it preflighted.
+	Source string         `json:"source,omitempty"`
+	Bound  []BoundNameFor `json:"bound,omitempty"`
 	// Runnable is whether it preflights RIGHT NOW, and Why the refusal when it does not.
 	//
 	// Asked here rather than guessed, through the production preflight: the bindings may
@@ -390,6 +407,12 @@ type Act struct {
 	// changed by hand. A person should see that before they start, not after.
 	Runnable bool   `json:"runnable"`
 	Why      string `json:"why,omitempty"`
+}
+
+// BoundNameFor is one interaction name and the demonstrated position it resolves to.
+type BoundNameFor struct {
+	Name     string `json:"name"`
+	Position int    `json:"position"`
 }
 
 // Saved is every Act on this machine, with whether each one would run.
@@ -405,13 +428,17 @@ func (a *Acts) Saved() []Act {
 			continue
 		}
 		act := Act{Name: binds.Act, From: routineOf(binds), Play: src,
-			Application: binds.Application}
+			Application: binds.Application, Source: binds.Source}
 		if act.Name == "" {
 			act.Name = rt.Slug
 		}
 		for _, s := range binds.Scenes {
 			act.Interactions = append(act.Interactions, s.Name)
 			act.Revision = s.Revision
+			// AND WHAT THE NAME MEANS, which is the only part of an Act's
+			// identity that a person cannot see and a recompose can change.
+			act.Bound = append(act.Bound, BoundNameFor{Name: s.Name,
+				Position: s.Position})
 		}
 		if serr != nil {
 			act.Why = serr.Error()

@@ -28,18 +28,56 @@ import (
 	"testing"
 	"time"
 
+	"github.com/chaynes-simpleclouds/marco/internal/director/demo"
 	"github.com/chaynes-simpleclouds/marco/internal/director/demonstrated"
 	"github.com/chaynes-simpleclouds/marco/internal/director/runref"
 	"github.com/chaynes-simpleclouds/marco/internal/director/runstate"
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflowrun"
 	"github.com/chaynes-simpleclouds/marco/internal/platform/navsource"
+	"github.com/chaynes-simpleclouds/marco/internal/routes"
 )
 
 // agGrantGiven is a grant as a surface writes one, over the interactions named.
+//
+// Complete, because an incomplete one is refused by `readActGrant` — it has to pin which version
+// of the Act was authorised, which is a revision, a play digest and what each name means. The
+// placeholders here are for the tests that drive `agrees` directly; a test going through the
+// command wants `agGrantFor`, which reads the real ones off the plan.
 func agGrantGiven(t *testing.T, act string, names ...string) actGrant {
 	t.Helper()
-	return actGrant{Version: actGrantVersion, Act: act, Interactions: names,
+	g := actGrant{Version: actGrantVersion, Act: act, Interactions: names,
+		Revision: "rev-1", Source: "the-play-digest",
 		By: "the person who pressed Play in Studio", At: dpLooked}
+	for i, n := range names {
+		g.Bound = append(g.Bound, grantBound{Name: n, Position: i})
+	}
+	return g
+}
+
+// agGrantFor is the grant Studio would write for a saved Act, read off its own plan.
+//
+// The revision, the digest and the mapping all come from the preflighted plan rather than being
+// invented, which is what the surface does: it reads the bindings it is offering and hands back
+// what it was shown.
+func agGrantFor(t *testing.T, play string) actGrant {
+	t.Helper()
+	plan, code := planToPerform(play)
+	if code != 0 {
+		t.Fatalf("%q does not preflight, so there is nothing to authorise", play)
+	}
+	return agGrantForPlan(t, play, plan)
+}
+
+// agGrantForPlan is the same, for a plan the caller already has.
+func agGrantForPlan(t *testing.T, play string, p demonstrated.Plan) actGrant {
+	t.Helper()
+	g := actGrant{Version: actGrantVersion, Act: play, Interactions: p.Order,
+		Revision: p.Revision, Source: p.Source,
+		By: "the person who pressed Play in Studio", At: dpLooked}
+	for _, name := range p.Order {
+		g.Bound = append(g.Bound, grantBound{Name: name, Position: p.Steps[name]})
+	}
+	return g
 }
 
 // agWritten is a grant on disk, where the run reads it from.
@@ -82,6 +120,28 @@ func TestAGrantThatIsNotADecisionIsRefused(t *testing.T) {
 		{"no instant", map[string]any{"version": 1, "act": "a",
 			"interactions": []string{"x"}, "by": "somebody"},
 			"does not say when"},
+		// ── AND THE THREE THAT PIN WHICH ACT ──
+		//
+		// Required, not optional, because an optional check is one that can be
+		// skipped by leaving a field out — and the last of these is the only term
+		// that sees the same names bound to different interactions.
+		{"no revision", map[string]any{"version": 1, "act": "a",
+			"interactions": []string{"x"}, "by": "somebody", "at": dpLooked,
+			"source": "d", "bound": []grantBound{{Name: "x"}}},
+			"names no demonstration revision"},
+		{"no play digest", map[string]any{"version": 1, "act": "a",
+			"interactions": []string{"x"}, "by": "somebody", "at": dpLooked,
+			"revision": "r", "bound": []grantBound{{Name: "x"}}},
+			"names no play digest"},
+		{"no mapping for its names", map[string]any{"version": 1, "act": "a",
+			"interactions": []string{"x"}, "by": "somebody", "at": dpLooked,
+			"revision": "r", "source": "d"},
+			"says what 0 of them mean"},
+		{"a mapping for other names", map[string]any{"version": 1, "act": "a",
+			"interactions": []string{"x"}, "by": "somebody", "at": dpLooked,
+			"revision": "r", "source": "d",
+			"bound": []grantBound{{Name: "y"}}},
+			"one of the two lists is wrong"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			_, err := readActGrant(agWritten(t, c.grant))
@@ -110,8 +170,9 @@ func TestAGrantIsForTheActSomebodyWasShown(t *testing.T) {
 	art := dpATwoTapPanel()
 	art.Application = "arkascended"
 	plan := demonstrated.Plan{
-		Name: "two-taps", Revision: "rev-1",
+		Name: "two-taps", Revision: "rev-1", Source: "the-play-digest",
 		Order:   []string{"the graphics tab", "apply changes"},
+		Steps:   map[string]int{"the graphics tab": 0, "apply changes": 1},
 		Routine: art,
 	}
 	given := func(mut func(g *actGrant)) actGrant {
@@ -164,6 +225,111 @@ func TestAGrantIsForTheActSomebodyWasShown(t *testing.T) {
 	}
 }
 
+// AND THE SAME NAMES BOUND TO DIFFERENT INTERACTIONS ARE A DIFFERENT ACT.
+//
+// # The hole this closes, and why the other four terms cannot
+//
+// An Act can be composed again over the SAME demonstration with the SAME names in the SAME
+// order, bound to DIFFERENT positions. Then:
+//
+//	the revision is the demonstration's, and the demonstration did not move
+//	the names and their order are what the person typed
+//	the application is the demonstration's
+//	and the play's own digest is unchanged, because its sentences ARE those names
+//
+// Everything a person can see is identical and every control that would be pressed is different.
+// The premise is asserted below by composing it both ways through the production composer, rather
+// than asserted here in prose.
+func TestTheSameNamesBoundToDifferentInteractionsAreRefused(t *testing.T) {
+	// THE ACT AS IT IS NOW: the two names the other way round.
+	plan := demonstrated.Plan{
+		Name: "two-taps", Revision: "rev-1", Source: "the-same-digest",
+		Order:   []string{"the graphics tab", "apply changes"},
+		Steps:   map[string]int{"the graphics tab": 1, "apply changes": 0},
+		Routine: dpATwoTapPanel(),
+	}
+	// AND THE AUTHORISATION, GIVEN WHEN THEY MEANT THE OTHER WAY ROUND.
+	g := agGrantGiven(t, "two-taps", "the graphics tab", "apply changes")
+	g.Revision, g.Source = "rev-1", "the-same-digest"
+	g.Bound = []grantBound{{Name: "the graphics tab", Position: 0},
+		{Name: "apply changes", Position: 1}}
+
+	err := g.agrees("two-taps", plan)
+	if err == nil {
+		t.Fatal("an Act recomposed over the same names would have been performed " +
+			"under an authorisation given for different interactions")
+	}
+	for _, says := range []string{"the graphics tab", "interaction 0", "interaction 1",
+		"composed again since"} {
+		if !strings.Contains(err.Error(), says) {
+			t.Errorf("the refusal does not say %q: %v", says, err)
+		}
+	}
+	// ── AND THE FOUR OLDER TERMS ALL PASS, which is the point: a grant with no
+	//    mapping in it is accepted here, so this term is the one doing the work and
+	//    not a second copy of one that already held.
+	was := g
+	was.Bound = nil
+	if err := was.agrees("two-taps", plan); err != nil {
+		t.Errorf("the revision, names, order and digest terms refuse this case "+
+			"after all, so the mapping is not what closes it: %v", err)
+	}
+}
+
+// AND THE PREMISE, THROUGH THE PRODUCTION COMPOSER.
+//
+// Not a hypothetical. Composing one demonstration's two interactions under two names, and then
+// composing it again with the same names swapped onto the other positions, produces bindings
+// whose revision, names, order AND play digest are all identical — so every term the grant
+// carried before this change is blind to it. If this test ever fails, the hole closed itself and
+// the mapping check above is belt and braces; until then it is the only term that sees this.
+func TestRecomposingTheSameNamesChangesNothingTheOldTermsCouldSee(t *testing.T) {
+	art := dpATwoTapPanel()
+	one := []demonstrated.Named{
+		{Position: 0, Name: "the graphics tab"},
+		{Position: 1, Name: "apply changes"},
+	}
+	other := []demonstrated.Named{
+		{Position: 1, Name: "the graphics tab"},
+		{Position: 0, Name: "apply changes"},
+	}
+	srcA, bindsA, err := demonstrated.Compose(art, "two-taps", one, dpLooked,
+		marcoChecks{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	srcB, bindsB, err := demonstrated.Compose(art, "two-taps", other, dpLooked,
+		marcoChecks{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if srcA != srcB {
+		t.Fatalf("the two plays differ, so the digest alone would have caught "+
+			"this:\n--- one ---\n%s\n--- the other ---\n%s", srcA, srcB)
+	}
+	if bindsA.Source != bindsB.Source {
+		t.Errorf("the bindings record different digests (%s, %s)", bindsA.Source,
+			bindsB.Source)
+	}
+	// AND THE NAMES, THE ORDER AND THE REVISION ARE THE SAME.
+	for i := range bindsA.Scenes {
+		if bindsA.Scenes[i].Name != bindsB.Scenes[i].Name {
+			t.Errorf("scene %d is named %q and %q", i, bindsA.Scenes[i].Name,
+				bindsB.Scenes[i].Name)
+		}
+		if bindsA.Scenes[i].Revision != bindsB.Scenes[i].Revision {
+			t.Errorf("scene %d pins revisions %q and %q", i,
+				bindsA.Scenes[i].Revision, bindsB.Scenes[i].Revision)
+		}
+		// AND THE POSITIONS ARE WHAT DIFFER, which is the whole finding.
+		if bindsA.Scenes[i].Position == bindsB.Scenes[i].Position {
+			t.Errorf("scene %d means interaction %d both ways round", i,
+				bindsA.Scenes[i].Position)
+		}
+	}
+}
+
 // AND THE APPLICATION IT NAMES IS THE ONE THE ACT IS PINNED TO.
 //
 // Its own test because the Act in the table above carries no application, so the case there
@@ -172,7 +338,10 @@ func TestAGrantAgreesWithTheApplicationTheActIsPinnedTo(t *testing.T) {
 	art := dpATwoTapPanel()
 	art.Application = "arkascended"
 	plan := demonstrated.Plan{Name: "two-taps", Revision: "rev-1",
-		Order: []string{"the graphics tab", "apply changes"}, Routine: art}
+		Source:  "the-play-digest",
+		Order:   []string{"the graphics tab", "apply changes"},
+		Steps:   map[string]int{"the graphics tab": 0, "apply changes": 1},
+		Routine: art}
 
 	g := agGrantGiven(t, "two-taps", "the graphics tab", "apply changes")
 	g.Revision, g.Application = "rev-1", "arkascended"
@@ -285,6 +454,94 @@ func TestAGrantForAnotherActStopsTheCommand(t *testing.T) {
 	}
 }
 
+// AND AN ACT REPLACED BETWEEN PLAY AND STARTUP IS REFUSED BEFORE ANY INPUT.
+//
+// The whole window, end to end through the command: an Act composed, an authorisation written
+// for it, the Act composed AGAIN over the same demonstration with the same names on the other
+// interactions, and then the run started with the authorisation that was given. Nothing is
+// observed and nothing is pressed — the refusal happens before the run opens its own account.
+//
+// This is the case the Architect's finding named, and before the mapping was pinned it ran: the
+// revision, the names, the order and the play's digest were all unchanged by the recompose.
+func TestAnActReplacedBetweenPlayAndStartupIsRefused(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("MARCO_HOME", home)
+	t.Setenv("MARCO_ROUTES", filepath.Join(home, "routes"))
+	art := dpATwoTapPanel()
+	store, err := demo.Open(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveSequence(art); err != nil {
+		t.Fatal(err)
+	}
+	// AND HOW AN ACT GETS REPLACED, which is worth being exact about.
+	//
+	// `demonstrated.Save` REFUSES to write over a play that exists — "give this one a
+	// different name rather than replacing it" — so an Act cannot be recomposed in
+	// place, and that narrows this window a long way. What it does not do is close it:
+	// the pair can be removed and composed again, which is two commands, and the
+	// bindings are a file somebody can edit while the play's digest stays what it was.
+	// So this does it the way a person would.
+	rt := routes.Route{Slug: routes.Slug("two-taps")}
+	compose := func(picked []demonstrated.Named) {
+		_ = os.Remove(routesHere().Path(rt))
+		_ = os.Remove(demonstrated.BindingsPath(routesHere(), rt))
+		src, binds, cerr := demonstrated.Compose(art, "two-taps", picked, dpLooked,
+			marcoChecks{})
+		if cerr != nil {
+			t.Fatal(cerr)
+		}
+		if serr := demonstrated.Save(routesHere(), rt, src, binds,
+			dpLooked); serr != nil {
+			t.Fatal(serr)
+		}
+	}
+	// ── AS IT WAS WHEN SOMEBODY PRESSED PLAY.
+	compose([]demonstrated.Named{
+		{Position: 0, Name: "the graphics tab"},
+		{Position: 1, Name: "apply changes"},
+	})
+	plan, perr := planToPerform("two-taps")
+	if perr != 0 {
+		t.Fatalf("the Act as composed does not preflight (exit %d)", perr)
+	}
+	g := agGrantForPlan(t, "two-taps", plan)
+	granted := agWritten(t, g)
+
+	// ── AND AS IT IS NOW: the same names, the other interactions.
+	compose([]demonstrated.Named{
+		{Position: 1, Name: "the graphics tab"},
+		{Position: 0, Name: "apply changes"},
+	})
+
+	path := filepath.Join(t.TempDir(), "events.jsonl")
+	out := &liveOut{}
+	code := 0
+	captureStdoutInto(t, out, func() int {
+		code = runPerformWorkflow([]string{
+			"--play", "two-taps", "--granted", granted, "--foreground",
+			"--seconds", "3", "--events", path})
+		return code
+	})
+	if code != 1 {
+		t.Errorf("an Act replaced since it was authorised exited %d:\n%s", code, out)
+	}
+	if _, serr := os.Stat(path); serr == nil {
+		t.Error("the run began observing before checking what it was authorised to do")
+	}
+	// AND NOTHING WAS PERFORMED AND NOTHING KEPT. A refusal this early has no record
+	// either: the reference is minted after the authorisation is checked, which is the
+	// order that makes "no input was sent" a claim about a run that never started.
+	if runs, _ := os.ReadDir(filepath.Join(home, "runs")); len(runs) != 0 {
+		t.Errorf("%d run record(s) were written for a run that was refused before "+
+			"it began", len(runs))
+	}
+	// THE SENTENCE ITSELF goes to stderr, which this harness does not capture; it is
+	// asserted word for word against the production `agrees` in
+	// TestTheSameNamesBoundToDifferentInteractionsAreRefused.
+}
+
 // ── AND THE GATES BETWEEN INTERACTIONS ARE UNTOUCHED ────────────────────────
 
 // A GRANTED RUN STILL WAITS FOR EACH INTERACTION'S OUTCOME BEFORE THE NEXT.
@@ -316,8 +573,7 @@ func TestAGrantedRunStillWaitsForEachOutcome(t *testing.T) {
 	}
 	// THE GRANT, OVER EXACTLY WHAT THE PLAY PERFORMS — and checked, as the command
 	// checks it, rather than assumed to match.
-	g := agGrantGiven(t, "two-taps", plan.Order...)
-	g.Revision = plan.Revision
+	g := agGrantForPlan(t, "two-taps", plan)
 	if aerr := g.agrees("two-taps", plan); aerr != nil {
 		t.Fatalf("the grant this test gives does not match the play: %v", aerr)
 	}
@@ -435,7 +691,7 @@ func TestAGrantedRunAsksNobodyAnything(t *testing.T) {
 	t.Cleanup(func() { newKeySource = was })
 	newKeySource = func() (*navsource.Source, string) { return src, "" }
 
-	g := agGrantGiven(t, name, "the control in front")
+	g := agGrantFor(t, name)
 	path := filepath.Join(t.TempDir(), "events.jsonl")
 	out := &liveOut{}
 	captureStdoutInto(t, out, func() int {

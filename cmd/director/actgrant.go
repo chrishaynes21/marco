@@ -79,9 +79,32 @@ type actGrant struct {
 	// Interactions are the names the person gave the things they picked, in order. The
 	// grant covers these and nothing else.
 	Interactions []string `json:"interactions"`
+	// Source is the digest of the play the Act's bindings were written with.
+	Source string `json:"source,omitempty"`
+	// Bound is WHAT EACH NAME MEANS: the demonstrated interaction each one resolves to.
+	//
+	// # Why the names and the revision are not enough
+	//
+	// Because an Act can be composed again over the SAME demonstration, with the SAME
+	// names, in the SAME order, bound to DIFFERENT positions. Every other term here is
+	// unchanged by that — the revision is the demonstration's and the demonstration did
+	// not move, the names and their order are what the person typed, and the generated
+	// play is byte-identical because its sentences are those names. What changed is the
+	// only thing that decides which control gets pressed.
+	//
+	// So the grant pins the mapping. A person authorised "the graphics tab" meaning
+	// interaction 0 of that demonstration; if it now means interaction 1, their decision
+	// was about something else and the run is refused before anything is observed.
+	Bound []grantBound `json:"bound,omitempty"`
 	// By is who gave it, in words, and At the instant they did.
 	By string    `json:"by"`
 	At time.Time `json:"at"`
+}
+
+// grantBound is one name and the demonstrated interaction it was authorised to mean.
+type grantBound struct {
+	Name     string `json:"name"`
+	Position int    `json:"position"`
 }
 
 // readActGrant reads a grant and refuses one that does not say enough to be a decision.
@@ -113,6 +136,35 @@ func readActGrant(path string) (actGrant, error) {
 		return actGrant{}, fmt.Errorf("the authorisation does not say who gave it")
 	case g.At.IsZero():
 		return actGrant{}, fmt.Errorf("the authorisation does not say when it was given")
+	// ── AND IT HAS TO PIN WHICH ACT, NOT JUST WHICH NAMES ──
+	//
+	// Required rather than optional, because an optional check is a check that can be
+	// skipped by leaving a field out. These three are the Act's identity: the
+	// demonstration its interactions came from, the play they were bound to, and what
+	// each name MEANS. Without the last one, the same names over the same demonstration
+	// bound to different interactions are indistinguishable from the thing somebody
+	// authorised — see `Bound`.
+	case strings.TrimSpace(g.Revision) == "":
+		return actGrant{}, fmt.Errorf("the authorisation names no demonstration " +
+			"revision, so it does not say which version of the Act was authorised")
+	case strings.TrimSpace(g.Source) == "":
+		return actGrant{}, fmt.Errorf("the authorisation names no play digest, so " +
+			"it does not say which version of the Act was authorised")
+	case len(g.Bound) != len(g.Interactions):
+		return actGrant{}, fmt.Errorf("the authorisation names %d interaction(s) and "+
+			"says what %d of them mean; it cannot authorise a name whose "+
+			"interaction it does not pin", len(g.Interactions), len(g.Bound))
+	}
+	// AND THE TWO LISTS ARE THE SAME LIST, in the same order. Two lists of one fact is
+	// the shape this repository has a memory note about: they agree when they are
+	// written and disagree the first time one is changed.
+	for i, name := range g.Interactions {
+		if g.Bound[i].Name != name {
+			return actGrant{}, fmt.Errorf("the authorisation performs %q as "+
+				"interaction %d and says what %q means there; one of the two "+
+				"lists is wrong and nothing here can say which",
+				name, i+1, g.Bound[i].Name)
+		}
 	}
 	return g, nil
 }
@@ -130,7 +182,7 @@ func (g actGrant) agrees(play string, p demonstrated.Plan) error {
 		return fmt.Errorf("the authorisation is for %q and this run performs %q",
 			g.Act, play)
 	}
-	if g.Revision != "" && p.Revision != "" && g.Revision != p.Revision {
+	if g.Revision != p.Revision {
 		return fmt.Errorf("the authorisation was given for revision %s of the "+
 			"demonstration and %q now performs revision %s — it has been composed "+
 			"again since, so this would authorise interactions that may not be "+
@@ -158,7 +210,51 @@ func (g actGrant) agrees(play string, p demonstrated.Plan) error {
 				"the order this would perform", want, i+1, play, p.Order[i])
 		}
 	}
+	// ── AND THE SAME PLAY, BY ITS OWN DIGEST ──
+	//
+	// The bindings record which play they were written with, and preflight has already
+	// refused a play that does not hash to it. This is the other end of that: the
+	// authorisation records which one the person was shown.
+	if g.Source != p.Source {
+		return fmt.Errorf("the authorisation was given for a different version of "+
+			"%q (%s, now %s) — it has been composed again since", play,
+			digestHead(g.Source), digestHead(p.Source))
+	}
+	// ── AND EVERY NAME STILL MEANS THE INTERACTION IT MEANT ──
+	//
+	// The term the other four cannot carry: recomposing the same Act over the same
+	// demonstration with the same names in the same order, bound to different positions,
+	// leaves the revision, the names, the order and the play's own digest all unchanged
+	// and changes every control that gets pressed.
+	//
+	// Checked only when the grant carries the mapping, so a grant written by an older
+	// surface is refused by the four terms above rather than by a field it never had —
+	// and `Studio` has always written it. A grant with no mapping and a play that needs
+	// one is the case `readActGrant` cannot see and this cannot either; what closes it is
+	// that nothing else writes grants.
+	for _, b := range g.Bound {
+		at, ok := p.Steps[b.Name]
+		if !ok {
+			return fmt.Errorf("the authorisation names the interaction %q and %q "+
+				"does not perform it", b.Name, play)
+		}
+		if at != b.Position {
+			return fmt.Errorf("the authorisation was given for %q meaning "+
+				"interaction %d of the demonstration, and in %q it now means "+
+				"interaction %d — it has been composed again since, so this "+
+				"would press something nobody authorised",
+				b.Name, b.Position, play, at)
+		}
+	}
 	return nil
+}
+
+// digestHead is as much of a digest as a person can compare by eye, for a sentence.
+func digestHead(d string) string {
+	if len(d) > 12 {
+		return d[:12]
+	}
+	return d
 }
 
 // covers asks whether one interaction is one of the ones this grant was given for.

@@ -142,6 +142,9 @@
  const $ = id => document.getElementById(id)
  const text = (el, s) => { el.textContent = s }
  let picked = []
+ // THE ACTS THIS PAGE IS SHOWING, kept so that pressing Play can say which version of an
+ // Act was on screen when it was pressed. See play().
+ let listed = []
  let acts = null
 
  // WAIT FOR THE BINDINGS rather than assuming them. Wails injects window.go asynchronously,
@@ -272,6 +275,7 @@
 
  function loadActs(){
    acts.Saved().then(as => {
+     listed = as
      const ul = $('acts'); ul.innerHTML = ''
      text($('actNote'), as.length + ' composed')
      as.forEach(a => {
@@ -309,7 +313,16 @@
    const act = $('actToRun').value
    if (!act) { say('pick an Act above first'); return }
    say('')
-   acts.Play(act, live).then(err => { if (err) { say(err) } })
+   // THE IDENTITY THIS PAGE WAS SHOWING, handed back with the press.
+   //
+   // Not for the backend to trust — it re-reads the Act and this is what it compares
+   // against. An Act can be composed again between being listed and being performed, with the
+   // same names in the same order meaning different interactions, and then what somebody
+   // pressed Play on is not what would be pressed. Empty when they typed a name instead of
+   // clicking one of the Acts above, which is the honest answer: this page was not showing
+   // them anything about it.
+   const seen = (listed.find(a => a.name === act) || {}).source || ''
+   acts.Play(act, live, seen).then(err => { if (err) { say(err) } })
  }
  // say puts a sentence from the surface itself where the run's own sentence goes, so a person
  // reads one place for "what is happening" whichever of the two is talking.
