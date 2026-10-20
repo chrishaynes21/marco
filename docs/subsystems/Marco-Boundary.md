@@ -163,3 +163,31 @@ falls on — was worked out first in [[34E-director-theater-audit]].
 
 **A cast program cannot re-enter the Theater.** The act map it can reach is built without the
 Theater in it, in `cmd/marco/theaterwiring.go`, so the recursion is impossible rather than bounded.
+
+## The saved play owns the order, through a door of its own
+
+A demonstrated visual routine's whole-sequence progression used to live in Go — `workflowrun.Runner`'s
+cursor — while each individual effect was lowered to legal Marco and compiled. The ORDER now lives
+in one saved `.marco` play, and every judgement stayed where it was.
+
+It needed a NEW ACT, and the reason is this note's own boundary. `theaterhost.Actor` offers `Find`
+and `Cast`, and `Cast` returns source and performs nothing — the Production boundary runs it
+through an injected `MarcoRunner`, which is the compile gate this page is about. An Actor
+therefore cannot ask a person for permission or wait for a verdict, so the supervised runner
+cannot be one: it is the thing doing the casting. And `Theater's Activate` means *find a control
+by this name among whatever is in front*, which is a different authority from *press the thing
+somebody demonstrated, with a person agreeing to it*. One sentence meaning either, depending on
+who ran the file, would be a play whose meaning depended on its host.
+
+The measurement that decided the generated form: a FLAT two-sentence play asks for the second
+interaction after the first has failed and then logs success, because an unhandled failure does
+not abort a body. So the nesting is the gate, and a generator that emitted the flat form would
+write a file that lies.
+[[ADR-243-a-door-of-its-own-and-the-order-in-the-file]]
+
+**And it is reachable by name.** `director perform-workflow --play "<name>"` resolves a saved Act,
+preflights it — the record is shown to describe the play by rebuilding the play from it — and then
+performs it through the same assembly a workflow run uses, differing in one thing only: the order
+comes from the play's sentences rather than from the artifact's cursor. The observation loop moved
+to its own file so that both drivers share it rather than copying it, and the between-looks work,
+including the step-agreement question, is handed to the play driver rather than reimplemented.

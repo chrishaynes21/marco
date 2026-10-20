@@ -1197,3 +1197,71 @@ That is one static settings menu. A screen established while demonstrating canno
 again at replay, and `--from` is spent once, on one screen, by design. Everything downstream —
 grounding, pressing, verifying — is unreachable there. See
 [[Experiment-091-four-demonstrations-and-no-press]].
+
+## Running an Act you composed, by name (CLI, needs your hands, ~5 min)
+
+An **Act** is a `.marco` play whose own sentences are the order. Each one asks for an interaction
+you demonstrated, by the name you gave it, and the next one sits inside the previous one's
+`when ok?` — so nothing follows an action that was not verified. The order lives in the file you
+can read, not in Go.
+
+Two commands, and the first one presses nothing.
+
+```sh
+./director.exe sequences                       # which demonstrations you have
+./director.exe sequences "<demonstration>"     # and which interactions are in this one
+
+./director.exe compose-act --from "<demonstration>" --name "graphics preset" \
+    --interaction '0=the graphics tab' \
+    --interaction '1=apply changes'
+```
+
+`compose-act` prints the play it saved. **Read it.** That is the whole reason an Act is legal
+Marco rather than a data structure: you should recognise what it says, and the sentences should be
+the ones you meant, in the order you meant them.
+
+The `--interaction` flags are `<number>=<what you call it>`. The number is which interaction of
+the demonstration — `sequences "<name>"` lists them — and the name is yours; the play says your
+words, never `control_1`. **The flag order is the run order**, so an Act may be a subset of a
+longer demonstration, or its interactions the other way round. Composing over a name you already
+have is refused rather than replacing it.
+
+Then run it, one authorised press at a time:
+
+```sh
+./director.exe perform-workflow --play "graphics preset" \
+    --application <exe> --live --reading --hotkeys
+```
+
+`--reading` is not optional, for the reason the two-action section above gives: an outcome IS
+words, and without OCR the verdict is `unconfirmed` and the run stops before the next
+interaction. That refusal is correct and is the likeliest way to see this look broken.
+
+What should happen, in this order:
+
+1. `compose-act` prints a play with one scene per interaction and the second `do` **indented
+   inside** the first one's `when ok?`. If the two sentences are at the same depth, stop — a flat
+   play presses the second control after the first one failed.
+2. The run names the Act and the demonstration it came from, then asks you to press F7 to start.
+3. It asks which screen you are on. F7.
+4. It asks whether the first interaction belongs in this run. F7.
+5. It asks to press the first control, naming where. F7 — and with `--live` it is pressed.
+6. It waits, reads the screen, and reports the first interaction `verified`.
+7. **Only then** does it ask about the second. Nothing is asked about it before step 6 lands.
+8. At the end: one line per interaction, a run reference, and a record naming the Act and the
+   demonstration both.
+
+Three refusals worth producing on purpose, because each one is a guarantee:
+
+- `--play "<name>" --step 1` — refused on usage. An Act already says which interactions it
+  performs; `--step` would renumber the demonstration underneath it and the first sentence would
+  press whichever interaction moved into its place.
+- Answer the press question **after** `--seconds` has passed (use `--seconds 10 --answer 30s` and
+  wait). Nothing is authorised, nothing is pressed, and the record says the time limit — not that
+  you cancelled.
+- Edit the saved `.marco` by hand and run it again. Refused: the play is rebuilt from its bindings
+  and compared, so only a play Marco composed runs, and only while its bindings still describe it.
+  Compose it again to change it.
+
+An Act whose interactions all verify exits 0 and records `verified`, even when it performs only
+some of a longer demonstration — the completion that matters is the play's, not the artifact's.
