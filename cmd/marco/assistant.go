@@ -76,6 +76,9 @@ func newDeps() orchestrator.Deps {
 		hosts["Accessibility"] = accessibility
 	}
 	hosts["Theater"] = newTheaterHost(hosts, accessibility, uia)
+	// AND THE DEMONSTRATED ACT IS REFUSED HERE BY NAME. See demonstratedwiring.go: the
+	// catch-all would otherwise answer it as an OS action it has never heard of.
+	hosts["Demonstrated"] = demonstratedElsewhere{}
 	d := orchestrator.Deps{
 		Reg:     routes.Registry{Dir: routesDir()},
 		Rec:     recorder.New(),
