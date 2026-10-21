@@ -730,6 +730,12 @@ func TestThePageIsTheFlowThatWasAskedFor(t *testing.T) {
 			"and look for it to find out whether it worked"},
 		{">That's it<", "the recorder is ended by a clock rather than by the " +
 			"person saying they are done"},
+		{"buildFromLearned(", "what was just recorded cannot be turned into an Act " +
+			"from the review, so the loop breaks between learning something " +
+			"and using it and somebody has to go and find it in a list"},
+		{"Rest where you are", "the recording does not say to rest on the screen it " +
+			"starts from, which is the half of a demonstration people skip and " +
+			"the one an Act needs in order to start at all"},
 	} {
 		if !strings.Contains(page, want.text) {
 			t.Errorf("%s (looked for %q)", want.why, want.text)

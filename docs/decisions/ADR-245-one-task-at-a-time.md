@@ -147,6 +147,22 @@ runner presses on it would be Marco demonstrating to itself, and the artifact wo
 Marco's own clicks as the person's. Closing the window abandons a recording rather than keeping
 half of one under the name somebody chose.
 
+## The loop closes where it started
+
+Learn → review → build → run, and the join between the second and the third used to be a sentence
+telling somebody to go and find what they had just recorded in a list. The review now offers
+**Build an Act from this**, which fills the builder with the interactions Marco can perform AND
+check, in the order they were demonstrated.
+
+The ones it cannot check are left out on purpose: an Act does not continue past an interaction
+whose result was never recorded, so including one by default would be building an Act that stops
+in the middle. They are still there to add by hand, where somebody choosing one can see what
+they are choosing.
+
+And the recording card now says the half of a demonstration that people skip — rest on the
+screen you start from before you click. That is the reading that establishes the starting screen,
+and without it the Act that comes out of the recording can only wait.
+
 ## What was asked for and deliberately NOT built
 
 - **A Resume button.** There is no pause/resume operation in the runner. A paused run
@@ -160,6 +176,21 @@ half of one under the name somebody chose.
   demonstration it actually saved.
 - **Scene reuse across demonstrations.** An Act performs interactions from ONE demonstration.
   The builder says so where somebody would otherwise discover it from a refusal.
+
+  What it would take, so the next person does not have to find out: `Binding` already carries its
+  own `Routine` and `Revision` per interaction, and the generated play names the demonstration
+  only in a comment — so the FORMAT is nearly there. What is not is everything below it.
+  `Bindings.one()` requires a single routine, `Plan` carries one `Routine`, and
+  `perform-workflow` builds one `workflowrun.Runner` and one `workflowstore.SessionBinding` from
+  that one artifact, with the artifact threaded through the confirm closure, the regrounder, the
+  step agreement, the reacquisition and the scope gate. Two demonstrations means one coordinator
+  per routine, each establishing its OWN starting screen from the same looks — because
+  `screen_a` in one artifact is not `screen_a` in the other, even when it is the same pixels —
+  and that is a restructuring of the command's composition root, which is where every execution
+  guard is installed.
+
+  It is also not the cheapest way to a two-step Act. One recording with two clicks in it
+  composes today, and costs the person one demonstration instead of two.
 - **Visual previews.** The target, the starting screen and the result are described in words
   read off them, not shown as images; the artifact retains no such pictures to show. Words are
   what there is, and they are better than labels — they are not a substitute for a picture.

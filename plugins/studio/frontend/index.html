@@ -191,9 +191,10 @@
        state — and Cancel is there for the whole of it. See learn.go. -->
   <div class="card hide" id="recording">
     <div id="learnDoing" style="font-size:15px"></div>
-    <div class="muted" style="margin-top:6px">Click the control once, with the mouse, and
-      wait for the result to settle before you finish. Keys are watched and cannot name a
-      control.</div>
+    <div class="muted" style="margin-top:6px"><b>Rest where you are for a moment first</b>
+      — Marco reads the words on the screen you start from, and that is how it knows it is
+      there next time. Then click the control once, with the mouse, and wait for the result
+      to settle before you finish. Keys are watched and cannot name a control.</div>
     <div class="row" style="margin-top:12px">
       <button class="go" id="doneBtn" onclick="done()">That's it</button>
       <button class="stop" id="stopLearnBtn" onclick="stopLearning()">Cancel</button>
@@ -207,7 +208,9 @@
     <div id="learnedNext" class="muted" style="margin-top:6px"></div>
     <div id="learnedWhat" style="margin-top:10px"></div>
     <div class="row" style="margin-top:12px">
-      <button class="go" id="againBtn" onclick="again()">Record it again</button>
+      <button class="go hide" id="buildBtn" onclick="buildFromLearned()">Build an Act
+        from this</button>
+      <button id="againBtn" onclick="again()">Record it again</button>
       <button onclick="dismissLearned()">Done</button>
     </div>
     <details>
@@ -326,6 +329,9 @@
  // ended the person says when they are done with it, because an ending is a thing to read.
  let onRun = false
  let seenRun = ''
+ // THE LAST REVIEW, kept so the step after it can act on what was recorded rather than asking
+ // somebody to go and find it. See buildFromLearned.
+ let learned = null
 
  // WAIT FOR THE BINDINGS rather than assuming them. Wails injects window.go asynchronously,
  // and a top-level call throws a ReferenceError that takes the whole script with it.
@@ -625,6 +631,30 @@
    showing($('learned'), false)
    $('learnName').focus()
  }
+
+ // AND THE NEXT STEP IS OFFERED RATHER THAN DESCRIBED.
+ //
+ // The loop is learn → review → build → run, and the join between the second and the third was a
+ // sentence telling somebody to go and find what they had just recorded in the list below. So
+ // this fills the builder with it: the interactions Marco can perform AND check, in the order
+ // they were demonstrated.
+ //
+ // The ones it cannot check are left out on purpose. An Act does not continue past an
+ // interaction whose result was never recorded — nothing after it is performed — so putting one
+ // in by default would be building an Act that stops in the middle. They are still there to add
+ // by hand, under "Use this one" below, which is where somebody choosing that has to see what
+ // they are choosing.
+ function buildFromLearned(){
+   const d = (learned || {}).learned
+   if (!d) { return }
+   picked = (d.steps || [])
+     .filter(s => s.pressable && s.verifiable)
+     .map((s, i) => ({from: d.name, position: s.position, reads: s.reads || [],
+                      name: defaultName(i)}))
+   paintPicked()
+   showing($('learned'), false)
+   $('actname').focus()
+ }
  function dismissLearned(){ showing($('learned'), false) }
 
  // THE RECORDING, POLLED. Its own poll because it is its own lifecycle: a recording is not
@@ -641,7 +671,13 @@
        text($('learnTranscript'), l.transcript.join('\n'))
      }
      if (l.over) {
+       learned = l
        showing($('learned'), true)
+       // AND THE NEXT STEP, when there is one to offer. An Act needs an interaction
+       // Marco can check; when there is none, the review already says to record it
+       // again and offering to build from it would be offering an Act that stops.
+       showing($('buildBtn'), !!(l.learned && (l.learned.steps || [])
+         .some(s => s.pressable && s.verifiable)))
        text($('learnedSaid'), l.said || '')
        $('learnedSaid').className = l.failed ? 'no' : 'ok'
        text($('learnedNext'), l.next || '')
