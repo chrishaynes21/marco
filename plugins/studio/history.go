@@ -217,3 +217,106 @@ func indented(s string) string {
 	}
 	return strings.Join(lines, "\n") + "\n"
 }
+
+// Forgotten is what a deletion did, or what pressing again would do.
+type Forgotten struct {
+	// Asks is what would be removed, when nothing has been removed yet. Empty once
+	// something has: a sentence in the future tense beside a count in the past tense
+	// would be the window describing two different moments at once.
+	Asks string `json:"asks,omitempty"`
+	// Deleted is how many records went, and Kept how many are left in the directory.
+	Deleted int    `json:"deleted"`
+	Kept    int    `json:"kept"`
+	Error   string `json:"error,omitempty"`
+}
+
+// Forget removes run records: one by reference, or every one when the reference is empty.
+//
+// # Why it asks first
+//
+// Because a run record is the only account of what Marco did to somebody's machine, and the
+// one thing `Report` has to gather from. Deleting it cannot be undone and nothing else holds
+// what it held. So the first call removes nothing and says what would go, and the second —
+// `anyway` — does it. That is the shape `Done` already uses for the other irreversible thing
+// this window offers, and one idiom for both is one thing to learn.
+//
+// # Why the reference is matched and never joined
+//
+// Because it arrives from the page, and a path built from it would be a path somebody could
+// aim. `filepath.Join(dir, reference + ".json")` with a reference of `../../routes/os` is a
+// deletion outside the store, and no amount of checking the string afterwards is as good as
+// not building the path at all. So this reads the directory and compares NAMES: a record is
+// removed only if the directory actually offered it, which makes the traversal impossible
+// rather than guarded against.
+//
+// # What it does not touch
+//
+// A problem report. `Report` writes a file for the person to send, and it is theirs — deleting
+// the run it describes is not a reason to take back something they asked for and may be about
+// to attach to an email. Orphaned on purpose, and said so in `Asks`.
+func (a *Acts) Forget(reference string, anyway bool) Forgotten {
+	reference = strings.TrimSpace(reference)
+
+	// ── A RUN IN FLIGHT IS NOT A PAST RUN ──
+	//
+	// Its record is being written while this reads the directory, and the runner owns it
+	// until it has said how it ended. Removing it would leave a live child writing to a
+	// path nothing lists, and the history would then be missing the one run somebody is
+	// most likely to ask about.
+	a.mu.Lock()
+	busy, running := a.busy, a.reference
+	a.mu.Unlock()
+	if busy && (reference == "" || reference == running) {
+		return Forgotten{Error: "a run is in flight; stop it first, or wait for it " +
+			"to say how it ended"}
+	}
+
+	dir := filepath.Join(a.home, "runs")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return Forgotten{Error: "there are no runs on this machine"}
+		}
+		return Forgotten{Error: err.Error()}
+	}
+	// THE RECORDS THE DIRECTORY ACTUALLY OFFERS, and the ones this call is about.
+	var mine []string
+	kept := 0
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
+			continue
+		}
+		kept++
+		if reference != "" && strings.TrimSuffix(e.Name(), ".json") != reference {
+			continue
+		}
+		mine = append(mine, e.Name())
+	}
+	if len(mine) == 0 {
+		if reference == "" {
+			return Forgotten{Error: "there are no runs on this machine"}
+		}
+		return Forgotten{Error: fmt.Sprintf("no record of %q is kept here", reference)}
+	}
+
+	if !anyway {
+		what := fmt.Sprintf("%d run record(s)", len(mine))
+		if reference != "" {
+			what = "the record of " + reference
+		}
+		return Forgotten{Kept: kept, Asks: "This removes " + what + " for good, and " +
+			"a run record is the only account of what Marco did — it is what " +
+			"Report gathers. Any problem report you have already written is " +
+			"left where it is."}
+	}
+
+	gone, failed := 0, ""
+	for _, name := range mine {
+		if err := os.Remove(filepath.Join(dir, name)); err != nil {
+			failed = err.Error()
+			continue
+		}
+		gone++
+	}
+	return Forgotten{Deleted: gone, Kept: kept - gone, Error: failed}
+}

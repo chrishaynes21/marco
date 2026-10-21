@@ -14,6 +14,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/chaynes-simpleclouds/marco/internal/buildid"
 	"os"
 )
 
@@ -39,7 +40,13 @@ func runActsCheck(home string) int {
 	// it is checking looks, even when that is the less tidy of the two.
 	a := newActs(home)
 
-	fmt.Printf("ACT SURFACE\n  store      %s\n  routes     %s\n\n", home, a.routesDir)
+	// WHICH BUILD THIS IS, and which director it would spawn. First, because a
+	// diagnostic that does not say what it is reporting ON is one somebody reads
+	// about the wrong binary — which is what happened: a window and a recorder a
+	// day apart, and the only way to tell was comparing file timestamps.
+	fmt.Printf("ACT SURFACE\n  build      %s\n  director   %s\n"+
+		"  store      %s\n  routes     %s\n\n",
+		buildid.Revision(), directorBin(), home, a.routesDir)
 
 	demos := a.Demonstrations()
 	fmt.Printf("DEMONSTRATIONS  %d\n", len(demos))

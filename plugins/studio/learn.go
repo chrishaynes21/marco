@@ -34,6 +34,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -41,6 +42,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chaynes-simpleclouds/marco/internal/buildid"
 	"github.com/chaynes-simpleclouds/marco/internal/director/learnstate"
 )
 
@@ -76,6 +78,12 @@ type Learning struct {
 	Presses  int `json:"presses,omitempty"`
 	Watched  int `json:"watched,omitempty"`
 	Captured int `json:"captured,omitempty"`
+	// Unchecked is how many of those presses were MEASURED and produced nothing a run
+	// could check — presses there is no longer anything to wait for.
+	//
+	// Shown as well as the phase, because a session can have one of each and the phase
+	// is about the press that just happened. See learnstate.Unchecked.
+	Unchecked int `json:"unchecked,omitempty"`
 	// Missing is why the last press has no outcome yet, in the recorder's own words.
 	Missing string `json:"missing,omitempty"`
 	// StartKnown says Marco has read enough of the screen this recording starts from to
@@ -85,6 +93,24 @@ type Learning struct {
 	// it is fixable only while the recording is running — go back to that screen and
 	// rest on it — and a captured outcome does not fix it. See learnstate.Event.
 	StartKnown bool `json:"start_known"`
+	// Build is this window's own revision, and Recorder the revision of the director
+	// that is writing the stream — empty until one has said.
+	//
+	// Both shown, and never reduced to a yes/no: "they differ" is the answer somebody
+	// has to act on, and the two values are what tells them WHICH to rebuild. See
+	// internal/buildid, and `Mismatched`.
+	Build    string `json:"build,omitempty"`
+	Recorder string `json:"recorder,omitempty"`
+	// Mismatched says the two are both known and not the same. False while a recorder
+	// has not said which build it is, because unknown is not disagreement.
+	Mismatched bool `json:"mismatched,omitempty"`
+	// ScreenRead says Marco has read something on the screen in front right now, which a
+	// press made there needs before it can be checked at all.
+	//
+	// Shown as a caution the moment it is false and a press has already been seen: it is
+	// the one fault that is cheaper to prevent than to report, and the phases that ask it
+	// of the starting screen stop asking after the first click.
+	ScreenRead bool `json:"screen_read"`
 	// Over says a recording has finished and this is what came of it.
 	Over       bool     `json:"over,omitempty"`
 	Said       string   `json:"said,omitempty"`
@@ -234,6 +260,10 @@ func (a *Acts) Learn(name, application string, seconds int) string {
 	}
 	ctx, stop := context.WithCancel(context.Background())
 	cmd := exec.CommandContext(ctx, directorBin(), args...)
+	// AND NO CONSOLE WINDOW. The recorder is a console child and Studio has just
+	// brought the person's game forward; a window appearing now puts itself in front
+	// of it. See hideConsole.
+	hideConsole(cmd)
 	cmd.Env = append(os.Environ(), "MARCO_HOME="+a.home)
 	// ITS STDIN IS HOW A PERSON SAYS THEY ARE DONE. The recorder ends on a newline —
 	// "Press ENTER when you are done" — and a child with no terminal has nobody to press
@@ -335,7 +365,12 @@ func (a *Acts) Done(anyway bool) string {
 // Reads the recorder's own stream and nothing else. A window that decided this for itself would
 // be estimating the thing the recorder measured. See learnstate and Done.
 func (a *Acts) notYet() string {
-	at, over := a.recordingNow()
+	at, over, foreign := a.recordingNow()
+	if foreign {
+		return "the recorder running is a different build from this window, so " +
+			"nothing it says can be read here. Rebuild with " +
+			"plugins/studio/build.cmd and record again"
+	}
 	if over || at.Phase == "" {
 		return ""
 	}
@@ -359,6 +394,22 @@ func (a *Acts) notYet() string {
 	case learnstate.Blind:
 		why = "the press landed on nothing Marco could see, so nothing can be " +
 			"replayed from it. Click the control itself, on its label"
+	case learnstate.Unchecked:
+		// AND THIS ONE DOES NOT SAY "KEEP RECORDING FOR A MOMENT".
+		//
+		// `Checking` says that, and it is right: the readings are still
+		// arriving. Here they have arrived, so the same sentence would be the
+		// window asking for a wait it has no use for — which is what it did for
+		// twenty-nine seconds of the owner’s Rocket League recording. The
+		// refusal stands, because finishing now saves a press with no check on
+		// it, and what it asks for is a second attempt rather than patience.
+		said := at.Missing
+		if said == "" {
+			said = "the words that say it worked were never read"
+		}
+		why = "the result of your click could not be captured: " + said +
+			". Waiting will not change that now — try the control once " +
+			"more from the screen before it"
 	}
 	// ── AND THE SCREEN AN ACT WOULD START ON, WHICH IS A SEPARATE FAULT ──
 	//
@@ -391,7 +442,7 @@ func (a *Acts) notYet() string {
 // An unreadable or absent stream is an empty event and not an error: a recording whose progress
 // file could not be made is a recording that still works, and every caller treats an empty
 // phase as "the recorder has not said".
-func (a *Acts) recordingNow() (learnstate.Event, bool) {
+func (a *Acts) recordingNow() (at learnstate.Event, over, foreign bool) {
 	a.mu.Lock()
 	path := ""
 	if a.learn != nil {
@@ -399,13 +450,18 @@ func (a *Acts) recordingNow() (learnstate.Event, bool) {
 	}
 	a.mu.Unlock()
 	if path == "" {
-		return learnstate.Event{}, false
+		return learnstate.Event{}, false, false
 	}
 	at, final, err := learnstate.Latest(path)
-	if err != nil {
-		return learnstate.Event{}, false
+	if errors.Is(err, learnstate.ErrForeign) {
+		// A RECORDER THIS BUILD CANNOT READ, which is not a recorder that has
+		// said nothing. Reported as itself so the window can say which it is.
+		return learnstate.Event{}, false, true
 	}
-	return at, final
+	if err != nil {
+		return learnstate.Event{}, false, false
+	}
+	return at, final, false
 }
 
 // StopLearning abandons a recording.
@@ -435,7 +491,10 @@ func (a *Acts) Learning() Learning {
 	}
 	out := Learning{Name: l.name, Application: l.app, Active: !l.over,
 		Over: l.over, Said: l.said, Next: l.next, Failed: l.failed,
-		Transcript: append([]string(nil), l.lines...)}
+		Transcript: append([]string(nil), l.lines...),
+		// AND WHICH BUILD THIS WINDOW IS, so the one beside it can be
+		// compared against something rather than against a timestamp.
+		Build: a.myBuild()}
 	started, seconds := l.started, l.seconds
 	a.mu.Unlock()
 
@@ -483,7 +542,18 @@ func (a *Acts) Learning() Learning {
 	// over readings on both sides of a press. The recorder measures them. So what it
 	// says is what is shown, and the sentence per phase is stated once, in learnstate,
 	// where both this and a test can reach it.
-	at, _ := a.recordingNow()
+	at, _, foreign := a.recordingNow()
+	if foreign {
+		// SAID WHERE THE PHASE SENTENCE GOES, because this is what is happening:
+		// the recording is running and this window cannot read a word of it.
+		// Showing "Reading the starting screen…" here is what cost the owner a
+		// day — a current window narrating a recorder it had never met.
+		out.Phase = string(learnstate.Reading)
+		out.Doing = "The recorder running is a different build from this window. " +
+			"Nothing it reports can be read here — rebuild with " +
+			"plugins/studio/build.cmd and record again."
+		return out
+	}
 	if at.Phase == "" || at.Phase == learnstate.Ended {
 		// NOTHING SAID YET. The child has started and its first look has not
 		// landed, which is real and lasts a fraction of a second.
@@ -494,8 +564,27 @@ func (a *Acts) Learning() Learning {
 	out.Phase = string(at.Phase)
 	out.Doing = learnstate.Doing(at.Phase, l.app)
 	out.Presses, out.Watched, out.Captured = at.Presses, at.Watched, at.Captured
-	out.Missing, out.StartKnown = at.Missing, at.StartKnown
+	out.Unchecked, out.Missing = at.Unchecked, at.Missing
+	out.StartKnown, out.ScreenRead = at.StartKnown, at.ScreenRead
+	// WHICH BUILD IS DOING THE RECORDING, beside which build is watching it.
+	//
+	// The protocol version refuses a stream this build cannot parse; this is the case
+	// where the shape happens to match and the behaviour does not, and it is the thing
+	// the owner had to work out from file timestamps. Nobody should have to.
+	out.Recorder = at.Build
+	// `Differ` and not `!Same`: an unstamped binary cannot vouch for a match AND
+	// cannot be seen to disagree, and warning on it would make every pair that
+	// carries no stamp an alarm about a difference nobody observed.
+	out.Mismatched = buildid.Differ(out.Build, at.Build)
 	return out
+}
+
+// myBuild is this window's revision, or whatever a test put in its place.
+func (a *Acts) myBuild() string {
+	if a.revision != nil {
+		return a.revision()
+	}
+	return buildid.Revision()
 }
 
 // readLearning keeps what the recorder said, in the order a person at a terminal would see it.

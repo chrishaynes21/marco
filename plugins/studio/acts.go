@@ -128,6 +128,11 @@ type Acts struct {
 	// see play.go.
 	listing func() []windowref.Candidate
 	lifting func(h uintptr, pid uint32) (leading, checked bool)
+	// revision is this window's own build, substitutable for the same reason the
+	// three above are: a test binary carries no VCS stamp, so the one pair this
+	// has to get right — two builds that genuinely differ — cannot otherwise be
+	// made to happen at all. Nil means ask the binary.
+	revision func() string
 	// learn is the demonstration being recorded, or the last one. Nil until something
 	// has been. A recording and a run are both one-at-a-time and exclude each other:
 	// there is one screen, and a recorder watching it while a runner presses on it
@@ -1018,6 +1023,9 @@ func (a *Acts) start(p Performance) string {
 	// was asking its questions had gone.
 	ctx, stop := context.WithCancel(context.Background())
 	cmd := exec.CommandContext(ctx, directorBin(), args...)
+	// AND NO CONSOLE WINDOW, which would take the foreground off the application the
+	// run is about to press something in. See hideConsole.
+	hideConsole(cmd)
 	// THE SAME STORE, EXPLICITLY. Both this process and the runner read $MARCO_HOME, and
 	// a child with a different answer would ground against one store while the window
 	// listed another.
@@ -1307,4 +1315,196 @@ func (a *Acts) Inspect(reference string) map[string]any {
 	}
 	rec["path"] = p
 	return rec
+}
+
+// ForgetAct removes one Act: the play, its bindings and its provenance.
+//
+// Asks first, as Forget does for a run and `Done` does for a recording. An Act is cheap to
+// compose again from the demonstration it came from — which is exactly why the question says
+// so, rather than making somebody wonder what they are about to lose.
+func (a *Acts) ForgetAct(name string, anyway bool) Forgotten {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return Forgotten{Error: "name the Act to delete"}
+	}
+	a.mu.Lock()
+	busy, running := a.busy, a.act
+	a.mu.Unlock()
+	if busy && strings.EqualFold(running, name) {
+		return Forgotten{Error: "that Act is running; stop it first"}
+	}
+	var found *Act
+	for _, c := range a.Saved() {
+		if strings.EqualFold(c.Name, name) {
+			got := c
+			found = &got
+			break
+		}
+	}
+	if found == nil {
+		return Forgotten{Error: fmt.Sprintf("there is no Act called %q", name)}
+	}
+	if !anyway {
+		from := found.From
+		if from == "" {
+			from = "the demonstration it came from"
+		}
+		return Forgotten{Asks: fmt.Sprintf("This removes the Act %q. What you showed "+
+			"Marco as %q is NOT touched, so you can compose it again from that.",
+			name, from)}
+	}
+	if err := demonstrated.Forget(a.reg(), routes.Route{Slug: routes.Slug(name)}); err != nil {
+		return Forgotten{Error: err.Error()}
+	}
+	return Forgotten{Deleted: 1}
+}
+
+// ForgetScene removes a demonstration — the artifact, its pictures, its evidence — and every Act
+// composed from it.
+//
+// # Why the Acts go with it
+//
+// Because an Act IS its demonstration's interactions, by name, and a play whose demonstration
+// has gone cannot be performed: its preflight rebuilds the play from the bindings and the
+// artifact, and there is no artifact. What is left is an entry in the Acts list that says
+// `ready` and cannot run. That is the dangling reference deleting a Scene by hand produces, and
+// this is the one place that knows both halves.
+//
+// So the question NAMES them and the second press takes them, which is informed consent rather
+// than a surprise either way: refusing while an Act exists would make a Scene undeletable until
+// somebody hunted down what depended on it, and taking them silently would delete work nobody
+// mentioned.
+func (a *Acts) ForgetScene(name string, anyway bool) Forgotten {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return Forgotten{Error: "name the Scene to delete"}
+	}
+	a.mu.Lock()
+	busy := a.busy
+	recording := a.learn != nil && !a.learn.over
+	a.mu.Unlock()
+	if busy || recording {
+		return Forgotten{Error: "something is in flight; stop it first"}
+	}
+	store, err := demo.Open(a.home)
+	if err != nil {
+		return Forgotten{Error: err.Error()}
+	}
+	if _, ok := store.Sequence(name); !ok {
+		return Forgotten{Error: fmt.Sprintf("nothing called %q has been saved", name)}
+	}
+	// THE ACTS THAT WOULD BE LEFT POINTING AT NOTHING.
+	var dependents []string
+	for _, c := range a.Saved() {
+		if strings.EqualFold(c.From, name) {
+			dependents = append(dependents, c.Name)
+		}
+	}
+	if !anyway {
+		say := fmt.Sprintf("This removes %q for good — what Marco read, the "+
+			"pictures of it, and the evidence of how you demonstrated it.", name)
+		if len(dependents) > 0 {
+			say += fmt.Sprintf(" It also removes the %d Act(s) built from it "+
+				"(%s), because an Act performs this demonstration's "+
+				"interactions and cannot run without it.",
+				len(dependents), strings.Join(dependents, ", "))
+		}
+		return Forgotten{Asks: say}
+	}
+	// THE ACTS FIRST. A failure here leaves the demonstration, which is the direction
+	// that keeps them runnable; the other order leaves Acts that cannot run.
+	gone := 0
+	for _, act := range dependents {
+		if err := demonstrated.Forget(a.reg(),
+			routes.Route{Slug: routes.Slug(act)}); err != nil {
+			return Forgotten{Deleted: gone, Error: err.Error()}
+		}
+		gone++
+	}
+	if err := store.ForgetSequence(name); err != nil {
+		return Forgotten{Deleted: gone, Error: err.Error()}
+	}
+	return Forgotten{Deleted: gone + 1}
+}
+
+// ForgetEverything puts this machine back to how it was before anything was demonstrated.
+//
+// # Why this exists as one thing
+//
+// Because "delete this Scene" and "delete this run" are for keeping a store tidy, and that is
+// not what the owner asked for:
+//
+//	I want to be able to start fresh with the testing whenever I'd like
+//
+// Doing that one card at a time is a chore proportional to how much testing has been done,
+// which is exactly backwards. So this is one press, and the question names what it will take in
+// counts rather than making somebody find out afterwards.
+//
+// # What it keeps, and why
+//
+// The hotkey bindings, because a key bound to `enter freeplay` works again the moment that is
+// demonstrated again under the same name, and throwing it away is a thing to redo rather than a
+// thing to clean up. The capability declarations in `os.marco`, which are shipped and not
+// anybody's data. And the semantic memory and action graph of the earlier Learn work, which are
+// not Studio recordings and are not what "start fresh with the testing" means.
+//
+// Nothing here is a second implementation: the Acts go through `demonstrated.Forget`, the
+// demonstrations through `demo.Store.ForgetSequence`, and the runs through `Forget` — one rule
+// per kind, in the one place that already had it.
+func (a *Acts) ForgetEverything(anyway bool) Forgotten {
+	a.mu.Lock()
+	busy := a.busy
+	recording := a.learn != nil && !a.learn.over
+	a.mu.Unlock()
+	if busy || recording {
+		return Forgotten{Error: "something is in flight; stop it first"}
+	}
+	store, err := demo.Open(a.home)
+	if err != nil {
+		return Forgotten{Error: err.Error()}
+	}
+	scenes := store.Sequences()
+	plays := a.Saved()
+	// THE RUNS, COUNTED BY THE ONE THING THAT KNOWS THE DIRECTORY. Asking rather than
+	// counting here keeps a single answer to "how many runs are kept".
+	runs := a.Forget("", false).Kept
+
+	if !anyway {
+		return Forgotten{
+			Kept: len(scenes) + len(plays) + runs,
+			Asks: fmt.Sprintf("This removes everything on this machine: %d "+
+				"demonstration(s) with their pictures and evidence, %d Act(s), "+
+				"and %d run record(s). Your hotkeys are kept, so a key bound to "+
+				"a name works again as soon as you demonstrate it again.",
+				len(scenes), len(plays), runs),
+		}
+	}
+
+	// THE ACTS FIRST, then what they were built from, then the records of running them.
+	// The other order leaves Acts that cannot run, which is the state deleting a store
+	// by hand produces.
+	gone, failed := 0, ""
+	for _, c := range plays {
+		if err := demonstrated.Forget(a.reg(),
+			routes.Route{Slug: routes.Slug(c.Name)}); err != nil {
+			failed = err.Error()
+			continue
+		}
+		gone++
+	}
+	for _, art := range scenes {
+		if err := store.ForgetSequence(art.Name); err != nil {
+			failed = err.Error()
+			continue
+		}
+		gone++
+	}
+	if runs > 0 {
+		done := a.Forget("", true)
+		gone += done.Deleted
+		if done.Error != "" {
+			failed = done.Error
+		}
+	}
+	return Forgotten{Deleted: gone, Error: failed}
 }

@@ -140,6 +140,8 @@ func (b *Backend) reach() (*service.Client, error) {
 		args = []string{"serve", "--quiet"}
 	}
 	cmd := exec.Command(directorBin(), args...)
+	// AND NO CONSOLE WINDOW. See hideConsole.
+	hideConsole(cmd)
 	cmd.Stdin, cmd.Stdout = nil, nil
 	// THE CHILD'S FIRST WORDS, kept. A Director that refuses to start says why in one line,
 	// and a shell that threw it away would report "no backend" about a diagnosed failure.

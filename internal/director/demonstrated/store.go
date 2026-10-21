@@ -124,3 +124,27 @@ func sourceOf(r routes.Registry, rt routes.Route) (string, bool) {
 	}
 	return string(raw), true
 }
+
+// Forget removes a composed play, its bindings and its provenance.
+//
+// The mirror of Save, and in the same file for the reason Save gives for writing them in one
+// place: three files are one play, and a remover that lived somewhere else would eventually
+// remove two of them. A `.scenes.json` with no play beside it is what `Save` already refuses to
+// write over, and leaving one here would make the name unusable afterwards — somebody deletes an
+// Act, composes it again, and is told there is already something called that.
+//
+// A missing file is not a failure. Provenance is optional, bindings can be absent on a play that
+// predates them, and a caller asking for a play that is already gone has got what it wanted.
+// What IS an error is a play that could not be removed, which is reported as itself.
+func Forget(r routes.Registry, rt routes.Route) error {
+	for _, at := range []string{
+		BindingsPath(r, rt),
+		r.OriginPath(rt),
+		r.Path(rt),
+	} {
+		if err := os.Remove(at); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+	return nil
+}

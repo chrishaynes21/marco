@@ -155,6 +155,21 @@ func (s *Store) ForgetSequence(name string) error {
 	if err := s.ForgetPreviews(name); err != nil {
 		return err
 	}
+	// AND THE EVIDENCE, for the same reason and a stronger one.
+	//
+	// `Evidence` is filed beside the artifact and read by PASSING the artifact, so
+	// `Describes` can be checked on every read. Once the artifact is gone there is
+	// nothing left that can match it: it is a record of somebody's own desktop — where
+	// they pressed, what was read, which window — that nothing can reach and nothing
+	// cleans up. Leaving it behind is keeping that about a routine they asked to be
+	// rid of.
+	//
+	// A missing file is not a failure: a demonstration saved before evidence was kept,
+	// or one the recorder could not write it for, has none.
+	if err := os.Remove(s.path(evidenceDir, safeName(name))); err != nil &&
+		!os.IsNotExist(err) {
+		return err
+	}
 	return os.Remove(path)
 }
 
