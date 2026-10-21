@@ -33,6 +33,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"image"
 	"io"
 	"os"
@@ -245,6 +246,11 @@ func TestAHotkeyRunReachesAnAuthorisedActionWithoutFrom(t *testing.T) {
 	stop := answerEveryQuestion(t, out, press)
 	defer stop()
 
+	// AND WATCH THE WINDOW FOR THE WHOLE OF THE RUN. See watchWindow: a sample at
+	// each end misses a window that moved in the middle and came back, which is what
+	// a game HUD does — and that is the case this test kept failing on.
+	moved := watchWindow(t, windows, front, art)
+
 	code := captureStdoutInto(t, out, func() int {
 		return runPerformWorkflow([]string{
 			"--foreground", "--name", art.Name, "--hotkeys",
@@ -265,6 +271,23 @@ func TestAHotkeyRunReachesAnAuthorisedActionWithoutFrom(t *testing.T) {
 		})
 	})
 	said := out.String()
+
+	// ── NOTHING BELOW IS ASKABLE OF A WINDOW THAT MOVED ──
+	//
+	// This guarded only the last assertion at first, and the next failure was the one
+	// before it: the run established its screen and then spent its whole patience
+	// without reaching an action, which is the same cause one step earlier. Every
+	// assertion here presumes the window the routine was built from is still the window
+	// in front, so the question is asked once, for all of them.
+	//
+	// What that gives up is covered without a desktop:
+	// `TestAHotkeyRunEstablishesItsScreenByKey` holds the grounding, and
+	// `TestOneAuthorizedStepIsLoweredToARecordingHost` holds an authorised step reaching
+	// the host. What is left here, and what the skip costs, is the two of them joined.
+	if moved() {
+		t.Skipf("%q %v changed while the run was in flight, so nothing this test "+
+			"asserts can be asked of it:\n%s", front.Title, front.Bounds, said)
+	}
 
 	// 1. THE ONE THING THAT USED TO HAPPEN MUST NOT HAPPEN.
 	if strings.Contains(said, "name the screen with --from") {
@@ -301,6 +324,11 @@ func TestAHotkeyRunReachesAnAuthorisedActionWithoutFrom(t *testing.T) {
 		// docs/experiments/Experiment-094-four-failures-no-mechanism-and-a-window-that-has-to-hold-still.md
 		// — which had to be reconstructed from scrollback, because nothing recorded
 		// which window the run was grounded against. Now it does.
+		//
+		// AND THE TWO ARE NO LONGER INDISTINGUISHABLE. `windowMovedDuring` above
+		// asks the pixels: reaching this line means the window still agrees with
+		// the screen the point was approved on, so a refusal here is a refusal
+		// about a window that DID hold still, which is the thing worth failing on.
 		t.Errorf("no action was performed after one was authorised (%s: %s)\n"+
 			"  grounded against %s — %q %v, which is the window in front of "+
 			"whoever ran this; see Experiment-094 if the reason above is about "+
@@ -343,12 +371,63 @@ func aRoutineFromALookAt(t *testing.T, windows *winprovider.Provider,
 	w directorapi.Window) workflowstore.Artifact {
 
 	t.Helper()
-	img, err := newCapture(windows).CaptureWindow(context.Background(), w)
-	if err != nil {
-		t.Skipf("the window in front could not be photographed: %v", err)
+
+	// ── THREE LOOKS, AND THE WINDOW HAS TO HOLD STILL ACROSS ALL OF THEM ──
+	//
+	// Everything this helper does is a precondition about the window in front, stated and
+	// skipped on. This was the one it never stated: the routine is built from a
+	// photograph and then performed against a look taken SECONDS LATER, and the run
+	// compares the two with the terms below. A window that changed in between fails that
+	// comparison — correctly — and the caller then reports it as "no action was performed
+	// after one was authorised", which reads as the grounder breaking.
+	//
+	// It is not. [[Experiment-094-four-failures-no-mechanism-and-a-window-that-has-to-hold-still]]
+	// measured it twice: four failures in ten full-package runs with no mechanism
+	// established, and then 2 of 5 against 3 of 5 at a baseline that predates the work
+	// being tested — with a game in the foreground, which is a window that genuinely does
+	// not hold still from one look to the next.
+	//
+	// Three and not two, because a window can be still between consecutive frames and not
+	// still over the seconds a run takes: measured on the owner's machine with Trackmania
+	// in front, a single pair agreed at 0.526 against a threshold of 0.55, which is a
+	// coin flip and exactly the shape of the flake. Every pair is compared, so a window
+	// that flickers and returns cannot pass on its endpoints alone.
+	looks := make([][]observe.Region, 0, 3)
+	for i := 0; i < 3; i++ {
+		if i > 0 {
+			time.Sleep(250 * time.Millisecond)
+		}
+		img, err := newCapture(windows).CaptureWindow(context.Background(), w)
+		if err != nil {
+			t.Skipf("the window in front could not be photographed: %v", err)
+		}
+		looks = append(looks, observe.NormaliseRects(img.Image.Bounds(),
+			boundsOf(structure.Propose(img.Image,
+				structure.DefaultOptions()))))
 	}
-	res := structure.Propose(img.Image, structure.DefaultOptions())
-	regions := observe.NormaliseRects(img.Image.Bounds(), boundsOf(res))
+	for i := range looks {
+		for j := i + 1; j < len(looks); j++ {
+			agree := observe.ArrangementSimilarity(
+				observe.ArrangeLook(looks[i]), observe.ArrangeLook(looks[j]))
+			if agree >= observe.VisualScreenMatch {
+				continue
+			}
+			t.Skipf("%q %v is not holding still: looks %d and %d agree at "+
+				"%.3f, below the %.2f the run requires, so a routine "+
+				"built from one of them cannot be performed against a "+
+				"look taken later", w.Title, w.Bounds, i+1, j+1, agree,
+				observe.VisualScreenMatch)
+		}
+	}
+
+	// ── AND THE ROUTINE IS BUILT FROM THE LAST OF THEM ──
+	//
+	// The last and not the first, because the gap that matters is the one between these
+	// pixels and the look the run takes at the instant of the press. Building from the
+	// first look put the whole of the stillness check INSIDE that gap, which made this
+	// fail more often rather than less — the check is meant to narrow the question, not
+	// to widen the distance it is asked over.
+	regions := looks[len(looks)-1]
 	if len(regions) < 2 {
 		t.Skipf("the window in front proposes %d region(s); a routine needs a "+
 			"control to re-acquire and an arrangement to settle", len(regions))
@@ -379,6 +458,29 @@ func aRoutineFromALookAt(t *testing.T, windows *winprovider.Provider,
 			"control-shaped, so there is nothing a demonstration could have "+
 			"been of", len(regions))
 	}
+	// AND THE CONTROL HAS TO HAVE BEEN THERE THE WHOLE TIME, because the arrangement is
+	// a count of rectangles in nine boxes and can agree while the one region this routine
+	// presses comes and goes. That is the other refusal this test has produced: *nothing
+	// was proposed under the approved point in the look taken at the instant of the
+	// press*.
+	mid := observe.PointerAt{X: best.X + best.Width/2, Y: best.Y + best.Height/2}
+	for i, look := range looks {
+		found := false
+		for _, r := range look {
+			if mid.X >= r.X && mid.X <= r.X+r.Width &&
+				mid.Y >= r.Y && mid.Y <= r.Y+r.Height {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Skipf("%q %v proposed nothing under the middle of this "+
+				"routine's own control on look %d of %d, so the control "+
+				"it would press is not reliably there", w.Title, w.Bounds,
+				i+1, len(looks))
+		}
+	}
+
 	return workflowstore.Artifact{
 		Version: workflowstore.Version, Name: "the window in front",
 		SavedAt:     time.Now().UTC(),
@@ -507,4 +609,97 @@ func answerEveryQuestion(t *testing.T, out *liveOut, press func(uint16, bool)) f
 		}
 	}()
 	return func() { close(done) }
+}
+
+// watchWindow photographs a window for as long as a run lasts, and reports whether it ever
+// stopped being the screen the routine was built from.
+//
+// # Why this is not a sample at each end
+//
+// Because the thing it has to catch is a window that moved IN THE MIDDLE. A game HUD holds the
+// same count of rectangles in the same nine boxes while a single element flickers, so the
+// arrangement before and after can both agree while the look taken at the instant of the press
+// did not — and the two refusals this test produced say exactly that: *nothing was proposed
+// under the approved point in the look taken at the instant of the press*, and *the screen
+// changed since*. Sampling the ends called both of those a still window and failed.
+//
+// # Why the pixels and not the refusal's wording
+//
+// Because a run that refused because the world moved and a run whose world re-check has started
+// refusing a world that did NOT move produce the same sentence, and the second is the defect
+// this test exists to catch. Reading the message would be trusting the thing under test to say
+// whether it was right. This asks the window, with the same measure and the same threshold the
+// run applies, and the caller fails when the answer is that the window held still.
+//
+// What it costs is a capture every 400ms for the length of the run, taken beside it rather than
+// in it. Nothing here reaches the run, the store, or any input path.
+func watchWindow(t *testing.T, windows *winprovider.Provider, w directorapi.Window,
+	art workflowstore.Artifact) func() bool {
+
+	t.Helper()
+	if len(art.Screens) == 0 {
+		return func() bool { return false }
+	}
+	want := art.Screens[0].Arrangement
+	mid := observe.PointerAt{X: 0.5, Y: 0.5}
+	if len(art.Controls) > 0 && len(art.Controls[0].Readings) > 0 {
+		c := art.Controls[0].Readings[0]
+		mid = observe.PointerAt{X: c.X + c.Width/2, Y: c.Y + c.Height/2}
+	}
+	stop := make(chan struct{})
+	done := make(chan bool, 1)
+	go func() {
+		shots := newCapture(windows)
+		diverged, why := false, ""
+		for {
+			select {
+			case <-stop:
+				if why != "" {
+					t.Log(why)
+				}
+				done <- diverged
+				return
+			case <-time.After(400 * time.Millisecond):
+			}
+			img, err := shots.CaptureWindow(context.Background(), w)
+			if err != nil {
+				continue
+			}
+			look := observe.NormaliseRects(img.Image.Bounds(),
+				boundsOf(structure.Propose(img.Image,
+					structure.DefaultOptions())))
+			if agree := observe.ArrangementSimilarity(want,
+				observe.ArrangeLook(look)); agree < observe.VisualScreenMatch {
+				diverged = true
+				why = fmt.Sprintf("during the run, %q agreed with the "+
+					"routine's own screen at %.3f, below the %.2f it "+
+					"requires", w.Title, agree, observe.VisualScreenMatch)
+				continue
+			}
+			// AND THE CONTROL, because the arrangement is a count of
+			// rectangles and can agree while the one region this routine
+			// presses is not there.
+			found := false
+			for _, r := range look {
+				if mid.X >= r.X && mid.X <= r.X+r.Width &&
+					mid.Y >= r.Y && mid.Y <= r.Y+r.Height {
+					found = true
+					break
+				}
+			}
+			if !found {
+				diverged = true
+				why = fmt.Sprintf("during the run, %q proposed nothing "+
+					"under the middle of the routine's own control",
+					w.Title)
+			}
+		}
+	}()
+	// THE ANSWER IS KEPT, so asking twice gives the same answer rather than `false`.
+	var once sync.Once
+	var moved bool
+	return func() bool {
+		once.Do(func() { close(stop); moved = <-done })
+		return moved
+	}
 }
