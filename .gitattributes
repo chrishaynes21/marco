@@ -9,6 +9,23 @@
 *.ahk   text eol=lf
 *.json  text eol=lf
 
+# The embedded web assets, which are READ BY TESTS and shipped inside a binary.
+#
+# `* text=auto` with core.autocrlf=true checks these out with CRLF, and Studio's page is
+# asserted over byte by byte: `TestThePageBeginsAsADocument` reads the first line, and the
+# page guards look for exact strings. A fresh clone therefore failed a test that passed for
+# everyone who had never re-checked-out the file — found by walking this session's own
+# commits to confirm each one builds.
+#
+# They are also go:embed'ed, so pinning LF keeps the asset byte-identical wherever it is
+# built rather than varying with the checkout.
+*.html  text eol=lf
+*.css   text eol=lf
+*.js    text eol=lf
+
+# Batch files keep CRLF, which is what cmd.exe has always been given.
+*.cmd   text eol=crlf
+
 # Treat generated/binary artifacts as binary.
 *.exe binary
 *.png binary
