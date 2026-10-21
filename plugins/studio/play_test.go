@@ -718,6 +718,18 @@ func TestThePageIsTheFlowThatWasAskedFor(t *testing.T) {
 			"is pressed on a name"},
 		{"w.active ? at : -1", "the run screen does not mark which step is in hand, " +
 			"so the preview and the run do not line up"},
+		// ── LEARNING, WHICH IS WHAT MARCO IS FOR ──
+		{"acts.Learn(", "the window cannot record a demonstration, so the one thing " +
+			"Marco is for is the one thing it cannot do"},
+		{"acts.Done()", "there is no way to tell the recorder you are finished, so a " +
+			"recording can only end by running out of seconds"},
+		{"acts.StopLearning()", "a recording cannot be abandoned once it has started"},
+		{"acts.Applications()", "the application to watch is typed rather than " +
+			"chosen from what is running"},
+		{"l.learned", "what was recorded is not shown back, so somebody has to go " +
+			"and look for it to find out whether it worked"},
+		{">That's it<", "the recorder is ended by a clock rather than by the " +
+			"person saying they are done"},
 	} {
 		if !strings.Contains(page, want.text) {
 			t.Errorf("%s (looked for %q)", want.why, want.text)

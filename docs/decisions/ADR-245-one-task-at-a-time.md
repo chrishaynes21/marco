@@ -2,13 +2,14 @@
 type: adr
 status: accepted
 date: 2026-10-20
-decision: "ACCEPTED — Studio shows ONE task at a time. A rail of three places (Acts, Scenes, Run history) with one of them open, and a run that replaces whatever was being looked at while keeping Stop in front of the person. An Act's detail is what it will do before anything happens: the application, the screen it has to start on in the words read on that screen, and its interactions in order with what each one presses and what it expects afterwards. That ordered preview is the honest kind — it sends nothing — and the engineering run with input disabled is no longer offered as a rehearsal of an Act, because its first press never happens and it therefore cannot reach the second interaction. A run says what is happening in the words of the thing the person asked for (`Preparing Ark…`, `Step 1 of 2 · open the audio settings`, `Checking that it worked…`, `Paused before step 2 · <the run's own reason>`), and when it ends it says what happened AND what to do about it, keyed on the outcome and on what this surface already knows about the Act. Machine names never reach a person: a control is named by the words read on it, a screen by the words read on it, and a screen with no words is said to be unrecognisable rather than shown as `screen_a`. Run history is the canonical records the runner wrote, newest first, and Report a problem gathers one of them into a file the person can send — it sends nothing anywhere. There is no Resume button, because there is no pause/resume operation in the runner: a paused run re-evaluates and proceeds by itself, and the window says that instead."
+decision: "ACCEPTED — Studio shows ONE task at a time. A rail of three places (Acts, Scenes, Run history) with one of them open, and a run that replaces whatever was being looked at while keeping Stop in front of the person. An Act's detail is what it will do before anything happens: the application, the screen it has to start on in the words read on that screen, and its interactions in order with what each one presses and what it expects afterwards. That ordered preview is the honest kind — it sends nothing — and the engineering run with input disabled is no longer offered as a rehearsal of an Act, because its first press never happens and it therefore cannot reach the second interaction. A run says what is happening in the words of the thing the person asked for (`Preparing Ark…`, `Step 1 of 2 · open the audio settings`, `Checking that it worked…`, `Paused before step 2 · <the run's own reason>`), and when it ends it says what happened AND what to do about it, keyed on the outcome and on what this surface already knows about the Act. Machine names never reach a person: a control is named by the words read on it, a screen by the words read on it, and a screen with no words is said to be unrecognisable rather than shown as `screen_a`. Run history is the canonical records the runner wrote, newest first, and Report a problem gathers one of them into a file the person can send — it sends nothing anywhere. There is no Resume button, because there is no pause/resume operation in the runner: a paused run re-evaluates and proceeds by itself, and the window says that instead. And the window RECORDS a demonstration, which it could not do before: it starts `director demonstrate-visual` with the application chosen from what is running, counts down its own `--delay`, ends it the recorder’s own way with a newline on its stdin so everything the recorder does after that line still happens, and then says what came of it from the saved artifact — with one remedy per way a capture can be useless, because those four causes have nothing to do with each other."
 supersedes: []
 affects:
   - interface
   - execution
 source_paths:
   - plugins/studio/frontend/index.html
+  - plugins/studio/learn.go
   - plugins/studio/acts.go
   - plugins/studio/doing.go
   - plugins/studio/history.go
@@ -108,15 +109,55 @@ Both in Go rather than in the page, for the reason `said.go` already gives: a pa
 over these has no way of saying which situations it covers, and these have a test that walks all
 of them.
 
+## Learning a Scene
+
+The window could list what had been demonstrated and could not record one — so the one thing
+Marco is for was the one thing it could not do, and the way in was a terminal command with six
+flags whose session ends when somebody presses ENTER at a prompt they cannot see. The owner:
+*"how do i do a demonstration? And if not, isn't that something marco can do the UI can't?"*
+
+It is `director demonstrate-visual` and it stays that. Studio starts it, says what it is doing,
+ends it, and reads the store afterwards:
+
+| | whose claim it is |
+|---|---|
+| bring the application forward | Studio's, and refused here when it cannot |
+| the wait before recording | Studio's: it passed `--delay`, so it may count it |
+| recording | the recorder's, until somebody says they are done |
+| ending | a newline on its stdin — the recorder's own "press ENTER" |
+| what came of it | the SAVED ARTIFACT, never a parsed sentence |
+
+Three things in that are deliberate. The application is **chosen from what is running** rather
+than typed, because the executable name is what every selector in Marco matches on and a list is
+the difference between that and a guess. The recording is ended by **That's it** writing a
+newline, not by a kill: everything the recorder does after that line — the report, the draft
+learned from the walk, the artifact, the evidence file beside it — would be thrown away by a
+window that killed the process and called it finishing. And the review is read back from the
+store, because the artifact is the thing that will be performed.
+
+**Four failures, four remedies.** A capture can be useless in four ways and they have nothing to
+do with each other: nothing saved at all, a demonstration with no control in it (a menu driven
+by the keyboard, and keys cannot name a control), a control with no outcome (the pause after the
+click was too short — two readings are dropped as mid-response and five have to agree), and a
+first press whose screen was never read (an Act over it waits instead of pressing). "Try again"
+over those four would be the window guessing.
+
+A recording and a run exclude each other. There is one screen: a recorder watching it while a
+runner presses on it would be Marco demonstrating to itself, and the artifact would record
+Marco's own clicks as the person's. Closing the window abandons a recording rather than keeping
+half of one under the name somebody chose.
+
 ## What was asked for and deliberately NOT built
 
 - **A Resume button.** There is no pause/resume operation in the runner. A paused run
   re-evaluates its world every look and proceeds by itself the moment the world matches, so a
   Resume button would be decorative — it would claim an operation that does not exist. The
   window says what the run is waiting for and that it goes on by itself, and keeps Stop.
-- **Guided learning.** Studio lists what has been demonstrated; it has no learn operation of its
-  own. The empty library says what it is for and sends somebody to Scenes, which is honest about
-  what exists today rather than offering a button that would do nothing.
+- **A Scene with an identity of its own.** What is recorded is a DEMONSTRATION, whose
+  interactions an Act then names; a reusable named Scene with a stable reference of its own does
+  not exist yet, and the window does not pretend otherwise — it calls the recording step "Learn a
+  Scene" because that is what a person is doing, and everything it then shows is the
+  demonstration it actually saved.
 - **Scene reuse across demonstrations.** An Act performs interactions from ONE demonstration.
   The builder says so where somebody would otherwise discover it from a refusal.
 - **Visual previews.** The target, the starting screen and the result are described in words
@@ -130,6 +171,15 @@ of them.
 
 ## Enforced by
 
+- `plugins/studio/learn_test.go` —
+  `TestRecordingAsksMarcosOwnRecorderAndFinishesItProperly` (the arguments the recorder was really
+  given, the preparation sentence, and that it was FINISHED on its own terms rather than killed);
+  `TestARunAndARecordingDoNotOverlap`; `TestRecordingRefusesWhatItCanAnswerFirst` (five cases,
+  including a demonstration named after an existing Act, which is a compile error two steps
+  later); `TestTheApplicationsOfferedAreTheOnesWithAWindow` (one entry per application, and
+  neither a minimized window nor a message-only one); `TestEveryWayACaptureCanBeUselessHasItsOwnRemedy`
+  (the four causes and their four remedies); `TestARecorderThatSavedNothingSaysSoAndSaysWhy`;
+  `TestWhatWasLearnedIsReadBackFromTheStore` (the review comes from the artifact).
 - `plugins/studio/doing_test.go` — `TestEverySituationARunCanBeInIsSaidAsATask` (one case per row
   of the specified table, including the two where nobody could say which step it was on, and the
   ended case that deliberately says nothing because `saidOf` is the headline then);

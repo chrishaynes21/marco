@@ -56,6 +56,8 @@
  button.stop{border-color:var(--no)}
  input[type=text]{font:12px Consolas,monospace;background:#101216;color:var(--ink);
         border:1px solid #3a404c;padding:5px 7px;width:100%}
+ select{font:12px Consolas,monospace;background:#101216;color:var(--ink);
+        border:1px solid #3a404c;padding:5px 7px;min-width:14em}
  label{color:var(--dim)}
  .tag{font-size:11px;padding:1px 6px;border:1px solid #3a404c;color:var(--dim)}
  .tag.live{border-color:var(--no);color:#ffb3ae}
@@ -106,7 +108,7 @@
     <div class="muted">Show Marco one click and what should happen afterward. A Scene is one
       interaction; an Act puts Scenes in order.</div>
     <div class="row" style="margin-top:10px">
-      <button class="go" onclick="show('scenes')">Build an Act from a Scene</button>
+      <button class="go" onclick="show('scenes')">Learn a Scene</button>
       <span class="muted" id="emptyNote"></span>
     </div>
   </div>
@@ -163,6 +165,58 @@
   <p class="sub">A Scene is one interaction — one click, and what should happen afterward.
     An Act puts Scenes in order. These are the interactions Marco has watched you perform.</p>
 
+  <h2>Learn a Scene</h2>
+  <div class="card" id="learnCard">
+    <div class="muted">Marco watches you do it once, with your own hands. Nothing is
+      injected, no screenshots are kept, and it reads the words on the screen so it can
+      recognise where it is later.</div>
+    <div class="row" style="margin-top:10px"><label style="width:7em">call it</label>
+      <input type="text" id="learnName" placeholder="what you are showing Marco"></div>
+    <div class="row" style="margin-top:6px"><label style="width:7em">in</label>
+      <select id="learnApp"></select>
+      <button onclick="loadApps()">Refresh</button>
+      <span class="muted" id="appNote"></span></div>
+    <div class="row" style="margin-top:6px"><label style="width:7em">for up to</label>
+      <input type="text" id="learnSeconds" value="60" style="width:5em">
+      <span class="muted">seconds — or press <b>That's it</b> as soon as you are
+        done</span></div>
+    <div class="row" style="margin-top:10px">
+      <button class="go" id="learnBtn" onclick="learn()">Record</button>
+      <span class="muted" id="learnNote"></span>
+    </div>
+  </div>
+
+  <!-- RECORDING, AND WHAT TO DO WHILE IT IS. The preparation countdown is Studio's own
+       arithmetic over the delay it passed the recorder — not a claim about the recorder's
+       state — and Cancel is there for the whole of it. See learn.go. -->
+  <div class="card hide" id="recording">
+    <div id="learnDoing" style="font-size:15px"></div>
+    <div class="muted" style="margin-top:6px">Click the control once, with the mouse, and
+      wait for the result to settle before you finish. Keys are watched and cannot name a
+      control.</div>
+    <div class="row" style="margin-top:12px">
+      <button class="go" id="doneBtn" onclick="done()">That's it</button>
+      <button class="stop" id="stopLearnBtn" onclick="stopLearning()">Cancel</button>
+      <span class="muted" id="learnLeft"></span>
+    </div>
+  </div>
+
+  <!-- WHAT CAME OF IT, from the saved artifact rather than from what the recorder said. -->
+  <div class="card hide" id="learned">
+    <div id="learnedSaid"></div>
+    <div id="learnedNext" class="muted" style="margin-top:6px"></div>
+    <div id="learnedWhat" style="margin-top:10px"></div>
+    <div class="row" style="margin-top:12px">
+      <button class="go" id="againBtn" onclick="again()">Record it again</button>
+      <button onclick="dismissLearned()">Done</button>
+    </div>
+    <details>
+      <summary>Technical details</summary>
+      <pre id="learnTranscript">nothing yet</pre>
+    </details>
+  </div>
+
+  <h2>What you have shown Marco</h2>
   <div class="row">
     <button onclick="loadDemos()">Refresh</button>
     <span class="muted" id="demoNote"></span>
@@ -185,7 +239,6 @@
     <pre id="composed" class="hide"></pre>
   </div>
 
-  <h2>What you have shown Marco</h2>
   <div id="demos"></div>
 </section>
 
@@ -282,7 +335,8 @@
  }
  ready(() => {
    acts = window.go.main.Acts
-   paintLive(); show('acts'); loadActs(); loadDemos(); loadHistory(); poll()
+   paintLive(); show('acts'); loadActs(); loadDemos(); loadHistory(); loadApps()
+   poll(); pollLearning()
    // THE PAGE REPORTS ITSELF, LAST. A `-H windowsgui` binary has no console, so this
    // callback is the only evidence that the window opened, WebView2 came up, the embedded
    // asset was served, this script ran, and the Go bindings are reachable from it.
@@ -532,6 +586,88 @@
        list.appendChild(card)
      })
    })
+ }
+
+ // ── LEARNING A SCENE ───────────────────────────────────────────────────────
+ //
+ // The recorder is Marco's, and this starts it, says what it is doing, ends it when the person
+ // says they are done, and shows what came of it. See learn.go: the review is read out of the
+ // saved artifact, never out of the recorder's printed sentences.
+
+ function loadApps(){
+   acts.Applications().then(apps => {
+     const sel = $('learnApp')
+     const had = sel.value
+     sel.innerHTML = ''
+     // THE GAME BY ITS OWN NAME, pointed at rather than typed. The executable name is
+     // what every selector in Marco matches on, so it is the name a person has to end
+     // up with — and a list is the difference between that and a guess.
+     apps.forEach(app => {
+       const o = document.createElement('option')
+       o.value = app; o.textContent = app
+       sel.appendChild(o)
+     })
+     if (apps.includes(had)) { sel.value = had }
+     text($('appNote'), apps.length ? '' : 'nothing with a window is running')
+   })
+ }
+
+ function learn(){
+   const seconds = parseInt($('learnSeconds').value, 10) || 0
+   acts.Learn($('learnName').value, $('learnApp').value, seconds).then(err => {
+     text($('learnNote'), err || '')
+     if (!err) { showing($('learned'), false) }
+   })
+ }
+ function done(){ acts.Done().then(e => { if (e) text($('learnNote'), e) }) }
+ function stopLearning(){ acts.StopLearning().then(e => { if (e) text($('learnNote'), e) }) }
+ function again(){
+   showing($('learned'), false)
+   $('learnName').focus()
+ }
+ function dismissLearned(){ showing($('learned'), false) }
+
+ // THE RECORDING, POLLED. Its own poll because it is its own lifecycle: a recording is not
+ // a run, nothing is authorised by it, and nothing it does can press anything.
+ function pollLearning(){
+   acts.Learning().then(l => {
+     showing($('recording'), !!l.active)
+     showing($('learnCard'), !l.active)
+     text($('learnDoing'), l.doing || '')
+     text($('learnLeft'), l.active && l.phase === 'recording'
+       ? l.left + 's left at the most' : '')
+     $('learnBtn').disabled = !!l.active
+     if (l.transcript && l.transcript.length) {
+       text($('learnTranscript'), l.transcript.join('\n'))
+     }
+     if (l.over) {
+       showing($('learned'), true)
+       text($('learnedSaid'), l.said || '')
+       $('learnedSaid').className = l.failed ? 'no' : 'ok'
+       text($('learnedNext'), l.next || '')
+       // WHAT WAS LEARNED, DESCRIBED THE WAY EVERY OTHER DEMONSTRATION IS: the words
+       // read on the control and on the screen, and whether it can be checked. No
+       // pictures are kept, so there are none to show, and words that are on the
+       // person's own screen are what there is.
+       $('learnedWhat').innerHTML = l.learned
+         ? (l.learned.steps || []).map(s => '<div class="step">' +
+             '<span class="n"></span><span class="grow">' +
+             '<div>' + ((s.reads || []).length
+               ? 'reads \u201c' + esc(words(s.reads)) + '\u201d'
+               : (s.pressable ? 'a press on something no words were read on'
+                              : 'no press here')) + '</div>' +
+             '<div class="' + ((s.on || []).length ? 'muted' : 'no') + '">' +
+               ((s.on || []).length ? 'on the screen that reads \u201c' +
+                 esc(words(s.on)) + '\u201d'
+                 : 'on a screen no words were read on') + '</div>' +
+             '<div class="' + (s.outcome_words ? 'muted' : 'warn') + '">' +
+               (s.outcome_words ? 'afterwards ' + s.outcome_words +
+                 ' words appeared and stayed' : 'nothing was recorded to check it') +
+             '</div></span></div>').join('')
+         : ''
+       loadDemos()
+     }
+   }).finally(() => setTimeout(pollLearning, 400))
  }
 
  // ── THE BUILDER: ordered cards, no positions, no "2=name" ──────────────────

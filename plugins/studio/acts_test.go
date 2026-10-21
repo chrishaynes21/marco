@@ -8,6 +8,7 @@ package main
 // the machine, so no test here calls it.
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"os"
@@ -295,6 +296,27 @@ func TestOnlyOneSupervisedRunAtATime(t *testing.T) {
 // The stand-in sleeps and says one line. It performs nothing — what is under test is the
 // surface's own bookkeeping about a child, not anything a child does.
 func TestMain(m *testing.M) {
+	// AND IT STANDS IN FOR THE RECORDER TOO, which has a lifecycle of its own: it is
+	// told to finish by a NEWLINE ON ITS STDIN, because that is how
+	// `demonstrate-visual` ends — "Press ENTER when you are done" — and a child
+	// started by a window has nobody at a terminal to press it. So this one echoes its
+	// arguments, waits for that newline, and says what it got.
+	if os.Getenv("STUDIO_STANDIN_RECORDER") == "1" && len(os.Args) > 1 &&
+		os.Args[1] == "demonstrate-visual" {
+		fmt.Println("ARGS " + strings.Join(os.Args[1:], " "))
+		if os.Getenv("STUDIO_STANDIN_RECORDER_FAILS") == "1" {
+			fmt.Fprintln(os.Stderr, "director: nothing was demonstrated")
+			os.Exit(1)
+		}
+		line, err := bufio.NewReader(os.Stdin).ReadString('\n')
+		if err != nil {
+			// CANCELLED, or its context killed it. Either way nothing was
+			// shown and nothing is saved.
+			os.Exit(1)
+		}
+		fmt.Printf("FINISHED on %q\n", line)
+		os.Exit(0)
+	}
 	if os.Getenv("STUDIO_STANDIN_RUNNER") == "1" && len(os.Args) > 1 &&
 		os.Args[1] == "perform-workflow" {
 		// IT ECHOES WHAT IT WAS ASKED FOR, which is how a test can see whether

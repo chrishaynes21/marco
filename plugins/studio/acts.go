@@ -127,6 +127,11 @@ type Acts struct {
 	// see play.go.
 	listing func() []windowref.Candidate
 	lifting func(h uintptr, pid uint32) (leading, checked bool)
+	// learn is the demonstration being recorded, or the last one. Nil until something
+	// has been. A recording and a run are both one-at-a-time and exclude each other:
+	// there is one screen, and a recorder watching it while a runner presses on it
+	// would be Marco demonstrating to itself. See learn.go.
+	learn *learning
 	// transcript is what the run has said so far, which is the whole of what a person
 	// watching it has to go on.
 	transcript []string
@@ -786,6 +791,14 @@ func (a *Acts) start(p Performance) string {
 		return "a run is already in flight; one at a time, because the consent desk " +
 			"is a person's attention and there is one of those"
 	}
+	if a.learn != nil && !a.learn.over {
+		// AND NOT WHILE SOMETHING IS BEING RECORDED. One screen: a recorder
+		// watching it while a runner presses on it would be Marco demonstrating
+		// to itself, and the artifact would record Marco's own clicks as the
+		// person's.
+		a.mu.Unlock()
+		return "Marco is recording a demonstration; one thing at a time on one screen"
+	}
 	a.busy = true
 	a.transcript, a.reference, a.outcome = nil, "", ""
 	a.act, a.live, a.saying = act, live, ""
@@ -977,7 +990,28 @@ func (a *Acts) Close() {
 	a.mu.Lock()
 	a.closing = true
 	busy, cmd, stop, done := a.busy, a.running, a.stopRun, a.done
+	rec := a.learn
 	a.mu.Unlock()
+	// AND A RECORDING ENDS WITH THE WINDOW TOO.
+	//
+	// Abandoned rather than finished: a window being closed is not somebody saying "keep
+	// what you have", and a half-demonstration saved under the name they chose is worse
+	// than none. Waited for, because a recorder still watching the screen after the
+	// window that started it has gone is the same defect as a runner outliving it.
+	if rec != nil && !rec.over {
+		if rec.stop != nil {
+			rec.stop()
+		}
+		if rec.done != nil {
+			select {
+			case <-rec.done:
+			case <-time.After(3 * time.Second):
+				fmt.Fprintln(os.Stderr, "studio: the recorder did not "+
+					"finish within three seconds of being stopped; "+
+					"leaving it to the operating system")
+			}
+		}
+	}
 	if !busy {
 		// NOTHING IS CLAIMED, so there is nothing to stop and nothing that can
 		// appear: a later `Run` is refused by the flag just set.
