@@ -40,15 +40,40 @@ package learnstate
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sync"
 	"time"
+
+	"github.com/chaynes-simpleclouds/marco/internal/buildid"
 )
 
 // Version is the stream format. A reader skips anything it cannot vouch for.
-const Version = 1
+//
+// # It moves whenever Event does, and a test makes that true rather than hoping
+//
+// This existed at 1 while three fields were added to `Event`, and `omitempty` made the
+// difference invisible: a writer that has never heard of `screen_read` omits it, and so does a
+// writer whose value is false. So a recorder a day old produced a stream a current window read
+// happily and wrongly — the owner lost a day of recordings to it, and the only thing that gave
+// it away was two fields contradicting each other (`start_known` true beside `screen_read`
+// false, which `Identifies` implying `Said` makes impossible).
+//
+// `TestTheStreamVersionMovesWithTheEventsShape` pins the field set to this number. Add a field
+// and it fails until this moves, which is the point: the handshake that already existed was
+// silent because remembering to use it was left to a person.
+const Version = 3
+
+// ErrForeign says a stream was written by a different build of the recorder.
+//
+// Distinct from an empty stream, and that distinction is the whole reason this exists. A
+// recorder that has not said anything yet and a recorder whose every line this build cannot
+// vouch for both leave a reader with no events, and they want opposite responses: wait a moment,
+// against stop and go and look at which binary is being run.
+var ErrForeign = errors.New("the stream was written by a different build of the recorder")
 
 // Phase is where a recording is, in the recorder's own terms.
 //
@@ -79,6 +104,28 @@ const (
 	// as evidence of what the person did and nothing can be replayed from it — so the
 	// thing to do is click the control itself rather than beside it.
 	Blind Phase = "blind"
+	// Unchecked is watching after a press whose outcome is MEASURED and not there.
+	//
+	// Its own phase for the reason `Blind` is: waiting cannot fix it, and `Checking`
+	// says waiting is all there is to do. An outcome is read over five readings after
+	// the press, and once those five have arrived — or a third screen has closed the
+	// window — nothing further is folded in and the answer cannot change. See
+	// `observe.LocalOutcome.Final`.
+	//
+	// The owner found it by demonstrating `enter freeplay` on Rocket League. The second
+	// press reached its verdict 2.7 seconds after the click, and the window said
+	// "Checking what changed… wait for the result to settle" for the twenty-nine
+	// seconds after that, until they finished the recording rather than keep waiting:
+	//
+	//	it got stuck on settling for like 30s and I just had to finish the recording
+	//	rather than waiting
+	//
+	// Nothing was wrong with the measurement. Rocket League’s menu carries a rotating
+	// news panel and live counters, so its words change by themselves and few of them
+	// stand — which [[Experiment-086-the-tab-changed-the-panel-and-not-the-screen]]
+	// measured and which is why the terms are what they are. What was wrong is that a
+	// recorder holding a final answer asked for patience.
+	Unchecked Phase = "unchecked"
 	// Captured is watching after a press that HAS a verified local outcome.
 	Captured Phase = "captured"
 	// Ended is the recording over.
@@ -93,7 +140,14 @@ type Event struct {
 	// Name is what the person is teaching, and Application the window being watched.
 	Name        string `json:"name,omitempty"`
 	Application string `json:"application,omitempty"`
-	Phase       Phase  `json:"phase"`
+	// Build is the revision of the recorder that wrote this, so a reader can say
+	// whether it is the one it expects rather than infer it from a file's timestamp.
+	//
+	// `Version` already refuses a stream this build cannot parse; this is the other
+	// half, for the case where the shape happens to match and the behaviour does not.
+	// See internal/buildid.
+	Build string `json:"build,omitempty"`
+	Phase Phase  `json:"phase"`
 	// Presses is how many presses the correlator has been given.
 	//
 	// Presses, not steps: what became of each one is the end report's business, and a
@@ -109,6 +163,14 @@ type Event struct {
 	Watched int `json:"watched,omitempty"`
 	// Captured is how many presses have a verified local outcome.
 	Captured int `json:"captured,omitempty"`
+	// Unchecked is how many placed presses were MEASURED and produced no usable
+	// evidence — `observe.LocalOutcome.Final` without `Verified`.
+	//
+	// Carried as well as folded into the phase, for the reason `StartKnown` is: a
+	// session can have one captured press and one unchecked, and a phase word is about
+	// one press. `Captured + Unchecked == Watched` is how a reader knows nothing is
+	// still being measured.
+	Unchecked int `json:"unchecked,omitempty"`
 	// Missing is why the last press has no verified outcome yet, in the words of the thing
 	// that decided — `observe.LocalOutcome.Why`. Empty when nothing is missing, and empty
 	// before the first press, where there is nothing to miss.
@@ -126,6 +188,28 @@ type Event struct {
 	// not name. The person is owed both sentences, and this one for as long as it holds —
 	// going back to that screen and resting on it is the only moment it can be fixed.
 	StartKnown bool `json:"start_known,omitempty"`
+	// ScreenRead says anything at all has been read on the screen in front RIGHT NOW,
+	// which is what a press made there needs to be checkable.
+	//
+	// # Why this is a second, weaker question than StartKnown
+	//
+	// Because they are two different thresholds for two different jobs, and conflating
+	// them would hide one of them. `StartKnown` is `Identifies` — three words, enough to
+	// recognise that screen again at run time. This is `Said` — anything, because the
+	// outcome rule compares what is read AFTER a press against what was read BEFORE it,
+	// and the before side is taken once, at the instant of the press, from the readings
+	// already held of that screen. No reading, no before side, and `watch` never fills
+	// one in afterwards.
+	//
+	// # And why it is live rather than a verdict
+	//
+	// Because it is the only one of these faults that can be prevented rather than
+	// reported. `Reading` and `Ready` ask it of the screen a recording STARTS on and
+	// stop asking the moment a press is seen — so the second screen, and the third, were
+	// never mentioned, and a person on a menu that moves clicks the instant it appears.
+	// The owner’s Trackmania recording passed through a screen so fast that nothing was
+	// ever read on it, and the press they made there could never be checked.
+	ScreenRead bool `json:"screen_read,omitempty"`
 	// Left is how many seconds of the ceiling remain.
 	Left int `json:"left,omitempty"`
 	// Final marks the last event of a recording that ended of its own accord, and Reason
@@ -140,7 +224,7 @@ type Writer struct {
 	w   *os.File
 	seq int
 
-	name, application string
+	name, application, build string
 	// last is the JSON of the last event said, so an unchanged state is not written
 	// again. A recorder is consulted ten times a second and the answer is the same ten
 	// times; a file a person reads afterwards should not say so a hundred times.
@@ -157,7 +241,8 @@ func NewWriter(path, name, application string) (*Writer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("learnstate: opening %s: %w", path, err)
 	}
-	return &Writer{w: f, name: name, application: application}, nil
+	return &Writer{w: f, name: name, application: application,
+		build: buildid.Revision()}, nil
 }
 
 // Say emits one snapshot, unless it says exactly what the last one did.
@@ -172,6 +257,7 @@ func (w *Writer) Say(e Event) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	e.Version, e.Name, e.Application = Version, w.name, w.application
+	e.Build = w.build
 	// THE SECONDS LEFT ARE NOT A CHANGE. They tick every second by construction, so
 	// comparing them would emit every event there is.
 	left := e.Left
@@ -230,13 +316,38 @@ func Read(path string) ([]Event, error) {
 	return out, sc.Err()
 }
 
+// count is how many non-empty lines a stream holds, whatever this build makes of them.
+func count(path string) (int, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+	n := 0
+	sc := bufio.NewScanner(f)
+	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	for sc.Scan() {
+		if len(bytes.TrimSpace(sc.Bytes())) > 0 {
+			n++
+		}
+	}
+	return n, sc.Err()
+}
+
 // Latest is the last event of a stream and whether the recording ENDED.
+//
+// `ErrForeign` when the file held lines and this build could vouch for none of them: see
+// Version. An empty file is not that — it is a recorder that has started and not yet spoken,
+// which is the ordinary first fraction of a second.
 func Latest(path string) (Event, bool, error) {
 	all, err := Read(path)
 	if err != nil {
 		return Event{}, false, err
 	}
 	if len(all) == 0 {
+		if lines, lerr := count(path); lerr == nil && lines > 0 {
+			return Event{}, false, ErrForeign
+		}
 		return Event{}, false, nil
 	}
 	last := all[len(all)-1]
@@ -249,8 +360,8 @@ func Latest(path string) (Event, bool, error) {
 // is whether enough has been read on the screen an Act built from this would start on for a run
 // to recognise it — `observe.ScreenText.Identifies`, and not merely "somebody looked"; `presses`
 // how many presses the correlator has been given; `watched` how many of those it could place on
-// a region, so an outcome is being measured for them; and `captured` how many have a verified
-// one.
+// a region, so an outcome is being measured for them; `captured` how many have a verified
+// one; and `unchecked` how many have a FINAL one that is not verified.
 //
 // `startKnown` decides the phase only BEFORE the first press, where it is the thing to do. After
 // one, the phase is about the press and `Event.StartKnown` carries this on its own, because a
@@ -264,6 +375,20 @@ func Latest(path string) (Event, bool, error) {
 // second. So `Checking` is where a demonstration spends the moment after every click, and the
 // only thing that makes it alarming is a person finishing while it is still true.
 //
+// # And why "no outcome YET" and "no outcome" are two different phases
+//
+// Two readings after a press are dropped as mid-response and five have to stand, so on a live
+// session answering about every 480ms the floor is a little over three seconds, and a menu that
+// redraws inside the window restarts it. That is `Checking`, and it is what the person is
+// waiting through.
+//
+// `unchecked` is the measurement being OVER. Once the five readings have arrived the watch takes
+// no more, so the verdict cannot improve by waiting, and a recorder that kept saying "wait for
+// the result to settle" would be asking for patience it has no use for — which is exactly what
+// it did for twenty-nine seconds of the owner’s Rocket League recording. It is reported even
+// when an earlier press DID capture, for the reason a captured press does not excuse an
+// unrecognisable starting screen: the sentence is about what just happened.
+//
 // # Why an outcome in flight outranks a press that landed on nothing
 //
 // Because the phase is about the press being measured NOW, and a session can have one of each: a
@@ -271,18 +396,26 @@ func Latest(path string) (Event, bool, error) {
 // would leave the window saying "click the control itself" while the control it wants had
 // already been clicked and its outcome was arriving. The blind presses are still reported —
 // `Presses - Watched` — and the end report is where they are accounted for.
-func PhaseOf(startKnown bool, presses, watched, captured int) Phase {
+func PhaseOf(startKnown bool, presses, watched, captured, unchecked int) Phase {
 	switch {
 	case presses == 0 && !startKnown:
 		return Reading
 	case presses == 0:
 		return Ready
-	case captured < watched:
+	case captured+unchecked < watched:
+		// SOMETHING IS STILL BEING MEASURED, and an outcome in flight outranks
+		// every other account of the session. See above.
 		return Checking
 	case watched == 0:
 		// EVERY PRESS LANDED ON NOTHING. Waiting will not change that, so this
 		// does not say to wait.
 		return Blind
+	case unchecked > 0:
+		// MEASURED, AND THE EVIDENCE IS NOT THERE. Said in preference to
+		// `Captured` when both are true, because "result captured — click the
+		// next control" over a press that produced nothing is the window
+		// telling somebody their click was banked when it was not.
+		return Unchecked
 	}
 	return Captured
 }
@@ -311,6 +444,14 @@ func Doing(p Phase, application string) string {
 	case Blind:
 		return "That press landed on nothing Marco could see. Click the control " +
 			"itself — on its label — rather than beside it."
+	case Unchecked:
+		// WHAT IT MAY NOT SAY IS "WAIT". The readings are in and the answer is
+		// no, so the only two useful things are that it is over and that the
+		// demonstration can carry on. WHY it is no is `Event.Missing`, in the
+		// words of the thing that decided.
+		return "Marco could not tell what that press changed, and waiting will " +
+			"not change it. Try it once more from the screen before it, or " +
+			"carry on — this press will be saved without a check."
 	case Captured:
 		return "Result captured. Click the next control, or finish."
 	}

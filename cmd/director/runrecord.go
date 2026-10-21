@@ -30,6 +30,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"github.com/chaynes-simpleclouds/marco/internal/buildid"
 	"os"
 	"path/filepath"
 	"time"
@@ -64,6 +65,12 @@ const (
 type RunRecord struct {
 	Version int    `json:"version"`
 	Run     string `json:"run"`
+	// Build is the revision of the director that performed this run.
+	//
+	// Run evidence has to answer "what was running", and a file's timestamp does not:
+	// the owner spent a day on recordings made by a director a build behind the window
+	// that spawned it, and nothing anywhere said so. See internal/buildid.
+	Build string `json:"build,omitempty"`
 	// Workflow is the routine's name and Application the scope it was run against.
 	Workflow    string `json:"workflow,omitempty"`
 	Application string `json:"application,omitempty"`
@@ -247,6 +254,10 @@ func runPath(id string) string { return filepath.Join(configDir(), runsDir, id+"
 // refused the second writer after both had been printing the same reference and writing into
 // the same frames directory for the length of a run.
 func saveRun(r RunRecord) (string, error) {
+	// WHICH DIRECTOR THIS WAS, stamped here rather than by each caller: there is one
+	// place a record is written and every record should answer the question. See
+	// internal/buildid.
+	r.Build = buildid.Revision()
 	b, err := json.MarshalIndent(r, "", "  ")
 	if err != nil {
 		return "", err

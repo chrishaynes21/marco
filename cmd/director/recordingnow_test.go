@@ -223,3 +223,168 @@ func TestTheProgressStreamIsWrittenFromWhatTheRecorderKnows(t *testing.T) {
 			"reports the look before the one it just took", at, told)
 	}
 }
+
+// anEmptyOutcome is a press Marco MEASURED and could not tell the result of: the five readings
+// persistence needs arrived, and not enough of what they said stood.
+//
+// The owner's Rocket League case. Its menu carries a rotating news panel and live counters, so
+// its words change by themselves and few of them stand — which is why the terms are what they
+// are, and the answer is a legitimate no rather than a fault.
+func anEmptyOutcome(screen observe.VisualScreenID,
+	target observe.VisualTargetID) observe.LocalOutcome {
+	return observe.LocalOutcome{
+		Target: target, Screen: screen, Look: 7, Settled: true,
+		Appeared: []string{"standard", "urban"}, Transient: []string{"online"},
+		BeforeLooks: 2, AfterLooks: observe.OutcomeSettleLooks,
+	}
+}
+
+// AND A PRESS WHOSE RESULT IS MEASURED AND ABSENT IS NOT A PRESS TO WAIT FOR.
+//
+// The defect the owner found, in the words they found it in:
+//
+//	it got stuck on settling for like 30s and I just had to finish the recording rather than
+//	waiting
+//
+// Their second press reached its verdict 2.7 seconds after the click. The recorder read
+// `Verified` alone, which is false both while the readings are arriving and after they have
+// all arrived and said no — so the phase stayed `Checking` and the window went on saying "wait
+// for the result to settle" for the twenty-nine seconds until they gave up.
+func TestAPressWhoseResultIsMeasuredAndAbsentIsNotAPressToWaitFor(t *testing.T) {
+	said := saidOn(map[observe.VisualScreenID][]string{
+		"visual_1": {"casual", "competitive", "extra", "modes"},
+	})
+	// ONE PRESS, MEASURED, AND NOTHING STOOD.
+	ev := observe.ClickEvidence{Presses: 1,
+		Outcomes: []observe.LocalOutcome{anEmptyOutcome("visual_1", "t-play")}}
+
+	at := recordingFrom(ev, "visual_1", said, 40)
+	switch {
+	case at.Unchecked != 1:
+		t.Errorf("%d press(es) reported as measured and empty, and the one press "+
+			"made had its whole window read", at.Unchecked)
+	case at.Phase != learnstate.Unchecked:
+		t.Errorf("the phase is %q, want %q — %q asks somebody to wait for a "+
+			"reading that will never be taken", at.Phase,
+			learnstate.Unchecked, learnstate.Checking)
+	}
+	if at.Captured != 0 {
+		t.Errorf("%d press(es) reported as captured, and none verified", at.Captured)
+	}
+
+	// AND THE OWNER'S OWN SHAPE: one press captured, then one measured and empty.
+	// The phase is about what just happened, so "result captured — click the next
+	// control" here would be the window telling somebody their click was banked.
+	ev.Presses = 2
+	ev.Outcomes = []observe.LocalOutcome{
+		aCapturedOutcome("visual_1", "t-training"),
+		anEmptyOutcome("visual_2", "t-freeplay"),
+	}
+	at = recordingFrom(ev, "visual_2", said, 38)
+	if at.Captured != 1 || at.Unchecked != 1 {
+		t.Fatalf("captured=%d unchecked=%d of two presses, one of each",
+			at.Captured, at.Unchecked)
+	}
+	if at.Phase != learnstate.Unchecked {
+		t.Errorf("the phase is %q with a press measured and empty beside a "+
+			"captured one, want %q", at.Phase, learnstate.Unchecked)
+	}
+
+	// AND A PRESS STILL BEING MEASURED OUTRANKS BOTH, because waiting IS the thing
+	// to do about that one and it is the press in flight.
+	ev.Presses = 3
+	ev.Outcomes = append(ev.Outcomes, observe.LocalOutcome{
+		Target: "t-standard", Screen: "visual_3", Look: 20, BeforeLooks: 2,
+		AfterLooks: 1})
+	at = recordingFrom(ev, "visual_3", said, 30)
+	if at.Phase != learnstate.Checking {
+		t.Errorf("the phase is %q with one press's readings still arriving, "+
+			"want %q", at.Phase, learnstate.Checking)
+	}
+	if at.Missing == "" {
+		t.Error("nothing says what is missing from the press in flight")
+	}
+}
+
+// AND A PRESS NOTHING IS MEASURING IS NOT A PRESS BEING MEASURED.
+//
+// `observe.MaxOutcomeWatches` bounds how many presses a session accumulates evidence for, and a
+// press past it gets no watch at all. Counted as `Presses - Blind` it is a press being checked
+// that nothing is checking, so `Captured + Unchecked` can never reach `Watched` and the phase
+// is `Checking` for the rest of the recording. Counting the watches that exist cannot say that.
+func TestARecordingDoesNotWaitOnAPressNothingIsMeasuring(t *testing.T) {
+	said := saidOn(map[observe.VisualScreenID][]string{
+		"visual_1": {"casual", "competitive", "extra", "modes"},
+	})
+	// ONE PRESS WITH A WATCH, CAPTURED, AND ONE THE CAP TURNED AWAY.
+	ev := observe.ClickEvidence{Presses: 2,
+		Outcomes: []observe.LocalOutcome{aCapturedOutcome("visual_1", "t-play")}}
+
+	at := recordingFrom(ev, "visual_1", said, 25)
+	if at.Watched != 1 {
+		t.Errorf("%d press(es) reported as being measured, and only one has a "+
+			"watch", at.Watched)
+	}
+	if at.Phase != learnstate.Captured {
+		t.Errorf("the phase is %q, want %q — a press nothing is measuring leaves "+
+			"the recording waiting for the whole of its length",
+			at.Phase, learnstate.Captured)
+	}
+}
+
+// AND THE SCREEN IN FRONT IS ASKED A WEAKER QUESTION THAN THE STARTING SCREEN.
+//
+// Two thresholds for two jobs, and conflating them would hide one. `StartKnown` is
+// `Identifies` — three words, enough to recognise that screen again at run time. `ScreenRead`
+// is `Said` — anything at all, because the before side of an outcome is READINGS, and the
+// before side is taken once, at the instant of the press, from the readings already held of
+// that screen. No reading, no before side, and nothing fills one in afterwards.
+//
+// The owner's Trackmania recording went through a screen too fast for a single reading to be
+// taken on it — the saved artifact has it with 0 words — and the press made there could never
+// be checked. Nothing said so until they had waited.
+func TestTheRecorderSaysWhetherTheScreenInFrontHasBeenReadAtAll(t *testing.T) {
+	for _, c := range []struct {
+		why        string
+		words      []string
+		read, know bool
+	}{
+		// NOTHING READ: a press here has no before side, ever.
+		{"nothing read on it", nil, false, false},
+		// ONE WORD IS A READING. Enough to compare against afterwards, and not
+		// enough to tell this screen from another one.
+		{"one word", []string{"video"}, true, false},
+		{"three words", []string{"video", "audio", "display"}, true, true},
+	} {
+		at := recordingFrom(observe.ClickEvidence{},
+			"visual_1", saidOn(map[observe.VisualScreenID][]string{
+				"visual_1": c.words}), 30)
+		if at.ScreenRead != c.read {
+			t.Errorf("with %s, the screen in front is reported as read=%v",
+				c.why, at.ScreenRead)
+		}
+		if at.StartKnown != c.know {
+			t.Errorf("with %s, the starting screen is reported as "+
+				"recognisable=%v", c.why, at.StartKnown)
+		}
+	}
+
+	// AND IT IS THE SCREEN IN FRONT, NOT THE ONE AN ACT WOULD START ON. They are the
+	// same screen only until the first press; after it they are a recording's past and
+	// its present, and this one is about the press somebody is ABOUT to make.
+	said := saidOn(map[observe.VisualScreenID][]string{
+		"visual_1": {"casual", "competitive", "extra", "modes"},
+	})
+	at := recordingFrom(
+		observe.ClickEvidence{Presses: 1,
+			Outcomes: []observe.LocalOutcome{aCapturedOutcome("visual_1", "t-play")}},
+		"visual_9", said, 20)
+	if !at.StartKnown {
+		t.Error("the screen the first press was made on was read well and is " +
+			"reported as unrecognisable")
+	}
+	if at.ScreenRead {
+		t.Error("the screen in front is reported as read, and nothing has been " +
+			"read on it — so nobody is told that the next click cannot be checked")
+	}
+}

@@ -211,31 +211,41 @@ func recordingNow(obs *fastobserve.Observer, left int) learnstate.Event {
 func recordingFrom(ev observe.ClickEvidence, now observe.VisualScreenID,
 	saidBy func(observe.VisualScreenID) observe.ScreenText, left int) learnstate.Event {
 
-	// ── WHICH PRESSES COULD BECOME A STEP ──
+	// ── WHICH PRESSES ARE BEING MEASURED, AND HOW EACH ONE CAME OUT ──
 	//
-	// `Presses - Blind`, from the correlator's own count, and NOT the number of outcome
-	// watches. A watch is opened for every press including a blind one — the record of
-	// what a press did is worth keeping whether or not anything was under it — so
-	// counting watches made `Watched` equal `Presses` always, which made
-	// `Presses - Watched` zero always and the `Blind` phase unreachable. A person
-	// clicking beside a control was told "checking what changed… wait for the result to
-	// settle" about a press that could never have one.
-	watched := ev.Presses - ev.Blind
-	if watched < 0 {
-		watched = 0
-	}
-	captured, missing := 0, ""
+	// One pass over the watches, counting only those with a target. A watch is opened
+	// for every press including a blind one — the record of what a press did is worth
+	// keeping whether or not anything was under it — so `len(ev.Outcomes)` made
+	// `Watched` equal `Presses` always, which made `Presses - Watched` zero always and
+	// the `Blind` phase unreachable: a person clicking beside a control was told
+	// "checking what changed… wait for the result to settle" about a press that could
+	// never have one.
+	//
+	// The WATCHES and not `Presses - Blind`, which this asked next. They agree except at
+	// `observe.MaxOutcomeWatches`, where a press gets no watch at all — and there the
+	// arithmetic says a press is being measured that nothing is measuring, so the phase
+	// is `Checking` for the rest of the recording. Counting what exists cannot say that.
+	//
+	// `unchecked` is the third answer and the reason this is three counters rather than
+	// two: an outcome that is FINAL and not verified is not one to wait for. See
+	// observe.LocalOutcome.Final and learnstate.Unchecked.
+	watched, captured, unchecked, missing := 0, 0, 0, ""
 	for _, o := range ev.Outcomes {
 		// A BLIND PRESS'S WATCH IS NOT ONE OF THESE. It can never become a step,
 		// so its outcome is not evidence anybody is waiting on.
 		if o.Target == "" {
 			continue
 		}
-		if o.Verified() {
+		watched++
+		switch {
+		case o.Verified():
 			captured++
-			continue
+		case o.Final():
+			unchecked++
+			missing = o.Why()
+		default:
+			missing = o.Why()
 		}
-		missing = o.Why()
 	}
 
 	// ── AND THE SCREEN AN ACT BUILT FROM THIS WOULD START ON ──
@@ -260,14 +270,21 @@ func recordingFrom(ev observe.ClickEvidence, now observe.VisualScreenID,
 	// AND THE RUN'S OWN TERM FOR IT, not "has anybody read it". See
 	// observe.ScreenText.Identifies, which is the call Standing makes.
 	startKnown := saidBy(start).Identifies()
+	// AND WHETHER THE SCREEN IN FRONT HAS BEEN READ AT ALL, which is what the NEXT press
+	// needs. `Said` and not `Identifies`: the before side of an outcome is readings, and
+	// one word is a reading. See learnstate.Event.ScreenRead.
+	screenRead := saidBy(now).Said()
 
 	return learnstate.Event{
-		Phase:      learnstate.PhaseOf(startKnown, ev.Presses, watched, captured),
+		Phase: learnstate.PhaseOf(startKnown, ev.Presses, watched, captured,
+			unchecked),
 		Presses:    ev.Presses,
 		Watched:    watched,
 		Captured:   captured,
+		Unchecked:  unchecked,
 		Missing:    missing,
 		StartKnown: startKnown,
+		ScreenRead: screenRead,
 		Left:       left,
 	}
 }
