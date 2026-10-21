@@ -46,6 +46,14 @@
  .card.on{border-color:var(--key)}
  .card h3{font-size:13px;font-weight:400;margin:0 0 3px}
  .muted{color:var(--dim)} .ok{color:var(--ok)} .no{color:var(--no)} .warn{color:var(--warn)}
+ /* A PICTURE OF WHAT WAS SHOWN. Bounded in CSS as well as on the way in, so a thumbnail
+    kept at a bigger size than this build expects cannot push the text off the card. */
+ .shot{display:block;max-width:100%;border:1px solid var(--line);border-radius:4px;
+   background:#000}
+ .shots{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;align-items:flex-start}
+ .shots figure{margin:0;max-width:320px}
+ .shots figcaption{color:var(--dim);font-size:12px;margin-top:3px}
+ .shot.ctl{max-width:240px}
  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
  .grow{flex:1;min-width:0}
  button{font:12px Consolas,monospace;background:#232730;color:var(--ink);
@@ -168,8 +176,16 @@
   <h2>Learn a Scene</h2>
   <div class="card" id="learnCard">
     <div class="muted">Marco watches you do it once, with your own hands. Nothing is
-      injected, no screenshots are kept, and it reads the words on the screen so it can
-      recognise where it is later.</div>
+      injected, and it reads the words on the screen so it can recognise where it is
+      later.</div>
+    <!-- WHAT IS KEPT, SAID WHERE IT IS ASKED FOR. The recorder keeps no pictures by
+         default and Studio asks for them, so this is the sentence that makes that an
+         informed choice rather than something discovered later. See learn.go. -->
+    <div class="muted" style="margin-top:6px"><b>Pictures are kept</b> — one of each
+      screen and one of each control you click, cropped from that window, in this
+      machine’s own Marco folder. They are there so you can see what you showed Marco:
+      nothing that RUNS reads them, and nothing is ever sent anywhere. Removing the Scene
+      removes them.</div>
     <div class="row" style="margin-top:10px"><label style="width:7em">call it</label>
       <input type="text" id="learnName" placeholder="what you are showing Marco"></div>
     <div class="row" style="margin-top:6px"><label style="width:7em">in</label>
@@ -431,6 +447,7 @@
    showing($('adNotReady'), !a.runnable)
    if (!a.runnable) { text($('adNotReady'), a.why || 'it cannot be performed as it stands') }
    $('adSteps').innerHTML = stepsHTML(a.steps || [], -1)
+   paintStepShots(a.steps)
    text($('adPlay'), a.play || '')
    $('runapp').value = a.application || ''
    paintReady()
@@ -457,8 +474,18 @@
        '<span class="n">' + (i + 1) + '.</span>' +
        '<span class="grow"><b>' + esc(s.name) + '</b>' +
        '<div class="muted">' + esc(reads) + esc(on) + '</div>' +
-       '<div class="' + (s.expect ? 'muted' : 'warn') + '">' + after + '</div></span></div>'
+       '<div class="' + (s.expect ? 'muted' : 'warn') + '">' + after + '</div>' +
+       '<div class="shots" id="actShots' + i + '"></div></span></div>'
    }).join('')
+ }
+
+ // THE PREVIEW’S OWN PICTURES, painted after the HTML they go into exists.
+ //
+ // Separate from stepsHTML because that function returns a string and a picture arrives from a
+ // call: the markup goes in first, then each card is filled. Called wherever stepsHTML is, so
+ // the Act preview and the run screen show the same thing.
+ function paintStepShots(steps){
+   (steps || []).forEach((s, i) => paintShots('actShots' + i, s.routine, s))
  }
 
  // PLAY: the one gesture that performs an Act.
@@ -733,11 +760,11 @@
        $('learnedSaid').className = l.failed ? 'no' : 'ok'
        text($('learnedNext'), l.next || '')
        // WHAT WAS LEARNED, DESCRIBED THE WAY EVERY OTHER DEMONSTRATION IS: the words
-       // read on the control and on the screen, and whether it can be checked. No
-       // pictures are kept, so there are none to show, and words that are on the
-       // person's own screen are what there is.
+       // read on the control and on the screen, and whether it can be checked — and
+       // then SHOWN, because the words are what recognises a screen at run time and
+       // they are not what a person recognises. See previews.go.
        $('learnedWhat').innerHTML = l.learned
-         ? (l.learned.steps || []).map(s => '<div class="step">' +
+         ? (l.learned.steps || []).map((s, i) => '<div class="step">' +
              '<span class="n"></span><span class="grow">' +
              '<div>' + ((s.reads || []).length
                ? 'reads \u201c' + esc(words(s.reads)) + '\u201d'
@@ -750,11 +777,50 @@
              '<div class="' + (s.outcome_words ? 'muted' : 'warn') + '">' +
                (s.outcome_words ? 'afterwards ' + s.outcome_words +
                  ' words appeared and stayed' : 'nothing was recorded to check it') +
-             '</div></span></div>').join('')
+             '</div><div class="shots" id="learnShots' + i + '"></div>' +
+             '</span></div>').join('')
          : ''
+       if (l.learned) {
+         (l.learned.steps || []).forEach((s, i) =>
+           paintShots('learnShots' + i, l.learned.name, s))
+       }
        loadDemos()
      }
    }).finally(() => setTimeout(pollLearning, 400))
+ }
+
+ // ── WHAT IT LOOKED LIKE ────────────────────────────────────────────────────
+ //
+ // The target, the screen it starts from and the screen it expects afterwards, as pictures. Each
+ // is fetched by the label the artifact filed it under — the label is a KEY and is never shown;
+ // what a person reads is the caption and the words beside it.
+ //
+ // Fetched per card rather than carried in the lists, because a thumbnail is tens of kilobytes
+ // and a list of nine demonstrations with three each would be a megabyte of base64 on every
+ // poll, for pictures nobody has opened. A demonstration recorded before pictures were kept, or
+ // without them, simply has none, and what is left is exactly the card as it was before.
+ function paintShots(into, routine, s){
+   const box = $(into)
+   if (!box || !routine) { return }
+   const want = [
+     {label: s.from_label, caption: 'starts on this screen', cls: ''},
+     {label: s.control_label, caption: 'presses this', cls: ' ctl'},
+     {label: s.to_label, caption: 'expects this afterwards', cls: ''},
+   ].filter(w => w.label)
+   box.innerHTML = ''
+   want.forEach(w => acts.Picture(routine, w.label).then(src => {
+     if (!src) { return }
+     const fig = document.createElement('figure')
+     const img = document.createElement('img')
+     img.className = 'shot' + w.cls
+     img.src = src
+     img.alt = w.caption
+     const cap = document.createElement('figcaption')
+     cap.textContent = w.caption
+     fig.appendChild(img)
+     fig.appendChild(cap)
+     box.appendChild(fig)
+   }))
  }
 
  // ── THE BUILDER: ordered cards, no positions, no "2=name" ──────────────────
@@ -973,6 +1039,7 @@
      const at = st && st.interaction ? (st.interaction.index || -1) : -1
      $('runSteps').innerHTML = running ? stepsHTML(running.steps || [],
        w.active ? at : -1) : ''
+     if (running) { paintStepShots(running.steps) }
 
      // THE QUESTION, VERBATIM, because it is one somebody is about to answer with a key —
      // and putting this window's own words on a consent prompt would be writing somebody

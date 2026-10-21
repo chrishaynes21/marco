@@ -65,9 +65,125 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/fastobserve"
 	"github.com/chaynes-simpleclouds/marco/internal/director/learnstate"
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
+	"github.com/chaynes-simpleclouds/marco/internal/director/preview"
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflow"
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflowstore"
 )
+
+// keepPreviews writes one picture per screen and one per pressed control, under the labels the
+// artifact itself uses.
+//
+// # Why the labels are recomputed from the draft and the artifact together
+//
+// Because the session knows screens as `visual_7` and controls as target identities, and the
+// saved artifact knows them as `screen_a` and `control_1`. The mapping is made inside `SaveWith`
+// — in walk order for screens, in first-appearance order for controls — and nothing exported
+// hands it back. What IS true is that `a.Steps[i]` is `draft.Steps[i]`: the artifact is built by
+// walking the draft's steps in order and stamping `Position: i`. So the two sides of each
+// mapping sit at the same index, and reading them off together needs no second copy of the
+// labelling rule that could drift from it.
+//
+// Returns how many were written, and the first reason one was not.
+func keepPreviews(store *demo.Store, a workflowstore.Artifact, draft workflow.Draft,
+	res visualResult, ev observe.ClickEvidence) (int, string) {
+
+	// ── THE SCREENS, by the label the artifact gave each one ──
+	seen, kept, why := map[string]bool{}, 0, ""
+	fail := func(err error) {
+		if why == "" {
+			why = err.Error()
+		}
+	}
+	for i, st := range draft.Steps {
+		if i >= len(a.Steps) {
+			break
+		}
+		for _, side := range []struct {
+			id    observe.VisualScreenID
+			label string
+		}{{st.From, a.Steps[i].From}, {st.To, a.Steps[i].To}} {
+			if side.id == "" || side.label == "" || seen[side.label] {
+				continue
+			}
+			thumb, ok := res.screens[side.id]
+			if !ok {
+				continue
+			}
+			seen[side.label] = true
+			raw, err := preview.PNG(thumb)
+			if err != nil {
+				fail(err)
+				continue
+			}
+			if err := store.SavePreview(a.Name, side.label, raw); err != nil {
+				fail(err)
+				continue
+			}
+			kept++
+		}
+	}
+
+	// ── AND THE CONTROLS, cropped from the frame of the look they were pressed on ──
+	//
+	// The look comes from the correlator's own record of every press — `Observations`
+	// carries the target and the look it arrived on — so the crop is taken from the frame
+	// the person was looking at when they pressed, and not from a picture of the screen
+	// taken at some other moment.
+	at := map[observe.VisualTargetID]int{}
+	for _, p := range ev.Observations {
+		if p.Target == "" {
+			continue
+		}
+		if _, had := at[p.Target]; !had {
+			at[p.Target] = p.Look
+		}
+	}
+	done := map[string]bool{}
+	for i, st := range draft.Steps {
+		if i >= len(a.Steps) || st.Target == "" {
+			continue
+		}
+		label := a.Steps[i].Control
+		if label == "" || done[label] {
+			continue
+		}
+		look, ok := at[st.Target]
+		if !ok {
+			continue
+		}
+		frame, ok := res.pressed[look]
+		if !ok {
+			continue
+		}
+		where, ok := regionsOf(a, label)
+		if !ok {
+			continue
+		}
+		if len(where) == 0 {
+			// NO REGION, NO CROP. A press the proposer found nothing under has
+			// no boundary, which is exactly the case that can never become
+			// something to press either.
+			continue
+		}
+		done[label] = true
+		crop, err := preview.Control(frame, where)
+		if err != nil {
+			fail(err)
+			continue
+		}
+		raw, err := preview.PNG(crop)
+		if err != nil {
+			fail(err)
+			continue
+		}
+		if err := store.SavePreview(a.Name, label, raw); err != nil {
+			fail(err)
+			continue
+		}
+		kept++
+	}
+	return kept, why
+}
 
 // recordingNow is what the recorder knows, as one snapshot.
 //
@@ -127,6 +243,11 @@ func runDemonstrateVisual(args []string) int {
 	dry := fs.Bool("dry-run", false, "report what would be saved and write nothing")
 	blind := fs.Bool("blind", false,
 		"do not read the words on each look, even when OCR is available")
+	previews := fs.Bool("previews", false,
+		"keep a picture of each screen and of each control that was pressed, beside "+
+			"the demonstration, so it can be reviewed by eye. Cropped from the "+
+			"window that was watched, stored in this machine's own Marco "+
+			"directory, read by nothing that runs, and never sent anywhere")
 	progress := fs.String("progress", "",
 		"write this recording's structured state to `path`, one JSON object per "+
 			"change: whether the screen you started on has been read, whether a "+
@@ -190,7 +311,7 @@ func runDemonstrateVisual(args []string) int {
 	}
 	s := visualSession{
 		app: *app, title: *title, seconds: *seconds, interval: interval, delay: *delay,
-		reader: reader,
+		reader: reader, pictures: *previews,
 		announce: func(ref string, settle int) {
 			fmt.Printf("Watching %s at %d/second for %ds, to learn %q\n",
 				ref, *fps, *seconds, name)
@@ -212,9 +333,27 @@ func runDemonstrateVisual(args []string) int {
 			// otherwise the only account of a click Marco could not identify
 			// was a counter. A person watching their own screen be recorded is
 			// owed the accurate sentence and not the reassuring one.
-			fmt.Printf("  No frames and no screenshots are kept. Your presses ARE " +
-				"kept, with where\n  you made them, as the record of what you " +
-				"did — see `director what-i-did`.\n")
+			// WHAT IS KEPT, SAID EXACTLY, AND IT DEPENDS ON THE FLAG.
+			//
+			// This line used to say "no press coordinates", and that promise
+			// stopped being true when the raw demonstration began keeping every
+			// press with its position. It is the same situation again: a person
+			// watching their own screen be recorded is owed the accurate
+			// sentence and not the reassuring one, so --previews changes what
+			// this says rather than being quietly true underneath it.
+			if *previews {
+				fmt.Printf("  PICTURES ARE KEPT: one of each screen and one " +
+					"of each control you press, cropped from this\n  " +
+					"window, in your own Marco directory. Nothing is " +
+					"sent anywhere, and nothing that RUNS\n  reads " +
+					"them — they are there so you can see what you " +
+					"showed me.\n")
+			} else {
+				fmt.Printf("  No frames and no screenshots are kept.\n")
+			}
+			fmt.Printf("  Your presses ARE kept, with where you made them, as " +
+				"the record of what you\n  did — see `director " +
+				"what-i-did`.\n")
 			fmt.Printf("  Starting in %s. Press ENTER when you are done.\n\n", *delay)
 		},
 	}
@@ -339,6 +478,20 @@ func runDemonstrateVisual(args []string) int {
 	// no coordinate. See workflowstore/evidence.go for why the two are separate files
 	// and [[ADR-234-the-person-does-not-have-to-prove-the-click]] for why the raw record
 	// outranks what Marco made of it.
+	// ── AND THE PICTURES OF IT, BESIDE BOTH ──
+	//
+	// Third, and reported separately for the same reason the evidence is: a person who
+	// demonstrated something and got working steps must not be told the demonstration
+	// failed because a picture could not be written. Nothing that runs reads these.
+	if *previews {
+		if n, why := keepPreviews(store, a, draft, res, obs.Clicks()); why != "" {
+			fmt.Fprintf(os.Stderr, "director: the routine is saved and some "+
+				"pictures of it are not: %s\n", why)
+		} else if n > 0 {
+			fmt.Printf("  %d picture(s) kept, to look at in Studio under "+
+				"this Scene.\n", n)
+		}
+	}
 	kept := ""
 	if err := store.SaveEvidence(rawDemonstration(a, *app, *title, obs, draft, res)); err != nil {
 		fmt.Fprintf(os.Stderr, "director: the routine is saved and the raw "+
@@ -657,4 +810,24 @@ func endsWhenSomebodySaysSo(r io.Reader) chan struct{} {
 		close(stop)
 	}()
 	return stop
+}
+
+// regionsOf is where the artifact says one control was read, for cropping a picture of it.
+//
+// # Why this returns regions and not the control
+//
+// Because this command may not NAME `workflowstore.Control` at all, and the test that holds that
+// line is right to: a command that can mint a Control can put anything in one, and what goes in
+// one is a control's durable identity. A lookup returning a zero value on a miss is still a
+// command with the type in its hands. So it hands back the only part a picture needs — where to
+// crop — and the artifact remains the only thing that decided what a control is.
+//
+// See TestASavedPixelDemonstrationCarriesNoCoordinates, which caught exactly this.
+func regionsOf(a workflowstore.Artifact, label string) ([]observe.Region, bool) {
+	for _, c := range a.Controls {
+		if c.Label == label {
+			return c.Readings, true
+		}
+	}
+	return nil, false
 }

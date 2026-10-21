@@ -658,6 +658,16 @@ func TestThePageIsTheFlowThatWasAskedFor(t *testing.T) {
 	}
 	page := string(raw)
 	for _, want := range []struct{ text, why string }{
+		{"acts.Picture(routine, w.label)", "the page never asks for a picture of " +
+			"what was shown, so review is words alone \u2014 which the project " +
+			"says is not an adequate substitute for seeing the target and " +
+			"the result"},
+		{"paintStepShots(", "an Act\u2019s ordered preview shows no pictures, so the " +
+			"only thing identifying its starting screen is a vocabulary read " +
+			"off it"},
+		{"Pictures are kept", "the card that asks to record says nothing about " +
+			"pictures of the person\u2019s screen being kept, so Studio asks the " +
+			"recorder for them without telling them"},
 		{"keepRecording(", "finishing a recording early offers no way to keep " +
 			"recording, so the person has to estimate how long the evidence " +
 			"takes to arrive"},

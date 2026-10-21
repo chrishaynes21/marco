@@ -205,7 +205,23 @@ func (a *Acts) Learn(name, application string, seconds int) string {
 	args := []string{"demonstrate-visual", name,
 		"--application", application,
 		"--seconds", fmt.Sprint(seconds),
-		"--delay", learnPrepare.String()}
+		"--delay", learnPrepare.String(),
+		// ── AND PICTURES, BECAUSE THIS IS A WINDOW ──
+		//
+		// The recorder keeps none by default and says so: "No frames and no
+		// screenshots are kept." That is the right default for a command, and it
+		// is the wrong one for a surface whose whole job is to show somebody what
+		// they taught. Words are what RECOGNISE a screen at run time and they are
+		// not what a person recognises — the owner read
+		// `controls · display · profile · sound · video` off their own Act and
+		// said they could tell which screen it meant "but not easily".
+		//
+		// So Studio asks, and says what is kept where it asks: one picture of each
+		// screen and of each control pressed, cropped from the window being
+		// watched, in this machine’s own Marco directory, read by nothing that
+		// runs, never sent anywhere. See internal/director/preview, and the
+		// recording card in the page.
+		"--previews"}
 	if progress != "" {
 		args = append(args, "--progress", progress)
 	}

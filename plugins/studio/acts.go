@@ -166,6 +166,21 @@ func newActs(home string) *Acts {
 type Interaction struct {
 	Position int    `json:"position"`
 	Says     string `json:"says"`
+	// ControlLabel, FromLabel and ToLabel are the artifact’s own labels for what this
+	// step presses and the screens on either side of it.
+	//
+	// # Why the labels are here after all, having been deliberately left out
+	//
+	// Because they are KEYS and not text. `control_2` is a name this machine gave
+	// itself and showing it to somebody tells them nothing — that is why `Reads` and
+	// `On` exist and why those are what the page displays. But the picture of that
+	// control is filed under exactly that label, so asking for it needs the label.
+	//
+	// They are never rendered. A page that printed one would be back to showing somebody
+	// the machine’s word for a thing they have a word of their own for. See Picture.
+	ControlLabel string `json:"control_label,omitempty"`
+	FromLabel    string `json:"from_label,omitempty"`
+	ToLabel      string `json:"to_label,omitempty"`
 	// Pressable says this step presses something. A step that pressed nothing cannot be
 	// an interaction in an Act, and a person needs to see which is which rather than
 	// find out from a refusal.
@@ -245,6 +260,11 @@ func (a *Acts) Demonstrations() []Demonstration {
 				Verifiable: len(s.Outcome) > 0,
 				Reads:      readsOf(art, s),
 				On:         onWordsOf(art, s),
+				// THE KEYS ITS PICTURES ARE FILED UNDER, not anything
+				// to show. See Interaction.ControlLabel.
+				ControlLabel: s.Control,
+				FromLabel:    s.From,
+				ToLabel:      s.To,
 			}
 			in.OutcomeWords = len(s.Outcome)
 			in.OutcomeSeen = someOf(s.Outcome, outcomeShown)
@@ -587,6 +607,13 @@ type ActStep struct {
 	// Position is the demonstrated interaction this name resolves to. Evidence about
 	// where it came from, never a label.
 	Position int `json:"position"`
+	// Routine is the demonstration this interaction belongs to, and ControlLabel,
+	// FromLabel and ToLabel are its labels inside it — together, the key to the pictures
+	// kept of it. Keys, never shown: see Interaction.ControlLabel.
+	Routine      string `json:"routine,omitempty"`
+	ControlLabel string `json:"control_label,omitempty"`
+	FromLabel    string `json:"from_label,omitempty"`
+	ToLabel      string `json:"to_label,omitempty"`
 }
 
 // BoundNameFor is one interaction name and the demonstrated position it resolves to.
@@ -703,6 +730,12 @@ func describeAct(store *demo.Store, binds demonstrated.Bindings) (startsOn []str
 			step.On = onWordsOf(art, in)
 			step.Expect = len(in.Outcome)
 			step.Expected = someOf(in.Outcome, outcomeShown)
+			// AND WHERE ITS PICTURES ARE. `sc.Routine` rather than the
+			// Act’s name: the pictures were kept when the DEMONSTRATION
+			// was recorded and are filed under its name.
+			step.Routine = sc.Routine
+			step.ControlLabel, step.FromLabel, step.ToLabel =
+				in.Control, in.From, in.To
 			break
 		}
 		if i == 0 {

@@ -400,6 +400,19 @@ func TestAPixelDemonstrationIsReachableAndWritesOnlyWhereItShould(t *testing.T) 
 			"a press made while something covered the target may never have " +
 			"reached the application, and the record has to be able to say so")
 	}
+	// AND NO PICTURE IS KEPT OF A WINDOW THAT WAS NOT IN FRONT.
+	//
+	// The same assertion for the same reason, and the stake is higher: window capture is
+	// not occlusion-safe — it returns the COVERING window's pixels under the target's
+	// name — so a picture kept while the target was behind something is an image of
+	// whatever that something was, filed in this person's store as a picture of their
+	// game. Asserted over the text for the same reason as above, and because a mutation
+	// that dropped `lk.Front` from this guard survived every behavioural test here.
+	if !strings.Contains(string(loop), "if s.pictures && !lk.Missing && lk.Front {") {
+		t.Error("the loop keeps a picture without checking that the target was the " +
+			"window in front; window capture returns the covering window's " +
+			"pixels, so that is a picture of something else")
+	}
 
 	src, err := os.ReadFile("demonstratevisual.go")
 	if err != nil {

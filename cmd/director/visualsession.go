@@ -43,6 +43,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/structure"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/windowref"
+	"github.com/chaynes-simpleclouds/marco/internal/director/preview"
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflowstore"
 	"github.com/chaynes-simpleclouds/marco/internal/platform/navsource"
 	"github.com/chaynes-simpleclouds/marco/internal/platform/winprovider"
@@ -82,6 +83,14 @@ type visualSession struct {
 	// read and whether a press has an outcome yet, and neither of those exists until the
 	// look is in. See demonstratevisual.go, where it becomes a learnstate stream.
 	told func(left int)
+	// pictures says to keep one thumbnail per screen and one frame per press, so a
+	// person reviewing the demonstration can SEE what it will press and what it expects.
+	//
+	// Off unless somebody asked. `demonstrate-visual` prints "No frames and no
+	// screenshots are kept", and keeping crops of a desktop is a change to what a
+	// recording does with it — so it is opt-in at the command and the surface that asks
+	// for it says what is kept. See internal/director/preview.
+	pictures bool
 	// stop, when set, ends the session early -- the person saying "that's it".
 	//
 	// A demonstration is a thing somebody DOES, and a fixed duration makes them watch a
@@ -137,6 +146,22 @@ type visualResult struct {
 	// Collected here and WRITTEN nowhere: this file's own wiring test asserts that the
 	// shared loop names nothing that writes. See demonstratevisual.go.
 	moments []workflowstore.Moment
+	// screens is one thumbnail per screen the session saw, and pressed one full frame
+	// per look that carried a press. Empty unless `pictures` was asked for.
+	//
+	// # Why a thumbnail for a screen and a whole frame for a press
+	//
+	// Because a screen is looked at whole and a control is cropped out of one. A frame is
+	// 1920x1080 of RGBA — eight megabytes — so keeping one per screen would be a hundred
+	// megabytes for a long demonstration, and a thumbnail is a few hundred kilobytes.
+	// A press needs full resolution because the crop comes out of it, and there are a
+	// handful of presses in a demonstration rather than a handful per second.
+	//
+	// Both are bounded: `previewScreens` and `previewPresses`. A recording that ran for
+	// five minutes over thirty screens keeps the first dozen and says so by having no
+	// picture for the rest, which reads as a missing preview rather than as a lie.
+	screens map[observe.VisualScreenID]image.Image
+	pressed map[int]image.Image
 	// application is the executable image name of the window actually watched.
 	//
 	// OBSERVED, never the selector the person typed: a selector is what somebody asked
@@ -171,6 +196,53 @@ func (r *visualResult) note(look int, since time.Duration, screen observe.Visual
 		Look: look, Screen: string(screen), AtMS: since.Milliseconds(),
 		Front: front, Inputs: in,
 	})
+}
+
+// previewScreens and previewPresses bound what a session holds in memory for review.
+//
+// Twelve screens at a few hundred kilobytes each, and eight full frames at eight megabytes:
+// about seventy megabytes at the very worst, for the length of one recording, freed as soon as
+// it is saved. A demonstration that visits more than twelve screens or makes more than eight
+// presses is not one somebody is going to review a picture at a time.
+const (
+	previewScreens = 12
+	previewPresses = 8
+)
+
+// keep holds a picture of this look, if it is one worth holding.
+//
+// The FIRST thumbnail of each screen rather than the last: the first settled look of a screen is
+// the screen as it was arrived at, and the last is whatever it looked like as the person left
+// it — half-way through the next transition, which is the picture nobody wants.
+func (r *visualResult) keep(screen observe.VisualScreenID, look int, frame image.Image,
+	press bool) {
+
+	if frame == nil {
+		return
+	}
+	if press && len(r.pressed) < previewPresses {
+		if r.pressed == nil {
+			r.pressed = map[int]image.Image{}
+		}
+		// THE WHOLE FRAME, because the crop of the control comes out of it and
+		// the control is a few hundred pixels across.
+		r.pressed[look] = frame
+	}
+	if screen == "" {
+		return
+	}
+	if _, had := r.screens[screen]; had || len(r.screens) >= previewScreens {
+		return
+	}
+	// SHRUNK ON THE WAY IN, so what is held is a thumbnail and not a desktop.
+	thumb, err := preview.Thumbnail(frame)
+	if err != nil {
+		return
+	}
+	if r.screens == nil {
+		r.screens = map[observe.VisualScreenID]image.Image{}
+	}
+	r.screens[screen] = thumb
 }
 
 // watch runs one session, folding every look into obs. It writes nothing.
@@ -362,6 +434,19 @@ func (s visualSession) watch(ctx context.Context, obs *fastobserve.Observer,
 			res.found.fold(obs.Reacquire(lk), pressed)
 		}
 		obs.Observe(lk)
+		if s.pictures && !lk.Missing && lk.Front {
+			// AFTER THE FOLD, so the screen this frame is a picture OF is the
+			// screen the observer says is standing. Before it, the frame
+			// belongs to whatever was standing a look ago, and a thumbnail
+			// filed under the wrong screen is worse than none: it is a picture
+			// that disagrees with the words beside it.
+			//
+			// And only when the window was in front. A capture of a covered
+			// window returns the covering window's pixels under the target's
+			// name, which would put somebody else's screen in this person's
+			// store. See the memory note of that name.
+			res.keep(obs.Screen(), look, img.Image, len(lk.Presses) > 0)
+		}
 		if s.told != nil {
 			// WHAT THE RECORDER NOW KNOWS. Called with the look in, and on
 			// every look: the thing on the other end emits only on CHANGE,

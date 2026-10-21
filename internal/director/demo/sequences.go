@@ -134,6 +134,14 @@ func (s *Store) ForgetSequence(name string) error {
 	if _, err := os.Stat(path); err != nil {
 		return fmt.Errorf("there is no saved sequence called %q", name)
 	}
+	// AND THE PICTURES OF IT GO WITH IT.
+	//
+	// Before the artifact, so a failure to remove them refuses the whole thing rather
+	// than leaving crops of somebody's screen behind under the name of a routine that no
+	// longer exists. Nothing reads them, so they would never be noticed again.
+	if err := s.ForgetPreviews(name); err != nil {
+		return err
+	}
 	return os.Remove(path)
 }
 

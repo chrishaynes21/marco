@@ -291,6 +291,68 @@ has said so in orange since it was built. These are separate lines on separate s
 purpose.
 
 
+## Pictures, because words are what RECOGNISES a screen and not what a person recognises
+
+The requirement said so plainly and this surface spent two rounds substituting anyway:
+
+> Visual review needs retained target/start/result previews; OCR vocabulary is not an adequate
+> substitute.
+
+The owner's own report of their first trial is the same sentence from the other end: they could
+tell which screen was being asked for "but not easily", reading
+`controls · display · profile · sound · video` off their Act and matching it against a game menu
+by eye. So a review now shows the control it will press, the screen it starts from and the screen
+it expects afterwards, as pictures — and the Act's ordered preview and the run screen show them
+too. The words stay beside them, because the words are what identifies a screen at RUN time and
+a picture is what identifies it to a person; neither replaces the other.
+
+**What is kept.** One thumbnail per screen at 640px, and one crop per control that was pressed,
+at 360px with a quarter of the control's own size of surroundings on each side — a label with
+nothing around it could be any row of any list. `internal/director/preview` is the whole of the
+arithmetic, in the stdlib, and it averages when it shrinks rather than sampling: a one-pixel
+stroke scaled by picking one source pixel per destination pixel vanishes outright, so the word is
+still there and a person cannot read it, which defeats the entire point.
+
+**Where they come from.** The screen thumbnail is the FIRST settled look of each screen — the
+screen as it was arrived at, not as it looked half way into the next transition. The control crop
+is taken from the full-resolution frame of the look the press actually arrived on, which the
+correlator's own `Observations` identify by look number. Both are bounded in the session:
+twelve screens and eight press frames, because a full frame is eight megabytes of RGBA and a
+feature for looking at pictures must not be the reason a demonstration runs out of memory.
+
+**And nothing that runs reads one.** No runner, grounder, verifier or recogniser consults a
+picture; no decision anywhere depends on one; deleting every file leaves every Act performing
+exactly as before. That is also what keeps [[ADR-181-a-demonstration-marco-can-keep]] and [[ADR-183-remembering-recognising-and-being-allowed-to-act]] intact — a
+pixel is the strongest coordinate there is, and a preview is cropped FROM a region the artifact
+already recorded, stored beside it under the artifact's own label, and never becomes a thing to
+press. The artifact still carries no image.
+
+### The promise had to change, and it changed where it is made
+
+`demonstrate-visual` printed "No frames and no screenshots are kept", and that was true. Keeping
+crops of somebody's desktop is a change to what a recording DOES with their screen, and the same
+situation arose once before: that line used to also say "no press coordinates" and stopped being
+true when the raw demonstration began keeping every press with its position.
+
+So it is opt-in at the command — `--previews`, off by default, and the announce block says
+exactly what is kept when it is on — and Studio passes it and says so **on the card where it asks
+to record**, before anybody presses Record: one picture of each screen and of each control you
+click, cropped from that window, in this machine's own Marco folder, read by nothing that runs,
+never sent anywhere, and removed when the Scene is. The owner was asked before this was built and
+said to build it.
+
+Removal is not a loose end: `ForgetSequence` removes a routine's pictures before it removes the
+routine, and refuses the whole thing if it cannot. Crops of a desktop must not outlive the thing
+they were crops of, and since nothing reads them they would never be noticed again.
+
+### What the pictures are NOT shown for
+
+A picture is not evidence and is not consulted. The one place that distinction could blur is the
+review's verdict: "Marco saw your click and could not confirm what changed" is decided by
+`observe.LocalOutcome`'s four terms over readings, exactly as before, and a Scene with a
+beautiful picture of its result and no recorded outcome is still not presented as ready.
+
+
 ## What was asked for and deliberately NOT built
 
 - **A Resume button.** There is no pause/resume operation in the runner. A paused run
@@ -395,6 +457,36 @@ purpose.
 - `cmd/director/admitreading_test.go` also holds
   `TestAScreenThatMovedOnceAndThenHeldStillIsNotAScreenThatKeepsMoving` — the transition, the
   thirteen stationary looks, and the late reading that lands — and
+- `internal/director/preview/preview_test.go` —
+  `TestAScreenIsKeptWholeAndSmaller`; `TestASmallWindowIsNotEnlarged`;
+  `TestAControlIsCroppedFromWhereItWas` (a bright patch in a dark frame, so the crop says where
+  it was taken from); `TestAControlAtTheEdgeIsStillCropped` (four regions that leave the frame,
+  which is how a resized window becomes a panic mid-save);
+  `TestTwoReadingsOfOneControlAreCroppedTogether`; `TestAControlWithNoRegionIsRefused`;
+  `TestAPreviewIsStoredAsAPictureAnythingCanRead`;
+  `TestShrinkingKeepsWhatWasThereRatherThanSamplingPastIt` (the averaging, measured on
+  one-pixel strokes).
+- `cmd/director/keeppreviews_test.go` —
+  `TestEachPictureIsFiledUnderTheLabelOfWhatItIsAPictureOf` (each screen its own colour and each
+  control its own patch, with the screen thumbnail a DIFFERENT picture from the press frame, so a
+  crop taken from the wrong one shows it); `TestAPressOnNothingIsNotGivenAPicture`;
+  `TestASessionWithNoFramesKeepsNoPictures`; `TestASessionHoldsAtMostWhatItIsBoundedTo` (both
+  bounds, and that the first thumbnail of a screen stands).
+- `cmd/director/observescreenwiring_test.go` — `TestAPixelDemonstrationIsReachableAndWritesOnlyWhereItShould`
+  also asserts the loop keeps no picture of a window that was not in front. Over the source, for
+  the reason it already states about frontness: window capture returns the covering window's
+  pixels under the target's name, so that picture would be of something else, and a mutation that
+  dropped the check survived every behavioural test in the package.
+- `internal/director/demo/previews_test.go` — `TestAPictureIsKeptUnderTheLabelTheArtifactUses`
+  (including two routines that both have a `screen_a`); `TestForgettingARoutineForgetsItsPictures`
+  (the files AND the directory); `TestAPictureNeedsSomethingToBelongTo`.
+- `plugins/studio/previews_test.go` — `TestAPictureIsServedForTheLabelAnInteractionCarries` (the
+  join: the labels an interaction carries are the labels the pictures are filed under, asserted
+  here because a mismatch would simply render no picture and fail nothing);
+  `TestADemonstrationWithNoPicturesShowsItsWordsInstead`;
+  `TestStudioAsksTheRecorderForPictures` (read off the arguments the child was really given,
+  because a window that promised pictures and did not ask for them would be making a promise
+  about somebody's desktop that it then did not keep).
   `TestAScreenThatNeverHoldsStillSaysSoOnceItHasBeenSeenToThreeTimes`.
 - `plugins/studio/page_test.go` — `TestThePageBeginsAsADocument`, which is why a text node in
   front of the doctype cannot come back.
