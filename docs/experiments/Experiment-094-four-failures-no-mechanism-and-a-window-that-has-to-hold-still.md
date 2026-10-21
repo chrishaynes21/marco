@@ -102,3 +102,76 @@ unexplained.
 - [[ADR-243-a-door-of-its-own-and-the-order-in-the-file]]
 - [[ADR-240-a-stop-is-only-a-stop-at-the-last-moment-it-could-matter]]
 - [[Experiment-093-seven-conditions-a-green-suite-did-not-describe]]
+
+
+## A second sitting, 2026-10-21: a game in front, and both trees fail
+
+Five `-run` runs of the test alone in the working tree at the Studio recording work, against five
+in a `git worktree` at `fd6b97b`, with **Trackmania running and in the foreground** — the owner
+was playing while the suite ran.
+
+| tree | pass | fail |
+| --- | --- | --- |
+| working | 2 | 3 |
+| `fd6b97b` baseline | 3 | 2 |
+
+Nowhere near a difference, and that is the finding: the failure reproduces at a baseline that
+predates every change being tested, so it is not attributable to them. The refusals name the
+mechanism themselves, which is the part this record left open:
+
+> the look taken at the instant of the press did not agree with the screen this point was
+> approved on (it differed from the standing screen and has not settled into a new one), so the
+> screen may be changing underneath it
+
+and
+
+> nothing was proposed under the approved point in the look taken at the instant of the press
+
+Both are the world re-check doing its job against a window that is rendering a game at sixty
+frames a second. The test photographs **the real window in front of whoever ran it**, so a
+desktop with a game on it is a desktop where the screen genuinely does not hold still between
+approval and press. The guard is right and the test's subject is whatever happens to be there.
+
+Still NO MECHANISM for the original four failures, and this does not supply one — what it adds
+is that the test fails about as often at a baseline as above it, which the first sitting could
+not say.
+
+## And then the mechanism, from the refusals themselves
+
+The failures name it once there are enough of them to read:
+
+> nothing was proposed under the approved point in the look taken at the instant of the press
+
+> the look taken at the instant of the press did not agree with the screen this point was
+> approved on (it differed from the standing screen and has not settled into a new one)
+
+Both are the world re-check declining a look that disagrees with the one the routine was built
+from. The test photographs the window in front, builds a routine out of that photograph, and
+then performs it against a look taken SECONDS LATER — so its verdict is a claim about whether
+that window held still, and with a game in front the honest answer is no.
+
+So the subject is now checked instead of assumed, in two places and in the run's own terms:
+
+- **Before.** Three looks across half a second, every pair compared at `VisualScreenMatch`, and
+  the control the routine presses has to be proposed in all of them. Two looks was not enough:
+  Trackmania agreed at 0.526 against a 0.55 threshold, which is a coin flip. The routine is
+  built from the LAST of the three, because the gap that matters is the one between those pixels
+  and the look the run takes — building from the first put the whole check inside that gap and
+  made it fail MORE often, which is how that version was caught.
+- **During.** A capture every 400ms beside the run, recording whether the arrangement ever fell
+  below the threshold or the control ever went unproposed. A sample at each end is not enough
+  either: a HUD holds the same count of rectangles in the same nine boxes while one element
+  flickers, so both ends agree about a window that did move in the middle. That version failed
+  twice in ten for exactly that reason.
+
+A run that was refused while the window moved **skips**, naming the window and the measurement.
+A run that was refused while the window held still still **fails**, which is the defect worth
+catching, and the pixels rather than the refusal's wording are what tell the two apart — reading
+the message would be trusting the thing under test to say whether it was right.
+
+Nothing was relaxed to get there: the guard, its measure and its threshold are untouched, and
+the claim that an authorised step reaches the host is independently held by
+`TestOneAuthorizedStepIsLoweredToARecordingHost`, which needs no desktop at all.
+
+Measured after, on the same machine with Trackmania still in front: **0 failures in 20 runs**,
+5 of which ran the whole assertion and 15 of which skipped with the window named.

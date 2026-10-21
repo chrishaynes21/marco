@@ -324,6 +324,311 @@ resting on it is the only moment it can be repaired — and one refusal at *That
 everything missing rather than the first thing.
 
 
+### “Wait for the result to settle”, about a result that had settled
+
+The owner recorded `enter freeplay` on Rocket League and asked the question this section is the
+answer to:
+
+> it got stuck on settling for like 30s and I just had to finish the recording rather than
+> waiting. Settling shouldn’t take 5 seconds right?
+
+The recording’s own stream has the whole of it. Their first press captured 7.8 seconds after
+the click, across two restarts. Their second was clicked at 10:16:59.46; 10:17:02.15 is the last
+thing the recorder ever had to say about it, and the window it was reading can have taken at
+most until 10:17:05 to fill — two readings skipped, five restarts at the allowance’s limit, five
+readings to fill, at 480ms each. The card said *Checking what changed… wait for the result to
+settle* until 10:17:31, when they gave up and clicked something else. **At least twenty-six of
+those seconds were spent waiting for a reading that had already been taken.**
+
+Nothing was wrong with the measurement, and the floor is real: two readings after a press are
+dropped as mid-response and five have to stand, which on that session’s own cadence — the
+stream’s reading-by-reading ticks are 480ms apart, OCR beside a running game — is a little over
+three seconds, and a menu that redraws inside the window restarts it. So **four seconds is the
+design and twenty-nine was not settling at all.** It was a finished negative answer with no way
+to say so.
+
+`LocalOutcome.Verified` is false in two completely different situations, and nothing
+distinguished them:
+
+| | |
+| --- | --- |
+| the readings are still arriving | waiting is exactly the thing to do, and the only honest sentence is how many have arrived |
+| the readings have arrived and few of them stood | the watch takes no more, so the verdict cannot improve, and asking for patience is asking for something with nothing on the other end of it |
+
+So an outcome now says whether it is **the answer** or the answer so far —
+`LocalOutcome.Final`, which is the window having filled or a third screen having closed it, the
+two ways `observeOutcome` stops folding readings into a watch. The second of those needed
+saying out loud: `Settled` answers *did the window fill* and a watch a third screen closed
+never fills and never will.
+
+**And the card had never shown how far along a wait was.** The reading count is the one number
+that makes waiting legible instead of a guess — the recorder has it, this surface exists so that
+nobody has to estimate seven OCR readings, and it was only ever shown to somebody who pressed
+*That’s it* too early. `Missing` is now on the card for as long as a recording is running, which
+during `checking` is *3 of the 5 reading(s) persistence needs have arrived*. That sentence also
+had to be written: it used to say the window had been *cut short*, which is a thing that happened
+to a window rather than a thing that has not happened yet.
+
+The recorder reads it as a third counter beside the captures, and `learnstate.Unchecked` is its
+phase — its own, for the reason `Blind` is its own: waiting cannot fix it and `Checking` is a
+sentence that says waiting is all there is to do. It is said in preference to `Captured` when
+both are true, because *result captured — click the next control* over a press that produced
+nothing is the window telling somebody their click was banked when it was not, and the count
+rides beside the phase for the reason `StartKnown` does. Rocket League’s main menu carries a
+rotating news panel and live counters; its words change by themselves and few of them stand,
+which [[Experiment-087-the-panel-changed-and-the-verifier-could-say-so]] measured and which is
+why the terms are what they are. A recorder’s job there is to say so, not to wait. The recording
+itself, with the cadence and the timings read off its own stream, is
+[[Experiment-095-thirty-seconds-of-settling-that-had-already-settled]].
+
+**And one more press was being waited on that nothing was measuring.** `Watched` was
+`Presses - Blind`, and `observe.MaxOutcomeWatches` caps how many presses accumulate evidence —
+so past the cap the arithmetic claims a press is being measured that has no watch, and
+`Captured + Unchecked` can never reach `Watched`. The phase would then be `Checking` for the
+rest of the recording. It counts the watches that exist now, which cannot say that.
+
+
+### The press that could never be checked, and was reported as one to wait for
+
+The owner re-recorded and came back with the same complaint and a sharper number:
+
+> Three presses seen, only one worked. Settling is ass, it doesn’t finish in time. How fast
+> were you seeing screens settle, because for me it’s taking like 20-30s if at all.
+
+Their stream says it was not settling at all. Press 2 captured in **5.6 seconds** across one
+restart — the same cadence as before, readings 0.4–0.5s apart. Presses 1 and 3 never moved off
+one sentence, for seventeen seconds and then fourteen:
+
+> nothing was read on one side of the press, so the question was not asked
+
+That is `BeforeLooks == 0`, and it is permanent. `watch` takes the before side ONCE, at the
+instant of the press, from the readings already held of the screen it was made on; nothing
+afterwards appends to it, because `observeOutcome` only fills `after`. So a press made on a
+screen nothing has been read on has no before side for the rest of the session. There is
+nothing to compare what appears against, and the question `Verified` answers cannot be asked
+at all — not answered no, not answered later.
+
+The saved artifact names the screen: `screen_b`, **0 words**. A Trackmania menu they passed
+through too quickly for a single reading to be taken on it.
+
+So `Final` now covers it, which stops the recorder describing it as a press to wait for. But
+reporting it better does not make more presses work, and this is the one fault on this surface
+that can be **prevented** rather than reported:
+
+| | |
+| --- | --- |
+| `StartKnown` | `Identifies` — three words, enough to recognise that screen again at run time |
+| `ScreenRead` | `Said` — anything at all, because the before side of an outcome is READINGS |
+
+Two thresholds for two jobs, and the phases that asked the first one asked it only of the
+screen a recording STARTS on and stopped at the first press. The second screen and the third
+were never mentioned. `learnstate.Event.ScreenRead` is asked of the screen in front at every
+look, and the card carries a caution for as long as it is false and a press has been seen:
+*Marco has not read this screen yet. Rest on it for a moment before you click.*
+
+### A console window, taking the foreground off the game
+
+> Every time I click record, a new shell window is also launched.
+
+`director` is a console executable, so Studio starting one created a console window — and a new
+console window takes the foreground. `internal/bridgehost` found and fixed exactly this in the
+Phase-0 live acceptance; Studio’s three spawn sites never got the same treatment. The black
+rectangle is the lesser half: a recording has just raised the person’s game, and a console
+appearing a moment later is in front of it, so the recorder photographs a covered window and
+reads nothing on the screen about to be clicked.
+
+### The window was taking its own pictures down twice a second
+
+> Also the images blink in the ui
+
+Both polls run at 400ms for as long as the window is open, and both rebuilt their whole subtree
+every time. That is invisible for text and not for a picture: the finished review cleared its
+`.shots` boxes, asked the backend for three thumbnails per step again, and filled them in when
+they came back.
+
+Measured on the page itself, with a headless browser and the bindings stubbed, over about ten
+polls:
+
+| | before | after |
+| --- | --- | --- |
+| picture fetches, finished review open | 66 | 6 |
+| Scene-library rebuilds, same | 12 | 2 |
+| picture fetches, run in flight | 108 | 9 |
+| pictures the RUN screen was showing | 0 | 9 |
+
+The last row is a second defect the first one hid. `stepsHTML` builds both the Act’s preview and
+the run’s step list, both are in the document at once, and it gave their picture boxes the SAME
+element ids — so `$('actShots0')` answered with whichever came first, which is the preview. The
+run had been repainting the preview’s boxes and leaving its own empty.
+
+Each list now draws once per revision and moves the mark without rebuilding, pictures are cached
+by revision and label, and a box already showing exactly those pictures is left alone.
+
+**This needed a gate a source guard cannot be.** Every other page test here greps the source,
+which is the right shape for *does the page ask for X* and the wrong shape for a count over
+time: inverting `if (sig === shownReview)` to `if (false)` leaves every one of those guards
+passing, because the variable is still named in the file. A mutation run proved it, and the
+answer is `redraw_test.go` — the real page, rendered in headless Edge with `window.go` stubbed,
+counting what it asks for. It skips where there is no browser.
+
+
+### A press that opened something nothing can read
+
+> entered a map, marco couldn’t tell that we opened a map and never settled
+
+The recording has it exactly: `screen_a`, 20 words over 8 looks — the menu; then `screen_b`,
+**0 words over 5 looks**, and `screen_c`, **0 words**. The press IS recorded, as a click-caused
+transition with a control. What could not happen is the check: the outcome rule wants five
+independent words that appear and STAY, and live 3D has none — what OCR finds are glyphs off a
+moving world, gone by the next reading.
+
+The verdict it gave was *everything that appeared was transient*, which is true about the words
+and silent about what happened. So an outcome carries the screen the press LED TO, and when that
+is a different screen the sentence says so: *that press opened a different screen and only N
+word(s) could be read on it that stayed — a screen with nothing readable on it, like a map or a
+video, cannot be checked by what it says.* `Appeared` alone cannot tell the two apart; it is
+empty both when a still screen produced nothing and when a map did.
+
+**What is NOT done is admitting it as verified.** A wordless destination passing the rule would
+let an Act chain past a press nothing confirmed, and the nesting in
+[[ADR-243-a-door-of-its-own-and-the-order-in-the-file]] exists precisely to stop that. So a press
+that enters a map can be demonstrated and cannot anchor an Act, which is a limit worth saying out
+loud rather than a bug.
+
+### The recorder was a day old, and nothing said so
+
+The same recording carried a contradiction: `start_known=1` beside `screen_read=0`, which cannot
+happen — `Identifies` implies `Said`. The only way to see both is a recorder that has never
+heard of the second field.
+
+Studio spawns the `director.exe` beside ITS OWN executable, and there were two copies of Studio
+in the tree with a director each. The owner launches the one in `plugins/studio`, whose director
+was from the previous night — so a day of recorder fixes was never in effect, every binary looked
+freshly built, and the symptom was the old sentences coming back. Nothing in the window says
+which recorder it is using, and the contradiction in two fields is what gave it away.
+
+Three things stacked, and only the third is a defect. `plugins/studio` is where `go build`
+drops the binary and the repo root is where binaries live beside `marco.exe` — two legitimate
+homes, neither canonical, so the tree holds two of everything with independent ages. The lookup
+answers WHERE and never WHICH. And the handshake that exists for exactly this was not used:
+`learnstate.Version` sat at 1 while three fields were added to `Event`, and `omitempty` makes a
+writer that has never heard of `screen_read` byte-identical to a current one whose value is
+false.
+
+So the version moves with the shape by TEST rather than by memory — a table of version to field
+set, failing until both move together. It pins the PAIR: a first version that pinned only the
+shape was survived by a mutation putting `Version` back to 1.
+
+And a stream this build cannot vouch for is no longer silence. `Latest` returns `ErrForeign`
+when a file holds lines and none of them parse at this version, which is a different thing from
+a recorder that has not spoken yet; the two leave a reader with the same nothing and want
+opposite answers — wait a moment, against stop and look at which binary is running. Studio says
+the second where the phase sentence goes, and *That’s it* says it too rather than refusing for
+want of evidence it cannot read.
+
+`plugins/studio/build.cmd` makes all four and puts both binaries in both directories, so they
+cannot drift in the first place. The guard on it reads the script's COMMANDS and not its prose:
+the first version searched the whole file, found `go build -o director.exe` inside the comment
+explaining why that line is there, and survived a mutation commenting the real one out.
+
+What is still only discipline is a bare `go build` leaving a stale sibling. The difference is
+that it is now loud within one recording instead of silent for a day.
+
+**And the binaries say what they are, because git cannot.** Git identifies the SOURCE; it says
+nothing about the executable somebody double-clicked, and the correction is worth writing down
+because the first answer offered here was "commit, and git will tell you what you are running".
+It will not. So `internal/buildid` reads the revision the toolchain already stamps, and it is
+carried where somebody can see it: on every event of the recorder's stream, on every run
+record, and at the top of `studio -acts` beside the path of the director it would spawn. The
+window shows its own revision and the recorder's side by side, and says so when they differ —
+both values, never a yes/no, because *they differ* is what somebody acts on and the two
+revisions are what tell them which to rebuild.
+
+Two things about that are deliberate. `Same` and `Differ` are not each other's negation: an
+unstamped binary cannot be vouched for AND cannot be seen to disagree, and conflating those
+turns every pair that carries no stamp into an alarm about a difference nobody observed — which
+is how it was caught, with a test binary reporting one process as two builds. And the director
+is built from the ROOT module by `build.cmd`, because `go build` stamps a revision only into a
+package in the main module: built from inside `plugins/studio` it produced a director that could
+not say what it was, which is the one thing it is there to do.
+
+### Being rid of things, which this surface could not do at all
+
+It could list demonstrations, Acts and runs and remove none of them, so a machine kept
+everything anybody had ever tried on it. The owner asked for the small version and then said
+what they had meant:
+
+> I want to be able to start fresh with the testing whenever I’d like
+
+Three sizes, one promise: the first press removes nothing and says what would go, the second
+does it. One implementation of that promise, not one per kind — a mutation changing the second
+press to ask again SURVIVED while the run path kept its own copy, which is the whole argument
+for the shared helper in two lines.
+
+- **A Scene** takes its artifact, its pictures and its evidence — and every Act composed from
+  it, because an Act IS that demonstration’s interactions by name: its preflight rebuilds the
+  play from the bindings and the artifact, so one whose demonstration has gone says `ready` and
+  cannot run. The question NAMES them. Refusing while an Act existed would make a Scene
+  undeletable until somebody hunted down what depended on it; taking them silently would delete
+  work nobody mentioned.
+- **An Act** goes on its own, leaving what was shown Marco where it is — and takes its
+  bindings with it, or the name stays unusable: `demonstrated.Save` refuses a name whose
+  `.scenes.json` is still there, so somebody deletes an Act, composes it again, and is told
+  there is already one called that.
+- **Everything**, behind a disclosure at the bottom of Run history, because doing it one card
+  at a time is a chore that grows with how much testing has been done. Hotkeys are kept: a key
+  bound to a name works again the moment that name is demonstrated again, so throwing it away
+  is a thing to redo rather than a thing to clean up.
+
+Two things that were not deletions and were found by writing them. `ForgetSequence` left the
+EVIDENCE behind — filed beside the artifact and read by passing the artifact, so once that is
+gone nothing can match it: a record of somebody’s own desktop that nothing reaches and nothing
+cleans up. And there was no way to remove a play at all, so `demonstrated.Forget` is now the
+mirror of `Save`, in the same file, because three files are one play and a remover living
+somewhere else would eventually remove two of them.
+
+### And the pictures had nowhere to be seen
+
+> the pictures are gone so i guess you technically did fix the blinking pictures
+
+They were not gone. The store had all three and the backend served them — 302KB, 310KB, 118KB.
+What was gone was anywhere to see them: the post-recording review lives in the window’s memory
+and goes when it restarts, an Act’s preview needs an Act to exist, and the Scene library — the
+permanent home of a demonstration — had never shown a picture at all. So a demonstration made
+yesterday had pictures on disk and nothing that would show them.
+
+Each card carries a strip of its SCREENS now. The screens rather than every label its steps
+name: the same screen is the `to` of one step and the `from` of the next, so walking the steps
+asks for one picture three times and shows it three times.
+
+### Run history is a thing you can clear
+
+The surface could list runs and not remove one, so a machine accumulated them — 443 on the
+owner’s, against the 25 the window shows. The directory was the archive and nothing could reach
+into it but a file manager.
+
+Deleting is now offered per run and for all of them, and three things about it are deliberate:
+
+- **It asks first, and the first press removes nothing.** A run record is the only account of
+  what Marco did to somebody’s machine and the one thing `Report` gathers from, so the thing
+  that deletes must never be the thing somebody clicked first. The same two steps *That’s it*
+  uses for the other irreversible thing this window offers, and one idiom for both is one thing
+  to learn. The page binds the second press to the reference the question was asked ABOUT, not
+  to whatever is chosen by the time it is pressed, and leaving the page puts the question away.
+- **The count is the directory’s, not the list’s.** The window shows `historyShown`; a count
+  taken from what is on screen would tell somebody they were deleting twenty-five when they were
+  deleting four hundred.
+- **A reference is matched, never joined into a path.** It arrives from the page, and
+  `filepath.Join(dir, reference + ".json")` with `../../routes/os` is a deletion outside the
+  store. `Forget` reads the directory and compares NAMES, so a reference naming something
+  outside it matches nothing by construction rather than by a check that has to be right.
+
+A run in flight is refused — its record is being written while this reads the directory, and
+removing it would leave a live child writing to a path nothing lists. A problem report already
+written is left where it is: that file is the person’s, and deleting the run it describes is not
+a reason to take back something they may be about to attach to an email.
+
+
 ## Pictures, because words are what RECOGNISES a screen and not what a person recognises
 
 The requirement said so plainly and this surface spent two rounds substituting anyway:
@@ -582,6 +887,88 @@ beautiful picture of its result and no recorded outcome is still not presented a
 - And the window itself: `studio.exe -seconds N -evidence <file>` renders the page and the page
   reports back LAST, after setting itself up, so the evidence line is proof that the script ran
   rather than only that it parsed.
+- `internal/director/observe/outcomefinal_test.go` —
+  `TestAnOutcomeStillAccumulatingReadingsIsNotTheAnswer` (and that its sentence is about what
+  has not arrived rather than about a window somebody cut short);
+  `TestAWindowAThirdScreenClosedIsFinalWithoutHavingFilled` (the half `Settled` cannot express:
+  never filled, never will); `TestAScreenOfChurnReachesAnAnswerAndNotAnOpenQuestion` (the
+  owner’s own case — the answer is no, and the point is that it is an answer).
+- `internal/director/learnstate/learnstate_test.go` —
+  `TestEverySituationARecordingCanBeInIsAPhase` gained a measured-and-empty press, the owner’s
+  one-of-each shape, and a press still in flight beside one, which outranks both.
+- `cmd/director/recordingnow_test.go` —
+  `TestAPressWhoseResultIsMeasuredAndAbsentIsNotAPressToWaitFor`;
+  `TestARecordingDoesNotWaitOnAPressNothingIsMeasuring` (the watch cap).
+- `plugins/studio/learn_test.go` — `TestFinishingEarlySaysWhatIsStillMissing` gained “the
+  result is in and it is nothing”, which is refused and does NOT ask for more recording;
+  `TestTheRecordingShowsWhatTheRecorderKnows` carries the count and asserts the sentence says
+  waiting is over.
+- `plugins/studio/play_test.go` — the page guards on `l.unchecked`, on `l.missing` and on the
+  `learnWhy` line it paints into. The markup guard alone was not enough: a mutation deleting the
+  painter left the suite green, so the element existed and stayed empty.
+
+- `internal/director/observe/outcomefinal_test.go` —
+  `TestAPressOnAScreenNothingHasBeenReadOnIsAnsweredAtOnce`, over a window deliberately left
+  SHORT: a full one is final by `Settled` whatever this term says, and the first version of the
+  test was satisfied by the mutation for exactly that reason.
+- `cmd/director/recordingnow_test.go` —
+  `TestTheRecorderSaysWhetherTheScreenInFrontHasBeenReadAtAll` (nothing, one word, three words —
+  and that it is the screen IN FRONT rather than the one an Act starts on, which are the same
+  screen only until the first press).
+- `plugins/studio/console_test.go` — `TestNoChildDirectorIsStartedWithAConsole`, which walks
+  the package for spawn sites rather than naming today’s three;
+  `TestAHiddenConsoleStillHandsBackWhatTheChildSaid`, because the claim that CREATE_NO_WINDOW
+  keeps the inherited handles is a claim about a Windows constant made in a comment, and Studio
+  reads the recorder’s whole transcript off those pipes.
+- `plugins/studio/redraw_test.go` —
+  `TestTheWindowDoesNotFetchTheSamePicturesOverAndOver` (a finished review sitting open asks
+  once); `TestTheWindowKeepsPicturesItIsAlreadyShowing` (choosing the same Act again takes
+  nothing down, counted with a MutationObserver over the containers rather than the boxes — a
+  box destroyed with its parent is one the observer stops hearing from, which is the case it is
+  looking for; and both lists show their own six pictures).
+
+- `plugins/studio/history_test.go` — `TestDeletingARunAsksBeforeItDoesIt` (the first press
+  removes nothing and the question names what would go);
+  `TestDeletingEveryRunCountsTheDirectoryAndNotTheList` (with more kept than listed, which is
+  the only arrangement that can tell the two counts apart);
+  `TestARunReferenceCannotReachOutsideTheRunsDirectory` (four aimed references, and a real file
+  one directory up that has to survive); `TestARunInFlightCannotBeDeleted` (and that a DIFFERENT
+  past run is still somebody’s to delete while one is running);
+  `TestDeletingARunThatIsNotThereSaysSo`.
+- `plugins/studio/play_test.go` — the page guards on `acts.Forget(what, false)` and
+  `acts.Forget(what, true)`, which are what catch the two inversions that matter: deleting on
+  the first press, and never deleting on the second.
+
+- `plugins/studio/forget_test.go` — `TestDeletingASceneTakesTheActsBuiltFromIt` (and that its
+  evidence goes, over a fixture that WRITES one: the store had none, so the first version of
+  that assertion passed whether or not anything removed it, which a mutation proved);
+  `TestDeletingAnActLeavesTheDemonstrationAlone` (and that the name is usable again, which it is
+  not if the bindings were left); `TestStartingFreshRemovesEverythingAndSaysWhatThatIs` (over a
+  hotkey file written by the test, for the same reason);
+  `TestNothingIsDeletedWhileSomethingIsRunning`.
+- `plugins/studio/page_test.go` — `TestThePageBeginsAsADocument` now also refuses a NUL byte in
+  the page. It arrived three times in one sitting the same way: a separator meant as the four
+  characters of an escape, written by a patch that interpreted it — and a page with one in it
+  is a page every tool treats as binary.
+
+- `internal/director/observe/outcomefinal_test.go` —
+  `TestAPressThatOpenedAnUnreadableScreenSaysThatIsWhatHappened`, which also holds the other
+  side: a press the screen sat still through is still described by its words, and must not be
+  swallowed by the sentence about opening something.
+- `plugins/studio/console_test.go` — `TestTheBuildScriptMakesTheDirectorStudioWillSpawn`.
+- `internal/director/learnstate/learnstate_test.go` —
+  `TestTheStreamVersionMovesWithTheEventsShape` (the pair, and that no two versions share a
+  shape, which would be two versions nothing can tell apart);
+  `TestAStreamFromAnotherBuildIsNotAStreamThatHasSaidNothing`.
+- `plugins/studio/learn_test.go` — `TestARecorderFromAnotherBuildIsSaidRatherThanWaitedOn`
+  (and that finishing says it too); `TestTheWindowSaysWhichBuildIsRecordingBesideItsOwn`, which
+  drives a genuine mismatch — a test binary carries no stamp, so both sides are supplied: the
+  window's through a substitutable source and the recorder's by writing the line a recorder
+  would.
+- `internal/buildid/buildid_test.go` — `TestARevisionIsShortOrHonestlyUnknown`;
+  `TestABuildThatCannotSayWhatItIsIsNeverVouchedFor`; `TestCannotTellIsNotADisagreement`.
+- `internal/director/learnstate/learnstate_test.go` — `TestAStreamSaysWhichBuildWroteIt`,
+  stamped by the Writer as `Name` and `Application` are, so no event can be written without it.
 
 ## Related
 

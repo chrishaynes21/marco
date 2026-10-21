@@ -99,6 +99,7 @@ go build -o marco.exe ./cmd/marco
 go build -o director.exe ./cmd/director   # REQUIRED beside marco.exe: see below
 go build -o marco-macros.exe ./cmd/marco-macros
 go -C plugins/overlay build -o overlay.exe .
+plugins/studio/build.cmd                 # Studio: NEVER a plain `go build` — see below
 plugins/vision/build.cmd                 # Windows: the ONNX backend (needs gcc)
 .\overlay.cmd                          # Windows: launches the overlay stack
 ```
@@ -109,6 +110,24 @@ plugins/vision/build.cmd                 # Windows: the ONNX backend (needs gcc)
   `unavailable` for the half of the product a person made with their own hands. The installer
   already ships both (`cmd/marco` `TestThePackagedLayoutIsWhatMarcoLooksFor`); this line is for a
   dev build, which used not to mention it.
+- **A plain `go build` of `plugins/studio` produces a binary that opens NO WINDOW.** Wails
+  guards on its own build tags: without `production` it compiles a `CreateApp` that shows a
+  message box reading *Wails applications will not build without the correct build tags* and
+  exits. The binary is otherwise ordinary — it prints usage, and `-acts` and `-proof` both
+  work, because they return before the app is created — so a broken one sat in the tree
+  looking current until somebody double-clicked it. Use `plugins/studio/build.cmd`, which
+  builds the windowed and console binaries and puts the windowed one beside `marco.exe`.
+  **And Studio spawns the `director.exe` beside ITSELF**, not the one beside `marco.exe`
+  (`directorBin`). With a copy of Studio in `plugins/studio` and another at the repo root,
+  that makes a stale sibling invisible: every binary looks freshly built, the window is
+  current, and the recordings come from whenever that director was last made. It cost the
+  owner a day of recordings. `build.cmd` now makes all four and puts both binaries in both
+  places; `TestTheBuildScriptMakesTheDirectorStudioWillSpawn` holds it.
+  To check an existing binary without opening a window on somebody's desktop:
+  `grep -a "will not build without the correct build tags" studio.exe` — a correct build does
+  not contain that code at all. And to SEE the page without a window, render
+  `frontend/index.html` in headless Edge with `window.go` stubbed; the page waits for the
+  Wails bindings and paints nothing until they exist.
 - **`director capture-game-session` is the L0 recorder** (frames + observed inputs on one
   clock, nothing injected) and `go run ./cmd/perceptionreplay -frames -stride N <dir>` replays
   the pixels through the production perception path. `-frames` is a BOOL and the directory is
