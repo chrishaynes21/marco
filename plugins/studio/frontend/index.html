@@ -279,6 +279,10 @@
   <!-- NOT PROCEEDING, AND WHY. A pause is not a failure and not a question: the run is
        looking, the reason says what it is looking for, and Stop is still there. -->
   <div id="paused" class="banner hide"></div>
+  <!-- AND WHICH SCREEN THAT IS, in the words read off it. The pause names it `screen_b`,
+       which is a name this machine gave itself; these are the part a person can compare
+       against what is in front of them. Beside the reason, never substituted into it. -->
+  <div id="pausedWhere" class="muted hide" style="margin-top:6px"></div>
   <!-- HOW IT WENT, AND WHAT TO DO ABOUT IT. See said.go and nextOf. -->
   <div id="said" class="banner hide"></div>
   <div id="next" class="muted hide" style="margin-top:8px"></div>
@@ -897,6 +901,14 @@
      if (pausedNow) {
        text($('paused'), 'Waiting: ' + (st.reason || 'something is not as this Act ' +
          'expects') + '  —  it goes on by itself when that changes. Stop ends it.')
+     }
+     // AND WHICH SCREEN IT IS WAITING FOR, in the words read off it rather than in the
+     // label the pause names. See Running.StartsOn.
+     const where = pausedNow && (w.starts_on || []).length
+     showing($('pausedWhere'), !!where)
+     if (where) {
+       text($('pausedWhere'), 'This Act starts on the screen that reads “' +
+         words(w.starts_on) + '”.')
      }
      // AND HOW IT WENT, with what to do about it under it. See said.go and nextOf.
      showing($('said'), !!w.said)

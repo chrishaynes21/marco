@@ -1610,6 +1610,11 @@ type promptGrounder struct {
 	// read is the reading admitted for this observation, or unread text when there is
 	// none. The loop supplies it already filtered by `observe.Current`.
 	read observe.ScreenText
+	// readWhy is why `read` is empty, in the loop's words, because the loop is the only
+	// thing that can tell "OCR has not answered yet" from "the screen keeps changing
+	// under the reader" from "these pixels were not the application's". It goes into the
+	// one sentence that refuses for want of a reading. See workflowstore.Standing.
+	readWhy string
 	// standing is the label last established, which is what an inference follows from.
 	standing string
 	// declined remembers a screen nobody could name, so the same question is not asked
@@ -1908,7 +1913,7 @@ func (p *promptGrounder) byEvidence(s *workflowstore.SessionBinding,
 	var first error
 	for _, c := range p.ranked() {
 		b, err := s.Standing(p.art, c.label, at.Screen, p.arrangement, p.read,
-			at.Epoch, at.Generation, p.identify, time.Now())
+			p.readWhy, at.Epoch, at.Generation, p.identify, time.Now())
 		if err == nil {
 			p.standing = b.Label
 			p.pause("")

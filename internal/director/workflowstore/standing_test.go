@@ -36,7 +36,7 @@ func TestTheScreenAnActStartsOnIsIdentifiedWithoutAsking(t *testing.T) {
 	s := anActStartingSomewhere()
 
 	b, err := s.Standing(art, "screen_c", "visual_9", lookOnTraining, readingOfTraining,
-		7, 1, "Play, pressed on \"the audio tab\"", looked)
+		"", 7, 1, "Play, pressed on \"the audio tab\"", looked)
 	if err != nil {
 		t.Fatalf("the screen the Act starts on was not identified: %v", err)
 	}
@@ -88,7 +88,7 @@ func TestTwoScreensThatBothFitEstablishNeither(t *testing.T) {
 	// the Play page's four.
 	both := readOut("AERIAL", "GOALIE", "STRIKER", "PLAY", "MATCH")
 
-	_, err := s.Standing(art, "screen_c", "visual_9", lookOnTraining, both, 7, 1,
+	_, err := s.Standing(art, "screen_c", "visual_9", lookOnTraining, both, "", 7, 1,
 		"Play", looked)
 	if err == nil {
 		t.Fatal("an Act started on one of two screens nothing could tell apart")
@@ -117,7 +117,7 @@ func TestAScreenOnlyUncontradictedDoesNotCarryAnActsPress(t *testing.T) {
 	s := anActStartingSomewhere()
 
 	_, err := s.Standing(art, "screen_c", "visual_9", lookOnTraining, readingTooThin,
-		7, 1, "Play", looked)
+		"", 7, 1, "Play", looked)
 	if err == nil {
 		t.Fatal("a press was authorised on a screen a reading could only fail to " +
 			"contradict")
@@ -129,7 +129,7 @@ func TestAScreenOnlyUncontradictedDoesNotCarryAnActsPress(t *testing.T) {
 	// AND THE SAME LOOK WITH A READING THAT DOES IDENTIFY IT GOES THROUGH, so what is
 	// being measured is the reading and not the look.
 	if _, err := s.Standing(art, "screen_c", "visual_9", lookOnTraining,
-		readingOfTraining, 7, 1, "Play", looked); err != nil {
+		readingOfTraining, "", 7, 1, "Play", looked); err != nil {
 		t.Fatalf("the same look with a reading that identifies it was refused: %v", err)
 	}
 }
@@ -140,7 +140,7 @@ func TestAContradictedScreenIsNotWhereAnActStarts(t *testing.T) {
 	s := anActStartingSomewhere()
 
 	_, err := s.Standing(art, "screen_c", "visual_9", lookOnTraining, readingOfSubmenu,
-		7, 1, "Play", looked)
+		"", 7, 1, "Play", looked)
 	if err == nil {
 		t.Fatal("the screen was identified although what was written on it disagreed")
 	}
@@ -159,7 +159,7 @@ func TestALookThatIsNotTheScreenSaysSo(t *testing.T) {
 	s := anActStartingSomewhere()
 
 	_, err := s.Standing(art, "screen_c", "visual_9", savedMenu, readingOfTraining,
-		7, 1, "Play", looked)
+		"", 7, 1, "Play", looked)
 	if err == nil {
 		t.Fatal("a screen was identified from a look at a different screen")
 	}
@@ -179,7 +179,7 @@ func TestAWordlessScreenPausesInsteadOfPressing(t *testing.T) {
 	s := anActStartingSomewhere()
 
 	_, err := s.Standing(art, "screen_c", "visual_9", lookOnTraining, readingOfTraining,
-		7, 1, "Play", looked)
+		"", 7, 1, "Play", looked)
 	if err == nil {
 		t.Fatal("a press was authorised on a screen saved with no words at all")
 	}
@@ -202,11 +202,46 @@ func TestAPersonsOwnAnswerStands(t *testing.T) {
 	}
 
 	b, err := s.Standing(art, "screen_c", "visual_9", lookOnTraining, readingOfTraining,
-		7, 1, "Play", looked)
+		"", 7, 1, "Play", looked)
 	if err != nil {
 		t.Fatalf("an established screen was re-decided and refused: %v", err)
 	}
 	if b.Ground != workflowstore.GroundConfirmed {
 		t.Errorf("the person's own answer was displaced by an identification: %s", b.Ground)
+	}
+}
+
+// AND WHEN THERE IS NO READING, THE REFUSAL SAYS WHY THERE IS NONE.
+//
+// The sentence this term refuses with is the one a person watching a paused run reads, and it
+// used to be the same sentence whatever the reason: "nothing has been read on it yet". The
+// owner's first live Act refused twice in a row on the screen it starts on, inside four seconds
+// each time, saying exactly that. It is true of a source that has not answered yet, of one whose
+// answers keep arriving about a screen that has already changed, and of a look whose pixels were
+// never the application's — and waiting only fixes the first.
+//
+// So the caller that can tell them apart supplies the reason, and this says it. The default is
+// kept for a caller that has none, because an unexplained absence is still an absence.
+func TestARefusalForWantOfWordsSaysWhyThereAreNone(t *testing.T) {
+	art := twoPagesApart(t, savedTraining, wordsTraining)
+	s := anActStartingSomewhere()
+
+	_, err := s.Standing(art, "screen_c", "visual_9", lookOnTraining,
+		observe.ScreenText{}, "the target was not the window in front", 7, 1,
+		"Play", looked)
+	if err == nil {
+		t.Fatal("a screen with nothing read on it was identified")
+	}
+	if !strings.Contains(err.Error(), "not the window in front") {
+		t.Errorf("the refusal does not carry the reason it was given: %v", err)
+	}
+	if strings.Contains(err.Error(), "nothing has been read on it yet") {
+		t.Errorf("the refusal says the default over the reason it was given: %v", err)
+	}
+	// AND NOTHING SUPPLIED STILL SAYS SOMETHING.
+	_, err = s.Standing(art, "screen_c", "visual_9", lookOnTraining,
+		observe.ScreenText{}, "", 7, 1, "Play", looked)
+	if err == nil || !strings.Contains(err.Error(), "nothing has been read on it yet") {
+		t.Errorf("a refusal with no reason given does not say the plain one: %v", err)
 	}
 }

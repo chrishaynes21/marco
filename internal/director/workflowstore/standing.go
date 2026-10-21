@@ -71,10 +71,24 @@ import (
 // admitted for this observation, both supplied for the reason `Reached` states: this package
 // cannot see, and the admission rule is stated once, where the readings arrive.
 //
+// `readWhy` is why there is no reading, in the words of the caller that would know, and it is
+// used for nothing except the sentence term 2 refuses with. Empty is allowed and says only that
+// nobody supplied a reason.
+//
+// # Why the absence of a reading needs a reason at all
+//
+// Because "nothing has been read on it yet" was one sentence over three situations with three
+// different remedies, and a live run spent its whole patience saying the harmless one. OCR not
+// having answered yet is a thing that fixes itself by waiting. A reading that arrives about a
+// screen which has already changed is what an animated menu does to every reading it will ever
+// take, and no amount of waiting fixes it. Pixels that were not evidence because the window was
+// not in front is a thing the person can fix in one click, and they cannot do that while being
+// told to wait. See the caller in cmd/director/observationloop.go.
+//
 // The error is written to be READ BY THE PERSON WHO PRESSED PLAY, because it is the pause
 // reason: it says which screen was expected, what the evidence was, and which term did not hold.
 func (s *SessionBinding) Standing(a Artifact, want string, screen observe.VisualScreenID,
-	look observe.VisualArrangement, read observe.ScreenText,
+	look observe.VisualArrangement, read observe.ScreenText, readWhy string,
 	epoch, generation uint64, by string, now time.Time) (Bound, error) {
 
 	if screen == "" {
@@ -118,9 +132,14 @@ func (s *SessionBinding) Standing(a Artifact, want string, screen observe.Visual
 			observe.TextDisagreementWords)
 	}
 	if !read.Said() {
+		// AND WHY THERE IS NOTHING TO CORROBORATE IT WITH, which is the half of
+		// this sentence a person can act on. See readWhy above.
+		because := readWhy
+		if because == "" {
+			because = "nothing has been read on it yet"
+		}
 		return Bound{}, fmt.Errorf("what is on screen agrees with %s at %.3f and "+
-			"nothing has been read on it yet, so nothing corroborates it",
-			want, agrees)
+			"%s, so nothing corroborates it", want, agrees, because)
 	}
 	if apart, why := observe.TextsDisagree(said, read); apart {
 		return Bound{}, fmt.Errorf("what is on screen agrees with %s at %.3f by shape "+

@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -819,5 +820,59 @@ func TestStudioAsksForEventsAndReadsThem(t *testing.T) {
 	// AND THE REFERENCE CAME OFF THE EVENT, not off a citation line.
 	if w.Reference != "run-standin" {
 		t.Errorf("the reference reads %q", w.Reference)
+	}
+}
+
+// A RUN THAT HAS TO READ THE SCREEN IS GIVEN TIME TO READ IT.
+//
+// The owner's first live Act refused twice in a row, on the screen it starts on, having never
+// been read: the shape agreed at 0.897 and 0.935 and the words — which is what a granted run
+// identifies a screen BY, because there is nobody to ask — never arrived. Both runs lasted four
+// seconds, which is `workflowrun.DefaultPatience` at ten looks a second.
+//
+// Four seconds is the fast loop's budget and about eight chances at a source that answers twice
+// a second and has a good share of its answers thrown away as stale. So a reading run is given
+// its patience in the slow source's answers instead. Nothing is pressed while it waits.
+func TestARunThatMustReadTheScreenIsGivenTimeToReadIt(t *testing.T) {
+	a, _ := aStoreWithADemonstration(t)
+	if r := a.Compose("ark graphics live", "patient",
+		[]string{"1=the audio tab"}); r.Error != "" {
+		t.Fatal(r.Error)
+	}
+	t.Setenv("DIRECTOR_BIN", os.Args[0])
+	t.Setenv("STUDIO_STANDIN_RUNNER", "1")
+	t.Setenv("STUDIO_STANDIN_QUICK", "1")
+
+	if err := a.Run("patient", "ArkAscended.exe", false, true); err != "" {
+		t.Fatalf("the run would not start: %s", err)
+	}
+	said := waitForTranscript(t, a)
+	want := "--patience " + strconv.Itoa(readingPatience)
+	if !strings.Contains(said, want) {
+		t.Errorf("a reading run was started without %q:\n%s", want, said)
+	}
+	if readingPatience <= 40 {
+		t.Errorf("readingPatience is %d, which is no more time than the runner's "+
+			"own four seconds", readingPatience)
+	}
+}
+
+// AND A RUN THAT IS NOT READING IS NOT GIVEN IT, because patience it has no use for would be
+// fifteen seconds of waiting for a source nobody asked to run.
+func TestARunWithNoReaderKeepsTheRunnersOwnPatience(t *testing.T) {
+	a, _ := aStoreWithADemonstration(t)
+	if r := a.Compose("ark graphics live", "impatient",
+		[]string{"1=the audio tab"}); r.Error != "" {
+		t.Fatal(r.Error)
+	}
+	t.Setenv("DIRECTOR_BIN", os.Args[0])
+	t.Setenv("STUDIO_STANDIN_RUNNER", "1")
+	t.Setenv("STUDIO_STANDIN_QUICK", "1")
+
+	if err := a.Run("impatient", "ArkAscended.exe", false, false); err != "" {
+		t.Fatalf("the run would not start: %s", err)
+	}
+	if said := waitForTranscript(t, a); strings.Contains(said, "--patience") {
+		t.Errorf("a run with no reader was given a reader's patience:\n%s", said)
 	}
 }

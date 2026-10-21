@@ -41,6 +41,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -469,6 +470,23 @@ func (a *Acts) applicationFor(act string) string {
 // Asked of the Act as it stands now, which is the only honest time to ask it: the remedy for a
 // run that waited is a change to the demonstration, and whether that change has been made is a
 // question about today.
+// startsOnFor is what the screen an Act starts on was read to say, for the run screen.
+//
+// The same reading the Act’s own detail shows, read from the same place, because a person
+// checking where they are standing mid-run must not be shown a different answer from the one
+// they read before they pressed Play.
+func (a *Acts) startsOnFor(act string) []string {
+	if act == "" {
+		return nil
+	}
+	for _, c := range a.Saved() {
+		if strings.EqualFold(c.Name, act) {
+			return c.StartsOn
+		}
+	}
+	return nil
+}
+
 func (a *Acts) waitsFor(act string) string {
 	if act == "" {
 		return ""
@@ -713,6 +731,13 @@ func routineOf(b demonstrated.Bindings) string {
 
 // ── RUN: the production supervised runner, as a child, with its transcript ────
 
+// readingPatience is how many observations a step of a reading run is given before the run
+// stops rather than waiting indefinitely.
+//
+// A hundred and fifty: fifteen seconds at the ten-looks-a-second cadence, which is about thirty
+// answers from a source that reads twice a second. See `start`, where it is passed and why.
+const readingPatience = 150
+
 // Running is what the page shows while a run is in flight and after it ends.
 type Running struct {
 	Act        string   `json:"act"`
@@ -750,6 +775,18 @@ type Running struct {
 	Doing string `json:"doing,omitempty"`
 	// Next is what to do about how it ended, when there is something to do. See nextOf.
 	Next string `json:"next,omitempty"`
+	// StartsOn is what the screen this Act starts on was read to say, so a person
+	// watching a paused run can check whether they are standing on it.
+	//
+	// # Why the words and not the label
+	//
+	// Because the run pauses about `screen_b`, which is a name this machine gave itself
+	// while folding looks together, and the owner’s report of their first trial was that
+	// they could tell which screen was being asked for “but not easily”. The words read
+	// off that screen are the only part of its identity a person can compare against what
+	// is in front of them. Carried beside the pause rather than substituted into it: the
+	// sentence is the runner’s and this surface does not edit it.
+	StartsOn []string `json:"starts_on,omitempty"`
 	// Complete says the run ENDED — it said so itself, with a final event. Incomplete
 	// says the child is gone and never did, which is not the same as having failed:
 	// one is a run with an answer and the other is a run nobody can speak for.
@@ -898,6 +935,23 @@ func (a *Acts) start(p Performance) string {
 	}
 	if reading {
 		args = append(args, "--reading")
+		// AND TIME FOR THE THING THAT READS IT.
+		//
+		// A granted run cannot ask anybody where they are, so it identifies the
+		// screen from its words — and the words come from a source that answers
+		// about twice a second against a loop that looks ten times, with a good
+		// share of its readings thrown away because the observation moved on while
+		// OCR was working. The runner’s own patience is forty observations: four
+		// seconds, which is the fast loop’s budget and about eight chances at a
+		// reading. The owner’s first live Act refused twice in a row inside it, on
+		// the right screen, having never been read.
+		//
+		// So a run that depends on the slow source is given time measured in the
+		// slow source’s answers rather than in the fast loop’s looks. Nothing is
+		// pressed while it waits, the pause says what it is waiting for, Stop is
+		// on screen throughout, and the pause resolves by itself the moment the
+		// evidence arrives — waiting is the cheapest thing this run can do.
+		args = append(args, "--patience", strconv.Itoa(readingPatience))
 	}
 
 	// A CANCELLABLE CONTEXT, so closing the window can end the run rather than orphan
@@ -1138,6 +1192,7 @@ func (a *Acts) Watch() Running {
 	// one thing that would tell somebody which program to go and look at.
 	w.Doing = doingOf(a.applicationFor(w.Act), w.State, w.Active)
 	w.Next = nextOf(runref.Outcome(w.Outcome), a.waitsFor(w.Act))
+	w.StartsOn = a.startsOnFor(w.Act)
 	// AN INCOMPLETE RUN: the child is gone and it never said how it ended.
 	//
 	// Not a failure, and reported apart from one. A run that refused says so in a final

@@ -658,6 +658,9 @@ func TestThePageIsTheFlowThatWasAskedFor(t *testing.T) {
 	}
 	page := string(raw)
 	for _, want := range []struct{ text, why string }{
+		{"pausedWhere", "a paused run does not say which screen it is waiting " +
+			"for in the words read off it, so the only identity a person is " +
+			"shown for it is a label this machine gave itself"},
 		{"acts.Play(act, live, seen)", "the page does not perform an Act by " +
 			"pressing Play, so the authorisation contract is not reachable " +
 			"from it"},

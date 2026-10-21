@@ -163,6 +163,60 @@ And the recording card now says the half of a demonstration that people skip —
 screen you start from before you click. That is the reading that establishes the starting screen,
 and without it the Act that comes out of the recording can only wait.
 
+## What the first live trial refused for, and what it had to say about it
+
+The owner built a one-interaction Act over a TrackMania demonstration and pressed Play twice.
+Both runs refused in seven seconds, pressed nothing, and said:
+
+```
+what is on screen agrees with screen_b at 0.897 and nothing has been read on it yet,
+so nothing corroborates it
+```
+
+The Act was right. The grant names one interaction at position 1, which starts on `screen_b`;
+`screen_b` was saved with thirty-eight words on it; and the shape agreed at 0.897 and 0.935, so
+they were standing on the screen their Act starts on. Nothing was pressed because
+[[ADR-244-pressing-play-is-the-authorisation]] identifies that screen by its WORDS — there is
+nobody mid-run to ask — and no reading of the live screen was ever current.
+
+Two things were wrong with that, and neither of them was the Act.
+
+**The run gave up in four seconds.** `workflowrun.DefaultPatience` is forty observations, which
+is four seconds at the fast loop's cadence, and both runs spent exactly forty looks on one
+unchanging sentence before stopping. Four seconds is the right budget for a control
+mid-animation. It is the wrong budget for a screen identified through a source that answers about
+twice a second and has a share of its answers thrown away as stale: measured on the owner's
+machine during this work, OCR took a mean of 499ms, 163 of 203 frames were dropped while it was
+busy, and 21 of the 38 readings that came back were refused because the observation had moved on.
+Eight chances, most of them spent. So Studio now passes `--patience 150` whenever it passes
+`--reading`: fifteen seconds, which is about thirty answers from the source the decision rests
+on. Nothing is pressed while it waits, the pause says what it is waiting for, Stop is on screen
+throughout, and the pause resolves by itself the moment the evidence arrives — waiting is the
+cheapest thing this run can do.
+
+**And the sentence was one sentence over three situations.** "Nothing has been read on it yet" is
+true when OCR has not answered yet, when every answer arrives about a screen that has already
+changed, and when the pixels were never the application's because the window was not in front.
+The remedies are: wait; hold still, because waiting will not fix it; and click the game's own
+window. The run said the first of those for four seconds while any of the three could have been
+true, so the person watching could not act and could only conclude their Act was wrong.
+
+`whyNoReading` in `cmd/director/observationloop.go` now answers which, and
+`workflowstore.Standing` says it in place of the default. The order is the order of what a person
+can do about it: a look that was not evidence first, because it is the one they can fix in a
+click and it also explains the other two.
+
+And the owner’s other report of that trial — that they could tell which screen was being asked
+for “but not easily” — is the same problem one level up: the pause names `screen_b`, which is a
+name this machine gave itself while folding looks together. The words read off that screen are
+the only part of its identity a person can compare against what is in front of them, so the run
+screen now carries them beside the reason. Beside, not substituted into it: the sentence belongs
+to the runner and this surface does not edit it.
+
+What this does NOT claim: the trial is not re-run, so which of the three the owner's refusal
+actually was is still unknown. That is the point — the next run will say, in the window, without
+a reproduction.
+
 ## What was asked for and deliberately NOT built
 
 - **A Resume button.** There is no pause/resume operation in the runner. A paused run
@@ -232,6 +286,26 @@ and without it the Act that comes out of the recording can only wait.
   step, what is happening and what to do, Stop in the rail, run history, Report a problem, the
   words on controls and screens, the waiting warning, and the engineering run labelled as not a
   rehearsal.
+- `cmd/director/admitreading_test.go` — `TestAReadingOfThisObservationIsWhatTheScreenSays`,
+  `TestAReadingThatArrivesAboutAnOlderScreenSaysWaitingWillNotHelp`,
+  `TestALookThatWasNotEvidenceSaysThatAndNotThatNothingWasRead`,
+  `TestNoReadingYetSaysNothingMoreThanThat`,
+  `TestAHeldReadingStopsStandingWhenTheScreenChanges`. These enter `looker.admit` through the
+  production call with nothing faked but the readings, and assert what the GROUNDER receives,
+  because `looker.next` holds a window tracker, a desktop capture and a window provider and
+  cannot be stood up at all.
+- `cmd/director/whynoreading_test.go` — `TestEveryWayAScreenCanGoUnreadHasItsOwnSentence` (one
+  case per situation, and that the one a person can act on comes first);
+  `TestAScreenThatKeepsMovingSaysWaitingWillNotHelp`.
+- `internal/director/workflowstore/standing_test.go` —
+  `TestARefusalForWantOfWordsSaysWhyThereAreNone` (the reason it was given, and the plain one
+  when it was given none).
+- `plugins/studio/acts_test.go` — `TestARunThatMustReadTheScreenIsGivenTimeToReadIt` (the
+  argument the child was really given, and that it is more than the runner's own four seconds);
+  `TestARunWithNoReaderKeepsTheRunnersOwnPatience`.
+- `plugins/studio/play_test.go` — `TestThePageIsTheFlowThatWasAskedFor` also guards
+  `pausedWhere`, so a paused run cannot go back to naming its screen only by the label this
+  machine gave it.
 - `plugins/studio/page_test.go` — `TestThePageBeginsAsADocument`, which is why a text node in
   front of the doctype cannot come back.
 - And the window itself: `studio.exe -seconds N -evidence <file>` renders the page and the page

@@ -105,6 +105,15 @@ type looker struct {
 	// what a SCREEN is recognised by, and the destination test needs the second. Kept on
 	// the same stamps so one admission rule covers both.
 	saidText observe.ScreenText
+	// stale is how many readings have come back about an observation that had already
+	// moved on, counted across the whole run.
+	//
+	// Kept because one stale reading is the ordinary cost of a source that answers half
+	// a second behind a loop that looks ten times a second, and a run where EVERY reading
+	// is stale is a different thing entirely: a screen that keeps changing under the
+	// reader, which no amount of patience fixes. The two are indistinguishable from a
+	// single look and the person waiting is owed the difference. See whyNoReading.
+	stale int
 	// lost is why looking stopped, empty while it has not.
 	lost string
 	// within is whether looking may continue AT ALL, and why not when it may not.
@@ -136,6 +145,99 @@ func newLooker(tracker *windowref.Tracker, target string, shots *wincapture.Capt
 		opt: opt, eyes: eyes, reader: reader, probe: probe, repairs: repairs,
 		ground: ground, art: art, session: session, within: within, saidLook: -1,
 	}
+}
+
+// admit takes this look’s readings and answers with the one that is current, or with why
+// none is — which is the sentence a person watching a paused run reads.
+//
+// A method rather than part of `next` because `next` cannot be stood up in a test: it holds a
+// window tracker, a desktop capture and a window provider, all concrete. This holds the part
+// that DECIDES, and a test enters it through the production call with nothing faked but the
+// readings themselves.
+//
+// It writes to the sighting AND to the grounder rather than returning, because the words a step
+// may use and the reason a screen could not be identified are the same admission asked twice,
+// and a caller that assigned one of the two was a caller that could drop the other. The
+// grounder is the only thing that has to say this to a person: see promptGrounder.readWhy.
+func (l *looker) admit(readings []observe.ScreenReading, at *workflowrun.Sighting,
+	generation, epoch uint64) {
+
+	// WHETHER THESE PIXELS WERE EVIDENCE AT ALL, asked once.
+	//
+	// This used to be inside the loop below, `break`ing on the same answer every time
+	// around: the sighting does not change while its readings are drained. What is
+	// new is that the answer is KEPT — a look whose pixels were not evidence about the
+	// application is not a look that has not been read yet, and the grounder’s pause
+	// sentence said the second about the first for as long as the run lasted.
+	why := ""
+	if ok, unusable := at.Usable(); !ok {
+		why = unusable
+	}
+	wordless := 0
+	for _, rd := range readings {
+		if why != "" {
+			break
+		}
+		if !rd.Admissible(generation, epoch) {
+			l.stale++
+			continue
+		}
+		if len(rd.Words) == 0 {
+			wordless++
+			continue
+		}
+		if rd.FromLook != l.saidLook {
+			l.saidSeq++
+			l.saidLook = rd.FromLook
+		}
+		l.said, l.saidGen, l.saidEpoch = rd.Words, rd.Generation, rd.Epoch
+		l.saidText = rd.Text
+	}
+	if observe.Current(l.saidGen, l.saidEpoch, generation, epoch) {
+		at.Words, at.WordsSeq = l.said, l.saidSeq
+	} else {
+		if l.saidLook >= 0 {
+			// A READING WE WERE HOLDING, DROPPED. The screen changed since it
+			// was taken, which is the same fact as a reading arriving stale
+			// and is counted with it.
+			l.stale++
+		}
+		l.said, l.saidText = nil, observe.ScreenText{}
+	}
+	if !l.saidText.Said() {
+		why = whyNoReading(why, wordless, l.stale)
+	}
+	l.ground.read, l.ground.readWhy = l.saidText, why
+}
+
+// whyNoReading is the reason there is no current reading of the look in front of us.
+//
+// A pure function because it is the part that can be WRONG, and the loop it is called from
+// cannot be stood up in a test: it holds a window tracker, a desktop capture and a provider. One
+// sentence per situation a missing reading can be in, and a test that walks every one.
+//
+// `unusable` is why this look was not evidence at all, empty when it was; `wordless` how many
+// admissible readings of it came back with no words on them; and `stale` how many readings this
+// RUN has had to throw away because the observation had moved on by the time they arrived.
+//
+// The order is the order of what a person can do about it. A look that was not evidence is the
+// thing to say first and the only one of these they can fix in a click. Words that came back
+// empty is the screen, now. And a run whose readings keep arriving stale is being told the one
+// thing waiting will not fix, which is exactly what the old single sentence hid: "nothing has
+// been read on it yet" is true of all three and actionable in none of them.
+func whyNoReading(unusable string, wordless, stale int) string {
+	switch {
+	case unusable != "":
+		return unusable
+	case wordless > 0:
+		return "reading the words on it found none, which is what an empty or " +
+			"still-drawing screen looks like from here"
+	case stale > 0:
+		return fmt.Sprintf("%d reading(s) of it have come back about a screen that "+
+			"had already changed — a screen that keeps moving cannot be read, "+
+			"and waiting longer will not change that", stale)
+	}
+	return "nothing has been read on it yet"
 }
 
 // next is one look, or false when there is nothing more to look at.
@@ -261,29 +363,11 @@ func (l *looker) next(ctx context.Context) (workflowrun.Sighting, bool) {
 	// the frame was captured, which is a demonstrably continuous interval and
 	// not the weaker "the same screen is standing".
 	// See [[ADR-195-a-reading-that-arrives-after-the-look-it-describes]].
-	for _, rd := range lk.Readings {
-		if ok, _ := at.Usable(); !ok {
-			break
-		}
-		if !rd.Admissible(v.Ref.Generation, up.Epoch) || len(rd.Words) == 0 {
-			continue
-		}
-		if rd.FromLook != l.saidLook {
-			l.saidSeq++
-			l.saidLook = rd.FromLook
-		}
-		l.said, l.saidGen, l.saidEpoch = rd.Words, rd.Generation, rd.Epoch
-		l.saidText = rd.Text
-	}
-	if observe.Current(l.saidGen, l.saidEpoch, v.Ref.Generation, up.Epoch) {
-		at.Words, at.WordsSeq = l.said, l.saidSeq
-	} else {
-		l.said, l.saidText = nil, observe.ScreenText{}
-	}
-	// WHAT THE DESTINATION TEST MAY USE: the same reading, admitted by the same
-	// rule. Set after the admission check rather than inside the loop, so a
-	// reading the epoch has outrun cannot corroborate an arrival.
-	l.ground.read = l.saidText
+	//
+	// The sighting is handed over so the words a STEP may use are admitted by the
+	// same rule, and the reason there is none goes to the grounder, which is the
+	// thing that has to say it to somebody. See admit.
+	l.admit(lk.Readings, &at, v.Ref.Generation, up.Epoch)
 
 	return at, true
 }
