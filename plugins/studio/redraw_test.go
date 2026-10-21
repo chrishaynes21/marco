@@ -1,0 +1,317 @@
+package main
+
+// WHAT THE WINDOW REDRAWS WHILE NOTHING IS CHANGING.
+//
+// # Why this is a browser and not a source guard
+//
+// Every other page test in this package greps the source, which is the right shape for "does
+// the page ask the backend for X" — a string either appears or it does not. It is the wrong
+// shape for THIS, and a mutation run proved it: inverting `if (sig === shownReview) { return }`
+// to `if (false)` leaves every one of those guards passing, because the variable is still named
+// in the file. The behaviour is a count over time, and only something that runs the page can
+// count it.
+//
+// # What was wrong
+//
+// Both polls run two and a half times a second for as long as the window is open, and both used
+// to rebuild their whole subtree every time. For text that is invisible. For a PICTURE it is
+// not: the finished review cleared its `.shots` boxes, asked the backend for three thumbnails
+// per step again, and filled them in when they came back — so the images went away and returned
+// twice a second and the page jumped as they did. The owner:
+//
+//	Also the images blink in the ui
+//
+// Measured on this harness, over about ten polls: 66 picture fetches before, 6 after. The run
+// screen was worse — 108 against 9 — and its pictures were landing in the Act preview's boxes,
+// because both lists gave their picture boxes the same element ids and both are in the document
+// at once.
+//
+// # What it does NOT prove
+//
+// That the page looks right. It renders in Edge or Chrome rather than in WebView2, with the Go
+// bindings stubbed, so what it holds is the arithmetic of redrawing and nothing about pixels.
+// `studio.exe -evidence` remains the gate that the real webview comes up.
+
+import (
+	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"runtime"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+)
+
+// aBrowser is a headless Chromium to render in, or "" when there is none.
+//
+// Edge first because it is what WebView2 is, and Chrome as the fallback. A machine with
+// neither skips: this is a gate on a desktop, not a dependency of the package.
+func aBrowser() string {
+	var candidates []string
+	switch runtime.GOOS {
+	case "windows":
+		candidates = []string{
+			`C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`,
+			`C:\Program Files\Microsoft\Edge\Application\msedge.exe`,
+			`C:\Program Files\Google\Chrome\Application\chrome.exe`,
+		}
+	default:
+		candidates = []string{"microsoft-edge", "google-chrome", "chromium"}
+	}
+	for _, c := range candidates {
+		if filepath.IsAbs(c) {
+			if _, err := os.Stat(c); err == nil {
+				return c
+			}
+			continue
+		}
+		if p, err := exec.LookPath(c); err == nil {
+			return p
+		}
+	}
+	return ""
+}
+
+// harness is the stubbed backend the page polls, and the counters it reports back.
+//
+// The shapes are the real ones — `Learning`, `Demonstrations`, `Picture`, `Watch` — because the
+// page reads named fields off them and a loose fixture would pass while the page rendered
+// nothing. The title is the report: a `-dump-dom` run has no other way back.
+const harness = `
+window.__pic = 0; window.__demos = 0
+const STEP = (i) => ({name: 'control_' + i, position: i, pressable: true, verifiable: true,
+  recognisable: true, reads: ['video'], on: ['controls', 'display', 'video'],
+  outcome_words: 23, routine: 'trackmania video',
+  from_label: 'screen_a', control_label: 'control_' + i, to_label: 'screen_b'})
+const D = {name: 'trackmania video', application: 'trackmania',
+  saved_at: '2026-10-21 12:17', steps: [STEP(1), STEP(2)]}
+const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCA' +
+  'AAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+window.go = {main: {
+  Backend: {Loaded: () => Promise.resolve()},
+  Acts: {
+    Demonstrations: () => { window.__demos++; return Promise.resolve([D]) },
+    Saved: () => Promise.resolve([]),
+    History: () => Promise.resolve([]),
+    Applications: () => Promise.resolve(['trackmania']),
+    Pictures: () => Promise.resolve([]),
+    Picture: () => { window.__pic++; return Promise.resolve(PNG) },
+    Watch: () => Promise.resolve({act: '', active: false, transcript: null}),
+    Learning: () => Promise.resolve({name: 'trackmania video', application: 'trackmania',
+      active: false, over: true, phase: 'ended', learned: D,
+      said: 'Saved "trackmania video".', next: 'Build an Act from it.'}),
+  },
+}}
+setTimeout(() => { show('scenes') }, 200)
+setTimeout(() => {
+  document.title = 'pic=' + window.__pic + ' demos=' + window.__demos +
+    ' figs=' + document.querySelectorAll('#learnedWhat figure').length
+}, 4200)
+`
+
+// A FINISHED REVIEW SITTING OPEN ASKS FOR ITS PICTURES ONCE.
+func TestTheWindowDoesNotFetchTheSamePicturesOverAndOver(t *testing.T) {
+	browser := aBrowser()
+	if browser == "" {
+		t.Skip("no headless Chromium on this machine to render the page in")
+	}
+	page, err := os.ReadFile(filepath.Join("frontend", "index.html"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// THE STUB GOES IN FRONT OF THE PAGE'S OWN SCRIPT, because the page waits for
+	// `window.go` and paints nothing until it exists.
+	src := strings.Replace(string(page), "<script>",
+		"<script>\n"+harness+"\n</script>\n<script>", 1)
+	dir := t.TempDir()
+	at := filepath.Join(dir, "page.html")
+	if err := os.WriteFile(at, []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	run := exec.Command(browser, "--headless=new", "--disable-gpu",
+		"--no-first-run", "--no-default-browser-check",
+		"--user-data-dir="+filepath.Join(dir, "profile"),
+		"--virtual-time-budget=6000", "--dump-dom", at)
+	done := make(chan struct{})
+	var out []byte
+	var runErr error
+	go func() { out, runErr = run.Output(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(90 * time.Second):
+		_ = run.Process.Kill()
+		t.Skip("the browser did not finish in time")
+	}
+	if runErr != nil && len(out) == 0 {
+		t.Skipf("the browser would not render: %v", runErr)
+	}
+
+	title := regexp.MustCompile(`<title>([^<]*)</title>`).FindStringSubmatch(string(out))
+	if title == nil {
+		t.Fatalf("the page never reported its counters, so it did not run at all")
+	}
+	n := func(key string) int {
+		m := regexp.MustCompile(key + `=(\d+)`).FindStringSubmatch(title[1])
+		if m == nil {
+			t.Fatalf("no %s in %q", key, title[1])
+		}
+		v, _ := strconv.Atoi(m[1])
+		return v
+	}
+	pics, demos, figs := n("pic"), n("demos"), n("figs")
+
+	// TWO STEPS, THREE LABELS EACH. One pass is six; the poll ran about ten times.
+	const wantPics = 6
+	if figs != wantPics {
+		t.Errorf("the review shows %d picture(s) and the fixture has %d, so this "+
+			"says nothing about how often they were fetched", figs, wantPics)
+	}
+	if pics > wantPics {
+		t.Errorf("the review asked for %d picture(s) where %d would do, so it is "+
+			"clearing and refetching them while nothing changes \u2014 which is "+
+			"the blinking", pics, wantPics)
+	}
+	// AND THE SCENE LIBRARY IS NOT REBUILT ON EVERY POLL EITHER. One at startup and
+	// one when the review appeared; a third means it is being redrawn on a timer.
+	if demos > 2 {
+		t.Errorf("the Scene library was rebuilt %d time(s) while nothing changed",
+			demos)
+	}
+}
+
+// actHarness is a chosen Act with a run in flight, and the two things that go wrong there.
+//
+// `removed` counts nodes taken OUT of a picture box, which is the blink itself: a box that is
+// cleared and refilled shows nothing in between. `runFigs` counts the pictures the RUN screen
+// is showing, which is zero when it is painting into the preview's boxes instead of its own.
+const actHarness = `
+window.__pic = 0; window.__removed = 0
+const STEP = (i) => ({name: 'control_' + i, position: i, reads: ['video'],
+  on: ['controls', 'display'], expect: 9, expected: ['a', 'b'],
+  routine: 'trackmania video',
+  from_label: 'screen_a', control_label: 'control_' + i, to_label: 'screen_b'})
+const ACT = {name: 'video act', application: 'trackmania', from: 'trackmania video',
+  revision: '20261021T121748.000000000', runnable: true, waits: '',
+  starts_on: ['controls', 'display', 'video'], interactions: ['one', 'two'],
+  steps: [STEP(1), STEP(2)], play: 'use os.', identity: 'id'}
+const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCA' +
+  'AAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+let tick = 0
+window.go = {main: {
+  Backend: {Loaded: () => Promise.resolve()},
+  Acts: {
+    Demonstrations: () => Promise.resolve([]),
+    Saved: () => Promise.resolve([ACT]),
+    History: () => Promise.resolve([]),
+    Applications: () => Promise.resolve(['trackmania']),
+    Pictures: () => Promise.resolve([]),
+    Picture: () => { window.__pic++; return Promise.resolve(PNG) },
+    Learning: () => Promise.resolve({active: false}),
+    Watch: () => { tick++
+      return Promise.resolve({act: 'video act', live: true, reference: 'run-x',
+        active: true, transcript: ['authorised by a press of Play'],
+        state: {phase: 'acting',
+          interaction: {index: Math.min(2, 1 + Math.floor(tick / 5)), of: 2, step: 1}}})
+    },
+  },
+}}
+// WATCH THE PREVIEW'S OWN BOXES for anything being taken out of them.
+setTimeout(() => {
+  const obs = new MutationObserver(ms => ms.forEach(m => {
+    // FIGURES ONLY. A step row legitimately changes when the Act does; a picture
+    // being taken away from a list that is still showing the same Act is the blink.
+    m.removedNodes.forEach(n => {
+      if (n.querySelectorAll) { window.__removed += n.querySelectorAll('figure').length }
+      if (n.tagName === 'FIGURE') { window.__removed++ }
+    })
+  }))
+  // THE CONTAINERS, not the boxes: a box destroyed with its parent is a box the
+  // observer stops hearing from, and that is the case this is looking for.
+  ;['adSteps', 'runSteps'].forEach(id =>
+    obs.observe(document.getElementById(id), {childList: true, subtree: true}))
+}, 900)
+// AND CHOOSE THE ACT AGAIN AND AGAIN, which is what clicking between Acts does.
+setTimeout(() => { chosen = 'video act'; loadActs() }, 300)
+for (let i = 2; i < 10; i++) { setTimeout(() => { loadActs() }, 300 * i) }
+setTimeout(() => {
+  document.title = 'pic=' + window.__pic + ' removed=' + window.__removed +
+    ' adFigs=' + document.querySelectorAll('#adSteps figure').length +
+    ' runFigs=' + document.querySelectorAll('#runSteps figure').length
+}, 4200)
+`
+
+// CHOOSING THE SAME ACT AGAIN DOES NOT TAKE ITS PICTURES DOWN AND PUT THEM BACK.
+//
+// And the run's step list paints its OWN picture boxes. Both lists are built by `stepsHTML` and
+// both are in the document at once, so one set of element ids for two lists meant the run
+// repainted the preview's boxes and left its own empty.
+func TestTheWindowKeepsPicturesItIsAlreadyShowing(t *testing.T) {
+	browser := aBrowser()
+	if browser == "" {
+		t.Skip("no headless Chromium on this machine to render the page in")
+	}
+	title := renderForCounters(t, browser, actHarness)
+	n := func(key string) int {
+		m := regexp.MustCompile(key + `=(\d+)`).FindStringSubmatch(title)
+		if m == nil {
+			t.Fatalf("no %s in %q", key, title)
+		}
+		v, _ := strconv.Atoi(m[1])
+		return v
+	}
+	// TWO STEPS, THREE LABELS EACH, IN TWO LISTS: the Act's preview and the run's.
+	if ad, run := n("adFigs"), n("runFigs"); ad != 6 || run != 6 {
+		t.Errorf("the preview shows %d picture(s) and the run shows %d, want 6 "+
+			"each — a list showing none is painting into the other one's "+
+			"boxes, which is what one set of element ids for both did", ad, run)
+	}
+	if r := n("removed"); r != 0 {
+		t.Errorf("%d picture(s) were taken out of a box that was already showing "+
+			"them, which is the blink", r)
+	}
+	if p := n("pic"); p > 12 {
+		t.Errorf("%d picture fetches for twelve pictures, so choosing the same "+
+			"Act again goes back to the backend for bytes it already had", p)
+	}
+}
+
+// renderForCounters runs the page with a stubbed backend and returns what it put in its title.
+func renderForCounters(t *testing.T, browser, stub string) string {
+	t.Helper()
+	page, err := os.ReadFile(filepath.Join("frontend", "index.html"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := strings.Replace(string(page), "<script>",
+		"<script>\n"+stub+"\n</script>\n<script>", 1)
+	dir := t.TempDir()
+	at := filepath.Join(dir, "page.html")
+	if err := os.WriteFile(at, []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	run := exec.Command(browser, "--headless=new", "--disable-gpu",
+		"--no-first-run", "--no-default-browser-check",
+		"--user-data-dir="+filepath.Join(dir, "profile"),
+		"--virtual-time-budget=6000", "--dump-dom", at)
+	done := make(chan struct{})
+	var out []byte
+	var runErr error
+	go func() { out, runErr = run.Output(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(90 * time.Second):
+		_ = run.Process.Kill()
+		t.Skip("the browser did not finish in time")
+	}
+	if runErr != nil && len(out) == 0 {
+		t.Skipf("the browser would not render: %v", runErr)
+	}
+	m := regexp.MustCompile(`<title>([^<]*)</title>`).FindStringSubmatch(string(out))
+	if m == nil {
+		t.Fatal("the page never reported its counters, so it did not run at all")
+	}
+	return m[1]
+}

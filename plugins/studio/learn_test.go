@@ -14,6 +14,7 @@ package main
 
 import (
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -334,6 +335,18 @@ func TestFinishingEarlySaysWhatIsStillMissing(t *testing.T) {
 		{"the press landed on nothing", learnstate.Event{
 			Phase: learnstate.Blind, Presses: 1, StartKnown: true},
 			"landed on nothing Marco could see", true},
+		// ── AND THE RESULT THAT IS IN, AND IS NOTHING ──
+		//
+		// Refused, as `Checking` is, because finishing here saves a press with
+		// no check on it. What it may NOT say is "keep recording for a moment":
+		// the readings have arrived, so that is a wait with nothing on the other
+		// end of it — which is what the window asked for over twenty-nine
+		// seconds of the owner’s Rocket League recording.
+		{"the result is in and it is nothing", learnstate.Event{
+			Phase: learnstate.Unchecked, Presses: 1, Watched: 1,
+			Unchecked: 1, StartKnown: true,
+			Missing: "nothing elsewhere on the window appeared and stayed"},
+			"Waiting will not change that now", true},
 		// AND A RECORDING WITH ITS EVIDENCE IN HAND FINISHES WITHOUT A WORD.
 		{"the result is captured", learnstate.Event{
 			Phase: learnstate.Captured, Presses: 1, Watched: 1, Captured: 1,
@@ -431,6 +444,44 @@ func TestTheRecordingShowsWhatTheRecorderKnows(t *testing.T) {
 		t.Error("the recorder said the starting screen can be recognised and the " +
 			"window does not carry it, so the caution would never come down")
 	}
+
+	// AND WHETHER THE SCREEN IN FRONT HAS BEEN READ AT ALL, which is what the NEXT
+	// press needs and is a weaker question than the one about the starting screen.
+	sayRecording(t, a, learnstate.Event{Phase: learnstate.Checking,
+		Presses: 1, Watched: 1, StartKnown: true, ScreenRead: false,
+		Missing: "2 of the 5 reading(s) persistence needs have arrived"})
+	waitForPhase(t, a, learnstate.Checking)
+	if a.Learning().ScreenRead {
+		t.Error("the recorder said nothing has been read on the screen in front " +
+			"and the window does not carry it, so a press made there would " +
+			"be unanswerable and nobody would be told until they had waited")
+	}
+	// AND THE OTHER WAY, which is the half a mutation survives without: a window
+	// that hard-coded `false` would pass the assertion above and never take the
+	// caution down again.
+	sayRecording(t, a, learnstate.Event{Phase: learnstate.Checking,
+		Presses: 1, Watched: 1, StartKnown: true, ScreenRead: true,
+		Missing: "3 of the 5 reading(s) persistence needs have arrived"})
+	waitFor(t, a, func(l Learning) bool { return l.ScreenRead })
+
+	// AND HOW MANY PRESSES THERE IS NOTHING LEFT TO WAIT FOR. Counted beside the
+	// captures rather than instead of them, because a recording can have one of each
+	// and the page shows both numbers.
+	sayRecording(t, a, learnstate.Event{Phase: learnstate.Unchecked,
+		Presses: 2, Watched: 2, Captured: 1, Unchecked: 1, StartKnown: true,
+		Missing: "nothing elsewhere on the window appeared and stayed"})
+	waitForPhase(t, a, learnstate.Unchecked)
+	done := a.Learning()
+	if done.Unchecked != 1 {
+		t.Errorf("%d press(es) reported as measured and empty, and the recorder "+
+			"said one", done.Unchecked)
+	}
+	// AND THE SENTENCE SAYS WAITING IS OVER rather than asking for more of it.
+	if !strings.Contains(done.Doing, "waiting will not change") {
+		t.Errorf("the sentence for a measured and empty result is %q, and what a "+
+			"person needs to know is that waiting is no longer the thing to "+
+			"do", done.Doing)
+	}
 }
 
 // sayRecording writes one state onto the recording's own progress stream, as the recorder would.
@@ -468,4 +519,114 @@ func waitForPhase(t *testing.T, a *Acts, want learnstate.Phase) {
 		time.Sleep(25 * time.Millisecond)
 	}
 	t.Fatalf("the window never reported %q; it says %+v", want, a.Learning())
+}
+
+// waitFor is waitForPhase for anything else the window reports.
+func waitFor(t *testing.T, a *Acts, ok func(Learning) bool) {
+	t.Helper()
+	for i := 0; i < 400; i++ {
+		if ok(a.Learning()) {
+			return
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	t.Fatalf("the window never reported it; it says %+v", a.Learning())
+}
+
+// A RECORDER THIS WINDOW CANNOT READ IS SAID, NOT WAITED ON.
+//
+// Studio spawns the `director.exe` beside its own executable, and with two copies of Studio in
+// the tree that can be a build from another day. Its stream then carries a version this build
+// skips, Studio sees no events, and what it showed was "Reading the starting screen…" — a
+// current window narrating a recorder it had never met, for as long as somebody kept recording.
+// That cost the owner a day.
+func TestARecorderFromAnotherBuildIsSaidRatherThanWaitedOn(t *testing.T) {
+	a, _ := aStoreWithADemonstration(t)
+	t.Cleanup(a.Close)
+	aRecorderStandingIn(t, a)
+	if why := a.Learn("the audio tab opening", "ArkAscended.exe", 60); why != "" {
+		t.Fatalf("the recorder would not start: %s", why)
+	}
+	// A STREAM FROM ONE VERSION BACK, which is exactly what a stale sibling writes.
+	a.mu.Lock()
+	path := a.learn.progress
+	a.mu.Unlock()
+	if path == "" {
+		t.Skip("this recording has no progress stream to stand in for")
+	}
+	if err := os.WriteFile(path, []byte(
+		`{"version":`+strconv.Itoa(learnstate.Version-1)+
+			`,"seq":1,"phase":"checking","presses":1}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	waitFor(t, a, func(l Learning) bool {
+		return strings.Contains(l.Doing, "different build")
+	})
+	l := a.Learning()
+	if !strings.Contains(l.Doing, "build.cmd") {
+		t.Errorf("the window says the build is wrong and not what to do about "+
+			"it: %q", l.Doing)
+	}
+	// AND FINISHING SAYS THE SAME THING, rather than refusing for want of evidence
+	// it cannot read either.
+	if why := a.Done(false); !strings.Contains(why, "different build") {
+		t.Errorf("finishing says %q", why)
+	}
+}
+
+// AND A RECORDER OF A DIFFERENT BUILD IS NAMED, not inferred from a timestamp.
+//
+// The protocol version refuses a stream this build cannot parse. This is the other case: the
+// shape matches and the behaviour does not, which is what a build one commit apart looks like.
+// Git identifies the SOURCE; only the binaries can say what is running, so both say it.
+func TestTheWindowSaysWhichBuildIsRecordingBesideItsOwn(t *testing.T) {
+	a, _ := aStoreWithADemonstration(t)
+	t.Cleanup(a.Close)
+	aRecorderStandingIn(t, a)
+	if why := a.Learn("the audio tab opening", "ArkAscended.exe", 60); why != "" {
+		t.Fatalf("the recorder would not start: %s", why)
+	}
+	// A STREAM FROM A BUILD THAT IS NOT THIS ONE, in the current shape.
+	sayRecording(t, a, learnstate.Event{Phase: learnstate.Ready, StartKnown: true,
+		ScreenRead: true})
+	waitForPhase(t, a, learnstate.Ready)
+
+	l := a.Learning()
+	if l.Build == "" {
+		t.Error("the window does not say which build it is, so the recorder's " +
+			"revision has nothing to be read against")
+	}
+	// The stand-in writer stamps its own revision, which IS this build — so these
+	// agree, and that is the case that must not be reported as a mismatch.
+	if l.Mismatched {
+		t.Error("one process reports itself as two different builds")
+	}
+
+	// ── AND NOW THE PAIR THIS EXISTS FOR ──
+	//
+	// Two builds that genuinely differ. A test binary carries no VCS stamp, so
+	// both sides have to be put there: the window's own through the substitutable
+	// source, and the recorder's by writing the line a recorder would write.
+	a.mu.Lock()
+	a.revision = func() string { return "aaaaaaa" }
+	path := a.learn.progress
+	a.mu.Unlock()
+	if path == "" {
+		t.Skip("this recording has no progress stream")
+	}
+	line := `{"version":` + strconv.Itoa(learnstate.Version) +
+		`,"seq":9,"phase":"ready","build":"bbbbbbb",` +
+		`"start_known":true,"screen_read":true}` + "\n"
+	if err := os.WriteFile(path, []byte(line), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, a, func(l Learning) bool { return l.Mismatched })
+	l = a.Learning()
+	if l.Recorder != "bbbbbbb" || l.Build != "aaaaaaa" {
+		t.Errorf("the window reports recorder=%q window=%q; both have to be "+
+			"shown, because they differ is what somebody acts on and "+
+			"the two revisions are what tell them which to rebuild",
+			l.Recorder, l.Build)
+	}
 }

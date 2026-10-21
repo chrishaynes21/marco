@@ -682,6 +682,46 @@ func TestThePageIsTheFlowThatWasAskedFor(t *testing.T) {
 		{"id=\"learnStart\"", "there is nowhere on the recording card for the " +
 			"one fault a person can repair while recording, so it is only " +
 			"ever mentioned when they try to finish"},
+		{"l.missing", "the recording card never paints what the recorder says is " +
+			"missing, so the place made for the reading count stays empty"},
+		{"id=\"learnWhy\"", "the recording card has nowhere to show how many of " +
+			"the readings persistence needs have arrived, so a person waiting " +
+			"for a result is estimating OCR — which is the one thing the " +
+			"recorder’s own stream exists to stop"},
+		// ── WHAT THE POLLS MUST NOT REDRAW ──
+		//
+		// Both polls run two and a half times a second for as long as the window
+		// is open, and both used to rebuild their whole subtree every time. That
+		// is invisible for text and not for a PICTURE: measured on the finished
+		// review, 66 picture fetches in 4.2 seconds against 6 now; on the run
+		// screen, 108 against 9. The owner saw it as "the images blink in the ui".
+		{"shownReview", "the finished review is redrawn on every poll, so its " +
+			"pictures are cleared and fetched again two and a half times a " +
+			"second and the page blinks and jumps"},
+		{"box.dataset.showing", "a picture box is emptied and refilled even when " +
+			"it is already showing exactly those pictures"},
+		{"shots.set(", "pictures are not kept once fetched, so every redraw is a " +
+			"round trip to the backend for bytes the page already had"},
+		{"shownDemos", "the Scene library is rebuilt on every poll for as long as " +
+			"a finished review is open"},
+		{"shownRunSteps", "the run's step cards are rebuilt on every poll to move " +
+			"the highlight, which throws away their pictures"},
+		{"classList.toggle('now'", "the step in hand is marked by rebuilding the " +
+			"cards rather than by moving the mark"},
+		{"'runShots'", "the run's step list and the Act's preview give their " +
+			"picture boxes the SAME element ids, and both are in the document " +
+			"at once — so the run repaints the preview's boxes and leaves its " +
+			"own empty, which is what it did"},
+		{"l.screen_read", "the recording never says that the screen in front has " +
+			"not been read yet, so a press made on it has no before side, can " +
+			"never be checked, and the person finds that out by waiting"},
+		{"id=\"learnRead\"", "there is nowhere on the recording card for the one " +
+			"fault that is cheaper to prevent than to report"},
+		{"l.unchecked", "the recording does not say how many presses Marco " +
+			"measured and could not tell the result of, so a press there is " +
+			"nothing left to wait for reads the same as one still being " +
+			"checked — which is the thirty seconds the owner spent waiting " +
+			"for an answer that had already arrived"},
 		{"pausedWhere", "a paused run does not say which screen it is waiting " +
 			"for in the words read off it, so the only identity a person is " +
 			"shown for it is a label this machine gave itself"},
@@ -739,6 +779,37 @@ func TestThePageIsTheFlowThatWasAskedFor(t *testing.T) {
 			"moment the window moves on from it"},
 		{"acts.Report(", "there is no way to report a problem with the run " +
 			"reference already attached"},
+		// ── DELETING A RUN, IN TWO PRESSES ──
+		{"ask(subject, false)", "the page cannot ask what a deletion would " +
+			"remove, so either there is no way to delete or the first press " +
+			"is the one that does it"},
+		{"ask(subject, true)", "nothing ever confirms a deletion, so the " +
+			"question could be raised and never answered"},
+		{"id=\"histAsk\"", "there is nowhere to show what a deletion would " +
+			"remove before it removes it"},
+		{">Delete all<", "there is no way to clear the run history, so a machine " +
+			"with four hundred records has to be cleaned up by hand"},
+		{"forget(chosenRun)", "a single run cannot be deleted; only all of them"},
+		{"l.mismatched", "the window never says the recorder is a different " +
+			"build, so which binary is running is worked out from file " +
+			"timestamps — which is what cost the owner a day"},
+		{"id=\"build\"", "the window does not say which build it is, so the " +
+			"recorder's revision has nothing to be read against"},
+		{"paintSceneShots(", "a demonstration's card shows no pictures, so what " +
+			"somebody showed Marco is visible only in the review that goes " +
+			"away with the window and in an Act's preview once one exists " +
+			"— the pictures are on disk and nothing shows them"},
+		{"acts.ForgetScene", "a demonstration cannot be removed from the window, " +
+			"so being rid of one means finding files by hand"},
+		{"acts.ForgetAct", "an Act cannot be removed from the window"},
+		{"acts.ForgetEverything(anyway)", "there is no way to put the machine back " +
+			"to before any of it — which is what the owner asked for, and is not " +
+			"the same as deleting one card at a time"},
+		{"id=\"freshBox\"", "starting fresh is not behind anything deliberate, or " +
+			"is not there at all"},
+		{"askThenDelete(", "each kind of deletion asks in its own way, so the " +
+			"promise that the first press removes nothing is made three times " +
+			"and can be broken once"},
 		{"starts_on", "the Act's detail does not say which screen it has to start " +
 			"on, which is the thing a person has to do before pressing Play"},
 		{"stepsHTML(", "there is no ordered preview of what an Act will do, so Play " +

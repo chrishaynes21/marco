@@ -18,70 +18,221 @@
      an Act performs in is the play's, not this file's. -->
 
 <style>
- :root{--bg:#14161a;--panel:#1b1e24;--line:#2d323c;--ink:#d7dae0;--dim:#8a93a0;
-       --key:#4b7bec;--ok:#3fb950;--warn:#d29922;--no:#f85149}
+ /* ── THE PROMPT BOOK ──────────────────────────────────────────────────────────
+    The page this restyles was one typeface — 13px monospace — for everything: the
+    act titles, the paragraphs explaining what an Act is, the refusals, and
+    `control_2`. The owner, opening it: "it's very ugly. Like extremely."
+
+    Monospace for prose is the whole of why. This surface is made almost entirely
+    of carefully written SENTENCES, and setting them in a terminal face made every
+    one of them read as debug output — which is also the opposite of what the page
+    argues. Its own rule is that machine names never reach a person, so the type
+    now carries that rule: a humanist face for everything a person reads, and the
+    monospace kept for exactly the things the machine named itself — `screen_b`,
+    `control_1`, a run reference, a transcript. The contrast is the argument.
+
+    Three roles, no downloads. Constantia and Segoe UI Variable ship with Windows
+    and Cascadia Mono with the terminal, so this holds up with the network off,
+    which a local window beside a game had better do.
+
+    Both themes are built from the tokens below and nothing sets a colour outside
+    them. A desktop window follows the desktop, so `prefers-color-scheme` decides
+    and `[data-theme]` wins if anything ever sets it. ── */
+ :root{
+   /* A warm near-black, biased toward the accent rather than the blue-grey of a
+      code editor. The neutrals are hue-biased on purpose: a flat mid-grey reads
+      as the colour nobody chose. */
+   --ground:#15141a; --raise:#1e1c25; --sink:#100f14; --line:#2c2838;
+   --ink:#e9e5ef; --dim:#9d95b0; --faint:#6f6885;
+   /* ONE spot, and it is structural: the active destination, a chosen card, a
+      rule, a focus ring, the primary button. Periwinkle because the three
+      semantic hues below are green, amber and red, and an accent that collided
+      with any of them would make "this is selected" and "this went wrong" the
+      same colour. */
+   --spot:#9b8cf4; --spot-ink:#17141f; --spot-dim:#6c5fc0;
+   --ok:#5cbf7a; --warn:#e3a73c; --no:#f0695f;
+   --ok-bg:#16241b; --warn-bg:#251e10; --no-bg:#2a1618; --spot-bg:#1d1930;
+
+   --display:"Constantia","Cambria",Georgia,"Segoe UI Variable Display",serif;
+   --text:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,sans-serif;
+   --mach:"Cascadia Mono","Cascadia Code",Consolas,ui-monospace,monospace;
+   --r:7px;
+ }
+ /* THE PAPER SIDE. Guarded so an explicit dark choice beats a light desktop. */
+ @media (prefers-color-scheme:light){
+   :root:not([data-theme="dark"]){
+     --ground:#faf8f4; --raise:#ffffff; --sink:#f2efe9; --line:#e3ded4;
+     --ink:#211e27; --dim:#67607a; --faint:#8b8399;
+     --spot:#5a49c4; --spot-ink:#ffffff; --spot-dim:#8d82dd;
+     --ok:#2d8a4e; --warn:#8f5f07; --no:#c33a2e;
+     --ok-bg:#eaf5ec; --warn-bg:#faf2e2; --no-bg:#fdedeb; --spot-bg:#f0edfb;
+   }
+ }
+ :root[data-theme="light"]{
+   --ground:#faf8f4; --raise:#ffffff; --sink:#f2efe9; --line:#e3ded4;
+   --ink:#211e27; --dim:#67607a; --faint:#8b8399;
+   --spot:#5a49c4; --spot-ink:#ffffff; --spot-dim:#8d82dd;
+   --ok:#2d8a4e; --warn:#8f5f07; --no:#c33a2e;
+   --ok-bg:#eaf5ec; --warn-bg:#faf2e2; --no-bg:#fdedeb; --spot-bg:#f0edfb;
+ }
+
  *{box-sizing:border-box}
- body{font:13px/1.6 Consolas,"Cascadia Mono",monospace;background:var(--bg);color:var(--ink);
-      margin:0;height:100vh;display:flex;overflow:hidden}
- /* ── the rail ── */
- #rail{width:190px;flex:0 0 190px;background:#101216;border-right:1px solid var(--line);
-       display:flex;flex-direction:column;padding:14px 0}
- .brand{font-size:11px;color:var(--dim);letter-spacing:.14em;text-transform:uppercase;
-        padding:0 16px 14px}
- .railbtn{display:block;width:100%;text-align:left;font:13px Consolas,monospace;
-          background:none;border:0;border-left:2px solid transparent;color:var(--dim);
-          padding:7px 16px;cursor:pointer}
- .railbtn:hover{color:var(--ink);background:#15181d}
- .railbtn.on{color:var(--ink);border-left-color:var(--key);background:#181b21}
- .railfoot{margin-top:auto;padding:12px 16px 0;font-size:11px;border-top:1px solid var(--line)}
- /* ── the main area ── */
- main{flex:1;min-width:0;overflow-y:auto;padding:22px 26px}
- h1{font-size:17px;font-weight:400;margin:0 0 2px;letter-spacing:.01em}
- h2{font-size:12px;color:var(--key);margin:22px 0 8px;font-weight:400;
-    text-transform:uppercase;letter-spacing:.08em}
- .sub{color:var(--dim);margin:0 0 18px}
- .card{background:var(--panel);border:1px solid var(--line);padding:11px 13px;margin-bottom:8px}
- .card.pick{cursor:pointer}
- .card.pick:hover{border-color:#3f4654}
- .card.on{border-color:var(--key)}
- .card h3{font-size:13px;font-weight:400;margin:0 0 3px}
- .muted{color:var(--dim)} .ok{color:var(--ok)} .no{color:var(--no)} .warn{color:var(--warn)}
- /* A PICTURE OF WHAT WAS SHOWN. Bounded in CSS as well as on the way in, so a thumbnail
-    kept at a bigger size than this build expects cannot push the text off the card. */
- .shot{display:block;max-width:100%;border:1px solid var(--line);border-radius:4px;
+ body{font:400 14.5px/1.65 var(--text);background:var(--ground);color:var(--ink);
+      margin:0;height:100vh;display:flex;overflow:hidden;
+      -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+ ::selection{background:var(--spot-dim);color:#fff}
+ :focus-visible{outline:2px solid var(--spot);outline-offset:2px;border-radius:3px}
+
+ /* ── the rail: three places, and the one you are in is marked ── */
+ #rail{width:208px;flex:0 0 208px;background:var(--sink);
+       border-right:1px solid var(--line);display:flex;flex-direction:column;
+       padding:20px 0 14px}
+ .brand{font:600 16px/1.2 var(--display);color:var(--ink);padding:0 18px 20px;
+        display:flex;align-items:center;gap:9px;letter-spacing:.005em}
+ /* A cue mark, not a logo: the bar a stage manager rules beside the line they are
+    on. It is the one piece of furniture this window has. */
+ .brand::before{content:"";width:3px;height:17px;border-radius:2px;
+        background:var(--spot);flex:0 0 3px}
+ .railbtn{display:block;width:100%;text-align:left;
+          font:400 14.5px var(--text);background:none;border:0;
+          border-left:2px solid transparent;color:var(--dim);
+          padding:9px 18px;cursor:pointer;transition:color .12s,background .12s}
+ .railbtn:hover{color:var(--ink);background:var(--raise)}
+ .railbtn.on{color:var(--ink);border-left-color:var(--spot);
+          background:var(--spot-bg);font-weight:600}
+ .railfoot{margin-top:auto;padding:14px 18px 0;font-size:13px;color:var(--dim)}
+ #railrun{border-top:1px solid var(--line);padding-top:13px;margin-bottom:9px}
+
+ /* ── the main area: one column, measured ── */
+ main{flex:1;min-width:0;overflow-y:auto;padding:34px 40px 56px}
+ main > section{max-width:860px}
+ h1{font:600 26px/1.22 var(--display);margin:0 0 6px;letter-spacing:-.012em}
+ /* The lead, at a readable measure. A sentence that explains what an Act IS has
+    to be a sentence somebody will read, which 110 characters of monospace was
+    not. */
+ .sub{font-size:16.5px;line-height:1.6;color:var(--dim);margin:0 0 26px;
+      max-width:62ch}
+ /* A section label with a rule running off it — a boundary, rather than the
+    uppercase blue heading of a developer tool. */
+ h2{font:600 11.5px/1 var(--text);color:var(--faint);margin:32px 0 12px;
+    text-transform:uppercase;letter-spacing:.11em;
+    display:flex;align-items:center;gap:12px}
+ h2::after{content:"";flex:1;height:1px;background:var(--line)}
+ h3{font:600 17px/1.3 var(--display);margin:0 0 4px;letter-spacing:-.005em}
+
+ /* ── surfaces, spent by role rather than stamped on everything ── */
+ .card{background:var(--raise);border:1px solid var(--line);border-radius:var(--r);
+       padding:15px 17px;margin-bottom:10px}
+ .card.pick{cursor:pointer;transition:border-color .12s,transform .12s}
+ .card.pick:hover{border-color:var(--spot-dim)}
+ /* The chosen one is MARKED, not outlined again: a second border around a thing
+    that already has one is how every card ended up looking the same. */
+ .card.on{border-color:var(--line);box-shadow:inset 3px 0 0 var(--spot);
+          padding-left:20px;background:var(--spot-bg)}
+
+ .muted{color:var(--dim)} .ok{color:var(--ok)} .no{color:var(--no)}
+ .warn{color:var(--warn)}
+
+ /* Machine vocabulary, wherever it is unavoidable. */
+ .mach,pre,.tag{font-family:var(--mach);font-variant-ligatures:none}
+
+ /* A PICTURE OF WHAT WAS SHOWN. Bounded in CSS as well as on the way in, so a
+    thumbnail kept at a bigger size than this build expects cannot push the text
+    off the card. */
+ .shot{display:block;max-width:100%;border:1px solid var(--line);border-radius:6px;
    background:#000}
- .shots{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;align-items:flex-start}
+ .shots{display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;align-items:flex-start}
  .shots figure{margin:0;max-width:320px}
- .shots figcaption{color:var(--dim);font-size:12px;margin-top:3px}
+ .shots figcaption{color:var(--dim);font-size:12.5px;margin-top:5px}
  .shot.ctl{max-width:240px}
- .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+ .row{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
  .grow{flex:1;min-width:0}
- button{font:12px Consolas,monospace;background:#232730;color:var(--ink);
-        border:1px solid #3a404c;padding:5px 11px;cursor:pointer}
- button:hover:not(:disabled){background:#2c313b}
- button:disabled{opacity:.4;cursor:default}
- button.go{border-color:var(--key);background:#1d2536}
- button.stop{border-color:var(--no)}
- input[type=text]{font:12px Consolas,monospace;background:#101216;color:var(--ink);
-        border:1px solid #3a404c;padding:5px 7px;width:100%}
- select{font:12px Consolas,monospace;background:#101216;color:var(--ink);
-        border:1px solid #3a404c;padding:5px 7px;min-width:14em}
+
+ /* ── controls: three tiers, so Play does not look like Refresh ── */
+ button{font:400 13.5px var(--text);background:var(--raise);color:var(--ink);
+        border:1px solid var(--line);border-radius:6px;padding:7px 13px;
+        cursor:pointer;transition:background .12s,border-color .12s}
+ button:hover:not(:disabled){border-color:var(--faint)}
+ button:disabled{opacity:.42;cursor:default}
+ /* The primary. Filled, because on this page it is always the one thing the
+    sentence above it just asked for. */
+ button.go{background:var(--spot);color:var(--spot-ink);border-color:var(--spot);
+        font-weight:600}
+ button.go:hover:not(:disabled){background:var(--ink);border-color:var(--ink)}
+ button.go:disabled{background:var(--raise);color:var(--dim);
+        border-color:var(--line)}
+ /* Stop is live for the whole of a run and must never be the quietest thing on
+    screen, nor loud enough to invite a press. */
+ button.stop{background:none;border-color:var(--no);color:var(--no);font-weight:600}
+ button.stop:hover:not(:disabled){background:var(--no);color:#fff}
+
+ input[type=text]{font:400 14px var(--text);background:var(--sink);color:var(--ink);
+        border:1px solid var(--line);border-radius:6px;padding:7px 10px;width:100%}
+ /* IN A ROW IT SHARES THE ROW. `width:100%` beside a label is 100% of the row on its
+    own, so every labelled field wrapped onto its own line and "call it" sat above an
+    input stretched across the card. */
+ .row > input[type=text]{flex:1 1 14em;width:auto;max-width:30em}
+ #learnSeconds{flex:0 0 5em}
+ input[type=text]::placeholder{color:var(--faint)}
+ input[type=text]:focus{outline:none;border-color:var(--spot);
+        box-shadow:0 0 0 3px var(--spot-bg)}
+ select{font:400 14px var(--text);background:var(--sink);color:var(--ink);
+        border:1px solid var(--line);border-radius:6px;padding:7px 10px;min-width:14em}
+ input[type=checkbox]{accent-color:var(--spot);width:15px;height:15px;margin:0}
  label{color:var(--dim)}
- .tag{font-size:11px;padding:1px 6px;border:1px solid #3a404c;color:var(--dim)}
- .tag.live{border-color:var(--no);color:#ffb3ae}
- pre{margin:6px 0 0;white-space:pre-wrap;word-break:break-word;max-height:300px;
-     overflow-y:auto;background:#101216;border:1px solid #22262e;padding:8px;font-size:12px}
- details{margin-top:14px;border-top:1px solid var(--line);padding-top:10px}
- summary{color:var(--dim);cursor:pointer}
- .step{display:flex;gap:10px;align-items:baseline;padding:4px 0}
- .step .n{color:var(--dim);width:2.4em;flex:0 0 2.4em}
- .step.now{background:#1a2030;outline:1px solid var(--key)}
+
+ .tag{font-size:11.5px;padding:2px 9px;border:1px solid var(--line);
+      border-radius:999px;color:var(--dim);letter-spacing:.02em}
+ .tag.live{border-color:var(--no);color:var(--no)}
+
+ pre{margin:8px 0 0;white-space:pre-wrap;word-break:break-word;max-height:300px;
+     overflow-y:auto;background:var(--sink);border:1px solid var(--line);
+     border-radius:var(--r);padding:11px 13px;font-size:12.5px;line-height:1.55;
+     color:var(--dim)}
+
+ details{margin-top:18px;border-top:1px solid var(--line);padding-top:12px}
+ summary{color:var(--faint);cursor:pointer;font-size:13.5px;list-style:none;
+     display:flex;align-items:center;gap:7px}
+ summary::-webkit-details-marker{display:none}
+ summary::before{content:"›";font-size:15px;transition:transform .12s;
+     display:inline-block}
+ details[open] > summary::before{transform:rotate(90deg)}
+ summary:hover{color:var(--dim)}
+
+ /* ── the cue list: numbered, ruled, and the one in hand is marked ── */
+ /* Two shapes share this row: the Act preview puts a number in the first column and
+    the demonstration list puts the "Use this one" button there. A fixed 2.6em squeezed
+    the button to two words on two lines, so the column is the wider of the two and the
+    card's rows still line up with each other. */
+ .step{display:grid;grid-template-columns:minmax(2.6em,max-content) 1fr;gap:4px 11px;
+       padding:9px 0;border-top:1px solid var(--line);align-items:start}
+ .step > button{white-space:nowrap;align-self:start}
+ .step:first-child{border-top:0}
+ .step .n{color:var(--faint);font-size:13.5px;font-variant-numeric:tabular-nums;
+       padding-top:1px}
+ .step.now{background:var(--spot-bg);box-shadow:inset 3px 0 0 var(--spot);
+       padding-left:13px;margin-left:-13px;border-radius:0 var(--r) var(--r) 0}
+
+ /* ── a margin note, which is what a warning in a prompt book is ── */
+ .banner{border:0;border-left:3px solid var(--warn);background:var(--warn-bg);
+       border-radius:0 var(--r) var(--r) 0;padding:11px 15px;margin:12px 0;
+       color:var(--ink);font-size:14px;line-height:1.55}
+ .banner.bad{border-left-color:var(--no);background:var(--no-bg)}
+ .banner.good{border-left-color:var(--ok);background:var(--ok-bg)}
+
  /* ── the run screen ── */
- #doing{font-size:16px;line-height:1.45;margin:4px 0 6px}
- .banner{border:1px solid var(--warn);background:#241f12;padding:10px 12px;margin:10px 0}
- .banner.bad{border-color:var(--no);background:#2a1618}
- .banner.good{border-color:var(--ok);background:#15241a}
- .hide{display:none}
+ #doing{font:400 18px/1.5 var(--text);margin:8px 0 10px;max-width:60ch}
+ #learnDoing{font:400 17px/1.5 var(--text)}
+ #learnLeft,#railphase,#learnGot{font-variant-numeric:tabular-nums}
+
+ @media (prefers-reduced-motion:reduce){
+   *,*::before{transition:none!important}
+ }
+ /* LAST, AND IT WINS. Everything on this page is shown or hidden by toggling this
+    one class, and a rule above that sets a display would otherwise un-hide a
+    whole view. */
+ .hide{display:none!important}
 </style>
 
 <nav id="rail">
@@ -98,6 +249,12 @@
         >Stop</button>
     </div>
     <div class="muted" id="where"></div>
+    <!-- WHICH BUILD THIS IS, and which one is recording. Shown rather than inferred:
+         the question "what am I running" was answered by comparing file timestamps,
+         and Studio spawns the director beside ITSELF, so a stale one is invisible.
+         The protocol version refuses a stream this build cannot parse; this covers
+         the case where the shape matches and the behaviour does not. -->
+    <div class="muted mach" id="build" style="margin-top:8px;font-size:11.5px"></div>
   </div>
 </nav>
 
@@ -137,7 +294,15 @@
       <div id="adSteps" style="margin-top:10px"></div>
       <div class="row" style="margin-top:14px">
         <button class="go" id="playBtn" onclick="play(true)">Play</button>
+        <button onclick="forgetAct(chosen)">Delete this Act</button>
         <span class="muted" id="playNote"></span>
+      </div>
+      <div class="banner warn hide" id="actAsk" style="margin-top:10px">
+        <span id="actAskWhat"></span>
+        <div class="row" style="margin-top:10px">
+          <button class="stop" id="actAskYes">Delete</button>
+          <button onclick="forgetAct(null)">Keep it</button>
+        </div>
       </div>
       <details>
         <summary>Technical details</summary>
@@ -212,6 +377,12 @@
     <div id="learnDoing" style="font-size:15px"></div>
     <!-- WHAT IT HAS, counted. Not advice: the recorder measured these. -->
     <div class="muted" id="learnGot" style="margin-top:6px"></div>
+    <!-- AND WHAT IT IS WAITING FOR, IN READINGS. The recorder knows how many of the
+         five persistence needs have arrived and this card did not show it, so the
+         sentence above was the whole of what somebody waiting could see — which left
+         them estimating OCR, the one thing this stream exists to stop. The owner
+         waited thirty seconds and asked whether settling should take five. -->
+    <div class="muted" id="learnWhy" style="margin-top:6px"></div>
     <div class="muted" style="margin-top:6px">Click controls with the mouse — keys are
       watched and cannot name a control.</div>
     <!-- AND THE SCREEN THIS STARTS FROM, while it is still fixable.
@@ -224,6 +395,24 @@
       read enough of the screen you started on to recognise it again. Go back to that
       screen and rest there for a moment — an Act that starts on a screen it cannot
       name waits for it instead of pressing.</div>
+    <!-- AND WHETHER THE SCREEN IN FRONT HAS BEEN READ, which is the one fault that is
+         cheaper to prevent than to report.
+         An outcome compares what is read after a press against what was read before it,
+         and the before side is taken ONCE, at the instant of the press. Click on a screen
+         nothing has been read on and there is no before side, there never will be one,
+         and that press can never be checked. The phases that ask this ask it of the
+         screen a recording STARTS on and stop at the first press — so the second screen
+         and the third went unmentioned. -->
+    <!-- AND WHEN THE TWO BUILDS DISAGREE, which is a fault about the machine rather
+         than about the demonstration, and cannot be fixed by recording differently. -->
+    <div class="banner bad hide" id="learnBuild" style="margin-top:10px">The recorder
+      is a different build from this window, so what it reports may not be what this
+      window shows. Close Studio, run <b>plugins/studio/build.cmd</b>, and start it
+      again.</div>
+    <div class="banner warn hide" id="learnRead" style="margin-top:10px">Marco has not
+      read this screen yet. Rest on it for a moment before you click — a press made now
+      has nothing to compare against afterwards, so Marco could never tell you whether
+      it worked.</div>
     <!-- AND WHY FINISHING WOULD THROW SOMETHING AWAY, when it would. -->
     <div class="banner warn hide" id="learnNotYet" style="margin-top:10px"></div>
     <div class="row" style="margin-top:12px">
@@ -253,12 +442,6 @@
     </details>
   </div>
 
-  <h2>What you have shown Marco</h2>
-  <div class="row">
-    <button onclick="loadDemos()">Refresh</button>
-    <span class="muted" id="demoNote"></span>
-  </div>
-
   <h2>Build an Act</h2>
   <div class="card">
     <div id="builderEmpty" class="muted">Press <b>Use this one</b> on an interaction below.
@@ -276,7 +459,23 @@
     <pre id="composed" class="hide"></pre>
   </div>
 
-  <div id="demos"></div>
+  <h2>What you have shown Marco</h2>
+  <div class="row">
+    <button onclick="loadDemos()">Refresh</button>
+    <span class="muted" id="demoNote"></span>
+  </div>
+  <!-- WHAT DELETING A SCENE WOULD TAKE, before it takes it. A Scene is what Marco
+       read, the pictures of it, the evidence of how it was demonstrated, AND every
+       Act composed from it — because an Act performs this demonstration's
+       interactions by name and cannot run without it. The question names them. -->
+  <div class="banner warn hide" id="sceneAsk" style="margin-top:10px">
+    <span id="sceneAskWhat"></span>
+    <div class="row" style="margin-top:10px">
+      <button class="stop" id="sceneAskYes">Delete</button>
+      <button onclick="forgetScene(null)">Keep it</button>
+    </div>
+  </div>
+  <div id="demos" style="margin-top:10px"></div>
 </section>
 
 <!-- ───────────────────────── HISTORY ────────────────────────── -->
@@ -284,7 +483,23 @@
   <h1>Run history</h1>
   <p class="sub">Every run this machine kept a record of, newest first.</p>
   <div class="row"><button onclick="loadHistory()">Refresh</button>
+    <!-- DELETING EVERY RECORD, which is not the same as deleting the ones listed:
+         the window shows the most recent 25 and the directory keeps all of them. The
+         count in the question is the directory's, so nobody presses this believing
+         it is about what they can see. -->
+    <button onclick="forget('')">Delete all</button>
     <span class="muted" id="histNote"></span></div>
+  <!-- AND WHAT THAT WOULD REMOVE, before it is removed. A run record is the only
+       account of what Marco did and the only thing Report has to gather from, so the
+       first press asks and the second does it — the same two steps "That's it" uses
+       for the other irreversible thing this window offers. -->
+  <div class="banner warn hide" id="histAsk" style="margin-top:10px">
+    <span id="histAskWhat"></span>
+    <div class="row" style="margin-top:10px">
+      <button class="stop" id="histAskYes">Delete</button>
+      <button id="histAskNo" onclick="forget(null)">Keep them</button>
+    </div>
+  </div>
   <div id="histList" style="margin-top:10px"></div>
   <div id="histDetail" class="hide">
     <h2>That run</h2>
@@ -295,12 +510,35 @@
       <div class="row" style="margin-top:12px">
         <button onclick="report()">Report a problem</button>
         <button onclick="inspect()">Show the record</button>
+        <button onclick="forget(chosenRun)">Delete this run</button>
         <span class="muted" id="hdRef"></span>
       </div>
       <div id="hdReport" class="muted hide" style="margin-top:8px"></div>
       <pre id="hdRecord" class="hide"></pre>
     </div>
   </div>
+
+  <!-- AND PUTTING THE MACHINE BACK TO BEFORE ANY OF IT, which is a different thing
+       from tidying up one card at a time: the owner asked to be able to start fresh
+       with the testing whenever they liked, and doing that per Scene is a chore that
+       grows with how much testing has been done. Behind a disclosure because it takes
+       everything; labelled, because somebody looking for it has to find it. -->
+  <details id="freshBox">
+    <summary>Start fresh</summary>
+    <div class="muted" style="margin-top:8px">Removes every demonstration, every Act
+      and every run record on this machine, so the next thing you show Marco is the
+      first. Your hotkeys are kept.</div>
+    <div class="row" style="margin-top:10px">
+      <button onclick="forgetEverything(false)">Start fresh</button>
+    </div>
+    <div class="banner bad hide" id="freshAsk" style="margin-top:10px">
+      <span id="freshAskWhat"></span>
+      <div class="row" style="margin-top:10px">
+        <button class="stop" id="freshAskYes">Remove everything</button>
+        <button onclick="forgetEverything(null)">Keep it all</button>
+      </div>
+    </div>
+  </details>
 </section>
 
 <!-- ─────────────────────────── A RUN ────────────────────────── -->
@@ -371,6 +609,27 @@
  // somebody to go and find it. See buildFromLearned.
  let learned = null
 
+ // ── WHAT HAS ALREADY BEEN DRAWN ────────────────────────────────────────────
+ //
+ // Both polls below run two and a half times a second for as long as the window is open, and
+ // both of them used to rebuild their whole subtree every time. That is invisible for text —
+ // the same characters land in the same place — and it is not invisible for a PICTURE: the
+ // review cleared its `.shots` boxes, asked the backend for three thumbnails again, and filled
+ // them in when they came back. Seven and a half picture fetches a second, and the page blinked
+ // and jumped as the images went away and returned. The owner, with a finished recording open:
+ //
+ //	Also the images blink in the ui
+ //
+ // So each poll now says what it would be drawing, compares, and draws only on a change. The
+ // keys are revisions rather than counters: a routine demonstrated again has a new `saved_at`
+ // and must NOT be served the previous recording's pictures, which is the same rule
+ // `demo.Store` enforces on disk.
+ let shownReview = ''
+ let shownAct = ''
+ let shownRunSteps = ''
+ let shownDemos = ''
+ const shots = new Map()
+
  // WAIT FOR THE BINDINGS rather than assuming them. Wails injects window.go asynchronously,
  // and a top-level call throws a ReferenceError that takes the whole script with it.
  const ready = (fn, tries = 100) => {
@@ -400,6 +659,13 @@
  function show(which){
    view = which
    onRun = false
+   // A QUESTION NOBODY ANSWERED IS NOT CARRIED TO THE NEXT PLACE. Coming back to a
+   // "delete these?" banner that was raised about something chosen a page ago is how
+   // somebody deletes the wrong thing.
+   showing($('histAsk'), false)
+   showing($('sceneAsk'), false)
+   showing($('actAsk'), false)
+   showing($('freshAsk'), false)
    paintViews()
    if (which === 'history') { loadHistory() }
  }
@@ -443,7 +709,7 @@
  function renderAct(){
    const a = actNamed(chosen)
    showing($('actDetail'), !!a)
-   if (!a) { paintReady(); return }
+   if (!a) { shownAct = ''; paintReady(); return }
    text($('adName'), a.name)
    text($('adWhere'), (a.application || 'no application recorded') +
      '  ·  from what you showed Marco in "' + a.from + '"')
@@ -456,8 +722,18 @@
    if (a.waits) { text($('adWaits'), 'It will wait, not press: ' + a.waits) }
    showing($('adNotReady'), !a.runnable)
    if (!a.runnable) { text($('adNotReady'), a.why || 'it cannot be performed as it stands') }
-   $('adSteps').innerHTML = stepsHTML(a.steps || [], -1)
-   paintStepShots(a.steps)
+   // THE ORDERED PREVIEW, ONCE PER ACT REVISION. `loadActs` re-renders on every
+   // choice and after every run, and rebuilding this subtree destroys its pictures
+   // and fetches them again — so choosing the same Act twice flashed. It also made
+   // `paintShots`'s own guard unreachable: a box rebuilt a line earlier is a new box
+   // with nothing recorded on it, and a mutation run found exactly that.
+   const asig = a.name + '\u0000' + (a.revision || '') + '\u0000' +
+     (a.steps || []).length
+   if (asig !== shownAct) {
+     shownAct = asig
+     $('adSteps').innerHTML = stepsHTML(a.steps || [], -1)
+   }
+   paintStepShots(a.steps, a.revision)
    text($('adPlay'), a.play || '')
    $('runapp').value = a.application || ''
    paintReady()
@@ -468,7 +744,7 @@
  // `now` is the one being performed, counting from 1, or -1 for a preview. One function for
  // both, so what a person approves and what they then watch cannot describe the Act
  // differently.
- function stepsHTML(steps, now){
+ function stepsHTML(steps, now, prefix){
    return steps.map((s, i) => {
      const reads = (s.reads || []).length
        ? 'presses the control that reads “' + words(s.reads) + '”'
@@ -485,7 +761,8 @@
        '<span class="grow"><b>' + esc(s.name) + '</b>' +
        '<div class="muted">' + esc(reads) + esc(on) + '</div>' +
        '<div class="' + (s.expect ? 'muted' : 'warn') + '">' + after + '</div>' +
-       '<div class="shots" id="actShots' + i + '"></div></span></div>'
+       '<div class="shots" id="' + (prefix || 'actShots') + i +
+         '"></div></span></div>'
    }).join('')
  }
 
@@ -494,8 +771,9 @@
  // Separate from stepsHTML because that function returns a string and a picture arrives from a
  // call: the markup goes in first, then each card is filled. Called wherever stepsHTML is, so
  // the Act preview and the run screen show the same thing.
- function paintStepShots(steps){
-   (steps || []).forEach((s, i) => paintShots('actShots' + i, s.routine, s))
+ function paintStepShots(steps, rev, prefix){
+   (steps || []).forEach((s, i) =>
+     paintShots((prefix || 'actShots') + i, s.routine, s, rev))
  }
 
  // PLAY: the one gesture that performs an Act.
@@ -558,7 +836,7 @@
 
  function loadDemos(){
    acts.Demonstrations().then(ds => {
-     const list = $('demos'); list.innerHTML = ''
+     const list = $('demos')
      const presses = d => (d.steps || []).filter(s => s.pressable)
      const checks = d => presses(d).filter(s => s.verifiable)
      // WHAT CAN BE DONE WITH IT FIRST, not the name. Eight demonstrations of one game are
@@ -567,15 +845,23 @@
      // only usable one in the middle of seven that are not.
      const rank = d => checks(d).length ? 0 : (presses(d).length ? 1 : 2)
      ds = ds.slice().sort((x, y) => rank(x) - rank(y))
+     // NOTHING NEW? THEN NOTHING MOVES. The note above the list is cheap and is set
+     // every time; the list itself is dozens of nodes and is the thing that jumps.
+     const sig = ds.map(d => d.name + '\u0000' + d.saved_at).join('\u0001')
      const usable = ds.filter(d => checks(d).length).length
      text($('demoNote'), ds.length + ' saved · ' + usable +
        (usable === 1 ? ' has' : ' have') + ' an interaction Marco can perform and check')
      text($('emptyNote'), usable
        ? usable + ' of what you have shown Marco can be performed and checked'
        : 'nothing you have shown Marco yet can be both performed and checked')
+     if (sig === shownDemos) { return }
+     shownDemos = sig
+     list.innerHTML = ''
      ds.forEach(d => {
        const card = document.createElement('div')
        card.className = 'card'
+       // THE CARD IS APPENDED FIRST, so the strip below has a position to be named
+       // by and `$()` can find it once it is in the document.
        const can = presses(d).length, chk = checks(d).length
        card.innerHTML = '<h3>' + esc(d.name) + '</h3>' +
          '<div class="muted">' + esc(d.application || 'no application') + ' · ' +
@@ -586,6 +872,31 @@
            : chk + ' of its ' + (d.steps || []).length + ' steps ' +
              (chk === 1 ? 'is a press' : 'are presses') +
              ' Marco can perform and check') + '</div>'
+       // AND WHAT IT LOOKED LIKE. The review after a recording showed these and
+       // then went away with the window, and an Act's preview shows them only once
+       // an Act exists — so a demonstration somebody made yesterday had pictures on
+       // disk and nowhere that showed them. The owner, after a restart: "the
+       // pictures are gone".
+       list.appendChild(card)
+       const strip = document.createElement('div')
+       strip.className = 'shots'
+       // BY POSITION, not by name: a name is the person's own words and an element
+       // id built from one is an id with their spaces and punctuation in it.
+       strip.id = 'demoShots' + list.children.length
+       card.appendChild(strip)
+       paintSceneShots(strip.id, d.name, d.saved_at)
+       // AND A WAY TO BE RID OF IT. Built as an element rather than written into
+       // the markup above, because it has to carry THIS demonstration's name and a
+       // string of HTML cannot hold one safely — a name with a quote in it would
+       // either break the attribute or have to be escaped twice.
+       const bin = document.createElement('button')
+       bin.textContent = 'Delete this Scene'
+       bin.onclick = () => forgetScene(d.name)
+       const binRow = document.createElement('div')
+       binRow.className = 'row'
+       binRow.style.marginTop = '9px'
+       binRow.appendChild(bin)
+       card.appendChild(binRow)
        // AND A DEMONSTRATION WITH NOTHING IN IT IS ONE CARD, NOT THIRTEEN DEAD ROWS.
        //
        // This is what made the old panel unusable: every step of every demonstration was
@@ -638,7 +949,6 @@
            card.appendChild(row)
          })
        }
-       list.appendChild(card)
      })
    })
  }
@@ -746,16 +1056,36 @@
      text($('learnGot'), l.presses
        ? l.presses + ' press' + (l.presses === 1 ? '' : 'es') + ' seen, ' +
          l.captured + ' with the result captured' +
+         // AND THE ONES THERE IS NOTHING LEFT TO WAIT FOR. Counted beside the
+         // captures rather than instead of them: a recording can have one of each.
+         (l.unchecked
+           ? ', ' + l.unchecked + ' with no result Marco could make out'
+           : '') +
          (l.presses > l.watched
            ? ' — ' + (l.presses - l.watched) + ' landed on nothing Marco could see'
            : '')
        : '')
+     // AND WHAT IS STILL MISSING, in the recorder's own words. During `checking` this
+     // is the reading count, which is what makes a wait legible instead of a guess;
+     // once the answer is in and empty it is why.
+     text($('learnWhy'), l.active ? (l.missing || '') : '')
+     // AND WHICH BUILDS ARE INVOLVED. Both values, never a yes/no: "they differ" is
+     // what somebody acts on and the two revisions are what tell them which to
+     // rebuild.
+     text($('build'), (l.build || '') + (l.recorder && l.recorder !== l.build
+       ? '  recorder ' + l.recorder : ''))
+     $('build').className = 'muted mach' + (l.mismatched ? ' no' : '')
+     showing($('learnBuild'), !!l.mismatched)
      // Somebody who pressed "That's it" a moment too early and then waited should not
      // have to press anything: the thing they were waiting for arrived.
      // AND THE SCREEN IT STARTS FROM, which no press can make up for. Not shown while
      // the phase is already that sentence.
      showing($('learnStart'), !!l.active && !l.start_known && l.phase !== 'reading'
        && l.phase !== 'preparing')
+     // AND THE SCREEN IN FRONT, once a press has been seen. Before the first one the
+     // phase sentence is already this question about the starting screen, and saying it
+     // twice would be two cautions for one fact; after it, nothing asked at all.
+     showing($('learnRead'), !!l.active && !l.screen_read && (l.presses || 0) > 0)
      // AND A QUESTION THAT HAS ANSWERED ITSELF IS TAKEN DOWN — but a captured result
      // answers only the question about the press. One still missing a startable screen
      // is a question nobody has answered.
@@ -764,9 +1094,18 @@
      if (l.transcript && l.transcript.length) {
        text($('learnTranscript'), l.transcript.join('\n'))
      }
+     if (!l.over) { shownReview = '' }
      if (l.over) {
        learned = l
        showing($('learned'), true)
+       // ONCE PER RECORDING, NOT TWO AND A HALF TIMES A SECOND. Everything below is
+       // settled the moment a recording ends — the artifact is saved, the sentences
+       // are written, the pictures are on disk — so redrawing it on a poll can only
+       // take what is on screen away and put it back. See `shots`.
+       const sig = (l.learned ? l.learned.name + '\u0000' + l.learned.saved_at : '') +
+         '\u0000' + (l.said || '') + '\u0000' + (l.next || '')
+       if (sig === shownReview) { return }
+       shownReview = sig
        // AND THE NEXT STEP, when there is one to offer. An Act needs an interaction
        // Marco can check; when there is none, the review already says to record it
        // again and offering to build from it would be offering an Act that stops.
@@ -798,8 +1137,12 @@
          : ''
        if (l.learned) {
          (l.learned.steps || []).forEach((s, i) =>
-           paintShots('learnShots' + i, l.learned.name, s))
+           paintShots('learnShots' + i, l.learned.name, s, l.learned.saved_at))
        }
+       // AND THE SCENE LIBRARY, because a recording just added to it. Inside the
+       // guard above: it was being rebuilt on every poll for as long as a finished
+       // review sat open, which is the second half of what the page was doing to
+       // itself.
        loadDemos()
      }
    }).finally(() => setTimeout(pollLearning, 400))
@@ -815,7 +1158,11 @@
  // and a list of nine demonstrations with three each would be a megabyte of base64 on every
  // poll, for pictures nobody has opened. A demonstration recorded before pictures were kept, or
  // without them, simply has none, and what is left is exactly the card as it was before.
- function paintShots(into, routine, s){
+ // `rev` is the revision of the recording these belong to — a demonstration's `saved_at` or an
+ // Act's `revision`. It is the cache key and nothing else: a routine demonstrated again has a
+ // new one, so the previous recording's pictures cannot be served beside the new one's words.
+ // Empty means "not known here", which caches nothing rather than caching wrongly.
+ function paintShots(into, routine, s, rev){
    const box = $(into)
    if (!box || !routine) { return }
    const want = [
@@ -823,20 +1170,77 @@
      {label: s.control_label, caption: 'presses this', cls: ' ctl'},
      {label: s.to_label, caption: 'expects this afterwards', cls: ''},
    ].filter(w => w.label)
+   // ALREADY SHOWING EXACTLY THESE? Then leave the elements alone. Replacing an <img>
+   // with an identical one is a fetch, a decode and a reflow, and the eye sees all three.
+   const key = routine + '\u0000' + (rev || '') + '\u0000' +
+     want.map(w => w.label).join('\u0001')
+   if (box.dataset.showing === key) { return }
+   box.dataset.showing = key
    box.innerHTML = ''
-   want.forEach(w => acts.Picture(routine, w.label).then(src => {
-     if (!src) { return }
-     const fig = document.createElement('figure')
-     const img = document.createElement('img')
-     img.className = 'shot' + w.cls
-     img.src = src
-     img.alt = w.caption
-     const cap = document.createElement('figcaption')
-     cap.textContent = w.caption
-     fig.appendChild(img)
-     fig.appendChild(cap)
-     box.appendChild(fig)
-   }))
+   want.forEach(w => {
+     const ck = routine + '\u0000' + (rev || '') + '\u0000' + w.label
+     const put = src => {
+       // THE BOX MAY HAVE MOVED ON while this was in flight — a second recording,
+       // or another Act chosen. Dropping a late picture is the whole guard.
+       if (!src || box.dataset.showing !== key) { return }
+       const fig = document.createElement('figure')
+       const img = document.createElement('img')
+       img.className = 'shot' + w.cls
+       img.src = src
+       img.alt = w.caption
+       const cap = document.createElement('figcaption')
+       cap.textContent = w.caption
+       fig.appendChild(img)
+       fig.appendChild(cap)
+       box.appendChild(fig)
+     }
+     if (rev && shots.has(ck)) { put(shots.get(ck)); return }
+     acts.Picture(routine, w.label).then(src => {
+       if (rev) { shots.set(ck, src || '') }
+       put(src)
+     })
+   })
+ }
+
+ // THE SCREENS OF ONE DEMONSTRATION, as a strip on its card.
+ //
+ // The screens rather than every label a step names: a card is for recognising which
+ // demonstration this is, and the same screen appears as the `to` of one step and the `from` of
+ // the next, so walking the steps would ask for the same picture three times and show it three
+ // times. `Pictures` gives the labels the artifact actually kept, which is also why a
+ // demonstration recorded without them simply has no strip.
+ //
+ // Cached and guarded exactly as `paintShots` is, for the same reason: this is on a card the
+ // Scene library rebuilds, and clearing a box to refill it with what it already had is the
+ // blinking.
+ function paintSceneShots(into, routine, rev){
+   const box = $(into)
+   if (!box || !routine) { return }
+   acts.Pictures(routine).then(p => {
+     const labels = (p.screens || []).slice(0, 4)
+     const key = routine + '\u0000' + (rev || '') + '\u0000' + labels.join('')
+     if (box.dataset.showing === key) { return }
+     box.dataset.showing = key
+     box.innerHTML = ''
+     labels.forEach(label => {
+       const ck = routine + '\u0000' + (rev || '') + '\u0000' + label
+       const put = src => {
+         if (!src || box.dataset.showing !== key) { return }
+         const fig = document.createElement('figure')
+         const img = document.createElement('img')
+         img.className = 'shot'
+         img.src = src
+         img.alt = 'a screen this was demonstrated on'
+         fig.appendChild(img)
+         box.appendChild(fig)
+       }
+       if (rev && shots.has(ck)) { put(shots.get(ck)); return }
+       acts.Picture(routine, label).then(src => {
+         if (rev) { shots.set(ck, src || '') }
+         put(src)
+       })
+     })
+   })
  }
 
  // ── THE BUILDER: ordered cards, no positions, no "2=name" ──────────────────
@@ -948,6 +1352,77 @@
      renderRun()
    })
  }
+ // DELETING SOMETHING, IN TWO PRESSES.
+ //
+ // One shape for runs, Scenes and Acts, because they are the same promise: the first press
+ // removes nothing and the backend says what would go; the thing that deletes is the button in
+ // the question, bound to what the question was ASKED about rather than to whatever is chosen
+ // by the time it is pressed. `ask` is the backend call, `banner`/`what`/`yes` are its
+ // furniture, and `after` is what the page does once something has gone.
+ function askThenDelete(ask, banner, what, yes, subject, after){
+   if (subject === null) { showing($(banner), false); return }
+   ask(subject, false).then(f => {
+     if (f.error) { showing($(banner), false); say(f.error); return }
+     text($(what), f.asks || '')
+     showing($(banner), true)
+     $(yes).onclick = () => {
+       ask(subject, true).then(done => {
+         showing($(banner), false)
+         if (done.error) { say(done.error); return }
+         say('')
+         after(subject)
+       })
+     }
+   })
+ }
+
+ // A SCENE, AND EVERY ACT BUILT FROM IT. See ForgetScene: an Act whose demonstration has gone
+ // says `ready` and cannot run, so the question names them and the second press takes them.
+ function forgetScene(name){
+   askThenDelete(acts.ForgetScene, 'sceneAsk', 'sceneAskWhat', 'sceneAskYes', name, () => {
+     picked = []; paintPicked()
+     chosen = ''
+     loadDemos(); loadActs()
+   })
+ }
+
+ // AND AN ACT ON ITS OWN, which leaves what you showed Marco where it is.
+ function forgetAct(name){
+   askThenDelete(acts.ForgetAct, 'actAsk', 'actAskWhat', 'actAskYes', name, () => {
+     chosen = ''
+     loadActs()
+   })
+ }
+
+ // AND ALL OF IT AT ONCE. The same two presses; `ForgetEverything` takes no subject, so the
+ // shared helper is given one it ignores.
+ function forgetEverything(what){
+   askThenDelete((_, anyway) => acts.ForgetEverything(anyway),
+     'freshAsk', 'freshAskWhat', 'freshAskYes', what === null ? null : '', () => {
+       chosen = ''; chosenRun = ''; picked = []; paintPicked()
+       learned = null; showing($('learned'), false)
+       $('freshBox').open = false
+       loadDemos(); loadActs(); loadHistory()
+     })
+ }
+
+ // AND A RUN, OR ALL OF THEM.
+ //
+ // `what` is a reference, '' for every record, or null to put the question away. Through the
+ // same helper as the other two: the promise that the first press removes nothing is one
+ // implementation, not one per kind — a mutation changing the second press to ask again
+ // survived while this had its own copy.
+ function forget(what){
+   // ONE RUN OR ALL OF THEM, in the words for the thing being asked about. Set before
+   // the question goes up, because it is about which subject this is.
+   if (what !== null) { text($('histAskNo'), what === '' ? 'Keep them' : 'Keep it') }
+   askThenDelete(acts.Forget, 'histAsk', 'histAskWhat', 'histAskYes', what, subject => {
+     // WHAT WAS CHOSEN MAY BE GONE, so the detail goes with it.
+     if (subject === '' || subject === chosenRun) { chosenRun = '' }
+     loadHistory()
+   })
+ }
+
  function renderRun(){
    const h = history.find(x => x.reference === chosenRun)
    showing($('histDetail'), !!h)
@@ -1053,9 +1528,23 @@
      // was approved and what is being watched cannot describe the Act differently.
      const running = actNamed(w.act) || actNamed(chosen)
      const at = st && st.interaction ? (st.interaction.index || -1) : -1
-     $('runSteps').innerHTML = running ? stepsHTML(running.steps || [],
-       w.active ? at : -1) : ''
-     if (running) { paintStepShots(running.steps) }
+     const now = w.active ? at : -1
+     // THE CARDS ARE THE ACT'S AND DO NOT CHANGE WHILE IT RUNS; the only thing that
+     // moves is which one is in hand. Rebuilding them to move a highlight threw away
+     // the step pictures two and a half times a second.
+     const sig = running ? (w.act || chosen) + '\u0000' + (running.revision || '') +
+       '\u0000' + (running.steps || []).length : ''
+     if (sig !== shownRunSteps) {
+       shownRunSteps = sig
+       $('runSteps').innerHTML = running
+         ? stepsHTML(running.steps || [], now, 'runShots') : ''
+       if (running) { paintStepShots(running.steps, running.revision, 'runShots') }
+     } else {
+       const rows = $('runSteps').children
+       for (let i = 0; i < rows.length; i++) {
+         rows[i].classList.toggle('now', now === i + 1)
+       }
+     }
 
      // THE QUESTION, VERBATIM, because it is one somebody is about to answer with a key —
      // and putting this window's own words on a consent prompt would be writing somebody

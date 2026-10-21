@@ -58,4 +58,15 @@ func TestThePageBeginsAsADocument(t *testing.T) {
 	if !strings.Contains(body, "</script>") {
 		t.Error("the script element is never closed")
 	}
+	// AND NOTHING THAT IS NOT TEXT IS IN IT.
+	//
+	// A NUL byte renders as nothing and makes every tool treat the page as
+	// binary: grep stops quoting its matches, a diff stops showing them, and a
+	// reviewer reads a file their tools have given up on. It arrives the same way
+	// every time — a separator meant as the four characters \x00 written by a
+	// patch that interpreted the escape, so the page got the character instead.
+	// It has happened three times in one sitting, which is what this is for.
+	if n := strings.Count(page, "\x00"); n != 0 {
+		t.Errorf("the page holds %d NUL byte(s), so every tool that reads it treats it as binary", n)
+	}
 }
