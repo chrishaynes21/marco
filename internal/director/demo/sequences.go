@@ -60,6 +60,19 @@ func (s *Store) SaveSequence(a workflowstore.Artifact) error {
 	if err != nil {
 		return err
 	}
+	// AND THE PICTURES OF A REVISION THIS ONE REPLACES GO FIRST.
+	//
+	// Before the artifact, for the reason `ForgetSequence` puts them first: a failure to
+	// remove them must not leave crops of one recording's screens behind under the name
+	// of a routine that is now a different recording. Nothing would read them again — the
+	// read side is keyed by revision — and nothing would ever clean them up.
+	//
+	// This runs on EVERY save and not only where pictures are being written, which is the
+	// case the name-keyed version got wrong: re-recording the same name without pictures
+	// wrote nothing, cleared nothing, and left the old ones to be shown.
+	if err := s.forgetOtherPreviews(a); err != nil {
+		return err
+	}
 	return os.WriteFile(s.path(sequencesDir, safeName(a.Name)), body, 0o644)
 }
 

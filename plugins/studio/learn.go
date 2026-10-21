@@ -78,6 +78,13 @@ type Learning struct {
 	Captured int `json:"captured,omitempty"`
 	// Missing is why the last press has no outcome yet, in the recorder's own words.
 	Missing string `json:"missing,omitempty"`
+	// StartKnown says Marco has read enough of the screen this recording starts from to
+	// recognise it again, which is what a run needs before it presses anything.
+	//
+	// Shown for as long as it is false rather than only when somebody tries to finish:
+	// it is fixable only while the recording is running — go back to that screen and
+	// rest on it — and a captured outcome does not fix it. See learnstate.Event.
+	StartKnown bool `json:"start_known"`
 	// Over says a recording has finished and this is what came of it.
 	Over       bool     `json:"over,omitempty"`
 	Said       string   `json:"said,omitempty"`
@@ -332,27 +339,51 @@ func (a *Acts) notYet() string {
 	if over || at.Phase == "" {
 		return ""
 	}
+	// ── WHAT IS MISSING ABOUT THE PRESS IN FLIGHT ──
+	why := ""
 	switch at.Phase {
 	case learnstate.Reading:
-		return "nothing has been read on the screen you are starting from yet, so " +
-			"an Act built from this could not tell it was there. Rest where " +
-			"you are for a moment, then click — or finish anyway."
+		why = "not enough has been read on the screen you are starting from yet, " +
+			"so an Act built from this could not tell it was there. Rest " +
+			"where you are for a moment, then click"
 	case learnstate.Ready:
-		return "no press has been seen yet, so there is nothing to save. Click the " +
-			"control once with the mouse — or finish anyway."
+		why = "no press has been seen yet, so there is nothing to save. Click the " +
+			"control once with the mouse"
 	case learnstate.Checking:
-		why := at.Missing
-		if why == "" {
-			why = "the words that say it worked have not been read yet"
+		said := at.Missing
+		if said == "" {
+			said = "the words that say it worked have not been read yet"
 		}
-		return "the result of your click has not been captured yet: " + why +
-			". Keep recording for a moment — or finish anyway."
+		why = "the result of your click has not been captured yet: " + said +
+			". Keep recording for a moment"
 	case learnstate.Blind:
-		return "the press landed on nothing Marco could see, so nothing can be " +
-			"replayed from it. Click the control itself, on its label — or " +
-			"finish anyway."
+		why = "the press landed on nothing Marco could see, so nothing can be " +
+			"replayed from it. Click the control itself, on its label"
 	}
-	return ""
+	// ── AND THE SCREEN AN ACT WOULD START ON, WHICH IS A SEPARATE FAULT ──
+	//
+	// Said as well as the above and not instead of it, because a captured outcome used
+	// to end this question: the phase said `captured`, this said nothing, and the Act
+	// that came out of it paused on a screen it could not name. The two have different
+	// remedies and the person is owed both. `Reading` is already this sentence, so it is
+	// not said twice.
+	if !at.StartKnown && at.Phase != learnstate.Reading {
+		start := "Marco has not read enough of the screen this starts from to " +
+			"recognise it, so an Act built from this would wait for it " +
+			"instead of pressing. Go back to that screen and rest there for " +
+			"a moment"
+		if why == "" {
+			why = start
+		} else {
+			why += ". Also: " + start
+		}
+	}
+	if why == "" {
+		return ""
+	}
+	// THE WAY OUT, ONCE, wherever the sentence came from. It used to be written into
+	// each of them, which is four places for one promise that the button has to keep.
+	return why + " — or finish anyway."
 }
 
 // recordingNow is the recorder's latest account of itself, and whether it said it had ended.
@@ -463,7 +494,7 @@ func (a *Acts) Learning() Learning {
 	out.Phase = string(at.Phase)
 	out.Doing = learnstate.Doing(at.Phase, l.app)
 	out.Presses, out.Watched, out.Captured = at.Presses, at.Watched, at.Captured
-	out.Missing = at.Missing
+	out.Missing, out.StartKnown = at.Missing, at.StartKnown
 	return out
 }
 
@@ -510,8 +541,15 @@ func (a *Acts) reviewed(name string, waited error) (said, next string, failed bo
 // guessing. A demonstration with no control at all means the clicks were not clicks Marco could
 // correlate — usually a menu driven by the keyboard. One with a control and no outcome means the
 // click landed and nothing was read afterwards, which is a pause too short. One whose starting
-// screen has no words will be refused a run, for a reason that is about the screen and not the
-// control. And one that saved nothing at all did not get that far.
+// screen cannot be identified will be refused a run, for a reason that is about the screen and
+// not the control. And one that saved nothing at all did not get that far.
+//
+// # And why the starting screen is asked about through the run's own term
+//
+// `Interaction.Recognisable`, which is `observe.ScreenText.Identifies` over the artifact's
+// vocabulary for that screen — not `len(On) > 0`. `On` is a sample of six words at most for
+// somebody to read, so its length cannot answer whether the screen has the three a run needs,
+// and a two-word screen passed this and produced an Act that could only wait.
 func learnedOf(name string, d *Demonstration, waited error) (said, next string, failed bool) {
 	quoted := fmt.Sprintf("%q", name)
 	if d == nil {
@@ -533,7 +571,13 @@ func learnedOf(name string, d *Demonstration, waited error) (said, next string, 
 		if presses == 0 {
 			// THE FIRST PRESS IS WHERE AN ACT OVER THIS WOULD START, and the
 			// words on that screen are what would establish it.
-			firstRead = len(s.On) > 0
+			//
+			// `Recognisable` and not `len(s.On) > 0`: `On` is a sample of six
+			// words at most for a person to read, so its length cannot answer
+			// whether the screen has the three a run needs to tell it from
+			// another. A two-word screen passed this and the Act built over it
+			// waited for a screen the run would not identify.
+			firstRead = s.Recognisable
 		}
 		presses++
 		if s.Verifiable {
@@ -556,11 +600,12 @@ func learnedOf(name string, d *Demonstration, waited error) (said, next string, 
 			true
 	case !firstRead:
 		return fmt.Sprintf("Marco recorded %s with %d press(es) it can check, and "+
-				"read no words on the screen the first one starts from.", quoted,
-				checks),
+				"did not read enough of the screen the first one starts from "+
+				"to recognise it again.", quoted, checks),
 			"Record it again, resting on that screen BEFORE you click so its " +
-				"words are read. An Act that starts on a screen with no " +
-				"words waits for it instead of pressing.",
+				"words are read. It takes three words to tell one screen " +
+				"from another, and an Act that starts on a screen it cannot " +
+				"name waits for it instead of pressing.",
 			true
 	}
 	return fmt.Sprintf("Saved %s: %d press(es), %d of which Marco can perform and "+

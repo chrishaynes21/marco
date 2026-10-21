@@ -188,6 +188,39 @@ func TestAWordlessScreenPausesInsteadOfPressing(t *testing.T) {
 	}
 }
 
+// AND NEITHER CAN A SCREEN SAVED WITH TOO FEW WORDS TO TELL IT FROM ANOTHER.
+//
+// Between "no words at all" and a vocabulary, and the same refusal: `TextDisagreementWords` is
+// how many stable words it takes for "this is that screen" to be a claim about anything, and one
+// or two of them is a demonstration that has to be made again rather than a run that might work.
+//
+// Through `observe.ScreenText.Identifies`, which is deliberately the same call the RECORDER
+// makes while somebody is still demonstrating — see cmd/director's recordingFrom. A run that
+// asked something weaker than the recorder promised, or a recorder that promised something
+// weaker than the run asks, is the gap the owner's first live Act fell into: told the
+// demonstration was fine, told at Play that the screen could not be identified.
+func TestAScreenSavedWithTooFewWordsCannotCarryAnActsPressEither(t *testing.T) {
+	// SAVED WITH ONE WORD, and read live as the same screen plus more. The look
+	// agrees by shape, nothing contradicts anything, and it is still not an identity.
+	art := twoPagesApart(t, savedTraining, readingTooThin)
+	s := anActStartingSomewhere()
+
+	_, err := s.Standing(art, "screen_c", "visual_9", lookOnTraining, readingOfTraining,
+		"", 7, 1, "Play", looked)
+	if err == nil {
+		t.Fatal("a press was authorised on a screen saved with one word, which " +
+			"cannot be told from another screen that says it")
+	}
+	// AND IT SAYS HOW MANY WORDS SHORT IT IS, because the remedy is to demonstrate it
+	// again resting on that screen, and a person cannot be asked for "more words"
+	// without being told the demonstration is what needs redoing.
+	for _, want := range []string{"saved with 1 word(s)", "fewer than the 3"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("the refusal does not say %q: %v", want, err)
+		}
+	}
+}
+
 // AND AN ANSWER SOMEBODY GAVE IS NOT OVERWRITTEN BY ONE OF THESE.
 //
 // A confirmation from a person is the stronger evidence. If a run was started with `--from`, or

@@ -61,13 +61,14 @@ const (
 	// Preparing is the delay: the window has been brought forward and nothing is being
 	// watched yet.
 	Preparing Phase = "preparing"
-	// Reading is watching, with no press seen yet and the screen in front not read yet.
+	// Reading is watching, with no press seen yet and the screen in front not yet read
+	// well enough to be recognised again.
 	//
 	// The half of a demonstration people skip. Marco identifies the screen an Act starts
 	// on by the words read off it, so a demonstration whose first press happened before
-	// anything was read produces an Act that can only ever wait.
+	// enough of them had been read produces an Act that can only ever wait.
 	Reading Phase = "reading"
-	// Ready is watching, with the screen in front read and no press seen yet.
+	// Ready is watching, with the screen in front recognisable and no press seen yet.
 	Ready Phase = "ready"
 	// Checking is watching after a press Marco placed, with no verified outcome yet.
 	Checking Phase = "checking"
@@ -112,6 +113,19 @@ type Event struct {
 	// that decided — `observe.LocalOutcome.Why`. Empty when nothing is missing, and empty
 	// before the first press, where there is nothing to miss.
 	Missing string `json:"missing,omitempty"`
+	// StartKnown says enough has been read on the screen an Act built from this would
+	// START on for a run to recognise it — `observe.ScreenText.Identifies`, which is the
+	// same call `workflowstore.Standing` will make.
+	//
+	// # Why it is carried as well as folded into the phase
+	//
+	// Because it is a defect of the RECORDING and the phase is about the press in flight,
+	// so the two are true independently and a captured outcome used to hide this one: the
+	// phase said `captured`, the window said "result captured, click the next control or
+	// finish", and the Act that came out of it waited four seconds for a screen it could
+	// not name. The person is owed both sentences, and this one for as long as it holds —
+	// going back to that screen and resting on it is the only moment it can be fixed.
+	StartKnown bool `json:"start_known,omitempty"`
 	// Left is how many seconds of the ceiling remain.
 	Left int `json:"left,omitempty"`
 	// Final marks the last event of a recording that ended of its own accord, and Reason
@@ -231,10 +245,16 @@ func Latest(path string) (Event, bool, error) {
 
 // PhaseOf is where a recording is, from what the recorder knows.
 //
-// The one place that decides, so the recorder, the window and a test cannot drift. `startRead`
-// is whether anything has been read on the screen the session began on; `presses` how many
-// presses the correlator has been given; `watched` how many of those it could place on a region,
-// so an outcome is being measured for them; and `captured` how many have a verified one.
+// The one place that decides, so the recorder, the window and a test cannot drift. `startKnown`
+// is whether enough has been read on the screen an Act built from this would start on for a run
+// to recognise it — `observe.ScreenText.Identifies`, and not merely "somebody looked"; `presses`
+// how many presses the correlator has been given; `watched` how many of those it could place on
+// a region, so an outcome is being measured for them; and `captured` how many have a verified
+// one.
+//
+// `startKnown` decides the phase only BEFORE the first press, where it is the thing to do. After
+// one, the phase is about the press and `Event.StartKnown` carries this on its own, because a
+// captured outcome does not make an unrecognisable starting screen go away.
 //
 // # Why a press with no outcome yet is not a failure
 //
@@ -251,9 +271,9 @@ func Latest(path string) (Event, bool, error) {
 // would leave the window saying "click the control itself" while the control it wants had
 // already been clicked and its outcome was arriving. The blind presses are still reported —
 // `Presses - Watched` — and the end report is where they are accounted for.
-func PhaseOf(startRead bool, presses, watched, captured int) Phase {
+func PhaseOf(startKnown bool, presses, watched, captured int) Phase {
 	switch {
-	case presses == 0 && !startRead:
+	case presses == 0 && !startKnown:
 		return Reading
 	case presses == 0:
 		return Ready

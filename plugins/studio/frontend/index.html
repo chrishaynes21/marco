@@ -214,6 +214,16 @@
     <div class="muted" id="learnGot" style="margin-top:6px"></div>
     <div class="muted" style="margin-top:6px">Click controls with the mouse — keys are
       watched and cannot name a control.</div>
+    <!-- AND THE SCREEN THIS STARTS FROM, while it is still fixable.
+         A separate fault from anything about the press, with its own remedy, and the
+         only moment it can be repaired is while the recording is running: an Act is
+         established by the words on the screen it starts on, so one that was never read
+         well enough produces a run that waits for a screen it cannot name. It used to be
+         asked only at "That's it" and a captured outcome took the question down. -->
+    <div class="banner warn hide" id="learnStart" style="margin-top:10px">Marco has not
+      read enough of the screen you started on to recognise it again. Go back to that
+      screen and rest there for a moment — an Act that starts on a screen it cannot
+      name waits for it instead of pressing.</div>
     <!-- AND WHY FINISHING WOULD THROW SOMETHING AWAY, when it would. -->
     <div class="banner warn hide" id="learnNotYet" style="margin-top:10px"></div>
     <div class="row" style="margin-top:12px">
@@ -740,10 +750,16 @@
            ? ' — ' + (l.presses - l.watched) + ' landed on nothing Marco could see'
            : '')
        : '')
-     // AND A QUESTION THAT HAS ANSWERED ITSELF IS TAKEN DOWN. Somebody who pressed
-     // "That's it" a moment too early and then waited should not have to press
-     // anything: the thing they were waiting for arrived.
-     if (!l.active || l.phase === 'captured') { notYet('') }
+     // Somebody who pressed "That's it" a moment too early and then waited should not
+     // have to press anything: the thing they were waiting for arrived.
+     // AND THE SCREEN IT STARTS FROM, which no press can make up for. Not shown while
+     // the phase is already that sentence.
+     showing($('learnStart'), !!l.active && !l.start_known && l.phase !== 'reading'
+       && l.phase !== 'preparing')
+     // AND A QUESTION THAT HAS ANSWERED ITSELF IS TAKEN DOWN — but a captured result
+     // answers only the question about the press. One still missing a startable screen
+     // is a question nobody has answered.
+     if (!l.active || (l.phase === 'captured' && l.start_known)) { notYet('') }
      $('learnBtn').disabled = !!l.active
      if (l.transcript && l.transcript.length) {
        text($('learnTranscript'), l.transcript.join('\n'))

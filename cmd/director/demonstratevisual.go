@@ -115,7 +115,7 @@ func keepPreviews(store *demo.Store, a workflowstore.Artifact, draft workflow.Dr
 				fail(err)
 				continue
 			}
-			if err := store.SavePreview(a.Name, side.label, raw); err != nil {
+			if err := store.SavePreview(a, side.label, raw); err != nil {
 				fail(err)
 				continue
 			}
@@ -176,7 +176,7 @@ func keepPreviews(store *demo.Store, a workflowstore.Artifact, draft workflow.Dr
 			fail(err)
 			continue
 		}
-		if err := store.SavePreview(a.Name, label, raw); err != nil {
+		if err := store.SavePreview(a, label, raw); err != nil {
 			fail(err)
 			continue
 		}
@@ -198,31 +198,77 @@ func keepPreviews(store *demo.Store, a workflowstore.Artifact, draft workflow.Dr
 // `Missing` is the LAST unverified outcome's reason rather than a summary of all of them: it is
 // the press whose evidence is still in flight, and the one the person is waiting on.
 func recordingNow(obs *fastobserve.Observer, left int) learnstate.Event {
-	ev := obs.Clicks()
-	// THE SCREEN THE SESSION STARTED ON, from the walk rather than from the screen
-	// standing now: by the time a person has clicked something, the screen in front of
-	// them is the result and the question is whether the one they STARTED on was read.
-	// An Act's starting screen is identified by its words and nothing else.
-	startRead := false
-	if walk := obs.Walk(); len(walk) > 0 {
-		startRead = obs.SaidBy(walk[0]).Read()
+	return recordingFrom(obs.Clicks(), obs.Screen(), obs.SaidBy, left)
+}
+
+// recordingFrom is the snapshot itself, over what the observer said rather than over the
+// observer.
+//
+// Split out because everything here is a reading of three answers and nothing here needs to
+// see: the observer is a capture loop with a window behind it, and the rules below — which
+// screen an Act would start on, which presses can become steps, whether the start screen can be
+// recognised — are the part that can be wrong. `saidBy` is `fastobserve.Observer.SaidBy`.
+func recordingFrom(ev observe.ClickEvidence, now observe.VisualScreenID,
+	saidBy func(observe.VisualScreenID) observe.ScreenText, left int) learnstate.Event {
+
+	// ── WHICH PRESSES COULD BECOME A STEP ──
+	//
+	// `Presses - Blind`, from the correlator's own count, and NOT the number of outcome
+	// watches. A watch is opened for every press including a blind one — the record of
+	// what a press did is worth keeping whether or not anything was under it — so
+	// counting watches made `Watched` equal `Presses` always, which made
+	// `Presses - Watched` zero always and the `Blind` phase unreachable. A person
+	// clicking beside a control was told "checking what changed… wait for the result to
+	// settle" about a press that could never have one.
+	watched := ev.Presses - ev.Blind
+	if watched < 0 {
+		watched = 0
 	}
-	watched, captured, missing := 0, 0, ""
+	captured, missing := 0, ""
 	for _, o := range ev.Outcomes {
-		watched++
+		// A BLIND PRESS'S WATCH IS NOT ONE OF THESE. It can never become a step,
+		// so its outcome is not evidence anybody is waiting on.
+		if o.Target == "" {
+			continue
+		}
 		if o.Verified() {
 			captured++
 			continue
 		}
 		missing = o.Why()
 	}
+
+	// ── AND THE SCREEN AN ACT BUILT FROM THIS WOULD START ON ──
+	//
+	// Which is the screen the FIRST press that can become a step was made on, because
+	// that press becomes step 1 and its screen becomes the Act's starting screen — the
+	// one `workflowstore.Standing` will have to recognise before anything is pressed.
+	// Before any such press it is the screen standing now, because that is the screen the
+	// next press would be made on.
+	//
+	// Not `Walk()[0]`, which this asked for first: the walk begins where the SESSION
+	// began, and a person who opened the menu with a key before clicking anything has a
+	// first screen the Act never starts on. Judging its vocabulary judged the wrong
+	// screen.
+	start := now
+	for _, o := range ev.Outcomes {
+		if o.Target != "" {
+			start = o.Screen
+			break
+		}
+	}
+	// AND THE RUN'S OWN TERM FOR IT, not "has anybody read it". See
+	// observe.ScreenText.Identifies, which is the call Standing makes.
+	startKnown := saidBy(start).Identifies()
+
 	return learnstate.Event{
-		Phase:    learnstate.PhaseOf(startRead, ev.Presses, watched, captured),
-		Presses:  ev.Presses,
-		Watched:  watched,
-		Captured: captured,
-		Missing:  missing,
-		Left:     left,
+		Phase:      learnstate.PhaseOf(startKnown, ev.Presses, watched, captured),
+		Presses:    ev.Presses,
+		Watched:    watched,
+		Captured:   captured,
+		Missing:    missing,
+		StartKnown: startKnown,
+		Left:       left,
 	}
 }
 

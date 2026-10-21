@@ -209,5 +209,5 @@ front of the person. An Act's detail is what it will do before anything happens,
 read off the person's own screen rather than `control_2` and `screen_a`; `ready` is no longer the
 whole answer, because an Act whose starting screen was never read preflights perfectly and can
 only wait; the ordered preview sends nothing, and the engineering run with input disabled is no
-longer offered as a rehearsal of an Act it cannot reach the second step of.
+longer offered as a rehearsal of an Act it cannot reach the second step of. A review shows the control, the starting screen and the result as PICTURES, because the words are what recognises a screen at run time and are not what a person recognises — kept per routine and per revision, so a routine demonstrated again never shows the previous recording's pictures beside the new one's words, and read by nothing that runs. And the recorder says what evidence it has while somebody is still demonstrating, asking the same question the run will ask of the screen an Act starts on rather than a weaker one.
 [[ADR-245-one-task-at-a-time]]

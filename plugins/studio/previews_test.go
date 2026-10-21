@@ -11,6 +11,7 @@ import (
 	"encoding/base64"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/demo"
 )
@@ -25,13 +26,20 @@ func TestAPictureIsServedForTheLabelAnInteractionCarries(t *testing.T) {
 	}
 	// THE PNG BYTES DO NOT MATTER HERE. What is under test is which label is asked
 	// for and what comes back under it; the picture itself is internal/director/preview.
+	//
+	// FILED AGAINST THE ARTIFACT, because that is what they are pictures of: the
+	// routine's name AND the revision of it, so the window serving them has to find the
+	// same revision the store kept them under.
+	art, ok := store.Sequence("ark graphics live")
+	if !ok {
+		t.Fatal("the fixture's demonstration is not in the store")
+	}
 	for label, body := range map[string]string{
 		"screen_a":  "the screen it starts on",
 		"screen_b":  "the screen afterwards",
 		"control_1": "the control",
 	} {
-		if err := store.SavePreview("ark graphics live", label,
-			[]byte(body)); err != nil {
+		if err := store.SavePreview(art, label, []byte(body)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -132,5 +140,57 @@ func TestStudioAsksTheRecorderForPictures(t *testing.T) {
 	said := strings.Join(learningSaid(t, a).Transcript, "\n")
 	if !strings.Contains(said, "--previews") {
 		t.Errorf("the recorder was not asked to keep pictures:\n%s", said)
+	}
+}
+
+// AND A DEMONSTRATION RECORDED AGAIN NEVER SHOWS THE PREVIOUS RECORDING'S PICTURES.
+//
+// The window's half of the defect reported against the first version of this. Pictures were
+// filed under the routine's NAME, and the same name can be demonstrated again — so a review
+// could show the old recording's starting screen beside the new recording's words, steps and
+// controls, which is a review misrepresenting what Play would perform.
+//
+// Asserted through the window and not only in the store, because this is the surface that
+// decides which revision to ask for: a window that asked by name alone would serve the old
+// pictures however carefully the store filed them.
+func TestAReDemonstratedSceneShowsNoPicturesFromTheRecordingBeforeIt(t *testing.T) {
+	a, _ := aStoreWithADemonstration(t)
+	store, err := demo.Open(a.home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, ok := store.Sequence("ark graphics live")
+	if !ok {
+		t.Fatal("the fixture's demonstration is not in the store")
+	}
+	for _, label := range []string{"screen_a", "screen_b", "control_1"} {
+		if err := store.SavePreview(first, label,
+			[]byte("the FIRST recording's "+label)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := a.Pictures("ark graphics live"); len(got.Screens) != 2 {
+		t.Fatalf("the first recording's pictures are not being served: %+v", got)
+	}
+
+	// ── AND IT IS DEMONSTRATED AGAIN, WITHOUT PICTURES ──
+	//
+	// Which is the case where nothing in the preview path runs at all: no picture is
+	// written, so nothing in writing one could have cleared the old ones.
+	again := first
+	again.SavedAt = first.SavedAt.Add(17 * time.Minute)
+	if err := store.SaveSequence(again); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := a.Pictures("ark graphics live"); len(got.Screens) != 0 ||
+		len(got.Controls) != 0 {
+		t.Errorf("the new recording is shown with %+v, which it never kept", got)
+	}
+	for _, label := range []string{"screen_a", "screen_b", "control_1"} {
+		if src := a.Picture("ark graphics live", label); src != "" {
+			t.Errorf("%s served a picture from the recording before this one",
+				label)
+		}
 	}
 }

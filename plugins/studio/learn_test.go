@@ -173,9 +173,15 @@ func aDemonstrationLike(steps ...Interaction) *Demonstration {
 	return &Demonstration{Name: "a thing", Steps: steps}
 }
 
-func pressed(reads, on []string, outcome int) Interaction {
+// pressed is one interaction as the surface lists it.
+//
+// `on` is the SAMPLE of words shown to a person and `recognisable` is whether the screen has
+// enough of them for a run to identify it. Two arguments and not one, because that is the
+// distinction the review got wrong: it read the judgement off the length of the sample, and the
+// sample is cut to six words.
+func pressed(reads, on []string, outcome int, recognisable bool) Interaction {
 	return Interaction{Pressable: true, Verifiable: outcome > 0, Reads: reads, On: on,
-		OutcomeWords: outcome}
+		OutcomeWords: outcome, Recognisable: recognisable}
 }
 
 func TestEveryWayACaptureCanBeUselessHasItsOwnRemedy(t *testing.T) {
@@ -194,13 +200,22 @@ func TestEveryWayACaptureCanBeUselessHasItsOwnRemedy(t *testing.T) {
 			aDemonstrationLike(Interaction{Position: 0}), nil, true,
 			"nothing in it presses anything", "arrow keys names nothing"},
 		{"a click nothing could be read after",
-			aDemonstrationLike(pressed(words, words, 0)), nil, true,
+			aDemonstrationLike(pressed(words, words, 0, true)), nil, true,
 			"could not confirm what changed", "five have to agree"},
 		{"a click on a screen nobody read",
-			aDemonstrationLike(pressed(words, nil, 61)), nil, true,
-			"read no words on the screen", "resting on that screen BEFORE"},
+			aDemonstrationLike(pressed(words, nil, 61, false)), nil, true,
+			"did not read enough of the screen",
+			"resting on that screen BEFORE"},
+		// AND A SCREEN READ TOO THINLY IS THE SAME FAULT, which is the one this
+		// surface used to pass: two words are words to show somebody and are not
+		// enough to tell one screen from another, so the run refuses the Act
+		// while the review called it ready.
+		{"a click on a screen read too thinly",
+			aDemonstrationLike(pressed(words, words, 61, false)), nil, true,
+			"did not read enough of the screen",
+			"three words to tell one screen from another"},
 		{"all of it",
-			aDemonstrationLike(pressed(words, words, 61)), nil, false,
+			aDemonstrationLike(pressed(words, words, 61, true)), nil, false,
 			"1 press(es), 1 of which", "Build an Act from it"},
 	} {
 		said, next, failed := learnedOf("a thing", c.d, c.waited)
@@ -307,22 +322,35 @@ func TestFinishingEarlySaysWhatIsStillMissing(t *testing.T) {
 		// NOTHING READ ON THE SCREEN THEY STARTED FROM: the Act built from this
 		// could never tell it was there, which is exactly how the owner's first
 		// live trial ended.
-		{"nothing read yet", learnstate.Event{Phase: learnstate.Reading},
-			"nothing has been read on the screen you are starting from", true},
-		{"no press yet", learnstate.Event{Phase: learnstate.Ready},
-			"no press has been seen", true},
+		{"not enough read yet", learnstate.Event{Phase: learnstate.Reading},
+			"not enough has been read on the screen you are starting from", true},
+		{"no press yet", learnstate.Event{Phase: learnstate.Ready,
+			StartKnown: true}, "no press has been seen", true},
 		// AND THE REASON IS THE RECORDER'S OWN, not this window's guess at one.
 		{"the result is still in flight", learnstate.Event{
-			Phase: learnstate.Checking, Presses: 1, Watched: 1,
+			Phase: learnstate.Checking, Presses: 1, Watched: 1, StartKnown: true,
 			Missing: "nothing elsewhere on the window appeared and stayed"},
 			"nothing elsewhere on the window appeared and stayed", true},
 		{"the press landed on nothing", learnstate.Event{
-			Phase: learnstate.Blind, Presses: 1},
+			Phase: learnstate.Blind, Presses: 1, StartKnown: true},
 			"landed on nothing Marco could see", true},
 		// AND A RECORDING WITH ITS EVIDENCE IN HAND FINISHES WITHOUT A WORD.
 		{"the result is captured", learnstate.Event{
+			Phase: learnstate.Captured, Presses: 1, Watched: 1, Captured: 1,
+			StartKnown: true}, "", false},
+		// ── AND THE SCREEN IT STARTS FROM IS ITS OWN QUESTION ──
+		//
+		// Reported against the first version of this: a captured outcome ended the
+		// question, so a recording whose starting screen could never be
+		// recognised finished without a word and produced an Act that paused on
+		// it. The two faults have two remedies and finishing must name both.
+		{"captured, on a screen nothing can name", learnstate.Event{
 			Phase: learnstate.Captured, Presses: 1, Watched: 1, Captured: 1},
-			"", false},
+			"read enough of the screen this starts from", true},
+		{"both at once", learnstate.Event{
+			Phase: learnstate.Checking, Presses: 1, Watched: 1,
+			Missing: "nothing elsewhere on the window appeared and stayed"},
+			"Also: Marco has not read enough", true},
 	} {
 		a, _ := aStoreWithADemonstration(t)
 		t.Cleanup(a.Close)
@@ -391,6 +419,17 @@ func TestTheRecordingShowsWhatTheRecorderKnows(t *testing.T) {
 	}
 	if l.Missing != "only a few words appeared and stayed" {
 		t.Errorf("the reason the outcome is missing is %q", l.Missing)
+	}
+
+	// AND WHETHER THE SCREEN IT STARTS FROM CAN BE RECOGNISED, which the page shows
+	// for as long as it cannot: it is fixable only while the recording runs, and no
+	// press makes up for it.
+	sayRecording(t, a, learnstate.Event{Phase: learnstate.Captured,
+		Presses: 1, Watched: 1, Captured: 1, StartKnown: true})
+	waitForPhase(t, a, learnstate.Captured)
+	if !a.Learning().StartKnown {
+		t.Error("the recorder said the starting screen can be recognised and the " +
+			"window does not carry it, so the caution would never come down")
 	}
 }
 

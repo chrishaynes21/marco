@@ -119,13 +119,20 @@ func (s *SessionBinding) Standing(a Artifact, want string, screen observe.Visual
 	}
 
 	// ── 2. AND IT SAYS WHAT THAT SCREEN WAS READ TO SAY ──
+	// THE SAME PREDICATE THE RECORDER SHOWS A PERSON WHILE THEY CAN STILL FIX IT.
+	//
+	// `observe.ScreenText.Identifies` and not two comparisons of its own: this is the term
+	// that decides whether a saved screen can ever be recognised, and a recorder which
+	// asked something weaker is a recorder that said a demonstration was ready and then
+	// produced an Act that could only wait. The sentences stay here because only this
+	// caller knows the screen was SAVED.
 	said := wanted.Said()
-	if !said.Said() {
-		return Bound{}, fmt.Errorf("%s was saved without any words, so a reading "+
-			"cannot identify it — and the arrangement alone has been measured to "+
-			"confuse two screens of one menu", want)
-	}
-	if len(said.Words) < observe.TextDisagreementWords {
+	if !said.Identifies() {
+		if !said.Said() {
+			return Bound{}, fmt.Errorf("%s was saved without any words, so a "+
+				"reading cannot identify it — and the arrangement alone has "+
+				"been measured to confuse two screens of one menu", want)
+		}
 		return Bound{}, fmt.Errorf("%s was saved with %d word(s), fewer than the %d it "+
 			"takes to tell two screens apart, so it cannot be identified without "+
 			"somebody being asked", want, len(said.Words),

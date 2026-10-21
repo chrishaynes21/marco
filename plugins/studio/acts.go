@@ -191,6 +191,14 @@ type Interaction struct {
 	// surprising thing about running an Act, and the one a person should know BEFORE
 	// composing rather than after a run stops.
 	Verifiable bool `json:"verifiable"`
+	// Recognisable says the screen this step STARTS on has enough words for a run to
+	// identify it — `observe.ScreenText.Identifies`, the same call the run makes.
+	//
+	// Separate from `On`, which is a SAMPLE of those words for a person to read: six of
+	// them at most, so its length says nothing about whether the screen has the three a
+	// run needs. This surface asked `len(On) > 0` and so called a two-word screen ready,
+	// which is a demonstration presented as ready whose Act can only ever wait.
+	Recognisable bool `json:"recognisable"`
 	// Reads is the words the demonstration read ON the control it pressed.
 	//
 	// # Why this is here and `control_2` is not
@@ -260,6 +268,9 @@ func (a *Acts) Demonstrations() []Demonstration {
 				Verifiable: len(s.Outcome) > 0,
 				Reads:      readsOf(art, s),
 				On:         onWordsOf(art, s),
+				// WHETHER A RUN COULD NAME THE SCREEN IT STARTS ON,
+				// which `On` cannot answer: it is six words at most.
+				Recognisable: recognisableFrom(art, s),
 				// THE KEYS ITS PICTURES ARE FILED UNDER, not anything
 				// to show. See Interaction.ControlLabel.
 				ControlLabel: s.Control,
@@ -291,6 +302,21 @@ func readsOf(art workflowstore.Artifact, s workflowstore.Step) []string {
 		}
 	}
 	return nil
+}
+
+// recognisableFrom reports whether a run could identify the screen a step starts on.
+//
+// The artifact's own accumulated vocabulary for that screen, through the predicate the run
+// itself uses. Deliberately NOT a count of `On`: that is a sample for somebody to read, cut to
+// `screenWordsShown`, and a surface which inferred a judgement from the length of a display
+// sample would be a surface whose verdict changed when the sample did.
+func recognisableFrom(art workflowstore.Artifact, s workflowstore.Step) bool {
+	for _, sc := range art.Screens {
+		if sc.Label == s.From {
+			return sc.Said().Identifies()
+		}
+	}
+	return false
 }
 
 // onWordsOf is some of the words the demonstration read on the screen a step starts on.

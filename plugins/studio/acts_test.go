@@ -116,6 +116,83 @@ func TestTheSurfaceSaysWhatEachInteractionCanDo(t *testing.T) {
 	}
 }
 
+// AND WHETHER A RUN COULD NAME THE SCREEN AN INTERACTION STARTS ON.
+//
+// A third fact, and the reason it is not the second one restated: `On` is a SAMPLE of the words
+// on that screen, six at most, for a person to read. Its length says nothing about whether the
+// screen has the three stable words it takes to tell it from another, which is what a granted
+// run demands before it presses anything. So a screen read thinly has words to show somebody
+// and no identity — and this surface used to report it as ready, which is a demonstration
+// presented as fine whose Act can only ever wait.
+//
+// Measured the one way that cannot drift from the run: `observe.ScreenText.Identifies`, the same
+// call `workflowstore.Standing` makes on the same vocabulary.
+func TestAnInteractionSaysWhetherTheRunCouldNameTheScreenItStartsOn(t *testing.T) {
+	a, _ := aStoreWithADemonstration(t)
+	store, err := demo.Open(a.home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	screen := func(label string, words ...string) workflowstore.Screen {
+		said := observe.ScreenText{From: directorapi.SourceOCR, Looks: 4,
+			Words: map[string]int{}}
+		for _, w := range words {
+			said.Words[w] = 4
+		}
+		return workflowstore.Screen{Label: label, Text: &said}
+	}
+	art := workflowstore.Artifact{
+		Version: workflowstore.Version, Name: "a thinly read menu",
+		SavedAt:     time.Date(2026, 10, 20, 9, 30, 0, 0, time.UTC),
+		Application: "ArkAscended.exe",
+		Screens: []workflowstore.Screen{
+			// TWO WORDS: enough to show somebody, not enough to tell this
+			// screen from another one that says them.
+			screen("screen_a", "audio", "video"),
+			screen("screen_b", "master", "music", "effects", "voice"),
+		},
+		Controls: []workflowstore.Control{{Label: "control_1",
+			Readings: []observe.Region{
+				{X: 0.4, Y: 0.2, Width: 0.07, Height: 0.03}},
+			Text: []string{"audio"}}},
+		Steps: []workflowstore.Step{
+			{Position: 0, From: "screen_a", To: "screen_b", Control: "control_1",
+				Cause: observe.CauseClick, Seen: 2,
+				Outcome: []string{"master", "music", "effects", "voice",
+					"balance"}},
+		},
+	}
+	if err := store.SaveSequence(art); err != nil {
+		t.Fatal(err)
+	}
+
+	var found bool
+	for _, d := range a.Demonstrations() {
+		if d.Name != "a thinly read menu" {
+			continue
+		}
+		found = true
+		in := d.Steps[0]
+		// IT HAS WORDS TO SHOW, which is what makes this the interesting case.
+		if len(in.On) == 0 {
+			t.Fatal("the fixture's starting screen has no words to show, so " +
+				"this says nothing about reading the judgement off them")
+		}
+		if in.Recognisable {
+			t.Errorf("a screen read as %v is reported as one a run could "+
+				"identify, and it takes three words", in.On)
+		}
+		// AND THE OTHER DIRECTION, so this is not a field that is always false.
+		if !recognisableFrom(art, workflowstore.Step{From: "screen_b"}) {
+			t.Error("a screen read as four words is reported as one a run " +
+				"could not identify")
+		}
+	}
+	if !found {
+		t.Fatal("the demonstration was not listed")
+	}
+}
+
 // COMPOSING THROUGH THE SURFACE PRODUCES AN ACT THE RUNNER WOULD TAKE.
 func TestComposingThroughTheSurfaceProducesARunnableAct(t *testing.T) {
 	a, _ := aStoreWithADemonstration(t)

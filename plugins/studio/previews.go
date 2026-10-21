@@ -48,13 +48,22 @@ type Pictured struct {
 }
 
 // Pictures is the labels of one demonstration that have a picture kept.
+//
+// Of THAT demonstration as it is saved now. The store is asked with the artifact rather than
+// with the name, so a routine that has been demonstrated again shows the new recording's
+// pictures or none — never the old recording's pictures beside the new one's words, which is a
+// review misrepresenting what Play would perform. See internal/director/demo/previews.go.
 func (a *Acts) Pictures(routine string) Pictured {
 	store, err := demo.Open(a.home)
 	if err != nil {
 		return Pictured{}
 	}
+	art, ok := store.Sequence(routine)
+	if !ok {
+		return Pictured{}
+	}
 	var out Pictured
-	for _, label := range store.Previews(routine) {
+	for _, label := range store.Previews(art) {
 		// SORTED INTO THE TWO KINDS BY THE LABEL ITSELF, which is the artifact's
 		// own naming and the only thing that distinguishes them. A label that is
 		// neither is one this build does not know about, and it is left out rather
@@ -72,13 +81,19 @@ func (a *Acts) Pictures(routine string) Pictured {
 // Picture is one kept picture, as a data URI the page can put in an `img` tag.
 //
 // Empty when there is none, which the page treats as "show the words alone". Not an error: a
-// demonstration recorded before previews existed has no pictures and that is not a fault.
+// demonstration recorded before previews existed has no pictures and that is not a fault, and
+// neither is one recorded again without them — the previous recording's pictures are not this
+// recording's, and the words shown beside them are.
 func (a *Acts) Picture(routine, label string) string {
 	store, err := demo.Open(a.home)
 	if err != nil {
 		return ""
 	}
-	raw, ok := store.Preview(routine, label)
+	art, ok := store.Sequence(routine)
+	if !ok {
+		return ""
+	}
+	raw, ok := store.Preview(art, label)
 	if !ok {
 		return ""
 	}

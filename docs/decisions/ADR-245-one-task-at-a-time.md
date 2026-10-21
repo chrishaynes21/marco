@@ -290,6 +290,39 @@ anything, because neither of its demonstrated interactions has a recorded outcom
 has said so in orange since it was built. These are separate lines on separate screens on
 purpose.
 
+### Readiness is asked in the run’s own words, not in weaker ones
+
+The first version of that stream asked `observe.ScreenText.Read` about the screen a recording
+started on — *did anybody look* — which is true of a frame OCR read and found nothing on. The
+review beside it asked `len(On) > 0`, and `On` is a SAMPLE of six words at most for a person to
+read. Both say yes about a screen the run will then refuse, and the person finds that out by
+pressing Play: told the demonstration was fine, told at Play that the screen could not be
+identified.
+
+So the question is asked once, in `observe.ScreenText.Identifies`, which is the term
+[[ADR-244-pressing-play-is-the-authorisation]]’s own `Standing` applies: words were read, and
+there are at least `TextDisagreementWords` of them, because two screens that have said two words
+each have not said enough for *this is that one* to be a claim about anything. Three places ask
+it now — the run, the recorder while somebody can still fix it, and the review — and a weaker
+version of it in any one of them is how a demonstration is presented as ready and then waits
+forever.
+
+Two more things about that screen were wrong, and both told somebody to do something that could
+not work:
+
+| what it did | what it does |
+| --- | --- |
+| judged `Walk()[0]`, where the SESSION began | judges the screen the first press that can become a step was made on — which becomes step 1, so its screen is what a granted run has to recognise. Before any such press, the screen standing now. |
+| counted outcome WATCHES as the presses being checked | counts `Presses - Blind`. A watch is opened for a blind press too, so `watched` equalled `presses` always, `presses - watched` was always zero, and the `Blind` phase was unreachable — a person clicking BESIDE a control was told to wait for a result that could never arrive. |
+
+**And a captured result does not excuse a screen nothing can name.** The phase reached
+`captured`, the window said *result captured — click the next control, or finish*, and nothing
+anywhere mentioned that an Act built from it would pause on its starting screen. They are two
+faults with two remedies, so the recording carries both: `learnstate.Event.StartKnown` beside the
+phase, a caution on the card for as long as it holds — because going back to that screen and
+resting on it is the only moment it can be repaired — and one refusal at *That’s it* that names
+everything missing rather than the first thing.
+
 
 ## Pictures, because words are what RECOGNISES a screen and not what a person recognises
 
@@ -344,6 +377,35 @@ said to build it.
 Removal is not a loose end: `ForgetSequence` removes a routine's pictures before it removes the
 routine, and refuses the whole thing if it cannot. Crops of a desktop must not outlive the thing
 they were crops of, and since nothing reads them they would never be noticed again.
+
+### A picture belongs to a revision, not to a name
+
+Reported against the first version of this, and it is the review misrepresenting what Play would
+perform — the one job a review has:
+
+> Pictures are stored by routine name and label, without a revision. `SaveSequence` permits
+> replacing the same routine name, but replacement doesn’t clear or invalidate its previous
+> pictures.
+
+Record *the audio tab* with pictures, record it again without them, and nothing in the preview
+path runs at all: nothing is written, so nothing in the writing of one could clear what is there.
+The review then shows the FIRST recording’s starting screen beside the SECOND one’s words, steps
+and controls — of a demonstration that may have started somewhere else entirely.
+
+The precedent was already in the same directory. `Evidence` is filed beside its artifact under the
+same name and the same `SavedAt`, and it is read by passing the ARTIFACT, so the link is checked
+on every read rather than assumed; the reason its own doc gives is that a name alone would match a
+routine that has since been re-demonstrated. Pictures are exactly that, so they are kept under
+`previews/<routine>/<revision>/<label>.png` and read the same way. A mismatch cannot be compared
+wrongly because there is nothing to compare: another revision’s picture is somewhere else.
+
+The removal is separate, and it is hygiene rather than honesty. `SaveSequence` deletes the
+pictures of every other revision before it writes — on EVERY save, which is the case the
+name-keyed version got wrong — because crops of somebody’s desktop under a name whose
+demonstration has moved on are read by nothing and cleaned up by nothing. An artifact with no
+instant has no revision, can have no pictures of its own, and is not the recording any kept
+picture came from, so its save takes them all with it rather than being refused: deciding whether
+somebody’s routine gets saved is not in this feature’s gift.
 
 ### What the pictures are NOT shown for
 
@@ -479,11 +541,38 @@ beautiful picture of its result and no recorded outcome is still not presented a
   dropped the check survived every behavioural test in the package.
 - `internal/director/demo/previews_test.go` — `TestAPictureIsKeptUnderTheLabelTheArtifactUses`
   (including two routines that both have a `screen_a`); `TestForgettingARoutineForgetsItsPictures`
-  (the files AND the directory); `TestAPictureNeedsSomethingToBelongTo`.
+  (the files AND the directory, every revision of it);
+  `TestPicturesOfOneRevisionAreNeverServedForAnother` (the read side alone, with nothing cleared
+  and nothing saved — which is what makes the review honest even if the removal failed);
+  `TestARerecordedRoutineNeverShowsTheOldRecordingsPictures` (both halves of the report: replaced
+  with NO pictures, where nothing in the preview path runs at all, and replaced with only SOME,
+  plus that an artifact with no instant is still saved); `TestAPictureNeedsSomethingToBelongTo`.
+- `cmd/director/recordingnow_test.go` — `TestTheRecorderCountsOnlyThePressesThatCouldBecomeSteps`
+  (a blind press is not a press being checked, so the phase that says waiting cannot help is
+  reachable at all); `TestTheRecorderAsksWhatTheRunWillAskOfTheStartingScreen` (nothing read, two
+  words, three words — and `Read` and `Said` are both true of the middle one);
+  `TestTheStartingScreenIsTheOneAnActWouldStartOn` (with the screen STANDING read well, so a
+  recording that judges the wrong screen calls the demonstration fine — a fixture where that
+  screen happened to be unread was satisfied by the wrong answer, and the first one was);
+  `TestACapturedResultDoesNotHideAnUnnameableStartingScreen`;
+  `TestTheProgressStreamIsWrittenFromWhatTheRecorderKnows` (over the source: the stream is this
+  reading, and the loop says it AFTER folding the look).
+- `internal/director/observe/screentext_test.go` —
+  `TestAScreenNeedsEnoughWordsToBeRecognisedByThem` (the one predicate three places ask).
+- `internal/director/workflowstore/standing_test.go` —
+  `TestAScreenSavedWithTooFewWordsCannotCarryAnActsPressEither` (one word, read live as the same
+  screen plus more: the look agrees, nothing contradicts anything, and it is still not an
+  identity). A mutation replacing `Identifies` with `Said` survived every test in that package
+  before this existed.
+- `plugins/studio/acts_test.go` —
+  `TestAnInteractionSaysWhetherTheRunCouldNameTheScreenItStartsOn` (a screen with words to SHOW
+  and no identity, which is the case the review used to pass).
 - `plugins/studio/previews_test.go` — `TestAPictureIsServedForTheLabelAnInteractionCarries` (the
   join: the labels an interaction carries are the labels the pictures are filed under, asserted
   here because a mismatch would simply render no picture and fail nothing);
   `TestADemonstrationWithNoPicturesShowsItsWordsInstead`;
+  `TestAReDemonstratedSceneShowsNoPicturesFromTheRecordingBeforeIt` (through the window, because
+  this is the surface that decides which revision to ask for);
   `TestStudioAsksTheRecorderForPictures` (read off the arguments the child was really given,
   because a window that promised pictures and did not ask for them would be making a promise
   about somebody's desktop that it then did not keep).

@@ -147,7 +147,7 @@ func TestEachPictureIsFiledUnderTheLabelOfWhatItIsAPictureOf(t *testing.T) {
 		{"screen_a", dullRed, "the screen the demonstration started on"},
 		{"screen_b", dullGreen, "the screen the first press led to"},
 	} {
-		raw, ok := store.Preview(art.Name, c.label)
+		raw, ok := store.Preview(art, c.label)
 		if !ok {
 			t.Errorf("%s has no picture", c.label)
 			continue
@@ -173,7 +173,7 @@ func TestEachPictureIsFiledUnderTheLabelOfWhatItIsAPictureOf(t *testing.T) {
 		{"control_1", dullRed, "the audio tab, on the first screen"},
 		{"control_2", dullGreen, "the graphics tab, on the second screen"},
 	} {
-		raw, ok := store.Preview(art.Name, c.label)
+		raw, ok := store.Preview(art, c.label)
 		if !ok {
 			t.Errorf("%s has no picture", c.label)
 			continue
@@ -241,7 +241,7 @@ func TestAPressOnNothingIsNotGivenAPicture(t *testing.T) {
 	if kept != 1 {
 		t.Errorf("%d picture(s) kept, want 1 — the screen and not the control", kept)
 	}
-	if labels := store.Previews(art.Name); len(labels) != 1 ||
+	if labels := store.Previews(art); len(labels) != 1 ||
 		labels[0] != "screen_a" {
 		t.Errorf("what was kept is %v", labels)
 	}
@@ -274,7 +274,7 @@ func TestASessionWithNoFramesKeepsNoPictures(t *testing.T) {
 	if kept != 0 || why != "" {
 		t.Errorf("%d picture(s) kept from no frames at all (%s)", kept, why)
 	}
-	if labels := store.Previews(art.Name); len(labels) != 0 {
+	if labels := store.Previews(art); len(labels) != 0 {
 		t.Errorf("pictures were written with nothing to picture: %v", labels)
 	}
 }

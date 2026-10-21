@@ -675,6 +675,13 @@ func TestThePageIsTheFlowThatWasAskedFor(t *testing.T) {
 			"window that asked for more evidence could refuse forever"},
 		{"learnGot", "the recording does not show what the recorder has, so " +
 			"whether the evidence arrived is not on screen"},
+		{"l.start_known", "the recording never says that the screen it starts " +
+			"from has not been read well enough to be recognised — which " +
+			"is fixable only while it is still recording, and which a " +
+			"captured result does not fix"},
+		{"id=\"learnStart\"", "there is nowhere on the recording card for the " +
+			"one fault a person can repair while recording, so it is only " +
+			"ever mentioned when they try to finish"},
 		{"pausedWhere", "a paused run does not say which screen it is waiting " +
 			"for in the words read off it, so the only identity a person is " +
 			"shown for it is a label this machine gave itself"},

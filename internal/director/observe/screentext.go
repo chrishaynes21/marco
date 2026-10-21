@@ -71,6 +71,28 @@ func (t ScreenText) Read() bool { return t.From != "" }
 // Said reports whether anybody read words on it.
 func (t ScreenText) Said() bool { return t.Read() && len(t.Words) > 0 }
 
+// Identifies reports whether a screen's own vocabulary is enough to recognise it later.
+//
+// # Why this is a predicate and not three comparisons
+//
+// Because three places ask it, and a weaker version of it in any one of them is how a
+// demonstration gets presented as ready and then waits forever on a screen nothing can name:
+//
+//	workflowstore.Standing   refuses a run whose starting screen cannot be identified
+//	the recorder's progress   tells the person, while they can still fix it
+//	Studio's review           decides whether a Scene is presented as ready
+//
+// All three used to ask something weaker. The recorder asked `Read` — did ANYBODY look — which
+// a blank frame satisfies; the review asked whether any word at all came back. Both say yes
+// about a screen the run will then refuse, and the person finds out by pressing Play.
+//
+// The rule is `TextDisagreementWords` stable words, because that is what the run needs: an Act's
+// starting screen is established by what is written on it, and two screens that have said two
+// words each have not said enough for "this is that one" to be a claim about anything.
+func (t ScreenText) Identifies() bool {
+	return t.Said() && len(t.Words) >= TextDisagreementWords
+}
+
 // List is the words, sorted, for a report somebody reads.
 func (t ScreenText) List() []string {
 	out := make([]string, 0, len(t.Words))

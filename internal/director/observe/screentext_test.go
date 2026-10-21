@@ -534,6 +534,42 @@ func TestNobodyLookedIsNotTheSameAsNothingWasThere(t *testing.T) {
 	}
 }
 
+// AND A SCREEN NEEDS ENOUGH OF A VOCABULARY TO BE RECOGNISED BY IT AT ALL.
+//
+// The one predicate three places ask, because a weaker version of it in any one of them is how a
+// demonstration is presented as ready and then waits forever: the run refuses to identify a
+// screen it cannot tell from another, so a recorder or a review that called such a screen fine
+// was promising something the run would not honour. `Read` and `Said` are both true of a screen
+// with two words on it, and two words tell nothing apart.
+func TestAScreenNeedsEnoughWordsToBeRecognisedByThem(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		t          observe.ScreenText
+		identifies bool
+	}{
+		{"nobody looked", observe.ScreenText{}, false},
+		{"read, and the screen had no words",
+			observe.TextOf(directorapi.SourceOCR, nil), false},
+		{"one word", read("AUDIO"), false},
+		{"two words", read("AUDIO", "VIDEO"), false},
+		{"three words", read("AUDIO", "VIDEO", "DISPLAY"), true},
+		{"a whole menu", read("AUDIO", "VIDEO", "DISPLAY", "CONTROLS",
+			"PROFILE"), true},
+	} {
+		if got := tc.t.Identifies(); got != tc.identifies {
+			t.Errorf("%s: Identifies is %v, want %v", tc.name, got,
+				tc.identifies)
+		}
+	}
+	// AND IT IS THE SAME NUMBER A DISAGREEMENT NEEDS, which is the point: a screen
+	// that cannot be on either side of "these are different screens" cannot be
+	// positively identified either.
+	if observe.TextDisagreementWords != 3 {
+		t.Errorf("the words it takes to be a claim is %d, and the cases above are "+
+			"written for 3", observe.TextDisagreementWords)
+	}
+}
+
 // AND A DISAGREEMENT NEEDS ENOUGH ON BOTH SIDES TO BE ABOUT ANYTHING.
 func TestTooFewWordsIsNotADisagreement(t *testing.T) {
 	for _, tc := range []struct {
