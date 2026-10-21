@@ -40,6 +40,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/chaynes-simpleclouds/marco/internal/director/learnstate"
 )
 
 // learnPrepare is how long somebody gets to switch to the game before recording starts.
@@ -57,11 +59,25 @@ type Learning struct {
 	Name        string `json:"name,omitempty"`
 	Application string `json:"application,omitempty"`
 	Active      bool   `json:"active"`
-	// Phase is "preparing" or "recording" while this is in flight, and "" otherwise.
+	// Phase is where the recording is, in learnstate's words, and "" when nothing is
+	// being recorded.
+	//
+	// The RECORDER'S answer and no longer this window's arithmetic over its own flags.
+	// It used to be "preparing" or "recording", derived from a clock, which is all a
+	// surface can say about a process that says nothing while it works — and it left the
+	// one question that decides whether a demonstration is worth anything ("has the
+	// evidence arrived?") answered by advice. See learnstate.
 	Phase string `json:"phase,omitempty"`
 	// Doing is the sentence at the top, and Left the seconds remaining in this phase.
 	Doing string `json:"doing,omitempty"`
 	Left  int    `json:"left"`
+	// Presses is how many presses the recorder has seen, Watched how many of those it
+	// could place on something, and Captured how many have a verified outcome.
+	Presses  int `json:"presses,omitempty"`
+	Watched  int `json:"watched,omitempty"`
+	Captured int `json:"captured,omitempty"`
+	// Missing is why the last press has no outcome yet, in the recorder's own words.
+	Missing string `json:"missing,omitempty"`
 	// Over says a recording has finished and this is what came of it.
 	Over       bool     `json:"over,omitempty"`
 	Said       string   `json:"said,omitempty"`
@@ -82,12 +98,17 @@ type learning struct {
 	cmd       *exec.Cmd
 	in        *os.File
 	stop      func()
-	done      chan struct{}
-	lines     []string
-	over      bool
-	said      string
-	next      string
-	failed    bool
+	// progress is where the recorder writes what it knows, one JSON object per change.
+	// A temporary file: a conversation between two processes, not something a person
+	// keeps. Empty when it could not be made, which is not a reason to refuse a
+	// recording — see Learn.
+	progress string
+	done     chan struct{}
+	lines    []string
+	over     bool
+	said     string
+	next     string
+	failed   bool
 }
 
 // Applications is the running applications with a window, by the name they can be asked for.
@@ -173,10 +194,21 @@ func (a *Acts) Learn(name, application string, seconds int) string {
 		return give(why)
 	}
 
+	// WHERE THIS RECORDING WILL SAY WHAT IT KNOWS. One file per recording in a
+	// temporary directory, exactly as a run's events are: a failure to make it is not a
+	// reason to refuse the recording, and the window then falls back to its own clock.
+	progress := ""
+	if f, ferr := os.CreateTemp("", "studio-learn-*.jsonl"); ferr == nil {
+		progress = f.Name()
+		_ = f.Close()
+	}
 	args := []string{"demonstrate-visual", name,
 		"--application", application,
 		"--seconds", fmt.Sprint(seconds),
 		"--delay", learnPrepare.String()}
+	if progress != "" {
+		args = append(args, "--progress", progress)
+	}
 	ctx, stop := context.WithCancel(context.Background())
 	cmd := exec.CommandContext(ctx, directorBin(), args...)
 	cmd.Env = append(os.Environ(), "MARCO_HOME="+a.home)
@@ -210,6 +242,7 @@ func (a *Acts) Learn(name, application string, seconds int) string {
 
 	a.mu.Lock()
 	l.cmd, l.in, l.stop, l.started = cmd, inW, stop, time.Now()
+	l.progress = progress
 	l.done = make(chan struct{})
 	a.mu.Unlock()
 
@@ -233,7 +266,23 @@ func (a *Acts) Learn(name, application string, seconds int) string {
 }
 
 // Done tells the recorder the person has finished showing it.
-func (a *Acts) Done() string {
+//
+// `anyway` is the person saying it a second time, having been told what is still missing.
+//
+// # Why finishing is checked at all
+//
+// Because the recorder knows whether it obtained evidence and the person does not. A click
+// whose outcome has not been read yet produces an interaction nothing can check: the Act built
+// from it presses and then reports that it could not confirm anything, and nothing after it is
+// performed. That is a wasted demonstration, and the only moment it can be prevented is the
+// moment before the recording ends — a few hundred milliseconds of waiting, which the recorder
+// can ask for and a person cannot estimate.
+//
+// So the FIRST press of "that's it" over a missing outcome refuses, and says what is missing in
+// the recorder's own words. The second one finishes: it is their demonstration, the evidence may
+// never arrive, and a window that would not stop recording is worse than one that recorded
+// nothing useful.
+func (a *Acts) Done(anyway bool) string {
 	a.mu.Lock()
 	l := a.learn
 	var in *os.File
@@ -244,6 +293,11 @@ func (a *Acts) Done() string {
 	if in == nil {
 		return "nothing is being recorded"
 	}
+	if !anyway {
+		if why := a.notYet(); why != "" {
+			return why
+		}
+	}
 	// THE RECORDER'S OWN ENDING, not a kill: it then reports, learns a draft from the
 	// walk, saves the artifact and writes the evidence beside it. A window that killed
 	// the process here would throw all of that away and call it finishing.
@@ -251,6 +305,60 @@ func (a *Acts) Done() string {
 		return "the recorder could not be told to finish: " + err.Error()
 	}
 	return ""
+}
+
+// notYet is what is still missing from this recording, or "" when nothing is.
+//
+// Reads the recorder's own stream and nothing else. A window that decided this for itself would
+// be estimating the thing the recorder measured. See learnstate and Done.
+func (a *Acts) notYet() string {
+	at, over := a.recordingNow()
+	if over || at.Phase == "" {
+		return ""
+	}
+	switch at.Phase {
+	case learnstate.Reading:
+		return "nothing has been read on the screen you are starting from yet, so " +
+			"an Act built from this could not tell it was there. Rest where " +
+			"you are for a moment, then click — or finish anyway."
+	case learnstate.Ready:
+		return "no press has been seen yet, so there is nothing to save. Click the " +
+			"control once with the mouse — or finish anyway."
+	case learnstate.Checking:
+		why := at.Missing
+		if why == "" {
+			why = "the words that say it worked have not been read yet"
+		}
+		return "the result of your click has not been captured yet: " + why +
+			". Keep recording for a moment — or finish anyway."
+	case learnstate.Blind:
+		return "the press landed on nothing Marco could see, so nothing can be " +
+			"replayed from it. Click the control itself, on its label — or " +
+			"finish anyway."
+	}
+	return ""
+}
+
+// recordingNow is the recorder's latest account of itself, and whether it said it had ended.
+//
+// An unreadable or absent stream is an empty event and not an error: a recording whose progress
+// file could not be made is a recording that still works, and every caller treats an empty
+// phase as "the recorder has not said".
+func (a *Acts) recordingNow() (learnstate.Event, bool) {
+	a.mu.Lock()
+	path := ""
+	if a.learn != nil {
+		path = a.learn.progress
+	}
+	a.mu.Unlock()
+	if path == "" {
+		return learnstate.Event{}, false
+	}
+	at, final, err := learnstate.Latest(path)
+	if err != nil {
+		return learnstate.Event{}, false
+	}
+	return at, final
 }
 
 // StopLearning abandons a recording.
@@ -297,26 +405,49 @@ func (a *Acts) Learning() Learning {
 		}
 		return out
 	}
-	// WHERE IT IS, BY OUR OWN CLOCK OVER OUR OWN NUMBERS. `--delay` and `--seconds`
-	// were passed by this file; counting them is arithmetic about what we asked for,
-	// not a claim about what the recorder is doing. The recorder decides when it is
-	// over, and `Over` above is the only thing that says it is.
+	// ── WHERE IT IS, BY OUR OWN CLOCK OVER OUR OWN NUMBERS ──
+	//
+	// `--delay` and `--seconds` were passed by this file; counting them is arithmetic
+	// about what we asked for, not a claim about what the recorder is doing. The
+	// recorder decides when it is over, and `Over` above is the only thing that says
+	// it is.
+	//
+	// This is now the FALLBACK and the clock for the preparation delay, which is the one
+	// stretch the recorder cannot report on: it has not started looking. Everything after
+	// it comes off the stream below.
 	since := time.Since(started)
-	if since < learnPrepare {
-		out.Phase = "preparing"
-		out.Left = int((learnPrepare - since).Seconds()) + 1
-		out.Doing = fmt.Sprintf("Switch to %s. Recording starts in %ds.",
-			l.app, out.Left)
-		return out
-	}
-	out.Phase = "recording"
 	left := time.Duration(seconds)*time.Second - (since - learnPrepare)
 	if left < 0 {
 		left = 0
 	}
 	out.Left = int(left.Seconds())
-	out.Doing = "Recording. Click the control once with the mouse, then wait for the " +
-		"result to settle."
+	if since < learnPrepare {
+		out.Phase = string(learnstate.Preparing)
+		out.Left = int((learnPrepare - since).Seconds()) + 1
+		out.Doing = fmt.Sprintf("Switch to %s. Recording starts in %ds.",
+			l.app, out.Left)
+		return out
+	}
+
+	// ── AND WHAT THE RECORDER SAYS, WHICH OUTRANKS IT ──
+	//
+	// The one question a person doing a demonstration needs answered is whether the
+	// evidence has arrived, and this window cannot know it: the outcome is four terms
+	// over readings on both sides of a press. The recorder measures them. So what it
+	// says is what is shown, and the sentence per phase is stated once, in learnstate,
+	// where both this and a test can reach it.
+	at, _ := a.recordingNow()
+	if at.Phase == "" || at.Phase == learnstate.Ended {
+		// NOTHING SAID YET. The child has started and its first look has not
+		// landed, which is real and lasts a fraction of a second.
+		out.Phase = string(learnstate.Reading)
+		out.Doing = learnstate.Doing(learnstate.Reading, l.app)
+		return out
+	}
+	out.Phase = string(at.Phase)
+	out.Doing = learnstate.Doing(at.Phase, l.app)
+	out.Presses, out.Watched, out.Captured = at.Presses, at.Watched, at.Captured
+	out.Missing = at.Missing
 	return out
 }
 

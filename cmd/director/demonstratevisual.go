@@ -63,10 +63,52 @@ import (
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/demo"
 	"github.com/chaynes-simpleclouds/marco/internal/director/fastobserve"
+	"github.com/chaynes-simpleclouds/marco/internal/director/learnstate"
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflow"
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflowstore"
 )
+
+// recordingNow is what the recorder knows, as one snapshot.
+//
+// # Why it asks the correlator rather than counting clicks
+//
+// Because the question a person needs answered is not "did I click" but "has Marco got the
+// evidence". `observe.LocalOutcome.Verified` is the same four terms `workflow.Learn` will use to
+// decide whether the interaction can be checked at all, and `Why` is the same sentence the end
+// report gives. So a window showing this is showing the thing that will actually decide, half a
+// second earlier — not an estimate of how long OCR takes.
+//
+// `Missing` is the LAST unverified outcome's reason rather than a summary of all of them: it is
+// the press whose evidence is still in flight, and the one the person is waiting on.
+func recordingNow(obs *fastobserve.Observer, left int) learnstate.Event {
+	ev := obs.Clicks()
+	// THE SCREEN THE SESSION STARTED ON, from the walk rather than from the screen
+	// standing now: by the time a person has clicked something, the screen in front of
+	// them is the result and the question is whether the one they STARTED on was read.
+	// An Act's starting screen is identified by its words and nothing else.
+	startRead := false
+	if walk := obs.Walk(); len(walk) > 0 {
+		startRead = obs.SaidBy(walk[0]).Read()
+	}
+	watched, captured, missing := 0, 0, ""
+	for _, o := range ev.Outcomes {
+		watched++
+		if o.Verified() {
+			captured++
+			continue
+		}
+		missing = o.Why()
+	}
+	return learnstate.Event{
+		Phase:    learnstate.PhaseOf(startRead, ev.Presses, watched, captured),
+		Presses:  ev.Presses,
+		Watched:  watched,
+		Captured: captured,
+		Missing:  missing,
+		Left:     left,
+	}
+}
 
 func runDemonstrateVisual(args []string) int {
 	// THE NAME FIRST, as `director save` takes it, because it is the point: everything
@@ -85,6 +127,12 @@ func runDemonstrateVisual(args []string) int {
 	dry := fs.Bool("dry-run", false, "report what would be saved and write nothing")
 	blind := fs.Bool("blind", false,
 		"do not read the words on each look, even when OCR is available")
+	progress := fs.String("progress", "",
+		"write this recording's structured state to `path`, one JSON object per "+
+			"change: whether the screen you started on has been read, whether a "+
+			"press has been seen, whether Marco could place it, and whether its "+
+			"outcome is captured yet. For a front end; the ordinary output on "+
+			"this terminal is unchanged")
 	_ = fs.Parse(flagsFirst(rest))
 
 	if strings.TrimSpace(name) == "" {
@@ -170,6 +218,31 @@ func runDemonstrateVisual(args []string) int {
 			fmt.Printf("  Starting in %s. Press ENTER when you are done.\n\n", *delay)
 		},
 	}
+	// ── WHAT THE RECORDER KNOWS, WHILE IT STILL MATTERS ──
+	//
+	// This terminal says everything at the two ends and nothing in between, which is
+	// right for the person watching their own screen and useless to a window. The stream
+	// is for the window: see learnstate, and plugins/studio/learn.go.
+	//
+	// A failure to open it is NOT a reason to refuse the recording. The demonstration is
+	// the thing of value and the report still arrives at the end; a surface with no
+	// structured progress shows a recording running, which is what it showed before this
+	// existed.
+	told, terr := learnstate.NewWriter(*progress, name, *app)
+	if terr != nil {
+		fmt.Fprintf(os.Stderr, "WARNING: %v\n         The recording goes ahead "+
+			"without structured progress.\n\n", terr)
+	}
+	defer told.Close()
+	if told != nil {
+		// THE DELAY, SAID BEFORE IT IS SPENT. The loop has not started, so nothing
+		// else will say anything for five seconds.
+		told.Say(learnstate.Event{Phase: learnstate.Preparing,
+			Left: *seconds})
+		s.told = func(left int) {
+			told.Say(recordingNow(obs, left))
+		}
+	}
 	// "THAT'S IT" IS A LINE ON ITS OWN, so a demonstration ends when the person is done
 	// rather than when a clock runs out. `--seconds` stays the ceiling, so a forgotten
 	// terminal still stops by itself.
@@ -177,6 +250,21 @@ func runDemonstrateVisual(args []string) int {
 	s.stop = stop
 
 	res, code := s.watch(ctx, obs, os.Stderr)
+	// ── AND THE RECORDING IS OVER, SAID AS THE LAST THING ON THE STREAM ──
+	//
+	// Before the early return below, so a session whose window was lost still ends its
+	// stream rather than leaving a window polling a phase that will never change.
+	// `Final` is what tells a reader this ENDED rather than that the child vanished.
+	ended := res.ended
+	if ended == "" {
+		ended = "it ran to time"
+	}
+	if res.lost != "" {
+		ended = res.lost
+	}
+	last := recordingNow(obs, 0)
+	last.Phase, last.Final, last.Reason = learnstate.Ended, true, ended
+	told.Say(last)
 	if code != 0 {
 		return code
 	}

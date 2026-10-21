@@ -64,13 +64,18 @@ func TestAReadingOfThisObservationIsWhatTheScreenSays(t *testing.T) {
 }
 
 // AND A READING OF AN OBSERVATION THAT HAS MOVED ON SAYS SO, rather than saying nothing has been
-// read. This is the case no amount of patience reaches: a screen that keeps changing under a
-// source that takes half a second invalidates every reading it will ever take, and a run told to
-// keep waiting would wait out its whole budget.
+// read.
+//
+// Said two ways, because a screen that MOVED and a screen that KEEPS moving have opposite
+// remedies. Two readings arriving late is the ordinary cost of a source three to six looks
+// behind a transition, and waiting is the whole of it. Three in a row with none admitted between
+// them is a reader that has not once caught the screen still, and that is the case no amount of
+// patience reaches: a run told to keep waiting would wait out its whole budget.
 func TestAReadingThatArrivesAboutAnOlderScreenSaysWaitingWillNotHelp(t *testing.T) {
 	l := &looker{saidLook: -1, ground: &promptGrounder{}}
 	at := aLookWorthReading()
 
+	// TWO, ACROSS ONE TRANSITION. Not yet a claim about the screen.
 	l.admit([]observe.ScreenReading{
 		readingOf(3, 2, 3, "profile", "sound", "video"),
 		readingOf(4, 2, 3, "profile", "sound", "video"),
@@ -79,13 +84,28 @@ func TestAReadingThatArrivesAboutAnOlderScreenSaysWaitingWillNotHelp(t *testing.
 	if l.ground.read.Said() {
 		t.Fatal("a reading of an observation that had moved on was admitted")
 	}
-	for _, want := range []string{"2 reading(s)", "waiting longer will not change that"} {
+	if !strings.Contains(l.ground.readWhy, "an earlier reading became outdated") {
+		t.Errorf("two late readings do not say what is actually known: %s",
+			l.ground.readWhy)
+	}
+	if strings.Contains(l.ground.readWhy, "will not change") {
+		t.Errorf("two late readings are reported as a screen that keeps moving: %s",
+			l.ground.readWhy)
+	}
+
+	// AND A THIRD, STILL WITH NONE ADMITTED. Now it is.
+	l.admit([]observe.ScreenReading{
+		readingOf(5, 2, 3, "profile", "sound", "video"),
+	}, &at, 2, 4)
+
+	for _, want := range []string{"3 reading(s)", "waiting longer will not change that"} {
 		if !strings.Contains(l.ground.readWhy, want) {
 			t.Errorf("the reason does not say %q: %s", want, l.ground.readWhy)
 		}
 	}
-	if l.stale != 2 {
-		t.Errorf("%d stale reading(s) counted, want 2", l.stale)
+	if l.stale != 3 || l.staleRun != 3 {
+		t.Errorf("%d stale reading(s) counted, %d in a row; want 3 and 3",
+			l.stale, l.staleRun)
 	}
 }
 
@@ -157,10 +177,121 @@ func TestAHeldReadingStopsStandingWhenTheScreenChanges(t *testing.T) {
 	if l.ground.read.Said() {
 		t.Fatal("a reading of the previous observation still stood after it moved")
 	}
-	if !strings.Contains(l.ground.readWhy, "keeps moving") {
-		t.Errorf("dropping a held reading is not reported as the screen moving: %s", l.ground.readWhy)
+	if !strings.Contains(l.ground.readWhy, "an earlier reading became outdated") {
+		t.Errorf("dropping one held reading is not reported as one reading going "+
+			"out of date: %s", l.ground.readWhy)
+	}
+	if strings.Contains(l.ground.readWhy, "keeps moving") {
+		t.Errorf("one transition is reported as a screen that keeps moving: %s",
+			l.ground.readWhy)
 	}
 	if len(next.Words) != 0 {
 		t.Error("the step was given words from an observation that had moved on")
+	}
+}
+
+// A TRANSITION, THEN A SCREEN THAT SITS STILL, THEN A LATE READING THAT LANDS.
+//
+// The sequence the whole diagnosis has to get right, and the one the first version got wrong. A
+// screen changes; whatever reading was being held goes out of date; the screen then holds
+// perfectly still for a second while OCR works. Every look in that second found no current
+// reading, and the first version counted the SAME discarded reading again on each of them — ten
+// a second — and then reported the total as proof that the screen kept moving and that waiting
+// would not help. Waiting was the entire remedy, and it worked.
+func TestAScreenThatMovedOnceAndThenHeldStillIsNotAScreenThatKeepsMoving(t *testing.T) {
+	l := &looker{saidLook: -1, ground: &promptGrounder{}}
+
+	// ── 1. A READING OF WHERE WE WERE ──
+	was := aLookWorthReading()
+	l.admit([]observe.ScreenReading{
+		readingOf(3, 2, 4, "play", "create", "campaign"),
+	}, &was, 2, 4)
+	if !l.ground.read.Said() {
+		t.Fatal("the reading of the screen we started on was not admitted")
+	}
+
+	// ── 2. THE SCREEN CHANGES, AND NOTHING HAS BEEN READ OF THE NEW ONE ──
+	//
+	// Thirteen looks of it: one where the held reading is dropped, and twelve more
+	// where there is simply no reading yet. OCR is working on a frame from look 14.
+	for i := 0; i < 13; i++ {
+		at := aLookWorthReading()
+		at.Epoch = 5
+		l.admit(nil, &at, 2, 5)
+		if l.ground.read.Said() {
+			t.Fatalf("look %d: a reading of the previous screen still stood", i)
+		}
+		if strings.Contains(l.ground.readWhy, "keeps moving") {
+			t.Fatalf("look %d of a stationary screen is reported as a screen "+
+				"that keeps moving: %s", i, l.ground.readWhy)
+		}
+		if !strings.Contains(l.ground.readWhy, "an earlier reading became outdated") {
+			t.Fatalf("look %d does not say what is actually known: %s",
+				i, l.ground.readWhy)
+		}
+	}
+	// AND ONE DISCARDED READING IS ONE, not one per look that followed it.
+	if l.stale != 1 || l.staleRun != 1 {
+		t.Errorf("thirteen looks after one transition counted %d discarded "+
+			"reading(s), %d in a row; want 1 and 1", l.stale, l.staleRun)
+	}
+
+	// ── 3. AND THE LATE READING ARRIVES, AND IS THE SCREEN ──
+	now := aLookWorthReading()
+	now.Epoch = 5
+	l.admit([]observe.ScreenReading{
+		readingOf(14, 2, 5, "profile", "sound", "video", "controls"),
+	}, &now, 2, 5)
+
+	if !l.ground.read.Said() {
+		t.Fatal("the reading that arrived about the screen in front of us was not " +
+			"admitted, so waiting would never have worked")
+	}
+	if l.ground.readWhy != "" {
+		t.Errorf("a look that WAS read carries a reason it was not: %s",
+			l.ground.readWhy)
+	}
+	if len(now.Words) == 0 {
+		t.Error("the step was not given the words of the reading that landed")
+	}
+	// AND THE RUN OF STALENESS IS OVER, because the screen demonstrably held still
+	// long enough to be read. A later transition starts from one again, not from two.
+	if l.staleRun != 0 {
+		t.Errorf("a reading was admitted and %d discard(s) are still counted in a "+
+			"row", l.staleRun)
+	}
+}
+
+// AND A SCREEN THAT NEVER HOLDS STILL IS SAID TO BE THAT, once there is evidence of it: three
+// readings in a row, each about an observation that had already moved on, with none admitted
+// between them. This is the case patience cannot reach, and the only one where waiting is the
+// wrong thing to tell somebody.
+func TestAScreenThatNeverHoldsStillSaysSoOnceItHasBeenSeenToThreeTimes(t *testing.T) {
+	l := &looker{saidLook: -1, ground: &promptGrounder{}}
+
+	for i, want := range []string{
+		"an earlier reading became outdated",
+		"an earlier reading became outdated",
+		"keeps moving",
+	} {
+		at := aLookWorthReading()
+		at.Epoch = uint64(10 + i)
+		// EACH READING IS OF THE LOOK BEFORE IT, which is what a source three to
+		// six looks behind a moving screen produces every time.
+		l.admit([]observe.ScreenReading{
+			readingOf(i, 2, uint64(9+i), "profile", "sound", "video"),
+		}, &at, 2, uint64(10+i))
+
+		if l.ground.read.Said() {
+			t.Fatalf("reading %d was admitted about an observation that had "+
+				"moved on", i)
+		}
+		if !strings.Contains(l.ground.readWhy, want) {
+			t.Errorf("reading %d says %q, which does not mention %q",
+				i, l.ground.readWhy, want)
+		}
+	}
+	if l.staleRun != 3 {
+		t.Errorf("%d discard(s) counted in a row, want 3", l.staleRun)
 	}
 }

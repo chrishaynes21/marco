@@ -213,9 +213,83 @@ the only part of its identity a person can compare against what is in front of t
 screen now carries them beside the reason. Beside, not substituted into it: the sentence belongs
 to the runner and this surface does not edit it.
 
+### And the first version of that diagnosis overstated its evidence
+
+It counted every stale reading in the run and, from one of them, said the screen kept moving and
+that waiting would not help. Two things were wrong with it, both reported by the Architect and
+both reproduced here.
+
+One discarded reading was counted again on every look that followed it. A dropped reading keeps
+its stamps, so `observe.Current` goes on being false of it; a stationary screen waiting for OCR
+therefore accumulated a stale reading ten times a second, and the number that came out said the
+screen was moving when nothing was. `looker.held` counts the drop once.
+
+And a total cannot tell a screen that MOVED from a screen that KEEPS moving, which is the whole
+distinction: one transition discards whatever was being held and the screen then sits still,
+which waiting fixes, and leaves its total standing for the rest of the run. So the strong
+sentence now needs `staleSustained` — three — discarded in a row with none admitted between
+them, and any reading that IS admitted resets the run, because the screen demonstrably held
+still long enough to be read once. Below that the sentence says what is actually known: *an
+earlier reading became outdated, and the screen in front of you is being read now.*
+
+The sequence that gets this right is the one that was wrong before, and it is a test:
+transition, thirteen looks of a perfectly stationary screen, then the late reading landing and
+identifying it. One discard, not fourteen; and never the claim that waiting would not help,
+because waiting was the entire remedy and it worked.
+
+
 What this does NOT claim: the trial is not re-run, so which of the three the owner's refusal
 actually was is still unknown. That is the point — the next run will say, in the window, without
 a reproduction.
+
+## The recorder says what it has, so nobody counts seconds
+
+The advice that came out of the first trial was "wait two seconds after the click". That is an
+estimate of how long seven OCR readings take, handed to the person least able to make it. The
+Architect's words:
+
+> The recorder knows whether it obtained evidence; the person should not have to estimate seven
+> OCR readings.
+
+`demonstrate-visual` said everything at the two ends and nothing in between, so the window could
+only report a clock: *recording, 54s left*, plus a paragraph of advice. `internal/director/learnstate`
+is the recording's own account of itself — one JSON object per CHANGE, the same shape `runstate`
+has for a run and for the same reason — and `--progress <path>` is where it goes.
+
+What it reports is what will actually decide whether the demonstration is worth anything.
+`observe.LocalOutcome.Verified` is the same four terms `workflow.Learn` uses to decide whether an
+interaction can be checked at all, and `Why` is the same sentence the end report gives. So the
+window shows the thing that decides, half a second earlier, instead of an estimate:
+
+| what the recorder knows | what the window says |
+| --- | --- |
+| watching, nothing read on the screen it started on | Reading the starting screen… rest where you are for a moment. |
+| that screen has been read, no press yet | Click the control once, with the mouse. |
+| a press, placed, outcome in flight | Checking what changed… wait for the result to settle. |
+| a press that landed on nothing the proposer found | That press landed on nothing Marco could see. Click the control itself. |
+| a press with a verified outcome | Result captured. Click the next control, or finish. |
+
+A press that landed on nothing gets its own phase because waiting cannot fix it, and `Checking`
+is a sentence that says waiting is all there is to do. An outcome in flight outranks it, because
+a session can hold one of each — a click beside a control and then one on it — and the phase is
+about the press being measured now. The blind presses are still counted and shown.
+
+**And finishing is checked once.** The first press of *That's it* over something still in flight
+refuses and says what, in the recorder's words; the person then presses **Keep recording** or
+**Finish anyway**. Both are one click. The second press finishes whatever the state, because it
+is their demonstration, the evidence may never arrive, and a window that would not stop recording
+is worse than one that recorded nothing useful. A question that answers itself — somebody who
+pressed a moment too early and then waited — is taken down by the next poll rather than needing
+an answer.
+
+What this does NOT do is make the two problems one. A screen that cannot be recognised and an
+outcome that was never recorded are different faults with different fixes, and the owner's
+TrackMania Act had both: nothing was pressed because the starting screen could not be identified
+in four seconds, and once it is pressed the Act will still report that it could not confirm
+anything, because neither of its demonstrated interactions has a recorded outcome. The Act detail
+has said so in orange since it was built. These are separate lines on separate screens on
+purpose.
+
 
 ## What was asked for and deliberately NOT built
 
@@ -306,6 +380,22 @@ a reproduction.
 - `plugins/studio/play_test.go` — `TestThePageIsTheFlowThatWasAskedFor` also guards
   `pausedWhere`, so a paused run cannot go back to naming its screen only by the label this
   machine gave it.
+- `internal/director/learnstate/learnstate_test.go` —
+  `TestEverySituationARecordingCanBeInIsAPhase` (ten cases, including the blind press and the
+  two where an outcome in flight outranks one); `TestEveryPhaseIsSaidAsSomethingThePersonIsDoing`
+  (every phase has a sentence, none of them is its own phase word, and the four the redesign
+  named are the four that are said); `TestARecordingSaysWhatChangedAndNotWhatDidNot` (four events
+  for four distinct states out of six calls, and the seconds remaining deliberately not counted
+  as a change); `TestARecordingThatEndedIsFinal`; `TestNoPathIsAWriterThatDoesNothing`;
+  `TestHalfALineIsSkippedAndTheRestIsRead`.
+- `plugins/studio/learn_test.go` — `TestFinishingEarlySaysWhatIsStillMissing` (one case per
+  phase, that the reason is the recorder's own and not this window's guess, that both answers are
+  offered, and that saying it again finishes it); `TestTheRecordingShowsWhatTheRecorderKnows` (the
+  preparation is still this window's clock, and everything after it is the stream).
+- `cmd/director/admitreading_test.go` also holds
+  `TestAScreenThatMovedOnceAndThenHeldStillIsNotAScreenThatKeepsMoving` — the transition, the
+  thirteen stationary looks, and the late reading that lands — and
+  `TestAScreenThatNeverHoldsStillSaysSoOnceItHasBeenSeenToThreeTimes`.
 - `plugins/studio/page_test.go` — `TestThePageBeginsAsADocument`, which is why a text node in
   front of the doctype cannot come back.
 - And the window itself: `studio.exe -seconds N -evidence <file>` renders the page and the page

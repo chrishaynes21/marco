@@ -73,6 +73,15 @@ type visualSession struct {
 	// way, inside this loop, and a caller measuring a SAVED routine needs the same
 	// ordering against evidence the observer has never seen.
 	each func(lk fastobserve.Look)
+	// told, when set, is called after every look has been FOLDED, with how many seconds
+	// of the ceiling remain.
+	//
+	// The opposite ordering from `each`, for the opposite reason. `each` must not see
+	// what a look taught, because it measures a saved routine against evidence the
+	// observer has never seen. This must: what it reports is whether the screen has been
+	// read and whether a press has an outcome yet, and neither of those exists until the
+	// look is in. See demonstratevisual.go, where it becomes a learnstate stream.
+	told func(left int)
 	// stop, when set, ends the session early -- the person saying "that's it".
 	//
 	// A demonstration is a thing somebody DOES, and a fixed duration makes them watch a
@@ -353,6 +362,17 @@ func (s visualSession) watch(ctx context.Context, obs *fastobserve.Observer,
 			res.found.fold(obs.Reacquire(lk), pressed)
 		}
 		obs.Observe(lk)
+		if s.told != nil {
+			// WHAT THE RECORDER NOW KNOWS. Called with the look in, and on
+			// every look: the thing on the other end emits only on CHANGE,
+			// which is where that decision belongs — this loop shares a thread
+			// with nothing and the writer shares its cadence with a hook.
+			left := int(time.Until(deadline).Seconds())
+			if left < 0 {
+				left = 0
+			}
+			s.told(left)
+		}
 		res.stage.whole = append(res.stage.whole, msSince(whole))
 		<-ticker.C
 	}

@@ -186,17 +186,25 @@
     </div>
   </div>
 
-  <!-- RECORDING, AND WHAT TO DO WHILE IT IS. The preparation countdown is Studio's own
-       arithmetic over the delay it passed the recorder — not a claim about the recorder's
-       state — and Cancel is there for the whole of it. See learn.go. -->
+  <!-- RECORDING, NARRATED BY THE RECORDER.
+       The preparation countdown is Studio's own arithmetic over the delay it passed the
+       child — the one stretch the recorder cannot report on, because it has not started
+       looking. Everything after it is the recorder's own account: whether the screen you
+       started on has been read, whether a press was seen and placed, and whether its
+       outcome is captured. See learnstate and learn.go. Cancel is there throughout. -->
   <div class="card hide" id="recording">
     <div id="learnDoing" style="font-size:15px"></div>
-    <div class="muted" style="margin-top:6px"><b>Rest where you are for a moment first</b>
-      — Marco reads the words on the screen you start from, and that is how it knows it is
-      there next time. Then click the control once, with the mouse, and wait for the result
-      to settle before you finish. Keys are watched and cannot name a control.</div>
+    <!-- WHAT IT HAS, counted. Not advice: the recorder measured these. -->
+    <div class="muted" id="learnGot" style="margin-top:6px"></div>
+    <div class="muted" style="margin-top:6px">Click controls with the mouse — keys are
+      watched and cannot name a control.</div>
+    <!-- AND WHY FINISHING WOULD THROW SOMETHING AWAY, when it would. -->
+    <div class="banner warn hide" id="learnNotYet" style="margin-top:10px"></div>
     <div class="row" style="margin-top:12px">
       <button class="go" id="doneBtn" onclick="done()">That's it</button>
+      <button class="go hide" id="keepBtn" onclick="keepRecording()">Keep
+        recording</button>
+      <button class="hide" id="anywayBtn" onclick="finishAnyway()">Finish anyway</button>
       <button class="stop" id="stopLearnBtn" onclick="stopLearning()">Cancel</button>
       <span class="muted" id="learnLeft"></span>
     </div>
@@ -629,7 +637,33 @@
      if (!err) { showing($('learned'), false) }
    })
  }
- function done(){ acts.Done().then(e => { if (e) text($('learnNote'), e) }) }
+ // FINISHING, CHECKED ONCE.
+ //
+ // The recorder knows whether it obtained evidence and the person does not — the outcome is four
+ // terms over readings on both sides of a press. So the first press of "That's it" asks, and a
+ // recording with something still in flight says what, in the recorder's own words. The person
+ // then keeps recording or finishes anyway; both are one click, and neither is an estimate of how
+ // long OCR takes. See Acts.Done and Acts.notYet.
+ function done(){
+   acts.Done(false).then(why => {
+     if (!why) { notYet(''); return }
+     notYet(why)
+   })
+ }
+ function finishAnyway(){
+   notYet('')
+   acts.Done(true).then(e => { if (e) text($('learnNote'), e) })
+ }
+ function keepRecording(){ notYet('') }
+ function notYet(why){
+   text($('learnNotYet'), why)
+   showing($('learnNotYet'), !!why)
+   showing($('keepBtn'), !!why)
+   showing($('anywayBtn'), !!why)
+   // AND "THAT'S IT" STEPS ASIDE WHILE THE TWO ANSWERS TO IT ARE ON SCREEN, so the
+   // button that just asked a question is not also the button that answers it.
+   showing($('doneBtn'), !why)
+ }
  function stopLearning(){ acts.StopLearning().then(e => { if (e) text($('learnNote'), e) }) }
  function again(){
    showing($('learned'), false)
@@ -668,8 +702,21 @@
      showing($('recording'), !!l.active)
      showing($('learnCard'), !l.active)
      text($('learnDoing'), l.doing || '')
-     text($('learnLeft'), l.active && l.phase === 'recording'
+     text($('learnLeft'), l.active && l.phase !== 'preparing'
        ? l.left + 's left at the most' : '')
+     // WHAT THE RECORDER HAS, counted. Shown from the first press: before one there is
+     // nothing to count and the sentence above is the whole of it.
+     text($('learnGot'), l.presses
+       ? l.presses + ' press' + (l.presses === 1 ? '' : 'es') + ' seen, ' +
+         l.captured + ' with the result captured' +
+         (l.presses > l.watched
+           ? ' — ' + (l.presses - l.watched) + ' landed on nothing Marco could see'
+           : '')
+       : '')
+     // AND A QUESTION THAT HAS ANSWERED ITSELF IS TAKEN DOWN. Somebody who pressed
+     // "That's it" a moment too early and then waited should not have to press
+     // anything: the thing they were waiting for arrived.
+     if (!l.active || l.phase === 'captured') { notYet('') }
      $('learnBtn').disabled = !!l.active
      if (l.transcript && l.transcript.length) {
        text($('learnTranscript'), l.transcript.join('\n'))

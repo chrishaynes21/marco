@@ -105,15 +105,26 @@ type looker struct {
 	// what a SCREEN is recognised by, and the destination test needs the second. Kept on
 	// the same stamps so one admission rule covers both.
 	saidText observe.ScreenText
-	// stale is how many readings have come back about an observation that had already
-	// moved on, counted across the whole run.
+	// held says a reading is standing, so that DROPPING it is counted once.
 	//
-	// Kept because one stale reading is the ordinary cost of a source that answers half
-	// a second behind a loop that looks ten times a second, and a run where EVERY reading
-	// is stale is a different thing entirely: a screen that keeps changing under the
-	// reader, which no amount of patience fixes. The two are indistinguishable from a
-	// single look and the person waiting is owed the difference. See whyNoReading.
-	stale int
+	// Without it the drop was counted again on every look after it: the dropped reading
+	// keeps its stamps, so `observe.Current` goes on being false of it, and a stationary
+	// screen waiting for OCR accumulated a stale reading ten times a second. The number
+	// that came out of that said the screen was moving when nothing was.
+	held bool
+	// stale is how many DISTINCT readings this run has discarded because the observation
+	// had moved on, and staleRun how many it has discarded in a row with none admitted
+	// in between.
+	//
+	// Two numbers because they answer different questions and only the second one is
+	// about now. One stale reading is the ordinary cost of a source that answers half a
+	// second behind a loop that looks ten times: a single transition discards whatever
+	// was being held and the screen then sits still. A screen that keeps changing UNDER
+	// the reader discards every reading it will ever take, and that is the one no amount
+	// of patience reaches. A total cannot tell them apart, because the first one leaves
+	// its total standing for the rest of the run. Any admitted reading resets the run:
+	// the screen demonstrably held still long enough to be read once. See whyNoReading.
+	stale, staleRun int
 	// lost is why looking stopped, empty while it has not.
 	lost string
 	// within is whether looking may continue AT ALL, and why not when it may not.
@@ -180,6 +191,7 @@ func (l *looker) admit(readings []observe.ScreenReading, at *workflowrun.Sightin
 		}
 		if !rd.Admissible(generation, epoch) {
 			l.stale++
+			l.staleRun++
 			continue
 		}
 		if len(rd.Words) == 0 {
@@ -192,20 +204,26 @@ func (l *looker) admit(readings []observe.ScreenReading, at *workflowrun.Sightin
 		}
 		l.said, l.saidGen, l.saidEpoch = rd.Words, rd.Generation, rd.Epoch
 		l.saidText = rd.Text
+		// AND THE SCREEN HELD STILL LONG ENOUGH TO BE READ ONCE, which is the
+		// fact that ends a run of staleness. Whatever came before it was a
+		// screen that moved and then stopped, not a screen that keeps moving.
+		l.held, l.staleRun = true, 0
 	}
 	if observe.Current(l.saidGen, l.saidEpoch, generation, epoch) {
 		at.Words, at.WordsSeq = l.said, l.saidSeq
 	} else {
-		if l.saidLook >= 0 {
+		if l.held {
 			// A READING WE WERE HOLDING, DROPPED. The screen changed since it
 			// was taken, which is the same fact as a reading arriving stale
-			// and is counted with it.
+			// and is counted with it — ONCE, which is what `held` is for.
 			l.stale++
+			l.staleRun++
+			l.held = false
 		}
 		l.said, l.saidText = nil, observe.ScreenText{}
 	}
 	if !l.saidText.Said() {
-		why = whyNoReading(why, wordless, l.stale)
+		why = whyNoReading(why, wordless, l.stale, l.staleRun)
 	}
 	l.ground.read, l.ground.readWhy = l.saidText, why
 }
@@ -217,28 +235,50 @@ func (l *looker) admit(readings []observe.ScreenReading, at *workflowrun.Sightin
 // sentence per situation a missing reading can be in, and a test that walks every one.
 //
 // `unusable` is why this look was not evidence at all, empty when it was; `wordless` how many
-// admissible readings of it came back with no words on them; and `stale` how many readings this
-// RUN has had to throw away because the observation had moved on by the time they arrived.
+// admissible readings of it came back with no words on them; `stale` how many DISTINCT readings
+// this run has discarded as out of date; and `staleRun` how many it has discarded in a row with
+// none admitted in between.
 //
 // The order is the order of what a person can do about it. A look that was not evidence is the
 // thing to say first and the only one of these they can fix in a click. Words that came back
-// empty is the screen, now. And a run whose readings keep arriving stale is being told the one
-// thing waiting will not fix, which is exactly what the old single sentence hid: "nothing has
-// been read on it yet" is true of all three and actionable in none of them.
-func whyNoReading(unusable string, wordless, stale int) string {
+// empty is the screen, now.
+//
+// # Why staleness is said two ways, and why the stronger one needs a run
+//
+// Because a total cannot tell a screen that MOVED from a screen that KEEPS moving, and the two
+// have opposite remedies. A single transition discards whatever reading was being held and the
+// screen then sits still waiting for the next one — ordinary, resolves by waiting, and leaves
+// its total standing for the rest of the run. Telling that person their screen keeps moving and
+// that waiting will not help would send them to hold still while the only thing wrong was that
+// OCR had not answered yet. So the stronger sentence waits for `staleSustained` discards with
+// nothing admitted between them, and anything short of that says what is actually known: a
+// reading went out of date and the current screen is being read.
+func whyNoReading(unusable string, wordless, stale, staleRun int) string {
 	switch {
 	case unusable != "":
 		return unusable
 	case wordless > 0:
 		return "reading the words on it found none, which is what an empty or " +
 			"still-drawing screen looks like from here"
+	case staleRun >= staleSustained:
+		return fmt.Sprintf("%d reading(s) in a row have come back about a screen "+
+			"that had already changed — a screen that keeps moving cannot be "+
+			"read, and waiting longer will not change that", staleRun)
 	case stale > 0:
-		return fmt.Sprintf("%d reading(s) of it have come back about a screen that "+
-			"had already changed — a screen that keeps moving cannot be read, "+
-			"and waiting longer will not change that", stale)
+		return "an earlier reading became outdated, and the screen in front of you " +
+			"is being read now"
 	}
 	return "nothing has been read on it yet"
 }
+
+// staleSustained is how many readings must be discarded IN A ROW, with none admitted between
+// them, before a run says the screen keeps moving and waiting will not help.
+//
+// Three. One is a transition: whatever was held when the screen changed. Two is a transition
+// whose next reading was still in flight across it, which Experiment-043 measured as the
+// ordinary cost of a source three to six looks behind. Three in a row with nothing admitted is
+// a reader that has not once caught the screen still, and that is the claim the sentence makes.
+const staleSustained = 3
 
 // next is one look, or false when there is nothing more to look at.
 //

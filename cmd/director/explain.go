@@ -254,6 +254,8 @@ var valued = map[string]bool{
 	"-granted": true, "--granted": true,
 	"-interaction": true, "--interaction": true,
 	"-events": true, "--events": true,
+	// demonstrate-visual: where a recording says what it knows, for a front end.
+	"-progress": true, "--progress": true,
 	"-sequence": true, "--sequence": true,
 	"-sequences": true, "--sequences": true,
 	"-dir": true, "--dir": true,

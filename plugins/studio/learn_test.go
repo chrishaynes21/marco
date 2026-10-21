@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/demo"
+	"github.com/chaynes-simpleclouds/marco/internal/director/learnstate"
 	"github.com/chaynes-simpleclouds/marco/internal/director/perception/windowref"
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflowstore"
 )
@@ -65,7 +66,7 @@ func TestRecordingAsksMarcosOwnRecorderAndFinishesItProperly(t *testing.T) {
 	}
 
 	// AND THE PERSON SAYS WHEN THEY ARE DONE.
-	if why := a.Done(); why != "" {
+	if why := a.Done(false); why != "" {
 		t.Fatalf("the recorder could not be told to finish: %s", why)
 	}
 	got := learningSaid(t, a)
@@ -265,7 +266,7 @@ func TestWhatWasLearnedIsReadBackFromTheStore(t *testing.T) {
 	if why := a.Learn("the tabs", "ArkAscended.exe", 60); why != "" {
 		t.Fatalf("the recorder would not start: %s", why)
 	}
-	if why := a.Done(); why != "" {
+	if why := a.Done(false); why != "" {
 		t.Fatal(why)
 	}
 	got := learningSaid(t, a)
@@ -284,4 +285,148 @@ func TestWhatWasLearnedIsReadBackFromTheStore(t *testing.T) {
 	if !strings.Contains(got.Next, "Build an Act") {
 		t.Errorf("what to do next is %q", got.Next)
 	}
+}
+
+// FINISHING A RECORDING IS CHECKED BEFORE IT IS DONE.
+//
+// The recorder knows whether it obtained evidence and the person does not: the outcome is words
+// read somewhere other than the control, which appeared when it was pressed and stayed — four
+// terms over readings on both sides of a press, from a source that answers twice a second. A
+// click whose outcome has not been read produces an interaction nothing can check, so the Act
+// built from it presses and then reports that it could not confirm anything.
+//
+// The owner was being told to "wait two seconds" to avoid that, which is an estimate of how long
+// seven OCR readings take. This is the same request made by the thing that can measure it.
+func TestFinishingEarlySaysWhatIsStillMissing(t *testing.T) {
+	for _, c := range []struct {
+		what  string
+		at    learnstate.Event
+		says  string
+		stops bool
+	}{
+		// NOTHING READ ON THE SCREEN THEY STARTED FROM: the Act built from this
+		// could never tell it was there, which is exactly how the owner's first
+		// live trial ended.
+		{"nothing read yet", learnstate.Event{Phase: learnstate.Reading},
+			"nothing has been read on the screen you are starting from", true},
+		{"no press yet", learnstate.Event{Phase: learnstate.Ready},
+			"no press has been seen", true},
+		// AND THE REASON IS THE RECORDER'S OWN, not this window's guess at one.
+		{"the result is still in flight", learnstate.Event{
+			Phase: learnstate.Checking, Presses: 1, Watched: 1,
+			Missing: "nothing elsewhere on the window appeared and stayed"},
+			"nothing elsewhere on the window appeared and stayed", true},
+		{"the press landed on nothing", learnstate.Event{
+			Phase: learnstate.Blind, Presses: 1},
+			"landed on nothing Marco could see", true},
+		// AND A RECORDING WITH ITS EVIDENCE IN HAND FINISHES WITHOUT A WORD.
+		{"the result is captured", learnstate.Event{
+			Phase: learnstate.Captured, Presses: 1, Watched: 1, Captured: 1},
+			"", false},
+	} {
+		a, _ := aStoreWithADemonstration(t)
+		t.Cleanup(a.Close)
+		aRecorderStandingIn(t, a)
+		if why := a.Learn("the audio tab opening", "ArkAscended.exe", 60); why != "" {
+			t.Fatalf("%s: the recorder would not start: %s", c.what, why)
+		}
+		sayRecording(t, a, c.at)
+
+		why := a.Done(false)
+		if c.says == "" {
+			if why != "" {
+				t.Errorf("%s: finishing was refused with %q", c.what, why)
+			}
+			continue
+		}
+		if !strings.Contains(why, c.says) {
+			t.Errorf("%s: finishing says %q, which does not mention %q",
+				c.what, why, c.says)
+		}
+		// AND IT OFFERS BOTH ANSWERS, because it is their demonstration and the
+		// evidence may never arrive.
+		if !strings.Contains(why, "finish anyway") {
+			t.Errorf("%s: the refusal does not offer to finish anyway: %q",
+				c.what, why)
+		}
+		// AND SAYING IT AGAIN FINISHES IT. A window that would not stop recording
+		// is worse than one that recorded nothing useful.
+		if again := a.Done(true); again != "" {
+			t.Errorf("%s: finishing anyway was refused: %s", c.what, again)
+		}
+	}
+}
+
+// AND WHAT IS ON SCREEN WHILE IT RECORDS IS THE RECORDER'S ACCOUNT, not this window's clock.
+//
+// The clock is still the preparation countdown — the one stretch the recorder cannot report on,
+// because it has not started looking — and everything after it comes off the stream.
+func TestTheRecordingShowsWhatTheRecorderKnows(t *testing.T) {
+	a, _ := aStoreWithADemonstration(t)
+	t.Cleanup(a.Close)
+	aRecorderStandingIn(t, a)
+	if why := a.Learn("the audio tab opening", "ArkAscended.exe", 60); why != "" {
+		t.Fatalf("the recorder would not start: %s", why)
+	}
+
+	// PREPARING IS STILL OURS, and it names the application to switch to.
+	if l := a.Learning(); l.Phase != string(learnstate.Preparing) ||
+		!strings.Contains(l.Doing, "ArkAscended.exe") {
+		t.Fatalf("the preparation reads as %+v", l)
+	}
+
+	// AND THEN THE RECORDER'S, with the counts it measured.
+	sayRecording(t, a, learnstate.Event{Phase: learnstate.Checking,
+		Presses: 2, Watched: 1, Captured: 0,
+		Missing: "only a few words appeared and stayed"})
+	waitForPhase(t, a, learnstate.Checking)
+
+	l := a.Learning()
+	if !strings.Contains(l.Doing, "Checking what changed") {
+		t.Errorf("the recording does not say what the recorder is doing: %q", l.Doing)
+	}
+	if l.Presses != 2 || l.Watched != 1 || l.Captured != 0 {
+		t.Errorf("the counts the recorder measured are %d/%d/%d",
+			l.Presses, l.Watched, l.Captured)
+	}
+	if l.Missing != "only a few words appeared and stayed" {
+		t.Errorf("the reason the outcome is missing is %q", l.Missing)
+	}
+}
+
+// sayRecording writes one state onto the recording's own progress stream, as the recorder would.
+//
+// The stand-in recorder is a stand-in for the CHILD and does not observe anything, so there is
+// nothing for it to report. What is under test here is the window: that it reads the stream
+// rather than deciding for itself, and that it refuses to finish over what the stream says.
+func sayRecording(t *testing.T, a *Acts, at learnstate.Event) {
+	t.Helper()
+	a.mu.Lock()
+	path := ""
+	if a.learn != nil {
+		path = a.learn.progress
+	}
+	a.mu.Unlock()
+	if path == "" {
+		t.Fatal("the recording was started with nowhere to say what it knows")
+	}
+	w, err := learnstate.NewWriter(path, "the audio tab opening", "ArkAscended.exe")
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.Say(at)
+	w.Close()
+}
+
+// waitForPhase waits until the window reports a phase, so a test is not racing the clock the
+// preparation countdown runs on.
+func waitForPhase(t *testing.T, a *Acts, want learnstate.Phase) {
+	t.Helper()
+	for i := 0; i < 400; i++ {
+		if a.Learning().Phase == string(want) {
+			return
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	t.Fatalf("the window never reported %q; it says %+v", want, a.Learning())
 }

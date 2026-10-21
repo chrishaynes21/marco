@@ -658,6 +658,13 @@ func TestThePageIsTheFlowThatWasAskedFor(t *testing.T) {
 	}
 	page := string(raw)
 	for _, want := range []struct{ text, why string }{
+		{"keepRecording(", "finishing a recording early offers no way to keep " +
+			"recording, so the person has to estimate how long the evidence " +
+			"takes to arrive"},
+		{"acts.Done(true)", "there is no way to finish a recording anyway, so a " +
+			"window that asked for more evidence could refuse forever"},
+		{"learnGot", "the recording does not show what the recorder has, so " +
+			"whether the evidence arrived is not on screen"},
 		{"pausedWhere", "a paused run does not say which screen it is waiting " +
 			"for in the words read off it, so the only identity a person is " +
 			"shown for it is a label this machine gave itself"},
@@ -724,7 +731,7 @@ func TestThePageIsTheFlowThatWasAskedFor(t *testing.T) {
 		// ── LEARNING, WHICH IS WHAT MARCO IS FOR ──
 		{"acts.Learn(", "the window cannot record a demonstration, so the one thing " +
 			"Marco is for is the one thing it cannot do"},
-		{"acts.Done()", "there is no way to tell the recorder you are finished, so a " +
+		{"acts.Done(false)", "there is no way to tell the recorder you are finished, so a " +
 			"recording can only end by running out of seconds"},
 		{"acts.StopLearning()", "a recording cannot be abandoned once it has started"},
 		{"acts.Applications()", "the application to watch is typed rather than " +
@@ -736,9 +743,14 @@ func TestThePageIsTheFlowThatWasAskedFor(t *testing.T) {
 		{"buildFromLearned(", "what was just recorded cannot be turned into an Act " +
 			"from the review, so the loop breaks between learning something " +
 			"and using it and somebody has to go and find it in a list"},
-		{"Rest where you are", "the recording does not say to rest on the screen it " +
-			"starts from, which is the half of a demonstration people skip and " +
-			"the one an Act needs in order to start at all"},
+		// THE RECORDING’S SENTENCE COMES FROM THE RECORDER, which is what
+		// replaced the fixed paragraph of advice this used to guard. "Rest on the
+		// screen you start from" is now said at the moment it applies, by the
+		// thing that knows whether anything has been read yet — see
+		// learnstate.Doing and its own test.
+		{"text($('learnDoing'), l.doing", "the recording does not show the " +
+			"recorder\u2019s own account of itself, so what is on screen while " +
+			"somebody demonstrates is this window\u2019s guess at it"},
 	} {
 		if !strings.Contains(page, want.text) {
 			t.Errorf("%s (looked for %q)", want.why, want.text)
