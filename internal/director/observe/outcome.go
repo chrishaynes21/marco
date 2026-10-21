@@ -248,7 +248,67 @@ type LocalOutcome struct {
 	// step's expectation. Found by review of the live-demonstration fix, which carried the
 	// screen-scoping correction across from the run side and left this behind.
 	Settled bool `json:"settled,omitempty"`
+	// Closed says no further reading will be folded into this watch, although its
+	// window never filled: a third screen arrived, so "whatever Marco looked at next"
+	// is no longer this press’s after side.
+	//
+	// # Why it has to be said out loud
+	//
+	// Because `Settled` answers "did the window fill" and NOTHING answered "is the
+	// measurement over". Those are the same question only for a watch that fills, and
+	// the recorder needs the second one: a press still accumulating readings is a press
+	// to wait for, and a press whose window will never grow again is one waiting cannot
+	// help — the same distinction `Blind` draws about a press that landed on nothing.
+	//
+	// The defect it closes was recorded live. The owner demonstrated `enter freeplay`
+	// on Rocket League, the second press reached its verdict in 2.7 seconds, and the
+	// window said "Checking what changed… wait for the result to settle" for the
+	// twenty-nine seconds after that, until they gave up and finished the recording.
+	// Nothing was wrong with the measurement; the recorder had no way to say it was
+	// over. See learnstate.Unchecked.
+	Closed bool `json:"closed,omitempty"`
+	// To is the one screen this press LED TO, empty when it led nowhere — the screen
+	// stayed, which is the case this whole file exists for.
+	//
+	// Carried because "the screen did not change and nothing stood" and "the screen
+	// changed completely and the new one cannot be read" are two different things with
+	// two different answers, and `Appeared` alone cannot tell them apart. The owner
+	// found the second one by driving into a Trackmania map:
+	//
+	//	entered a map, marco couldn't tell that we opened a map and never settled
+	//
+	// A map is live 3D. Their recording has it as `screen_b`, 0 words over 5 looks, and
+	// `screen_c`, 0 words — so OCR found nothing that stood, and what it did find was
+	// glyphs off a moving world that were gone by the next reading. Reported as
+	// "everything that appeared was transient", which is true of the words and says
+	// nothing about the thing that happened.
+	To VisualScreenID `json:"to,omitempty"`
 }
+
+// Final reports whether this outcome is the answer, rather than the answer so far.
+//
+// A window that filled is final by `Settled`, and one a third screen closed is final by
+// `Closed`: `observeOutcome` folds nothing into either again.
+//
+// AND A PRESS WITH NO BEFORE SIDE IS FINAL FROM THE INSTANT IT IS MADE.
+//
+// `watch` takes the before side ONCE, from the readings already held of the screen the press
+// was made on, and nothing afterwards ever appends to it — `observeOutcome` only fills `after`.
+// So a press made on a screen nothing had been read on yet has `BeforeLooks == 0` for the rest
+// of the session: there is nothing to compare what appears against, and the question `Verified`
+// answers cannot be asked at all.
+//
+// This is what the owner hit, and it was being reported as a press to wait for:
+//
+//	Three presses seen, only one worked. Settling is ass, it doesn't finish in time. How
+//	fast were you seeing screens settle, because for me it's taking like 20-30s if at all.
+//
+// Their recording passed through a Trackmania menu screen so quickly that no reading was ever
+// taken on it — the saved artifact has it as `screen_b`, 0 words — and the press made there
+// spent seventeen seconds being described as "checking what changed… wait for the result to
+// settle". There was never anything to wait for. See learnstate and the live caution the
+// recorder now shows BEFORE such a press is made.
+func (o LocalOutcome) Final() bool { return o.Settled || o.Closed || o.BeforeLooks == 0 }
 
 // Verified reports whether the outcome is positive, persistent and independent.
 func (o LocalOutcome) Verified() bool {
@@ -261,6 +321,36 @@ func (o LocalOutcome) Why() string {
 	switch {
 	case o.BeforeLooks == 0 || o.AfterLooks == 0:
 		return "nothing was read on one side of the press, so the question was not asked"
+	case !o.Settled && !o.Closed:
+		// STILL ARRIVING, which is not a verdict about the application at all.
+		//
+		// Asked BEFORE the word counts, because a window that has not filled has
+		// not asked the question those answer: its words have not been given the
+		// readings it takes to show they stand. The recorder shows this sentence
+		// ten times a second while somebody is demonstrating, and it used to say
+		// the window had been "cut short" about a window that was merely early.
+		return fmt.Sprintf("%d of the %d reading(s) persistence needs have "+
+			"arrived, so nothing has been shown to stand yet",
+			o.AfterLooks, OutcomeSettleLooks)
+	case !o.Settled:
+		// AND THE WINDOW THAT WILL NEVER FILL. A third screen arrived, so this
+		// press has no after side any more: the words it did read were never
+		// shown to stand and now cannot be.
+		return fmt.Sprintf("the window was cut short at %d of the %d reading(s) "+
+			"persistence needs, so these words were read and never shown to "+
+			"stand", o.AfterLooks, OutcomeSettleLooks)
+	case o.To != "" && o.To != o.Screen && len(o.Appeared) < OutcomeWords:
+		// THE SCREEN CHANGED, AND THE NEW ONE CANNOT BE READ.
+		//
+		// Said before the word counts, because they describe the words and this
+		// describes what happened: a press that opened something Marco cannot
+		// read is not a press that failed to do anything. The counts follow in
+		// the same sentence so nothing is hidden by saying the bigger thing
+		// first.
+		return fmt.Sprintf("that press opened a different screen and only %d "+
+			"word(s) could be read on it that stayed — a screen with "+
+			"nothing readable on it, like a map or a video, cannot be "+
+			"checked by what it says", len(o.Appeared))
 	case len(o.Appeared) == 0 && len(o.Reused) > 0:
 		return "everything that appeared was inside the control that was pressed, so " +
 			"the outcome would be the action site's own evidence read twice"
@@ -272,15 +362,6 @@ func (o LocalOutcome) Why() string {
 	case len(o.Appeared) < OutcomeWords:
 		return "only a few words appeared and stayed, which is not positive evidence " +
 			"of a destination"
-	case !o.Settled:
-		// THE WORDS ARE THERE AND PERSISTENCE WAS NEVER ASKED. Said separately
-		// from the cases above, because this one is not about the application:
-		// the watch was cut short — a third screen closed it, or the session
-		// ended — and an answer from it would be a window of one reading
-		// agreeing with itself.
-		return fmt.Sprintf("the window was cut short at %d of the %d reading(s) "+
-			"persistence needs, so these words were read and never shown to "+
-			"stand", o.AfterLooks, OutcomeSettleLooks)
 	default:
 		return "words appeared elsewhere on the window and stayed, none of them from " +
 			"inside the control that was pressed"
@@ -414,6 +495,9 @@ func (c *ClickTargets) outcomes() []LocalOutcome {
 	for _, w := range c.watching {
 		o := OutcomeBetween(w.excluded, w.before, w.after)
 		o.Target, o.Screen, o.Look = w.target, w.screen, w.look
+		// AND WHETHER ANYTHING MORE WILL EVER BE FOLDED INTO IT. See Final:
+		// a watch a third screen closed is finished at whatever it had.
+		o.Closed, o.To = w.closed, w.to
 		out = append(out, Independent(w.excluded, w.before, o))
 	}
 	return out

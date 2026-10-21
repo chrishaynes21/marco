@@ -469,8 +469,12 @@ func TestAVisualScreenCannotReachDurableMemory(t *testing.T) {
 		// takes from it is the WORDS — `Step.Outcome`, a list of strings, with no
 		// screen, no target and no rectangle — so the thing this walk exists to stop
 		// cannot travel. See workflowstore's own outcome test.
-		filepath.Join(dir, "outcome.go"):           true,
-		filepath.Join(dir, "outcome_test.go"):      true,
+		filepath.Join(dir, "outcome.go"):      true,
+		filepath.Join(dir, "outcome_test.go"): true,
+		// And `outcomefinal_test.go`, which is the same rule asked about WHEN an
+		// outcome stops changing. Same cost: it drives the real correlator, so it
+		// names the screens its readings carry, and marshals nothing.
+		filepath.Join(dir, "outcomefinal_test.go"): true,
 		filepath.Join(dir, "cause_test.go"):        true,
 		filepath.Join(dir, "reacquire.go"):         true,
 		filepath.Join(dir, "reacquire_test.go"):    true,
