@@ -74,6 +74,12 @@ type record struct {
 	Ended       string `json:"ended"`
 	Outcome     string `json:"outcome"`
 	Because     string `json:"because"`
+	// Build is the revision of the director that performed the run.
+	//
+	// Not shown in the window's own listing — a person reading what happened last week
+	// is not asking which binary it was — and read by the trial journal, which is
+	// exactly that question. See trial.go.
+	Build       string `json:"build,omitempty"`
 	ActionsSent int    `json:"actions_sent"`
 	Verified    int    `json:"verified"`
 	Live        bool   `json:"live"`

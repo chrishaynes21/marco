@@ -12,6 +12,16 @@
 //	studio -seconds N        opens the window, renders the page, and quits by itself. The window
 //	                         is what "page hosting" means and nothing else here needs one.
 //
+// And two diagnostics that read somebody's store without opening anything:
+//
+//	studio -acts <store>     what the Act surface would show: the demonstrations, the Acts and
+//	                         whether each would run, and the runs kept.
+//	studio -trial <store>    what a trial of Studio showed — which builds took part, the states
+//	                         each recording passed through, how often the page had to ask for a
+//	                         picture, and the canonical result of each run. Written by Studio
+//	                         itself as somebody uses it, so none of it is a thing the owner is
+//	                         asked to watch for. See trial.go.
+//
 // Build:
 //
 //	go -C plugins/studio build -tags "desktop,production" -ldflags "-H windowsgui" -o studio.exe .
@@ -48,6 +58,10 @@ func main() {
 	acts := flag.String("acts", "",
 		"print what the Act surface would show for this store and exit; opens no "+
 			"window, runs nothing, presses nothing")
+	trial := flag.String("trial", "",
+		"print what the trials in this store showed — which builds took part, the "+
+			"states each recording passed through, how often a picture was "+
+			"asked for, and the canonical result of each run; opens no window")
 	proof := flag.Bool("proof", false,
 		"run the headless backend proof and print its evidence; opens no window")
 	seconds := flag.Int("seconds", 0,
@@ -74,6 +88,9 @@ func main() {
 
 	if *acts != "" {
 		os.Exit(runActsCheck(*acts))
+	}
+	if *trial != "" {
+		os.Exit(runTrialCheck(*trial))
 	}
 	if *proof {
 		// PROOF MODE IS ALWAYS ISOLATED, whatever the flags say. It starts a Director

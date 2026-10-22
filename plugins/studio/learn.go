@@ -298,6 +298,9 @@ func (a *Acts) Learn(name, application string, seconds int) string {
 	l.progress = progress
 	l.done = make(chan struct{})
 	a.mu.Unlock()
+	// AND THE TRIAL HAS BEGUN. Noted once the child is running, so the journal records
+	// a recording that started rather than one that was asked for.
+	a.trial.recording(name, application, seconds)
 
 	go a.readLearning(pr, l)
 	go func() {
@@ -314,6 +317,10 @@ func (a *Acts) Learn(name, application string, seconds int) string {
 		}
 		close(l.done)
 		a.mu.Unlock()
+		// AND WHAT CAME OF IT, WITH THE PICTURES THE STORE KEPT. Read after the
+		// child exited and from the store rather than from what it said, for the
+		// reason `reviewed` is: what gets recorded is what was actually saved.
+		a.trial.recorded(l.name, said, next, failed, a.Pictures(l.name))
 	}()
 	return ""
 }
@@ -482,7 +489,21 @@ func (a *Acts) StopLearning() string {
 }
 
 // Learning is the recording in flight, or the last one and what came of it.
+//
+// WHAT IT HANDS BACK IS ALSO WHAT THE TRIAL RECORDS, which is why the journal is written from
+// here rather than from a second reader of the recorder's stream. The claim the evidence has to
+// support is about the states the OWNER WAS SHOWN while they were demonstrating — "settling is
+// ass, it doesn't finish in time" is a sentence about this value — and a separate reader would
+// be a record of what the window could have shown instead. Written only when it changed; see
+// trials.saw.
 func (a *Acts) Learning() Learning {
+	out := a.learningNow()
+	a.trial.saw(out)
+	return out
+}
+
+// learningNow is Learning's answer.
+func (a *Acts) learningNow() Learning {
 	a.mu.Lock()
 	l := a.learn
 	if l == nil {

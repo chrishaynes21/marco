@@ -133,6 +133,12 @@ type Acts struct {
 	// has to get right — two builds that genuinely differ — cannot otherwise be
 	// made to happen at all. Nil means ask the binary.
 	revision func() string
+	// trial is this Studio's own account of what a trial of it showed: which builds
+	// took part, the states a recording passed through, how often the page had to ask
+	// for a picture, and the canonical result of a run. Written as it happens, because
+	// the alternative is the owner being asked to watch for four things while they are
+	// demonstrating a fifth. See trial.go.
+	trial *trials
 	// learn is the demonstration being recorded, or the last one. Nil until something
 	// has been. A recording and a run are both one-at-a-time and exclude each other:
 	// there is one screen, and a recorder watching it while a runner presses on it
@@ -162,7 +168,13 @@ func newActs(home string) *Acts {
 	if abs, err := filepath.Abs(dir); err == nil {
 		dir = abs
 	}
-	return &Acts{home: home, routesDir: dir}
+	a := &Acts{home: home, routesDir: dir}
+	// AND IT WRITES DOWN WHAT A TRIAL OF ITSELF SHOWED, which is the alternative to
+	// asking the owner to watch for four things at once. Nothing is created until there
+	// is something to record; `a.myBuild` rather than `buildid.Revision` so a test's
+	// substituted revision is the one written. See trial.go.
+	a.trial = newTrials(a.home, directorBin(), a.routesDir, a.myBuild)
+	return a
 }
 
 // ── PREPARE: what there is to compose from ────────────────────────────────────
@@ -447,7 +459,31 @@ type Composed struct {
 // `picked` is `"<position>=<name>"` per interaction, in run order — the same shape the command
 // takes, for the same reason: the position says which demonstrated interaction is meant and the
 // name is the person's own words, which is what the play will say.
+// AND WHAT WAS COMPOSED IS WRITTEN DOWN, EITHER WAY.
+//
+// A refusal is the more interesting of the two: an Act that could not be saved from a
+// demonstration which looked fine is the shape of the one limitation this surface knows it has —
+// a press whose destination has nothing readable on it can be demonstrated and cannot anchor an
+// Act. So the note is taken out here, around every path, rather than at the points that refuse:
+// a refusal nobody wrote down is the half of a trial that turns into a conversation. See trial.go.
 func (a *Acts) Compose(from, act string, picked []string) Composed {
+	out := a.compose(from, act, picked)
+	names := make([]string, 0, len(picked))
+	for _, p := range picked {
+		_, name, cut := strings.Cut(p, "=")
+		if !cut {
+			// MALFORMED, AND KEPT AS IT ARRIVED. What the page sent is the
+			// evidence; tidying it here would hide the thing being reported.
+			name = p
+		}
+		names = append(names, strings.TrimSpace(name))
+	}
+	a.trial.composed(from, act, names, out.Error)
+	return out
+}
+
+// compose is Compose's answer.
+func (a *Acts) compose(from, act string, picked []string) Composed {
 	store, err := demo.Open(a.home)
 	if err != nil {
 		return Composed{Error: err.Error()}
@@ -1074,6 +1110,9 @@ func (a *Acts) start(p Performance) string {
 	a.running, a.stopRun, a.done, a.saying = cmd, stop, finished, saying
 	a.mu.Unlock()
 	pw.Close()
+	// A PERFORMANCE HAS STARTED, noted once the child is running for the same reason a
+	// recording is: what a trial records is what happened, not what was asked for.
+	a.trial.playing(act, live)
 
 	go func() { a.read(pr); close(drained) }()
 	go func() {
@@ -1083,6 +1122,22 @@ func (a *Acts) start(p Performance) string {
 		// claimed until there is nothing left of it.
 		<-drained
 		stop()
+		// AND THE CANONICAL RESULT, FROM THE RECORD THE RUN WROTE.
+		//
+		// After the transcript has drained, because the reference is read out of it
+		// — and from the record rather than from this window's bookkeeping, so the
+		// trial cites the same account `marco` and `director` would. A run that
+		// cited no reference, or wrote no record, is recorded as exactly that.
+		//
+		// BEFORE the slot is released, which is what makes the journal complete by
+		// the time anything can observe that the run is over: a window closing
+		// waits on `finished`, and a reader watching for the run to end would
+		// otherwise race the last line of the evidence.
+		a.mu.Lock()
+		ref := a.reference
+		a.mu.Unlock()
+		rec, had := a.recordFor(ref)
+		a.trial.performed(act, ref, live, rec, had)
 		release()
 		close(finished)
 	}()
@@ -1106,6 +1161,11 @@ func (a *Acts) start(p Performance) string {
 // removed, because a temporary store deleted first would take the record with it. Past the bound
 // the child is killed — a shell that waited forever on shutdown is a shell somebody has to kill.
 func (a *Acts) Close() {
+	// AND THE EVIDENCE IS COMPLETE BEFORE THE WINDOW IS GONE, on every path out of
+	// here. The picture tally is written at most every couple of seconds while
+	// pictures are arriving — see trialTally — so a window closed in that interval
+	// would otherwise leave the last of it unwritten.
+	defer a.trial.flush()
 	// CLOSING IS DECLARED FIRST, so nothing new can be claimed and a launch already
 	// inside its own reservation aborts rather than starting anything.
 	a.mu.Lock()

@@ -97,6 +97,10 @@ func (a *Acts) Picture(routine, label string) string {
 	if !ok {
 		return ""
 	}
+	// AND THIS IS COUNTED. The page asks once per picture and keeps the element; the
+	// blinking the owner reported was this call arriving 66 times in four seconds with
+	// nothing on screen changing. A number nobody has to watch for; see trial.go.
+	a.trial.pictured(routine, label)
 	// A DATA URI RATHER THAN A FILE THE PAGE FETCHES. The window has no HTTP server
 	// and should not grow one to show a picture; a binding that returns bytes is the
 	// transport that already exists. See backend.go.
