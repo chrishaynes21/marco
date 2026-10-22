@@ -87,6 +87,32 @@ type pressEvidence struct {
 // Called on every look the session keeps a picture of, press or not: the ring is what makes the
 // looks BEFORE a press available at the moment the press arrives, and those are the ones that
 // say whether the control was holding still.
+//
+// # KNOWN LIMITATION — the press-associated look may already be after the action
+//
+// A P2, recorded here because this is where somebody would otherwise re-derive it, and NOT to be
+// relied on for execution until it is closed.
+//
+// The loop drains the input subscription and THEN acquires the frame, so the look a press is
+// attributed to is captured after that press has already happened. On a fast menu transition
+// that frame can hold post-action pixels, or carry no proposal under the click at all — and this
+// function folds it in and takes the control's bounds from it.
+//
+// The loop already names the principle for the SCREEN: "the inputs arrived while the previous
+// screen was up, and attributing them to the screen they may have just caused would be this
+// layer deciding the causality it exists to record." The same is true of the pixels and of the
+// proposals, and this does not yet honour it.
+//
+// What it costs today is bounded: the other looks in the ring are genuinely pre-action, so one
+// late frame moves the worst-case self-match rather than defining it, and a control whose bounds
+// came from a transitioned frame is one whose region is wrong rather than one that is silently
+// confident. What closes it is selecting frames demonstrably PRECEDING the press and taking the
+// target bounds from that same context.
+//
+// `TestAButtonThatDisappearsBecauseItsClickWorkedIsStillUsable` does not catch this: it supplies
+// the intact button on the press-associated look and removes it only afterwards, which is the
+// ordering that already works. The test that would catch it removes the control BEFORE the first
+// capture after the press.
 func (r *visualResult) watchPressed(look int, frame image.Image, presses []observe.PointerAt,
 	regions []observe.Region) {
 

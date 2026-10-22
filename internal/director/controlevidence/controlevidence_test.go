@@ -126,7 +126,7 @@ func TestAControlIsCalibratedAgainstItselfAndItsNeighbours(t *testing.T) {
 // AND A CONTROL WITH AN IDENTICAL TWIN BESIDE IT IS SAID SO ABOUT, NOT GUESSED AT.
 //
 // The case the whole guard exists for. Two controls that are the same pixels leave no gap for a
-// threshold, and the honest answer is not a confident click on one of them: it is to say so
+// threshold, and the honest answer is not a confident selection of one of them: it is to say so
 // while the person is still in front of the screen.
 func TestAControlThatCannotBeToldFromItsNeighbourIsSaidSoAbout(t *testing.T) {
 	size := image.Pt(600, 400)

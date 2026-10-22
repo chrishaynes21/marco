@@ -131,7 +131,12 @@ local region   70/70 supported selected correctly, 50/50 unsupported refused,  0
 demonstrated control was absent, covered or half-covered — so the decoy was the only strong peak
 left, and appearance-only matching chose it with full confidence and no ambiguity. That is the
 hypothesis's negation failing exactly where it is most dangerous: not a near miss, but a
-confident click on a control nobody demonstrated, in a panel nobody asked about.
+confident selection of a control nobody demonstrated, in a panel nobody asked about.
+
+**Nothing was sent anywhere.** These are SELECTIONS — a point a method answered with — and not
+presses. No input was injected in any case of this experiment, and the count above is of wrong
+answers rather than of wrong actions. What a selection would do if it were acted on is a
+separate question, measured separately; see *Localization is not verification* below.
 
 **False refusals: 70, all whole-window**, every one of them "more than one thing looks like the
 control that was demonstrated, and nothing here says which was meant". With two identical
@@ -208,7 +213,8 @@ go run ./cmd/localizetrial -evidence <dir>
 support for recognition generally.
 
 The reason is the 30, not the 70. The supported cases say local regioning works here; the
-unsupported ones say the alternative does not merely fail, it presses the wrong control. A
+unsupported ones say the alternative does not merely fail: it SELECTS the wrong instance, with no
+ambiguity reported. Were that selection acted on, it would press a control nobody demonstrated. A
 fixed-layout MVP built on a stored point and a template, without the neighbourhood check, has
 that failure available to it on any screen with two similar controls — and a game menu is mostly
 such screens.

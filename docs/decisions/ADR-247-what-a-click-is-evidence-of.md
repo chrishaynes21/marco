@@ -123,6 +123,21 @@ guard around a learned coordinate has something to be built FROM — a threshold
 control is — rather than a constant chosen by somebody and carried onto screens it was never
 measured on.
 
+**KNOWN LIMITATION, open: the press-associated look may already be after the action.** A P2, and
+not to be relied on for execution until it is closed. The look loop drains the input
+subscription and THEN acquires the frame, so the look a press is attributed to is captured after
+that press happened. On a fast menu transition that frame can hold post-action pixels, or carry
+no proposal under the click at all, and the calibration folds it in and takes the control's
+bounds from it. The loop already states the principle for the SCREEN — attributing inputs to the
+screen they may have just caused would be that layer deciding the causality it exists to record
+— and this does not yet honour it for the pixels. What it costs is bounded, because the other
+looks in the ring are genuinely pre-action: one late frame moves the worst case rather than
+defining it. What closes it is selecting frames demonstrably PRECEDING the press and taking the
+target bounds from that same context, with a test that removes the control BEFORE the first
+capture after the press.
+`TestAButtonThatDisappearsBecauseItsClickWorkedIsStillUsable` does not catch it: it supplies the
+intact button on the press-associated look and removes it only afterwards.
+
 **It is not a recogniser.** It knows one control, in one window, at one size, and says so about
 anything else. No vocabulary, no whole-screen matching, nothing that generalises to a control it
 was not shown.
