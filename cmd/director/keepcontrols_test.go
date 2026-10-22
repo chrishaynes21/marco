@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/chaynes-simpleclouds/marco/internal/director/controlevidence"
 	"github.com/chaynes-simpleclouds/marco/internal/director/demo"
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflow"
@@ -134,20 +135,22 @@ func TestEachControlsEvidenceIsFiledUnderItsOwnLabel(t *testing.T) {
 	regions := []observe.Region{audioAt, graphicsAt}
 	res := visualResult{}
 
-	// THE LOOK EACH PRESS ARRIVED ON, AND THE LOOKS AFTER IT. The ones after are the
-	// whole point: a control seen once has never been seen to STAY the same.
-	res.watchPressed(3, aWindowOfButtons(1000, 600, 0, boxes, marks),
-		[]observe.PointerAt{{X: 0.15, Y: 0.15}}, regions)
-	for look := 4; look <= 7; look++ {
-		res.watchPressed(look, aWindowOfButtons(1000, 600, look, boxes, marks),
-			nil, regions)
+	// THE LOOKS BEFORE EACH PRESS, AND THE LOOK IT ARRIVED ON. The ones before are
+	// the whole point: what a guard needs to know is whether the control was holding
+	// still while it sat there waiting to be pressed.
+	quiet := func(from, to int) {
+		for look := from; look <= to; look++ {
+			res.watchPressed(look,
+				aWindowOfButtons(1000, 600, look, boxes, marks),
+				nil, regions)
+		}
 	}
+	quiet(0, 2)
+	res.watchPressed(3, aWindowOfButtons(1000, 600, 3, boxes, marks),
+		[]observe.PointerAt{{X: 0.15, Y: 0.15}}, regions)
+	quiet(4, 8)
 	res.watchPressed(9, aWindowOfButtons(1000, 600, 9, boxes, marks),
 		[]observe.PointerAt{{X: 0.65, Y: 0.15}}, regions)
-	for look := 10; look <= 13; look++ {
-		res.watchPressed(look, aWindowOfButtons(1000, 600, look, boxes, marks),
-			nil, regions)
-	}
 
 	ev := observe.ClickEvidence{Observations: []observe.ClickObservation{
 		{Look: 3, Screen: "visual_1", Target: "t-audio"},
@@ -189,13 +192,19 @@ func TestEachControlsEvidenceIsFiledUnderItsOwnLabel(t *testing.T) {
 
 	// AND THE GEOMETRY THE CLICK IS RELATIVE TO, without which a point is a point on
 	// somebody's desktop rather than a point in a window.
-	if one.Client != (image.Point{X: 1000, Y: 600}) {
-		t.Errorf("the client area is recorded as %v", one.Client)
+	if one.Window != (image.Point{X: 1000, Y: 600}) {
+		t.Errorf("the client area is recorded as %v", one.Window)
 	}
 	// AND SEVERAL LOOKS, bounded.
-	if one.Looks != evidenceLooks {
-		t.Errorf("%d looks were folded into control_1, and the bound is %d",
-			one.Looks, evidenceLooks)
+	// THE LOOKS BEFORE THE PRESS AND THE ONE IT ARRIVED ON. Four quiet looks
+	// preceded this press, so four of them plus the press is what there was.
+	if one.Looks != 4 {
+		t.Errorf("%d looks were folded into control_1, of the four available",
+			one.Looks)
+	}
+	if two.Looks != evidenceLooks {
+		t.Errorf("%d looks were folded into control_2, and the ring holds %d",
+			two.Looks, evidenceLooks)
 	}
 	if !one.Usable || one.Gap() <= 0 {
 		t.Errorf("a control with nothing like it nearby is unusable: %s "+
@@ -246,12 +255,12 @@ func TestAControlWithAnIdenticalNeighbourIsSaidSoAboutAtRecordingTime(t *testing
 	marks := []int{2, 2}
 	regions := []observe.Region{audioAt, twinAt}
 	res := visualResult{}
-	res.watchPressed(3, aWindowOfButtons(1000, 600, 0, boxes, marks),
-		[]observe.PointerAt{{X: 0.15, Y: 0.15}}, regions)
-	for look := 4; look <= 7; look++ {
+	for look := 0; look <= 2; look++ {
 		res.watchPressed(look, aWindowOfButtons(1000, 600, look, boxes, marks),
 			nil, regions)
 	}
+	res.watchPressed(3, aWindowOfButtons(1000, 600, 3, boxes, marks),
+		[]observe.PointerAt{{X: 0.15, Y: 0.15}}, regions)
 	ev := observe.ClickEvidence{Observations: []observe.ClickObservation{
 		{Look: 3, Screen: "visual_1", Target: "t-audio"},
 	}}
@@ -400,5 +409,174 @@ func TestTheControlIsTheSmallestProposalUnderThePress(t *testing.T) {
 	if box != want {
 		t.Errorf("the control under the press is %v, and the smallest proposal "+
 			"containing it is %v", box, want)
+	}
+}
+
+// A BUTTON THAT DISAPPEARS BECAUSE ITS CLICK WORKED IS NOT AN UNSTABLE BUTTON.
+//
+// The defect this is here to stop, and it is the one that would have made the whole measurement
+// useless. A press that SUCCEEDS closes the menu it was in, or opens a panel over it, so the
+// control legitimately stops being there. Fold the looks after the press into the control's own
+// stability and every well-behaved button in a navigation menu measures as unusable BECAUSE IT
+// WORKED — and nothing on any screen would ever be guardable.
+//
+// Pre-action stability is measured on the pre-action screen. What happened after the press is
+// the outcome's question, measured by the outcome.
+func TestAButtonThatDisappearsBecauseItsClickWorkedIsStillUsable(t *testing.T) {
+	store, err := demo.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	audioBox := image.Rect(100, 60, 260, 130)
+	graphicsBox := image.Rect(600, 60, 760, 130)
+	audioAt := observe.Region{X: 0.1, Y: 0.1, Width: 0.16, Height: 0.1167}
+	graphicsAt := observe.Region{X: 0.6, Y: 0.1, Width: 0.16, Height: 0.1167}
+	art, draft := twoTabs(t, store, audioAt, graphicsAt)
+
+	here := []image.Rectangle{audioBox, graphicsBox}
+	gone := []image.Rectangle{}
+	regions := []observe.Region{audioAt, graphicsAt}
+	res := visualResult{}
+
+	// FOUR LOOKS OF THE MENU SITTING THERE, then the press — and then the menu is
+	// GONE, which is what a working press does.
+	for look := 0; look <= 3; look++ {
+		res.watchPressed(look, aWindowOfButtons(1000, 600, look, here,
+			[]int{1, 3}), nil, regions)
+	}
+	res.watchPressed(4, aWindowOfButtons(1000, 600, 4, here, []int{1, 3}),
+		[]observe.PointerAt{{X: 0.15, Y: 0.15}}, regions)
+	for look := 5; look <= 9; look++ {
+		res.watchPressed(look, aWindowOfButtons(1000, 600, look, gone, nil),
+			nil, regions)
+	}
+
+	ev := observe.ClickEvidence{Observations: []observe.ClickObservation{
+		{Look: 4, Screen: "visual_1", Target: "t-audio"},
+	}}
+	if _, _, why := keepControls(store, art, draft, res, ev); why != "" {
+		t.Fatalf("the evidence could not be kept: %s", why)
+	}
+	one, ok := store.Control(art, "control_1")
+	if !ok {
+		t.Fatal("control_1 has no evidence")
+	}
+	if !one.Usable {
+		t.Fatalf("a button that vanished because its press worked is reported "+
+			"unusable: %s (self %.4f over %d looks)", one.Why, one.Self,
+			one.Looks)
+	}
+	if one.Self < 0.9 {
+		t.Errorf("the button matched itself at %.4f, which is a measurement of "+
+			"the screen after the press rather than before it", one.Self)
+	}
+	if one.Looks != evidenceLooks {
+		t.Errorf("%d looks were folded in; four preceded the press and the "+
+			"press makes %d", one.Looks, evidenceLooks)
+	}
+}
+
+// AND A RIVAL AT THE DECLARED EDGE OF THE NEIGHBOURHOOD IS FOUND.
+//
+// What is kept has to cover every position the template will be searched at, and the search
+// moves a TEMPLATE rather than a point: its top-left runs a band either side of the region, and
+// at the far end the template extends its own width past that. Keeping the control's box grown
+// by the band is smaller than that — it shortens the displacement a rival can be found at, so a
+// rival near the edge is never scored and the gap reads better than it is.
+//
+// Silent by construction, which is why it is tested at exactly the edge rather than near it.
+func TestARivalAtTheEdgeOfTheNeighbourhoodIsFound(t *testing.T) {
+	// FAR ENOUGH FROM EVERY EDGE that a full band fits around it — otherwise the
+	// clipping is what shortens the search and the test would be about that.
+	audioBox := image.Rect(300, 260, 460, 330)
+	// AN IDENTICAL BUTTON EXACTLY `Band` BELOW IT.
+	region := controlevidence.RegionOf(audioBox, image.Pt(1000, 900))
+	twinBox := audioBox.Add(image.Pt(0, controlevidence.Band))
+	audioAt := observe.Region{X: 0.3, Y: 0.2889, Width: 0.16, Height: 0.0778}
+	twinAt := observe.Region{X: 0.3, Y: 0.4667, Width: 0.16, Height: 0.0778}
+
+	res := visualResult{}
+	here := []image.Rectangle{audioBox, twinBox}
+	regions := []observe.Region{audioAt, twinAt}
+	for look := 0; look <= 3; look++ {
+		res.watchPressed(look, aWindowOfButtons(1000, 900, look, here,
+			[]int{2, 2}), nil, regions)
+	}
+	res.watchPressed(4, aWindowOfButtons(1000, 900, 4, here, []int{2, 2}),
+		[]observe.PointerAt{{X: 0.38, Y: 0.3278}}, regions)
+
+	records := res.calibrate()
+	r, ok := records[4]
+	if !ok {
+		t.Fatal("the press produced no record")
+	}
+	// THE KEPT PIXELS COVER EVERY POSITION THE SEARCH USES, which is what makes the
+	// rival reachable at all.
+	// EVERY POSITION A BAND EITHER SIDE, which is 2*Band+1 of them on each axis.
+	// Keeping the control's box grown by the band instead of the region's gives
+	// fewer, and nothing about the result would say so.
+	want := 2*controlevidence.Band + 1
+	if !r.Searched.In(controlevidence.Needed(region)) ||
+		r.Searched.Dx() < want || r.Searched.Dy() < want {
+		t.Errorf("the search covered %v (%dx%d positions) and a full band "+
+			"either side of %v is %d on each axis", r.Searched,
+			r.Searched.Dx(), r.Searched.Dy(), region, want)
+	}
+	if r.Usable {
+		t.Errorf("an identical rival exactly %dpx away was not found: self "+
+			"%.4f, other %.4f, searched %v", controlevidence.Band, r.Self,
+			r.Other, r.Searched)
+	}
+	if d := r.Nearest.Sub(r.At); d.Y < controlevidence.Band-20 {
+		t.Errorf("the rival was found %v from the click, not at the edge", d)
+	}
+}
+
+// AND THE COORDINATES SAY WHAT THEY ARE.
+//
+// The capture includes the window frame, so these are whole-window pixels and the record says
+// `window`. The display scale is NOT observed anywhere in this path, so it is recorded as
+// unknown rather than as 1 — a consumer that read an invented 1 would compare a window captured
+// at 150% against one captured at 100% and call them the same layout.
+func TestTheCoordinatesSayWhichPixelsTheyAre(t *testing.T) {
+	box := image.Rect(100, 60, 260, 130)
+	at := observe.Region{X: 0.1, Y: 0.1, Width: 0.16, Height: 0.1167}
+	res := visualResult{}
+	for look := 0; look <= 1; look++ {
+		res.watchPressed(look, aWindowOfButtons(1000, 600, look,
+			[]image.Rectangle{box}, []int{1}), nil, []observe.Region{at})
+	}
+	res.watchPressed(2, aWindowOfButtons(1000, 600, 2, []image.Rectangle{box},
+		[]int{1}), []observe.PointerAt{{X: 0.15, Y: 0.15}}, []observe.Region{at})
+
+	r, ok := res.calibrate()[2]
+	if !ok {
+		t.Fatal("the press produced no record")
+	}
+	if r.Window != (image.Point{X: 1000, Y: 600}) {
+		t.Errorf("the captured window is recorded as %v", r.Window)
+	}
+	if r.Scale != controlevidence.ScaleUnknown {
+		t.Errorf("the display scale is recorded as %v, and nothing in the "+
+			"recording path observes one", r.Scale)
+	}
+	// AND UNKNOWN IS NOT A VALUE A REAL SCALE COULD ALSO HAVE.
+	//
+	// Asserted against 1 rather than against the constant, because comparing a
+	// record to the constant is true however the constant is defined — and the
+	// whole point is that "nobody measured" must not be spelled the same way as
+	// "the ordinary scale". A consumer told 1 would compare a window captured
+	// at 150%% against one captured at 100%% and call them the same layout.
+	if controlevidence.ScaleUnknown == 1 {
+		t.Error("an unmeasured display scale is recorded as 1, which is also " +
+			"what an ordinary measured one is")
+	}
+	if r.Scale == 1 {
+		t.Error("the display scale is recorded as 1 without anything having " +
+			"measured it")
+	}
+	if r.At != (image.Point{X: 150, Y: 90}) {
+		t.Errorf("the click is recorded at %v, and a press at (0.15, 0.15) of "+
+			"a 1000x600 window is at (150, 90)", r.At)
 	}
 }

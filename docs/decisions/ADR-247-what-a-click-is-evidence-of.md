@@ -2,7 +2,7 @@
 type: adr
 status: accepted
 date: 2026-10-21
-decision: "ACCEPTED — a demonstration keeps, per pressed control, the click in client pixels, the client geometry and display scale that click is relative to, a crop of the control AT CAPTURE RESOLUTION, and what that crop was measured to be worth. The region is derived from the proposal under the press — the control's own box plus a quarter of itself — and never from a constant, because a constant means something different at every capture scale. The worth is measured TWO-SIDED across the looks around the press: the WORST the control matches itself, and the BEST anything within 160px of it matches the same template, with 'somewhere else' defined as half the template in each direction. A threshold is placed in the gap between them, or, when there is no gap, nothing is placed at all and the recording SAYS SO while the person is still in front of the screen — naming the press by the words read on it. One look is a template and not a calibration. The evidence is stored beside the demonstration under the artifact's own labels and keyed by revision, is removed with it, and is refused when its shape is one this build does not know. Nothing that runs reads it: this is the evidence a guard would be built from, collected first so the guard has something to be built FROM rather than a constant chosen by somebody."
+decision: "ACCEPTED — a demonstration keeps, per pressed control, the click in WINDOW pixels (the capture includes the frame, so they are not client coordinates and the record does not call them that), the size of that capture, a display scale recorded as UNKNOWN because nothing in the recording path observes one, a crop of the control AT CAPTURE RESOLUTION, and what that crop was measured to be worth. The region is derived from the proposal under the press — the control's own box plus a quarter of itself — and never from a constant, because a constant means something different at every capture scale. The worth is measured TWO-SIDED across the looks ENDING AT the press — never the ones after it, because a press that works closes the menu it was in and a control measured across that reads as unstable BECAUSE THE CLICK SUCCEEDED: the WORST the control matches itself, and the BEST anything within 160px of it matches the same template, with 'somewhere else' defined as half the template in each direction, over pixels retained from the TEMPLATE and the positions it will be searched at rather than from the control's own box — and the extent actually covered is recorded, because a gap measured over less of the neighbourhood than it claims reads better than it is. A threshold is placed in the gap between them, or, when there is no gap, nothing is placed at all and the recording SAYS SO while the person is still in front of the screen — naming the press by the words read on it. One look is a template and not a calibration. The evidence is stored beside the demonstration under the artifact's own labels and keyed by revision, is removed with it, and is refused when its shape is one this build does not know. Nothing that runs reads it: this is the evidence a guard would be built from, collected first so the guard has something to be built FROM rather than a constant chosen by somebody."
 supersedes: []
 affects:
   - demonstrations
@@ -80,6 +80,28 @@ the press by the words read on it. Not refused later, mid-Act, with nobody there
 anything can be done about it is while the person is still in front of the screen that contains
 it.
 
+## Three ways this was wrong first
+
+**It measured the looks AFTER the press.** A press that WORKS closes the menu it was in, so the
+control legitimately stops being there — and a calibration built on that reports every
+well-behaved button in a navigation menu as unusable BECAUSE THE CLICK SUCCEEDED. Pre-action
+stability is measured on the pre-action screen: the looks ending at the press, out of a ring the
+recorder keeps as it goes. What happened afterwards is the outcome's question and the outcome
+measures it. `TestAButtonThatDisappearsBecauseItsClickWorkedIsStillUsable`.
+
+**The pixels it kept did not cover the search it advertised.** The search moves a TEMPLATE, not a
+point: its top-left runs a band either side of the region and at the far end the template extends
+its own width past that. Keeping the control's box grown by the band is smaller than that, so the
+displacement a rival can be found at is quietly shortened and a rival near the declared edge is
+never scored. Nothing about the result would have said so — which is why the extent actually
+covered is now recorded beside the numbers. `TestARivalAtTheEdgeOfTheNeighbourhoodIsFound`.
+
+**It called window pixels a client area, and invented a display scale.** The capture includes the
+frame. A consumer converting from a client area it was never given would be wrong by the width of
+a border, and one told the scale was 1 would compare a window captured at 150%% against one
+captured at 100%% and call them the same layout. Unknown is a third answer and stays one.
+`TestTheCoordinatesSayWhichPixelsTheyAre`.
+
 ## Where the measuring happens, and why not in the loop
 
 A look is 480 milliseconds. Measuring a template against everything within a band of itself is
@@ -153,10 +175,13 @@ translucent menu measures it as a matter of course.
   `TestEvidenceOfOneRevisionIsNeverServedForAnother` (and the superseded one is gone from disk,
   not merely unserved); `TestForgettingARoutineForgetsWhatItsControlsWereWorth`;
   `TestEvidenceOfAnotherShapeIsRefused`.
-- Thirteen mutations, all killed: the loop's collection removed and its arguments emptied, the
+- Nineteen mutations, all killed: the loop's collection removed and its arguments emptied, the
   command's write removed, the save removed, the largest proposal taken instead of the smallest,
   both bounds removed, a press on nothing admitted, the sentence never said, the no-gap refusal
-  disabled, the superseded evidence kept, the forget removed, and the version check dropped.
+  disabled, the superseded evidence kept, the forget removed, the version check dropped — and the
+  three defects above put back one at a time: the looks after the press folded in, the retained
+  pixels taken from the control's box, `Needed` returning the region, the searched extent not
+  recorded, a scale of 1 invented, and `ScaleUnknown` defined as 1.
 
 ## Related
 

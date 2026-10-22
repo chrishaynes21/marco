@@ -53,7 +53,7 @@ import (
 
 // Version is the shape of a Record. It moves whenever the fields do; see
 // `TestTheRecordShapeMovesWithItsVersion`.
-const Version = 1
+const Version = 2
 
 // Band is how far from the click a neighbour is still a neighbour, in client pixels.
 //
@@ -79,19 +79,46 @@ const Band = 160
 // failure.
 const Margin = 0.25
 
+// ScaleUnknown is what Scale holds when nobody measured the display scale.
+//
+// NOT one. A consumer that read a missing measurement as "the ordinary scale" would be
+// comparing a window captured at 150%% against a window captured at 100%% and calling them the
+// same layout. Unknown is a third answer and has to stay one.
+const ScaleUnknown = 0
+
 // Record is one control's evidence, as it is stored with the demonstration.
 type Record struct {
 	Version int `json:"version"`
-	// Client is the client area the control was demonstrated in, and Scale the display
-	// scale. A later look at another size is a different layout, not this one moved.
-	Client image.Point `json:"client"`
-	Scale  float64     `json:"scale,omitempty"`
-	// At is the click, in client pixels. Authoritative about which instance was meant.
+	// Window is the size of the picture these coordinates are in, in its own pixels.
+	//
+	// # Why this is not called the client area
+	//
+	// Because it is not one. What the recorder captures is the WINDOW, border and
+	// frame included, and every coordinate here is a pixel of that capture. Calling
+	// it a client area would leave a future consumer to convert from one to the
+	// other, or more likely not to, and be wrong by the width of a frame.
+	//
+	// A later look at another size is a different layout and not this one moved,
+	// which is the only comparison these numbers support.
+	Window image.Point `json:"window"`
+	// Scale is the display scale, when somebody measured it. ScaleUnknown when
+	// nobody did, which is the honest answer today: nothing in the recording path
+	// observes it, and writing 1 would be inventing a measurement.
+	Scale float64 `json:"scale"`
+	// At is the click, in window pixels. Authoritative about which instance was meant.
 	At image.Point `json:"at"`
-	// Region is the local region, in client pixels, and Template its contents as a
+	// Region is the local region, in window pixels, and Template its contents as a
 	// PNG of grey levels at capture resolution.
 	Region   image.Rectangle `json:"region"`
 	Template []byte          `json:"template,omitempty"`
+	// Searched is the positions the rival search actually covered, in window pixels.
+	//
+	// Recorded because it is not always what was intended: a control near the edge of
+	// a window has less room around it than `Band` asks for, and a gap measured over
+	// less area than it claims is a gap that reads better than it is. A consumer
+	// comparing this against `region.Inset(-Band)` can see exactly how much of the
+	// neighbourhood was ever looked at.
+	Searched image.Rectangle `json:"searched"`
 
 	// ── WHAT THE EVIDENCE IS WORTH ──
 
@@ -116,23 +143,23 @@ type Record struct {
 // Gap is the room between what the control scores and what its neighbours score.
 func (r Record) Gap() float64 { return r.Self - r.Other }
 
-// Calibrator folds looks in one at a time, keeping one crop and four numbers.
+// Calibrator folds looks in one at a time, keeping one crop and a handful of numbers.
 //
 // One at a time because a recording cannot hold its frames: a 1920x1080 frame is eight
-// megabytes, and the looks worth folding in are the ones around a press, which is exactly when
-// the recorder is busiest. Folding means never holding more than the template and the band.
+// megabytes. Folding means never holding more than the template and what each look scored.
 type Calibrator struct {
 	at       image.Point
 	region   image.Rectangle
-	band     int
-	client   image.Point
+	window   image.Point
 	scale    float64
 	template *image.Gray
 
-	looks   int
-	self    float64
-	other   float64
-	nearest image.Point
+	looks    int
+	self     float64
+	other    float64
+	nearest  image.Point
+	searched image.Rectangle
+	first    bool
 }
 
 // Watch starts a calibration for a control clicked at `at`, whose box is `box`.
@@ -141,17 +168,42 @@ type Calibrator struct {
 // clipped to the client area. Deriving it from the demonstrated control rather than taking a
 // size from a caller is the point — a constant region means something different at every capture
 // scale, and this one is in the control's own pixels.
-func Watch(at image.Point, box image.Rectangle, client image.Point, scale float64) *Calibrator {
+func Watch(at image.Point, box image.Rectangle, window image.Point,
+	scale float64) *Calibrator {
+
+	return &Calibrator{
+		at: at, region: RegionOf(box, window), window: window, scale: scale,
+		self: math.Inf(1), other: math.Inf(-1), first: true,
+	}
+}
+
+// RegionOf is the local region kept for a control: its own box plus Margin of itself.
+//
+// One statement of the rule, because two things need it and they must not drift: the calibration
+// crops the template with it, and whatever keeps the pixels a calibration will look at has to
+// know how big that template is going to be. See Needed.
+func RegionOf(box image.Rectangle, window image.Point) image.Rectangle {
 	grow := int(Margin * float64(box.Dx()))
 	if g := int(Margin * float64(box.Dy())); g < grow {
 		grow = g
 	}
-	region := box.Inset(-grow).Intersect(image.Rectangle{Max: client})
-	return &Calibrator{
-		at: at, region: region, band: Band, client: client, scale: scale,
-		self: math.Inf(1), other: math.Inf(-1),
-	}
+	return box.Inset(-grow).Intersect(image.Rectangle{Max: window})
 }
+
+// Needed is the pixels a calibration of one region will look at.
+//
+// # Why this is not the region grown by Band
+//
+// Because the search moves a TEMPLATE, not a point. Its top-left runs from `Band` before the
+// region to `Band` after it, and at the far end the template still extends its own width past
+// that — so the pixels touched run from `region.Min - Band` to `region.Max + Band`, which is the
+// region inset by the band and not the control.
+//
+// Keeping less than this does not fail: it silently shortens the displacement a rival can be
+// found at, so a rival near the declared edge is never scored and the gap reads better than it
+// is. That is exactly the kind of error a calibration must not be able to make quietly, which is
+// why the extent actually covered is recorded beside the numbers.
+func Needed(region image.Rectangle) image.Rectangle { return region.Inset(-Band) }
 
 // Look folds one look of the same window in.
 //
@@ -171,8 +223,8 @@ func Watch(at image.Point, box image.Rectangle, client image.Point, scale float6
 // caller is allowed to hand over just the BAND around the control, as long as the picture's
 // bounds say where in the window it came from. Every coordinate here is a window coordinate; see
 // match.Gray.
-func (c *Calibrator) Look(frame image.Image, client image.Point) {
-	if frame == nil || client != c.client {
+func (c *Calibrator) Look(frame image.Image, window image.Point) {
+	if frame == nil || window != c.window {
 		return
 	}
 	if !c.region.In(frame.Bounds()) {
@@ -188,7 +240,10 @@ func (c *Calibrator) Look(frame image.Image, client image.Point) {
 			return
 		}
 	}
-	grey := match.Gray(frame, frame.Bounds())
+	// ONLY THE PIXELS A CALIBRATION LOOKS AT. Converting a whole 1920x1080 frame
+	// to grey per look costs two million conversions for a question asked about a
+	// few hundred thousand of them.
+	grey := match.Gray(frame, Needed(c.region).Intersect(frame.Bounds()))
 	top := c.region.Min
 
 	// WHAT THE CONTROL SCORES WHERE IT IS. The worst of these is what a threshold
@@ -200,8 +255,8 @@ func (c *Calibrator) Look(frame image.Image, client image.Point) {
 	// threshold has to sit above. Apart is half the template in each direction, so
 	// what is found is somewhere else rather than the same match seen off-centre.
 	where := image.Rectangle{
-		Min: top.Sub(image.Pt(c.band, c.band)),
-		Max: top.Add(image.Pt(c.band+1, c.band+1)),
+		Min: top.Sub(image.Pt(Band, Band)),
+		Max: top.Add(image.Pt(Band+1, Band+1)),
 	}
 	g := match.Search(grey, c.template, where)
 	if len(g.At) > 0 {
@@ -211,14 +266,28 @@ func (c *Calibrator) Look(frame image.Image, client image.Point) {
 			c.other, c.nearest = best, at.Add(c.at.Sub(top))
 		}
 	}
+	// AND HOW MUCH OF THE NEIGHBOURHOOD WAS ACTUALLY COVERED, which is not always
+	// what was asked for: a control near the edge of a window has less room around
+	// it than `Band`, and a look that arrived as a piece may have had less again.
+	// The SMALLEST coverage of any look, because the gap is the worst case of all
+	// of them and its extent has to be too.
+	if c.first || !g.Over.In(c.searched) {
+		if c.first {
+			c.searched = g.Over
+		} else {
+			c.searched = c.searched.Intersect(g.Over)
+		}
+		c.first = false
+	}
 	c.looks++
 }
 
 // Record is what the calibration came to.
 func (c *Calibrator) Record() Record {
 	r := Record{
-		Version: Version, Client: c.client, Scale: c.scale, At: c.at,
+		Version: Version, Window: c.window, Scale: c.scale, At: c.at,
 		Region: c.region, Looks: c.looks, Nearest: c.nearest,
+		Searched: c.searched,
 	}
 	if c.template != nil {
 		var buf bytes.Buffer

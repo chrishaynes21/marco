@@ -241,6 +241,13 @@ func TestTheRecordShapeMovesWithItsVersion(t *testing.T) {
 	shapes := map[int]string{
 		1: "version,client,scale,at,region,template,looks,self,other," +
 			"accept,nearest,usable,why",
+		// 2 RENAMED `client` to `window`, because the capture includes the
+		// window frame and calling it a client area left a consumer to be
+		// wrong by the width of a border; and ADDED `searched`, because a
+		// gap measured over less of the neighbourhood than it claims is a
+		// gap that reads better than it is.
+		2: "version,window,scale,at,region,template,searched,looks,self," +
+			"other,accept,nearest,usable,why",
 	}
 	var names []string
 	ty := reflect.TypeOf(controlevidence.Record{})
@@ -279,7 +286,7 @@ func TestTheRecordShapeMovesWithItsVersion(t *testing.T) {
 		t.Fatal(err)
 	}
 	if back.At != (image.Point{X: 200, Y: 200}) || back.Scale != 1.5 ||
-		back.Looks != 3 {
+		back.Looks != 3 || back.Searched.Empty() {
 		t.Errorf("the record came back as %+v", back)
 	}
 	if _, err := back.Picture(); err != nil {

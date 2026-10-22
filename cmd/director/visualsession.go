@@ -171,6 +171,11 @@ type visualResult struct {
 	// hundred kilobytes. Measured at the END of the session; see visualevidence.go
 	// for why it cannot be measured in this loop.
 	evidence map[int]*pressEvidence
+	// recent is the last few looks, as grey levels, so that the looks BEFORE a press
+	// are available at the moment the press arrives. Bounded and constant: the ring
+	// is `evidenceLooks` frames whatever happens, and what each press takes out of it
+	// is a band around its own control. See visualevidence.go.
+	recent []recentLook
 	// application is the executable image name of the window actually watched.
 	//
 	// OBSERVED, never the selector the person typed: a selector is what somebody asked

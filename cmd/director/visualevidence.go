@@ -2,18 +2,31 @@ package main
 
 // WHAT A DEMONSTRATION KEEPS ABOUT THE CONTROL SOMEBODY PRESSED.
 //
-// # Why this is here and not in the look loop
+// # Why the looks BEFORE the press, and not after
 //
-// Because calibrating a control is expensive and a look is 480 milliseconds long. Measuring what
-// a template scores against everything within a band of itself is about a billion operations,
-// and a recorder that did that while the person was still demonstrating would drop looks — on
-// the one path where a dropped look is a reading nobody takes and an outcome nobody can check.
+// Because what a guard needs to know is whether the control holds still while it is sitting
+// there waiting to be pressed. The looks AFTER a press are the demonstration's other question
+// entirely: did anything change, which is the outcome's business and is measured by the outcome.
 //
-// So the LOOKS are kept, cheaply, and the measuring happens once at the end when nothing is
-// waiting. What is kept is a band of grey levels around the control rather than the frame it
-// came from: a 1920x1080 frame is eight megabytes and a band around a button is a couple of
-// hundred kilobytes, and the band is all the calibration ever looks at. See
-// internal/director/controlevidence.
+// Folding those in confuses the two, and in the worst possible direction. A press that WORKS
+// closes the menu it was in, or opens a panel over it — so the control legitimately stops being
+// there, its template stops matching, and a calibration built on that reports the control as
+// unusable BECAUSE THE CLICK SUCCEEDED. Every well-behaved button in a navigation menu would
+// measure as unstable and nothing would ever be guardable.
+//
+// So this keeps a short ring of recent looks and calibrates from the ones up to AND INCLUDING
+// the press. Pre-action stability, measured on the pre-action screen.
+//
+// # Why the measuring is not done here
+//
+// Because calibrating a control is about a billion operations and a look is 480 milliseconds. A
+// recorder that measured while the person was still demonstrating would drop looks — on the one
+// path where a dropped look is a reading nobody takes and an outcome nobody can check. So the
+// LOOKS are kept, cheaply, and the measuring happens at the end when nothing is waiting.
+//
+// What is kept is grey levels, which is what the matching works on and a quarter of the memory
+// of the colour it came from. The ring is bounded and constant; what each press keeps out of it
+// is a band around its own control.
 //
 // # And it is kept at CAPTURE RESOLUTION
 //
@@ -37,20 +50,21 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflowstore"
 )
 
-// evidenceLooks is how many looks of a pressed control are kept to calibrate it.
+// evidenceLooks is how many looks of a control are kept to calibrate it.
 //
 // Five, which is `observe.OutcomeSettleLooks`: the stretch the recorder already watches after a
 // press to decide whether anything stayed. Matching it is not tidiness — it is the same claim
-// from the other side. A control whose own appearance will not hold still for the five looks its
-// outcome is measured over is a control whose outcome was measured over something moving.
+// from the other side. A control whose own appearance will not hold still for five looks is one
+// whose outcome would be measured over something moving.
+//
+// These are the five looks ENDING at the press, not beginning there. See the note above.
 const evidenceLooks = 5
 
-// evidenceBand is how far around the control a kept band reaches, in window pixels.
-//
-// `controlevidence.Band` is what the calibration asks "what else is around here" over, so the
-// band kept has to cover it: the control's region plus that much on every side, or the
-// calibration would be asking about pixels nobody kept.
-const evidenceBand = controlevidence.Band
+// recentLook is one look held in the ring, as grey levels and the size they are of.
+type recentLook struct {
+	grey   *image.Gray
+	window image.Point
+}
 
 // pressEvidence is the looks kept for one pressed control.
 type pressEvidence struct {
@@ -58,29 +72,36 @@ type pressEvidence struct {
 	// window pixels — the proposal that was under the press at the look it arrived on.
 	at  observe.PointerAt
 	box image.Rectangle
-	// client is the window's client size, which every coordinate here is relative to.
-	client image.Point
-	// band is the rectangle kept, and looks the grey levels of it, oldest first.
-	band  image.Rectangle
+	// window is the captured window's size, which every coordinate here is in.
+	//
+	// THE WINDOW AND NOT THE CLIENT AREA. What is captured includes the frame, so
+	// these are whole-window pixels; saying so is the difference between a consumer
+	// converting correctly and a consumer being wrong by the width of a border.
+	window image.Point
+	// looks is the band around the control, oldest first, out of the ring.
 	looks []*image.Gray
 }
 
-// wants says whether this still needs looks.
-func (p *pressEvidence) wants() bool { return len(p.looks) < evidenceLooks }
-
-// watchPressed starts a calibration for every press on this look, and folds this look into the
-// ones already running.
+// watchPressed keeps this look, and takes a band out of the ring for every press on it.
 //
-// Called on every look the session keeps a picture of, press or not: the looks AFTER a press are
-// the ones that say whether the control stays the same, and a control seen once has never been
-// seen to stay anything.
+// Called on every look the session keeps a picture of, press or not: the ring is what makes the
+// looks BEFORE a press available at the moment the press arrives, and those are the ones that
+// say whether the control was holding still.
 func (r *visualResult) watchPressed(look int, frame image.Image, presses []observe.PointerAt,
 	regions []observe.Region) {
 
 	if frame == nil {
 		return
 	}
-	client := frame.Bounds().Size()
+	window := frame.Bounds().Size()
+	// THIS LOOK JOINS THE RING FIRST, so a press on it is calibrated with the look
+	// it happened on as well as the ones before it.
+	r.recent = append(r.recent, recentLook{
+		grey: match.Gray(frame, frame.Bounds()), window: window})
+	if len(r.recent) > evidenceLooks {
+		r.recent = r.recent[len(r.recent)-evidenceLooks:]
+	}
+
 	for _, at := range presses {
 		if len(r.evidence) >= previewPresses {
 			break
@@ -102,15 +123,31 @@ func (r *visualResult) watchPressed(look int, frame image.Image, presses []obser
 		if _, had := r.evidence[look]; had {
 			continue
 		}
-		r.evidence[look] = &pressEvidence{at: at, box: box, client: client,
-			band: box.Inset(-evidenceBand).Intersect(frame.Bounds())}
-	}
-	// AND EVERY CALIBRATION STILL WANTING LOOKS TAKES THIS ONE.
-	for _, p := range r.evidence {
-		if !p.wants() || p.client != client {
-			continue
+		p := &pressEvidence{at: at, box: box, window: window}
+		// THE PIXELS A CALIBRATION OF THIS CONTROL WILL LOOK AT, out of every
+		// look in the ring that is of the same window.
+		//
+		// Derived from the TEMPLATE and the positions it will be searched at,
+		// not from the control's own box: the search moves a template, so the
+		// pixels touched run a band past the region on each side rather than
+		// past the control. Keeping the smaller rectangle does not fail — it
+		// silently shortens the displacement a rival can be found at, and the
+		// gap then reads better than it is.
+		keep := controlevidence.Needed(
+			controlevidence.RegionOf(box, window))
+		for _, look := range r.recent {
+			if look.window != window {
+				// A LOOK AT A WINDOW OF ANOTHER SIZE is a look at
+				// another layout. Dropped rather than compared.
+				continue
+			}
+			band := keep.Intersect(look.grey.Bounds())
+			if band.Empty() {
+				continue
+			}
+			p.looks = append(p.looks, match.Gray(look.grey, band))
 		}
-		p.looks = append(p.looks, grayBand(frame, p.band))
+		r.evidence[look] = p
 	}
 }
 
@@ -148,15 +185,6 @@ func boxUnder(bounds image.Rectangle, regions []observe.Region, at observe.Point
 
 func area(r image.Rectangle) int { return r.Dx() * r.Dy() }
 
-// grayBand is the band's grey levels, keeping the band's own origin.
-//
-// Grey because that is what the matching works on, and a third of the memory of the colour it
-// came from. The origin is kept because a band is a piece of a window and a coordinate in it has
-// to still be a coordinate in that window. See match.Gray.
-func grayBand(frame image.Image, band image.Rectangle) *image.Gray {
-	return match.Gray(frame, band)
-}
-
 // calibrate measures every control that was pressed, once the demonstration is over.
 //
 // Here rather than in the loop because this is where there is time: the person has finished, the
@@ -172,14 +200,19 @@ func (r *visualResult) calibrate() map[int]controlevidence.Record {
 			continue
 		}
 		// THE CLICK IN WINDOW PIXELS. Kept normalised while it travelled,
-		// because that is how a press is recorded everywhere else; turned
-		// into pixels here, beside the client size it is relative to,
-		// because that is what a guard needs and what the record says it is.
-		at := image.Pt(int(p.at.X*float64(p.client.X)),
-			int(p.at.Y*float64(p.client.Y)))
-		c := controlevidence.Watch(at, p.box, p.client, 1)
+		// because that is how a press is recorded everywhere else; turned into
+		// pixels here, beside the window size it is relative to, because that
+		// is what a guard needs and what the record says it is.
+		//
+		// AND THE DISPLAY SCALE IS NOT CLAIMED. Nothing in this path observes
+		// it, and writing 1 would be inventing a measurement that a consumer
+		// would then compare against a window captured at 150%.
+		at := image.Pt(int(p.at.X*float64(p.window.X)),
+			int(p.at.Y*float64(p.window.Y)))
+		c := controlevidence.Watch(at, p.box, p.window,
+			controlevidence.ScaleUnknown)
 		for _, look := range p.looks {
-			c.Look(look, p.client)
+			c.Look(look, p.window)
 		}
 		out[look] = c.Record()
 	}

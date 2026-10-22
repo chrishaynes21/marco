@@ -39,7 +39,7 @@ func aRoutine(t *testing.T, s *demo.Store, name string, at time.Time) workflowst
 func someEvidence() controlevidence.Record {
 	return controlevidence.Record{
 		Version: controlevidence.Version,
-		Client:  image.Pt(1000, 600), Scale: 1,
+		Window:  image.Pt(1000, 600), Scale: 1,
 		At:     image.Pt(150, 90),
 		Region: image.Rect(100, 60, 260, 130),
 		Looks:  5, Self: 0.99, Other: 0.60, Accept: 0.795, Usable: true,
