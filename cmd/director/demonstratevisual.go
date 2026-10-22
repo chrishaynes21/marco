@@ -554,6 +554,24 @@ func runDemonstrateVisual(args []string) int {
 			fmt.Printf("  %d picture(s) kept, to look at in Studio under "+
 				"this Scene.\n", n)
 		}
+		// ── AND WHAT EACH PRESSED CONTROL IS WORTH AS EVIDENCE ──
+		//
+		// Measured now, at the end, over the looks kept while it was being
+		// demonstrated — see visualevidence.go for why not in the loop. Under
+		// the same `--previews` licence as the pictures, because it keeps the
+		// same kind of thing: a crop of somebody's screen. Reported the same
+		// way too, and a control nothing could be concluded about says so in
+		// the words somebody standing at the screen can act on.
+		if n, said, why := keepControls(store, a, draft, res, obs.Clicks()); why != "" {
+			fmt.Fprintf(os.Stderr, "director: the routine is saved and what "+
+				"its controls are worth is not: %s\n", why)
+		} else if n > 0 {
+			fmt.Printf("  %d control(s) measured against what is beside "+
+				"them.\n", n)
+			for _, s := range said {
+				fmt.Printf("    %s\n", s)
+			}
+		}
 	}
 	kept := ""
 	if err := store.SaveEvidence(rawDemonstration(a, *app, *title, obs, draft, res)); err != nil {

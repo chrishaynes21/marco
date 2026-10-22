@@ -111,12 +111,26 @@ template survives the world moving behind it (0.92 to 0.99, against rivals at 0.
 wrong-instance hazard is present there too — a repeated volume value ranks a DIFFERENT row above
 the demonstrated one — and the threshold frozen against an opaque fixture does not transfer.
 
+**And a demonstration now keeps what its controls are worth.** Per pressed control: the click in
+client pixels, the client geometry and scale it is relative to, a crop of the control AT CAPTURE
+resolution, and a two-sided measurement of that crop — the worst it matches itself across the
+looks after the press, against the best anything within 160px matches the same template. A
+threshold sits in the gap between them, or there is no gap and the recording says so while the
+person is still in front of the screen. The region comes from the proposal under the press rather
+than from a constant, because a constant means something different at every capture scale.
+Nothing that runs reads any of it: it is what a guard around a learned coordinate would be built
+from, collected first so the guard has something to be built FROM.
+[[ADR-247-what-a-click-is-evidence-of]]
+
 ## Validated by
 
 - `internal/director/demo` unit tests (`demo.go`, `record.go`, `validate.go`)
 - `director demo` commands; explainability output
 - `internal/director/localizetrial` — the local-regioning experiment: its fixture, its frozen
   protocol and its evaluation. Opens no window and sends no input.
+- `internal/director/controlevidence`, `internal/director/match` and `cmd/director` — what a
+  pressed control is worth, measured on drawn pictures for the rules and on real 1920x1080 game
+  frames for the number.
 
 ## Known gaps
 

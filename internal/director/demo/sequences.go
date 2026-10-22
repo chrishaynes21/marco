@@ -73,6 +73,13 @@ func (s *Store) SaveSequence(a workflowstore.Artifact) error {
 	if err := s.forgetOtherPreviews(a); err != nil {
 		return err
 	}
+	// AND THE CONTROL EVIDENCE WITH THEM, for the same reason and a sharper one:
+	// it carries a crop at CAPTURE resolution and a threshold measured on it, so
+	// evidence of a superseded recording is both a picture of somebody's screen
+	// nobody asked to keep and a number a guard could stand on wrongly.
+	if err := s.forgetOtherControls(a); err != nil {
+		return err
+	}
 	return os.WriteFile(s.path(sequencesDir, safeName(a.Name)), body, 0o644)
 }
 
@@ -153,6 +160,10 @@ func (s *Store) ForgetSequence(name string) error {
 	// than leaving crops of somebody's screen behind under the name of a routine that no
 	// longer exists. Nothing reads them, so they would never be noticed again.
 	if err := s.ForgetPreviews(name); err != nil {
+		return err
+	}
+	// AND THE CONTROL EVIDENCE, which is a crop at capture resolution.
+	if err := s.ForgetControls(name); err != nil {
 		return err
 	}
 	// AND THE EVIDENCE, for the same reason and a stronger one.

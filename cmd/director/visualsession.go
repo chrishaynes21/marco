@@ -162,6 +162,15 @@ type visualResult struct {
 	// picture for the rest, which reads as a missing preview rather than as a lie.
 	screens map[observe.VisualScreenID]image.Image
 	pressed map[int]image.Image
+	// evidence is the looks kept to calibrate each pressed control, by the look its
+	// press arrived on — the same key `pressed` uses, and the one `keepPreviews`
+	// already resolves a control to.
+	//
+	// A band of grey levels around the control rather than a frame: the calibration
+	// never looks outside it, and a frame is eight megabytes against a couple of
+	// hundred kilobytes. Measured at the END of the session; see visualevidence.go
+	// for why it cannot be measured in this loop.
+	evidence map[int]*pressEvidence
 	// application is the executable image name of the window actually watched.
 	//
 	// OBSERVED, never the selector the person typed: a selector is what somebody asked
@@ -446,6 +455,11 @@ func (s visualSession) watch(ctx context.Context, obs *fastobserve.Observer,
 			// name, which would put somebody else's screen in this person's
 			// store. See the memory note of that name.
 			res.keep(obs.Screen(), look, img.Image, len(lk.Presses) > 0)
+			// AND THE EVIDENCE FOR A GUARD, which needs the looks AFTER a
+			// press as much as the press itself: a control seen once has
+			// never been seen to stay the same. Kept here and measured at
+			// the end — see visualevidence.go.
+			res.watchPressed(look, img.Image, lk.Presses, lk.Regions)
 		}
 		if s.told != nil {
 			// WHAT THE RECORDER NOW KNOWS. Called with the look in, and on
