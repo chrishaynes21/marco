@@ -102,7 +102,7 @@ func TestTheRealBoundaryRefusesATargetThatLostTheDesktop(t *testing.T) {
 	// workflow would carry.
 	scope := workflowstore.NormaliseScope(v.Ref.Application)
 
-	ok, why := stillThere(tracker, windows, app, scope, noRelook)(
+	ok, why := stillThere(tracker, windows, app, scope, nil, noRelook)(
 		context.Background(), planned, observe.PointerAt{X: 0.5, Y: 0.5})
 	if ok {
 		t.Fatalf("a target that does not lead the desktop was cleared to press: %s", why)
@@ -151,7 +151,7 @@ func TestTheRealBoundaryRefusesAnApplicationTheWorkflowDoesNotBelongTo(t *testin
 		t.Skip("this window belongs to the application the test uses as the wrong one")
 	}
 
-	ok, why := stillThere(tracker, windows, app, elsewhere, noRelook)(
+	ok, why := stillThere(tracker, windows, app, elsewhere, nil, noRelook)(
 		context.Background(), planned, observe.PointerAt{X: 0.5, Y: 0.5})
 	if ok {
 		t.Fatalf("a workflow for %q was cleared to press into %q: %s",
@@ -167,7 +167,7 @@ func TestTheRealBoundaryRefusesAnApplicationTheWorkflowDoesNotBelongTo(t *testin
 		}
 	}
 	// AND AN UNSCOPED WORKFLOW IS REFUSED HERE TOO, which is the last place it can be.
-	if ok, why := stillThere(tracker, windows, app, "", noRelook)(
+	if ok, why := stillThere(tracker, windows, app, "", nil, noRelook)(
 		context.Background(), planned, observe.PointerAt{X: 0.5, Y: 0.5}); ok {
 		t.Error("an unscoped workflow was cleared to press")
 	} else if !strings.Contains(why, "UNSCOPED") {

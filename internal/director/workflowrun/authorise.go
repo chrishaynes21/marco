@@ -152,6 +152,26 @@ func (i Intent) Describe() string {
 // A second line rather than a longer first one: the first answers "what is about to happen" and
 // this answers "on what evidence", and somebody deciding quickly needs the first on its own.
 func (i Intent) Target(w, h int) string {
+	// ── A DEMONSTRATED POINT IS NOT THE MIDDLE OF ANYTHING ──
+	//
+	// On this route the point IS the click somebody made, and the rectangle beside it
+	// is only what a proposer drew around that click. Describing it as "the middle of a
+	// region" would be false twice over — the point is not the middle, and nothing on
+	// this look found the region — and this line is the one a person reads before
+	// granting a press. The region is still named when there is one, because it is what
+	// lets somebody say whether Marco is looking at the right thing at all.
+	if i.Grounding == workflowstore.GroundingDemonstratedLayout {
+		where := ""
+		if i.Where.Width > 0 && i.Where.Height > 0 {
+			where = fmt.Sprintf(", inside a region at x %.4f..%.4f, y "+
+				"%.4f..%.4f that was proposed when it was demonstrated",
+				i.Where.X, i.Where.X+i.Where.Width,
+				i.Where.Y, i.Where.Y+i.Where.Height)
+		}
+		return fmt.Sprintf("the point somebody clicked when they demonstrated "+
+			"this, which lands at %d,%d on this desktop%s — %s",
+			i.At.X, i.At.Y, where, string(i.Grounding))
+	}
 	if i.Where.Width <= 0 || i.Where.Height <= 0 {
 		return "no region was recorded for this target"
 	}

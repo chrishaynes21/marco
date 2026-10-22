@@ -364,6 +364,22 @@ type Runner struct {
 	// exec is the ONE path to an effect. Nil means this runner cannot act, which is what
 	// it is built as.
 	exec *marcoexec.Executor
+	// layout is the fixed-layout replay licence for this run: permission to press a
+	// demonstrated point on a screen nothing could establish, while the window is the one
+	// the demonstration was made in.
+	//
+	// Off unless granted, granted from outside this package, and never inferred. The
+	// grant is a narrow exception to the rule that a recorded coordinate may not become a
+	// durable replay target, and a runner that could turn it on for itself would be the
+	// hole that rule exists to close — the same reason `Granter` is an interface this
+	// package calls rather than a decision it makes.
+	//
+	// It is not a shortcut: a run that carries it still prefers a screen it can establish
+	// and still refuses on the window, the clarification, a control that locates nothing,
+	// the step confirmation and the authorisation. What it changes is that a screen which
+	// can NEVER be established — a menu drawn over a live 3D world, filed as two screens
+	// depending on what moves behind it — stops being the end of the road.
+	layout bool
 	// real says what is at the other end of exec is a computer.
 	//
 	// Load-bearing for HONESTY rather than for safety. A dry run presses into a notebook,
@@ -542,6 +558,24 @@ func (r *Runner) WithDwell(d time.Duration) *Runner {
 // Dwell is how long the pointer rests before the click.
 func (r *Runner) Dwell() time.Duration { return r.dwell }
 
+// WithFixedLayout grants this run the fixed-layout replay licence.
+//
+// Granted from outside, because it is a narrow exception to the rule that a recorded coordinate
+// may not become a durable replay target, and a runner that could grant it to itself would be
+// the hole that rule exists to close.
+//
+// There is no way to take it back once given and no need for one: it is per-run, and a run ends.
+// What it permits is bounded in `workflowstore.StepReadinessAt` and not here, which is where
+// every other refusal this subsystem makes is bounded, and it permits nothing at all unless the
+// demonstration recorded the window it was made in and that window is standing now.
+func (r *Runner) WithFixedLayout(on bool) *Runner {
+	r.layout = on
+	return r
+}
+
+// FixedLayout reports whether this run carries the licence, so a report can say so.
+func (r *Runner) FixedLayout() bool { return r.layout }
+
 // Changed reports whether any observation after an action differed from the one it was
 // performed in. It is evidence that something happened, and not evidence of what.
 func (r *Runner) Changed() bool { return r.changed }
@@ -718,6 +752,20 @@ func (r *Runner) Advance(ctx context.Context, s *workflowstore.SessionBinding,
 		Screen: at.Screen, Epoch: at.Epoch, Generation: at.Generation,
 		Outcomes:   at.Outcomes,
 		Candidates: at.Candidates, Words: at.Words,
+		// AND THE FIXED-LAYOUT LICENCE, WITH THE WINDOW IT IS CONDITIONAL ON.
+		//
+		// The licence is carried by the run and granted from outside it — this
+		// package never sets it — and the window is the one already being looked
+		// at, which is the same rectangle a plannable point is turned into a press
+		// with. Taking the size from anywhere else would be a second statement of
+		// what window this run is about.
+		Layout: workflowstore.LayoutReplay{
+			Licensed: r.layout,
+			Window: workflowstore.WindowGeometry{
+				Width: at.Bounds.Width, Height: at.Bounds.Height,
+				Scale: workflowstore.ScaleUnknown,
+			},
+		},
 	}
 
 	// ── 3. WHAT DOES THIS OBSERVATION SAY ABOUT THE CURRENT STEP'S DESTINATION ──

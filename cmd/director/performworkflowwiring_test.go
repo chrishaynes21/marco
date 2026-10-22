@@ -102,6 +102,18 @@ func TestPerformWorkflowInstallsItsGates(t *testing.T) {
 				"indistinguishable from a control that did not react, and the " +
 				"press goes out through a pointer nobody placed — see " +
 				"ADR-198 and Experiment-045"},
+		// THE FIXED-LAYOUT LICENCE REACHES THE RUNNER, AND IS OFF UNLESS ASKED FOR.
+		//
+		// Both halves, because either alone is the defect. `WithFixedLayout(true)`
+		// would turn every recorded coordinate into a replay target on every run;
+		// omitting the call entirely would make `--fixed-layout` a flag that
+		// changes nothing, which is the shape eight recorded defects in this
+		// codebase already took — complete code, never invoked, nothing to show
+		// for it but a run that refuses exactly as it did before.
+		{"WithFixedLayout(*fixedLayout)",
+			"without it --fixed-layout is a flag that changes nothing, and with " +
+				"a literal in place of the flag the narrow exception is " +
+				"granted to every run that never asked for it"},
 		{"recordhost.New()",
 			"without it there is no dry run, and the only way to exercise the path " +
 				"would be to send real input"},

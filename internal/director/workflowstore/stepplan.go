@@ -48,6 +48,22 @@ const (
 	// observation. The commonest honest answer, and the one that must never be relaxed
 	// by reaching back to an earlier generation.
 	StepScreenUnestablished StepStage = "screen not established here"
+	// StepLayoutUnrecorded: the run carries the fixed-layout licence, the screen could
+	// not be established, and the demonstration never recorded the window it was made in
+	// — so the one thing the licence requires to be checked CANNOT be checked.
+	//
+	// Refused rather than waved through, and it is the difference between this being a
+	// narrow exception and a hole. The licence says a demonstrated point may be pressed
+	// WHILE the window is unchanged; an artifact that cannot say what it was demonstrated
+	// in cannot support that sentence, however plausible its coordinates look.
+	StepLayoutUnrecorded StepStage = "the demonstrated window was never recorded"
+	// StepLayoutChanged: the window is not the one the demonstration was made in.
+	//
+	// The refusal the fixed-layout licence exists to make possible. A saved reading is
+	// normalised to its window, so it keeps producing a confident-looking point at any
+	// size — which is exactly why the size has to be asked about rather than trusted to
+	// come out in the arithmetic.
+	StepLayoutChanged StepStage = "the window is not the one this was demonstrated in"
 	// StepScreenUnread: the screen IS established and has not been READ yet, and this
 	// step's outcome can only be verified against a reading taken before the action.
 	//
@@ -144,6 +160,14 @@ type Now struct {
 	// It replaces the agreement step and NOT the Locates check: a repair that named
 	// another band would be the same defect with a different provenance.
 	Reground map[string]observe.Region
+	// Layout is the fixed-layout replay licence for this run, and the window to check it
+	// against. The zero value is "not licensed", which is the default everywhere.
+	//
+	// NEVER inferred here, exactly as `Authorised` is never inferred: the licence is a
+	// narrow exception to the rule that a coordinate may not be a durable replay target,
+	// and a planner that could grant itself that exception would be the hole the rule
+	// exists to close.
+	Layout LayoutReplay
 	// Candidates is every region the sources proposed on this look, and Words every word
 	// that was read on it, both normalised to the window.
 	//
@@ -154,6 +178,36 @@ type Now struct {
 	// than answered badly.
 	Candidates []observe.Region
 	Words      []observe.ReadWord
+}
+
+// LayoutReplay is permission to press a demonstrated point on a screen nothing could establish,
+// together with the window that permission is conditional on.
+//
+// # Why this exists at all
+//
+// Because the recognition route has a case with no answer. A menu drawn over a live 3D world is
+// filed as two different screens depending on what is moving behind it — the same Ark menu, 138
+// rectangles with the server panel read on one look and 79 with nothing readable on the next —
+// so `Established` never settles and no amount of waiting settles it. Three live trials died
+// there, every one of them with zero actions sent.
+//
+// So this is a SECOND question, asked only when the first has no answer, and it is a different
+// question rather than a weaker version of the same one: not *is this the screen I recognise*
+// but *is this the window the demonstration was made in*. It was authorised narrowly and
+// explicitly, for a fixed layout, and it is the only thing in this package that turns a recorded
+// coordinate into something to press.
+//
+// # What it does not do
+//
+// It does not skip `Locates`, the clarification question, the step confirmation or the
+// authorisation. It replaces the two refusals that depend on recognising a screen and
+// re-acquiring a control on it, and nothing else. And it never claims corroboration: the
+// grounding it produces says, in words, that nobody looked.
+type LayoutReplay struct {
+	// Licensed is the grant, from the caller that holds it. False everywhere else.
+	Licensed bool
+	// Window is the window standing NOW, which the demonstrated one is checked against.
+	Window WindowGeometry
 }
 
 // StepReadiness is one step examined against one observation.
@@ -212,6 +266,16 @@ const (
 	// GroundingRegrounded: the saved reading was set aside and the region was
 	// established from this screen, by the repair.
 	GroundingRegrounded Grounding = "semantically re-grounded for this session"
+	// GroundingDemonstratedLayout: NOTHING on this look placed the target. The region is
+	// the one the demonstration recorded, and what was checked is that the window is the
+	// size it was demonstrated in.
+	//
+	// The weakest grounding there is, and the only one that rests on no present
+	// observation of the control at all. It is a separate word for the reason every other
+	// word here is separate: Experiment-044 printed "re-acquired on this look" over a
+	// patch of pitch, and the lesson was that a report must never describe one kind of
+	// evidence in another kind's sentence. This one says, exactly, *nobody looked*.
+	GroundingDemonstratedLayout Grounding = "where the demonstration left it, in a window of the demonstrated size"
 )
 
 // Ready reports whether this step could be lowered.
@@ -236,19 +300,63 @@ func (a Artifact) StepReadinessAt(at int, s *SessionBinding, now Now) StepReadin
 	//
 	// Only this step's. Nothing is asked about the screens the workflow visits later,
 	// and nothing established earlier is reached back for.
-	bound, ok := s.Established(st.From, now.Epoch, now.Generation)
-	switch {
-	case !ok:
-		r.Stage = StepScreenUnestablished
-		r.Because = fmt.Sprintf("%s is not established in this observation; it has to "+
-			"be settled here, and an earlier answer about it is not evidence now",
-			st.From)
-		return r
-	case bound.Screen != now.Screen:
-		r.Stage = StepScreenUnestablished
-		r.Because = fmt.Sprintf("%s is established as %s and the screen standing now "+
-			"is %s", st.From, bound.Screen, now.Screen)
-		return r
+	// byLayout says this run is in GEOMETRY REPLAY MODE: the window is what is checked,
+	// and the screen is not asked about at all.
+	//
+	// A MODE and not a fallback, which is the correction that made this honest. While it
+	// was a fallback the geometry was checked only when recognition had already failed —
+	// so a run whose screen happened to be recognisable pressed on the recognition
+	// path's terms and the window could have been any size at all. The licence is for an
+	// UNCHANGED window; a check that only sometimes runs is not that licence.
+	//
+	// The recognition path is untouched and is what every run without the mode takes.
+	byLayout := now.Layout.Licensed
+	// onScreen is the screen this step's own evidence was established as, and is empty in
+	// geometry replay mode because nothing was established there.
+	var onScreen observe.VisualScreenID
+	if byLayout {
+		// ── 1. THE WINDOW, ALWAYS, AND BEFORE ANYTHING ELSE ──
+		//
+		// Before the screen question rather than after it, because in this mode
+		// there is no screen question. Every reading in this file is normalised to
+		// its window, so the arithmetic produces a confident-looking point at any
+		// size whatever, and this is the only thing standing between a
+		// demonstrated point and a press into a window it was never demonstrated
+		// in.
+		switch {
+		case !a.Window.Known():
+			r.Stage = StepLayoutUnrecorded
+			r.Because = "this demonstration did not record the window it was " +
+				"made in, so there is nothing to check the fixed layout " +
+				"against. A fresh demonstration of this Scene records it"
+			return r
+		default:
+			if same, why := a.Window.SameAs(now.Layout.Window); !same {
+				r.Stage = StepLayoutChanged
+				r.Because = why
+				return r
+			}
+		}
+	} else {
+		// ── 1. THIS STEP'S SCREEN, IN THIS OBSERVATION ──
+		//
+		// Only this step's. Nothing is asked about the screens the workflow
+		// visits later, and nothing established earlier is reached back for.
+		bound, ok := s.Established(st.From, now.Epoch, now.Generation)
+		onScreen = bound.Screen
+		switch {
+		case !ok:
+			r.Stage = StepScreenUnestablished
+			r.Because = fmt.Sprintf("%s is not established in this "+
+				"observation; it has to be settled here, and an earlier "+
+				"answer about it is not evidence now", st.From)
+			return r
+		case bound.Screen != now.Screen:
+			r.Stage = StepScreenUnestablished
+			r.Because = fmt.Sprintf("%s is established as %s and the screen "+
+				"standing now is %s", st.From, bound.Screen, now.Screen)
+			return r
+		}
 	}
 
 	// ── 2. IS THERE ANYTHING TO PRESS ──
@@ -274,11 +382,18 @@ func (a Artifact) StepReadinessAt(at int, s *SessionBinding, now Now) StepReadin
 	}
 
 	// ── 4. CAN IT BE SEEN NOW ──
+	//
+	// Not asked in geometry replay mode, where there is no established screen to ask it
+	// against — which is also why the loop below is skipped rather than left to find
+	// nothing: `bound` does not exist on that route, and an outcome matched against a
+	// screen nobody established would be a coincidence with a label on it.
 	var outcome *observe.Reacquisition
-	for i := range now.Outcomes {
-		if string(now.Outcomes[i].Target) == st.Control &&
-			now.Outcomes[i].Screen == bound.Screen {
-			outcome = &now.Outcomes[i]
+	if !byLayout {
+		for i := range now.Outcomes {
+			if string(now.Outcomes[i].Target) == st.Control &&
+				now.Outcomes[i].Screen == onScreen {
+				outcome = &now.Outcomes[i]
+			}
 		}
 	}
 	regrounded, repaired := now.Reground[st.Control]
@@ -297,7 +412,14 @@ func (a Artifact) StepReadinessAt(at int, s *SessionBinding, now Now) StepReadin
 	//
 	// What this does NOT skip is 4a. A repair that names a band across the window is
 	// refused exactly as a recorded one is — see the comment there.
+	// AND ON THE FIXED-LAYOUT ROUTE, NOTHING ON THIS LOOK IS ASKED TO PLACE IT.
+	//
+	// Not because re-acquisition failed — it may not even have been attempted — but
+	// because the screen it would have been attempted ON could not be established, and a
+	// match on an unidentified screen is a coincidence with a coordinate. What stands in
+	// its place is the window check above, and the grounding says so in words.
 	switch {
+	case byLayout:
 	case repaired:
 	case outcome == nil:
 		r.Stage = StepControlUnresolved
@@ -331,12 +453,48 @@ func (a Artifact) StepReadinessAt(at int, s *SessionBinding, now Now) StepReadin
 	// be the same defect with a better provenance.
 	var where observe.Region
 	switch {
+	case byLayout:
+		// ── THE POINT IS THE PERSON'S CLICK, AND NOT THE MIDDLE OF ANYTHING ──
+		//
+		// `st.At` is where somebody pressed, normalised to the window. The
+		// readings beside it are what a PROPOSER drew around that press, and
+		// their middle is a different point: proposals are generous, a live look
+		// matched PLAY with a region running to the window's left edge, and the
+		// middle of that landed three pixels inside a button that starts at 62.
+		//
+		// So a replay that pressed the centre of a saved rectangle would be
+		// replaying the segmenter's idea of the control rather than the thing the
+		// person did — and on an off-centre click that centre can be a different
+		// control altogether. A step with no point is refused rather than having
+		// one computed for it.
+		//
+		// `where` is taken from the readings ONLY as something to describe and
+		// hover over, and is allowed to be empty: a press the proposer found
+		// nothing under still carries its own point, and that press is exactly
+		// the one this mode exists to be able to repeat.
+		if st.At == nil {
+			r.Stage = StepControlUnlocated
+			r.Because = fmt.Sprintf("this demonstration did not record where "+
+				"%s was pressed, so there is no click to repeat — and a "+
+				"point will not be invented from the rectangle something "+
+				"drew around it", st.Control)
+			return r
+		}
+		if saved := a.readingsOf(st.Control); len(saved) > 0 {
+			where = saved[0]
+		}
 	case repaired:
 		where = regrounded
 	default:
 		where = outcome.Where
 	}
-	if ok, why := where.Locates(); !ok {
+	// NOT ASKED IN GEOMETRY REPLAY MODE, because nothing there is located by a rectangle.
+	// `Locates` is the rule that a MATCH running edge to edge across the window names
+	// nowhere, and that is a statement about matching. A click is already a point; it
+	// does not become less of one because the proposer drew a band around it, and
+	// refusing it on that basis would discard the person's own evidence in favour of the
+	// segmenter's.
+	if ok, why := where.Locates(); !ok && !byLayout {
 		r.Stage = StepControlUnlocated
 		if repaired {
 			r.Because = fmt.Sprintf("%s was re-grounded for this session and %s; "+
@@ -356,7 +514,7 @@ func (a Artifact) StepReadinessAt(at int, s *SessionBinding, now Now) StepReadin
 	// middle. Measured: a live look matched PLAY with a region running from the window's
 	// left edge to 132px, and its middle landed three pixels inside a button that starts
 	// at 62. See observe.Agreed.
-	if saved := a.readingsOf(st.Control); len(saved) > 0 && !repaired {
+	if saved := a.readingsOf(st.Control); len(saved) > 0 && !repaired && !byLayout {
 		agreed, ok := observe.Agreed(where, saved)
 		if !ok {
 			r.Stage = StepControlUnlocated
@@ -382,7 +540,18 @@ func (a Artifact) StepReadinessAt(at int, s *SessionBinding, now Now) StepReadin
 	// NOT asked about a repaired region. The repair established it by reading this screen
 	// — asking the same words to confirm themselves would be a second vote from one
 	// source, and `GroundingRegrounded` already says what the evidence was.
+	//
+	// ON THE FIXED-LAYOUT ROUTE IT IS ASKED TOO, and in the same one direction. If
+	// anything readable is standing where the demonstration said this control is, and it
+	// says something else, that is a contradiction and the press does not go out — the
+	// licence is for an UNCHANGED layout, and words that disagree are the cheapest
+	// evidence there is that it changed. Corroboration does NOT upgrade the grounding:
+	// the screen still was not established, and `Identity` carries what the words made of
+	// it separately from what placed it.
 	r.Grounding = GroundingGeometric
+	if byLayout {
+		r.Grounding = GroundingDemonstratedLayout
+	}
 	if repaired {
 		r.Grounding = GroundingRegrounded
 	} else if len(now.Words) > 0 {
@@ -403,11 +572,19 @@ func (a Artifact) StepReadinessAt(at int, s *SessionBinding, now Now) StepReadin
 
 	// THE CONTROL IS WHERE IT WAS FOUND, which the person asked for authorisation needs
 	// to be shown and which nothing downstream may compute for itself. See Found.
-	centre := observe.PointerAt{
+	//
+	// On the recognition path that is the middle of the region just agreed on. In
+	// geometry replay mode it is the PERSON'S CLICK, which is a different point and the
+	// one that was actually demonstrated — see the switch above for why the difference
+	// matters and when it is a different control altogether.
+	point := observe.PointerAt{
 		X: where.X + where.Width/2,
 		Y: where.Y + where.Height/2,
 	}
-	r.Found = &centre
+	if byLayout {
+		point = *st.At
+	}
+	r.Found = &point
 
 	// ── 5. HAS ANYBODY AGREED, IN THIS SESSION ──
 	by, confirmed := s.StepConfirmation(at)
@@ -429,17 +606,39 @@ func (a Artifact) StepReadinessAt(at int, s *SessionBinding, now Now) StepReadin
 
 	// ── 7. A POINT AND AN EXPECTATION. NOT PERMISSION. ──
 	r.Stage = StepPlannable
+	support := workflow.SupportGeometric
+	if byLayout {
+		// THE WEAKER WORD, so nothing downstream prints "on a screen whose
+		// arrangement matches" about a step that could not establish one.
+		support = workflow.SupportDemonstratedLayout
+	}
 	r.Action = &workflow.Action{
-		Step: at, Where: where, Support: workflow.SupportGeometric,
+		Step: at, Where: where, Support: support,
 		Expect: observe.VisualScreenID(st.To),
-		At:     centre,
+		At:     point,
 		Because: func() string {
+			if byLayout {
+				return "the window is the one this was demonstrated in, " +
+					"and this is the point the person clicked when " +
+					"they demonstrated " + st.Control + "; no screen " +
+					"was established and nothing on this look was " +
+					"asked to find anything"
+			}
 			if repaired {
 				return "re-grounded for this session; the saved reading of " +
 					st.Control + " locates nothing"
 			}
 			return outcome.Because
 		}(),
+	}
+	if byLayout {
+		r.Because = fmt.Sprintf("the window is the one this was demonstrated in, "+
+			"this is the point somebody clicked to demonstrate %s, %s agreed, "+
+			"and the session is authorised. NOTHING was recognised: %s was "+
+			"not established and nothing on this look was asked to find "+
+			"anything. A point and an expectation; nothing has been pressed",
+			st.Control, by, st.From)
+		return r
 	}
 	r.Because = fmt.Sprintf("%s is established here, %s was found again, %s agreed, and "+
 		"the session is authorised. A point and an expectation; nothing has been "+

@@ -117,6 +117,13 @@ func runPerformWorkflow(args []string) int {
 			"Requires --play; see actgrant.go for what a grant is and is not")
 	live := fs.Bool("live", false,
 		"send REAL input. Without this the whole path runs and nothing is pressed")
+	fixedLayout := fs.Bool("fixed-layout", false,
+		"when a screen cannot be established at all, press where the "+
+			"demonstration left the control — ONLY while the window is the "+
+			"size it was demonstrated in. A narrow exception for a menu no "+
+			"recogniser can name, off unless asked for; it skips no "+
+			"confirmation and no authorisation, and every press it plans is "+
+			"reported as resting on the layout rather than on recognition")
 	seconds := fs.Int("seconds", 120, "how long the run may take")
 	fps := fs.Int("fps", 10, "observations per second")
 	delay := fs.Duration("delay", 5*time.Second, "wait before starting, to switch to the app")
@@ -875,7 +882,11 @@ func runPerformWorkflow(args []string) int {
 		// THE WORLD, RE-OBSERVED AT THE INSTANT OF THE PRESS. Deleting this call, or
 		// passing nil, must make the runner refuse every action — see
 		// TestPerformWorkflowInstallsItsGates.
+		// THE DEMONSTRATED WINDOW REACHES THE PRESS BOUNDARY, or nil when this
+		// run is not in geometry replay mode. Nil leaves the vision boundary
+		// exactly as it was, in every term.
 		WithConfirm(stillThere(tracker, windows, target, art.Application,
+			replayWindow(*fixedLayout, art),
 			freshLook(shots, obs, windows, structure.DefaultOptions(),
 				func() *readingEyes { return reader }))).
 		// HOW LONG AN ACTION'S OWN EVIDENCE IS WAITED FOR, which is a different
@@ -883,6 +894,13 @@ func runPerformWorkflow(args []string) int {
 		// and this counts TIME for enough readings to decide whether the action did
 		// what it did when it was shown. See workflowrun/verify.go.
 		WithVerifyDeadline(*verifyFor).
+		// THE FIXED-LAYOUT LICENCE, WHICH IS OFF UNLESS SOMEBODY ASKED.
+		//
+		// Granted here, from the command, because that is where a person's
+		// request for it arrives — the runner cannot turn it on for itself and
+		// the planner cannot infer it. See workflowstore.LayoutReplay for what
+		// it does and does not permit.
+		WithFixedLayout(*fixedLayout).
 		WithPatience(*patience)
 
 	// AND NOW THERE IS SOMETHING TO STOP. Published before the first observation,
@@ -901,6 +919,23 @@ func runPerformWorkflow(args []string) int {
 	} else {
 		fmt.Printf("  DRY: every program is compiled and run, and the Host writes it " +
 			"down instead of pressing anything.\n")
+	}
+	// ── AND SAY SO WHEN THIS RUN MAY PRESS WITHOUT RECOGNISING ──
+	//
+	// On the run's own first lines, beside LIVE, because it is the same kind of fact: a
+	// person watching has to be able to see which of two different things is about to
+	// happen. What the demonstration was made in is named, because that is the condition
+	// the whole licence hangs on and the one a person can check at a glance.
+	if run.FixedLayout() {
+		where := "and this routine did not record the window it was demonstrated " +
+			"in, so nothing will be pressed on that basis"
+		if art.Window.Known() {
+			where = fmt.Sprintf("while the window is %dx%d, which is what it "+
+				"was demonstrated in", art.Window.Width, art.Window.Height)
+		}
+		fmt.Printf("  FIXED LAYOUT: a screen that cannot be established will not "+
+			"stop this run. Where the demonstration left a control is where it "+
+			"will be pressed, %s.\n", where)
 	}
 	fmt.Printf("  Ctrl-C stops the run. Nothing is written to disk.\n")
 	if waited {
@@ -1309,6 +1344,16 @@ type worldNow struct {
 	Screen observe.VisualScreenID
 	// Front is what the desktop says about the target leading it.
 	Front observe.Frontness
+	// Bounds is the window's rectangle NOW, which geometry replay compares against the
+	// window the demonstration was made in.
+	Bounds directorapi.Rect
+	// Layout is the window the demonstration was made in, and NIL means this run is not
+	// in geometry replay mode.
+	//
+	// Carried on the world rather than passed beside it so that `worldMoved` stays one
+	// pure function a test can drive without a desktop — the same reason `Application`
+	// is here. A nil here is the ordinary vision path, unchanged in every term.
+	Layout *workflowstore.WindowGeometry
 	// Fresh is what the look taken at this instant said about ITSELF.
 	//
 	// ── WHY THE FOUR TERMS ABOVE ARE NOT ENOUGH ──
@@ -1418,6 +1463,55 @@ type freshEvidence struct {
 func worldMoved(app string, scope workflowstore.Scope, now worldNow,
 	planned workflowrun.Sighting) (bool, string) {
 
+	// ── GEOMETRY REPLAY IS ITS OWN BOUNDARY, WITH ITS OWN TERMS ──
+	//
+	// Not the vision boundary with some terms waived. The four terms it keeps are about
+	// WHERE a click will land — the window is alive, it belongs to the application this
+	// routine is scoped to, it is the same window it was planned against, and it leads
+	// the desktop — plus the one this mode exists for: it is the size the demonstration
+	// was made in.
+	//
+	// The terms it does NOT have are the ones that require vision: a screen hypothesis
+	// standing, an observation generation unmoved, a look taken at the instant of the
+	// press, a reading of that look's own words, and a proposal under the point. Those
+	// are prerequisites of recognising a control, and this mode exists precisely for the
+	// menus where recognition has no answer — a boundary demanding them would refuse
+	// every press this mode was granted for, which is what it did.
+	//
+	// The vision path below is untouched and is what every run without the mode takes.
+	if now.Layout != nil {
+		switch {
+		case !now.Alive:
+			return false, fmt.Sprintf("%s is no longer there (%s)", app, now.State)
+		case !allowsNow(scope, now.Application):
+			_, why := scope.Allows(now.Application)
+			return false, "the application changed after the plan was made: " + why
+		case now.Generation != planned.Generation:
+			return false, fmt.Sprintf("the window was replaced since this was "+
+				"planned (generation %d, was %d)",
+				now.Generation, planned.Generation)
+		case now.Front != observe.FrontTarget:
+			return false, fmt.Sprintf("%s does not lead the desktop (%s), and a "+
+				"click lands in whatever is in front", app, now.Front)
+		}
+		// ── AND THE WINDOW IS STILL THE ONE THIS WAS DEMONSTRATED IN ──
+		//
+		// Asked HERE and not only when the step was planned, for the reason every
+		// other term here is asked twice: a person authorising a press is an
+		// unbounded pause in the middle of the one sequence that must not have
+		// one, and a window can be resized inside it. The point is normalised, so
+		// it would still produce a coordinate — somewhere plausible, in a layout
+		// nobody demonstrated.
+		same, why := now.Layout.SameAs(workflowstore.WindowGeometry{
+			Width: now.Bounds.Width, Height: now.Bounds.Height,
+			Scale: workflowstore.ScaleUnknown,
+		})
+		if !same {
+			return false, "the window changed after the plan was made: " + why
+		}
+		return true, ""
+	}
+
 	switch {
 	case !now.Alive:
 		return false, fmt.Sprintf("%s is no longer there (%s)", app, now.State)
@@ -1521,8 +1615,12 @@ func worldMoved(app string, scope workflowstore.Scope, now worldNow,
 // The one line in this file a test cannot supply for itself, for the same reason `windowLeads` is
 // a package variable: a real answer needs a live window and a real desktop. Everything it
 // decides is in worldMoved, which is tested.
+// `layout` non-nil puts this boundary in GEOMETRY REPLAY MODE: it is the window the
+// demonstration was made in, and the boundary then asks its own questions rather than the vision
+// path's. No look is taken, because nothing it would produce is consulted.
 func stillThere(tracker *windowref.Tracker,
 	windows *winprovider.Provider, app string, scope workflowstore.Scope,
+	layout *workflowstore.WindowGeometry,
 	relook func(context.Context, windowref.Validation, observe.PointerAt) freshEvidence) func(
 	context.Context, workflowrun.Sighting, observe.PointerAt) (bool, string) {
 
@@ -1531,7 +1629,7 @@ func stillThere(tracker *windowref.Tracker,
 
 		v := tracker.Acquire(ctx, app)
 		now := worldNow{Alive: v.State.OK(), State: string(v.State),
-			Generation: v.Ref.Generation}
+			Generation: v.Ref.Generation, Bounds: v.Ref.Bounds, Layout: layout}
 		if !now.Alive {
 			// NOTHING TO LOOK AT. `worldMoved` refuses on this first, and
 			// capturing a window the tracker has given up on would be a
@@ -1577,7 +1675,14 @@ func stillThere(tracker *windowref.Tracker,
 		//
 		// `relook` nil leaves Fresh zero, which `worldMoved` refuses — a boundary
 		// with no fresh evidence is not a boundary that passed.
-		if relook != nil {
+		//
+		// AND NOT TAKEN AT ALL IN GEOMETRY REPLAY MODE. Nothing that look
+		// produces is consulted there — no screen, no observation generation, no
+		// reading of its words, no proposal under the point — so taking one would
+		// be a capture, a segmentation and sometimes an OCR request on the one
+		// path where none of them has an answer, inside the one moment that must
+		// not have an unbounded pause in it.
+		if relook != nil && layout == nil {
 			// AND THE STANDING CLAIM COMES BACK WITH IT. The look is what
 			// moves the claim, so nothing here may read `obs.Epoch()` or
 			// `obs.Screen()` — see freshEvidence.Epoch.
@@ -2817,3 +2922,18 @@ var (
 	openReadingEyes = newReadingEyes
 	openWordReader  = newWordReader
 )
+
+// replayWindow is the window a run in geometry replay mode checks against, and nil otherwise.
+//
+// Nil for a run that was not granted the mode, and nil for an artifact that never recorded a
+// window — which is the same refusal the planner makes, arriving at the boundary as "this is not
+// a geometry replay" rather than as a geometry replay with nothing to check. The planner has
+// already refused such a step by then; this is here so that a future caller cannot reach the
+// boundary with a mode that has no window behind it.
+func replayWindow(on bool, a workflowstore.Artifact) *workflowstore.WindowGeometry {
+	if !on || !a.Window.Known() {
+		return nil
+	}
+	w := *a.Window
+	return &w
+}
