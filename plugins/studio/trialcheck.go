@@ -83,58 +83,56 @@ func printTrial(t trial) {
 	printVerdict(t)
 }
 
-// printRecording prints the recording and the states it passed through.
+// printRecording prints each recording of the trial and the states it passed through.
 func printRecording(t trial) {
-	began, ok := t.first(trialRecording)
-	if !ok {
-		return
-	}
-	fmt.Printf("\n  RECORDING  %q on %s, %ds\n", began.Name, began.Application,
-		began.Seconds)
-	states := t.states()
-	// THE STATES, WITH WHEN EACH ONE ARRIVED.
-	//
-	// The seconds are the point. "Settling is ass, it doesn't finish in time" is a
-	// claim about the gap between two of these lines, and the only way to answer it
-	// without asking somebody to hold a stopwatch is to write down when each one was
-	// shown.
-	for _, s := range states {
-		fmt.Printf("    %6.1fs  %-10s %s\n", s.At.Sub(began.At).Seconds(),
-			s.Phase, s.Doing)
-		if s.Missing != "" {
-			fmt.Printf("              why: %s\n", s.Missing)
+	for _, r := range t.recordings() {
+		fmt.Printf("\n  RECORDING  %q on %s, %ds\n", r.Name(),
+			r.Began.Application, r.Began.Seconds)
+		// THE STATES, WITH WHEN EACH ONE ARRIVED.
+		//
+		// The seconds are the point. "Settling is ass, it doesn't finish in
+		// time" is a claim about the gap between two of these lines, and the
+		// only way to answer it without asking somebody to hold a stopwatch
+		// is to write down when each one was shown.
+		for _, s := range r.States {
+			fmt.Printf("    %6.1fs  %-10s %s\n",
+				s.At.Sub(r.Began.At).Seconds(), s.Phase, s.Doing)
+			if s.Missing != "" {
+				fmt.Printf("              why: %s\n", s.Missing)
+			}
 		}
-	}
-	if n := len(states); n > 0 {
-		at := states[n-1]
+		presses, watched, captured, unchecked, read := r.Got()
 		fmt.Printf("    presses %d, placed %d, checked %d, unchecked %d; "+
-			"starting screen read: %s\n", at.Presses, at.Watched,
-			at.Captured, at.Unchecked, yesNo(at.ScreenRead))
-		if at.Recorder != "" {
-			fmt.Printf("    recorder  %s%s\n", at.Recorder,
-				ifSo(at.Mismatched, "  — A DIFFERENT BUILD FROM THE WINDOW"))
+			"starting screen read: %s\n", presses, watched, captured,
+			unchecked, yesNo(read))
+		if rev, differs := r.Recorder(); rev != "" {
+			fmt.Printf("    recorder  %s%s\n", rev,
+				ifSo(differs, "  — A DIFFERENT BUILD FROM THE WINDOW"))
 		}
-	}
-	if over, ok := t.last(trialRecorded); ok {
-		fmt.Printf("    result    %s\n", over.Said)
-		if over.Next != "" {
-			fmt.Printf("    what to do: %s\n", over.Next)
+		if r.Over == nil {
+			fmt.Printf("    (this recording had not finished when the " +
+				"journal ended)\n")
+			continue
 		}
-		kept := append(append([]string(nil), over.Screens...), over.Controls...)
+		fmt.Printf("    result    %s\n", r.Over.Said)
+		if r.Over.Next != "" {
+			fmt.Printf("    what to do: %s\n", r.Over.Next)
+		}
+		kept := append(append([]string(nil), r.Over.Screens...),
+			r.Over.Controls...)
 		fmt.Printf("    pictures kept: %s\n", orNone(strings.Join(kept, " ")))
-	} else {
-		fmt.Printf("    (this recording had not finished when the journal ended)\n")
 	}
 }
 
 // printPictures prints the preview tally.
 func printPictures(t trial) {
-	worst, most, labels, total := t.refetched()
+	worst, most, burst, labels, total := t.refetched()
 	if labels == 0 {
 		return
 	}
 	fmt.Printf("\n  PICTURES ASKED FOR  %d label(s), %d request(s), most for any "+
-		"one: %d\n", labels, total, most)
+		"one: %d, biggest burst: %d in one stretch\n", labels, total, most,
+		burst)
 	for _, w := range worst {
 		fmt.Printf("    RE-FETCHED: %s\n", w)
 	}
@@ -179,6 +177,10 @@ func printRun(t trial) {
 		if n.Because != "" {
 			fmt.Printf("    because   %s\n", n.Because)
 		}
+		// AND THE SENTENCE BEHIND THE TALLY. `because` counts; this explains.
+		if n.Paused != "" {
+			fmt.Printf("    waited on %s\n", n.Paused)
+		}
 		fmt.Printf("    %d action(s) sent, %d verified, performed by %s\n",
 			n.Sent, n.Verified, orNone(n.Ran))
 	}
@@ -194,7 +196,7 @@ func printRun(t trial) {
 func printVerdict(t trial) {
 	fmt.Printf("\n  WHAT THIS TRIAL SHOWS\n")
 	said := [][]string{buildVerdict(t), {statesVerdict(t)},
-		{picturesVerdict(t)}, {resultVerdict(t)}}
+		{picturesVerdict(t)}, resultVerdict(t)}
 	for i, about := range []string{"build identity", "recording states",
 		"preview persistence", "canonical result"} {
 		fmt.Printf("    %-19s %s\n", about, said[i][0])
@@ -239,74 +241,100 @@ func buildVerdict(t trial) []string {
 
 // picturesVerdict is whether the page kept the pictures it was given.
 func picturesVerdict(t trial) string {
-	worst, most, labels, _ := t.refetched()
+	worst, _, burst, labels, _ := t.refetched()
 	switch {
 	case labels == 0:
 		return "no picture was asked for in this trial"
 	case len(worst) == 0:
-		return fmt.Sprintf("held — %d label(s), none asked for more than "+
-			"%d time(s)", labels, most)
+		return fmt.Sprintf("held — %d label(s), and no picture was asked for "+
+			"more than %d time(s) in one stretch", labels, burst)
 	}
 	return "NOT HELD — " + strings.Join(worst, "; ")
 }
 
 // statesVerdict is what the recording states amount to.
 //
-// The three endings a demonstration actually has, each said as itself: a press that was checked,
-// a press whose result was measured and empty, and a recording that never got that far. The
-// middle one is the map case — the known limitation this surface has, and the one a trial is
-// most likely to be run to confirm.
+// Of the LAST recording in the trial, which is the one somebody has just done; the others are
+// counted so that a verdict about one sitting's third demonstration does not read as a verdict
+// about the sitting. The endings a demonstration has are each said as themselves: a press that
+// was checked, a press whose result was measured and empty, and a recording that never got that
+// far. The middle one is the map case — the known limitation this surface has, and the one a
+// trial is most likely to be run to confirm.
 func statesVerdict(t trial) string {
-	states := t.states()
-	if len(states) == 0 {
-		if _, ok := t.first(trialRecording); ok {
-			return "A RECORDING STARTED AND THE RECORDER SAID NOTHING THIS " +
-				"BUILD COULD READ"
-		}
+	all := t.recordings()
+	if len(all) == 0 {
 		return "nothing was recorded in this trial"
 	}
-	at := states[len(states)-1]
-	phases := make([]string, 0, len(states))
-	for _, s := range states {
+	r := all[len(all)-1]
+	also := ""
+	if len(all) > 1 {
+		also = fmt.Sprintf(" (the last of %d recordings in this trial)",
+			len(all))
+	}
+	if len(r.States) == 0 {
+		return "A RECORDING STARTED AND THE RECORDER SAID NOTHING THIS BUILD " +
+			"COULD READ" + also
+	}
+	phases := make([]string, 0, len(r.States))
+	for _, s := range r.States {
 		if n := len(phases); n == 0 || phases[n-1] != s.Phase {
 			phases = append(phases, s.Phase)
 		}
 	}
 	chain := strings.Join(phases, " → ")
-	took := at.At.Sub(states[0].At).Seconds()
-	switch {
-	case at.Mismatched:
-		return fmt.Sprintf("%s — AND THE RECORDER WAS A DIFFERENT BUILD, so "+
-			"nothing it reported is about this one", chain)
-	case at.Captured > 0 && at.Unchecked == 0:
-		return fmt.Sprintf("%s in %.1fs — %d press(es) checked", chain, took,
-			at.Captured)
-	case at.Unchecked > 0:
-		return fmt.Sprintf("%s in %.1fs — %d press(es) whose result was "+
-			"measured and empty: %s", chain, took, at.Unchecked,
-			orNone(at.Missing))
-	default:
-		return fmt.Sprintf("%s in %.1fs — no press was checked", chain, took)
+	took := r.States[len(r.States)-1].At.Sub(r.States[0].At).Seconds()
+	_, _, captured, unchecked, _ := r.Got()
+	if rev, differs := r.Recorder(); differs {
+		return fmt.Sprintf("%s — AND THE RECORDER WAS A DIFFERENT BUILD (%s), "+
+			"so nothing it reported is about this one%s", chain, rev, also)
 	}
+	switch {
+	case unchecked > 0:
+		// THE EMPTY RESULT OUTRANKS THE CHECKED ONE, when a recording has
+		// both. A demonstration where one press verified and another could
+		// not be checked is a demonstration that cannot be performed past the
+		// second one, and reporting it by its successes would be reporting the
+		// half that is not the finding.
+		return fmt.Sprintf("%s in %.1fs — %d press(es) checked, %d whose "+
+			"result was measured and empty: %s%s", chain, took,
+			captured, unchecked, orNone(r.Why()), also)
+	case captured > 0:
+		return fmt.Sprintf("%s in %.1fs — %d press(es) checked%s", chain, took,
+			captured, also)
+	}
+	return fmt.Sprintf("%s in %.1fs — no press was checked%s", chain, took, also)
 }
 
-// resultVerdict is the canonical result of the last run in this trial.
-func resultVerdict(t trial) string {
+// resultVerdict is the canonical result of the last run in this trial, and what it was waiting on.
+func resultVerdict(t trial) []string {
 	ran, ok := t.last(trialRan)
 	if !ok {
 		if _, started := t.last(trialPlay); started {
-			return "A RUN STARTED AND THE JOURNAL ENDS BEFORE IT DID"
+			return []string{"A RUN STARTED AND THE JOURNAL ENDS BEFORE IT DID"}
 		}
-		return "nothing was performed in this trial"
+		return []string{"nothing was performed in this trial"}
 	}
+	var said []string
 	switch {
 	case ran.Reference == "":
-		return "the run cited no reference"
+		said = []string{"the run cited no reference"}
 	case ran.Outcome == "":
-		return fmt.Sprintf("%s — NO RECORD", ran.Reference)
+		said = []string{ran.Reference + " — NO RECORD, which is a run that did " +
+			"not finish writing one"}
+	default:
+		said = []string{fmt.Sprintf("%s — %s, %d action(s) sent, %d verified",
+			ran.Reference, ran.Outcome, ran.Sent, ran.Verified)}
 	}
-	return fmt.Sprintf("%s — %s, %d action(s) sent, %d verified", ran.Reference,
-		ran.Outcome, ran.Sent, ran.Verified)
+	// AND WHAT IT WAS WAITING ON, WHEN IT DID NOT PRESS.
+	//
+	// A verdict of "refused, 0 actions sent" is the safe outcome and not an
+	// explanation, and the explanation is the runner's own last pause. Left off when
+	// something WAS sent: the outcome is then about what happened to the press, and
+	// an earlier pause would be the least interesting thing on the line.
+	if ran.Paused != "" && ran.Sent == 0 {
+		said = append(said, "  it was waiting on: "+ran.Paused)
+	}
+	return said
 }
 
 func orNone(s string) string {

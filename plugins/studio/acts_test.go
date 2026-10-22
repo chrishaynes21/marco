@@ -429,6 +429,23 @@ func TestMain(m *testing.M) {
 						Keys: []runstate.Key{
 							{Key: "F7", Means: "yes"}},
 						Until: time.Now().Add(time.Minute)}})
+				// AND A RUN THAT WAITED AND THEN GAVE UP, which is what
+				// the owner's first two live runs did. Two pauses,
+				// because the reason sharpens as a run learns and what
+				// a reader needs is the LAST one.
+				if os.Getenv("STUDIO_STANDIN_PAUSES") == "1" {
+					w.Say(runstate.Event{Phase: runstate.Paused,
+						Reason: "the screen in front of you is " +
+							"being read now"})
+					w.Say(runstate.Event{Phase: runstate.Paused,
+						Reason: "3 reading(s) in a row have come " +
+							"back about a screen that had " +
+							"already changed"})
+					w.Say(runstate.Event{Phase: runstate.Ended,
+						Outcome: runref.Refused, Final: true,
+						Reason: "refused — 0 of 2 " +
+							"interaction(s) verified"})
+				}
 				w.Close()
 			}
 		}

@@ -54,6 +54,7 @@ import (
 	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/learnstate"
+	"github.com/chaynes-simpleclouds/marco/internal/director/runstate"
 )
 
 // trialVersion is the shape of a note.
@@ -63,20 +64,28 @@ import (
 // same reason learnstate's does: `omitempty` makes a writer that has never heard of a field
 // indistinguishable from one whose value is false, so a reader of an older journal cannot tell
 // a missing fact from a negative one unless the version says which it is reading.
-const trialVersion = 1
+const trialVersion = 2
 
-// trialRefetch is how many times one picture may be asked for before the tally is a fault rather
-// than a number.
+// trialRefetchBurst is how many times one picture may be asked for inside a single tally stretch
+// before it is being re-fetched rather than painted.
 //
-// The page caches pictures by recording revision and label in a Map that lives as long as the
-// window, so the expected count per label is ONE — one fetch, one `img`, kept across every poll
-// and every page switch. Three leaves room for the two honest ways it can be more: a
-// demonstration recorded again under the same name is a new revision and a new fetch, and a
-// window reopened starts with an empty cache.
+// # Why a burst and not a total, measured
 //
-// The defect this measures asked for 66 pictures in 4.2 seconds with the finished review sitting
-// open, and 108 while a run was in flight. Nothing near three happens by accident.
-const trialRefetch = 3
+// The first version of this counted every request for a label and called more than three a
+// fault. The owner's second trial read NOT HELD at five, and five was correct behaviour: a
+// screen is the `to` of one step and the `from` of the next, so one review paints it TWICE, and
+// the review, the Scene library strip and the Act preview are three surfaces. Their own tally
+// snapshots say so — 1,1,1 when the review painted, 2,3,2 at the library, 3,5,3 at the preview,
+// and then NOTHING for the eight minutes the window stayed open. A cache doing exactly its job.
+//
+// What blinking is, is a count that keeps climbing while nothing changes. The defect fetched 66
+// pictures in 4.2 seconds with the finished review sitting open — about 31 inside one of these
+// stretches — because it refetched on a 400ms poll. A person opening surfaces cannot produce
+// that: every paint of every surface in one two-second stretch is a handful.
+//
+// So the measure is the biggest rise within one stretch, and six is above anything a person
+// painting surfaces reaches and far below a poll that refetches.
+const trialRefetchBurst = 6
 
 // trialTally is how long the picture tally may go unwritten while pictures are being asked for.
 //
@@ -175,8 +184,27 @@ type trialNote struct {
 	Reference string `json:"reference,omitempty"`
 	Outcome   string `json:"outcome,omitempty"`
 	Because   string `json:"because,omitempty"`
-	Sent      int    `json:"actions_sent,omitempty"`
-	Verified  int    `json:"verified,omitempty"`
+	// Paused is the last thing the run stopped and waited about, in the runner's own
+	// words.
+	//
+	// # Why the outcome was not enough, measured
+	//
+	// The first live trial of this journal refused twice and the record said
+	// `refused — 0 of 2 interaction(s) verified` both times. That is a TALLY. The
+	// reason was four hundred events down a temporary file that happened not to have
+	// been cleaned up yet:
+	//
+	//	what is on screen agrees with screen_a at 0.892 and 3 reading(s) in a row
+	//	have come back about a screen that had already changed — a screen that
+	//	keeps moving cannot be read, and waiting longer will not change that
+	//
+	// Which is the whole finding, and nothing in the evidence pointed at it. So the
+	// sentence is kept beside the tally: `runstate.Reason` is written to be read by
+	// the person who pressed Play, and a trial that quotes the summary instead is a
+	// trial somebody has to go detecting behind.
+	Paused   string `json:"paused,omitempty"`
+	Sent     int    `json:"actions_sent,omitempty"`
+	Verified int    `json:"verified,omitempty"`
 }
 
 // trials is one Studio's journal, created the first time there is something to write in it.
@@ -382,8 +410,10 @@ func (t *trials) playing(act string, live bool) {
 // named by — not from anything this window concluded. `rec` is empty when there is no record,
 // which is itself the answer to "what happened": a run that cited a reference and wrote no
 // record is a run that did not finish.
-func (t *trials) performed(act, reference string, live bool, rec record, had bool) {
-	n := trialNote{Kind: trialRan, Act: act, Reference: reference, Live: live}
+func (t *trials) performed(act, reference string, live bool, rec record, had bool,
+	paused string) {
+	n := trialNote{Kind: trialRan, Act: act, Reference: reference, Live: live,
+		Paused: paused}
 	if had {
 		n.Outcome, n.Because = rec.Outcome, rec.Because
 		n.Sent, n.Verified = rec.ActionsSent, rec.Verified
@@ -417,6 +447,29 @@ func saysTheSame(a, b trialNote) bool {
 		return string(raw)
 	}
 	return bare(a) == bare(b)
+}
+
+// lastPause is the last thing a run stopped and waited about, out of its own event stream.
+//
+// The LAST one, because a run pauses repeatedly while it waits and the reason sharpens as it
+// learns: the same run went from "the screen in front of you is being read now" to "3 readings
+// in a row have come back about a screen that had already changed", and only the second one says
+// that waiting will not help. An empty answer is a run that never paused, which is most of them.
+func lastPause(path string) string {
+	if path == "" {
+		return ""
+	}
+	events, err := runstate.Read(path)
+	if err != nil {
+		return ""
+	}
+	out := ""
+	for _, e := range events {
+		if e.Phase == runstate.Paused && e.Reason != "" {
+			out = e.Reason
+		}
+	}
+	return out
 }
 
 // recordFor is the run record one reference names, as it sits on disk.
@@ -516,7 +569,106 @@ func (t trial) first(k trialKind) (trialNote, bool) {
 	return trialNote{}, false
 }
 
-// states is the recording states this trial passed through, in order.
+// taken is one recording of a trial: what was asked for, the states it passed through, and what
+// came of it.
+type taken struct {
+	Began  trialNote
+	States []trialNote
+	Over   *trialNote
+}
+
+// recordings is the demonstrations in this trial, in order, with their own states.
+//
+// # Why a trial is not one recording
+//
+// Because a Studio stays open. The owner's second trial recorded `trackmania settings`, kept the
+// window, and then recorded `graphic settings` in the same sitting — and a reader that took the
+// states of the whole journal as one recording reported the second one's sequence appended to the
+// first one's and the counts of whichever poll happened to be last. Which is what it did: a
+// recording that got two presses and could check neither was summarised as `presses 0, placed 0,
+// checked 0`, because the last thing in the journal was the window's own fallback sentence after
+// the recorder had stopped talking.
+func (t trial) recordings() []taken {
+	var out []taken
+	for _, n := range t.Notes {
+		switch n.Kind {
+		case trialRecording:
+			out = append(out, taken{Began: n})
+		case trialState:
+			if len(out) == 0 {
+				// A STATE WITH NO RECORDING IN FRONT OF IT. A
+				// journal that begins mid-recording — the window was
+				// already running one when this build started
+				// writing — and the states still belong to
+				// something, so they get a recording with no name.
+				out = append(out, taken{Began: trialNote{
+					Kind: trialRecording, At: n.At,
+					Name: n.Name, Application: n.Application}})
+			}
+			at := &out[len(out)-1]
+			at.States = append(at.States, n)
+		case trialRecorded:
+			for i := range out {
+				if out[i].Name() == n.Name && out[i].Over == nil {
+					kept := n
+					out[i].Over = &kept
+				}
+			}
+		}
+	}
+	return out
+}
+
+// Name is what this recording was called.
+func (r taken) Name() string {
+	if r.Began.Name != "" {
+		return r.Began.Name
+	}
+	if len(r.States) > 0 {
+		return r.States[0].Name
+	}
+	return ""
+}
+
+// Got is the furthest this recording got, as the recorder counted it.
+//
+// THE HIGH WATER MARK, not the last poll. The window has a sentence of its own for the moment
+// after the recorder has stopped talking and before the review is ready, and it carries no
+// counts — so a recording's account of itself has to be the most it ever reported, or a
+// demonstration that placed two presses reads as one that placed none.
+func (r taken) Got() (presses, watched, captured, unchecked int, read bool) {
+	for _, s := range r.States {
+		presses = max(presses, s.Presses)
+		watched = max(watched, s.Watched)
+		captured = max(captured, s.Captured)
+		unchecked = max(unchecked, s.Unchecked)
+		read = read || s.ScreenRead
+	}
+	return presses, watched, captured, unchecked, read
+}
+
+// Why is the last explanation this recording gave for something it could not check.
+func (r taken) Why() string {
+	out := ""
+	for _, s := range r.States {
+		if s.Missing != "" {
+			out = s.Missing
+		}
+	}
+	return out
+}
+
+// Recorder is the build that did the recording, and whether it differed from the window's.
+func (r taken) Recorder() (string, bool) {
+	for i := len(r.States) - 1; i >= 0; i-- {
+		if r.States[i].Recorder != "" {
+			return r.States[i].Recorder, r.States[i].Mismatched
+		}
+	}
+	return "", false
+}
+
+// states is every recording state in this trial, in order, whichever recording it belongs to.
 func (t trial) states() []trialNote {
 	var out []trialNote
 	for _, n := range t.Notes {
@@ -587,17 +739,41 @@ func (t trial) builds() (named map[string][]string, silent []string, agree bool)
 	return named, silent, len(named) <= 1
 }
 
-// refetched is the pictures asked for more than trialRefetch times, worst first.
-func (t trial) refetched() (worst []string, most int, labels, total int) {
+// refetched is the pictures that were being re-fetched rather than painted, worst first, with
+// the shape of the whole tally beside them.
+//
+// `most` is the largest number of requests any one picture took in the end, and `burst` the
+// largest rise any one of them made inside a single tally stretch — which is the one that
+// decides, for the reason trialRefetchBurst gives.
+func (t trial) refetched() (worst []string, most, burst, labels, total int) {
 	n, ok := t.last(trialPictures)
 	if !ok {
-		return nil, 0, 0, 0
+		return nil, 0, 0, 0, 0
+	}
+	// THE BIGGEST RISE EACH PICTURE MADE BETWEEN TWO SNAPSHOTS. The tally is
+	// cumulative and written at most every couple of seconds, so the differences
+	// between consecutive ones are how fast it was climbing.
+	rose := map[string]int{}
+	was := map[string]int{}
+	for _, s := range t.Notes {
+		if s.Kind != trialPictures {
+			continue
+		}
+		for k, v := range s.Asked {
+			if up := v - was[k]; up > rose[k] {
+				rose[k] = up
+			}
+			was[k] = v
+		}
 	}
 	keys := make([]string, 0, len(n.Asked))
 	for k := range n.Asked {
 		keys = append(keys, k)
 	}
 	sort.Slice(keys, func(i, j int) bool {
+		if rose[keys[i]] != rose[keys[j]] {
+			return rose[keys[i]] > rose[keys[j]]
+		}
 		if n.Asked[keys[i]] != n.Asked[keys[j]] {
 			return n.Asked[keys[i]] > n.Asked[keys[j]]
 		}
@@ -606,13 +782,13 @@ func (t trial) refetched() (worst []string, most int, labels, total int) {
 	for _, k := range keys {
 		labels++
 		total += n.Asked[k]
-		if n.Asked[k] > most {
-			most = n.Asked[k]
-		}
-		if n.Asked[k] > trialRefetch {
-			worst = append(worst, fmt.Sprintf("%s asked for %d times",
-				k, n.Asked[k]))
+		most = max(most, n.Asked[k])
+		burst = max(burst, rose[k])
+		if rose[k] > trialRefetchBurst {
+			worst = append(worst, fmt.Sprintf("%s asked for %d times, %d of "+
+				"them inside one stretch of a couple of seconds",
+				k, n.Asked[k], rose[k]))
 		}
 	}
-	return worst, most, labels, total
+	return worst, most, burst, labels, total
 }

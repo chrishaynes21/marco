@@ -1137,7 +1137,9 @@ func (a *Acts) start(p Performance) string {
 		ref := a.reference
 		a.mu.Unlock()
 		rec, had := a.recordFor(ref)
-		a.trial.performed(act, ref, live, rec, had)
+		// AND WHY IT STOPPED, which the record does not say: `because` is a
+		// tally and the runner's last pause is the sentence. See lastPause.
+		a.trial.performed(act, ref, live, rec, had, lastPause(saying))
 		release()
 		close(finished)
 	}()

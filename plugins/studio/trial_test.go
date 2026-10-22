@@ -205,10 +205,10 @@ func TestThePicturesThePageAskedForAreCountedAndJudged(t *testing.T) {
 	a.Close()
 
 	held := theTrial(t, a)
-	worst, most, labels, total := held.refetched()
-	if labels != 2 || total != 2 || most != 1 {
-		t.Fatalf("the tally is %d label(s), %d request(s), most %d",
-			labels, total, most)
+	worst, most, burst, labels, total := held.refetched()
+	if labels != 2 || total != 2 || most != 1 || burst != 1 {
+		t.Fatalf("the tally is %d label(s), %d request(s), most %d, biggest "+
+			"burst %d", labels, total, most, burst)
 	}
 	if len(worst) != 0 {
 		t.Errorf("a picture asked for once is reported as re-fetched: %v", worst)
@@ -232,27 +232,74 @@ func TestThePicturesThePageAskedForAreCountedAndJudged(t *testing.T) {
 	if err := bs.SavePreview(bart, "screen_b", []byte("x")); err != nil {
 		t.Fatal(err)
 	}
-	for i := 0; i < trialRefetch+5; i++ {
+	for i := 0; i < trialRefetchBurst+2; i++ {
 		b.Picture("ark graphics live", "screen_b")
 	}
 	// BEFORE THE FLUSH the throttle has only let the first one through, which is the
 	// reason the flush exists.
-	if _, most, _, _ := theTrial(t, b).refetched(); most != 1 {
+	if _, most, _, _, _ := theTrial(t, b).refetched(); most != 1 {
 		t.Errorf("the throttled tally says %d, so it is not throttled", most)
 	}
 	b.Close()
-	worst, most, _, _ = theTrial(t, b).refetched()
-	if most != trialRefetch+5 {
+	worst, most, burst, _, _ = theTrial(t, b).refetched()
+	if most != trialRefetchBurst+2 {
 		t.Fatalf("after closing, the tally says %d of %d requests", most,
-			trialRefetch+5)
+			trialRefetchBurst+2)
 	}
 	if len(worst) != 1 || !strings.Contains(worst[0], "screen_b") {
 		t.Fatalf("asking %d times for one picture is reported as %v",
-			trialRefetch+5, worst)
+			trialRefetchBurst+2, worst)
+	}
+	if burst <= trialRefetchBurst {
+		t.Errorf("%d requests in one stretch is reported as a burst of %d",
+			trialRefetchBurst+2, burst)
 	}
 	if got := picturesVerdict(theTrial(t, b)); !strings.Contains(got, "NOT HELD") {
 		t.Errorf("the verdict on a picture fetched %d times is %q",
-			trialRefetch+5, got)
+			trialRefetchBurst+2, got)
+	}
+
+	// ── AND A PICTURE SHOWN IN SEVERAL PLACES IS NOT A PICTURE BLINKING ──
+	//
+	// These are the owner's own numbers, off their second trial. A screen is the `to`
+	// of one step and the `from` of the next, so one review paints it twice; the
+	// review, the Scene library and the Act preview are three surfaces. The tally
+	// climbed 1 → 3 → 5 as they visited each, and then did not move for the eight
+	// minutes the window stayed open — which is a cache doing its job. The first
+	// version of this measure called five a fault, and it was wrong.
+	// The first three snapshots are theirs exactly; the rest is the same sitting
+	// going on — more Acts looked at, the library opened again — which is how a
+	// total climbs past any threshold while nothing is blinking at all. A rule on
+	// the TOTAL cannot tell this from the defect. A rule on the rise can: two.
+	visited := trial{Notes: []trialNote{
+		{Kind: trialPictures, Asked: map[string]int{"t/screen_a": 1,
+			"t/screen_b": 1, "t/screen_c": 1}},
+		{Kind: trialPictures, Asked: map[string]int{"t/screen_a": 2,
+			"t/screen_b": 3, "t/screen_c": 2}},
+		{Kind: trialPictures, Asked: map[string]int{"t/screen_a": 3,
+			"t/screen_b": 5, "t/screen_c": 3}},
+		{Kind: trialPictures, Asked: map[string]int{"t/screen_a": 4,
+			"t/screen_b": 7, "t/screen_c": 4}},
+		{Kind: trialPictures, Asked: map[string]int{"t/screen_a": 5,
+			"t/screen_b": 9, "t/screen_c": 5}},
+		{Kind: trialPictures, Asked: map[string]int{"t/screen_a": 5,
+			"t/screen_b": 9, "t/screen_c": 5}},
+	}}
+	worst, most, burst, labels, _ = visited.refetched()
+	if most != 9 || burst != 2 || labels != 3 {
+		t.Fatalf("three screens painted over a long sitting read as most %d, "+
+			"burst %d, %d label(s)", most, burst, labels)
+	}
+	if most <= trialRefetchBurst {
+		t.Fatalf("this case has to pass the threshold on its total to be "+
+			"the case it is about; its total is %d", most)
+	}
+	if len(worst) != 0 {
+		t.Errorf("a picture painted in three places is reported as "+
+			"re-fetched: %v", worst)
+	}
+	if got := picturesVerdict(visited); !strings.HasPrefix(got, "held") {
+		t.Errorf("the verdict on the owner's own tally is %q", got)
 	}
 }
 
@@ -360,9 +407,184 @@ func TestTheTrialCitesTheRunsOwnRecord(t *testing.T) {
 		t.Errorf("the director that performed it is written down as %q",
 			ran[0].Ran)
 	}
-	if got := resultVerdict(held); !strings.Contains(got, ref) ||
+	if got := strings.Join(resultVerdict(held), "\n"); !strings.Contains(got, ref) ||
 		!strings.Contains(got, "verified") {
 		t.Errorf("the verdict on the run is %q", got)
+	}
+}
+
+// A SITTING IS NOT ONE RECORDING, AND THE LAST POLL IS NOT THE ACCOUNT.
+//
+// Both halves of this were defects in the first reading of a real journal. The owner recorded
+// `trackmania settings`, kept the window open, and recorded `graphic settings` in the same
+// sitting: the reader appended the second one's states to the first one's, and then took its
+// counts from whatever note happened to be last — which was the window's own fallback sentence
+// after the recorder had stopped talking, carrying no counts at all. A recording that placed two
+// presses and could check neither was reported as `presses 0, placed 0, checked 0`.
+func TestEachRecordingOfASittingIsReadAsItself(t *testing.T) {
+	at := func(s int) time.Time {
+		return time.Date(2026, 10, 21, 18, 23, 0, 0, time.UTC).
+			Add(time.Duration(s) * time.Second)
+	}
+	held := trial{Notes: []trialNote{
+		{Kind: trialOpened, At: at(0), Build: "d483988"},
+		{Kind: trialRecording, At: at(1), Name: "trackmania settings",
+			Application: "trackmania", Seconds: 60},
+		{Kind: trialState, At: at(2), Name: "trackmania settings",
+			Phase: "ready", ScreenRead: true, Recorder: "d483988"},
+		{Kind: trialState, At: at(14), Name: "trackmania settings",
+			Phase: "captured", Presses: 2, Watched: 2, Captured: 2,
+			ScreenRead: true, Recorder: "d483988"},
+		{Kind: trialRecorded, At: at(15), Name: "trackmania settings",
+			Said: "Saved \"trackmania settings\": 2 press(es)"},
+		{Kind: trialRecording, At: at(520), Name: "graphic settings",
+			Application: "arkascended", Seconds: 60},
+		{Kind: trialState, At: at(537), Name: "graphic settings",
+			Phase: "ready", ScreenRead: true, Recorder: "d483988"},
+		{Kind: trialState, At: at(544), Name: "graphic settings",
+			Phase: "unchecked", Presses: 1, Watched: 1, Unchecked: 1,
+			ScreenRead: true, Recorder: "d483988",
+			Missing: "that press opened a different screen and only 0 " +
+				"word(s) could be read on it that stayed"},
+		{Kind: trialState, At: at(558), Name: "graphic settings",
+			Phase: "unchecked", Presses: 2, Watched: 2, Unchecked: 2,
+			ScreenRead: true, Recorder: "d483988",
+			Missing: "that press opened a different screen and only 0 " +
+				"word(s) could be read on it that stayed"},
+		// AND THE WINDOW'S OWN FALLBACK, after the recorder stopped talking:
+		// the sentence it shows when the stream has said nothing yet, which
+		// carries no counts and arrives last.
+		{Kind: trialState, At: at(570), Name: "graphic settings",
+			Phase: "reading", Doing: "Reading the starting screen…"},
+		{Kind: trialRecorded, At: at(571), Name: "graphic settings",
+			Said: "Saved \"graphic settings\": 2 press(es), 1 of which " +
+				"Marco can perform and check"},
+	}}
+
+	all := held.recordings()
+	if len(all) != 2 {
+		t.Fatalf("a sitting with two recordings in it reads as %d", len(all))
+	}
+	if all[0].Name() != "trackmania settings" || len(all[0].States) != 2 {
+		t.Errorf("the first recording is %q with %d state(s)", all[0].Name(),
+			len(all[0].States))
+	}
+	if all[1].Name() != "graphic settings" || len(all[1].States) != 4 {
+		t.Errorf("the second recording is %q with %d state(s)", all[1].Name(),
+			len(all[1].States))
+	}
+	// WHAT CAME OF EACH, MATCHED BY NAME. Two recordings and two results, and a
+	// reader that took "the last one" would give the second one's result to both.
+	for i, want := range []string{"trackmania settings", "graphic settings"} {
+		if all[i].Over == nil {
+			t.Fatalf("%s has no result", want)
+		}
+		if !strings.Contains(all[i].Over.Said, want) {
+			t.Errorf("%s was given the result %q", want, all[i].Over.Said)
+		}
+	}
+	// THE HIGH WATER MARK, NOT THE LAST POLL.
+	presses, watched, captured, unchecked, read := all[1].Got()
+	if presses != 2 || watched != 2 || unchecked != 2 || captured != 0 || !read {
+		t.Errorf("the second recording got %d press(es), %d placed, %d "+
+			"checked, %d unchecked, screen read %v", presses, watched,
+			captured, unchecked, read)
+	}
+	// AND THE VERDICT IS ABOUT THE ONE THEY JUST DID, saying so.
+	got := statesVerdict(held)
+	for _, want := range []string{"2 whose result was measured and empty",
+		"0 word(s) could be read", "the last of 2 recordings"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the verdict is %q, which does not say %q", got, want)
+		}
+	}
+	if strings.Contains(got, "2 press(es) checked") {
+		t.Errorf("the verdict credits the first recording's checks to the "+
+			"second: %q", got)
+	}
+
+	// ── AND A RESULT IS ATTACHED BY THE NAME IT CARRIES, NOT BY ITS PLACE ──
+	//
+	// A journal is a file, and `readTrial` SKIPS a line it cannot vouch for — one
+	// written by a later build, or a torn one from a process that went. So the line
+	// that says a second recording began can be missing while the result that names
+	// it is not, and a reader that attached "the next result" to "the recording
+	// without one" would hand the second recording's result to the first. Whose
+	// states are already lost; its verdict does not have to be wrong as well.
+	torn := trial{Notes: []trialNote{
+		{Kind: trialRecording, At: at(1), Name: "trackmania settings"},
+		{Kind: trialState, At: at(2), Name: "trackmania settings",
+			Phase: "ready"},
+		// (the line beginning "graphic settings" is not readable here)
+		{Kind: trialState, At: at(537), Name: "graphic settings",
+			Phase: "unchecked", Presses: 1, Unchecked: 1},
+		{Kind: trialRecorded, At: at(571), Name: "graphic settings",
+			Said: "Saved \"graphic settings\""},
+	}, Unreadable: 1}
+	lost := torn.recordings()
+	if len(lost) != 1 {
+		t.Fatalf("a journal missing the line that begins a recording reads "+
+			"as %d recording(s)", len(lost))
+	}
+	if lost[0].Over != nil {
+		t.Errorf("the second recording's result was attached to %q: %q",
+			lost[0].Name(), lost[0].Over.Said)
+	}
+}
+
+// A RUN THAT SENT NOTHING IS SAID WITH THE SENTENCE THAT EXPLAINS IT.
+//
+// The first live trial of this journal refused twice, and the record said
+// `refused — 0 of 2 interaction(s) verified` both times. That is a tally. The reason — a screen
+// that keeps changing, so every reading comes back about a screen that had already moved — was
+// four hundred events down a temporary file that happened not to have been cleaned up yet. The
+// journal now keeps the runner's own last pause beside the outcome.
+func TestARunThatSentNothingIsSaidWithTheReasonItDidNot(t *testing.T) {
+	a, _ := aStoreWithADemonstration(t)
+	t.Cleanup(a.Close)
+	if c := a.Compose("ark graphics live", "the audio page",
+		[]string{"1=the audio tab"}); c.Error != "" {
+		t.Fatal(c.Error)
+	}
+	t.Setenv("DIRECTOR_BIN", os.Args[0])
+	t.Setenv("STUDIO_STANDIN_RUNNER", "1")
+	t.Setenv("STUDIO_STANDIN_PAUSES", "1")
+	t.Setenv("STUDIO_STANDIN_QUICK", "1")
+	a.raising = func(string) string { return "" }
+	if why := a.Run("the audio page", "ArkAscended.exe", false, false); why != "" {
+		t.Fatalf("the run would not start: %s", why)
+	}
+	for i := 0; i < 500 && a.Watch().Active; i++ {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if a.Watch().Active {
+		t.Fatal("the run never finished")
+	}
+
+	held := theTrial(t, a)
+	ran := notes(held, trialRan)
+	if len(ran) != 1 {
+		t.Fatalf("the journal holds %d results", len(ran))
+	}
+	// THE LAST PAUSE, NOT THE FIRST. A run's reason sharpens as it learns, and the
+	// one that says waiting will not help is the one at the end.
+	if !strings.Contains(ran[0].Paused, "already changed") {
+		t.Errorf("what the run waited on is written down as %q", ran[0].Paused)
+	}
+	got := strings.Join(resultVerdict(held), "\n")
+	if !strings.Contains(got, "already changed") {
+		t.Errorf("the verdict on a run that sent nothing is %q, and does not "+
+			"say what it was waiting on", got)
+	}
+	// AND NOT ON A RUN THAT DID PRESS SOMETHING, where the outcome is about the
+	// press and an earlier pause is the least interesting thing on the line.
+	pressed := trial{Notes: []trialNote{{Kind: trialRan, Reference: "run-1",
+		Outcome: "verified", Sent: 1, Verified: 1,
+		Paused: "the screen in front of you is being read now"}}}
+	if got := strings.Join(resultVerdict(pressed), "\n"); strings.Contains(got,
+		"waiting on") {
+		t.Errorf("a run that sent a press is reported by what it once waited "+
+			"on: %q", got)
 	}
 }
 
@@ -565,6 +787,14 @@ func TestTheTrialNoteShapeMovesWithItsVersion(t *testing.T) {
 			"captured,unchecked,missing,start_known,screen_read,said,next," +
 			"failed,screens,controls,asked,act,from,steps,error,live," +
 			"reference,outcome,because,actions_sent,verified",
+		// 2 ADDED `paused`. The first live trial refused twice and the record
+		// said `refused — 0 of 2 interaction(s) verified` both times; the
+		// sentence that explains it was in a temporary file.
+		2: "version,seq,at,kind,build,recorder,ran,mismatched,director,store," +
+			"routes,name,application,seconds,phase,doing,presses,watched," +
+			"captured,unchecked,missing,start_known,screen_read,said,next," +
+			"failed,screens,controls,asked,act,from,steps,error,live," +
+			"reference,outcome,because,paused,actions_sent,verified",
 	}
 	var names []string
 	ty := reflect.TypeOf(trialNote{})
@@ -586,6 +816,15 @@ func TestTheTrialNoteShapeMovesWithItsVersion(t *testing.T) {
 		t.Errorf("the note's shape is not the one version %d describes.\n"+
 			"  version %d: %s\n  actual:     %s\nMove the version and add "+
 			"the new shape.", trialVersion, trialVersion, want, got)
+	}
+	// AND NO SHAPE IS RECORDED TWICE, which would be two versions nothing can tell
+	// apart — the state the stream format was in when it cost the owner a day.
+	for v, shape := range shapes {
+		for w, other := range shapes {
+			if v < w && shape == other {
+				t.Errorf("versions %d and %d describe the same shape", v, w)
+			}
+		}
 	}
 	// AND A LINE FROM A SHAPE THIS BUILD DOES NOT KNOW IS COUNTED, NOT GUESSED AT.
 	dir := t.TempDir()
