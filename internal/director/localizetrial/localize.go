@@ -415,3 +415,45 @@ func nearAny(at image.Point, of []image.Point, apart int) bool {
 	}
 	return false
 }
+
+// BestOther is the best score within `band` of a point that is NOT the point itself.
+//
+// # Why a guard calibrated only on itself is too permissive
+//
+// Because a control can match its own template at 0.99 in every look and still have a lookalike
+// two rows up that matches at 0.99 as well. A threshold placed from the self-matches alone
+// accepts both, and the guard is then confident about a control it cannot distinguish — which is
+// precisely the failure the whole-window baseline makes, arrived at from the other direction.
+//
+// So calibration is two-sided: what the control scores against itself, and what the best thing
+// near it scores against the same template. The gap between them is the only room a threshold
+// has, and a control with no gap is one to say so about while the person is still demonstrating.
+//
+// `apart` excludes the match with itself: positions closer than that are the same peak.
+func BestOther(t Target, l Look, of image.Point, band int, apart image.Point) (float64, image.Point) {
+	grey := grayOf(l.Client, l.Client.Bounds())
+	pw, ph := t.Patch.Bounds().Dx(), t.Patch.Bounds().Dy()
+	limit := image.Rect(0, 0, grey.Bounds().Dx()-pw+1, grey.Bounds().Dy()-ph+1)
+	top := of.Add(t.Offset)
+	where := image.Rectangle{
+		Min: top.Sub(image.Pt(band, band)),
+		Max: top.Add(image.Pt(band+1, band+1)),
+	}.Intersect(limit)
+	if where.Empty() {
+		return math.Inf(-1), image.Point{}
+	}
+	scores := correlate(grey, t.Patch, where)
+	best, at := math.Inf(-1), image.Point{}
+	for y := where.Min.Y; y < where.Max.Y; y++ {
+		for x := where.Min.X; x < where.Max.X; x++ {
+			d := image.Pt(x, y).Sub(top)
+			if abs(d.X) < apart.X && abs(d.Y) < apart.Y {
+				continue
+			}
+			if s := scores.get(image.Pt(x, y)); s > best {
+				best, at = s, image.Pt(x, y).Sub(t.Offset)
+			}
+		}
+	}
+	return best, at
+}

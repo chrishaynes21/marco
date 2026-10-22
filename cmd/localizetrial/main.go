@@ -39,11 +39,29 @@ func main() {
 			"scale needs the region the control actually has, and saying so "+
 			"explicitly is better than a number that silently means something "+
 			"else")
+	calib := flag.String("calibrate", "",
+		"a directory of PNG frames of one window; with -click and -region, "+
+			"measures what the demonstrated control scores against itself "+
+			"across them AND against the best thing near it, which is the "+
+			"only honest way to place a threshold")
+	by := flag.Int("downscale", 1,
+		"measure the same control at 1/N of the capture resolution, which is "+
+			"what a preview keeps; 1 leaves the frames alone")
+	band := flag.Int("band", 160,
+		"how far from the click to look for something that is not the control")
 	evidence := flag.String("evidence", "",
 		"a directory to write the representative images into; nothing is "+
 			"written without one")
 	flag.Parse()
 
+	if *calib != "" {
+		if err := calibrate(*calib, mustPoint(*click, "-click"),
+			mustSize(*region, "-region"), *band, *by); err != nil {
+			fmt.Fprintln(os.Stderr, "localizetrial:", err)
+			os.Exit(1)
+		}
+		return
+	}
 	if *real != "" {
 		var x, y int
 		if _, err := fmt.Sscanf(*click, "%d,%d", &x, &y); err != nil {

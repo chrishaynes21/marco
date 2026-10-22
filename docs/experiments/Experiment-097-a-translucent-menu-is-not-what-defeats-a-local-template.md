@@ -4,8 +4,8 @@ status: partial
 date: 2026-10-21
 backend:
   - structure
-fixture: "The owner's own Ark captures, five probes, not a protocol: the four preview PNGs saved by their `graphic settings` recording (640x360, downscaled from 1920x1080 by the preview path). Two pairs of real translucent game UI — the pause menu with the live world moving behind it (`screen_a`, `screen_b`) and the settings panel with the world behind it and then gone (`screen_c`, `screen_d`). Run with `go run ./cmd/localizetrial -real <a.png> -then <b.png> -click x,y -region wxh`. No window was opened, no input sent, and no image committed."
-result: "Translucency does not defeat a local template. A settings button taught on the settled screen scores 0.9241 on the translucent one and 0.9241 the other way; a pause-menu button with the live world moving behind it scores 0.9876. Their best rivals anywhere in the window score 0.59, 0.63 and 0.72. BUT two things that matter: the wrong-instance hazard is real on this UI — a repeated volume value ranks a DIFFERENT ROW above the demonstrated one, 0.9151 against 0.8926, which no threshold separates and only location does — and the threshold frozen against the opaque fixture does NOT transfer: those true matches at 0.89 and 0.85 sit below 0.90, so the guard refuses a control that is there. The acceptance threshold has to come from the demonstration, not from a constant."
+fixture: "The owner's own Ark captures, five probes, not a protocol: the four preview PNGs saved by their `graphic settings` recording (640x360, downscaled from 1920x1080 by the preview path). Two pairs of real translucent game UI — the pause menu with the live world moving behind it (`screen_a`, `screen_b`) and the settings panel with the world behind it and then gone (`screen_c`, `screen_d`). Run with `go run ./cmd/localizetrial -real <a.png> -then <b.png> -click x,y -region wxh`. AND the nine 1920x1080 frames of `fixtures/vision/v2/rocketleague/pause-stable`, already in this repository, for the two-sided calibration and the resolution comparison: `go run ./cmd/localizetrial -calibrate <dir> -click x,y -region wxh -downscale N`. No window was opened, no input sent, and no image committed."
+result: "Two measurements. FIRST, on the owner's 640x360 previews — translucency does not defeat a local template. A settings button taught on the settled screen scores 0.9241 on the translucent one and 0.9241 the other way; a pause-menu button with the live world moving behind it scores 0.9876. Their best rivals anywhere in the window score 0.59, 0.63 and 0.72. BUT two things that matter: the wrong-instance hazard is real on this UI — a repeated volume value ranks a DIFFERENT ROW above the demonstrated one, 0.9151 against 0.8926, which no threshold separates and only location does — and the threshold frozen against the opaque fixture does NOT transfer: those true matches at 0.89 and 0.85 sit below 0.90, so the guard refuses a control that is there. The acceptance threshold has to come from the demonstration, not from a constant. SECOND, two-sided calibration on the only full-resolution menu frames in the repository (Rocket League pause-stable, 9 frames at 1920x1080, an OPAQUE panel — so it cannot answer the translucent question): the same control at 1/1, 1/2 and 1/3 of capture resolution matches itself at 1.0000 every time while its nearest rival rises 0.5962, 0.6229, 0.7111 — separation 0.4038, 0.3771, 0.2888. Downscaling to the preview's resolution costs 28 percent of the separation and the self-match does not move at all, so a guard calibrated on self-matches alone is blind to exactly what degrades it. Calibration has to happen on full-resolution pixels."
 supersedes: []
 affects:
   - demonstrations
@@ -76,11 +76,56 @@ can measure what its own template scores against itself.
 lifted the demonstrated row to the top (0.8548 over 0.8137) and pulled every number down. It is
 a real lever and not a free one.
 
+## What capture resolution costs, measured
+
+The caution that came back on the first result was the right one:
+
+> positive self-matches alone can make the guard too permissive, so evaluate them against
+> nearby non-targets as well
+
+So the measurement became two-sided — what the control scores against ITSELF across several
+looks, and what the best thing NEAR IT scores against the same template — and the number that
+matters is the gap between them. `localizetrial -calibrate <frames> -click x,y -region wxh`.
+
+The only full-resolution game menu in this repository is the Rocket League pause panel
+(`fixtures/vision/v2/rocketleague/pause-stable`, nine frames at 1920x1080). It is OPAQUE: its
+menu region is pixel-identical across all nine frames while the scene behind it is not (a patch
+of the arena scores 0.9801 between the first frame and the last). **So the translucent question
+at capture resolution is still unanswered** — see below.
+
+What those frames do answer, with the same control and the same pixels at three scales:
+
+| resolution | matches itself | nearest rival | separation |
+| --- | --- | --- | --- |
+| 1920x1080, as captured | 1.0000 | 0.5962 | **0.4038** |
+| 960x540 | 1.0000 | 0.6229 | 0.3771 |
+| 640x360, what a preview keeps | 1.0000 | 0.7111 | **0.2888** |
+
+The rival is the sibling button 45px below — EXIT TO MAIN MENU against the demonstrated
+SETTINGS. **Downscaling to the preview's resolution costs 28% of the separation**, and the
+self-match does not move at all: it is 1.0000 at every scale. A guard calibrated on self-matches
+alone is therefore exactly blind to the thing degrading it — which is the caution, with a number
+on it.
+
+It also explains the volume-row probe above. Separation falls with scale because what falls is
+the distinguishing detail; a large button with large text keeps 0.29 of it at a third of
+resolution, and a small value in a list keeps none — its separation is NEGATIVE at that scale,
+which is what -0.0225 means.
+
+**So calibration has to happen on full-resolution pixels.** The preview path keeps a 640x360
+picture of a 1920x1080 window, which is the right thing for a person looking at a review and the
+wrong thing to measure a guard from. The demonstration should keep a full-resolution crop of the
+control's own region, which is small, which it is already cropping anyway, and which would make
+every future demonstration carry its own calibration.
+
 ## What this does not say
 
-- **Nothing about full resolution.** These are 640x360 previews downscaled from 1920x1080 by the
-  preview path. Downscaling averages away the moving background's detail, which may flatter
-  every number here. A run captures at full resolution and would have to be measured there.
+- **The translucent case at full resolution.** The probes above are 640x360 previews; the only
+  full-resolution menu frames in the repository are an OPAQUE panel over a nearly-static scene,
+  so they cannot answer it. What would: one capture of a translucent menu over moving content at
+  1920x1080 — or, better and without asking anybody to interrupt a game, a demonstration that
+  keeps a full-resolution crop of the control region, which answers it permanently for every
+  control anybody ever demonstrates.
 - **Nothing with a count.** Five probes, two screens, four controls, no seeds.
 - **Nothing about a control that moves.** Both images of each pair have the menu in the same
   place; this measured the background changing, not the layout.
