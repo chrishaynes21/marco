@@ -103,7 +103,7 @@ func strayKeys() observe.InputStats {
 
 // THE SESSION WORKS, THE MISTAKE IS KEPT, AND NOTHING IS ASKED.
 func TestATeachingSessionWithAMistakeAsksNothing(t *testing.T) {
-	o, _, onNothing := aSessionWithAMistake(t)
+	o, onGraphics, onNothing := aSessionWithAMistake(t)
 	reg := o.Registry()
 	ev := o.Clicks()
 
@@ -174,16 +174,52 @@ func TestATeachingSessionWithAMistakeAsksNothing(t *testing.T) {
 		t.Errorf("%d unresolved line(s) for two facts", len(un))
 	}
 
-	// AND NO PRESS COORDINATE REACHED THE SAVED WORKFLOW. The evidence is kept in the
-	// session, where it belongs; the artifact stays unable to act on a coordinate, which
-	// is ADR-181 and ADR-183 unchanged.
+	// ── AND WHICH COORDINATES REACHED THE SAVED WORKFLOW, AND WHICH DID NOT ──
+	//
+	// This guard used to forbid every `"at"` in the artifact, and the rule behind it has
+	// since been narrowed ON PURPOSE rather than deleted:
+	// [[ADR-248-replaying-a-demonstrated-layout]] authorised one point per INTERPRETED
+	// STEP, because a replay of a click cannot be built out of a rectangle a segmenter
+	// drew around it. What it did not authorise is any of the rest, so what this asserts
+	// now is the boundary rather than the absence.
+	//
+	// The demonstrated press IS here. The MISTAKE — the click on bare background that
+	// Marco could not segment and that never became a step — is NOT, and neither is the
+	// tally of presses like it. That distinction is the whole safety argument: the raw
+	// record beside this file keeps everything the person did, and the executable
+	// artifact keeps only what was interpreted.
 	body, err := a.Marshal()
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, forbidden := range []string{"0.88", "blind_presses", "\"at\""} {
+	for _, forbidden := range []string{"0.88", "blind_presses", "observations"} {
 		if strings.Contains(string(body), forbidden) {
-			t.Errorf("the saved workflow contains %q:\n%s", forbidden, body)
+			t.Errorf("the saved workflow contains %q, which belongs to the raw "+
+				"record and not to the executable artifact:\n%s",
+				forbidden, body)
+		}
+	}
+	if !strings.Contains(string(body), "\"at\"") {
+		t.Errorf("the saved workflow carries no demonstrated click at all, so no "+
+			"Act over it could be performed on its layout:\n%s", body)
+	}
+	// AND IT IS THE PRESS THAT WAS INTERPRETED, asserted by its value: a point here
+	// that was not one of the demonstrated ones would be something computed.
+	for i, st := range a.Steps {
+		if st.Control == "" {
+			if st.At != nil {
+				t.Errorf("step %d changed the screen by %s and carries a "+
+					"click at %+v", i, st.Cause, *st.At)
+			}
+			continue
+		}
+		if st.At == nil {
+			t.Errorf("step %d presses %s and records no click", i, st.Control)
+			continue
+		}
+		if *st.At != onGraphics {
+			t.Errorf("step %d records a click at %+v; the person pressed %+v",
+				i, *st.At, onGraphics)
 		}
 	}
 }
@@ -418,15 +454,26 @@ func TestTheRoutineAndTheRawDemonstrationAreBothSaved(t *testing.T) {
 		t.Fatalf("%d keystroke(s) %+v, want one held 60ms", len(ks), ks)
 	}
 
-	// ── AND THE EXECUTABLE ARTIFACT STILL CARRIES NO COORDINATE ──
+	// ── AND THE EXECUTABLE ARTIFACT CARRIES ONLY THE INTERPRETED CLICK ──
+	//
+	// The two files are the safety argument, and narrowing the rule did not change it:
+	// the raw record holds EVERYTHING the person did, including the press on bare
+	// background that Marco could not segment, and the artifact holds the one point per
+	// interpreted step that [[ADR-248-replaying-a-demonstrated-layout]] authorised. The
+	// mistake is the test: it is in one file and not the other.
 	body, err := saved.Marshal()
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, forbidden := range []string{"0.88", "\"at\"", "observations"} {
+	for _, forbidden := range []string{"0.88", "observations"} {
 		if strings.Contains(string(body), forbidden) {
-			t.Errorf("the saved routine contains %q:\n%s", forbidden, body)
+			t.Errorf("the saved routine contains %q, which belongs to the raw "+
+				"record and not to the executable artifact:\n%s",
+				forbidden, body)
 		}
+	}
+	if !strings.Contains(string(body), "\"at\"") {
+		t.Errorf("the saved routine carries no demonstrated click:\n%s", body)
 	}
 	// AND THE RECORD OF AN EARLIER SESSION IS NOT READ AS A LATER ONE'S.
 	later := saved

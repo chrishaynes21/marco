@@ -77,6 +77,20 @@ const (
 	// The strongest thing this subsystem can currently say, and it is NOT a claim that the
 	// control means what it meant. See the package note.
 	SupportGeometric Support = "geometric"
+	// SupportDemonstratedLayout is WEAKER than geometric and exists to say so.
+	//
+	// The control where the demonstration left it, in a window of the size it was
+	// demonstrated in — and on a screen NOTHING corroborated, because the thing this
+	// exists for is the case where a screen cannot be established at all. A menu drawn
+	// over a live 3D world is filed as two different screens depending on what is moving
+	// behind it, so the recognition route has no answer to give and waiting does not
+	// produce one. See [[ADR-248-replaying-a-demonstrated-layout]].
+	//
+	// It is a separate word rather than a reuse of `SupportGeometric` because a run's
+	// record must not say "on a screen whose arrangement matches" about a step that
+	// skipped exactly that question. The weaker claim has to be visible wherever the
+	// stronger one would have been printed.
+	SupportDemonstratedLayout Support = "demonstrated layout"
 )
 
 // Step is one thing a demonstration taught.
@@ -104,6 +118,25 @@ type Step struct {
 	// ADR-180, where mutual centre containment turned out not to be a size test.
 	Readings   []observe.Region `json:"readings,omitempty"`
 	Containers []observe.Region `json:"containers,omitempty"`
+	// At is WHERE THE PERSON CLICKED, normalised to the window, and nil when the step
+	// was not a press or the press could not be placed.
+	//
+	// The click itself, taken from the press and NEVER computed from a proposal. That
+	// distinction is the whole point of the field. The middle of a re-acquired rectangle
+	// is a different point from the one somebody pressed — proposals are generous, a
+	// live look matched PLAY with a region running to the window's left edge, and the
+	// middle of that landed three pixels inside a button starting at 62 — so a replay
+	// that pressed the middle of a saved region would be replaying the segmenter's idea
+	// of the control rather than the person's click.
+	//
+	// It also means a press the proposer found NOTHING under still records where it was.
+	// A step whose target has no readings at all is still a step with a point.
+	//
+	// It is DEMONSTRATION EVIDENCE, which ADR-181 and ADR-183 have always allowed, and
+	// it becomes something to press only under the narrow fixed-layout licence and only
+	// while the window is the size it was demonstrated in. See
+	// [[ADR-248-replaying-a-demonstrated-layout]].
+	At *observe.PointerAt `json:"at,omitempty"`
 	// look is the look this step's own press happened on, for ordering only.
 	//
 	// Unexported so it can never serialise: it is a session-local index and the saved
@@ -268,6 +301,36 @@ func (s Step) why() string {
 	}
 }
 
+// pressedAt is where the person clicked for one step, out of the session's record of every press.
+//
+// `Observations` is the raw record — every press in the order it was made, with the point, the
+// look and whatever target it was attributed to — so this reads the CLICK and never a rectangle
+// anything drew around it.
+//
+// The look is preferred when the step knows one, because a control pressed twice has two points
+// and the step is about one of them. Without a look, the first press of that target is taken:
+// that is the one the step's own evidence was built from.
+func pressedAt(ev observe.ClickEvidence, target observe.VisualTargetID, look int) *observe.PointerAt {
+	if target == "" {
+		return nil
+	}
+	var first *observe.PointerAt
+	for i := range ev.Observations {
+		p := ev.Observations[i]
+		if p.Target != target {
+			continue
+		}
+		at := p.At
+		if look > 0 && p.Look == look {
+			return &at
+		}
+		if first == nil {
+			first = &at
+		}
+	}
+	return first
+}
+
 // Learn builds a draft from what a session observed.
 //
 // `walk` is the order the demonstration visited its screens — `VisualScreens.Walk` — and `ev` the
@@ -325,6 +388,13 @@ func Learn(name string, walk []observe.VisualScreenID, ev observe.ClickEvidence,
 		if len(st.Looks) > 0 {
 			step.look = st.Looks[0]
 		}
+		// AND WHERE THE PERSON ACTUALLY CLICKED.
+		//
+		// From the press, not from the record below: `rec.Where` is what a
+		// proposer drew and its middle is not where anybody pressed. Taken before
+		// the record is consulted, deliberately, so that a step whose target the
+		// proposer found nothing for still carries its own point.
+		step.At = pressedAt(ev, st.Target, step.look)
 		if rec, ok := records[st.Target]; ok {
 			step.Readings = append([]observe.Region{}, rec.Where...)
 			step.Containers = append([]observe.Region{}, rec.Containers...)

@@ -493,16 +493,31 @@ func TestAVisualScreenCannotReachDurableMemory(t *testing.T) {
 		// returns an artifact the test reads and drops.
 		filepath.Join(flow, "incompletewindow_test.go"): true,
 		filepath.Join(flow, "boundary_test.go"):         true,
-		filepath.Join(store, "workflowstore.go"):        true,
-		filepath.Join(store, "clarify.go"):              true,
-		filepath.Join(store, "clarify_test.go"):         true,
-		filepath.Join(store, "anchor.go"):               true,
-		filepath.Join(store, "stepplan.go"):             true,
-		filepath.Join(store, "arrival.go"):              true,
-		filepath.Join(store, "arrival_test.go"):         true,
-		filepath.Join(store, "stepplan_test.go"):        true,
-		filepath.Join(store, "anchor_test.go"):          true,
-		filepath.Join(store, "workflowstore_test.go"):   true,
+		// `demonstratedpoint_test.go` drives `Learn` with the session's own click
+		// evidence, which is the only place the point a person pressed exists, so
+		// it names the screen ids its steps run between and the observation the
+		// point is taken from. Allowed for the reason `workflow_test.go` is: it
+		// asserts what a DRAFT carries, and a draft is not durable memory. See
+		// [[ADR-248-replaying-a-demonstrated-layout]].
+		filepath.Join(flow, "demonstratedpoint_test.go"): true,
+		filepath.Join(store, "workflowstore.go"):         true,
+		filepath.Join(store, "clarify.go"):               true,
+		filepath.Join(store, "clarify_test.go"):          true,
+		filepath.Join(store, "anchor.go"):                true,
+		filepath.Join(store, "stepplan.go"):              true,
+		filepath.Join(store, "arrival.go"):               true,
+		filepath.Join(store, "arrival_test.go"):          true,
+		filepath.Join(store, "stepplan_test.go"):         true,
+		filepath.Join(store, "anchor_test.go"):           true,
+		filepath.Join(store, "workflowstore_test.go"):    true,
+		// `layoutreplay_test.go` drives the fixed-layout route through the real
+		// `StepReadinessAt`, which means building an artifact with `Save` — so it
+		// names the arrangement map that takes and the screen ids its looks carry.
+		// Allowed for the reason `stepplan_test.go` is, and with the same cost:
+		// nothing it builds is marshalled, and the one thing it adds to an
+		// artifact is a window SIZE, which is not a screen identity and could not
+		// become one. See [[ADR-248-replaying-a-demonstrated-layout]].
+		filepath.Join(store, "layoutreplay_test.go"): true,
 		// `juststep.go` extracts one step into a workflow of its own, and its test
 		// asserts that the starting screen's ARRANGEMENT travels — the evidence that
 		// makes such a step plannable at all. Allowed for the reason

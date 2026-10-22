@@ -513,6 +513,33 @@ func runDemonstrateVisual(args []string) int {
 		return 1
 	}
 	a = scoped
+
+	// ── AND THE WINDOW IT WAS DEMONSTRATED IN ──
+	//
+	// Evidence about the demonstration rather than part of what it taught: a reader that
+	// ignores this performs the same steps, and what it loses is the refusal that makes
+	// replaying a demonstrated coordinate a narrow exception rather than a hole. Every
+	// reading in this file is normalised to its window, so the arithmetic produces a
+	// confident-looking point at any window size — and this is the only thing that can
+	// later say whether the window is the one those readings were taken in.
+	//
+	// A demonstration whose window was RESIZED partway records nothing, and says so: it
+	// is not a demonstration of a fixed layout, and picking one of the two sizes would be
+	// this command deciding which half of it the person meant.
+	switch {
+	case res.resized:
+		fmt.Printf("  the window changed size while this was demonstrated, so what " +
+			"it was demonstrated in is not recorded\n")
+	case res.window.Width > 0 && res.window.Height > 0:
+		if err := a.DemonstratedIn(workflowstore.WindowGeometry{
+			Width: res.window.Width, Height: res.window.Height,
+			Scale: workflowstore.ScaleUnknown,
+		}); err != nil {
+			fmt.Fprintf(os.Stderr, "director: the window this was demonstrated "+
+				"in is not recorded: %v\n", err)
+		}
+	}
+
 	if *dry {
 		fmt.Printf("\n--dry-run: %q would be saved with %d step(s), %d screen(s) and "+
 			"%d control(s). Nothing was written.\n",

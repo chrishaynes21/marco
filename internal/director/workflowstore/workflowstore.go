@@ -113,6 +113,100 @@ type Artifact struct {
 	// was. SEPARATE from SavedAt, which stays the instant the demonstration was saved
 	// because it is the link to the raw record beside it.
 	CorrectedAt time.Time `json:"corrected_at,omitzero"`
+	// Window is the window this was demonstrated in, and nil for every artifact recorded
+	// before one was kept.
+	//
+	// Evidence, not a target. Every reading in this file is normalised to its window
+	// already, so nothing here needs this to compute a point — which is precisely the
+	// problem it solves. A normalised reading keeps producing a confident-looking point
+	// at ANY window size, so without this there is no way to tell a replay in the
+	// demonstrated window from a replay in a window half the size where the menu has
+	// reflowed. See [[ADR-248-replaying-a-demonstrated-layout]].
+	//
+	// Additive: a reader that ignores it performs exactly the same steps. What it loses
+	// is the REFUSAL, and the fixed-layout route refuses outright when this is absent
+	// rather than proceeding on coordinates it cannot check.
+	Window *WindowGeometry `json:"window,omitempty"`
+}
+
+// WindowGeometry is the size of a window in WINDOW pixels, with the display scale it was seen at.
+//
+// Window pixels and not a client area: what the recorder captures includes the frame, and a
+// consumer converting from a client area it was never given would be wrong by the width of a
+// border. The same statement ADR-247 makes about a click's coordinates, for the same reason.
+type WindowGeometry struct {
+	Width  int `json:"width"`
+	Height int `json:"height"`
+	// Scale is the display scale, or ScaleUnknown when nothing observed one.
+	//
+	// Unknown is a third answer and stays one. Writing 1 would let a window captured at
+	// 150% be compared against one captured at 100% and called the same layout, which is
+	// the comparison this field exists to make possible.
+	Scale float64 `json:"scale,omitempty"`
+}
+
+// ScaleUnknown is what a display scale nothing observed is recorded as.
+//
+// Zero, deliberately not one — the same constant and the same reason as
+// `controlevidence.ScaleUnknown`, restated here rather than imported because this package holds
+// the durable file and may not depend on the measurement one.
+const ScaleUnknown = 0
+
+// Known reports whether this geometry says anything at all.
+func (w *WindowGeometry) Known() bool { return w != nil && w.Width > 0 && w.Height > 0 }
+
+// DemonstratedIn records the window this artifact was demonstrated in.
+//
+// A method rather than an argument to `SaveWith` because it is evidence ABOUT a demonstration
+// and not part of what the demonstration taught: an artifact without it performs exactly the
+// same steps, and what it loses is a refusal. It is also the one thing a caller is allowed to
+// attach after the fact, which is why it validates rather than trusting — a geometry of zero
+// would be indistinguishable from never having recorded one, and would read as "this
+// demonstration predates the field" to every future reader.
+//
+// A size that was never one size is REFUSED rather than averaged. Somebody who resized the
+// window mid-demonstration did not demonstrate a fixed layout.
+func (a *Artifact) DemonstratedIn(w WindowGeometry) error {
+	if w.Width <= 0 || w.Height <= 0 {
+		return fmt.Errorf("workflowstore: a window of %dx%d is not a window, and "+
+			"recording it as one would be indistinguishable from a "+
+			"demonstration that never recorded its window at all",
+			w.Width, w.Height)
+	}
+	a.Window = &w
+	return nil
+}
+
+// SameAs reports whether two window geometries are the one layout, and says why when they are
+// not.
+//
+// EXACT, in both directions. There is no tolerance here and that is the decision: the licence
+// this serves is for an UNCHANGED window, and a tolerance would be this layer deciding how much
+// change a menu survives — which is the question nobody has measured and the reason the licence
+// is narrow. A window one pixel different is reported as different, and a person who resized
+// their window gets a sentence saying so instead of a click somewhere plausible.
+//
+// A scale that is unknown on either side is not a difference and not a match: it is not asked
+// about, exactly as `buildid.Same` treats an unstamped build. Two windows of the same size whose
+// scales are both unknown are the same layout as far as anything here can tell, and saying
+// otherwise would refuse every artifact this build records.
+func (w *WindowGeometry) SameAs(other WindowGeometry) (bool, string) {
+	if !w.Known() {
+		return false, "the demonstration did not record the window it was made in"
+	}
+	if other.Width <= 0 || other.Height <= 0 {
+		return false, "the window standing now has no size to compare"
+	}
+	if w.Width != other.Width || w.Height != other.Height {
+		return false, fmt.Sprintf("this was demonstrated in a window of %dx%d and "+
+			"the window now is %dx%d", w.Width, w.Height,
+			other.Width, other.Height)
+	}
+	if w.Scale != ScaleUnknown && other.Scale != ScaleUnknown && w.Scale != other.Scale {
+		return false, fmt.Sprintf("this was demonstrated at a display scale of %g "+
+			"and the scale now is %g", w.Scale, other.Scale)
+	}
+	return true, ""
 }
 
 // Screen is a label and what the demonstration saw, never a name from the session.
@@ -258,6 +352,22 @@ type Step struct {
 	// different from an outcome that was looked for and not found, and `OutcomeHeld`
 	// says so rather than refusing as though the evidence disagreed.
 	Outcome []string `json:"outcome,omitempty"`
+	// At is WHERE THE PERSON CLICKED for this step, normalised to the window, and nil
+	// for a step that was not a press or a press that could not be placed.
+	//
+	// The click itself. Never the middle of a saved reading: proposals are generous and
+	// their middles are not where anybody pressed, so a replay that took the centre of a
+	// rectangle would be replaying the segmenter rather than the person. It is also what
+	// lets a press the proposer found NOTHING under still say where it was.
+	//
+	// DEMONSTRATION EVIDENCE, which ADR-181 and ADR-183 have always permitted a file to
+	// carry. It becomes something to press only under the fixed-layout licence, only
+	// while the window is the size it was demonstrated in, and only through
+	// [[ADR-248-replaying-a-demonstrated-layout]]. Nothing on the recognition path reads
+	// it.
+	//
+	// Additive: a reader that ignores it performs exactly the same steps by recognition.
+	At *observe.PointerAt `json:"at,omitempty"`
 	// Uncertain says the session could not tell this control from another on the same
 	// screen, and Unresolved says what in words a person can answer.
 	Uncertain  bool     `json:"uncertain,omitempty"`
@@ -407,6 +517,14 @@ func SaveWith(d workflow.Draft,
 			// AND WHAT THE PRESS DID, which is the only evidence a step whose
 			// screens share a label has that anything happened. Words only.
 			Outcome: s.Outcome,
+			// AND WHERE THE PERSON CLICKED, normalised to the window.
+			//
+			// The click, never the middle of a rectangle something drew
+			// around it. Carried per STEP and not per control, because the
+			// same control pressed at two positions was pressed twice and
+			// the two points are two facts; a control's readings merge and
+			// a click does not. See [[ADR-248]].
+			At: s.At,
 		}
 		if by, ok := s.Confirmation(); ok {
 			st.ConfirmedBy = by
