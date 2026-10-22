@@ -292,6 +292,23 @@
            shown without sending anything. A dry run is not this: its first click never
            happens, so it cannot reach the second interaction at all. -->
       <div id="adSteps" style="margin-top:10px"></div>
+      <!-- PERFORMING ON THE DEMONSTRATED LAYOUT, offered and never taken by default.
+
+           Marco presses where the person clicked, in a window of the size they clicked
+           it in, without recognising the screen. It is for the menus no recogniser can
+           name — a menu drawn over a live 3D world is filed as two different screens
+           depending on what moves behind it — and it is a narrow exception to the rule
+           that a recorded coordinate is not a replay target, so the person pressing
+           Play is who takes it.
+
+           Hidden entirely for an Act whose demonstration cannot support it, because
+           what is missing is in the RECORDING and no choice here can repair it. The
+           sentence beside it then says what would. -->
+      <div class="row hide" id="layoutRow" style="margin-top:12px">
+        <label><input type="checkbox" id="layoutOn" onchange="paintLayout()">
+          perform on the demonstrated layout</label>
+        <span class="muted" id="layoutNote"></span>
+      </div>
       <div class="row" style="margin-top:14px">
         <button class="go" id="playBtn" onclick="play(true)">Play</button>
         <button onclick="forgetAct(chosen)">Delete this Act</button>
@@ -709,7 +726,7 @@
  function renderAct(){
    const a = actNamed(chosen)
    showing($('actDetail'), !!a)
-   if (!a) { shownAct = ''; paintReady(); return }
+   if (!a) { shownAct = ''; paintReady(); paintLayout(); return }
    text($('adName'), a.name)
    text($('adWhere'), (a.application || 'no application recorded') +
      '  ·  from what you showed Marco in "' + a.from + '"')
@@ -737,6 +754,7 @@
    text($('adPlay'), a.play || '')
    $('runapp').value = a.application || ''
    paintReady()
+   paintLayout()
  }
 
  // stepsHTML is the ordered preview, and the same markup is the run's own step list.
@@ -795,10 +813,35 @@
    // in the same order meaning different interactions, and then what somebody pressed Play on
    // is not what would be pressed.
    const seen = (listed.find(a => a.name === act) || {}).identity || ''
-   acts.Play(act, live, seen).then(err => {
+   // AND WHETHER THIS PRESS AUTHORISES A REPLAY OF THE DEMONSTRATED LAYOUT.
+   //
+   // Read from the box rather than from the Act: the Act says whether it is POSSIBLE,
+   // and this says whether the person asked for it. Never true for an Act that cannot
+   // do it — the row is hidden then — and the backend refuses that combination anyway,
+   // because a page is not where a narrow exception should be enforced.
+   const onLayout = $('layoutOn').checked && !!(actNamed(act) || {}).on_layout
+   acts.Play(act, live, onLayout, seen).then(err => {
      if (err) { say(err); return }
      onRun = true; paintViews()
    })
+ }
+
+ // WHAT PERFORMING ON THE DEMONSTRATED LAYOUT MEANS, said beside the choice.
+ //
+ // Two sentences, because the choice has two states and the quiet one is the one that
+ // misleads: a box nobody ticked with no words beside it reads as an option Marco is
+ // already taking.
+ function paintLayout(){
+   const a = actNamed(chosen) || {}
+   const can = !!a.on_layout
+   showing($('layoutRow'), can || !!a.layout_says)
+   $('layoutOn').disabled = !can
+   if (!can) { $('layoutOn').checked = false }
+   text($('layoutNote'), !can ? (a.layout_says || '')
+     : ($('layoutOn').checked
+        ? (a.layout_says || '')
+        : 'off — Marco will recognise the screen before each press, and will wait ' +
+          'rather than press if it cannot.'))
  }
  function run(){
    acts.Run(chosen, $('runapp').value, $('liveOn').checked,

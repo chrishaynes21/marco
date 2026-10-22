@@ -107,7 +107,7 @@ func TestARunAndARecordingDoNotOverlap(t *testing.T) {
 	// holding the temporary store open. See Close.
 	t.Cleanup(a.Close)
 
-	if why := a.Play("the audio page", false, ""); why == "" {
+	if why := a.Play("the audio page", false, false, ""); why == "" {
 		t.Fatal("an Act was performed while a demonstration was being recorded")
 	} else if !strings.Contains(why, "recording") {
 		t.Errorf("the refusal does not say why: %s", why)

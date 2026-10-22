@@ -82,7 +82,7 @@ func grantedIn(t *testing.T, said string) grant {
 func TestPlayHandsTheRunnerAnAuthorisationForTheChosenAct(t *testing.T) {
 	a := aPlayableAct(t, "the audio page")
 
-	if err := a.Play("the audio page", false, ""); err != "" {
+	if err := a.Play("the audio page", false, false, ""); err != "" {
 		t.Fatalf("Play would not start: %s", err)
 	}
 	said := waitForTranscript(t, a)
@@ -136,7 +136,7 @@ func TestPlayHandsTheRunnerAnAuthorisationForTheChosenAct(t *testing.T) {
 func TestTryingItWithoutClickingDoesNotPassLive(t *testing.T) {
 	for _, live := range []bool{false, true} {
 		a := aPlayableAct(t, "the audio page")
-		if err := a.Play("the audio page", live, ""); err != "" {
+		if err := a.Play("the audio page", live, false, ""); err != "" {
 			t.Fatalf("live=%v: Play would not start: %s", live, err)
 		}
 		said := waitForTranscript(t, a)
@@ -162,7 +162,7 @@ func TestPlayRefusesWhatItCanAnswerBeforeStartingAnything(t *testing.T) {
 	a := aPlayableAct(t, "the audio page")
 
 	// ── AN ACT THAT IS NOT THERE.
-	if err := a.Play("something nobody composed", false, ""); !strings.Contains(err,
+	if err := a.Play("something nobody composed", false, false, ""); !strings.Contains(err,
 		"no Act called") {
 		t.Errorf("playing an Act that does not exist said %q", err)
 	}
@@ -196,7 +196,7 @@ func TestAnActWhoseDemonstrationMovedIsRefusedWithTheReason(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	why := a.Play("moved", false, "")
+	why := a.Play("moved", false, false, "")
 	if why == "" {
 		t.Fatal("an Act pinned to a revision that no longer exists was performed")
 	}
@@ -224,7 +224,7 @@ func TestAnActWhoseDemonstrationMovedIsRefusedWithTheReason(t *testing.T) {
 func TestAnActComposedAgainSinceItWasListedIsRefused(t *testing.T) {
 	a := aPlayableAct(t, "the audio page")
 
-	why := a.Play("the audio page", false, "a digest from a version that has gone")
+	why := a.Play("the audio page", false, false, "a digest from a version that has gone")
 	if why == "" {
 		t.Fatal("an Act was performed under a decision made about a different " +
 			"version of it")
@@ -242,7 +242,7 @@ func TestAnActComposedAgainSinceItWasListedIsRefused(t *testing.T) {
 		t.Fatal("the Act is listed with no identity, so a page has nothing to " +
 			"hand back")
 	}
-	if err := a.Play("the audio page", false, shown); err != "" {
+	if err := a.Play("the audio page", false, false, shown); err != "" {
 		t.Fatalf("the Act was refused under the identity it is listed with: %s", err)
 	}
 }
@@ -329,7 +329,7 @@ func TestTheSameNamesMovedToOtherInteractionsIsRefused(t *testing.T) {
 		t.Fatalf("the identity is blind to the recompose as well: %q", now.Identity)
 	}
 
-	why := a.Play("both tabs", false, was.Identity)
+	why := a.Play("both tabs", false, false, was.Identity)
 	if why == "" {
 		t.Fatal("an Act was performed with every one of its interactions pointing " +
 			"somewhere else, under a decision made about the old ones")
@@ -366,7 +366,7 @@ func TestAnActReplacedBetweenPlayAndTheAuthorisationIsNotAuthorised(t *testing.T
 		composedAgain(t, a, "1=the graphics tab", "0=the audio tab")
 	}
 
-	if err := a.Play("both tabs", false, was.Identity); err != "" {
+	if err := a.Play("both tabs", false, false, was.Identity); err != "" {
 		t.Fatalf("Play would not start: %s", err)
 	}
 	g := grantedIn(t, waitForTranscript(t, a))
@@ -487,7 +487,7 @@ func TestAnApplicationWindowsWillNotBringForwardIsSaidBeforeAnythingStarts(t *te
 				return c.leading, c.known
 			}
 
-			why := a.Play("the audio page", false, "")
+			why := a.Play("the audio page", false, false, "")
 			if c.refusedContains == "" {
 				if why != "" {
 					t.Fatalf("Play was refused: %s", why)
@@ -725,9 +725,11 @@ func TestThePageIsTheFlowThatWasAskedFor(t *testing.T) {
 		{"pausedWhere", "a paused run does not say which screen it is waiting " +
 			"for in the words read off it, so the only identity a person is " +
 			"shown for it is a label this machine gave itself"},
-		{"acts.Play(act, live, seen)", "the page does not perform an Act by " +
-			"pressing Play, so the authorisation contract is not reachable " +
-			"from it"},
+		{"acts.Play(act, live, onLayout, seen)", "the page does not perform an Act " +
+			"by pressing Play, or does not hand the layout choice over with " +
+			"the press, so either the authorisation contract is not " +
+			"reachable from it or the narrow exception is being decided " +
+			"somewhere other than by the person taking it"},
 		{"listed.find(a => a.name === act)", "the page does not hand back the " +
 			"version of the Act it was showing, so an Act composed again " +
 			"between being listed and being performed is performed under a " +

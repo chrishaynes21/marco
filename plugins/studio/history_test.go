@@ -139,7 +139,7 @@ func TestReportingAProblemWritesTheRunAndTheActIntoOneFile(t *testing.T) {
 	  "because": "refused — 0 of 1 interaction(s) verified", "actions_sent": 0
 	}`)
 	// A RUN THIS WINDOW WATCHED, so the transcript is part of what it gathers.
-	if err := a.Play("the audio page", false, ""); err != "" {
+	if err := a.Play("the audio page", false, false, ""); err != "" {
 		t.Fatalf("Play would not start: %s", err)
 	}
 	waitForTranscript(t, a)

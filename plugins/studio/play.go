@@ -97,6 +97,15 @@ type Performance struct {
 	// outcome, which is the thing that makes an Act more than a macro.
 	Application string
 	Reading     bool
+	// FixedLayout is the owner's choice to perform this Act on its demonstrated
+	// layout: pressing where they clicked, in a window of the size they clicked it in,
+	// on a screen nothing could recognise.
+	//
+	// False unless asked for, and it travels with the press rather than being decided
+	// for anybody — it is a narrow exception to the rule that a recorded coordinate is
+	// not a replay target, and the person pressing Play is who takes it. See
+	// [[ADR-248-replaying-a-demonstrated-layout]].
+	FixedLayout bool
 }
 
 // Play performs an Act under the authorisation of this press.
@@ -111,7 +120,7 @@ type Performance struct {
 // Act here, once, refuses it if it is no longer the one they read, and hands that same snapshot
 // to the run. An Act composed again in between is a different set of controls under the same
 // name, and it must not inherit a decision made about the old one.
-func (a *Acts) Play(act string, live bool, shown string) string {
+func (a *Acts) Play(act string, live, layout bool, shown string) string {
 	chosen, found := a.chosen(act)
 	switch {
 	case !found:
@@ -145,8 +154,22 @@ func (a *Acts) Play(act string, live bool, shown string) string {
 	}
 	// AND THE ACT ITSELF TRAVELS, not just its name. Everything from here on performs
 	// the version read and checked above.
+	// AND THE LAYOUT CHOICE, CHECKED AGAINST THE ACT THAT WAS READ.
+	//
+	// Refused here rather than at the first press, because the thing that makes
+	// it impossible is in the DEMONSTRATION — no recorded window, or no recorded
+	// click — and nothing a run does can repair that. A person who asked for it
+	// and would have watched a minute of refusals is told now, in the words that
+	// say what would fix it.
+	if layout && !chosen.OnLayout {
+		if chosen.LayoutSays != "" {
+			return "this Act cannot be performed on its demonstrated layout: " +
+				chosen.LayoutSays
+		}
+		return "this Act cannot be performed on its demonstrated layout"
+	}
 	return a.start(Performance{Act: chosen.Name, Live: live, Grant: &chosen,
-		Reading: true})
+		Reading: true, FixedLayout: layout})
 }
 
 // chosen is the Act by name, as the surface lists it.

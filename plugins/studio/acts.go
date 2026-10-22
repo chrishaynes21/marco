@@ -645,6 +645,21 @@ type Act struct {
 	// once: the preflight says this Act CAN be performed, and this says a performance of
 	// it will wait for something it cannot recognise. See waitsBecause.
 	Waits string `json:"waits,omitempty"`
+	// OnLayout says every interaction of this Act could be performed on its demonstrated
+	// layout, and LayoutSays is the sentence a person reads either way.
+	//
+	// Geometry replay presses where somebody clicked, in a window of the size they
+	// clicked it in, on a screen nothing could recognise. It needs two things from the
+	// demonstration and neither can be added afterwards: the window it was made in, and
+	// the point of each press. A routine recorded before those were kept has neither, so
+	// the honest sentence names a fresh demonstration rather than offering a choice that
+	// would be refused at the first press.
+	//
+	// It is offered rather than taken: the mode is a narrow exception to the rule that a
+	// recorded coordinate is not a replay target, and the person pressing Play is who
+	// takes it. See [[ADR-248-replaying-a-demonstrated-layout]].
+	OnLayout   bool   `json:"on_layout"`
+	LayoutSays string `json:"layout_says,omitempty"`
 	// Runnable is whether it preflights RIGHT NOW, and Why the refusal when it does not.
 	//
 	// Asked here rather than guessed, through the production preflight: the bindings may
@@ -746,6 +761,12 @@ func (a *Acts) Saved() []Act {
 		act.Identity = identityOf(act)
 		if serr == nil {
 			act.StartsOn, act.Steps, act.Waits = describeAct(store, binds)
+			// AND WHETHER IT COULD BE PERFORMED ON ITS DEMONSTRATED
+			// LAYOUT, which is a property of the DEMONSTRATION rather
+			// than of the Act: what it needs is the window and the
+			// click, and neither can be added to a recording after
+			// the fact.
+			act.OnLayout, act.LayoutSays = actOnLayout(store, binds)
 		}
 		if serr != nil {
 			act.Why = serr.Error()
@@ -966,6 +987,15 @@ func (a *Acts) start(p Performance) string {
 		_ = f.Close()
 	}
 	args := []string{"perform-workflow", "--play", act, "--hotkeys"}
+	// ── AND THE DEMONSTRATED LAYOUT, WHEN THE PERSON ASKED FOR IT ──
+	//
+	// Passed through rather than decided here. `Play` has already checked that the
+	// demonstration behind this Act recorded the window and the clicks, so a run
+	// that gets this far with the flag is one that can use it. Absent otherwise,
+	// which is every run of every Act that did not ask.
+	if p.FixedLayout {
+		args = append(args, "--fixed-layout")
+	}
 	if saying != "" {
 		args = append(args, "--events", saying)
 	}
@@ -1569,4 +1599,68 @@ func (a *Acts) ForgetEverything(anyway bool) Forgotten {
 		}
 	}
 	return Forgotten{Deleted: gone, Error: failed}
+}
+
+// actOnLayout says whether every interaction of this Act could be performed on its demonstrated
+// layout, and gives the sentence a person reads either way.
+//
+// Two things are needed from the demonstration and neither can be added afterwards: the window
+// it was made in, and the point of each press. A routine recorded before those were kept has
+// neither, and the only honest answer is to name the fresh demonstration that would supply them
+// rather than to offer a choice the first press would refuse.
+//
+// EVERY interaction, not the first: an Act that could replay two of three presses and then stop
+// is an Act that leaves the application halfway through something.
+func actOnLayout(store *demo.Store, binds demonstrated.Bindings) (bool, string) {
+	if store == nil {
+		return false, ""
+	}
+	for _, sc := range binds.Scenes {
+		art, ok := store.Sequence(sc.Routine)
+		if !ok {
+			return false, "the demonstration behind this Act is not here"
+		}
+		if !art.Window.Known() {
+			return false, "the demonstration behind this Act did not record " +
+				"the window it was made in, so there is nothing to check " +
+				"the layout against. Demonstrate it again and this becomes " +
+				"available"
+		}
+		found := false
+		for _, in := range art.Steps {
+			if in.Position != sc.Position {
+				continue
+			}
+			found = true
+			if in.At == nil {
+				return false, fmt.Sprintf("%q was demonstrated before Marco "+
+					"kept the point of each click, so there is no click "+
+					"to repeat. Demonstrate it again and this becomes "+
+					"available", sc.Name)
+			}
+			break
+		}
+		if !found {
+			return false, fmt.Sprintf("%q is not in the demonstration behind "+
+				"this Act any more", sc.Name)
+		}
+	}
+	w := windowOfFirst(store, binds)
+	if w == nil {
+		return false, ""
+	}
+	return true, fmt.Sprintf("Marco can press where you clicked, in the %dx%d window "+
+		"you clicked in — without recognising the screen. Use it for a menu it "+
+		"cannot read; it will refuse if the window is any other size",
+		w.Width, w.Height)
+}
+
+// windowOfFirst is the window the Act's first interaction was demonstrated in.
+func windowOfFirst(store *demo.Store, binds demonstrated.Bindings) *workflowstore.WindowGeometry {
+	for _, sc := range binds.Scenes {
+		if art, ok := store.Sequence(sc.Routine); ok && art.Window.Known() {
+			return art.Window
+		}
+	}
+	return nil
 }
