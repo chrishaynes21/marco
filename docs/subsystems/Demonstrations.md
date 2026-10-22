@@ -105,6 +105,11 @@ gap on a seeded fixture — matching the template anywhere in the window chose t
 with no ambiguity reported, while the same matching restricted to the neighbourhood the click
 predicts made no wrong-instance selection at all and refused every unsupported case. It is an
 experiment and not a decision; nothing in production was changed to run it.
+[[Experiment-097-a-translucent-menu-is-not-what-defeats-a-local-template]] then asked the same
+method the next question, on the owner's own captures of a real translucent game menu: the
+template survives the world moving behind it (0.92 to 0.99, against rivals at 0.59 to 0.72), the
+wrong-instance hazard is present there too — a repeated volume value ranks a DIFFERENT row above
+the demonstrated one — and the threshold frozen against an opaque fixture does not transfer.
 
 ## Validated by
 

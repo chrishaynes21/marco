@@ -27,10 +27,44 @@ import (
 )
 
 func main() {
+	real := flag.String("real", "",
+		"a PNG of a real window a control was demonstrated in; with -then and "+
+			"-click, locates it in the second image and prints what both "+
+			"methods had to choose between")
+	then := flag.String("then", "", "the PNG to locate the control in")
+	click := flag.String("click", "", "where the control was clicked in -real, as x,y")
+	region := flag.String("region", "",
+		"the local region to keep around the click, as wxh. The frozen one is "+
+			"sized for the fixture's own control; a real capture at another "+
+			"scale needs the region the control actually has, and saying so "+
+			"explicitly is better than a number that silently means something "+
+			"else")
 	evidence := flag.String("evidence", "",
 		"a directory to write the representative images into; nothing is "+
 			"written without one")
 	flag.Parse()
+
+	if *real != "" {
+		var x, y int
+		if _, err := fmt.Sscanf(*click, "%d,%d", &x, &y); err != nil {
+			fmt.Fprintln(os.Stderr, "localizetrial: -real needs -click x,y")
+			os.Exit(2)
+		}
+		keep := localizetrial.Frozen.Region
+		if *region != "" {
+			var w, h int
+			if _, err := fmt.Sscanf(*region, "%dx%d", &w, &h); err != nil {
+				fmt.Fprintln(os.Stderr, "localizetrial: -region wxh")
+				os.Exit(2)
+			}
+			keep = image.Pt(w, h)
+		}
+		if err := probeReal(*real, *then, image.Pt(x, y), keep); err != nil {
+			fmt.Fprintln(os.Stderr, "localizetrial:", err)
+			os.Exit(1)
+		}
+		return
+	}
 
 	results := localizetrial.Evaluate(localizetrial.Cases(), localizetrial.Frozen)
 	fmt.Print(localizetrial.Report(results))

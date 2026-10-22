@@ -347,3 +347,71 @@ func (t Target) Region() image.Rectangle {
 	min := t.At.Add(t.Offset)
 	return image.Rectangle{Min: min, Max: min.Add(t.Patch.Bounds().Size())}
 }
+
+// ScoreAt is what the template scores with its top-left anchored for a click at `at`.
+//
+// For a probe on real pixels: the one number that says whether a control taught in one look is
+// still recognisable in another, before any rule is applied to it.
+func ScoreAt(t Target, l Look, at image.Point) float64 {
+	grey := grayOf(l.Client, l.Client.Bounds())
+	top := at.Add(t.Offset)
+	limit := image.Rect(0, 0, grey.Bounds().Dx()-t.Patch.Bounds().Dx()+1,
+		grey.Bounds().Dy()-t.Patch.Bounds().Dy()+1)
+	if !top.In(limit) {
+		return 0
+	}
+	return correlate(grey, t.Patch, image.Rectangle{Min: top,
+		Max: top.Add(image.Pt(1, 1))}).get(top)
+}
+
+// Peak is one local maximum of the correlation, as a point somebody could press.
+type Peak struct {
+	Click image.Point
+	Score float64
+}
+
+// Peaks is the distinct local maxima over the whole client area, best first.
+//
+// "Distinct" is the same rule the ambiguity test uses: peaks closer than `apart` are one match
+// seen twice. For a probe this is the useful shape — not the winner, but what the winner had to
+// beat, which is the difference between a method that was right and a method that was lucky.
+func Peaks(t Target, l Look, apart int) []Peak {
+	grey := grayOf(l.Client, l.Client.Bounds())
+	pw, ph := t.Patch.Bounds().Dx(), t.Patch.Bounds().Dy()
+	over := image.Rect(0, 0, grey.Bounds().Dx()-pw+1, grey.Bounds().Dy()-ph+1)
+	if over.Empty() {
+		return nil
+	}
+	scores := correlate(grey, t.Patch, over)
+	var out []Peak
+	taken := []image.Point{}
+	for {
+		best, top := image.Point{}, math.Inf(-1)
+		for y := over.Min.Y; y < over.Max.Y; y++ {
+			for x := over.Min.X; x < over.Max.X; x++ {
+				at := image.Pt(x, y)
+				if nearAny(at, taken, apart) {
+					continue
+				}
+				if s := scores.get(at); s > top {
+					best, top = at, s
+				}
+			}
+		}
+		if math.IsInf(top, -1) || len(out) >= 24 {
+			return out
+		}
+		taken = append(taken, best)
+		out = append(out, Peak{Click: best.Sub(t.Offset), Score: top})
+	}
+}
+
+func nearAny(at image.Point, of []image.Point, apart int) bool {
+	for _, o := range of {
+		d := at.Sub(o)
+		if abs(d.X) < apart && abs(d.Y) < apart {
+			return true
+		}
+	}
+	return false
+}
