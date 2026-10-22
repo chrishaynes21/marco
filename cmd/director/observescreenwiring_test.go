@@ -394,11 +394,20 @@ func TestAPixelDemonstrationIsReachableAndWritesOnlyWhereItShould(t *testing.T) 
 	// because they all build the record by hand — and a record that claims the
 	// application was in front for a moment when it was not is worse than one that does
 	// not mention frontness at all.
+	//
+	// Two strings since the look's numbering moved into `fold`, and both halves are
+	// needed: the moment is written there, with THIS look's frontness, and the time
+	// it is written with comes from the call site. A MOVE is not a deletion, which
+	// this test has been taught once before — but a move that dropped either half
+	// would be.
 	if !strings.Contains(string(loop),
-		"res.note(look, lk.At.Sub(t0), standing, lk.Front, arrived)") {
-		t.Error("the loop does not record each moment with its own look's frontness; " +
-			"a press made while something covered the target may never have " +
-			"reached the application, and the record has to be able to say so")
+		"r.note(look, since, standing, lk.Front, arrived)") ||
+		!strings.Contains(string(loop),
+			"res.fold(obs, lk, img.Image, lk.At.Sub(t0), standing, arrived, s.pictures)") {
+		t.Error("the loop does not record each moment with its own look's frontness " +
+			"at its own look's time; a press made while something covered the " +
+			"target may never have reached the application, and the record has " +
+			"to be able to say so")
 	}
 	// AND NO PICTURE IS KEPT OF A WINDOW THAT WAS NOT IN FRONT.
 	//
@@ -408,7 +417,7 @@ func TestAPixelDemonstrationIsReachableAndWritesOnlyWhereItShould(t *testing.T) 
 	// whatever that something was, filed in this person's store as a picture of their
 	// game. Asserted over the text for the same reason as above, and because a mutation
 	// that dropped `lk.Front` from this guard survived every behavioural test here.
-	if !strings.Contains(string(loop), "if s.pictures && !lk.Missing && lk.Front {") {
+	if !strings.Contains(string(loop), "if pictures && !lk.Missing && lk.Front {") {
 		t.Error("the loop keeps a picture without checking that the target was the " +
 			"window in front; window capture returns the covering window's " +
 			"pixels, so that is a picture of something else")
@@ -507,8 +516,23 @@ func TestASavedPixelDemonstrationCarriesNoCoordinates(t *testing.T) {
 //
 // The separation is the safety argument for keeping a coordinate at all, so it is asserted
 // rather than described: the raw record goes in through the store's own evidence path, and the
-// artifact handed to `SaveWith` is built from the draft, which has never had a press position
-// in it.
+// artifact handed to `SaveWith` is built from the draft.
+//
+// # What changed, and what did not
+//
+// The draft used to carry NO press position at all, and this comment used to say so. It now
+// carries one per press — `workflow.Step.At`, the point the person clicked — because
+// [[ADR-248-replaying-a-demonstrated-layout]] authorised a narrow exception for replaying a
+// demonstrated layout, and a replay of a click cannot be built out of a rectangle a segmenter
+// drew around it.
+//
+// The separation is unchanged and is still the whole argument. The raw record is EVERYTHING the
+// person physically did, including the presses Marco could not interpret, and nothing reads it
+// to act. The artifact carries the ONE point per interpreted step, it is inert on every path but
+// the licensed one, and on that path it is pressable only while the window is the exact size it
+// was demonstrated in. What is still refused is what was always refused: a coordinate as the
+// durable IDENTITY of a control. The identity is still the control's readings and its words; the
+// point is where somebody pressed.
 func TestTheRawRecordAndTheExecutableArtifactAreSeparate(t *testing.T) {
 	src, err := os.ReadFile("demonstratevisual.go")
 	if err != nil {

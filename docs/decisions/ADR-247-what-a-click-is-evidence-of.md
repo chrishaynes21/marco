@@ -2,7 +2,7 @@
 type: adr
 status: accepted
 date: 2026-10-21
-decision: "ACCEPTED — a demonstration keeps, per pressed control, the click in WINDOW pixels (the capture includes the frame, so they are not client coordinates and the record does not call them that), the size of that capture, a display scale recorded as UNKNOWN because nothing in the recording path observes one, a crop of the control AT CAPTURE RESOLUTION, and what that crop was measured to be worth. The region is derived from the proposal under the press — the control's own box plus a quarter of itself — and never from a constant, because a constant means something different at every capture scale. The worth is measured TWO-SIDED across the looks ENDING AT the press — never the ones after it, because a press that works closes the menu it was in and a control measured across that reads as unstable BECAUSE THE CLICK SUCCEEDED: the WORST the control matches itself, and the BEST anything within 160px of it matches the same template, with 'somewhere else' defined as half the template in each direction, over pixels retained from the TEMPLATE and the positions it will be searched at rather than from the control's own box — and the extent actually covered is recorded, because a gap measured over less of the neighbourhood than it claims reads better than it is. A threshold is placed in the gap between them, or, when there is no gap, nothing is placed at all and the recording SAYS SO while the person is still in front of the screen — naming the press by the words read on it. One look is a template and not a calibration. The evidence is stored beside the demonstration under the artifact's own labels and keyed by revision, is removed with it, and is refused when its shape is one this build does not know. Nothing that runs reads it: this is the evidence a guard would be built from, collected first so the guard has something to be built FROM rather than a constant chosen by somebody."
+decision: "ACCEPTED — a demonstration keeps, per pressed control, the click in WINDOW pixels (the capture includes the frame, so they are not client coordinates and the record does not call them that), the size of that capture, a display scale recorded as UNKNOWN because nothing in the recording path observes one, a crop of the control AT CAPTURE RESOLUTION, and what that crop was measured to be worth. The region is derived from the proposal under the press — the control's own box plus a quarter of itself — and never from a constant, because a constant means something different at every capture scale. The worth is measured TWO-SIDED across the looks ENDING AT the press — never the ones after it, because a press that works closes the menu it was in and a control measured across that reads as unstable BECAUSE THE CLICK SUCCEEDED: the WORST the control matches itself, and the BEST anything within 160px of it matches the same template, with 'somewhere else' defined as half the template in each direction, over pixels retained from the TEMPLATE and the positions it will be searched at rather than from the control's own box — and the extent actually covered is recorded, because a gap measured over less of the neighbourhood than it claims reads better than it is. A threshold is placed in the gap between them, or, when there is no gap, nothing is placed at all and the recording SAYS SO while the person is still in front of the screen — naming the press by the words read on it. One look is a template and not a calibration. The evidence is stored beside the demonstration under the artifact's own labels and keyed by revision, is removed with it, and is refused when its shape is one this build does not know. Nothing that runs reads it: this is the evidence a guard would be built from, collected first so the guard has something to be built FROM rather than a constant chosen by somebody. And there is ONE look number, kept by the observer and handed back from the fold that advanced it, because everything a demonstration files under a look is read back by the look a press was attributed to — a second counter beside it ran one behind and meant that for three recordings NOTHING was written and nothing said so."
 supersedes: []
 affects:
   - demonstrations
@@ -12,6 +12,7 @@ source_paths:
   - internal/director/match/match.go
   - internal/director/demo/controls.go
   - cmd/director/visualevidence.go
+  - cmd/director/visualsession.go
 ---
 
 # What a click is evidence of
@@ -102,6 +103,50 @@ a border, and one told the scale was 1 would compare a window captured at 150%% 
 captured at 100%% and call them the same layout. Unknown is a third answer and stays one.
 `TestTheCoordinatesSayWhichPixelsTheyAre`.
 
+## And a fourth way, which meant none of it was written
+
+The three above are measurement errors: the number came out wrong. This one is worse, because no
+number came out at all.
+
+A demonstration keeps three things per look — the raw moment, the picture of the screen, and the
+band of pixels a control is calibrated from — and reads all three back by ONE key: the look the
+OBSERVER says the press arrived on, because the observer is the only thing that attributes a
+press to a control. The look loop kept a second counter of its own, taken BEFORE the fold rather
+than from it, so it ran exactly one behind: the observer counts from one and the loop counted
+from zero.
+
+Nothing failed. The pictures were filed, the evidence was measured, each half was perfectly
+consistent with itself — and every lookup between them missed by one and returned nothing. So no
+control crop and no control evidence was ever written, by any build, and **not a word was said
+about it**: `keepPreviews` skipped the control it could not find a frame for, and `keepControls`
+returned a count of zero with no reason, which the recorder prints nothing for.
+
+It was found in the owner's own store, three recordings in, by the absence of a `controls`
+directory that every one of those recordings should have made. The fingerprint was in
+the raw record all along — ONE press, carried as moment 59 and as press 60.
+
+Three things follow, and the third is the one that generalises:
+
+- **There is one look number and the observer keeps it**, handed back from the fold that advanced
+  it. Not a count the loop maintains beside it, however carefully.
+- **A total miss is a reason, not a silence.** Each `continue` in the mapping is legitimate alone
+  — a step with no target, a press the proposer found nothing under, a press past the bound — so
+  the only thing that separates this defect from an ordinary quiet recording is that ALL of them
+  missed while presses were attributed and looks were measured. That now comes back as a sentence
+  instead of as a zero.
+- **A separately constructed fixture could not have caught it, and did not.** The test that
+  existed handed the same look number to both halves — to the thing that filed the evidence and
+  to the evidence it would later be looked up by — so they agreed by construction. The regression
+  test writes no look number at all: it folds through a real observer, lets the production fold
+  number the looks, lets the observer attribute the press, and runs the real save path. The
+  numbering was lifted out of the loop into `visualResult.fold` for exactly that reason, because
+  `watch` itself needs a desktop and cannot be driven. This is the same lesson as the memory note
+  *two lists, one fact*, arriving from a new direction: it is not enough for each half to be
+  tested, the test has to make the two halves meet.
+
+This is also why the translucent-menu question in the last section stayed open longer than it
+had to: the recordings that would have answered it were made, and measured, and discarded.
+
 ## Where the measuring happens, and why not in the loop
 
 A look is 480 milliseconds. Measuring a template against everything within a band of itself is
@@ -190,7 +235,27 @@ translucent menu measures it as a matter of course.
   `TestEvidenceOfOneRevisionIsNeverServedForAnother` (and the superseded one is gone from disk,
   not merely unserved); `TestForgettingARoutineForgetsWhatItsControlsWereWorth`;
   `TestEvidenceOfAnotherShapeIsRefused`.
-- Nineteen mutations, all killed: the loop's collection removed and its arguments emptied, the
+- `cmd/director/looknumbering_test.go` — `TestWhatTheObserverNumberedTheSavePathFinds`, which
+  runs the production path end to end and **writes no look number at all**: drawn looks are folded
+  through a real `fastobserve.Observer` by the production `visualResult.fold`, the observer
+  attributes the press, `workflow.Learn` and `workflowstore.SaveWith` build the artifact, and then
+  `keepControls` and `keepPreviews` are asked for the control. Every number on both sides of the
+  lookup is production's, which is the point — the fixture that existed before handed the SAME
+  number to both halves, so they agreed by construction and the disagreement could not arise.
+  Also `TestAllTheLooksMissingIsAReasonAndNotASilence`, which numbers that same real press one
+  behind and requires a sentence back, with the two quiet cases held quiet — one of them the
+  ordinary press the correlator could attribute to no control at all.
+- `TestTheLoopFoldsEveryLookThroughTheOneNumbering` is the one remaining SOURCE guard and says so:
+  `watch` builds its own window provider, capture path and navigation hook, so it needs a desktop.
+  What it pins is not what the numbering does but that the live loop goes through it, and that
+  there is nowhere else a look number could come from. The numbering was lifted out of the loop
+  into `fold` precisely so that the rest could be driven.
+- Four more mutations for the fourth defect, each killed by the end-to-end test alone and each
+  reported as the two numbers that disagreed: the original counter-before-the-fold put back, the
+  same error one look the other way, the evidence filed one behind the picture, and the picture
+  one behind the evidence. Three more against the reason: it removed, and each of its two guards
+  dropped so that it fires on a recording with nothing to complain about.
+- Nineteen mutations for the first three, all killed: the loop's collection removed and its arguments emptied, the
   command's write removed, the save removed, the largest proposal taken instead of the smallest,
   both bounds removed, a press on nothing admitted, the sentence never said, the no-gap refusal
   disabled, the superseded evidence kept, the forget removed, the version check dropped — and the

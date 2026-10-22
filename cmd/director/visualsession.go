@@ -47,6 +47,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflowstore"
 	"github.com/chaynes-simpleclouds/marco/internal/platform/navsource"
 	"github.com/chaynes-simpleclouds/marco/internal/platform/winprovider"
+	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 )
 
 // visualSession is what to watch, how fast, and for how long.
@@ -131,6 +132,24 @@ type visualResult struct {
 	// on is refused by the observer and counted there, not here.
 	looks    int
 	readings int
+	// window is the window every look of this demonstration was taken in, and resized
+	// says it was not ONE window.
+	//
+	// Kept because a demonstration that produces a replayable coordinate has to be able
+	// to say what the coordinate was relative to. Every reading in the artifact is
+	// normalised to its window, so the arithmetic produces a confident-looking point at
+	// any window size whatever — and the only thing that makes the demonstrated point and
+	// the pressed point the same point is that the window has not changed.
+	//
+	// Kept OUTSIDE the `pictures` licence, because a size is not a picture of anybody's
+	// screen. A demonstration recorded without previews still records what it was
+	// demonstrated in.
+	//
+	// `resized` is a refusal rather than a choice between two sizes: somebody who resized
+	// the window mid-demonstration did not demonstrate a fixed layout, and picking the
+	// first or the last would be this layer deciding which half of that they meant.
+	window  directorapi.Rect
+	resized bool
 	// moments is every look that carried input, with what arrived on it.
 	//
 	// The raw demonstration. `splitNav` took the pointer positions out of each drain and
@@ -259,6 +278,72 @@ func (r *visualResult) keep(screen observe.VisualScreenID, look int, frame image
 	r.screens[screen] = thumb
 }
 
+// fold folds one look into the observer and files everything this look is remembered by under
+// the number the observer gives back.
+//
+// ── ONE LOOK NUMBER, AND IT IS THE OBSERVER'S ──
+//
+// Everything a demonstration keeps per look — the raw moment, the picture of the screen, the
+// band of pixels a control will be calibrated from — is read back later by matching it against
+// the look the OBSERVER says a press arrived on, because the observer is the only thing that
+// attributes a press to a control at all. So there is one counter, the observer keeps it, and it
+// is taken from the fold that advanced it.
+//
+// This used to be a second counter the loop kept beside it, read BEFORE the fold, so it ran one
+// behind: the observer counts from one and the loop counted from zero. Nothing reported a
+// disagreement, because both numbers were plausible and each half worked perfectly against
+// itself — the pictures were filed, the evidence was measured, and then every lookup between
+// them missed by one and returned nothing. Across three of the owner's recordings that meant NO
+// control crop and NO control evidence was ever written, with not a word said about it, while
+// the raw record carried the same press as moment 59 and press 60.
+//
+// It is a function rather than four lines in the loop so that the numbering can be DRIVEN by a
+// test. The loop itself cannot be: it builds its own window provider, capture path and
+// navigation hook, so what a test could reach before was two hand-numbered halves — which is
+// exactly the fixture that agreed with itself and missed this.
+//
+// Returns the look number, for a caller that wants to say which look something happened on.
+func (r *visualResult) fold(obs *fastobserve.Observer, lk fastobserve.Look, frame image.Image,
+	since time.Duration, standing observe.VisualScreenID, arrived []observe.InputEvent,
+	pictures bool) int {
+
+	up := obs.Observe(lk)
+	look := up.Look
+	r.looks = look
+	// AND THE WINDOW THIS LOOK WAS TAKEN IN. Before the pictures licence, because a
+	// size is not a picture; and only for a look that HAS a window, so a failed
+	// capture does not read as a resize.
+	if w := lk.Window.Bounds; w.Width > 0 && w.Height > 0 {
+		switch {
+		case r.window.Width == 0:
+			r.window = w
+		case r.window.Width != w.Width || r.window.Height != w.Height:
+			r.resized = true
+		}
+	}
+	// THE MOMENT, with the frontness of the look the inputs arrived on, and the screen
+	// that was standing when they did.
+	r.note(look, since, standing, lk.Front, arrived)
+	if pictures && !lk.Missing && lk.Front {
+		// AFTER THE FOLD, so the screen this frame is a picture OF is the screen
+		// the observer says is standing. Before it, the frame belongs to whatever
+		// was standing a look ago, and a thumbnail filed under the wrong screen is
+		// worse than none: it is a picture that disagrees with the words beside it.
+		//
+		// And only when the window was in front. A capture of a covered window
+		// returns the covering window's pixels under the target's name, which would
+		// put somebody else's screen in this person's store. See the memory note of
+		// that name.
+		r.keep(obs.Screen(), look, frame, len(lk.Presses) > 0)
+		// AND THE EVIDENCE FOR A GUARD, which needs the looks BEFORE a press as
+		// much as the press itself: a control seen once has never been seen to STAY
+		// the same, and what happens after a press is the outcome's question. Kept
+		// here and measured at the end — see visualevidence.go.
+		r.watchPressed(look, frame, lk.Presses, lk.Regions)
+	}
+	return look
+}
+
 // watch runs one session, folding every look into obs. It writes nothing.
 //
 // Returns the result and a process exit code: non-zero when the window could not be acquired at
@@ -348,7 +433,6 @@ func (s visualSession) watch(ctx context.Context, obs *fastobserve.Observer,
 		// did. Kept here and written down below, once frontness is known.
 		var arrived []observe.InputEvent
 		var standing observe.VisualScreenID
-		look := res.looks
 
 		if navSub != nil {
 			// THE NAVIGATION, AND THE EDGES OF IT, merged into one timeline.
@@ -420,8 +504,12 @@ func (s visualSession) watch(ctx context.Context, obs *fastobserve.Observer,
 			// is the ordinary case and the number that says how far behind
 			// OCR is.
 			if s.reader.working() {
+				// THE LOOK THIS FRAME IS ABOUT TO BE FOLDED AS. One more
+				// than the last one the observer counted, because the
+				// fold has not happened yet — and in the observer's
+				// numbering, which is the only one this loop uses.
 				s.reader.offer(readingFrame{
-					img: img.Image, look: res.looks,
+					img: img.Image, look: res.looks + 1,
 					epoch:      obs.Epoch(),
 					generation: v.Ref.Generation,
 				})
@@ -429,9 +517,6 @@ func (s visualSession) watch(ctx context.Context, obs *fastobserve.Observer,
 				res.readings += len(lk.Readings)
 			}
 		}
-		res.looks++
-		// THE MOMENT, with the frontness of the look the inputs arrived on.
-		res.note(look, lk.At.Sub(t0), standing, lk.Front, arrived)
 		if s.each != nil {
 			s.each(lk)
 		}
@@ -447,25 +532,7 @@ func (s visualSession) watch(ctx context.Context, obs *fastobserve.Observer,
 			}
 			res.found.fold(obs.Reacquire(lk), pressed)
 		}
-		obs.Observe(lk)
-		if s.pictures && !lk.Missing && lk.Front {
-			// AFTER THE FOLD, so the screen this frame is a picture OF is the
-			// screen the observer says is standing. Before it, the frame
-			// belongs to whatever was standing a look ago, and a thumbnail
-			// filed under the wrong screen is worse than none: it is a picture
-			// that disagrees with the words beside it.
-			//
-			// And only when the window was in front. A capture of a covered
-			// window returns the covering window's pixels under the target's
-			// name, which would put somebody else's screen in this person's
-			// store. See the memory note of that name.
-			res.keep(obs.Screen(), look, img.Image, len(lk.Presses) > 0)
-			// AND THE EVIDENCE FOR A GUARD, which needs the looks AFTER a
-			// press as much as the press itself: a control seen once has
-			// never been seen to stay the same. Kept here and measured at
-			// the end — see visualevidence.go.
-			res.watchPressed(look, img.Image, lk.Presses, lk.Regions)
-		}
+		res.fold(obs, lk, img.Image, lk.At.Sub(t0), standing, arrived, s.pictures)
 		if s.told != nil {
 			// WHAT THE RECORDER NOW KNOWS. Called with the look in, and on
 			// every look: the thing on the other end emits only on CHANGE,

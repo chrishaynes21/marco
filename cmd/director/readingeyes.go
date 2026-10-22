@@ -49,9 +49,10 @@ import (
 // readingFrame is one frame handed to OCR, with the observation it came from.
 //
 // `look` is the frame's identity and the only thing that ties a reading back to the pixels it
-// describes. The loop numbers its looks from zero; the authorisation boundary takes a NEGATIVE
-// number of its own from `nextBoundaryRead`, so a reading of one boundary capture can never be
-// mistaken for a reading of the loop's last frame or of the other boundary in the same press.
+// describes. The loop numbers its looks the way the observer does, from one; the authorisation
+// boundary takes a NEGATIVE number of its own from `nextBoundaryRead`, so a reading of one
+// boundary capture can never be mistaken for a reading of the loop's last frame or of the other
+// boundary in the same press.
 type readingFrame struct {
 	img        image.Image
 	look       int

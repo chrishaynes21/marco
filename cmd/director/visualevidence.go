@@ -304,6 +304,22 @@ func keepControls(store *demo.Store, a workflowstore.Artifact, draft workflow.Dr
 			said = append(said, saysOfControl(a, i, r))
 		}
 	}
+	// ── NOTHING MEASURED, OUT OF SOMETHING PRESSED, IS A REASON AND NOT A SILENCE ──
+	//
+	// Every miss above is a `continue`, and each one is legitimate on its own: a step
+	// with no target, a press the proposer found nothing under, a press past the bound.
+	// What is NOT legitimate is all of them at once — presses were attributed to
+	// controls, looks were measured, and not one of them met. That is the shape of the
+	// two halves disagreeing about what a look is called, which is exactly what
+	// happened and went unreported for two days of recordings because the function
+	// returned "no reason" and the caller prints nothing for a count of zero.
+	if kept == 0 && why == "" && len(at) > 0 && len(records) > 0 {
+		why = fmt.Sprintf("%d press(es) were attributed to a control and %d "+
+			"look(s) were measured, and none of them were the same look — "+
+			"so nothing could be filed. The look a press is attributed to "+
+			"and the look a frame is filed under have to be the one number",
+			len(at), len(records))
+	}
 	return kept, said, why
 }
 

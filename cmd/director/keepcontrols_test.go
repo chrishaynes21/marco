@@ -344,17 +344,19 @@ func TestTheEvidenceHeldIsBounded(t *testing.T) {
 // real window and a real capture source — there is no in-process seam that drives it — so what
 // can be checked here is that the two call sites exist and are given the right things.
 //
-// The arguments are the point. `res.watchPressed(look, img.Image, nil, nil)` would compile, run,
+// The arguments are the point. `r.watchPressed(look, frame, nil, nil)` would compile, run,
 // collect nothing, and leave every test above passing, because every test above calls
-// `watchPressed` itself. So what is pinned is that the loop hands over THIS LOOK'S OWN presses
-// and proposals, which is the one thing a mistake here would get wrong.
+// `watchPressed` itself. So what is pinned is that the fold hands over THIS LOOK'S OWN presses
+// and proposals, which is the one thing a mistake here would get wrong. That the LOOP goes
+// through that fold at all, with this look's own frame, is pinned next door by
+// TestTheLoopFoldsEveryLookThroughTheOneNumbering.
 func TestTheLoopCollectsControlEvidenceAndTheCommandWritesIt(t *testing.T) {
 	loop, err := os.ReadFile("visualsession.go")
 	if err != nil {
 		t.Fatalf("reading the shared observer loop: %v", err)
 	}
 	if !strings.Contains(string(loop),
-		"res.watchPressed(look, img.Image, lk.Presses, lk.Regions)") {
+		"r.watchPressed(look, frame, lk.Presses, lk.Regions)") {
 		t.Error("the look loop does not collect control evidence from this " +
 			"look's own presses and proposals, so every demonstration " +
 			"would save a routine with nothing measured about its controls")
@@ -362,8 +364,8 @@ func TestTheLoopCollectsControlEvidenceAndTheCommandWritesIt(t *testing.T) {
 	// AND IN THE SAME BLOCK AS THE PICTURES, which is where the frame is known to
 	// be of the window, in front, and not missing. Collecting outside it would
 	// measure a covered window's pixels under this application's name.
-	after := strings.Index(string(loop), "res.keep(obs.Screen(), look, img.Image")
-	collects := strings.Index(string(loop), "res.watchPressed(look, img.Image")
+	after := strings.Index(string(loop), "r.keep(obs.Screen(), look, frame")
+	collects := strings.Index(string(loop), "r.watchPressed(look, frame")
 	if after < 0 || collects < after || collects-after > 600 {
 		t.Error("control evidence is not collected beside the pictures, where " +
 			"the frame is known to be of the window and in front")
