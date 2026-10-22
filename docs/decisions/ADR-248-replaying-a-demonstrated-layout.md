@@ -248,6 +248,22 @@ a route that quietly depended on it would have made it a prerequisite again.
   neither is the tally of presses like it.
 - `plugins/studio/play_test.go` — the page guard pins `acts.Play(act, live, onLayout, seen)`, so
   the layout choice has to leave the page with the press.
+- `plugins/studio/onlayout_test.go` — `TestAnActOverAFullDemonstrationIsOfferedItsLayout` (and
+  the sentence names the window AND says another size is refused, because an offer that named
+  only what it would do would read as a guarantee);
+  `TestAnActOverAnOlderDemonstrationSaysWhatWouldFixIt`;
+  `TestAWindowWithoutAClickIsRefusedByTheInteractionsName` (the two halves fail separately and a
+  person told the wrong one looks in the wrong place);
+  `TestPlayRefusesTheLayoutWhenTheDemonstrationCannotSupportIt`, which also holds that the
+  refusal comes BEFORE the application is raised — raising pulls a game over whatever the person
+  was looking at, so an impossible request must cost them nothing; and
+  `TestTheLayoutChoiceReachesTheDirector`, driven through the real spawn in both directions,
+  because the whole Studio half is a decoration unless the flag arrives at the child and a build
+  that passed it regardless would make the narrow exception the default.
+- Seven more for the Studio half, all killed: the layout offered to every Act; a missing click not
+  noticed; Play no longer refusing the impossible choice; the game raised before that refusal
+  again; the flag never appended; the flag appended on every run; and the choice dropped between
+  `Play` and `start`.
 - Ten more mutations for the two corrections, all killed: the point taken from the proposal's
   centre again; a point invented for a step that recorded none; the mode turned back into a
   fallback; readings required again; the geometry dropped from the press boundary; the boundary's

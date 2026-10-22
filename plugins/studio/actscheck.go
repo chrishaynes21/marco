@@ -76,6 +76,17 @@ func runActsCheck(home string) int {
 		if s.Waits != "" {
 			state += "\n      WILL WAIT, NOT PRESS: " + s.Waits
 		}
+		// AND WHETHER THE DEMONSTRATED LAYOUT IS AVAILABLE, which is the one
+		// thing an Act that WILL WAIT can do instead — and the one thing a
+		// person cannot work out from anything else printed here. Said both
+		// ways: available is an offer nobody has taken, and unavailable names
+		// what would fix it.
+		if s.OnLayout {
+			state += "\n      ON ITS DEMONSTRATED LAYOUT, if you ask for it: " +
+				s.LayoutSays
+		} else if s.LayoutSays != "" {
+			state += "\n      NOT ON ITS DEMONSTRATED LAYOUT: " + s.LayoutSays
+		}
 		fmt.Printf("  %-28s from %-24s %v\n      %s\n", s.Name, s.From,
 			s.Interactions, state)
 	}

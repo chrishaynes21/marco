@@ -147,20 +147,17 @@ func (a *Acts) Play(act string, live, layout bool, shown string) string {
 	case len(chosen.Interactions) == 0:
 		return "this Act performs no interactions"
 	}
-	// AND THE APPLICATION HAS TO BE THERE, which is answerable now and otherwise
-	// becomes a run paused about a window that was never open.
-	if why := a.raise(chosen.Application); why != "" {
-		return why
-	}
-	// AND THE ACT ITSELF TRAVELS, not just its name. Everything from here on performs
-	// the version read and checked above.
 	// AND THE LAYOUT CHOICE, CHECKED AGAINST THE ACT THAT WAS READ.
 	//
-	// Refused here rather than at the first press, because the thing that makes
-	// it impossible is in the DEMONSTRATION — no recorded window, or no recorded
-	// click — and nothing a run does can repair that. A person who asked for it
-	// and would have watched a minute of refusals is told now, in the words that
-	// say what would fix it.
+	// Refused here rather than at the first press, because the thing that makes it
+	// impossible is in the DEMONSTRATION — no recorded window, or no recorded click —
+	// and nothing a run does can repair that. A person who asked for it and would have
+	// watched a minute of refusals is told now, in the words that say what would fix it.
+	//
+	// BEFORE THE APPLICATION IS RAISED, and that order is deliberate. Raising is the
+	// first thing here that touches the person's machine: it brings a game to the front
+	// over whatever they were doing. Every refusal that can be decided from the Act
+	// alone belongs above it, so an impossible request costs them nothing.
 	if layout && !chosen.OnLayout {
 		if chosen.LayoutSays != "" {
 			return "this Act cannot be performed on its demonstrated layout: " +
@@ -168,6 +165,13 @@ func (a *Acts) Play(act string, live, layout bool, shown string) string {
 		}
 		return "this Act cannot be performed on its demonstrated layout"
 	}
+	// AND THE APPLICATION HAS TO BE THERE, which is answerable now and otherwise
+	// becomes a run paused about a window that was never open.
+	if why := a.raise(chosen.Application); why != "" {
+		return why
+	}
+	// AND THE ACT ITSELF TRAVELS, not just its name. Everything from here on performs
+	// the version read and checked above.
 	return a.start(Performance{Act: chosen.Name, Live: live, Grant: &chosen,
 		Reading: true, FixedLayout: layout})
 }
