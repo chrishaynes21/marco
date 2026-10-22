@@ -45,10 +45,11 @@ replay target. That rule stands everywhere else. This is the narrow override tha
 for a fixed-layout MVP, and it is written down here rather than hidden in a UI wording, which was
 a condition of granting it.
 
-## Two things it was wrong about first
+## Three things it was wrong about first
 
-Both were found in review, before any of it ran live, and both are the same mistake: treating
-this as the vision path with something waived instead of as a path of its own.
+The first two were found in review, before any of it ran live, and they are the same mistake:
+treating this as the vision path with something waived instead of as a path of its own. The third
+was found by reading the owner's next recording, and is the plainer kind of error — half a change.
 
 **It replayed a detected rectangle's centre, not the person's click.** The point came from the
 first saved reading of the control and the middle was computed from it. A proposal is generous on
@@ -62,6 +63,28 @@ and `workflowstore.Step.At`, per STEP rather than per control, because a control
 pressed twice and the two points are two facts while readings merge. A proposal is not required
 for any of it — a press the proposer found NOTHING under still records where it was, and on a menu
 no recogniser can name that is the ordinary case rather than the exception.
+
+**The point reached only half the steps.** A step is built by two loops. The first walks the
+transitions the demonstration made; the second (`panelSteps`) picks up the presses that changed
+something without changing the screen — a panel replaced under a tab bar that stays put. The
+click was wired into the first and not the second, so every press whose screen label was the same
+at both ends was refused by this route for having no point, about a press whose point had been
+observed and thrown away.
+
+That omission selected for the worst possible half. On the owner's second Ark recording the panel
+presses are the majority of the procedure AND all of the usable evidence: GRAPHICS and SOUND each
+match themselves at 0.99999 across the looks ending at the press, against the best rival within
+160px at 0.35 and 0.44. The one step that did change screen — the click on the translucent pause
+menu — proposed a region covering the whole window, 1896x1080 of it, and matched itself at 0.73.
+So the step that kept its point was the one worth least, and the two worth most were the ones
+refused. A press that changes a panel is the ordinary case on exactly the menus this route exists
+for, which is the reason to expect it rather than a coincidence.
+
+The fix is two lines; the lesson is the test. The walk half had four tests driven through `Learn`
+and they all passed throughout, because a fixture built over one loop agrees with whichever loop
+it was written against. The panel half now has its own, through the same production entry point,
+and the geometry route has a same-screen step among its cases — which it did not before, so the
+press this subsystem was built for was the one case the subsystem never planned.
 
 **The press boundary still demanded vision.** `worldMoved` asks eight questions, five of which
 need a look taken at that instant: a screen hypothesis standing, an observation generation
@@ -226,6 +249,22 @@ a route that quietly depended on it would have made it a prerequisite again.
   so the fixture cannot stop posing its question); `TestAClickWithNoProposalStillRecordsItsPoint`;
   `TestEachStepKeepsItsOwnClick` (readings merge across the steps that use one control and clicks
   do not); `TestAStepThatWasNotAPressHasNoClick`.
+- `internal/director/workflow/panelpoint_test.go` — the other loop that builds a step, driven
+  through the same `Learn`: `TestAPanelPressRecordsThePointThePersonClicked` (and the fixture
+  asserts the step's two ends ARE the same screen, so it cannot stop posing its question);
+  `TestEachPanelPressKeepsItsOwnClick`, which is the owner's GRAPHICS tab pressed twice;
+  `TestAPanelPressWithNoReadingsStillRecordsItsPoint`; and
+  `TestAnInertPressWithNoVerifiedOutcomeIsStillNotAStep`, the guard on the other side — carrying
+  a point must not have turned a click that did nothing observable into a step, and most clicks
+  are that.
+- `internal/director/workflowstore/panellayout_test.go` — the same press through the real
+  `StepReadinessAt`: `TestAPanelPressIsReplayedAtItsDemonstratedPoint`, at the owner's own
+  842,274 inside a tab the proposer read as 781,253 to 933,296, so the click is left of that
+  rectangle's middle; `TestAPanelPressInAnotherWindowIsRefused`, asserted on this step
+  specifically because its screens are equal at both ends and an implementation that reached the
+  geometry check through a transition's arrival logic could pass every transition test and skip
+  it entirely here; and `TestAPanelPressWithNoClickIsRefusedRatherThanCentred`, where the tab's
+  middle is available and is the wrong point.
 - `internal/director/workflowstore/layoutreplay_test.go` also holds
   `TestThePointPressedIsTheClickAndNotTheMiddleOfTheProposal`, where the proposal's centre lands
   in a DIFFERENT control; `TestAClickWithNoProposalAtAllIsStillPressable`;

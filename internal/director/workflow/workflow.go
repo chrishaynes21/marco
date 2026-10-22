@@ -714,6 +714,22 @@ func panelSteps(ev observe.ClickEvidence,
 			Outcome: append([]string{}, o.Appeared...),
 			look:    p.Look,
 		}
+		// AND WHERE THE PERSON ACTUALLY CLICKED.
+		//
+		// `p` IS the press, so this is its own point rather than a lookup: a
+		// panel press is one press by construction.
+		//
+		// Missed when a demonstrated point was first kept — it went into the walk
+		// loop above and not here — which left exactly the presses carrying the
+		// BEST evidence in this project as the ones the demonstrated-layout route
+		// refuses. On the owner's Ark recording those are GRAPHICS and SOUND, each
+		// matching itself at 0.99999 against a rival at 0.35, while the one step
+		// that did keep its point was a region covering the whole window. A press
+		// that changes a panel under a persistent tab bar is the ordinary case on
+		// the menus this route exists for, so it was also the majority of them.
+		// See [[ADR-248-replaying-a-demonstrated-layout]].
+		at := p.At
+		step.At = &at
 		if rec, ok := records[p.Target]; ok {
 			step.Readings = append([]observe.Region{}, rec.Where...)
 			step.Containers = append([]observe.Region{}, rec.Containers...)

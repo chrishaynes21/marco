@@ -500,16 +500,21 @@ func TestAVisualScreenCannotReachDurableMemory(t *testing.T) {
 		// asserts what a DRAFT carries, and a draft is not durable memory. See
 		// [[ADR-248-replaying-a-demonstrated-layout]].
 		filepath.Join(flow, "demonstratedpoint_test.go"): true,
-		filepath.Join(store, "workflowstore.go"):         true,
-		filepath.Join(store, "clarify.go"):               true,
-		filepath.Join(store, "clarify_test.go"):          true,
-		filepath.Join(store, "anchor.go"):                true,
-		filepath.Join(store, "stepplan.go"):              true,
-		filepath.Join(store, "arrival.go"):               true,
-		filepath.Join(store, "arrival_test.go"):          true,
-		filepath.Join(store, "stepplan_test.go"):         true,
-		filepath.Join(store, "anchor_test.go"):           true,
-		filepath.Join(store, "workflowstore_test.go"):    true,
+		// And `panelpoint_test.go` the same, for the other loop that builds a step:
+		// a press that changed a panel and not the screen. It drives `Learn`
+		// through `ev.Inert`, so it names the observation the press is filed as and
+		// the screen that was standing under it. Same reason, same tier — a draft.
+		filepath.Join(flow, "panelpoint_test.go"):     true,
+		filepath.Join(store, "workflowstore.go"):      true,
+		filepath.Join(store, "clarify.go"):            true,
+		filepath.Join(store, "clarify_test.go"):       true,
+		filepath.Join(store, "anchor.go"):             true,
+		filepath.Join(store, "stepplan.go"):           true,
+		filepath.Join(store, "arrival.go"):            true,
+		filepath.Join(store, "arrival_test.go"):       true,
+		filepath.Join(store, "stepplan_test.go"):      true,
+		filepath.Join(store, "anchor_test.go"):        true,
+		filepath.Join(store, "workflowstore_test.go"): true,
 		// `layoutreplay_test.go` drives the fixed-layout route through the real
 		// `StepReadinessAt`, which means building an artifact with `Save` — so it
 		// names the arrangement map that takes and the screen ids its looks carry.
@@ -518,6 +523,10 @@ func TestAVisualScreenCannotReachDurableMemory(t *testing.T) {
 		// artifact is a window SIZE, which is not a screen identity and could not
 		// become one. See [[ADR-248-replaying-a-demonstrated-layout]].
 		filepath.Join(store, "layoutreplay_test.go"): true,
+		// And `panellayout_test.go` the same, for the press that route exists for:
+		// one that changed a panel and not the screen, so both ends of its step
+		// are the same screen label. Same construction, same tier, same cost.
+		filepath.Join(store, "panellayout_test.go"): true,
 		// `juststep.go` extracts one step into a workflow of its own, and its test
 		// asserts that the starting screen's ARRANGEMENT travels — the evidence that
 		// makes such a step plannable at all. Allowed for the reason

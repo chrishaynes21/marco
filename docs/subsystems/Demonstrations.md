@@ -134,6 +134,14 @@ the proposer found NOTHING under still records where it was, and on a menu no re
 that is the ordinary case. It is demonstration evidence and nothing on the recognition path reads
 it. [[ADR-248-replaying-a-demonstrated-layout]]
 
+Kept by BOTH loops that build a step: the one that walks the transitions a demonstration made,
+and the one that picks up presses which changed a panel without changing the screen. It reached
+only the first at first, which refused exactly the presses carrying the best evidence in the
+project — on the owner's second Ark recording the two panel presses match themselves at 0.99999
+against rivals at 0.35 and 0.44, while the one transition step proposed a region covering the
+whole window and matched itself at 0.73. A press that changes a panel under a tab bar that stays
+put is the ordinary case on the menus that route exists for, so it was also most of them.
+
 **And a demonstration records the window it was made in.** Outside the pictures licence, because
 a size is not a picture of anybody's screen — and nothing at all when that window was resized
 partway, because that is not a demonstration of a fixed layout. It exists so that a replay can be
