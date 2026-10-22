@@ -211,3 +211,15 @@ whole answer, because an Act whose starting screen was never read preflights per
 only wait; the ordered preview sends nothing, and the engineering run with input disabled is no
 longer offered as a rehearsal of an Act it cannot reach the second step of. A review shows the control, the starting screen and the result as PICTURES, because the words are what recognises a screen at run time and are not what a person recognises — kept per routine and per revision, so a routine demonstrated again never shows the previous recording's pictures beside the new one's words, and read by nothing that runs. And the recorder says what evidence it has while somebody is still demonstrating, asking the same question the run will ask of the screen an Act starts on rather than a weaker one — and saying when the evidence is IN and empty, because an outcome whose window has filled cannot improve by being waited for, and a card that asked anyway cost the owner thirty seconds of a sixty-second recording. It also says, while it can still be acted on, when nothing has been read on the screen in front: an outcome's before side is taken once, at the instant of the press, so a click on a screen nobody has read yet can never be checked at all.
 [[ADR-245-one-task-at-a-time]]
+
+**And a trial of the surface collects its own evidence.** Studio writes down what a sitting at it
+showed, as it happens, and `studio -trial <store>` reads it back: which builds took part — the
+window, the recorder from its own stream, and the director that performed a run from the record it
+wrote, with an unstamped one reported as having said nothing rather than folded in as a revision
+two unknowns share; the states a recording passed through, taken from the value handed to the page
+so what is written is what the person was shown, and written only when it changes; how often the
+page had to ask for each picture, which is the blinking defect expressed as a number; and the
+canonical result, cited by the run's own reference and read out of the run record. Four facts
+nobody is asked to watch for, because every defect this surface has had was found by the owner
+describing it and engineering working backwards from the sentence.
+[[ADR-246-a-trial-collects-its-own-evidence]]
