@@ -826,23 +826,41 @@ func TestTheTrialNoteShapeMovesWithItsVersion(t *testing.T) {
 			}
 		}
 	}
-	// AND A LINE FROM A SHAPE THIS BUILD DOES NOT KNOW IS COUNTED, NOT GUESSED AT.
+	// AND A LINE FROM A SHAPE THIS BUILD DOES NOT KNOW IS COUNTED, NOT GUESSED AT
+	// — while one from a shape it DOES know, written before a field was added, is
+	// read.
+	//
+	// Both halves matter and they pull opposite ways. Refusing a later shape is the
+	// rule that stops a reader meaning something by a name its writer meant
+	// otherwise. Reading an earlier one is what makes a trial evidence: adding
+	// `paused` made the morning's two live trials unreadable at a stroke, with the
+	// evidence still sitting there and every field in it meaning what it says.
 	dir := t.TempDir()
 	path := filepath.Join(dir, "20261021-000000.jsonl")
 	if err := os.WriteFile(path, []byte(
 		`{"version":`+strconv.Itoa(trialVersion)+`,"seq":1,"kind":"opened",`+
 			`"build":"aaaaaaa"}`+"\n"+
-			`{"version":`+strconv.Itoa(trialVersion+1)+
-			`,"seq":2,"kind":"opened","build":"zzzzzzz"}`+"\n"), 0o644); err != nil {
+			`{"version":`+strconv.Itoa(trialReadsFrom)+
+			`,"seq":2,"kind":"state","phase":"ready","recorder":"bbbbbbb"}`+
+			"\n"+`{"version":`+strconv.Itoa(trialVersion+1)+
+			`,"seq":3,"kind":"opened","build":"zzzzzzz"}`+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	held := readTrial(path)
-	if len(held.Notes) != 1 || held.Unreadable != 1 {
-		t.Fatalf("a journal of one readable and one foreign line parsed as "+
+	if len(held.Notes) != 2 || held.Unreadable != 1 {
+		t.Fatalf("a journal of two readable and one foreign line parsed as "+
 			"%d note(s) and %d unreadable", len(held.Notes), held.Unreadable)
 	}
-	if named, _, _ := held.builds(); len(named["zzzzzzz"]) != 0 {
+	if !held.Older {
+		t.Errorf("a journal holding a line from an earlier shape does not say so")
+	}
+	named, _, _ := held.builds()
+	if len(named["zzzzzzz"]) != 0 {
 		t.Errorf("a build named only by a line this build cannot read is " +
 			"reported as having taken part")
+	}
+	if len(named["bbbbbbb"]) != 1 {
+		t.Errorf("a recorder named by a line from an earlier shape is not "+
+			"reported as having taken part: %v", named)
 	}
 }

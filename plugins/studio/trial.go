@@ -66,6 +66,26 @@ import (
 // a missing fact from a negative one unless the version says which it is reading.
 const trialVersion = 2
 
+// trialReadsFrom is the oldest shape this build reads as meaning what it says.
+//
+// # Why this is not just `trialVersion`
+//
+// Because a journal is not a stream. `learnstate` refuses every line it did not write the shape
+// of, and that is right for two processes talking to each other right now: a window reading a
+// recorder a day old was the defect. A trial is the opposite — it is a RECORD, written once and
+// read afterwards, including by a build that did not exist when it was written. Adding `paused`
+// bumped the version and made the morning's two live trials unreadable at a stroke, with the
+// evidence still sitting there and every field in it meaning exactly what this build thinks.
+//
+// Every version from here to `trialVersion` has only ADDED fields, so an older note is a current
+// note with some of them absent. A version BELOW this, or above `trialVersion`, is counted and
+// not guessed at — the first because something was removed or repurposed and the second because
+// a later build may mean something else by a name this one knows.
+//
+// MOVE THIS the day a field is removed or changes meaning, and not before. That is the whole
+// discipline: the version says a shape changed, and this says whether the change was additive.
+const trialReadsFrom = 1
+
 // trialRefetchBurst is how many times one picture may be asked for inside a single tally stretch
 // before it is being re-fetched rather than painted.
 //
@@ -500,6 +520,11 @@ type trial struct {
 	// Unreadable is how many lines could not be read, which is a fact about the
 	// journal and not a reason to discard what could.
 	Unreadable int
+	// Older says some of it was written by an earlier build of the recorder, whose
+	// shape this one still reads. Said rather than assumed: a trial that is missing
+	// a field this build would have written is not a trial where that field was
+	// false. See trialReadsFrom.
+	Older bool
 }
 
 // trialsIn is the journals in a store, oldest first.
@@ -539,10 +564,14 @@ func readTrial(path string) trial {
 		var n trialNote
 		// A LINE THIS BUILD CANNOT VOUCH FOR IS COUNTED, NOT GUESSED AT. The
 		// shape is the only thing that says what a missing field means; see
-		// trialVersion.
-		if json.Unmarshal([]byte(line), &n) != nil || n.Version != trialVersion {
+		// trialVersion, and trialReadsFrom for why the range is not one number.
+		if json.Unmarshal([]byte(line), &n) != nil ||
+			n.Version < trialReadsFrom || n.Version > trialVersion {
 			t.Unreadable++
 			continue
+		}
+		if n.Version != trialVersion {
+			t.Older = true
 		}
 		t.Notes = append(t.Notes, n)
 	}

@@ -66,6 +66,14 @@ func printTrial(t trial) {
 		// told would take a partial account for the whole one.
 		fmt.Printf("  %d line(s) could not be read by this build\n", t.Unreadable)
 	}
+	if t.Older {
+		// SAID, because a field this build would have written and that journal
+		// could not is absent rather than false, and the difference matters on
+		// every line of the verdict below.
+		fmt.Printf("  written by an earlier build of Studio, whose shape this " +
+			"one still reads; anything added since is absent rather than " +
+			"false\n")
+	}
 	if open, ok := t.first(trialOpened); ok {
 		fmt.Printf("  window    %s\n  director  %s\n  store     %s\n"+
 			"  routes    %s\n", orNone(open.Build), open.Director,
