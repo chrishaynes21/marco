@@ -94,10 +94,24 @@ that control, though a saved play still cannot say it (`cannot_say_pointer`, fol
   boundaries; the newest Runner is no authority on an older answer
   in walk order, and an absent question is not an answer
 
+## What a demonstrated click is evidence of
+
+The point somebody clicked is authoritative about WHICH INSTANCE of a control they meant, and is
+not a claim that the same instance still occupies that location. A template is the other way
+round: it says what the control looks like and nothing about which of two identical ones was
+intended. [[Experiment-096-the-click-says-which-one-the-template-only-says-what]] measured the
+gap on a seeded fixture — matching the template anywhere in the window chose the control in the
+*other* panel thirty times out of thirty whenever the demonstrated one was absent or covered,
+with no ambiguity reported, while the same matching restricted to the neighbourhood the click
+predicts made no wrong-instance selection at all and refused every unsupported case. It is an
+experiment and not a decision; nothing in production was changed to run it.
+
 ## Validated by
 
 - `internal/director/demo` unit tests (`demo.go`, `record.go`, `validate.go`)
 - `director demo` commands; explainability output
+- `internal/director/localizetrial` — the local-regioning experiment: its fixture, its frozen
+  protocol and its evaluation. Opens no window and sends no input.
 
 ## Known gaps
 
