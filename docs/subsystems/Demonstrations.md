@@ -112,15 +112,45 @@ wrong-instance hazard is present there too — a repeated volume value ranks a D
 the demonstrated one — and the threshold frozen against an opaque fixture does not transfer.
 
 **And a demonstration now keeps what its controls are worth.** Per pressed control: the click in
-client pixels, the client geometry and scale it is relative to, a crop of the control AT CAPTURE
-resolution, and a two-sided measurement of that crop — the worst it matches itself across the
-looks after the press, against the best anything within 160px matches the same template. A
-threshold sits in the gap between them, or there is no gap and the recording says so while the
-person is still in front of the screen. The region comes from the proposal under the press rather
-than from a constant, because a constant means something different at every capture scale.
-Nothing that runs reads any of it: it is what a guard around a learned coordinate would be built
-from, collected first so the guard has something to be built FROM.
+WINDOW pixels, the size of the capture it is relative to, a display scale recorded as UNKNOWN
+because nothing in the recording path observes one, a crop of the control AT CAPTURE resolution,
+and a two-sided measurement of that crop — the worst it matches itself across the looks ENDING AT
+the press, against the best anything within 160px matches the same template. The looks ending at
+it rather than after it, because a press that works closes the menu it was in and a control
+measured across that reads as unstable because the click SUCCEEDED. A threshold sits in the gap
+between the two numbers, or there is no gap and the recording says so while the person is still in
+front of the screen. The region comes from the proposal under the press rather than from a
+constant, because a constant means something different at every capture scale. Nothing that runs
+reads any of it: it is what a guard around a learned coordinate would be built from, collected
+first so the guard has something to be built FROM.
 [[ADR-247-what-a-click-is-evidence-of]]
+
+**And a demonstration records the point of every press.** The click itself, taken from the press
+and never computed from a rectangle a proposer drew around it — a proposal is generous on purpose
+and its middle is a different point, which on an off-centre click can be a different control.
+Kept per STEP rather than per control, because a control pressed twice was pressed twice and the
+two points are two facts while readings merge. A proposal is not required for any of it: a press
+the proposer found NOTHING under still records where it was, and on a menu no recogniser can name
+that is the ordinary case. It is demonstration evidence and nothing on the recognition path reads
+it. [[ADR-248-replaying-a-demonstrated-layout]]
+
+**And a demonstration records the window it was made in.** Outside the pictures licence, because
+a size is not a picture of anybody's screen — and nothing at all when that window was resized
+partway, because that is not a demonstration of a fixed layout. It exists so that a replay can be
+REFUSED: every reading here is normalised to its window, so the arithmetic produces a
+confident-looking point at any size whatever, and this is the only thing that can say whether the
+window a demonstrated point is about to be pressed in is the one it was demonstrated in. A
+routine recorded before this is refused on that route rather than trusted, and told that a fresh
+demonstration is what fixes it. [[ADR-248-replaying-a-demonstrated-layout]]
+
+**And there is one look number, kept by the observer.** Everything a demonstration files under a
+look — the raw moment, the picture of the screen, the band of pixels a control is calibrated from
+— is read back by the look the OBSERVER attributed the press to. The loop kept a second counter
+of its own, taken before the fold, which ran one behind; every lookup between the two halves
+missed by one and returned nothing, so no control crop and no control evidence was written by any
+build, and nothing said so. Found by the absence of a directory three recordings should have
+made. A total miss where presses were attributed and looks were measured is now a sentence rather
+than a count of zero.
 
 ## Validated by
 

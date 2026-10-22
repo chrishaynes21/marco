@@ -223,3 +223,22 @@ canonical result, cited by the run's own reference and read out of the run recor
 nobody is asked to watch for, because every defect this surface has had was found by the owner
 describing it and engineering working backwards from the sentence.
 [[ADR-246-a-trial-collects-its-own-evidence]]
+
+**And a screen that can never be established is no longer the end of the road.** GEOMETRY REPLAY
+is an explicit execution mode — off unless asked for, granted from outside the planner and
+outside the runner, offered in Studio beside Play and never taken for anybody. In it Marco
+presses THE POINT THE PERSON CLICKED, taken from the press and never computed from a rectangle a
+proposer drew around it, and only while the window is the EXACT size it was demonstrated in. A
+mode rather than a fallback, which is load-bearing: the window is checked ALWAYS — at the plan
+and again at the press boundary — because a geometry check that ran only after recognition failed
+let a run whose screen happened to settle press into a window of any size at all. The press
+boundary in the mode has its own terms, all about where a click will land plus the geometry, and
+it takes NO look: no screen hypothesis, no observation generation, no reading, no proposal under
+the point. The vision path is untouched and is what every other run takes. Nobody's agreement and
+nobody's authorisation is waived, and what the press DID is verified exactly as before. It has
+its own vocabulary — `demonstrated layout` support, a grounding that says in words that nobody
+looked, an authorisation line that says "the point somebody clicked" rather than "the middle of a
+region" — so no run's record describes it as recognition. The three live trials it exists for all
+died at the same refusal with zero actions sent, on a menu drawn over a live 3D world that is
+filed as two screens depending on what moves behind it.
+[[ADR-248-replaying-a-demonstrated-layout]]
