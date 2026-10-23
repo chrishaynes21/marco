@@ -45,11 +45,17 @@ replay target. That rule stands everywhere else. This is the narrow override tha
 for a fixed-layout MVP, and it is written down here rather than hidden in a UI wording, which was
 a condition of granting it.
 
-## Three things it was wrong about first
+## Four things it was wrong about first
 
-The first two were found in review, before any of it ran live, and they are the same mistake:
-treating this as the vision path with something waived instead of as a path of its own. The third
-was found by reading the owner's next recording, and is the plainer kind of error — half a change.
+The first two were found in review, before any of it ran live. The third was found by reading the
+owner's next recording. The fourth was found by the trial itself, and nothing short of a trial
+could have found it.
+
+All four are one mistake told four times: **a path is not vision-free until every layer on it
+agrees to be.** Three layers had to stop requiring a named screen — the step plan, the press
+boundary, and the run coordinator in front of both — and each was noticed only after the one
+behind it was fixed. A green suite was available at every stage, because each layer's tests
+entered at that layer.
 
 **It replayed a detected rectangle's centre, not the person's click.** The point came from the
 first saved reading of the control and the middle was computed from it. A proposal is generous on
@@ -97,6 +103,39 @@ So geometry replay has its own boundary, and no look is taken at all on it. A lo
 of a press is a window capture, a segmentation and sometimes an OCR request waited for inside a
 budget; on this path nothing it produces is consulted, so every one of them is pure cost inside
 the one moment that must not have an unbounded pause in it.
+
+**And the run coordinator in front of both still would not start.** The step plan asked nothing
+about the screen. The press boundary asked nothing about the screen. And `workflowrun.attempt`,
+which runs before either of them, called its grounder on every look and treated a failure to
+recognise as a reason to wait — until patience ran out and the run refused, having never reached
+the plan.
+
+Found live, and only live. Two runs against the owner's Ark pause menu, whose arrangement agreed
+with the best saved screen at **0.500 and 0.442** against a 0.55 threshold. Both refused with
+ZERO actions sent. That is the exact case the licence exists for — a menu over a live 3D world,
+filed differently depending on what moves behind it — so the gate was turning down the one run it
+had been built to let through. The suite was green throughout, because the tests for each inner
+layer entered at that layer and the outer one had no test asking it to proceed without a screen.
+
+So a licensed run is no longer held there. The grounder is still CALLED — the screen is worth
+knowing when it can be known, and not calling it would be the different and larger claim that
+this mode stops perceiving — but failing to name a screen no longer stops the run. Nothing
+downstream got easier: the licensed plan still checks the window and the demonstrated point, and
+a step that can only be finished by ARRIVING somewhere still cannot be, because nothing
+established its destination either.
+
+**What is still vision, on purpose.** A step finished by its own outcome is checked by comparing
+what was read before the press with what was read after it, so the panel must be READABLE even
+though its screen need not be NAMEABLE. With nothing readable at all the press does not go out,
+licence or no licence — a click into a window nothing can say anything about is what this
+subsystem exists to refuse. That is the owner's separation holding: localization and outcome
+verification are different questions, and only the first one is waived here.
+
+**And the trial could not say whether the licence was on.** Neither the journal's `play` note nor
+the director's run record carried it, so two runs were read back as evidence about coordinate
+replay while nothing in the evidence distinguished *the mode was off* from *the mode was on and
+bypassed*. Both now record it. A trial whose record is silent about the one variable it is about
+is not evidence, whichever way it comes out.
 
 ## The five things that keep it narrow
 
@@ -265,6 +304,22 @@ a route that quietly depended on it would have made it a prerequisite again.
   geometry check through a transition's arrival logic could pass every transition test and skip
   it entirely here; and `TestAPanelPressWithNoClickIsRefusedRatherThanCentred`, where the tab's
   middle is available and is the wrong point.
+- `internal/director/workflowrun/unrecognisedlayout_test.go` — the outermost layer, against a
+  grounder that can never name what it is looking at:
+  `TestALicensedRunPressesThroughAnUnrecognisableScreen` (and the grounder is asserted to have
+  been CALLED, because the licence suppresses the refusal and not the attempt to recognise);
+  `TestWithoutTheLicenceAnUnrecognisableScreenStillSendsNothing`, which pins **this** gate by its
+  own sentence and the recogniser's measured number rather than by the outcome — measured, by
+  deleting the gate outright: the step plan refuses an unestablished screen too, so an
+  outcome-and-stage assertion alone passed with the gate gone;
+  `TestALicensedRunWithAnUnreadablePanelStillSendsNothing`, the verification half the licence does
+  not waive; and `TestALicensedPressIsVerifiedByTheWordsThatAppeared`, which is the whole trial in
+  one test — a screen nothing can name, a press at the demonstrated point, a verdict from the
+  words that appeared under the tab.
+- `plugins/studio/onlayout_test.go` also holds `TestTheJournalSaysWhetherTheLayoutWasGranted`,
+  driven both ways through the real spawn, and `TestTheTrialNoteShapeMovesWithItsVersion` forced
+  the journal to version 3 rather than letting the field arrive silently — `omitempty` makes a
+  writer that never heard of a field indistinguishable from one whose answer was no.
 - `internal/director/workflowstore/layoutreplay_test.go` also holds
   `TestThePointPressedIsTheClickAndNotTheMiddleOfTheProposal`, where the proposal's centre lands
   in a DIFFERENT control; `TestAClickWithNoProposalAtAllIsStillPressable`;

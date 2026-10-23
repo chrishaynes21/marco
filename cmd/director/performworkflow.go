@@ -395,7 +395,7 @@ func runPerformWorkflow(args []string) int {
 			Started: began.Format(time.RFC3339),
 			Ended:   time.Now().Format(time.RFC3339),
 			Outcome: out, Because: because,
-			Sent: rep.Pressed, Real: rep.Real,
+			Sent: rep.Pressed, Real: rep.Real, Layout: *fixedLayout,
 			Verified: rep.VerifiedOK, Contradicted: rep.Contradicted,
 			Unconfirmed: rep.Unconfirmed, Frames: framesDir,
 		})

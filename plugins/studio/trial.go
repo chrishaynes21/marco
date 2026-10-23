@@ -64,7 +64,7 @@ import (
 // same reason learnstate's does: `omitempty` makes a writer that has never heard of a field
 // indistinguishable from one whose value is false, so a reader of an older journal cannot tell
 // a missing fact from a negative one unless the version says which it is reading.
-const trialVersion = 2
+const trialVersion = 3
 
 // trialReadsFrom is the oldest shape this build reads as meaning what it says.
 //
@@ -200,7 +200,14 @@ type trialNote struct {
 	Steps []string `json:"steps,omitempty"`
 	Error string   `json:"error,omitempty"`
 
-	Live      bool   `json:"live,omitempty"`
+	Live bool `json:"live,omitempty"`
+	// Layout says this performance was granted the fixed-layout replay licence: it
+	// presses where somebody clicked, in a window of the size they clicked it in,
+	// without recognising the screen. Recorded because a trial whose journal cannot
+	// say whether the thing under test was switched ON cannot answer the question it
+	// was run to answer — two runs were read back as evidence about the licence and
+	// neither note said whether it had been taken.
+	Layout    bool   `json:"layout,omitempty"`
 	Reference string `json:"reference,omitempty"`
 	Outcome   string `json:"outcome,omitempty"`
 	Because   string `json:"because,omitempty"`
@@ -418,9 +425,9 @@ func (t *trials) composed(from, act string, steps []string, why string) {
 	t.flush()
 }
 
-// playing is a performance started.
-func (t *trials) playing(act string, live bool) {
-	t.note(trialNote{Kind: trialPlay, Act: act, Live: live})
+// playing is a performance started, with the grants it was given.
+func (t *trials) playing(act string, live, layout bool) {
+	t.note(trialNote{Kind: trialPlay, Act: act, Live: live, Layout: layout})
 	t.flush()
 }
 

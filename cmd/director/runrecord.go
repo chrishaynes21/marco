@@ -83,6 +83,13 @@ type RunRecord struct {
 	// Sent is how many programs reached a computer, and Real whether this was --live.
 	Sent int  `json:"actions_sent"`
 	Real bool `json:"live"`
+	// Layout says the run held the fixed-layout replay licence: it pressed where
+	// somebody clicked, in a window of the size they clicked it in, and asked nothing
+	// about the screen. The one variable a coordinate-replay trial is ABOUT, and two
+	// runs were read back as evidence concerning it while no record said whether it
+	// had been granted — so neither of them could distinguish a mode that was off
+	// from a mode that was on and bypassed.
+	Layout bool `json:"fixed_layout,omitempty"`
 	// The three verification counts, kept apart for the reason the report keeps them
 	// apart: an unconfirmed action is neither a success nor a failure.
 	//

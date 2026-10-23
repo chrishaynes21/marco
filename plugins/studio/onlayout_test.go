@@ -217,3 +217,37 @@ func TestTheLayoutChoiceReachesTheDirector(t *testing.T) {
 			"run that never asked for it:\n%s", plain)
 	}
 }
+
+// AND THE JOURNAL SAYS WHETHER THE LICENCE WAS TAKEN.
+//
+// A trial whose record cannot say whether the thing under test was switched ON cannot answer the
+// question it was run to answer. Two live runs of the owner's Ark Act were read back as evidence
+// about coordinate replay, and neither the journal's `play` note nor the director's run record
+// said whether the layout had been granted — so the evidence could not tell a mode that was off
+// from a mode that was on and bypassed. Both directions, because a note that always said yes
+// would be the same defect wearing the answer.
+func TestTheJournalSaysWhetherTheLayoutWasGranted(t *testing.T) {
+	a, _ := aDemonstrationWithEverything(t)
+	got := composeOne(t, a)
+	a.raising = func(string) string { return "" }
+	t.Setenv("DIRECTOR_BIN", os.Args[0])
+	t.Setenv("STUDIO_STANDIN_RUNNER", "1")
+	t.Setenv("STUDIO_STANDIN_QUICK", "1")
+
+	for _, on := range []bool{true, false} {
+		if why := a.Play(got.Name, false, on, got.Identity); why != "" {
+			t.Fatalf("the run would not start with layout=%v: %s", on, why)
+		}
+		waitForTranscript(t, a)
+		_ = a.Cancel()
+		started := notes(theTrial(t, a), trialPlay)
+		if len(started) == 0 {
+			t.Fatal("the journal has no record of a performance starting")
+		}
+		last := started[len(started)-1]
+		if last.Layout != on {
+			t.Errorf("the journal says layout=%v for a run granted %v, so a "+
+				"reader cannot tell what was tried", last.Layout, on)
+		}
+	}
+}

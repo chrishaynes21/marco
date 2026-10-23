@@ -795,6 +795,17 @@ func TestTheTrialNoteShapeMovesWithItsVersion(t *testing.T) {
 			"captured,unchecked,missing,start_known,screen_read,said,next," +
 			"failed,screens,controls,asked,act,from,steps,error,live," +
 			"reference,outcome,because,paused,actions_sent,verified",
+		// 3 ADDED `layout`: whether the performance was granted the
+		// fixed-layout replay licence. Two live runs were read back as
+		// evidence about coordinate replay and no note said whether it had
+		// been taken, so the journal could not distinguish a mode that was
+		// off from a mode that was on and bypassed — which is the whole
+		// question such a trial is run to answer.
+		3: "version,seq,at,kind,build,recorder,ran,mismatched,director,store," +
+			"routes,name,application,seconds,phase,doing,presses,watched," +
+			"captured,unchecked,missing,start_known,screen_read,said,next," +
+			"failed,screens,controls,asked,act,from,steps,error,live,layout," +
+			"reference,outcome,because,paused,actions_sent,verified",
 	}
 	var names []string
 	ty := reflect.TypeOf(trialNote{})

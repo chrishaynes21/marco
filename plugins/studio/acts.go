@@ -1142,7 +1142,7 @@ func (a *Acts) start(p Performance) string {
 	pw.Close()
 	// A PERFORMANCE HAS STARTED, noted once the child is running for the same reason a
 	// recording is: what a trial records is what happened, not what was asked for.
-	a.trial.playing(act, live)
+	a.trial.playing(act, live, p.FixedLayout)
 
 	go func() { a.read(pr); close(drained) }()
 	go func() {

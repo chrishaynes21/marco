@@ -735,13 +735,39 @@ func (r *Runner) Advance(ctx context.Context, s *workflowstore.SessionBinding,
 			if r.acted == r.cursor && r.settled(&a) {
 				return r.record(a)
 			}
-			a.Outcome = OutcomeWaiting
-			a.Because = "the screen could not be established: " + err.Error()
-			r.looks++
-			if r.looks > r.patience {
-				return r.record(r.impatient(a, workflowstore.StepScreenUnestablished))
+			// ── AND A LICENSED RUN DOES NOT WAIT FOR A SCREEN IT NEVER ASKS ──
+			//
+			// This gate is where geometry replay actually died, and it is the
+			// third place the same mistake was made in one feature: the step
+			// plan was taught not to ask about the screen, then the press
+			// boundary was, and the run coordinator in front of both was still
+			// refusing to proceed until somebody could name what was on screen.
+			// A mode whose two inner layers ignore recognition is not in that
+			// mode if the outer one blocks on it.
+			//
+			// Measured: two live runs against the owner's Ark pause menu, which
+			// agreed with the best saved screen at 0.500 and 0.442 against a
+			// 0.55 threshold. Both refused with ZERO actions sent, having never
+			// reached the plan. That is exactly the case the licence is for — a
+			// menu drawn over a live 3D world, filed differently depending on
+			// what moves behind it — so the gate was turning down the one run
+			// it was supposed to let through.
+			//
+			// Falling through does not make anything easier downstream. The
+			// licensed plan checks the window and the demonstrated point; a step
+			// that can only be finished by ARRIVING somewhere still cannot be,
+			// because nothing established its destination either. What changes is
+			// only this: a run that never asks about the screen is no longer held
+			// at the door for failing to recognise one.
+			if !r.layout {
+				a.Outcome = OutcomeWaiting
+				a.Because = "the screen could not be established: " + err.Error()
+				r.looks++
+				if r.looks > r.patience {
+					return r.record(r.impatient(a, workflowstore.StepScreenUnestablished))
+				}
+				return r.record(a)
 			}
-			return r.record(a)
 		}
 	}
 	// AND WHATEVER THIS OBSERVATION HAS OUTRUN IS DROPPED. Not aged, not carried

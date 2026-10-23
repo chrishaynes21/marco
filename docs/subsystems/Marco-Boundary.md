@@ -241,4 +241,17 @@ looked, an authorisation line that says "the point somebody clicked" rather than
 region" — so no run's record describes it as recognition. The three live trials it exists for all
 died at the same refusal with zero actions sent, on a menu drawn over a live 3D world that is
 filed as two screens depending on what moves behind it.
+
+**And the gate in front of all of it.** Three layers had to stop requiring a named screen, and
+the outermost was found only by a live trial. The run coordinator calls its grounder on every
+look and used to treat a failure to recognise as a reason to wait, so a licensed run never
+reached the plan at all: two runs against the owner's pause menu agreed with the best saved
+screen at 0.500 and 0.442 against a 0.55 threshold and both refused with ZERO actions sent, while
+the suite was green — each inner layer's tests entered at that layer. A licensed run is no longer
+held there. The grounder is still CALLED, because the screen is worth knowing when it can be and
+not calling it would claim the mode stops perceiving; it is only the refusal that is lifted. What
+remains vision is the verification half, on purpose: a step finished by its own outcome needs the
+panel READABLE even though its screen need not be NAMEABLE, and with nothing readable the press
+does not go out under any licence.
 [[ADR-248-replaying-a-demonstrated-layout]]
+
