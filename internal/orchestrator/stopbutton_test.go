@@ -189,34 +189,19 @@ func TestAVisitToMarcoInTheMiddleIsNotCutAway(t *testing.T) {
 	}
 }
 
-// AND A TRIP TOO QUICK FOR THE POLLER TO SEE IS STILL CUT.
+// A FIXTURE THAT CANNOT HAPPEN WAS DELETED HERE, and it is worth saying why.
 //
-// The app switch is produced by a poller on an interval, not by the hooks, so a person who
-// reaches Marco and clicks between two samples leaves a click in Marco with no switch in front
-// of it. The app each event was tagged with is what catches that one.
-func TestAStopPressedBetweenTwoPollsIsStillCut(t *testing.T) {
-	events := []recorder.RecordedEvent{
-		{Kind: recorder.EvAppSwitch, KeyName: "arkascended", T: at(0)},
-		{Kind: recorder.EvClick, Button: "left", Down: true, X: 842, Y: 274,
-			App: "arkascended", T: at(100)},
-		{Kind: recorder.EvClick, Button: "left", Down: false, X: 842, Y: 274,
-			App: "arkascended", T: at(105)},
-		// NO SWITCH RECORDED — the poller never sampled it.
-		{Kind: recorder.EvClick, Button: "left", Down: true, X: 1511, Y: 913,
-			App: "studio", T: at(3200)},
-		{Kind: recorder.EvClick, Button: "left", Down: false, X: 1511, Y: 913,
-			App: "studio", T: at(3205)},
-	}
-	src := learnByButton(t, events)
-
-	if !strings.Contains(src, "842") {
-		t.Fatalf("the demonstrated click is missing:\n%s", src)
-	}
-	if strings.Contains(src, "1511") {
-		t.Errorf("a Stop press the poller never saw a switch for stayed in the "+
-			"routine:\n%s", src)
-	}
-}
+// It claimed to cover "a trip too quick for the poller to see": no app switch recorded, and the
+// stopping click tagged `App: "studio"`. That state does not exist. The app tag IS the poller's
+// last sample, and the switch event is emitted from the same sample — so a click tagged "studio"
+// means the poller HAD sampled Marco, which means the switch is there. Absent switch and
+// "studio" tag cannot both be true.
+//
+// So the test passed against a world that cannot occur, while the race it named went uncovered:
+// the poller still reading the game, no switch, and the stopping click tagged with the game.
+// Both of the name rules read that one stale sample, so neither could ever have caught it.
+// `TestAStopInsideTheSampleIntervalIsStillCut` below is that case, and it is answered by the
+// process that owned the foreground window at the instant of the click instead.
 
 // AND THE GESTURE PATH IS LEFT EXACTLY AS IT WAS.
 //
@@ -287,5 +272,232 @@ func TestAButtonStoppedRecordingIsFiledUnderTheAppItWasMadeIn(t *testing.T) {
 		Slug: "ark-graphics"})); err != nil {
 		t.Fatalf("the routine is not filed under the app it was demonstrated "+
 			"in: %v (said: %s)", err, out.String())
+	}
+}
+
+// ── THE RACE BOTH NAME RULES MISS ───────────────────────────────────────────────
+
+// gamePID and studioPID stand for two real processes. The numbers mean nothing; that they
+// DIFFER is the whole content.
+const (
+	gamePID   uint32 = 4812
+	studioPID uint32 = 9140
+)
+
+// aStopPressedInsideTheSampleInterval is the case the app-name rules cannot see.
+//
+// The poller sampled the game at the start and never samples again: no switch into Marco is
+// recorded, and the click that presses Stop is tagged with the app the person LEFT, because the
+// tag is the poller's last sample. Both name rules therefore read "arkascended" and keep it.
+//
+// Only the process that owned the foreground window AT THE INSTANT of the click tells the truth
+// here, and that is read in the hook rather than sampled.
+func aStopPressedInsideTheSampleInterval() []recorder.RecordedEvent {
+	return []recorder.RecordedEvent{
+		{Kind: recorder.EvAppSwitch, KeyName: "arkascended", T: at(0)},
+		{Kind: recorder.EvClick, Button: "left", Down: true, X: 842, Y: 274,
+			App: "arkascended", PID: gamePID, T: at(100)},
+		{Kind: recorder.EvClick, Button: "left", Down: false, X: 842, Y: 274,
+			App: "arkascended", PID: gamePID, T: at(105)},
+		// ── MARCO COMES FORWARD AND IS CLICKED, INSIDE ONE SAMPLE INTERVAL ──
+		//
+		// No EvAppSwitch: the poller has not run. App still says the game: the tag
+		// IS the poller's last sample. Only PID knows where the click landed.
+		{Kind: recorder.EvMove, X: 1500, Y: 900, T: at(3100)},
+		{Kind: recorder.EvClick, Button: "left", Down: true, X: 1511, Y: 913,
+			App: "arkascended", PID: studioPID, T: at(3200)},
+		{Kind: recorder.EvClick, Button: "left", Down: false, X: 1511, Y: 913,
+			App: "arkascended", PID: studioPID, T: at(3205)},
+	}
+}
+
+// THE CLICK THAT STOPPED THE RECORDING IS CUT EVEN WHEN THE POLLER NEVER SAW MARCO.
+//
+// The failure this replaces was not a missing rule but two rules reading one source: the
+// "too fast for the poller" fallback used the poller's own last sample. A fixture that tagged
+// the stopping click "studio" asserted the rule worked in the one state the race cannot
+// produce.
+func TestAStopInsideTheSampleIntervalIsStillCut(t *testing.T) {
+	t.Setenv("MARCO_CV", "off")
+	reg := routes.Registry{Dir: t.TempDir()}
+	rec := &heldRecorder{events: aStopPressedInsideTheSampleInterval()}
+	press := make(chan struct{})
+
+	var out bytes.Buffer
+	d := Deps{
+		Reg: reg, Rec: rec, Out: &out,
+		Owner: "studio", OwnerPID: studioPID, StopWhen: press,
+	}
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		close(press)
+	}()
+	if err := d.LearnAuto("ark graphics"); err != nil {
+		t.Fatalf("recording: %v", err)
+	}
+	// FILED UNDER THE GAME, which is also the assertion that the tail is gone: the
+	// scope comes from the recording's last app switch.
+	raw, err := os.ReadFile(reg.Path(routes.Route{App: "arkascended",
+		Slug: "ark-graphics"}))
+	if err != nil {
+		t.Fatalf("the routine is not filed under the app it was demonstrated "+
+			"in: %v (said: %s)", err, out.String())
+	}
+	src := string(raw)
+
+	if !strings.Contains(src, "842") || !strings.Contains(src, "274") {
+		t.Fatalf("the demonstrated click is missing:\n%s", src)
+	}
+	if strings.Contains(src, "1511") || strings.Contains(src, "913") {
+		t.Errorf("the click that pressed Stop is in the routine. The poller never "+
+			"sampled Marco, so the switch is absent and the click's app tag "+
+			"names the game — every rule that reads the poller keeps it:\n%s",
+			src)
+	}
+}
+
+// AND THE NAME RULES ARE NOT WHAT SAVES IT.
+//
+// The same stream with the owner NAME withheld. If this passes on the process boundary alone,
+// then that boundary is doing the work rather than riding on a name rule that happened to match.
+func TestTheProcessBoundaryHoldsWithNoOwnerName(t *testing.T) {
+	t.Setenv("MARCO_CV", "off")
+	reg := routes.Registry{Dir: t.TempDir()}
+	rec := &heldRecorder{events: aStopPressedInsideTheSampleInterval()}
+	press := make(chan struct{})
+
+	var out bytes.Buffer
+	d := Deps{
+		Reg: reg, Rec: rec, Out: &out,
+		OwnerPID: studioPID, StopWhen: press, // no Owner name at all
+	}
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		close(press)
+	}()
+	if err := d.LearnAuto("ark graphics"); err != nil {
+		t.Fatalf("recording: %v", err)
+	}
+	raw, err := os.ReadFile(reg.Path(routes.Route{App: "arkascended",
+		Slug: "ark-graphics"}))
+	if err != nil {
+		t.Fatalf("loading: %v (said: %s)", err, out.String())
+	}
+	if src := string(raw); strings.Contains(src, "1511") {
+		t.Errorf("with no owner name, the stopping click survived — so the "+
+			"process boundary is not carrying this on its own:\n%s", src)
+	}
+}
+
+// AND A MOVE BETWEEN TWO DEMONSTRATED CLICKS IS NOT EATEN.
+//
+// The process rule looks past a trailing move, because a move carries no attribution of its own.
+// It must look past it only to something the owner owns: a move that sits between two of the
+// demonstration's own events is part of the demonstration's tail, not the operator's.
+func TestAMoveBetweenDemonstratedClicksSurvivesTheProcessRule(t *testing.T) {
+	events := []recorder.RecordedEvent{
+		{Kind: recorder.EvAppSwitch, KeyName: "arkascended", T: at(0)},
+		{Kind: recorder.EvClick, Button: "left", Down: true, X: 842, Y: 274,
+			App: "arkascended", PID: gamePID, T: at(100)},
+		{Kind: recorder.EvClick, Button: "left", Down: false, X: 842, Y: 274,
+			App: "arkascended", PID: gamePID, T: at(105)},
+		{Kind: recorder.EvMove, X: 900, Y: 300, T: at(200)},
+		{Kind: recorder.EvClick, Button: "left", Down: true, X: 496, Y: 283,
+			App: "arkascended", PID: gamePID, T: at(300)},
+		{Kind: recorder.EvClick, Button: "left", Down: false, X: 496, Y: 283,
+			App: "arkascended", PID: gamePID, T: at(305)},
+		{Kind: recorder.EvClick, Button: "left", Down: true, X: 1511, Y: 913,
+			App: "arkascended", PID: studioPID, T: at(3200)},
+		{Kind: recorder.EvClick, Button: "left", Down: false, X: 1511, Y: 913,
+			App: "arkascended", PID: studioPID, T: at(3205)},
+	}
+	t.Setenv("MARCO_CV", "off")
+	reg := routes.Registry{Dir: t.TempDir()}
+	press := make(chan struct{})
+	var out bytes.Buffer
+	d := Deps{Reg: reg, Rec: &heldRecorder{events: events}, Out: &out,
+		Owner: "studio", OwnerPID: studioPID, StopWhen: press}
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		close(press)
+	}()
+	if err := d.LearnAuto("ark graphics"); err != nil {
+		t.Fatalf("recording: %v", err)
+	}
+	raw, err := os.ReadFile(reg.Path(routes.Route{App: "arkascended",
+		Slug: "ark-graphics"}))
+	if err != nil {
+		t.Fatalf("loading: %v (said: %s)", err, out.String())
+	}
+	src := string(raw)
+	for _, want := range []string{"842", "496"} {
+		if !strings.Contains(src, want) {
+			t.Errorf("the demonstration is missing %s — the process rule walked "+
+				"past a move into events it does not own:\n%s", want, src)
+		}
+	}
+	if strings.Contains(src, "1511") {
+		t.Errorf("the stopping click survived:\n%s", src)
+	}
+}
+
+// AND A MOVE BETWEEN TWO OF THE OPERATOR'S OWN CLICKS IS CUT WITH THEM.
+//
+// The ordinary way a person presses a button in a window that is not in front: click the window
+// to focus it, move to the button, click the button. That is two clicks in Marco with a move
+// between them, and the move carries no attribution of its own — so the rule has to look past it
+// to the event behind it, and keep going when that event is the operator's too.
+//
+// Without the lookahead the walk stops at the move, and the first of the two clicks stays in the
+// routine: a replay would click into Marco's window at whatever is there now.
+func TestAMoveBetweenTwoOperatorClicksIsCutWithThem(t *testing.T) {
+	events := []recorder.RecordedEvent{
+		{Kind: recorder.EvAppSwitch, KeyName: "arkascended", T: at(0)},
+		{Kind: recorder.EvClick, Button: "left", Down: true, X: 842, Y: 274,
+			App: "arkascended", PID: gamePID, T: at(100)},
+		{Kind: recorder.EvClick, Button: "left", Down: false, X: 842, Y: 274,
+			App: "arkascended", PID: gamePID, T: at(105)},
+		// ── CLICK MARCO TO FOCUS IT, inside the sample interval ──
+		{Kind: recorder.EvClick, Button: "left", Down: true, X: 1200, Y: 400,
+			App: "arkascended", PID: studioPID, T: at(3000)},
+		{Kind: recorder.EvClick, Button: "left", Down: false, X: 1200, Y: 400,
+			App: "arkascended", PID: studioPID, T: at(3005)},
+		// ── MOVE TO THE BUTTON ──
+		{Kind: recorder.EvMove, X: 1450, Y: 880, T: at(3100)},
+		// ── AND PRESS IT ──
+		{Kind: recorder.EvClick, Button: "left", Down: true, X: 1511, Y: 913,
+			App: "arkascended", PID: studioPID, T: at(3200)},
+		{Kind: recorder.EvClick, Button: "left", Down: false, X: 1511, Y: 913,
+			App: "arkascended", PID: studioPID, T: at(3205)},
+	}
+	t.Setenv("MARCO_CV", "off")
+	reg := routes.Registry{Dir: t.TempDir()}
+	press := make(chan struct{})
+	var out bytes.Buffer
+	d := Deps{Reg: reg, Rec: &heldRecorder{events: events}, Out: &out,
+		Owner: "studio", OwnerPID: studioPID, StopWhen: press}
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		close(press)
+	}()
+	if err := d.LearnAuto("ark graphics"); err != nil {
+		t.Fatalf("recording: %v", err)
+	}
+	raw, err := os.ReadFile(reg.Path(routes.Route{App: "arkascended",
+		Slug: "ark-graphics"}))
+	if err != nil {
+		t.Fatalf("loading: %v (said: %s)", err, out.String())
+	}
+	src := string(raw)
+	if !strings.Contains(src, "842") {
+		t.Fatalf("the demonstrated click is missing:\n%s", src)
+	}
+	// BOTH of the operator's clicks, named separately: the one that pressed the
+	// button, and the one that focused the window on the way to it.
+	for _, gone := range []string{"1511", "1200"} {
+		if strings.Contains(src, gone) {
+			t.Errorf("the routine contains %s, one of the clicks that ended the "+
+				"recording:\n%s", gone, src)
+		}
 	}
 }

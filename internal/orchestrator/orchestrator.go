@@ -90,6 +90,16 @@ type Deps struct {
 	// in, it becomes a step: every replay would raise Marco and press Stop. The stop
 	// GESTURE never had this problem because a key is not a place.
 	Owner string
+	// OwnerPID is the process of the window driving this recording, and it is the
+	// boundary that actually holds. Zero when unknown.
+	//
+	// `Owner` above is a name the app POLLER reported, and a poller cannot answer about an
+	// instant it has not sampled: somebody who brings the window forward and clicks Stop
+	// inside the sample interval produces no switch event AND a click tagged with the app
+	// they left. Both of the name-based rules then read the same stale sample and keep the
+	// click. The process that owned the foreground window at the instant of the event does
+	// not have that problem, because it is read at the instant of the event.
+	OwnerPID uint32
 	// StopWhen ends a recording from outside the captured input — the button, rather
 	// than the stop key. Nil leaves the gesture as the only way to finish.
 	//
@@ -204,7 +214,7 @@ func (d Deps) Learn(name string) error {
 	byButton := waitForStop(d.Rec, &stop, d.StopWhen)
 	events := stripTrailingStop(d.Rec.Stop(), stop)
 	if byButton {
-		events = stripTrailingOwner(events, d.Owner)
+		events = stripTrailingOwner(events, d.Owner, d.OwnerPID)
 	}
 	mlog.Debug("record: recording done", "route", name, "events", len(events))
 
@@ -386,7 +396,7 @@ func (d Deps) LearnAuto(name string) error {
 	byButton := waitForStop(d.Rec, &stop, d.StopWhen)
 	events := stripTrailingStop(d.Rec.Stop(), stop)
 	if byButton {
-		events = stripTrailingOwner(events, d.Owner)
+		events = stripTrailingOwner(events, d.Owner, d.OwnerPID)
 	}
 	mlog.Debug("record-auto: recording done", "route", name, "events", len(events))
 
@@ -780,12 +790,49 @@ func stripTrailingStop(events []recorder.RecordedEvent, stop recorder.StopKey) [
 // be pressed between two samples — the tail is dropped by the app each event was tagged with
 // instead. Both rules are needed: the first catches the trip, the second catches a trip too
 // quick to be sampled.
-func stripTrailingOwner(events []recorder.RecordedEvent, owner string) []recorder.RecordedEvent {
-	if owner == "" {
+func stripTrailingOwner(events []recorder.RecordedEvent, owner string,
+	ownerPID uint32) []recorder.RecordedEvent {
+
+	if owner == "" && ownerPID == 0 {
 		return events
 	}
+	// ── THE EVENT-TIME BOUNDARY, FIRST AND ON ITS OWN TERMS ──
+	//
+	// A click carries the process that owned the foreground window at the instant it
+	// was made, so this rule holds whatever the poller had sampled — including the
+	// case the name rules cannot see, where the poller still says the game and the
+	// click that stopped the recording is tagged with the game.
+	//
+	// It runs before the name rules and does not depend on them. Moves come with it
+	// because a move carries no attribution of its own and a trailing move was never
+	// a step; a move is only ever consumed next to something that IS the owner's.
 	end := len(events)
-	for end > 0 {
+	if ownerPID != 0 {
+		for end > 0 {
+			e := events[end-1]
+			if e.PID == ownerPID {
+				end--
+				continue
+			}
+			if e.Kind == recorder.EvMove && end > 1 {
+				// LOOK PAST IT, but only to something owned: a move
+				// between two of the demonstration's own events must
+				// not be eaten.
+				if p := events[end-2]; p.PID == ownerPID {
+					end--
+					continue
+				}
+			}
+			break
+		}
+	}
+	// ── AND THE NAME RULES, for what the event-time one cannot reach ──
+	//
+	// An app switch carries no process, so the trip into the owner's window is still
+	// identified by name; and a key carries no process either. Cut at the LAST switch
+	// into the owner and only there, so a demonstration that visited the owner in the
+	// middle and went back keeps everything after it came back.
+	for owner != "" && end > 0 {
 		e := events[end-1]
 		if e.Kind == recorder.EvAppSwitch {
 			if e.KeyName == owner {
@@ -793,9 +840,6 @@ func stripTrailingOwner(events []recorder.RecordedEvent, owner string) []recorde
 			}
 			break // any other switch is where the demonstration was
 		}
-		// A MOVE CARRIES NO APP. It is dropped as part of the tail around the
-		// press, which is what the stop gesture's own strip already does with
-		// trailing moves.
 		if e.App == owner || e.Kind == recorder.EvMove {
 			end--
 			continue

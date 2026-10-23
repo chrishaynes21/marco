@@ -87,6 +87,31 @@ func ForegroundOrigin() (left, top int, ok bool) {
 	return int(r.left), int(r.top), true
 }
 
+// ForegroundProcess returns the foreground window and the process that owns it, AT THE MOMENT
+// IT IS ASKED.
+//
+// Two window-data reads and nothing more: `GetForegroundWindow` then
+// `GetWindowThreadProcessId`. Neither opens a process handle or queries an image path, so this
+// is the same class of call as the `GetWindowRect` a click already makes and is safe on the
+// low-level hook thread, where slow work makes Windows drop the hooks.
+//
+// It exists because every other answer about "which app is this" came from a POLLER sampling the
+// foreground on an interval, and a poller cannot answer a question about an instant it has not
+// sampled yet. A person who brings a window forward and clicks inside it faster than the sample
+// interval is attributed to the app they LEFT. `ok` is false when there is no foreground window
+// or the owner cannot be read, which is a real answer and is never guessed at.
+func ForegroundProcess() (hwnd uintptr, pid uint32, ok bool) {
+	hwnd, _, _ = procGetForegroundWindow.Call()
+	if hwnd == 0 {
+		return 0, 0, false
+	}
+	procGetWindowThreadPID.Call(hwnd, uintptr(unsafe.Pointer(&pid)))
+	if pid == 0 {
+		return hwnd, 0, false
+	}
+	return hwnd, pid, true
+}
+
 // ForegroundInfo is ForegroundOrigin plus the foreground window's app name, read from
 // the SAME window handle — so a diagnostic can report WHICH window a window-relative
 // click resolved its origin against (the "why it clicked there" when it's wrong).

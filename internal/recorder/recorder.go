@@ -52,6 +52,17 @@ type RecordedEvent struct {
 	// window of an app that opens several (Steam's library vs friends vs store), so a
 	// match in the wrong window can't produce a confident click. Empty when unknown.
 	Window string
+	// PID is the process that owned the foreground window AT THE MOMENT of the event,
+	// read in the hook from two window-data calls. Zero when it could not be read.
+	//
+	// This is the authoritative answer to "which app is this", and `App` below is not: App
+	// comes from a poller sampling the foreground on an interval, and a poller cannot
+	// answer about an instant it has not sampled. Somebody who brings a window forward
+	// and clicks inside it faster than the sample interval is attributed by App to the app
+	// they LEFT — so a recording stopped by a button that quickly kept the click that
+	// stopped it, with both of the rules meant to catch it reading the same stale sample.
+	// Set on clicks, where it is needed and where a window call is already being made.
+	PID uint32
 	// App is the application the event landed in — the lowercased executable basename,
 	// as EvAppSwitch reports it. Read from the app poller's own last sample rather than
 	// looked up here, because this is set on the low-level hook thread and a process

@@ -463,6 +463,11 @@ func newClick(button string, down bool, x, y int) RecordedEvent {
 			ev.RelX, ev.RelY, ev.WinRel = x-left, y-top, true
 		}
 		ev.Window = winctx.ForegroundTitle() // context: which window was clicked
+		// AND WHICH PROCESS OWNED IT AT THIS INSTANT, which is the only thing here
+		// that does not depend on the poller having already sampled. See PID.
+		if _, pid, ok := winctx.ForegroundProcess(); ok {
+			ev.PID = pid
+		}
 	}
 	return ev
 }

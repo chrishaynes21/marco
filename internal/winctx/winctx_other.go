@@ -28,6 +28,11 @@ func Launch(string) error { return ErrUnsupported }
 // clicks fall back to their absolute coordinate.
 func ForegroundOrigin() (left, top int, ok bool) { return 0, 0, false }
 
+// ForegroundProcess is unavailable without a window backend, so an event cannot be
+// attributed to the window it landed in and the recording-exclusion boundary falls
+// back to the app poller's sample.
+func ForegroundProcess() (hwnd uintptr, pid uint32, ok bool) { return 0, 0, false }
+
 // ForegroundInfo is unavailable without a window backend.
 func ForegroundInfo() (left, top int, name string, ok bool) { return 0, 0, "", false }
 
