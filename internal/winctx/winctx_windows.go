@@ -243,15 +243,31 @@ func titleOf(hwnd uintptr) string {
 // the window to stop resizing, so a fullscreen/maximize transition finishes before
 // the route's clicks land (otherwise they hit the pre-fullscreen layout).
 func Activate(name string) error {
+	_, err := Bind(name)
+	return err
+}
+
+// Bind is Activate, and it hands back THE WINDOW it brought to the front.
+//
+// It exists because "activate the app, then press inside it" is two instants, and everything
+// between them is somebody else's desktop. A caller that re-asks "which window is in front" at
+// the press is asking a different question from the one it prepared: a dialog, an overlay, or
+// the person themselves can have changed the answer, and the offset would then be added to a
+// window nobody checked. With the handle in hand, a caller can ask about THAT window — is it
+// still a window, is it still in front, is it still the size and scale and program it was —
+// which is a question with an answer rather than a sample of the moment.
+//
+// `Activate` above is the same call for every caller that only needs to know it worked.
+func Bind(name string) (hwnd uintptr, err error) {
 	name = strings.ToLower(strings.TrimSpace(name))
 	if name == "" {
-		return fmt.Errorf("activate: empty app name")
+		return 0, fmt.Errorf("activate: empty app name")
 	}
 	found := findWindow(name)
 	if found == 0 {
 		// Not running — launch it, then wait (generously) for its window to open.
 		if !launch(name) {
-			return fmt.Errorf("activate: %q is not running and could not be launched", name)
+			return 0, fmt.Errorf("activate: %q is not running and could not be launched", name)
 		}
 		deadline := time.Now().Add(launchTimeout())
 		for found == 0 && time.Now().Before(deadline) {
@@ -259,7 +275,7 @@ func Activate(name string) error {
 			found = findWindow(name)
 		}
 		if found == 0 {
-			return fmt.Errorf("activate: %q did not open within the launch timeout", name)
+			return 0, fmt.Errorf("activate: %q did not open within the launch timeout", name)
 		}
 	}
 	// Remember what we're switching away from, so Restore can return there (e.g. go
@@ -281,7 +297,7 @@ func Activate(name string) error {
 	// fullscreen/maximize transition (or a still-laying-out launcher) is done before
 	// the route clicks. Returns quickly for an already-stable window.
 	waitWindowStable(found)
-	return nil
+	return found, nil
 }
 
 // ActivateTitle brings the window whose TITLE contains a phrase to the front.
@@ -553,4 +569,47 @@ func exeOf(hwnd uintptr) string {
 	buf := make([]uint16, 260)
 	procGetModuleFileNameExW.Call(h, 0, uintptr(unsafe.Pointer(&buf[0])), 260)
 	return syscall.UTF16ToString(buf)
+}
+
+// WindowFacts is everything a guarded press compares, read from ONE handle at ONE instant.
+//
+// One struct and one call because these terms only mean anything together. Asked separately,
+// each answer is about a different moment: a window that was in front when its frontness was
+// checked and gone when its size was read has been described by two answers that were each true
+// and are not true of the same desktop. Five reads in a row is not one instant either, strictly
+// — but it is as close as Windows offers, and it is the difference between terms that can
+// disagree by microseconds and terms that can disagree by a whole route.
+type WindowFacts struct {
+	// Alive says the handle still names a window at all. False for a window that has
+	// closed, which is the case a cached handle cannot otherwise notice.
+	Alive bool
+	// Front says it is THE foreground window — not merely visible. A press goes to
+	// whatever is in front, so a target that is not in front is not what will be pressed.
+	Front bool
+	// PID is the process that owns it now, which is not necessarily the one that owned it
+	// when the handle was bound: handles are reused.
+	PID uint32
+	// Left, Top, W, H are its outer rectangle, and Dpi its scale. Dpi is 0 when Windows
+	// would not say.
+	Left, Top, W, H, Dpi int
+}
+
+// Facts reads one window's current state. A zero handle, or one that no longer names a window,
+// comes back with Alive false and nothing else filled in.
+func Facts(hwnd uintptr) WindowFacts {
+	if hwnd == 0 {
+		return WindowFacts{}
+	}
+	if alive, _, _ := procIsWindow.Call(hwnd); alive == 0 {
+		return WindowFacts{}
+	}
+	f := WindowFacts{Alive: true}
+	if fg, _, _ := procGetForegroundWindow.Call(); fg == hwnd {
+		f.Front = true
+	}
+	procGetWindowThreadPID.Call(hwnd, uintptr(unsafe.Pointer(&f.PID)))
+	if left, top, w, h, dpi, ok := WindowShape(hwnd); ok {
+		f.Left, f.Top, f.W, f.H, f.Dpi = left, top, w, h, dpi
+	}
+	return f
 }

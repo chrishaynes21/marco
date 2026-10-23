@@ -50,3 +50,18 @@ func WindowShape(hwnd uintptr) (left, top, w, h, dpi int, ok bool) {
 
 // ImageOf is unavailable without a window backend.
 func ImageOf(pid uint32) string { return "" }
+
+// WindowFacts is what a guarded press compares; see the Windows build for what each term is.
+type WindowFacts struct {
+	Alive                bool
+	Front                bool
+	PID                  uint32
+	Left, Top, W, H, Dpi int
+}
+
+// Facts is unavailable without a window backend. Alive false, so a guarded press refuses rather
+// than resolving an offset against a window nothing can describe.
+func Facts(hwnd uintptr) WindowFacts { return WindowFacts{} }
+
+// Bind is unavailable without a window backend, so nothing can be bound and nothing guarded.
+func Bind(name string) (uintptr, error) { return 0, ErrUnsupported }

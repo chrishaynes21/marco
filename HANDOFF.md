@@ -7106,3 +7106,67 @@ See [[ADR-249-ending-a-recording-is-not-part-of-the-recording]] and
 DPI as its own term, process image, carried through `macroir.Step` → `codegen`) and line C (the
 press-moment guard on the guarded path) are the planned work after it. The trial journal does not
 yet say which recorder a note came from.
+
+## 38C — a coordinate is a claim about a place, and the place can change
+
+Lines A, B and C. A press now records what was true at the instant somebody made it, carries it
+into saved legal Marco, and a run checks it again immediately before pressing.
+
+```
+the p1 is a Point with X 842, Y 274, RelX 722, RelY 210,
+  RelTo "window", WinW 1920, WinH 1080, Dpi 144, Process "arkascended.exe".
+```
+
+**What each term is for.** `RelTo` says which rectangle the offset is measured from — one value
+today, recorded anyway, because without it the day a recorder measures from the client area is
+the day every saved route is silently reinterpreted. `WinW`/`WinH` are the OUTER dimensions,
+matching the origin they are measured from. `Dpi` is its own term because an app that handles
+`WM_DPICHANGED` relayouts inside a rectangle that never moved — same size, everything somewhere
+else. `Process` is the file name, not the path: the path answers "same installation", which is a
+different question and makes a routine useless on another machine.
+
+**Where each is read.** The basis, size, DPI and origin in the hook at the press, from the window
+the attribution ALREADY identified — one `GetForegroundWindow` per click, because two reads are
+two instants and the second could describe a window the first did not attribute. The process
+image cannot be read there (it opens a handle, which is what makes Windows drop the hooks), so it
+is resolved once the hooks are down, from the process id read at the press.
+
+**Absent is not a default.** A DPI nobody could read is absent, not 96: a guard comparing against
+96 would pass on one machine and fail on every other, having checked an invented number. And
+nothing is written without the basis.
+
+**Carrying the terms is the opt-in.** No flag. A point that carries them asks to be checked; a
+point without them is pressed by exactly the rule it was saved with, so every route already on
+the owner's machine runs as it did.
+
+**The guard.** `Activate` hands back the window it settled on and the host keeps the handle —
+"activate, then press" is two instants and the desktop belongs to somebody else in between.
+Before every press that handle is re-read: still a window, still in front, origin, outer size,
+DPI, and who owns it NOW, because handles are reused. Every comparison is exact; any disagreement
+refuses and names the term. It does NOT fall back to the recorded coordinate — that is pressing a
+remembered pixel on a desktop just shown not to match.
+
+**The cache question, answered.** The origin snapshot stays for the legacy path and is unused by
+the guarded one. It exists to survive a focus flicker the legacy path cannot detect; the guarded
+path detects one directly through `Front`, and the cache is actively wrong there because it
+answers about the FIRST press of a route and is kept for the rest of it.
+
+**One resolver, three ways in.** A click, a `Move` and the recorded point a vision-free `Find`
+hands back. `Move` because codegen emits `Move` then `Click "right"` — guarding only the click
+would leave every press that is not left-handed unchecked. `Find` because with vision off it
+short-circuits to the demonstrated point and the route then clicks what it got back; left alone,
+the early return handed back a bare X,Y and that was the one bypass.
+
+**Found while doing it:** the click point was the RELEASE coordinate while `RelX,RelY` came from
+the press, so a hand that drifted a pixel left a step whose absolute fallback and
+window-relative offset named different pixels — the fallback being the less accurate one.
+Nothing tested it either way.
+
+Seventeen mutations killed. Two suite guards caught misses no test of mine would have:
+`routes/os.marco` had drifted from the canonical act surface it shadows, and `spectest`'s
+backstage-concept gate rejected the word "evidence" in an act surface comment.
+
+See [[ADR-251-a-press-checks-the-window-it-was-recorded-in]].
+
+**Outstanding, and separate:** the owner's Stop-button trial (recording and the window), and a
+live acceptance run of guarded coordinate replay. Everything above is automated evidence only.

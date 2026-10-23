@@ -113,6 +113,11 @@ func Route(name, app string, steps []macroir.Step, assetDir string, declaredArgs
 		b.WriteString("this's Y is a number.\n")
 		b.WriteString("this's RelX is a number.   // window-relative click (resolved after Activate)\n")
 		b.WriteString("this's RelY is a number.\n")
+		b.WriteString("this's RelTo is a text.    // which rectangle RelX,RelY are measured from\n")
+		b.WriteString("this's WinW is a number.   // how big that window was, on the outside\n")
+		b.WriteString("this's WinH is a number.\n")
+		b.WriteString("this's Dpi is a number.    // the scale it was drawn at\n")
+		b.WriteString("this's Process is a text.  // the program that owned it\n")
 		b.WriteString("this's X1 is a number.     // search region for the Text / Vision locators\n")
 		b.WriteString("this's Y1 is a number.\n")
 		b.WriteString("this's X2 is a number.\n")
@@ -375,7 +380,9 @@ func (g *gen) emitAnchoredClick(b *strings.Builder, s macroir.Step, depth int) {
 		// Activate. Colour, when captured, is an extra signal at that point.
 		extra := fmt.Sprintf(", X %d, Y %d", s.X, s.Y)
 		if s.WinRel {
-			extra += fmt.Sprintf(", RelX %d, RelY %d", s.RelX, s.RelY)
+			// AND WHAT THE WINDOW WAS LIKE, by the same names a Point uses, so the
+			// one resolver can read either. See oshost.resolve.
+			extra += fmt.Sprintf(", RelX %d, RelY %d%s", s.RelX, s.RelY, measured(s))
 		}
 		if s.Color != "" {
 			extra = fmt.Sprintf(", Color \"%s\"", escape(s.Color)) + extra

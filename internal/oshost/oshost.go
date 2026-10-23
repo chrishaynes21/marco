@@ -73,6 +73,21 @@ type Host struct {
 	// command), so a click uses its ABSOLUTE recorded coordinate instead — exact for a
 	// fullscreen/in-place app, and immune to the focus race. Guarded by mu.
 	activated bool
+	// bound is THE WINDOW Activate brought to the front, and boundApp what was asked
+	// for. Zero until something has been activated. Guarded by mu.
+	//
+	// # Why a handle and not "the foreground window"
+	//
+	// Because "activate the app, then press inside it" is two instants, and the desktop
+	// belongs to somebody else in between. Re-asking which window is in front at the
+	// press answers a different question from the one the route prepared — a dialog, an
+	// overlay or the person can have changed the answer — and an offset added to that
+	// window has been added to a window nobody checked.
+	//
+	// With the handle kept, a press can ask about THAT window: still a window, still in
+	// front, still the size and scale and program it was. See `bindAt` and `resolve`.
+	bound    uintptr
+	boundApp string
 }
 
 // SetArgs records the named arguments of the invocation about to run, so a
@@ -121,7 +136,13 @@ func (h *Host) Invoke(c runtime.HostCall) (string, runtime.Value, error) {
 	case "click":
 		return h.doClick(c)
 	case "move":
-		x, y, present := h.clickTarget(c.Input) // window-relative + cached origin, like click
+		// RESOLVED THE SAME WAY A CLICK IS, guard included. A right or middle
+		// click is a Move followed by a Click, so a guard that covered only the
+		// click would leave every press that is not left-handed unchecked.
+		x, y, present, why := h.clickTarget(c.Input)
+		if why != "" {
+			return fail(why)
+		}
 		if !present {
 			return fail("move needs a Point with X and Y")
 		}
@@ -156,13 +177,12 @@ func (h *Host) Invoke(c runtime.HostCall) (string, runtime.Value, error) {
 	case "secret":
 		return h.doSecret(c)
 	case "activate":
-		err := winctx.Activate(c.Input.AsText())
-		// We brought a specific window to the front: window-relative clicks are now
-		// trustworthy (foreground IS that window). Re-snapshot the origin against it.
-		h.mu.Lock()
-		h.activated = true
-		h.originSet = false
-		h.mu.Unlock()
+		app := c.Input.AsText()
+		// AND THIS IS THE PREPARATION HALF OF THE GUARDED CONTRACT: the window
+		// Activate settled on is BOUND, so a later press can ask about that same
+		// window rather than about whatever is in front by then. See `bindAt`.
+		hwnd, err := winctx.Bind(app)
+		h.bindAt(hwnd, app)
 		return ok(err)
 	case "launch":
 		return ok(winctx.Launch(c.Input.AsText()))
@@ -401,8 +421,22 @@ func (h *Host) doFind(c runtime.HostCall) (string, runtime.Value, error) {
 	// resolve to the recorded coordinate NOW — no hover, no matching, no polling. The route's
 	// recorded Sleep timings drive pacing, so nothing "clicks randomly" waiting for a match.
 	if cvOff() && (hasX || hasY) {
-		mlog.Debug("find: CV off — clicking the recorded coordinate", "at", fmt.Sprintf("(%d,%d)", px, py))
-		return okPoint(px, py)
+		// THROUGH THE SAME RESOLVER A CLICK USES, guard included.
+		//
+		// This is the point that becomes input one step later: the route does
+		// `do OS's Find` and then clicks what it got back. `anchorPoint` above is
+		// the unguarded form and it stays that way, because its other job is to
+		// centre a SEARCH BOX — refusing there would refuse to go looking. Here
+		// there is nothing to look for and this answer is the press.
+		ax, ay := setInt(set, "X"), setInt(set, "Y")
+		rx, ry, _, why := h.resolve(set, ax, ay)
+		if why != "" {
+			mlog.Info("find: refused", "why", why)
+			return fail(why)
+		}
+		mlog.Debug("find: CV off — clicking the recorded coordinate",
+			"at", fmt.Sprintf("(%d,%d)", rx, ry))
+		return okPoint(rx, ry)
 	}
 	// Restrict the image search to a box around the recorded point when no explicit region
 	// is given AND there IS a recorded point. The target is AT/near the click, so scanning
@@ -1218,7 +1252,14 @@ func (h *Host) doName() (string, runtime.Value, error) {
 // doClick: a Point input moves there first; a text input names the button;
 // absent input clicks left at the current position.
 func (h *Host) doClick(c runtime.HostCall) (string, runtime.Value, error) {
-	if x, y, present := h.clickTarget(c.Input); present {
+	x, y, present, why := h.clickTarget(c.Input)
+	// THE REFUSAL IS THE OUTCOME, and it says which term disagreed. A guarded press
+	// that could not be checked does not quietly become an unguarded one.
+	if why != "" {
+		mlog.Info("click: refused", "why", why)
+		return fail(why)
+	}
+	if present {
 		mlog.Debug("click: at point", "x", x, "y", y, "button", "left")
 		// Position and click in ONE atomic SendInput batch (move+down+up, all carrying
 		// the absolute target). A separate SetCursorPos-then-click races: the injected
@@ -1333,30 +1374,53 @@ func fail(msg string) (string, runtime.Value, error) {
 // Activate, foreground may be the overlay (it holds focus when you type a command),
 // whose origin would shift every click — the random-misclick cause — so we trust the
 // recorded coordinate instead. Emits an INFO line breaking down every click.
-func (h *Host) clickTarget(v runtime.Value) (x, y int, present bool) {
+func (h *Host) clickTarget(v runtime.Value) (x, y int, present bool, why string) {
 	x, y, present = point(v)
 	if !present {
-		return x, y, false
+		return x, y, false, ""
 	}
-	set := v.AsSet() // non-nil: point() already succeeded
+	return h.resolve(v.AsSet(), x, y)
+}
+
+// resolve answers where a recorded point goes, from the set that describes it.
+//
+// Shared by a click, a Move, and the recorded point a Find hands back when there is no matching
+// to do, because those are three ways into the same question and a guard that covered one of
+// them would be a guard with two bypasses. `Anchor` and `Point` carry the same field names for
+// exactly this reason.
+func (h *Host) resolve(set *runtime.Set, x, y int) (px, py int, present bool, why string) {
+	if set == nil {
+		return x, y, true, ""
+	}
 	rxv, okx := set.Get("RelX")
 	ryv, oky := set.Get("RelY")
 	rx, okrx := rxv.AsNumber()
 	ry, okry := ryv.AsNumber()
 	hasRel := okx && oky && okrx && okry
+	// ── THE GUARDED PATH, WHEN THE POINT ASKS FOR IT ──
+	//
+	// A point that says what it was measured from and what the window was like is
+	// asking to be checked against that window immediately before input, rather than
+	// resolved against whatever is in front. The ASKING is the opt-in: nothing else
+	// turns this on, and a point that carries none of it falls through to everything
+	// below, unchanged.
+	if hasRel && textOf(set, "RelTo") != "" {
+		gx, gy, gwhy := h.guarded(set, x, y, int(rx), int(ry))
+		return gx, gy, gwhy == "", gwhy
+	}
 	if !hasRel {
 		mlog.Debug("click: absolute", "point", fmt.Sprintf("(%d,%d)", x, y), "why", "no window-relative offset recorded")
-		return x, y, true
+		return x, y, true, ""
 	}
 	if !h.didActivate() {
 		mlog.Debug("click: absolute", "point", fmt.Sprintf("(%d,%d)", x, y),
 			"why", "no Activate this run — trusting the recorded point, not the foreground origin")
-		return x, y, true
+		return x, y, true, ""
 	}
 	left, top, name, ok := h.windowOrigin()
 	if !ok {
 		mlog.Debug("click: absolute", "point", fmt.Sprintf("(%d,%d)", x, y), "why", "no foreground window")
-		return x, y, true
+		return x, y, true, ""
 	}
 	rxi, ryi := int(rx), int(ry)
 	// The full breakdown: what was recorded, the relative offset it wanted, which
@@ -1367,7 +1431,7 @@ func (h *Host) clickTarget(v runtime.Value) (x, y int, present bool) {
 		"originWindow", name,
 		"origin", fmt.Sprintf("(%d,%d)", left, top),
 		"clicked", fmt.Sprintf("(%d,%d)", left+rxi, top+ryi))
-	return left + rxi, top + ryi, true
+	return left + rxi, top + ryi, true, ""
 }
 
 // didActivate reports whether this run brought a window to the front (Activate),
@@ -1448,3 +1512,134 @@ func (h *Host) doClipboardSet(c runtime.HostCall) (string, runtime.Value, error)
 	}
 	return "ok", runtime.Absent(), nil
 }
+
+// bindAt remembers the window Activate settled on, and is the preparation half of the guarded
+// contract.
+//
+// It clears the legacy origin cache for the same reason it always did — a new window means a new
+// origin — and it clears the binding too when Activate did not find one, because a stale handle
+// is worse than none: it names a window that may since have closed, or whose handle has been
+// reused by something else entirely.
+func (h *Host) bindAt(hwnd uintptr, app string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.activated = true
+	h.originSet = false
+	h.bound, h.boundApp = hwnd, app
+	if hwnd != 0 {
+		mlog.Debug("bound: the window a press will be checked against",
+			"app", app, "window", fmt.Sprintf("hwnd:%#x", hwnd))
+	}
+}
+
+// binding is the window this run bound, and what was asked for.
+func (h *Host) binding() (uintptr, string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.bound, h.boundApp
+}
+
+// guarded resolves a press against the window it was demonstrated in, having checked that window
+// is still that window — or refuses, saying which term disagreed.
+//
+// # Why it refuses instead of falling back
+//
+// The legacy path falls back to the recorded absolute coordinate whenever it cannot trust the
+// origin, and that is right for a route that never measured anything: the coordinate is the only
+// thing it has, it is exact for a fullscreen app, and the alternative is doing nothing. It is
+// wrong here. A point that carries a window asked to be checked against it, and falling back
+// would press a remembered pixel on a desktop that has just been shown not to match — which is
+// the thing the owner's own instruction forbids: refuse rather than search elsewhere or guess.
+//
+// # Why every term is exact
+//
+// Because a tolerance would be a number nobody measured. A window one pixel narrower than it was
+// demonstrated in has had something relayout inside it, or has not, and this cannot tell which;
+// the honest answer is that the demonstration no longer describes the window. See
+// [[ADR-248-replaying-a-demonstrated-layout]], where the same decision was made for the same
+// reason.
+//
+// A term the DEMONSTRATION does not carry is not checked — there is nothing to compare — and a
+// term the desktop will not report is a refusal, because this ran out of ways to tell.
+func (h *Host) guarded(set *runtime.Set, x, y, rx, ry int) (px, py int, why string) {
+	hwnd, app := h.binding()
+	if hwnd == 0 {
+		// NOTHING WAS BOUND. A guarded point has no window to be about: either no
+		// Activate ran, or the one that ran could not find its window. Refusing is
+		// the whole of the opt-in — the alternative is the legacy fallback, which is
+		// what this route asked not to have.
+		return 0, 0, "this press was recorded inside a window and no window was " +
+			"brought to the front for it, so there is nothing to measure it " +
+			"against"
+	}
+	// ── AND THE WINDOW AS IT IS, NOW, IMMEDIATELY BEFORE THE INPUT ──
+	//
+	// Read fresh, never from the legacy origin cache. That cache exists to survive a
+	// momentary focus flicker the legacy path cannot otherwise detect, and it is the
+	// wrong instrument here for two reasons: it answers about the FIRST press of the
+	// route, so a window moved halfway through sends every later press to the old
+	// origin; and this path detects the flicker directly, through `Front`, so it has no
+	// need to paper over one.
+	f := windowFacts(hwnd)
+	switch {
+	case !f.Alive:
+		return 0, 0, fmt.Sprintf("the %s window this was recorded in has closed", app)
+	case !f.Front:
+		return 0, 0, fmt.Sprintf("the %s window is no longer in front, so a press "+
+			"would land in whatever is", app)
+	case f.W == 0 || f.H == 0:
+		return 0, 0, fmt.Sprintf("the %s window would not say how big it is", app)
+	}
+	// ── THE PROGRAM, WHEN BOTH SIDES KNOW IT ──
+	//
+	// Checked through the handle's CURRENT owner rather than the one bound, because
+	// window handles are reused: the window that answered all of the above can belong
+	// to something else by now, and everything it said would be true of that something
+	// else.
+	if want := textOf(set, "Process"); want != "" {
+		if is := imageOf(f.PID); is != "" && !strings.EqualFold(is, want) {
+			return 0, 0, fmt.Sprintf("this was recorded in %s and that window "+
+				"now belongs to %s", want, is)
+		}
+	}
+	// ── THE SHAPE, EXACTLY ──
+	if w, h := setInt(set, "WinW"), setInt(set, "WinH"); w > 0 && h > 0 {
+		if f.W != w || f.H != h {
+			return 0, 0, fmt.Sprintf("this was recorded in a %s window of "+
+				"%dx%d and it is %dx%d now, so what is inside it is not "+
+				"where it was", app, w, h, f.W, f.H)
+		}
+	}
+	// ── AND THE SCALE, AS ITS OWN TERM ──
+	//
+	// Separately from the size, because it is a separate fact. An application that
+	// handles a DPI change relayouts every control inside a window whose outer
+	// rectangle never moved, so the check above passes and everything in the window is
+	// somewhere else.
+	if want := setInt(set, "Dpi"); want > 0 && f.Dpi > 0 && f.Dpi != want {
+		return 0, 0, fmt.Sprintf("this was recorded at %d dpi and the %s window "+
+			"is at %d now, so what is inside it has been redrawn at another "+
+			"scale", want, app, f.Dpi)
+	}
+	px, py = f.Left+rx, f.Top+ry
+	mlog.Debug("click: guarded",
+		"app", app, "window", fmt.Sprintf("hwnd:%#x", hwnd),
+		"recorded", fmt.Sprintf("(%d,%d)", x, y),
+		"wantRel", fmt.Sprintf("(%d,%d)", rx, ry),
+		"origin", fmt.Sprintf("(%d,%d)", f.Left, f.Top),
+		"shape", fmt.Sprintf("%dx%d at %d dpi", f.W, f.H, f.Dpi),
+		"clicked", fmt.Sprintf("(%d,%d)", px, py))
+	return px, py, ""
+}
+
+// windowFacts and imageOf are the two desktop questions the guarded press boundary asks.
+//
+// Variables so a test can stand a window in front of it. Nothing else replaces them, and the
+// claim they exist for — that a press is REFUSED when the window it was recorded in is no longer
+// that window — cannot be made to happen on a real desktop on purpose: it needs a window that
+// closes, moves, resizes, loses focus and changes owner between two instants, one case at a
+// time. See guardedpress_test.go.
+var (
+	windowFacts = winctx.Facts
+	imageOf     = winctx.ImageOf
+)

@@ -91,6 +91,12 @@ that control, though a saved play still cannot say it (`cannot_say_pointer`, fol
   window is excluded wherever it appears, by the process that owned the foreground at the
   INSTANT of each event rather than by a name an interval poller sampled, and Stop, Cancel and
   Save are three acts rather than one
+- [[ADR-251-a-press-checks-the-window-it-was-recorded-in]] — a coordinate is a claim about a
+  place only while the window it was measured in is still that window. A press records the basis
+  of its offset, the window's outer size, its DPI as its own term and the program that owned it,
+  all the way into saved legal Marco; replay binds the window at `Activate` and re-reads THAT
+  handle before every press, refusing exactly rather than falling back. Carrying the terms is
+  the opt-in, so every route already saved runs by the rule it was saved with
 - [[ADR-250-the-recorder-runs-in-the-window]] — and the window those four buttons are in. The
   recorder-first path runs in Studio's OWN process, because a draft that writes nothing cannot
   cross a process boundary without being written somewhere; so Studio supplies its own process
