@@ -82,6 +82,20 @@ type Deps struct {
 	// simplified preview (the overlay HUD) — re-confirming a result you can't see
 	// is pointless. The CLI leaves it false so the preview-then-confirm stays.
 	SimplifySaves bool
+	// Owner is the application that is DRIVING this recording — Marco's own window,
+	// when a window is driving it. Empty when nothing is.
+	//
+	// It exists because a person who ends a recording by pressing a button has pressed a
+	// real button in a real window, and the hooks record that like any other click. Left
+	// in, it becomes a step: every replay would raise Marco and press Stop. The stop
+	// GESTURE never had this problem because a key is not a place.
+	Owner string
+	// StopWhen ends a recording from outside the captured input — the button, rather
+	// than the stop key. Nil leaves the gesture as the only way to finish.
+	//
+	// Both ways stay live together: a recording is ended by whichever arrives first, so
+	// a window that has become unresponsive never traps a recording with no way out.
+	StopWhen <-chan struct{}
 	// ArgKey is the reserved demonstration key that drops a positional argument
 	// placeholder ("an argument goes here" → {{N}}); empty uses simplify.DefaultArgKey
 	// (F9). Set from $MARCO_ARG_KEY by the binary. "off" disables it.
@@ -187,8 +201,11 @@ func (d Deps) Learn(name string) error {
 	if err := d.Rec.Start(); err != nil {
 		return fmt.Errorf("can't record on this platform: %w", err)
 	}
-	waitForStop(d.Rec, &stop)
+	byButton := waitForStop(d.Rec, &stop, d.StopWhen)
 	events := stripTrailingStop(d.Rec.Stop(), stop)
+	if byButton {
+		events = stripTrailingOwner(events, d.Owner)
+	}
 	mlog.Debug("record: recording done", "route", name, "events", len(events))
 
 	// The faithful recording is the default; "simplify further" re-runs the whole
@@ -366,8 +383,11 @@ func (d Deps) LearnAuto(name string) error {
 	if err := d.Rec.Start(); err != nil {
 		return fmt.Errorf("can't record on this platform: %w", err)
 	}
-	waitForStop(d.Rec, &stop)
+	byButton := waitForStop(d.Rec, &stop, d.StopWhen)
 	events := stripTrailingStop(d.Rec.Stop(), stop)
+	if byButton {
+		events = stripTrailingOwner(events, d.Owner)
+	}
 	mlog.Debug("record-auto: recording done", "route", name, "events", len(events))
 
 	opts := d.learnOptions()
@@ -688,14 +708,40 @@ func firstActivateApp(steps []macroir.Step) string {
 
 // waitForStop blocks until the stop gesture is seen on the recorder's event
 // stream, or the stream closes.
-func waitForStop(rec recorder.Recorder, stop *recorder.StopKey) {
+// waitForStop blocks until the recording should end, by the stop gesture or from outside.
+//
+// `outside` is the button. Nil leaves the gesture as the only way to finish, which is what
+// every caller but Studio passes. The two are a race on purpose: whichever arrives first ends
+// the recording, so neither a key that cannot be pressed nor a window that has stopped
+// answering can trap a recording with no way out.
+//
+// It returns which one ended it, because the two leave different tails behind: a gesture
+// leaves keypresses, and a button leaves a trip to another window and a click in it.
+func waitForStop(rec recorder.Recorder, stop *recorder.StopKey,
+	outside <-chan struct{}) (byButton bool) {
+
 	ch := rec.Events()
 	if ch == nil {
-		return
+		// NO EVENT STREAM, which is not a reason to ignore the button: a recorder
+		// that cannot publish still records, and a caller holding a button is
+		// entitled to have it work.
+		if outside != nil {
+			<-outside
+			return true
+		}
+		return false
 	}
-	for ev := range ch {
-		if stop.Triggered(ev) {
-			return
+	for {
+		select {
+		case ev, ok := <-ch:
+			if !ok {
+				return false
+			}
+			if stop.Triggered(ev) {
+				return false
+			}
+		case <-outside:
+			return true
 		}
 	}
 }
@@ -709,6 +755,48 @@ func stripTrailingStop(events []recorder.RecordedEvent, stop recorder.StopKey) [
 		isStop := e.Kind == recorder.EvKey && stop.Has(e.KeyName)
 		isMove := e.Kind == recorder.EvMove
 		if isStop || isMove {
+			end--
+			continue
+		}
+		break
+	}
+	return events[:end]
+}
+
+// stripTrailingOwner removes the tail that belongs to ENDING a recording rather than to the
+// recording itself.
+//
+// A person who stops by pressing a button has to reach Marco's window to press it. The poller
+// records the switch, the hooks record the moves, the hooks record the click. Every bit of it is
+// real input and none of it is what they were demonstrating — so left in, the saved routine
+// raises Marco and presses Stop on every replay. The stop GESTURE never had this problem,
+// because a key is not a place.
+//
+// Cut at the LAST switch into the owner, and only there: a demonstration that visited Marco in
+// the middle and went back somewhere else is not this case, and its switch is not the last one.
+// Everything after the person set off to press Stop was them pressing Stop, whatever it is.
+//
+// And when no switch was recorded at all — the poller samples on an interval, and a button can
+// be pressed between two samples — the tail is dropped by the app each event was tagged with
+// instead. Both rules are needed: the first catches the trip, the second catches a trip too
+// quick to be sampled.
+func stripTrailingOwner(events []recorder.RecordedEvent, owner string) []recorder.RecordedEvent {
+	if owner == "" {
+		return events
+	}
+	end := len(events)
+	for end > 0 {
+		e := events[end-1]
+		if e.Kind == recorder.EvAppSwitch {
+			if e.KeyName == owner {
+				end-- // the trip to press Stop
+			}
+			break // any other switch is where the demonstration was
+		}
+		// A MOVE CARRIES NO APP. It is dropped as part of the tail around the
+		// press, which is what the stop gesture's own strip already does with
+		// trailing moves.
+		if e.App == owner || e.Kind == recorder.EvMove {
 			end--
 			continue
 		}

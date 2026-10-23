@@ -52,6 +52,17 @@ type RecordedEvent struct {
 	// window of an app that opens several (Steam's library vs friends vs store), so a
 	// match in the wrong window can't produce a confident click. Empty when unknown.
 	Window string
+	// App is the application the event landed in — the lowercased executable basename,
+	// as EvAppSwitch reports it. Read from the app poller's own last sample rather than
+	// looked up here, because this is set on the low-level hook thread and a process
+	// query there is exactly the kind of work that makes Windows drop the hooks.
+	//
+	// It exists so a recording can be told apart from the act of ENDING a recording. A
+	// person who stops by pressing a button in Marco's own window has clicked a real
+	// button in a real window, and the hooks record it like any other click; without
+	// knowing which app each event landed in, that click becomes a step and every replay
+	// re-opens Marco and presses Stop. Empty when no sample has been taken yet.
+	App string
 	// ClickX, ClickY, on an EvClick down with an Image, are the click's position WITHIN
 	// that Image (its own 0-origin pixel space). Learn-time OCR uses it to read the
 	// button under the click rather than every word in the crop. (0,0) when no anchor

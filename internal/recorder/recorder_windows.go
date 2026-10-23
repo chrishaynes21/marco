@@ -94,7 +94,21 @@ var (
 	recPub        chan RecordedEvent
 	recActive     atomic.Bool
 	lastMoveNanos atomic.Int64
+	// foreApp is the app poller's last sample, published so the HOOK can tag an event
+	// with the application it landed in without making a process query of its own.
+	// The hooks are synchronous and shared with the whole desktop; a lookup there is
+	// how Windows comes to drop them. An empty value means no sample yet, which is a
+	// real answer and is never guessed at.
+	foreApp atomic.Value
 )
+
+// foreground returns the app poller's last sample, or "" before the first one.
+func foreground() string {
+	if v, ok := foreApp.Load().(string); ok {
+		return v
+	}
+	return ""
+}
 
 const moveThrottle = 8 * time.Millisecond
 
@@ -249,6 +263,7 @@ func (r *winRecorder) Start() error {
 		last := ""
 		if app := winctx.Active(); app != "" {
 			last = app
+			foreApp.Store(app)
 			record(RecordedEvent{Kind: EvAppSwitch, KeyName: app, T: time.Now()})
 		}
 		t := time.NewTicker(appPollInterval)
@@ -260,6 +275,7 @@ func (r *winRecorder) Start() error {
 			case <-t.C:
 				if app := winctx.Active(); app != "" && app != last {
 					last = app
+					foreApp.Store(app)
 					record(RecordedEvent{Kind: EvAppSwitch, KeyName: app, T: time.Now()})
 				}
 			}
@@ -374,7 +390,8 @@ func keyboardProc(nCode int, wParam, lParam uintptr) uintptr {
 					}
 					return 1 // suppress — never reaches the app
 				}
-				record(RecordedEvent{Kind: EvKey, VK: vk, KeyName: name, Down: down, T: time.Now()})
+				record(RecordedEvent{Kind: EvKey, VK: vk, KeyName: name,
+					Down: down, T: time.Now(), App: foreground()})
 			}
 		}
 	}
@@ -439,7 +456,8 @@ func recordClickDown(button string, x, y int) {
 // follows the active window to whatever monitor/position it's on — the portable
 // default. GetForegroundWindow + GetWindowRect are cheap, safe to call in the hook.
 func newClick(button string, down bool, x, y int) RecordedEvent {
-	ev := RecordedEvent{Kind: EvClick, Button: button, Down: down, X: x, Y: y, T: time.Now()}
+	ev := RecordedEvent{Kind: EvClick, Button: button, Down: down, X: x, Y: y,
+		T: time.Now(), App: foreground()}
 	if down {
 		if left, top, ok := winctx.ForegroundOrigin(); ok {
 			ev.RelX, ev.RelY, ev.WinRel = x-left, y-top, true
