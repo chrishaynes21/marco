@@ -501,3 +501,55 @@ func TestAMoveBetweenTwoOperatorClicksIsCutWithThem(t *testing.T) {
 		}
 	}
 }
+
+// AND AN UNATTRIBUTED RELEASE DOES NOT HIDE THE PRESS BEHIND IT.
+//
+// Defence in depth for a hole that has been opened twice. The builder now stamps both edges of a
+// click and `recorder` holds that with its own test against the production builder — but this
+// strip is what consumes the stream, and it should not be the only thing standing between a
+// stamping mistake and a routine that presses Stop on replay.
+//
+// So the tail here is the one the OLD builder produced: the press of the Stop button carries its
+// owner and the release carries nothing. Walking back from the end meets the release first, and
+// a strip that could not place it would stop there and keep both edges.
+func TestAnUnattributedReleaseDoesNotHideThePressBehindIt(t *testing.T) {
+	events := []recorder.RecordedEvent{
+		{Kind: recorder.EvAppSwitch, KeyName: "arkascended", T: at(0)},
+		{Kind: recorder.EvClick, Button: "left", Down: true, X: 842, Y: 274,
+			App: "arkascended", PID: gamePID, T: at(100)},
+		{Kind: recorder.EvClick, Button: "left", Down: false, X: 842, Y: 274,
+			App: "arkascended", PID: gamePID, T: at(105)},
+		// ── THE STOP PRESS, STAMPED ON THE PRESS ONLY ──
+		{Kind: recorder.EvClick, Button: "left", Down: true, X: 1511, Y: 913,
+			App: "arkascended", PID: studioPID, T: at(3200)},
+		{Kind: recorder.EvClick, Button: "left", Down: false, X: 1511, Y: 913,
+			App: "arkascended", T: at(3205)}, // no owner at all
+	}
+	t.Setenv("MARCO_CV", "off")
+	reg := routes.Registry{Dir: t.TempDir()}
+	press := make(chan struct{})
+	var out bytes.Buffer
+	d := Deps{Reg: reg, Rec: &heldRecorder{events: events}, Out: &out,
+		Owner: "studio", OwnerPID: studioPID, StopWhen: press}
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		close(press)
+	}()
+	if err := d.LearnAuto("ark graphics"); err != nil {
+		t.Fatalf("recording: %v", err)
+	}
+	raw, err := os.ReadFile(reg.Path(routes.Route{App: "arkascended",
+		Slug: "ark-graphics"}))
+	if err != nil {
+		t.Fatalf("the routine is not filed under the app it was demonstrated "+
+			"in: %v (said: %s)", err, out.String())
+	}
+	src := string(raw)
+	if !strings.Contains(src, "842") {
+		t.Fatalf("the demonstrated click is missing:\n%s", src)
+	}
+	if strings.Contains(src, "1511") {
+		t.Errorf("an unattributed release stopped the walk, so the Stop press "+
+			"stayed in the routine:\n%s", src)
+	}
+}

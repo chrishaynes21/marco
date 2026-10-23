@@ -451,23 +451,45 @@ func recordClickDown(button string, x, y int) {
 	}
 }
 
-// newClick builds an EvClick event. On a press it also records the click's offset
-// from the foreground window's top-left (WinRel), so codegen can emit a click that
-// follows the active window to whatever monitor/position it's on — the portable
-// default. GetForegroundWindow + GetWindowRect are cheap, safe to call in the hook.
+// clickAttribution answers WHOSE a click is: the process owning the foreground window at this
+// instant, and the app the poller last sampled.
+//
+// A variable so a test can drive the production builder with a known desktop. Nothing else
+// replaces it, and the hook calls it on every click edge.
+var clickAttribution = func() (pid uint32, app string) {
+	if _, p, ok := winctx.ForegroundProcess(); ok {
+		pid = p
+	}
+	return pid, foreground()
+}
+
+// newClick builds an EvClick event.
+//
+// # Attribution is on BOTH edges, geometry is on the press only
+//
+// They are separated deliberately, and the separation is the whole of this comment. The offset
+// from the window's top-left is about WHERE the click goes, and only a press has a where worth
+// keeping — a release lands wherever the press did. Attribution is about WHOSE the click is, and
+// both edges have an owner.
+//
+// Stamping the press alone is what a first version did, and it reopened the defect it was added
+// to close. A button is activated on RELEASE, so the tail of a recording stopped by one ends
+// with an edge carrying no owner at all; the strip walking back from the end meets that
+// unattributed release, cannot place it, and stops — never reaching the correctly stamped press
+// one event behind it. The fixtures stamped both edges, so they described a stream the hook does
+// not produce and the strip looked fine.
+//
+// GetForegroundWindow, GetWindowRect and GetWindowThreadProcessId are all window-data reads:
+// cheap, and safe to call on the hook thread. None of them opens a process handle.
 func newClick(button string, down bool, x, y int) RecordedEvent {
+	pid, app := clickAttribution()
 	ev := RecordedEvent{Kind: EvClick, Button: button, Down: down, X: x, Y: y,
-		T: time.Now(), App: foreground()}
+		T: time.Now(), App: app, PID: pid}
 	if down {
 		if left, top, ok := winctx.ForegroundOrigin(); ok {
 			ev.RelX, ev.RelY, ev.WinRel = x-left, y-top, true
 		}
 		ev.Window = winctx.ForegroundTitle() // context: which window was clicked
-		// AND WHICH PROCESS OWNED IT AT THIS INSTANT, which is the only thing here
-		// that does not depend on the poller having already sampled. See PID.
-		if _, pid, ok := winctx.ForegroundProcess(); ok {
-			ev.PID = pid
-		}
 	}
 	return ev
 }

@@ -814,10 +814,25 @@ func stripTrailingOwner(events []recorder.RecordedEvent, owner string,
 				end--
 				continue
 			}
-			if e.Kind == recorder.EvMove && end > 1 {
-				// LOOK PAST IT, but only to something owned: a move
-				// between two of the demonstration's own events must
-				// not be eaten.
+			// AN EVENT CARRYING NO OWNER AT ALL is looked past, but only
+			// ever to something the owner owns.
+			//
+			// A move has no owner by construction. A click can also lack
+			// one: `winctx.ForegroundProcess` can fail, and a builder that
+			// stamped one edge and not the other produced exactly this —
+			// a release with no owner, which stopped the walk and hid the
+			// correctly stamped press one event behind it. That particular
+			// hole is closed in the builder and held by a test there; this
+			// is the same hole closed here as well, because it has now
+			// been opened twice in two different ways.
+			//
+			// The guard is what keeps it safe: nothing unattributed is
+			// dropped on its own account, only alongside an event that IS
+			// the owner's. The arrangement it could still get wrong — one
+			// of the demonstration's own clicks, whose owner failed to
+			// read, sitting BETWEEN two of the operator's clicks — is not
+			// one a person can produce.
+			if e.PID == 0 && end > 1 {
 				if p := events[end-2]; p.PID == ownerPID {
 					end--
 					continue
