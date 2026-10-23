@@ -814,26 +814,34 @@ func stripTrailingOwner(events []recorder.RecordedEvent, owner string,
 				end--
 				continue
 			}
-			// AN EVENT CARRYING NO OWNER AT ALL is looked past, but only
-			// ever to something the owner owns.
+			// A MOVE HAS NO OWNER BY CONSTRUCTION, so it is looked past —
+			// and only ever to something the owner owns, never on its own
+			// account.
+			if e.Kind == recorder.EvMove && end > 1 &&
+				events[end-2].PID == ownerPID {
+				end--
+				continue
+			}
+			// AND A RELEASE WITH NO OWNER, BUT ONLY ITS OWN PRESS'S.
 			//
-			// A move has no owner by construction. A click can also lack
-			// one: `winctx.ForegroundProcess` can fail, and a builder that
-			// stamped one edge and not the other produced exactly this —
-			// a release with no owner, which stopped the walk and hid the
-			// correctly stamped press one event behind it. That particular
-			// hole is closed in the builder and held by a test there; this
-			// is the same hole closed here as well, because it has now
-			// been opened twice in two different ways.
+			// `winctx.ForegroundProcess` can fail, and a builder that
+			// stamped one edge and not the other produced exactly this: a
+			// release carrying nothing, which stopped the walk and hid the
+			// correctly stamped press one event behind it. That hole is
+			// closed in the builder and held by a test there; this is the
+			// same hole closed here as well, because it has now been
+			// opened twice in two different ways.
 			//
-			// The guard is what keeps it safe: nothing unattributed is
-			// dropped on its own account, only alongside an event that IS
-			// the owner's. The arrangement it could still get wrong — one
-			// of the demonstration's own clicks, whose owner failed to
-			// read, sitting BETWEEN two of the operator's clicks — is not
-			// one a person can produce.
-			if e.PID == 0 && end > 1 {
-				if p := events[end-2]; p.PID == ownerPID {
+			// Matched to its OWN press and nothing else — same button,
+			// same point, owned by the owner. An unattributed event is not
+			// shown to be the owner's by merely following one of theirs,
+			// and a looser rule here would delete whatever happened to sit
+			// after a click of Marco's.
+			if e.Kind == recorder.EvClick && !e.Down && e.PID == 0 && end > 1 {
+				p := events[end-2]
+				if p.Kind == recorder.EvClick && p.Down &&
+					p.PID == ownerPID &&
+					p.Button == e.Button && p.X == e.X && p.Y == e.Y {
 					end--
 					continue
 				}
@@ -854,6 +862,22 @@ func stripTrailingOwner(events []recorder.RecordedEvent, owner string,
 				end-- // the trip to press Stop
 			}
 			break // any other switch is where the demonstration was
+		}
+		// ── KNOWN OWNERSHIP OUTRANKS A SAMPLED NAME, IN BOTH DIRECTIONS ──
+		//
+		// The app tag is the poller's last sample and can name the owner about an
+		// event that demonstrably is not the owner's. The sequence: visit Marco,
+		// so the poller samples it; go back to the game and click before the next
+		// sample, so the click carries the game's process and Marco's stale name;
+		// then return to Marco and stop. The process rule above correctly keeps
+		// that click — and the name rule would then delete it anyway, for being
+		// tagged with a window it was not made in.
+		//
+		// So where the event says whose it is and the sample disagrees, the event
+		// wins and the walk stops. Only where the owner's own process is unknown
+		// is a name all there is to go on.
+		if ownerPID != 0 && e.PID != 0 && e.PID != ownerPID {
+			break
 		}
 		if e.App == owner || e.Kind == recorder.EvMove {
 			end--

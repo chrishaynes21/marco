@@ -553,3 +553,154 @@ func TestAnUnattributedReleaseDoesNotHideThePressBehindIt(t *testing.T) {
 			"stayed in the routine:\n%s", src)
 	}
 }
+
+// A STALE NAME MUST NOT DELETE A CLICK THE EVENT ITSELF PLACES IN THE GAME.
+//
+// The sequence, and every step of it is ordinary:
+//
+//  1. glance at Marco, so the poller samples it;
+//  2. go back to the game and click BEFORE the next sample — the click carries the game's
+//     process and Marco's stale name;
+//  3. return to Marco and press Stop.
+//
+// The process rule gets this right: it removes the stopping click and keeps the game click. The
+// name rule then removed that game click anyway, because its tag said Marco. Two rules, each
+// correct on its own, and the second undoing the first.
+//
+// Known event-time ownership outranks a sampled name in BOTH directions — not only to condemn
+// an event the sample excuses, but to spare one the sample accuses.
+func TestAStaleNameDoesNotDeleteAClickTheEventPlacesInTheGame(t *testing.T) {
+	events := []recorder.RecordedEvent{
+		{Kind: recorder.EvAppSwitch, KeyName: "arkascended", T: at(0)},
+		{Kind: recorder.EvClick, Button: "left", Down: true, X: 842, Y: 274,
+			App: "arkascended", PID: gamePID, T: at(100)},
+		{Kind: recorder.EvClick, Button: "left", Down: false, X: 842, Y: 274,
+			App: "arkascended", PID: gamePID, T: at(105)},
+		// A KEY, to shield the click behind it from
+		// `simplify.foldActivates` — which drops the one step immediately
+		// before an app switch as the gesture that performed it. That rule
+		// predates this work; the shield keeps this test about precedence
+		// rather than about that rule.
+		{Kind: recorder.EvKey, KeyName: "esc", Down: true,
+			App: "arkascended", T: at(800)},
+		{Kind: recorder.EvKey, KeyName: "esc", Down: false,
+			App: "arkascended", T: at(805)},
+		// ── 1. A GLANCE AT MARCO. The poller sees it. ──
+		{Kind: recorder.EvAppSwitch, KeyName: "studio", T: at(1000)},
+		// ── 2. BACK TO THE GAME, AND A CLICK BEFORE THE NEXT SAMPLE ──
+		//
+		// The process says the game, because that is read at the instant of the
+		// click. The name still says Marco, because that is the last sample.
+		{Kind: recorder.EvClick, Button: "left", Down: true, X: 496, Y: 283,
+			App: "studio", PID: gamePID, T: at(1500)},
+		{Kind: recorder.EvClick, Button: "left", Down: false, X: 496, Y: 283,
+			App: "studio", PID: gamePID, T: at(1505)},
+		// ── 3. BACK TO MARCO AND STOP ──
+		{Kind: recorder.EvClick, Button: "left", Down: true, X: 1511, Y: 913,
+			App: "studio", PID: studioPID, T: at(3200)},
+		{Kind: recorder.EvClick, Button: "left", Down: false, X: 1511, Y: 913,
+			App: "studio", PID: studioPID, T: at(3205)},
+	}
+	t.Setenv("MARCO_CV", "off")
+	reg := routes.Registry{Dir: t.TempDir()}
+	press := make(chan struct{})
+	var out bytes.Buffer
+	d := Deps{Reg: reg, Rec: &heldRecorder{events: events}, Out: &out,
+		Owner: "studio", OwnerPID: studioPID, StopWhen: press}
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		close(press)
+	}()
+	if err := d.LearnAuto("ark graphics"); err != nil {
+		t.Fatalf("recording: %v", err)
+	}
+	raw, err := os.ReadFile(reg.Path(routes.Route{App: "arkascended",
+		Slug: "ark-graphics"}))
+	if err != nil {
+		t.Fatalf("the routine is not filed under the app it was demonstrated "+
+			"in: %v (said: %s)", err, out.String())
+	}
+	src := string(raw)
+
+	// THE CLICK THE SAMPLE ACCUSED, which the event itself places in the game.
+	if !strings.Contains(src, "496") || !strings.Contains(src, "283") {
+		t.Errorf("the click at 496,283 is gone. Its process said the game and "+
+			"its stale tag said Marco, and the tag won:\n%s", src)
+	}
+	if !strings.Contains(src, "842") {
+		t.Errorf("the first demonstrated click is gone too:\n%s", src)
+	}
+	if strings.Contains(src, "1511") {
+		t.Errorf("the click that pressed Stop survived:\n%s", src)
+	}
+}
+
+// AND AN UNATTRIBUTED EVENT IS NOT THE OWNER'S FOR MERELY FOLLOWING ONE OF THEIRS.
+//
+// The release fallback is matched to its OWN press: same button, same point, immediately behind
+// it. A looser rule — anything unowned that follows an owner event — would delete whatever
+// happened to be sitting there, which it has been shown nothing about.
+//
+// Each stream below ends with the owner's PRESS and then one unattributed event, because that is
+// the only arrangement where the question arises: a release behind a release is two clicks, and
+// the matching clause is never reached.
+func TestAnUnownedEventAfterAnOwnerClickIsNotAssumedToBeTheirs(t *testing.T) {
+	// THE DEMONSTRATION, then a click of Marco's whose release is missing.
+	base := []recorder.RecordedEvent{
+		{Kind: recorder.EvAppSwitch, KeyName: "arkascended", T: at(0)},
+		{Kind: recorder.EvClick, Button: "left", Down: true, X: 842, Y: 274,
+			App: "arkascended", PID: gamePID, T: at(100)},
+		{Kind: recorder.EvClick, Button: "left", Down: false, X: 842, Y: 274,
+			App: "arkascended", PID: gamePID, T: at(105)},
+		{Kind: recorder.EvClick, Button: "left", Down: true, X: 1200, Y: 400,
+			App: "arkascended", PID: studioPID, T: at(3000)},
+	}
+	click := func(button string, down bool, x, y int) recorder.RecordedEvent {
+		return recorder.RecordedEvent{Kind: recorder.EvClick, Button: button,
+			Down: down, X: x, Y: y, App: "arkascended", T: at(3005)}
+	}
+
+	for _, c := range []struct {
+		what string
+		ev   recorder.RecordedEvent
+		// kept is how many of the five events survive. 3 means the
+		// unattributed event and the owner's press behind it both went; 5
+		// means the walk stopped and took nothing it could not place.
+		kept int
+	}{
+		{"its own press, released", click("left", false, 1200, 400), 3},
+		{"a release at another point", click("left", false, 500, 500), 5},
+		{"a release of another button", click("right", false, 1200, 400), 5},
+		{"a second press, not a release", click("left", true, 1200, 400), 5},
+	} {
+		t.Run(c.what, func(t *testing.T) {
+			stream := append(append([]recorder.RecordedEvent(nil), base...), c.ev)
+			got := stripTrailingOwner(stream, "studio", studioPID)
+			if len(got) != c.kept {
+				t.Fatalf("%d of %d event(s) kept, want %d", len(got),
+					len(stream), c.kept)
+			}
+		})
+	}
+}
+
+// AND NOTHING REMOVED IS AN ANSWER, NOT A SHORTFALL.
+//
+// Three of the four cases above remove nothing at all, which is the right way round: the strip
+// deletes what it can show belongs to the operator, and an event it cannot place is not shown to
+// belong to anybody. Guessing the other way deletes demonstrations.
+//
+// The cost is small because it is nearly unreachable — the builder stamps both edges of every
+// click, so an unowned click means the foreground window could not be read at all.
+func TestTheStripKeepsWhatItCannotPlace(t *testing.T) {
+	events := []recorder.RecordedEvent{
+		{Kind: recorder.EvClick, Button: "left", Down: true, X: 842, Y: 274,
+			App: "arkascended", PID: gamePID, T: at(100)},
+		{Kind: recorder.EvClick, Button: "left", Down: false, X: 842, Y: 274,
+			App: "arkascended", T: at(105)}, // owner unknown
+	}
+	if got := stripTrailingOwner(events, "studio", studioPID); len(got) != 2 {
+		t.Errorf("%d of 2 event(s) kept: a demonstration whose release could "+
+			"not be attributed was deleted", len(got))
+	}
+}
