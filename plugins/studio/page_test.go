@@ -21,6 +21,8 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -68,5 +70,63 @@ func TestThePageBeginsAsADocument(t *testing.T) {
 	// It has happened three times in one sitting, which is what this is for.
 	if n := strings.Count(page, "\x00"); n != 0 {
 		t.Errorf("the page holds %d NUL byte(s), so every tool that reads it treats it as binary", n)
+	}
+}
+
+// AND EVERY METHOD THE PAGE CALLS EXISTS ON THE BACKEND.
+//
+// # Why this is a test and not a compile error
+//
+// Because there is no compiler between these two files. The page reaches the backend through
+// `window.go.main.Acts`, which Wails fills in at run time from whatever `*Acts` exports, so a
+// name that does not match is not a build failure — it is `undefined is not a function`, thrown
+// inside a `.then` chain nobody is watching, in a window that otherwise looks finished. The
+// button does nothing and says nothing about why.
+//
+// That is the shape of defect this repository has recorded eight times: complete code on both
+// sides and no call between them. A rename on the Go side, or one character out in the page, is
+// invisible to `go build ./...`, to `go test ./...`, and to a source review — the two spellings
+// are never on the same screen.
+func TestEveryMethodThePageCallsIsOnTheBackend(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("frontend", "index.html"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	have := map[string]bool{}
+	surface := reflect.TypeOf(&Acts{})
+	for i := 0; i < surface.NumMethod(); i++ {
+		have[surface.Method(i).Name] = true
+	}
+	// `acts.Name(` and `acts.Name)` both count: the page passes some of these as
+	// values (see askThenDelete), which is a call site like any other.
+	calls := regexp.MustCompile(`\bacts\.([A-Z]\w*)`).FindAllStringSubmatch(string(raw), -1)
+	if len(calls) == 0 {
+		t.Fatal("no backend calls were found in the page, so this proves nothing " +
+			"— the pattern that finds them has stopped matching")
+	}
+	seen := map[string]bool{}
+	for _, c := range calls {
+		name := c[1]
+		if seen[name] {
+			continue
+		}
+		seen[name] = true
+		if !have[name] {
+			t.Errorf("the page calls acts.%s, and *Acts has no such method. "+
+				"Wails binds whatever *Acts exports, so this is not a "+
+				"build failure: the button throws and says nothing", name)
+		}
+	}
+	// AND THE FOUR THE RECORDING FLOW NEEDS ARE AMONG THEM, by name.
+	//
+	// Stated separately because the loop above only checks the calls that ARE there. A
+	// page that never reached one of these would pass it, and a Stop button that is not
+	// wired to anything is the whole of what could go wrong here.
+	for _, want := range []string{"StartRecording", "StopRecording",
+		"CancelRecording", "SaveDraft", "Recording"} {
+		if !seen[want] {
+			t.Errorf("nothing in the page calls acts.%s, so that part of "+
+				"record → Stop → review → Save has no button", want)
+		}
 	}
 }

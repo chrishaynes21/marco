@@ -7049,3 +7049,60 @@ that needs a click.
 
 DEMO_READINESS: ENGINEERING_DEMO. The next session needs a human hand: `marco observe learn
 --follow`, then navigate Settings by CLICKING, and watch for `+ learned way`.
+
+## 38B — a window that records has to leave itself out of the recording
+
+Studio can now record the ordinary way: press **Record**, go and do the thing, come back and press
+**Stop recording**, look at what it got, then **Save** it where you say or **Cancel** it. Four
+buttons, four backend calls, and nothing on disk until Save.
+
+This is the recorder-first path — `internal/recorder` → `internal/simplify` → `internal/codegen`,
+the widget recorder Marco shipped with, reached from a window for the first time. It is not the
+visual recorder in `learn.go`, which is unchanged and still answers the other question (*can Marco
+recognise this control again*). The owner asked for it in one sentence: "We need a cleaner way to
+end basic recordings like this than f7, I prefer a button to end recording."
+
+**The button is the whole difficulty.** A stop KEY is pressed wherever the person already is. A
+stop BUTTON means bringing a window forward and clicking in it, and the hooks record that like any
+other click — so every replay would raise Studio and press Stop, and the switch that brought
+Studio forward would decide which application the routine was filed under. It took five
+corrections to get the exclusion right, each one the same shape: *the fixture was easier than
+production.*
+
+1. The "too fast for the poller" fallback consulted **that same poller's last sample**. Event-time
+   process id instead, read in the hook from two window-data reads.
+2. The builder stamped the process on button-down only — and a button is activated on RELEASE, so
+   a strip walking back from the end met an unattributed release and stopped there.
+3. The name rule ran after the process rule and could still delete a click the process rule had
+   just spared. Known ownership outranks a sampled name in **both** directions.
+4. The tail was not enough: a glance at Studio mid-demonstration leaves a switch in the middle, and
+   `simplify.foldActivates` reads the step before a switch as the gesture that performed it. So the
+   owner's window comes out wherever it appears.
+5. And removing that switch leaves its sampled **return**, naming the window that never left the
+   front — which `foldActivates` collapses one step too late to save the click beside it. The
+   draft path collapses it first.
+
+Number 5 is the ordinary case, not the exotic one, and it hid because the fixture omitted the
+return and emitted the owner's app twice with nothing between — a stream the poller cannot
+produce, since it emits only on change. Mutation testing found four of the five; reading found
+none.
+
+**And the recorder runs in Studio's own process**, which every other child does not.
+`orchestrator.Record` writes nothing, and a draft across a process boundary would have to be
+written somewhere for the parent to review it — the thing it exists not to do. So the hooks are in
+the window: shutdown must end a live capture and wait for the pump, and the one predicate that
+answers "is something being recorded" now answers for both recorders, because a run started under
+these hooks would press its own clicks into somebody's draft with no process boundary to notice.
+
+Also: `Begin`/`Finish` split out of `Record`, so a recorder that will not start is refused at the
+button rather than discovered at Stop. And `TestEveryMethodThePageCallsIsOnTheBackend` — there is
+no compiler between the page and `*Acts`, so a misspelled binding was
+`undefined is not a function` inside a `.then` chain nobody watches.
+
+See [[ADR-249-ending-a-recording-is-not-part-of-the-recording]] and
+[[ADR-250-the-recorder-runs-in-the-window]].
+
+**Not done, and next:** the owner has not trialled this. Line A and B (outer window size, window
+DPI as its own term, process image, carried through `macroir.Step` → `codegen`) and line C (the
+press-moment guard on the guarded path) are the planned work after it. The trial journal does not
+yet say which recorder a note came from.

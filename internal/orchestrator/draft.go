@@ -111,6 +111,37 @@ func (d *Draft) Pressable() int {
 	return n
 }
 
+// Capture is a recording that has begun: the recorder is watching, and nothing has been made of
+// what it has seen yet.
+//
+// It exists so that STARTING can fail separately from finishing. A window with a Record button
+// has to be told at once that the recorder would not start, because the alternative is a window
+// that says "recording", takes somebody's whole demonstration, and only says it never began when
+// they press Stop. `Record` below is still the one-call form, for the callers that block.
+type Capture struct {
+	d        Deps
+	name     string
+	argNames []string
+	stop     recorder.StopKey
+}
+
+// Begin starts the recorder and returns the capture in flight.
+//
+// The only failure is the recorder refusing to start, which is a platform fact and is the one
+// thing a caller can act on before a person has demonstrated anything.
+func (d Deps) Begin(name string) (*Capture, error) {
+	name, argNames := routes.SplitArgs(name)
+	stop := recorder.ParseStopKey(d.StopKey)
+	mlog.Debug("draft: starting recorder", "route", name, "stop_key", stop.Label())
+	if err := d.Rec.Start(); err != nil {
+		return nil, fmt.Errorf("can't record on this platform: %w", err)
+	}
+	return &Capture{d: d, name: name, argNames: argNames, stop: stop}, nil
+}
+
+// Name is what this capture will be called, after the argument names have been taken off it.
+func (c *Capture) Name() string { return c.name }
+
 // Record captures a demonstration and returns it UNSAVED.
 //
 // It writes nothing. A caller that wants the draft kept calls `Save`; a caller that does not
@@ -119,12 +150,20 @@ func (d *Draft) Pressable() int {
 // The capture ends on the stop gesture or on `Deps.StopWhen`, whichever comes first — see
 // `waitForStop` for why both stay live.
 func (d Deps) Record(name string) (*Draft, error) {
-	name, argNames := routes.SplitArgs(name)
-	stop := recorder.ParseStopKey(d.StopKey)
-	mlog.Debug("draft: starting recorder", "route", name, "stop_key", stop.Label())
-	if err := d.Rec.Start(); err != nil {
-		return nil, fmt.Errorf("can't record on this platform: %w", err)
+	c, err := d.Begin(name)
+	if err != nil {
+		return nil, err
 	}
+	return c.Finish(), nil
+}
+
+// Finish waits for the capture to end and makes a draft of what was recorded.
+//
+// It cannot fail: everything after the recorder started is arithmetic over events that have
+// already happened. A recording of nothing is a draft with no steps, which `Save` refuses — and
+// that refusal belongs there, where somebody is deciding whether to keep it.
+func (c *Capture) Finish() *Draft {
+	d, name, argNames, stop := c.d, c.name, c.argNames, c.stop
 	byButton := waitForStop(d.Rec, &stop, d.StopWhen)
 	events := stripTrailingStop(d.Rec.Stop(), stop)
 	// THE OWNER'S WINDOW COMES OUT WHEREVER IT IS, not only at the end. See the
@@ -151,7 +190,7 @@ func (d Deps) Record(name string) (*Draft, error) {
 	return &Draft{
 		Name: name, Args: argNames, Steps: steps, Events: events,
 		App: app, StoppedBy: how,
-	}, nil
+	}
 }
 
 // Save writes a draft as legal Marco, under the scope it is given.

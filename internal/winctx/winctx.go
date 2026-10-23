@@ -6,6 +6,7 @@ package winctx
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -19,4 +20,20 @@ func appName(exePath string) string {
 	base := filepath.Base(exePath)
 	base = strings.TrimSuffix(base, filepath.Ext(base))
 	return strings.ToLower(base)
+}
+
+// Self is the application name of THIS process, as `Active` would report it for one of our own
+// windows. "" when the executable cannot be read.
+//
+// It exists for the one caller that has to name its own window: a recorder driven from a window
+// must exclude that window from the recording, and it matches the app-switch events the poller
+// writes — which carry whatever `Active` said. So the name has to come from the same transform,
+// asked of our own executable, rather than from three lines copied into the caller. A caller
+// whose copy drifted by one character would exclude nothing and say nothing about it.
+func Self() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	return appName(exe)
 }

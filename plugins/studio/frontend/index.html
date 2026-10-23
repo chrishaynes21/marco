@@ -355,6 +355,58 @@
   <p class="sub">A Scene is one interaction — one click, and what should happen afterward.
     An Act puts Scenes in order. These are the interactions Marco has watched you perform.</p>
 
+  <!-- RECORD A ROUTINE: the recorder-first path, and the ordinary one.
+       Press Record, go and do the thing, press Stop. Nothing is chosen up front and
+       nothing counts down: the switch to whatever you are using is itself the first step.
+       Marco's own window is left out of the recording wherever it appears — pressing Stop
+       in here never becomes part of what you taught, and neither does looking at this page
+       halfway through. See recording.go and ADR-249. -->
+  <h2>Record a routine</h2>
+  <div class="card" id="captureCard">
+    <div class="muted">Marco watches the keyboard and the mouse and writes down what you
+      did, in order, with the real pauses. It does not look at the screen, so it works
+      on menus nothing can recognise — and it replays exactly what you showed it.</div>
+    <div class="muted" style="margin-top:6px">Press <b>Record</b>, go and do it, then come
+      back and press <b>Stop recording</b>. Nothing is saved until you have looked at it
+      and pressed Save.</div>
+    <div class="row" style="margin-top:10px"><label style="width:7em">call it</label>
+      <input type="text" id="capName" placeholder="what you will ask Marco for"></div>
+    <div class="row" style="margin-top:10px">
+      <button class="go" id="capBtn" onclick="startCapture()">Record</button>
+      <span class="muted" id="capNote"></span>
+    </div>
+  </div>
+
+  <!-- WHILE IT WATCHES. Two buttons and no clock: it ends when you say so. -->
+  <div class="card hide" id="capturing">
+    <div id="capDoing" style="font-size:15px"></div>
+    <div class="muted" style="margin-top:6px">Do it now. Come back here and press
+      <b>Stop recording</b> when you are done — bringing this window forward and
+      pressing the button is not part of what you are teaching.</div>
+    <div class="row" style="margin-top:12px">
+      <button class="go" id="capStopBtn" onclick="stopCapture()">Stop recording</button>
+      <button class="stop" onclick="cancelCapture()">Cancel</button>
+      <span class="muted" id="capKey"></span>
+    </div>
+  </div>
+
+  <!-- AND WHAT IT GOT, BEFORE ANYTHING IS KEPT.
+       This is the whole reason Stop and Save are different buttons: nothing is on disk
+       yet, so Cancel is a real alternative and the scope is a question somebody answers
+       rather than one this window guesses. -->
+  <div class="card hide" id="capReview">
+    <div id="capSaid"></div>
+    <div class="muted" style="margin-top:6px" id="capWhere"></div>
+    <ol id="capSteps" class="muted" style="margin-top:10px"></ol>
+    <div class="row" style="margin-top:10px"><label style="width:7em">it works</label>
+      <select id="capScope"></select></div>
+    <div class="row" style="margin-top:10px">
+      <button class="go" id="capSaveBtn" onclick="saveCapture()">Save</button>
+      <button class="stop" onclick="cancelCapture()">Cancel</button>
+      <span class="muted" id="capSaveNote"></span>
+    </div>
+  </div>
+
   <h2>Learn a Scene</h2>
   <div class="card" id="learnCard">
     <div class="muted">Marco watches you do it once, with your own hands. Nothing is
@@ -645,6 +697,7 @@
  let shownAct = ''
  let shownRunSteps = ''
  let shownDemos = ''
+ let shownCapture = ''
  const shots = new Map()
 
  // WAIT FOR THE BINDINGS rather than assuming them. Wails injects window.go asynchronously,
@@ -656,7 +709,7 @@
  ready(() => {
    acts = window.go.main.Acts
    paintLive(); show('acts'); loadActs(); loadDemos(); loadHistory(); loadApps()
-   poll(); pollLearning()
+   poll(); pollLearning(); pollCapture()
    // THE PAGE REPORTS ITSELF, LAST. A `-H windowsgui` binary has no console, so this
    // callback is the only evidence that the window opened, WebView2 came up, the embedded
    // asset was served, this script ran, and the Go bindings are reachable from it.
@@ -1084,6 +1137,105 @@
    $('actname').focus()
  }
  function dismissLearned(){ showing($('learned'), false) }
+
+ // ── RECORD → STOP → REVIEW → SAVE ─────────────────────────────────────────
+ //
+ // Four buttons and four backend calls, kept separate on purpose. Stop opens review and writes
+ // nothing; Cancel drops the draft and there is nothing to delete; Save persists it under the
+ // scope chosen right here. See recording.go.
+
+ function startCapture(){
+   text($('capSaveNote'), '')
+   acts.StartRecording($('capName').value).then(why => { text($('capNote'), why || '') })
+ }
+ function stopCapture(){
+   // THE BUTTON STEPS ASIDE WHILE IT IS BEING SERVED. Stopping waits for the recorder to
+   // hand over what it saw, and a second press in that interval is a person wondering
+   // whether the first one worked.
+   $('capStopBtn').disabled = true
+   acts.StopRecording().then(why => {
+     $('capStopBtn').disabled = false
+     text($('capNote'), why || '')
+   })
+ }
+ function cancelCapture(){
+   acts.CancelRecording().then(why => {
+     text($('capSaveNote'), why || '')
+     text($('capNote'), '')
+   })
+ }
+ function saveCapture(){
+   acts.SaveDraft($('capScope').value, '').then(why => {
+     text($('capSaveNote'), why || '')
+     if (!why) { loadActs() }
+   })
+ }
+
+ // THE RECORDING, POLLED, and redrawn only when it changed.
+ //
+ // Everything in review is settled the moment the capture ends — the steps are made, the app is
+ // observed, nothing is waiting — so rebuilding it two and a half times a second could only take
+ // the scope somebody had just chosen and put it back. `shownCapture` is the same guard the
+ // Scene review uses, for the same reason.
+ function pollCapture(){
+   acts.Recording().then(r => {
+     showing($('captureCard'), !r.active && !r.review)
+     showing($('capturing'), !!r.active)
+     showing($('capReview'), !!r.review)
+     if (r.active) {
+       text($('capDoing'), 'Recording ' + (r.name ? '“' + r.name + '”' : '') + '…')
+       // AND THE OTHER WAY OUT, NAMED. The button is not the only one and somebody
+       // who never comes back to this window still has to be able to finish.
+       text($('capKey'), r.stop_key ? 'or press ' + r.stop_key : '')
+       shownCapture = ''
+       return
+     }
+     if (!r.review) {
+       // SAVED, OR NOTHING AT ALL. Either way the card above is back, and what it
+       // says about the last one belongs beside it.
+       text($('capNote'), r.saved || r.said || '')
+       $('capNote').className = r.failed ? 'no' : 'muted'
+       if (r.saved) { $('capName').value = '' }
+       shownCapture = ''
+       return
+     }
+     const sig = r.name + '\u0000' + (r.said || '') + '\u0000' + (r.steps || []).join('|')
+     if (sig === shownCapture) { return }
+     shownCapture = sig
+     text($('capSaid'), r.said || '')
+     $('capSaid').className = r.failed ? 'no' : 'ok'
+     text($('capWhere'), (r.application
+       ? 'recorded in ' + r.application
+       : 'no application was observed')
+       + ' · ended by ' + (r.stopped_by || 'something'))
+     // EVERY STEP, IN ORDER. A review that left one out would be a review of a shorter
+     // routine than the one being saved.
+     const list = $('capSteps')
+     list.innerHTML = ''
+     ;(r.steps || []).forEach(s => {
+       const li = document.createElement('li')
+       li.textContent = s
+       list.appendChild(li)
+     })
+     // AND WHERE IT SHOULD WORK, ASKED RATHER THAN GUESSED. The three choices are the
+     // backend's own words; the sentences beside them are what they mean.
+     const app = r.application || 'that application'
+     const scope = $('capScope')
+     const had = scope.value
+     scope.innerHTML = ''
+     ;[['app', 'only while ' + app + ' is in front'],
+       ['app-anywhere', 'from anywhere — bring ' + app + ' forward first'],
+       ['everywhere', 'anywhere, and switch nothing']].forEach(([v, says]) => {
+       const o = document.createElement('option')
+       o.value = v; o.textContent = says
+       scope.appendChild(o)
+     })
+     scope.value = had || 'app'
+     // AND SAVE IS NOT OFFERED FOR A RECORDING THAT PRESSES NOTHING. There is nothing
+     // to keep, and the sentence above says so.
+     $('capSaveBtn').disabled = !r.pressable
+   }).finally(() => setTimeout(pollCapture, 400))
+ }
 
  // THE RECORDING, POLLED. Its own poll because it is its own lifecycle: a recording is not
  // a run, nothing is authorised by it, and nothing it does can press anything.

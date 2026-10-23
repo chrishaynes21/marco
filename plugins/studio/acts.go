@@ -53,6 +53,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/runstate"
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflowstore"
 	"github.com/chaynes-simpleclouds/marco/internal/driver"
+	"github.com/chaynes-simpleclouds/marco/internal/recorder"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
 	"github.com/chaynes-simpleclouds/marco/internal/stopsignal"
 )
@@ -144,6 +145,20 @@ type Acts struct {
 	// there is one screen, and a recorder watching it while a runner presses on it
 	// would be Marco demonstrating to itself. See learn.go.
 	learn *learning
+	// capture is the recorder-first recording in flight, or the draft waiting to be
+	// looked at. Nil until something has been recorded that way and again once it is
+	// saved or cancelled.
+	//
+	// A SECOND KIND OF RECORDING, and the reason `recordingLocked` exists: everything
+	// that must not happen while the screen is being watched used to ask about `learn`
+	// by hand. See recording.go.
+	capture *capture
+	// recording stands in for the input recorder, substitutable for the same reason
+	// `raising` and `listing` are: the real one installs low-level hooks and needs a
+	// person's hands on a real desktop, and the claim worth testing — that pressing
+	// Stop in this window does not become a step — cannot otherwise be made to happen
+	// at all. Nil in every production path; see recording.go.
+	recording func() recorder.Recorder
 	// transcript is what the run has said so far, which is the whole of what a person
 	// watching it has to go on.
 	transcript []string
@@ -949,11 +964,17 @@ func (a *Acts) start(p Performance) string {
 		return "a run is already in flight; one at a time, because the consent desk " +
 			"is a person's attention and there is one of those"
 	}
-	if a.learn != nil && !a.learn.over {
+	if a.recordingLocked() {
 		// AND NOT WHILE SOMETHING IS BEING RECORDED. One screen: a recorder
 		// watching it while a runner presses on it would be Marco demonstrating
 		// to itself, and the artifact would record Marco's own clicks as the
 		// person's.
+		//
+		// Asked of BOTH recorders through one predicate. It used to name
+		// `a.learn` here, which meant the recorder-first path arriving beside it
+		// would have been invisible to this refusal — and that one installs
+		// hooks in THIS process, so a run started under it would have put the
+		// runner's own presses into somebody's draft. See recordingLocked.
 		a.mu.Unlock()
 		return "Marco is recording a demonstration; one thing at a time on one screen"
 	}
@@ -1204,7 +1225,25 @@ func (a *Acts) Close() {
 	a.closing = true
 	busy, cmd, stop, done := a.busy, a.running, a.stopRun, a.done
 	rec := a.learn
+	watching := a.capture
 	a.mu.Unlock()
+	// AND A RECORDER-FIRST CAPTURE ENDS WITH THE WINDOW, HOOKS AND ALL.
+	//
+	// The same rule as the recording below and a sharper reason: those hooks are in THIS
+	// process, so leaving them installed past shutdown is leaving low-level keyboard and
+	// mouse hooks on somebody's desktop with nothing left to unhook them. The draft is
+	// abandoned, because a window being closed is not somebody saying "keep what you
+	// have". Waited for, so the pump has returned before the process does.
+	if watching != nil {
+		watching.ended.Do(func() { close(watching.stop) })
+		select {
+		case <-watching.done:
+		case <-time.After(3 * time.Second):
+			fmt.Fprintln(os.Stderr, "studio: the input recorder did not "+
+				"finish within three seconds of being stopped; leaving "+
+				"it to the operating system")
+		}
+	}
 	// AND A RECORDING ENDS WITH THE WINDOW TOO.
 	//
 	// Abandoned rather than finished: a window being closed is not somebody saying "keep
@@ -1473,7 +1512,7 @@ func (a *Acts) ForgetScene(name string, anyway bool) Forgotten {
 	}
 	a.mu.Lock()
 	busy := a.busy
-	recording := a.learn != nil && !a.learn.over
+	recording := a.recordingLocked()
 	a.mu.Unlock()
 	if busy || recording {
 		return Forgotten{Error: "something is in flight; stop it first"}
@@ -1546,7 +1585,7 @@ func (a *Acts) ForgetScene(name string, anyway bool) Forgotten {
 func (a *Acts) ForgetEverything(anyway bool) Forgotten {
 	a.mu.Lock()
 	busy := a.busy
-	recording := a.learn != nil && !a.learn.over
+	recording := a.recordingLocked()
 	a.mu.Unlock()
 	if busy || recording {
 		return Forgotten{Error: "something is in flight; stop it first"}

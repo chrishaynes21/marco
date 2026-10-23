@@ -99,6 +99,10 @@ window.go = {main: {
     Pictures: () => Promise.resolve([]),
     Picture: () => { window.__pic++; return Promise.resolve(PNG) },
     Watch: () => Promise.resolve({act: '', active: false, transcript: null}),
+    // AND THE RECORDER-FIRST FLOW, STUBBED WHETHER OR NOT THIS TEST IS ABOUT IT.
+    // The page polls it from its own startup, and an undefined method throws there —
+    // which would take the rest of the page setup with it. See recording.go.
+    Recording: () => Promise.resolve({active: false}),
     Learning: () => Promise.resolve({name: 'trackmania video', application: 'trackmania',
       active: false, over: true, phase: 'ended', learned: D,
       said: 'Saved "trackmania video".', next: 'Build an Act from it.'}),
@@ -210,6 +214,7 @@ window.go = {main: {
     Pictures: () => Promise.resolve([]),
     Picture: () => { window.__pic++; return Promise.resolve(PNG) },
     Learning: () => Promise.resolve({active: false}),
+    Recording: () => Promise.resolve({active: false}),
     Watch: () => { tick++
       return Promise.resolve({act: 'video act', live: true, reference: 'run-x',
         active: true, transcript: ['authorised by a press of Play'],
@@ -314,4 +319,106 @@ func renderForCounters(t *testing.T, browser, stub string) string {
 		t.Fatal("the page never reported its counters, so it did not run at all")
 	}
 	return m[1]
+}
+
+// THE REVIEW A STOP BUTTON OPENS, RENDERED.
+//
+// # Why this is a browser too
+//
+// Because `recording_test.go` proves what the BACKEND hands over and nothing about whether the
+// window shows it. Those are the two halves this repository has eight recorded cases of getting
+// separately right and never joining: a backend that returns a reviewed draft and a page that
+// never draws one look identical from either side.
+//
+// So this renders the real page over a stubbed draft and counts what appears: the steps as list
+// items, the three scope choices, and the Save button. And it counts them over about ten polls,
+// which is the other claim — review is settled the moment the capture ends, so a page that
+// rebuilds it on a timer would take the scope somebody had just chosen and put it back.
+const reviewHarness = `
+window.__scopeRedraws = 0
+window.go = {main: {
+  Backend: {Loaded: () => Promise.resolve()},
+  Acts: {
+    Demonstrations: () => Promise.resolve([]),
+    Saved: () => Promise.resolve([]),
+    History: () => Promise.resolve([]),
+    Applications: () => Promise.resolve(['arkascended']),
+    Pictures: () => Promise.resolve([]),
+    Picture: () => Promise.resolve(''),
+    Learning: () => Promise.resolve({active: false}),
+    Watch: () => Promise.resolve({act: '', active: false, transcript: null}),
+    // A DRAFT IN REVIEW: stopped by the button, nothing on disk, two clicks and a wait.
+    Recording: () => Promise.resolve({name: 'ark graphics', active: false, review: true,
+      application: 'arkascended', stopped_by: 'the Stop button', pressable: 2,
+      stop_key: 'F12',
+      steps: ['bring arkascended to the front', 'left-click at 842, 274',
+              'wait 2095ms', 'left-click at 496, 283'],
+      said: '4 step(s), 2 of which press something.'}),
+  },
+}}
+// EVERY REBUILD OF THE SCOPE LIST, COUNTED. It is the control a person touches, so it is
+// the one whose redrawing actually costs them something.
+setTimeout(() => {
+  new MutationObserver(ms => ms.forEach(m => {
+    if (m.addedNodes.length) { window.__scopeRedraws++ }
+  })).observe(document.getElementById('capScope'), {childList: true})
+}, 300)
+setTimeout(() => {
+  const vis = (id) => {
+    const e = document.getElementById(id)
+    return e && !e.classList.contains('hide') ? 1 : 0
+  }
+  document.title = 'steps=' + document.querySelectorAll('#capSteps li').length +
+    ' scopes=' + document.querySelectorAll('#capScope option').length +
+    ' redraws=' + window.__scopeRedraws +
+    ' review=' + vis('capReview') + ' card=' + vis('captureCard') +
+    ' saveoff=' + (document.getElementById('capSaveBtn').disabled ? 1 : 0)
+}, 4200)
+`
+
+// THE STOP BUTTON'S REVIEW APPEARS, WHOLE, AND IS DRAWN ONCE.
+func TestTheReviewAStopButtonOpensIsRenderedOnce(t *testing.T) {
+	browser := aBrowser()
+	if browser == "" {
+		t.Skip("no headless Chromium on this machine to render the page in")
+	}
+	title := renderForCounters(t, browser, reviewHarness)
+	n := func(key string) int {
+		m := regexp.MustCompile(key + `=(\d+)`).FindStringSubmatch(title)
+		if m == nil {
+			t.Fatalf("no %s in %q", key, title)
+		}
+		v, _ := strconv.Atoi(m[1])
+		return v
+	}
+	// THE REVIEW IS WHAT IS ON SCREEN, and the card that starts a recording is not:
+	// a page showing both would be offering to record over a draft nobody has saved.
+	if n("review") != 1 {
+		t.Errorf("the review card is not showing over a draft in review: %q", title)
+	}
+	if n("card") != 0 {
+		t.Errorf("the Record card is still showing beside a draft in review: %q",
+			title)
+	}
+	// AND EVERY STEP IS LISTED. Four in the fixture: a review that showed only the
+	// presses would be a review of a routine that does less than the one being saved.
+	if got := n("steps"); got != 4 {
+		t.Errorf("the review lists %d of 4 step(s): %q", got, title)
+	}
+	// AND ALL THREE PLACES IT COULD WORK, so the question can actually be answered.
+	if got := n("scopes"); got != 3 {
+		t.Errorf("the review offers %d of 3 scope(s), so somebody cannot say "+
+			"where their routine should work: %q", got, title)
+	}
+	// AND SAVE IS OFFERED, because this draft presses something.
+	if n("saveoff") != 0 {
+		t.Errorf("Save is disabled over a draft with two presses in it: %q", title)
+	}
+	// AND THE SCOPE LIST WAS BUILT ONCE. The poll runs about ten times in the budget;
+	// rebuilding the control resets it, so a person who chose "anywhere" and then
+	// pressed Save would have saved something else.
+	if got := n("redraws"); got > 1 {
+		t.Errorf("the scope list was rebuilt %d time(s) while nothing changed, "+
+			"which discards the choice somebody just made: %q", got, title)
+	}
 }

@@ -91,6 +91,11 @@ that control, though a saved play still cannot say it (`cannot_say_pointer`, fol
   window is excluded wherever it appears, by the process that owned the foreground at the
   INSTANT of each event rather than by a name an interval poller sampled, and Stop, Cancel and
   Save are three acts rather than one
+- [[ADR-250-the-recorder-runs-in-the-window]] — and the window those four buttons are in. The
+  recorder-first path runs in Studio's OWN process, because a draft that writes nothing cannot
+  cross a process boundary without being written somewhere; so Studio supplies its own process
+  id as the exclusion boundary, starting is separable from finishing, and one predicate now
+  answers "is something being recorded" for both recorders
 - [[ADR-058-a-demonstrated-target-may-keep-its-name]]
 - [[ADR-074-one-demonstration-every-leg-reviewed]] — every leg of one demonstration is reviewed,
 - [[ADR-075-a-learn-episode-outlives-its-sessions]] — session boundaries are not Audience workflow
