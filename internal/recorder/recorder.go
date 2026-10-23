@@ -128,10 +128,13 @@ type Recorder interface {
 // per click: a recording of a menu is thirty presses in one program, and thirty handle opens for
 // one answer would be thirty chances to be told a different one.
 //
-// A process that has already exited resolves to "", which stays "". That is a real answer and it
-// is left as one: a routine whose window belonged to something no longer running has no process
-// identity to check against, and inventing the app poller's last sample here would put a guess
-// where the whole point is to have measured something.
+// A process that has already exited cannot be named, and inventing the app poller's last sample
+// here would put a guess where the whole point is to have measured something. So the press GIVES
+// UP ITS BASIS instead: the window terms come off and it stays an ordinary point, which is the
+// same all-or-none rule the press itself follows (see `newClick`) applied to the one term that
+// cannot be read while the hooks are up. The alternative is a saved point that claims a window
+// and cannot say whose it was, which replay refuses outright — a routine recorded honestly and
+// unable to run.
 //
 // `look` is a parameter so this can be tested without a desktop. It is `winctx.ImageOf` in
 // production and nothing else.
@@ -139,16 +142,22 @@ func resolveImages(events []RecordedEvent, look func(uint32) string) {
 	seen := map[uint32]string{}
 	for i := range events {
 		pid := events[i].PID
-		// ONLY A PRESS HAS A WINDOW WORTH NAMING. The release carries the same
-		// process — both edges are stamped — but it records no geometry, so a name
-		// beside it would describe a window nothing was measured in.
-		if pid == 0 || !events[i].WinRel {
+		// ONLY A PRESS THAT MEASURED A WINDOW HAS ONE WORTH NAMING. The release
+		// carries the same process — both edges are stamped — but it records no
+		// geometry, so a name beside it would describe a window nothing was
+		// measured in.
+		if events[i].RelTo == "" {
 			continue
 		}
 		name, asked := seen[pid]
-		if !asked {
+		if !asked && pid != 0 {
 			name = look(pid)
 			seen[pid] = name
+		}
+		if name == "" {
+			events[i].RelTo = ""
+			events[i].WinW, events[i].WinH, events[i].Dpi = 0, 0, 0
+			continue
 		}
 		events[i].Process = name
 	}

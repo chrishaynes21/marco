@@ -470,6 +470,18 @@ func (a *Acts) recordingLocked() bool {
 // since resized is owed the chance to see that before they keep it.
 func inWindow(s macroir.Step) string {
 	if s.RelTo == "" {
+		// AND A PRESS THAT MEASURED NO WINDOW SAYS SO, HERE, WHILE THE PERSON IS
+		// STILL IN FRONT OF THE SCREEN.
+		//
+		// The recorder writes the window terms together or not at all, so a press
+		// whose window would not report its size or its scale, or whose program had
+		// gone by the time the recording closed, is saved as an ordinary point —
+		// pressed at the coordinate it was demonstrated at, checked against nothing.
+		// That is a real difference in what the routine will do, and the review is
+		// the one place it can be seen before the routine is kept.
+		if s.Kind == macroir.StepClick && s.WinRel {
+			return " (window not measured)"
+		}
 		return ""
 	}
 	var said []string

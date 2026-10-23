@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/chaynes-simpleclouds/marco/internal/macroir"
 	"github.com/chaynes-simpleclouds/marco/internal/mlog"
 	"github.com/chaynes-simpleclouds/marco/internal/runtime"
 	"github.com/chaynes-simpleclouds/marco/internal/screen"
@@ -86,8 +87,18 @@ type Host struct {
 	//
 	// With the handle kept, a press can ask about THAT window: still a window, still in
 	// front, still the size and scale and program it was. See `bindAt` and `resolve`.
+	//
+	// # And the process, because a handle is not an identity
+	//
+	// boundPID is who owned that handle at the instant it was bound. Windows reuses
+	// window handles, and the program NAME does not separate two copies of the same
+	// program: a second instance of the game, a second Explorer window, a second
+	// browser profile each answer the image-name check correctly while being a window
+	// the route never prepared. The process id is what tells them apart, and it has to
+	// be read at preparation time, because afterwards there is nothing left to compare.
 	bound    uintptr
 	boundApp string
+	boundPID uint32
 }
 
 // SetArgs records the named arguments of the invocation about to run, so a
@@ -1399,13 +1410,19 @@ func (h *Host) resolve(set *runtime.Set, x, y int) (px, py int, present bool, wh
 	hasRel := okx && oky && okrx && okry
 	// ── THE GUARDED PATH, WHEN THE POINT ASKS FOR IT ──
 	//
-	// A point that says what it was measured from and what the window was like is
-	// asking to be checked against that window immediately before input, rather than
-	// resolved against whatever is in front. The ASKING is the opt-in: nothing else
-	// turns this on, and a point that carries none of it falls through to everything
-	// below, unchanged.
-	if hasRel && textOf(set, "RelTo") != "" {
-		gx, gy, gwhy := h.guarded(set, x, y, int(rx), int(ry))
+	// A point that says what it was measured from is asking to be checked against that
+	// window immediately before input, rather than resolved against whatever is in
+	// front. The ASKING is the opt-in: nothing else turns this on, and a point that
+	// says nothing falls through to everything below, unchanged.
+	//
+	// The basis ALONE is the opt-in, and not the basis together with a usable offset.
+	// Requiring both here read as caution and was a bypass: a point that stated a
+	// window and carried no offset to resolve inside it missed the condition and went
+	// down the legacy path, which presses the recorded coordinate without checking
+	// anything. Whether the rest of the terms are there is the guard's question to
+	// answer — and its answer is a refusal, not a fallback.
+	if textOf(set, "RelTo") != "" {
+		gx, gy, gwhy := h.guarded(set, x, y)
 		return gx, gy, gwhy == "", gwhy
 	}
 	if !hasRel {
@@ -1520,23 +1537,153 @@ func (h *Host) doClipboardSet(c runtime.HostCall) (string, runtime.Value, error)
 // origin — and it clears the binding too when Activate did not find one, because a stale handle
 // is worse than none: it names a window that may since have closed, or whose handle has been
 // reused by something else entirely.
+//
+// # And it reads who owns the handle, now, while there is still something to read
+//
+// The process id of the bound window is taken here and nowhere else, because this is the only
+// instant at which the answer is about the window the route prepared. Asked again at the press it
+// would be the identity of whatever holds the handle by then, compared against itself — a check
+// that cannot fail, which is the shape every one of these findings has had.
+//
+// A window that will not say which process owns it leaves `boundPID` zero, and a guarded press
+// then refuses: nothing was prepared that a press could be about.
 func (h *Host) bindAt(hwnd uintptr, app string) {
+	pid := uint32(0)
+	if hwnd != 0 {
+		pid = windowFacts(hwnd).PID
+	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.activated = true
 	h.originSet = false
-	h.bound, h.boundApp = hwnd, app
+	h.bound, h.boundApp, h.boundPID = hwnd, app, pid
 	if hwnd != 0 {
 		mlog.Debug("bound: the window a press will be checked against",
-			"app", app, "window", fmt.Sprintf("hwnd:%#x", hwnd))
+			"app", app, "window", fmt.Sprintf("hwnd:%#x", hwnd), "pid", pid)
 	}
 }
 
-// binding is the window this run bound, and what was asked for.
-func (h *Host) binding() (uintptr, string) {
+// binding is the window this run bound, what was asked for, and who owned it then.
+func (h *Host) binding() (uintptr, string, uint32) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	return h.bound, h.boundApp
+	return h.bound, h.boundApp, h.boundPID
+}
+
+// supportedBasis is the only thing a press can state it was measured from.
+//
+// A named constant rather than a comparison against "not empty", because a point claiming some
+// other basis is a point this does not know how to check, and resolving it as origin-plus-offset
+// in a window would be answering a question it did not ask. A basis relative to a control, or to
+// a screen, or to a monitor, is different arithmetic — when one exists it will be a term here and
+// a case in `guarded`, not a string that happened to be non-empty.
+const supportedBasis = macroir.RelToWindow
+
+// farthestPixel is further than any window dimension or offset on any desktop, and is the upper
+// bound on a term being believed at all. A recorded size of four billion is not a big window; it
+// is a number that was not a measurement by the time it got here.
+const farthestPixel = 1 << 20
+
+// measuredWindow is the demonstration's whole side of the comparison: what the window was like,
+// and where inside it the press went.
+type measuredWindow struct {
+	w, h, dpi int
+	process   string
+	rx, ry    int
+}
+
+// measuredFrom reads and validates everything a guarded point says about its window, or returns
+// the sentence explaining why it cannot be checked.
+//
+// It is one function and runs before any question is put to the desktop, so that no check in
+// `guarded` can be reached holding a term nobody validated — which is the shape the bypass had:
+// each term was read at the point of use, and each one was read as "if present and sane", so an
+// absent or malformed term meant that check silently did not happen.
+func measuredFrom(set *runtime.Set) (measuredWindow, string) {
+	var m measuredWindow
+	// THE BASIS, AND IT MUST BE ONE THIS KNOWS.
+	if basis := textOf(set, "RelTo"); !strings.EqualFold(basis, supportedBasis) {
+		return m, fmt.Sprintf("this press says it was measured from %q, and the "+
+			"only thing a press can be checked against is the %s it was "+
+			"recorded in", basis, supportedBasis)
+	}
+	// THE WINDOW'S OWN TERMS, EVERY ONE REQUIRED.
+	for _, need := range []struct {
+		field, says string
+		into        *int
+	}{
+		{"WinW", "how wide that window was", &m.w},
+		{"WinH", "how tall that window was", &m.h},
+		{"Dpi", "what scale it was drawn at", &m.dpi},
+		{"RelX", "where across that window the press went", &m.rx},
+		{"RelY", "where down that window the press went", &m.ry},
+	} {
+		// AN OFFSET MAY BE ZERO — the window's own top or left edge — and a size
+		// may not. Whether an offset is INSIDE the window is a different
+		// complaint, asked once both of them have been read.
+		least := 1.0
+		if need.field == "RelX" || need.field == "RelY" {
+			least = -farthestPixel
+		}
+		n, stated, usable := wholeTerm(set, need.field, least)
+		switch {
+		case !stated:
+			return m, fmt.Sprintf("this press was recorded inside a window and "+
+				"does not say %s, so there is nothing to check it "+
+				"against — demonstrate it again", need.says)
+		case !usable:
+			return m, fmt.Sprintf("this press says %s in a way that is not a "+
+				"measurement, so it cannot be checked — demonstrate it "+
+				"again", need.says)
+		}
+		*need.into = n
+	}
+	if m.process = textOf(set, "Process"); m.process == "" {
+		return m, "this press was recorded inside a window and does not say which " +
+			"program owned it, so a window of the right size and scale " +
+			"belonging to something else would pass — demonstrate it again"
+	}
+	// ── AND THE PRESS MUST BE INSIDE THE WINDOW IT IS AN OFFSET INTO ──
+	//
+	// Every check after this one is about whether the window still matches, and all of
+	// them can pass while the arithmetic sends the cursor out of the window entirely:
+	// origin plus an offset is a point on the desktop, not a point in an app, and the
+	// window's size is the only thing that says which. An offset past its edge is input
+	// aimed at whatever happens to be next to the target — the neighbouring app, the
+	// desktop, another monitor — under a guard that has just confirmed the target is
+	// exactly as demonstrated.
+	//
+	// The RECORDED rectangle is the one it must be inside, because that is what the
+	// offset was measured in; by the time the press happens the live one has been shown
+	// to be the same size, so there is no second rectangle to choose between.
+	if m.rx < 0 || m.ry < 0 || m.rx >= m.w || m.ry >= m.h {
+		return m, fmt.Sprintf("this press is recorded %d,%d inside a %dx%d window, "+
+			"which is outside it, so resolving it would aim at whatever is "+
+			"beside that window rather than at anything in it",
+			m.rx, m.ry, m.w, m.h)
+	}
+	return m, ""
+}
+
+// wholeTerm reads one recorded number, telling ABSENT from MALFORMED from usable.
+//
+// Three outcomes and not two, because they are three different recordings and the person reading
+// the refusal is the one who has to tell them apart: a term the route never states is a
+// recording that was truncated or made by an older build, and a term stated as something that is
+// not a measurement is one that was edited by hand.
+//
+// `least` is the smallest honest value for that term. Fractions are refused as well as values out
+// of range: half a pixel of window width is not a window that was measured.
+func wholeTerm(set *runtime.Set, field string, least float64) (n int, stated, usable bool) {
+	v, has := set.Get(field)
+	if !has || v.IsAbsent() {
+		return 0, false, false
+	}
+	f, numeric := v.AsNumber()
+	if !numeric || f != math.Trunc(f) || f < least || f > farthestPixel {
+		return 0, true, false
+	}
+	return int(f), true, true
 }
 
 // guarded resolves a press against the window it was demonstrated in, having checked that window
@@ -1559,10 +1706,33 @@ func (h *Host) binding() (uintptr, string) {
 // [[ADR-248-replaying-a-demonstrated-layout]], where the same decision was made for the same
 // reason.
 //
-// A term the DEMONSTRATION does not carry is not checked — there is nothing to compare — and a
-// term the desktop will not report is a refusal, because this ran out of ways to tell.
-func (h *Host) guarded(set *runtime.Set, x, y, rx, ry int) (px, py int, why string) {
-	hwnd, app := h.binding()
+// # Why a missing term is a refusal and not a skipped check
+//
+// This read the other way round first: a term the demonstration did not carry was not checked,
+// because there was nothing to compare it against. That is the right rule for a route that
+// measured nothing, and it is the wrong one here, because it makes the guard's strength depend on
+// how much the recording happened to capture — and nothing in the route or the review says which
+// terms were skipped. A press with no recorded DPI passed on a desktop redrawn at another scale;
+// a press with no recorded program passed in a window belonging to something else entirely. The
+// check was still there, still named in the log, and answering about less than it appeared to.
+//
+// So a stated basis now requires every term, and the recorder writes them together or not at all
+// (see `newClick`): a press whose window would not report its size or its scale, or whose program
+// had gone by the time the recording closed, is saved as an ordinary point and pressed by the
+// rule every route before this was saved with. What cannot happen is a point that CLAIMS the
+// window and omits what the window was — the one case where a fallback would be pressing a
+// remembered pixel under cover of a guard.
+//
+// A term the DESKTOP will not report is a refusal for the same reason: this ran out of ways to
+// tell, and "could not tell" is not "matches".
+func (h *Host) guarded(set *runtime.Set, x, y int) (px, py int, why string) {
+	m, why := measuredFrom(set)
+	if why != "" {
+		return 0, 0, why
+	}
+	wantW, wantH, wantDpi, wantProc := m.w, m.h, m.dpi, m.process
+	rx, ry := m.rx, m.ry
+	hwnd, app, boundPID := h.binding()
 	if hwnd == 0 {
 		// NOTHING WAS BOUND. A guarded point has no window to be about: either no
 		// Activate ran, or the one that ran could not find its window. Refusing is
@@ -1571,6 +1741,15 @@ func (h *Host) guarded(set *runtime.Set, x, y, rx, ry int) (px, py int, why stri
 		return 0, 0, "this press was recorded inside a window and no window was " +
 			"brought to the front for it, so there is nothing to measure it " +
 			"against"
+	}
+	if boundPID == 0 {
+		// THE WINDOW WAS FOUND AND ITS OWNER WAS NOT. Without the process that
+		// held the handle at preparation time there is no way to tell this window
+		// from a second copy of the same program that inherited the handle, and
+		// the image-name check below would agree with both.
+		return 0, 0, fmt.Sprintf("the %s window brought to the front would not "+
+			"say which program it belongs to, so a press in it could not be "+
+			"told from a press in another copy of the same program", app)
 	}
 	// ── AND THE WINDOW AS IT IS, NOW, IMMEDIATELY BEFORE THE INPUT ──
 	//
@@ -1589,26 +1768,43 @@ func (h *Host) guarded(set *runtime.Set, x, y, rx, ry int) (px, py int, why stri
 			"would land in whatever is", app)
 	case f.W == 0 || f.H == 0:
 		return 0, 0, fmt.Sprintf("the %s window would not say how big it is", app)
+	case f.Dpi == 0:
+		// UNREADABLE IS NOT MATCHING. This press was recorded at a scale, and a
+		// desktop that will not report the current one cannot be compared with it
+		// — so the honest answer is that nobody can say whether the controls in
+		// that window are where they were drawn.
+		return 0, 0, fmt.Sprintf("the %s window would not say what scale it is "+
+			"drawn at, and this press was recorded at %d dpi", app, wantDpi)
+	case f.PID != boundPID:
+		// AND THE HANDLE'S OWNER HAS CHANGED SINCE PREPARATION. The image-name
+		// check below cannot see this: two copies of one program have the same
+		// executable, so the window answering here would pass it while being a
+		// window the route never brought to the front.
+		return 0, 0, fmt.Sprintf("the window prepared for this press was %s "+
+			"process %d and that handle now belongs to process %d, which is "+
+			"another copy of the program and not the one activated",
+			app, boundPID, f.PID)
 	}
-	// ── THE PROGRAM, WHEN BOTH SIDES KNOW IT ──
+	// ── THE PROGRAM, THROUGH THE HANDLE'S CURRENT OWNER ──
 	//
-	// Checked through the handle's CURRENT owner rather than the one bound, because
-	// window handles are reused: the window that answered all of the above can belong
-	// to something else by now, and everything it said would be true of that something
-	// else.
-	if want := textOf(set, "Process"); want != "" {
-		if is := imageOf(f.PID); is != "" && !strings.EqualFold(is, want) {
-			return 0, 0, fmt.Sprintf("this was recorded in %s and that window "+
-				"now belongs to %s", want, is)
-		}
+	// Asked of the owner now rather than the one bound, because window handles are
+	// reused: the window that answered all of the above can belong to something else by
+	// now, and everything it said would be true of that something else. A desktop that
+	// will not name the program refuses, for the same reason the DPI does above.
+	is := imageOf(f.PID)
+	switch {
+	case is == "":
+		return 0, 0, fmt.Sprintf("the program that owns the %s window will not "+
+			"say what it is, and this press was recorded in %s", app, wantProc)
+	case !strings.EqualFold(is, wantProc):
+		return 0, 0, fmt.Sprintf("this was recorded in %s and that window "+
+			"now belongs to %s", wantProc, is)
 	}
 	// ── THE SHAPE, EXACTLY ──
-	if w, h := setInt(set, "WinW"), setInt(set, "WinH"); w > 0 && h > 0 {
-		if f.W != w || f.H != h {
-			return 0, 0, fmt.Sprintf("this was recorded in a %s window of "+
-				"%dx%d and it is %dx%d now, so what is inside it is not "+
-				"where it was", app, w, h, f.W, f.H)
-		}
+	if f.W != wantW || f.H != wantH {
+		return 0, 0, fmt.Sprintf("this was recorded in a %s window of "+
+			"%dx%d and it is %dx%d now, so what is inside it is not "+
+			"where it was", app, wantW, wantH, f.W, f.H)
 	}
 	// ── AND THE SCALE, AS ITS OWN TERM ──
 	//
@@ -1616,10 +1812,10 @@ func (h *Host) guarded(set *runtime.Set, x, y, rx, ry int) (px, py int, why stri
 	// handles a DPI change relayouts every control inside a window whose outer
 	// rectangle never moved, so the check above passes and everything in the window is
 	// somewhere else.
-	if want := setInt(set, "Dpi"); want > 0 && f.Dpi > 0 && f.Dpi != want {
+	if f.Dpi != wantDpi {
 		return 0, 0, fmt.Sprintf("this was recorded at %d dpi and the %s window "+
 			"is at %d now, so what is inside it has been redrawn at another "+
-			"scale", want, app, f.Dpi)
+			"scale", wantDpi, app, f.Dpi)
 	}
 	px, py = f.Left+rx, f.Top+ry
 	mlog.Debug("click: guarded",

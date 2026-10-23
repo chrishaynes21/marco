@@ -84,13 +84,18 @@ func TestOnlyAPressCarriesTheProgramName(t *testing.T) {
 	}
 }
 
-// AND A PROGRAM THAT HAS ALREADY GONE LEAVES THE NAME EMPTY.
+// AND A PROGRAM THAT HAS ALREADY GONE TAKES THE WHOLE MEASUREMENT WITH IT.
 //
-// Left as nothing rather than filled from the app poller's last sample, which is the one answer
-// available and the wrong one: the whole point of these five terms is that somebody measured
-// them. A routine whose window belonged to something no longer running has no process identity
-// to check against, and saying so is the honest result.
-func TestAProgramThatHasGoneLeavesTheNameEmpty(t *testing.T) {
+// Not filled from the app poller's last sample, which is the one answer available and the wrong
+// one: the point of these five terms is that somebody measured them. And not left as a window
+// with a nameless owner either, which is what this did first — because a press that states a
+// basis is asking replay to CHECK it, replay requires every term, and a point carrying four of
+// five is a routine recorded honestly that can never run.
+//
+// So the basis comes off and the press is saved as an ordinary point, pressed by the rule every
+// route before this was saved with. It is the same all-or-none rule the press itself applies
+// (`newClick`), reaching the one term that cannot be read while the hooks are up.
+func TestAProgramThatHasGoneUnmeasuresTheWindow(t *testing.T) {
 	events := aRecordingAcrossTwoPrograms()
 	resolveImages(events, func(uint32) string { return "" })
 
@@ -100,27 +105,34 @@ func TestAProgramThatHasGoneLeavesTheNameEmpty(t *testing.T) {
 				i, events[i].Process)
 		}
 	}
-	// AND THE REST OF THE MEASUREMENT IS UNTOUCHED. The name failing does not
-	// unmeasure the window.
-	if events[0].WinW != 1920 || events[0].Dpi != 96 || events[0].RelTo != "window" {
-		t.Errorf("a failed name lookup disturbed the window it was about: %+v",
-			events[0])
+	e := events[0]
+	if e.RelTo != "" || e.WinW != 0 || e.WinH != 0 || e.Dpi != 0 {
+		t.Errorf("the press still claims a window it cannot name the owner of: "+
+			"%+v", e)
+	}
+	// AND IT IS STILL AN ORDINARY POINT. The offset and the coordinate are what the
+	// legacy path runs on, and losing those would make the press unreplayable rather
+	// than unguarded.
+	if !e.WinRel || e.RelX != 742 || e.RelY != 224 || e.X != 842 || e.Y != 274 {
+		t.Errorf("the press lost its coordinate as well as its basis: %+v", e)
 	}
 }
 
-// AND A PRESS WITH NO PROCESS IS NOT LOOKED UP AT ALL.
+// AND A PRESS WHOSE OWNER THE HOOK COULD NOT READ IS NOT LOOKED UP AT ALL.
 //
 // Process id zero means the hook could not read the owner. There is nothing to ask about, and
-// asking anyway would be a handle open against process zero on every such event.
+// asking anyway would be a handle open against process zero on every such event. It is
+// unmeasured for the same reason as above: no owner, no guarded press.
 func TestAPressWithNoProcessIsNotLookedUp(t *testing.T) {
-	events := []RecordedEvent{{Kind: EvClick, Down: true, WinRel: true, X: 1, Y: 1}}
+	events := []RecordedEvent{{Kind: EvClick, Down: true, WinRel: true, X: 1, Y: 1,
+		RelX: 1, RelY: 1, RelTo: "window", WinW: 800, WinH: 600, Dpi: 96}}
 	asked := 0
 	resolveImages(events, func(uint32) string { asked++; return "something.exe" })
 
 	if asked != 0 {
 		t.Errorf("%d lookup(s) for a press whose owner could not be read", asked)
 	}
-	if events[0].Process != "" {
-		t.Errorf("a press with no process was named %q", events[0].Process)
+	if events[0].Process != "" || events[0].RelTo != "" {
+		t.Errorf("a press with no process kept its window: %+v", events[0])
 	}
 }

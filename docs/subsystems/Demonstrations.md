@@ -96,7 +96,16 @@ that control, though a saved play still cannot say it (`cannot_say_pointer`, fol
   of its offset, the window's outer size, its DPI as its own term and the program that owned it,
   all the way into saved legal Marco; replay binds the window at `Activate` and re-reads THAT
   handle before every press, refusing exactly rather than falling back. Carrying the terms is
-  the opt-in, so every route already saved runs by the rule it was saved with
+  the opt-in, so every route already saved runs by the rule it was saved with. **And the terms go
+  all of them or none**: the recording side degrades to an ordinary point when it cannot measure
+  everything, the replay side refuses anything that states the basis and omits a term, and
+  unreadable is never read as matching — because a check skipped for want of a term is a guard
+  whose strength depends on what the recording happened to capture and which says nowhere that it
+  was skipped. The window is bound WITH THE PROCESS THAT OWNED IT, since two copies of one program
+  share an executable name and only the process id separates the window the route prepared from
+  one that inherited the handle; and the offset must lie inside the recorded rectangle, because
+  origin-plus-offset is a point on the desktop and every other check can pass while the cursor
+  leaves the window
 - [[ADR-250-the-recorder-runs-in-the-window]] — and the window those four buttons are in. The
   recorder-first path runs in Studio's OWN process, because a draft that writes nothing cannot
   cross a process boundary without being written somewhere; so Studio supplies its own process

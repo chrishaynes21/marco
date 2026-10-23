@@ -437,6 +437,52 @@ func TestReviewSaysWhatThePressMeasured(t *testing.T) {
 	}
 }
 
+// AND REVIEW SAYS SO WHEN A PRESS MEASURED NO WINDOW AT ALL.
+//
+// The recorder writes the window terms together or not at all, so a press whose window would not
+// report its size or its scale — and one whose program had gone by the time the recording closed
+// — is saved as an ordinary point: pressed at the coordinate it was demonstrated at, checked
+// against nothing. That is a real difference in what the routine will do, and review is the one
+// place it can be seen before the routine is kept. Said in words rather than shown as the
+// absence of a parenthesis nobody was looking for.
+func TestReviewSaysWhenAPressMeasuredNoWindow(t *testing.T) {
+	t.Setenv("MARCO_CV", "off")
+	t.Setenv("MARCO_ROUTES", t.TempDir())
+	a := newActs(t.TempDir())
+	a.recording = func() recorder.Recorder {
+		return &heldRecorder{events: []recorder.RecordedEvent{
+			{Kind: recorder.EvAppSwitch, KeyName: "arkascended", T: at(0)},
+			// AN OFFSET AND NO BASIS: the window was there and could not be
+			// fully measured, which is what the recorder leaves behind.
+			{Kind: recorder.EvClick, Button: "left", Down: true, X: 842, Y: 274,
+				App: "arkascended", PID: gamePID, T: at(100),
+				WinRel: true, RelX: 722, RelY: 210},
+			{Kind: recorder.EvClick, Button: "left", Down: false, X: 842, Y: 274,
+				App: "arkascended", PID: gamePID, T: at(105)},
+		}}
+	}
+	if why := a.StartRecording("ark graphics"); why != "" {
+		t.Fatal(why)
+	}
+	if why := a.StopRecording(); why != "" {
+		t.Fatal(why)
+	}
+
+	line := ""
+	for _, s := range a.Recording().Steps {
+		if strings.Contains(s, "click") {
+			line = s
+		}
+	}
+	if line == "" {
+		t.Fatal("review lists no click at all")
+	}
+	if !strings.Contains(line, "window not measured") {
+		t.Errorf("review says %q, and this press claims no window, so a run "+
+			"will press its coordinate without checking anything", line)
+	}
+}
+
 // AND A RECORDING OF NOTHING SAYS SO IN REVIEW, RATHER THAN BEING SAVED.
 //
 // The case where somebody presses Record, changes their mind, and presses Stop: the only events

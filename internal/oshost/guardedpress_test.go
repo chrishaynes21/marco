@@ -48,17 +48,35 @@ var sameWindowMoved = winctx.WindowFacts{
 
 // aGuardedPress is the Point a recorder-first click saves: the desktop coordinate, the offset
 // inside the window, what that offset is measured from, and what the window was like.
-func aGuardedPress() *runtime.Set {
+func aGuardedPress() *runtime.Set { return aGuardedPressWithout("") }
+
+// aGuardedPressWithout is the same point with one field NEVER WRITTEN.
+//
+// Which is what a truncated route, or one hand-edited, or one from a build that measured less
+// actually looks like: the field is absent from the set rather than present and empty. The
+// engine's `Get` tells those apart and so does the guard, so the test has to produce the real
+// one.
+func aGuardedPressWithout(missing string) *runtime.Set {
 	s := runtime.NewSet()
-	s.Put("X", runtime.Number(842))
-	s.Put("Y", runtime.Number(274))
-	s.Put("RelX", runtime.Number(722))
-	s.Put("RelY", runtime.Number(210))
-	s.Put("RelTo", runtime.Text(macroir.RelToWindow))
-	s.Put("WinW", runtime.Number(1920))
-	s.Put("WinH", runtime.Number(1080))
-	s.Put("Dpi", runtime.Number(144))
-	s.Put("Process", runtime.Text("arkascended.exe"))
+	for _, f := range []struct {
+		name string
+		v    runtime.Value
+	}{
+		{"X", runtime.Number(842)},
+		{"Y", runtime.Number(274)},
+		{"RelX", runtime.Number(722)},
+		{"RelY", runtime.Number(210)},
+		{"RelTo", runtime.Text(macroir.RelToWindow)},
+		{"WinW", runtime.Number(1920)},
+		{"WinH", runtime.Number(1080)},
+		{"Dpi", runtime.Number(144)},
+		{"Process", runtime.Text("arkascended.exe")},
+	} {
+		if f.name == missing {
+			continue
+		}
+		s.Put(f.name, f.v)
+	}
 	return s
 }
 
@@ -85,8 +103,17 @@ func steady(f winctx.WindowFacts) func(uintptr) winctx.WindowFacts {
 }
 
 // aPreparedRun is a host that has bound the game's window, as Activate does.
+//
+// It binds against the window AS IT WAS WHEN THE ROUTE PREPARED — the healthy one — whatever
+// desktop a case has installed for the press. That is the shape of every case here: the window
+// Activate found was fine, and what the case describes is what happened in the gap between the
+// two instants. Binding against the case's own desktop would mean a closed window had never been
+// activated, which is a different test and one that already exists.
 func aPreparedRun(t *testing.T) (*Host, *recBackend) {
 	t.Helper()
+	wasFacts := windowFacts
+	windowFacts = steady(sameWindowMoved)
+	defer func() { windowFacts = wasFacts }()
 	rec := &recBackend{}
 	h := &Host{b: rec}
 	h.bindAt(theGameWindow, "arkascended")
@@ -220,6 +247,8 @@ func TestTheWindowIsReadAgainBeforeEveryPress(t *testing.T) {
 		return sameWindowMoved
 	}, "arkascended.exe")
 	h, rec := aPreparedRun(t)
+	// The bind reads a window too, and `aPreparedRun` keeps that read off this
+	// counter — so `seen` counts presses and nothing else.
 
 	for i := 0; i < 2; i++ {
 		if st, _, _ := call(h, "Click", runtime.SetVal(aGuardedPress())); st != "ok" {
@@ -237,37 +266,257 @@ func TestTheWindowIsReadAgainBeforeEveryPress(t *testing.T) {
 	}
 }
 
-// AND A TERM THE DEMONSTRATION DOES NOT CARRY IS NOT CHECKED.
+// AND A TERM THE DEMONSTRATION DOES NOT CARRY IS A REFUSAL, NOT A SKIPPED CHECK.
 //
-// A press recorded where Windows would not report the DPI, or whose program had already exited,
-// has nothing to compare. Refusing on an absent term would refuse every such routine for the
-// crime of having been recorded honestly.
-func TestATermTheDemonstrationLacksIsNotChecked(t *testing.T) {
-	odd := sameWindowMoved
-	odd.Dpi = 96 // differs from nothing, because nothing was recorded
-	onADesktopLike(t, steady(odd), "chrome.exe")
+// This read the other way round first — a term with nothing to compare against was not compared
+// — and that is a guard whose strength depends on how much the recording happened to capture,
+// with nothing anywhere saying which checks did not happen. A press missing its DPI passed on a
+// desktop redrawn at another scale; a press missing its program passed in a window belonging to
+// something else. The log said "guarded" for both.
+//
+// So a press that states a basis must carry all of it. The recording side has the matching rule
+// and writes the terms together or not at all, which is why these cases are a hand-edited or
+// truncated route rather than an honestly recorded one — and the sentence says so.
+//
+// Every case asserts ZERO INPUT. A refusal that still moved the cursor would be the finding this
+// closes, one step later.
+func TestAGuardedPressRefusesEveryTermItCannotCheck(t *testing.T) {
+	for _, c := range []struct {
+		what string
+		omit string
+		edit func(*runtime.Set)
+		says string
+	}{
+		// ── MISSING, which means the field is not in the route at all ──
+		{what: "the window's width is not recorded", omit: "WinW", says: "how wide"},
+		{what: "the window's height is not recorded", omit: "WinH", says: "how tall"},
+		{what: "the scale is not recorded", omit: "Dpi", says: "what scale"},
+		{what: "the program is not recorded", omit: "Process",
+			says: "which program"},
+		// AND THE OFFSET ITSELF, which is the bypass this had: a point stating a
+		// window with no offset to resolve inside it missed the guarded path
+		// altogether and was pressed at its recorded coordinate, unchecked.
+		{what: "the offset across the window is not recorded", omit: "RelX",
+			says: "where across"},
+		{what: "the offset down the window is not recorded", omit: "RelY",
+			says: "where down"},
+		// AND A FIELD PRESENT AND EMPTY is the same refusal as an absent one.
+		// Two shapes on disk, one meaning: nobody measured it.
+		{what: "the scale is written as nothing at all", omit: "",
+			edit: func(s *runtime.Set) { s.Put("Dpi", runtime.Absent()) },
+			says: "what scale"},
+		// ── MALFORMED ──
+		{what: "the width is text rather than a measurement",
+			edit: func(s *runtime.Set) { s.Put("WinW", runtime.Text("1920")) },
+			says: "not a measurement"},
+		{what: "the scale is zero, which is not a scale",
+			edit: func(s *runtime.Set) { s.Put("Dpi", runtime.Number(0)) },
+			says: "not a measurement"},
+		{what: "the height is negative",
+			edit: func(s *runtime.Set) { s.Put("WinH", runtime.Number(-1080)) },
+			says: "not a measurement"},
+		{what: "the width is a fraction of a pixel",
+			edit: func(s *runtime.Set) { s.Put("WinW", runtime.Number(1920.5)) },
+			says: "not a measurement"},
+		{what: "the width is a number no desktop could be",
+			edit: func(s *runtime.Set) { s.Put("WinW", runtime.Number(4e9)) },
+			says: "not a measurement"},
+		// ── AND A BASIS THIS DOES NOT KNOW HOW TO CHECK ──
+		//
+		// Not resolved as origin-plus-offset in a window because it did not say
+		// window. A point relative to a control or to a screen is different
+		// arithmetic, and guessing which would be answering a question nobody
+		// asked. Crucially it must not fall through to the legacy path either:
+		// that path presses the recorded coordinate having checked nothing.
+		{what: "the basis is one this does not know",
+			edit: func(s *runtime.Set) { s.Put("RelTo", runtime.Text("screen")) },
+			says: `measured from "screen"`},
+	} {
+		t.Run(c.what, func(t *testing.T) {
+			// A DESKTOP THAT AGREES WITH EVERY TERM, so the refusal can only
+			// have come from the recording and not from a disagreement.
+			onADesktopLike(t, steady(sameWindowMoved), "arkascended.exe")
+			h, rec := aPreparedRun(t)
+			s := aGuardedPressWithout(c.omit)
+			if c.edit != nil {
+				c.edit(s)
+			}
+
+			st, v, _ := call(h, "Click", runtime.SetVal(s))
+			if st != "failed" {
+				t.Fatalf("the press was %q carrying a window it cannot be "+
+					"checked against", st)
+			}
+			if len(rec.moves) != 0 || len(rec.clicks) != 0 {
+				t.Errorf("input was sent anyway: moves=%v clicks=%v",
+					rec.moves, rec.clicks)
+			}
+			if said := errText(v); !contains(said, c.says) {
+				t.Errorf("the refusal says %q and does not mention %q",
+					said, c.says)
+			}
+		})
+	}
+}
+
+// AND A TERM THE DESKTOP WILL NOT REPORT IS A REFUSAL TOO, BECAUSE UNREADABLE IS NOT MATCHING.
+//
+// The other half of the same finding, on the live side: a window that will not say what scale it
+// is drawn at, and a program that will not say what it is, were both read as agreement. Nothing
+// had been compared — the comparison was simply skipped — and the press went in.
+func TestAGuardedPressRefusesWhatTheDesktopWillNotReport(t *testing.T) {
+	for _, c := range []struct {
+		what    string
+		facts   winctx.WindowFacts
+		program string
+		says    string
+	}{
+		{"the window will not say what scale it is drawn at",
+			with(sameWindowMoved, func(f *winctx.WindowFacts) { f.Dpi = 0 }),
+			"arkascended.exe", "what scale it is drawn at"},
+		{"the program that owns it will not say what it is",
+			sameWindowMoved, "", "will not say what it is"},
+	} {
+		t.Run(c.what, func(t *testing.T) {
+			onADesktopLike(t, steady(c.facts), c.program)
+			h, rec := aPreparedRun(t)
+
+			st, v, _ := call(h, "Click", runtime.SetVal(aGuardedPress()))
+			if st != "failed" {
+				t.Fatalf("the press was %q against a window that could not "+
+					"be compared with the recorded one", st)
+			}
+			if len(rec.moves) != 0 || len(rec.clicks) != 0 {
+				t.Errorf("input was sent anyway: moves=%v clicks=%v",
+					rec.moves, rec.clicks)
+			}
+			if said := errText(v); !contains(said, c.says) {
+				t.Errorf("the refusal says %q and does not mention %q",
+					said, c.says)
+			}
+		})
+	}
+}
+
+// AND THE PRESS MUST LAND INSIDE THE WINDOW IT WAS MEASURED IN.
+//
+// Every other check can pass while the arithmetic sends the cursor out of the window entirely:
+// origin plus an offset is a point on the desktop and the window's size is the only thing that
+// says whether it is a point in the app. An offset past the edge is input aimed at whatever sits
+// beside the target — the next app, the desktop, another monitor — underneath a guard that has
+// just confirmed the target is exactly as demonstrated.
+//
+// All four edges, because each is a different arithmetic mistake, and because the inclusive one
+// is the easy half to get wrong: an offset of exactly the width is the first pixel OUTSIDE a
+// window whose columns run 0 to width-1.
+func TestAGuardedPressRefusesAnOffsetOutsideItsOwnWindow(t *testing.T) {
+	for _, c := range []struct {
+		what   string
+		rx, ry int
+	}{
+		{"left of the window", -1, 210},
+		{"above the window", 722, -1},
+		{"one pixel past the right edge", 1920, 210},
+		{"one pixel past the bottom edge", 722, 1080},
+	} {
+		t.Run(c.what, func(t *testing.T) {
+			onADesktopLike(t, steady(sameWindowMoved), "arkascended.exe")
+			h, rec := aPreparedRun(t)
+			s := aGuardedPress()
+			s.Put("RelX", runtime.Number(float64(c.rx)))
+			s.Put("RelY", runtime.Number(float64(c.ry)))
+
+			st, v, _ := call(h, "Click", runtime.SetVal(s))
+			if st != "failed" {
+				t.Fatalf("a press %d,%d inside a 1920x1080 window was %q",
+					c.rx, c.ry, st)
+			}
+			if len(rec.moves) != 0 || len(rec.clicks) != 0 {
+				t.Errorf("input was sent outside the window the guard had "+
+					"just approved: moves=%v clicks=%v",
+					rec.moves, rec.clicks)
+			}
+			if said := errText(v); !contains(said, "outside it") {
+				t.Errorf("the refusal says %q", said)
+			}
+		})
+	}
+
+	// AND THE LAST PIXEL INSIDE IS STILL INSIDE. The bound is exclusive at the far
+	// edge and inclusive at the near one, and a check that refused either of these
+	// would refuse a press on the window's own edge — which is where a maximised
+	// app's close button is.
+	onADesktopLike(t, steady(sameWindowMoved), "arkascended.exe")
 	h, rec := aPreparedRun(t)
-
-	s := aGuardedPress()
-	s.Put("Dpi", runtime.Number(0))
-	s.Put("Process", runtime.Text(""))
-
-	if st, _, _ := call(h, "Click", runtime.SetVal(s)); st != "ok" {
-		t.Fatalf("a press that recorded no DPI and no program was refused for "+
-			"disagreeing with them: %q", st)
+	for _, in := range [][2]int{{0, 0}, {1919, 1079}} {
+		s := aGuardedPress()
+		s.Put("RelX", runtime.Number(float64(in[0])))
+		s.Put("RelY", runtime.Number(float64(in[1])))
+		if st, v, _ := call(h, "Click", runtime.SetVal(s)); st != "ok" {
+			t.Fatalf("a press at %v inside the window was %q: %s", in, st,
+				errText(v))
+		}
 	}
-	if len(rec.moves) != 1 || rec.moves[0] != [2]int{500 + 722, 300 + 210} {
-		t.Errorf("pressed at %v, want the origin (500,300) plus the offset "+
-			"(722,210)", rec.moves)
+	want := [][2]int{{500, 300}, {500 + 1919, 300 + 1079}}
+	if len(rec.moves) != 2 || rec.moves[0] != want[0] || rec.moves[1] != want[1] {
+		t.Errorf("pressed at %v, want %v", rec.moves, want)
 	}
-	// AND THE SIZE IS STILL CHECKED. Absent terms are skipped one at a time, not as a
-	// group: a point with no DPI has not opted out of everything else.
-	bigger := odd
-	bigger.W = 1600
-	onADesktopLike(t, steady(bigger), "")
-	if st, _, _ := call(h, "Click", runtime.SetVal(s)); st != "failed" {
-		t.Errorf("a resized window was accepted %q because the DPI was not "+
-			"recorded", st)
+}
+
+// AND THE HANDLE MUST STILL BELONG TO THE PROCESS THE ROUTE PREPARED.
+//
+// The case the program name cannot see. Windows reuses window handles, and two copies of one
+// program have the same executable — so a handle inherited by a second instance of the game
+// answers the image-name check correctly, reports a window of the recorded size and scale, and is
+// a window the route never brought to the front. A press in it is a press in somebody else's
+// game.
+//
+// This is why the process id is read at `Activate` and not at the press: asked at the press it
+// would be the identity of whatever holds the handle by then, compared against itself.
+func TestAGuardedPressRefusesTheSameProgramInAnotherProcess(t *testing.T) {
+	another := sameWindowMoved
+	another.PID = 9001 // a second copy of the game, same executable, same shape
+	onADesktopLike(t, steady(another), "arkascended.exe")
+	h, rec := aPreparedRun(t) // bound while PID 4812 held the handle
+
+	st, v, _ := call(h, "Click", runtime.SetVal(aGuardedPress()))
+	if st != "failed" {
+		t.Fatalf("the press was %q in a window belonging to another copy of the "+
+			"same program", st)
+	}
+	if len(rec.moves) != 0 || len(rec.clicks) != 0 {
+		t.Errorf("input was sent into another process's window: moves=%v clicks=%v",
+			rec.moves, rec.clicks)
+	}
+	said := errText(v)
+	if !contains(said, "4812") || !contains(said, "9001") {
+		t.Errorf("the refusal says %q and does not name both processes", said)
+	}
+}
+
+// AND A WINDOW BOUND WITHOUT AN OWNER IS NOT A PREPARED WINDOW.
+//
+// Activate found a window and the desktop would not say whose it was. There is then nothing to
+// compare the press-moment owner against, so the identity check could not fail — and the image
+// name agrees with every copy of the program. Refused at preparation rather than passed through
+// as a check that cannot run.
+func TestAGuardedPressRefusesAWindowBoundWithoutAnOwner(t *testing.T) {
+	nameless := with(sameWindowMoved, func(f *winctx.WindowFacts) { f.PID = 0 })
+	onADesktopLike(t, steady(nameless), "arkascended.exe")
+	rec := &recBackend{}
+	h := &Host{b: rec}
+	h.bindAt(theGameWindow, "arkascended") // bound against the nameless window
+
+	st, v, _ := call(h, "Click", runtime.SetVal(aGuardedPress()))
+	if st != "failed" {
+		t.Fatalf("the press was %q against a window nobody could say the owner "+
+			"of", st)
+	}
+	if len(rec.moves) != 0 {
+		t.Errorf("input was sent to %v", rec.moves)
+	}
+	if said := errText(v); !contains(said, "which program it belongs to") {
+		t.Errorf("the refusal says %q", said)
 	}
 }
 

@@ -200,3 +200,65 @@ func TestAPressWithNoReadableWindowRecordsNothingAboutOne(t *testing.T) {
 			"describe itself", down.PID)
 	}
 }
+
+// AND A WINDOW THAT ANSWERS INCOMPLETELY STATES NO BASIS, SO IT IS AN ORDINARY POINT.
+//
+// Stating the basis is what asks a replay to CHECK a press against its window, and the replay
+// side requires every term with no fallback. So a press that measured four of the five terms
+// must not claim the window at all: it would be a routine recorded honestly that can never run.
+// It keeps its coordinate and its offset and is pressed by the rule every route before this was
+// saved with.
+//
+// Two ways to answer incompletely, and both are real desktops:
+//
+//   - NO SCALE. `GetDpiForWindow` does not exist before Windows 10 1607, and the shape read
+//     returns `ok` with a zero DPI rather than failing — the rectangle was readable, the scale
+//     was not.
+//   - THE PRESS IS OUTSIDE THE WINDOW IT WAS ATTRIBUTED TO. Which is what a click that CHANGED
+//     the foreground looks like from inside the hook: the attribution still names the window
+//     that was in front at that instant, and the click landed in the one it was about to raise.
+//     An offset of -40 into a window is not a measurement of anything.
+func TestAnIncompletelyMeasuredPressStatesNoBasis(t *testing.T) {
+	for _, c := range []struct {
+		what                 string
+		left, top, w, h, dpi int
+		x, y                 int
+	}{
+		{"the window will not say what scale it is drawn at",
+			120, 64, 1920, 1080, 0, 1511, 913},
+		{"the press is left of the window it was attributed to",
+			120, 64, 1920, 1080, 144, 80, 913},
+		{"the press is above the window it was attributed to",
+			120, 64, 1920, 1080, 144, 1511, 40},
+		{"the press is past the right edge of it",
+			120, 64, 800, 600, 144, 1511, 400},
+		{"the press is past the bottom edge of it",
+			120, 64, 800, 600, 144, 400, 913},
+	} {
+		t.Run(c.what, func(t *testing.T) {
+			onTheGameWithMarcoInFront(t, 9140)
+			aWindowLike(t, marcosWindow, c.left, c.top, c.w, c.h, c.dpi)
+
+			down := newClick("left", true, c.x, c.y)
+
+			if down.RelTo != "" || down.WinW != 0 || down.WinH != 0 ||
+				down.Dpi != 0 {
+				t.Errorf("the press claims a window it did not fully "+
+					"measure: relTo=%q %dx%d dpi=%d", down.RelTo,
+					down.WinW, down.WinH, down.Dpi)
+			}
+			// AND IT IS STILL AN ORDINARY POINT. Losing the basis must not
+			// lose the press: the coordinate and the offset are what the
+			// legacy path runs on.
+			if down.X != c.x || down.Y != c.y {
+				t.Errorf("the press lost its coordinate: (%d,%d), want "+
+					"(%d,%d)", down.X, down.Y, c.x, c.y)
+			}
+			if !down.WinRel || down.RelX != c.x-c.left || down.RelY != c.y-c.top {
+				t.Errorf("the press lost its offset: winRel=%v (%d,%d), "+
+					"want (%d,%d)", down.WinRel, down.RelX, down.RelY,
+					c.x-c.left, c.y-c.top)
+			}
+		})
+	}
+}

@@ -515,8 +515,31 @@ func newClick(button string, down bool, x, y int) RecordedEvent {
 		// resolved from `PID` once the capture is over. See `resolveImages`.
 		if left, top, w, h, dpi, ok := clickShape(hwnd); ok {
 			ev.RelX, ev.RelY, ev.WinRel = x-left, y-top, true
-			ev.RelTo = macroir.RelToWindow
-			ev.WinW, ev.WinH, ev.Dpi = w, h, dpi
+			// ── AND THE BASIS GOES IN ONLY WITH EVERY TERM BESIDE IT ──
+			//
+			// Stating the basis is what asks a replay to CHECK this press
+			// against the window, and a check missing a term is not a lenient
+			// check — it is one that reads as a guard and answers about less
+			// than it appears to. So all of them or none: a window that
+			// would not report its size, or that Windows will not report a
+			// scale for (no `GetDpiForWindow` before Windows 10 1607), and a
+			// press whose offset falls outside the window it was attributed
+			// to — which is what a click that CHANGED the foreground looks
+			// like from inside the hook — record as an ordinary point and are
+			// pressed by the rule every route before this was saved with.
+			//
+			// This is the one place where less evidence means less checking
+			// rather than a refusal, and the degrading belongs on this side
+			// rather than at replay because the alternative is a routine
+			// that can never run on the machine that recorded it. The replay
+			// side has the opposite rule and no fallback, and a point that
+			// claims the window without the terms is refused there: see
+			// `oshost.guarded`.
+			inside := x >= left && y >= top && x-left < w && y-top < h
+			if w > 0 && h > 0 && dpi > 0 && inside {
+				ev.RelTo = macroir.RelToWindow
+				ev.WinW, ev.WinH, ev.Dpi = w, h, dpi
+			}
 		}
 		ev.Window = winctx.ForegroundTitle() // context: which window was clicked
 	}

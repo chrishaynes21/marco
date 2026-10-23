@@ -7170,3 +7170,48 @@ See [[ADR-251-a-press-checks-the-window-it-was-recorded-in]].
 
 **Outstanding, and separate:** the owner's Stop-button trial (recording and the window), and a
 live acceptance run of guarded coordinate replay. Everything above is automated evidence only.
+
+## 38D — a check that is written and does not run
+
+Source review of 38C found three gaps, all of them the same shape. Not a missing comparison: a
+comparison whose condition was the thing it was meant to be comparing.
+
+**Every term was checked "if both sides know it".** Which reads as careful and means the guard's
+strength depends on how much the recording happened to capture — with nothing in the route, the
+log or the review saying which checks did not happen. A press with no recorded DPI passed on a
+desktop redrawn at another scale. A press with no recorded program passed in a window belonging
+to something else. The log line said `click: guarded` for both. The entry condition had the same
+flaw at a larger size: it required a stated basis AND a usable offset, so a point claiming a
+window with no offset inside it missed the guard entirely and was pressed at its recorded
+coordinate.
+
+So the terms go all of them or none, and the two sides carry it differently. The recording side
+DEGRADES — a window that will not report its size, a Windows with no `GetDpiForWindow`, a press
+whose offset falls outside the window it was attributed to, a program that had exited by the time
+the hooks came down: each records an ordinary point and is pressed by the rule every route before
+this was saved with. The replay side REFUSES — missing, malformed, out of range, an unsupported
+basis, and anything the desktop will not report, each named in the sentence. Studio's review
+writes `(window not measured)` beside such a press, so the difference in what the routine will do
+is visible before the routine is kept.
+
+**A handle is not an identity.** Preparation kept the handle and the app string, and two copies
+of one program share an executable name — so a handle inherited by a second instance of the game
+answered the image-name check correctly, reported a window of the recorded size and scale, and
+was a window the route never brought to the front. The process id is now read at `Activate` and
+compared before the press. It has to be read there: asked at the press it would be the identity
+of whatever holds the handle by then, compared against itself.
+
+**And the press has to land in the window.** Origin plus an offset is a point on the desktop. Same
+program, same process, same size, same scale, in front, alive — and the arithmetic could still
+send the cursor out of the window into whatever sits beside it, under a guard that had just
+confirmed the target was exactly as demonstrated. The offset is now required to lie inside the
+recorded rectangle, far edges exclusive, so a press on a maximised window's own edge is still
+honoured.
+
+Fifteen mutations killed. Seven of the fifteen are a written check that does not run, which is
+the shape to look for next.
+
+See [[ADR-251-a-press-checks-the-window-it-was-recorded-in]].
+
+**Still outstanding, and still separate:** the owner's Stop-button trial, and a live acceptance
+run of guarded coordinate replay.
