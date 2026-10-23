@@ -86,6 +86,11 @@ that control, though a saved play still cannot say it (`cannot_say_pointer`, fol
 - [[ADR-057-attributed-input-survives-interpretation]]
 - [[ADR-065-operating-marco-is-not-demonstrating-to-it]]
 - [[ADR-066-stop-is-a-product-event]]
+- [[ADR-249-ending-a-recording-is-not-part-of-the-recording]] — the same two decisions, arrived
+  at again in the widget recorder once Studio got a visible Stop button: the recorder's own
+  window is excluded wherever it appears, by the process that owned the foreground at the
+  INSTANT of each event rather than by a name an interval poller sampled, and Stop, Cancel and
+  Save are three acts rather than one
 - [[ADR-058-a-demonstrated-target-may-keep-its-name]]
 - [[ADR-074-one-demonstration-every-leg-reviewed]] — every leg of one demonstration is reviewed,
 - [[ADR-075-a-learn-episode-outlives-its-sessions]] — session boundaries are not Audience workflow

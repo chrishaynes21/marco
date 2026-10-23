@@ -33,6 +33,11 @@ package orchestrator
 // app name a poller sampled: a name can be stale, and the one case where it is stale is a click
 // made in the GAME shortly after looking at Marco — exactly the click this exists to save. App
 // switches are the one exception, because a switch carries no process at all.
+//
+// And taking a switch out leaves its RETURN behind, announcing an app that is already in front.
+// `simplify.foldActivates` would collapse that redundant activate — but only after it has
+// already deleted the step beside it as the gesture that performed the switch, so the glance
+// eats the demonstrated click either way. `withoutRedundantReturns` does the collapse first.
 
 import (
 	"encoding/json"
@@ -124,7 +129,9 @@ func (d Deps) Record(name string) (*Draft, error) {
 	events := stripTrailingStop(d.Rec.Stop(), stop)
 	// THE OWNER'S WINDOW COMES OUT WHEREVER IT IS, not only at the end. See the
 	// package note above for why the tail alone is not enough here.
-	events = withoutOwner(events, d.Owner, d.OwnerPID)
+	if d.Owner != "" || d.OwnerPID != 0 {
+		events = withoutRedundantReturns(withoutOwner(events, d.Owner, d.OwnerPID))
+	}
 
 	opts := d.learnOptions()
 	opts.ArgNames = argNames
@@ -258,6 +265,48 @@ func withoutOwner(events []recorder.RecordedEvent, owner string,
 			continue
 		}
 		press = nil
+		out = append(out, e)
+	}
+	return out
+}
+
+// withoutRedundantReturns drops an app switch naming the application already in front.
+//
+// Such a switch is created by the exclusion above rather than by the demonstration: the
+// recorder's poller emits a switch only when its sample CHANGES, so two switches naming the same
+// app cannot both reach here until something between them has been taken out. A glance at Marco
+// and the return from it are one `studio` sample and one `arkascended` sample — and with the
+// `studio` gone, the `arkascended` announces a switch to a window that never left the front.
+//
+// It has to happen BEFORE `simplify`, because `simplify.foldActivates` does these two things in
+// the order that loses the demonstration. It first drops the step immediately before an activate
+// as the gesture that performed the switch, and only then collapses an activate that re-focuses
+// the app in effect — so the redundant return takes the demonstrated click beside it on the way
+// out, and is then removed itself, leaving no trace of what it cost. Collapsing it first leaves
+// the gesture rule nothing to fire on.
+//
+// This is the second shape of the same failure and it is the ORDINARY one. The stale-name case
+// needs the person to click within one poll of returning to the game; this one is what a glance
+// looks like whenever the poller samples both sides of it, which over a visit long enough to
+// read something is every time. It was missed because the fixture omitted the return.
+//
+// `simplify` itself is untouched and this runs only where a window is being excluded, so the
+// draft path is the only path whose stream changes. `LearnAuto` keeps the behaviour it shipped
+// with — it strips only the TAIL, so a mid-visit glance leaves its switch in the stream and the
+// click before it still goes, exactly as it did before any of this. That is a real limitation of
+// the legacy path and it is left alone on purpose: Studio's recording goes through the draft.
+func withoutRedundantReturns(events []recorder.RecordedEvent) []recorder.RecordedEvent {
+	out := make([]recorder.RecordedEvent, 0, len(events))
+	// inFront is the app named by the last switch that survived. Empty until one does:
+	// a recording that opens with no switch at all has nothing to be redundant with.
+	inFront := ""
+	for _, e := range events {
+		if e.Kind == recorder.EvAppSwitch {
+			if e.KeyName == inFront {
+				continue
+			}
+			inFront = e.KeyName
+		}
 		out = append(out, e)
 	}
 	return out
