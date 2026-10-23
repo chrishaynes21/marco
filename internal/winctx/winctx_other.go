@@ -41,3 +41,12 @@ func CursorPos() (x, y int) { return 0, 0 }
 
 // SetCursorPos is a no-op without a window backend.
 func SetCursorPos(x, y int) {}
+
+// WindowShape is unavailable without a window backend, so a press records no window and the
+// guarded contract has nothing to compare. `ok` false, and never a fabricated rectangle.
+func WindowShape(hwnd uintptr) (left, top, w, h, dpi int, ok bool) {
+	return 0, 0, 0, 0, 0, false
+}
+
+// ImageOf is unavailable without a window backend.
+func ImageOf(pid uint32) string { return "" }

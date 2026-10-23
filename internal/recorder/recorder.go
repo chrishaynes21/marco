@@ -42,6 +42,36 @@ type RecordedEvent struct {
 	// is on screen — the default that makes routes portable across monitors/machines.
 	RelX, RelY int
 	WinRel     bool
+	// RelTo names what RelX,RelY are measured FROM, set with them. `macroir.RelToWindow`
+	// — the window's OUTER top-left, frame included, because that is what the origin read
+	// returns.
+	//
+	// Recorded on the EVENT and not named later by the pass that lowers it, although
+	// there is one value today. A raw recording is kept so it can be simplified again,
+	// possibly by a build whose recorder measures from somewhere else — and a stream
+	// holding only `RelX 391` with the basis supplied at lowering time would be
+	// reinterpreted by that build without anything to notice.
+	RelTo string
+	// WinW, WinH, Dpi are what the window the press landed in was like AT THE INSTANT of
+	// the press: its outer dimensions, and its DPI as its own term.
+	//
+	// Read in the hook, from the same window handle as the origin and by the same class
+	// of call — window data Windows already holds, no process handle opened. A press is
+	// the only moment this can be read, because anything later is a sample and a sample
+	// cannot answer about an instant it missed.
+	//
+	// Dpi is 0 when Windows would not say, which is not 96. A DPI change is not a size
+	// change: an application that handles `WM_DPICHANGED` relayouts inside a rectangle
+	// that never moved, so nothing about the dimensions would show it.
+	WinW, WinH, Dpi int
+	// Process is the file name of the executable that owned that window, lowercased.
+	//
+	// Resolved AFTER the capture, off the hook thread, from `PID` — which was read at the
+	// instant of the event. Reading it in the hook would mean opening a process handle,
+	// which is the work that makes Windows drop the hooks; reading it from the app
+	// poller's sample would mean asking the one witness that cannot have seen the moment.
+	// Empty when the process had already gone, which is a real answer.
+	Process string
 	// Color, on an EvClick down with an explicit (armed) anchor, is the "0xRRGGBB"
 	// pixel under the click, read from the captured frame. It becomes the anchor's
 	// secondary resolver — confirm the screen by that one pixel when the template
@@ -90,4 +120,36 @@ type Recorder interface {
 	Stop() []RecordedEvent
 	// Events streams events live (used to detect the stop hotkey).
 	Events() <-chan RecordedEvent
+}
+
+// resolveImages fills in each press's `Process` from the `PID` read at the instant of that press.
+//
+// Called once, after the hooks are gone, with one lookup per DISTINCT process rather than one
+// per click: a recording of a menu is thirty presses in one program, and thirty handle opens for
+// one answer would be thirty chances to be told a different one.
+//
+// A process that has already exited resolves to "", which stays "". That is a real answer and it
+// is left as one: a routine whose window belonged to something no longer running has no process
+// identity to check against, and inventing the app poller's last sample here would put a guess
+// where the whole point is to have measured something.
+//
+// `look` is a parameter so this can be tested without a desktop. It is `winctx.ImageOf` in
+// production and nothing else.
+func resolveImages(events []RecordedEvent, look func(uint32) string) {
+	seen := map[uint32]string{}
+	for i := range events {
+		pid := events[i].PID
+		// ONLY A PRESS HAS A WINDOW WORTH NAMING. The release carries the same
+		// process — both edges are stamped — but it records no geometry, so a name
+		// beside it would describe a window nothing was measured in.
+		if pid == 0 || !events[i].WinRel {
+			continue
+		}
+		name, asked := seen[pid]
+		if !asked {
+			name = look(pid)
+			seen[pid] = name
+		}
+		events[i].Process = name
+	}
 }

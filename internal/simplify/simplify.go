@@ -140,6 +140,7 @@ func lower(events []recorder.RecordedEvent, opt Options) []timedStep {
 	var downClickX, downClickY int
 	var downRelX, downRelY int
 	var downWinRel bool
+	var downIn pressedIn
 	sawMove := false
 	argN := 0
 	argKey := strings.ToLower(strings.TrimSpace(opt.ArgKey))
@@ -173,6 +174,8 @@ func lower(events []recorder.RecordedEvent, opt Options) []timedStep {
 				downWindow = ev.Window
 				downClickX, downClickY = ev.ClickX, ev.ClickY
 				downRelX, downRelY, downWinRel = ev.RelX, ev.RelY, ev.WinRel
+				downIn = pressedIn{relTo: ev.RelTo, w: ev.WinW, h: ev.WinH,
+					dpi: ev.Dpi, process: ev.Process}
 				sawMove = false
 			} else {
 				if !downActive {
@@ -190,13 +193,24 @@ func lower(events []recorder.RecordedEvent, opt Options) []timedStep {
 					// active window across monitors/position) and, when anchors are on, a
 					// captured patch (codegen turns it into an image find). Drags carry
 					// neither.
+					//
+					// AND THE POINT IS THE PRESS, NOT THE RELEASE.
+					//
+					// It used to be the release's coordinate while RelX,RelY came from
+					// the press — so a hand that drifted a pixel between the two left a
+					// step whose absolute fallback and whose window-relative offset named
+					// different pixels, with the fallback being the less accurate of the
+					// two. Everything else on this step is already the press's: the
+					// template, the colour, the window title, the offset into the
+					// template. The press is also where somebody AIMED; the release is
+					// where their hand had got to.
 					out = append(out, timedStep{
-						step: macroir.Step{
-							Kind: macroir.StepClick, X: ev.X, Y: ev.Y, Button: downBtn,
+						step: downIn.onto(macroir.Step{
+							Kind: macroir.StepClick, X: downX, Y: downY, Button: downBtn,
 							Template: downImg, Color: downColor, Window: downWindow,
 							AnchorClickX: downClickX, AnchorClickY: downClickY,
 							RelX: downRelX, RelY: downRelY, WinRel: downWinRel,
-						},
+						}),
 						t: downT,
 					})
 				}
@@ -690,4 +704,26 @@ func printable(name string, shift bool) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// pressedIn is what the window a press landed in was like, as the press itself measured it.
+//
+// One value rather than five more locals beside the eight already tracked across a press and its
+// release, because these five are one measurement and travel together: the basis the offset is
+// measured from, the window's outer size, its DPI, and the program that owned it. See
+// [[macroir.Step]] for what each is for and why DPI is its own term.
+type pressedIn struct {
+	relTo     string
+	w, h, dpi int
+	process   string
+}
+
+// onto copies the measurement onto a click step.
+//
+// A method rather than five assignments at the call site, so a term added to the measurement
+// reaches the step without anybody having to notice the call site — which is the shape of the
+// defect that left demonstrated points reaching one of two loops that build a step.
+func (p pressedIn) onto(s macroir.Step) macroir.Step {
+	s.RelTo, s.WinW, s.WinH, s.Dpi, s.Process = p.relTo, p.w, p.h, p.dpi, p.process
+	return s
 }

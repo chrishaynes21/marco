@@ -145,12 +145,13 @@ that drifts from what gets saved is worse than words.
   closing note that names the path. A note kind of its own needs a reader to match, and no record
   at all while that was built was the worse option.
 - **No Marco preview in review**, as above.
-- **Line A and B are not here**: the recorder does not yet capture the outer window size, the
-  window DPI as its own term, or the process image, and nothing carries them through
-  `macroir.Step` → `codegen`. Review therefore says a click's window-relative offset when there
-  is one and the desktop point when there is not, which is honest about what was recorded and is
-  less than the guarded contract will need.
-- **Line C is not here**: there is no press-moment guard on this path yet.
+- ~~**Line A and B are not here**~~ — landed since: a press now records its window's outer size,
+  its DPI as its own term, the process image and the explicit basis of the offset, and all of it
+  reaches the saved route. Review shows them beside the click. The ADR for that contract is
+  written with its other half; see below.
+- **Line C is not here**: there is no press-moment guard on this path yet, so the evidence a
+  press records is carried and not yet checked. Until it is, a route carrying it replays exactly
+  as a legacy one does.
 
 ## Related
 

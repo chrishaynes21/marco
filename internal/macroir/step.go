@@ -75,8 +75,55 @@ type Step struct {
 	// window-relative click that resolves against the activated window at run time —
 	// so it lands at the same spot inside the window on any monitor or position —
 	// and falls back to the absolute X,Y if that window isn't found.
-	RelX   int    `json:"relX,omitempty"`
-	RelY   int    `json:"relY,omitempty"`
-	WinRel bool   `json:"winRel,omitempty"`
-	Steps  []Step `json:"steps,omitempty"` // loop body / drag waypoints
+	RelX   int  `json:"relX,omitempty"`
+	RelY   int  `json:"relY,omitempty"`
+	WinRel bool `json:"winRel,omitempty"`
+
+	// ── WHAT THE WINDOW WAS LIKE WHEN THE PRESS WAS MADE ──
+	//
+	// Five terms, all measured at the instant of the press and all carried through to the
+	// saved route, because a coordinate is only a claim about a place while the thing it
+	// was measured against is still the same thing. A replayer that adds an offset to a
+	// window without checking any of these is pressing a remembered pixel and calling it
+	// a target.
+	//
+	// They are also the OPT-IN. A route whose points carry them asks for the guarded
+	// contract — bind the window, then check it again immediately before the press — and
+	// a route whose points do not keeps exactly the behaviour it was saved with. That is
+	// why they are recorded rather than inferred: the presence of the evidence is the
+	// request for it to be checked. See [[ADR-250-the-recorder-runs-in-the-window]].
+
+	// RelTo names what RelX,RelY are measured FROM, and is the one term here that is
+	// about meaning rather than measurement.
+	//
+	// Recorded rather than assumed, although there is exactly one value today, because
+	// the alternative is that every route already saved gets silently reinterpreted the
+	// day a recorder starts measuring from somewhere else. An offset from the outer frame
+	// and an offset from the client area are different numbers for the same pixel, and
+	// nothing in a file holding only `RelX 391` says which one it is.
+	RelTo string `json:"relTo,omitempty"`
+	// WinW, WinH are the OUTER dimensions of that window — the whole thing including its
+	// frame, because that is what the origin is measured from too.
+	WinW int `json:"winW,omitempty"`
+	WinH int `json:"winH,omitempty"`
+	// Dpi is the window's DPI, and it is its own term rather than something read off the
+	// dimensions. An application that handles `WM_DPICHANGED` can relayout everything
+	// inside a window whose outer rectangle never moves: same size, everything somewhere
+	// else. 0 means it could not be read, which is not the same as 96.
+	Dpi int `json:"dpi,omitempty"`
+	// Process is the file name of the executable that owned the window, lowercased —
+	// "arkascended.exe". The identity term, not the path: the path answers "is this the
+	// same installation", which is a different question and makes a routine useless on
+	// another machine.
+	Process string `json:"process,omitempty"`
+
+	Steps []Step `json:"steps,omitempty"` // loop body / drag waypoints
 }
+
+// RelToWindow is the one basis a demonstration is measured from today: the OUTER top-left of the
+// window the press landed in, frame included, as `GetWindowRect` reports it.
+//
+// It is a named constant in the IR rather than a string in three packages because it is the
+// vocabulary a saved route and the host that replays it have to agree on. A fourth spelling of
+// it anywhere is a route that resolves its offsets against something nobody checked.
+const RelToWindow = "window"

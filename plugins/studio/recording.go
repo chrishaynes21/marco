@@ -405,7 +405,7 @@ func oneStep(s macroir.Step) string {
 		if button == "" {
 			button = "left"
 		}
-		return fmt.Sprintf("%s-click at %s", button, where)
+		return fmt.Sprintf("%s-click at %s%s", button, where, inWindow(s))
 	case macroir.StepDrag:
 		return fmt.Sprintf("drag from %d, %d to %d, %d", s.X, s.Y, s.X2, s.Y2)
 	case macroir.StepKey:
@@ -459,4 +459,31 @@ func (a *Acts) recordingLocked() bool {
 		}
 	}
 	return false
+}
+
+// inWindow is what the press measured about its window, as a reviewer reads it, or "" when it
+// measured nothing.
+//
+// Shown because it is what the saved route will carry and what a run will check against. A
+// review that listed only the coordinate would be hiding the terms that decide whether the
+// coordinate is ever trusted — and a person looking at a routine recorded in a window they have
+// since resized is owed the chance to see that before they keep it.
+func inWindow(s macroir.Step) string {
+	if s.RelTo == "" {
+		return ""
+	}
+	var said []string
+	if s.WinW > 0 && s.WinH > 0 {
+		said = append(said, fmt.Sprintf("%d×%d", s.WinW, s.WinH))
+	}
+	if s.Dpi > 0 {
+		said = append(said, fmt.Sprintf("%d dpi", s.Dpi))
+	}
+	if s.Process != "" {
+		said = append(said, s.Process)
+	}
+	if len(said) == 0 {
+		return ""
+	}
+	return " (" + strings.Join(said, ", ") + ")"
 }

@@ -15,6 +15,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/chaynes-simpleclouds/marco/internal/macroir"
 	"github.com/chaynes-simpleclouds/marco/internal/screen"
 	"github.com/chaynes-simpleclouds/marco/internal/winctx"
 )
@@ -339,6 +340,12 @@ func (r *winRecorder) Stop() []RecordedEvent {
 	out := recBuf
 	recBuf = nil
 	recMu.Unlock()
+	// AND THE PROCESS IMAGES, NOW THAT THERE IS NO HOOK LEFT TO SLOW DOWN.
+	//
+	// The hooks are unhooked by this point, so opening a process handle costs nobody
+	// anything. Doing it here rather than in the callback is the whole reason the
+	// process id is recorded at the press and the name is not. See resolveImages.
+	resolveImages(out, winctx.ImageOf)
 	r.done = nil
 	return out
 }
@@ -451,17 +458,28 @@ func recordClickDown(button string, x, y int) {
 	}
 }
 
-// clickAttribution answers WHOSE a click is: the process owning the foreground window at this
-// instant, and the app the poller last sampled.
+// clickAttribution answers WHOSE a click is: the foreground window at this instant, the process
+// owning it, and the app the poller last sampled.
+//
+// It hands back the HANDLE as well as the process because `clickShape` below needs the same
+// window this answered about. Asking `GetForegroundWindow` twice on one click would be two reads
+// of a thing that can change between them — and the second answer would then describe a window
+// the first one did not attribute.
 //
 // A variable so a test can drive the production builder with a known desktop. Nothing else
 // replaces it, and the hook calls it on every click edge.
-var clickAttribution = func() (pid uint32, app string) {
-	if _, p, ok := winctx.ForegroundProcess(); ok {
-		pid = p
-	}
-	return pid, foreground()
+var clickAttribution = func() (hwnd uintptr, pid uint32, app string) {
+	hwnd, pid, _ = winctx.ForegroundProcess()
+	return hwnd, pid, foreground()
 }
+
+// clickShape answers WHAT THAT WINDOW WAS LIKE: its origin, its outer size and its DPI.
+//
+// Separate from the attribution above because the two are asked at different times — the
+// attribution on both click edges, this only on the press — and replaceable for the same reason:
+// a real answer needs a real window on a real desktop, and what the builder does with the answer
+// is what these tests are about.
+var clickShape = winctx.WindowShape
 
 // newClick builds an EvClick event.
 //
@@ -482,12 +500,23 @@ var clickAttribution = func() (pid uint32, app string) {
 // GetForegroundWindow, GetWindowRect and GetWindowThreadProcessId are all window-data reads:
 // cheap, and safe to call on the hook thread. None of them opens a process handle.
 func newClick(button string, down bool, x, y int) RecordedEvent {
-	pid, app := clickAttribution()
+	hwnd, pid, app := clickAttribution()
 	ev := RecordedEvent{Kind: EvClick, Button: button, Down: down, X: x, Y: y,
 		T: time.Now(), App: app, PID: pid}
 	if down {
-		if left, top, ok := winctx.ForegroundOrigin(); ok {
+		// THE WINDOW AS IT WAS AT THIS PRESS — where it is, how big it is on the
+		// outside, and what DPI it is drawn at, from the window the attribution
+		// above already identified. All of it at the press, because a press is the
+		// only moment it can be read: anything later is a sample, and a sample cannot
+		// answer about an instant it missed.
+		//
+		// The process IMAGE is deliberately not read here. That opens a process
+		// handle, which is the work that makes Windows drop the hooks, so it is
+		// resolved from `PID` once the capture is over. See `resolveImages`.
+		if left, top, w, h, dpi, ok := clickShape(hwnd); ok {
 			ev.RelX, ev.RelY, ev.WinRel = x-left, y-top, true
+			ev.RelTo = macroir.RelToWindow
+			ev.WinW, ev.WinH, ev.Dpi = w, h, dpi
 		}
 		ev.Window = winctx.ForegroundTitle() // context: which window was clicked
 	}

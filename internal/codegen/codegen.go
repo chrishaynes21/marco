@@ -187,18 +187,50 @@ func (p *points) add(x, y int) string {
 // RelX,RelY the offset inside the active window. The OS host resolves RelX,RelY
 // against the foreground (just-activated) window so the click lands at the same
 // spot in the window on any monitor or position, falling back to X,Y if it's gone.
-func (p *points) addRel(x, y, rx, ry int) string {
+// `in` is what that window was like when the press was made — the basis the offset is measured
+// from, the window's outer size, its DPI and the program that owned it. Written out when the
+// recording measured it, because those terms ARE the request for the guarded contract: a point
+// carrying them asks the host to bind that window and check it again immediately before
+// pressing, and a point without them keeps the behaviour it was saved with. A route saved before
+// any of this existed, or one recorded where the window would not describe itself, therefore
+// reads exactly as it did and runs exactly as it did.
+func (p *points) addRel(x, y, rx, ry int, in macroir.Step) string {
 	p.n++
 	name := fmt.Sprintf("p%d", p.n)
-	p.decls = append(p.decls, fmt.Sprintf("the %s is a Point with X %d, Y %d, RelX %d, RelY %d.", name, x, y, rx, ry))
+	p.decls = append(p.decls, fmt.Sprintf(
+		"the %s is a Point with X %d, Y %d, RelX %d, RelY %d%s.",
+		name, x, y, rx, ry, measured(in)))
 	return name
+}
+
+// measured is the window a press was made in, as Point fields, or "" when it was not measured.
+//
+// All or nothing on the BASIS, deliberately. The size, the DPI and the program are each written
+// only when known — a DPI nobody could read must not be written as 96 — but none of them is
+// written without the basis, because checking a window's size while having no idea which
+// rectangle the offset belongs to is checking the easy half of the question.
+func measured(s macroir.Step) string {
+	if s.RelTo == "" {
+		return ""
+	}
+	out := fmt.Sprintf(", RelTo \"%s\"", escape(s.RelTo))
+	if s.WinW > 0 && s.WinH > 0 {
+		out += fmt.Sprintf(", WinW %d, WinH %d", s.WinW, s.WinH)
+	}
+	if s.Dpi > 0 {
+		out += fmt.Sprintf(", Dpi %d", s.Dpi)
+	}
+	if s.Process != "" {
+		out += fmt.Sprintf(", Process \"%s\"", escape(s.Process))
+	}
+	return out
 }
 
 // clickPoint declares the Point for a click step — window-relative when the
 // recorder captured an offset, else a plain absolute point.
 func (p *points) clickPoint(s macroir.Step) string {
 	if s.WinRel {
-		return p.addRel(s.X, s.Y, s.RelX, s.RelY)
+		return p.addRel(s.X, s.Y, s.RelX, s.RelY, s)
 	}
 	return p.add(s.X, s.Y)
 }

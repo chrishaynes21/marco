@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/chaynes-simpleclouds/marco/internal/macroir"
 	"github.com/chaynes-simpleclouds/marco/internal/recorder"
 	"github.com/chaynes-simpleclouds/marco/internal/winctx"
 )
@@ -381,6 +382,58 @@ func TestAnUnknownScopeIsRefusedAndTheDraftSurvives(t *testing.T) {
 	}
 	if why := a.SaveDraft("app", ""); why != "" {
 		t.Errorf("the draft could not be saved after a refusal: %s", why)
+	}
+}
+
+// AND REVIEW SHOWS WHAT THE PRESS MEASURED ABOUT ITS WINDOW.
+//
+// Not decoration. Those terms are what the saved route will carry and what a run will check
+// against, so a review that listed only the coordinate would hide the thing that decides whether
+// the coordinate is ever trusted. A person looking at a routine recorded in a window they have
+// since resized is owed the chance to see that before they keep it.
+func TestReviewSaysWhatThePressMeasured(t *testing.T) {
+	t.Setenv("MARCO_CV", "off")
+	t.Setenv("MARCO_ROUTES", t.TempDir())
+	a := newActs(t.TempDir())
+	owner, ownerApp := uint32(os.Getpid()), winctx.Self()
+	a.recording = func() recorder.Recorder {
+		return &heldRecorder{events: []recorder.RecordedEvent{
+			{Kind: recorder.EvAppSwitch, KeyName: "arkascended", T: at(0)},
+			{Kind: recorder.EvClick, Button: "left", Down: true, X: 842, Y: 274,
+				App: "arkascended", PID: gamePID, T: at(100),
+				WinRel: true, RelX: 722, RelY: 210,
+				RelTo: macroir.RelToWindow, WinW: 1920, WinH: 1080,
+				Dpi: 144, Process: "arkascended.exe"},
+			{Kind: recorder.EvClick, Button: "left", Down: false, X: 842, Y: 274,
+				App: "arkascended", PID: gamePID, T: at(105)},
+			{Kind: recorder.EvAppSwitch, KeyName: ownerApp, T: at(3000)},
+			{Kind: recorder.EvClick, Button: "left", Down: true, X: 1511,
+				Y: 913, App: ownerApp, PID: owner, T: at(3200)},
+			{Kind: recorder.EvClick, Button: "left", Down: false, X: 1511,
+				Y: 913, App: ownerApp, PID: owner, T: at(3205)},
+		}}
+	}
+	if why := a.StartRecording("ark graphics"); why != "" {
+		t.Fatal(why)
+	}
+	if why := a.StopRecording(); why != "" {
+		t.Fatal(why)
+	}
+
+	line := ""
+	for _, s := range a.Recording().Steps {
+		if strings.Contains(s, "click") {
+			line = s
+		}
+	}
+	if line == "" {
+		t.Fatal("review lists no click at all")
+	}
+	for _, want := range []string{"722, 210 in the window", "1920×1080",
+		"144 dpi", "arkascended.exe"} {
+		if !strings.Contains(line, want) {
+			t.Errorf("review says %q and does not mention %q", line, want)
+		}
 	}
 }
 

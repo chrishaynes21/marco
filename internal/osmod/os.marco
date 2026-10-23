@@ -32,9 +32,26 @@ this exports MoveWindow.    // move and resize a window: a WindowMove
 this exports WindowState.   // maximise / minimise / restore a window: a WindowStateChange
 
 // A screen coordinate, passed to Click / Move / Color.
+//
+// X,Y are where it was on the desktop. RelX,RelY are the same place measured inside the window
+// it was in, and RelTo says which rectangle of that window they are measured from — so a route
+// still lands on the control after the window has moved, or opened on another monitor.
+//
+// WinW, WinH, Dpi and Process are what that window was like at the moment somebody pressed
+// there: how big it was on the outside, what scale it was drawn at, and which program owned it.
+// A Point that carries them asks the host to find that same window again and check it still
+// matches before pressing, rather than adding a remembered offset to whatever happens to be in
+// front. A Point without them is pressed the way Marco has always pressed one.
 the Point is a set.
 this's X is a number.
 this's Y is a number.
+this's RelX is a number.    // the same place, measured inside the window
+this's RelY is a number.
+this's RelTo is a text.     // which rectangle RelX,RelY are measured from: "window"
+this's WinW is a number.    // how big that window was, on the outside
+this's WinH is a number.
+this's Dpi is a number.     // the scale it was drawn at; absent when nobody could read it
+this's Process is a text.   // the program that owned it, e.g. "arkascended.exe"
 
 // A press-hold-release drag from (FromX,FromY) to (ToX,ToY), passed to Drag.
 the Drag is a set.

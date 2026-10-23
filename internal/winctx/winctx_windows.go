@@ -5,6 +5,7 @@ package winctx
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -21,6 +22,7 @@ var (
 	procGetForegroundWindow  = user32.NewProc("GetForegroundWindow")
 	procGetWindowTextW       = user32.NewProc("GetWindowTextW")
 	procGetWindowRect        = user32.NewProc("GetWindowRect")
+	procGetDpiForWindow      = user32.NewProc("GetDpiForWindow")
 	procGetCursorPos         = user32.NewProc("GetCursorPos")
 	procSetCursorPos         = user32.NewProc("SetCursorPos")
 	procSetForegroundWindow  = user32.NewProc("SetForegroundWindow")
@@ -125,6 +127,82 @@ func ForegroundInfo() (left, top int, name string, ok bool) {
 		return 0, 0, "", false
 	}
 	return int(r.left), int(r.top), appName(exeOf(hwnd)), true
+}
+
+// WindowShape is everything a replayer has to be able to compare about one window: where it is,
+// how big it is on the OUTSIDE, and what DPI it is being drawn at.
+//
+// # Three window-data reads, and no handle opened
+//
+// `GetWindowRect` and `GetDpiForWindow` both read data Windows already holds about the window.
+// Neither opens a process handle, so this is the same class of call as the origin read a click
+// already makes and is safe on the low-level hook thread, where slow work makes Windows drop the
+// hooks. A press that reads the window it landed in has to be read AT the press; anything slower
+// than this would have to be a sample, and a sample cannot answer about an instant it missed.
+//
+// # Why the size is the OUTER size
+//
+// Because the origin is the outer origin: `GetWindowRect` is the whole window including its
+// frame, so an offset measured from it is measured from the frame's top-left. Reporting a client
+// size beside an outer origin would be two different rectangles described as one, and a replayer
+// comparing them would be checking a number that never meant what it added the offset to. See
+// [[macroir.RelToWindow]], which is the name the saved route gives this basis.
+//
+// # Why DPI is its own term
+//
+// Because a DPI change is not a size change. An application that handles `WM_DPICHANGED` can
+// relayout every control inside a window whose outer dimensions never move — the window is the
+// same rectangle and everything in it is somewhere else. A replayer that inferred scale from the
+// dimensions would see no difference and press the old place. `dpi` is 0 when Windows cannot
+// say, which is a real answer: `GetDpiForWindow` arrived in Windows 10 1607 and this must keep
+// working without it.
+func WindowShape(hwnd uintptr) (left, top, w, h, dpi int, ok bool) {
+	if hwnd == 0 {
+		return 0, 0, 0, 0, 0, false
+	}
+	var r rect
+	if ret, _, _ := procGetWindowRect.Call(hwnd, uintptr(unsafe.Pointer(&r))); ret == 0 {
+		return 0, 0, 0, 0, 0, false
+	}
+	if procGetDpiForWindow.Find() == nil {
+		if d, _, _ := procGetDpiForWindow.Call(hwnd); d != 0 {
+			dpi = int(d)
+		}
+	}
+	return int(r.left), int(r.top), int(r.right - r.left), int(r.bottom - r.top),
+		dpi, true
+}
+
+// ImageOf is the FILE NAME of the executable a process was started from, lowercased — e.g.
+// "arkascended.exe". "" when it cannot be read, which includes a process that has already gone.
+//
+// # Not hook-safe
+//
+// It opens a process handle, which is exactly the call `ForegroundProcess` exists to avoid. Ask
+// it off the hook thread, from a process id that WAS read at the instant of the event.
+//
+// # Why the file name and not the path
+//
+// Because the question it answers is "is this still the same program", and the path answers a
+// different one — "is this the same installation" — while making a saved routine useless on
+// another machine and writing somebody's directory layout into a file they will share. The
+// recorded name is the identity term; the path is not recoverable from it and is not meant to be.
+func ImageOf(pid uint32) string {
+	if pid == 0 {
+		return ""
+	}
+	h, _, _ := procOpenProcess.Call(processQueryLimitedInformation, 0, uintptr(pid))
+	if h == 0 {
+		return ""
+	}
+	defer procCloseHandle.Call(h)
+	buf := make([]uint16, 260)
+	procGetModuleFileNameExW.Call(h, 0, uintptr(unsafe.Pointer(&buf[0])), 260)
+	full := syscall.UTF16ToString(buf)
+	if full == "" {
+		return ""
+	}
+	return strings.ToLower(filepath.Base(full))
 }
 
 // Active returns the foreground app's short name (lowercase basename, no .exe),
