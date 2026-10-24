@@ -396,6 +396,12 @@
        rather than one this window guesses. -->
   <div class="card hide" id="capReview">
     <div id="capSaid"></div>
+    <!-- WHAT THIS RECORDING CANNOT CHECK, AND WHETHER DOING IT AGAIN WOULD HELP.
+         A press that asked to be checked against the window it was made in and is
+         missing a measurement will REFUSE at run time, so this is the sentence that
+         makes keeping it an informed choice rather than a surprise the first time
+         somebody runs it. Empty and hidden when everything was measured. -->
+    <div class="no hide" style="margin-top:6px" id="capMissing"></div>
     <div class="muted" style="margin-top:6px" id="capWhere"></div>
     <ol id="capSteps" class="muted" style="margin-top:10px"></ol>
     <div class="row" style="margin-top:10px"><label style="width:7em">it works</label>
@@ -1199,11 +1205,14 @@
        shownCapture = ''
        return
      }
-     const sig = r.name + '\u0000' + (r.said || '') + '\u0000' + (r.steps || []).join('|')
+     const sig = r.name + '\u0000' + (r.said || '') + '\u0000' + (r.missing || '')
+       + '\u0000' + (r.steps || []).join('|')
      if (sig === shownCapture) { return }
      shownCapture = sig
      text($('capSaid'), r.said || '')
      $('capSaid').className = r.failed ? 'no' : 'ok'
+     text($('capMissing'), r.missing || '')
+     showing($('capMissing'), !!r.missing)
      text($('capWhere'), (r.application
        ? 'recorded in ' + r.application
        : 'no application was observed')

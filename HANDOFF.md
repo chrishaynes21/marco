@@ -7215,3 +7215,47 @@ See [[ADR-251-a-press-checks-the-window-it-was-recorded-in]].
 
 **Still outstanding, and still separate:** the owner's Stop-button trial, and a live acceptance
 run of guarded coordinate replay.
+
+## 38E — a failed measurement is not permission to skip the check
+
+The recording-side half of 38D was rejected, and rightly. Making the RECORDER give up its basis
+when a measurement failed is the same hole one layer earlier: a press with no basis is an ordinary
+point, and an ordinary point is pressed at its recorded coordinate having checked nothing. So a
+window that would not report its size, a Windows without `GetDpiForWindow`, or a program that had
+exited before the hooks came down each turned the safeguards off for a recording somebody was
+about to be offered. Preserving old routines means preserving the behaviour of routes already on
+disk; it never meant letting a NEW recording run unchecked because a measurement failed.
+
+**The basis is the contract and everything else is a measurement.** `RelTo` is written for every
+press a measuring recorder makes, whether or not the measurements arrive, because it says which
+rectangle the press is ABOUT and that is true either way. The saved route therefore says three
+things apart: no basis is LEGACY and runs as it always did; a basis with every term is GUARDED; a
+basis with a term missing is INCOMPLETE and refused, naming what it lacks. Which state a press is
+in does not depend on a measurement having succeeded.
+
+`codegen` had the same branch: a point was written window-relative when it had an OFFSET, so a
+press that declared the window and could not be measured in it came out byte-identical to a legacy
+point. It branches on the basis now.
+
+**Review says it before the routine is kept** — beside the step, once for the draft, and with the
+one thing somebody actually needs: whether recording it again would help. A window that would not
+describe itself this time is a moment that passed; a Windows that cannot report a scale is not, so
+that recording cannot be made on that machine at all and saying "try again" would be the worse
+mistake. Saving stays allowed — the draft is a true record of what somebody did — and is not
+quiet: the Save message and the trial journal both say it will refuse.
+
+Fourteen mutations killed. Twelve of the thirty-three mutations across 38C–E are a check that was
+WRITTEN and does not run, at three different layers — the guard asking "if both sides know it",
+the recorder asking "if every term arrived", the generator asking "if there is an offset".
+
+**And a gap found while wiring the chain, not caused by it:** a context-scoped recording — Studio's
+default — cannot run a guarded press at all. That scope strips the Activate and passes no
+application to `codegen`, because switching nothing is its whole promise, so nothing binds a
+window and every press refuses. `everywhere` is the same; only `app-anywhere` works. Pinned by a
+test and left for a decision, because what PREPARATION means for a scope with no preparation step
+is a change to the guarded contract.
+
+See [[ADR-251-a-press-checks-the-window-it-was-recorded-in]].
+
+**Still outstanding:** the owner's Stop-button trial, and a live acceptance run of guarded replay —
+which the context-scope gap blocks until it is decided.

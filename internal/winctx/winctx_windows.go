@@ -613,3 +613,13 @@ func Facts(hwnd uintptr) WindowFacts {
 	}
 	return f
 }
+
+// CanReadWindowScale reports whether this Windows can be asked a window's DPI at all.
+//
+// It exists so a recording that is MISSING a scale can say whether recording it again would help.
+// `GetDpiForWindow` arrived in Windows 10 1607; without it, no press on this machine will ever
+// carry a scale, so a routine that checks the window it was made in is not available here — and
+// that is a different sentence from "the window would not answer this time, try again". Telling
+// somebody to demonstrate it again when nothing about demonstrating it again can change the
+// answer is the worse of the two mistakes.
+func CanReadWindowScale() bool { return procGetDpiForWindow.Find() == nil }

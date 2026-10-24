@@ -192,7 +192,7 @@ func (h *Host) Invoke(c runtime.HostCall) (string, runtime.Value, error) {
 		// AND THIS IS THE PREPARATION HALF OF THE GUARDED CONTRACT: the window
 		// Activate settled on is BOUND, so a later press can ask about that same
 		// window rather than about whatever is in front by then. See `bindAt`.
-		hwnd, err := winctx.Bind(app)
+		hwnd, err := bindWindow(app)
 		h.bindAt(hwnd, app)
 		return ok(err)
 	case "launch":
@@ -1835,7 +1835,10 @@ func (h *Host) guarded(set *runtime.Set, x, y int) (px, py int, why string) {
 // that window — cannot be made to happen on a real desktop on purpose: it needs a window that
 // closes, moves, resizes, loses focus and changes owner between two instants, one case at a
 // time. See guardedpress_test.go.
+// `bindWindow` is the third: the preparation half, so a test can run a SAVED route end to end —
+// Activate, then the press — without a real window of somebody's game on the desktop.
 var (
 	windowFacts = winctx.Facts
 	imageOf     = winctx.ImageOf
+	bindWindow  = winctx.Bind
 )

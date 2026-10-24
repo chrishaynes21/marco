@@ -513,32 +513,42 @@ func newClick(button string, down bool, x, y int) RecordedEvent {
 		// The process IMAGE is deliberately not read here. That opens a process
 		// handle, which is the work that makes Windows drop the hooks, so it is
 		// resolved from `PID` once the capture is over. See `resolveImages`.
+		// ── THE CONTRACT IS DECLARED FOR EVERY PRESS, BEFORE ANY OF IT IS READ ──
+		//
+		// `RelTo` names the rectangle this press is ABOUT: the one its offset is
+		// measured from and the one it is checked against immediately before
+		// input. It is a statement of what the press MEANS, not one of the
+		// measurements, so it goes in whether or not the measurements arrive.
+		//
+		// That ordering is the whole of this comment, because the other one was
+		// wrong. Writing the basis only when every term arrived meant a press
+		// whose window would not report its size, or whose scale Windows will
+		// not report (no `GetDpiForWindow` before Windows 10 1607), or whose
+		// program had exited before the hooks came down, was saved as an ORDINARY
+		// point — and an ordinary point is pressed at its recorded coordinate
+		// having checked nothing. A failed measurement cannot be what makes the
+		// safeguards optional: it means guarded replay is unavailable for that
+		// recording, and the recording has to say so rather than quietly become
+		// something that runs.
+		//
+		// So: the basis always, each measurement only when it was taken, missing
+		// left missing, and replay refuses until they are all there. Routes
+		// already on disk carry no basis and are untouched.
+		ev.RelTo = macroir.RelToWindow
 		if left, top, w, h, dpi, ok := clickShape(hwnd); ok {
-			ev.RelX, ev.RelY, ev.WinRel = x-left, y-top, true
-			// ── AND THE BASIS GOES IN ONLY WITH EVERY TERM BESIDE IT ──
-			//
-			// Stating the basis is what asks a replay to CHECK this press
-			// against the window, and a check missing a term is not a lenient
-			// check — it is one that reads as a guard and answers about less
-			// than it appears to. So all of them or none: a window that
-			// would not report its size, or that Windows will not report a
-			// scale for (no `GetDpiForWindow` before Windows 10 1607), and a
-			// press whose offset falls outside the window it was attributed
-			// to — which is what a click that CHANGED the foreground looks
-			// like from inside the hook — record as an ordinary point and are
-			// pressed by the rule every route before this was saved with.
-			//
-			// This is the one place where less evidence means less checking
-			// rather than a refusal, and the degrading belongs on this side
-			// rather than at replay because the alternative is a routine
-			// that can never run on the machine that recorded it. The replay
-			// side has the opposite rule and no fallback, and a point that
-			// claims the window without the terms is refused there: see
-			// `oshost.guarded`.
-			inside := x >= left && y >= top && x-left < w && y-top < h
-			if w > 0 && h > 0 && dpi > 0 && inside {
-				ev.RelTo = macroir.RelToWindow
-				ev.WinW, ev.WinH, ev.Dpi = w, h, dpi
+			ev.Dpi = dpi // 0 when Windows would not say, and 0 stays 0
+			if w > 0 && h > 0 {
+				ev.WinW, ev.WinH = w, h
+				// AND THE OFFSET IS A MEASUREMENT OF THAT WINDOW ONLY IF
+				// THE PRESS WAS IN IT. A click that CHANGED the foreground
+				// looks like this from inside the hook: the attribution
+				// names the window that was in front at that instant and
+				// the click landed in the one it was about to raise, so
+				// the subtraction produces a number that is not an offset
+				// into anything.
+				if x >= left && y >= top && x-left < w && y-top < h {
+					ev.RelX, ev.RelY, ev.WinRel = x-left, y-top, true
+				}
 			}
 		}
 		ev.Window = winctx.ForegroundTitle() // context: which window was clicked

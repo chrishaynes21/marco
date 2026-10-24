@@ -102,6 +102,18 @@ type Recording struct {
 	Failed  bool   `json:"failed,omitempty"`
 	// Saved is the path the routine went to, once Save has written one.
 	Saved string `json:"saved,omitempty"`
+	// Incomplete says some press here asked to be checked against the window it was
+	// made in and a measurement it needs is missing, so a routine saved from this will
+	// REFUSE to press rather than press somewhere nobody checked.
+	//
+	// Saving is still allowed: the draft is a true record of what somebody did, and
+	// throwing it away would lose the demonstration as well as the measurement. What is
+	// not allowed is saving it quietly as something that runs — so the page is told, the
+	// Save message repeats it, and the saved route refuses.
+	Incomplete bool `json:"incomplete,omitempty"`
+	// Missing is that in words: how much of the recording cannot be checked, which
+	// measurements are absent, and whether recording it again would change that.
+	Missing string `json:"missing,omitempty"`
 }
 
 // StartRecording begins a recorder-first capture under `name`.
@@ -303,10 +315,18 @@ func (a *Acts) SaveDraft(scope, app string) string {
 	c.saved = a.reg().Path(rt)
 	where := c.saved
 	a.mu.Unlock()
-	a.trial.recorded(dr.Name, fmt.Sprintf("Saved %q from the recorder-first path "+
-		"(%s): %d step(s), %d of which press something — %s", dr.Name,
-		want, len(dr.Steps), dr.Pressable(), where),
-		"Run it, or build an Act over it.", false, Pictured{})
+	note := fmt.Sprintf("Saved %q from the recorder-first path (%s): %d step(s), "+
+		"%d of which press something — %s", dr.Name, want, len(dr.Steps),
+		dr.Pressable(), where)
+	next := "Run it, or build an Act over it."
+	// AND THE JOURNAL SAYS WHEN WHAT WAS SAVED CANNOT RUN. A trial note reading
+	// "Saved, run it" about a routine that will refuse every press is a note that will
+	// be believed later by somebody reading back what happened.
+	if why := whyItWillNotRun(dr.Steps); why != "" {
+		note += ". " + why
+		next = "Record it again — this one will refuse to press."
+	}
+	a.trial.recorded(dr.Name, note, next, false, Pictured{})
 	return ""
 }
 
@@ -366,8 +386,16 @@ func (a *Acts) Recording() Recording {
 	}
 	out.Said = fmt.Sprintf("%d step(s), %d of which press something.",
 		len(dr.Steps), out.Pressable)
+	// AND WHETHER WHAT IT MEASURED IS ENOUGH TO RUN ON. Before Save, not after: the
+	// point of a review is that the person decides knowing this.
+	if why := whyItWillNotRun(dr.Steps); why != "" {
+		out.Incomplete, out.Missing = true, why
+	}
 	if saved != "" {
 		out.Said = fmt.Sprintf("Saved %q — %s", c.name, saved)
+		if out.Incomplete {
+			out.Said += ". It will refuse to press until it is recorded again."
+		}
 	}
 	return out
 }
@@ -470,18 +498,6 @@ func (a *Acts) recordingLocked() bool {
 // since resized is owed the chance to see that before they keep it.
 func inWindow(s macroir.Step) string {
 	if s.RelTo == "" {
-		// AND A PRESS THAT MEASURED NO WINDOW SAYS SO, HERE, WHILE THE PERSON IS
-		// STILL IN FRONT OF THE SCREEN.
-		//
-		// The recorder writes the window terms together or not at all, so a press
-		// whose window would not report its size or its scale, or whose program had
-		// gone by the time the recording closed, is saved as an ordinary point —
-		// pressed at the coordinate it was demonstrated at, checked against nothing.
-		// That is a real difference in what the routine will do, and the review is
-		// the one place it can be seen before the routine is kept.
-		if s.Kind == macroir.StepClick && s.WinRel {
-			return " (window not measured)"
-		}
 		return ""
 	}
 	var said []string
@@ -494,8 +510,120 @@ func inWindow(s macroir.Step) string {
 	if s.Process != "" {
 		said = append(said, s.Process)
 	}
+	// ── AND WHAT IT ASKED FOR AND DID NOT GET ──
+	//
+	// A press that declared the window and is missing a measurement will REFUSE at run
+	// time rather than press, and this is where somebody finds that out while they are
+	// still in front of the screen. Named term by term, because "this one cannot be
+	// checked" tells a person nothing about whether doing it again would help and the
+	// name of the missing measurement does.
+	if lacks := notMeasured(s); len(lacks) > 0 {
+		said = append(said, "cannot be checked — "+andAll(lacks)+
+			" was not measured")
+	}
 	if len(said) == 0 {
 		return ""
 	}
 	return " (" + strings.Join(said, ", ") + ")"
 }
+
+// notMeasured is what a press asked to be checked against and did not get, shortest name first
+// in the order the guard reads them.
+//
+// A press states the window it is about whether or not the window could be measured, because the
+// basis is what the press MEANS and not one of the measurements. That is deliberate and it is
+// what makes this function necessary: the alternative — dropping the basis when a measurement
+// failed — turned the press into an ordinary point, and an ordinary point is pressed at its
+// recorded coordinate having checked nothing. A failed measurement means guarded replay is
+// unavailable for that press, so the person has to be told, here, before they keep it.
+func notMeasured(s macroir.Step) []string {
+	if s.Kind != macroir.StepClick || s.RelTo == "" {
+		return nil
+	}
+	var out []string
+	if !s.WinRel {
+		out = append(out, "where in the window the press went")
+	}
+	if s.WinW <= 0 || s.WinH <= 0 {
+		out = append(out, "how big the window was")
+	}
+	if s.Dpi <= 0 {
+		out = append(out, "what scale it was drawn at")
+	}
+	if s.Process == "" {
+		out = append(out, "which program owned it")
+	}
+	return out
+}
+
+// whyItWillNotRun is the draft-level account of an incomplete recording: how much of it cannot be
+// checked, which measurements are missing, and whether recording it again would change that.
+//
+// The last part is the one somebody actually needs. A window that would not describe itself this
+// time, or a program that had exited before the recording closed, is a moment that passed — do it
+// again with the thing running in front of you. A Windows with no `GetDpiForWindow` is not a
+// moment; no press on this machine will ever carry a scale, so a routine that checks the window
+// it was made in is not available here at all. Telling somebody to try again when nothing about
+// trying again can change the answer is the worse of those two mistakes.
+func whyItWillNotRun(steps []macroir.Step) string {
+	presses, lacks := 0, map[string]bool{}
+	for _, s := range steps {
+		l := notMeasured(s)
+		if len(l) == 0 {
+			continue
+		}
+		presses++
+		for _, one := range l {
+			lacks[one] = true
+		}
+	}
+	if presses == 0 {
+		return ""
+	}
+	var missing []string
+	for _, one := range []string{
+		"where in the window the press went",
+		"how big the window was",
+		"what scale it was drawn at",
+		"which program owned it",
+	} {
+		if lacks[one] {
+			missing = append(missing, one)
+		}
+	}
+	repair := "Record it again with the program running and in front of you, and " +
+		"the measurements should arrive."
+	if lacks["what scale it was drawn at"] && !canReadWindowScale() {
+		repair = "This computer's Windows is too old to report a window's scale, " +
+			"so recording it again will not change that: a routine that " +
+			"checks the window it was made in cannot be made on this machine."
+	}
+	press := "press"
+	if presses > 1 {
+		press = "presses"
+	}
+	return fmt.Sprintf("%d %s here asked to be checked against the window they "+
+		"were made in, and %s was not measured. Saving this keeps the "+
+		"recording, and it will REFUSE to press rather than press somewhere "+
+		"nobody checked. %s", presses, press, andAll(missing), repair)
+}
+
+// andAll is a list a person reads: "a", "a and b", "a, b and c".
+func andAll(of []string) string {
+	switch len(of) {
+	case 0:
+		return ""
+	case 1:
+		return of[0]
+	}
+	return strings.Join(of[:len(of)-1], ", ") + " and " + of[len(of)-1]
+}
+
+// canReadWindowScale is whether this Windows can be asked a window's DPI at all.
+//
+// A variable so both sentences above can be read by a test. Only one of them is reachable on any
+// given machine — this one can read a scale, so the "record it again" branch is the only live one
+// here — and the branch that cannot be reached is the branch that would be wrong if nobody
+// checked it: telling somebody to demonstrate it again when nothing about demonstrating it again
+// can change the answer.
+var canReadWindowScale = winctx.CanReadWindowScale

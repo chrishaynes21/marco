@@ -175,23 +175,34 @@ func TestThePressMeasuresTheWindowItAttributed(t *testing.T) {
 	}
 }
 
-// AND A WINDOW THAT WILL NOT ANSWER LEAVES EVERY ONE OF THOSE TERMS EMPTY.
+// AND A WINDOW THAT WILL NOT ANSWER LEAVES EVERY MEASUREMENT EMPTY — BUT NOT THE BASIS.
 //
-// Not a fabricated rectangle and not a default DPI of 96. The guarded contract is opted into by
-// the PRESENCE of this evidence, so a press that invented it would opt a routine into checks
-// against numbers nobody measured — which is worse than the legacy behaviour it would replace.
-func TestAPressWithNoReadableWindowRecordsNothingAboutOne(t *testing.T) {
+// Not a fabricated rectangle and not a default DPI of 96: absent is a different claim from a
+// default, and a press that invented one would opt a routine into a check against a number
+// nobody read.
+//
+// The BASIS is not one of those measurements. It says which rectangle the press is ABOUT, which
+// is true whether or not the rectangle could be measured — and dropping it was how a press in an
+// unreadable window became an ordinary point, pressed at its recorded coordinate having checked
+// nothing. A failed measurement means guarded replay is unavailable for that press, not that its
+// safeguards are optional.
+func TestAPressWithNoReadableWindowStillSaysWhichWindow(t *testing.T) {
 	onTheGameWithMarcoInFront(t, 9140)
 	aWindowLike(t, theGameWindow, 0, 0, 1920, 1080, 96) // not the attributed window
 
 	down := newClick("left", true, 1511, 913)
 
+	if down.RelTo != macroir.RelToWindow {
+		t.Errorf("the press does not say which window it was about (%q), so a "+
+			"replay would press its coordinate without checking anything",
+			down.RelTo)
+	}
 	if down.WinRel || down.RelX != 0 || down.RelY != 0 {
 		t.Errorf("an unreadable window produced an offset: %+v", down)
 	}
-	if down.RelTo != "" || down.WinW != 0 || down.WinH != 0 || down.Dpi != 0 {
-		t.Errorf("an unreadable window produced a shape: relTo=%q %dx%d dpi=%d",
-			down.RelTo, down.WinW, down.WinH, down.Dpi)
+	if down.WinW != 0 || down.WinH != 0 || down.Dpi != 0 {
+		t.Errorf("an unreadable window produced a shape: %dx%d dpi=%d",
+			down.WinW, down.WinH, down.Dpi)
 	}
 	// AND THE ATTRIBUTION SURVIVES IT. Whose the click is and what its window was like
 	// are two questions, and failing the second does not unanswer the first.
@@ -201,13 +212,12 @@ func TestAPressWithNoReadableWindowRecordsNothingAboutOne(t *testing.T) {
 	}
 }
 
-// AND A WINDOW THAT ANSWERS INCOMPLETELY STATES NO BASIS, SO IT IS AN ORDINARY POINT.
+// AND A WINDOW THAT ANSWERS INCOMPLETELY KEEPS ITS BASIS AND LEAVES THE REST MISSING.
 //
-// Stating the basis is what asks a replay to CHECK a press against its window, and the replay
-// side requires every term with no fallback. So a press that measured four of the five terms
-// must not claim the window at all: it would be a routine recorded honestly that can never run.
-// It keeps its coordinate and its offset and is pressed by the rule every route before this was
-// saved with.
+// Which is the whole correction. The press still declares the window it was about, each
+// measurement is written only when it was taken, and nothing substitutes for one that was not —
+// so the saved route says "this press asked to be checked and cannot be", and replay refuses
+// instead of pressing a remembered pixel.
 //
 // Two ways to answer incompletely, and both are real desktops:
 //
@@ -217,23 +227,32 @@ func TestAPressWithNoReadableWindowRecordsNothingAboutOne(t *testing.T) {
 //   - THE PRESS IS OUTSIDE THE WINDOW IT WAS ATTRIBUTED TO. Which is what a click that CHANGED
 //     the foreground looks like from inside the hook: the attribution still names the window
 //     that was in front at that instant, and the click landed in the one it was about to raise.
-//     An offset of -40 into a window is not a measurement of anything.
-func TestAnIncompletelyMeasuredPressStatesNoBasis(t *testing.T) {
+//     An offset of -40 into a window is not a measurement of anything, so the offset is the
+//     term that goes missing — while the rectangle it was not inside is still recorded, because
+//     that part WAS read.
+func TestAnIncompletelyMeasuredPressKeepsItsBasis(t *testing.T) {
 	for _, c := range []struct {
 		what                 string
 		left, top, w, h, dpi int
 		x, y                 int
+		wantOffset           bool
+		wantDpi              int
 	}{
-		{"the window will not say what scale it is drawn at",
-			120, 64, 1920, 1080, 0, 1511, 913},
-		{"the press is left of the window it was attributed to",
-			120, 64, 1920, 1080, 144, 80, 913},
-		{"the press is above the window it was attributed to",
-			120, 64, 1920, 1080, 144, 1511, 40},
-		{"the press is past the right edge of it",
-			120, 64, 800, 600, 144, 1511, 400},
-		{"the press is past the bottom edge of it",
-			120, 64, 800, 600, 144, 400, 913},
+		{what: "the window will not say what scale it is drawn at",
+			left: 120, top: 64, w: 1920, h: 1080, dpi: 0,
+			x: 1511, y: 913, wantOffset: true, wantDpi: 0},
+		{what: "the press is left of the window it was attributed to",
+			left: 120, top: 64, w: 1920, h: 1080, dpi: 144,
+			x: 80, y: 913, wantDpi: 144},
+		{what: "the press is above the window it was attributed to",
+			left: 120, top: 64, w: 1920, h: 1080, dpi: 144,
+			x: 1511, y: 40, wantDpi: 144},
+		{what: "the press is past the right edge of it",
+			left: 120, top: 64, w: 800, h: 600, dpi: 144,
+			x: 1511, y: 400, wantDpi: 144},
+		{what: "the press is past the bottom edge of it",
+			left: 120, top: 64, w: 800, h: 600, dpi: 144,
+			x: 400, y: 913, wantDpi: 144},
 	} {
 		t.Run(c.what, func(t *testing.T) {
 			onTheGameWithMarcoInFront(t, 9140)
@@ -241,23 +260,26 @@ func TestAnIncompletelyMeasuredPressStatesNoBasis(t *testing.T) {
 
 			down := newClick("left", true, c.x, c.y)
 
-			if down.RelTo != "" || down.WinW != 0 || down.WinH != 0 ||
-				down.Dpi != 0 {
-				t.Errorf("the press claims a window it did not fully "+
-					"measure: relTo=%q %dx%d dpi=%d", down.RelTo,
-					down.WinW, down.WinH, down.Dpi)
+			if down.RelTo != macroir.RelToWindow {
+				t.Errorf("the press stopped saying which window it was "+
+					"about (%q) because it could not be measured in "+
+					"it, which makes it an ordinary point and runs it "+
+					"unchecked", down.RelTo)
 			}
-			// AND IT IS STILL AN ORDINARY POINT. Losing the basis must not
-			// lose the press: the coordinate and the offset are what the
-			// legacy path runs on.
+			if down.Dpi != c.wantDpi {
+				t.Errorf("the press records DPI %d, want %d", down.Dpi,
+					c.wantDpi)
+			}
+			if down.WinRel != c.wantOffset {
+				t.Errorf("the press records an offset (%v) when it should "+
+					"be %v: (%d,%d)", down.WinRel, c.wantOffset,
+					down.RelX, down.RelY)
+			}
+			// AND THE COORDINATE SURVIVES, because it is what the step is
+			// and the route is unreadable without it.
 			if down.X != c.x || down.Y != c.y {
 				t.Errorf("the press lost its coordinate: (%d,%d), want "+
 					"(%d,%d)", down.X, down.Y, c.x, c.y)
-			}
-			if !down.WinRel || down.RelX != c.x-c.left || down.RelY != c.y-c.top {
-				t.Errorf("the press lost its offset: winRel=%v (%d,%d), "+
-					"want (%d,%d)", down.WinRel, down.RelX, down.RelY,
-					c.x-c.left, c.y-c.top)
 			}
 		})
 	}

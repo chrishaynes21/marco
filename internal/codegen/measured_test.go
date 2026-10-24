@@ -168,16 +168,12 @@ func TestALegacyPointIsGeneratedUnchanged(t *testing.T) {
 
 // AND AN ABSOLUTE POINT STAYS ABSOLUTE.
 //
-// A click with no window-relative offset has no window to be about: there is no basis, so there
-// is nothing to measure against and nothing to check. It reads as the two numbers it always did.
+// A click about no window at all: no basis, nothing measured, nothing to check. It reads as the
+// two numbers it always did, which is the legacy contract and the one every route on the owner's
+// machine was saved with.
 func TestAnAbsolutePointIsUntouched(t *testing.T) {
 	src := generated(t, macroir.Step{
 		Kind: macroir.StepClick, Button: "left", X: 842, Y: 274,
-		// MEASURED, AND NOT WINDOW-RELATIVE. The terms are present on the step and
-		// must still not be written: without an offset they describe a window
-		// nothing is resolved against.
-		RelTo: macroir.RelToWindow, WinW: 1920, WinH: 1080, Dpi: 144,
-		Process: "arkascended.exe",
 	})
 
 	if !strings.Contains(src, "the p1 is a Point with X 842, Y 274.") {
@@ -185,8 +181,56 @@ func TestAnAbsolutePointIsUntouched(t *testing.T) {
 	}
 	for _, gone := range []string{"RelTo", "WinW", "Dpi", "Process"} {
 		if strings.Contains(src, gone) {
-			t.Errorf("%q reached a point with no offset to resolve:\n%s", gone,
+			t.Errorf("%q reached a point that is about no window:\n%s", gone, src)
+		}
+	}
+}
+
+// AND A PRESS THAT DECLARED A WINDOW AND COULD NOT BE MEASURED IN IT SAYS SO IN THE ROUTE.
+//
+// The third saved contract, and the one that did not exist. A press whose window would not report
+// its size, or whose scale Windows will not report, or whose program had gone, used to come out
+// of here as a bare absolute point — byte-for-byte a route recorded before any of this existed,
+// and pressed with the same unchecked trust. A failed measurement had quietly turned the
+// safeguards off.
+//
+// So the basis is written whether or not the measurements arrive, because the basis is what the
+// press MEANS and not one of the measurements. The route then says all three things apart: no
+// basis is legacy, a basis with every term is guarded, and a basis with a term missing is a press
+// that asked to be checked and cannot be — refused at replay, naming what it lacks.
+func TestAPressThatCouldNotBeMeasuredStillDeclaresItsWindow(t *testing.T) {
+	// NOTHING MEASURED AT ALL: the window would not describe itself, so there is no
+	// offset, no size, no scale, and the program lookup had nothing to go on either.
+	// This is the case that was indistinguishable from legacy.
+	src := generated(t, macroir.Step{
+		Kind: macroir.StepClick, Button: "left", X: 842, Y: 274,
+		RelTo: macroir.RelToWindow,
+	})
+
+	if !strings.Contains(src, `the p1 is a Point with X 842, Y 274, RelTo "window".`) {
+		t.Errorf("the press does not declare the window it was about:\n%s", src)
+	}
+	// AND NOT ONE OF THE MEASUREMENTS IS INVENTED. A zero offset is not the top-left
+	// corner, a zero size is not a window, and 96 dpi is not a scale somebody read.
+	for _, gone := range []string{"RelX", "RelY", "WinW", "WinH", "Dpi", "Process"} {
+		if strings.Contains(src, gone) {
+			t.Errorf("%q was written although nothing measured it:\n%s", gone,
 				src)
 		}
+	}
+
+	// AND PARTLY MEASURED IS THE SAME SHAPE: whatever arrived is written, whatever did
+	// not is absent, and the basis is there either way.
+	partly := generated(t, macroir.Step{
+		Kind: macroir.StepClick, Button: "left", X: 842, Y: 274,
+		WinRel: true, RelX: 722, RelY: 210,
+		RelTo: macroir.RelToWindow, WinW: 1920, WinH: 1080,
+		Process: "arkascended.exe", // and no Dpi: Windows would not say
+	})
+	want := `the p1 is a Point with X 842, Y 274, RelX 722, RelY 210, ` +
+		`RelTo "window", WinW 1920, WinH 1080, Process "arkascended.exe".`
+	if !strings.Contains(partly, want) {
+		t.Errorf("a partly measured press is not written as one.\n  want: %s\n"+
+			"--- source ---\n%s", want, partly)
 	}
 }

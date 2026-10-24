@@ -199,21 +199,35 @@ func (p *points) add(x, y int) string {
 // pressing, and a point without them keeps the behaviour it was saved with. A route saved before
 // any of this existed, or one recorded where the window would not describe itself, therefore
 // reads exactly as it did and runs exactly as it did.
-func (p *points) addRel(x, y, rx, ry int, in macroir.Step) string {
+// The offset itself is one of the measurements, and is written only when it was taken: a press
+// that declared the window and could not be measured inside it saves its basis with no `RelX`,
+// which is what tells a replay the measurement is MISSING rather than zero.
+func (p *points) addRel(x, y int, in macroir.Step) string {
 	p.n++
 	name := fmt.Sprintf("p%d", p.n)
+	rel := ""
+	if in.WinRel {
+		rel = fmt.Sprintf(", RelX %d, RelY %d", in.RelX, in.RelY)
+	}
 	p.decls = append(p.decls, fmt.Sprintf(
-		"the %s is a Point with X %d, Y %d, RelX %d, RelY %d%s.",
-		name, x, y, rx, ry, measured(in)))
+		"the %s is a Point with X %d, Y %d%s%s.", name, x, y, rel, measured(in)))
 	return name
 }
 
-// measured is the window a press was made in, as Point fields, or "" when it was not measured.
+// measured is the window a press was made in, as Point fields, or "" for a point that is about no
+// window at all.
 //
-// All or nothing on the BASIS, deliberately. The size, the DPI and the program are each written
-// only when known — a DPI nobody could read must not be written as 96 — but none of them is
-// written without the basis, because checking a window's size while having no idea which
-// rectangle the offset belongs to is checking the easy half of the question.
+// The BASIS is the contract and the rest are measurements. The size, the DPI and the program are
+// each written only when known — a DPI nobody could read must not be written as 96, and absent is
+// a different claim from a default — and none of them is written without the basis, because
+// checking a window's size while having no idea which rectangle the offset belongs to is checking
+// the easy half of the question.
+//
+// What the basis does NOT depend on is whether the measurements arrived. A press that declared
+// the window and could not be measured in it writes `RelTo` alone, and that is the third saved
+// contract: not legacy, which is a point about no window and is pressed as it always was, and not
+// guarded-and-runnable either, but a point that asked to be checked and cannot be — refused at
+// replay, naming each term it is missing.
 func measured(s macroir.Step) string {
 	if s.RelTo == "" {
 		return ""
@@ -233,9 +247,13 @@ func measured(s macroir.Step) string {
 
 // clickPoint declares the Point for a click step — window-relative when the
 // recorder captured an offset, else a plain absolute point.
+// A point goes down the window-relative form when it is ABOUT a window, which is the basis and
+// not the offset. Branching on the offset was the gap: a press that declared the window and could
+// not be measured in it came out as a bare absolute point — indistinguishable from a route saved
+// before any of this existed, and pressed with the same unchecked trust.
 func (p *points) clickPoint(s macroir.Step) string {
-	if s.WinRel {
-		return p.addRel(s.X, s.Y, s.RelX, s.RelY, s)
+	if s.WinRel || s.RelTo != "" {
+		return p.addRel(s.X, s.Y, s)
 	}
 	return p.add(s.X, s.Y)
 }

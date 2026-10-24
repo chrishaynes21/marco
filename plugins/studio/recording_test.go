@@ -437,26 +437,33 @@ func TestReviewSaysWhatThePressMeasured(t *testing.T) {
 	}
 }
 
-// AND REVIEW SAYS SO WHEN A PRESS MEASURED NO WINDOW AT ALL.
+// AND REVIEW EXPLAINS A MEASUREMENT THAT FAILED, AND WHETHER DOING IT AGAIN WOULD HELP.
 //
-// The recorder writes the window terms together or not at all, so a press whose window would not
-// report its size or its scale — and one whose program had gone by the time the recording closed
-// — is saved as an ordinary point: pressed at the coordinate it was demonstrated at, checked
-// against nothing. That is a real difference in what the routine will do, and review is the one
-// place it can be seen before the routine is kept. Said in words rather than shown as the
-// absence of a parenthesis nobody was looking for.
-func TestReviewSaysWhenAPressMeasuredNoWindow(t *testing.T) {
+// A press that declared the window it was made in and is missing a measurement will REFUSE at
+// run time rather than press — which is the point, because the alternative was pressing a
+// remembered pixel having checked nothing. The person has to find that out HERE, while they are
+// still in front of the screen and before they keep it, and they have to be told enough to act:
+// the name of what was not measured, and whether recording it again can change the answer.
+//
+// The case is the program lookup, because that one is unlike the others: it runs AFTER the
+// capture, once the hooks are down, so it fails for a program that has exited between the press
+// and the Stop button — the one measurement that can fail while the window itself answered
+// everything.
+func TestReviewExplainsAMeasurementThatFailed(t *testing.T) {
 	t.Setenv("MARCO_CV", "off")
 	t.Setenv("MARCO_ROUTES", t.TempDir())
 	a := newActs(t.TempDir())
 	a.recording = func() recorder.Recorder {
 		return &heldRecorder{events: []recorder.RecordedEvent{
 			{Kind: recorder.EvAppSwitch, KeyName: "arkascended", T: at(0)},
-			// AN OFFSET AND NO BASIS: the window was there and could not be
-			// fully measured, which is what the recorder leaves behind.
+			// THE WINDOW ANSWERED EVERYTHING AND THE PROGRAM HAD GONE: no
+			// `Process`, which is what the post-capture lookup leaves when
+			// the program it would have opened is no longer running.
 			{Kind: recorder.EvClick, Button: "left", Down: true, X: 842, Y: 274,
 				App: "arkascended", PID: gamePID, T: at(100),
-				WinRel: true, RelX: 722, RelY: 210},
+				WinRel: true, RelX: 722, RelY: 210,
+				RelTo: macroir.RelToWindow, WinW: 1920, WinH: 1080,
+				Dpi: 144},
 			{Kind: recorder.EvClick, Button: "left", Down: false, X: 842, Y: 274,
 				App: "arkascended", PID: gamePID, T: at(105)},
 		}}
@@ -468,8 +475,9 @@ func TestReviewSaysWhenAPressMeasuredNoWindow(t *testing.T) {
 		t.Fatal(why)
 	}
 
+	r := a.Recording()
 	line := ""
-	for _, s := range a.Recording().Steps {
+	for _, s := range r.Steps {
 		if strings.Contains(s, "click") {
 			line = s
 		}
@@ -477,9 +485,103 @@ func TestReviewSaysWhenAPressMeasuredNoWindow(t *testing.T) {
 	if line == "" {
 		t.Fatal("review lists no click at all")
 	}
-	if !strings.Contains(line, "window not measured") {
-		t.Errorf("review says %q, and this press claims no window, so a run "+
-			"will press its coordinate without checking anything", line)
+	// ── BESIDE THE STEP: what it cannot be checked against ──
+	for _, want := range []string{"cannot be checked", "which program owned it"} {
+		if !strings.Contains(line, want) {
+			t.Errorf("the step reads %q and does not mention %q", line, want)
+		}
+	}
+	// AND WHAT IT DID MEASURE IS STILL THERE, because the person is deciding and the
+	// measurement that arrived is half of what they are deciding about.
+	if !strings.Contains(line, "1920×1080") || !strings.Contains(line, "144 dpi") {
+		t.Errorf("the step reads %q and drops what WAS measured", line)
+	}
+
+	// ── AND THE DRAFT SAYS IT WILL NOT RUN, ONCE, IN WORDS ──
+	if !r.Incomplete {
+		t.Error("the draft does not say it is incomplete, so the page has " +
+			"nothing to warn with")
+	}
+	for _, want := range []string{"1 press", "which program owned it", "REFUSE",
+		"Record it again"} {
+		if !strings.Contains(r.Missing, want) {
+			t.Errorf("the account reads %q and does not mention %q",
+				r.Missing, want)
+		}
+	}
+
+	// ── AND SAVING IT SAYS SO TOO, RATHER THAN "SAVED, RUN IT" ──
+	//
+	// Saving is allowed: the draft is a true record of what somebody did, and throwing
+	// it away would lose the demonstration along with the measurement. What is not
+	// allowed is saving it quietly as something that runs.
+	if why := a.SaveDraft("app-anywhere", "arkascended"); why != "" {
+		t.Fatalf("saving an incomplete recording was refused: %s", why)
+	}
+	after := a.Recording()
+	if after.Saved == "" {
+		t.Fatal("nothing was saved")
+	}
+	if !strings.Contains(after.Said, "refuse to press") {
+		t.Errorf("the save message reads %q and does not say the routine "+
+			"will refuse", after.Said)
+	}
+	if !after.Incomplete {
+		t.Error("what was saved stopped being incomplete the moment it was saved")
+	}
+}
+
+// AND A RECORDING THAT MEASURED EVERYTHING SAYS NONE OF THAT.
+//
+// The control, and it earns its place: a warning that appears on every recording is a warning
+// nobody reads, and the whole value of the sentence above is that it is absent when the routine
+// will actually run.
+func TestReviewIsQuietWhenEverythingWasMeasured(t *testing.T) {
+	t.Setenv("MARCO_CV", "off")
+	t.Setenv("MARCO_ROUTES", t.TempDir())
+	a := newActs(t.TempDir())
+	a.recording = func() recorder.Recorder {
+		return &heldRecorder{events: []recorder.RecordedEvent{
+			{Kind: recorder.EvAppSwitch, KeyName: "arkascended", T: at(0)},
+			{Kind: recorder.EvClick, Button: "left", Down: true, X: 842, Y: 274,
+				App: "arkascended", PID: gamePID, T: at(100),
+				WinRel: true, RelX: 722, RelY: 210,
+				RelTo: macroir.RelToWindow, WinW: 1920, WinH: 1080,
+				Dpi: 144, Process: "arkascended.exe"},
+			{Kind: recorder.EvClick, Button: "left", Down: false, X: 842, Y: 274,
+				App: "arkascended", PID: gamePID, T: at(105)},
+		}}
+	}
+	if why := a.StartRecording("ark graphics"); why != "" {
+		t.Fatal(why)
+	}
+	if why := a.StopRecording(); why != "" {
+		t.Fatal(why)
+	}
+
+	r := a.Recording()
+	if r.Incomplete || r.Missing != "" {
+		t.Errorf("a fully measured recording is reported as incomplete: %q",
+			r.Missing)
+	}
+	for _, s := range r.Steps {
+		if strings.Contains(s, "cannot be checked") {
+			t.Errorf("a fully measured press says %q", s)
+		}
+	}
+
+	// AND A PRESS ABOUT NO WINDOW AT ALL IS NOT REPORTED AS INCOMPLETE EITHER.
+	//
+	// Incomplete means "it asked to be checked and cannot be". A press with no basis
+	// asked for nothing and keeps the behaviour it was saved with, so flagging it would
+	// put the warning on every legacy press there is — and a warning that appears on
+	// everything is a warning nobody reads.
+	legacy := reviewOf(t, func(e *recorder.RecordedEvent) {
+		e.RelTo, e.WinW, e.WinH, e.Dpi, e.Process = "", 0, 0, 0, ""
+	})
+	if legacy.Incomplete || legacy.Missing != "" {
+		t.Errorf("a press that asked to be checked against nothing is reported "+
+			"as incomplete: %q", legacy.Missing)
 	}
 }
 
@@ -580,4 +682,112 @@ func TestARecordingAndARunExcludeEachOther(t *testing.T) {
 		t.Error("a second recording was started over a draft nobody had saved " +
 			"or cancelled")
 	}
+}
+
+// AND EVERY MEASUREMENT THAT CAN FAIL IS NAMED, ONE AT A TIME.
+//
+// Four measurements, four reasons they fail on real desktops, and each one has to appear in the
+// review by name — because "this press cannot be checked" tells somebody nothing about whether
+// doing it again would help, and the name of the missing measurement does.
+func TestReviewNamesWhicheverMeasurementFailed(t *testing.T) {
+	for _, c := range []struct {
+		what string
+		lose func(*recorder.RecordedEvent)
+		says string
+	}{
+		{"the window would not say how big it is",
+			func(e *recorder.RecordedEvent) { e.WinW, e.WinH = 0, 0 },
+			"how big the window was"},
+		{"this Windows cannot report a scale",
+			func(e *recorder.RecordedEvent) { e.Dpi = 0 },
+			"what scale it was drawn at"},
+		{"the program had gone before the lookup ran",
+			func(e *recorder.RecordedEvent) { e.Process = "" },
+			"which program owned it"},
+		// THE PRESS COULD NOT BE PLACED INSIDE THE WINDOW. A click that CHANGED the
+		// foreground looks like this from inside the hook: the attribution names the
+		// window that was in front at that instant and the click landed in the one
+		// it was about to raise.
+		{"the press could not be placed inside the window",
+			func(e *recorder.RecordedEvent) {
+				e.WinRel, e.RelX, e.RelY = false, 0, 0
+			},
+			"where in the window the press went"},
+	} {
+		t.Run(c.what, func(t *testing.T) {
+			r := reviewOf(t, c.lose)
+			line := ""
+			for _, s := range r.Steps {
+				if strings.Contains(s, "click") {
+					line = s
+				}
+			}
+			if !strings.Contains(line, c.says) {
+				t.Errorf("the step reads %q and does not name %q", line,
+					c.says)
+			}
+			if !r.Incomplete || !strings.Contains(r.Missing, c.says) {
+				t.Errorf("the account reads %q and does not name %q",
+					r.Missing, c.says)
+			}
+		})
+	}
+}
+
+// AND A SCALE THIS COMPUTER CANNOT REPORT IS NOT SOMETHING TO TRY AGAIN.
+//
+// The one case where "record it again" is the wrong advice. `GetDpiForWindow` arrived in Windows
+// 10 1607; without it no press on this machine will ever carry a scale, so a routine that checks
+// the window it was made in cannot be made here at all — and sending somebody back to
+// re-demonstrate, repeatedly, for an answer that cannot arrive is the worse of the two mistakes.
+//
+// Reachable only through the seam: this machine CAN report a scale, which is why the branch
+// needs a test rather than a reading.
+func TestAScaleThisComputerCannotReportIsNotRepairable(t *testing.T) {
+	was := canReadWindowScale
+	t.Cleanup(func() { canReadWindowScale = was })
+	canReadWindowScale = func() bool { return false }
+
+	r := reviewOf(t, func(e *recorder.RecordedEvent) { e.Dpi = 0 })
+
+	if !strings.Contains(r.Missing, "too old") ||
+		!strings.Contains(r.Missing, "cannot be made on this machine") {
+		t.Errorf("the account reads %q, and on a computer that can never "+
+			"report a scale it has to say so rather than ask for another "+
+			"demonstration", r.Missing)
+	}
+	if strings.Contains(r.Missing, "Record it again") {
+		t.Errorf("the account asks for another demonstration that cannot "+
+			"change the answer: %q", r.Missing)
+	}
+}
+
+// reviewOf records one fully measured press with `lose` applied to it, stops, and returns what
+// review says.
+func reviewOf(t *testing.T, lose func(*recorder.RecordedEvent)) Recording {
+	t.Helper()
+	t.Setenv("MARCO_CV", "off")
+	t.Setenv("MARCO_ROUTES", t.TempDir())
+	a := newActs(t.TempDir())
+	press := recorder.RecordedEvent{Kind: recorder.EvClick, Button: "left",
+		Down: true, X: 842, Y: 274, App: "arkascended", PID: gamePID,
+		T: at(100), WinRel: true, RelX: 722, RelY: 210,
+		RelTo: macroir.RelToWindow, WinW: 1920, WinH: 1080, Dpi: 144,
+		Process: "arkascended.exe"}
+	lose(&press)
+	a.recording = func() recorder.Recorder {
+		return &heldRecorder{events: []recorder.RecordedEvent{
+			{Kind: recorder.EvAppSwitch, KeyName: "arkascended", T: at(0)},
+			press,
+			{Kind: recorder.EvClick, Button: "left", Down: false, X: 842,
+				Y: 274, App: "arkascended", PID: gamePID, T: at(105)},
+		}}
+	}
+	if why := a.StartRecording("ark graphics"); why != "" {
+		t.Fatal(why)
+	}
+	if why := a.StopRecording(); why != "" {
+		t.Fatal(why)
+	}
+	return a.Recording()
 }

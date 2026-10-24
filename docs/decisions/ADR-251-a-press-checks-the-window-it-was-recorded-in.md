@@ -2,7 +2,7 @@
 type: adr
 status: accepted
 date: 2026-10-23
-decision: "ACCEPTED — A COORDINATE IS A CLAIM ABOUT A PLACE ONLY WHILE THE WINDOW IT WAS MEASURED IN IS STILL THAT WINDOW, AND THE PRESS IS WHERE THAT GETS CHECKED. A press records five terms at the instant it is made: the BASIS its offset is measured from, the window's OUTER size, the window's DPI as its own term, and the file name of the program that owned it. All five reach the saved route, because saved legal Marco is the only executable truth in this stack. The basis is recorded although there is one value today, so no route already on disk is reinterpreted the day a recorder measures from the client area instead. Each term is written only when it was MEASURED — a DPI nobody could read is absent, not 96 — and the terms go in ALL OF THEM OR NONE, because a check skipped for want of a term is a guard whose strength depends on what the recording happened to capture and which says nowhere that it was skipped. So the recording side DEGRADES to an ordinary point when it cannot measure everything, and the replay side REFUSES anything that states the basis and omits a term: missing, malformed, out of range, and unreadable at the desktop are all refusals, named. The BASIS ALONE is the opt-in — requiring an offset beside it was a bypass — and it must be a basis this knows how to check. A point without a basis is pressed by exactly the rule it was saved with. Replay binds the WINDOW during preparation, from `Activate`, AND THE PROCESS THAT OWNED IT THEN, because a handle is not an identity: two copies of one program share an executable name, so only the process id separates the window the route prepared from a second instance that inherited the handle. Before every press it re-reads THAT HANDLE: still a window, still in front, still that process, its origin, its outer size, its DPI, and the program that owns it NOW. And the offset must lie INSIDE the recorded rectangle, because origin-plus-offset is a point on the desktop and every other check can pass while the cursor leaves the window. Every comparison is EXACT and any disagreement REFUSES, naming the term; it does not fall back to the recorded coordinate, because that is pressing a remembered pixel on a desktop just shown not to match. The window is re-read before every press and never cached: the legacy origin snapshot answers about the FIRST press of a route and exists to survive a focus flicker this path detects directly. One resolver serves clicks, Moves and the recorded point a vision-free `Find` hands back, because those are three ways into one question and a guard with a bypass is not a guard."
+decision: "ACCEPTED — A COORDINATE IS A CLAIM ABOUT A PLACE ONLY WHILE THE WINDOW IT WAS MEASURED IN IS STILL THAT WINDOW, AND THE PRESS IS WHERE THAT GETS CHECKED. A press records five terms at the instant it is made: the BASIS its offset is measured from, the window's OUTER size, the window's DPI as its own term, and the file name of the program that owned it. All five reach the saved route, because saved legal Marco is the only executable truth in this stack. The basis is recorded although there is one value today, so no route already on disk is reinterpreted the day a recorder measures from the client area instead. Each term is written only when it was MEASURED — a DPI nobody could read is absent, not 96 — and MISSING IS WHAT IT STAYS. The BASIS is the contract and everything else is a measurement, so `RelTo` is written for every press a measuring recorder makes whether or not the measurements arrive, and the saved file therefore says three things apart: no basis is LEGACY and pressed exactly as it always was; a basis with every term is GUARDED; a basis with a term missing is INCOMPLETE and refused, naming what it lacks. Which state a press is in does not depend on a measurement having succeeded. A failed measurement means guarded replay is UNAVAILABLE for that recording — never that its requirements become optional, and never that it quietly becomes an ordinary point, which is pressed at its recorded coordinate having checked nothing. Review says what was not measured and whether recording it again can change the answer; saving is allowed and is not quiet. The BASIS ALONE is the opt-in — requiring an offset beside it was a bypass — and it must be a basis this knows how to check. Replay binds the WINDOW during preparation, from `Activate`, AND THE PROCESS THAT OWNED IT THEN, because a handle is not an identity: two copies of one program share an executable name, so only the process id separates the window the route prepared from a second instance that inherited the handle. Before every press it re-reads THAT HANDLE: still a window, still in front, still that process, its origin, its outer size, its DPI, and the program that owns it NOW. And the offset must lie INSIDE the recorded rectangle, because origin-plus-offset is a point on the desktop and every other check can pass while the cursor leaves the window. Every comparison is EXACT and any disagreement REFUSES, naming the term; it does not fall back to the recorded coordinate, because that is pressing a remembered pixel on a desktop just shown not to match. The window is re-read before every press and never cached: the legacy origin snapshot answers about the FIRST press of a route and exists to survive a focus flicker this path detects directly. One resolver serves clicks, Moves and the recorded point a vision-free `Find` hands back, because those are three ways into one question and a guard with a bypass is not a guard."
 supersedes: []
 affects:
   - execution
@@ -86,46 +86,84 @@ zero. Each term is written only when measured.
 None of them is written without the basis, though. Checking a window's size while having no idea
 which of its rectangles the offset belongs to is checking the easy half.
 
-## All of them, or none — and which side pays
+## Three saved contracts, and the basis is what states them
 
 The first version of this drew the conclusion that a term the DEMONSTRATION lacks is not checked
 at replay, because there is nothing to compare it against, and refusing would refuse a routine for
-the crime of having been recorded honestly. That reasoning is sound about the recording and wrong
-about the guard, and the difference matters enough to be the main correction this ADR carries.
+the crime of having been recorded honestly. **That is wrong, and it was wrong in two successive
+ways.** Both corrections are worth writing down, because the second one is the subtler mistake and
+it looked like the fix for the first.
 
-A check that is skipped when its term is absent makes the guard's strength depend on how much the
-recording happened to capture, and **nothing in the route, the log or the review says which checks
-did not happen.** A press with no recorded DPI passed on a desktop redrawn at another scale. A
-press with no recorded program passed in a window belonging to something else entirely. The log
-line said `click: guarded` for both. That is worse than no guard, because the route reads as
-checked.
+**The first mistake: a check skipped for want of a term.** It makes the guard's strength depend on
+how much the recording happened to capture, and *nothing in the route, the log or the review says
+which checks did not happen.* A press with no recorded DPI passed on a desktop redrawn at another
+scale. A press with no recorded program passed in a window belonging to something else entirely.
+The log line said `click: guarded` for both. That is worse than no guard, because the route reads
+as checked.
 
-So the rule is all-or-none, and the two halves carry it differently:
+**The second mistake: making the RECORDING degrade instead.** The basis went in only when every
+term arrived, so a press that could not be fully measured was saved as an ordinary point. That
+reads as conservative and is the same hole one layer earlier: an ordinary point is pressed at its
+recorded coordinate having checked nothing, so a window that would not report its size, a Windows
+without `GetDpiForWindow` (before 10/1607), or a program that had exited before the hooks came
+down each turned the safeguards off for a recording somebody was about to be offered. Preserving
+old routines means preserving the behaviour of **routes already on disk**. It never meant letting
+a new recording run unchecked because a measurement failed. A failed measurement means guarded
+replay is UNAVAILABLE for that recording — not that its requirements become optional.
 
-- **The recording side degrades.** The basis goes in only with every term beside it. A window
-  that would not report its size, a Windows without `GetDpiForWindow` (before 10/1607), a press
-  whose offset falls outside the window it was attributed to — which is what a click that CHANGED
-  the foreground looks like from inside the hook — and a program that had exited by the time the
-  hooks came down all record an ordinary point, pressed by the rule every route before this was
-  saved with. This is the one place where less evidence buys less checking rather than a refusal,
-  and it is here because the alternative is a routine that can never run on the machine that
-  recorded it.
-- **The replay side refuses.** A stated basis requires every term: present, a whole number in
-  range, and a program named. Missing, malformed and out-of-range are three different recordings
-  and the refusal says which, because they are a truncated route, a hand-edited one, and a
-  hand-edited one again, and the person reading the sentence is the one who has to tell them
-  apart. There is no fallback: a point that CLAIMS the window and omits what the window was is the
-  one case where falling back would be pressing a remembered pixel under cover of a guard.
+So the basis is the CONTRACT and everything else is a measurement:
 
-The degradation is not silent. Studio's review writes `(window not measured)` beside such a press,
-next to the `1920×1080, 144 dpi, arkascended.exe` the measured ones carry, so the difference in
-what the routine will do is visible while the person is still in front of the screen and before
-the routine is kept.
+| no basis                   | **legacy** — about no window; pressed exactly as it always was |
+| basis, every term          | **guarded** — bound, re-read, compared exactly, then pressed   |
+| basis, a term missing      | **incomplete** — refused, naming what it lacks                 |
+
+`RelTo` is written for every press a measuring recorder makes, whether or not the measurements
+arrive, because it says which rectangle the press is ABOUT and that is true either way. Each
+measurement is written only when it was taken; missing stays missing, and nothing substitutes for
+it. The three states are therefore distinguishable in the saved file, and which state a press is
+in does not depend on a measurement having succeeded: the contract is stated, and the measurements
+are what the contract is then judged against.
+
+That re-defines `RelTo` slightly and for the better. It was "what the offset is measured from";
+it is now "the rectangle this press is about" — which the offset is measured from and which the
+press is checked against. One meaning, and it survives the offset itself being one of the things
+that can go missing.
+
+**The replay side refuses, exactly.** A stated basis requires every term: present, a whole number
+in range, and a program named. Missing, malformed and out-of-range are three different recordings
+and the refusal says which, because they are a truncated route, a hand-edited one, and a
+hand-edited one again, and the person reading the sentence is the one who has to tell them apart.
+There is no fallback.
 
 **And unreadable is not matching, on the live side either.** A window that will not say what scale
 it is drawn at, and a program that will not say what it is, were read as agreement for the same
-reason — the comparison was conditional on both sides being known, so an unknown side meant no
-comparison. Both refuse now.
+reason as the first mistake — the comparison was conditional on both sides being known, so an
+unknown side meant no comparison. Both refuse now.
+
+## What a person is told, before they keep it
+
+A draft may come back incomplete, and Studio's review says so rather than leaving it to be
+discovered the first time somebody runs the routine. Three things, because fewer than three is not
+actionable:
+
+- **Beside the step**, what it cannot be checked against: `(1920×1080, 144 dpi, cannot be checked
+  — which program owned it was not measured)`, with what WAS measured still shown, because that
+  is half of what the person is deciding about.
+- **Once, for the draft**, how much of it will not run and which measurements are absent.
+- **Whether recording it again would help.** This is the part somebody actually needs, and it has
+  two answers. A window that would not describe itself this time, or a program that exited before
+  the recording closed, is a moment that passed: do it again with the thing running in front of
+  you. A Windows with no `GetDpiForWindow` is not a moment — no press on that machine will ever
+  carry a scale, so a routine that checks the window it was made in cannot be made there at all.
+  Sending somebody back to re-demonstrate for an answer that cannot arrive is the worse of those
+  two mistakes.
+
+**Saving is still allowed.** The draft is a true record of what somebody did, and refusing to keep
+it would lose the demonstration along with the measurement. What is not allowed is keeping it
+quietly as something that runs: the Save message repeats that it will refuse, the trial journal
+records it with "record it again" as the next step rather than "run it", and the route itself
+refuses. An explicitly offered unguarded mode would be a separate product decision, and it must
+not arise from an error.
 
 ## The basis alone is the opt-in
 
@@ -134,6 +172,11 @@ bypass: a point stating a window with no offset to resolve inside it missed the 
 down the legacy path, which presses the recorded coordinate having checked nothing. The basis
 alone is the gate. Whether the rest of the terms are there is the guard's question, and its answer
 is a refusal.
+
+The same branch existed one layer earlier, in `codegen`: a point was written in window-relative
+form when it had an OFFSET, so a press that declared the window and could not be measured in it
+came out as a bare absolute point — byte for byte a route from before any of this existed. The
+generator now branches on the basis too.
 
 And the basis must be one this knows how to check. `RelTo` is compared against the one supported
 value rather than against emptiness: a point measured from a control, or a screen, or a monitor is
@@ -240,21 +283,26 @@ there IS matching to do, and refusing there would refuse to go looking.
 
 - `internal/recorder` `TestAPressRecordsTheWindowItLandedIn`,
   `TestThePressMeasuresTheWindowItAttributed`,
-  `TestAPressWithNoReadableWindowRecordsNothingAboutOne` — driven through `newClick`, the
-  production event builder. The second one holds the one-handle rule by counting the shape reads
-  and checking which window was asked about.
+  `TestAPressWithNoReadableWindowStillSaysWhichWindow`,
+  `TestAnIncompletelyMeasuredPressKeepsItsBasis` (five desktops that answer partly) — driven
+  through `newClick`, the production event builder. The second holds the one-handle rule by
+  counting the shape reads and checking which window was asked about; the last two hold the basis
+  against every way a measurement can fail.
 - `internal/recorder` `TestEachPressIsNamedAndEachProgramAskedOnce`,
-  `TestOnlyAPressCarriesTheProgramName`, `TestAProgramThatHasGoneUnmeasuresTheWindow`,
-  `TestAPressWithNoProcessIsNotLookedUp` — the last two hold the recording side's half of
-  all-or-none: a press whose program cannot be named gives up its basis and stays an ordinary
-  point, keeping its coordinate and its offset.
+  `TestOnlyAPressCarriesTheProgramName`, `TestAProgramThatHasGoneLeavesTheNameMissing`,
+  `TestAPressWithNoProcessIsNotLookedUp`, `TestAPressWithNoOffsetIsStillNamed` — the program
+  lookup runs after the capture and follows the BASIS, not the offset: a press it cannot answer
+  for keeps everything it did measure and loses only the name.
 - `internal/simplify` `TestTheWindowAPressMeasuredReachesTheStep`, `TestTheClickPointIsThePress`,
   `TestAPressThatMeasuredNothingClaimsNothing`, `TestADragClaimsNothingAboutAWindow`.
 - `internal/codegen` `TestAMeasuredPressCarriesItsWindowIntoTheRoute`,
   `TestAnUnmeasuredTermIsAbsentRatherThanDefaulted`,
   `TestWithoutABasisNothingAboutTheWindowIsWritten`, `TestALegacyPointIsGeneratedUnchanged`,
-  `TestAnAbsolutePointIsUntouched` — each generates the route, CHECKS it compiles and RUNS it,
-  because a set field the engine parses but will not assign fails at neither of the first two.
+  `TestAnAbsolutePointIsUntouched`, `TestAPressThatCouldNotBeMeasuredStillDeclaresItsWindow` —
+  each generates the route, CHECKS it compiles and RUNS it, because a set field the engine parses
+  but will not assign fails at neither of the first two. The last one is the third contract: a
+  press that declared the window and could not be measured in it writes its basis and nothing
+  else, which is what keeps it from being byte-identical to a legacy point.
 - `internal/oshost` `TestAGuardedPressLandsAtTheOffsetInsideTheBoundWindow`,
   `TestAGuardedPressRefusesEveryWindowThatIsNotTheOne` (six windows, one changed thing each),
   `TestAGuardedPressWithNothingBoundRefuses`, `TestTheWindowIsReadAgainBeforeEveryPress`,
@@ -269,6 +317,20 @@ there IS matching to do, and refusing there would refuse to go looking.
   `TestAGuardedPressRefusesTheSameProgramInAnotherProcess` and
   `TestAGuardedPressRefusesAWindowBoundWithoutAnOwner`. Every case asserts ZERO INPUT, because a
   refusal that still moved the cursor is the same finding one step later.
+- **And the whole chain, which nothing else walked**: `internal/oshost`
+  `TestASavedRecordingThatCouldNotBeMeasuredPressesNothing` records four partly-measured presses
+  (one per measurement that can fail), takes each through the production simplifier, generator,
+  registry, compiler and host, and asserts the saved route declares its window, omits what nobody
+  measured, sends NO INPUT and does not fall back to the demonstrated coordinate.
+  `TestASavedRecordingThatWasMeasuredPressesInsideTheWindow` is the control, without which the
+  first passes on a chain that refuses everything. `TestAContextScopedRecordingHasNoWindowToCheck
+  Against` pins the gap below.
+- `plugins/studio` `TestReviewSaysWhatThePressMeasured`,
+  `TestReviewExplainsAMeasurementThatFailed` (step, draft, and the Save message),
+  `TestReviewNamesWhicheverMeasurementFailed` (four, one at a time),
+  `TestAScaleThisComputerCannotReportIsNotRepairable` (the branch this machine cannot reach), and
+  `TestReviewIsQuietWhenEverythingWasMeasured` — the control, because a warning on every
+  recording is a warning nobody reads.
 
 The happy-path fixture puts the window somewhere OTHER than where it was demonstrated,
 deliberately. The recorder computes the offset as the click minus the origin, so a window still
@@ -278,20 +340,31 @@ used the coordinate". The first version of that test asserted both and contradic
 
 ## Mutations
 
-Seventeen for the original increment and fifteen for the corrections, all killed.
+Seventeen for the original increment, twelve for the replay-side corrections, fourteen for the
+contract. All killed.
 
-The fifteen, each one a way the guard could look present and answer about less than it appears
-to: the basis accepted for being merely non-empty; a missing term not refused; a malformed one not
+The twelve, each one a way the guard could look present and answer about less than it appears to:
+the basis accepted for being merely non-empty; a missing term not refused; a malformed one not
 refused; an unnamed program not refused; the offset not checked against the window at all, and
 then checked with the far edges inclusive; a window bound without an owner passing; the handle's
 owner never compared with the bound one; an unreadable live scale passing; an unnameable live
-program passing; the guard entered only when an offset is usable, which is the bypass itself;
-preparation not reading the owner; the recording side claiming a window it measured incompletely;
-an unnameable program leaving the basis on; and review not saying when a press measured no window.
+program passing; the guard entered only when an offset is usable, which is the bypass itself; and
+preparation not reading the owner.
 
-Seven of the fifteen are a check that was WRITTEN and does not run — a conditional whose condition
-was the thing being checked. That is the shape all three findings had, and it is the shape to look
-for next: not a missing comparison but a comparison guarded by its own subject.
+The fourteen, each one a way a failed measurement could turn the safeguards off or go unsaid: the
+basis written only when the window answered; an unread scale defaulting to 96; the program lookup
+following the offset instead of the basis; a point written window-relative only when it has an
+offset; an unmeasured offset written as 0,0; the step not saying what it cannot be checked
+against; the draft not reporting that it will not run; the Save message not saying it; each of the
+four missing measurements going unnamed in turn; an unreportable scale still answered with "record
+it again"; and a legacy press reported as incomplete, which would put the warning on every route
+there is.
+
+**Seven of the first twelve, and five of the fourteen, are a check that was WRITTEN and does not
+run** — a conditional whose condition was the thing being checked. Every finding in this area has
+had that shape, at three different layers: the guard asking "if both sides know it", the recorder
+asking "if every term arrived", and the generator asking "if there is an offset". It is the shape
+to look for next: not a missing comparison but a comparison guarded by its own subject.
 
 - On the record-and-carry half: simplify dropping the measurement; the click point reverting to
   the release; codegen writing no measurement; an unread DPI defaulting to 96; the basis omitted
@@ -312,12 +385,29 @@ it intends to do.
 - **Not tried on a live desktop.** Every claim above is from the automated suites. Guarded
   coordinate replay is outstanding until a live acceptance run, and so is the owner's Stop-button
   trial, which is a separate question about recording and the window.
-- **A recording that could not measure everything degrades silently in the ROUTE.** Review says
-  `(window not measured)` while the person is in front of the screen, and the saved Marco says it
-  only by the absence of the terms — there is no sentence in the route itself distinguishing "this
-  was recorded before any of this existed" from "this was recorded by a build that measures and
-  could not". Both run by the legacy rule, which is correct, and neither says so where somebody
-  reading the route a month later would see it.
+- **A CONTEXT-SCOPED RECORDING CANNOT RUN A GUARDED PRESS, AND THAT IS STUDIO'S DEFAULT SCOPE.**
+  Found while wiring the end-to-end chain; not caused by it, and present since the guard landed.
+  `Save` under the `app` scope strips the leading Activate and passes no application to `codegen`,
+  because that scope's whole promise is that it switches nothing — it runs only while its
+  application is already in front. So the route contains no `do OS's Activate`, nothing binds a
+  window, and every press that declared a window refuses with *nothing to measure it against*. The
+  `everywhere` scope is the same, by the same line of `Save`. Only `app-anywhere` works.
+
+  The resolution is a decision about what PREPARATION means for a scope with no preparation step:
+  either such a routine binds the foreground once at the start of its run — which is that scope's
+  own premise, and would make its first press checked against whatever is in front rather than
+  against something prepared — or recordings whose presses declared a window must be saved as
+  `app-anywhere`, and Studio should say so at Save. Both change the guarded contract, so neither
+  is taken here. `TestAContextScopedRecordingHasNoWindowToCheckAgainst` pins the current state so
+  it is deliberate and found by a suite rather than by a live trial.
+- **A REFUSED PRESS DOES NOT FAIL THE ROUTINE.** `codegen` emits a bare `do OS's Click with p1.`,
+  and a `do` whose status nobody reads does not abort the interaction — so a routine whose every
+  press is refused runs to `this is ok!` and reports done. Zero input is sent and the refusal is
+  logged, but the person is told it worked. This is the pre-existing behaviour of every failing
+  host call in a generated route rather than anything about this contract, and it is why
+  `played` in the chain test reads the host's log as well as the route's output. It matters more
+  now: before, a press that could not be checked was pressed anyway, so "done" was at least about
+  something that happened.
 - **A drag resolves no offset at all**, so it carries no window and is checked against none. That
   is consistent — window terms with no offset to resolve would be opting into a guard with
   nothing to apply — and it means a demonstrated drag is still a pair of absolute coordinates.
