@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/chaynes-simpleclouds/marco/internal/driver"
 	"github.com/chaynes-simpleclouds/marco/internal/mlog"
@@ -89,16 +88,48 @@ func appOf(d orchestrator.Deps) string {
 	return d.App()
 }
 
+// ran is what a performance actually executed, for its record to cite.
+//
+// Returned rather than worked out a second time by the caller. The digest and the contract both
+// come off the bytes this function read, in the one place that reads them: deriving them again
+// around the call would be a second answer about one file, and the day the two disagreed the
+// record would cite source that did not run.
+type ran struct {
+	// Digest is `routes.DigestOf` over the SAVED source — the file, not the text with
+	// arguments substituted into it. Somebody holding this record and the library can look
+	// at exactly what ran; the arguments are a separate fact and are not in it, which also
+	// keeps anything a person typed out of a durable file.
+	Digest string
+	// Contract is which contract the saved source STATES, in the three words
+	// [[ADR-251-a-press-checks-the-window-it-was-recorded-in]] gives them: `legacy` when no
+	// press states a window, `guarded` when one does and carries every term the check
+	// needs, and `incomplete` when it states a window and lacks a term — which refuses
+	// rather than presses, naming what it lacks.
+	//
+	// Read by `orchestrator.ContractOf`, which is the ONE reader of this and whose list of
+	// terms is held against the guard's own requirement by test. The first version of this
+	// change asked the source itself — `strings.Contains(src, "RelTo \"")` — which is a
+	// second answer to the question, and a weaker one: it cannot see `incomplete` at all,
+	// so a record would have called an incomplete route guarded.
+	Contract string
+}
+
+// contractUnstated is what the record says when the contract could not be read at all.
+//
+// The source itself always states one of the three. This is for a route that could not be opened,
+// where saying `legacy` would be a reading of something nobody read.
+const contractUnstated = "unstated"
+
 // runRoute runs a saved play, substituting named/positional args into its
 // {{name}}/{{N}} placeholders. With no placeholders/args it's the same as running
 // the file.
-func runRoute(ctx context.Context, d orchestrator.Deps, rt routes.Route, named map[string]string, positional []string) error {
+func runRoute(ctx context.Context, d orchestrator.Deps, rt routes.Route, named map[string]string, positional []string) (ran, error) {
 	path := d.Reg.Path(rt)
 	mlog.Debug("run: reading route", "route", rt.Slug, "path", path)
 	src, err := os.ReadFile(path)
 	if err != nil {
 		mlog.Error("run: read failed", "path", path, "err", err)
-		return fmt.Errorf("read %s: %w", path, err)
+		return ran{Contract: contractUnstated}, fmt.Errorf("read %s: %w", path, err)
 	}
 	// Expose the named args to the OS host so a secret-typed arg (password/pin/…) can
 	// be provided inline and remembered (see oshost.doSecret).
@@ -106,9 +137,12 @@ func runRoute(ctx context.Context, d orchestrator.Deps, rt routes.Route, named m
 		h.SetArgs(named)
 	}
 	filled := routes.ApplyArgs(string(src), named, positional)
+	// WHAT IS ABOUT TO RUN, DESCRIBED ONCE. See `ran`.
+	contract, _ := orchestrator.ContractOf(filled)
+	did := ran{Digest: routes.DigestOf(string(src)), Contract: string(contract)}
 	mlog.Info("run: executing", "route", rt.Slug, "scope", rt.App, "named_args", len(named), "positional_args", len(positional))
 	if err := driver.RunSourceWithHostsCtx(ctx, filled, filepath.Dir(path), path, os.Stdout, d.Hosts); err != nil {
-		return err
+		return did, err
 	}
 	// ── AND A ROUTINE THAT DID NOT HAPPEN IS NOT A ROUTINE THAT RAN ──
 	//
@@ -120,25 +154,33 @@ func runRoute(ctx context.Context, d orchestrator.Deps, rt routes.Route, named m
 	//
 	// The host keeps the account so the answer is data rather than a line of output
 	// somebody has to read. See oshost.Host.Unperformed.
-	// WHICH CONTRACT THIS ROUTE WAS SAVED UNDER, read from the route itself. A point
-	// that states the window it was recorded in IS the guarded contract — it is what
-	// makes the three saved contracts distinguishable at all (see ADR-251) — and a
-	// route carrying none reports exactly what it always did.
+	//
+	// WHICH CONTRACT THIS ROUTE WAS SAVED UNDER decides whether that account stops the
+	// run, and it is read ONCE, by `contractOf` above. A point that states the window it
+	// was recorded in IS the guarded contract — it is what makes the three saved contracts
+	// distinguishable at all (see ADR-251) — and a route carrying none reports exactly what
+	// it always did.
 	//
 	// Read from the source rather than from a field, because there is no field: the
-	// contract lives in the saved Marco, which is the only executable truth here. If
-	// that ever needs to be asked a second way, the answer belongs on `routes.Route`
-	// and not in a second copy of this line.
-	if !strings.Contains(filled, `RelTo "`) {
-		return nil
+	// contract lives in the saved Marco, which is the only executable truth here. The
+	// record cites the same answer this rule acts on, which is why `ran` carries it rather
+	// than the caller asking the file a second time.
+	//
+	// LEGACY IS THE ONE THAT LEAVES, and the test it is written against matters: `!= Guarded`
+	// is the plausible-looking form and it is wrong, because an INCOMPLETE route states a
+	// window and refuses the press naming what it lacks. Skipping the account for it would
+	// let exactly that refusal pass as a successful run — the case ADR-251 made a third
+	// contract for. Held by TestAnIncompleteRoutinesRefusalStillFailsTheCommand.
+	if contract == orchestrator.Legacy {
+		return did, nil
 	}
 	if h, ok := d.Hosts["*"].(unperformer); ok {
 		if undone := h.Unperformed(); len(undone) > 0 {
 			mlog.Error("run: stopped", "route", rt.Slug, "why", undone[0])
-			return fmt.Errorf("%s stopped: %s", rt.Slug, undone[0])
+			return did, fmt.Errorf("%s stopped: %s", rt.Slug, undone[0])
 		}
 	}
-	return nil
+	return did, nil
 }
 
 // unperformer is a host that can say what it did not do.

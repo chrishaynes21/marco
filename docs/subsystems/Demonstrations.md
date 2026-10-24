@@ -269,6 +269,25 @@ and its own build stamp. `plugins/studio/history.go` keeps reading records by th
 rather than through a writer's type, which is what lets one window list a kind it does not know and
 show the whole of it. [[ADR-253-the-claim-is-shared-and-the-record-is-not]]
 
+**And a routine's run is citable now.** `marco do` claims its reference before the first input,
+prints the citation, and finalises a record of its own kind: the exact route, the digest of the
+saved source that ran, the library, the build, the contract (`legacy`, `guarded` or `incomplete`, through the one
+reader `orchestrator.ContractOf`), `unstated` for a mode nothing states yet, both timestamps, the outcome word unconverted and the run's own sentence.
+Studio READS that citation rather than minting one — the executor is the only thing present for
+every run of a routine, and a reference invented by a surface would differ by who pressed Play —
+which is what makes `Report` reachable for a routine at last.
+
+The outcome stays off the citation line on purpose: `runref.Parse` strips a parenthesised word
+only when it is one of the supervised seven, so a routine's word there would be read as part of
+the record's path. `[result] <word>` already carries it, from the package that owns those words.
+
+**Input is counted as actions asked for, not as sends delivered.** The count is taken in
+`oshost.Invoke` against a closed classification — a test reads the switch and fails for an action
+nobody classified — because `delivered` wraps four of eleven sending actions, so a count taken
+there read zero for a routine that typed or dragged. One smoothed Move is one action; a press
+refused by its own guard still asked, and `Unperformed` is the half that names it. Confirmed
+delivery is still written nowhere: `SendInput` succeeding says the queue took the press.
+
 ## Validated by
 
 - `internal/director/demo` unit tests (`demo.go`, `record.go`, `validate.go`)

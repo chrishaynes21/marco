@@ -7752,3 +7752,63 @@ exists because of that measurement. A second mutation, deriving the place withou
 all, did not compile — recorded as redone, not as a kill.
 
 Seven mutations killed, one no-op control surviving. R2 and R3 next.
+
+## 38P — a routine's run is something you can cite
+
+R2 of the first milestone. `marco do` claims its own reference before the first input, prints the
+citation, and finalises a record of its own kind.
+
+**The executor owns the reference.** Not the surface that pressed Play: Studio spawns `marco do`
+and so does the overlay, so a reference minted by whichever one asked would differ by who asked,
+and a run started from a terminal would have none. Claimed after the authority door — a run the
+door declined pressed nothing — and before the first input, which is held by MEASUREMENT: a host
+counts the records in the store on the first action it is asked for and finds its own already
+there. `TestTheReferenceIsClaimedBeforeTheFirstInput`, and the mutation that moves the claim to
+the end is killed by that test and by nothing else.
+
+**The outcome stays off the citation line.** `runref.Parse` strips a parenthesised word only when
+it is one of the supervised seven, so `(performed)` would be left inside the record's path.
+Teaching that parser a routine's words would be the conversion ADR-253 forbids wearing a parser's
+clothes. `[result] <word>` already carries it.
+
+**The digest is of the saved file, not of the substituted text.** A digest of the substituted text
+cites source that is nowhere on disk, and the substituted text holds whatever the person passed on
+the command line — which would make a durable file out of their arguments.
+`TestTheDigestIsOfTheFileAndNotOfWhatWasTypedIntoIt` checks both halves.
+
+**The contract is read once, by the reader that already existed.** `orchestrator.ContractOf` knows
+all three of ADR-251's contracts and has its required terms held against the guard by test. The
+first version of this read the source itself with `strings.Contains(src, "RelTo \"")` — a second,
+weaker answer that cannot see `incomplete` at all. And the rule is `legacy` LEAVES, not `anything
+but guarded` leaves: an incomplete route states a window and refuses, so the second form would let
+that refusal pass as success. Nothing covered an incomplete route at the command, so that mutation
+survived the first gate — `TestAnIncompleteRoutinesRefusalStillFailsTheCommand` closes it.
+
+**A correction to the assessment.** It says `oshost` "already wraps every send in `delivered`". It
+does not — four call sites against eleven sending actions — so a count taken there read zero for a
+routine that typed its password or dragged something. The count is now taken in `Invoke` against a
+closed classification, with a test that reads the switch and fails for an action nobody
+classified. ACTIONS asked for, not primitives delivered: one smoothed Move is one action, a press
+refused by its guard still asked, and the count is ABSENT rather than zero when no host can say.
+
+Nine record mutations plus two on the count and two on Studio's reader, all killed; the record
+version bumped as a surviving no-op control; and one structural choice recorded as unfalsifiable
+rather than claimed as a kill. ADR-253 §R2, Demonstrations, HANDOFF 38P.
+
+**And writing records from a second command leaked into the owner's store.** `cmd/director` has
+had a `TestMain` isolating `$MARCO_HOME` since its own records leaked out of a suite, and its
+comment ends *the next thing to leak that way might not be a record.* It was a record, from
+`cmd/marco`: several tests there drive `runInvocation` with a registry in a `t.TempDir()` and no
+`MARCO_HOME`, so `go test ./cmd/marco/` wrote three records into the directory the owner keeps
+their work in, every run. Six were sitting in it by the time it was looked at, and were removed.
+Found by looking rather than by a failing test — nothing in the suite was red.
+
+`cmd/marco` now has the same isolation, asserted the same way, and the comparison both guards use
+is one function (`marcopaths.SameStore`) because three things ask "is this the real store" and one
+of them is destructive. The weakest implementation was already in `marcopaths`: `Clean` and a
+case-fold with no `Abs`.
+
+**One consequence stated and parked.** Every `marco do` of a non-learned route writes a record now,
+including an overlay hotkey — a key held down in a game is one record per press. Nothing is at
+risk and `Forget` removes them, but the directory is bounded only by use and `History` reads all of
+it to show twenty-five. Retention is a product decision and is not this increment's to invent.

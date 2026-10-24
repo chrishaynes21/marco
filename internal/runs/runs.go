@@ -73,6 +73,20 @@ func Candidate(at time.Time) string {
 	return fmt.Sprintf("run-%s-%02x%02x", at.Format("20060102-150405"), b[0], b[1])
 }
 
+// Unfinished is what a record says while the attempt it belongs to has not finished.
+//
+// A RECORD STATE, NOT AN OUTCOME. Every other word in either kind's vocabulary is a claim about
+// what happened — evidence gathered, or input delivered — and this one is a claim about the FILE:
+// a reservation was made and nothing has written over it yet. That is why both kinds say it in the
+// same voice while sharing nothing else, and why it is here rather than becoming an eighth word in
+// `internal/outcome`, which would make a routine's vocabulary carry a word no run can end in.
+//
+// A record still saying this is an attempt that left by a path which wrote no outcome. For a
+// routine that is an interrupted run; for the supervised runner it was three exits with no
+// outcome at all, which is how they were found. The supervised side spells it `runref.Started`,
+// and `TestBothKindsSayUnfinishedInTheSameWord` holds the two together.
+const Unfinished = "started"
+
 // Tries is how many candidates are tried before giving up.
 //
 // Ten, which is not a probability argument. Each try is a fresh draw against a namespace nobody

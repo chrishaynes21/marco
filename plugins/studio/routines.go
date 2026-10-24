@@ -42,6 +42,7 @@ import (
 	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/demonstrated"
+	"github.com/chaynes-simpleclouds/marco/internal/director/runref"
 	"github.com/chaynes-simpleclouds/marco/internal/driver"
 	"github.com/chaynes-simpleclouds/marco/internal/marcopaths"
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
@@ -130,6 +131,13 @@ type routineRun struct {
 	// why is the last thing the child said on its way out, which for a refused guarded
 	// press is the sentence naming what could not be checked. Evidence, kept verbatim.
 	why string
+	// reference is the run's own reference, taken off the citation the child printed
+	// before it sent anything.
+	//
+	// READ, NEVER MINTED. The executor claims it and prints it; this window would be a
+	// second author of the same id, and a run somebody started from a terminal would have
+	// one this had never heard of. It is what makes `Report` reachable for a routine.
+	reference string
 }
 
 // Routines is every saved routine in the library, with whether each one would run.
@@ -504,6 +512,20 @@ func (a *Acts) readRoutine(pr *os.File) {
 		if a.routine != nil {
 			if o, ok := outcome.FromLine(line); ok {
 				a.routine.said = string(o)
+			} else if r, cited := runref.Parse(line); cited {
+				// THE RUN'S OWN REFERENCE, printed before the first input.
+				//
+				// Before the branch below on purpose: the citation is the
+				// last thing a child says before it starts pressing, so a
+				// window that let it fall through would keep a file path as
+				// the sentence explaining what went wrong.
+				//
+				// Only the id is taken. The path is the executor's and the
+				// outcome arrives on its own wire line, through the package
+				// that owns a routine's seven words — a routine's word is
+				// not one of the supervised seven, and this parser only
+				// recognises those.
+				a.routine.reference = r.ID
 			} else if said := strings.TrimSpace(line); said != "" &&
 				!strings.HasPrefix(said, outcome.RoutePrefix) {
 				// THE LAST THING IT SAID BEFORE ANNOUNCING, which for a
@@ -533,6 +555,7 @@ func (a *Acts) watchRoutine() Running {
 		return w
 	}
 	w.Outcome, w.Reason = a.routine.said, a.routine.why
+	w.Reference = a.routine.reference
 	w.Complete = a.routine.said != ""
 	// A RUN NOBODY CAN SPEAK FOR. The slot is free and it never announced one of the seven
 	// words — killed, crashed, never started, or a binary that is not the one this expected.

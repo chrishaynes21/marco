@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/demonstrated"
+	"github.com/chaynes-simpleclouds/marco/internal/director/runref"
 	"github.com/chaynes-simpleclouds/marco/internal/macroir"
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
 	"github.com/chaynes-simpleclouds/marco/internal/outcome"
@@ -1093,5 +1094,36 @@ func TestSavingOneOfTwoNamesakesAgainRepairsTheOneAskedFor(t *testing.T) {
 	if left[0].App != "arkascended" {
 		t.Errorf("the repair took the wrong routine: %q was asked for and %q is "+
 			"what is left", want.ID, left[0].ID)
+	}
+}
+
+// A ROUTINE'S RUN HAS A REFERENCE NOW, AND THIS WINDOW READS IT RATHER THAN MINTING ONE.
+//
+// The executor claims the reference before it sends anything and prints the citation; a window
+// that made up an id of its own would be a second author of the same run, and a routine somebody
+// performed from a terminal would have one this had never heard of. It is also what makes Report
+// reachable for a routine — the whole point of the record.
+//
+// AND THE CITATION IS NOT THE REASON IT STOPPED. The citation is the last thing a child says
+// before it starts pressing, so a window that read the lines in the wrong order would show a
+// file path as the sentence explaining what went wrong. The refusal sentence comes AFTER it here
+// for exactly that reason.
+func TestTheRunsOwnReferenceReachesTheWindow(t *testing.T) {
+	const id = "run-20261024-150405-ab12"
+	said := "ark-graphics stopped: the window this was recorded in was 1920x1080 and " +
+		"is now 1280x720"
+	w := aRunThatSaid(t, "[route] ark graphics",
+		runref.Cite(id, `C:\home\marco\runs\`+id+`.json`),
+		said, outcome.Line(outcome.Failed))
+
+	if w.Reference != id {
+		t.Errorf("the window shows the reference %q, want %q", w.Reference, id)
+	}
+	if w.Reason != said {
+		t.Errorf("the reason the window kept is %q — the citation was read as the "+
+			"sentence explaining what went wrong", w.Reason)
+	}
+	if !w.Routine {
+		t.Error("the run no longer says it is a routine's")
 	}
 }

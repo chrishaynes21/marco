@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/invoke"
 	"github.com/chaynes-simpleclouds/marco/internal/mlog"
@@ -477,9 +478,23 @@ func performOnePlay(d orchestrator.Deps, p playInvocation) (Outcome, error) {
 		return OutcomePerformed, nil
 	}
 
+	// ── THIS ATTEMPT'S OWN REFERENCE, CLAIMED BEFORE THE FIRST INPUT ──
+	//
+	// Here and not in whatever surface pressed Play: the thing that sends the input is the
+	// only thing present for every run of a routine, and a reference minted by a front end
+	// would differ by who asked. See routinerecord.go.
+	//
+	// After the authority door on purpose. A run it declined pressed nothing and never
+	// reached the machine, so there is no attempt to account for; the refusal is the
+	// decision's own and is said in its own sentence.
+	began := time.Now()
+	res := citeRoutineRun(began, p.rt)
+
 	var cancelled bool
+	var did ran
 	err := stopper(true, func(ctx context.Context) error {
-		e := runRoute(ctx, d, p.rt, p.named, p.positional)
+		var e error
+		did, e = runRoute(ctx, d, p.rt, p.named, p.positional)
 		// A CANCELLED RUN IS NOT A FINISHED ONE.
 		//
 		// `runFromEntryCtx` returns whatever the script left behind, and a script that was
@@ -492,11 +507,15 @@ func performOnePlay(d orchestrator.Deps, p playInvocation) (Outcome, error) {
 		}
 		return e
 	})
+	out, because := OutcomePerformed, ""
 	switch {
 	case cancelled:
-		return OutcomeCancelled, nil
+		// AND A CANCELLED RUN CARRIES NO ERROR OUT, as it never did.
+		out, err = OutcomeCancelled, nil
 	case err != nil:
-		return OutcomeFailed, err
+		out, because = OutcomeFailed, err.Error()
 	}
-	return OutcomePerformed, nil
+	// AND WHAT BECAME OF IT, INTO THE REFERENCE THAT WAS ALREADY PRINTED.
+	keepRoutineRun(res, began, p.rt, did, out, because, askedOf(d))
+	return out, err
 }

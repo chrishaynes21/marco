@@ -181,11 +181,34 @@ func libraryIn(dir string) (string, int) {
 	return candidate, n
 }
 
-// sameDir compares two absolute paths the way the filesystem under them does.
+// SameStore reports whether two paths name the same directory.
 //
-// Case-insensitively, because Windows is: `D:\Macros\marco\routes` and `d:\macros\marco\routes`
-// are one directory, and reporting one of them as a second library somebody has lost work in
-// would be a warning about nothing, shown to everybody.
-func sameDir(a, b string) bool {
-	return strings.EqualFold(filepath.Clean(a), filepath.Clean(b))
+// Compared after cleaning, after being made absolute, and case-folded, because this runs on
+// Windows: `C:\Users\x\AppData`, `c:/users/x/appdata/` and `C:\Users\x\AppData\.` are one
+// directory, and a guard that could be stepped around by changing a slash would not be a guard.
+//
+// # Why this is here and exported
+//
+// Because three things ask it and one of them is destructive. `director reset-test-state` refuses
+// to run against the real store; a test suite must not WRITE into it (see `cmd/marco` and
+// `cmd/director` TestMain); and [Elsewhere] must not report a library as a second one somebody
+// has lost work in when it is the same directory spelled differently. Three implementations of
+// "is this the same store" is three chances for the destructive one to be the weakest, and the
+// weakest version of this was already sitting here: `filepath.Clean` and a case-fold, with no
+// `Abs`, so a relative path naming the real store compared unequal to it.
+func SameStore(a, b string) bool {
+	if a == "" || b == "" {
+		return false
+	}
+	clean := func(p string) string {
+		p = filepath.Clean(p)
+		if abs, err := filepath.Abs(p); err == nil {
+			p = filepath.Clean(abs)
+		}
+		return strings.ToLower(filepath.ToSlash(p))
+	}
+	return clean(a) == clean(b)
 }
+
+// sameDir is [SameStore], kept as the name this file's own readers know it by.
+func sameDir(a, b string) bool { return SameStore(a, b) }

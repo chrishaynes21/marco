@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/chaynes-simpleclouds/marco/internal/director/runref"
 	"github.com/chaynes-simpleclouds/marco/internal/marcopaths"
 	"github.com/chaynes-simpleclouds/marco/internal/runs"
 )
@@ -308,5 +309,18 @@ func TestAReferenceCarriesTheMomentItWasProposedIn(t *testing.T) {
 	want := "run-" + at.Format("20060102-150405") + "-"
 	if len(got) != len(want)+4 || got[:len(want)] != want {
 		t.Errorf("a reference reads %q, want %q and four more characters", got, want)
+	}
+}
+
+// AND BOTH KINDS SAY "DID NOT FINISH" IN THE SAME WORD.
+//
+// [runs.Unfinished] is a record state rather than an outcome, so it is the one thing a supervised
+// record and a routine's record say in the same voice. Two spellings would mean a reader that knew
+// one of them showed the other as a word nobody recognised — in the records that matter most,
+// because they are the attempts that did not get to say what happened.
+func TestBothKindsSayUnfinishedInTheSameWord(t *testing.T) {
+	if string(runref.Started) != runs.Unfinished {
+		t.Errorf("the supervised runner says %q and a routine says %q",
+			runref.Started, runs.Unfinished)
 	}
 }

@@ -63,6 +63,9 @@ type Host struct {
 	originL, originT int
 	originName       string
 	originSet        bool
+	// asked is how many input actions this run asked the machine for. Guarded by mu.
+	// See Host.InputActions for what the number is and is not.
+	asked int
 	// heldKeys are keys pressed by a KeyDown without a matching KeyUp yet. Tracked so a
 	// route end (success, error, or Esc) can release any still down — a per-command process
 	// exiting with a key held would leave it STUCK down in the target app. Guarded by mu.
@@ -135,7 +138,66 @@ func (h *Host) CursorSnapshot() func() {
 	return func() { winctx.SetCursorPos(x, y) }
 }
 
+// sendsInput says whether a host action puts input into an application.
+//
+// A CLOSED CLASSIFICATION WITH ITS FALSE ANSWERS WRITTEN OUT, because the half that matters is
+// neither answer — it is "nobody has said". An action absent from here is not classified, and
+// `TestEveryHostActionSaysWhetherItSendsInput` reads the switch below and fails until somebody
+// decides, so a new action cannot quietly join either side. Defaulting to false would silently
+// under-count what touched a person's machine, which is the one thing the count exists to answer;
+// defaulting to true would over-count a reader.
+//
+// `secret` is here as a send on purpose: it types the password. `repeat` and `spam` each count
+// once, as the one action that was asked for, though both put out keystrokes until something
+// stops them.
+var sendsInput = map[string]bool{
+	"key": true, "keydown": true, "keyup": true, "navigate": true, "type": true,
+	"click": true, "move": true, "drag": true, "repeat": true, "spam": true,
+	"secret": true,
+
+	"sleep": false, "clipboardget": false, "clipboardset": false, "color": false,
+	"focus": false, "stopspam": false, "stop": false, "roll": false, "eightball": false,
+	"name": false, "find": false, "activate": false, "launch": false, "restore": false,
+	"movewindow": false, "windowstate": false,
+}
+
+// InputActions is how many input actions this run asked the machine for.
+//
+// # What the number is, and the two things it is not
+//
+// ASKED FOR, not delivered. `SendInput` returning success says the queue took the press, not that
+// the application acted on it, and nothing on this path looks at the screen afterwards — so
+// "confirmed delivery" is not a number this host can produce and is not written anywhere. What
+// did NOT happen is [Host.Unperformed], and the two together are the honest pair: this says how
+// many times Marco asked, that says which of them it could not.
+//
+// ACTIONS, not primitives and not steps. One smoothed Move puts out dozens of small moves and is
+// one action; `Spam` puts out keystrokes until somebody stops it and is one action. A routine's
+// step count is a different question and lives with the routine.
+//
+// Counted in [Host.Invoke] against [sendsInput], which is one place and a closed list. The
+// earlier plan for this was to count inside `delivered` — the assessment this work came from says
+// `oshost` "already wraps every send in `delivered`", and it does not: four call sites against
+// eleven sending actions, so a routine that typed or dragged would have been counted as having
+// asked for nothing.
+func (h *Host) InputActions() int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.asked
+}
+
 func (h *Host) Invoke(c runtime.HostCall) (string, runtime.Value, error) {
+	// WHAT THIS RUN ASKED FOR, counted before the action is dispatched.
+	//
+	// Before, because an action refused by its own guard still asked: a `Move` that could
+	// not check the window it was recorded in is a press somebody meant to happen, and a
+	// record saying the run asked for nothing would be the wrong half of the story. The
+	// other half is `Unperformed`, which names it.
+	if sendsInput[strings.ToLower(c.Action)] {
+		h.mu.Lock()
+		h.asked++
+		h.mu.Unlock()
+	}
 	switch strings.ToLower(c.Action) {
 	case "key":
 		return h.doKey(c)

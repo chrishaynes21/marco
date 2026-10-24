@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/service"
+	"github.com/chaynes-simpleclouds/marco/internal/marcopaths"
 )
 
 // `director reset-test-state` — empty an acceptance sandbox between live runs.
@@ -61,22 +62,11 @@ func resetGuard(home, defaultHome string) string {
 
 // sameDir reports whether two paths name the same directory.
 //
-// Compared after cleaning and case-folded, because this runs on Windows: `C:\Users\x\AppData` and
-// `c:/users/x/appdata/` are the same store, and a guard that could be stepped around by changing
-// a slash would not be a guard.
-func sameDir(a, b string) bool {
-	if a == "" || b == "" {
-		return false
-	}
-	clean := func(p string) string {
-		p = filepath.Clean(p)
-		if abs, err := filepath.Abs(p); err == nil {
-			p = filepath.Clean(abs)
-		}
-		return strings.ToLower(filepath.ToSlash(p))
-	}
-	return clean(a) == clean(b)
-}
+// ONE COMPARISON, in internal/marcopaths, because this guard is the destructive one and two
+// others ask the same question — a suite that must not write into the real store, and the library
+// warning that must not report one directory as two. Three implementations is three chances for
+// the destructive one to be the weakest. See marcopaths.SameStore for what it folds and why.
+func sameDir(a, b string) bool { return marcopaths.SameStore(a, b) }
 
 // resettable is everything one acceptance run can leave behind.
 //

@@ -1982,14 +1982,18 @@
      text($('runTitle'), w.act ? w.act : 'The run')
      $('runmode').textContent = w.act ? (w.live ? 'LIVE' : 'input disabled') : ''
      $('runmode').className = 'tag ' + (w.live ? 'live' : '')
-     // THE CANONICAL REFERENCE, WHEN THERE IS ONE TO HAVE.
+     // THE RUN'S OWN REFERENCE, FROM WHICHEVER THING PERFORMED IT.
      //
-     // A saved routine's run has none and never will: it is `marco do` performing a
-     // program, not the supervised runner writing a record of a performance. Said as
-     // what it is rather than left reading "no run yet" about a run in flight — and
-     // never as a defect, because nothing is missing.
+     // Both kinds have one now. A routine's is claimed and printed by the `marco` that
+     // performs it, before it sends anything, and this window READS it — so the id it
+     // shows is the id the record is filed under, and Report can reach it.
+     //
+     // The fallback stays for a routine whose performer is older than that: a `marco.exe`
+     // beside this window that predates the record prints no citation, and the honest
+     // thing to say is that there is no record rather than "no run yet" about a run in
+     // flight.
      $('ref').textContent = w.reference
-       || (w.routine ? 'a routine — no run record' : 'no run yet')
+       || (w.routine ? 'a routine — this marco wrote no run record' : 'no run yet')
      $('ref').dataset.id = w.reference || ''
 
      // WHAT IS HAPPENING, FROM THE RUNNER'S OWN ACCOUNT OF ITSELF.

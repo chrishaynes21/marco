@@ -73,6 +73,127 @@ they hold it.
 That list is the package. It is handed a record it may not look inside — the shape is the caller's
 own type, supplied as a function of the id it is given — and it never reads a field of one.
 
+## And the executor is what claims the reference
+
+A routine is performed by `marco do`, and that is where the reservation is made: after the
+authority door, before the first input, inside the one `performOnePlay` every performance goes
+through.
+
+**Not by the surface that pressed Play.** Two front ends run the same routine — Studio spawns
+`marco do` and so does the overlay — and a reference minted by whichever one happened to ask would
+be a different reference for the same attempt depending on who asked, with none at all for a run
+somebody started from a terminal. The thing that sends the input is the only thing present for
+every run of it. So the executor claims, prints `runref.Cite`, and a surface READS that line and
+reports what it was told.
+
+**After the authority door**, because a run the door declined pressed nothing and never reached
+the machine. There is no attempt to account for, and the refusal is said in the decision's own
+sentence. A record for it would be a record of a thing that did not happen.
+
+**Before the first input**, because the run this exists for is the one that dies at its first
+press. That is held by measurement rather than by the order of printed lines: a host counts the
+records in the store on the first action it is asked for, and finds its own already there.
+
+### The outcome does not go on the citation line
+
+`runref.Ended` appends the word in brackets and `runref.Parse` strips it only when the word is one
+of the SEVEN SUPERVISED ones. `performed` is not, so a closing citation would print a word the
+parser leaves inside the path, and a window would show a record path with `(performed)` on the end
+of it. Teaching that parser a routine's words would make one parser answer for two vocabularies —
+the conversion this ADR forbids, wearing a parser's clothes.
+
+It is also unnecessary. `[result] <word>` is already the wire line a front end reads for a
+routine, from the package that owns those seven words. One opening citation and one result line,
+each printed by the thing that owns it.
+
+### What a routine's record identifies
+
+The exact route — slug, application and scope, as three fields rather than one joined string,
+because an application's name is a file name and may hold anything a file name may hold. The
+digest of the source that ran, the library it was read from, the build of the `marco` that
+performed it, the contract, the mode, both timestamps, the outcome word and the run's own
+sentence.
+
+**The digest is of the SAVED file, not of the text with arguments substituted into it.** Two
+reasons and both matter: a digest of the substituted text cites source that is nowhere on disk, so
+nobody can look at what ran — and the substituted text holds whatever the person passed on the
+command line, which would make a durable file out of their arguments.
+
+**The contract is read once, by the reader that already existed.** `runRoute` already read it,
+because which contract a route states is what decides whether the host's account of what did not
+happen stops the run. It now returns that answer (`ran`) instead of the caller asking the file a
+second time, so the record cites the same answer the rule acted on.
+
+The first version of this change read it with `strings.Contains(src, "RelTo \"")` — a second answer
+to the question, and a weaker one. `orchestrator.ContractOf` already existed, already knew all
+THREE contracts of [[ADR-251-a-press-checks-the-window-it-was-recorded-in]], and already had its
+list of required terms held against the guard's own requirement by test; its doc comment even
+names `cmd/marco` as the other place that asks. So the record carries `legacy`, `guarded` or
+`incomplete`, in the project's own words, and `unstated` is kept for the one case the reader
+cannot answer: a source nobody could open.
+
+And the rule that acts on it is `legacy` LEAVES, not `anything but guarded` leaves. The second
+form looks equivalent and is not: an incomplete route states a window and REFUSES the press,
+naming what it lacks, so skipping the account for it would let exactly that refusal pass as a
+successful run. Nothing in `cmd/marco` covered an incomplete route, so that mutation survived the
+first gate; `TestAnIncompleteRoutinesRefusalStillFailsTheCommand` is what closes it.
+
+**The mode is `unstated`.** Nothing in a routine on disk today says how it was recorded, and
+guessing from an environment variable nobody can see afterwards would be a claim rather than a
+reading. An explicit coordinate mode is separately scoped work and is what will put a word there.
+
+### Counting input honestly, and a correction
+
+The assessment this work came from says `oshost` "already wraps every send in `delivered`". **It
+does not** — four call sites against eleven sending actions — so a count taken there would have
+read zero for a routine that typed its password or dragged something.
+
+So the count is taken in `Invoke`, against a closed classification with its false answers written
+out, and a test reads the switch and fails for an action nobody has classified. The number is
+**asked for, not delivered**, and **actions, not primitives**: one smoothed Move puts out dozens of
+small moves and is one action, `Spam` puts out keystrokes until somebody stops it and is one
+action, and a press refused by its own guard still asked. `Unperformed` is the other half of that
+pair and names which of them did not happen.
+
+Confirmed delivery is still not written anywhere. `SendInput` returning success says the queue
+took the press, not that the application acted on it.
+
+**And the count is absent rather than zero when nothing can say.** Zero is a real answer — a run
+that stopped at its preparation asked for nothing, and saying so is true. A host that cannot be
+asked at all is a different fact, and writing zero for it would turn "nobody knows" into "nothing
+happened", in the one field the record has for answering "did it touch my machine".
+
+### And a second command writing records leaked into the owner's store
+
+`cmd/director` has carried a `TestMain` that isolates `$MARCO_HOME` for its whole package since
+its own run records leaked out of a suite. Its comment ends: *the next thing to leak that way
+might not be a record.* The next thing to leak that way was a record, from `cmd/marco`.
+
+Several tests there drive `runInvocation` end to end with a registry in a `t.TempDir()` and no
+`MARCO_HOME`. They were right about everything they were testing and wrong about where they were
+standing, so `go test ./cmd/marco/` wrote three run records into the directory the owner keeps
+their work in, every run. Found by looking, not by a failing test — and six of them were sitting
+in the owner's store by the time it was looked at.
+
+So `cmd/marco` has the same isolation, asserted the same way. And the comparison both guards are
+judged by is now one function, `marcopaths.SameStore`, because three things ask "is this the real
+store" and **one of them is destructive**: `director reset-test-state` refuses to run against it,
+two suites must not write into it, and the library warning must not report one directory as two.
+Three implementations is three chances for the destructive one to be the weakest — and the
+weakest was already there, in `marcopaths` itself: `Clean` and a case-fold with no `Abs`, so a
+relative path naming the real store compared unequal to it.
+
+### A consequence of the executor owning the reference, stated rather than solved
+
+Every `marco do` of a route that is not a learned demonstration now writes a record — which
+includes an overlay hotkey, because a binding enters the same intake. A key somebody holds down in
+a game is one record per press.
+
+A record is small and `Forget` already removes them one at a time or all at once, so nothing is at
+risk. But the directory is unbounded by anything except use, and `History` reads every file in it
+to show twenty-five. Retention is a product decision — a sweep, a cap, or nothing — and inventing
+one here would be this increment deciding how long somebody's evidence is kept. Parked and named.
+
 ## Why the claim is guarded at the start and not at the end
 
 Because it was guarded at the end, and the guard held while the thing it was protecting was
@@ -113,6 +234,8 @@ says the queue took the press, not that the application acted on it, so that fie
 rather than being filled in with the attempted count.
 
 ## Enforced by
+
+### R1 — the shared claim
 
 - `internal/runs` `TestRecordsAreKeptInTheStore` — the place is the store's, through
   `marcopaths`, so the reference a person pasted retrieves something in another process.
@@ -155,10 +278,64 @@ rather than being filled in with the attempted count.
   `TestAStartPromptCancellationIsRecordedAsCancelled` — the supervised record's own words and
   fields, which did not move.
 
+### R2 — the record a routine's run leaves
+
+- `cmd/marco` `TestARoutinesRunCitesItselfAndLeavesARecord` — the citation, the record under that
+  reference, and every field of it, including that the citation carries NO outcome.
+- `cmd/marco` `TestTheReferenceIsClaimedBeforeTheFirstInput` — measured from inside the run. A
+  host counts the records in the store on the first action it is asked for and finds its own
+  already there, which is the property; the order of printed lines is not.
+- `cmd/marco` `TestARoutinesRecordSaysNothingAboutEvidence` — asserted on the KEYS, not their
+  values, and on the absence of the word `verified` anywhere in the file.
+- `cmd/marco` `TestTheDigestIsOfTheFileAndNotOfWhatWasTypedIntoIt` — a routine with an argument,
+  performed with a value passed for it: the digest is the saved file's and the value is nowhere in
+  the record.
+- `cmd/marco` `TestTheRecordCitesTheSourceThatRan`,
+  `TestALegacyRoutinesRecordSaysWhichContractItRanUnder` — the digest and the contract, and that a
+  legacy route still reports exactly what it always did.
+- `cmd/marco` `TestAnIncompleteRoutinesRefusalStillFailsTheCommand` — **added because the gate
+  found its absence.** ADR-251's third contract had no coverage at the command at all, so the
+  rule could be rewritten as `anything but guarded leaves` and nothing noticed, although that
+  would let an incomplete route's refusal pass as a successful run. The route it uses is missing
+  `Dpi` by ABSENCE rather than by an empty value, which is what a route from a build that could
+  not read it looks like.
+- `cmd/marco` `TestTwoRunsOfOneRoutineAreTwoRecords` — the acceptance check *both repeated runs
+  produce distinct references whose reports match their respective outcomes*, at the command that
+  produces them.
+- `cmd/marco` `TestARunThatNeverFinishedSaysSoAndNotThatItWorked` — the killed-child case: the
+  reservation is made and nothing finalises it, and what is left says the attempt began, has no
+  `ended`, and nowhere reads as performed.
+- `cmd/marco` `TestTheRecordSaysHowManyInputActionsWereAskedFor` and
+  `TestAHostThatCannotSayHowMuchItSentLeavesTheFieldOut` — zero is written and nil is omitted.
+- `internal/oshost` `TestEveryHostActionSaysWhetherItSendsInput` — reads the `Invoke` switch and
+  fails for an action nobody classified, in both directions: an unclassified action, and a
+  classification of an action the host no longer offers.
+- `internal/oshost` `TestTypingAndDraggingAreAskedFor` — the two the `delivered` count would have
+  missed, which is the measurement behind the correction above.
+- `internal/oshost` `TestAPressRefusedByItsGuardStillAskedForIt` — asked for and not delivered,
+  with `Unperformed` naming it, which is the pair.
+- `internal/oshost` `TestLookingAtTheScreenIsNotAskingForInput` — the number answers "did it touch
+  my machine", and sampling a colour touches nothing.
+- `internal/runs` `TestBothKindsSayUnfinishedInTheSameWord` — `runs.Unfinished` and
+  `runref.Started` are one word, because it is a record state rather than either vocabulary's
+  outcome.
+- `plugins/studio` `TestTheRunsOwnReferenceReachesTheWindow` — the window READS the citation and
+  shows it, and the citation does not become the sentence explaining what went wrong. The branch
+  order is load-bearing and this is what holds it.
+- `cmd/marco` `TestTheseTestsDoNotRunAgainstTheRealStore` and
+  `TestARunRecordWouldBeWrittenInsideTheTemporaryStore` — the isolation above, and that the thing
+  which leaked actually follows it. Both halves of standing in the real store are asserted: no
+  `MARCO_HOME` at all, which is how it leaked, and one pointing AT the default location, which is
+  the same directory by a longer route.
+- `cmd/director` `TestAResetRefusesTheRealStore` — unchanged, and that is its value here: the
+  destructive guard now calls the shared comparison, and this is what says the comparison did not
+  get weaker.
+
 ## Mutations
 
-Seven mutations, all killed, plus a no-op control that survived. The runs tests and the four
-supervised-runner tests above were run against each one.
+### R1 — seven mutations, all killed, plus a no-op control
+
+The runs tests and the four supervised-runner tests above were run against each one.
 
 - **M1 — the claim becomes non-exclusive** (`O_EXCL` dropped from `Reserve`) → killed ×3:
   `TestTwoAttemptsThatProposeOneReferenceGetTwo`, and `cmd/director`
@@ -192,6 +369,58 @@ supervised-runner tests above were run against each one.
   test is about what a person reads, not about the discipline, and the gate above is what covers
   the discipline.
 
+
+### R2 — nine mutations, all killed, plus a no-op control
+
+- **R2-M1 — the reference is claimed AFTER the run instead of before it** → killed by
+  `TestTheReferenceIsClaimedBeforeTheFirstInput`, and by nothing else. Every other test here
+  passes a record written at the end, which is exactly why that test is a measurement from inside
+  the run rather than an assertion about printed lines.
+- **R2-M2 — the outcome is converted to a supervised word** (`verified` written for a routine's
+  run) → killed ×3, including `TestARoutinesRecordSaysNothingAboutEvidence`. The rule this ADR
+  exists for.
+- **R2-M3 — the digest is of the text with arguments substituted in** → killed by
+  `TestTheDigestIsOfTheFileAndNotOfWhatWasTypedIntoIt`. It cites source that is nowhere on disk
+  AND puts what the person typed into a durable file.
+- **R2-M4 — the count becomes an `int`**, so a host nobody can ask reads as a run that touched
+  nothing → killed by `TestAHostThatCannotSayHowMuchItSentLeavesTheFieldOut`.
+- **R2-M5 — the provisional record says when it ended** → killed by
+  `TestARunThatNeverFinishedSaysSoAndNotThatItWorked`. `ended` is how a reader knows.
+- **R2-M6 — the record does not say which kind it is** → killed ×2. Without the kind a reader runs
+  a routine's word through the supervised vocabulary.
+- **R2-M7 — the outcome goes on the citation line** (`runref.Ended` for `Cite`) → killed by
+  `TestARoutinesRunCitesItselfAndLeavesARecord`, on the PATH rather than on the outcome: the
+  parser leaves an unrecognised word inside the path, which is the defect, so the assertion that
+  caught it is the one comparing the cited path to the record's.
+- **R2-M8 — the contract written is not the one the run acted on** → killed by
+  `TestARoutinesRunCitesItselfAndLeavesARecord`.
+- **R2-M9 — every run proposes one fixed reference** → killed by
+  `TestTwoRunsOfOneRoutineAreTwoRecords`. Recorded precisely: the second run does not overwrite
+  the first, because the claim is exclusive and the retries are exhausted — it gets no reference
+  at all, and the test catches that.
+- **R2-M10 — the count is only taken for actions that were not refused** → killed by
+  `internal/oshost` `TestAPressRefusedByItsGuardStillAskedForIt`.
+- **R2-M11 — an action is left unclassified** (`drag` removed from `sendsInput`) → killed ×2:
+  `TestEveryHostActionSaysWhetherItSendsInput` and `TestTypingAndDraggingAreAskedFor`.
+- **S-M1 — the citation is read after the sentence it is not** (the two branches of
+  `readRoutine` swapped) → killed by `plugins/studio` `TestTheRunsOwnReferenceReachesTheWindow`.
+- **S-M2 — the reference is read and never shown** → killed by the same test.
+- **R2-M12 — the contract rule becomes `anything but guarded leaves`** → killed ONLY by
+  `TestAnIncompleteRoutinesRefusalStillFailsTheCommand`, which is why that test exists: it
+  survived the first gate because nothing in the package used an incomplete route.
+- **R2-M13 — the contract is read a second, weaker way** (`strings.Contains(src, "RelTo \"")` in
+  place of `orchestrator.ContractOf`) → killed by the same test, on the CONTRACT it recorded: a
+  press stating a window while lacking a term was called `guarded`.
+- **L-M1 — the package no longer isolates its store** (the `TestMain` guard made unconditional)
+  → killed by `TestTheseTestsDoNotRunAgainstTheRealStore`, which is the point: the leak it closes
+  was found by looking at the owner's store, and now a test says it.
+- **CONTROL — the record's `version` is bumped to 2** → SURVIVED, as intended. Nothing here reads
+  it, and nothing should until there are two versions to tell apart.
+- **Unfalsifiable, recorded as such**: reading the contract a second time in `keepRoutineRun`
+  instead of carrying it on `ran` is behaviourally identical for every route that does not change
+  on disk between the read and the save. It is a structural choice about having one answer, held
+  by the comment at its old site rather than by a test, and no test was written to pretend
+  otherwise.
 ## Related
 
 - [[ADR-246-a-trial-collects-its-own-evidence]] — the supervised record, and the reference it is
