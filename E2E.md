@@ -1548,9 +1548,20 @@ Have the game running. You do not need it in front.
 1. **Name it and press Record.** Under *Record a routine*: `ark graphics`, then Record.
 2. **Switch to the game and do the thing.** Ordinary left-clicks and the keyboard — open a menu,
    press two or three controls.
-3. **Visit Studio mid-recording, then press one more control.** Switch back to Studio, look at it
-   for a few seconds, switch to the game, and press another control. This is the case worth going
-   out of your way for; §62 explains why.
+3. **Visit Studio mid-recording by CLICKING on it, then click back and press one more control.**
+   Click Studio's window, look at it for a few seconds, click back into the game, and press
+   another control.
+
+   > **This step failed on its first live attempt and is awaiting a retest.** It produced
+   > `drag from -740, 348 to 50, 374` — a gesture nobody performed, made of the press of the
+   > click onto Studio joined to the release of the click back — and a drag cannot be saved in a
+   > routine whose presses are checked, so the whole recording was refused at Save. The cause was
+   > the exclusion removing click edges one at a time, while a click that raises a window has its
+   > two edges attributed to two different programs. Clicks are now paired before anything is
+   > excluded.
+   >
+   > **Click, don't alt-tab.** Alt-tab never had the fault, so it does not test the fix. Until
+   > this step passes on a real desktop, treat mid-recording preservation as unproven.
 4. **Press Stop**, in Studio's window, with the mouse.
 5. **Read the review and press Save.** The scope should be a sentence, not a dropdown: *Runs in
    <app>. Marco brings it forward before playback.*

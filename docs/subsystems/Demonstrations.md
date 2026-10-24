@@ -92,7 +92,15 @@ that control, though a saved play still cannot say it (`cannot_say_pointer`, fol
   at again in the widget recorder once Studio got a visible Stop button: the recorder's own
   window is excluded wherever it appears, by the process that owned the foreground at the
   INSTANT of each event rather than by a name an interval poller sampled, and Stop, Cancel and
-  Save are three acts rather than one
+  Save are three acts rather than one. **And a click's two edges can belong to two processes**:
+  the press that raises a window arrives while the previous window is still in front, so a click
+  onto the recorder is attributed (application, recorder) and the click back (recorder,
+  application) — excluded edge by edge, each lost one half, and the halves left behind were a
+  press and a far-away release with nothing between them, which `simplify` reads as a drag and a
+  guarded routine cannot save. So clicks are PAIRED before anything is excluded, per button and
+  never across a second press of the same button, and a click either of whose edges is the
+  owner's is the owner's — which is not the same rule as "the edges disagree", because a click
+  that raised another program's window disagrees and is a demonstrated press
 - [[ADR-251-a-press-checks-the-window-it-was-recorded-in]] — a coordinate is a claim about a
   place only while the window it was measured in is still that window. A press records the basis
   of its offset, the window's outer size, its DPI as its own term and the program that owned it,

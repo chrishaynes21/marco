@@ -1059,3 +1059,145 @@ func TestARightClickInALegacyRecordingIsStillSaved(t *testing.T) {
 		t.Fatalf("a right-click recorded before any of this was refused: %s", why)
 	}
 }
+
+// ── A MID-RECORDING VISIT, AS A REAL DESKTOP ATTRIBUTES IT ────────────────────
+
+// aVisitToStudioWithCrossedEdges is the owner's first mouse-driven trial, as the hooks saw it.
+//
+// Every other fixture in this file gives both edges of a click one process id. A real desktop
+// does not: the press that RAISES a window arrives while the previous window is still in front,
+// because clicking a window is what causes the activation. So the click onto Studio is attributed
+// (press, release) = (game, Studio), and the click back is (Studio, game).
+//
+// Excluded edge by edge, each of those clicks lost one half, and what was left — a press on
+// Studio and a release in the game with no press between them — came out of `simplify` as a
+// DRAG. A drag cannot be saved in a routine whose presses are checked, so the whole recording
+// was refused at Save: `drag from -740, 348 to 50, 374`, which is the press of one click joined
+// to the release of the next.
+func aVisitToStudioWithCrossedEdges(owner uint32, ownerApp string) []recorder.RecordedEvent {
+	crossed := func(x, y int, press, release uint32, ms int) []recorder.RecordedEvent {
+		return []recorder.RecordedEvent{
+			{Kind: recorder.EvClick, Button: "left", Down: true, X: x, Y: y,
+				PID: press, T: at(ms)},
+			{Kind: recorder.EvClick, Button: "left", Down: false, X: x, Y: y,
+				PID: release, T: at(ms + 5)},
+		}
+	}
+	measured := func(x, y, relX, relY int, ms int) []recorder.RecordedEvent {
+		return []recorder.RecordedEvent{
+			{Kind: recorder.EvClick, Button: "left", Down: true, X: x, Y: y,
+				App: "arkascended", PID: gamePID, T: at(ms),
+				WinRel: true, RelX: relX, RelY: relY,
+				RelTo: macroir.RelToWindow, WinW: 1936, WinH: 1048, Dpi: 96,
+				Process: "arkascended.exe"},
+			{Kind: recorder.EvClick, Button: "left", Down: false, X: x, Y: y,
+				App: "arkascended", PID: gamePID, T: at(ms + 5)},
+		}
+	}
+	var s []recorder.RecordedEvent
+	s = append(s, recorder.RecordedEvent{Kind: recorder.EvAppSwitch,
+		KeyName: "arkascended", T: at(0)})
+	s = append(s, measured(900, 400, 57, 343, 500)...)
+	// ── A LOOK AT STUDIO: pointer travels, then a click whose halves disagree ──
+	s = append(s, recorder.RecordedEvent{Kind: recorder.EvMove, X: -700, Y: 340,
+		T: at(2000)})
+	s = append(s, crossed(-740, 348, gamePID, owner, 2400)...)
+	s = append(s, recorder.RecordedEvent{Kind: recorder.EvAppSwitch,
+		KeyName: ownerApp, T: at(2500)})
+	// ── AND THE CLICK BACK, disagreeing the other way ──
+	s = append(s, recorder.RecordedEvent{Kind: recorder.EvMove, X: 40, Y: 370,
+		T: at(4000)})
+	s = append(s, crossed(50, 374, owner, gamePID, 4400)...)
+	s = append(s, recorder.RecordedEvent{Kind: recorder.EvAppSwitch,
+		KeyName: "arkascended", T: at(4500)})
+	s = append(s, measured(880, 510, 37, 450, 6000)...)
+	// ── AND STOP, WHICH IS ALSO AN ACTIVATION CLICK ──
+	s = append(s, recorder.RecordedEvent{Kind: recorder.EvMove, X: 1500, Y: 900,
+		T: at(7000)})
+	s = append(s, crossed(1511, 913, gamePID, owner, 7100)...)
+	return s
+}
+
+// A VISIT TO STUDIO MID-RECORDING LEAVES THE RECORDING SAVEABLE, AND KEEPS BOTH PRESSES.
+//
+// The whole flow through Studio's own methods: Record, Stop, read the review, Save. What the
+// owner got instead was a review containing a drag and a refusal to save it at all.
+func TestAVisitToStudioLeavesARecordingThatStillSaves(t *testing.T) {
+	t.Setenv("MARCO_CV", "off")
+	dir := t.TempDir()
+	t.Setenv("MARCO_ROUTES", dir)
+	a := newActs(t.TempDir())
+	owner, ownerApp := uint32(os.Getpid()), winctx.Self()
+	if ownerApp == "" {
+		t.Fatal("Studio cannot name its own application")
+	}
+	a.recording = func() recorder.Recorder {
+		return &heldRecorder{events: aVisitToStudioWithCrossedEdges(owner, ownerApp)}
+	}
+	if why := a.StartRecording("ark graphics"); why != "" {
+		t.Fatal(why)
+	}
+	if why := a.StopRecording(); why != "" {
+		t.Fatal(why)
+	}
+	r := a.Recording()
+
+	// NO INVENTED GESTURE IN THE REVIEW, which is the thing the person reads.
+	for _, step := range r.Steps {
+		if strings.Contains(step, "drag") {
+			t.Errorf("the review contains a gesture nobody performed: %q\n"+
+				"all steps: %v", step, r.Steps)
+		}
+	}
+	// AND IT CAN BE SAVED. A drag refuses generation outright, so this is the
+	// sentence the owner actually hit.
+	if r.Unsupported != "" {
+		t.Fatalf("the recording cannot be saved: %s", r.Unsupported)
+	}
+	// BOTH DEMONSTRATED PRESSES, measured in the window they were made in — the one
+	// before the visit and the one after it.
+	presses := pressesIn(r)
+	if len(presses) != 2 {
+		t.Fatalf("%d press(es) in the review, want the 2 that were demonstrated: "+
+			"%v", len(presses), r.Steps)
+	}
+	for i, want := range []string{"57, 343 in the window", "37, 450 in the window"} {
+		if !strings.Contains(presses[i], want) {
+			t.Errorf("press %d reads %q, want it to carry %q", i, presses[i],
+				want)
+		}
+	}
+	// AND NOTHING OF STUDIO'S OWN WINDOW, by either half of any of its clicks.
+	for _, step := range r.Steps {
+		for _, gone := range []string{"-740", "1511", "50, 374"} {
+			if strings.Contains(step, gone) {
+				t.Errorf("a step carries half a click on Studio's own "+
+					"window: %q", step)
+			}
+		}
+	}
+
+	// AND IT SAVES, AND WHAT IS ON DISK PRESSES TWICE.
+	if why := a.SaveDraft("app-anywhere", "arkascended"); why != "" {
+		t.Fatalf("saving it: %s", why)
+	}
+	saved := ""
+	for _, rt := range a.reg().List() {
+		if rt.Slug == "ark-graphics" {
+			raw, err := os.ReadFile(a.reg().Path(rt))
+			if err != nil {
+				t.Fatal(err)
+			}
+			saved = string(raw)
+		}
+	}
+	if saved == "" {
+		t.Fatal("nothing was written to the library")
+	}
+	if n := strings.Count(saved, "do OS's Click"); n != 2 {
+		t.Errorf("the saved routine presses %d time(s), want 2:\n%s", n, saved)
+	}
+	if strings.Contains(saved, "Drag") {
+		t.Errorf("the saved routine drags:\n%s", saved)
+	}
+}

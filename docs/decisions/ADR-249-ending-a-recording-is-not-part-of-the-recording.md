@@ -135,6 +135,65 @@ told it would not, which is the larger harm.
   That is acceptable for them and it establishes nothing about click-only behaviour, which is why
   the draft's acceptance case has no keystrokes anywhere.
 
+## And a click's two edges can belong to two processes
+
+Found in the owner's first mouse-driven trial, which is where this decision's central claim — the
+recorder's own window is excluded wherever it appears, by the process that owned the foreground at
+the INSTANT of each event — turned out to be implemented only half way.
+
+**The press that raises a window arrives while the previous window is still in front.** Clicking a
+window is what causes the activation, so at the instant of the press the foreground is the old
+one. `internal/recorder` already knows this and says so where it computes a window offset: *"A
+click that CHANGED the foreground looks like this from inside the hook: the attribution names the
+window that was in front at that instant and the click landed in the one it was about to raise."*
+It refuses to compute an offset in that case.
+
+The exclusion did not know it. Working edge by edge, it kept half of every click that crossed the
+boundary:
+
+| the click | its press | its release | what survived |
+|---|---|---|---|
+| onto Marco, from the application | the application's | Marco's | the **press** |
+| back into the application | Marco's | the application's | the **release** |
+
+The one rule that existed for this took the release of an owner's press only when that release was
+UNATTRIBUTED and at the identical point — so neither real direction matched. What was left in the
+stream was a press on Marco's window and a release in the application with no press between them,
+and `internal/simplify` read that, correctly by every rule it has, as a **drag**. A drag cannot be
+saved in a routine whose presses are checked ([[ADR-251-a-press-checks-the-window-it-was-recorded-in]]),
+so the recording was refused at Save in its entirety. The owner's review said:
+
+```
+drag from -740, 348 to 50, 374
+```
+
+which is the press of the click onto Marco joined to the release of the click back. Looking at
+Marco during a recording made the whole recording unsaveable — and the acceptance case this ADR is
+proudest of, a demonstration surviving a mid-recording glance, was passing because every fixture
+in the tree gives both edges of a click one process id. A real desktop does not.
+
+**So the clicks are paired before anything is excluded, and the pair decides together.** Per
+button, because buttons interleave; in order, and never across a second press of the same button,
+because a button cannot be released twice without being pressed again — so the release after a
+press is that press's own, and reaching past a later press would invent a gesture out of two
+different clicks. A click EITHER of whose edges is the owner's is the owner's.
+
+That is right about intent as much as about mechanism. A press in the application whose release is
+in Marco IS the click that raised Marco; a press in Marco whose release is in the application IS
+the click that went back. Both are somebody working the window rather than showing Marco anything.
+And it is deliberately NOT "the edges disagree, so exclude it": a click in the game whose release
+lands in a window the game itself raised has disagreeing edges and neither of them is Marco's, and
+it is a demonstrated press that must survive.
+
+An edge with no partner is decided on its own and kept unless it is the owner's, which is the same
+rule as before: an event this cannot place is not shown to belong to anybody, and guessing the
+other way deletes demonstrations.
+
+One case changed as a consequence and it was the old rule's own encoding. A release of the owner's
+press that had MOVED used to be kept — `TestWhatTheExclusionWillNotClaim` asserted it. It is that
+press's release, because nothing pressed the button in between; one that moved is a drag on
+Marco's window, not a different click. Keeping it is leaving half a click in the stream.
+
 ## Enforced by
 
 - `internal/recorder` `TestBothEdgesOfAClickCarryTheirOwner`,
@@ -158,9 +217,26 @@ told it would not, which is the larger harm.
 - `internal/orchestrator` `TestWhatTheExclusionWillNotClaim`, `TestTheExclusionIgnoresAStaleName`,
   `TestTheReturnNormalizationKeepsARealSwitchBack` — the boundaries, driven directly, because no
   draft fixture produces the shapes they are about.
+- `internal/orchestrator` `TestAClickOntoTheRecorderAndBackLeavesNoHalfBehind`,
+  `TestTheStopButtonsActivationClickReachesNeitherHalf`,
+  `TestAClickThatRaisesAnotherWindowIsKept`,
+  `TestNothingUnmatchedIsPairedIntoAnInventedGesture` — the crossed attribution a real desktop
+  produces, which no fixture in the tree had: every one of them gave both edges of a click the
+  same process id. The first of these also runs what survives through the production simplifier,
+  because reading the halves as a drag is what the person actually saw.
+- `plugins/studio` `TestAVisitToStudioLeavesARecordingThatStillSaves` — the owner's trial, through
+  Record, Stop, the review and Save. It reproduces the reported review exactly when the pairing is
+  removed, down to `drag from -740, 348 to 50, 374` and the refusal sentence.
 
 ## Mutations
 
+- Four on the pairing, all killed: the button ignored, so interleaved clicks marry; a press
+  reaching past a later press for its release; the partner's attribution ignored, which is the
+  defect itself restored; and "the edges disagree" standing in for "one of them is the owner's",
+  which takes a demonstrated click that raised another program's window. And the Studio-level
+  test was run with the pairing removed before it was trusted: it reproduced the owner's review
+  character for character, which is the only evidence that it is a regression test for the thing
+  reported rather than for something adjacent.
 - Four on the return normalization, all killed: the pass made a no-op; the app in front never
   remembered; the comparison inverted so only redundant switches survive; and the call site
   reverted to the shipped `withoutOwner` alone. Three of the four kill ONLY on the

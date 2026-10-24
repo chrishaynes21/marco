@@ -21,6 +21,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/macroir"
 	"github.com/chaynes-simpleclouds/marco/internal/recorder"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
+	"github.com/chaynes-simpleclouds/marco/internal/simplify"
 )
 
 // THE SAME DEMONSTRATION, UNDER THE TWO TIMINGS A GLANCE CAN HAVE.
@@ -371,10 +372,19 @@ func TestSaveRefusesADraftWithNoSteps(t *testing.T) {
 // WHAT THE EXCLUSION WILL AND WILL NOT CLAIM.
 //
 // `withoutOwner` removes the owner by PROCESS, read at the instant of each event, plus app
-// switches by name because a switch carries no process. The one unattributed event it will take
-// is the release of a press it has just removed — same button, same point. Anything else unowned
-// stays, because an event it cannot place is not shown to belong to anybody, and guessing the
-// other way deletes demonstrations.
+// switches by name because a switch carries no process. A click is paired first and decided as
+// one act, so the release of a press it removes goes with it. Anything it cannot pair stays,
+// because an event it cannot place is not shown to belong to anybody, and guessing the other way
+// deletes demonstrations.
+//
+// # The case that changed, and why
+//
+// "A release elsewhere" used to be KEPT: the old rule took the release of an owner's press only
+// when it was unattributed AND at the identical point, so a release that had moved was left
+// behind. That is where the defect lived. A button cannot be released twice without being
+// pressed again, so the release after a press IS that press's release — one that moved is a drag
+// on the owner's window, not a different click — and leaving it behind is leaving half a click
+// in the stream for `simplify` to pair with the next one. See withoutOwner.
 func TestWhatTheExclusionWillNotClaim(t *testing.T) {
 	// MARCO'S PRESS, whose release is the event under test.
 	base := []recorder.RecordedEvent{
@@ -397,7 +407,10 @@ func TestWhatTheExclusionWillNotClaim(t *testing.T) {
 		kept int
 	}{
 		{"the release of that very press", unowned("left", false, 1200, 400), 2},
-		{"a release elsewhere", unowned("left", false, 500, 500), 3},
+		// THE RELEASE OF THAT PRESS, HAVING MOVED. Still that press's release:
+		// the button was not pressed again in between, so there is nothing else
+		// it could belong to. Kept, it is half a click left in the stream.
+		{"a release elsewhere", unowned("left", false, 500, 500), 2},
 		{"a release of another button", unowned("right", false, 1200, 400), 3},
 		{"another press entirely", unowned("left", true, 1200, 400), 3},
 	} {
@@ -517,4 +530,209 @@ func TestTheExclusionIgnoresAStaleName(t *testing.T) {
 		t.Errorf("%d of 2 event(s) kept: a click the event itself places in the "+
 			"game was excluded because a stale sample named Marco", len(got))
 	}
+}
+
+// ── A CLICK'S TWO EDGES CAN BELONG TO TWO PROCESSES ───────────────────────────
+//
+// Which is how the owner's first mouse-driven trial produced `drag from -740, 348 to 50, 374`
+// out of two ordinary clicks, and why every fixture above missed it: they all give both edges of
+// a click the same process id, and a real desktop does not.
+//
+// The press that RAISES a window arrives while the previous window is still in front — clicking
+// a window is what causes the activation. So a click on Marco from the application is attributed
+// (press, release) = (application, Marco), and the click back is (Marco, application). Excluded
+// edge by edge, each click lost one half, and the halves left behind were a press on Marco and a
+// release in the application with no press between them: a drag, by every rule `simplify` has.
+// A drag cannot be saved in a routine whose presses are checked, so looking at Marco during a
+// recording made the whole recording unsaveable.
+
+// clickAcross is one click whose press and release were attributed to different processes, which
+// is what a click that changes the foreground looks like from inside the hook.
+func clickAcross(button string, x, y int, pressPID, releasePID uint32,
+	ms int) []recorder.RecordedEvent {
+	return []recorder.RecordedEvent{
+		{Kind: recorder.EvClick, Button: button, Down: true, X: x, Y: y,
+			PID: pressPID, T: at(ms)},
+		{Kind: recorder.EvClick, Button: button, Down: false, X: x, Y: y,
+			PID: releasePID, T: at(ms + 5)},
+	}
+}
+
+// demonstratedClick is an ordinary click in the application, both edges its own.
+func demonstratedClick(x, y int, ms int) []recorder.RecordedEvent {
+	return []recorder.RecordedEvent{
+		{Kind: recorder.EvClick, Button: "left", Down: true, X: x, Y: y,
+			App: "arkascended", PID: gamePID, T: at(ms)},
+		{Kind: recorder.EvClick, Button: "left", Down: false, X: x, Y: y,
+			App: "arkascended", PID: gamePID, T: at(ms + 5)},
+	}
+}
+
+func clickEdges(events []recorder.RecordedEvent) []recorder.RecordedEvent {
+	var out []recorder.RecordedEvent
+	for _, e := range events {
+		if e.Kind == recorder.EvClick {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+// CLICKING INTO MARCO AND BACK LEAVES NO HALF OF EITHER CLICK, AND TAKES NEITHER DEMONSTRATED ONE.
+//
+// The live case, as the hooks see it: a demonstrated click, a click onto Marco's window whose
+// release is Marco's, a click back whose press is Marco's, and a second demonstrated click. Both
+// of the middle clicks cross the foreground boundary in opposite directions.
+func TestAClickOntoTheRecorderAndBackLeavesNoHalfBehind(t *testing.T) {
+	var stream []recorder.RecordedEvent
+	stream = append(stream, recorder.RecordedEvent{Kind: recorder.EvAppSwitch,
+		KeyName: "arkascended", T: at(0)})
+	stream = append(stream, demonstratedClick(842, 274, 100)...)
+	// ONTO MARCO: the press is still the game's, the release is Marco's.
+	stream = append(stream, recorder.RecordedEvent{Kind: recorder.EvMove, X: -700,
+		Y: 340, T: at(1000)})
+	stream = append(stream, clickAcross("left", -740, 348, gamePID, studioPID, 1100)...)
+	stream = append(stream, recorder.RecordedEvent{Kind: recorder.EvAppSwitch,
+		KeyName: "studio", T: at(1200)})
+	// AND BACK: the press is Marco's, the release is the game's.
+	stream = append(stream, recorder.RecordedEvent{Kind: recorder.EvMove, X: 40,
+		Y: 370, T: at(2000)})
+	stream = append(stream, clickAcross("left", 50, 374, studioPID, gamePID, 2100)...)
+	stream = append(stream, recorder.RecordedEvent{Kind: recorder.EvAppSwitch,
+		KeyName: "arkascended", T: at(2200)})
+	stream = append(stream, demonstratedClick(496, 283, 3000)...)
+
+	kept := clickEdges(withoutOwner(stream, "studio", studioPID))
+	if len(kept) != 4 {
+		t.Fatalf("%d click edge(s) survived, want the 4 of the two demonstrated "+
+			"clicks: %+v", len(kept), kept)
+	}
+	// BOTH DEMONSTRATED CLICKS, WHOLE.
+	for i, want := range []struct {
+		x, y int
+		down bool
+	}{{842, 274, true}, {842, 274, false}, {496, 283, true}, {496, 283, false}} {
+		if kept[i].X != want.x || kept[i].Y != want.y || kept[i].Down != want.down {
+			t.Errorf("edge %d is %+v, want %d,%d down=%v", i, kept[i],
+				want.x, want.y, want.down)
+		}
+	}
+	// AND NO PHANTOM GESTURE COMES OUT OF WHAT IS LEFT, which is the thing the
+	// person actually saw. Through the production simplifier, because that is what
+	// read the halves as a drag.
+	for _, s := range simplify.Simplify(withoutOwner(stream, "studio", studioPID),
+		simplify.Options{}) {
+		if s.Kind == macroir.StepDrag {
+			t.Fatalf("a drag was invented out of two clicks: from %d,%d to "+
+				"%d,%d", s.X, s.Y, s.X2, s.Y2)
+		}
+	}
+}
+
+// AND THE STOP BUTTON'S OWN ACTIVATION CLICK REACHES NOTHING.
+//
+// Pressing Stop brings Marco forward and clicks it in one gesture, so the press is the
+// application's and the release is Marco's. Neither half may survive: the press is at Marco's
+// button, which is nowhere in the demonstration.
+func TestTheStopButtonsActivationClickReachesNeitherHalf(t *testing.T) {
+	var stream []recorder.RecordedEvent
+	stream = append(stream, demonstratedClick(842, 274, 100)...)
+	stream = append(stream, clickAcross("left", 1511, 913, gamePID, studioPID, 4200)...)
+
+	kept := clickEdges(withoutOwner(stream, "studio", studioPID))
+	if len(kept) != 2 {
+		t.Fatalf("%d click edge(s) survived, want the 2 of the demonstrated "+
+			"click: %+v", len(kept), kept)
+	}
+	for _, e := range kept {
+		if e.X == 1511 {
+			t.Errorf("half of the Stop click is in the demonstration: %+v", e)
+		}
+	}
+}
+
+// AND A CLICK THAT OPENS ANOTHER APPLICATION'S WINDOW IS KEPT.
+//
+// The same crossed attribution, and nothing to do with Marco: a press in the game whose release
+// lands in a window the game itself raised. Neither edge is the owner's, so it is a demonstrated
+// click and it stays. Excluding by "the edges disagree" rather than by "one of them is Marco's"
+// would have taken it.
+func TestAClickThatRaisesAnotherWindowIsKept(t *testing.T) {
+	const launcherPID uint32 = 9191
+	stream := clickAcross("left", 600, 500, gamePID, launcherPID, 100)
+	kept := clickEdges(withoutOwner(stream, "studio", studioPID))
+	if len(kept) != 2 {
+		t.Fatalf("%d of 2 edge(s) kept: a demonstrated click was excluded because "+
+			"its two edges were attributed to different programs, neither of "+
+			"them Marco: %+v", len(kept), kept)
+	}
+}
+
+// AND NOTHING UNMATCHED IS EVER PAIRED INTO A GESTURE THAT WAS NOT PERFORMED.
+//
+// Two rules, and the fixtures are what a lost event and interleaved buttons look like. A press
+// whose release never came must not borrow the next click's release, and a left click's edges
+// must not pair with a right click's.
+func TestNothingUnmatchedIsPairedIntoAnInventedGesture(t *testing.T) {
+	t.Run("a press whose release was lost", func(t *testing.T) {
+		stream := []recorder.RecordedEvent{
+			// THE LOST ONE, in the game.
+			{Kind: recorder.EvClick, Button: "left", Down: true, X: 100, Y: 100,
+				PID: gamePID, T: at(100)},
+			// AND A WHOLE CLICK ON MARCO AFTERWARDS. Its release must not be
+			// taken as the first press's, which would make that press Marco's
+			// and delete a demonstrated event.
+			{Kind: recorder.EvClick, Button: "left", Down: true, X: 1511,
+				Y: 913, PID: studioPID, T: at(200)},
+			{Kind: recorder.EvClick, Button: "left", Down: false, X: 1511,
+				Y: 913, PID: studioPID, T: at(205)},
+		}
+		kept := clickEdges(withoutOwner(stream, "studio", studioPID))
+		if len(kept) != 1 || kept[0].X != 100 {
+			t.Fatalf("the unmatched demonstrated press did not survive on its "+
+				"own: %+v", kept)
+		}
+	})
+	t.Run("interleaved buttons", func(t *testing.T) {
+		// A LEFT CLICK ON MARCO, with a right click in the game threaded
+		// through it. Pairing by order and not by button would marry the left
+		// press to the right release and take the game's click with it.
+		stream := []recorder.RecordedEvent{
+			{Kind: recorder.EvClick, Button: "left", Down: true, X: 1511,
+				Y: 913, PID: studioPID, T: at(100)},
+			{Kind: recorder.EvClick, Button: "right", Down: true, X: 300,
+				Y: 300, PID: gamePID, T: at(110)},
+			{Kind: recorder.EvClick, Button: "left", Down: false, X: 1511,
+				Y: 913, PID: studioPID, T: at(120)},
+			{Kind: recorder.EvClick, Button: "right", Down: false, X: 300,
+				Y: 300, PID: gamePID, T: at(130)},
+		}
+		kept := clickEdges(withoutOwner(stream, "studio", studioPID))
+		if len(kept) != 2 {
+			t.Fatalf("%d of 2 edge(s) kept: %+v", len(kept), kept)
+		}
+		for _, e := range kept {
+			if e.Button != "right" || e.X != 300 {
+				t.Errorf("what survived is not the game's right click: %+v",
+					e)
+			}
+		}
+	})
+	t.Run("a release whose press was lost", func(t *testing.T) {
+		// AN ORPHAN RELEASE IN THE GAME, after a whole click on Marco. The
+		// release is not Marco's and cannot be placed, so it stays — and it
+		// must not have taken Marco's press as its own on the way through.
+		stream := []recorder.RecordedEvent{
+			{Kind: recorder.EvClick, Button: "left", Down: true, X: 1511,
+				Y: 913, PID: studioPID, T: at(100)},
+			{Kind: recorder.EvClick, Button: "left", Down: false, X: 1511,
+				Y: 913, PID: studioPID, T: at(105)},
+			{Kind: recorder.EvClick, Button: "left", Down: false, X: 400,
+				Y: 400, PID: gamePID, T: at(200)},
+		}
+		kept := clickEdges(withoutOwner(stream, "studio", studioPID))
+		if len(kept) != 1 || kept[0].X != 400 {
+			t.Fatalf("the orphan release did not survive on its own: %+v", kept)
+		}
+	})
 }

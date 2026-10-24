@@ -7461,3 +7461,64 @@ See [[ADR-252-a-library-is-a-place-and-a-routine-is-played-where-it-was-made]].
 
 **Still outstanding:** the owner's trial of E2E.md §63. None of this has been done on a real
 desktop.
+
+## 38J — a click's two edges can belong to two processes
+
+The first mouse-driven trial of the Studio flow. The guarded half passed on a real desktop: a
+routine recorded in the window, selected in the window, played from the window — Escape then a
+guarded click landing on the right control; the window **moved** and it still pressed the right
+places; the window **resized** and it refused, pressed nothing, and said why in the banner; Stop
+mid-run ended as cancelled.
+
+Then the owner recorded in a second application and could not save it at all:
+
+```
+drag from -740, 348 to 50, 374
+```
+
+They had performed no drag.
+
+**The press that raises a window arrives while the previous window is still in front.** Clicking a
+window is what causes the activation, so at the instant of the press the foreground is the old
+one. `internal/recorder` already knows this and says so where it computes a window offset, and
+refuses to compute one in that case. The EXCLUSION did not know it. Working edge by edge, it kept
+half of every click that crossed the boundary — the press of the click onto Studio, whose release
+was Studio's, and the release of the click back, whose press was Studio's. The one rule that
+existed for this took the release of an owner's press only when that release was unattributed and
+at the identical point, so neither real direction matched.
+
+What was left was a press on Studio's window and a release in the application with no press
+between them. `internal/simplify` read that as a drag, correctly by every rule it has — and a drag
+cannot be saved in a routine whose presses are checked, so the whole recording was refused. The
+phantom's two coordinates are the two clicks' surviving halves.
+
+**So clicks are paired before anything is excluded, and the pair decides together.** Per button,
+because buttons interleave; in order and never across a second press of the same button, because a
+button cannot be released twice without being pressed again — so the release after a press is that
+press's own, and reaching past a later press would invent a gesture out of two different clicks. A
+click either of whose edges is the owner's is the owner's, which is right about intent too: a press
+in the application whose release is in Studio IS the click that raised Studio, and a press in
+Studio whose release is in the application IS the click that went back. Deliberately not "the
+edges disagree, so exclude it" — a click in the game whose release lands in a window the game
+itself raised has disagreeing edges and neither is Studio's, and it is a demonstrated press.
+
+One existing case changed and it was the old rule's own encoding: a release of the owner's press
+that had MOVED used to be kept. It is that press's release, because nothing pressed the button in
+between, and keeping it is leaving half a click in the stream.
+
+**Why every test passed through all of this.** Every click fixture in the tree gives both edges of
+a click one process id, and a real desktop does not. The acceptance case this ADR is proudest of —
+a demonstration surviving a mid-recording glance — was passing for that reason. ADR-249's own
+mutation note had said the release-match clause "could have been `true` and the acceptance tests
+would still have passed"; it was not `true`, it was too narrow, and the gap was the same gap.
+
+The Studio-level regression test was run with the pairing removed before it was trusted, and it
+reproduced the owner's review character for character — the same phantom, the same step list, the
+same refusal sentence. Four mutations on the pairing, all killed.
+
+See [[ADR-249-ending-a-recording-is-not-part-of-the-recording]].
+
+**Trial status.** Guarded replay, the library, selection by identity and the run's answer: shown
+live. **Mid-recording preservation: FAILED, corrected, awaiting live retest** — and it has to be
+retested by CLICKING onto Studio and back, because alt-tab never had the fault and therefore does
+not exercise the fix. E2E.md §63 step 3 carries that.

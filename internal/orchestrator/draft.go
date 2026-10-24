@@ -270,45 +270,118 @@ func (d Deps) Save(dr *Draft, scope Scope, app string) (routes.Route, error) {
 // `simplify.foldActivates` has no reason to read it as the gesture that performed one. It is
 // also what keeps the routine filed under the application it was demonstrated in.
 //
-// A release carrying no owner is removed with its own press — same button, same point — because
-// a click is one act and the two edges are not independently attributable. Nothing else
-// unattributed is touched: an event this cannot place is not shown to belong to anybody, and
-// guessing the other way deletes demonstrations.
+// # A CLICK IS ONE ACT WITH TWO EDGES, AND THEY CAN BE ATTRIBUTED TO DIFFERENT PROCESSES
+//
+// This is the whole of why the clicks are paired BEFORE anything is excluded, and it is a
+// defect this had, found in the owner's first mouse-driven trial.
+//
+// The press that RAISES a window arrives while the previous window is still in front — clicking
+// a window is what causes the activation, so the foreground at the instant of the press is the
+// old one. `internal/recorder` says so itself and refuses to compute a window offset in that
+// case. So a click on Marco's window from the application has its press attributed to the
+// APPLICATION and its release to MARCO, and the click back has its press attributed to MARCO and
+// its release to the APPLICATION.
+//
+// Excluding edge by edge therefore kept half of each click. The surviving halves were a press on
+// Marco and a release in the application with no press between them — which `internal/simplify`
+// reads, correctly by every rule it has, as a DRAG from one to the other. A drag cannot be saved
+// in a routine whose presses are checked, so looking at Marco during a recording and clicking
+// back made the whole recording unsaveable. Reported from the live trial as
+// `drag from -740, 348 to 50, 374`: the press of one click joined to the release of the next.
+//
+// So the pair decides together, and a click EITHER of whose edges is the owner's is the owner's.
+// That is right about intent as well as about mechanism: a press in the application whose release
+// is in Marco IS the click that raised Marco, and a press in Marco whose release is in the
+// application IS the click that went back. Both are somebody working the window rather than
+// showing Marco anything.
+//
+// An edge with no partner is decided on its own, and kept unless it is the owner's: an event this
+// cannot place is not shown to belong to anybody, and guessing the other way deletes
+// demonstrations. It is never completed by borrowing an edge from a different click.
 func withoutOwner(events []recorder.RecordedEvent, owner string,
 	ownerPID uint32) []recorder.RecordedEvent {
 
 	if owner == "" && ownerPID == 0 {
 		return events
 	}
+	// PAIRED FIRST, so no decision below can take one edge of a click and leave the
+	// other.
+	partner := pairClicks(events)
 	out := make([]recorder.RecordedEvent, 0, len(events))
-	// press is the owner's press that was just removed, kept so the release it belongs
-	// to can be recognised as its own rather than as any unowned release at all.
-	var press *recorder.RecordedEvent
 	for i := range events {
 		e := events[i]
 		if owner != "" && e.Kind == recorder.EvAppSwitch && e.KeyName == owner {
-			press = nil
+			continue
+		}
+		if e.Kind == recorder.EvClick {
+			if ownersClick(events, i, partner[i], ownerPID) {
+				continue
+			}
+			out = append(out, e)
 			continue
 		}
 		if ownerPID != 0 && e.PID == ownerPID {
-			press = nil
-			if e.Kind == recorder.EvClick && e.Down {
-				press = &events[i]
-			}
 			continue
 		}
-		// THE RELEASE OF A PRESS ALREADY REMOVED, and only that: same button,
-		// same point, immediately after it. An unowned release is not shown to
-		// be the owner's by following one of theirs.
-		if press != nil && e.Kind == recorder.EvClick && !e.Down && e.PID == 0 &&
-			e.Button == press.Button && e.X == press.X && e.Y == press.Y {
-			press = nil
-			continue
-		}
-		press = nil
 		out = append(out, e)
 	}
 	return out
+}
+
+// pairClicks matches every press to its OWN release, per button, in order.
+//
+// Returns one entry per event: the index of the other edge of that click, or -1 for an event
+// that is not a click or whose partner never arrived.
+//
+// Per button, because buttons interleave — a left press, a right press, a left release and a
+// right release are two clicks and not one of each other's halves. In order, and never across a
+// second press of the same button: a button cannot be released twice without being pressed again,
+// so the release after a press is that press's own, and a press followed by another press of the
+// same button is a press whose release was lost. Taking the later release for it would be
+// inventing a gesture out of two different clicks, which is exactly the defect being fixed.
+func pairClicks(events []recorder.RecordedEvent) []int {
+	partner := make([]int, len(events))
+	for i := range partner {
+		partner[i] = -1
+	}
+	// open is the press of each button still waiting for its release, by index.
+	open := map[string]int{}
+	for i := range events {
+		e := events[i]
+		if e.Kind != recorder.EvClick {
+			continue
+		}
+		button := strings.ToLower(strings.TrimSpace(e.Button))
+		if e.Down {
+			// AND A SECOND PRESS LEAVES THE FIRST UNMATCHED, rather than
+			// reaching past it. The nearest press is the one the next release
+			// belongs to.
+			open[button] = i
+			continue
+		}
+		if at, waiting := open[button]; waiting {
+			partner[at], partner[i] = i, at
+			delete(open, button)
+		}
+		// AN UNMATCHED RELEASE STAYS UNMATCHED. Its press was never recorded, and
+		// the press before it belongs to a click of its own.
+	}
+	return partner
+}
+
+// ownersClick reports whether this click belongs to the window driving the recording.
+//
+// Asked of the PAIR: either edge being the owner's makes the click theirs, because the two edges
+// of one click can be attributed to two processes and the click is still one act. See
+// withoutOwner.
+func ownersClick(events []recorder.RecordedEvent, i, with int, ownerPID uint32) bool {
+	if ownerPID == 0 {
+		return false
+	}
+	if events[i].PID == ownerPID {
+		return true
+	}
+	return with >= 0 && events[with].PID == ownerPID
 }
 
 // withoutRedundantReturns drops an app switch naming the application already in front.
