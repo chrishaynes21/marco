@@ -221,6 +221,35 @@ now, and the test that holds it asserts the bare sentence rather than the absenc
 capability — because a legacy route has one propagating action and no guarded press, so a chain
 generated for everything carries no `Step2` to notice it by.
 
+## What cannot be stopped at is not generated at all
+
+The chain works by wrapping ONE `do` sentence in arms that both end. A step emitted as something
+else cannot be stopped at, and in a routine whose presses are checked that is not a smaller
+promise — it is the promise broken by the one step nobody could wrap, because whatever follows it
+runs regardless.
+
+A **non-left click** is the live case and it was generated wrong first: a guarded `Move` to aim,
+then an ordinary `do OS's Click with "right".` whose result nobody read. The aim was checked and
+the press was not, and a press the machine refused was followed by the next step anyway. Also a
+**drag**, which resolves no offset and is checked against nothing; an **anchored press**, which is
+a ladder of locators with a click in each arm; and a **repeated block**, which runs its body again
+— the one thing a stop cannot survive.
+
+So generation REFUSES, naming what it found, and Studio says it at review rather than letting a
+generator error arrive at a button press. Supporting a non-left press properly would mean one
+guarded operation carrying a button beside the point, which is a permanent word in the language
+for a case no recording has needed yet; it waits for one that does.
+
+**And "did a press ask to be checked" is a different question from "can this version wrap it".**
+They came out as one first, which was a hole with the shape of every other hole here: a recording
+whose only press was a right-click had no step this could wrap, so it was not a guarded route, so
+the refusal never fired and it was generated as an ordinary block — a press that declared the
+window it was made in, pressed without any of it being looked at. Conflating the two answers "no"
+to the first whenever the second is "no".
+
+A route where nothing asked to be checked keeps all of it: a right-click or a drag there was saved
+under a contract that says a click is attempted and the run carries on.
+
 ## And the run's answer is data, not a log line
 
 A refused routine still ENDS TIDILY. A root handler is compulsory in Marco — the compiler refuses
@@ -228,10 +257,19 @@ A refused routine still ENDS TIDILY. A root handler is compulsory in Marco — t
 finishes. `marco do` would therefore have exited successfully about a routine that pressed
 nothing, which is the worst of the available outcomes: the person is told it worked.
 
-So the host keeps its own refusals (`oshost.Host.Refused`) — every guarded press it would not
-make, and an application that never came forward for one — and `runRoute` turns a non-empty list
-into a failed command. Not the output and not an exit code alone: both of those are downstream of
-an answer that now exists.
+So the host keeps an account of everything it did not do (`oshost.Host.Unperformed`) and
+`runRoute` turns a non-empty list into a failed command. Not the output and not an exit code
+alone: both of those are downstream of an answer that now exists.
+
+**Three kinds, and one list, because the caller should not have to care which**: a press that could
+not be CHECKED, a press the machine would not DELIVER having passed every check, and an
+application that never came FORWARD for one. The middle one was missing, and that is why the list
+is not named for refusals: a guard that passes and a backend that then rejects the input are the
+same outcome from where a person is standing — the press did not happen — and an account holding
+only refusals let the command report success about it. `SendInput` really does get blocked: by an
+elevated window owning the foreground, by UIPI, by a game with raw input and a lower-integrity
+sender. Nothing upstream could have noticed, either: the chain stopped correctly, the root handler
+caught the failure correctly, and the program ended tidily with no press having been made.
 
 Which contract a route carries is read from the route itself, because that is where it lives: a
 point stating the window it was recorded in is the whole of the guarded contract. A route carrying
@@ -435,9 +473,22 @@ there IS matching to do, and refusing there would refuse to go looking.
   afterwards), `TestALegacyRouteIsStillOneBlock`. Each also holds the ROUTE's own answer, which
   `Refused` does not cover: a chain whose arms both ended in `this is ok!` would stop just the
   same and report that it worked.
-- `cmd/marco` `TestAGuardedRoutineThatWasRefusedFailsTheCommand` and
-  `TestALegacyRoutineReportsWhatItAlwaysDid` — the command's answer, through `runRoute` with the
-  real host, on routes whose application is absent so no press is ever reached.
+- `cmd/marco` `TestAGuardedRoutineThatWasRefusedFailsTheCommand`,
+  `TestALegacyRoutineReportsWhatItAlwaysDid`, `TestAPressTheMachineRefusedFailsTheCommand` and
+  `TestALegacyRoutineWhosePressFailedReportsWhatItAlwaysDid` — the command's answer. The first
+  two run the real host on routes whose application is absent, so no press is reached; the second
+  two stand in a host that takes everything but the input, which is the only way to reach a
+  DELIVERY failure from here and the case an absent application cannot pose.
+- `internal/oshost` `TestAPressTheMachineWillNotDeliverStopsTheRoutine`,
+  `TestAnUndeliverableSecondPressKeepsTheFirst`, `TestAnAimTheMachineWillNotDeliverIsKept` — the
+  same gap at the host, with the delivery error kept rather than reported as a refusal.
+- `internal/codegen` `TestAStepThatCannotStopTheRoutineIsRefused`,
+  `TestARightClickAndADragAreGeneratedWhenNothingAsksToBeChecked`,
+  `TestARecordingOfOnlyAnUnwrappablePressIsRefused` — the last one is the hole where asking to be
+  checked and being wrappable were one question.
+- `plugins/studio` `TestARecordingWithAStepThatCannotBeStoppedAtIsNotSaved`,
+  `TestAnOrdinaryRecordingIsSavedWithoutComplaint`,
+  `TestARightClickInALegacyRecordingIsStillSaved`.
 - `internal/simplify` `TestGuardedPressesAreNotFoldedIntoARepeat`,
   `TestUnmeasuredPressesAreStillFolded`.
 - `plugins/studio` `TestAGuardedRecordingIsSavedToBringItsApplicationForward`,
@@ -461,8 +512,13 @@ used the coordinate". The first version of that test asserted both and contradic
 ## Mutations
 
 Seventeen for the original increment, twelve for the replay-side corrections, fourteen for the
-contract, sixteen for the execution path. All killed, plus one no-op control that survived as it
-should.
+contract, sixteen for the execution path, ten for the two result gaps. All killed, plus one no-op
+control that survived as it should.
+
+The ten: a delivery failure not kept, and then not kept for a press and for an aim in turn; a step
+that cannot be stopped at generated anyway; nothing ever unpropagatable; asking to be checked and
+being wrappable treated as one question; a non-left click allowed; a drag allowed; the command
+ignoring what did not happen; and review not saying a recording cannot be saved.
 
 The sixteen: a guarded route not generated as a chain, and a chain generated for every route; a
 refusal reported as success; the preparation not propagating; the next link called whatever
@@ -528,11 +584,12 @@ it intends to do.
   the start of its run, which is that scope's own premise and would make its first press checked
   against whatever is in front rather than against something prepared. Not taken, and
   `TestAContextScopedRecordingHasNoWindowToCheckAgainst` pins what a route saved that way does.
-- **AN ANCHORED GUARDED PRESS DOES NOT PROPAGATE.** Its emitted form is a ladder of locators with
-  a click in each arm, so there is no single sentence to wrap, and a refusal in one of those
-  clicks does not stop the routine. Unreachable from a recorder-first recording — anchors are off
-  unless computer vision is explicitly turned on — so the gap is real and currently not on any
-  path the owner uses.
+- **A NON-LEFT PRESS, A DRAG, AN ANCHORED PRESS AND A REPEATED BLOCK CANNOT BE SAVED AS PART OF A
+  GUARDED ROUTINE.** Refused at generation rather than half-guarded, and said at review. Each
+  could be supported: the first needs one guarded operation carrying a button beside the point,
+  which is a permanent word in the language for a case no recording has needed yet. The last two
+  are unreachable today anyway — anchors are off unless computer vision is turned on, and loop
+  folding is off for a recording with a guarded press.
 - **A terminal return inside a non-exhaustive `when` arm does not return.** Marco's own
   semantics, measured here and not changed: the arm fires, the ending is ignored, execution falls
   through, and the caller is told ok. Every fixture in the repository pairs its arms, so nothing

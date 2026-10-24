@@ -97,23 +97,23 @@ func TestPreparationThatFailsPressesNothing(t *testing.T) {
 		t.Errorf("input was sent although the application never came forward: "+
 			"moves=%v clicks=%v\n%s", rec.moves, rec.clicks, out)
 	}
-	refused := h.Refused()
-	if len(refused) == 0 {
+	undone := h.Unperformed()
+	if len(undone) == 0 {
 		t.Fatalf("the run reports nothing wrong, so a command performing this "+
 			"routine would report success about a routine that pressed "+
 			"nothing\n%s", out)
 	}
-	if !strings.Contains(refused[0], "could not be brought to the front") {
+	if !strings.Contains(undone[0], "could not be brought to the front") {
 		t.Errorf("the run's answer is %q and does not say the application never "+
-			"came forward", refused[0])
+			"came forward", undone[0])
 	}
 	// AND EXACTLY ONE, because the routine stopped AT the preparation. Three would
 	// mean the preparation was a line above the body rather than around it: every
 	// press attempted in turn and refused in turn, which is the routine carrying on
 	// past something that did not happen.
-	if len(refused) != 1 {
+	if len(undone) != 1 {
 		t.Errorf("%d things were attempted after the application failed to come "+
-			"forward: %v", len(refused), refused)
+			"forward: %v", len(undone), undone)
 	}
 }
 
@@ -141,9 +141,9 @@ func TestAFirstPressThatRefusesNeverReachesTheSecond(t *testing.T) {
 				"not happen")
 		}
 	}
-	if len(h.Refused()) != 1 {
+	if len(h.Unperformed()) != 1 {
 		t.Errorf("the run reports %d refusal(s) for one refused press: %v",
-			len(h.Refused()), h.Refused())
+			len(h.Unperformed()), h.Unperformed())
 	}
 	saysItStopped(t, out)
 }
@@ -166,13 +166,13 @@ func TestASecondPressThatRefusesKeepsTheFirstAndStillFails(t *testing.T) {
 			"went through, so it has to be in the account\n%s", rec.moves,
 			firstPress, out)
 	}
-	if len(h.Refused()) != 1 {
-		t.Fatalf("the run reports %d refusal(s): %v", len(h.Refused()),
-			h.Refused())
+	if len(h.Unperformed()) != 1 {
+		t.Fatalf("the run reports %d refusal(s): %v", len(h.Unperformed()),
+			h.Unperformed())
 	}
-	if !strings.Contains(h.Refused()[0], "what scale it was drawn at") {
+	if !strings.Contains(h.Unperformed()[0], "what scale it was drawn at") {
 		t.Errorf("the run's answer is %q and does not name the measurement the "+
-			"second press is missing", h.Refused()[0])
+			"second press is missing", h.Unperformed()[0])
 	}
 	saysItStopped(t, out)
 }
@@ -193,7 +193,7 @@ func TestEveryPressGoingThroughCompletesThePlayback(t *testing.T) {
 	if len(rec.moves) != 2 || rec.moves[0] != want[0] || rec.moves[1] != want[1] {
 		t.Fatalf("pressed at %v, want %v\n%s", rec.moves, want, out)
 	}
-	if r := h.Refused(); len(r) != 0 {
+	if r := h.Unperformed(); len(r) != 0 {
 		t.Errorf("a routine whose every press went through reports %v", r)
 	}
 	// AND IT SAYS IT FINISHED, which is the other side of `saysItStopped`: the one
@@ -284,4 +284,77 @@ func saysItStopped(t *testing.T, out string) {
 		t.Errorf("the routine reports that it finished, having refused a press:\n%s",
 			out)
 	}
+}
+
+// AND A PRESS THE MACHINE WILL NOT DELIVER STOPS THE ROUTINE TOO.
+//
+// The gap `Refused` left. A guard that PASSES and a backend that then rejects the input are the
+// same outcome from where a person is standing — the press did not happen — but only one of them
+// was a refusal, so the account held nothing and the command reported success. Nothing upstream
+// could have noticed: the chain stopped correctly, the root handler caught the failure correctly,
+// and the program ended tidily with no press having been made.
+//
+// `SendInput` really does get blocked: by an elevated window that owns the foreground, by UIPI,
+// by a game with raw input and a lower-integrity sender. It is not a hypothetical path.
+//
+// Everything about this case is right except the delivery: the application came forward, the
+// window matched on every term, and the point was inside it.
+func TestAPressTheMachineWillNotDeliverStopsTheRoutine(t *testing.T) {
+	_, at := savedFrom(t, orchestrator.ScopeAppAnywhere, twoPressesInTheGame(0, nil))
+
+	rec, h, out := playedRefusingFrom(t, at, 1)
+
+	// NO LATER ACTION. The second press is never attempted, which is the whole claim:
+	// a routine does not go on pressing after a press that did not happen.
+	if len(rec.moves) != 0 || len(rec.clicks) != 0 {
+		t.Errorf("input was recorded as sent although the machine refused it: "+
+			"moves=%v clicks=%v\n%s", rec.moves, rec.clicks, out)
+	}
+	if rec.sends != 1 {
+		t.Errorf("the machine was asked to send input %d time(s); the first was "+
+			"refused, so there should have been no second", rec.sends)
+	}
+	// AND THE RUN IS UNSUCCESSFUL, WITH THE DELIVERY ERROR KEPT. Not "a press was
+	// refused" — the guard agreed with everything. The sentence has to say what
+	// actually went wrong or nobody can act on it.
+	undone := h.Unperformed()
+	if len(undone) != 1 {
+		t.Fatalf("the run reports %d thing(s) that did not happen: %v — a "+
+			"command reading this would report success\n%s", len(undone),
+			undone, out)
+	}
+	if !strings.Contains(undone[0], "did not happen") ||
+		!strings.Contains(undone[0], errTheMachineSaysNo.Error()) {
+		t.Errorf("the run's answer is %q and does not keep what the machine said",
+			undone[0])
+	}
+	saysItStopped(t, out)
+}
+
+// AND THE SECOND PRESS BEING THE UNDELIVERABLE ONE KEEPS THE FIRST.
+//
+// The same pairing as a refused second press: what happened is in the account, and the run is
+// unsuccessful anyway because the routine is the whole sequence.
+func TestAnUndeliverableSecondPressKeepsTheFirst(t *testing.T) {
+	_, at := savedFrom(t, orchestrator.ScopeAppAnywhere, twoPressesInTheGame(0, nil))
+
+	rec, h, out := playedRefusingFrom(t, at, 2)
+
+	if len(rec.moves) != 1 || rec.moves[0] != firstPress {
+		t.Fatalf("the first press landed at %v, want %v\n%s", rec.moves,
+			firstPress, out)
+	}
+	if len(h.Unperformed()) != 1 {
+		t.Fatalf("the run reports %v", h.Unperformed())
+	}
+	saysItStopped(t, out)
+}
+
+// playedRefusingFrom is `played` with the machine rejecting input from the nth send onwards.
+func playedRefusingFrom(t *testing.T, at string, nth int) (*recBackend, *Host, string) {
+	t.Helper()
+	was := refuseSendsFrom
+	t.Cleanup(func() { refuseSendsFrom = was })
+	refuseSendsFrom = nth
+	return played(t, at)
 }

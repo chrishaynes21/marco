@@ -234,3 +234,78 @@ func TestAPressThatCouldNotBeMeasuredStillDeclaresItsWindow(t *testing.T) {
 			"--- source ---\n%s", want, partly)
 	}
 }
+
+// A STEP WHOSE FAILURE CANNOT STOP THE ROUTINE IS REFUSED, NOT WRITTEN.
+//
+// The chain works by wrapping ONE `do` sentence in arms that both end. A step emitted as
+// something else cannot be stopped at, and in a routine whose presses are checked that is not a
+// smaller promise — it is the promise broken, because the action after it runs regardless.
+//
+// A right-click is the live case: an aim and then a press, where wrapping the aim leaves the
+// press unwrapped. A drag is the other: it resolves no offset, so it is checked against nothing.
+func TestAStepThatCannotStopTheRoutineIsRefused(t *testing.T) {
+	for _, c := range []struct {
+		what string
+		step macroir.Step
+		says string
+	}{
+		{"a right-click", func() macroir.Step {
+			s := aMeasuredPress()
+			s.Button = "right"
+			return s
+		}(), "a right-click"},
+		{"a drag beside a measured press", macroir.Step{
+			Kind: macroir.StepDrag, X: 10, Y: 20, X2: 30, Y2: 40,
+			Button: "left"}, "a drag"},
+	} {
+		t.Run(c.what, func(t *testing.T) {
+			steps := []macroir.Step{aMeasuredPress(), c.step}
+			_, _, err := codegen.Route("ark graphics", "arkascended", steps,
+				t.TempDir())
+			if err == nil {
+				t.Fatal("it was generated, so whatever follows that step " +
+					"would run after a press that did not happen")
+			}
+			if !strings.Contains(err.Error(), c.says) {
+				t.Errorf("the refusal says %q and does not name what cannot "+
+					"be stopped at", err.Error())
+			}
+		})
+	}
+}
+
+// AND THE SAME STEPS ARE GENERATED AS THEY ALWAYS WERE WHEN NOTHING ASKED TO BE CHECKED.
+//
+// The half that keeps the refusal confined. A right-click or a drag in a route whose presses are
+// the two numbers they always were was saved under a contract that says a click is attempted and
+// the run carries on. Refusing it would refuse a kind of route that has always worked.
+func TestARightClickAndADragAreGeneratedWhenNothingAsksToBeChecked(t *testing.T) {
+	src := generated(t,
+		macroir.Step{Kind: macroir.StepClick, Button: "right", X: 10, Y: 20},
+		macroir.Step{Kind: macroir.StepDrag, X: 10, Y: 20, X2: 30, Y2: 40,
+			Button: "left"})
+
+	for _, want := range []string{`do OS's Click with "right".`, "do OS's Drag with drag1."} {
+		if !strings.Contains(src, want) {
+			t.Errorf("a route that asks to be checked against nothing lost "+
+				"%q:\n%s", want, src)
+		}
+	}
+}
+
+// AND A RECORDING WHOSE ONLY PRESS CANNOT BE WRAPPED IS STILL REFUSED.
+//
+// The hole this nearly had. "Does any press ask to be checked" and "can this version wrap it"
+// came out as one question, so a recording whose only press was a right-click had no step to
+// wrap, was therefore not a guarded route, and was generated as an ordinary block: a press that
+// declared the window it was made in, pressed without any of it being looked at.
+func TestARecordingOfOnlyAnUnwrappablePressIsRefused(t *testing.T) {
+	only := aMeasuredPress()
+	only.Button = "right"
+
+	if _, _, err := codegen.Route("ark graphics", "arkascended",
+		[]macroir.Step{only}, t.TempDir()); err == nil {
+		t.Fatal("a recording whose only press asked to be checked and could not " +
+			"be was generated as an ordinary route")
+	}
+}

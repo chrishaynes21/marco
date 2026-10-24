@@ -113,7 +113,10 @@ that control, though a saved play still cannot say it (`cannot_say_pointer`, fol
   each in their own capability, calling the next only when its own action went through — so
   nothing after a refusal runs, no unconditional ending can override it, and a guarded press is
   never folded into a `repeat`. The run's answer is data rather than a log line, because a root
-  handler is compulsory in Marco and a refused routine therefore ends tidily. New guarded
+  handler is compulsory in Marco and a routine that did not happen therefore ends tidily — and the
+  account covers a press the machine would not DELIVER as well as one it could not check, which
+  are the same outcome and were not the same record. A step whose failure cannot stop the routine
+  — a non-left press, a drag — is refused at generation and said at review. New guarded
   recordings are saved to bring their application forward, since the scopes that switch nothing
   bind no window; the choice is withdrawn rather than defaulted, an impossible scope is refused at
   Save, and a routine already saved that way is saved again from its own stored demonstration

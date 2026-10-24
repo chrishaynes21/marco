@@ -142,7 +142,7 @@ func playedPreparing(t *testing.T, at string, bind func(string) (uintptr, error)
 	var said bytes.Buffer
 	mlog.Default = mlog.New(&said, mlog.LevelDebug)
 
-	rec := &recBackend{}
+	rec := &recBackend{refuseFrom: refuseSendsFrom}
 	h := &Host{b: rec}
 	var out bytes.Buffer
 	err := driver.RunFileWithHosts(at, &out, map[string]runtime.Host{"*": h})
@@ -284,3 +284,7 @@ func TestAContextScopedRecordingHasNoWindowToCheckAgainst(t *testing.T) {
 		})
 	}
 }
+
+// refuseSendsFrom is which input send the machine starts rejecting at, for the one case that is
+// about delivery rather than about checking. 0 — the ordinary case — means it takes everything.
+var refuseSendsFrom = 0

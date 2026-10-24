@@ -56,6 +56,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/chaynes-simpleclouds/marco/internal/codegen"
 	"github.com/chaynes-simpleclouds/marco/internal/macroir"
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
 	"github.com/chaynes-simpleclouds/marco/internal/recorder"
@@ -128,6 +129,15 @@ type Recording struct {
 	// three.
 	Scope  string `json:"scope,omitempty"`
 	Brings string `json:"brings,omitempty"`
+	// Unsupported says this recording cannot be saved as a routine at all, and why.
+	//
+	// Different from Incomplete, which is a routine that saves and then refuses: this one
+	// does not save. A step whose failure cannot be made to stop the routine — a
+	// right-click, a drag — would leave whatever follows it running after a press that
+	// did not happen, which is the guard's promise broken by the one step nobody could
+	// wrap. Said here because a generator error arriving at a button press is a worse way
+	// to learn it.
+	Unsupported string `json:"unsupported,omitempty"`
 }
 
 // StartRecording begins a recorder-first capture under `name`.
@@ -421,6 +431,14 @@ func (a *Acts) Recording() Recording {
 	// point of a review is that the person decides knowing this.
 	if why := whyItWillNotRun(dr.Steps); why != "" {
 		out.Incomplete, out.Missing = true, why
+	}
+	// AND WHETHER IT CAN BE SAVED AT ALL. Before Save, for the same reason as above.
+	if why := codegen.Unpropagatable(dr.Steps); why != "" {
+		out.Unsupported = fmt.Sprintf("This recording contains %s. A routine whose "+
+			"presses are checked against the window they were made in has to "+
+			"stop when one of them does not happen, and this version cannot "+
+			"make %s do that — so it cannot be saved yet. Record it again "+
+			"using ordinary left-clicks and the keyboard.", why, why)
 	}
 	// AND HOW IT WILL BE PERFORMED, when that is not a choice. See Recording.Scope.
 	if only := orchestrator.ScopeFor(dr); only != "" {

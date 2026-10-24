@@ -99,9 +99,9 @@ type Host struct {
 	bound    uintptr
 	boundApp string
 	boundPID uint32
-	// refused is the sentence of every guarded press this run would not make, in the
-	// order they were refused. See `Refused`. Guarded by mu.
-	refused []string
+	// undone is the sentence of everything this run did not do, in order. See
+	// `Unperformed`. Guarded by mu.
+	undone []string
 }
 
 // SetArgs records the named arguments of the invocation about to run, so a
@@ -161,7 +161,8 @@ func (h *Host) Invoke(c runtime.HostCall) (string, runtime.Value, error) {
 			return fail("move needs a Point with X and Y")
 		}
 		mlog.Debug("move: to point", "x", x, "y", y)
-		return ok(h.b.move(c.Ctx, x, y))
+		return h.delivered(fmt.Sprintf("aiming at %d,%d", x, y),
+			h.b.move(c.Ctx, x, y))
 	case "drag":
 		return h.doDrag(c)
 	case "sleep":
@@ -205,7 +206,7 @@ func (h *Host) Invoke(c runtime.HostCall) (string, runtime.Value, error) {
 			// forward has nothing to press in. Recorded for every route and
 			// acted on only by one: the caller decides, from the contract the
 			// route was saved under, whether this makes the run unsuccessful.
-			h.refuse(fmt.Sprintf("the %s window could not be brought to the "+
+			h.didNotDo(fmt.Sprintf("the %s window could not be brought to the "+
 				"front: %v", app, err))
 		}
 		return ok(err)
@@ -1291,14 +1292,19 @@ func (h *Host) doClick(c runtime.HostCall) (string, runtime.Value, error) {
 		// down/up can register before the move settles (a game's raw-input loop, an
 		// overlay LL mouse hook, DPI virtualisation), landing the click at a STALE
 		// position — the "resolved coords are right but it clicked the wrong thing" bug.
-		return ok(h.b.clickAt(c.Ctx, "left", x, y))
+		// AND A DELIVERY FAILURE IS KEPT. The guard passing and the machine then
+		// refusing the input are the same thing from where a person is standing:
+		// the press did not happen. See `Unperformed`.
+		return h.delivered(fmt.Sprintf("a press at %d,%d", x, y),
+			h.b.clickAt(c.Ctx, "left", x, y))
 	}
 	button := "left"
 	if t := c.Input.AsText(); t != "" {
 		button = t
 	}
 	mlog.Debug("click: at cursor", "button", button)
-	return ok(h.b.click(c.Ctx, button))
+	return h.delivered("a "+button+" press where the cursor is",
+		h.b.click(c.Ctx, button))
 }
 
 func (h *Host) doSleep(c runtime.HostCall) (string, runtime.Value, error) {
@@ -1749,28 +1755,52 @@ func (h *Host) guarded(set *runtime.Set, x, y int) (px, py int, why string) {
 		// able to say so without reading output: `marco do` turns a non-empty list
 		// into a failed command, and director sees the same refusal through the
 		// capability status its runner already records.
-		h.refuse(why)
+		h.didNotDo(why)
 	}
 	return px, py, why
 }
 
-// refuse keeps one sentence about something this run would not do.
-func (h *Host) refuse(why string) {
+// didNotDo keeps one sentence about something this run did not do.
+func (h *Host) didNotDo(why string) {
 	h.mu.Lock()
-	h.refused = append(h.refused, why)
+	h.undone = append(h.undone, why)
 	h.mu.Unlock()
 }
 
-// Refused is everything under the guarded contract this run would not do, in order: a press it
-// could not check, and an application that never came forward for one.
+// delivered reports a host call that sent input, keeping the sentence when the machine would not
+// take it.
 //
-// Only a GUARDED press records one. A legacy click that could not find its window is not here:
-// that route was saved under a contract which says a click is attempted and the run carries on,
-// and changing what it reports is not this contract's business.
-func (h *Host) Refused() []string {
+// Wrapping every input send rather than only the guarded ones, because the host cannot tell which
+// contract the route it is serving was saved under and must not guess: it records what did not
+// happen and the caller decides what that means. See `Unperformed`.
+func (h *Host) delivered(what string, err error) (string, runtime.Value, error) {
+	if err != nil {
+		h.didNotDo(fmt.Sprintf("%s did not happen: %v", what, err))
+	}
+	return ok(err)
+}
+
+// Unperformed is everything this run did not do, in order, each with the sentence that said why.
+//
+// Three kinds, and the point of one list is that the caller does not have to care which:
+//
+//   - a press that could not be CHECKED against the window it was recorded in
+//   - a press the machine would not DELIVER, having passed every check
+//   - an application that never came FORWARD for one
+//
+// The second is the one this nearly missed. A guard that passes and a backend that then rejects
+// the input are the same outcome from where a person is standing — the press did not happen —
+// and an account holding only refusals would have let the command report success about it. A
+// delivery failure is not a refusal, so a list named for refusals was the wrong list.
+//
+// Recorded for every route and acted on by one. The caller reads the contract its route was saved
+// under and decides, so a legacy route reports exactly what it always did: it was saved under a
+// contract which says a click is attempted and the run carries on, and changing that is not this
+// contract's business.
+func (h *Host) Unperformed() []string {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	return append([]string(nil), h.refused...)
+	return append([]string(nil), h.undone...)
 }
 
 // checkGuarded is the comparison itself; `guarded` is what remembers its answer.

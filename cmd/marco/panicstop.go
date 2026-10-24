@@ -110,17 +110,16 @@ func runRoute(ctx context.Context, d orchestrator.Deps, rt routes.Route, named m
 	if err := driver.RunSourceWithHostsCtx(ctx, filled, filepath.Dir(path), path, os.Stdout, d.Hosts); err != nil {
 		return err
 	}
-	// ── AND A ROUTINE THAT WAS REFUSED IS NOT A ROUTINE THAT RAN ──
+	// ── AND A ROUTINE THAT DID NOT HAPPEN IS NOT A ROUTINE THAT RAN ──
 	//
-	// A press that checks the window it was recorded in can refuse, and a guarded route
-	// stops there: nothing after it is done. The program itself ends tidily — a root
-	// handler is compulsory in Marco, so the failure is caught and logged — which means
-	// without this, the command that performed it would exit successfully about a
-	// routine that pressed nothing. The host keeps its own refusals so the answer is
-	// data rather than a line of output somebody has to read.
+	// A guarded route stops at the first thing that did not happen: a press it could not
+	// check, a press the machine would not deliver, or an application that never came
+	// forward. The program itself ends tidily either way — a root handler is compulsory
+	// in Marco, so the failure is caught and logged — which means without this, the
+	// command would exit successfully about a routine that pressed nothing.
 	//
-	// Only a GUARDED press records one, so a legacy route reports exactly what it
-	// always did. See oshost.Host.Refused.
+	// The host keeps the account so the answer is data rather than a line of output
+	// somebody has to read. See oshost.Host.Unperformed.
 	// WHICH CONTRACT THIS ROUTE WAS SAVED UNDER, read from the route itself. A point
 	// that states the window it was recorded in IS the guarded contract — it is what
 	// makes the three saved contracts distinguishable at all (see ADR-251) — and a
@@ -133,11 +132,24 @@ func runRoute(ctx context.Context, d orchestrator.Deps, rt routes.Route, named m
 	if !strings.Contains(filled, `RelTo "`) {
 		return nil
 	}
-	if h, ok := d.Hosts["*"].(*oshost.Host); ok {
-		if refused := h.Refused(); len(refused) > 0 {
-			mlog.Error("run: refused", "route", rt.Slug, "why", refused[0])
-			return fmt.Errorf("%s stopped: %s", rt.Slug, refused[0])
+	if h, ok := d.Hosts["*"].(unperformer); ok {
+		if undone := h.Unperformed(); len(undone) > 0 {
+			mlog.Error("run: stopped", "route", rt.Slug, "why", undone[0])
+			return fmt.Errorf("%s stopped: %s", rt.Slug, undone[0])
 		}
 	}
 	return nil
+}
+
+// unperformer is a host that can say what it did not do.
+//
+// An interface rather than `*oshost.Host` so the rule above can be exercised with a host that
+// reports a DELIVERY failure — a guard that passed and a machine that then rejected the input.
+// The concrete assertion could only be satisfied by the real host, whose backend sends real
+// input, so the only command-level case that could be written was an absent application: the
+// cheapest failure and the one furthest from the press.
+type unperformer interface {
+	// Unperformed is everything the run did not do, in order, each with the sentence
+	// that said why. See oshost.Host.Unperformed.
+	Unperformed() []string
 }

@@ -654,3 +654,32 @@ func TestTheRecordedPointAFindHandsBackIsGuarded(t *testing.T) {
 		t.Errorf("input was sent anyway: moves=%v clicks=%v", rec.moves, rec.clicks)
 	}
 }
+
+// AND AN AIM THE MACHINE WILL NOT DELIVER IS KEPT TOO.
+//
+// `Move` goes through the same resolver a click does and now through the same delivery account.
+// It matters for the same reason the click does: the guard agreeing and the machine refusing are
+// the same outcome, and only one of them was ever recorded.
+//
+// No recorder-first recording generates a guarded Move today — a non-left press, which is what
+// would need one, is refused at generation for this milestone (see codegen.Unpropagatable) — so
+// this holds the host's half of a contract whose route-level half is deliberately closed.
+func TestAnAimTheMachineWillNotDeliverIsKept(t *testing.T) {
+	onADesktopLike(t, steady(sameWindowMoved), "arkascended.exe")
+	rec := &recBackend{refuseFrom: 1}
+	h := &Host{b: rec}
+	h.bindAt(theGameWindow, "arkascended")
+
+	st, v, _ := call(h, "Move", runtime.SetVal(aGuardedPress()))
+	if st != "failed" {
+		t.Fatalf("a Move the machine refused was %q", st)
+	}
+	if said := errText(v); !contains(said, "SendInput was blocked") {
+		t.Errorf("the failure says %q", said)
+	}
+	undone := h.Unperformed()
+	if len(undone) != 1 || !contains(undone[0], "did not happen") {
+		t.Errorf("the run's account is %v, so a command reading it would report "+
+			"success about an aim that did not happen", undone)
+	}
+}

@@ -402,6 +402,10 @@
          makes keeping it an informed choice rather than a surprise the first time
          somebody runs it. Empty and hidden when everything was measured. -->
     <div class="no hide" style="margin-top:6px" id="capMissing"></div>
+    <!-- AND WHAT CANNOT BE SAVED AT ALL, which is a different sentence from the one
+         above: that one is a routine that saves and then refuses, this one does not
+         save. Said here so a generator error does not arrive at a button press. -->
+    <div class="no hide" style="margin-top:6px" id="capUnsupported"></div>
     <div class="muted" style="margin-top:6px" id="capWhere"></div>
     <ol id="capSteps" class="muted" style="margin-top:10px"></ol>
     <!-- HOW IT WILL BE PERFORMED, when that is not a choice. See pollCapture. -->
@@ -1230,6 +1234,8 @@
      $('capSaid').className = r.failed ? 'no' : 'ok'
      text($('capMissing'), r.missing || '')
      showing($('capMissing'), !!r.missing)
+     text($('capUnsupported'), r.unsupported || '')
+     showing($('capUnsupported'), !!r.unsupported)
      text($('capWhere'), (r.application
        ? 'recorded in ' + r.application
        : 'no application was observed')
@@ -1268,7 +1274,9 @@
      scope.value = r.scope || had || 'app'
      // AND SAVE IS NOT OFFERED FOR A RECORDING THAT PRESSES NOTHING. There is nothing
      // to keep, and the sentence above says so.
-     $('capSaveBtn').disabled = !r.pressable
+     // AND SAVE IS NOT OFFERED FOR A RECORDING THAT CANNOT BE SAVED, for either
+     // reason: nothing to keep, or a step that cannot be stopped at.
+     $('capSaveBtn').disabled = !r.pressable || !!r.unsupported
    }).finally(() => setTimeout(pollCapture, 400))
  }
 

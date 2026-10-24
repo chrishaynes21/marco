@@ -7307,3 +7307,43 @@ cursor happened to be.
 See [[ADR-251-a-press-checks-the-window-it-was-recorded-in]].
 
 **Still outstanding:** the owner's Stop-button trial, and a live acceptance run of guarded replay.
+
+## 38G — a press that did not happen, by either route
+
+Two result gaps, and both were the same mistake in different places: a list named for one kind of
+failure, used as though it held every kind.
+
+**A press the machine will not deliver.** The host's account held refusals — a press it could not
+check, an application that never came forward — and not a backend that rejected the input after
+the guard passed. From where a person is standing those are the same outcome: the press did not
+happen. The chain stopped correctly, the root handler caught the failure correctly, the program
+ended tidily, and the command reported success. `SendInput` really does get blocked: an elevated
+window owning the foreground, UIPI, a game with raw input and a lower-integrity sender. The
+account is now of everything the run did not do, the delivery error is kept verbatim, and
+`runRoute` fails on any of the three.
+
+The command-level case needed a seam: `runRoute` asserted the concrete `*oshost.Host`, which only
+the real host satisfies, and the real host sends real input — so the only command test that could
+be written was an absent application, the cheapest failure and the furthest from the press. It
+now asserts an interface, and a host that takes everything but the input poses the case.
+
+**A right-click guarded the aim and not the press.** `do OS's Move with p1` wrapped, then
+`do OS's Click with "right".` with its result ignored — so a press the machine refused was
+followed by the next step anyway, and the press itself carried none of the point's checks.
+Rejected for this milestone rather than supported: doing it properly means one guarded operation
+with a button beside the point, which is a permanent word in the language for a case no recording
+has needed yet. Drags, anchored presses and repeated blocks are refused with it, for the same
+reason — the chain wraps one `do` sentence and none of those is one.
+
+**And my own gate had the same shape of hole.** "Does a press ask to be checked" and "can this
+version wrap it" came out as one question, so a recording whose only press was a right-click had
+no step to wrap, was therefore not a guarded route, and was generated as an ordinary block: a
+press that declared the window it was made in, pressed without any of it being looked at. Found by
+a test I had written for the refusal, failing for the wrong reason.
+
+Ten mutations killed. Routes where nothing asked to be checked are untouched throughout, and each
+of the three changes has the legacy half tested beside it.
+
+See [[ADR-251-a-press-checks-the-window-it-was-recorded-in]].
+
+**Still outstanding:** the owner's Stop-button trial, and a live acceptance run of guarded replay.

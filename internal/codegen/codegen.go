@@ -79,6 +79,20 @@ func Route(name, app string, steps []macroir.Step, assetDir string, declaredArgs
 	// here, before anything is written, is what keeps the second promise: a route saved
 	// before any of this existed is generated exactly as it was.
 	chained := guardsAnything(steps)
+	if why := Unpropagatable(steps); why != "" {
+		// ── REFUSED RATHER THAN GENERATED HALF-GUARDED ──
+		//
+		// A routine whose presses are checked has to stop when one of them does not
+		// happen, and this step cannot be stopped at: whatever follows it would run
+		// regardless, which is the guard's promise broken by the one step nobody
+		// could wrap. Writing the file anyway would be writing a routine that reads
+		// as checked and is not.
+		return "", nil, fmt.Errorf("this recording contains %s, and a routine "+
+			"whose presses are checked against the window they were made in "+
+			"has to stop when one of them does not happen — which this "+
+			"version cannot make %s do. Record it again using ordinary "+
+			"left-clicks and the keyboard", why, why)
+	}
 	var body, tail string
 	var links []link
 	if chained {
@@ -700,9 +714,16 @@ type link struct {
 
 // guardsAnything reports whether any step asked to be checked against the window it was recorded
 // in. It is the only thing that turns a route into a chain.
+// It asks whether a press ASKED to be checked, and not whether this can wrap it. Those came out
+// as one question first, and that was a hole with the shape of every other hole here: a recording
+// whose only press was a right-click had no step this could wrap, so it was not a guarded route,
+// so the refusal below never fired and it was generated as an ordinary block — a press that
+// declared the window it was made in, pressed without any of it being looked at. Whether a
+// demonstration asked for the contract and whether this version can honour it are two questions,
+// and conflating them answers "no" to the first whenever the second is "no".
 func guardsAnything(steps []macroir.Step) bool {
 	for _, s := range steps {
-		if guardedStep(s) {
+		if s.RelTo != "" {
 			return true
 		}
 		if len(s.Steps) > 0 && guardsAnything(s.Steps) {
@@ -720,10 +741,62 @@ func guardsAnything(steps []macroir.Step) bool {
 // vision is explicitly turned on, so no recorder-first recording produces one — recorded as a gap
 // in [[ADR-251-a-press-checks-the-window-it-was-recorded-in]] rather than silently covered.
 func guardedStep(s macroir.Step) bool {
-	if s.RelTo == "" || len(s.Template) > 0 || s.AnchorText != "" {
+	if s.RelTo == "" || cannotPropagate(s) != "" {
 		return false
 	}
 	return s.Kind == macroir.StepClick || s.Kind == macroir.StepMove
+}
+
+// cannotPropagate names what a step is, when its failure cannot be made to stop a guarded
+// routine, and is "" for every step that can.
+//
+// The chain works by wrapping ONE `do` sentence in arms that both end. A step emitted as
+// something else cannot be stopped at, and in a guarded routine that is not a smaller promise —
+// it is the promise broken, because the action after it runs regardless.
+//
+// Each of these could be supported and none is supported now:
+//
+//   - a NON-LEFT CLICK is an aim and then a press. Wrapping the aim leaves the press
+//     unwrapped, and the press is the thing that acts. One guarded operation would need a
+//     button beside the point — a permanent word in the language for a case the owner's
+//     recordings have not needed yet, so it waits for a recording that needs it.
+//   - a DRAG resolves no offset, so it carries no window and is checked against nothing.
+//   - an ANCHORED press is a ladder of locators with a click in each arm.
+//   - a REPEATED block runs its body again, which is the one thing a stop cannot survive.
+//
+// Unreachable from a recorder-first recording today except the first two: anchors are off unless
+// computer vision is turned on, and loop folding is off for a recording with a guarded press.
+func cannotPropagate(s macroir.Step) string {
+	switch {
+	case s.Kind == macroir.StepClick && len(s.Template) > 0:
+		return "a press found by matching a picture"
+	case s.Kind == macroir.StepClick && s.AnchorText != "":
+		return "a press found by reading words on the screen"
+	case s.Kind == macroir.StepClick && s.Button != "" && s.Button != "left":
+		return "a " + s.Button + "-click"
+	case s.Kind == macroir.StepDrag:
+		return "a drag"
+	case s.Kind == macroir.StepLoop:
+		return "a repeated block"
+	}
+	return ""
+}
+
+// Unpropagatable names the first thing in a demonstration that cannot be saved as part of a
+// routine whose presses are checked, or "" when all of it can.
+//
+// Exported because the window that saves a recording has to be able to say so BEFORE somebody
+// presses Save, and a generator error arriving at a button press is a worse way to learn it.
+func Unpropagatable(steps []macroir.Step) string {
+	if !guardsAnything(steps) {
+		return ""
+	}
+	for _, s := range steps {
+		if why := cannotPropagate(s); why != "" {
+			return why
+		}
+	}
+	return ""
 }
 
 // propagating is the `do` sentence a step must be stopped by, or ok=false when it is an ordinary

@@ -2,6 +2,7 @@ package oshost
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"sync"
 	"testing"
@@ -61,7 +62,24 @@ type recBackend struct {
 	moves    [][2]int
 	drags    [][4]int
 	exe      string
+	// refuseFrom makes the MACHINE reject input from the nth send onwards (1-based, 0
+	// for never), so a test can put a delivery failure after a guard that passed. The
+	// guard and the backend are two different reasons a press does not happen, and
+	// until this existed only one of them could be tested.
+	refuseFrom int
+	sends      int
 }
+
+// sending counts one input send and says whether the machine is taking it.
+func (r *recBackend) sending() error {
+	r.sends++
+	if r.refuseFrom > 0 && r.sends >= r.refuseFrom {
+		return errTheMachineSaysNo
+	}
+	return nil
+}
+
+var errTheMachineSaysNo = errors.New("SendInput was blocked")
 
 func (r *recBackend) key(_ context.Context, name string, hold time.Duration) error {
 	r.mu.Lock()
@@ -91,6 +109,9 @@ func (r *recBackend) typeText(_ context.Context, t string) error {
 func (r *recBackend) click(_ context.Context, b string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if err := r.sending(); err != nil {
+		return err
+	}
 	r.clicks = append(r.clicks, b)
 	return nil
 }
@@ -99,6 +120,9 @@ func (r *recBackend) clickAt(_ context.Context, b string, x, y int) error {
 	defer r.mu.Unlock()
 	// clickAt is an atomic move-then-click; record both so a test can assert the
 	// click landed at the right point and pressed the right button.
+	if err := r.sending(); err != nil {
+		return err
+	}
 	r.moves = append(r.moves, [2]int{x, y})
 	r.clicks = append(r.clicks, b)
 	return nil
@@ -112,6 +136,9 @@ func (r *recBackend) drag(_ context.Context, _ string, x1, y1, x2, y2 int) error
 func (r *recBackend) move(_ context.Context, x, y int) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if err := r.sending(); err != nil {
+		return err
+	}
 	r.moves = append(r.moves, [2]int{x, y})
 	return nil
 }

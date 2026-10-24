@@ -970,3 +970,92 @@ func recorded(t *testing.T, lose func(*recorder.RecordedEvent)) *Acts {
 	}
 	return a
 }
+
+// A RECORDING WITH A STEP THAT CANNOT BE STOPPED AT IS NOT SAVED, AND SAYS SO FIRST.
+//
+// A routine whose presses are checked has to stop when one of them does not happen, and the chain
+// that makes that true works by wrapping ONE `do` sentence in arms that both end. A right-click
+// is an aim and then a press: wrap the aim and the press is still unwrapped, so a press the
+// machine refused would be followed by the next step anyway — the guard's promise broken by the
+// one step nobody could wrap. A drag is checked against nothing at all.
+//
+// So it is refused, and refused HERE rather than at the button: a generator error arriving when
+// somebody presses Save is a worse way to learn it. Supporting it would need a button beside the
+// point, which is a permanent word in the language for a case no recording has needed yet.
+func TestARecordingWithAStepThatCannotBeStoppedAtIsNotSaved(t *testing.T) {
+	for _, c := range []struct {
+		what string
+		make func(*recorder.RecordedEvent)
+		says string
+	}{
+		{"a right-click", func(e *recorder.RecordedEvent) { e.Button = "right" },
+			"a right-click"},
+		{"a middle-click", func(e *recorder.RecordedEvent) { e.Button = "middle" },
+			"a middle-click"},
+	} {
+		t.Run(c.what, func(t *testing.T) {
+			t.Setenv("MARCO_CV", "off")
+			t.Setenv("MARCO_ROUTES", t.TempDir())
+			a := recorded(t, c.make)
+
+			r := a.Recording()
+			if !strings.Contains(r.Unsupported, c.says) {
+				t.Errorf("review says %q and does not name what cannot be "+
+					"stopped at", r.Unsupported)
+			}
+			if !strings.Contains(r.Unsupported, "cannot be saved yet") {
+				t.Errorf("review says %q and does not say it cannot be "+
+					"saved", r.Unsupported)
+			}
+			// AND SAVE REFUSES IT, so the page not offering the button is the
+			// second line of defence rather than the only one.
+			why := a.SaveDraft("app-anywhere", "arkascended")
+			if why == "" {
+				t.Fatal("it was saved, so a press after one the machine " +
+					"refused would happen anyway")
+			}
+			if !strings.Contains(why, c.says) {
+				t.Errorf("the refusal says %q", why)
+			}
+			if a.Recording().Saved != "" {
+				t.Error("something was written anyway")
+			}
+		})
+	}
+}
+
+// AND A RECORDING OF ORDINARY LEFT-CLICKS SAYS NONE OF THAT.
+func TestAnOrdinaryRecordingIsSavedWithoutComplaint(t *testing.T) {
+	t.Setenv("MARCO_CV", "off")
+	t.Setenv("MARCO_ROUTES", t.TempDir())
+	a := recorded(t, nil)
+
+	if r := a.Recording(); r.Unsupported != "" {
+		t.Errorf("an ordinary recording says %q", r.Unsupported)
+	}
+	if why := a.SaveDraft("app-anywhere", "arkascended"); why != "" {
+		t.Fatalf("an ordinary recording was refused: %s", why)
+	}
+}
+
+// AND A RIGHT-CLICK IN A RECORDING THAT CHECKS NO WINDOW IS SAVED AS IT ALWAYS WAS.
+//
+// The half that keeps the refusal confined. A routine whose presses are the two numbers they
+// always were was saved under a contract that says a click is attempted and the run carries on —
+// so a right-click in one is not this contract's business, and refusing it would refuse a kind of
+// recording that has always worked.
+func TestARightClickInALegacyRecordingIsStillSaved(t *testing.T) {
+	t.Setenv("MARCO_CV", "off")
+	t.Setenv("MARCO_ROUTES", t.TempDir())
+	a := recorded(t, func(e *recorder.RecordedEvent) {
+		e.Button = "right"
+		e.RelTo, e.WinW, e.WinH, e.Dpi, e.Process = "", 0, 0, 0, ""
+	})
+
+	if r := a.Recording(); r.Unsupported != "" {
+		t.Errorf("a recording that checks no window says %q", r.Unsupported)
+	}
+	if why := a.SaveDraft("app", "arkascended"); why != "" {
+		t.Fatalf("a right-click recorded before any of this was refused: %s", why)
+	}
+}
