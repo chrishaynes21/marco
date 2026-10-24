@@ -117,12 +117,13 @@ plugins/vision/build.cmd                 # Windows: the ONNX backend (needs gcc)
   work, because they return before the app is created — so a broken one sat in the tree
   looking current until somebody double-clicked it. Use `plugins/studio/build.cmd`, which
   builds the windowed and console binaries and puts the windowed one beside `marco.exe`.
-  **And Studio spawns the `director.exe` beside ITSELF**, not the one beside `marco.exe`
-  (`directorBin`). With a copy of Studio in `plugins/studio` and another at the repo root,
-  that makes a stale sibling invisible: every binary looks freshly built, the window is
-  current, and the recordings come from whenever that director was last made. It cost the
-  owner a day of recordings. `build.cmd` now makes all four and puts both binaries in both
-  places; `TestTheBuildScriptMakesTheDirectorStudioWillSpawn` holds it.
+  **And Studio spawns the `director.exe` AND the `marco.exe` beside ITSELF**, not the ones
+  beside each other (`directorBin`, `marcoBin` — the director records, and marco performs a
+  saved routine when somebody presses Play on it). With a copy of Studio in `plugins/studio`
+  and another at the repo root, that makes a stale sibling invisible: every binary looks
+  freshly built, the window is current, and the recordings come from whenever that director
+  was last made. It cost the owner a day of recordings. `build.cmd` now makes all of them and
+  puts them in both places; `TestTheBuildScriptMakesTheDirectorStudioWillSpawn` holds it.
   To check an existing binary without opening a window on somebody's desktop:
   `grep -a "will not build without the correct build tags" studio.exe` — a correct build does
   not contain that code at all. And to SEE the page without a window, render
@@ -155,6 +156,12 @@ plugins/vision/build.cmd                 # Windows: the ONNX backend (needs gcc)
 - `marco do` performs **real input** (types/clicks for real). For behavior checks use
   the Go tests or `marco run --host dryrun`, and a temp `$MARCO_ROUTES`. Never run
   `marco do` blind in a test.
+- **One library, and it is a place.** `internal/marcopaths` answers where the route store and
+  the Marco home are, for `marco`, `director` and Studio alike. Don't derive either in a
+  command: each of the four that did was `$MARCO_ROUTES, else "routes"` — a RELATIVE path, so
+  the library was whichever directory that process was started from, and a routine saved by a
+  double-clicked Studio was invisible to `marco do` run from a terminal. The default is now
+  `routes` inside the store and the answer is absolute, including a relative `$MARCO_ROUTES`.
 
 ## Working agreements
 - Branch is `feat/host-ffi` (unmerged). **Commit/push only when the user asks.**

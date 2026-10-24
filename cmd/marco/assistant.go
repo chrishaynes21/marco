@@ -11,6 +11,7 @@ import (
 
 	"github.com/chaynes-simpleclouds/marco/internal/bridgehost"
 	"github.com/chaynes-simpleclouds/marco/internal/invoke"
+	"github.com/chaynes-simpleclouds/marco/internal/marcopaths"
 	"github.com/chaynes-simpleclouds/marco/internal/mlog"
 	"github.com/chaynes-simpleclouds/marco/internal/nlu"
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
@@ -26,12 +27,12 @@ import (
 
 // routesDir is where plays live on disk (override with $MARCO_ROUTES). The directory keeps its
 // old name deliberately: renaming it would move every play a person already has.
-func routesDir() string {
-	if d := os.Getenv("MARCO_ROUTES"); d != "" {
-		return d
-	}
-	return "routes"
-}
+//
+// ONE ANSWER FOR EVERY BINARY, and an absolute one. This used to return the bare word, which is
+// a different directory for every process depending on where it was started: a routine saved by
+// a Studio somebody double-clicked went somewhere `marco do` run from a terminal never looked.
+// See internal/marcopaths.
+func routesDir() string { return marcopaths.Routes() }
 
 // stopKeySpec is the gesture that ends a recording and aborts a running play
 // (override with $MARCO_STOP_KEY, e.g. "esc", "home", "ctrl+f12"). Empty uses

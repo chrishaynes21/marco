@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"time"
 
 	"strings"
@@ -11,6 +10,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/observe"
 	"github.com/chaynes-simpleclouds/marco/internal/director/service"
 	"github.com/chaynes-simpleclouds/marco/internal/driver"
+	"github.com/chaynes-simpleclouds/marco/internal/marcopaths"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
 )
 
@@ -226,14 +226,14 @@ func corroborationFor(store observe.CandidateStore, application string,
 
 // learnedRegistry is where saved plays live.
 //
-// The SAME registry ordinary learned and authored routes use, honouring `$MARCO_ROUTES` exactly as
-// `marco` does. A learned play is a `.marco` file in the routes tree; that is the point.
+// The SAME registry ordinary learned and authored routes use, through the one place that answers
+// where the library is. A learned play is a `.marco` file in the routes tree; that is the point.
+//
+// It used to derive `$MARCO_ROUTES, else "routes"` here, in its own words, which is the same rule
+// written out a third time and a RELATIVE answer: the library was wherever each process was
+// started from. See internal/marcopaths.
 func learnedRegistry() routes.Registry {
-	dir := os.Getenv("MARCO_ROUTES")
-	if dir == "" {
-		dir = "routes"
-	}
-	return routes.Registry{Dir: dir}
+	return routes.Registry{Dir: marcopaths.Routes()}
 }
 
 // lifecycle carries out whichever of save / register / forget the request asked for.

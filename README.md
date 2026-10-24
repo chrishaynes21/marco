@@ -564,8 +564,11 @@ marco test <file.marco>                 run test blocks
 marco contracts <file.marco>            print inferred action contracts
 ```
 
-Plays live in `./routes` — the directory keeps its old name (override with
-`$MARCO_ROUTES`).
+Plays live in `routes` inside the Marco store — `%APPDATA%\marco\routes` on Windows, and the
+directory keeps its old name (override with `$MARCO_ROUTES`). ONE library, found the same way by
+every part of Marco from any directory: the default used to be the bare word `routes`, relative to wherever each
+program was started, so a routine saved by a window opened in one folder was invisible to a
+command run in another. See [[ADR-252-a-library-is-a-place-and-a-routine-is-played-where-it-was-made]].
 
 **One compatibility alias.** Acquisition used to be spelled `teach`, and the old
 spelling still answers everywhere it ever did — `marco teach`, `director teach`,
@@ -586,7 +589,7 @@ product does not need you to.
 
 | Variable | Effect |
 |---|---|
-| `MARCO_ROUTES` | where plays live (default `./routes` — the directory keeps its old name) |
+| `MARCO_ROUTES` | where plays live (default `$MARCO_HOME/routes` — the directory keeps its old name; a relative value is resolved once, against the working directory) |
 | `MARCO_HOME` | where the Director keeps its action graph and semantic memory (default `%APPDATA%\marco`) |
 | `MARCO_MEMORY` | the semantic-memory file itself (default `$MARCO_HOME/semantic-memory.json`); `marco` and `director` share one store and both honour this |
 | `MARCO_STOP_KEY` | key that ends a recording / aborts a run (default `f12`) |

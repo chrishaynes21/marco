@@ -53,6 +53,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/chaynes-simpleclouds/marco/internal/marcopaths"
 )
 
 // FileName is the generation file, beside the action graph and the semantic memory.
@@ -72,16 +74,10 @@ const PollInterval = 100 * time.Millisecond
 // Home is the store root: `$MARCO_HOME`, else the OS config directory, else the working directory.
 //
 // The same rule `cmd/marco`'s directorDir uses, and it has to stay the same rule: a stop raised in
-// one directory and watched for in another is a stop that silently does nothing.
-func Home() string {
-	if dir := os.Getenv("MARCO_HOME"); dir != "" {
-		return dir
-	}
-	if home, err := os.UserConfigDir(); err == nil {
-		return filepath.Join(home, "marco")
-	}
-	return "."
-}
+// one directory and watched for in another is a stop that silently does nothing. It is one rule
+// now rather than four copies of one — see internal/marcopaths, which this delegates to so that
+// sameness is a property of the code and not of four comments agreeing.
+func Home() string { return marcopaths.Home() }
 
 // Path is the generation file inside home.
 func Path(home string) string { return filepath.Join(home, FileName) }

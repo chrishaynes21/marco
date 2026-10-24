@@ -13,6 +13,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/actiongraph"
 	"github.com/chaynes-simpleclouds/marco/internal/director/execute"
 	"github.com/chaynes-simpleclouds/marco/internal/director/target"
+	"github.com/chaynes-simpleclouds/marco/internal/marcopaths"
 	"github.com/chaynes-simpleclouds/marco/pkg/directorapi"
 )
 
@@ -36,12 +37,11 @@ func graphPath() string {
 // store actually uses, and then it would be guarding a directory nobody writes to.
 //
 // Deleting the use of this in resetGuard must fail TestAResetRefusesTheRealStore.
-func defaultHome() string {
-	if home, err := os.UserConfigDir(); err == nil {
-		return filepath.Join(home, "marco")
-	}
-	return "."
-}
+//
+// One line now rather than a fourth copy of the rule: internal/marcopaths is where every binary
+// asks, and `Default` is deliberately the half that ignores `$MARCO_HOME` — which is what makes
+// it answerable as "the real store" at all.
+func defaultHome() string { return marcopaths.Default() }
 
 // semanticMemoryPath is where cross-session semantic knowledge lives.
 //
