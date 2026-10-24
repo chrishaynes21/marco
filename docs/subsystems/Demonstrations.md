@@ -126,7 +126,11 @@ that control, though a saved play still cannot say it (`cannot_say_pointer`, fol
   handler is compulsory in Marco and a routine that did not happen therefore ends tidily — and the
   account covers a press the machine would not DELIVER as well as one it could not check, which
   are the same outcome and were not the same record. A step whose failure cannot stop the routine
-  — a non-left press, a drag — is refused at generation and said at review. New guarded
+  — a non-left press, a drag — is refused at generation and said at review. A KEY is not a link:
+  it cannot refuse, so it is written into the capability of the press that follows it and runs
+  inside the previous press's success — which means an Escape that could not be delivered is
+  passed over and the press after it goes ahead into a menu that never closed, a gap the ADR
+  records rather than closes. New guarded
   recordings are saved to bring their application forward, since the scopes that switch nothing
   bind no window; the choice is withdrawn rather than defaulted, an impossible scope is refused at
   Save, and a routine already saved that way is saved again from its own stored demonstration

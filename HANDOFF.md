@@ -7531,3 +7531,37 @@ build runs the old recorder however fresh the binaries beside it are. It is the 
 one step further in — there the wrong copy was on disk, here the right copy was on disk and the
 wrong one was already running, which no check of the files can see. §63 now says to close Studio
 before building and to open the one that was just built.
+
+## 38K — a key beside a press that is checked
+
+A test-only increment, and a finding that came out of it.
+
+The owner's first live routine was a keystroke and then a press: Escape to close a menu, then a
+click on what was behind it. Nothing in the tree combined the two. Every test of the chain used
+presses alone, and every test of a key used a route with nothing guarded in it, so the one thing
+the chain does with an ordinary step — put it in the capability of the press that FOLLOWS it, so
+it runs inside the previous press's success — was carried by a comment and by one live run.
+
+`internal/codegen/keyandpress_test.go` holds it as behaviour rather than as text: the real
+generator, the real runtime, and an OS host that writes down what it was asked to do in order and
+refuses one nominated thing. A key in order between two presses; nothing after a press that
+refused; a key before the first press waiting for the application to come forward, so Escape
+cannot be typed into whatever was in front; and the tail, which has no further press to carry it.
+
+**The mutation gate found a gap in the product, not in the tests.** A key promoted to a link of
+its own passed every test in the file, so the question was what production does when the KEY is
+the thing that cannot be performed. It carries on: the press after it goes ahead and the routine
+reports that it performed. Nothing notices, because the guard reads the window and the window is
+the same window — while the menu the Escape was meant to close is still open. That is the shape
+the owner's own routine has. It is recorded as a known gap in
+[[ADR-251-a-press-checks-the-window-it-was-recorded-in]] and pinned by
+`TestAKeyThatDidNotHappenDoesNotStopTheRoutine`, which records what it does today and is meant to
+be the test that fails when somebody decides it. Making a key propagate is a change to that
+contract — keys would go in `Unpropagatable` and every key would become a link — so it is scoped
+separately and was not taken here.
+
+One mutation SURVIVED and is recorded as unfalsifiable rather than closed: every key flushed into
+the previous link's success instead of the next link's preamble. Those two places are the same
+instant, so a test telling them apart would hold a shape with no consequence. The first version of
+this file had exactly that test, with a comment claiming the refusing path would distinguish them.
+It does not, and the test was removed rather than kept as a passing assertion about nothing.
