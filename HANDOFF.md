@@ -7645,9 +7645,23 @@ The three findings worth carrying in the narrative:
 **The missing bridge is an account, not a recorder.** `Inspect` and `Report` already exist in
 Studio and work; they are keyed on a run reference that only the supervised performer produces, so
 they are unreachable for exactly the routines this MVP is about. `plugins/studio/history.go`'s own
-reader already carries a `routine` field that nothing writes. Lifting the record out of
-`cmd/director`'s main package and giving a routine's run one is 3 to 4 increments and is the
-spine of the remaining work; everything else is 2 to 4 more.
+reader already carries a `routine` field that nothing writes.
+
+And less of the machinery is missing than the first pass said. `internal/director/runref` is
+already importable and already holds the citation scheme and the word `started`; `reserveRun`
+creates the record with `O_CREATE|O_EXCL` and writes a started record at once, and `saveRun`
+finalises with no `O_CREATE`, so it cannot touch another attempt. Exclusive reservation, an
+interruption leaving an unfinished attempt, and a safe finalisation are already solved there. The
+work is to make `marco do` — the EXECUTOR — reserve, cite and finalise its own record, with only
+the shared machinery extracted; Director's record implementation stays where it is. That is the
+spine at 9 to 15 hours, with everything else 8 to 12 more.
+
+**And the two paths do not share a vocabulary.** `runref` says `verified`, `unconfirmed`,
+`contradicted`; `internal/outcome` says `performed`, `unverified`, `unavailable`, `clarify`. Three
+words overlap. Nothing may convert `performed` into `verified` — a routine presses and looks at
+nothing afterwards — so the record carries an explicit KIND, each kind keeps its own words, and a
+routine's record OMITS the verification counts rather than writing three zeroes, because three
+zeroes are a claim and omission is the truth.
 
 **`MARCO_CV`/`MARCO_ANCHORS` are read into package variables at process start**, so Studio
 inherits whatever launched it for the life of the window — and with anchors on, a press whose
@@ -7657,11 +7671,14 @@ setting and the pixels under the pointer. That is the gap between an engineering
 explicit saved capability.
 
 **A chord needs no new representation and already propagates**, since the keystroke rule is on
-`StepKey` and does not read the string. What it has is a defect: the modifier loop returns on the
-first rejected `sendKeyDown` without releasing the modifiers already pressed, and nothing tracks
-them, so a partly delivered `ctrl+shift+esc` can leave Ctrl held with the end-of-route unwind
-unable to help. Cancellation is already correct. Forced termination cannot be cleaned up and the
-assessment does not pretend otherwise.
+`StepKey` and does not read the string. What it has is two defects. The modifier loop returns on
+the first rejected `sendKeyDown` without releasing the modifiers already pressed, and nothing
+tracks them, so a partly delivered `ctrl+shift+esc` can leave Ctrl held with the end-of-route
+unwind unable to help. And cancellation does not stop the tap: the settling `sleepCtx` returns the
+instant the context is cancelled and execution falls straight into the final key-down, so input
+goes out after the person asked for it to stop. The first version of the assessment called that
+path correct, which was wrong — cleanup is attempted there, which is not the same claim. Forced
+termination cannot be cleaned up at all and is not pretended otherwise.
 
 Also recorded there, because it is where existing data can be lost: `Registry.Save` is a plain
 `os.WriteFile`, so re-recording a routine under a name silently replaces the one saved under it —

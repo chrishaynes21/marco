@@ -18,6 +18,13 @@ source_paths:
 
 # Coordinate-first Studio MVP — assessment and estimate, at `3d9eb60`
 
+**Revision 2**, after review. Four things changed: the record's MEANING is settled before any
+extraction (§1a, two vocabularies that do not convert); the EXECUTOR owns the reference and only
+the shared machinery is extracted (R1, R2); the claim that chord cancellation was already correct
+was WRONG and is corrected against source (§4); and the estimates carry hours as well as
+increments. Revision 1 said the extraction was bigger and the cancellation path was sound; both
+were wrong, and where this document now contradicts it, this is the version that read the code.
+
 **Design and estimation only.** Nothing here is implemented, nothing is migrated, and no saved
 routine is rewritten. Written against source read at `3d9eb60`; every claim about current
 behaviour cites the file it was read in, and the places where I am guessing say so.
@@ -58,6 +65,18 @@ for exactly the routines this MVP is about. The reader's own `PastRun` even carr
 
 So the remaining product work is not a recorder bridge. It is an account.
 
+**And less of the account machinery is missing than the first version of this assessment said.**
+`internal/director/runref` is already an importable package and already carries the citation
+scheme: `Reference`, `Parse` (which Studio already uses for Acts), `Cite`, `Ended`, and the seven
+words including **`started`**. In `cmd/director/runrecord.go`, `reserveRun` creates the record file
+with `O_CREATE|O_EXCL` and retries on collision, writes a `started` record into it at once saying
+*"reserved; this attempt had not finished when the record was last written"*, and `saveRun`
+finalizes with **no** `O_CREATE` — so it can only write where a reservation already is.
+
+Exclusive reservation, an interruption leaving a started record, and finalization that cannot
+overwrite another attempt are therefore solved already, in that machinery. The work is to make the
+routine executor use it, not to invent it.
+
 ### The two paths, and why they stay apart
 
 | | Coordinate routine | Saved visual demonstration (Act) |
@@ -71,8 +90,59 @@ So the remaining product work is not a recorder bridge. It is an account.
 
 **They do not need a common storage format, and the reason is in that last row.** A routine's
 answer is about delivery and geometry; an Act's is about evidence. One format would have to drop
-one of those meanings or carry both and let each path ignore half. What they need is the boundary
-they already have, plus one shared account *shape* for citing a run — which is R1 below.
+one of those meanings or carry both and let each path ignore half. What they share is a *place*, a
+*citation scheme* and a *reservation discipline* — not a record shape.
+
+## 1a. What the record means, before anything is extracted
+
+The two paths do not share a vocabulary, and the words are not translatable:
+
+| | Words |
+|---|---|
+| `internal/director/runref` (supervised) | `started`, `verified`, `unconfirmed`, `contradicted`, `refused`, `cancelled`, `failed` |
+| `internal/outcome` (a routine, over the wire) | `performed`, `clarify`, `refused`, `unavailable`, `cancelled`, `unverified`, `failed` |
+
+Three words overlap — `refused`, `cancelled`, `failed`. The rest do not, and the dangerous
+direction is obvious: nothing may turn `performed` into `verified`. A routine's run presses and
+looks at nothing afterwards; `verified` is a claim about evidence it never gathered. Equally,
+`unverified` is not `unconfirmed`: the first says nobody looked, the second says somebody looked
+and could not tell.
+
+So the record carries an explicit **run kind**, each path keeps its own vocabulary under its own
+kind, and **no conversion exists in either direction**. A reader that does not know a kind lists it
+and shows the whole of it, which `plugins/studio/history.go` already does by reading JSON names
+rather than a writer's type.
+
+**Absent verification evidence stays absent.** A routine's record omits the verification counts
+rather than writing three zeroes — three zeroes read as a run that verified nothing, which is a
+claim, where omission is the truth: the question was never asked.
+
+### The minimum a routine's record identifies
+
+- the **exact route** — app, scope and slug, the identity Studio already selects by
+- the **source digest** (`routes.DigestOf`), so the record cites the source that actually ran
+- the **executing build** (`internal/buildid`), which is the field that would have named the stale
+  recorder a day of the owner's recordings went into
+- the **library** it was read from (`internal/marcopaths`)
+- the **stated mode and contract** — coordinate, and guarded or legacy, read from the saved source
+  the way `cmd/marco/panicstop.go` already reads it; **`unstated` when the source does not say**,
+  which keeps older routines truthfully labelled without pulling generation-contract migration
+  into this slice
+- **timestamps**, started and ended
+- the **outcome word and the reason sentence**, the run's own, unconverted
+
+### Counting input honestly
+
+Three different things, and only the first is knowable today:
+
+- **attempted** — how many input sends this run asked the machine for. Countable; `oshost` already
+  wraps every send in `delivered`.
+- **confirmed delivery** — not knowable. `SendInput` returning success says the queue took it, not
+  that the application acted on it. Nothing in this path looks at the screen, so this field is not
+  written rather than being filled in with the attempted count.
+- **unknown partial delivery** — a real state, and the chord defect in §4 is exactly it: some
+  modifiers delivered, the tap refused, the releases unreported. Where a run ends in that state the
+  record should say so rather than reporting a clean failure.
 
 ## 2. Capability strategy
 
@@ -115,8 +185,15 @@ capability contract the request asks for.
 
 ## 3. Remaining lift for the vertical slice
 
-The unit below is **one increment**: a self-contained change with its tests, its mutation gate and
-its documentation — the unit this project lands, observed at roughly one per focused session.
+Two units, because one of them describes packaging rather than effort.
+
+**An increment** is a self-contained change with its tests, its mutation gate and its
+documentation — the unit this project lands. **Hours** are focused engineering hours for one
+developer with the Windows machine available, calibrated on the three increments landed on
+2026-10-24 (the pairing fix, the key-and-press tests, and key propagation across three packages),
+each of which ran about 1.5 to 3 hours including its gate and its documentation. Prototype
+allowances are stated separately and are allowances, not commitments. The owner's own acceptance
+runs are not counted in either figure.
 
 ### Completed (listed so it is not re-estimated)
 
@@ -126,35 +203,41 @@ resize refusal carrying the term; Stop → cancelled; discrete-key failure propa
 
 ### Remaining
 
-| | Work | Increments |
-|---|---|---|
-| **R1** | **Lift the run record into an importable package.** `RunRecord` is in `cmd/director`'s main package, and `plugins/studio/history.go` already duplicates its field names through JSON because of that. Move the type plus save/read beside `runref` as `internal/director/runrecord`; `cmd/director` becomes a caller. One writer of one format, which is the whole point. | 1 |
-| **R2** | **A routine's run writes a minimal record.** Reserve a reference in the routine path, announce it on the wire the way the Act path does, and write: routine identity, build, mode, contract (guarded or legacy), the outcome word, the reason, presses sent, started and ended, `fixed_layout: true`. Studio's `readRoutine` already keeps the child's lines, so it captures the reference there. | 1–2 |
-| **R3** | **Report a problem, for a routine.** `Report` exists; it needs to work from a routine's reference and to carry mode, library, build and the refusal sentence. Mostly wiring and words. | 0.5–1 |
-| **R4** | **Coordinate mode as an explicit capability** (§2). Additive recorder option, the mode recorded, the window saying it. The stub backend must keep compiling. | 1–2 |
-| **R5** | **Easy repeat.** Two real items. `Registry.Save` is `os.WriteFile`, so re-recording a name silently destroys the routine saved under it — the review should say *this replaces the routine you saved at …*. And a "record again" affordance that keeps the name and scope. | 0.5–1 |
-| **R6** | **Truthful readiness.** Before Record: the library it will write to, the mode, and whether the `marco.exe` beside Studio exists. Small, and it is the line that would have saved the owner's lost trial. | 0.5 |
+| | Work | Increments | Hours |
+|---|---|---|---|
+| **R1** | **Extract only the shared machinery.** The place (`<home>/runs`), the citation scheme (already in `runref`), the exclusive reservation, and the finalise-without-create guard — parameterised by the record shape so each kind writes its own. Director's `RunRecord` stays where it is and becomes a caller; **the whole Director record implementation does not move**, because that is not a product requirement. `plugins/studio/history.go` keeps reading by JSON name, which is what lets two kinds share one reader. | 1 | 3–5 |
+| **R2** | **`marco do` reserves, cites and finalises its own record.** The EXECUTOR owns the reference: it reserves before the first input, prints the citation with `runref.Cite` (Studio already parses that line for Acts), and finalises with the routine record — kind, identity, digest, build, library, mode and contract, timestamps, outcome and reason, attempted sends. Studio reads the citation and nothing more. | 1–2 | 4–7 |
+| **R3** | **Report a problem, for a routine.** `Report` exists; it needs to work from a routine's reference and to carry mode, library, build and the reason. Mostly wiring and words. | 0.5–1 | 2–3 |
+| **R4** | **Coordinate mode as an explicit capability** (§2). Additive recorder option, the mode recorded, the window saying it. The stub backend must keep compiling. | 1–2 | 4–6 |
+| **R5** | **Replacement protection, then repeat.** `Registry.Save` is `os.WriteFile`, so re-recording a name silently destroys the routine saved under it. The review must say *this replaces the routine you saved at …* and the person must agree. Only then the "record again" affordance that keeps the name and scope. | 0.5–1 | 3–4 |
+| **R6** | **Truthful readiness.** Before Record: the library it will write to, the mode, and whether the `marco.exe` beside Studio exists. Small, and it is the line that would have saved the owner's lost trial. | 0.5 | 1–2 |
 
-**Total remaining: about 5 to 8 increments.** R1 + R2 + R3 are the spine, at 3 to 4 of them.
+**First milestone (R1 + R2 + R3): 2.5 to 4 increments, 9 to 15 hours, plus a 2 to 3 hour prototype
+allowance — about 1.5 to 2.5 focused days.**
 
-### Assumptions
+**Before the word "repeatable" is used, add R4, R5 and R6: a further 8 to 12 hours, about 1 to 1.5
+days.** Explicit mode and replacement protection are part of that threshold rather than after it;
+a convenient "Record again" button in front of a silent overwrite would be a worse product than
+no button.
 
-- "A small durable routine-run result" means a subset of the existing record format, not a new
-  store and not a second account.
+### Assumptions behind the hours
+
+- One developer, uninterrupted, with this Windows machine available for the live checks.
+- The record is a subset of what already exists per kind — no new store, no second account, no
+  transmission anywhere. The bug report stays a file the person sends.
 - One run slot stays; nothing here introduces concurrency.
-- The bug report stays a file the person sends. Nothing is transmitted anywhere.
+- No migration of saved routines, and no change to the Act path's record or vocabulary.
 
-### Prototype uncertainties, kept separate from the estimate
+### Prototype allowances, kept out of the estimate above
 
-- **Where the reference is reserved** (R2). The Act path reserves in director, before the run. For
-  a routine the candidates are `marco do` itself or Studio before it spawns. The exclusive-create
-  guard in `reserveRun` is what makes a reference provably one attempt's, so whichever end
-  reserves has to be the end that writes. Needs a prototype, not a guess.
-- **How the option is threaded** (R4) — a second constructor or an argument on `Start`. Cheap
-  either way; the cost is in which callers have to change.
-- **Whether a routine's record should carry verification counts at all.** It has none to carry,
-  and a record with three zeroes in it reads like a run that verified nothing rather than one that
-  never claimed to. Probably omitted, which the format already allows.
+- **The three interruption cases** (2–3h, R2). Source says `reserveRun`'s `O_CREATE|O_EXCL` plus
+  retries, its immediate `started` record, and `saveRun`'s missing `O_CREATE` already give
+  exclusive reservation, a started record left by an interruption, and a finalisation that cannot
+  touch another attempt. The prototype is to CONFIRM that under a killed child and two runs in
+  quick succession, not to discover it — and to establish that the routine path inherits all three
+  rather than reimplementing any.
+- **How the recorder option is threaded** (R4) — a second constructor or an argument on `Start`.
+  Cheap either way; the cost is which callers have to change.
 
 ## 4. Chords: assessment, and a separate estimate
 
@@ -181,37 +264,53 @@ That is not remaining work.
 - **A SILENCE: a rejected release says nothing.** The modifiers' `sendKeyUp` results are
   discarded. A release the machine refused leaves that key down while the run reports only the
   tap's failure. A release that did not happen belongs in the account like everything else.
-- **AN IMPOSSIBILITY: forced termination cannot be cleaned up, and must not be claimed.**
-  Cancellation is already cooperative and correct — `sleepCtx` returns early, the releases still
-  run, `ctx.Err()` comes back — and that deserves a test rather than a change. A *killed* process
-  is different: nothing in-process can release anything, so a chord routine killed mid-press can
-  leave Ctrl held until the person presses it themselves. A watchdog or a release-on-next-start
-  would be a separate decision. Normal unwinding does not establish this and this assessment does
-  not claim it.
+- **A SECOND DEFECT: cancellation does not stop the tap.** The first version of this assessment
+  said cancellation was already correct. **That was wrong, and the correction stands against the
+  source**: `sleepCtx(ctx, chordHold)` returns the instant the context is cancelled, and execution
+  then falls straight into `sendKeyDown(last…)` — so a chord cancelled while its modifiers are
+  settling still injects the tap. The releases afterwards and the `ctx.Err()` at the end mean
+  cleanup is ATTEMPTED and the run reports cancelled, which is what made it look right; input went
+  out after the person asked for it to stop, which is what matters. A cancelled chord must stop
+  BEFORE the tap, release the modifiers it has already delivered, and report any release that
+  failed.
+- **AN IMPOSSIBILITY: forced termination cannot be cleaned up, and must not be claimed.** A killed
+  process releases nothing, so a chord routine killed mid-press can leave Ctrl held until the
+  person presses it themselves. Cooperative shutdown and forced termination are different claims:
+  normal unwinding establishes only the first, and a watchdog or a release-on-next-start would be a
+  separate decision. Nothing here claims the second.
+
+**And failed cleanup must not erase the original error.** Once release failures are reported they
+become a second thing that did not happen, and the tap's rejection is still the reason the routine
+stopped. The account holds a list for exactly this reason; the first sentence must stay the first
+sentence.
 
 ### Chord estimate
 
-| Work | Increments |
-|---|---|
-| The partial-delivery cleanup plus release failures in the account, with stuck-key tests | 1 |
-| A cancellation test for the path that is already correct | 0.5 |
-| Studio naming a chord in the review in words a person reads | 0.5 |
+| Work | Increments | Hours |
+|---|---|---|
+| Design note: the press/release semantics of one chord, and what each failure state means | — | 1–2 |
+| Partial-delivery cleanup through `heldKeys`, stopping before the tap when cancelled, and release failures in the account without displacing the original error — with stuck-key tests | 1 | 4–6 |
+| Studio naming a chord in the review in words a person reads | 0.5 | 1 |
 
-Design first, as directed. The design question worth settling before any of it: whether a chord
-whose modifiers were delivered and whose tap was refused should report the tap's failure only, or
-say that the modifiers were pressed and released as well — the person's screen may have changed
-either way.
+**Chord total: 6 to 9 hours, about one focused day, separately scoped.** It is a concrete defect
+in an existing capability. It is not grounds for a new input representation and not grounds for
+touching Fusion.
+
+Design first, as directed. The question to settle before any of it: whether a chord whose
+modifiers were delivered and whose tap was refused should report the tap's failure alone, or say
+that modifiers were pressed and released as well — the person's screen may have changed either
+way, and the record's "unknown partial delivery" state (§1a) is where that answer goes.
 
 ## 5. Parked follow-ups, estimated separately
 
-- **Typed text: 2–3 increments.** Not one `do` to wrap. `splitSecrets` can emit several sentences
-  from one step — literal runs, declared arguments, and secrets resolved at run time — so
-  propagation means choosing the unit and deciding what a partly typed line means. `doType`
-  records nothing in the account either. And a failure reason must not quote the text, because the
-  text can be a secret.
-- **Holds: 1–2 increments.** `KeyDown`/`KeyUp` bracket the steps between them, so propagation
-  means deciding what the release owes a press that did not happen. `heldKeys` already exists and
-  the chord fix above shares it, so some of this is paid for by that work.
+- **Typed text: 2–3 increments, 8–14 hours.** Not one `do` to wrap. `splitSecrets` can emit several
+  sentences from one step — literal runs, declared arguments, and secrets resolved at run time — so
+  propagation means choosing the unit and deciding what a partly typed line means. `doType` records
+  nothing in the account either. And a failure reason must not quote the text, because the text can
+  be a secret.
+- **Holds: 1–2 increments, 5–8 hours.** `KeyDown`/`KeyUp` bracket the steps between them, so
+  propagation means deciding what the release owes a press that did not happen. `heldKeys` already
+  exists and the chord fix above shares it, so some of this is paid for by that work.
 - **Drags and non-left clicks: stay excluded, and source supports it.** The owner's working
   routine is left clicks and Escape. A drag is refused at Save today, and a drag resolves no
   offset at all — it carries no window and is checked against none — so a guarded drag is a
@@ -234,29 +333,40 @@ and a file the owner can send when something goes wrong. It is the smallest step
 working flow into a diagnosable one, which is what a repeatable MVP needs that this does not yet
 have.
 
-Then R4 and R6 (explicit mode, truthful readiness), then R5 (repeat).
+Then R4, R5 and R6 — explicit mode, replacement protection and truthful readiness — which together
+are the threshold for calling the broader MVP **repeatable**. Not after it: re-recording is the
+action a repeatable MVP encourages, and encouraging it in front of a silent overwrite would make
+the product worse. A "Record again" button ships with replacement protection or it does not ship.
 
 ### Acceptance, Studio only, no terminal
 
 1. Launch `studio.exe` from Explorer, freshly built, with Studio closed before the build.
 2. The library line names the directory, and the routines saved earlier are listed.
 3. Record → review the ordered actions → Save.
-4. Select it and Play. Then Play it again: twice in a row, both successful.
+4. Select it and Play. Then Play it again: twice in a row, both successful. **Both runs produce
+   DISTINCT references, and each report matches its own run's outcome** — one reference for two
+   runs, or a report describing the other attempt, is the reservation discipline not holding.
 5. Move the application's window and Play: it presses where it was shown.
 6. Resize the window and Play: it refuses, pressing nothing, and the banner names the term that
    disagreed.
 7. Stop mid-run: `cancelled`, not a failure.
 8. **Report a problem** produces a file naming the routine's identity, the running build, the
    mode, the outcome word, the reason, and the library — without a terminal.
-9. Nothing in the window reads *"playback completed"* as *"the game did what you wanted"*. The
-   sentence that ships today says the presses happened and that nothing checked the outcome, and
-   that distinction is load-bearing.
-10. Existing Acts remain listed and performable through their own path, unchanged.
+9. **A killed child leaves an UNFINISHED attempt** — never a completed one and never a successful
+   one. Kill the `marco.exe` Studio spawned mid-run: the record stays `started` with the sentence
+   the reservation wrote, the window does not report that the routine performed, and the report
+   for that reference says the attempt did not finish.
+10. Nothing in the window reads *"playback completed"* as *"the game did what you wanted"*. The
+    sentence that ships today says the presses happened and that nothing checked the outcome, and
+    that distinction is load-bearing. No routine's record ever says `verified`.
+11. Existing Acts remain listed and performable through their own path, with their own vocabulary,
+    unchanged.
 
 ### Compatibility risks
 
-- **A second writer of the run format** (R1, R2). Mitigated by lifting the type so there is one
-  writer and one reader rather than a duplicated field list.
+- **Two kinds of record in one place** (R1, R2). Mitigated by an explicit kind, no conversion
+  between vocabularies, and a reader that already tolerates fields it does not know. The risk to
+  watch is not storage, it is MEANING: a routine's run must never be readable as `verified`.
 - **The explicit mode must not change what other callers record** (R4). The package variables stay
   the default; only Studio asks.
 - **`Registry.Save` overwrites silently** (R5). This is the one place existing user data can be
