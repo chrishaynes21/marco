@@ -65,10 +65,25 @@ if errorlevel 1 (
   echo studio: building the director failed.
   exit /b 1
 )
+
+rem AND THE MARCO BESIDE EACH OF THEM, for exactly the same reason.
+rem
+rem Pressing Play on a saved routine spawns the `marco.exe` beside Studio (see marcoBin), because
+rem that is the trap the director sibling above is a paragraph about: two copies of Studio, and a
+rem marco beside only one of them means a current window performing routines through whatever was
+rem last left there -- or through whatever `marco` is on PATH, which is worse, because there need
+rem not be one and the failure then reads as a routine that cannot run.
+go build -o "%~dp0marco.exe" .\cmd\marco
+if errorlevel 1 (
+  popd
+  echo studio: building marco failed.
+  exit /b 1
+)
 popd
 
 copy /y studio.exe "%~dp0..\..\studio.exe" >nul
 copy /y director.exe "%~dp0..\..\director.exe" >nul
+copy /y marco.exe "%~dp0..\..\marco.exe" >nul
 
-echo studio: built studio.exe (windowed), studio-console.exe (keeps stdout) and
-echo         director.exe, in this directory and beside marco.exe.
+echo studio: built studio.exe (windowed), studio-console.exe (keeps stdout),
+echo         director.exe and marco.exe, in this directory and at the repo root.

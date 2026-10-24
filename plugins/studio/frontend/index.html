@@ -434,6 +434,52 @@
     <div class="muted" id="repairNote"></div>
   </div>
 
+  <!-- YOUR ROUTINES: the other half of Record → Stop → Review → Save.
+       Everything recorded in this window, in the library, with one button — which is the
+       whole of what was missing: saving worked and the only way to run what you had saved
+       was to leave the window and type a command in a terminal.
+
+       Pressing Play spawns the same `marco do` that terminal would have, because Studio
+       must not acquire an execution loop of its own: a second place that decides what a
+       routine's result was is a second answer to "did that work". And it PRESSES FOR REAL,
+       which the button says rather than offering a tick-box the command has no switch for.
+       See routines.go. -->
+  <h2>Your routines</h2>
+  <div class="card" id="routinesCard">
+    <div class="muted">Everything you have recorded. Choose one and press Play — Marco
+      brings its application forward and performs it, pressing for real.</div>
+    <!-- WHICH LIBRARY, SAID OUT LOUD. Routines are in one place now, found the same way by
+         every part of Marco from any directory — and this line is how somebody checks that
+         the window and the command are looking at the same shelf. -->
+    <div class="muted mach" style="margin-top:6px;font-size:11.5px" id="libWhere"></div>
+    <!-- AND A LIBRARY FROM BEFORE THAT, WHEN THERE IS ONE.
+         Routines used to be kept beside whichever directory a binary was started from, so
+         an old one can be sitting next to this window unread. Nothing is lost and nothing
+         is moved; the honest failure of changing the rule is silence, so it says its name. -->
+    <div class="banner hide" style="margin-top:8px" id="libElsewhere"></div>
+    <div id="routineList" style="margin-top:12px"></div>
+    <div class="muted hide" id="routineNone">Nothing has been recorded yet. Record one
+      above and it appears here.</div>
+    <div class="hide" id="routineChosen">
+      <!-- WHETHER ITS PRESSES ARE CHECKED, BEFORE PLAY RATHER THAN AFTER.
+           Three states and one of them is a promise: a guarded routine stops at the first
+           press it cannot check, a legacy one presses where it was recorded having checked
+           nothing, and an incomplete one refuses. Reading it here is what saves somebody a
+           minute of watching refusals. See ADR-251. -->
+      <div class="muted" style="margin-top:12px" id="routineChecks"></div>
+      <div class="banner bad hide" style="margin-top:8px" id="routineWhy"></div>
+      <div class="row" style="margin-top:12px">
+        <button class="go" id="routinePlayBtn" onclick="playRoutine()">Play — press for
+          real</button>
+        <span class="muted" id="routineNote"></span>
+      </div>
+      <details style="margin-top:8px">
+        <summary>What it will do, as Marco saved it</summary>
+        <pre id="routineSource"></pre>
+      </details>
+    </div>
+  </div>
+
   <h2>Learn a Scene</h2>
   <div class="card" id="learnCard">
     <div class="muted">Marco watches you do it once, with your own hands. Nothing is
@@ -736,7 +782,8 @@
  ready(() => {
    acts = window.go.main.Acts
    paintLive(); show('acts'); loadActs(); loadDemos(); loadHistory(); loadApps()
-   poll(); pollLearning(); pollCapture(); pollRepairs()
+   loadLibrary()
+   poll(); pollLearning(); pollCapture(); pollRepairs(); pollRoutines()
    // THE PAGE REPORTS ITSELF, LAST. A `-H windowsgui` binary has no console, so this
    // callback is the only evidence that the window opened, WebView2 came up, the embedded
    // asset was served, this script ran, and the Go bindings are reachable from it.
@@ -1320,6 +1367,122 @@
    })
  }
 
+ // ── YOUR ROUTINES: CHOOSE ONE, PRESS PLAY ──────────────────────────────────
+ //
+ // The saved library and one button. Polled rather than loaded once, because a routine
+ // saved a moment ago has to appear here without anybody pressing Refresh — the flow is
+ // Record → Stop → Review → Save → select → Play, and a list that needed reloading between
+ // the fourth and the fifth would be the same gap in a different place.
+ let routines = []
+ let chosenRoutine = ''
+ // WHETHER ANYTHING IS RUNNING, which the routine list needs and only the run poll knows.
+ // One run slot covers both kinds of run, so a Play over here is refused while an Act is in
+ // flight — and a button that is live then is a press answered with a refusal.
+ let runActive = false
+ // AND THE ROWS ARE REBUILT ONLY WHEN THEY CHANGED. Two and a half seconds is plenty for a
+ // list nobody is editing, and a subtree rebuilt under somebody's cursor is a selection
+ // that will not stay chosen.
+ let shownRoutines = ''
+ function pollRoutines(){
+   acts.Routines().then(rs => {
+     routines = rs || []
+     if (chosenRoutine && !routines.some(r => r.name === chosenRoutine)) {
+       chosenRoutine = ''
+     }
+     const sig = routines.map(r => [r.name, r.contract, r.runnable, r.saved_at]
+       .join('\u0001')).join('\u0000') + '\u0000' + chosenRoutine
+     if (sig !== shownRoutines) { shownRoutines = sig; drawRoutines() }
+   }).finally(() => setTimeout(pollRoutines, 2500))
+ }
+
+ function drawRoutines(){
+   const list = $('routineList')
+   list.innerHTML = ''
+   showing($('routineNone'), routines.length === 0)
+   routines.forEach(r => {
+     const card = document.createElement('div')
+     card.className = 'card pick' + (r.name === chosenRoutine ? ' on' : '')
+     card.onclick = () => {
+       chosenRoutine = r.name; shownRoutines = ''; drawRoutines()
+     }
+     // WHERE IT WORKS AND WHEN IT WAS KEPT. Both, because a person who has just
+     // recorded the same thing twice tells them apart by the clock and nothing else.
+     const where = r.app
+       ? (r.scope === 'app-anywhere'
+            ? 'brings ' + esc(r.app) + ' forward'
+            : 'only while ' + esc(r.app) + ' is in front')
+       : 'anywhere, switching nothing'
+     card.innerHTML = '<h3>' + esc(r.name) + '</h3>' +
+       '<div class="muted">' + where +
+       (r.saved_at ? '  ·  saved ' + esc(r.saved_at) : '') + '</div>' +
+       '<div class="' + (r.runnable ? (r.contract === 'guarded' ? 'ok' : 'muted')
+                                    : 'no') + '">' +
+       esc(r.runnable
+             ? (r.contract === 'guarded' ? 'every press is checked'
+                                         : 'its presses are not checked')
+             : 'cannot be performed as it stands') + '</div>'
+     list.appendChild(card)
+   })
+   renderRoutine()
+ }
+
+ function routineNamed(name){ return routines.find(r => r.name === name) }
+
+ function renderRoutine(){
+   const r = routineNamed(chosenRoutine)
+   showing($('routineChosen'), !!r)
+   if (!r) { return }
+   text($('routineChecks'), r.checks || '')
+   showing($('routineWhy'), !r.runnable)
+   text($('routineWhy'), r.why || '')
+   text($('routineSource'), r.source || '')
+   paintRoutinePlay()
+ }
+
+ // ONE PLACE DECIDES WHETHER PLAY IS LIVE, asked from two.
+ //
+ // From the click, so the button answers at once rather than up to a poll later, and from
+ // the poll, because a run can start or end without anybody clicking anything in here. Two
+ // expressions would be two answers and the later of them would win — which is not a
+ // hypothetical: the poll's copy was overwriting this one four hundred milliseconds after
+ // every click, so a mutation making the click's half always-enabled changed nothing and
+ // survived its own test.
+ //
+ // A button that is live and answers a press with "this routine cannot be performed as it
+ // stands" is a window telling somebody off for pressing what it offered them.
+ function paintRoutinePlay(){
+   const r = routineNamed(chosenRoutine)
+   $('routinePlayBtn').disabled = runActive || !r || !r.runnable
+ }
+
+ function playRoutine(){
+   const r = routineNamed(chosenRoutine)
+   if (!r) { return }
+   text($('routineNote'), 'starting “' + r.name + '”…')
+   $('routineNote').className = 'muted'
+   acts.PlayRoutine(r.name).then(err => {
+     if (err) {
+       text($('routineNote'), err)
+       $('routineNote').className = 'no'
+       return
+     }
+     // THE RUN TAKES THE SCREEN, the same way pressing Play on an Act does. One run
+     // view for both kinds; what differs is what the run can say about itself.
+     text($('routineNote'), '')
+     onRun = true; paintViews()
+   })
+ }
+
+ // WHERE THE LIBRARY IS, AND WHETHER ANYBODY'S IS SOMEWHERE ELSE. Asked once: neither
+ // answer changes while this window is open, because both are decided at startup.
+ function loadLibrary(){
+   acts.Library().then(l => {
+     text($('libWhere'), 'library: ' + (l.dir || 'unknown'))
+     showing($('libElsewhere'), !!l.says)
+     text($('libElsewhere'), l.says || '')
+   })
+ }
+
  // THE RECORDING, POLLED. Its own poll because it is its own lifecycle: a recording is not
  // a run, nothing is authorised by it, and nothing it does can press anything.
  function pollLearning(){
@@ -1756,7 +1919,14 @@
      text($('runTitle'), w.act ? w.act : 'The run')
      $('runmode').textContent = w.act ? (w.live ? 'LIVE' : 'input disabled') : ''
      $('runmode').className = 'tag ' + (w.live ? 'live' : '')
-     $('ref').textContent = w.reference || 'no run yet'
+     // THE CANONICAL REFERENCE, WHEN THERE IS ONE TO HAVE.
+     //
+     // A saved routine's run has none and never will: it is `marco do` performing a
+     // program, not the supervised runner writing a record of a performance. Said as
+     // what it is rather than left reading "no run yet" about a run in flight — and
+     // never as a defect, because nothing is missing.
+     $('ref').textContent = w.reference
+       || (w.routine ? 'a routine — no run record' : 'no run yet')
      $('ref').dataset.id = w.reference || ''
 
      // WHAT IS HAPPENING, FROM THE RUNNER'S OWN ACCOUNT OF ITSELF.
@@ -1773,7 +1943,13 @@
        ? ' · interaction ' + (st.interaction.index || '?') + ' of ' +
          (st.interaction.of || '?') + ' · step ' + st.interaction.step +
          (st.interaction.verdict ? ' · ' + st.interaction.verdict : '')
-       : '')) : 'the run has not said anything yet')
+       : ''))
+       // A ROUTINE PUBLISHES NO PHASES. It is a program running; what it did is
+       // the transcript under this line and the answer is the word it ends on.
+       // "The run has not said anything yet" would be a complaint about a thing
+       // that was never going to happen.
+       : w.routine ? 'a routine does not report phases — what it said is below'
+       : 'the run has not said anything yet')
 
      // NOT PROCEEDING, AND WHY. Shown as prominently as what it is doing and NOT styled
      // as a failure — nothing has failed, and it resolves by itself the moment the world
@@ -1796,7 +1972,12 @@
      showing($('said'), !!w.said)
      if (w.said) {
        text($('said'), w.said)
-       $('said').className = 'banner ' + (w.outcome === 'verified' ? 'good'
+       // TWO VOCABULARIES, AND THE GOOD WORD IS NOT THE SAME ONE IN BOTH. An Act's
+       // run ends `verified`; a routine's ends `performed`, which is one of
+       // internal/outcome's seven. Reading only the first would have painted every
+       // successful routine in the colour of a failure.
+       $('said').className = 'banner ' + (w.outcome === 'verified'
+         || w.outcome === 'performed' ? 'good'
          : w.outcome === 'cancelled' ? '' : 'bad')
      }
      showing($('next'), !!w.next)
@@ -1856,6 +2037,12 @@
      for (const b of ['runBtn', 'playBtn', 'tryBtn']) {
        $(b).disabled = w.active || nothingChosen
      }
+     // AND THE ROUTINE'S PLAY IS THE SAME ONE RUN. It is on another view, which is
+     // precisely why it has to be asked here: a button left live over there is a press
+     // the backend refuses with "a run is already in flight", which is this window
+     // telling somebody off for pressing what it offered them.
+     runActive = !!w.active
+     paintRoutinePlay()
      // STOP IS LIVE FOR THE WHOLE OF A RUN — including while it is paused, which is
      // exactly when somebody is most likely to want it — and it is in the rail as well as
      // on the run screen, so navigating away does not take it away.

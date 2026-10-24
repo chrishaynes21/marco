@@ -64,7 +64,7 @@ import (
 // same reason learnstate's does: `omitempty` makes a writer that has never heard of a field
 // indistinguishable from one whose value is false, so a reader of an older journal cannot tell
 // a missing fact from a negative one unless the version says which it is reading.
-const trialVersion = 3
+const trialVersion = 4
 
 // trialReadsFrom is the oldest shape this build reads as meaning what it says.
 //
@@ -135,6 +135,14 @@ const (
 	// trialPlay is a performance started, and trialRan its canonical result.
 	trialPlay trialKind = "play"
 	trialRan  trialKind = "ran"
+	// trialPressing is a saved ROUTINE started, and trialPressed its published result.
+	//
+	// Apart from the two above because a routine's run is not a supervised performance:
+	// it has no canonical reference and writes no run record, so a reader that filed one
+	// as the other would report a perfectly good routine as a run that never finished
+	// writing an account of itself. See `pressing`.
+	trialPressing trialKind = "pressing"
+	trialPressed  trialKind = "pressed"
 )
 
 // trialNote is one thing that happened, as a line of the journal.
@@ -193,6 +201,12 @@ type trialNote struct {
 	// "<routine>/<label>". The whole tally every time, so a reader takes the last one
 	// and is correct by construction.
 	Asked map[string]int `json:"asked,omitempty"`
+
+	// Contract is which of the three things a saved ROUTINE says about its own presses:
+	// legacy, guarded or incomplete. On a `pressing` note, because it is the question
+	// the trial is being run to answer — whether a routine recorded in this window has
+	// its presses checked against the window it was recorded in. See ADR-251.
+	Contract string `json:"contract,omitempty"`
 
 	// ── AN ACT, AND A PERFORMANCE OF ONE ──
 	Act   string   `json:"act,omitempty"`
@@ -428,6 +442,36 @@ func (t *trials) composed(from, act string, steps []string, why string) {
 // playing is a performance started, with the grants it was given.
 func (t *trials) playing(act string, live, layout bool) {
 	t.note(trialNote{Kind: trialPlay, Act: act, Live: live, Layout: layout})
+	t.flush()
+}
+
+// pressing is a saved routine starting, with the contract its presses were saved under.
+//
+// A kind of its own rather than `trialPlay` with a routine's name in it, because the two are not
+// the same claim and the reader of this journal would have had to tell them apart by what was
+// MISSING. An Act's performance cites a canonical reference and a run record; a routine's
+// performance has neither by construction — so a reader that filed one as the other would print
+// "the run cited no reference, so there is no canonical account of it" about a routine that
+// performed perfectly, which is a false verdict in the one document a trial is read from.
+//
+// `contract` is legacy, guarded or incomplete — see orchestrator.ContractOf. It is in the journal
+// because it is the question the trial is being run to answer: whether a routine recorded in this
+// window has its presses checked.
+func (t *trials) pressing(name, application, contract string) {
+	t.note(trialNote{Kind: trialPressing, Name: name, Application: application,
+		Contract: contract, Live: true})
+	t.flush()
+}
+
+// pressed is how it went, in the run's own published word.
+//
+// `said` is one of `internal/outcome`'s seven, as the command announced it, and `why` the last
+// thing it said before announcing — for a refused guarded press, the sentence naming what could
+// not be checked. An empty `said` is a run that announced nothing, which is itself the answer:
+// nobody can speak for what it did.
+func (t *trials) pressed(name, said, why string) {
+	t.note(trialNote{Kind: trialPressed, Name: name, Outcome: said, Because: why,
+		Live: true})
 	t.flush()
 }
 

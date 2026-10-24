@@ -12,6 +12,8 @@ updated: 2026-08-06
 source_paths:
   - internal/director/demo
   - cmd/director/democmd.go
+  - plugins/studio/routines.go
+  - internal/marcopaths
 ---
 
 # Demonstrations
@@ -120,6 +122,27 @@ that control, though a saved play still cannot say it (`cannot_say_pointer`, fol
   recordings are saved to bring their application forward, since the scopes that switch nothing
   bind no window; the choice is withdrawn rather than defaulted, an impossible scope is refused at
   Save, and a routine already saved that way is saved again from its own stored demonstration
+- [[ADR-252-a-library-is-a-place-and-a-routine-is-played-where-it-was-made]] — the two gaps
+  between that mechanism and a product somebody can use. A library is a PLACE: the route store was
+  `$MARCO_ROUTES, else "routes"` derived in four places, which is a relative path, so the product
+  had as many libraries as it had launch locations — a routine saved by a Studio double-clicked in
+  `plugins\studio` went where nothing else looked, and the documented remedy was to launch both
+  binaries from the same directory. One resolver now answers for every binary, the answer is
+  absolute including a relative override, and the default is `routes` inside the store they already
+  share. Moving a default makes an old library go QUIET rather than disappear, so the window names
+  any library-shaped directory beside its launch location that holds routines and says what to do;
+  nothing is adopted and nothing is moved, because choosing between two libraries is the person's.
+  **And saving is no longer where the flow ends**: every saved routine is listed with the contract
+  it was saved under, read off the saved Marco by one reader tied by test to the six terms the
+  press guard requires, so the one that checks every press says so, the one that cannot press
+  anything is not offered, and the one missing a measurement names what it lacks. Play raises the
+  application itself — only the foreground process may — then spawns `marco do --play` for the
+  route's WHOLE identity with the library named explicitly, because Studio acquires no execution
+  loop and a second place deciding what a run's result was is a second answer to "did that work".
+  The answer is the published outcome word read through the package that owns it; one run slot is
+  shared with Acts and with recording, since there is one screen; and a routine's run is rendered
+  and journalled as what it is — no canonical reference, no phase, no question — because a view
+  expecting a supervised performance reports a perfect routine as a run that cited nothing
 - [[ADR-250-the-recorder-runs-in-the-window]] — and the window those four buttons are in. The
   recorder-first path runs in Studio's OWN process, because a draft that writes nothing cannot
   cross a process boundary without being written somewhere; so Studio supplies its own process

@@ -7347,3 +7347,72 @@ of the three changes has the legacy half tested beside it.
 See [[ADR-251-a-press-checks-the-window-it-was-recorded-in]].
 
 **Still outstanding:** the owner's Stop-button trial, and a live acceptance run of guarded replay.
+
+## 38H — a library is a place, and saving was not the end of the flow
+
+Two gaps between a working mechanism and something a person can use, both found by reading the
+handover rather than the code: §62 of `E2E.md` called itself "Record → Stop → Review → Save →
+reload → Play" and then sent the owner to a terminal. That proves a Studio-recording-to-CLI path.
+It is not Studio acceptance.
+
+**The library was wherever you were standing.** `marco`, `director` and Studio each resolved the
+route store in their own words, and the words agreed — `$MARCO_ROUTES, else "routes"`. The defect
+is not the duplication. It is that the sentence is RELATIVE: the answer was whichever directory
+each process happened to be started from, so the product had as many libraries as it had launch
+locations. A Studio double-clicked in `plugins\studio` kept its routines in
+`plugins\studio\routes`; `marco do "ark graphics"` run from the repo root looked in `marco\routes`
+and said there was no such routine. Both behaved exactly as written, and the walkthrough carried
+the remedy as an instruction — *launch both from the repo root* — which is a developer working
+around their own tooling.
+
+So there is one resolver, `internal/marcopaths`, the answer is absolute including a relative
+`$MARCO_ROUTES`, and the default is `routes` inside the store every part of Marco already shares.
+The store rule went the same way for a sharper reason than tidiness: it was written out four times
+as well, once with a comment saying it *"has to stay the same rule"*, and the library is now
+INSIDE the store — so two binaries disagreeing about the store is two binaries with two libraries.
+
+**Moving a default makes the old one go quiet rather than disappear**, which is the worse of the
+two: the routines are still there, nothing says so, and a person reads an empty list and concludes
+their work is gone. So the window reports which library it reads, and names any library-shaped
+directory beside its launch location that holds routines, with the count and what to do about it.
+Nothing is adopted and nothing is moved — deciding which of two libraries is somebody's is not a
+decision code gets to make for them.
+
+**And the library is now a list with a Play button.** A saved routine is selected and performed
+without leaving the window: the window finds it, refuses NOW if it would not run, brings its
+application forward itself — only the foreground process may, which is the same split `Play`
+already draws for an Act — and spawns `marco do --play` with the route's whole identity and the
+library named explicitly. Studio acquires no execution loop; the answer is the published outcome
+word read through `internal/outcome`, which both ends import, so it is protocol rather than
+transcript-parsing. One run slot is shared with Acts and with recording, because there is one
+screen. And a routine's run is rendered and journalled as what it is — no canonical reference, no
+phase, no question — because a view expecting a supervised performance reports a perfect routine
+as a run that cited nothing.
+
+Each routine is listed with the contract it was saved under, read off the saved Marco by one
+reader tied by test to the six terms the press guard requires: the one that checks every press
+says so, the one that cannot press anything is not offered, and the one missing a measurement
+names what it lacks before anybody presses Play and watches it refuse.
+
+**Six of forty mutations survived, and five were a weak test of mine rather than weak
+code.** The child's environment was asserted to CONTAIN the library, which `os.Environ()` already
+satisfied whenever the two agreed — and in a test they agree by construction, so deleting the
+explicit setting passed. The module filter was tested with `os.marco`, which `routes.routeSlug`
+already excludes by name everywhere, so the fixture asked nothing. Nothing tested that the window
+brings the application forward, which is the behaviour the foreground lock makes load-bearing.
+Nothing read what `-trial` prints, so the branch that prints a routine's run could be deleted
+whole. And the refusal sentence was asserted from a two-line fixture that could not tell the first
+sentence from the last.
+
+The sixth was a real defect in the page: **two places decided whether Play was live**, and the
+poll's copy overwrote the click's four hundred milliseconds after every click. So the click's half
+could be made always-enabled and nothing changed — a duplicate whose later writer silently wins,
+which is the arrangement that makes the other five possible. One function decides now, asked from
+both. One deliberate no-op control survived.
+
+§62 is relabelled as the engineering diagnostic it is, and §63 is the product trial: Record → Stop
+→ Review → Save → select → Play, all in Studio, opened by double-clicking the binary on purpose.
+
+See [[ADR-252-a-library-is-a-place-and-a-routine-is-played-where-it-was-made]].
+
+**Still outstanding:** the owner's trial of §63. None of this has been done on a real desktop.

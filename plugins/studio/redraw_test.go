@@ -104,6 +104,8 @@ window.go = {main: {
     // which would take the rest of the page setup with it. See recording.go.
     Recording: () => Promise.resolve({active: false}),
     Unrunnable: () => Promise.resolve([]),
+    Routines: () => Promise.resolve([]),
+    Library: () => Promise.resolve({dir: '/tmp/routes'}),
     Learning: () => Promise.resolve({name: 'trackmania video', application: 'trackmania',
       active: false, over: true, phase: 'ended', learned: D,
       said: 'Saved "trackmania video".', next: 'Build an Act from it.'}),
@@ -217,6 +219,8 @@ window.go = {main: {
     Learning: () => Promise.resolve({active: false}),
     Recording: () => Promise.resolve({active: false}),
     Unrunnable: () => Promise.resolve([]),
+    Routines: () => Promise.resolve([]),
+    Library: () => Promise.resolve({dir: '/tmp/routes'}),
     Watch: () => { tick++
       return Promise.resolve({act: 'video act', live: true, reference: 'run-x',
         active: true, transcript: ['authorised by a press of Play'],
@@ -351,6 +355,8 @@ window.go = {main: {
     Watch: () => Promise.resolve({act: '', active: false, transcript: null}),
     // A DRAFT IN REVIEW: stopped by the button, nothing on disk, two clicks and a wait.
     Unrunnable: () => Promise.resolve([]),
+    Routines: () => Promise.resolve([]),
+    Library: () => Promise.resolve({dir: '/tmp/routes'}),
     Recording: () => Promise.resolve({name: 'ark graphics', active: false, review: true,
       application: 'arkascended', stopped_by: 'the Stop button', pressable: 2,
       stop_key: 'F12',
@@ -423,5 +429,120 @@ func TestTheReviewAStopButtonOpensIsRenderedOnce(t *testing.T) {
 	if got := n("redraws"); got > 1 {
 		t.Errorf("the scope list was rebuilt %d time(s) while nothing changed, "+
 			"which discards the choice somebody just made: %q", got, title)
+	}
+}
+
+// ── THE LIBRARY, AND PRESSING PLAY ON SOMETHING IN IT ─────────────────────────
+
+// THE SAVED ROUTINES ARE DRAWN, AND PLAY IS OFFERED FOR THE ONE THAT CAN RUN.
+//
+// # Why this is a browser too
+//
+// For the reason the review above is: `routines_test.go` proves what the BACKEND lists and
+// nothing about whether the window shows it. A backend that answers with a library and a page
+// that never draws one look identical from either side, and that is the shape of defect this
+// repository has eight recorded cases of.
+//
+// What it counts: the cards, that choosing one opens its detail, that Play is DISABLED for a
+// routine that cannot press anything — a button that is live and answers a press with "this
+// routine cannot be performed" is a window telling somebody off for pressing what it offered
+// them — and that a library sitting somewhere else is named rather than passed over in silence.
+const libraryHarness = `
+window.go = {main: {
+  Backend: {Loaded: () => Promise.resolve()},
+  Acts: {
+    Demonstrations: () => Promise.resolve([]),
+    Saved: () => Promise.resolve([]),
+    History: () => Promise.resolve([]),
+    Applications: () => Promise.resolve(['arkascended']),
+    Pictures: () => Promise.resolve([]),
+    Picture: () => Promise.resolve(''),
+    Learning: () => Promise.resolve({active: false}),
+    Watch: () => Promise.resolve({act: '', active: false, transcript: null}),
+    Recording: () => Promise.resolve({active: false}),
+    Unrunnable: () => Promise.resolve([]),
+    // TWO ROUTINES: one that checks every press, and one saved under a scope that
+    // brings no window forward so every press in it would refuse.
+    Routines: () => Promise.resolve([
+      {name: 'ark graphics', slug: 'ark-graphics', app: 'arkascended',
+       scope: 'app-anywhere', contract: 'guarded', runnable: true,
+       saved_at: '2026-10-24 04:00',
+       checks: 'Every press is checked against the window it was recorded in.',
+       source: 'the App is a script.'},
+      {name: 'old settings', slug: 'old-settings', app: 'arkascended',
+       scope: 'app', contract: 'guarded', runnable: false,
+       why: 'every press in it checks the window it was made in, and it was saved ' +
+            'to switch nothing',
+       checks: 'Every press is checked against the window it was recorded in.',
+       source: 'the App is a script.'},
+    ]),
+    Library: () => Promise.resolve({dir: 'C:/Users/x/AppData/Roaming/marco/routes',
+      elsewhere: 'D:/Macros/marco/routes',
+      says: '3 routine(s) are in D:/Macros/marco/routes, which is not the library above.'}),
+    PlayRoutine: () => Promise.resolve(''),
+  },
+}}
+// CHOOSE THE ONE THAT CANNOT RUN, by clicking its card the way a person would.
+setTimeout(() => {
+  const cards = document.querySelectorAll('#routineList .card')
+  if (cards.length > 1) { cards[1].click() }
+}, 2000)
+setTimeout(() => {
+  const vis = (id) => {
+    const e = document.getElementById(id)
+    return e && !e.classList.contains('hide') ? 1 : 0
+  }
+  document.title = 'cards=' + document.querySelectorAll('#routineList .card').length +
+    ' chosen=' + vis('routineChosen') +
+    ' playoff=' + (document.getElementById('routinePlayBtn').disabled ? 1 : 0) +
+    ' why=' + vis('routineWhy') +
+    ' elsewhere=' + vis('libElsewhere') +
+    ' where=' + (document.getElementById('libWhere').textContent.includes('marco/routes')
+                   ? 1 : 0)
+}, 4200)
+`
+
+func TestTheSavedRoutinesAreDrawnAndPlayIsOfferedForTheOneThatCanRun(t *testing.T) {
+	browser := aBrowser()
+	if browser == "" {
+		t.Skip("no headless Chromium on this machine to render the page in")
+	}
+	title := renderForCounters(t, browser, libraryHarness)
+	n := func(key string) int {
+		m := regexp.MustCompile(key + `=(\d+)`).FindStringSubmatch(title)
+		if m == nil {
+			t.Fatalf("no %s in %q", key, title)
+		}
+		v, _ := strconv.Atoi(m[1])
+		return v
+	}
+	// BOTH ROUTINES ARE THERE. A library that drew only the runnable ones would hide the
+	// one somebody needs to do something about.
+	if got := n("cards"); got != 2 {
+		t.Errorf("the library drew %d of 2 routine(s): %q", got, title)
+	}
+	// AND CHOOSING ONE OPENS IT.
+	if n("chosen") != 1 {
+		t.Errorf("clicking a routine did not open it: %q", title)
+	}
+	// AND PLAY IS NOT OFFERED FOR THE ONE THAT CANNOT PRESS ANYTHING, with the reason
+	// beside it. A live button here answers a press with a refusal, which is a window
+	// telling somebody off for pressing what it offered them.
+	if n("playoff") != 1 {
+		t.Errorf("Play is offered for a routine where every press would refuse: %q",
+			title)
+	}
+	if n("why") != 1 {
+		t.Errorf("nothing says why it cannot be played: %q", title)
+	}
+	// AND THE LIBRARY SAYS WHERE IT IS, and names the one somebody's older routines are
+	// sitting in. Silence there is a person reading an empty list and concluding their
+	// work is gone.
+	if n("where") != 1 {
+		t.Errorf("the window does not say which library it is reading: %q", title)
+	}
+	if n("elsewhere") != 1 {
+		t.Errorf("a library full of routines beside this window is passed over in "+
+			"silence: %q", title)
 	}
 }

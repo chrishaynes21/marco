@@ -166,6 +166,17 @@ func printAct(t trial) {
 // printRun prints each performance and its canonical result.
 func printRun(t trial) {
 	for _, n := range t.Notes {
+		// A SAVED ROUTINE'S RUN, PRINTED AS WHAT IT IS. Everything below this
+		// describes a supervised performance, down to the sentence about a run that
+		// wrote no record — which a routine never writes. See `pressing`.
+		if n.Kind == trialPressed {
+			fmt.Printf("\n  RUN   %q\n", n.Name)
+			fmt.Printf("    outcome   %s\n", orNone(n.Outcome))
+			if n.Because != "" {
+				fmt.Printf("    it said   %s\n", n.Because)
+			}
+			continue
+		}
 		if n.Kind != trialRan {
 			continue
 		}
@@ -315,10 +326,24 @@ func statesVerdict(t trial) string {
 
 // resultVerdict is the canonical result of the last run in this trial, and what it was waiting on.
 func resultVerdict(t trial) []string {
+	// ── A ROUTINE'S RUN, WHEN IT IS THE LAST THING THAT HAPPENED ──
+	//
+	// Asked first and only when it is LATER: a trial may contain both kinds, and the
+	// verdict is about the last run in it. A routine's performance has no canonical
+	// reference and writes no run record by construction — it is `marco do`, not the
+	// supervised runner — so the sentences below would report every one of them as a run
+	// that cited nothing.
 	ran, ok := t.last(trialRan)
+	if pressed, had := t.last(trialPressed); had && (!ok || pressed.Seq > ran.Seq) {
+		return routineResult(pressed)
+	}
 	if !ok {
 		if _, started := t.last(trialPlay); started {
 			return []string{"A RUN STARTED AND THE JOURNAL ENDS BEFORE IT DID"}
+		}
+		if p, started := t.last(trialPressing); started {
+			return []string{fmt.Sprintf("%q STARTED AND THE JOURNAL ENDS "+
+				"BEFORE IT DID", p.Name)}
 		}
 		return []string{"nothing was performed in this trial"}
 	}
@@ -341,6 +366,26 @@ func resultVerdict(t trial) []string {
 	// an earlier pause would be the least interesting thing on the line.
 	if ran.Paused != "" && ran.Sent == 0 {
 		said = append(said, "  it was waiting on: "+ran.Paused)
+	}
+	return said
+}
+
+// routineResult is how the last run of a saved routine went, as the verdict reads it.
+//
+// The published word, and the sentence the run said on its way out. An empty word is a command
+// that announced nothing — killed, or not the binary this expected — and it is reported as a run
+// nobody can speak for rather than as a failure, because a routine that refused SAYS it refused.
+func routineResult(n trialNote) []string {
+	if n.Outcome == "" {
+		return []string{fmt.Sprintf("%q ANNOUNCED NOTHING, so nobody can speak for "+
+			"what it did", n.Name)}
+	}
+	said := []string{fmt.Sprintf("%q — %s", n.Name, n.Outcome)}
+	// AND WHAT IT SAID ON ITS WAY OUT, which for a refused guarded press is the sentence
+	// naming the press that could not be checked. The word is a verdict and this is the
+	// finding — the same reason an Act's pause is kept beside its tally.
+	if n.Because != "" {
+		said = append(said, "  it said: "+n.Because)
 	}
 	return said
 }

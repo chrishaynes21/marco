@@ -806,6 +806,19 @@ func TestTheTrialNoteShapeMovesWithItsVersion(t *testing.T) {
 			"captured,unchecked,missing,start_known,screen_read,said,next," +
 			"failed,screens,controls,asked,act,from,steps,error,live,layout," +
 			"reference,outcome,because,paused,actions_sent,verified",
+		// 4 ADDED `contract`, which arrived with the other half of the
+		// recorder-first flow: a saved routine can now be selected and
+		// performed in the window, so a trial contains runs of routines as
+		// well as performances of Acts — and the question such a trial is run
+		// to answer is whether the routine recorded in it has its presses
+		// checked against the window they were recorded in. Legacy, guarded
+		// or incomplete, on the note that says one started.
+		4: "version,seq,at,kind,build,recorder,ran,mismatched,director,store," +
+			"routes,name,application,seconds,phase,doing,presses,watched," +
+			"captured,unchecked,missing,start_known,screen_read,said,next," +
+			"failed,screens,controls,asked,contract,act,from,steps,error," +
+			"live,layout,reference,outcome,because,paused,actions_sent," +
+			"verified",
 	}
 	var names []string
 	ty := reflect.TypeOf(trialNote{})

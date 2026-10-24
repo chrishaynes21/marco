@@ -411,7 +411,7 @@ func (d Deps) Unrunnable() []Unrunnable {
 		if err != nil || !strings.Contains(string(raw), `RelTo "`) {
 			continue
 		}
-		out = append(out, Unrunnable{Route: rt, Name: nameIn(string(raw), rt.Slug),
+		out = append(out, Unrunnable{Route: rt, Name: NameIn(string(raw), rt.Slug),
 			Resavable: d.Reg.HasRecording(rt)})
 	}
 	return out
@@ -466,13 +466,13 @@ func (d Deps) Resave(u Unrunnable) (routes.Route, error) {
 	return rt, nil
 }
 
-// nameIn recovers what a generated route was called, from the line codegen writes at the top of
+// NameIn recovers what a generated route was called, from the line codegen writes at the top of
 // it, falling back to the slug with its dashes read as spaces.
 //
 // The header is the only record of the name: `routes.Route` carries a slug, and a slug has lost
 // the spaces. The fallback is honest rather than exact — "ark-graphics" instead of "ark
 // graphics" — and it only decides what the regenerated file calls itself.
-func nameIn(src, slug string) string {
+func NameIn(src, slug string) string {
 	const opens = "marco learn \""
 	i := strings.Index(src, opens)
 	if i < 0 {
@@ -483,4 +483,72 @@ func nameIn(src, slug string) string {
 		return rest[:j]
 	}
 	return strings.ReplaceAll(slug, "-", " ")
+}
+
+// ── WHAT A SAVED ROUTINE SAYS ABOUT ITS OWN PRESSES ───────────────────────────
+
+// Contract is which of the three things a saved route says about how its presses are checked.
+//
+// The BASIS is the contract and everything else is a measurement — see
+// [[ADR-251-a-press-checks-the-window-it-was-recorded-in]] — so these are three states a route
+// is IN, read off the saved Marco, rather than three ways a recording happened to go.
+type Contract string
+
+const (
+	// Legacy is a route whose presses state no window: they are pressed at the
+	// coordinate they were recorded at, having checked nothing, exactly as every route
+	// saved before any of this did.
+	Legacy Contract = "legacy"
+	// Guarded is a route whose every press states the window it was made in and
+	// everything needed to check it.
+	Guarded Contract = "guarded"
+	// Incomplete is a route whose press states the window and is missing a term the
+	// check needs. It will REFUSE rather than press, naming what it lacks — which is
+	// the point of it, and the reason it is a state of its own instead of being filed
+	// under either neighbour.
+	Incomplete Contract = "incomplete"
+)
+
+// measuredTerms is every term a guarded press needs beside its basis, as the saved Marco spells
+// them.
+//
+// The same list `internal/oshost` requires at the press, and it has to stay the same list: a
+// route this called complete and the guard then refused would be a listing that contradicts the
+// run. Held by test rather than by comment — TestEveryTermTheGuardNeedsIsOneThisReads generates a
+// guarded route, removes one term at a time, and requires each removal to read as Incomplete.
+var measuredTerms = []string{"RelX", "RelY", "WinW", "WinH", "Dpi", "Process"}
+
+// ContractOf reads a saved route's contract, and what any incomplete press is missing.
+//
+// Read from the SOURCE, because that is where the contract lives: the saved Marco is the only
+// executable truth about a route, and a second record of it beside the file is a second record to
+// disagree with it. The same reason `cmd/marco` asks the source whether a run should be checked
+// for presses that did not happen.
+func ContractOf(src string) (Contract, []string) {
+	out, missing := Legacy, map[string]bool{}
+	for _, line := range strings.Split(src, "\n") {
+		if !strings.Contains(line, "is a Point with") || !strings.Contains(line, `RelTo "`) {
+			continue
+		}
+		out = Guarded
+		for _, term := range measuredTerms {
+			// THE TERM AND ITS VALUE, not the word anywhere in the line. A
+			// declaration ending `Process "arkascended.exe"` contains the word
+			// `Dpi` nowhere, and one containing it as part of a longer name is
+			// not this term.
+			if !strings.Contains(line, term+" ") {
+				missing[term] = true
+			}
+		}
+	}
+	if len(missing) == 0 {
+		return out, nil
+	}
+	lacks := make([]string, 0, len(missing))
+	for _, term := range measuredTerms {
+		if missing[term] {
+			lacks = append(lacks, term)
+		}
+	}
+	return Incomplete, lacks
 }

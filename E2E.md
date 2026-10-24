@@ -1452,14 +1452,20 @@ Three things must then hold, and the third is why the kill is targeted:
   that went down with the runner means the kill was not the one this case is about, and whatever
   the panel then said is evidence about a different event.
 
-## 62. Recording a routine in Studio's window, and running it (needs your hands, ~6 min)
+## 62. ENGINEERING DIAGNOSTIC: what the recorder saved, checked from a terminal (needs your hands, ~6 min)
 
-The recorder-first flow, end to end: Record → Stop → Review → Save → reload → Play. Nothing here
-is a demonstration of a *control* — this is the other half of the product, where you show Marco a
-sequence of presses and it saves a routine that performs them.
+> **This is a diagnostic, not the product trial.** It records in Studio and then leaves the window
+> on purpose, so you can read the saved file and run it from a terminal where the exit code and
+> the refusal sentence are in front of you. It exercises Studio-recording-to-CLI — which is a real
+> path worth being able to check, and is not the flow a person uses.
+>
+> **The product trial is §63**, and it stays in Studio from Record to Play. Do that one first if
+> you are answering "does this work for somebody"; come here when the answer is no and you want to
+> see what was actually written to disk.
 
-**Everything about it is automated evidence so far and none of it has been done on a real
-desktop.** This section is what turns that into acceptance.
+The recorder-first flow, end to end: Record → Stop → Review → Save → read the file → run it from a
+terminal. Nothing here is a demonstration of a *control* — this is the other half of the product,
+where you show Marco a sequence of presses and it saves a routine that performs them.
 
 ```sh
 plugins\studio\build.cmd
@@ -1500,9 +1506,10 @@ What to check, and what each failure would mean:
   are not being checked at all.
 - **Save says where it went**, and the routine is on disk under `<app>\focus\`. Under
   `<app>\context\` is the defect: that scope brings no window forward and every press in it would
-  refuse. The tree is `$MARCO_ROUTES`, or `routes\` beside **wherever you launched Studio from** —
-  so launch it from the repo root and run `marco do` from there too, or the two look at different
-  trees and the routine you just saved will not be found.
+  refuse. The library is `$MARCO_ROUTES`, else `routes` inside the store — one absolute directory,
+  the same one from any working directory, and the window prints it under *Your routines*. If
+  Studio and `marco do` disagree about where your routines are, that is a defect now rather than
+  something to work around by launching them from the same folder.
 - **Read the saved Marco.** It should be a chain — `this can Run.` wrapping the Activate, then
   `this can Step2.` and so on, each calling the next only inside `when ok?`. One flat block with
   bare `do OS's Click` lines means a refusal would not stop it.
@@ -1518,3 +1525,76 @@ What to check, and what each failure would mean:
 
 Then, for the record: `<routes>\<app>\focus\<slug>.rec.json` holds the raw demonstration beside the
 routine. Nothing executes it, and Studio reads it to save the routine again if it ever needs to.
+
+## 63. THE PRODUCT TRIAL: a routine, start to finish, without leaving Studio (needs your hands, ~5 min)
+
+Record → Stop → Review → Save → **select the saved routine → Play**, all in one window. This is the
+flow a person has; everything in §62 is the same mechanism read from a terminal.
+
+**None of it has been done on a real desktop.** The automated evidence covers what the window hands
+the command and what it makes of the answer; it cannot cover a press landing on a game.
+
+```sh
+plugins\studio\build.cmd
+```
+
+Then open Studio **by double-clicking `plugins\studio\studio.exe`**, from Explorer, the way you
+would open any program. That is deliberate: where it is launched from used to decide which
+library it kept your routines in, and the old instruction for this trial was to launch everything
+from the repo root. If that instruction is still necessary, this trial has already failed.
+
+Have the game running. You do not need it in front.
+
+1. **Name it and press Record.** Under *Record a routine*: `ark graphics`, then Record.
+2. **Switch to the game and do the thing.** Ordinary left-clicks and the keyboard — open a menu,
+   press two or three controls.
+3. **Visit Studio mid-recording, then press one more control.** Switch back to Studio, look at it
+   for a few seconds, switch to the game, and press another control. This is the case worth going
+   out of your way for; §62 explains why.
+4. **Press Stop**, in Studio's window, with the mouse.
+5. **Read the review and press Save.** The scope should be a sentence, not a dropdown: *Runs in
+   <app>. Marco brings it forward before playback.*
+6. **Scroll to *Your routines*. It is there.** Choose it.
+7. **Move the game window somewhere else on the screen.** Not optional, and not a nicety — this is
+   the one thing the whole contract exists for.
+8. **Press Play.** The run screen takes the window.
+
+What to check, and what each failure would mean:
+
+- **The routine appears under *Your routines* without a refresh**, with *brings <app> forward* and
+  the time you saved it. If the list is empty, the library the window writes to is not the one it
+  reads — and the line above the list says which directory that is.
+- **It says `every press is checked`** on the card, and the sentence under it names what that
+  means. `its presses are not checked` on a routine you just recorded means the measurements did
+  not reach the saved file: §62's review bullet is where that is diagnosed.
+- **A library from before this change says so.** If you have ever run Marco from the repo root,
+  there may be a `routes` folder there with your older routines in it. Opening Studio from
+  `plugins\studio` should NOT hide them in silence: the line under *Your routines* names the
+  directory and the count and says what to do. Nothing is moved — that is yours to decide.
+- **Play is the only control.** No live box, no application to type, no reading tick-box, no
+  countdown, no F7. The button says *press for real*, because `marco do` has no dry mode: if you
+  want nothing to happen, this is not the button.
+- **The game comes forward by itself** and the presses land where you pressed them — in the window
+  **where you just moved it**. Pressing the old desktop coordinates is the defect this contract
+  exists to prevent.
+- **The run screen says what happened in a sentence.** `Marco performed "ark graphics" — every
+  press happened. Nothing here checked that the application did what you wanted.` That last
+  clause is deliberate: a routine presses, and nothing on this path looks at the screen
+  afterwards. A window claiming it worked would be claiming the one thing it cannot see.
+- **It says `a routine — no run record` where an Act's run shows a reference**, and *Technical
+  details* says a routine does not report phases. "The run cited no reference, so there is no
+  canonical account of it" is the wrong sentence here, and the transcript under it is the account.
+- **Now resize the game window and press Play again.** It should stop at the first press and say
+  so, with the reason in the banner: `"ark graphics" stopped, and nothing after the press that did
+  not happen was done. It said: ark-graphics stopped: the window this was recorded in was
+  1920x1080 and is now …`. A green banner here means the refusal is not reaching the window; a
+  banner carrying the verdict and not the sentence means you have been handed a tally — the word
+  is what happened and the sentence is why.
+- **Stop works mid-run.** Press Stop while it is going: the same one stop the F9/F12 gesture and
+  `director stop` raise. It should end as `cancelled`, not as a failure.
+- **Right-clicks and drags are still refused at Save**, before anything reaches this list.
+
+Then: `studio-console.exe -trial <store>` reads back what this trial recorded about itself,
+including which build, which contract the routine ran under, and the run's own answer. A routine's
+run is filed as `RUN "<name>"` rather than as a performance — if it reads *the run cited no
+reference*, the journal is filing one kind of run as the other.

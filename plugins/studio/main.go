@@ -43,9 +43,9 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"path/filepath"
 	"time"
 
+	"github.com/chaynes-simpleclouds/marco/internal/marcopaths"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
@@ -286,12 +286,7 @@ func chooseStore(explicit string, isolate bool) (string, func(), error) {
 }
 
 // marcoHome is where Marco keeps everything, resolved as the other binaries resolve it.
-func marcoHome() string {
-	if d := os.Getenv("MARCO_HOME"); d != "" {
-		return d
-	}
-	if c, err := os.UserConfigDir(); err == nil {
-		return filepath.Join(c, "marco")
-	}
-	return "."
-}
+//
+// By the same function they resolve it with, which is the only kind of "the same" that survives
+// an edit: this used to be a fourth copy of the rule. See internal/marcopaths.
+func marcoHome() string { return marcopaths.Home() }

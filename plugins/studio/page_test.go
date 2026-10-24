@@ -129,4 +129,31 @@ func TestEveryMethodThePageCallsIsOnTheBackend(t *testing.T) {
 				"record → Stop → review → Save has no button", want)
 		}
 	}
+	// AND THE OTHER HALF OF THE FLOW, for the same reason: saving used to be where it
+	// ended, and the only way to run what had been kept was to leave the window and
+	// type a command. A page that lists no routines, or lists them and cannot play one,
+	// is that gap back again — and it would be a page that looks finished.
+	for _, want := range []string{"Routines", "PlayRoutine", "Library"} {
+		if !seen[want] {
+			t.Errorf("nothing in the page calls acts.%s, so select → Play is "+
+				"not reachable without leaving Studio", want)
+		}
+	}
+	// AND THE LISTING IS POLLED FROM STARTUP.
+	//
+	// A list that had to be reloaded by hand between Save and select is the same gap in
+	// a smaller place: the routine somebody has just recorded has to be there to choose
+	// without their doing anything. The call exists either way; whether anything starts
+	// it is what this asks.
+	page := string(raw)
+	start := page[strings.Index(page, " ready(() => {"):]
+	if i := strings.Index(start, "\n }"); i > 0 {
+		start = start[:i]
+	}
+	for _, want := range []string{"pollRoutines()", "loadLibrary()"} {
+		if !strings.Contains(start, want) {
+			t.Errorf("the page never starts %s, so nothing it draws is ever "+
+				"drawn", want)
+		}
+	}
 }

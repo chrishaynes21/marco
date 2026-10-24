@@ -129,6 +129,16 @@ func TestTheBuildScriptMakesTheDirectorStudioWillSpawn(t *testing.T) {
 			"put beside marco.exe, so the repo-root Studio spawns a stale one"},
 		{`copy /y studio.exe "%~dp0..\..\studio.exe"`, "the window is not put " +
 			"beside marco.exe"},
+		// AND THE MARCO STUDIO SPAWNS TO PERFORM A ROUTINE, which is the same
+		// sibling trap as the director above: pressing Play spawns the marco.exe
+		// beside Studio, so a copy of Studio without one performs routines
+		// through whatever is on PATH — or refuses, in a way that reads as a
+		// broken routine rather than a missing binary.
+		{`go build -o "%~dp0marco.exe"`, "the script does not build a marco " +
+			"into this directory, so the one Studio spawns to perform a " +
+			"routine is whatever was left there last — or nothing"},
+		{`copy /y marco.exe "%~dp0..\..\marco.exe"`, "marco is not put at the " +
+			"repo root, so the Studio there spawns a stale one"},
 	} {
 		if !strings.Contains(script, want.text) {
 			t.Errorf("%s (looked for %q)", want.why, want.text)

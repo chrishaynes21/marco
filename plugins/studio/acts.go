@@ -53,6 +53,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/director/runstate"
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflowstore"
 	"github.com/chaynes-simpleclouds/marco/internal/driver"
+	"github.com/chaynes-simpleclouds/marco/internal/marcopaths"
 	"github.com/chaynes-simpleclouds/marco/internal/recorder"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
 	"github.com/chaynes-simpleclouds/marco/internal/stopsignal"
@@ -66,7 +67,8 @@ import (
 type Acts struct {
 	// home is the Marco store. Resolved once; see storeDir.
 	home string
-	// routes is where plays live, honouring $MARCO_ROUTES exactly as marco and director do.
+	// routes is the library: $MARCO_ROUTES, else `routes` inside the store, resolved by
+	// the one place that answers that for every binary. See internal/marcopaths.
 	routesDir string
 
 	mu sync.Mutex
@@ -100,6 +102,19 @@ type Acts struct {
 	// something is running must not be shown a dry run as live, or the other way about.
 	act  string
 	live bool
+	// kind is WHICH KIND of run the slot is holding — an Act's supervised performance or
+	// a saved routine's — and routine is the second one's account of itself, nil for the
+	// first. Both outlive the run, because the window still has to describe one that has
+	// ended.
+	//
+	// The page needs the distinction because the two can say different amounts about
+	// themselves: an Act's run cites a canonical reference, publishes its own state and
+	// can be asked a question, and a routine's run has a transcript and an answer. A
+	// window that rendered the second as the first would report "the run cited no
+	// reference, so there is no canonical account of it" about a routine that behaved
+	// perfectly. See routines.go.
+	kind    string
+	routine *routineRun
 	// closing says shutdown has begun, and it is the gate on STARTING anything.
 	//
 	// # The race this closes
@@ -176,14 +191,14 @@ func (marcoChecks) Check(src string) error { return driver.CheckSource(src) }
 
 // newActs resolves the stores this Studio reads.
 func newActs(home string) *Acts {
-	dir := os.Getenv("MARCO_ROUTES")
-	if dir == "" {
-		dir = "routes"
-	}
-	if abs, err := filepath.Abs(dir); err == nil {
-		dir = abs
-	}
-	a := &Acts{home: home, routesDir: dir}
+	// THE LIBRARY, AND NOT A DIRECTORY BESIDE WHOEVER LAUNCHED THIS.
+	//
+	// This used to resolve `$MARCO_ROUTES, else "routes"` in its own words, relative to the
+	// working directory — so a Studio double-clicked in `plugins\studio` kept its routines
+	// in `plugins\studio\routes`, where nothing else in the product would ever look, and
+	// the instruction for it was "launch both from the repo root". A library is a place.
+	// See internal/marcopaths.
+	a := &Acts{home: home, routesDir: marcopaths.Routes()}
 	// AND IT WRITES DOWN WHAT A TRIAL OF ITSELF SHOWED, which is the alternative to
 	// asking the owner to watch for four things at once. Nothing is created until there
 	// is something to record; `a.myBuild` rather than `buildid.Revision` so a test's
@@ -928,6 +943,13 @@ type Running struct {
 	// one is a run with an answer and the other is a run nobody can speak for.
 	Complete   bool `json:"complete"`
 	Incomplete bool `json:"incomplete"`
+	// Routine says this is a saved routine running rather than an Act being performed,
+	// and the page renders it with less in it for that reason: there is no canonical
+	// reference, no phase, no pause and no question, because the thing performing it is
+	// `marco do` and not the supervised runner. Said rather than inferred from the
+	// absence of those, which would make a run that had not spoken yet look like the
+	// other kind. See routines.go.
+	Routine bool `json:"routine,omitempty"`
 }
 
 // Run performs an Act through `director perform-workflow --play`.
@@ -953,33 +975,13 @@ func (a *Acts) Run(act, application string, live, reading bool) string {
 // differs is four flags, and a second copy of this plumbing is how the two would drift.
 func (a *Acts) start(p Performance) string {
 	act, application, live, reading := p.Act, p.Application, p.Live, p.Reading
-	// THE SLOT IS CLAIMED UNDER THE SAME LOCK THAT TESTED IT. See `busy`.
+	// THE ONE SLOT, CLAIMED. See `reserve`, which is shared with the other kind of run
+	// this window can start — a saved routine — because "may anything run now" has to
+	// have one answer or the two kinds would both get a yes.
+	if why := a.reserve(kindAct); why != "" {
+		return why
+	}
 	a.mu.Lock()
-	if a.closing {
-		a.mu.Unlock()
-		return "Studio is closing, so nothing new is started"
-	}
-	if a.busy {
-		a.mu.Unlock()
-		return "a run is already in flight; one at a time, because the consent desk " +
-			"is a person's attention and there is one of those"
-	}
-	if a.recordingLocked() {
-		// AND NOT WHILE SOMETHING IS BEING RECORDED. One screen: a recorder
-		// watching it while a runner presses on it would be Marco demonstrating
-		// to itself, and the artifact would record Marco's own clicks as the
-		// person's.
-		//
-		// Asked of BOTH recorders through one predicate. It used to name
-		// `a.learn` here, which meant the recorder-first path arriving beside it
-		// would have been invisible to this refusal — and that one installs
-		// hooks in THIS process, so a run started under it would have put the
-		// runner's own presses into somebody's draft. See recordingLocked.
-		a.mu.Unlock()
-		return "Marco is recording a demonstration; one thing at a time on one screen"
-	}
-	a.busy = true
-	a.transcript, a.reference, a.outcome = nil, "", ""
 	a.act, a.live, a.saying = act, live, ""
 	a.mu.Unlock()
 	// AND RELEASED AGAIN ON EVERY PATH THAT DOES NOT REACH A RUNNING CHILD. A slot
@@ -1340,7 +1342,19 @@ func (a *Acts) read(pr *os.File) {
 }
 
 // Watch is the run as it stands, for the page to poll.
+//
+// ONE VIEW, TWO KINDS OF RUN. A saved routine's performance is rendered in the same shape by the
+// same page — a second poll and a second panel would be a second place that shows a transcript
+// and an outcome, and the two would drift. Everything below this line is about a SUPERVISED
+// performance: a canonical reference, the runner's own published state, a pause, a question. A
+// routine has none of those and says so. See routines.go.
 func (a *Acts) Watch() Running {
+	a.mu.Lock()
+	kind := a.kind
+	a.mu.Unlock()
+	if kind == kindRoutine {
+		return a.watchRoutine()
+	}
 	a.mu.Lock()
 	// THE RUN'S OWN ACT AND MODE, not the page's controls. A person who ticks the live
 	// box while something is running must not be shown a dry run described as live.
@@ -1413,11 +1427,14 @@ func (a *Acts) Watch() Running {
 
 // ── CANCEL: the one cross-process stop ────────────────────────────────────────
 
-// Cancel stops a supervised run, wherever it is.
+// Cancel stops a run, wherever it is and whichever kind it is.
 //
 // `stopsignal` is the one stop broadcast in this product, and it is what F9 and `director stop`
 // raise. Not a kill: the runner notices at the last moment it could matter and stops at a safe
 // point, which is the difference between ending a run and abandoning a press mid-flight.
+//
+// A saved routine is stopped by the same raise: `marco do` watches the same generation file for
+// every run it makes, so there is one stop in this product and not one per kind of thing running.
 func (a *Acts) Cancel() string {
 	if err := stopsignal.Raise(stopsignal.Home()); err != nil {
 		return err.Error()

@@ -1,0 +1,243 @@
+---
+type: adr
+status: accepted
+date: 2026-10-24
+decision: "ACCEPTED — ROUTINES LIVE IN ONE LIBRARY, FOUND THE SAME WAY BY EVERY BINARY FROM ANY LAUNCH LOCATION, AND A SAVED ROUTINE IS SELECTED AND PLAYED IN THE WINDOW IT WAS RECORDED IN. The library was `$MARCO_ROUTES, else \"routes\"`, derived independently in four places, and that is a RELATIVE path: the answer was whichever directory each process happened to be started from, so a routine saved by a Studio somebody double-clicked in `plugins\\studio` went into `plugins\\studio\\routes` and `marco do` run from the repo root reported no such routine. The documented remedy was to launch both from the same directory, which is a developer workaround and not a product. So there is one resolver — `internal/marcopaths` — the answer is ABSOLUTE always, including a relative `$MARCO_ROUTES`, and the default is `routes` inside the store every part of Marco already shares, because a library is a place and not a thing you are standing next to. Moving a default makes an old library go quiet rather than disappear, so the window names any library-shaped directory beside its launch location that holds routines and says what to do about it; nothing is adopted or moved, because choosing between two libraries is the person's. AND SAVING IS NO LONGER THE END OF THE FLOW: the window lists every saved routine with the contract it was saved under — legacy, guarded or incomplete, read off the saved Marco by one reader tied by test to the terms the press guard requires — refuses Play for the ones that cannot press anything and says what they lack, raises the application itself because only the foreground process may, and then spawns `marco do --play` for the route's whole identity with the library named explicitly. Studio acquires no execution loop: the answer is the published outcome word read through the package that owns it, one run slot is shared with Acts and with recording, and a routine's run is rendered as what it is — no canonical reference, no phase, no question — because a view that expected a supervised performance would report a perfect routine as a run that cited nothing."
+supersedes: []
+affects:
+  - demonstrations
+  - recorder
+source_paths:
+  - internal/marcopaths
+  - internal/orchestrator/draft.go
+  - plugins/studio/routines.go
+  - plugins/studio/acts.go
+  - plugins/studio/build.cmd
+  - plugins/studio/frontend/index.html
+  - cmd/marco/assistant.go
+  - cmd/director/learnedplay.go
+---
+
+# A library is a place, and a routine is played where it was made
+
+Two gaps between a working mechanism and a product somebody can use, both found by asking what
+the owner would actually do rather than by reading the code that does it.
+
+## The library was wherever you were standing
+
+`marco`, `director` and Studio each resolved the route store in their own words, and the words
+agreed:
+
+```go
+dir := os.Getenv("MARCO_ROUTES")
+if dir == "" {
+	dir = "routes"
+}
+```
+
+Four copies of one sentence, which is the arrangement a duplicate is usually criticised for. The
+defect is not the duplication. It is that the sentence is **relative**: `routes` means a different
+directory for every process depending on where it was started.
+
+So the product had as many libraries as it had launch locations. A Studio double-clicked in
+`plugins\studio` — which is where it sits, and what a person does with an executable — kept its
+routines in `plugins\studio\routes`. `marco do "ark graphics"` run from a terminal at the repo
+root looked in `marco\routes`, found nothing, and said there was no such routine. Both were
+behaving exactly as written.
+
+The walkthrough for the trial carried the remedy as an instruction: *launch both from the repo
+root.* That is a developer working around their own tooling. Double-clicking Studio has to reopen
+the same library.
+
+**So there is one resolver and the answer is a place.** `internal/marcopaths` answers where
+anything of Marco's lives, and `Routes()` is `$MARCO_ROUTES`, else `routes` inside the store —
+absolute either way. A relative `$MARCO_ROUTES` is resolved too, because that is the same hazard
+wearing the person's own clothes: `MARCO_ROUTES=routes` set in one shell and inherited by a child
+started elsewhere is two libraries again.
+
+The store rule went the same way for a sharper reason than tidiness. It was written out four times
+as well — once with a comment saying it *"has to stay the same rule"* — and the library is now
+INSIDE the store, so two binaries disagreeing about the store is two binaries with two libraries.
+One function, four callers.
+
+### Moving a default makes the old one go quiet
+
+Nothing is lost by this change and nothing says so, which is the worse of the two. Every library
+saved under the old rule is still sitting in a `routes` folder beside whichever directory its
+binary was started from; it is simply not read any more. A person opens the window, reads an empty
+list, and concludes their work is gone.
+
+So the thing that went quiet says its name: the window reports which library it is reading, and
+when there is a library-shaped directory near it holding routines, it names that directory and
+the count and says what to do — copy them in, or name it with `$MARCO_ROUTES`.
+
+NEAR, not beside. A program somebody double-clicks is handed the folder it sits in as its working
+directory, and a Studio in `plugins\studio` has no library beside it either way — so both that
+folder and the one the binary lives in are searched, each upwards as well, as far as three levels.
+The first version looked only alongside the working directory and was therefore silent in exactly
+the case it was written for.
+
+**Nothing is adopted and nothing is moved.** Deciding which of two libraries is somebody's is not
+a decision code gets to make on their behalf, and a silent migration is the same defect as a
+silent default with the blame moved.
+
+## Saving was the end of the flow, and it should not have been
+
+The recorder-first path reached disk and stopped there. The only way to run what had just been
+saved was to leave the window, open a terminal, and type `marco do "ark graphics"` — which proves
+a Studio-recording-to-CLI path and is not what anybody would call Record → Stop → Review → Save →
+Play.
+
+The Act surface next door does not close it either, and it is worth saying why rather than
+treating the two as near enough. An **Act** is composed from a demonstration Director watched, is
+pinned to that demonstration's revision, names its interactions in the person's own words, and is
+performed by the supervised runner under an authorisation written at the press of Play. A
+**routine** is a `.marco` file in the library that presses what somebody showed it. They are
+different things, made differently, performed by different machinery, and a person who recorded
+one does not find it in the list of the other.
+
+**So the library is a list and Play is a button.** Choose a routine, read what it says about its
+own presses, press Play.
+
+### What the window does, in order
+
+1. finds the routine, and refuses NOW if it would not run — before anything is raised
+2. brings its application forward, because only the foreground process may
+3. spawns `marco do --play=<slug>` with the route's whole identity and the library named
+4. reads the answer off the published wire line
+
+Step 2 is the same split [[ADR-244-pressing-play-is-the-authorisation]] already draws for an Act
+and for the same measured reason: Windows refuses `SetForegroundWindow` to a process that does not
+already own the foreground, and the child is a process nobody is looking at. Studio owns the
+foreground at the instant somebody clicks a button in it, and that is the one moment it may hand
+it on. Nothing simulates a keypress to get around the lock.
+
+### Why the run is a child and not a library call
+
+Because `marco do` is the entrance, and everything a run of a routine needs is already behind it:
+the authority door, the one cross-process stop, the guarded contract's account of what did not
+happen ([[ADR-251-a-press-checks-the-window-it-was-recorded-in]]), the seven-word outcome, and the
+exit code that carries it.
+
+Studio must not acquire an execution loop of its own. A second place that decides what a routine's
+result was is a second answer to "did that work", and not having two of those is most of what
+ADR-251 is about.
+
+Reading the child's line is **protocol, not transcript-parsing**. The outcome word is a closed set
+of seven owned by `internal/outcome`, which both ends import — the same arrangement
+`plugins/overlay` already has with the same binary. A surface that matched on wording would be a
+surface whose verdict changed when somebody improved a message, and that is the thing this is not.
+
+### The route's WHOLE identity, and the library by name
+
+`--play` alone resolves to whichever scope the registry finds first, and a route IS its scope and
+its slug: the same name can be saved twice. So the application and the focus flag travel with it.
+
+And `$MARCO_ROUTES` is set on the child explicitly, even though both processes now resolve it the
+same way. The window knows which library it listed the routine FROM, and that is the one the run
+must read. Relying on a child to work it out again is how the first half of this ADR happened.
+
+### A routine's run is rendered as what it is
+
+One run view, two kinds of run — because a second panel showing a transcript and an outcome is a
+second panel to drift. What differs is said rather than inferred: a routine's run carries no
+canonical reference, publishes no phases, cannot pause and is never waiting on an answer. A view
+that expected a supervised performance would have told somebody their perfectly good routine
+*"cited no reference, so there is no canonical account of it"*, and the trial journal would have
+filed it as a run that never finished writing one. Both now say which kind they are about.
+
+And the run's own last sentence is in the banner beside the verdict. The word is what happened and
+the sentence is why; `performed` makes no claim about the application, because nothing on this
+path reads the screen afterwards. For a refused guarded press the sentence names the press that
+could not be checked, which is the whole finding — it was carried as far as the function that
+writes the banner and then dropped there, with the page rendering the word and the transcript and
+nothing in between.
+
+### Three contracts, read before Play rather than discovered during it
+
+A saved route says one of three things about its presses — no basis is legacy, a basis with every
+term is guarded, a basis with a term missing is incomplete and refuses — and which it is does not
+depend on a measurement having succeeded. That is ADR-251's rule, and the list is where a person
+meets it: the routine that checks every press says so, the one that cannot press anything is not
+offered and says why, and the one missing a measurement names what it lacks.
+
+`orchestrator.ContractOf` is the one reader, and it is **tied by test to the guard that refuses**.
+Six terms are required at the press by `internal/oshost`; a route this called complete and the
+guard then refused would be a listing that contradicts the run. So the test generates a guarded
+route through the real generator, removes one term at a time, and requires every removal to change
+the answer — and checks the list's length, because a reader that quietly forgot a term would pass
+every remaining case.
+
+### And the marco beside the window
+
+Pressing Play spawns the `marco.exe` beside Studio, which is the trap CLAUDE.md already carries a
+paragraph about for `director.exe`: two copies of Studio, and a sibling beside only one of them is
+a current window running yesterday's binary — or no binary, and then the failure reads as a
+routine that cannot run. `build.cmd` makes all of them in one breath.
+
+## Enforced by
+
+- `internal/marcopaths` — `TestTheLibraryIsTheSameFromAnyDirectory` (the defect itself: two
+  working directories, each with a `routes` folder in it, one answer),
+  `TestTheLibraryIsAnAbsolutePath`, `TestTheOverrideNamesTheLibraryAndIsResolvedOnce`,
+  `TestTheStoreCarriesTheLibrary`, `TestTheDefaultStoreIsNotTheOneTheEnvironmentNames`,
+  `TestALibraryLeftBesideTheLaunchDirectoryIsReported`,
+  `TestALibraryAboveTheLaunchDirectoryIsStillFound`, `TestTheSearchDoesNotClimbForever`,
+  `TestEveryPlaceGivenIsSearched`, `TestTheLibraryIsNotReportedAsSomewhereElse`,
+  `TestAnEmptyDirectoryIsNotSomebodysLostLibrary`
+- `cmd/marco` — `TestThisCommandReadsTheOneLibrary`, `TestTheLibraryCanStillBeNamedOutright`
+- `cmd/director` — `TestTheDirectorReadsTheOneLibrary`
+- `internal/orchestrator` — `TestEveryTermTheGuardNeedsIsOneThisReads`,
+  `TestTheTermsReadAreTheWholeList`, `TestARouteWithEveryTermIsGuarded`,
+  `TestARouteThatStatesNoWindowIsLegacy`,
+  `TestAnOrdinaryPressBesideAGuardedOneIsNotAMissingMeasurement`
+- `plugins/studio` — `TestASavedRoutineIsListedAndReadyToPlay`,
+  `TestAnActIsNotListedAsARoutine`, `TestAModuleBesideTheRoutinesIsNotOfferedAsOne`,
+  `TestARoutineThatCannotPressAnythingIsNotOfferedForPlay`,
+  `TestARoutineMissingAMeasurementIsNotOfferedForPlay`,
+  `TestPlayingAnUnknownRoutineNamesTheLibrary`,
+  `TestARoutineWillNotRunWhileSomethingElseIs`,
+  `TestARoutineWillNotRunWhileSomethingIsBeingRecorded`,
+  `TestTheApplicationIsBroughtForwardBeforeTheRunStarts`,
+  `TestARoutineThatNamesNoApplicationRaisesNothing`,
+  `TestTheCommandCarriesTheRoutesIdentityAndTheLibrary`,
+  `TestAContextRoutineIsNotAskedForAsAFocusOne`, `TestTheAnswerComesFromTheRunsOwnWord`,
+  `TestARefusedPressReachesTheWindowWithItsReason`,
+  `TestARunThatAnnouncedNothingIsNotAnAnswer`,
+  `TestAWordThatIsNotOneOfTheSevenIsNotAnAnswer`, `TestARoutinesRunSaysItIsOne`,
+  `TestTheTrialJournalRecordsARoutinesRun`, `TestTheWindowSaysWhichLibraryItIsReading`,
+  `TestALibraryLeftBesideTheLaunchDirectoryIsNamed`,
+  `TestPlayingARoutineRunsItAndReportsWhatItSaid`,
+  `TestEveryMethodThePageCallsIsOnTheBackend`,
+  `TestTheSavedRoutinesAreDrawnAndPlayIsOfferedForTheOneThatCanRun`,
+  `TestTheBuildScriptMakesTheDirectorStudioWillSpawn`,
+  `TestTheTrialNoteShapeMovesWithItsVersion`
+
+## Mutations
+
+Forty, with one deliberate no-op control. Six survived, and five of those were a weak test
+rather than weak code: the child's environment was asserted to CONTAIN the library, which
+`os.Environ()` already satisfied whenever the two agreed — and in a test they agree by
+construction; the module filter was tested with `os.marco`, which `routes.routeSlug` already
+excludes by name everywhere, so the fixture asked nothing; nothing tested that the window brings
+the application forward, which is what the foreground lock makes load-bearing; nothing read what
+`-trial` prints, so the branch that prints a routine's run could be deleted whole; and the refusal
+sentence was asserted from a two-line fixture that could not tell the first sentence from the last.
+
+The sixth was a defect in the page. **Two places decided whether Play was live** — the click and
+the poll — and the poll's copy overwrote the click's four hundred milliseconds later, so making
+the click's half always-enabled changed nothing and survived its own test. A duplicate whose later
+writer silently wins is the arrangement that makes a test like that unfalsifiable; one function
+decides now, asked from both.
+
+## Known gaps
+
+- **A routine's run cannot be dry.** `marco do` has no such switch; the dry path is
+  `marco run --host dryrun <file>`, which performs a file rather than a routine. The button says
+  it presses for real rather than offering a tick-box the command could not honour.
+- **The end-to-end spawn test skips without a marco binary beside the module.** The two halves it
+  would cover — what the window hands the command, and what it makes of the answer — are tested
+  unconditionally, which is why this is a gap and not a hole.
+- **Nothing migrates an old library.** It is named and counted and left alone.
+- **A routine's run writes no run record**, so `Report a problem` and `Inspect` have nothing to
+  read for one. They are disabled, which is correct and not yet explained in the window.
