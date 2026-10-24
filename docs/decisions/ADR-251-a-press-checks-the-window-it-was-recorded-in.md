@@ -691,9 +691,16 @@ it intends to do.
   rewriting it by hand is how two things that have to agree stop agreeing. The way out already
   exists and is the one above — the demonstration is stored beside the routine and Studio saves it
   again from that — but Studio OFFERS it only for a routine that cannot press anything at all, so
-  this case is not offered and not announced. Whether a routine should be able to say which build
-  generated it, and be offered a re-save when that build is older than a rule, is a question this
-  does not answer.
+  this case is not offered and not announced.
+
+  **The shape of the answer is decided and the work is separately scoped.** What a routine should
+  carry is a GENERATION-CONTRACT version, not the build that made it: an older build alone does not
+  establish that a routine needs updating, and most older builds generated exactly what today's
+  would. A contract version says which rules the saved source was written under, so Studio can
+  identify an affected contract, explain the difference in words, and offer an explicit re-save
+  from the stored demonstration — with the review shown before anything replaces the source.
+  **Nothing is rewritten automatically**, which is the same line this ADR holds everywhere else:
+  the saved file is the only executable truth, and replacing it is the person's decision.
 - **A terminal return inside a non-exhaustive `when` arm does not return.** Marco's own
   semantics, measured here and not changed: the arm fires, the ending is ignored, execution falls
   through, and the caller is told ok. Every fixture in the repository pairs its arms, so nothing

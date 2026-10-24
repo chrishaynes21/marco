@@ -7626,3 +7626,9 @@ saved again. Nothing rewrites saved Marco, and nothing should. The way out exist
 demonstration is stored beside the routine and Studio saves it again from that), but Studio offers
 it only for a routine that cannot press anything at all, so this case is neither offered nor
 announced. Recorded as a gap in the ADR.
+
+The follow-up has a decided shape and is separately scoped: a routine should carry a
+GENERATION-CONTRACT version rather than the build that made it, because an older build alone does
+not establish that a routine needs updating. Studio would identify an affected contract, explain
+the difference, and offer an explicit re-save from the stored demonstration, with the review shown
+first. Nothing rewritten automatically.
