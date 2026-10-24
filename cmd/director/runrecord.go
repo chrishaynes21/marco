@@ -27,20 +27,13 @@ package main
 // id so that the reference retrieves THAT attempt's evidence rather than the last one's.
 
 import (
-	"crypto/rand"
-	"encoding/json"
-	"fmt"
-	"github.com/chaynes-simpleclouds/marco/internal/buildid"
-	"os"
-	"path/filepath"
 	"time"
 
+	"github.com/chaynes-simpleclouds/marco/internal/buildid"
 	"github.com/chaynes-simpleclouds/marco/internal/director/runref"
 	"github.com/chaynes-simpleclouds/marco/internal/director/workflowrun"
+	"github.com/chaynes-simpleclouds/marco/internal/runs"
 )
-
-// runsDir is where run records are kept, beside the routines they were run from.
-const runsDir = "runs"
 
 // RunOutcome and its seven words live in internal/director/runref, because the reference that
 // carries them is printed by this command and READ by whatever asked for the run.
@@ -129,159 +122,54 @@ type RunRecord struct {
 	Frames string `json:"frames,omitempty"`
 }
 
-// runCandidate proposes a reference for this attempt.
+// runCandidate, the reservation discipline and the finalise-without-create guard are now
+// `internal/runs`, because a routine's run has to claim a reference the same way and under the
+// same roof — see that package for why the DISCIPLINE is shared while the RECORD is not.
 //
-// Sortable, second-resolution, and local time because the person reading it is in it. A
-// PROPOSAL and not an identity: `reserveRun` decides whether it is free, because randomness
-// reduces collisions and does not prevent them.
-func runCandidate(at time.Time) string {
-	// AND A SUFFIX, BECAUSE A SECOND IS NOT UNIQUE.
-	//
-	// The timestamp is the sortable half and a person reads it. Two attempts started in
-	// the same second — a script, a retry, two terminals — produced the same id, and the
-	// one thing a reference must do is retrieve the attempt it names.
-	//
-	// Four hex characters from the system's randomness, which is short enough to type and
-	// read aloud. If it cannot be read, the nanosecond stands in: a worse suffix is
-	// better than none, and this must never fail a run.
-	var b [2]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		return fmt.Sprintf("run-%s-%04x", at.Format("20060102-150405"),
-			at.Nanosecond()&0xffff)
-	}
-	return fmt.Sprintf("run-%s-%02x%02x", at.Format("20060102-150405"), b[0], b[1])
-}
+// What stays here is this kind's record and this kind's words. The wrappers below keep their old
+// names on purpose: this file is where a supervised run's record is written, and a reader
+// following `saveRun` should not have to learn that it now means something general.
 
-// runReserveTries is how many candidates are tried before giving up.
+// reserveRun claims this attempt's namespace, and leaves a supervised record saying `started` in
+// it.
 //
-// Ten, which is not a probability argument. Each try is a fresh draw against a namespace
-// nobody is competing for in earnest, so ten failures in a row means something other than
-// bad luck — a read-only directory, a full disk, a clock that does not move — and that is
-// worth reporting rather than retrying forever.
-const runReserveTries = 10
-
-// reserveRun claims a whole evidence namespace for this attempt, before anything is written
-// into it and before the reference is printed.
-//
-// # Why reservation and not a check at the end
-//
-// The record used to be the only thing guarded: `saveRun` wrote with `O_EXCL`, so a second
-// attempt with the same id was refused its JSON. By then both attempts had been printing the
-// same reference for a minute and the hover probe had been writing `01-before.png` into the
-// same frames directory — so the refusal protected the record and not the evidence it points
-// at, and the attempt that was refused had already overwritten the other's images.
-//
-// So the id is claimed FIRST, and claimed across both places it means something: a provisional
-// record under `runs/`, created exclusively, and this run's own frames directory, created
-// exclusively when frames were asked for. A candidate that loses either is abandoned whole —
-// the record it already made is removed — and the next one is tried. Two attempts that propose
-// the same id therefore end up with two namespaces, and neither can reach the other's.
-//
-// The provisional record is a real record saying `started`. An attempt that dies before
-// finalisation is then retrievable as what it was, rather than retrieving nothing, which is
-// how the exits in the next section were found.
+// The provisional record is THIS KIND'S shape, which is the one thing the shared machinery does
+// not decide: an attempt that dies before finalisation must be retrievable as a supervised
+// attempt that had not finished, in the vocabulary a supervised run is read in.
 func reserveRun(at time.Time, framesRoot string, propose func(time.Time) string) (
 	id string, framesDir string, err error) {
 
-	if propose == nil {
-		propose = runCandidate
-	}
-	if e := os.MkdirAll(filepath.Join(configDir(), runsDir), 0o755); e != nil {
-		return "", "", e
-	}
-	for try := 0; try < runReserveTries; try++ {
-		id = propose(at)
-		p := runPath(id)
-		f, e := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
-		if e != nil {
-			if os.IsExist(e) {
-				continue
+	got, err := runs.Reserve(runs.Claim{
+		At: at, FramesRoot: framesRoot, Propose: propose,
+		Provisional: func(id string) any {
+			return RunRecord{
+				Version: 1, Run: id,
+				Started: at.Format(time.RFC3339),
+				Outcome: RunStarted,
+				Because: "reserved; this attempt had not finished " +
+					"when the record was last written",
 			}
-			return "", "", e
-		}
-		b, _ := json.MarshalIndent(RunRecord{
-			Version: 1, Run: id,
-			Started: at.Format(time.RFC3339),
-			Outcome: RunStarted,
-			Because: "reserved; this attempt had not finished when the " +
-				"record was last written",
-		}, "", "  ")
-		_, werr := f.Write(b)
-		cerr := f.Close()
-		if werr != nil || cerr != nil {
-			_ = os.Remove(p)
-			if werr != nil {
-				return "", "", werr
-			}
-			return "", "", cerr
-		}
-		if framesRoot == "" {
-			return id, "", nil
-		}
-		// AND THE PIXELS' OWN NAMESPACE, claimed by the same id.
-		//
-		// `MkdirAll` on the parent and a bare `Mkdir` on this run's own
-		// element: the first is shared and must succeed if it is missing,
-		// the second must FAIL if somebody else has it. MkdirAll on the
-		// whole path would succeed on an existing directory and claim
-		// nothing, which is the hole this closes.
-		if e := os.MkdirAll(framesRoot, 0o755); e != nil {
-			_ = os.Remove(p)
-			return "", "", e
-		}
-		d := filepath.Join(framesRoot, id)
-		if e := os.Mkdir(d, 0o755); e != nil {
-			_ = os.Remove(p)
-			if os.IsExist(e) {
-				continue
-			}
-			return "", "", e
-		}
-		return id, d, nil
-	}
-	return "", "", fmt.Errorf("no free run reference after %d tries", runReserveTries)
+		},
+	})
+	return got.ID, got.Frames, err
 }
 
 // runPath is where a run's record is written.
-func runPath(id string) string { return filepath.Join(configDir(), runsDir, id+".json") }
+func runPath(id string) string { return runs.Path(id) }
 
 // saveRun writes the record into this run's OWN reservation and returns the path.
 //
-// A failure here is NOT a failure of the run. The run already happened; losing its record
-// loses the ability to cite it, which is worth a line on stderr and nothing more.
-//
-// # It may only write where a reservation already is
-//
-// No O_CREATE, which is the whole guard. `reserveRun` created this file exclusively, so the
-// file EXISTING is the proof that this id belongs to this attempt; opening without O_CREATE
-// means a record for an id nobody reserved cannot be written at all, and a record for an id
-// somebody else holds was never reachable because they hold it.
-//
-// The earlier version guarded the other way round — O_CREATE|O_EXCL at save time — which
-// refused the second writer after both had been printing the same reference and writing into
-// the same frames directory for the length of a run.
+// A failure here is NOT a failure of the run. The run already happened; losing its record loses
+// the ability to cite it, which is worth a line on stderr and nothing more.
 func saveRun(r RunRecord) (string, error) {
 	// WHICH DIRECTOR THIS WAS, stamped here rather than by each caller: there is one
-	// place a record is written and every record should answer the question. See
-	// internal/buildid.
+	// place a supervised record is written and every one of them should answer the
+	// question. See internal/buildid.
+	//
+	// Here and not in `runs.Finalise`, which is handed a record it may not look inside:
+	// the field is this kind's, and the other kind stamps its own build on its own field.
 	r.Build = buildid.Revision()
-	b, err := json.MarshalIndent(r, "", "  ")
-	if err != nil {
-		return "", err
-	}
-	p := runPath(r.Run)
-	f, err := os.OpenFile(p, os.O_WRONLY|os.O_TRUNC, 0o644)
-	if err != nil {
-		return "", err
-	}
-	if _, err := f.Write(b); err != nil {
-		_ = f.Close()
-		return "", err
-	}
-	if err := f.Close(); err != nil {
-		return "", err
-	}
-	return p, nil
+	return runs.Finalise(r.Run, r)
 }
 
 // outcomeOfRun reads the four-way answer off the report the run produced.

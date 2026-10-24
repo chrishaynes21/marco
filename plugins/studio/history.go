@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/runref"
+	"github.com/chaynes-simpleclouds/marco/internal/marcopaths"
 )
 
 // historyShown is how many past runs the window lists.
@@ -88,7 +89,7 @@ type record struct {
 
 // History is the runs this machine has records of, newest first.
 func (a *Acts) History() []PastRun {
-	dir := filepath.Join(a.home, "runs")
+	dir := filepath.Join(a.home, marcopaths.RunsDir)
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return []PastRun{}
@@ -277,7 +278,7 @@ func (a *Acts) Forget(reference string, anyway bool) Forgotten {
 			"to say how it ended"}
 	}
 
-	dir := filepath.Join(a.home, "runs")
+	dir := filepath.Join(a.home, marcopaths.RunsDir)
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {

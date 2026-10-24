@@ -23,6 +23,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/platform/navsource"
 	"github.com/chaynes-simpleclouds/marco/internal/platform/winprovider"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
+	"github.com/chaynes-simpleclouds/marco/internal/runs"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/demonstrated"
 )
@@ -219,7 +220,7 @@ func TestThePlaysRecordIsWrittenFromItsAccount(t *testing.T) {
 // theOnlyRunRecord reads the one record this test's isolated store holds.
 func theOnlyRunRecord(t *testing.T) RunRecord {
 	t.Helper()
-	dir := filepath.Join(configDir(), runsDir)
+	dir := runs.Dir()
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		t.Fatalf("read %s: %v", dir, err)

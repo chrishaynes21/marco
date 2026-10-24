@@ -46,6 +46,22 @@ const (
 // product says Play and the implementation says routes.
 const RoutesDir = "routes"
 
+// RunsDir is where the record of an attempt goes, inside the store, and it keeps the name that
+// directory has always had: Studio's history already reads it, and a person's machine already has
+// records in it.
+//
+// Named here because TWO KINDS OF RUN write into that folder — a supervised Act's record and a
+// routine's — from two different binaries. Three string literals spelling one directory is three
+// chances for one of them to be spelled differently, in the directory whose whole job is to be
+// found again by a reference somebody pasted into a bug report.
+const RunsDir = "runs"
+
+// Runs is where attempts are recorded: `runs` inside [Home].
+//
+// Only WHERE. The discipline of writing one — claiming the reference before anything is sent,
+// and finalising only into a claim that is already there — is `internal/runs`.
+func Runs() string { return filepath.Join(Home(), RunsDir) }
+
 // Home is the store: `$MARCO_HOME`, else [Default].
 //
 // One rule, for every process that reads or writes anything of Marco's. A stop raised in one

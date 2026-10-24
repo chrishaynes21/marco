@@ -1452,7 +1452,7 @@ func (a *Acts) Inspect(reference string) map[string]any {
 	if reference == "" {
 		return map[string]any{"error": "no run reference"}
 	}
-	p := filepath.Join(a.home, "runs", reference+".json")
+	p := filepath.Join(a.home, marcopaths.RunsDir, reference+".json")
 	raw, err := os.ReadFile(p)
 	if err != nil {
 		return map[string]any{"error": err.Error(), "path": p}

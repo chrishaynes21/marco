@@ -55,6 +55,7 @@ import (
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/learnstate"
 	"github.com/chaynes-simpleclouds/marco/internal/director/runstate"
+	"github.com/chaynes-simpleclouds/marco/internal/marcopaths"
 )
 
 // trialVersion is the shape of a note.
@@ -551,7 +552,7 @@ func (a *Acts) recordFor(reference string) (record, bool) {
 	if strings.TrimSpace(reference) == "" {
 		return record{}, false
 	}
-	raw, err := os.ReadFile(filepath.Join(a.home, "runs", reference+".json"))
+	raw, err := os.ReadFile(filepath.Join(a.home, marcopaths.RunsDir, reference+".json"))
 	if err != nil {
 		return record{}, false
 	}

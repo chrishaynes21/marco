@@ -18,6 +18,7 @@ import (
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/demo"
 	"github.com/chaynes-simpleclouds/marco/internal/platform/navsource"
+	"github.com/chaynes-simpleclouds/marco/internal/runs"
 	"github.com/chaynes-simpleclouds/marco/internal/stopsignal"
 )
 
@@ -36,7 +37,7 @@ func aSavedRoutine(t *testing.T, name string) {
 // theOnlyRecord reads the single run record a test produced.
 func theOnlyRecord(t *testing.T) RunRecord {
 	t.Helper()
-	dir := filepath.Join(configDir(), runsDir)
+	dir := runs.Dir()
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		t.Fatalf("no run records were written at all: %v", err)

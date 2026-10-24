@@ -7718,3 +7718,37 @@ terminal. Replace also checks that the identity it would write is the one it was
 somebody would pass every backend test while doing the one thing they exist to prevent.
 
 Seven mutations, all killed, plus a no-op control. R1–R3 remain paused.
+
+## 38O — one claim per attempt, and two vocabularies in one directory
+
+R1 of the first milestone, and an extraction with no behaviour change: the discipline of recording
+an attempt is now `internal/runs`, and the record in it is still each caller's own.
+
+**What is shared is narrow and all of it is about a namespace.** The place
+(`marcopaths.Runs`, `marcopaths.RunsDir` — one spelling for a directory two binaries write and a
+third reads); the claim on a reference, made exclusively before anything is sent; the provisional
+record left in that claim at once, so an attempt that dies retrieves as an attempt that did not
+finish rather than retrieving nothing; and the finalisation with no `O_CREATE`, so a record can
+only be written where a claim already is. `runs.Reserve` is handed the record it leaves behind as
+a function of the id it takes, and never reads a field of one.
+
+**What is NOT shared is the record, because the vocabularies do not convert.** Evidence
+(`verified`, `contradicted`, `unconfirmed`) against delivery (`performed`, `unverified`,
+`unavailable`, `clarify`). Nothing turns `performed` into `verified`; `unverified` is not
+`unconfirmed`. Absent verification evidence stays absent rather than becoming three zeroes.
+[[ADR-253-the-claim-is-shared-and-the-record-is-not]]
+
+**`cmd/director`'s `RunRecord` did not move.** `reserveRun`, `runPath` and `saveRun` keep their
+names and became callers; the supervised record keeps its own fields, its own seven words and its
+own `buildid` stamp. The whole 150-second director suite passing unchanged is the evidence that
+the extraction changed nothing about that command.
+
+**The gate found a real gap rather than confirming the work.** A mutation deriving the place from
+`$MARCO_HOME` alone passed every test, because every test sets it — and Studio sets it, while
+`marco do` typed into a terminal does not. `filepath.Join("", "runs")` is a RELATIVE directory,
+which is the defect `marcopaths` exists because of, about to repeat itself one layer up with a
+bug report's reference pointing at nothing. `TestTheStoresPlaceIsAnswerableWithNothingInTheEnvironment`
+exists because of that measurement. A second mutation, deriving the place without `marcopaths` at
+all, did not compile — recorded as redone, not as a kill.
+
+Seven mutations killed, one no-op control surviving. R2 and R3 next.

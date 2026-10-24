@@ -8,11 +8,12 @@ depends_on:
   - goals
 used_by:
   - goals
-updated: 2026-08-06
+updated: 2026-10-24
 source_paths:
   - internal/director/demo
   - cmd/director/democmd.go
   - plugins/studio/routines.go
+  - internal/runs
   - internal/marcopaths
 ---
 
@@ -245,6 +246,28 @@ missed by one and returned nothing, so no control crop and no control evidence w
 build, and nothing said so. Found by the absence of a directory three recordings should have
 made. A total miss where presses were attributed and looks were measured is now a sentence rather
 than a count of zero.
+
+## An attempt claims its reference, and each kind records in its own words
+
+Both paths now put their runs in one directory, and that is **all** they share. `internal/runs`
+owns the discipline — the place (`internal/marcopaths.Runs`), the claim made exclusively before
+anything is sent, the provisional record left in that claim at once so an attempt that dies is
+retrievable as an attempt that did not finish, and the finalisation that cannot create — and it is
+handed a record it may not look inside.
+
+The record is per kind because the **vocabularies are not translatable**. A supervised Act's run
+accounts for evidence (`verified`, `contradicted`, `unconfirmed`); a coordinate routine's run
+accounts for delivery (`performed`, `unverified`, `unavailable`, `clarify`). Three of seven words
+overlap and nothing converts in either direction: a routine presses and looks at nothing
+afterwards, so `verified` would be a claim about evidence it never gathered, and `unverified` is
+not `unconfirmed` — the first says nobody looked, the second says somebody looked and could not
+tell. Absent verification evidence stays absent rather than becoming three zeroes, which would
+read as a run that verified nothing.
+
+`cmd/director`'s `RunRecord` did not move; it became a caller, with its own words, its own fields
+and its own build stamp. `plugins/studio/history.go` keeps reading records by their JSON names
+rather than through a writer's type, which is what lets one window list a kind it does not know and
+show the whole of it. [[ADR-253-the-claim-is-shared-and-the-record-is-not]]
 
 ## Validated by
 
