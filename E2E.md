@@ -1531,12 +1531,21 @@ routine. Nothing executes it, and Studio reads it to save the routine again if i
 Record → Stop → Review → Save → **select the saved routine → Play**, all in one window. This is the
 flow a person has; everything in §62 is the same mechanism read from a terminal.
 
-**None of it has been done on a real desktop.** The automated evidence covers what the window hands
-the command and what it makes of the answer; it cannot cover a press landing on a game.
+**This has now been done on a real desktop, once, and every step passed.** Keep running it: the
+automated evidence covers what the window hands the command and what it makes of the answer, and
+it cannot cover a press landing on a game. The one defect this trial has found so far was
+invisible to a green suite, and so was the stale window that hid its fix.
+
+**Close Studio first**, then build:
 
 ```sh
 plugins\studio\build.cmd
 ```
+
+Closing it is not housekeeping. Studio installs the input hooks and makes the draft in its own
+process, so a window left open across a build demonstrates into yesterday's recorder while every
+binary on disk looks current — which is how step 3 below reported its old failure after the fix
+that cured it.
 
 Then open Studio **by double-clicking `plugins\studio\studio.exe`**, from Explorer, the way you
 would open any program. That is deliberate: where it is launched from used to decide which
@@ -1552,16 +1561,20 @@ Have the game running. You do not need it in front.
    Click Studio's window, look at it for a few seconds, click back into the game, and press
    another control.
 
-   > **This step failed on its first live attempt and is awaiting a retest.** It produced
+   > **This step failed on its first live attempt and passed on retest.** It produced
    > `drag from -740, 348 to 50, 374` — a gesture nobody performed, made of the press of the
    > click onto Studio joined to the release of the click back — and a drag cannot be saved in a
    > routine whose presses are checked, so the whole recording was refused at Save. The cause was
    > the exclusion removing click edges one at a time, while a click that raises a window has its
    > two edges attributed to two different programs. Clicks are now paired before anything is
-   > excluded.
+   > excluded, and the retest kept both presses and saved.
    >
-   > **Click, don't alt-tab.** Alt-tab never had the fault, so it does not test the fix. Until
-   > this step passes on a real desktop, treat mid-recording preservation as unproven.
+   > **Click, don't alt-tab.** Alt-tab never had the fault, so it does not test the fix.
+   >
+   > And if it still reports a drag, check what is RUNNING before anything else: the retest
+   > reported the old phantom once more from a Studio window that had been open since before the
+   > build. Studio installs the hooks and makes the draft in its own process, so a window left
+   > open across a build is the old recorder with fresh binaries beside it.
 4. **Press Stop**, in Studio's window, with the mouse.
 5. **Read the review and press Save.** The scope should be a sentence, not a dropdown: *Runs in
    <app>. Marco brings it forward before playback.*

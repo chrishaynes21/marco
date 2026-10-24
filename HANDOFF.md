@@ -7518,7 +7518,16 @@ same refusal sentence. Four mutations on the pairing, all killed.
 
 See [[ADR-249-ending-a-recording-is-not-part-of-the-recording]].
 
-**Trial status.** Guarded replay, the library, selection by identity and the run's answer: shown
-live. **Mid-recording preservation: FAILED, corrected, awaiting live retest** — and it has to be
-retested by CLICKING onto Studio and back, because alt-tab never had the fault and therefore does
-not exercise the fix. E2E.md §63 step 3 carries that.
+**Trial status: the whole of §63 is now shown live.** Guarded replay, the library, selection by
+identity, the run's own answer — and, on retest, mid-recording preservation: the owner clicked onto
+Studio in the middle of a recording, clicked back, pressed another control, and the recording kept
+both presses, invented no gesture, and saved.
+
+**The retest failed once more before it passed, and that failure was a stale binary.** The first
+attempt after the fix still reported the drag — from a Studio window that had been open since
+before the build. Studio installs the hooks and makes the draft IN ITS OWN PROCESS: `recorder.New`
+and `withoutOwner` both run there, not in the director it spawns. So a window left open across a
+build runs the old recorder however fresh the binaries beside it are. It is the stale-sibling trap
+one step further in — there the wrong copy was on disk, here the right copy was on disk and the
+wrong one was already running, which no check of the files can see. §63 now says to close Studio
+before building and to open the one that was just built.

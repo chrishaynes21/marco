@@ -194,6 +194,13 @@ press that had MOVED used to be kept — `TestWhatTheExclusionWillNotClaim` asse
 press's release, because nothing pressed the button in between; one that moved is a drag on
 Marco's window, not a different click. Keeping it is leaving half a click in the stream.
 
+**Shown live.** The retest of E2E.md §63 step 3 — click onto Studio mid-recording, click back,
+press another control — kept both demonstrated presses, invented no gesture and saved. It took two
+attempts: the first still reported the old phantom, from a Studio window that had been open since
+before the build. Studio installs the hooks and makes the draft in its own process, so that window
+was the old recorder with fresh binaries beside it, and nothing about the files could have shown
+it.
+
 ## Enforced by
 
 - `internal/recorder` `TestBothEdgesOfAClickCarryTheirOwner`,

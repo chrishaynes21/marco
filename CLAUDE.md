@@ -124,6 +124,11 @@ plugins/vision/build.cmd                 # Windows: the ONNX backend (needs gcc)
   freshly built, the window is current, and the recordings come from whenever that director
   was last made. It cost the owner a day of recordings. `build.cmd` now makes all of them and
   puts them in both places; `TestTheBuildScriptMakesTheDirectorStudioWillSpawn` holds it.
+  **And close Studio before building it.** Studio installs the input hooks and makes the draft
+  in its OWN process, so a window left open across a build records through the old recorder
+  while every binary on disk is current — the same trap one step further in, and this one no
+  check of the files can see. A fix to the recorder or to the exclusion is not on the desktop
+  until the window has been reopened; it cost a live trial that reported its own fixed defect.
   To check an existing binary without opening a window on somebody's desktop:
   `grep -a "will not build without the correct build tags" studio.exe` — a correct build does
   not contain that code at all. And to SEE the page without a window, render
