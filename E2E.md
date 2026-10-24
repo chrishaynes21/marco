@@ -1622,6 +1622,14 @@ What to check, and what each failure would mean:
 - **Stop works mid-run.** Press Stop while it is going: the same one stop the F9/F12 gesture and
   `director stop` raise. It should end as `cancelled`, not as a failure.
 - **Right-clicks and drags are still refused at Save**, before anything reaches this list.
+- **A keystroke that does not arrive stops the routine**, and this trial cannot show it. A key
+  can fail to be delivered — an elevated window owning the foreground, a game taking raw input —
+  and the press after it was demonstrated against the screen that key was meant to change; an
+  Escape that never arrived leaves the menu open, which no window check can see. It is held by
+  tests at all three levels, not by this walkthrough: staging it means making the machine refuse
+  one keystroke and take everything else. If a run ever stops with a reason naming a key, that is
+  this working and not a new fault. Typed text and held keys are NOT covered — a routine whose
+  typing was dropped carries on and reports that it performed.
 
 Then: `studio-console.exe -trial <store>` reads back what this trial recorded about itself,
 including which build, which contract the routine ran under, and the run's own answer. A routine's

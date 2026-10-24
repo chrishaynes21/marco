@@ -105,7 +105,7 @@ func Route(name, app string, steps []macroir.Step, assetDir string, declaredArgs
 			prepared = append([]macroir.Step{{Kind: macroir.StepActivate, Text: app}},
 				steps...)
 		}
-		links, tail, err = chainOf(prepared, g)
+		links, tail, err = chainOf(keyByKey(prepared), g)
 	} else {
 		body, err = emit(steps, g, 1)
 	}
@@ -809,6 +809,20 @@ func (g *gen) propagating(s macroir.Step) (guard, follow string, ok bool) {
 	switch {
 	case s.Kind == macroir.StepActivate:
 		return fmt.Sprintf("OS's Activate with %q", s.Text), "", true
+	case s.Kind == macroir.StepKey && s.Count <= 1:
+		// A KEYSTROKE IS A LINK TOO, and not because anything checks it.
+		//
+		// Nothing measures a window for a key and nothing here compares one. It is a
+		// link because it can fail to be DELIVERED, and what follows it then acts on a
+		// screen the key never changed: an Escape that did not arrive leaves the menu
+		// open, the press after it lands on whatever is now under that coordinate, and
+		// the window guard cannot see the difference — the window is the same window.
+		// A routine that went on from there reported that it performed.
+		//
+		// The count is at most one because `keyByKey` has already split a repeated key
+		// into its presses; a single guard standing for three presses would be a claim
+		// about three things from one answer.
+		return fmt.Sprintf("OS's Key with %q", s.Key), "", true
 	case !guardedStep(s):
 		return "", "", false
 	case s.Kind == macroir.StepMove:
@@ -827,6 +841,32 @@ func (g *gen) propagating(s macroir.Step) (guard, follow string, ok bool) {
 	default:
 		return "OS's Click with " + g.pts.clickPoint(s), "", true
 	}
+}
+
+// keyByKey expands a repeated key into the presses it stands for, for a chain only.
+//
+// `simplify` folds a run of the same key into one step with a count, and the generator writes
+// that as a `repeat` block. A block cannot stop a routine: whatever is inside it runs again after
+// the press that did not happen, which is the same reason a recorded loop is refused outright. A
+// key pressed three times is three keystrokes, so it becomes three links, each able to stop what
+// comes after it.
+//
+// A legacy route keeps its `repeat`, because this is only reached when something in the recording
+// asked to be checked.
+func keyByKey(steps []macroir.Step) []macroir.Step {
+	out := make([]macroir.Step, 0, len(steps))
+	for _, s := range steps {
+		if s.Kind != macroir.StepKey || s.Count <= 1 {
+			out = append(out, s)
+			continue
+		}
+		one := s
+		one.Count = 1
+		for i := 0; i < s.Count; i++ {
+			out = append(out, one)
+		}
+	}
+	return out
 }
 
 // chainOf splits the steps at every propagating action, one link each, and returns what follows

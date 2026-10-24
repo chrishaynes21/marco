@@ -338,7 +338,12 @@ func (h *Host) doKey(c runtime.HostCall) (string, runtime.Value, error) {
 	if name == "" {
 		return fail("key needs a key name (text, or a set with Key)")
 	}
-	return ok(h.b.key(c.Ctx, name, hold))
+	// AND A KEY THE MACHINE WOULD NOT TAKE IS KEPT, like a press the machine would not
+	// take. It is the same outcome from where a person is standing — the keystroke did
+	// not happen — and the screen the steps after it act on is not the screen they were
+	// recorded against. Without this the status stopped the routine and the account held
+	// nothing, so the command reported success about a routine that did not run.
+	return h.delivered("the "+name+" key", h.b.key(c.Ctx, name, hold))
 }
 
 // doKeyDown presses and HOLDS a key, tracking it so a route end always releases it. The

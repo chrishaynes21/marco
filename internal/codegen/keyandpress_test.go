@@ -1,30 +1,32 @@
 package codegen_test
 
-// A KEY AND A CHECKED PRESS IN ONE ROUTINE.
+// A KEYSTROKE AND A CHECKED PRESS IN ONE ROUTINE.
 //
 // The owner's first live routine was a keystroke and then a press: Escape to close a menu, then
 // a click on the control behind it. Nothing in this tree combined the two. Every test of the
 // chain used presses alone and every test of a key used a route with nothing guarded in it, so
-// the one thing the chain does with an ordinary step — put it inside the SUCCESS of the press
-// before it — was carried by a comment and by one live run.
+// what the chain does with a keystroke was carried by a comment and by one live run.
+//
+// # A KEYSTROKE IS A LINK, AND NOT BECAUSE ANYTHING CHECKS IT
+//
+// Nothing measures a window for a key and nothing compares one. A key is a link because it can
+// fail to be DELIVERED — `SendInput` is blocked by an elevated foreground window, by UIPI, by a
+// game with raw input and a lower-integrity sender — and what follows it then acts on a screen
+// the key never changed. An Escape that did not arrive leaves the menu open; the press after it
+// lands on whatever is now under that coordinate; and the window guard cannot see the difference,
+// because the window is the same window. Geometry cannot detect a menu that stayed open.
+//
+// That was this contract's gap and it was found by the mutation gate on the first version of this
+// file, which pinned today's behaviour instead: a key promoted to a link of its own passed every
+// test here, so the question became what production did when the KEY was the thing that could not
+// be performed. It carried on and reported that it performed. The test that recorded that is gone
+// and the cases below replace it.
 //
 // # Why these are behavioural
 //
-// A key cannot refuse, so it cannot stop a routine, so it is not a link: it is written into the
-// body of the capability that holds the NEXT press. Read as generated text that is a detail
-// about where a line sits. Read as behaviour it is the difference between Escape reaching the
-// application and Escape reaching whatever was in front when the application never came
-// forward — and the difference between a routine that stopped at a press that did not happen
-// and one that carried on pressing keys into whatever was there instead.
-//
-// So the host here writes down what it was asked to do, in order, and refuses one nominated
-// thing. What is asserted is which things happened.
-//
-// WHAT THIS DOES NOT PIN, and deliberately: WHICH capability the key is written into. A key in
-// the previous link's success and a key in the next link's `before` are the same instant — both
-// after the earlier press, both skipped when it refuses — so a test of that choice would hold a
-// shape with no consequence. The mutation gate established it: moving every key from one to the
-// other changed nothing any of these tests could see.
+// Because the claim is which things HAPPENED and in what order, and a route can read correctly
+// and still perform a keystroke on a path where the thing before it did not. So the host writes
+// down what it was asked to do, in order, and refuses one nominated thing.
 //
 // See [[ADR-251-a-press-checks-the-window-it-was-recorded-in]].
 
@@ -66,9 +68,10 @@ func elsewhereInTheSameWindow() macroir.Step {
 type watcher struct {
 	did            []string
 	refusePress    int  // the 1-based press to refuse; 0 refuses none
+	refuseKey      int  // the 1-based keystroke to refuse; 0 refuses none
 	refuseActivate bool // refuse the preparation, as an application that is not there does
-	refuseKey      bool // refuse the keystroke, as an undeliverable key does
 	presses        int
+	keys           int
 }
 
 func (w *watcher) Invoke(c runtime.HostCall) (string, runtime.Value, error) {
@@ -79,9 +82,10 @@ func (w *watcher) Invoke(c runtime.HostCall) (string, runtime.Value, error) {
 			return refusedBy("no window of that application is on the screen")
 		}
 	case "Key":
+		w.keys++
 		w.did = append(w.did, "Key "+strings.Trim(c.Input.String(), `"`))
-		if w.refuseKey {
-			return refusedBy("that key cannot be delivered")
+		if w.keys == w.refuseKey {
+			return refusedBy("SendInput was blocked")
 		}
 	case "Click":
 		w.presses++
@@ -212,30 +216,75 @@ func TestAKeyAfterTheLastPressIsInsideItsSuccess(t *testing.T) {
 	}
 }
 
-// AND A KEY THAT DID NOT HAPPEN DOES NOT STOP THE ROUTINE.
+// AND A KEYSTROKE THAT DID NOT HAPPEN STOPS EVERYTHING AFTER IT.
 //
-// THIS RECORDS WHAT IS, AND IT IS A GAP. The chain stops at presses, because a press is what
-// asked to be checked; a key is an ordinary step, so an Escape the machine would not deliver is
-// passed over and the press after it goes ahead — into a menu that never closed, which the
-// window guard cannot see, because the window is the same window. The routine then reports that
-// it performed.
+// Wherever it sits. Each case has controls around the key that the machine takes without
+// complaint, so what stopped the routine is the keystroke and not the arrangement: before the
+// first press there are two presses that must not be reached; between two presses the first must
+// survive and the second must not happen; after the last press everything demonstrated before it
+// must still be in the account.
 //
-// It is written down rather than left implicit for two reasons. A test that asserts the gap is
-// how anybody finds out it is there, and this is the routine the owner actually made: Escape and
-// then a press. Whether a key should propagate is a question about the contract, not about this
-// generator — it would put keys in `Unpropagatable` and make every key a link — so it is scoped
-// separately and this test is expected to be the one that fails when that is decided.
-//
-// Found by the mutation gate on this file: a key promoted to a link of its own passed every
-// other test here.
-func TestAKeyThatDidNotHappenDoesNotStopTheRoutine(t *testing.T) {
-	w := &watcher{refuseKey: true}
-	_, out := performedBy(t, w, aMeasuredPress(), aKey("escape"), elsewhereInTheSameWindow())
+// The settle wait is the tell in the last case. It is the only thing after the final keystroke,
+// so its absence is what says the tail went with the key instead of running regardless.
+func TestAKeyThatDidNotHappenStopsEverythingAfterIt(t *testing.T) {
+	for _, c := range []struct {
+		where string
+		steps []macroir.Step
+		want  []string
+	}{
+		{"before the first press",
+			[]macroir.Step{aKey("escape"), aMeasuredPress(), elsewhereInTheSameWindow()},
+			[]string{"Activate", "Key escape"}},
+		{"between two presses",
+			[]macroir.Step{aMeasuredPress(), aKey("escape"), elsewhereInTheSameWindow()},
+			[]string{"Activate", "Click 1", "Key escape"}},
+		{"after the last press",
+			[]macroir.Step{aMeasuredPress(), elsewhereInTheSameWindow(), aKey("escape")},
+			[]string{"Activate", "Click 1", "Click 2", "Key escape"}},
+	} {
+		t.Run(c.where, func(t *testing.T) {
+			w := &watcher{refuseKey: 1}
+			_, out := performedBy(t, w, c.steps...)
 
-	mustHaveDone(t, w, "Activate", "Click 1", "Key escape", "Click 2", "Sleep")
-	if !strings.Contains(out, "ark graphics: done") {
-		t.Errorf("the routine stopped at the key after all, which is a better answer "+
-			"than this test describes — read the comment above and fix it here:\n%s",
-			out)
+			mustHaveDone(t, w, c.want...)
+			if strings.Contains(out, "ark graphics: done") {
+				t.Errorf("the routine reports that it finished, having been "+
+					"unable to press a key it was shown:\n%s", out)
+			}
+		})
 	}
+}
+
+// AND A KEY PRESSED SEVERAL TIMES IS EACH OF ITS PRESSES.
+//
+// `simplify` folds a run of the same key into one step with a count, and the generator wrote that
+// as a `repeat` block. A block cannot stop a routine — its body runs again after the thing that
+// did not happen — so a repeated key becomes one link per keystroke. The second of three is
+// refused here: the first happened, the third must not, and neither must the press after them.
+func TestARepeatedKeyIsEachOfItsPresses(t *testing.T) {
+	thrice := aKey("escape")
+	thrice.Count = 3
+
+	w := &watcher{refuseKey: 2}
+	_, out := performedBy(t, w, thrice, aMeasuredPress())
+
+	mustHaveDone(t, w, "Activate", "Key escape", "Key escape")
+	if strings.Contains(out, "ark graphics: done") {
+		t.Errorf("the routine reports that it finished:\n%s", out)
+	}
+}
+
+// AND ALL THREE HAPPEN WHEN THE MACHINE TAKES THEM.
+//
+// The control for the case above, without which it passes on a routine that presses the key once,
+// or never, and stops for some other reason.
+func TestARepeatedKeyPressesOncePerRepetition(t *testing.T) {
+	thrice := aKey("escape")
+	thrice.Count = 3
+
+	w := &watcher{}
+	performedBy(t, w, thrice, aMeasuredPress())
+
+	mustHaveDone(t, w, "Activate", "Key escape", "Key escape", "Key escape",
+		"Click 1", "Sleep")
 }

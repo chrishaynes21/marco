@@ -7555,13 +7555,66 @@ reports that it performed. Nothing notices, because the guard reads the window a
 the same window — while the menu the Escape was meant to close is still open. That is the shape
 the owner's own routine has. It is recorded as a known gap in
 [[ADR-251-a-press-checks-the-window-it-was-recorded-in]] and pinned by
-`TestAKeyThatDidNotHappenDoesNotStopTheRoutine`, which records what it does today and is meant to
-be the test that fails when somebody decides it. Making a key propagate is a change to that
-contract — keys would go in `Unpropagatable` and every key would become a link — so it is scoped
-separately and was not taken here.
+a test which recorded what it did then and was meant to be the one that failed when somebody
+decided it. Making a key propagate is a change to that contract — keys would go in
+`Unpropagatable` and every key would become a link — so it was scoped separately and not taken
+here.
+
+**It was decided immediately, and §38L below is the correction.** That test is gone, replaced by
+the cases that assert a keystroke stops everything after it; this section is kept as the record of
+how the gap was found, which was a mutation and not a live run.
 
 One mutation SURVIVED and is recorded as unfalsifiable rather than closed: every key flushed into
 the previous link's success instead of the next link's preamble. Those two places are the same
 instant, so a test telling them apart would hold a shape with no consequence. The first version of
 this file had exactly that test, with a comment claiming the refusing path would distinguish them.
 It does not, and the test was removed rather than kept as a passing assertion about nothing.
+
+## 38L — a keystroke that did not happen
+
+The gap §38K found, closed as a bounded correction: the accepted Escape → guarded-click sequence
+now stops if Escape cannot be delivered. Two lines of production code and a fixture's worth of
+tests at three levels.
+
+**A keystroke is a link.** Not because anything checks it — nothing measures a window for a key —
+but because it can fail to be DELIVERED, and what follows it then acts on a screen the key never
+changed. `propagating` now returns a guard for a key as well as for a press and the preparation,
+so each one gets its own capability and calls the next only inside its own success.
+
+**A repeated key is each of its presses.** `simplify` folds a run of the same key into one step
+with a count, before anything knows what the recording is for, and the generator wrote that as a
+`repeat` block — which cannot stop a routine, since its body runs again after the thing that did
+not happen. `keyByKey` expands the count back into one link per keystroke, for a chain only; a
+legacy route keeps its `repeat`. Refusing it at generation instead would have stopped a recording
+with a double-tap in it from saving at all, which nobody asked for.
+
+**And the failure is kept in the account.** `doKey` returned `ok(err)`: the status said failed and
+nothing was recorded, so the chain had no reason to stop and `Unperformed` — the list `marco do`
+turns into a failed command and Studio reads back as the reason — was empty. It is now wrapped in
+`delivered`, like every other input send, and says *the escape key did not happen: <what the
+machine said>*.
+
+**Three levels, because no one of them establishes it.** `internal/codegen` holds what the
+generator writes and what the runtime does with it, through a host that writes down what it was
+asked to do and refuses one nominated thing: a key that did not happen stops everything after it,
+whether it sits before the first press, between two, or after the last — with controls around it
+the machine takes, so what stopped the routine is the keystroke and not the arrangement.
+`internal/oshost` takes the owner's own shape through the production recorder, simplifier,
+generator, registry, compiler and the real `Host` with the backend rejecting the keystroke, and
+asserts the account keeps the machine's words. `cmd/marco` holds the command's answer, which is
+the wire Studio reads, and its legacy counterpart asserts the press after the key was still
+attempted — preserved behaviour, not merely the absence of an error.
+
+The gate is what separates those levels: not keeping the failure in the account is invisible to the
+generator's tests and fatal to the host's; the command no longer reading the account is invisible
+to both and fatal only at the command. Seven mutations, all killed, plus a no-op control.
+
+**Still not covered, and said so in the ADR**: typed text and held keys. `Type` is one step that
+can emit several sentences, so it is not one `do` to wrap, and what a partly typed line means is
+its own question; a hold is a pair, and making it propagate means deciding what the release owes a
+press that did not happen. Their failures stop nothing and are not in the account either, so a
+guarded routine whose typing was dropped carries on and reports that it performed — which is
+exactly what a keystroke did until this increment.
+
+The live trial stands for what it showed. It does not establish this: staging it means making the
+machine refuse one keystroke and take everything else.

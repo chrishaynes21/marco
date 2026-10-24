@@ -234,3 +234,155 @@ func (h *aHostThatWillNotDeliver) Unperformed() []string {
 	}
 	return []string{"a press at 842,274 did not happen: SendInput was blocked"}
 }
+
+// ── A KEYSTROKE THE MACHINE WOULD NOT TAKE ─────────────────────────────────────
+
+// aGuardedRoutineWithAKey is the shape codegen generates for the owner's own recording: Escape,
+// and then a press checked against the window it was made in. Each in its own capability, calling
+// the next only inside its own success — the keystroke included, because a key that was not
+// delivered leaves the screen it was meant to change, and the press after it was demonstrated
+// against the screen it would have changed to.
+const aGuardedRoutineWithAKey = `use os.
+
+the ARoutine is an actor.
+
+this can Run.
+this's Run does...
+    do OS's Activate with "` + anAbsentApplication + `"...
+        when ok?
+            do ARoutine's Step2.
+            this is that!
+        or?
+            this is that!
+
+this can Step2.
+this's Step2 does...
+    do OS's Key with "escape"...
+        when ok?
+            do ARoutine's Step3.
+            this is that!
+        or?
+            this is that!
+
+this can Step3.
+this's Step3 does...
+    the p1 is a Point with X 842, Y 274, RelX 722, RelY 210, RelTo "window", WinW 1920, WinH 1080, Dpi 144, Process "something.exe".
+    do OS's Click with p1...
+        when ok?
+            this is ok!
+        or?
+            this is that!
+
+the App is a script.
+
+do ARoutine's Run...
+    when ok?
+        log "a routine: done".
+    or?
+        log that's error.
+        log "a routine: stopped there — nothing after it was done".
+`
+
+// aLegacyRoutineThatPressesAKey is one block with a keystroke and a press, neither of which asked
+// to be checked against anything — a route saved before any of this existed.
+const aLegacyRoutineThatPressesAKey = `use os.
+
+the ARoutine is an actor.
+
+this can Run.
+this's Run does...
+    do OS's Key with "escape".
+    the p1 is a Point with X 842, Y 274.
+    do OS's Click with p1.
+    this is ok!
+
+the App is a script.
+
+do ARoutine's Run...
+    when ok?
+        log "a routine: done".
+    or?
+        log that's error.
+`
+
+// aHostThatWillNotTakeAKey answers every question and drops the keystroke, which is what an
+// elevated foreground window or a raw-input game looks like from here. It counts the presses it
+// was asked for separately, because what matters is that it was asked for NONE.
+type aHostThatWillNotTakeAKey struct{ keys, presses int }
+
+func (h *aHostThatWillNotTakeAKey) Invoke(c runtime.HostCall) (string, runtime.Value, error) {
+	switch {
+	case strings.EqualFold(c.Action, "key"):
+		h.keys++
+		return "failed", runtime.ErrVal(&runtime.Err{
+			Message: "SendInput was blocked"}), nil
+	case strings.EqualFold(c.Action, "click"), strings.EqualFold(c.Action, "move"):
+		h.presses++
+	}
+	return "ok", runtime.Absent(), nil
+}
+
+// Unperformed is what such a host reports, which is what the command reads. The sentence is the
+// one `oshost` builds for a keystroke it could not send.
+func (h *aHostThatWillNotTakeAKey) Unperformed() []string {
+	if h.keys == 0 {
+		return nil
+	}
+	return []string{"the escape key did not happen: SendInput was blocked"}
+}
+
+// A KEYSTROKE THE MACHINE WOULD NOT DELIVER IS A FAILED COMMAND.
+//
+// And the command is the only answer anything outside the process gets: Studio reads the
+// `[result]` line this produces and shows the reason beside the routine's name. A status alone
+// would not reach either of them — the chain stops on it, the root handler catches the failure,
+// the program ends tidily, and without the account the command reports success about a routine
+// that pressed nothing.
+func TestAKeyTheMachineRefusedFailsTheCommand(t *testing.T) {
+	reg, rt := aSavedRoute(t, aGuardedRoutineWithAKey)
+	machine := &aHostThatWillNotTakeAKey{}
+
+	d := orchestrator.Deps{Reg: reg, Out: &strings.Builder{},
+		Hosts: map[string]runtime.Host{"*": machine}}
+	err := runRoute(context.Background(), d, rt, nil, nil)
+
+	if err == nil {
+		t.Fatal("the command reported success about a keystroke the machine dropped")
+	}
+	if !strings.Contains(err.Error(), "SendInput was blocked") {
+		t.Errorf("the command says %q and does not keep what the machine said",
+			err.Error())
+	}
+	// AND NOTHING AFTER IT WAS ATTEMPTED, which is the half a status could not deliver.
+	if machine.presses != 0 {
+		t.Errorf("%d press(es) were attempted after the keystroke did not happen",
+			machine.presses)
+	}
+	if machine.keys != 1 {
+		t.Errorf("the machine was asked for %d keystroke(s), want 1", machine.keys)
+	}
+}
+
+// AND A LEGACY ROUTINE WHOSE KEYSTROKE FAILED STILL REPORTS WHAT IT ALWAYS DID.
+//
+// The same host, the same rejection, the other contract. A route saved before any of this was
+// saved under a rule that says the input is attempted and the run carries on. The account is
+// recorded for both and acted on for one, and this is the test that keeps that true for keys as
+// well as for presses.
+func TestALegacyRoutineWhoseKeyFailedReportsWhatItAlwaysDid(t *testing.T) {
+	reg, rt := aSavedRoute(t, aLegacyRoutineThatPressesAKey)
+	machine := &aHostThatWillNotTakeAKey{}
+
+	d := orchestrator.Deps{Reg: reg, Out: &strings.Builder{},
+		Hosts: map[string]runtime.Host{"*": machine}}
+	if err := runRoute(context.Background(), d, rt, nil, nil); err != nil {
+		t.Fatalf("a routine saved before any of this now fails where it used to "+
+			"carry on: %v", err)
+	}
+	// AND IT CARRIED ON, which is the behaviour being preserved rather than merely the
+	// absence of an error.
+	if machine.presses == 0 {
+		t.Error("the press after the keystroke was not attempted; a legacy routine " +
+			"attempts its input and carries on")
+	}
+}

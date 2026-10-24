@@ -84,8 +84,15 @@ var errTheMachineSaysNo = errors.New("SendInput was blocked")
 func (r *recBackend) key(_ context.Context, name string, hold time.Duration) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	// A KEYSTROKE IS AN INPUT SEND, so `refuseFrom` reaches it too. It did not used to,
+	// which is why nothing could put a key-delivery failure in a routine: the machine
+	// could refuse a press and never a keystroke, and the one gap this backend existed
+	// to make testable was the one it left out.
 	r.keys = append(r.keys, name)
 	r.keyHolds = append(r.keyHolds, hold)
+	if err := r.sending(); err != nil {
+		return err
+	}
 	return nil
 }
 func (r *recBackend) keyDown(_ context.Context, name string) error {
