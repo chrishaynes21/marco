@@ -7632,3 +7632,37 @@ GENERATION-CONTRACT version rather than the build that made it, because an older
 not establish that a routine needs updating. Studio would identify an affected contract, explain
 the difference, and offer an explicit re-save from the stored demonstration, with the review shown
 first. Nothing rewritten automatically.
+
+## 38M — what is left of the coordinate MVP (assessment, not work)
+
+A design-and-estimation pass, asked for because the brief that prompted it commissioned a bridge
+that already exists: Studio reuses the widget recorder through the orchestrator draft path, saves
+legal Marco through the production generator, and plays saved coordinate routines through
+`marco do`. [[Coordinate-MVP-assessment-2026-10-24]] is the whole of it. Nothing was implemented.
+
+The three findings worth carrying in the narrative:
+
+**The missing bridge is an account, not a recorder.** `Inspect` and `Report` already exist in
+Studio and work; they are keyed on a run reference that only the supervised performer produces, so
+they are unreachable for exactly the routines this MVP is about. `plugins/studio/history.go`'s own
+reader already carries a `routine` field that nothing writes. Lifting the record out of
+`cmd/director`'s main package and giving a routine's run one is 3 to 4 increments and is the
+spine of the remaining work; everything else is 2 to 4 more.
+
+**`MARCO_CV`/`MARCO_ANCHORS` are read into package variables at process start**, so Studio
+inherits whatever launched it for the life of the window — and with anchors on, a press whose
+cropped region is distinctive carries a template, which makes the whole guarded recording
+unsaveable at Save. The same demonstration therefore saves or is refused depending on an inherited
+setting and the pixels under the pointer. That is the gap between an engineering switch and an
+explicit saved capability.
+
+**A chord needs no new representation and already propagates**, since the keystroke rule is on
+`StepKey` and does not read the string. What it has is a defect: the modifier loop returns on the
+first rejected `sendKeyDown` without releasing the modifiers already pressed, and nothing tracks
+them, so a partly delivered `ctrl+shift+esc` can leave Ctrl held with the end-of-route unwind
+unable to help. Cancellation is already correct. Forced termination cannot be cleaned up and the
+assessment does not pretend otherwise.
+
+Also recorded there, because it is where existing data can be lost: `Registry.Save` is a plain
+`os.WriteFile`, so re-recording a routine under a name silently replaces the one saved under it —
+and re-recording is the action a repeatable MVP encourages.

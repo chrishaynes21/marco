@@ -69,6 +69,8 @@ that control, though a saved play still cannot say it (`cannot_say_pointer`, fol
 - [[Action-Graph]] — the source
 - [[Goals]] — where a learned procedure lands
 - [[Programs]] — unchanged by any of this
+- [[Coordinate-MVP-assessment-2026-10-24]] — what of the coordinate-first Studio path is built,
+  what remains, and the estimates for chords, typed text and holds. Assessment, not a commitment.
 
 ## Decisions
 
