@@ -562,7 +562,15 @@ func foldLoops(in []macroir.Step, opt Options) []macroir.Step {
 	i := 0
 	for i < len(in) {
 		p, reps, covered := bestRepeat(in, i, opt)
-		if p > 0 && reps >= opt.MinLoopReps {
+		// AND A PRESS THAT ASKED TO BE CHECKED IS NEVER FOLDED INTO A REPEAT.
+		//
+		// Each such press can REFUSE, and a refusal has to stop the routine — which
+		// the generated route says by giving every one of them its own capability that
+		// calls the next only when its own press went through. A `repeat` has no way
+		// to say that: the body would run again after a press that did not happen.
+		// Three identical presses written out three times is the honest reading of
+		// three presses that each have to be allowed.
+		if p > 0 && reps >= opt.MinLoopReps && !anyGuarded(in[i:i+p]) {
 			body := foldLoops(append([]macroir.Step(nil), in[i:i+p]...), opt)
 			out = append(out, macroir.Step{Kind: macroir.StepLoop, Count: reps, Steps: body})
 			i += covered
@@ -726,4 +734,21 @@ type pressedIn struct {
 func (p pressedIn) onto(s macroir.Step) macroir.Step {
 	s.RelTo, s.WinW, s.WinH, s.Dpi, s.Process = p.relTo, p.w, p.h, p.dpi, p.process
 	return s
+}
+
+// anyGuarded reports whether any of these steps asked to be checked against the window it was
+// recorded in, at any depth.
+//
+// The one question `foldLoops` asks before folding. Nested too, because a repeat inside a repeat
+// is still a body that would run again after a press that did not happen.
+func anyGuarded(steps []macroir.Step) bool {
+	for _, s := range steps {
+		if s.RelTo != "" {
+			return true
+		}
+		if len(s.Steps) > 0 && anyGuarded(s.Steps) {
+			return true
+		}
+	}
+	return false
 }

@@ -121,24 +121,35 @@ func savedFrom(t *testing.T, scope orchestrator.Scope, events []recorder.Recorde
 // to `this is ok!` and the play reports done having pressed nothing. That is the pre-existing
 // behaviour of every failing host call in a generated route and it is not this increment's to
 // change, but it is why the refusal has to be looked for where the refusal actually goes.
-func played(t *testing.T, at string) (*recBackend, string) {
+func played(t *testing.T, at string) (*recBackend, *Host, string) {
+	t.Helper()
+	// THE ORDINARY PREPARATION: Activate finds the game and binds its window.
+	return playedPreparing(t, at, func(string) (uintptr, error) {
+		return theGameWindow, nil
+	})
+}
+
+// playedPreparing is `played` with the preparation answering however a case needs it to, which is
+// the one thing that has to be able to fail before any press is reached.
+func playedPreparing(t *testing.T, at string, bind func(string) (uintptr, error)) (*recBackend, *Host, string) {
 	t.Helper()
 	onADesktopLike(t, steady(sameWindowMoved), "arkascended.exe")
 	wasBind, wasLog := bindWindow, mlog.Default
 	t.Cleanup(func() { bindWindow, mlog.Default = wasBind, wasLog })
 	// ACTIVATE SUCCEEDS AND BINDS THE GAME'S WINDOW, so a press is refused for the
 	// reason a test is about and not because nothing was ever prepared.
-	bindWindow = func(string) (uintptr, error) { return theGameWindow, nil }
+	bindWindow = bind
 	var said bytes.Buffer
 	mlog.Default = mlog.New(&said, mlog.LevelDebug)
 
 	rec := &recBackend{}
+	h := &Host{b: rec}
 	var out bytes.Buffer
-	err := driver.RunFileWithHosts(at, &out, map[string]runtime.Host{"*": &Host{b: rec}})
+	err := driver.RunFileWithHosts(at, &out, map[string]runtime.Host{"*": h})
 	if err != nil {
 		t.Fatalf("the saved route would not run at all: %v\n%s", err, out.String())
 	}
-	return rec, out.String() + "\n" + said.String()
+	return rec, h, out.String() + "\n" + said.String()
 }
 
 // A SAVED RECORDING WITH A FAILED MEASUREMENT PRESSES NOTHING, AND FALLS BACK TO NOTHING.
@@ -194,7 +205,7 @@ func TestASavedRecordingThatCouldNotBeMeasuredPressesNothing(t *testing.T) {
 			}
 
 			// ── AND PLAYING IT SENDS NOTHING ──
-			rec, out := played(t, at)
+			rec, _, out := played(t, at)
 			if len(rec.moves) != 0 || len(rec.clicks) != 0 {
 				t.Errorf("the route sent input: moves=%v clicks=%v\n%s",
 					rec.moves, rec.clicks, out)
@@ -223,7 +234,7 @@ func TestASavedRecordingThatWasMeasuredPressesInsideTheWindow(t *testing.T) {
 	_, at := savedFrom(t, orchestrator.ScopeAppAnywhere,
 		aPressThatFailedTo(func(*recorder.RecordedEvent) {}))
 
-	rec, out := played(t, at)
+	rec, _, out := played(t, at)
 	want := [2]int{sameWindowMoved.Left + 722, sameWindowMoved.Top + 210}
 	if len(rec.moves) != 1 || rec.moves[0] != want {
 		t.Fatalf("pressed at %v, want %v — the window's origin plus the "+
@@ -261,7 +272,7 @@ func TestAContextScopedRecordingHasNoWindowToCheckAgainst(t *testing.T) {
 				t.Fatalf("this scope brings a window forward after all, so "+
 					"this test is about nothing:\n%s", src)
 			}
-			rec, out := played(t, at)
+			rec, _, out := played(t, at)
 			if len(rec.moves) != 0 || len(rec.clicks) != 0 {
 				t.Errorf("input was sent with no window bound: moves=%v "+
 					"clicks=%v\n%s", rec.moves, rec.clicks, out)

@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/macroir"
+	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
 	"github.com/chaynes-simpleclouds/marco/internal/recorder"
 	"github.com/chaynes-simpleclouds/marco/internal/winctx"
 )
@@ -774,7 +775,9 @@ func reviewOf(t *testing.T, lose func(*recorder.RecordedEvent)) Recording {
 		T: at(100), WinRel: true, RelX: 722, RelY: 210,
 		RelTo: macroir.RelToWindow, WinW: 1920, WinH: 1080, Dpi: 144,
 		Process: "arkascended.exe"}
-	lose(&press)
+	if lose != nil {
+		lose(&press)
+	}
 	a.recording = func() recorder.Recorder {
 		return &heldRecorder{events: []recorder.RecordedEvent{
 			{Kind: recorder.EvAppSwitch, KeyName: "arkascended", T: at(0)},
@@ -790,4 +793,180 @@ func reviewOf(t *testing.T, lose func(*recorder.RecordedEvent)) Recording {
 		t.Fatal(why)
 	}
 	return a.Recording()
+}
+
+// A GUARDED RECORDING IS SAVED TO BRING ITS APPLICATION FORWARD, AND THE CHOICE IS WITHDRAWN.
+//
+// Not defaulted — withdrawn. Two of the three scopes promise to switch nothing, so their routes
+// carry no Activate, nothing binds a window, and every press that asked to be checked against
+// one refuses. Offering them would be offering two ways to save a routine that cannot press
+// anything, and a select with one real option is worse than a sentence.
+func TestAGuardedRecordingIsSavedToBringItsApplicationForward(t *testing.T) {
+	r := reviewOf(t, nil)
+
+	if r.Scope != "app-anywhere" {
+		t.Errorf("review says the scope is %q", r.Scope)
+	}
+	if !strings.Contains(r.Brings, "arkascended") ||
+		!strings.Contains(r.Brings, "brings it forward") {
+		t.Errorf("review says %q, and a person has to be told that Marco brings "+
+			"the application forward before playback", r.Brings)
+	}
+}
+
+// AND A RECORDING THAT ASKED TO BE CHECKED AGAINST NOTHING KEEPS ALL THREE.
+//
+// The half that keeps this confined. A routine whose presses are the two numbers they always
+// were is saved under the contract it always was, and where it works is still the person's to
+// say.
+func TestALegacyRecordingKeepsTheChoice(t *testing.T) {
+	r := reviewOf(t, func(e *recorder.RecordedEvent) {
+		e.RelTo, e.WinW, e.WinH, e.Dpi, e.Process = "", 0, 0, 0, ""
+	})
+
+	if r.Scope != "" || r.Brings != "" {
+		t.Errorf("a recording that checks no window had its scope decided for "+
+			"it: %q / %q", r.Scope, r.Brings)
+	}
+}
+
+// AND SAVING ONE UNDER A SCOPE ITS PRESSES CANNOT BE PERFORMED UNDER IS REFUSED.
+//
+// Refused and explained, never silently rewritten: quietly saving it as something else would be
+// this window deciding where somebody's routine works, and saving it as asked would write a
+// routine that refuses every press. Nothing reaches disk either way.
+func TestSavingAGuardedRecordingUnderAnImpossibleScopeIsRefused(t *testing.T) {
+	for _, scope := range []string{"app", "everywhere"} {
+		t.Run(scope, func(t *testing.T) {
+			dir := t.TempDir()
+			t.Setenv("MARCO_CV", "off")
+			t.Setenv("MARCO_ROUTES", dir)
+			a := recorded(t, nil)
+
+			why := a.SaveDraft(scope, "arkascended")
+			if why == "" {
+				t.Fatal("it was saved under a scope that brings no window " +
+					"forward, so every press in it will refuse")
+			}
+			for _, want := range []string{"checks the window it was made in",
+				"nothing for those presses", "bringing it forward"} {
+				if !strings.Contains(why, want) {
+					t.Errorf("the refusal says %q and does not mention "+
+						"%q", why, want)
+				}
+			}
+			if a.Recording().Saved != "" {
+				t.Error("something was written anyway")
+			}
+			// AND THE SCOPE IT NEEDS IS STILL ACCEPTED AFTERWARDS, because a
+			// refusal is a question asked again and not a dead end.
+			if why := a.SaveDraft("app-anywhere", "arkascended"); why != "" {
+				t.Errorf("the scope it asked for was then refused: %s", why)
+			}
+		})
+	}
+}
+
+// AND A ROUTINE ALREADY SAVED THAT CANNOT PRESS ANYTHING IS LISTED, AND SAVED AGAIN ON ASKING.
+//
+// The guarded contract arrived before the rule above it, so a routine saved in between is on disk
+// now: it reads like a routine and refuses every press, and the only thing that says so at run
+// time is the refusal itself, one press at a time. Its own demonstration is stored beside it, so
+// saving it again needs nobody to re-demonstrate anything — and it is done on asking, by name,
+// because a routine that rescoped itself quietly is the thing Save refuses to do.
+func TestARoutineThatCannotPressAnythingIsListedAndSavedAgain(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("MARCO_CV", "off")
+	t.Setenv("MARCO_ROUTES", dir)
+	a := recorded(t, nil)
+
+	// SAVED THE WAY THE OLD RULE ALLOWED: through the backend, under the context
+	// scope, which is exactly the state on disk this exists for.
+	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}
+	dr := a.capture.draft
+	if _, err := d.Save(dr, orchestrator.ScopeApp, "arkascended"); err != nil {
+		t.Fatal(err)
+	}
+
+	listed := a.Unrunnable()
+	if len(listed) != 1 || !strings.EqualFold(listed[0].Name, "ark graphics") {
+		t.Fatalf("the routine is not listed as unable to press anything: %+v",
+			listed)
+	}
+	if !listed[0].Resavable {
+		t.Fatal("its demonstration was not kept, so it cannot be saved again")
+	}
+
+	if why := a.Resave("ark graphics"); why != "" {
+		t.Fatalf("saving it again was refused: %s", why)
+	}
+	if left := a.Unrunnable(); len(left) != 0 {
+		t.Errorf("it is still listed as unable to press anything: %+v", left)
+	}
+	// AND WHAT IS ON DISK NOW BRINGS THE APPLICATION FORWARD, which is the whole
+	// point: its presses have a window to be checked against.
+	saved := ""
+	for _, rt := range a.reg().List() {
+		if rt.Slug == "ark-graphics" {
+			raw, err := os.ReadFile(a.reg().Path(rt))
+			if err != nil {
+				t.Fatal(err)
+			}
+			saved = string(raw)
+		}
+	}
+	if saved == "" {
+		t.Fatal("nothing called ark-graphics is on disk")
+	}
+	if !strings.Contains(saved, `do OS's Activate with "arkascended"`) {
+		t.Errorf("the routine saved again still brings no window forward:\n%s",
+			saved)
+	}
+	if !strings.Contains(saved, `RelTo "window"`) {
+		t.Errorf("it lost what its presses are checked against:\n%s", saved)
+	}
+	// AND THERE IS ONE OF IT. Two routines of the same name, one of which cannot press
+	// anything, is worse than the one that could not.
+	if n := strings.Count(strings.Join(slugsIn(a), "|"), "ark-graphics"); n != 1 {
+		t.Errorf("there are %d copies of it on disk", n)
+	}
+}
+
+// slugsIn is every route slug on disk.
+func slugsIn(a *Acts) []string {
+	var out []string
+	for _, rt := range a.reg().List() {
+		out = append(out, rt.Slug)
+	}
+	return out
+}
+
+// recorded is a window that has just stopped a recording of one fully measured press, with
+// `lose` applied to it.
+func recorded(t *testing.T, lose func(*recorder.RecordedEvent)) *Acts {
+	t.Helper()
+	a := newActs(t.TempDir())
+	press := recorder.RecordedEvent{Kind: recorder.EvClick, Button: "left",
+		Down: true, X: 842, Y: 274, App: "arkascended", PID: gamePID,
+		T: at(100), WinRel: true, RelX: 722, RelY: 210,
+		RelTo: macroir.RelToWindow, WinW: 1920, WinH: 1080, Dpi: 144,
+		Process: "arkascended.exe"}
+	if lose != nil {
+		lose(&press)
+	}
+	a.recording = func() recorder.Recorder {
+		return &heldRecorder{events: []recorder.RecordedEvent{
+			{Kind: recorder.EvAppSwitch, KeyName: "arkascended", T: at(0)},
+			press,
+			{Kind: recorder.EvClick, Button: "left", Down: false, X: 842,
+				Y: 274, App: "arkascended", PID: gamePID, T: at(105)},
+		}}
+	}
+	if why := a.StartRecording("ark graphics"); why != "" {
+		t.Fatal(why)
+	}
+	if why := a.StopRecording(); why != "" {
+		t.Fatal(why)
+	}
+	return a
 }

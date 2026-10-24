@@ -404,13 +404,30 @@
     <div class="no hide" style="margin-top:6px" id="capMissing"></div>
     <div class="muted" style="margin-top:6px" id="capWhere"></div>
     <ol id="capSteps" class="muted" style="margin-top:10px"></ol>
-    <div class="row" style="margin-top:10px"><label style="width:7em">it works</label>
+    <!-- HOW IT WILL BE PERFORMED, when that is not a choice. See pollCapture. -->
+    <div class="muted hide" style="margin-top:10px" id="capBrings"></div>
+    <div class="row hide" style="margin-top:10px" id="capScopeRow">
+      <label style="width:7em">it works</label>
       <select id="capScope"></select></div>
     <div class="row" style="margin-top:10px">
       <button class="go" id="capSaveBtn" onclick="saveCapture()">Save</button>
       <button class="stop" onclick="cancelCapture()">Cancel</button>
       <span class="muted" id="capSaveNote"></span>
     </div>
+  </div>
+
+  <!-- ROUTINES THAT CANNOT PRESS ANYTHING, AND THE ONE THING TO DO ABOUT THEM.
+       Saved before the rule that a recording whose presses check their window is saved to
+       bring that window forward. They read like routines and refuse every press. Hidden
+       entirely when there are none, which is the ordinary case. -->
+  <div class="card hide" id="repairCard">
+    <div class="no">Some saved routines cannot press anything.</div>
+    <div class="muted" style="margin-top:6px">Their presses check the window they were
+      made in, and they were saved to switch nothing — so there is no window for those
+      presses to be checked against. Saving one again from its own demonstration fixes
+      it; nothing is re-recorded and nothing is rescoped behind your back.</div>
+    <ul id="repairList" style="margin-top:10px"></ul>
+    <div class="muted" id="repairNote"></div>
   </div>
 
   <h2>Learn a Scene</h2>
@@ -715,7 +732,7 @@
  ready(() => {
    acts = window.go.main.Acts
    paintLive(); show('acts'); loadActs(); loadDemos(); loadHistory(); loadApps()
-   poll(); pollLearning(); pollCapture()
+   poll(); pollLearning(); pollCapture(); pollRepairs()
    // THE PAGE REPORTS ITSELF, LAST. A `-H windowsgui` binary has no console, so this
    // callback is the only evidence that the window opened, WebView2 came up, the embedded
    // asset was served, this script ran, and the Go bindings are reachable from it.
@@ -1226,9 +1243,18 @@
        li.textContent = s
        list.appendChild(li)
      })
-     // AND WHERE IT SHOULD WORK, ASKED RATHER THAN GUESSED. The three choices are the
-     // backend's own words; the sentences beside them are what they mean.
+     // AND WHERE IT SHOULD WORK, ASKED RATHER THAN GUESSED — EXCEPT WHEN IT IS NOT A
+     // QUESTION.
+     //
+     // A recording whose presses check the window they were made in needs that window
+     // brought forward, so two of the three choices would save a routine that refuses
+     // every press. The backend says which scope it is and how to put it; the select
+     // is withdrawn rather than silently fixed, because a control that looks like a
+     // choice and has one option is worse than a sentence.
      const app = r.application || 'that application'
+     showing($('capBrings'), !!r.brings)
+     showing($('capScopeRow'), !r.brings)
+     text($('capBrings'), r.brings || '')
      const scope = $('capScope')
      const had = scope.value
      scope.innerHTML = ''
@@ -1239,11 +1265,51 @@
        o.value = v; o.textContent = says
        scope.appendChild(o)
      })
-     scope.value = had || 'app'
+     scope.value = r.scope || had || 'app'
      // AND SAVE IS NOT OFFERED FOR A RECORDING THAT PRESSES NOTHING. There is nothing
      // to keep, and the sentence above says so.
      $('capSaveBtn').disabled = !r.pressable
    }).finally(() => setTimeout(pollCapture, 400))
+ }
+
+ // THE ROUTINES THAT CANNOT PRESS ANYTHING, AND SAVING ONE AGAIN.
+ //
+ // Polled with everything else rather than listed once at startup, because saving one
+ // again removes it from this list and the list is how somebody sees that it worked.
+ function pollRepairs(){
+   acts.Unrunnable().then(rs => {
+     const list = $('repairList')
+     showing($('repairCard'), (rs || []).length > 0)
+     list.innerHTML = ''
+     ;(rs || []).forEach(r => {
+       const li = document.createElement('li')
+       li.textContent = r.name + (r.app ? ' · ' + r.app : '') + ' '
+       if (r.resavable) {
+         const b = document.createElement('button')
+         b.className = 'go'
+         b.textContent = 'Save it again'
+         b.onclick = () => resave(r.name)
+         li.appendChild(b)
+       } else {
+         // ITS DEMONSTRATION IS GONE, so there is nothing to save again from and
+         // the only thing left is to record it. Said rather than offering a
+         // button that cannot work.
+         const s = document.createElement('span')
+         s.className = 'muted'
+         s.textContent = 'its demonstration is gone — record it again'
+         li.appendChild(s)
+       }
+       list.appendChild(li)
+     })
+   }).finally(() => setTimeout(pollRepairs, 2000))
+ }
+
+ function resave(name){
+   text($('repairNote'), 'saving “' + name + '” again…')
+   acts.Resave(name).then(why => {
+     text($('repairNote'), why || 'saved again — it brings its application forward now')
+     $('repairNote').className = why ? 'no' : 'ok'
+   })
  }
 
  // THE RECORDING, POLLED. Its own poll because it is its own lifecycle: a recording is not

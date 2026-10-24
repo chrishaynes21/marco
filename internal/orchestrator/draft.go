@@ -42,6 +42,8 @@ package orchestrator
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"strings"
 
 	"github.com/chaynes-simpleclouds/marco/internal/codegen"
 	"github.com/chaynes-simpleclouds/marco/internal/macroir"
@@ -349,4 +351,136 @@ func withoutRedundantReturns(events []recorder.RecordedEvent) []recorder.Recorde
 		out = append(out, e)
 	}
 	return out
+}
+
+// ScopeFor is the only scope a draft can honestly be saved under, or "" when the choice is still
+// the person's.
+//
+// A press that asked to be checked against the window it was made in needs that window brought
+// forward, and `ScopeApp` and `ScopeEverywhere` both promise to switch nothing: their routes
+// carry no `Activate`, so nothing binds a window and every such press refuses. The choice is
+// therefore not a choice, and saying so is better than offering three options two of which
+// produce a routine that cannot press anything.
+//
+// A draft with no guarded press keeps all three, because it is saved under the contract it always
+// was.
+func ScopeFor(dr *Draft) Scope {
+	if dr == nil || !guarded(dr.Steps) {
+		return ""
+	}
+	return ScopeAppAnywhere
+}
+
+// guarded reports whether any step asked to be checked against the window it was recorded in.
+func guarded(steps []macroir.Step) bool {
+	for _, s := range steps {
+		if s.RelTo != "" {
+			return true
+		}
+		if len(s.Steps) > 0 && guarded(s.Steps) {
+			return true
+		}
+	}
+	return false
+}
+
+// Unrunnable is a SAVED routine whose presses ask to be checked against the window they were made
+// in, under a scope that brings no window forward — so every one of them refuses.
+//
+// It exists because the guarded contract arrived before this rule did: a routine saved in between
+// is on disk now, reads as a routine, and cannot press anything. Nothing detects that at run
+// time except the refusal itself, one press at a time, which is a person watching a routine do
+// nothing and being told why four times.
+type Unrunnable struct {
+	Route routes.Route
+	// Name is what it was called, as the route itself records it.
+	Name string
+	// Resavable says its own demonstration is still stored beside it, so it can be saved
+	// again under the scope its presses need without anybody re-demonstrating anything.
+	Resavable bool
+}
+
+// Unrunnable lists the saved routines in that state.
+func (d Deps) Unrunnable() []Unrunnable {
+	var out []Unrunnable
+	for _, rt := range d.Reg.List() {
+		if rt.Focus {
+			continue // brings its application forward, so its presses have a window
+		}
+		raw, err := os.ReadFile(d.Reg.Path(rt))
+		if err != nil || !strings.Contains(string(raw), `RelTo "`) {
+			continue
+		}
+		out = append(out, Unrunnable{Route: rt, Name: nameIn(string(raw), rt.Slug),
+			Resavable: d.Reg.HasRecording(rt)})
+	}
+	return out
+}
+
+// Resave writes one of them again under the scope its presses need, from its own demonstration.
+//
+// The demonstration is re-simplified rather than the source rewritten, because the source is
+// generated and rewriting generated Marco by hand is how two things that have to agree stop
+// agreeing. The old file is removed only once the new one is written.
+func (d Deps) Resave(u Unrunnable) (routes.Route, error) {
+	if !u.Resavable {
+		return routes.Route{}, fmt.Errorf("%q no longer has the demonstration it "+
+			"was made from, so it cannot be saved again — record it again",
+			u.Name)
+	}
+	raw, ok := d.Reg.LoadRecording(u.Route)
+	if !ok {
+		return routes.Route{}, fmt.Errorf("%q no longer has the demonstration it "+
+			"was made from, so it cannot be saved again — record it again",
+			u.Name)
+	}
+	var events []recorder.RecordedEvent
+	if err := json.Unmarshal(raw, &events); err != nil {
+		return routes.Route{}, fmt.Errorf("%q: its demonstration could not be "+
+			"read back: %w", u.Name, err)
+	}
+	name, argNames := routes.SplitArgs(u.Name)
+	opts := d.learnOptions()
+	opts.ArgNames = argNames
+	dr := &Draft{Name: name, Args: argNames,
+		Steps: simplify.Simplify(events, opts), Events: events,
+		App: u.Route.App, StoppedBy: "a repair"}
+	app := u.Route.App
+	if app == "" {
+		app = firstActivateApp(dr.Steps)
+	}
+	rt, err := d.Save(dr, ScopeAppAnywhere, app)
+	if err != nil {
+		return rt, err
+	}
+	if rt != u.Route {
+		// THE OLD ONE GOES, AND ONLY NOW. Two routines of the same name, one of
+		// which cannot press anything, is worse than the one that could not.
+		if err := d.Reg.Delete(u.Route); err != nil {
+			mlog.Error("resave: the old routine is still there", "route",
+				u.Route.Slug, "err", err)
+		}
+	}
+	mlog.Info("resave: saved again so its presses have a window", "route", name,
+		"was", string(ScopeApp), "now", string(ScopeAppAnywhere))
+	return rt, nil
+}
+
+// nameIn recovers what a generated route was called, from the line codegen writes at the top of
+// it, falling back to the slug with its dashes read as spaces.
+//
+// The header is the only record of the name: `routes.Route` carries a slug, and a slug has lost
+// the spaces. The fallback is honest rather than exact — "ark-graphics" instead of "ark
+// graphics" — and it only decides what the regenerated file calls itself.
+func nameIn(src, slug string) string {
+	const opens = "marco learn \""
+	i := strings.Index(src, opens)
+	if i < 0 {
+		return strings.ReplaceAll(slug, "-", " ")
+	}
+	rest := src[i+len(opens):]
+	if j := strings.Index(rest, "\""); j >= 0 && j > 0 {
+		return rest[:j]
+	}
+	return strings.ReplaceAll(slug, "-", " ")
 }

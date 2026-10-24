@@ -103,6 +103,7 @@ window.go = {main: {
     // The page polls it from its own startup, and an undefined method throws there —
     // which would take the rest of the page setup with it. See recording.go.
     Recording: () => Promise.resolve({active: false}),
+    Unrunnable: () => Promise.resolve([]),
     Learning: () => Promise.resolve({name: 'trackmania video', application: 'trackmania',
       active: false, over: true, phase: 'ended', learned: D,
       said: 'Saved "trackmania video".', next: 'Build an Act from it.'}),
@@ -215,6 +216,7 @@ window.go = {main: {
     Picture: () => { window.__pic++; return Promise.resolve(PNG) },
     Learning: () => Promise.resolve({active: false}),
     Recording: () => Promise.resolve({active: false}),
+    Unrunnable: () => Promise.resolve([]),
     Watch: () => { tick++
       return Promise.resolve({act: 'video act', live: true, reference: 'run-x',
         active: true, transcript: ['authorised by a press of Play'],
@@ -348,6 +350,7 @@ window.go = {main: {
     Learning: () => Promise.resolve({active: false}),
     Watch: () => Promise.resolve({act: '', active: false, transcript: null}),
     // A DRAFT IN REVIEW: stopped by the button, nothing on disk, two clicks and a wait.
+    Unrunnable: () => Promise.resolve([]),
     Recording: () => Promise.resolve({name: 'ark graphics', active: false, review: true,
       application: 'arkascended', stopped_by: 'the Stop button', pressable: 2,
       stop_key: 'F12',

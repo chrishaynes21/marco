@@ -114,6 +114,20 @@ type Recording struct {
 	// Missing is that in words: how much of the recording cannot be checked, which
 	// measurements are absent, and whether recording it again would change that.
 	Missing string `json:"missing,omitempty"`
+	// Scope is the one scope this recording can be saved under, when the choice is not
+	// the person's, and Brings is how to say it: "Runs in Ark. Marco brings it forward
+	// before playback."
+	//
+	// # Why a choice is withdrawn rather than defaulted
+	//
+	// A press that asked to be checked against the window it was made in needs that
+	// window brought forward, and two of the three scopes promise to switch nothing —
+	// their routes carry no Activate, so nothing binds a window and every press
+	// refuses. Offering them would be offering two ways to save a routine that cannot
+	// press anything. Empty for a recording with no guarded press, which keeps all
+	// three.
+	Scope  string `json:"scope,omitempty"`
+	Brings string `json:"brings,omitempty"`
 }
 
 // StartRecording begins a recorder-first capture under `name`.
@@ -306,6 +320,23 @@ func (a *Acts) SaveDraft(scope, app string) string {
 	if why != "" {
 		return why
 	}
+	// ── AND A SCOPE ITS PRESSES CANNOT BE PERFORMED UNDER IS REFUSED, NOT REWRITTEN ──
+	//
+	// Quietly saving it as something else would be this window deciding where somebody's
+	// routine works — the thing `wantedScope` exists to prevent — and saving it as asked
+	// would write a routine that refuses every press. So it says which scope it needs
+	// and why, and the person asks again.
+	if only := orchestrator.ScopeFor(dr); only != "" && want != only {
+		where := dr.App
+		if where == "" {
+			where = "the application it was recorded in"
+		}
+		return fmt.Sprintf("every press in this recording checks the window it was "+
+			"made in, and %q brings no window forward — so there would be "+
+			"nothing for those presses to be checked against and every one of "+
+			"them would refuse. Save it to run in %s with Marco bringing it "+
+			"forward.", want, where)
+	}
 	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}
 	rt, err := d.Save(dr, want, strings.TrimSpace(app))
 	if err != nil {
@@ -390,6 +421,16 @@ func (a *Acts) Recording() Recording {
 	// point of a review is that the person decides knowing this.
 	if why := whyItWillNotRun(dr.Steps); why != "" {
 		out.Incomplete, out.Missing = true, why
+	}
+	// AND HOW IT WILL BE PERFORMED, when that is not a choice. See Recording.Scope.
+	if only := orchestrator.ScopeFor(dr); only != "" {
+		out.Scope = string(only)
+		where := dr.App
+		if where == "" {
+			where = "the application it was recorded in"
+		}
+		out.Brings = fmt.Sprintf("Runs in %s. Marco brings it forward before "+
+			"playback.", where)
 	}
 	if saved != "" {
 		out.Said = fmt.Sprintf("Saved %q — %s", c.name, saved)
@@ -627,3 +668,57 @@ func andAll(of []string) string {
 // checked it: telling somebody to demonstrate it again when nothing about demonstrating it again
 // can change the answer.
 var canReadWindowScale = winctx.CanReadWindowScale
+
+// Unrunnable is what the page shows about a saved routine whose presses can never be checked.
+type Unrunnable struct {
+	Name      string `json:"name"`
+	App       string `json:"app,omitempty"`
+	Resavable bool   `json:"resavable,omitempty"`
+}
+
+// Unrunnable lists the saved routines whose presses ask to be checked against the window they
+// were made in, under a scope that brings no window forward.
+//
+// They exist because the guarded contract arrived before the rule that a guarded recording is
+// saved to bring its application forward. A routine saved in between is on disk, reads like a
+// routine, and cannot press anything — and the only thing that says so at run time is the
+// refusal itself, one press at a time, which is a person watching a routine do nothing while
+// being told why four times.
+func (a *Acts) Unrunnable() []Unrunnable {
+	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}
+	var out []Unrunnable
+	for _, u := range d.Unrunnable() {
+		out = append(out, Unrunnable{Name: u.Name, App: u.Route.App,
+			Resavable: u.Resavable})
+	}
+	return out
+}
+
+// Resave writes one of them again from its own demonstration, under the scope its presses need.
+//
+// Explicit, and named for what it does: nothing repairs itself behind somebody's back, and a
+// routine quietly rescoped is the thing `wantedScope` refuses to do at Save.
+func (a *Acts) Resave(name string) string {
+	a.mu.Lock()
+	recording := a.recordingLocked()
+	a.mu.Unlock()
+	if recording {
+		return "Marco is recording a demonstration; one thing at a time"
+	}
+	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}
+	for _, u := range d.Unrunnable() {
+		if !strings.EqualFold(u.Name, name) {
+			continue
+		}
+		rt, err := d.Resave(u)
+		if err != nil {
+			return err.Error()
+		}
+		a.trial.recorded(u.Name, fmt.Sprintf("Saved %q again so its presses have "+
+			"a window to be checked against: it now brings %s forward before "+
+			"playback — %s", u.Name, rt.App, a.reg().Path(rt)),
+			"Run it.", false, Pictured{})
+		return ""
+	}
+	return fmt.Sprintf("there is no routine called %q that needs saving again", name)
+}

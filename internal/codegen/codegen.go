@@ -72,9 +72,35 @@ func Route(name, app string, steps []macroir.Step, assetDir string, declaredArgs
 		declared[strings.ToLower(a)] = true
 	}
 	g := &gen{pts: &points{}, assetDir: assetDir, base: fileBase(name), assets: map[string][]byte{}, declared: declared}
-	body, err := emit(steps, g, 1)
+	// ── TWO SHAPES, AND WHICH ONE IS DECIDED HERE ──
+	//
+	// A route with a press that asked to be checked against its window is a CHAIN, so a
+	// refusal stops it. Every other route is the one block it always was. Deciding it
+	// here, before anything is written, is what keeps the second promise: a route saved
+	// before any of this existed is generated exactly as it was.
+	chained := guardsAnything(steps)
+	var body, tail string
+	var links []link
+	if chained {
+		// THE PREPARATION IS PART OF THE CHAIN. `Activate` is what binds the window
+		// each press is then checked against, so a routine whose application never
+		// came forward has nothing to press in and must not try. It becomes the
+		// first link rather than a line above the body.
+		prepared := steps
+		if app != "" && !(len(steps) > 0 && steps[0].Kind == macroir.StepActivate) {
+			prepared = append([]macroir.Step{{Kind: macroir.StepActivate, Text: app}},
+				steps...)
+		}
+		links, tail, err = chainOf(prepared, g)
+	} else {
+		body, err = emit(steps, g, 1)
+	}
 	if err != nil {
 		return "", nil, err
+	}
+	// The trailing settle wait lives at the end of whichever shape this is; see below.
+	if n := len(steps); n > 0 && steps[n-1].Kind != macroir.StepWait {
+		tail += fmt.Sprintf("do OS's Sleep with %d.\n", DefaultEndWaitMs)
 	}
 
 	var b strings.Builder
@@ -126,27 +152,32 @@ func Route(name, app string, steps []macroir.Step, assetDir string, declaredArgs
 		b.WriteString("this's Timeout is a number.  // ms to wait for it to appear\n\n")
 	}
 	fmt.Fprintf(&b, "the %s is an actor.\n\n", actor)
-	b.WriteString("this can Run.\n")
-	b.WriteString("this's Run does...\n")
+	if chained {
+		b.WriteString(chainNote)
+		writeChain(&b, actor, links, tail)
+	} else {
+		b.WriteString("this can Run.\n")
+		b.WriteString("this's Run does...\n")
 
-	// Point locals are declared at the top of the action body, then the steps.
-	for _, decl := range g.pts.decls {
-		fmt.Fprintf(&b, "%s%s\n", indent(1), decl)
+		// Point locals are declared at the top of the action body, then the steps.
+		for _, decl := range g.pts.decls {
+			fmt.Fprintf(&b, "%s%s\n", indent(1), decl)
+		}
+		// Context-aware: focus the app the route was recorded in (no-op if already
+		// in front). A failure floats to the route's contract and is handled at the
+		// call site. Skipped when the steps already lead with their own Activate
+		// (the recorder detected the app switches), to avoid focusing twice.
+		if app != "" && !(len(steps) > 0 && steps[0].Kind == macroir.StepActivate) {
+			fmt.Fprintf(&b, "%sdo OS's Activate with \"%s\".\n", indent(1),
+				escape(app))
+		}
+		b.WriteString(body)
+		// Trailing settle wait so the final action registers before the run ends
+		// (see DefaultEndWaitMs). Skipped for an empty body or one that already
+		// ends on a wait.
+		b.WriteString(shift(tail, 1))
+		fmt.Fprintf(&b, "%sthis is ok!\n\n", indent(1))
 	}
-	// Context-aware: focus the app the route was recorded in (no-op if already in
-	// front). A failure floats to the route's contract and is handled at the
-	// call site. Skipped when the steps already lead with their own Activate
-	// (the recorder detected the app switches), to avoid focusing twice.
-	if app != "" && !(len(steps) > 0 && steps[0].Kind == macroir.StepActivate) {
-		fmt.Fprintf(&b, "%sdo OS's Activate with \"%s\".\n", indent(1), escape(app))
-	}
-	b.WriteString(body)
-	// Trailing settle wait so the final action registers before the run ends (see
-	// DefaultEndWaitMs). Skipped for an empty body or one that already ends on a wait.
-	if n := len(steps); n > 0 && steps[n-1].Kind != macroir.StepWait {
-		fmt.Fprintf(&b, "%sdo OS's Sleep with %d.\n", indent(1), DefaultEndWaitMs)
-	}
-	fmt.Fprintf(&b, "%sthis is ok!\n\n", indent(1))
 
 	fmt.Fprintf(&b, "the App is a script.\n\n")
 	fmt.Fprintf(&b, "do %s's Run...\n", actor)
@@ -154,6 +185,15 @@ func Route(name, app string, steps []macroir.Step, assetDir string, declaredArgs
 	fmt.Fprintf(&b, "%slog \"%s: done\".\n", indent(2), escape(name))
 	fmt.Fprintf(&b, "%sor?\n", indent(1))
 	fmt.Fprintf(&b, "%slog that's error.\n", indent(2))
+	if chained {
+		// AND WHAT THAT MEANT, SAID PLAINLY. The sentence above is the host's, about
+		// one press; this one is about the routine, which stopped where that press
+		// was refused and did nothing after it. The run's own answer is not a log
+		// line — see `oshost.Host.Refused` and `runRoute` — but a person reading the
+		// output should not have to work it out from a refusal and a silence.
+		fmt.Fprintf(&b, "%slog \"%s: stopped there — nothing after it was done\".\n",
+			indent(2), escape(name))
+	}
 	if len(g.assets) == 0 {
 		g.assets = nil
 	}
@@ -624,4 +664,185 @@ func upper(r rune) rune {
 		return r - 32
 	}
 	return r
+}
+
+// ── A GUARDED ROUTE IS A CHAIN, NOT A BLOCK ──
+//
+// A press that checks the window it was recorded in can REFUSE, and a refusal has to stop the
+// routine: the next press of a sequence means nothing once the one before it did not happen, and
+// a routine that pressed on regardless would be doing the thing the check exists to prevent one
+// step later.
+//
+// Marco's way of saying that is the one `testdata/macro_ark_transfer` uses: a `do` whose two arms
+// both END, with the rest of the work inside the one that succeeded. Written as a single block
+// that is one indent level per press, which at thirty presses is a route nobody can read — so
+// each propagating action gets its own capability and calls the next only when its own action
+// went through. `Run` is the first link, so `do <Actor>'s Run` still performs the routine.
+//
+// It is NOT the shape of a route with no guarded press. Those are generated exactly as they
+// always were, because they were saved under a contract that says a click is attempted and the
+// run carries on.
+
+// chainNote is what a person reading the generated file is told about its shape.
+const chainNote = "" +
+	"// Each press checks the window it was recorded in before it happens, and a press that\n" +
+	"// cannot be checked stops the routine — so the steps are written one at a time, each\n" +
+	"// calling the next only when its own press went through. Nothing after a refusal runs.\n"
+
+// link is one capability of a guarded route's chain: what runs before its propagating action,
+// that action, and what belongs with it once it has gone through.
+type link struct {
+	decls  []string
+	before string // relative-indented, runs before the action
+	guard  string // the sentence after `do `, e.g. `OS's Click with p1`
+	follow string // relative-indented, belongs with the action once it succeeded
+}
+
+// guardsAnything reports whether any step asked to be checked against the window it was recorded
+// in. It is the only thing that turns a route into a chain.
+func guardsAnything(steps []macroir.Step) bool {
+	for _, s := range steps {
+		if guardedStep(s) {
+			return true
+		}
+		if len(s.Steps) > 0 && guardsAnything(s.Steps) {
+			return true
+		}
+	}
+	return false
+}
+
+// guardedStep is a press carrying the window it was recorded in, performed by ONE `do` sentence
+// that a chain can propagate through.
+//
+// An ANCHORED press is excluded: its emitted form is a ladder of locators with a click in each
+// arm rather than one sentence, so there is nothing here to wrap. Anchors are off unless computer
+// vision is explicitly turned on, so no recorder-first recording produces one — recorded as a gap
+// in [[ADR-251-a-press-checks-the-window-it-was-recorded-in]] rather than silently covered.
+func guardedStep(s macroir.Step) bool {
+	if s.RelTo == "" || len(s.Template) > 0 || s.AnchorText != "" {
+		return false
+	}
+	return s.Kind == macroir.StepClick || s.Kind == macroir.StepMove
+}
+
+// propagating is the `do` sentence a step must be stopped by, or ok=false when it is an ordinary
+// step that simply runs.
+//
+// `Activate` is in because it is the PREPARATION: it is what binds the window every press is then
+// checked against, so a routine whose application never came forward has nothing to press in and
+// must not try.
+func (g *gen) propagating(s macroir.Step) (guard, follow string, ok bool) {
+	switch {
+	case s.Kind == macroir.StepActivate:
+		return fmt.Sprintf("OS's Activate with %q", s.Text), "", true
+	case !guardedStep(s):
+		return "", "", false
+	case s.Kind == macroir.StepMove:
+		return "OS's Move with " + g.pts.clickPoint(s), "", true
+	case s.Button != "" && s.Button != "left":
+		// A press that is not left-handed is an AIM and then a press, and the aim is
+		// what carries the window — the click that follows takes the cursor's
+		// position. So the Move is what gets checked and what stops the routine, and
+		// the button press belongs with it once it has gone through.
+		//
+		// It also used to be emitted with no point at all, which sent a recorded
+		// right-click to wherever the cursor happened to be.
+		name := g.pts.clickPoint(s)
+		return "OS's Move with " + name,
+			fmt.Sprintf("do OS's Click with %q.\n", s.Button), true
+	default:
+		return "OS's Click with " + g.pts.clickPoint(s), "", true
+	}
+}
+
+// chainOf splits the steps at every propagating action, one link each, and returns what follows
+// the last one.
+//
+// Locals are collected per link from the generator's own list, by the span of indices a link's
+// steps appended, so a Point is declared in the capability that presses it.
+func chainOf(steps []macroir.Step, g *gen) (links []link, tail string, err error) {
+	var waiting strings.Builder
+	from := len(g.pts.decls)
+	for _, s := range steps {
+		guard, follow, ok := g.propagating(s)
+		if !ok {
+			text, err := emit([]macroir.Step{s}, g, 0)
+			if err != nil {
+				return nil, "", err
+			}
+			waiting.WriteString(text)
+			continue
+		}
+		links = append(links, link{
+			decls:  append([]string(nil), g.pts.decls[from:]...),
+			before: waiting.String(),
+			guard:  guard,
+			follow: follow,
+		})
+		waiting.Reset()
+		from = len(g.pts.decls)
+	}
+	// WHATEVER FOLLOWS THE LAST PROPAGATING ACTION runs inside its success, so it does
+	// not happen when that action refused — and its locals are declared in that same
+	// capability.
+	if len(links) > 0 {
+		last := &links[len(links)-1]
+		last.decls = append(last.decls, g.pts.decls[from:]...)
+	}
+	return links, waiting.String(), nil
+}
+
+// writeChain renders the links as capabilities.
+func writeChain(b *strings.Builder, actor string, links []link, tail string) {
+	for i, l := range links {
+		name := "Run"
+		if i > 0 {
+			name = fmt.Sprintf("Step%d", i+1)
+		}
+		fmt.Fprintf(b, "this can %s.\n", name)
+		fmt.Fprintf(b, "this's %s does...\n", name)
+		for _, d := range l.decls {
+			fmt.Fprintf(b, "%s%s\n", indent(1), d)
+		}
+		b.WriteString(shift(l.before, 1))
+		fmt.Fprintf(b, "%sdo %s...\n", indent(1), l.guard)
+		fmt.Fprintf(b, "%swhen ok?\n", indent(2))
+		b.WriteString(shift(l.follow, 3))
+		if i+1 < len(links) {
+			fmt.Fprintf(b, "%sdo %s's Step%d.\n", indent(3), actor, i+2)
+			// AND ITS ANSWER IS THIS ONE'S ANSWER. `this is that!` adopts the
+			// last outcome verbatim, so a refusal three presses along comes back
+			// out of `Run` as the refusal it was.
+			fmt.Fprintf(b, "%sthis is that!\n", indent(3))
+		} else {
+			b.WriteString(shift(tail, 3))
+			// THE ONE `this is ok!`, AND IT IS NOT UNCONDITIONAL. It sits inside
+			// the success of the last press, so there is no path on which a
+			// refused routine reports that it worked.
+			fmt.Fprintf(b, "%sthis is ok!\n", indent(3))
+		}
+		fmt.Fprintf(b, "%sor?\n", indent(2))
+		fmt.Fprintf(b, "%sthis is that!\n", indent(3))
+		b.WriteString("\n")
+	}
+}
+
+// shift re-indents a block emitted at depth 0 to the depth it is going to sit at, leaving its own
+// relative shape alone.
+func shift(text string, depth int) string {
+	if text == "" {
+		return ""
+	}
+	pad := indent(depth)
+	var b strings.Builder
+	for _, line := range strings.SplitAfter(text, "\n") {
+		if strings.TrimSpace(line) == "" {
+			b.WriteString(line)
+			continue
+		}
+		b.WriteString(pad)
+		b.WriteString(line)
+	}
+	return b.String()
 }

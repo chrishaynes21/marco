@@ -2,7 +2,7 @@
 type: adr
 status: accepted
 date: 2026-10-23
-decision: "ACCEPTED — A COORDINATE IS A CLAIM ABOUT A PLACE ONLY WHILE THE WINDOW IT WAS MEASURED IN IS STILL THAT WINDOW, AND THE PRESS IS WHERE THAT GETS CHECKED. A press records five terms at the instant it is made: the BASIS its offset is measured from, the window's OUTER size, the window's DPI as its own term, and the file name of the program that owned it. All five reach the saved route, because saved legal Marco is the only executable truth in this stack. The basis is recorded although there is one value today, so no route already on disk is reinterpreted the day a recorder measures from the client area instead. Each term is written only when it was MEASURED — a DPI nobody could read is absent, not 96 — and MISSING IS WHAT IT STAYS. The BASIS is the contract and everything else is a measurement, so `RelTo` is written for every press a measuring recorder makes whether or not the measurements arrive, and the saved file therefore says three things apart: no basis is LEGACY and pressed exactly as it always was; a basis with every term is GUARDED; a basis with a term missing is INCOMPLETE and refused, naming what it lacks. Which state a press is in does not depend on a measurement having succeeded. A failed measurement means guarded replay is UNAVAILABLE for that recording — never that its requirements become optional, and never that it quietly becomes an ordinary point, which is pressed at its recorded coordinate having checked nothing. Review says what was not measured and whether recording it again can change the answer; saving is allowed and is not quiet. The BASIS ALONE is the opt-in — requiring an offset beside it was a bypass — and it must be a basis this knows how to check. Replay binds the WINDOW during preparation, from `Activate`, AND THE PROCESS THAT OWNED IT THEN, because a handle is not an identity: two copies of one program share an executable name, so only the process id separates the window the route prepared from a second instance that inherited the handle. Before every press it re-reads THAT HANDLE: still a window, still in front, still that process, its origin, its outer size, its DPI, and the program that owns it NOW. And the offset must lie INSIDE the recorded rectangle, because origin-plus-offset is a point on the desktop and every other check can pass while the cursor leaves the window. Every comparison is EXACT and any disagreement REFUSES, naming the term; it does not fall back to the recorded coordinate, because that is pressing a remembered pixel on a desktop just shown not to match. The window is re-read before every press and never cached: the legacy origin snapshot answers about the FIRST press of a route and exists to survive a focus flicker this path detects directly. One resolver serves clicks, Moves and the recorded point a vision-free `Find` hands back, because those are three ways into one question and a guard with a bypass is not a guard."
+decision: "ACCEPTED — A COORDINATE IS A CLAIM ABOUT A PLACE ONLY WHILE THE WINDOW IT WAS MEASURED IN IS STILL THAT WINDOW, AND THE PRESS IS WHERE THAT GETS CHECKED. A press records five terms at the instant it is made: the BASIS its offset is measured from, the window's OUTER size, the window's DPI as its own term, and the file name of the program that owned it. All five reach the saved route, because saved legal Marco is the only executable truth in this stack. The basis is recorded although there is one value today, so no route already on disk is reinterpreted the day a recorder measures from the client area instead. Each term is written only when it was MEASURED — a DPI nobody could read is absent, not 96 — and MISSING IS WHAT IT STAYS. The BASIS is the contract and everything else is a measurement, so `RelTo` is written for every press a measuring recorder makes whether or not the measurements arrive, and the saved file therefore says three things apart: no basis is LEGACY and pressed exactly as it always was; a basis with every term is GUARDED; a basis with a term missing is INCOMPLETE and refused, naming what it lacks. Which state a press is in does not depend on a measurement having succeeded. A failed measurement means guarded replay is UNAVAILABLE for that recording — never that its requirements become optional, and never that it quietly becomes an ordinary point, which is pressed at its recorded coordinate having checked nothing. Review says what was not measured and whether recording it again can change the answer; saving is allowed and is not quiet. The BASIS ALONE is the opt-in — requiring an offset beside it was a bypass — and it must be a basis this knows how to check. AND A REFUSAL STOPS THE ROUTINE: a guarded route is generated as a CHAIN — the preparation and every guarded press each in their own capability, calling the next only when its own action went through, with the single `this is ok!` inside the success of the last — so nothing after a refusal runs and no unconditional ending can override it. A guarded press is never folded into a `repeat`, which has no way to say that. The run's answer is DATA and not a log line: a root handler is compulsory in Marco so a refused routine still ends tidily, and the host therefore keeps its own refusals for the command to fail on. New guarded recordings are saved to bring their application forward, because the scopes that switch nothing bind no window and every press in them would refuse; the choice is withdrawn rather than defaulted, an impossible scope is refused at Save rather than rescoped, and a routine already saved in that state is listed and saved again from its own demonstration. Replay binds the WINDOW during preparation, from `Activate`, AND THE PROCESS THAT OWNED IT THEN, because a handle is not an identity: two copies of one program share an executable name, so only the process id separates the window the route prepared from a second instance that inherited the handle. Before every press it re-reads THAT HANDLE: still a window, still in front, still that process, its origin, its outer size, its DPI, and the program that owns it NOW. And the offset must lie INSIDE the recorded rectangle, because origin-plus-offset is a point on the desktop and every other check can pass while the cursor leaves the window. Every comparison is EXACT and any disagreement REFUSES, naming the term; it does not fall back to the recorded coordinate, because that is pressing a remembered pixel on a desktop just shown not to match. The window is re-read before every press and never cached: the legacy origin snapshot answers about the FIRST press of a route and exists to survive a focus flicker this path detects directly. One resolver serves clicks, Moves and the recorded point a vision-free `Find` hands back, because those are three ways into one question and a guard with a bypass is not a guard."
 supersedes: []
 affects:
   - execution
@@ -17,6 +17,8 @@ source_paths:
   - internal/osmod/os.marco
   - internal/oshost/oshost.go
   - internal/winctx/winctx_windows.go
+  - cmd/marco/panicstop.go
+  - plugins/studio/recording.go
 ---
 
 # A press checks the window it was recorded in
@@ -164,6 +166,104 @@ quietly as something that runs: the Save message repeats that it will refuse, th
 records it with "record it again" as the next step rather than "run it", and the route itself
 refuses. An explicitly offered unguarded mode would be a separate product decision, and it must
 not arise from an error.
+
+## A refusal stops the routine, and a guarded route is a chain
+
+The next press of a sequence means nothing once the one before it did not happen. A menu that
+never opened has no button to press, and the coordinate that button occupied belongs to whatever
+is there instead — so a routine that pressed on past a refusal would be doing the thing the check
+exists to prevent, one step later and with the check's blessing.
+
+Marco's way of saying that is the one `testdata/macro_ark_transfer` has always used: a `do` whose
+two arms both END, with the rest of the work inside the one that succeeded. **It is the only way
+that works**, and the reason is worth recording because the obvious alternative silently does not:
+a terminal return inside a NON-exhaustive `when` arm does not return. The arm fires,
+`this is failed with error "…"!` is ignored, execution falls through, and the caller is told ok.
+Measured on a three-line program; it is why every fixture in the repository pairs its arms. Not
+changed here — that is Marco's own semantics and a change to it is nothing to do with this
+contract — but it is the reason the shape below is the shape.
+
+Written as one block, that shape is one indent level per press, which at thirty presses is a route
+nobody can read. So each propagating action gets its own capability and calls the next only when
+its own action went through:
+
+```marco
+this can Run.
+this's Run does...
+    do OS's Activate with "arkascended"...
+        when ok?
+            do ArkGraphics's Step2.
+            this is that!
+        or?
+            this is that!
+```
+
+`Run` is the first link, so `do <Actor>'s Run` still performs the routine. `this is that!` adopts
+the last outcome verbatim, so a refusal three presses along comes back out of `Run` as the refusal
+it was. The one `this is ok!` sits inside the success of the LAST press, so there is no path on
+which a refused routine reports that it worked.
+
+**What propagates**: the preparation, and every guarded press. `Activate` is in because it is what
+binds the window the presses are then checked against — a routine whose application never came
+forward has nothing to press in and must not try. An anchored press is NOT in: its emitted form is
+a ladder of locators with a click in each arm rather than one sentence, so there is nothing to
+wrap; anchors are off unless computer vision is explicitly on, so no recorder-first recording
+produces one. Recorded as a gap rather than silently covered.
+
+**And a guarded press is never folded into a `repeat`.** Three identical presses used to become
+`repeat 3 times`, and a repeat has no way to say "stop if that one did not happen" — the body
+would run again after a press that did not. Three presses written out three times is the honest
+reading of three presses that each have to be allowed.
+
+**A route with no guarded press is generated exactly as it was**: one block, a bare `Activate`
+whose status nobody reads, clicks attempted and the run carrying on. That contract is not re-read
+now, and the test that holds it asserts the bare sentence rather than the absence of a second
+capability — because a legacy route has one propagating action and no guarded press, so a chain
+generated for everything carries no `Step2` to notice it by.
+
+## And the run's answer is data, not a log line
+
+A refused routine still ENDS TIDILY. A root handler is compulsory in Marco — the compiler refuses
+`App leaves status "failed" unhandled at root` — so the failure is caught, logged, and the script
+finishes. `marco do` would therefore have exited successfully about a routine that pressed
+nothing, which is the worst of the available outcomes: the person is told it worked.
+
+So the host keeps its own refusals (`oshost.Host.Refused`) — every guarded press it would not
+make, and an application that never came forward for one — and `runRoute` turns a non-empty list
+into a failed command. Not the output and not an exit code alone: both of those are downstream of
+an answer that now exists.
+
+Which contract a route carries is read from the route itself, because that is where it lives: a
+point stating the window it was recorded in is the whole of the guarded contract. A route carrying
+none reports exactly what it always did, which is what keeps this off every routine the owner has.
+
+On the Act path the answer was already there and needed nothing: `marcoexec` maps a capability
+that returned `failed` to `StatusRuntimeFailed` with the host's own sentence as the diagnostic, and
+the tee in `marcorunner` sees a refused `Click` like any other failure.
+
+## A guarded recording is saved to bring its application forward
+
+Found while wiring the chain end to end, and present since the guard landed: `Save` under the
+`app` scope strips the leading `Activate` and passes no application to `codegen`, because
+switching nothing is that scope's whole promise. So the route binds no window and every guarded
+press refuses. `everywhere` is the same, by the same line of `Save`. Only `app-anywhere` works.
+
+For this MVP the choice is therefore WITHDRAWN rather than defaulted. Studio shows
+*"Runs in Ark. Marco brings it forward before playback."* and sends `app-anywhere`; the three-way
+select is hidden, because a control that looks like a choice and has one real option is worse than
+a sentence. A draft with no guarded press keeps all three.
+
+Asking for an impossible scope at Save is REFUSED and explained — never silently rescoped, which
+is the thing `wantedScope` already exists to prevent — and the refusal names the scope it needs so
+the person can ask again.
+
+**And a routine already saved in that state has a way out.** The guarded contract arrived before
+this rule, so such a routine can be on disk: it reads like a routine and refuses every press, and
+the only thing that says so at run time is the refusal itself, one press at a time. Its own
+demonstration is stored beside it (`Registry.LoadRecording`), so Studio lists them and saves one
+again from that recording on asking, by name. The demonstration is re-simplified rather than the
+source rewritten, because rewriting generated Marco by hand is how two things that have to agree
+stop agreeing. The old file goes only once the new one is written.
 
 ## The basis alone is the opt-in
 
@@ -325,6 +425,26 @@ there IS matching to do, and refusing there would refuse to go looking.
   `TestASavedRecordingThatWasMeasuredPressesInsideTheWindow` is the control, without which the
   first passes on a chain that refuses everything. `TestAContextScopedRecordingHasNoWindowToCheck
   Against` pins the gap below.
+- **And what a refusal does to the routine around it**: `internal/oshost`
+  `TestPreparationThatFailsPressesNothing` (zero input, one refusal — three would mean the
+  preparation was a line above the body rather than around it),
+  `TestAFirstPressThatRefusesNeverReachesTheSecond`,
+  `TestASecondPressThatRefusesKeepsTheFirstAndStillFails` (both halves: the press that happened is
+  in the account, and the run is unsuccessful anyway),
+  `TestEveryPressGoingThroughCompletesThePlayback` (and claims nothing about the screen
+  afterwards), `TestALegacyRouteIsStillOneBlock`. Each also holds the ROUTE's own answer, which
+  `Refused` does not cover: a chain whose arms both ended in `this is ok!` would stop just the
+  same and report that it worked.
+- `cmd/marco` `TestAGuardedRoutineThatWasRefusedFailsTheCommand` and
+  `TestALegacyRoutineReportsWhatItAlwaysDid` — the command's answer, through `runRoute` with the
+  real host, on routes whose application is absent so no press is ever reached.
+- `internal/simplify` `TestGuardedPressesAreNotFoldedIntoARepeat`,
+  `TestUnmeasuredPressesAreStillFolded`.
+- `plugins/studio` `TestAGuardedRecordingIsSavedToBringItsApplicationForward`,
+  `TestALegacyRecordingKeepsTheChoice`,
+  `TestSavingAGuardedRecordingUnderAnImpossibleScopeIsRefused` (both impossible scopes, nothing
+  written, and the one it needs still accepted afterwards),
+  `TestARoutineThatCannotPressAnythingIsListedAndSavedAgain`.
 - `plugins/studio` `TestReviewSaysWhatThePressMeasured`,
   `TestReviewExplainsAMeasurementThatFailed` (step, draft, and the Save message),
   `TestReviewNamesWhicheverMeasurementFailed` (four, one at a time),
@@ -341,7 +461,24 @@ used the coordinate". The first version of that test asserted both and contradic
 ## Mutations
 
 Seventeen for the original increment, twelve for the replay-side corrections, fourteen for the
-contract. All killed.
+contract, sixteen for the execution path. All killed, plus one no-op control that survived as it
+should.
+
+The sixteen: a guarded route not generated as a chain, and a chain generated for every route; a
+refusal reported as success; the preparation not propagating; the next link called whatever
+happened; guarded presses folded into a repeat; the run not keeping its refusals; a preparation
+that failed not kept; a refused routine reporting success from the command; a legacy routine
+judged by the guarded contract; an impossible scope accepted at Save; review not saying how the
+routine will be performed; a legacy draft having its scope decided for it; a routine that already
+brings its window forward listed as broken; the old copy left on disk after a resave; and a resave
+under the scope that could not work.
+
+Two of those first SURVIVED and the tests were wrong rather than the code: "every route is a
+chain" went unnoticed because a legacy route has one propagating action and no guarded press, so
+its chain carries no `Step2` to notice — the assertion had to become the bare `Activate`
+sentence. And "the preparation does not propagate" went unnoticed because the test read only the
+FIRST refusal, which is the same either way; it had to count them, because the difference is one
+refusal against three.
 
 The twelve, each one a way the guard could look present and answer about less than it appears to:
 the basis accepted for being merely non-empty; a missing term not refused; a malformed one not
@@ -385,29 +522,22 @@ it intends to do.
 - **Not tried on a live desktop.** Every claim above is from the automated suites. Guarded
   coordinate replay is outstanding until a live acceptance run, and so is the owner's Stop-button
   trial, which is a separate question about recording and the window.
-- **A CONTEXT-SCOPED RECORDING CANNOT RUN A GUARDED PRESS, AND THAT IS STUDIO'S DEFAULT SCOPE.**
-  Found while wiring the end-to-end chain; not caused by it, and present since the guard landed.
-  `Save` under the `app` scope strips the leading Activate and passes no application to `codegen`,
-  because that scope's whole promise is that it switches nothing — it runs only while its
-  application is already in front. So the route contains no `do OS's Activate`, nothing binds a
-  window, and every press that declared a window refuses with *nothing to measure it against*. The
-  `everywhere` scope is the same, by the same line of `Save`. Only `app-anywhere` works.
-
-  The resolution is a decision about what PREPARATION means for a scope with no preparation step:
-  either such a routine binds the foreground once at the start of its run — which is that scope's
-  own premise, and would make its first press checked against whatever is in front rather than
-  against something prepared — or recordings whose presses declared a window must be saved as
-  `app-anywhere`, and Studio should say so at Save. Both change the guarded contract, so neither
-  is taken here. `TestAContextScopedRecordingHasNoWindowToCheckAgainst` pins the current state so
-  it is deliberate and found by a suite rather than by a live trial.
-- **A REFUSED PRESS DOES NOT FAIL THE ROUTINE.** `codegen` emits a bare `do OS's Click with p1.`,
-  and a `do` whose status nobody reads does not abort the interaction — so a routine whose every
-  press is refused runs to `this is ok!` and reports done. Zero input is sent and the refusal is
-  logged, but the person is told it worked. This is the pre-existing behaviour of every failing
-  host call in a generated route rather than anything about this contract, and it is why
-  `played` in the chain test reads the host's log as well as the route's output. It matters more
-  now: before, a press that could not be checked was pressed anyway, so "done" was at least about
-  something that happened.
+- **CONTEXT AND GLOBAL SCOPES STILL CANNOT CARRY A GUARDED PRESS.** Resolved for this MVP by
+  withdrawing the choice (above), not by making those scopes work. What preparation means for a
+  scope with no preparation step is still open: such a routine could bind the foreground once at
+  the start of its run, which is that scope's own premise and would make its first press checked
+  against whatever is in front rather than against something prepared. Not taken, and
+  `TestAContextScopedRecordingHasNoWindowToCheckAgainst` pins what a route saved that way does.
+- **AN ANCHORED GUARDED PRESS DOES NOT PROPAGATE.** Its emitted form is a ladder of locators with
+  a click in each arm, so there is no single sentence to wrap, and a refusal in one of those
+  clicks does not stop the routine. Unreachable from a recorder-first recording — anchors are off
+  unless computer vision is explicitly turned on — so the gap is real and currently not on any
+  path the owner uses.
+- **A terminal return inside a non-exhaustive `when` arm does not return.** Marco's own
+  semantics, measured here and not changed: the arm fires, the ending is ignored, execution falls
+  through, and the caller is told ok. Every fixture in the repository pairs its arms, so nothing
+  depends on the other behaviour — but a program written the obvious way would silently report
+  success, and that is worth somebody knowing before they write one.
 - **A drag resolves no offset at all**, so it carries no window and is checked against none. That
   is consistent — window terms with no offset to resolve would be opting into a guard with
   nothing to apply — and it means a demonstrated drag is still a pair of absolute coordinates.

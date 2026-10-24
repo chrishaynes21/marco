@@ -108,7 +108,15 @@ that control, though a saved play still cannot say it (`cannot_say_pointer`, fol
   PROCESS THAT OWNED IT, since two copies of one program share an executable name and only the
   process id separates the window the route prepared from one that inherited the handle; and the
   offset must lie inside the recorded rectangle, because origin-plus-offset is a point on the
-  desktop and every other check can pass while the cursor leaves the window
+  desktop and every other check can pass while the cursor leaves the window. **And a refusal stops
+  the routine**: a guarded route is generated as a chain — the preparation and every guarded press
+  each in their own capability, calling the next only when its own action went through — so
+  nothing after a refusal runs, no unconditional ending can override it, and a guarded press is
+  never folded into a `repeat`. The run's answer is data rather than a log line, because a root
+  handler is compulsory in Marco and a refused routine therefore ends tidily. New guarded
+  recordings are saved to bring their application forward, since the scopes that switch nothing
+  bind no window; the choice is withdrawn rather than defaulted, an impossible scope is refused at
+  Save, and a routine already saved that way is saved again from its own stored demonstration
 - [[ADR-250-the-recorder-runs-in-the-window]] — and the window those four buttons are in. The
   recorder-first path runs in Studio's OWN process, because a draft that writes nothing cannot
   cross a process boundary without being written somewhere; so Studio supplies its own process

@@ -7259,3 +7259,51 @@ See [[ADR-251-a-press-checks-the-window-it-was-recorded-in]].
 
 **Still outstanding:** the owner's Stop-button trial, and a live acceptance run of guarded replay —
 which the context-scope gap blocks until it is decided.
+
+## 38F — a refusal stops the routine, and a guarded recording is saved to bring its window forward
+
+Two settled decisions, and one of them found that the obvious way to write failure propagation in
+Marco silently does not work.
+
+**A refusal stops the routine.** The next press of a sequence means nothing once the one before it
+did not happen, so a guarded route is now generated as a CHAIN: the preparation and every guarded
+press each in their own capability, calling the next only when its own action went through, with
+the single `this is ok!` inside the success of the last one. `this is that!` adopts the outcome
+verbatim, so a refusal three presses along comes back out of `Run` as the refusal it was.
+
+The reason it is a chain rather than a flat body with early returns is worth keeping: **a terminal
+return inside a non-exhaustive `when` arm does not return.** The arm fires, the ending is ignored,
+execution falls through, and the caller is told ok. Measured on a three-line program. It is why
+every fixture in the repository pairs its arms, and it is not changed here — Marco's own semantics
+are nothing to do with this contract — but it is the reason the shape is the shape. Written flat,
+the working shape is one indent level per press, which at thirty presses is unreadable; hence a
+capability each.
+
+A guarded press is also never folded into a `repeat` now, because a repeat has no way to say "stop
+if that one did not happen".
+
+**And the run's answer is data.** A refused routine still ends tidily: a root handler is
+compulsory in Marco, so the failure is caught, logged, and the script finishes — and `marco do`
+would have exited successfully about a routine that pressed nothing. The host keeps its own
+refusals and the command fails on them. Which contract a route carries is read from the route, so
+a legacy route reports exactly what it always did. On the Act path the answer already existed:
+`marcoexec` maps a capability that returned failed to a runtime failure.
+
+**A guarded recording is saved to bring its application forward.** The gap found last increment is
+closed by withdrawing the choice rather than defaulting it: Studio says "Runs in Ark. Marco brings
+it forward before playback." and hides the three-way select, an impossible scope is refused at Save
+with the reason, and a routine already saved in that state is listed and saved again from its own
+stored demonstration — re-simplified, not rewritten, with the old file removed only once the new
+one is written.
+
+Sixteen mutations killed. Two of them survived first and the TESTS were wrong, not the code: "every
+route is a chain" went unnoticed because a legacy route's chain carries no `Step2` to notice, and
+"the preparation does not propagate" went unnoticed because the test read only the first refusal
+when the difference is one against three.
+
+Also fixed on the way: a recorded right-click generated no point at all, so it pressed wherever the
+cursor happened to be.
+
+See [[ADR-251-a-press-checks-the-window-it-was-recorded-in]].
+
+**Still outstanding:** the owner's Stop-button trial, and a live acceptance run of guarded replay.

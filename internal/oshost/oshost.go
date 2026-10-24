@@ -99,6 +99,9 @@ type Host struct {
 	bound    uintptr
 	boundApp string
 	boundPID uint32
+	// refused is the sentence of every guarded press this run would not make, in the
+	// order they were refused. See `Refused`. Guarded by mu.
+	refused []string
 }
 
 // SetArgs records the named arguments of the invocation about to run, so a
@@ -194,6 +197,17 @@ func (h *Host) Invoke(c runtime.HostCall) (string, runtime.Value, error) {
 		// window rather than about whatever is in front by then. See `bindAt`.
 		hwnd, err := bindWindow(app)
 		h.bindAt(hwnd, app)
+		if err != nil {
+			// PREPARATION THAT DID NOT HAPPEN IS KEPT BESIDE THE REFUSALS.
+			//
+			// Activate is what binds the window every guarded press is then
+			// checked against, so a routine whose application never came
+			// forward has nothing to press in. Recorded for every route and
+			// acted on only by one: the caller decides, from the contract the
+			// route was saved under, whether this makes the run unsuccessful.
+			h.refuse(fmt.Sprintf("the %s window could not be brought to the "+
+				"front: %v", app, err))
+		}
 		return ok(err)
 	case "launch":
 		return ok(winctx.Launch(c.Input.AsText()))
@@ -1726,6 +1740,41 @@ func wholeTerm(set *runtime.Set, field string, least float64) (n int, stated, us
 // A term the DESKTOP will not report is a refusal for the same reason: this ran out of ways to
 // tell, and "could not tell" is not "matches".
 func (h *Host) guarded(set *runtime.Set, x, y int) (px, py int, why string) {
+	px, py, why = h.checkGuarded(set, x, y)
+	if why != "" {
+		// ── THE RUN KEEPS ITS OWN REFUSALS ──
+		//
+		// Because a log sentence is not a result. A routine whose press was
+		// refused did not do what it was asked, and whatever started it has to be
+		// able to say so without reading output: `marco do` turns a non-empty list
+		// into a failed command, and director sees the same refusal through the
+		// capability status its runner already records.
+		h.refuse(why)
+	}
+	return px, py, why
+}
+
+// refuse keeps one sentence about something this run would not do.
+func (h *Host) refuse(why string) {
+	h.mu.Lock()
+	h.refused = append(h.refused, why)
+	h.mu.Unlock()
+}
+
+// Refused is everything under the guarded contract this run would not do, in order: a press it
+// could not check, and an application that never came forward for one.
+//
+// Only a GUARDED press records one. A legacy click that could not find its window is not here:
+// that route was saved under a contract which says a click is attempted and the run carries on,
+// and changing what it reports is not this contract's business.
+func (h *Host) Refused() []string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return append([]string(nil), h.refused...)
+}
+
+// checkGuarded is the comparison itself; `guarded` is what remembers its answer.
+func (h *Host) checkGuarded(set *runtime.Set, x, y int) (px, py int, why string) {
 	m, why := measuredFrom(set)
 	if why != "" {
 		return 0, 0, why

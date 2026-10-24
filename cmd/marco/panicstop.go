@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/chaynes-simpleclouds/marco/internal/driver"
 	"github.com/chaynes-simpleclouds/marco/internal/mlog"
@@ -106,5 +107,37 @@ func runRoute(ctx context.Context, d orchestrator.Deps, rt routes.Route, named m
 	}
 	filled := routes.ApplyArgs(string(src), named, positional)
 	mlog.Info("run: executing", "route", rt.Slug, "scope", rt.App, "named_args", len(named), "positional_args", len(positional))
-	return driver.RunSourceWithHostsCtx(ctx, filled, filepath.Dir(path), path, os.Stdout, d.Hosts)
+	if err := driver.RunSourceWithHostsCtx(ctx, filled, filepath.Dir(path), path, os.Stdout, d.Hosts); err != nil {
+		return err
+	}
+	// ── AND A ROUTINE THAT WAS REFUSED IS NOT A ROUTINE THAT RAN ──
+	//
+	// A press that checks the window it was recorded in can refuse, and a guarded route
+	// stops there: nothing after it is done. The program itself ends tidily — a root
+	// handler is compulsory in Marco, so the failure is caught and logged — which means
+	// without this, the command that performed it would exit successfully about a
+	// routine that pressed nothing. The host keeps its own refusals so the answer is
+	// data rather than a line of output somebody has to read.
+	//
+	// Only a GUARDED press records one, so a legacy route reports exactly what it
+	// always did. See oshost.Host.Refused.
+	// WHICH CONTRACT THIS ROUTE WAS SAVED UNDER, read from the route itself. A point
+	// that states the window it was recorded in IS the guarded contract — it is what
+	// makes the three saved contracts distinguishable at all (see ADR-251) — and a
+	// route carrying none reports exactly what it always did.
+	//
+	// Read from the source rather than from a field, because there is no field: the
+	// contract lives in the saved Marco, which is the only executable truth here. If
+	// that ever needs to be asked a second way, the answer belongs on `routes.Route`
+	// and not in a second copy of this line.
+	if !strings.Contains(filled, `RelTo "`) {
+		return nil
+	}
+	if h, ok := d.Hosts["*"].(*oshost.Host); ok {
+		if refused := h.Refused(); len(refused) > 0 {
+			mlog.Error("run: refused", "route", rt.Slug, "why", refused[0])
+			return fmt.Errorf("%s stopped: %s", rt.Slug, refused[0])
+		}
+	}
+	return nil
 }
