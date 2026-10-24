@@ -201,6 +201,37 @@ func (c *Capture) Finish() *Draft {
 // Stop: a window asks where a routine should work and then says so, where the terminal prompts
 // for it and the HUD guessed. `app` is the application the scope is about — the draft's own
 // observed app unless the caller names another — and is ignored by `ScopeEverywhere`.
+// Target is the route a draft WOULD be saved as, without saving anything.
+//
+// Exported because a caller that has to ask "is there already a routine there?" must ask about
+// the identity a save would actually write. Deriving it a second time in the caller would be a
+// second answer to which routine this is, and the answers would differ the day either side
+// changed — the shape of defect this project keeps finding. `Save` calls this, so there is one
+// derivation and a collision check and a save cannot disagree.
+//
+// It says nothing about whether that route exists; that is the caller's question to ask.
+func (d Deps) Target(dr *Draft, scope Scope, app string) (routes.Route, error) {
+	if dr == nil {
+		return routes.Route{}, fmt.Errorf("there is no draft to save")
+	}
+	if app == "" {
+		app = dr.App
+	}
+	mode := scope.mode()
+	if app == "" && mode != scopeGlobal {
+		return routes.Route{}, fmt.Errorf("%q needs an application and none was "+
+			"observed or given", scope)
+	}
+	rt := routes.Route{Slug: routes.Slug(dr.Name)}
+	switch mode {
+	case scopeContext:
+		rt.App = app
+	case scopeFocus:
+		rt.App, rt.Focus = app, true
+	}
+	return rt, nil
+}
+
 func (d Deps) Save(dr *Draft, scope Scope, app string) (routes.Route, error) {
 	if dr == nil {
 		return routes.Route{}, fmt.Errorf("there is no draft to save")
@@ -222,15 +253,16 @@ func (d Deps) Save(dr *Draft, scope Scope, app string) (routes.Route, error) {
 				"none was observed or given", scope)
 		}
 	}
+	rt, err := d.Target(dr, scope, app)
+	if err != nil {
+		return routes.Route{}, err
+	}
 	steps := dr.Steps
-	rt := routes.Route{Slug: routes.Slug(dr.Name)}
 	codegenApp := ""
 	switch mode {
 	case scopeContext:
-		rt.App = app
 		steps = stripLeadingActivate(steps)
 	case scopeFocus:
-		rt.App, rt.Focus = app, true
 		codegenApp = app
 	default:
 		steps = stripLeadingActivate(steps)

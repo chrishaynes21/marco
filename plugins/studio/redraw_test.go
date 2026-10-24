@@ -600,3 +600,111 @@ func TestTheSavedRoutinesAreDrawnAndPlayIsOfferedForTheOneThatCanRun(t *testing.
 			"silence: %q", title)
 	}
 }
+
+// ── PRESSING SAVE OVER A NAME THAT IS TAKEN ───────────────────────────────────
+
+// ORDINARY SAVE CANNOT REPLACE ANYTHING, AND THE CHOICE IS ONE SOMEBODY PRESSES.
+//
+// # Why this is a browser too
+//
+// Because the backend refusing a collision is half of it. The other half is that the window's
+// ordinary Save button asks for a save and NOTHING else: a page that looked first and then called
+// the replacement for you would pass every test in `replace_test.go` while quietly doing the one
+// thing those tests exist to prevent. The two halves look identical from either side alone.
+//
+// So this renders the real page over a backend whose Save refuses, and counts what the page
+// called. Save is pressed first — `ReplaceDraft` must not have been reached — and then the Replace
+// button a person would have to find, which must carry the identity the backend named.
+const takenHarness = `
+window.__saved = 0
+window.__replaced = ''
+window.__as = ''
+window.go = {main: {
+  Backend: {Loaded: () => Promise.resolve()},
+  Acts: {
+    Demonstrations: () => Promise.resolve([]),
+    Saved: () => Promise.resolve([]),
+    History: () => Promise.resolve([]),
+    Applications: () => Promise.resolve(['arkascended']),
+    Pictures: () => Promise.resolve([]),
+    Picture: () => Promise.resolve(''),
+    Learning: () => Promise.resolve({active: false}),
+    Watch: () => Promise.resolve({act: '', active: false, transcript: null}),
+    Unrunnable: () => Promise.resolve([]),
+    Routines: () => Promise.resolve([]),
+    Library: () => Promise.resolve({dir: '/tmp/routes'}),
+    Recording: () => Promise.resolve({name: 'ark graphics', active: false, review: true,
+      application: 'arkascended', stopped_by: 'the Stop button', pressable: 1,
+      stop_key: 'F12', steps: ['bring arkascended to the front',
+      'left-click at 842, 274'], said: '2 step(s), 1 of which presses something.'}),
+    // A BACKEND THAT REFUSES, which is what a taken name does.
+    SaveDraft: () => { window.__saved++
+      return Promise.resolve('there is already a routine saved there: "ark graphics", ' +
+        'kept on 2026-10-24 04:00. Give this one another name, or replace that ' +
+        'routine on purpose.') },
+    Collision: () => Promise.resolve({exists: true, id: 'arkascended/focus/ark-graphics',
+      name: 'ark graphics', saved_at: '2026-10-24 04:00',
+      says: 'there is already a routine saved there'}),
+    SaveDraftAs: (n) => { window.__as = n; return Promise.resolve('') },
+    ReplaceDraft: (id) => { window.__replaced = id; return Promise.resolve('') },
+  },
+}}
+// PRESS SAVE, THE WAY A PERSON WOULD.
+setTimeout(() => {
+  const b = document.getElementById('capSaveBtn')
+  if (b && !b.disabled) { b.click() }
+}, 1500)
+// AND THEN, ONLY AFTER THE WINDOW HAS OFFERED IT, PRESS REPLACE.
+setTimeout(() => {
+  window.__takenShown = document.getElementById('capTaken') &&
+    !document.getElementById('capTaken').classList.contains('hide') ? 1 : 0
+  window.__replacedBySave = window.__replaced
+  const r = document.getElementById('capReplaceBtn')
+  if (r) { r.click() }
+}, 3000)
+setTimeout(() => {
+  document.title = 'saved=' + window.__saved +
+    ' taken=' + (window.__takenShown || 0) +
+    ' bysave=' + (window.__replacedBySave === '' ? 'none' : window.__replacedBySave) +
+    ' replaced=' + (window.__replaced === '' ? 'none' : window.__replaced) +
+    ' as=' + (window.__as === '' ? 'none' : window.__as)
+}, 4500)
+`
+
+func TestOrdinarySaveNeverReplacesAndTheChoiceIsPressed(t *testing.T) {
+	browser := aBrowser()
+	if browser == "" {
+		t.Skip("no headless Chromium on this machine to render the page in")
+	}
+	title := renderForCounters(t, browser, takenHarness)
+	field := func(key string) string {
+		m := regexp.MustCompile(key + `=(\S+)`).FindStringSubmatch(title)
+		if m == nil {
+			t.Fatalf("no %s in %q", key, title)
+		}
+		return m[1]
+	}
+	// SAVE WAS ASKED FOR, so the button is wired to something.
+	if field("saved") == "0" {
+		t.Fatalf("pressing Save called nothing: %q", title)
+	}
+	// AND IT DID NOT REPLACE ANYTHING. The whole of this test.
+	if got := field("bysave"); got != "none" {
+		t.Errorf("pressing the ordinary Save button replaced %q — a replacement "+
+			"must be something a person chooses: %q", got, title)
+	}
+	// AND SAVE AS WAS NOT CALLED FOR THEM EITHER.
+	if got := field("as"); got != "none" {
+		t.Errorf("pressing Save renamed the routine to %q on its own: %q", got, title)
+	}
+	// THE CHOICE IS SHOWN, because a refusal nobody can act on is a dead end.
+	if field("taken") != "1" {
+		t.Errorf("the window refused the save and offered neither way on: %q", title)
+	}
+	// AND PRESSING REPLACE REPLACES THE ROUTINE THE BACKEND NAMED, not the name the
+	// page happens to be showing.
+	if got := field("replaced"); got != "arkascended/focus/ark-graphics" {
+		t.Errorf("Replace was called with %q, want the identity the backend "+
+			"named: %q", got, title)
+	}
+}

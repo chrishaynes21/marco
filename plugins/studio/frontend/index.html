@@ -418,6 +418,20 @@
       <button class="stop" onclick="cancelCapture()">Cancel</button>
       <span class="muted" id="capSaveNote"></span>
     </div>
+    <!-- SOMETHING IS ALREADY SAVED UNDER THIS NAME, so Save refused and these are the two
+         ways on. Hidden until that happens, and never a default: the ordinary button above
+         cannot reach either of them. See replace.go. -->
+    <div class="hide" id="capTaken" style="margin-top:10px">
+      <div class="row">
+        <label style="width:7em">call it</label>
+        <input id="capAsName" placeholder="another name">
+        <button class="go" id="capSaveAsBtn" onclick="saveCaptureAs()">Save as</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button class="stop" id="capReplaceBtn" onclick="replaceCapture()">Replace</button>
+        <span class="muted" id="capReplaceNote"></span>
+      </div>
+    </div>
   </div>
 
   <!-- ROUTINES THAT CANNOT PRESS ANYTHING, AND THE ONE THING TO DO ABOUT THEM.
@@ -1238,10 +1252,44 @@
      text($('capNote'), '')
    })
  }
+ // taken is the routine Save refused to replace, held so Replace can name the exact one somebody
+ // agreed to. Cleared the moment anything is written or the panel goes away.
+ let taken = null
+
+ // ORDINARY SAVE ASKS FOR A SAVE AND NOTHING ELSE.
+ //
+ // It never calls Replace, and it does not look first and then decide: the backend refuses a
+ // collision, and only when it has refused does this ask what is there so it can offer the two
+ // ways on. One path to a replacement, and somebody has to press it.
  function saveCapture(){
    acts.SaveDraft($('capScope').value, '').then(why => {
      text($('capSaveNote'), why || '')
-     if (!why) { loadActs() }
+     if (!why) { hideTaken(); loadActs(); return }
+     acts.Collision($('capScope').value, '').then(c => {
+       if (!c || !c.exists) { hideTaken(); return }
+       taken = c
+       text($('capReplaceNote'), 'replaces “' + (c.name || c.id) + '”, saved ' + c.saved_at)
+       $('capReplaceBtn').textContent = 'Replace “' + (c.name || c.id) + '”'
+       showing($('capTaken'), true)
+     })
+   })
+ }
+ function hideTaken(){
+   taken = null
+   showing($('capTaken'), false)
+   text($('capReplaceNote'), '')
+ }
+ function saveCaptureAs(){
+   acts.SaveDraftAs($('capAsName').value, $('capScope').value, '').then(why => {
+     text($('capSaveNote'), why || '')
+     if (!why) { hideTaken(); loadActs() }
+   })
+ }
+ function replaceCapture(){
+   if (!taken) { return }
+   acts.ReplaceDraft(taken.id, $('capScope').value, '').then(why => {
+     text($('capSaveNote'), why || '')
+     if (!why) { hideTaken(); loadActs() }
    })
  }
 

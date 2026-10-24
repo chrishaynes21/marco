@@ -302,73 +302,14 @@ func (a *Acts) CancelRecording() string {
 // about — empty meaning the one that was observed. Stated rather than inferred, because this
 // window can ask the question and a routine quietly rescoped to everywhere works in places
 // nobody was told about.
+// A collision is REFUSED here. See replace.go for why the policy sits in this window and not in
+// the orchestrator, which overwrites on purpose for every other caller.
 func (a *Acts) SaveDraft(scope, app string) string {
-	a.mu.Lock()
-	c := a.capture
-	a.mu.Unlock()
-	if c == nil {
-		return "there is no recording to save"
-	}
-	select {
-	case <-c.done:
-	default:
-		return "that recording is still running — press Stop first"
-	}
-	a.mu.Lock()
-	dr, already := c.draft, c.saved
-	a.mu.Unlock()
-	if dr == nil {
-		return "there is no recording to save"
-	}
-	if already != "" {
-		// SAVED ONCE. A second Save would write the same routine over itself
-		// under whatever scope was selected the second time, which is a routine
-		// quietly rescoped by a double-click.
-		return "that recording has already been saved — " + already
-	}
-	want, why := wantedScope(scope)
+	dr, cp, why := a.draftToSave()
 	if why != "" {
 		return why
 	}
-	// ── AND A SCOPE ITS PRESSES CANNOT BE PERFORMED UNDER IS REFUSED, NOT REWRITTEN ──
-	//
-	// Quietly saving it as something else would be this window deciding where somebody's
-	// routine works — the thing `wantedScope` exists to prevent — and saving it as asked
-	// would write a routine that refuses every press. So it says which scope it needs
-	// and why, and the person asks again.
-	if only := orchestrator.ScopeFor(dr); only != "" && want != only {
-		where := dr.App
-		if where == "" {
-			where = "the application it was recorded in"
-		}
-		return fmt.Sprintf("every press in this recording checks the window it was "+
-			"made in, and %q brings no window forward — so there would be "+
-			"nothing for those presses to be checked against and every one of "+
-			"them would refuse. Save it to run in %s with Marco bringing it "+
-			"forward.", want, where)
-	}
-	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}
-	rt, err := d.Save(dr, want, strings.TrimSpace(app))
-	if err != nil {
-		return err.Error()
-	}
-	a.mu.Lock()
-	c.saved = a.reg().Path(rt)
-	where := c.saved
-	a.mu.Unlock()
-	note := fmt.Sprintf("Saved %q from the recorder-first path (%s): %d step(s), "+
-		"%d of which press something — %s", dr.Name, want, len(dr.Steps),
-		dr.Pressable(), where)
-	next := "Run it, or build an Act over it."
-	// AND THE JOURNAL SAYS WHEN WHAT WAS SAVED CANNOT RUN. A trial note reading
-	// "Saved, run it" about a routine that will refuse every press is a note that will
-	// be believed later by somebody reading back what happened.
-	if why := whyItWillNotRun(dr.Steps); why != "" {
-		note += ". " + why
-		next = "Record it again — this one will refuse to press."
-	}
-	a.trial.recorded(dr.Name, note, next, false, Pictured{})
-	return ""
+	return a.keep(cp, dr, scope, app, "")
 }
 
 // wantedScope reads the page's word for a scope, or says what the choices are.

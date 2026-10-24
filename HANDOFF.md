@@ -7683,3 +7683,38 @@ termination cannot be cleaned up at all and is not pretended otherwise.
 Also recorded there, because it is where existing data can be lost: `Registry.Save` is a plain
 `os.WriteFile`, so re-recording a routine under a name silently replaces the one saved under it —
 and re-recording is the action a repeatable MVP encourages.
+
+## 38N — saving does not replace a routine unless somebody says so
+
+The first piece of the coordinate MVP to be authorized, taken before the run record because it is
+the only remaining item that protects something you cannot get back. Capped at the safeguard: no
+version history, no automatic renaming, nothing of generation-contract versioning.
+
+`Registry.Save` is a plain file write, so recording under a name already in the library replaced
+what was there — the source, and a moment later the `.rec.json` beside it, which is the copy a
+routine is ever saved again from. The person most exposed is the one re-recording all afternoon to
+compare attempts, which makes the likeliest casualty the routine they were comparing against.
+
+**The policy is at the Studio boundary and nowhere lower.** The orchestrator, the overlay and
+`marco learn` overwrite on purpose; teaching a name again is how you correct one there. The
+mutation that pushes a refusal down into `Deps.Save` kills the test holding their behaviour AND
+the one holding Studio's own repair path, which is a deliberate replacement too.
+
+**Three ways in, one place that writes** (`plugins/studio/replace.go`). Ordinary Save refuses and
+names what is there and when it was kept. `SaveDraftAs` keeps both and refuses a collision of its
+own. `ReplaceDraft` carries the identity somebody agreed to replace. `SaveDraft` in recording.go is
+now a delegation to the one writer.
+
+**The identity is the generator's own.** `orchestrator.Deps.Target` is the route a draft would be
+saved as; `Save` calls it and so does the collision check. The mutation that drops the scope from
+that derivation kills five tests — a collision looked for in the wrong place is no protection.
+
+**And the save asks again.** `Collision` is for the page, so it can offer the choice; it is not
+what protects the library. Between the question and the answer somebody can save that name from a
+terminal. Replace also checks that the identity it would write is the one it was told to replace.
+
+**The ordinary button cannot reach a replacement**, and that is held in a browser
+(`TestOrdinarySaveNeverReplacesAndTheChoiceIsPressed`): a page that looked first and replaced for
+somebody would pass every backend test while doing the one thing they exist to prevent.
+
+Seven mutations, all killed, plus a no-op control. R1–R3 remain paused.
