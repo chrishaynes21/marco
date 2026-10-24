@@ -1343,7 +1343,10 @@
          const b = document.createElement('button')
          b.className = 'go'
          b.textContent = 'Save it again'
-         b.onclick = () => resave(r.name)
+         // THE ROW THEY PRESSED, by identity: two routines of one name in two
+         // applications are two routines, and by name this saved whichever came
+         // first while reporting the first one's name. See Unrunnable.ID.
+         b.onclick = () => resave(r.id, r.name)
          li.appendChild(b)
        } else {
          // ITS DEMONSTRATION IS GONE, so there is nothing to save again from and
@@ -1359,9 +1362,9 @@
    }).finally(() => setTimeout(pollRepairs, 2000))
  }
 
- function resave(name){
+ function resave(id, name){
    text($('repairNote'), 'saving “' + name + '” again…')
-   acts.Resave(name).then(why => {
+   acts.Resave(id).then(why => {
      text($('repairNote'), why || 'saved again — it brings its application forward now')
      $('repairNote').className = why ? 'no' : 'ok'
    })
@@ -1374,6 +1377,13 @@
  // Record → Stop → Review → Save → select → Play, and a list that needed reloading between
  // the fourth and the fifth would be the same gap in a different place.
  let routines = []
+ // THE ROUTINE'S WHOLE IDENTITY, not its name.
+ //
+ // A name is not unique and a slug is not either: `settings` saved for two applications is
+ // two routines, and so is `settings` saved under two scopes for one. This kept the name,
+ // and every lookup from it returned the FIRST row that matched — so clicking the second
+ // card showed the first one's source and pressing Play performed the first one's route.
+ // The identity is `<app>/<scope>/<slug>`; see Routine.ID.
  let chosenRoutine = ''
  // WHETHER ANYTHING IS RUNNING, which the routine list needs and only the run poll knows.
  // One run slot covers both kinds of run, so a Play over here is refused while an Act is in
@@ -1386,10 +1396,10 @@
  function pollRoutines(){
    acts.Routines().then(rs => {
      routines = rs || []
-     if (chosenRoutine && !routines.some(r => r.name === chosenRoutine)) {
+     if (chosenRoutine && !routines.some(r => r.id === chosenRoutine)) {
        chosenRoutine = ''
      }
-     const sig = routines.map(r => [r.name, r.contract, r.runnable, r.saved_at]
+     const sig = routines.map(r => [r.id, r.name, r.contract, r.runnable, r.saved_at]
        .join('\u0001')).join('\u0000') + '\u0000' + chosenRoutine
      if (sig !== shownRoutines) { shownRoutines = sig; drawRoutines() }
    }).finally(() => setTimeout(pollRoutines, 2500))
@@ -1401,9 +1411,9 @@
    showing($('routineNone'), routines.length === 0)
    routines.forEach(r => {
      const card = document.createElement('div')
-     card.className = 'card pick' + (r.name === chosenRoutine ? ' on' : '')
+     card.className = 'card pick' + (r.id === chosenRoutine ? ' on' : '')
      card.onclick = () => {
-       chosenRoutine = r.name; shownRoutines = ''; drawRoutines()
+       chosenRoutine = r.id; shownRoutines = ''; drawRoutines()
      }
      // WHERE IT WORKS AND WHEN IT WAS KEPT. Both, because a person who has just
      // recorded the same thing twice tells them apart by the clock and nothing else.
@@ -1426,10 +1436,12 @@
    renderRoutine()
  }
 
- function routineNamed(name){ return routines.find(r => r.name === name) }
+ // BY IDENTITY, which is the only way to find ONE of two routines of the same name. The
+ // version of this that took a name answered with whichever row came first.
+ function routineWith(id){ return routines.find(r => r.id === id) }
 
  function renderRoutine(){
-   const r = routineNamed(chosenRoutine)
+   const r = routineWith(chosenRoutine)
    showing($('routineChosen'), !!r)
    if (!r) { return }
    text($('routineChecks'), r.checks || '')
@@ -1451,16 +1463,19 @@
  // A button that is live and answers a press with "this routine cannot be performed as it
  // stands" is a window telling somebody off for pressing what it offered them.
  function paintRoutinePlay(){
-   const r = routineNamed(chosenRoutine)
+   const r = routineWith(chosenRoutine)
    $('routinePlayBtn').disabled = runActive || !r || !r.runnable
  }
 
  function playRoutine(){
-   const r = routineNamed(chosenRoutine)
+   const r = routineWith(chosenRoutine)
    if (!r) { return }
    text($('routineNote'), 'starting “' + r.name + '”…')
    $('routineNote').className = 'muted'
-   acts.PlayRoutine(r.name).then(err => {
+   // THE IDENTITY, NOT THE NAME. The backend requires an exact match on it, so a
+   // routine that has been saved again or removed since this list was drawn is refused
+   // and sent back to the list rather than resolved to a namesake.
+   acts.PlayRoutine(r.id).then(err => {
      if (err) {
        text($('routineNote'), err)
        $('routineNote').className = 'no'

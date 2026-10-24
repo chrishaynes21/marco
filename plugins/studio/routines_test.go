@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/demonstrated"
+	"github.com/chaynes-simpleclouds/marco/internal/macroir"
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
 	"github.com/chaynes-simpleclouds/marco/internal/outcome"
 	"github.com/chaynes-simpleclouds/marco/internal/recorder"
@@ -50,6 +51,34 @@ func routineCalled(rs []Routine, name string) (Routine, bool) {
 		}
 	}
 	return Routine{}, false
+}
+
+// routineWithID is one row of the listing by its whole identity, which is the only way to ask for
+// ONE of two routines that share a name.
+func routineWithID(rs []Routine, id string) (Routine, bool) {
+	for _, r := range rs {
+		if r.ID == id {
+			return r, true
+		}
+	}
+	return Routine{}, false
+}
+
+// playing presses Play on the routine the listing calls `name`, through its IDENTITY — which is
+// what the page does, and the only thing `PlayRoutine` accepts.
+//
+// A name is not an identity and a slug is not either; see Routine.ID. The lookup is part of the
+// helper rather than of each test because every caller here means a routine it has just saved, and
+// a test that could not find its own fixture is a broken test rather than a refusal worth
+// asserting.
+func playing(t *testing.T, a *Acts, name string) string {
+	t.Helper()
+	r, found := routineCalled(a.Routines(), name)
+	if !found {
+		t.Fatalf("there is no routine called %q in the library: %+v", name,
+			a.Routines())
+	}
+	return a.PlayRoutine(r.ID)
 }
 
 // ── THE LIBRARY, LISTED ───────────────────────────────────────────────────────
@@ -190,7 +219,7 @@ func TestARoutineThatCannotPressAnythingIsNotOfferedForPlay(t *testing.T) {
 	if !strings.Contains(r.Why, "no window for those presses to be checked against") {
 		t.Errorf("the refusal does not say why: %q", r.Why)
 	}
-	if why := a.PlayRoutine("ark graphics"); why == "" {
+	if why := playing(t, a, "ark graphics"); why == "" {
 		t.Fatal("pressing Play on it started a run")
 	} else if !strings.Contains(why, "cannot be performed as it stands") {
 		t.Errorf("the refusal reads: %s", why)
@@ -222,24 +251,48 @@ func TestARoutineMissingAMeasurementIsNotOfferedForPlay(t *testing.T) {
 	if !strings.Contains(r.Why, "what scale it was drawn at") {
 		t.Errorf("the refusal does not name the missing measurement: %q", r.Why)
 	}
-	if why := a.PlayRoutine("ark graphics"); why == "" {
+	if why := playing(t, a, "ark graphics"); why == "" {
 		t.Fatal("pressing Play on it started a run")
 	}
 }
 
-// AND A NAME NOBODY SAVED SAYS WHICH LIBRARY WAS LOOKED IN.
+// AND SOMETHING NOBODY SAVED SAYS WHICH LIBRARY WAS LOOKED IN.
 //
 // Which is the whole of the other half of this work: "there is no routine called that" with no
 // directory named is the sentence somebody reads while their routine sits in a folder beside a
 // binary they launched from somewhere else.
 func TestPlayingAnUnknownRoutineNamesTheLibrary(t *testing.T) {
 	a := aSavedRoutine(t, "app-anywhere", nil)
-	why := a.PlayRoutine("something nobody recorded")
+	why := a.PlayRoutine("arkascended/focus/nothing-like-this")
 	if why == "" {
 		t.Fatal("a routine nobody saved was performed")
 	}
 	if !strings.Contains(why, a.routesDir) {
 		t.Errorf("the refusal does not say where it looked: %s", why)
+	}
+}
+
+// AND A NAME IS NOT AN IDENTITY, so handing one over performs nothing.
+//
+// Not pedantry about an argument: it is what closes the defect. `PlayRoutine` matched a name OR a
+// slug and took the FIRST row that answered, so a term that identifies two routines picked one of
+// them — and everything downstream was then correct about the wrong route.
+func TestPlayingARoutineByNameAloneIsRefused(t *testing.T) {
+	a := aSavedRoutine(t, "app-anywhere", nil)
+	raised := 0
+	a.raising = func(string) string { raised++; return "" }
+	for _, loose := range []string{"ark graphics", "ark-graphics", "arkascended"} {
+		if why := a.PlayRoutine(loose); why == "" {
+			t.Errorf("%q performed a routine, so a term that names two of them "+
+				"would perform one of the two", loose)
+		}
+	}
+	if raised != 0 {
+		t.Errorf("something was brought forward for a routine nobody identified "+
+			"(%d time(s))", raised)
+	}
+	if a.busy {
+		t.Error("the run slot was claimed by a refusal")
 	}
 }
 
@@ -260,7 +313,7 @@ func TestARoutineWillNotRunWhileSomethingElseIs(t *testing.T) {
 	if why := a.reserve(kindAct); why != "" {
 		t.Fatalf("the slot could not be claimed for an Act: %s", why)
 	}
-	why := a.PlayRoutine("ark graphics")
+	why := playing(t, a, "ark graphics")
 	if why == "" {
 		t.Fatal("a routine started while a run was already in flight")
 	}
@@ -285,7 +338,7 @@ func TestARoutineWillNotRunWhileSomethingIsBeingRecorded(t *testing.T) {
 	if why := a.StartRecording("something else"); why != "" {
 		t.Fatalf("starting a recording: %s", why)
 	}
-	why := a.PlayRoutine("ark graphics")
+	why := playing(t, a, "ark graphics")
 	if why == "" {
 		t.Fatal("a routine ran while the screen was being watched")
 	}
@@ -315,7 +368,7 @@ func TestTheApplicationIsBroughtForwardBeforeTheRunStarts(t *testing.T) {
 		// raising happened and that it happened FIRST.
 		return "that application is not running"
 	}
-	why := a.PlayRoutine("ark graphics")
+	why := playing(t, a, "ark graphics")
 	if len(raised) != 1 || raised[0] != "arkascended" {
 		t.Errorf("the window brought forward %v before the run, want "+
 			"[arkascended] — a child process cannot raise a window, so a "+
@@ -358,7 +411,7 @@ func TestARoutineThatNamesNoApplicationRaisesNothing(t *testing.T) {
 	if why := a.reserve(kindAct); why != "" {
 		t.Fatal(why)
 	}
-	if why := a.PlayRoutine("ark graphics"); why == "" {
+	if why := playing(t, a, "ark graphics"); why == "" {
 		t.Fatal("a run started while the slot was claimed")
 	}
 	if asked != 0 {
@@ -802,7 +855,7 @@ func TestPlayingARoutineRunsItAndReportsWhatItSaid(t *testing.T) {
 	if !r.Runnable {
 		t.Fatalf("it is listed as unable to run: %s", r.Why)
 	}
-	if why := a.PlayRoutine("says hello"); why != "" {
+	if why := playing(t, a, "says hello"); why != "" {
 		t.Fatalf("pressing Play: %s", why)
 	}
 	if !a.awaitRun(30 * time.Second) {
@@ -828,3 +881,217 @@ func TestPlayingARoutineRunsItAndReportsWhatItSaid(t *testing.T) {
 }
 
 func fileThere(p string) bool { _, err := os.Stat(p); return err == nil }
+
+// ── TWO ROUTINES OF ONE NAME ──────────────────────────────────────────────────
+
+// aSecondRoutineCalled records and saves another routine under `name` for `app`.
+//
+// Through the production path, like the first: `recorded` builds a draft whose steps and
+// application come from the recorded events, so what lands on disk is what Studio writes.
+func aSecondRoutineCalled(t *testing.T, a *Acts, name, app, scope string) {
+	t.Helper()
+	a.recording = func() recorder.Recorder {
+		return &heldRecorder{events: []recorder.RecordedEvent{
+			{Kind: recorder.EvAppSwitch, KeyName: app, T: at(0)},
+			{Kind: recorder.EvClick, Button: "left", Down: true, X: 640, Y: 480,
+				App: app, PID: gamePID + 1, T: at(100), WinRel: true,
+				RelX: 500, RelY: 400, RelTo: macroir.RelToWindow,
+				WinW: 1280, WinH: 720, Dpi: 96, Process: app + ".exe"},
+			{Kind: recorder.EvClick, Button: "left", Down: false, X: 640, Y: 480,
+				App: app, PID: gamePID + 1, T: at(105)},
+		}}
+	}
+	if why := a.StartRecording(name); why != "" {
+		t.Fatal(why)
+	}
+	if why := a.StopRecording(); why != "" {
+		t.Fatal(why)
+	}
+	if why := a.SaveDraft(scope, app); why != "" {
+		t.Fatalf("saving the second %q: %s", name, why)
+	}
+}
+
+// SAME NAME, TWO APPLICATIONS: EACH SHOWS ITS OWN SOURCE AND LAUNCHES ITS OWN ROUTE.
+//
+// The case the whole identity exists for. A name is not unique: one name saved for two
+// applications is two routines, and every lookup used to answer with the FIRST row that matched —
+// so the window could display one and perform the other. Handing the child the route's full
+// identity was already right and was happening AFTER the wrong routine had been chosen.
+func TestTwoRoutinesOfOneNameAreTwoRoutines(t *testing.T) {
+	t.Setenv("MARCO_CV", "off")
+	t.Setenv("MARCO_ROUTES", t.TempDir())
+	a := recorded(t, nil)
+	if why := a.SaveDraft("app-anywhere", "arkascended"); why != "" {
+		t.Fatal(why)
+	}
+	// AND THE SAME NAME AGAIN, in another application.
+	a.capture = nil
+	aSecondRoutineCalled(t, a, "ark graphics", "discord", "app-anywhere")
+
+	listed := a.Routines()
+	var same []Routine
+	for _, r := range listed {
+		if strings.EqualFold(r.Name, "ark graphics") {
+			same = append(same, r)
+		}
+	}
+	if len(same) != 2 {
+		t.Fatalf("saving one name in two applications gave %d routine(s): %+v",
+			len(same), listed)
+	}
+	if same[0].ID == same[1].ID {
+		t.Fatalf("both have the identity %q, so nothing can tell them apart",
+			same[0].ID)
+	}
+	// AND EACH ONE IS ITSELF: its own application, its own saved Marco, its own route.
+	for _, want := range []struct{ id, app string }{
+		{"arkascended/focus/ark-graphics", "arkascended"},
+		{"discord/focus/ark-graphics", "discord"},
+	} {
+		t.Run(want.app, func(t *testing.T) {
+			r, found := routineWithID(a.Routines(), want.id)
+			if !found {
+				t.Fatalf("there is no routine %q: %+v", want.id,
+					a.Routines())
+			}
+			if r.App != want.app {
+				t.Errorf("%q is listed in %q", want.id, r.App)
+			}
+			// THE SOURCE IS ITS OWN, which is what the preview shows.
+			if !strings.Contains(r.Source, want.app) {
+				t.Errorf("%q shows the other routine's saved Marco:\n%s",
+					want.id, r.Source)
+			}
+			if !r.Runnable {
+				t.Fatalf("%q cannot be run: %s", want.id, r.Why)
+			}
+			// AND PRESSING PLAY ON IT ASKS FOR EXACTLY THAT ROUTE.
+			raised := ""
+			a.raising = func(app string) string {
+				raised = app
+				return "that application is not running"
+			}
+			if why := a.PlayRoutine(want.id); why == "" {
+				t.Fatal("a run started although the application was " +
+					"not there")
+			}
+			if raised != want.app {
+				t.Errorf("pressing Play on %q brought %q forward",
+					want.id, raised)
+			}
+			_, args, _ := a.doCommand(r)
+			if !hasArg(args, "--app="+want.app) {
+				t.Errorf("the command for %q asks for %v", want.id, args)
+			}
+		})
+	}
+}
+
+// AND AN UNRUNNABLE NAMESAKE DOES NOT DISABLE A VALID ROUTINE.
+//
+// The listing keyed "cannot press anything" by SLUG, and a slug is shared by every scope it was
+// ever saved under — so a context-scoped routine being unable to press anything marked the
+// focus-scoped routine of the same name unable to press anything too. A valid routine refused for
+// somebody else's reason, with that routine's sentence beside it describing a scope it is not in.
+func TestAnUnrunnableNamesakeDoesNotDisableTheValidRoutine(t *testing.T) {
+	t.Setenv("MARCO_CV", "off")
+	t.Setenv("MARCO_ROUTES", t.TempDir())
+	a := recorded(t, nil)
+	dr := a.capture.draft
+	// THE BROKEN ONE FIRST, under the scope the old rule allowed: guarded presses and
+	// nothing to bring a window forward, which is the state on disk `Unrunnable` exists
+	// for. Through the backend, because `SaveDraft` refuses this scope now.
+	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}
+	if _, err := d.Save(dr, orchestrator.ScopeApp, "arkascended"); err != nil {
+		t.Fatal(err)
+	}
+	// AND THE GOOD ONE BESIDE IT: the same name, the same slug, the scope its presses
+	// need.
+	if _, err := d.Save(dr, orchestrator.ScopeAppAnywhere, "arkascended"); err != nil {
+		t.Fatal(err)
+	}
+
+	broken, had := routineWithID(a.Routines(), "arkascended/context/ark-graphics")
+	if !had {
+		t.Fatalf("the context-scoped namesake is not listed: %+v", a.Routines())
+	}
+	if broken.Runnable {
+		t.Error("the one that cannot press anything is offered for Play")
+	}
+	good, found := routineWithID(a.Routines(), "arkascended/focus/ark-graphics")
+	if !found {
+		t.Fatalf("the valid routine is not listed: %+v", a.Routines())
+	}
+	if !good.Runnable {
+		t.Fatalf("a valid routine is disabled by its namesake in another scope, "+
+			"with that one's reason beside it: %s", good.Why)
+	}
+	if good.Why != "" {
+		t.Errorf("the valid routine carries a refusal: %s", good.Why)
+	}
+	// AND PRESSING PLAY ON THE VALID ONE IS NOT REFUSED FOR THE OTHER'S REASON.
+	a.raising = func(string) string { return "that application is not running" }
+	if why := a.PlayRoutine(good.ID); !strings.Contains(why, "not running") {
+		t.Errorf("pressing Play on the valid routine answered: %s", why)
+	}
+}
+
+// AND SAVING ONE OF TWO BROKEN NAMESAKES AGAIN REPAIRS THE ONE BESIDE THE BUTTON.
+//
+// The repair card had the same defect in the same file: `Resave` matched a NAME and took the
+// first that answered, so the button beside the second row saved the first row's routine and
+// reported the first one's name while doing it.
+func TestSavingOneOfTwoNamesakesAgainRepairsTheOneAskedFor(t *testing.T) {
+	t.Setenv("MARCO_CV", "off")
+	t.Setenv("MARCO_ROUTES", t.TempDir())
+	a := recorded(t, nil)
+	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}
+	if _, err := d.Save(a.capture.draft, orchestrator.ScopeApp, "arkascended"); err != nil {
+		t.Fatal(err)
+	}
+	// THE SAME NAME, BROKEN THE SAME WAY, IN ANOTHER APPLICATION.
+	a.capture = nil
+	aSecondRoutineCalled(t, a, "ark graphics", "discord", "app-anywhere")
+	if _, err := d.Save(a.capture.draft, orchestrator.ScopeApp, "discord"); err != nil {
+		t.Fatal(err)
+	}
+
+	listed := a.Unrunnable()
+	if len(listed) != 2 {
+		t.Fatalf("two routines cannot press anything and %d are listed: %+v",
+			len(listed), listed)
+	}
+	var want Unrunnable
+	for _, u := range listed {
+		if u.App == "discord" {
+			want = u
+		}
+	}
+	if want.ID == "" {
+		t.Fatalf("the discord one is not in the listing: %+v", listed)
+	}
+	// A NAME IS NOT AN IDENTITY HERE EITHER, so handing one over repairs nothing: it
+	// names both of these, and repairing "whichever answered first" is the defect.
+	if why := a.Resave(want.Name); why == "" {
+		t.Fatalf("%q repaired a routine, and it names both of them", want.Name)
+	}
+	if len(a.Unrunnable()) != 2 {
+		t.Fatalf("a name repaired one of them after all: %+v", a.Unrunnable())
+	}
+	if why := a.Resave(want.ID); why != "" {
+		t.Fatalf("saving it again was refused: %s", why)
+	}
+	// THE ONE ASKED FOR IS REPAIRED AND THE OTHER IS UNTOUCHED. Repairing the wrong one
+	// leaves this list the same length with the other entry gone, which is why both are
+	// checked rather than just the count.
+	left := a.Unrunnable()
+	if len(left) != 1 {
+		t.Fatalf("after one repair, %d routine(s) cannot press anything: %+v",
+			len(left), left)
+	}
+	if left[0].App != "arkascended" {
+		t.Errorf("the repair took the wrong routine: %q was asked for and %q is "+
+			"what is left", want.ID, left[0].ID)
+	}
+}

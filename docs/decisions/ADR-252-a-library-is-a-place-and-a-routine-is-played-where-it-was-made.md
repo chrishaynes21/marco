@@ -2,7 +2,7 @@
 type: adr
 status: accepted
 date: 2026-10-24
-decision: "ACCEPTED — ROUTINES LIVE IN ONE LIBRARY, FOUND THE SAME WAY BY EVERY BINARY FROM ANY LAUNCH LOCATION, AND A SAVED ROUTINE IS SELECTED AND PLAYED IN THE WINDOW IT WAS RECORDED IN. The library was `$MARCO_ROUTES, else \"routes\"`, derived independently in four places, and that is a RELATIVE path: the answer was whichever directory each process happened to be started from, so a routine saved by a Studio somebody double-clicked in `plugins\\studio` went into `plugins\\studio\\routes` and `marco do` run from the repo root reported no such routine. The documented remedy was to launch both from the same directory, which is a developer workaround and not a product. So there is one resolver — `internal/marcopaths` — the answer is ABSOLUTE always, including a relative `$MARCO_ROUTES`, and the default is `routes` inside the store every part of Marco already shares, because a library is a place and not a thing you are standing next to. Moving a default makes an old library go quiet rather than disappear, so the window names any library-shaped directory beside its launch location that holds routines and says what to do about it; nothing is adopted or moved, because choosing between two libraries is the person's. AND SAVING IS NO LONGER THE END OF THE FLOW: the window lists every saved routine with the contract it was saved under — legacy, guarded or incomplete, read off the saved Marco by one reader tied by test to the terms the press guard requires — refuses Play for the ones that cannot press anything and says what they lack, raises the application itself because only the foreground process may, and then spawns `marco do --play` for the route's whole identity with the library named explicitly. Studio acquires no execution loop: the answer is the published outcome word read through the package that owns it, one run slot is shared with Acts and with recording, and a routine's run is rendered as what it is — no canonical reference, no phase, no question — because a view that expected a supervised performance would report a perfect routine as a run that cited nothing."
+decision: "ACCEPTED — ROUTINES LIVE IN ONE LIBRARY, FOUND THE SAME WAY BY EVERY BINARY FROM ANY LAUNCH LOCATION, AND A SAVED ROUTINE IS SELECTED AND PLAYED IN THE WINDOW IT WAS RECORDED IN. The library was `$MARCO_ROUTES, else \"routes\"`, derived independently in four places, and that is a RELATIVE path: the answer was whichever directory each process happened to be started from, so a routine saved by a Studio somebody double-clicked in `plugins\\studio` went into `plugins\\studio\\routes` and `marco do` run from the repo root reported no such routine. The documented remedy was to launch both from the same directory, which is a developer workaround and not a product. So there is one resolver — `internal/marcopaths` — the answer is ABSOLUTE always, including a relative `$MARCO_ROUTES`, and the default is `routes` inside the store every part of Marco already shares, because a library is a place and not a thing you are standing next to. Moving a default makes an old library go quiet rather than disappear, so the window names any library-shaped directory beside its launch location that holds routines and says what to do about it; nothing is adopted or moved, because choosing between two libraries is the person's. AND SAVING IS NO LONGER THE END OF THE FLOW: a routine is CHOSEN AND PERFORMED BY ITS WHOLE IDENTITY — `<app>/<scope>/<slug>`, its place in the library — through card selection, preview and Play, because a name is not unique and a slug is not either, and every lookup that travelled by name answered with the first row that matched: clicking the second of two `settings` cards displayed and performed the first one, with the full identity reaching the child correctly AFTER the wrong routine had been chosen. The backend requires an exact match and refuses a bare name rather than resolving it, and both listings are keyed by identity rather than by slug — keyed by slug, a context-scoped routine that cannot press anything disabled the valid focus-scoped routine of the same name and showed it that one's reason. The window lists every saved routine with the contract it was saved under — legacy, guarded or incomplete, read off the saved Marco by one reader tied by test to the terms the press guard requires — refuses Play for the ones that cannot press anything and says what they lack, raises the application itself because only the foreground process may, and then spawns `marco do --play` for the route's whole identity with the library named explicitly. Studio acquires no execution loop: the answer is the published outcome word read through the package that owns it, one run slot is shared with Acts and with recording, and a routine's run is rendered as what it is — no canonical reference, no phase, no question — because a view that expected a supervised performance would report a perfect routine as a run that cited nothing."
 supersedes: []
 affects:
   - demonstrations
@@ -153,6 +153,34 @@ could not be checked, which is the whole finding — it was carried as far as th
 writes the banner and then dropped there, with the page rendering the word and the transcript and
 nothing in between.
 
+### A routine is chosen by its whole identity, not by its name
+
+A name is not unique and a slug is not either. `settings` saved for two applications is two
+routines, and so is `settings` saved twice for one application under two scopes — a route IS its
+scope and its slug, which is why the command is told all three.
+
+Everything above that travelled by NAME. The page kept `r.name`; looking a routine up returned the
+first row that matched; `PlayRoutine` matched a name or a slug and took the first of those. So
+clicking the second `settings` card displayed the first one's saved Marco, the first one's sentence
+about its presses and the first one's Play button — and pressing it performed the first one's
+route. **Handing the child the route's full identity was already right, and it was happening after
+the wrong routine had been chosen**: the shape this project keeps finding, a check that is correct
+about the wrong subject.
+
+The listing had the same defect in a second place and with a worse result. "Cannot press anything"
+was keyed by SLUG, and a slug is shared by every scope it was ever saved under — so
+`<app>/context/settings` being unable to press anything marked `<app>/focus/settings` unable to
+press anything too. A valid routine disabled by an invalid namesake, with the namesake's sentence
+beside it explaining a scope it is not in.
+
+And the repair card had it a third time: `Resave` matched a name and took the first that answered,
+so the button beside one row saved the other row's routine and reported the first one's name.
+
+So every one of them carries `<app>/<scope>/<slug>` — the route's place in the library, which is
+what a route's identity is. The page keeps it through selection, preview and Play; the backend
+requires an exact match and refuses a bare name rather than resolving it, because a term that
+identifies two routines must not pick one of them; and both listings are keyed by it.
+
 ### Three contracts, read before Play rather than discovered during it
 
 A saved route says one of three things about its presses — no basis is legacy, a basis with every
@@ -195,7 +223,10 @@ routine that cannot run. `build.cmd` makes all of them in one breath.
   `TestAnActIsNotListedAsARoutine`, `TestAModuleBesideTheRoutinesIsNotOfferedAsOne`,
   `TestARoutineThatCannotPressAnythingIsNotOfferedForPlay`,
   `TestARoutineMissingAMeasurementIsNotOfferedForPlay`,
-  `TestPlayingAnUnknownRoutineNamesTheLibrary`,
+  `TestPlayingAnUnknownRoutineNamesTheLibrary`, `TestPlayingARoutineByNameAloneIsRefused`,
+  `TestTwoRoutinesOfOneNameAreTwoRoutines`,
+  `TestAnUnrunnableNamesakeDoesNotDisableTheValidRoutine`,
+  `TestSavingOneOfTwoNamesakesAgainRepairsTheOneAskedFor`,
   `TestARoutineWillNotRunWhileSomethingElseIs`,
   `TestARoutineWillNotRunWhileSomethingIsBeingRecorded`,
   `TestTheApplicationIsBroughtForwardBeforeTheRunStarts`,
@@ -215,8 +246,19 @@ routine that cannot run. `build.cmd` makes all of them in one breath.
 
 ## Mutations
 
-Forty, with one deliberate no-op control. Six survived, and five of those were a weak test
-rather than weak code: the child's environment was asserted to CONTAIN the library, which
+Forty-eight across two rounds, with one deliberate no-op control.
+
+**The second round** is the identity, after review found that selecting a routine lost its scope:
+eight mutations, one survivor. `Resave` was made to accept a name as well as an identity and
+nothing failed, because the test handed it an identity and never asked what a name would do —
+closed by requiring a name to repair nothing. One mutation is recorded as unfalsifiable rather
+than killed: the listing sorts with a tiebreak on identity, and `Registry.List` already returns a
+total order, so the sort never sees equal keys and removing the tiebreak changes no observable
+behaviour. It stays because the order must not depend on an upstream sort being total, and the
+comment on it says that rather than claiming a defect anybody saw.
+
+**The first round** was forty, with six survivors, five of them a weak test rather than weak
+code: the child's environment was asserted to CONTAIN the library, which
 `os.Environ()` already satisfied whenever the two agreed — and in a test they agree by
 construction; the module filter was tested with `os.marco`, which `routes.routeSlug` already
 excludes by name everywhere, so the fixture asked nothing; nothing tested that the window brings

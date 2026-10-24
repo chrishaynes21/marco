@@ -1564,6 +1564,11 @@ What to check, and what each failure would mean:
 - **The routine appears under *Your routines* without a refresh**, with *brings <app> forward* and
   the time you saved it. If the list is empty, the library the window writes to is not the one it
   reads — and the line above the list says which directory that is.
+- **If you ever record the same name twice, each card is its own routine.** Worth doing once on
+  purpose: record `settings` in the game, then record `settings` in something else. Two cards,
+  each naming its own application; click each in turn and *What it will do* must change to that
+  one's saved Marco. A card that shows the other one's steps means the window is choosing by name,
+  and pressing Play would then perform the one you did not click.
 - **It says `every press is checked`** on the card, and the sentence under it names what that
   means. `its presses are not checked` on a routine you just recorded means the measurements did
   not reach the saved file: §62's review bullet is where that is diagnosed.

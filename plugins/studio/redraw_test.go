@@ -461,32 +461,48 @@ window.go = {main: {
     Watch: () => Promise.resolve({act: '', active: false, transcript: null}),
     Recording: () => Promise.resolve({active: false}),
     Unrunnable: () => Promise.resolve([]),
-    // TWO ROUTINES: one that checks every press, and one saved under a scope that
-    // brings no window forward so every press in it would refuse.
+    // TWO ROUTINES OF THE SAME NAME, in two applications — one that checks every
+    // press and can run, and one saved under a scope that brings no window forward
+    // so every press in it would refuse.
+    //
+    // The same name deliberately. This page kept r.name and every lookup from it
+    // answered with the FIRST row that matched, so clicking the second card showed
+    // the first one's source, its sentence and its Play button. Rows that differed
+    // by name could not ask that question, and the version of this harness that had
+    // two different names did not.
     Routines: () => Promise.resolve([
-      {name: 'ark graphics', slug: 'ark-graphics', app: 'arkascended',
-       scope: 'app-anywhere', contract: 'guarded', runnable: true,
-       saved_at: '2026-10-24 04:00',
+      {id: 'arkascended/focus/settings', name: 'settings', slug: 'settings',
+       app: 'arkascended', scope: 'app-anywhere', contract: 'guarded',
+       runnable: true, saved_at: '2026-10-24 04:00',
        checks: 'Every press is checked against the window it was recorded in.',
-       source: 'the App is a script.'},
-      {name: 'old settings', slug: 'old-settings', app: 'arkascended',
-       scope: 'app', contract: 'guarded', runnable: false,
+       source: 'the Ark is a script. // ark'},
+      {id: 'discord/context/settings', name: 'settings', slug: 'settings',
+       app: 'discord', scope: 'app', contract: 'guarded', runnable: false,
        why: 'every press in it checks the window it was made in, and it was saved ' +
             'to switch nothing',
        checks: 'Every press is checked against the window it was recorded in.',
-       source: 'the App is a script.'},
+       source: 'the Discord is a script. // discord'},
     ]),
     Library: () => Promise.resolve({dir: 'C:/Users/x/AppData/Roaming/marco/routes',
       elsewhere: 'D:/Macros/marco/routes',
       says: '3 routine(s) are in D:/Macros/marco/routes, which is not the library above.'}),
-    PlayRoutine: () => Promise.resolve(''),
+    PlayRoutine: (id) => { window.__played = id; return Promise.resolve('') },
   },
 }}
-// CHOOSE THE ONE THAT CANNOT RUN, by clicking its card the way a person would.
+// CHOOSE THE SECOND ONE — the namesake that cannot run — by clicking its card the way a
+// person would, and then press Play.
 setTimeout(() => {
   const cards = document.querySelectorAll('#routineList .card')
   if (cards.length > 1) { cards[1].click() }
 }, 2000)
+// AND THEN THE FIRST ONE, AND PRESS PLAY ON IT. Which routine the button performs is the
+// half of this that no amount of correct rendering covers.
+setTimeout(() => {
+  const cards = document.querySelectorAll('#routineList .card')
+  if (cards.length > 0) { cards[0].click() }
+  const b = document.getElementById('routinePlayBtn')
+  if (b && !b.disabled) { b.click() }
+}, 3000)
 setTimeout(() => {
   const vis = (id) => {
     const e = document.getElementById(id)
@@ -494,12 +510,26 @@ setTimeout(() => {
   }
   document.title = 'cards=' + document.querySelectorAll('#routineList .card').length +
     ' chosen=' + vis('routineChosen') +
-    ' playoff=' + (document.getElementById('routinePlayBtn').disabled ? 1 : 0) +
-    ' why=' + vis('routineWhy') +
     ' elsewhere=' + vis('libElsewhere') +
     ' where=' + (document.getElementById('libWhere').textContent.includes('marco/routes')
-                   ? 1 : 0)
+                   ? 1 : 0) +
+    ' played=' + (window.__played === 'arkascended/focus/settings' ? 1
+                    : window.__played === undefined ? 0 : 9) +
+    ' shown=' + (document.getElementById('routineSource').textContent.includes('// ark')
+                   ? 1 : 0) +
+    ' secondshown=' + window.__secondShown +
+    ' secondwhy=' + window.__secondWhy +
+    ' secondoff=' + window.__secondOff
 }, 4200)
+// WHAT THE SECOND CARD SHOWED WHILE IT WAS CHOSEN, read before the first is clicked:
+// its own source, its own reason, and its own disabled Play.
+setTimeout(() => {
+  window.__secondShown =
+    document.getElementById('routineSource').textContent.includes('// discord') ? 1 : 0
+  window.__secondWhy =
+    document.getElementById('routineWhy').textContent.includes('switch nothing') ? 1 : 0
+  window.__secondOff = document.getElementById('routinePlayBtn').disabled ? 1 : 0
+}, 2600)
 `
 
 func TestTheSavedRoutinesAreDrawnAndPlayIsOfferedForTheOneThatCanRun(t *testing.T) {
@@ -525,15 +555,39 @@ func TestTheSavedRoutinesAreDrawnAndPlayIsOfferedForTheOneThatCanRun(t *testing.
 	if n("chosen") != 1 {
 		t.Errorf("clicking a routine did not open it: %q", title)
 	}
-	// AND PLAY IS NOT OFFERED FOR THE ONE THAT CANNOT PRESS ANYTHING, with the reason
+	// ── AND IT IS THE ONE THEY CLICKED, which is the whole of this ──
+	//
+	// Both rows are called `settings`. The page kept the NAME of the chosen routine and
+	// every lookup from it answered with the first row that matched, so clicking the
+	// second card showed the first one's source, the first one's sentence and the first
+	// one's Play button — and pressing Play performed the first one's route. Handing the
+	// child a full identity was already right and was happening after the wrong routine
+	// had been chosen.
+	if n("secondshown") != 1 {
+		t.Errorf("clicking the second of two routines of one name showed the "+
+			"other one's saved Marco: %q", title)
+	}
+	// AND PLAY IS NOT OFFERED FOR THE ONE THAT CANNOT PRESS ANYTHING, with ITS reason
 	// beside it. A live button here answers a press with a refusal, which is a window
 	// telling somebody off for pressing what it offered them.
-	if n("playoff") != 1 {
+	if n("secondoff") != 1 {
 		t.Errorf("Play is offered for a routine where every press would refuse: %q",
 			title)
 	}
-	if n("why") != 1 {
-		t.Errorf("nothing says why it cannot be played: %q", title)
+	if n("secondwhy") != 1 {
+		t.Errorf("nothing says why it cannot be played, or it says the other "+
+			"routine's reason: %q", title)
+	}
+	// AND PRESSING PLAY PERFORMS EXACTLY THE ONE ON SCREEN, by identity. `9` is the
+	// wrong routine, `0` is none at all.
+	if got := n("played"); got != 1 {
+		t.Errorf("Play performed %s: %q", map[int]string{
+			0: "nothing", 9: "a different routine from the one chosen",
+		}[got], title)
+	}
+	if n("shown") != 1 {
+		t.Errorf("choosing the first routine afterwards did not show its own "+
+			"saved Marco: %q", title)
 	}
 	// AND THE LIBRARY SAYS WHERE IT IS, and names the one somebody's older routines are
 	// sitting in. Silence there is a person reading an empty list and concluding their

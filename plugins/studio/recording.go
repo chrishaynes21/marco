@@ -689,6 +689,14 @@ var canReadWindowScale = winctx.CanReadWindowScale
 
 // Unrunnable is what the page shows about a saved routine whose presses can never be checked.
 type Unrunnable struct {
+	// ID is the route's whole identity, and it is the term the page hands back when
+	// somebody asks for one of these to be saved again.
+	//
+	// By NAME it was the first that answered, which for `settings` saved under two
+	// applications is whichever this listing happened to put first — so the button beside
+	// one row saved the other row's routine and said the first one's name while doing it.
+	// The same defect the routine list had, in the same file. See Routine.ID.
+	ID        string `json:"id"`
 	Name      string `json:"name"`
 	App       string `json:"app,omitempty"`
 	Resavable bool   `json:"resavable,omitempty"`
@@ -706,8 +714,8 @@ func (a *Acts) Unrunnable() []Unrunnable {
 	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}
 	var out []Unrunnable
 	for _, u := range d.Unrunnable() {
-		out = append(out, Unrunnable{Name: u.Name, App: u.Route.App,
-			Resavable: u.Resavable})
+		out = append(out, Unrunnable{ID: routeID(u.Route), Name: u.Name,
+			App: u.Route.App, Resavable: u.Resavable})
 	}
 	return out
 }
@@ -716,7 +724,7 @@ func (a *Acts) Unrunnable() []Unrunnable {
 //
 // Explicit, and named for what it does: nothing repairs itself behind somebody's back, and a
 // routine quietly rescoped is the thing `wantedScope` refuses to do at Save.
-func (a *Acts) Resave(name string) string {
+func (a *Acts) Resave(id string) string {
 	a.mu.Lock()
 	recording := a.recordingLocked()
 	a.mu.Unlock()
@@ -725,7 +733,11 @@ func (a *Acts) Resave(name string) string {
 	}
 	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}
 	for _, u := range d.Unrunnable() {
-		if !strings.EqualFold(u.Name, name) {
+		// EXACTLY THE ONE BESIDE THE BUTTON THEY PRESSED. By name it was the first
+		// that answered, and two routines of one name in two applications are two
+		// routines: the button beside the second row saved the first row's routine
+		// and reported the first one's name. See Unrunnable.ID.
+		if routeID(u.Route) != id {
 			continue
 		}
 		rt, err := d.Resave(u)
@@ -738,5 +750,6 @@ func (a *Acts) Resave(name string) string {
 			"Run it.", false, Pictured{})
 		return ""
 	}
-	return fmt.Sprintf("there is no routine called %q that needs saving again", name)
+	return fmt.Sprintf("there is no routine %q that needs saving again — press "+
+		"Refresh and choose it again", id)
 }

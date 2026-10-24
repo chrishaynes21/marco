@@ -132,7 +132,14 @@ that control, though a saved play still cannot say it (`cannot_say_pointer`, fol
   share. Moving a default makes an old library go QUIET rather than disappear, so the window names
   any library-shaped directory beside its launch location that holds routines and says what to do;
   nothing is adopted and nothing is moved, because choosing between two libraries is the person's.
-  **And saving is no longer where the flow ends**: every saved routine is listed with the contract
+  **And saving is no longer where the flow ends**: a routine is chosen and performed by its WHOLE
+  identity — `<app>/<scope>/<slug>`, its place in the library — because a name is not unique and a
+  slug is not either, and every lookup that travelled by name answered with the first row that
+  matched: clicking the second of two `settings` cards displayed and performed the first one, with
+  the full identity reaching the child correctly after the wrong routine had been chosen. Both
+  listings are keyed by identity rather than slug, since keyed by slug a context-scoped routine
+  that cannot press anything disabled the valid focus-scoped routine of the same name and showed
+  it that one's reason. Every saved routine is listed with the contract
   it was saved under, read off the saved Marco by one reader tied by test to the six terms the
   press guard requires, so the one that checks every press says so, the one that cannot press
   anything is not offered, and the one missing a measurement names what it lacks. Play raises the

@@ -897,7 +897,7 @@ func TestARoutineThatCannotPressAnythingIsListedAndSavedAgain(t *testing.T) {
 		t.Fatal("its demonstration was not kept, so it cannot be saved again")
 	}
 
-	if why := a.Resave("ark graphics"); why != "" {
+	if why := a.Resave(listed[0].ID); why != "" {
 		t.Fatalf("saving it again was refused: %s", why)
 	}
 	if left := a.Unrunnable(); len(left) != 0 {

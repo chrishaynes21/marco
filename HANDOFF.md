@@ -7416,3 +7416,48 @@ both. One deliberate no-op control survived.
 See [[ADR-252-a-library-is-a-place-and-a-routine-is-played-where-it-was-made]].
 
 **Still outstanding:** the owner's trial of §63. None of this has been done on a real desktop.
+
+## 38I — a name is not an identity
+
+Review found the selection half of 38H wrong, and it is the shape this project keeps finding: a
+check that is correct about the wrong subject.
+
+A route IS its scope and its slug. `settings` saved for two applications is two routines, and so
+is `settings` saved twice for one application under two scopes — which is why `doCommand` hands
+the child all three. But everything ABOVE that travelled by NAME: the page kept `r.name`, looking
+a routine up returned the first row that matched, and `PlayRoutine` matched a name or a slug and
+took the first of those. So clicking the second `settings` card displayed the first one's saved
+Marco, the first one's sentence about its presses and the first one's Play button — and pressing
+it performed the first one's route. **Handing the child the full identity was already right, and
+it was happening after the wrong routine had been chosen.**
+
+The listing had it a second time with a worse result. "Cannot press anything" was keyed by SLUG,
+and a slug is shared by every scope it was ever saved under — so `<app>/context/settings` being
+unable to press anything marked `<app>/focus/settings` unable to press anything too: a valid
+routine disabled by an invalid namesake, with the namesake's sentence beside it explaining a scope
+it is not in. And the repair card had it a third time, in the same file: `Resave` matched a name
+and took the first that answered, so the button beside one row saved the other row's routine and
+reported the first one's name while doing it.
+
+So every one of them carries `<app>/<scope>/<slug>`, which is the route's place in the library and
+therefore what its identity is — not the file path, which `Registry.Path` resolves to wherever a
+legacy route actually sits, making it an answer about the filesystem rather than about the route.
+The page keeps it through selection, preview and Play; the backend requires an exact match and
+refuses a bare name rather than resolving it, because a term that identifies two routines must not
+pick one of them; and both listings are keyed by it.
+
+Eight mutations, one survivor: `Resave` was made to accept a name as well as an identity and
+nothing failed, because the test handed it an identity and never asked what a name would do. One
+is recorded as unfalsifiable rather than killed — the listing's sort has a tiebreak on identity
+and `Registry.List` already returns a total order, so the sort never sees equal keys and removing
+the tiebreak changes nothing observable. It stays because the order must not depend on an upstream
+sort being total, and the comment on it says that instead of claiming a defect somebody saw.
+
+The page's own test asked the question in the only way that can: two rows with the SAME name, one
+runnable and one not, clicked in turn. The version of that harness with two different names could
+not have failed.
+
+See [[ADR-252-a-library-is-a-place-and-a-routine-is-played-where-it-was-made]].
+
+**Still outstanding:** the owner's trial of E2E.md §63. None of this has been done on a real
+desktop.

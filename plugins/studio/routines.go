@@ -64,6 +64,28 @@ const (
 
 // Routine is one saved recorder-first routine, as a person choosing one has to see it.
 type Routine struct {
+	// ID is the route's WHOLE identity, and it is the term the page hands back when
+	// somebody chooses this routine or presses Play on it.
+	//
+	// # Why a name is not enough, and never was
+	//
+	// Because a name is not unique and a slug is not either. A route IS its scope and
+	// its slug — `settings` saved for two applications is two routines, and so is
+	// `settings` saved twice for one application under two scopes. Everything here used
+	// to travel by name: the page kept `r.name`, looking a routine up returned the FIRST
+	// row that matched, and `PlayRoutine` matched a name or a slug and took the first of
+	// those. So clicking the second `settings` card displayed the first one's source and
+	// its contract, and pressing Play performed the first one's route.
+	//
+	// Handing the child the route's full identity was already right and was happening
+	// AFTER the wrong routine had been chosen, which is the shape of defect this project
+	// keeps finding: a check that is correct about the wrong subject.
+	//
+	// It is the route's place in the library, which is what a route's identity is —
+	// `global/<slug>`, `<app>/context/<slug>`, `<app>/focus/<slug>`. Readable on
+	// purpose: when two of these disagree they say WHICH part differs, to anybody
+	// reading them side by side.
+	ID   string `json:"id"`
 	Name string `json:"name"`
 	Slug string `json:"slug"`
 	App  string `json:"app,omitempty"`
@@ -121,11 +143,18 @@ func (a *Acts) Routines() []Routine {
 	// THE ONES THAT CANNOT PRESS ANYTHING, asked once rather than per routine: it is a
 	// listing of its own, and a question per route would read the whole library again for
 	// every row of it.
+	// KEYED BY THE WHOLE IDENTITY AND NOT BY THE SLUG.
+	//
+	// Every routine in that listing is context-scoped by construction, and a slug is
+	// shared by every scope it was ever saved under — so `<app>/context/settings` being
+	// unable to press anything marked `<app>/focus/settings` unable to press anything
+	// too. A valid routine disabled by an invalid namesake, with the namesake's sentence
+	// beside it explaining a scope it is not in.
 	cannot := map[string]string{}
 	d := orchestrator.Deps{Reg: a.reg(), Out: &strings.Builder{}}
 	for _, u := range d.Unrunnable() {
-		cannot[u.Route.Slug] = "every press in it checks the window it was made in, " +
-			"and it was saved to switch nothing — so there is no window for " +
+		cannot[routeID(u.Route)] = "every press in it checks the window it was made " +
+			"in, and it was saved to switch nothing — so there is no window for " +
 			"those presses to be checked against and every one of them would " +
 			"refuse. Save it again from its own demonstration"
 	}
@@ -149,16 +178,17 @@ func (a *Acts) Routines() []Routine {
 		// WHAT THEY CALLED IT, through the one function that reads the header
 		// codegen writes. A second reader of that line would be a second answer
 		// to what somebody called their own routine.
-		r := Routine{Name: orchestrator.NameIn(src, rt.Slug), Slug: rt.Slug, App: rt.App,
-			Focus: rt.Focus, Scope: scopeWord(rt), Source: src, Path: path}
+		r := Routine{ID: routeID(rt), Name: orchestrator.NameIn(src, rt.Slug),
+			Slug: rt.Slug, App: rt.App, Focus: rt.Focus, Scope: scopeWord(rt),
+			Source: src, Path: path}
 		if st, serr := os.Stat(path); serr == nil {
 			r.SavedAt = st.ModTime().Local().Format("2006-01-02 15:04")
 		}
 		contract, lacks := orchestrator.ContractOf(src)
 		r.Contract, r.Checks = string(contract), checksSentence(contract, lacks)
 		switch {
-		case cannot[rt.Slug] != "":
-			r.Why = cannot[rt.Slug]
+		case cannot[r.ID] != "":
+			r.Why = cannot[r.ID]
 		case contract == orchestrator.Incomplete:
 			// IT SAVES AND THEN REFUSES, which is the contract working rather
 			// than a broken file — and it is still not something to press Play on
@@ -177,8 +207,41 @@ func (a *Acts) Routines() []Routine {
 		}
 		out = append(out, r)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	// BY NAME, AND THEN BY THE REST OF THE IDENTITY, so the order is total.
+	//
+	// `sort.Slice` is not stable and two routines can share a name, so by name alone the
+	// order of those two was whatever the sort happened to leave — and the page keys a
+	// redraw on this list's order, so a pair that swapped between two polls would rebuild
+	// the cards under somebody's cursor.
+	//
+	// Not a defect anybody has seen, and it cannot be made to happen here: `Registry.List`
+	// already returns a total order, so the input arrives sorted and the sort has no equal
+	// keys to shuffle. That is the point — this says the order does not DEPEND on an
+	// upstream sort being total, which is not this function's guarantee to borrow.
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Name != out[j].Name {
+			return out[i].Name < out[j].Name
+		}
+		return out[i].ID < out[j].ID
+	})
 	return out
+}
+
+// routeID is a route's whole identity as one string: its place in the library.
+//
+// The same three scopes `internal/routes` keeps on disk, because that IS what distinguishes two
+// routes of one name — see Routine.ID. Not the file path: `Registry.Path` resolves a legacy
+// context route to wherever it actually is, which makes it an answer about the filesystem rather
+// than about the route, and an identity that changes when a file moves is not one.
+func routeID(rt routes.Route) string {
+	if rt.App == "" {
+		return routes.GlobalDir + "/" + rt.Slug
+	}
+	scope := routes.ContextDir
+	if rt.Focus {
+		scope = routes.FocusDir
+	}
+	return rt.App + "/" + scope + "/" + rt.Slug
 }
 
 // scopeWord is where a routine works, in the three words the product uses for it.
@@ -255,14 +318,22 @@ func saidTerms(lacks []string) []string {
 // a routine is `marco run --host dryrun`, which is a different command performing a file rather
 // than the product performing a routine. The button says so, and the page says so beside it:
 // offering a tick-box this could not honour would be worse than either.
-func (a *Acts) PlayRoutine(name string) string {
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return "name the routine to run"
+func (a *Acts) PlayRoutine(id string) string {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return "choose a routine to run"
 	}
+	// EXACTLY THE ONE THAT WAS CHOSEN, by its whole identity.
+	//
+	// This matched a name OR a slug and took the first that answered, which for two
+	// routines called `settings` is whichever the listing happened to put first — so the
+	// window could display one and perform the other, and everything downstream was
+	// correct about the wrong route. Case-sensitive on purpose: the identity is a term
+	// this surface produced, not something anybody types, and folding it would be
+	// inventing a second routine that matches.
 	var chosen *Routine
 	for _, r := range a.Routines() {
-		if strings.EqualFold(r.Name, name) || strings.EqualFold(r.Slug, name) {
+		if r.ID == id {
 			got := r
 			chosen = &got
 			break
@@ -270,8 +341,8 @@ func (a *Acts) PlayRoutine(name string) string {
 	}
 	switch {
 	case chosen == nil:
-		return fmt.Sprintf("there is no routine called %q in this library (%s)",
-			name, a.routesDir)
+		return fmt.Sprintf("there is no routine %q in this library (%s) — press "+
+			"Refresh and choose it again", id, a.routesDir)
 	case !chosen.Runnable:
 		// ITS OWN SENTENCE. "It would not run" is not something anybody can act on;
 		// what it lacks, or what to do about it, is.
