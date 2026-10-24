@@ -1451,3 +1451,70 @@ Three things must then hold, and the third is why the kill is targeted:
 - every OTHER `director.exe` is still running. Re-run the `Get-CimInstance` line above: a daemon
   that went down with the runner means the kill was not the one this case is about, and whatever
   the panel then said is evidence about a different event.
+
+## 62. Recording a routine in Studio's window, and running it (needs your hands, ~6 min)
+
+The recorder-first flow, end to end: Record → Stop → Review → Save → reload → Play. Nothing here
+is a demonstration of a *control* — this is the other half of the product, where you show Marco a
+sequence of presses and it saves a routine that performs them.
+
+**Everything about it is automated evidence so far and none of it has been done on a real
+desktop.** This section is what turns that into acceptance.
+
+```sh
+plugins\studio\build.cmd
+plugins\studio\studio.exe
+```
+
+Have the game running. You do **not** need it in front: you will switch to it yourself, and that
+switch is recorded as the step that performs it.
+
+1. **Name it and press Record.** Under *Record a routine*, type a name you would say out loud —
+   `ark graphics` — and press Record. The card becomes `Recording "ark graphics"…`, with `or press
+   <key>` beside it if a stop key is set.
+2. **Switch to the game and do the thing.** Ordinary left-clicks and the keyboard. Open a menu,
+   press two or three controls, nothing clever.
+3. **Visit Studio's window in the middle of it.** This is the case worth going out of your way
+   for: switch back to Studio, look at it for a few seconds, then switch to the game again and
+   **press another control**. Then finish.
+4. **Press Stop** — in Studio's window, with the mouse.
+5. **Read the review.** Every step in plain words, in order. Then press **Save**.
+6. **Run it.** `marco do "ark graphics"` from a terminal, with the game on the screen you recorded
+   it on.
+
+What to check, and what each failure would mean:
+
+- **Every press you made is in the review, including the one after your visit to Studio.** That
+  last one is the whole reason for step 3: excluding Studio's own window used to take the press
+  beside it as well. A review missing it is the defect, and the step count is the quickest tell —
+  count your presses before you look.
+- **Nothing you did in Studio's window is in the review.** No click on Record, no click on Stop,
+  no switch to Studio and no switch back. If `studio` appears as a step, or there is a press at
+  the Stop button's coordinates, the recorder's own window reached the routine.
+- **Each press says what it measured**: `left-click at 722, 210 in the window (1920×1080, 144 dpi,
+  arkascended.exe)`. A press that says `cannot be checked — <something> was not measured` is a
+  real answer, not a bug — but note which measurement and whether the sentence beside the draft
+  says whether recording it again would help.
+- **The scope is not a question.** It should read *Runs in <app>. Marco brings it forward before
+  playback.* with no dropdown. A three-way choice appearing here means the recording's presses
+  are not being checked at all.
+- **Save says where it went**, and the routine is on disk under `<app>\focus\`. Under
+  `<app>\context\` is the defect: that scope brings no window forward and every press in it would
+  refuse. The tree is `$MARCO_ROUTES`, or `routes\` beside **wherever you launched Studio from** —
+  so launch it from the repo root and run `marco do` from there too, or the two look at different
+  trees and the routine you just saved will not be found.
+- **Read the saved Marco.** It should be a chain — `this can Run.` wrapping the Activate, then
+  `this can Step2.` and so on, each calling the next only inside `when ok?`. One flat block with
+  bare `do OS's Click` lines means a refusal would not stop it.
+- **Running it presses where you pressed**, in the window wherever it now is. Move the game window
+  before running it: that is the point of the whole contract, and a routine that presses the old
+  desktop coordinates is the defect.
+- **And it refuses rather than guessing.** Resize the game window and run it again: it should stop
+  at the first press and say the window is a different size now. `marco do` should exit non-zero
+  and print the sentence. If it reports success having pressed nothing, the result is not reaching
+  the command.
+- **Right-clicks and drags are refused at Save** in this version, with a sentence naming which.
+  That is deliberate; a recording containing one that saves anyway is the defect.
+
+Then, for the record: `<routes>\<app>\focus\<slug>.rec.json` holds the raw demonstration beside the
+routine. Nothing executes it, and Studio reads it to save the routine again if it ever needs to.
