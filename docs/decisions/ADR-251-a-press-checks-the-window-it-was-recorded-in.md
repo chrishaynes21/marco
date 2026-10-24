@@ -683,6 +683,17 @@ it intends to do.
   not half of it: their delivery failures are not in the account either (`doType` and `doKeyDown`
   return the status without recording anything), so a guarded routine whose typing was dropped
   carries on AND reports that it performed. That is what a keystroke did until this increment.
+- **A ROUTINE ALREADY ON DISK KEEPS THE SHAPE IT WAS GENERATED WITH.** The keystroke rule above is
+  the GENERATOR's, so it reaches a routine when that routine is written. One saved before it — the
+  owner's own first routine among them — is a guarded route whose key is not a link, and it will
+  go on pressing past a keystroke that did not arrive until it is recorded again or saved again.
+  Nothing rewrites saved Marco and nothing should: it is the only executable truth here, and
+  rewriting it by hand is how two things that have to agree stop agreeing. The way out already
+  exists and is the one above — the demonstration is stored beside the routine and Studio saves it
+  again from that — but Studio OFFERS it only for a routine that cannot press anything at all, so
+  this case is not offered and not announced. Whether a routine should be able to say which build
+  generated it, and be offered a re-save when that build is older than a rule, is a question this
+  does not answer.
 - **A terminal return inside a non-exhaustive `when` arm does not return.** Marco's own
   semantics, measured here and not changed: the arm fires, the ending is ignored, execution falls
   through, and the caller is told ok. Every fixture in the repository pairs its arms, so nothing

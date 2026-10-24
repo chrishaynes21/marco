@@ -7618,3 +7618,11 @@ exactly what a keystroke did until this increment.
 
 The live trial stands for what it showed. It does not establish this: staging it means making the
 machine refuse one keystroke and take everything else.
+
+**And it reaches a routine when that routine is written.** The rule is the generator's, so a
+routine already on disk keeps the shape it was generated with — the owner's own first routine among
+them, which will go on pressing past a keystroke that did not arrive until it is recorded again or
+saved again. Nothing rewrites saved Marco, and nothing should. The way out exists already (the
+demonstration is stored beside the routine and Studio saves it again from that), but Studio offers
+it only for a routine that cannot press anything at all, so this case is neither offered nor
+announced. Recorded as a gap in the ADR.
