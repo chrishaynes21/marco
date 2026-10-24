@@ -18,6 +18,17 @@ source_paths:
 
 # Coordinate-first Studio MVP — assessment and estimate, at `3d9eb60`
 
+> **Status: revision 2 is APPROVED as the design and estimate** (2026-10-24). The first milestone
+> is *"a routine you can report on"* — R1 to R3, **11 to 18 focused engineering hours including the
+> prototype allowance** — with the boundaries restated as: `marco do` owns reservation, citation
+> and finalisation; records distinguish run kinds and preserve their outcome vocabularies; the
+> source digest identifies the bytes actually executed; interrupted attempts stay unfinished and
+> absent verification evidence stays absent; and Studio can inspect and export each attempt without
+> a terminal. Explicit mode, replacement protection and readiness are the next 8 to 12 hours and
+> are required before the broader MVP is called repeatable. Chord cleanup stays separately scoped
+> at 6 to 9 hours, covering both partial-delivery cleanup and cancellation before the tap.
+> **Implementation awaits the Owner's decision; nothing here is authorized by the approval.**
+
 **Revision 2**, after review. Four things changed: the record's MEANING is settled before any
 extraction (§1a, two vocabularies that do not convert); the EXECUTOR owns the reference and only
 the shared machinery is extracted (R1, R2); the claim that chord cancellation was already correct
