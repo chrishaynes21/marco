@@ -48,6 +48,7 @@ import (
 	"github.com/chaynes-simpleclouds/marco/internal/orchestrator"
 	"github.com/chaynes-simpleclouds/marco/internal/outcome"
 	"github.com/chaynes-simpleclouds/marco/internal/routes"
+	"github.com/chaynes-simpleclouds/marco/internal/runs"
 )
 
 // kindAct and kindRoutine are what the one run slot is holding, which the page has to know
@@ -612,6 +613,17 @@ func saidOfRoutine(name, said, why string, active bool) string {
 		return fmt.Sprintf("%q stopped without saying how it ended, so nobody can "+
 			"speak for what it did.", name)
 	}
+	// A RECORD THAT ONLY SAYS THE ATTEMPT BEGAN, which is reachable the moment a
+	// routine's run leaves a record: the reference is claimed and a provisional record
+	// written before anything is sent, so a `marco` killed between the two leaves exactly
+	// this. See runs.Unfinished — a record state and not one of the seven.
+	//
+	// Said as itself rather than falling through to "ended as started", which reads as a
+	// word somebody misspelled.
+	if said == runs.Unfinished {
+		return fmt.Sprintf("Marco started %q and never said how it ended, so nobody "+
+			"can speak for what it did.%s", name, alsoSaid(why))
+	}
 	return fmt.Sprintf("%q ended as %s.%s", name, said, alsoSaid(why))
 }
 
@@ -770,4 +782,49 @@ func (a *Acts) awaitRun(d time.Duration) bool {
 	case <-time.After(d):
 		return false
 	}
+}
+
+// nextOfRoutine is what to do about a run of a routine that did not work, in its own terms.
+//
+// # Why this is not nextOf
+//
+// Because `nextOf` answers for an ACT, and its remedies are about demonstrations and evidence:
+// *demonstrate it again, resting after the click so the result is read.* A routine has no
+// evidence and no reading — it presses what it was shown — so every one of those sentences would
+// be advice about machinery it does not have, offered to somebody whose routine did not run.
+//
+// The remedies here are the ones that exist for a routine: record it again, bring the window back
+// to the shape it was shown in, or read what it said. And `performed` gets NOTHING, deliberately:
+// there is nothing to do about a run where every press happened, and inventing a next step would
+// imply something was wrong with it.
+func nextOfRoutine(said string) string {
+	switch outcome.Outcome(said) {
+	case "", outcome.Performed:
+		return ""
+	case outcome.Refused:
+		return "Nothing was pressed. The sentence above is the run's own reason — a " +
+			"press checked against the window it was recorded in refuses when that " +
+			"window is a different size or a different program, so put it back the " +
+			"way it was when you recorded it and press Play again."
+	case outcome.Cancelled:
+		return "Nothing was sent after you pressed Stop."
+	case outcome.Unavailable:
+		return "Nothing performed it at all, so this is not about the routine. Check " +
+			"that the marco beside Studio is the one you built."
+	case outcome.Failed:
+		return "It stopped at the first thing that did not happen, and nothing after " +
+			"that was done. Technical details has what it said."
+	case outcome.Unverified:
+		return "It was delivered and nothing could confirm it arrived."
+	case outcome.Clarify:
+		return "It is waiting to be told something, which a routine performed from a " +
+			"window cannot be — record it again without the part that asks."
+	}
+	// A RECORD STATE RATHER THAN AN OUTCOME, and the one word both kinds share. See
+	// runs.Unfinished: the attempt was claimed and never finished.
+	if said == runs.Unfinished {
+		return "The run went away without saying how it ended, so nobody can speak " +
+			"for what it did. Technical details has the transcript."
+	}
+	return ""
 }

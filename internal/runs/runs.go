@@ -73,6 +73,21 @@ func Candidate(at time.Time) string {
 	return fmt.Sprintf("run-%s-%02x%02x", at.Format("20060102-150405"), b[0], b[1])
 }
 
+// KindRoutine is what a routine's record calls itself, in the `kind` field.
+//
+// # Why the word is here and not in either binary
+//
+// Because `marco` writes it and Studio reads it, and there is no compiler between those two. The
+// record is a file: a misspelling on either side is not an error, it is a record silently read in
+// the WRONG VOCABULARY — a routine's `performed` described with an Act's sentence about evidence
+// it never gathered. That is the one thing [ADR-253] exists to prevent, so the word is one
+// constant that both import.
+//
+// A supervised record has NO kind, because it was written before there were two. Absent therefore
+// means supervised, and that asymmetry is deliberate: inventing a kind for the records already on
+// somebody's machine would be rewriting them.
+const KindRoutine = "routine"
+
 // Unfinished is what a record says while the attempt it belongs to has not finished.
 //
 // A RECORD STATE, NOT AN OUTCOME. Every other word in either kind's vocabulary is a claim about

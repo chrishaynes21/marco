@@ -22,6 +22,8 @@ import (
 
 	"github.com/chaynes-simpleclouds/marco/internal/director/runref"
 	"github.com/chaynes-simpleclouds/marco/internal/marcopaths"
+	"github.com/chaynes-simpleclouds/marco/internal/routes"
+	"github.com/chaynes-simpleclouds/marco/internal/runs"
 )
 
 // historyShown is how many past runs the window lists.
@@ -61,6 +63,13 @@ type PastRun struct {
 	Authority string `json:"authority,omitempty"`
 	// Unfinished is a record that says a run began and never says how it ended.
 	Unfinished bool `json:"unfinished,omitempty"`
+	// Kind is which sort of run this was, when the record says: `routine` for a saved
+	// routine performed by `marco do`, empty for a supervised Act.
+	//
+	// Carried to the page because the two answer different questions and a row that
+	// looked the same for both would invite a reader to compare them. See
+	// [[ADR-253-the-claim-is-shared-and-the-record-is-not]].
+	Kind string `json:"kind,omitempty"`
 
 	started time.Time
 }
@@ -85,7 +94,33 @@ type record struct {
 	Verified    int    `json:"verified"`
 	Live        bool   `json:"live"`
 	Authority   string `json:"authority"`
+	// Routine is the slug a ROUTINE's record names itself by.
+	//
+	// Its own key beside `workflow`, which is the supervised record's name for the
+	// DEMONSTRATION a run's interactions came from. `PastRun` has carried a `routine`
+	// field since before anything wrote one, and this is what fills it.
+	RoutineName string `json:"routine,omitempty"`
+	// Kind is the discriminator a routine's record carries and a supervised one does
+	// not, because the supervised record was written before there were two kinds.
+	// Absent therefore MEANS supervised, and that asymmetry is deliberate: inventing a
+	// kind for the records already on somebody's machine would be rewriting them.
+	Kind string `json:"kind,omitempty"`
+	// InputActions is how many input actions a ROUTINE's run asked the machine for.
+	//
+	// Its own key, not `actions_sent`. The supervised record's number is how many
+	// programs reached a computer and this one is how many input actions were asked
+	// for; they are close enough to be added up by a reader and different enough that
+	// the sum would mean nothing. One key per meaning. See oshost.Host.InputActions.
+	InputActions int `json:"input_actions"`
 }
+
+// routine reports whether a record was written by a routine's run.
+//
+// Asked of the record's own `kind` and nowhere else. Guessing from which fields are filled in
+// would be this window deciding what kind of run somebody had, and the first record that broke
+// the guess would be rendered in the wrong vocabulary — which is the one thing
+// [[ADR-253-the-claim-is-shared-and-the-record-is-not]] exists to prevent.
+func (r record) routine() bool { return r.Kind == runs.KindRoutine }
 
 // History is the runs this machine has records of, newest first.
 func (a *Acts) History() []PastRun {
@@ -130,11 +165,37 @@ func (a *Acts) History() []PastRun {
 
 func aPastRun(r record) PastRun {
 	p := PastRun{
-		Reference: r.Run, Act: r.Act, Routine: r.Workflow,
+		Reference: r.Run, Act: r.Act,
 		Application: r.Application, Outcome: r.Outcome,
-		Live: r.Live, Sent: r.ActionsSent, Verified: r.Verified,
-		Authority: r.Authority,
+		Live: r.Live, Verified: r.Verified,
+		Authority: r.Authority, Kind: r.Kind,
 	}
+	if at, err := time.Parse(time.RFC3339, r.Started); err == nil {
+		p.started = at
+		p.When = at.Local().Format("2006-01-02 15:04")
+	}
+	p.Unfinished = r.Ended == ""
+
+	// ── AND EACH KIND IS READ IN ITS OWN VOCABULARY ──
+	//
+	// The defect this closes. Every record used to go through `saidOf` and `nextOf`,
+	// which are the SUPERVISED seven words — so a routine's `performed` fell to their
+	// default and a routine's run was described, and given a remedy, in the language of
+	// evidence it never gathered. Not a conversion into `verified`, but the same mistake
+	// one step quieter: an Act's sentence about a run that was not one.
+	//
+	// `saidOfRoutine` already exists and already says the load-bearing thing — every
+	// press happened, and nothing here checked that the application did what you wanted.
+	// So the only new thing is asking which kind this was. See ADR-253.
+	if r.routine() {
+		p.Routine = r.RoutineName
+		p.Sent = r.InputActions
+		p.Said = saidOfRoutine(r.RoutineName, r.Outcome, r.Because, false)
+		p.Next = nextOfRoutine(r.Outcome)
+		return p
+	}
+	p.Routine = r.Workflow
+	p.Sent = r.ActionsSent
 	name := r.Act
 	if name == "" {
 		name = r.Workflow
@@ -144,11 +205,6 @@ func aPastRun(r record) PastRun {
 	// now, and this is a run that happened; offering today's remedy for a run from last
 	// week would be attributing one to the other. The Act's own listing says it.
 	p.Next = nextOf(runref.Outcome(r.Outcome), "")
-	if at, err := time.Parse(time.RFC3339, r.Started); err == nil {
-		p.started = at
-		p.When = at.Local().Format("2006-01-02 15:04")
-	}
-	p.Unfinished = r.Ended == ""
 	return p
 }
 
@@ -193,7 +249,15 @@ func (a *Acts) Report(reference string) Reported {
 		b.WriteString("\nWHAT IT SAID AS IT RAN\n")
 		b.WriteString(indented(strings.Join(lines, "\n")))
 	}
-	if act != "" {
+	// ── AND THE THING IT WAS A RUN OF, AS IT STANDS NOW ──
+	//
+	// For an Act that is the composition; for a routine it is the SOURCE, which is the
+	// executable truth about a routine and the only thing a reader can judge the run
+	// against. Each is found by the record's own kind rather than by whichever of them
+	// this window happens to have open.
+	if kind, said := rec["kind"].(string); said && kind == runs.KindRoutine {
+		a.describeRoutine(&b, rec)
+	} else if act != "" {
 		for _, c := range a.Saved() {
 			if !strings.EqualFold(c.Name, act) {
 				continue
@@ -213,7 +277,7 @@ func (a *Acts) Report(reference string) Reported {
 		return Reported{Error: err.Error()}
 	}
 	return Reported{Path: p, Holds: "the run's record, what it said as it ran, and " +
-		"the Act as it stands now. Nothing has been sent anywhere — open it, add " +
+		"the routine or Act as it stands now. Nothing has been sent anywhere — open it, add " +
 		"what you expected to happen, and send it yourself."}
 }
 
@@ -326,4 +390,49 @@ func (a *Acts) Forget(reference string, anyway bool) Forgotten {
 		gone++
 	}
 	return Forgotten{Deleted: gone, Kept: kept - gone, Error: failed}
+}
+
+// describeRoutine writes the routine a run was a run OF into the report, as it stands now.
+//
+// # And whether it is still what ran
+//
+// The one thing a routine's problem report can say that nothing else can. The record carries the
+// digest of the source that actually ran; the library carries the file. If they differ, the
+// routine has been saved again since that attempt — so the source printed below is NOT the source
+// that failed, and a person comparing the two without being told would be reading the wrong
+// program. Re-recording is exactly what somebody does between a failure and reporting it, which
+// makes this the likely case rather than the unlikely one.
+//
+// Found by the identity in the record rather than by whichever routine this window has selected:
+// a report written an hour later, about a run from this morning, must describe the routine that
+// ran and not the one somebody is looking at.
+func (a *Acts) describeRoutine(b *strings.Builder, rec map[string]any) {
+	text := func(key string) string {
+		s, _ := rec[key].(string)
+		return s
+	}
+	slug, app := text("routine"), text("application")
+	if slug == "" {
+		return
+	}
+	rt := routes.Route{Slug: slug, App: app, Focus: text("scope") == routes.FocusDir}
+	raw, err := os.ReadFile(a.reg().Path(rt))
+	if err != nil {
+		// GONE, OR SOMEWHERE ELSE. Worth saying: a run whose routine cannot be found
+		// is a different finding from one whose routine still reads oddly, and a
+		// report with the section silently missing looks like a report that forgot.
+		fmt.Fprintf(b, "\nTHE ROUTINE, AS IT STANDS NOW\n  %s is not in this "+
+			"library (%s) any more: %v\n", routeID(rt), a.routesDir, err)
+		return
+	}
+	src := string(raw)
+	b.WriteString("\nTHE ROUTINE, AS IT STANDS NOW\n")
+	if ran, now := text("source_digest"), routes.DigestOf(src); ran != "" && ran != now {
+		fmt.Fprintf(b, "  THIS IS NOT THE SOURCE THAT RAN. The run recorded source "+
+			"%s and the file now reads as %s, so it has been saved again since "+
+			"that attempt — read what follows as the routine as it is today, not "+
+			"as the one that failed.\n\n", ran, now)
+	}
+	fmt.Fprintf(b, "  %s (%s)\n", routeID(rt), a.reg().Path(rt))
+	b.WriteString(indented(src))
 }

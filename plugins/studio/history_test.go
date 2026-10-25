@@ -14,6 +14,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/chaynes-simpleclouds/marco/internal/routes"
 )
 
 // aRecordOf writes one run record into the store, as the runner would have left it.
@@ -371,5 +373,301 @@ func TestDeletingARunThatIsNotThereSaysSo(t *testing.T) {
 	}
 	if got.Asks != "" {
 		t.Errorf("it asked about deleting something that is not there: %q", got.Asks)
+	}
+}
+
+// aRoutinesRecord is one run of a saved routine, as `marco do` leaves it.
+//
+// Written by hand rather than by running the command, for the reason the Act records above are:
+// what is under test is what a person is SHOWN about a record, and generating one would make
+// these tests about the writer instead.
+func aRoutinesRecord(reference, said, because string, asked int) string {
+	return fmt.Sprintf(`{
+	  "version": 1, "kind": "routine", "run": %q,
+	  "build": "deadbeef", "routine": "ark-graphics", "application": "arkascended",
+	  "scope": "focus", "source_digest": "f85ca17e96485e1f",
+	  "library": "/home/somebody/.config/marco/routes",
+	  "mode": "unstated", "contract": "guarded",
+	  "started": "2026-10-24T16:05:45-07:00", "ended": "2026-10-24T16:05:47-07:00",
+	  "outcome": %q, "because": %q, "input_actions": %d
+	}`, reference, said, because, asked)
+}
+
+// A ROUTINE'S RUN IS READ BACK IN A ROUTINE'S WORDS, AND NEVER IN AN ACT'S.
+//
+// The defect this closes. Every record used to go through `saidOf` and `nextOf` — the SUPERVISED
+// seven — so a routine's `performed` fell to their default and the window described a run, and
+// offered a remedy for it, in the language of evidence that run never gathered. Not a conversion
+// into `verified`; the same mistake one step quieter.
+func TestARoutinesRunIsListedInARoutinesWords(t *testing.T) {
+	a, _ := aStoreWithADemonstration(t)
+	aRecordOf(t, a, "run-20261024-160545-ab12",
+		aRoutinesRecord("run-20261024-160545-ab12", "performed", "", 4))
+
+	got := a.History()
+	if len(got) != 1 {
+		t.Fatalf("%d runs listed, want 1", len(got))
+	}
+	p := got[0]
+	if p.Kind != "routine" {
+		t.Errorf("the row does not say which kind of run it was: %q", p.Kind)
+	}
+	if p.Routine != "ark-graphics" {
+		t.Errorf("the row calls the routine %q", p.Routine)
+	}
+	// THE SENTENCE A ROUTINE GETS, which is careful about the one thing it cannot see.
+	if !strings.Contains(p.Said, "Nothing here checked") {
+		t.Errorf("a routine's run is described as %q, which claims more than was "+
+			"checked", p.Said)
+	}
+	// AND NOT AN ACT'S. These are `saidOf`'s own words for its own verdicts.
+	for _, wrong := range []string{"It worked", "the screen changed", "could not tell",
+		"ended as performed"} {
+		if strings.Contains(p.Said, wrong) {
+			t.Errorf("a routine's run is described with an Act's words (%q): %q",
+				wrong, p.Said)
+		}
+	}
+	// AND `performed` IS GIVEN NOTHING TO DO. There is nothing to do about a run where
+	// every press happened, and a next step would imply something was wrong with it.
+	if p.Next != "" {
+		t.Errorf("a routine that performed is told to do something about it: %q", p.Next)
+	}
+	// AND THE NUMBER COMES OFF ITS OWN KEY. A routine writes `input_actions`; reading
+	// `actions_sent` would show zero presses for a run that made four.
+	if p.Sent != 4 {
+		t.Errorf("the row says %d input actions, want 4", p.Sent)
+	}
+}
+
+// AND A ROUTINE THAT REFUSED IS TOLD WHAT TO DO ABOUT IT, IN ITS OWN TERMS.
+//
+// `nextOf`'s remedies are about demonstrations and evidence — *demonstrate it again, resting
+// after the click so the result is read.* A routine has neither, so every one of those sentences
+// would be advice about machinery it does not have.
+func TestARefusedRoutinesRemedyIsAboutTheWindowAndNotADemonstration(t *testing.T) {
+	a, _ := aStoreWithADemonstration(t)
+	said := "ark-graphics stopped: the window this was recorded in was 1920x1080 and " +
+		"is now 1280x720"
+	aRecordOf(t, a, "run-20261024-160545-cd34",
+		aRoutinesRecord("run-20261024-160545-cd34", "refused", said, 1))
+
+	got := a.History()
+	if len(got) != 1 {
+		t.Fatalf("%d runs listed, want 1", len(got))
+	}
+	p := got[0]
+	if !strings.Contains(p.Said, said) {
+		t.Errorf("the run's own sentence is not in what the person reads: %q", p.Said)
+	}
+	if p.Next == "" {
+		t.Fatal("a refused routine is given nothing to do about it")
+	}
+	for _, wrong := range []string{"demonstrate", "Demonstrate", "verified",
+		"interaction"} {
+		if strings.Contains(p.Next, wrong) {
+			t.Errorf("the remedy offers an Act's machinery (%q): %q", wrong, p.Next)
+		}
+	}
+}
+
+// AND AN ACT'S RUN STILL READS EXACTLY AS IT DID.
+//
+// The regression direction, and the reason the kind is asked of the record rather than guessed:
+// a supervised record carries no kind at all, so the absence has to keep meaning what it meant.
+func TestAnActsRunStillReadsInTheSupervisedWords(t *testing.T) {
+	a, _ := aStoreWithADemonstration(t)
+	aRecordOf(t, a, "run-20261024-150000-ee56", `{
+	  "version": 1, "run": "run-20261024-150000-ee56",
+	  "workflow": "ark graphics live", "act": "the audio page",
+	  "application": "arkascended",
+	  "started": "2026-10-24T15:00:00-07:00", "ended": "2026-10-24T15:00:30-07:00",
+	  "outcome": "verified", "actions_sent": 2, "verified": 2, "live": true
+	}`)
+	got := a.History()
+	if len(got) != 1 {
+		t.Fatalf("%d runs listed, want 1", len(got))
+	}
+	p := got[0]
+	if p.Kind != "" {
+		t.Errorf("a supervised record was given the kind %q; absence is what means "+
+			"supervised", p.Kind)
+	}
+	if !strings.Contains(p.Said, "It worked") {
+		t.Errorf("a verified Act's run reads as %q", p.Said)
+	}
+	if p.Sent != 2 || p.Verified != 2 {
+		t.Errorf("an Act's counts read as sent=%d verified=%d, want 2 and 2",
+			p.Sent, p.Verified)
+	}
+	if p.Routine != "ark graphics live" {
+		t.Errorf("the demonstration an Act's run came from reads as %q", p.Routine)
+	}
+}
+
+// REPORTING A PROBLEM WITH A ROUTINE GATHERS THE ROUTINE, NOT AN ACT.
+//
+// `Report` ended with *THE ACT, AS IT STANDS NOW*, found by matching whichever Act this window
+// had open. A routine has no Act; what it has is its SOURCE, which is the executable truth about
+// it and the only thing a reader can judge the run against.
+func TestReportingAProblemWithARoutineGathersItsSource(t *testing.T) {
+	a := aSavedRoutine(t, "app-anywhere", nil)
+	r, found := routineCalled(a.Routines(), "ark graphics")
+	if !found {
+		t.Fatalf("the fixture routine is not in the library: %+v", a.Routines())
+	}
+	aRecordOf(t, a, "run-20261024-170000-ff78", fmt.Sprintf(`{
+	  "version": 1, "kind": "routine", "run": "run-20261024-170000-ff78",
+	  "build": "deadbeef", "routine": %q, "application": "arkascended",
+	  "scope": "focus", "source_digest": %q, "mode": "unstated",
+	  "contract": "guarded", "started": "2026-10-24T17:00:00-07:00",
+	  "ended": "2026-10-24T17:00:02-07:00", "outcome": "failed",
+	  "because": "ark-graphics stopped: the window was 1920x1080 and is now 1280x720",
+	  "input_actions": 1
+	}`, r.Slug, routes.DigestOf(r.Source)))
+
+	got := a.Report("run-20261024-170000-ff78")
+	if got.Error != "" {
+		t.Fatalf("the report was not written: %s", got.Error)
+	}
+	raw, err := os.ReadFile(got.Path)
+	if err != nil {
+		t.Fatalf("the report it says it wrote cannot be read: %v", err)
+	}
+	report := string(raw)
+	for _, want := range []struct{ text, why string }{
+		{"run-20261024-170000-ff78", "the report does not name the run"},
+		{"THE ROUTINE, AS IT STANDS NOW", "the routine is not in it, and the " +
+			"source is the only thing a reader can judge the run against"},
+		{"is a script", "the routine's own source is not in it"},
+		{"the window was 1920x1080", "the run's own reason is not in it"},
+		{"deadbeef", "the build that performed it is not in it"},
+		{"guarded", "the contract it ran under is not in it"},
+		{"unstated", "the mode is not in it"},
+	} {
+		if !strings.Contains(report, want.text) {
+			t.Errorf("%s (looked for %q)", want.why, want.text)
+		}
+	}
+	// AND IT DOES NOT CLAIM TO HOLD AN ACT. There is no Act here.
+	if strings.Contains(report, "THE ACT, AS IT STANDS NOW") {
+		t.Error("the report of a routine's run holds a section about an Act")
+	}
+	// AND IT DOES NOT WARN THAT THE SOURCE CHANGED, because it has not.
+	if strings.Contains(report, "THIS IS NOT THE SOURCE THAT RAN") {
+		t.Error("the report says the source changed when the digests agree")
+	}
+}
+
+// AND IT SAYS SO WHEN THE SOURCE ON DISK IS NO LONGER THE SOURCE THAT RAN.
+//
+// The one thing a routine's problem report can say that nothing else can — and the likely case
+// rather than the unlikely one, because re-recording is exactly what somebody does between a
+// failure and reporting it. Without this, a reader compares the run to a program that never ran.
+func TestAReportSaysWhenTheRoutineHasBeenSavedAgainSince(t *testing.T) {
+	a := aSavedRoutine(t, "app-anywhere", nil)
+	r, found := routineCalled(a.Routines(), "ark graphics")
+	if !found {
+		t.Fatalf("the fixture routine is not in the library: %+v", a.Routines())
+	}
+	// A DIGEST THAT IS NOT THIS FILE'S, which is what the record of a run from before
+	// the routine was saved again holds.
+	aRecordOf(t, a, "run-20261024-170000-0011", fmt.Sprintf(`{
+	  "version": 1, "kind": "routine", "run": "run-20261024-170000-0011",
+	  "routine": %q, "application": "arkascended", "scope": "focus",
+	  "source_digest": "0000000000000000", "contract": "guarded",
+	  "started": "2026-10-24T17:00:00-07:00", "ended": "2026-10-24T17:00:02-07:00",
+	  "outcome": "failed", "input_actions": 1
+	}`, r.Slug))
+
+	got := a.Report("run-20261024-170000-0011")
+	if got.Error != "" {
+		t.Fatalf("the report was not written: %s", got.Error)
+	}
+	raw, err := os.ReadFile(got.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	report := string(raw)
+	if !strings.Contains(report, "THIS IS NOT THE SOURCE THAT RAN") {
+		t.Errorf("the report prints a source that is not the one that ran and does "+
+			"not say so:\n%s", report)
+	}
+	// AND IT NAMES BOTH DIGESTS, so a reader can tell which is which.
+	for _, want := range []string{"0000000000000000", routes.DigestOf(r.Source)} {
+		if !strings.Contains(report, want) {
+			t.Errorf("the warning does not name the digest %q", want)
+		}
+	}
+}
+
+// AND A ROUTINE THAT HAS GONE SINCE IS SAID SO, NOT SILENTLY LEFT OUT.
+//
+// A run whose routine cannot be found is a different finding from one whose routine reads oddly,
+// and a report with the section quietly missing looks like a report that forgot.
+func TestAReportSaysWhenTheRoutineIsNotInTheLibraryAnyMore(t *testing.T) {
+	a, _ := aStoreWithADemonstration(t)
+	aRecordOf(t, a, "run-20261024-170000-2233", `{
+	  "version": 1, "kind": "routine", "run": "run-20261024-170000-2233",
+	  "routine": "a-routine-nobody-has", "application": "arkascended",
+	  "scope": "focus", "source_digest": "f85ca17e96485e1f", "contract": "guarded",
+	  "started": "2026-10-24T17:00:00-07:00", "ended": "2026-10-24T17:00:02-07:00",
+	  "outcome": "failed", "input_actions": 0
+	}`)
+	got := a.Report("run-20261024-170000-2233")
+	if got.Error != "" {
+		t.Fatalf("the report was not written: %s", got.Error)
+	}
+	raw, _ := os.ReadFile(got.Path)
+	report := string(raw)
+	if !strings.Contains(report, "THE ROUTINE, AS IT STANDS NOW") {
+		t.Errorf("the section is missing entirely:\n%s", report)
+	}
+	if !strings.Contains(report, "is not in this library") {
+		t.Errorf("the report does not say the routine has gone:\n%s", report)
+	}
+}
+
+// AND AN ATTEMPT THAT NEVER FINISHED SAYS SO, AND NEVER THAT IT WORKED.
+//
+// Reachable the moment a routine's run leaves a record at all: the reference is claimed and a
+// provisional record written before anything is sent, so a `marco` killed between the two leaves
+// exactly this. It is also the acceptance check — *a killed child leaves an unfinished attempt,
+// never a completed or successful one.*
+//
+// Added because the gate found its absence: nothing covered an unfinished ROUTINE record, so the
+// sentence for it could be deleted and the row fell through to "ended as started", which reads as
+// a word somebody misspelled rather than as a run nobody can speak for.
+func TestAnUnfinishedRoutineAttemptSaysSoAndNotThatItWorked(t *testing.T) {
+	a, _ := aStoreWithADemonstration(t)
+	aRecordOf(t, a, "run-20261024-180000-4455", `{
+	  "version": 1, "kind": "routine", "run": "run-20261024-180000-4455",
+	  "routine": "ark-graphics", "application": "arkascended", "scope": "focus",
+	  "mode": "unstated", "started": "2026-10-24T18:00:00-07:00", "outcome": "started",
+	  "because": "reserved; this attempt had not finished when the record was last written"
+	}`)
+	got := a.History()
+	if len(got) != 1 {
+		t.Fatalf("%d runs listed, want 1", len(got))
+	}
+	p := got[0]
+	if !p.Unfinished {
+		t.Error("an attempt with no end is not marked unfinished")
+	}
+	if !strings.Contains(p.Said, "never said how it ended") {
+		t.Errorf("an unfinished attempt reads as %q", p.Said)
+	}
+	if strings.Contains(p.Said, "ended as started") {
+		t.Errorf("an unfinished attempt reads as a word somebody misspelled: %q",
+			p.Said)
+	}
+	// AND IT IS NEVER READ AS A RUN THAT WORKED.
+	for _, wrong := range []string{"every press happened", "It worked", "performed"} {
+		if strings.Contains(p.Said, wrong) {
+			t.Errorf("an unfinished attempt claims %q: %q", wrong, p.Said)
+		}
+	}
+	if p.Next == "" {
+		t.Error("an unfinished attempt is given nothing to do about it")
 	}
 }

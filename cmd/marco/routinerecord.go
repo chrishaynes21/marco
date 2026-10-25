@@ -48,7 +48,9 @@ import (
 // would run a routine's `performed` through the supervised vocabulary and render it as an Act's
 // verdict. A supervised record has no kind — it was written before there were two — so a record
 // without one is that kind, and this is the discriminator that says otherwise.
-const kindRoutine = "routine"
+//
+// The WORD is `internal/runs`', because Studio reads it and there is no compiler between the two.
+const kindRoutine = runs.KindRoutine
 
 // modeUnstated is what a routine's record says about its mode until Studio states one.
 //

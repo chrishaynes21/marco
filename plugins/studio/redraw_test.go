@@ -708,3 +708,101 @@ func TestOrdinarySaveNeverReplacesAndTheChoiceIsPressed(t *testing.T) {
 			"named: %q", got, title)
 	}
 }
+
+// historyHarness is one run of each kind in the history, so the page's two row shapes can be
+// compared side by side — which is the whole point: the rows sit next to each other.
+const historyHarness = `
+window.go = {main: {
+  Backend: {Loaded: () => Promise.resolve()},
+  Acts: {
+    Demonstrations: () => Promise.resolve([]),
+    Saved: () => Promise.resolve([]),
+    Routines: () => Promise.resolve([]),
+    Applications: () => Promise.resolve([]),
+    Pictures: () => Promise.resolve([]),
+    Picture: () => Promise.resolve(''),
+    Learning: () => Promise.resolve({active: false}),
+    Watch: () => Promise.resolve({act: '', active: false, transcript: null}),
+    Recording: () => Promise.resolve({active: false}),
+    Unrunnable: () => Promise.resolve([]),
+    Library: () => Promise.resolve({dir: 'C:/x/routes'}),
+    History: () => Promise.resolve([
+      {reference: 'run-a', kind: 'routine', routine: 'ark-graphics',
+       outcome: 'performed', when: '2026-10-24 16:05', live: true, sent: 4,
+       verified: 0,
+       said: 'Marco performed "ark graphics" — every press happened. Nothing here ' +
+             'checked that the application did what you wanted.'},
+      {reference: 'run-b', act: 'the audio page', outcome: 'verified',
+       when: '2026-10-24 15:00', live: true, sent: 2, verified: 2,
+       said: 'It worked. Marco performed "the audio page" and the screen changed.'},
+    ]),
+  },
+}}
+setTimeout(() => {
+  const cards = document.querySelectorAll('#histList .card')
+  const textOf = (i) => cards.length > i ? cards[i].textContent : ''
+  document.title = 'cards=' + cards.length +
+    ' routineasked=' + (textOf(0).includes('4 input actions asked for') ? 1 : 0) +
+    ' routinenochecks=' + (textOf(0).includes('nothing checked afterwards') ? 1 : 0) +
+    ' routinezero=' + (textOf(0).includes('0 checked') ? 1 : 0) +
+    ' routinepresses=' + (textOf(0).includes('presses sent') ? 1 : 0) +
+    ' actchecked=' + (textOf(1).includes('2 checked') ? 1 : 0) +
+    ' actpresses=' + (textOf(1).includes('2 presses sent') ? 1 : 0) +
+    ' actasked=' + (textOf(1).includes('asked for') ? 1 : 0)
+}, 4500)
+`
+
+// A ROUTINE'S ROW DOES NOT SAY IT CHECKED NOTHING, AND AN ACT'S STILL SAYS WHAT IT CHECKED.
+//
+// Rendered, because this is the one place the rule ADR-253 is about could be broken on screen
+// while every backend test passed. The row printed `<n> presses sent · <v> checked` for every
+// record; a routine writes no verification counts at all, so `v` was zero and the row read
+// "0 checked" — not a count but the claim that it checked and found nothing, sitting directly
+// beside an Act that really did check two things. Three zeroes in the file was the thing the
+// record was careful to avoid; one zero on the screen says the same thing to the person.
+//
+// Both rows are asserted, in both directions, because the fix is a branch and a branch can be
+// wrong either way round.
+func TestARoutinesRowDoesNotClaimToHaveCheckedAnything(t *testing.T) {
+	browser := aBrowser()
+	if browser == "" {
+		t.Skip("no headless Chromium on this machine to render the page in")
+	}
+	title := renderForCounters(t, browser, historyHarness)
+	n := func(key string) int {
+		m := regexp.MustCompile(key + `=(\d+)`).FindStringSubmatch(title)
+		if m == nil {
+			t.Fatalf("no %s in %q", key, title)
+		}
+		v, _ := strconv.Atoi(m[1])
+		return v
+	}
+	if got := n("cards"); got != 2 {
+		t.Fatalf("the history drew %d of 2 runs: %q", got, title)
+	}
+	// ── THE ROUTINE'S ROW ──
+	if n("routinezero") == 1 {
+		t.Errorf("a routine's row says `0 checked`, which is a claim that it "+
+			"checked: %q", title)
+	}
+	if n("routinenochecks") != 1 {
+		t.Errorf("a routine's row does not say that nothing was checked "+
+			"afterwards: %q", title)
+	}
+	if n("routineasked") != 1 {
+		t.Errorf("a routine's row does not say how many input actions it asked "+
+			"for: %q", title)
+	}
+	if n("routinepresses") == 1 {
+		t.Errorf("a routine's row counts `presses sent`, which is the supervised "+
+			"record's measure and not this one's: %q", title)
+	}
+	// ── AND THE ACT'S, UNCHANGED ──
+	if n("actchecked") != 1 || n("actpresses") != 1 {
+		t.Errorf("an Act's row no longer says what it sent and what it checked: %q",
+			title)
+	}
+	if n("actasked") == 1 {
+		t.Errorf("an Act's row was given a routine's wording: %q", title)
+	}
+}

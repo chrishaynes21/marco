@@ -7812,3 +7812,39 @@ case-fold with no `Abs`.
 including an overlay hotkey — a key held down in a game is one record per press. Nothing is at
 risk and `Forget` removes them, but the directory is bounded only by use and `History` reads all of
 it to show twenty-five. Retention is a product decision and is not this increment's to invent.
+
+## 38Q — a routine you can report on
+
+R3, and the milestone's last increment. Writing the record was half of it; the other half is what
+somebody is SHOWN, and that half was wrong in a way no test noticed because the reader predates
+there being two kinds.
+
+**Studio's history read every record in the supervised vocabulary.** `saidOf` and `nextOf` are the
+seven words of EVIDENCE, so a routine's `performed` fell to their default and a run was described
+— and offered a remedy — in the language of something it never did: *demonstrate it again, resting
+after the click so the result is read.* Not a conversion into `verified`, the same mistake one step
+quieter. The record's `kind` is now asked and nowhere else is; guessing from which fields are
+filled in would be this window deciding what kind of run somebody had.
+
+**`nextOfRoutine`** offers the remedies a routine has — put the window back, record it again, read
+what it said — and gives `performed` NOTHING, because there is nothing to do about a run where
+every press happened.
+
+**The kind word is one constant.** `runs.KindRoutine`, imported by `cmd/marco` and by Studio. A
+misspelling on either side is not a compile error, it is a record silently read in the wrong
+vocabulary.
+
+**And a row no longer says `0 checked` about a routine.** Not a count — the claim that it checked
+and found nothing, sitting beside an Act that really did check two things. Held in a BROWSER, both
+rows, both directions, because it is the one place this rule could break on screen while every
+backend test passed.
+
+**Report works from a routine's reference** and carries its SOURCE as it stands, found by the
+identity in the record rather than by what the window has selected. And it says when that source
+is **no longer the source that ran**, by comparing the record's digest to the file's — the one
+thing a routine's problem report can say that nothing else can, and the likely case rather than
+the unlikely one, because re-recording is what somebody does between a failure and reporting it.
+
+Nine mutations killed and a no-op control surviving; one of the kills is a test that exists only
+because the gate found its absence — an unfinished ROUTINE record, which is acceptance check 9.
+One rewording recorded as a kill rather than claimed as a control.

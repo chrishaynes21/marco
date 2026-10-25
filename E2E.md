@@ -1635,6 +1635,27 @@ What to check, and what each failure would mean:
   one keystroke and take everything else. If a run ever stops with a reason naming a key, that is
   this working and not a new fault. Typed text and held keys are NOT covered â a routine whose
   typing was dropped carries on and reports that it performed.
+- **A run is citable, and the reference comes from the run.** The run screen names a reference
+  instead of *a routine — no run record*, and **Report a problem** is live. Press Play twice in a
+  row: both runs succeed and the two references are DIFFERENT. One reference for two runs means
+  the reservation is not holding; a reference that reads `…\run-….json (performed)` means the
+  outcome is being put on the citation line, where the parser leaves it inside the path.
+- **The report says what the run was.** Press Report a problem and open the file: it names the
+  routine's identity, the build that performed it, the library, the contract, the mode
+  (`unstated`, until an explicit coordinate mode lands), the outcome word, the run's own sentence,
+  and the routine's SOURCE as it stands. Nothing has been sent anywhere.
+- **And it says so if you have re-recorded since.** Record the same routine again over itself with
+  Replace, then report the EARLIER run: the file must open with *THIS IS NOT THE SOURCE THAT RAN*
+  and both digests. Without that line a reader is comparing the run to a program that never ran,
+  and re-recording between a failure and a report is the ordinary case.
+- **The history row does not say a routine checked anything.** A routine's row reads
+  `<n> input actions asked for · nothing checked afterwards`. If it reads `0 checked`, the window
+  is claiming the routine looked at the screen and found nothing — which is what it reads as
+  beside an Act's row that really did check.
+- **A killed run leaves an unfinished attempt, never a successful one.** Press Play, then kill the
+  `marco.exe` Studio spawned from Task Manager before it finishes. The history row says it never
+  said how it ended; the record still says `started` with the sentence the reservation wrote; and
+  nothing anywhere says it performed. This is the one check that needs an outside tool.
 
 Then: `studio-console.exe -trial <store>` reads back what this trial recorded about itself,
 including which build, which contract the routine ran under, and the run's own answer. A routine's

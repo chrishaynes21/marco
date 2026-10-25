@@ -194,6 +194,64 @@ risk. But the directory is unbounded by anything except use, and `History` reads
 to show twenty-five. Retention is a product decision — a sweep, a cap, or nothing — and inventing
 one here would be this increment deciding how long somebody's evidence is kept. Parked and named.
 
+## And the reader reads each kind in its own vocabulary
+
+Writing the record was half of it. The other half is what somebody is SHOWN, and that half was
+wrong in a way no test noticed, because the reader was written when there was only one kind.
+
+`plugins/studio/history.go` ran every record through `saidOf` and `nextOf` — the SUPERVISED seven
+words. Handed a routine's `performed` they fell to their default, so a run was described, and
+offered a remedy, in the language of evidence it never gathered: *demonstrate it again, resting
+after the click so the result is read.* Not a conversion into `verified`, but the same mistake one
+step quieter — an Act's sentence about a run that was not one.
+
+So the record's `kind` is asked, and nowhere else is. Guessing from which fields are filled in
+would be this window deciding what kind of run somebody had, and the first record that broke the
+guess would be rendered in the wrong vocabulary. `saidOfRoutine` already existed and already said
+the load-bearing thing; `nextOfRoutine` is new, because a routine's remedies are about the window
+and about recording it again, and `performed` is given NOTHING — there is nothing to do about a run
+where every press happened, and a next step would imply something was wrong with it.
+
+**And the word is one constant.** `marco` writes `kind` and Studio reads it, and there is no
+compiler between those two: a misspelling on either side is not an error, it is a record silently
+read in the wrong vocabulary. `runs.KindRoutine` is imported by both.
+
+**One key per meaning.** The supervised record's `actions_sent` is how many programs reached a
+computer; a routine's `input_actions` is how many input actions were asked for. Close enough for a
+reader to add up and different enough that the sum would mean nothing, so a routine's row takes
+its number off its own key — reading the other one showed zero presses for a run that made four.
+
+### And a row does not say it checked nothing
+
+The history row printed `<n> presses sent · <v> checked` for every record. A routine writes no
+verification counts, so `v` was zero and the row read **0 checked** — not a count but the claim
+that it checked and found nothing, sitting directly beside an Act that really did check two
+things. Three zeroes in the file was the thing the record was careful to avoid; one zero on the
+screen says the same thing to the person. A routine's row now says how many input actions it asked
+for and that nothing was checked afterwards, and that is held in a browser, because it is the one
+place this rule could be broken on screen while every backend test passed.
+
+## Reporting a problem with a routine
+
+`Report` and `Inspect` already worked from a reference, and `Inspect` is kind-agnostic — it returns
+the whole record — so the mode, library, build and reason reach the file verbatim as soon as
+anything writes them. Two things were left.
+
+`Report` ended with *THE ACT, AS IT STANDS NOW*, found by matching whichever Act this window had
+open. A routine has no Act; what it has is its SOURCE, which is the executable truth about it and
+the only thing a reader can judge the run against. It is found by the identity in the RECORD, not
+by what is selected now: a report written an hour later, about a run from this morning, must
+describe the routine that ran.
+
+And the thing a routine's problem report can say that nothing else can: **whether the source on
+disk is still the source that ran.** The record carries the digest; the library carries the file.
+If they differ the routine has been saved again since that attempt, so the source printed in the
+report is not the one that failed — and re-recording is exactly what somebody does between a
+failure and reporting it, which makes this the likely case rather than the unlikely one. Without
+the warning, a reader compares the run to a program that never ran. A routine that has gone
+entirely is said so rather than left out, because a section quietly missing looks like a report
+that forgot.
+
 ## Why the claim is guarded at the start and not at the end
 
 Because it was guarded at the end, and the guard held while the thing it was protecting was
@@ -331,6 +389,33 @@ rather than being filled in with the attempted count.
   destructive guard now calls the shared comparison, and this is what says the comparison did not
   get weaker.
 
+### R3 — what somebody is shown, and what they can send
+
+- `plugins/studio` `TestARoutinesRunIsListedInARoutinesWords` — the sentence, the absence of an
+  Act's words, that `performed` is given nothing to do, and that the count comes off its own key.
+- `plugins/studio` `TestARefusedRoutinesRemedyIsAboutTheWindowAndNotADemonstration` — the run's
+  own sentence reaches the person, and the remedy offers none of an Act's machinery.
+- `plugins/studio` `TestAnActsRunStillReadsInTheSupervisedWords` — the regression direction, and
+  the reason the kind is asked of the record rather than guessed: a supervised record carries no
+  kind at all, so the ABSENCE has to keep meaning what it meant.
+- `plugins/studio` `TestAnUnfinishedRoutineAttemptSaysSoAndNotThatItWorked` — **added because the
+  gate found its absence.** Nothing covered an unfinished ROUTINE record, so its sentence could be
+  deleted and the row fell through to "ended as started", which reads as a word somebody
+  misspelled rather than as a run nobody can speak for. It is also the acceptance check *a killed
+  child leaves an unfinished attempt, never a completed or successful one.*
+- `plugins/studio` `TestARoutinesRowDoesNotClaimToHaveCheckedAnything` — in a BROWSER, both rows,
+  both directions. The one place this rule could be broken on screen while every backend test
+  passed.
+- `plugins/studio` `TestReportingAProblemWithARoutineGathersItsSource` — the routine's own source
+  in the file, with the build, the contract and the mode, and no section about an Act.
+- `plugins/studio` `TestAReportSaysWhenTheRoutineHasBeenSavedAgainSince` — the digest comparison,
+  naming both so a reader can tell which is which.
+- `plugins/studio` `TestAReportSaysWhenTheRoutineIsNotInTheLibraryAnyMore` — said, not silently
+  left out.
+- `plugins/studio` `TestReportingAProblemWritesTheRunAndTheActIntoOneFile` and
+  `TestTheRunsThisMachineKeptAreListedNewestFirst` — unchanged, and that is their value: the Act
+  path reports and lists exactly as it did.
+
 ## Mutations
 
 ### R1 — seven mutations, all killed, plus a no-op control
@@ -421,6 +506,33 @@ The runs tests and the four supervised-runner tests above were run against each 
   on disk between the read and the save. It is a structural choice about having one answer, held
   by the comment at its old site rather than by a test, and no test was written to pretend
   otherwise.
+
+### R3 — nine mutations, all killed, plus a no-op control
+
+- **R3-M1 — every record is read in the supervised words again** → killed ×2. The defect itself.
+- **R3-M2 — every record is read as a routine** → killed ×2, including
+  `TestTheRunsThisMachineKeptAreListedNewestFirst`: a branch can be wrong either way round.
+- **R3-M3 — a routine's count comes off `actions_sent`** → killed. Zero presses for a run that
+  made four.
+- **R3-M4 — the report never gathers a routine** → killed ×3.
+- **R3-M5 — the digest is never compared** → killed by
+  `TestAReportSaysWhenTheRoutineHasBeenSavedAgainSince`. The report prints source that did not run
+  and says nothing about it.
+- **R3-M6 — the report describes whichever routine the library lists first** rather than the one
+  the record names → killed. A report about this morning's run describing what is selected now.
+- **R3-M7 — a run where every press happened is given a remedy** → killed.
+- **R3-M8 — an unfinished attempt reads as "ended as started"** → **survived the first gate**, and
+  is why `TestAnUnfinishedRoutineAttemptSaysSoAndNotThatItWorked` exists. Killed by it now.
+- **R3-M9 — the kind word is misspelled on the reading side** → killed ×2, which is the risk
+  `runs.KindRoutine` removes rather than guards: `marco` writes the word and Studio reads it, with
+  no compiler between them.
+- **S-M3 — every row counts presses and checks**, as it did → killed by the browser test, which
+  reported all four of its assertions at once.
+- **CONTROL — the report's timestamp format changes** → SURVIVED, as intended.
+- **Recorded as a kill and not a control**: rewording the report's section heading fails two
+  tests. Those assertions are deliberate — a problem report is a document somebody greps and
+  pastes, so its section names are part of what it is — but it is a kill, not a no-op, and is not
+  claimed as one.
 ## Related
 
 - [[ADR-246-a-trial-collects-its-own-evidence]] — the supervised record, and the reference it is

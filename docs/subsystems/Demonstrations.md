@@ -288,6 +288,26 @@ there read zero for a routine that typed or dragged. One smoothed Move is one ac
 refused by its own guard still asked, and `Unperformed` is the half that names it. Confirmed
 delivery is still written nowhere: `SendInput` succeeding says the queue took the press.
 
+**And each kind is read back in its own vocabulary.** Writing the record was half of it. Studio's
+history ran every record through the supervised seven words, so a routine's `performed` fell to
+their default and a run was described — and given a remedy — in the language of evidence it never
+gathered. The record's `kind` is now asked, and nowhere else is; `nextOfRoutine` offers a
+routine's own remedies and gives `performed` nothing, because there is nothing to do about a run
+where every press happened. The word itself is `runs.KindRoutine`, imported by both binaries,
+because `marco` writes it and Studio reads it with no compiler between them.
+
+A row no longer reads **0 checked** for a routine either. That is not a count but the claim that
+it checked and found nothing, beside an Act that really did check two things — three zeroes in the
+file was what the record was careful to avoid, and one zero on the screen says the same thing to
+the person.
+
+**Reporting a problem works from a routine's reference.** The report carries the routine's SOURCE
+as it stands — the executable truth, found by the identity in the record rather than by what the
+window has selected — and says when that source is **no longer the source that ran**, by comparing
+the record's digest to the file's. Re-recording is exactly what somebody does between a failure
+and reporting it, so that is the likely case; without the warning a reader compares the run to a
+program that never ran.
+
 ## Validated by
 
 - `internal/director/demo` unit tests (`demo.go`, `record.go`, `validate.go`)

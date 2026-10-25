@@ -1849,8 +1849,17 @@
          '<span class="tag">' + esc(h.outcome) + '</span></div>' +
          '<div class="muted">' + esc(h.said || '') + '</div>' +
          (h.unfinished ? '<div class="warn">it never said how it ended</div>' : '') +
-         '<div class="muted">' + h.sent + ' press' + (h.sent === 1 ? '' : 'es') +
-           ' sent · ' + h.verified + ' checked</div>'
+         // AND EACH KIND'S NUMBERS MEAN WHAT THAT KIND MEASURED.
+         //
+         // A routine presses what it was shown and looks at nothing afterwards, so
+         // "0 checked" beside it is not a count — it is the claim that it checked
+         // and found nothing, sitting in a row next to an Act that really did check
+         // two things. The question was never asked, and that is what it says.
+         '<div class="muted">' + (h.kind === 'routine'
+           ? h.sent + ' input action' + (h.sent === 1 ? '' : 's') +
+             ' asked for · nothing checked afterwards'
+           : h.sent + ' press' + (h.sent === 1 ? '' : 'es') +
+             ' sent · ' + h.verified + ' checked') + '</div>'
        list.appendChild(card)
      })
      renderRun()
