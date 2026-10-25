@@ -93,8 +93,12 @@ nothing in user mode orders against it. The barrier closes the gap a slow fixtur
 the one a harness can be slower than, and the code says so where it is defined.
 
 `checkTheBarrier` proves it before the first scenario, against a fixture holding a press its own
-loop has not seen: invisible before, present after. `TestEveryCountOfWhatArrivedIsTakenAfterTheBarrier`
-reads the rule off the syntax, because the mistake is an omission.
+loop has not seen: invisible before, present after — and in between, the request is **taken while
+the press is still pending and nothing is acknowledged**, which is the step that tells a barrier
+apart from an echo. Mutating the idle requirement out of the fixture ends the run at exit 3; the
+version of this check without that middle step passed the same mutation.
+`TestEveryCountOfWhatArrivedIsTakenAfterTheBarrier` reads the rule off the syntax, because the
+mistake is an omission.
 
 ## A partial run is not a pass
 

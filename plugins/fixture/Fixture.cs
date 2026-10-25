@@ -496,6 +496,9 @@ namespace MarcoFixture
             // posted message, and no input. That is the only observation in this process that
             // means "the queue is empty", which is the one thing the barrier has to establish.
             Application.Idle += delegate { idles++; };
+            // A tick answers the barrier and, in the self-test, stages the press. `Stage` calls
+            // `Drain` itself while it is holding the loop, which is where the barrier is
+            // actually put to the question: see the note on Stage.
             var asked = new Timer();
             asked.Interval = 50;
             asked.Tick += delegate { Drain(); Stage(); };
@@ -887,6 +890,23 @@ namespace MarcoFixture
         /// Blocking is the point. Nothing is pumped here: a `DoEvents` would dispatch the very
         /// message this is holding, and a window that answered while it was behind would be the
         /// bug this mode exists to detect.
+        ///
+        /// # Why the drain request is read from inside the block
+        ///
+        /// Because that is the only place where answering it would be WRONG, and a self-check
+        /// that never puts the barrier in that position cannot tell a correct barrier from one
+        /// that acknowledges on receipt.
+        ///
+        /// Left to the timer, `Drain` could not run until this returned — and by then the pump
+        /// had already dispatched the staged press, so a barrier that answered the moment it read
+        /// the request would still have answered after the press was written down, and the check
+        /// would have passed. (It did pass, for exactly that reason, until this was moved.)
+        ///
+        /// So the holding loop calls `Drain` itself. The request is read while the press is still
+        /// pending, nothing is dispatched, and no idle can occur — so a correct barrier is SILENT
+        /// here, and that silence is what the harness asserts. The one that acknowledges on
+        /// receipt writes its answer with the log still empty, in front of a harness looking
+        /// straight at it.
         private void Stage()
         {
             if (!selftest) { return; }
@@ -922,6 +942,9 @@ namespace MarcoFixture
             var waited = Stopwatch.StartNew();
             while (!File.Exists(selftestRelease) && waited.ElapsedMilliseconds < 60000)
             {
+                // THE BARRIER IS PUT TO THE QUESTION HERE, with a press pending and nothing
+                // being dispatched. A correct one takes the request and says nothing.
+                Drain();
                 System.Threading.Thread.Sleep(25);
             }
             try

@@ -8266,3 +8266,33 @@ Verified: 9 of 9 again, the barrier's self-check held (the staged press invisibl
 present after), `-only` with a name that matches nothing exits 2 through `run.cmd`, and the
 retained report holds eight lines of the child's own output. The outcome-word observation stays
 parked, as asked.
+
+## §38Y — the barrier's self-check was checking the wrong instant
+
+The Architect closed the exit-code and transcript corrections and found one more, in the thing I
+had claimed was the proof: **the self-check could not have caught a barrier that acknowledged on
+receipt**, which is the faulty alternative it exists to reject.
+
+The fixture reached `Drain` only from its 50ms timer, and that timer cannot fire while `Stage` is
+holding the loop. So the sequence was: press queued, loop held, harness asks, loop released, **pump
+dispatches the press and writes it down**, and only then does a tick reach `Drain`. An
+implementation answering the moment it read the request would have answered after the press was
+already in the log, and the check would have passed. My report to the owner asserted the opposite.
+
+Measured rather than argued. With `drainAt = idles + 1` mutated to `drainAt = idles` — the idle
+requirement removed — the previous self-check printed `drain barrier: checked against a fixture
+holding a queued press` in its usual words and the run exited 0.
+
+The fix is that the holding loop calls `Drain` itself, so the request is read with the press still
+pending and nothing being dispatched. No idle can occur there, so a correct barrier is SILENT, and
+the silence is what is asserted — at one instant, on three things somebody else wrote: the request
+file is gone (the question was taken), the fixture's blocked marker is still there (it is still
+behind), and the log still holds no press. The same mutation now ends the run at exit 3 with *the
+fixture acknowledged the barrier while a press was still pending in its own queue*. A fixture that
+caught up before it could be checked is NOT RUN, because silence that was not under pressure
+establishes nothing. No interval is waited anywhere in it.
+
+Removing the `Drain` call from the holding loop does not quietly weaken the check either: the
+harness waits for the request to be taken while the fixture is behind, so a fixture that cannot
+take it there reports NOT RUN and the whole run exits 2. That is enforced by the behaviour of every
+single invocation rather than by a source scan.

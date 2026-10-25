@@ -149,9 +149,33 @@ user-mode observation can see. The gap this closes is the one a harness can be s
 And it is demonstrated rather than assumed, before any scenario leans on it, against a fixture
 that is genuinely behind: `--selftest` queues a press in the fixture's own message queue and stops
 the loop until released. The harness reads the log there and must find nothing — **that read is the
-false green, reproduced on purpose** — asks for the barrier while the loop is still stopped, and
-reads again afterwards, where the press must be. A barrier nobody has watched hold is an assumption
-with a function name.
+false green, reproduced on purpose** — and reads again after the release, where the press must be.
+A barrier nobody has watched hold is an assumption with a function name.
+
+### And the self-check has to put the barrier where answering would be wrong
+
+Those two reads are not enough, which is a correction to this record rather than a refinement of
+it. The first version of the self-check asked for the barrier while the loop was stopped and
+claimed that an implementation acknowledging on RECEIPT would be caught by it. It would not have
+been. The fixture reached `Drain` only from its timer, which could not run until the holding loop
+returned — and by then the pump had dispatched the staged press. An acknowledgement on receipt
+would still have landed after the press was written down, and the check passed.
+
+**Measured, not reasoned about.** With the idle requirement mutated out of the fixture, the
+previous self-check reported `drain barrier: checked against a fixture holding a queued press` in
+exactly its usual words and the run exited 0.
+
+So the fixture's holding loop now calls `Drain` itself. The request is read with the press still
+pending and nothing being dispatched, so no idle can occur, and a correct barrier is **silent** —
+which is what the harness asserts, at one instant and on three observable facts: the request file
+is gone, so the question was taken; the fixture's own blocked marker is still there; and the log
+still has no press. An implementation that answered on receipt writes its reply in front of a
+harness looking straight at it, and the same mutation now ends the run at exit 3 with the sentence
+*the fixture acknowledged the barrier while a press was still pending in its own queue*.
+
+A fixture that caught up before the harness could look is NOT RUN rather than passed: silence that
+was not under pressure establishes nothing either way. Nothing here waits an interval — "the
+question was taken" and "the fixture is still behind" are both files somebody else wrote.
 
 ## A scenario that did not run is not a success
 
@@ -282,9 +306,13 @@ Nine scenarios, eight desktop and one recording, in about 36 seconds.
   never totalled with it.
 - `plugins/e2e` `checkTheBarrier` — **the harness's own precondition, run before the first
   scenario and fatal if it cannot be met.** A press queued in a fixture whose loop is stopped must
-  be invisible to the log, must still be invisible when the barrier is asked while the loop is
-  stopped, and must be there once the barrier answers. Not a scenario: it is a claim about the
-  harness, and the layer totals are claims about Marco. Its sentence is printed in every report.
+  be invisible to the log; the drain request must be TAKEN while that press is still pending and
+  **nothing acknowledged**, which is the step that distinguishes a barrier from an echo; and the
+  press must be there once the barrier answers after the release. Mutating the idle requirement out
+  of the fixture ends the run at exit 3 — and the version of this check without the middle step
+  passed that same mutation, in its usual words. A fixture that caught up before being checked is
+  NOT RUN. Not a scenario: it is a claim about the harness, and the layer totals are claims about
+  Marco. Its sentence is printed in every report.
 - `plugins/e2e` `TestASkippedScenarioIsNotASuccess` — the whole table, including the two cases
   easiest to leave out: a selection that matched nothing, and a failure beside a skip where the
   failure has to win. Four shapes of partial run are asserted separately not to exit 0.
