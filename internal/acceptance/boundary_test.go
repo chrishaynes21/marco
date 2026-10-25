@@ -31,8 +31,18 @@ import (
 //
 // Deleting this must be the thing that fails when somebody wires the oracle into perception to make
 // a stubborn case pass.
+//
+// THE FIXTURE NOW KEEPS TWO ORACLES AND BOTH ARE COVERED. The state file says what the window
+// holds; the event log says what it RECEIVED — where each press landed, on which control, and what
+// the window was at that instant. The second is the stronger one, because a press that misses a
+// button by four pixels is invisible to a snapshot and plain in a log, so it is the one somebody
+// reaching for a shortcut would reach for first.
 func TestMarcoCannotReadTheOracle(t *testing.T) {
 	root := repoRootFromTest(t)
+
+	// BOTH ORACLES, by the names their files are given. Scanned as names rather than as
+	// paths because the point is knowledge of the thing, not a particular directory.
+	oracles := []string{"fixture-state", "fixture-events"}
 
 	// Where the oracle is ALLOWED to be known. Two places: the application that writes it, and
 	// the harness that reads it. Each is named with the reason it is here.
@@ -65,8 +75,11 @@ func TestMarcoCannotReadTheOracle(t *testing.T) {
 		if readErr != nil {
 			return nil
 		}
-		if strings.Contains(string(b), "fixture-state") {
-			offenders = append(offenders, rel)
+		for _, oracle := range oracles {
+			if strings.Contains(string(b), oracle) {
+				offenders = append(offenders, rel+" ("+oracle+")")
+				break
+			}
 		}
 		return nil
 	})

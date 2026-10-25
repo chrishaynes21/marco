@@ -54,6 +54,7 @@
 // Run:    plugins/fixture/fixture.exe --state <path> [--stubborn] [--view second]
 
 using System;
+using System.Diagnostics;
 using System.Drawing;
 using System.Globalization;
 using System.IO;
@@ -69,6 +70,7 @@ namespace MarcoFixture
         private static int Main(string[] args)
         {
             string state = null;
+            string events = null;
             bool stubborn = false;
             for (int i = 0; i < args.Length; i++)
             {
@@ -76,6 +78,9 @@ namespace MarcoFixture
                 {
                     case "--state":
                         if (i + 1 < args.Length) { state = args[++i]; }
+                        break;
+                    case "--events":
+                        if (i + 1 < args.Length) { events = args[++i]; }
                         break;
                     case "--stubborn":
                         stubborn = true;
@@ -87,13 +92,14 @@ namespace MarcoFixture
             }
             if (string.IsNullOrEmpty(state))
             {
-                Console.Error.WriteLine("usage: fixture.exe --state <path> [--stubborn]");
+                Console.Error.WriteLine(
+                    "usage: fixture.exe --state <path> [--events <path>] [--stubborn]");
                 return 2;
             }
 
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new FixtureForm(state, stubborn));
+            Application.Run(new FixtureForm(state, stubborn, events));
             return 0;
         }
     }
@@ -103,6 +109,33 @@ namespace MarcoFixture
     {
         private readonly string statePath;
         private readonly bool stubborn;
+
+        // ── THE WITNESS: WHAT THIS WINDOW RECEIVED, AS OPPOSED TO WHAT IT NOW HOLDS ──
+        //
+        // # Why the state file was not enough
+        //
+        // The oracle beside this one is a SNAPSHOT: what the fields hold, what is checked, how
+        // many times each button has been pressed. It answers "did Save get pressed" and cannot
+        // answer "where did the press land", "in what order", "was anything else pressed", or
+        // "what did the window look like at that instant". A press that misses Save by four
+        // pixels and lands on the panel behind it is, to a snapshot, indistinguishable from no
+        // press at all — and a coordinate replay is exactly the thing that fails that way.
+        //
+        // So this is an append-only log of INPUT RECEIVED, written from a message filter before
+        // the controls see the message, with the window's own geometry stamped on every record.
+        // That last part is what makes a moved or resized window checkable without
+        // cross-referencing anything: the press says where it arrived AND what the window was at
+        // the time it arrived.
+        //
+        // THE SAME RULE AS THE STATE FILE APPLIES: Marco must never read it. A log Marco could
+        // read would turn "Marco pressed Save" into "Marco can read a file".
+        private readonly string eventsPath;
+        private readonly object eventsLock = new object();
+        private StreamWriter events;
+        private int seq;
+        private readonly Stopwatch clock = Stopwatch.StartNew();
+        private int dpi = 96;
+        private Rectangle lastWindow = Rectangle.Empty;
 
         private readonly TextBox name = new TextBox();
         private readonly TextBox notes = new TextBox();
@@ -143,10 +176,11 @@ namespace MarcoFixture
         private int collapseEvents;
         private bool documentsExpanded;
 
-        internal FixtureForm(string statePath, bool stubborn)
+        internal FixtureForm(string statePath, bool stubborn, string eventsPath)
         {
             this.statePath = statePath;
             this.stubborn = stubborn;
+            this.eventsPath = eventsPath;
 
             // THE TITLE IS FIXED AND UNIQUE. Marco finds its application by name, and a title
             // carrying a document, a count or a dirty marker would make "which window" a moving
@@ -363,6 +397,270 @@ namespace MarcoFixture
                 if (lines.TopIndex != lastTopIndex) { lastTopIndex = lines.TopIndex; Write(); }
             };
             viewWatch.Start();
+
+            // ── AND THE WITNESS, LAST, so nothing above it is logged as a press ──
+            //
+            // The filter is installed AFTER the window is built because building it sets values
+            // and raises events; an input log that opened with the construction of the form would
+            // begin with records no hand produced.
+            OpenEvents();
+            Application.AddMessageFilter(new Witness(this));
+            Shown += delegate { NoteWindow("shown"); };
+            Move += delegate { NoteWindow("moved"); };
+            Resize += delegate { NoteWindow("resized"); };
+            FormClosed += delegate { CloseEvents(); };
+        }
+
+        // ── THE INPUT WITNESS ─────────────────────────────────────────────────
+
+        /// <summary>Logs every mouse and key message this window receives, and changes none.</summary>
+        ///
+        /// A message filter rather than per-control handlers, for three reasons. It sees the
+        /// message BEFORE the control does, so what is logged is what arrived rather than what a
+        /// handler concluded. It covers every control and the form's own background with one
+        /// implementation, so a press that lands between two buttons is recorded instead of
+        /// vanishing — which is the whole difference between "clicked nothing" and "clicked the
+        /// wrong thing". And it covers keys going to whichever control has focus, which
+        /// KeyPreview on the form would see only for its own children.
+        ///
+        /// PreFilterMessage returns FALSE, always. A witness that swallowed a message would be an
+        /// application behaving differently because it was being watched.
+        private sealed class Witness : IMessageFilter
+        {
+            private const int WmMouseMove = 0x0200;
+            private const int WmLButtonDown = 0x0201, WmLButtonUp = 0x0202;
+            private const int WmRButtonDown = 0x0204, WmRButtonUp = 0x0205;
+            private const int WmMButtonDown = 0x0207, WmMButtonUp = 0x0208;
+            private const int WmKeyDown = 0x0100, WmKeyUp = 0x0101;
+            private const int WmSysKeyDown = 0x0104, WmSysKeyUp = 0x0105;
+
+            private readonly FixtureForm form;
+
+            internal Witness(FixtureForm form) { this.form = form; }
+
+            public bool PreFilterMessage(ref Message m)
+            {
+                switch (m.Msg)
+                {
+                    case WmLButtonDown: form.NoteClick(m, "left", true); break;
+                    case WmLButtonUp: form.NoteClick(m, "left", false); break;
+                    case WmRButtonDown: form.NoteClick(m, "right", true); break;
+                    case WmRButtonUp: form.NoteClick(m, "right", false); break;
+                    case WmMButtonDown: form.NoteClick(m, "middle", true); break;
+                    case WmMButtonUp: form.NoteClick(m, "middle", false); break;
+                    case WmKeyDown: form.NoteKey(m, true, false); break;
+                    case WmSysKeyDown: form.NoteKey(m, true, true); break;
+                    case WmKeyUp: form.NoteKey(m, false, false); break;
+                    case WmSysKeyUp: form.NoteKey(m, false, true); break;
+                    case WmMouseMove: break; // Deliberately not logged: see NoteClick.
+                }
+                return false;
+            }
+        }
+
+        private void OpenEvents()
+        {
+            if (string.IsNullOrEmpty(eventsPath)) { return; }
+            using (Graphics g = CreateGraphics()) { dpi = (int)Math.Round(g.DpiX); }
+            try
+            {
+                events = new StreamWriter(eventsPath, false, new UTF8Encoding(false));
+                events.AutoFlush = true;
+            }
+            catch (IOException)
+            {
+                events = null;
+                return;
+            }
+            // THE FIRST RECORD SAYS WHAT THIS WINDOW IS, so a log can be read on its own: which
+            // process and handle produced it, and the geometry every later record is relative to.
+            var b = new StringBuilder();
+            b.Append("{\"seq\":0,\"ms\":0,\"kind\":\"start\",");
+            Field(b, "title", Text); b.Append(",");
+            b.Append("\"pid\":").Append(
+                System.Diagnostics.Process.GetCurrentProcess().Id
+                    .ToString(CultureInfo.InvariantCulture)).Append(",");
+            b.Append("\"hwnd\":").Append(
+                Handle.ToInt64().ToString(CultureInfo.InvariantCulture)).Append(",");
+            b.Append("\"stubborn\":").Append(stubborn ? "true" : "false").Append(",");
+            Geometry(b); b.Append(",");
+            ControlRects(b);
+            b.Append("}");
+            WriteEvent(b.ToString());
+        }
+
+        private void CloseEvents()
+        {
+            lock (eventsLock)
+            {
+                if (events == null) { return; }
+                try { events.Flush(); events.Dispose(); }
+                catch (IOException) { }
+                events = null;
+            }
+        }
+
+        private void WriteEvent(string line)
+        {
+            lock (eventsLock)
+            {
+                if (events == null) { return; }
+                try { events.WriteLine(line); }
+                catch (IOException)
+                {
+                    // A line the harness did not get is a missing record, and a missing record
+                    // fails the comparison it belongs to. Losing the window over a locked file
+                    // would turn that into a crash instead of a finding.
+                }
+            }
+        }
+
+        /// <summary>Logs one mouse button edge: where it landed, on what, and in what window.</summary>
+        ///
+        /// MOVES ARE NOT LOGGED. A replay sends a move before every click and a person moves the
+        /// pointer continuously, so logging them would bury the presses in thousands of records
+        /// and make the log useless as evidence. What a press needs is where it ARRIVED, and that
+        /// is on the press.
+        ///
+        /// Three coordinate spaces, because they answer three different questions and a harness
+        /// that conflated them would be unable to say which one disagreed:
+        ///
+        ///   on_control — inside the control that got it. Was the press ON the button, and where?
+        ///   client     — inside this window. Comparable with the control rectangles published
+        ///                beside it, so a press that hit nothing can still be placed.
+        ///   screen     — where the operating system put it, in this process's own idea of the
+        ///                screen. The only space a replayed coordinate can be compared against.
+        private void NoteClick(Message m, string button, bool down)
+        {
+            int lp = (int)(long)m.LParam;
+            var onControl = new Point((short)(lp & 0xffff), (short)((lp >> 16) & 0xffff));
+            Control c = Control.FromHandle(m.HWnd);
+            Point screen = c != null ? c.PointToScreen(onControl) : onControl;
+            Point client = PointToClient(screen);
+            var b = new StringBuilder();
+            Head(b, "mouse");
+            Field(b, "what", button + (down ? "_down" : "_up")); b.Append(",");
+            Field(b, "control", NameOf(c)); b.Append(",");
+            b.Append("\"on_control_x\":").Append(N(onControl.X)).Append(",");
+            b.Append("\"on_control_y\":").Append(N(onControl.Y)).Append(",");
+            b.Append("\"client_x\":").Append(N(client.X)).Append(",");
+            b.Append("\"client_y\":").Append(N(client.Y)).Append(",");
+            b.Append("\"screen_x\":").Append(N(screen.X)).Append(",");
+            b.Append("\"screen_y\":").Append(N(screen.Y)).Append(",");
+            // AND WHAT THE WINDOW WAS AT THE INSTANT IT ARRIVED. Stamped on the record rather
+            // than left to be looked up: a harness that read the geometry afterwards would be
+            // describing the window as it is now and attributing it to a press from before.
+            Geometry(b);
+            b.Append("}");
+            WriteEvent(b.ToString());
+        }
+
+        private void NoteKey(Message m, bool down, bool system)
+        {
+            var key = (Keys)(int)(long)m.WParam;
+            var b = new StringBuilder();
+            Head(b, "key");
+            Field(b, "what", down ? "down" : "up"); b.Append(",");
+            Field(b, "key", key.ToString()); b.Append(",");
+            b.Append("\"vk\":").Append(N((int)key)).Append(",");
+            b.Append("\"system\":").Append(system ? "true" : "false").Append(",");
+            Field(b, "control", NameOf(Control.FromHandle(m.HWnd))); b.Append(",");
+            Geometry(b);
+            b.Append("}");
+            WriteEvent(b.ToString());
+        }
+
+        private void NoteWindow(string what)
+        {
+            var now = new Rectangle(Location, Size);
+            if (what != "shown" && now == lastWindow) { return; }
+            lastWindow = now;
+            var b = new StringBuilder();
+            Head(b, "window");
+            Field(b, "what", what); b.Append(",");
+            Geometry(b); b.Append(",");
+            ControlRects(b);
+            b.Append("}");
+            WriteEvent(b.ToString());
+            // AND THE SNAPSHOT TOO, so a reader of either file sees the same window.
+            Write();
+        }
+
+        private void Head(StringBuilder b, string kind)
+        {
+            b.Append("{\"seq\":").Append(N(++seq)).Append(",");
+            b.Append("\"ms\":").Append(
+                clock.ElapsedMilliseconds.ToString(CultureInfo.InvariantCulture)).Append(",");
+            Field(b, "kind", kind); b.Append(",");
+        }
+
+        /// <summary>This window's geometry and scale, as the window itself reports them.</summary>
+        ///
+        /// From the form rather than from any accessibility reading of it, which is the same
+        /// distinction the view and tree measurements already make: a provider can report a state
+        /// the application does not have. `client` is given with its SCREEN origin, because the
+        /// one arithmetic a harness actually needs is control rectangle plus client origin.
+        private void Geometry(StringBuilder b)
+        {
+            Point origin = PointToScreen(Point.Empty);
+            b.Append("\"window\":{\"x\":").Append(N(Location.X))
+             .Append(",\"y\":").Append(N(Location.Y))
+             .Append(",\"w\":").Append(N(Size.Width))
+             .Append(",\"h\":").Append(N(Size.Height)).Append("},");
+            b.Append("\"client\":{\"x\":").Append(N(origin.X))
+             .Append(",\"y\":").Append(N(origin.Y))
+             .Append(",\"w\":").Append(N(ClientSize.Width))
+             .Append(",\"h\":").Append(N(ClientSize.Height)).Append("},");
+            b.Append("\"dpi\":").Append(N(dpi));
+        }
+
+        /// <summary>Every control that has a name, and where it is in this window.</summary>
+        ///
+        /// Walked rather than listed, so a control added to this fixture is published without
+        /// anybody remembering to add it here — and keyed by AccessibleName, which is the word a
+        /// person uses for it and the word Marco reads.
+        private void ControlRects(StringBuilder b)
+        {
+            b.Append("\"controls\":{");
+            bool first = true;
+            AddControls(b, this, ref first);
+            b.Append("}");
+        }
+
+        private void AddControls(StringBuilder b, Control parent, ref bool first)
+        {
+            foreach (Control c in parent.Controls)
+            {
+                string called = c.AccessibleName;
+                if (!string.IsNullOrEmpty(called))
+                {
+                    Rectangle r = RectangleToClient(c.RectangleToScreen(c.ClientRectangle));
+                    if (!first) { b.Append(","); }
+                    first = false;
+                    b.Append("\"");
+                    Escape(b, called);
+                    b.Append("\":{\"x\":").Append(N(r.X))
+                     .Append(",\"y\":").Append(N(r.Y))
+                     .Append(",\"w\":").Append(N(r.Width))
+                     .Append(",\"h\":").Append(N(r.Height))
+                     .Append(",\"visible\":").Append(c.Visible ? "true" : "false")
+                     .Append(",\"enabled\":").Append(c.Enabled ? "true" : "false")
+                     .Append("}");
+                }
+                AddControls(b, c, ref first);
+            }
+        }
+
+        private static string NameOf(Control c)
+        {
+            if (c == null) { return ""; }
+            if (!string.IsNullOrEmpty(c.AccessibleName)) { return c.AccessibleName; }
+            return c.GetType().Name;
+        }
+
+        private static string N(int v)
+        {
+            return v.ToString(CultureInfo.InvariantCulture);
         }
 
         [DllImport("user32.dll")]
@@ -508,6 +806,17 @@ namespace MarcoFixture
             b.Append("\"hwnd\":")
              .Append(Handle.ToInt64().ToString(CultureInfo.InvariantCulture)).Append(",");
             Field(b, "title", Text); b.Append(",");
+            // WHERE THIS WINDOW IS, HOW BIG IT IS, AND AT WHAT SCALE, with every named control's
+            // rectangle inside it.
+            //
+            // Published because a harness that replays a coordinate has to be able to say what
+            // that coordinate MEANT. Without this it can assert that Save was pressed and cannot
+            // assert where the press landed, which is the one thing a coordinate replay can get
+            // wrong while still looking right. Read from the form rather than from any
+            // accessibility reading of it, for the same reason the view and tree measurements are:
+            // a provider can report a state the application does not have.
+            Geometry(b); b.Append(",");
+            ControlRects(b); b.Append(",");
             Field(b, "name", name.Text); b.Append(",");
             Field(b, "notes", notes.Text); b.Append(",");
             b.Append("\"remember\":").Append(remember.Checked ? "true" : "false").Append(",");
@@ -558,6 +867,14 @@ namespace MarcoFixture
         private static void Field(StringBuilder b, string key, string value)
         {
             b.Append("\"").Append(key).Append("\":\"");
+            Escape(b, value);
+            b.Append("\"");
+        }
+
+        /// <summary>Appends a JSON-safe string body. Used for VALUES and for control names,
+        /// which are keys made of data rather than of literals.</summary>
+        private static void Escape(StringBuilder b, string value)
+        {
             foreach (char c in value)
             {
                 switch (c)
@@ -573,7 +890,6 @@ namespace MarcoFixture
                         break;
                 }
             }
-            b.Append("\"");
         }
     }
 }
