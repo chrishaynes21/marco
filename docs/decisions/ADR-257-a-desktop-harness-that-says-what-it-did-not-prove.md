@@ -141,13 +141,65 @@ route's whole identity — which is unique by construction, since `settings` sav
 applications under two scopes is two routines and two ids. The accessibility fix is the reason;
 that it also gives the harness a stable address for exactly one card is the consequence.
 
+## What it found on the way in
+
+Two observations, neither of them changed here.
+
+**A guarded press refused for the right reason is recorded as `failed`.** The resized-window
+scenario establishes that nothing at all was sent — the strongest form of that claim, because the
+state file cannot tell a refusal from a press that missed — and the run record says `failed`.
+`activityOutcome` writes the distinction down for the supervised side in so many words: *a door
+saying no is not a thing going wrong, and the whole reason the vocabulary separates `refused` from
+`failed` is so a person can tell them apart.* A window that changed size IS a door saying no, and
+what the person is told is that their routine *stopped at something that did not happen*. The
+scenario therefore accepts either word for "nothing was pressed" and reports the one it got;
+settling which word is right is a product decision about the run vocabulary, not something a
+harness may decide by asserting.
+
+**The stale-binary trap is live on the owner's machine.** With this run's own `marco.exe` moved
+aside, the readiness panel answered with its third case rather than its second: *there is no
+marco.exe beside this window. `D:\Macros\marco\marco.exe` is on PATH, so Play would run whichever
+marco.exe is on PATH, which may be a different build of a different age.* The repo root is on that
+machine's PATH, so the one readiness case that never fails loudly is not hypothetical there.
+
 ## Enforced by
 
-- `plugins/e2e` `play/seeded routine presses the application` — the spine, and the scenario the
-  rest will be built on: a seeded routine chosen by identity and played from Studio's own window,
-  with the press asserted on the fixture's control by name AND inside its rectangle, exactly once,
-  the application's own count incremented by one, and the run record agreeing about the route, the
-  contract, the stated mode, the build and the number of input actions asked for.
+Nine scenarios, eight desktop and one recording, in about 36 seconds.
+
+- `plugins/e2e` `play/seeded routine presses the application` — **the spine, and the only scenario
+  that asserts all three channels.** A seeded routine chosen by identity and played from Studio's
+  own window, with the press asserted on the fixture's control by name AND inside its rectangle,
+  exactly once; the application's own count incremented by one; the run record agreeing about the
+  route, the contract, the stated mode, the build and the number of input actions asked for; and
+  the WINDOW's own sentence, read back through UI Automation, naming the routine, saying it
+  performed, and still saying that nothing checked what the application did.
+- `plugins/e2e` `window/moved window still gets the press` and
+  `window/resized window is refused with nothing sent` — **the pair, and it has to be a pair.** A
+  harness that showed a press surviving a move and never checked the refusal would be evidence
+  that the guard is permissive, presented as evidence that it works. The refusal is asserted on
+  what the application did NOT receive, and the moment after which nothing more can arrive is the
+  run record's own `ended` rather than an interval somebody chose.
+- `plugins/e2e` `runs/two runs are two records` — two references, distinct. The failure this is
+  about is not a crash: one run's account quietly replacing another's leaves a history short by one
+  and a reference that resolves to the wrong attempt.
+- `plugins/e2e` `runs/stop ends a run as cancelled` — a routine that presses twice eight seconds
+  apart, so that there is an instant INSIDE the run; Stop pressed there; and then both halves —
+  the record says cancelled, and the second press never arrives. A run that reported cancelled and
+  kept pressing is the worse of the two and the state file cannot see it.
+- `plugins/e2e` `runs/a killed runner leaves an unfinished record` — the `marco.exe` whose parent
+  is this scenario's own Studio, killed mid-run, leaving `started` with no `ended`: the pair that
+  means nobody can speak for it. **By parent and never by name**, because killing by name would
+  end a run the owner had started.
+- `plugins/e2e` `window/readiness notices a missing sibling` — the one readiness case that never
+  fails loudly, posed by moving this run's own binary aside and put back whatever happens. It
+  asserts the panel was quiet about it first, so the scenario cannot pass on a panel that says the
+  same thing either way.
+- `plugins/e2e` `window/a routine saved while open appears` — the library is read rather than
+  remembered, and the one that was already there is still there.
+- `plugins/e2e` `recording/draft, review, Save, again and replacement` — the second layer: 25
+  named scripted-recorder tests, run explicitly, where a name that matched nothing would be the
+  quietest possible green and a skip is not a pass. Labelled apart from the desktop layer and
+  never totalled with it.
 - `plugins/e2e` `TestTheHarnessSendsNoInput` — **the load-bearing test of the module.** No path
   through it names `SendInput`, `keybd_event`, `SetCursorPos`, Marco's input backend, the engine,
   or the recorder's constructor. Comments are stripped before the scan, so the rule can be

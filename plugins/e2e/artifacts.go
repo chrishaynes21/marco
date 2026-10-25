@@ -39,8 +39,18 @@ import (
 )
 
 type artifacts struct {
-	dir     string
-	mu      sync.Mutex
+	dir string
+	// under is the subdirectory this view writes into, which is one scenario's own.
+	//
+	// Not an accident of tidiness. Every scenario opens a fixture and a Studio, and both
+	// report into FILES — the oracle, the event log, the page's own rendered callback. With
+	// one set of paths for the whole run, the second scenario's wait for "the fixture wrote
+	// its oracle" is satisfied instantly by the FIRST scenario's file, and everything it
+	// then reads is about a window that has already closed. Measured exactly that way: four
+	// scenarios refused in a row because the geometry they read belonged to the previous
+	// one's resized window.
+	under   string
+	mu      *sync.Mutex
 	log     *os.File
 	started time.Time
 }
@@ -53,10 +63,22 @@ func newArtifacts(dir string) (*artifacts, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &artifacts{dir: dir, log: f, started: time.Now()}, nil
+	return &artifacts{dir: dir, log: f, started: time.Now(), mu: &sync.Mutex{}}, nil
 }
 
-func (a *artifacts) path(name string) string { return filepath.Join(a.dir, name) }
+// scope is a view that keeps its files apart, and writes to the same step log.
+//
+// One log for the run, because the log is the ORDER things happened in and a reader following a
+// failure needs the lines before it — including the ones from the scenario before, which is often
+// where the machine was left in the state that mattered.
+func (a *artifacts) scope(name string) *artifacts {
+	c := *a
+	c.under = name
+	_ = os.MkdirAll(filepath.Join(c.dir, name), 0o755)
+	return &c
+}
+
+func (a *artifacts) path(name string) string { return filepath.Join(a.dir, a.under, name) }
 
 // note records something that happened, with the time it happened at.
 //

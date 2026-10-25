@@ -39,6 +39,11 @@ import (
 	"time"
 )
 
+// scenarios is everything this harness can establish, in the order it establishes it.
+//
+// THE ORDER IS CHEAPEST-AND-MOST-LOAD-BEARING FIRST. The spine comes first because every other
+// desktop scenario is a variation of it, and a failure there means the rest will fail for the same
+// reason — so a reader who stops at the first finding has the right one.
 func scenarios() []scenario {
 	return []scenario{
 		{
@@ -48,51 +53,71 @@ func scenarios() []scenario {
 				"against what the fixture received",
 			run: playASeededRoutine,
 		},
+		{
+			name:  "window/moved window still gets the press",
+			layer: layerDesktop,
+			about: "a guarded press re-bases onto the window where it is now",
+			run:   theWindowMoved,
+		},
+		{
+			name:  "window/resized window is refused with nothing sent",
+			layer: layerDesktop,
+			about: "a guarded press refuses a window of another size, and the " +
+				"application receives nothing at all",
+			run: theWindowChangedSize,
+		},
+		{
+			name:  "runs/two runs are two records",
+			layer: layerDesktop,
+			about: "two performances, two references, both accounted for",
+			run:   twoRunsAreTwoRecords,
+		},
+		{
+			name:  "runs/stop ends a run as cancelled",
+			layer: layerDesktop,
+			about: "Stop during a run ends it as cancelled and nothing arrives " +
+				"afterwards",
+			run: stoppingARunEndsItAsCancelled,
+		},
+		{
+			name:  "runs/a killed runner leaves an unfinished record",
+			layer: layerDesktop,
+			about: "the runner this run owns is killed mid-run, and the record " +
+				"says started with no ended",
+			run: killingTheRunnerLeavesAnUnfinishedRecord,
+		},
+		{
+			name:  "window/readiness notices a missing sibling",
+			layer: layerDesktop,
+			about: "with its own marco.exe moved aside, the window says so and " +
+				"says what to do",
+			run: readinessNoticesAMissingSibling,
+		},
+		{
+			name:  "window/a routine saved while open appears",
+			layer: layerDesktop,
+			about: "the library is read rather than remembered",
+			run:   aRoutineSavedWhileStudioIsOpenAppears,
+		},
+		{
+			name:  "recording/draft, review, Save, again and replacement",
+			layer: layerRecording,
+			about: "the recording path through a scripted recorder — not " +
+				"evidence that the hooks captured anything",
+			run: theRecordingPath,
+		},
 	}
 }
 
 func playASeededRoutine(w *world) result {
 	started := time.Now()
-
-	f, err := startFixture(w.b, w.art, false)
+	st, err := setUp(w, "fixture save", 0, "Save")
 	if err != nil {
 		return ending(started, err)
 	}
-	defer f.close()
-
-	seed, err := seedPressOf(f, w.art, "fixture save", "Save")
-	if err != nil {
-		return ending(started, err)
-	}
-
-	s, err := startStudio(w.b, w.art, w.store)
-	if err != nil {
-		return ending(started, err)
-	}
-	defer s.close()
-
-	// THE WINDOW HAS TO OFFER THE ROUTINE BEFORE ANYTHING CAN PLAY IT.
-	//
-	// Through the rail, like a person: the routines live on the Scenes surface and the
-	// others are not in the accessibility tree at all while they are hidden — which is
-	// correct, and is why a harness that went looking for the Play button first would
-	// report that Studio has no such control.
-	if err := s.surface("scenes", "capBtn"); err != nil {
-		return fail(started, err.Error())
-	}
-	if err := s.chooseRoutine(routeIdentity(seed), seed.name); err != nil {
-		s.keepRunView()
-		w.art.picture("failure.png", 0, 0, w.machine.ScreenW, w.machine.ScreenH)
-		return fail(started, err.Error())
-	}
-	// AND THE BUTTON HAS TO BE OFFERED, NOT JUST PRESENT. A Play button on screen and
-	// disabled is the window refusing, and pressing it would be a call that succeeds and
-	// presses nothing.
-	if _, err := s.waitFor(10*time.Second, "routinePlayBtn", enabled); err != nil {
-		s.keepRunView()
-		return fail(started, fmt.Sprintf("Studio will not offer to play the seeded "+
-			"routine: %v", err))
-	}
+	defer st.down()
+	f, s := st.f, st.s
+	seed := st.seed
 
 	// WHERE BOTH ACCOUNTS STAND BEFORE ANYTHING HAPPENS.
 	//
@@ -109,30 +134,17 @@ func playASeededRoutine(w *world) result {
 			"about the run", before.SavePresses))
 	}
 	seq := f.lastSeq()
-	recordsBefore := countRecords(w.store)
+	recordsBefore := countRecords(st.store)
 
-	// AND STUDIO HAS TO BE THE WINDOW IN FRONT.
-	//
-	// Not for the harness's benefit: `PlayRoutine` raises the application the routine is
-	// for, and Windows refuses the foreground to a process that does not already hold it.
-	// Studio holds it legitimately. If it does not, this stops — input that could land in
-	// somebody else's window is input this run may not send.
-	if err := s.front(); err != nil {
-		return skip(started, err.Error())
-	}
-
-	w.art.step("pressing Play")
-	if err := s.press("routinePlayBtn"); err != nil {
-		return fail(started, err.Error())
+	if err := st.play(); err != nil {
+		return ending(started, err)
 	}
 
 	// ── WHAT THE APPLICATION RECEIVED ────────────────────────────────────────
 	got, arrived := f.waitForPress(45*time.Second, seq)
 	if !arrived {
-		s.keepRunView()
-		w.art.picture("failure.png", 0, 0, w.machine.ScreenW, w.machine.ScreenH)
-		w.art.copyIn("fixture-state-after.json", f.state)
-		rec, recErr := waitForRecord(5*time.Second, w.store, recordsBefore)
+		st.fail()
+		rec, recErr := waitForRecord(5*time.Second, st.store, recordsBefore)
 		said := "and Marco wrote no finished run record either"
 		if recErr == nil {
 			said = fmt.Sprintf("while Marco wrote %s", rec)
@@ -143,7 +155,7 @@ func playASeededRoutine(w *world) result {
 	w.art.step("the fixture received %s", got)
 
 	// ── AND WHAT MARCO SAYS IT DID ───────────────────────────────────────────
-	rec, err := waitForRecord(45*time.Second, w.store, recordsBefore)
+	rec, err := waitForRecord(45*time.Second, st.store, recordsBefore)
 	if err != nil {
 		s.keepRunView()
 		return fail(started, fmt.Sprintf("the application received %s, and Marco wrote "+
@@ -161,6 +173,19 @@ func playASeededRoutine(w *world) result {
 		return fail(started, err.Error())
 	}
 
+	// AND WHAT THE WINDOW ITSELF SAYS, which is the account the person actually reads.
+	//
+	// A third channel, and not a redundant one: the record is a file and the window is a
+	// rendering of what the backend made of the same run. A window that showed nothing, or
+	// showed the wrong word, would be a product that worked and could not say so — and
+	// every assertion above would still pass. Read through UI Automation, so it is the
+	// operating system's account of the page rather than the backend asked a second time.
+	shown, lookErr := s.look()
+	if lookErr != nil {
+		return fail(started, lookErr.Error())
+	}
+	s.keepRunView()
+
 	// THE QUESTIONS, FROM THE ACT OUTWARDS.
 	save := before.Controls["Save"]
 	why := firstOf(
@@ -169,6 +194,7 @@ func playASeededRoutine(w *world) result {
 		notExactlyOne(presses),
 		theApplicationDidNotChange(before, after),
 		marcoSaidSomethingElse(rec, seed),
+		theWindowSaysSomethingElse(shown, seed),
 	)
 	if why != "" {
 		s.keepRunView()
@@ -287,6 +313,31 @@ func marcoSaidSomethingElse(rec runRecord, seed seededRoutine) string {
 		return "the run record says Marco asked the machine for 0 input actions, and " +
 			"the application received a press — so something other than this run " +
 			"pressed it"
+	}
+	return ""
+}
+
+// theWindowSaysSomethingElse is the window's own account, asked of the operating system.
+//
+// `saidOfRoutine` writes the sentence: *Marco performed "X" — every press happened. Nothing here
+// checked that the application did what you wanted.* Both halves are asserted, because the second
+// is the one that keeps the first honest: a window that said a routine worked would be claiming
+// the one thing nothing on this path can see.
+func theWindowSaysSomethingElse(shown snapshot, seed seededRoutine) string {
+	switch {
+	case !shown.says("Marco performed"):
+		return fmt.Sprintf("the application received the press, Marco recorded it as "+
+			"performed, and the window does not say so — so the product worked and "+
+			"cannot tell anybody. What is on screen: %s",
+			strings.Join(shown.ids(), " "))
+	case !shown.says(seed.name):
+		return fmt.Sprintf("the window reports a run and does not name %q, so somebody "+
+			"reading it cannot tell which routine it is about", seed.name)
+	case !shown.says("checked that the application did what you wanted"):
+		return "the window says the routine performed and does not say that nothing " +
+			"checked the application's own outcome. A routine presses what it was " +
+			"shown and reads nothing afterwards, and a window that left that out " +
+			"would be claiming the one thing this path cannot see"
 	}
 	return ""
 }

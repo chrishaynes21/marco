@@ -54,32 +54,45 @@ type seededRoutine struct {
 	name     string
 	path     string
 	source   string
-	control  string
-	at       [2]int
+	controls []string
+	at       [][2]int
 	window   rect
 	dpi      int
 	contract string
 }
 
-// seedPressOf writes a routine that presses one of the fixture's controls, once.
+// seedPresses writes a routine that presses the fixture's named controls, in order.
 //
 // GUARDED, because the window facts are there to be recorded and a routine that carried none
 // would be a routine that cannot refuse — and half the scenarios this harness exists for are
 // about refusing. The contract is read back off the saved source rather than assumed, so a
 // scenario can say which of the three it is performing.
-func seedPressOf(f *fixtureRun, art *artifacts, name, control string) (seededRoutine, error) {
-	s := seededRoutine{name: name, control: control}
-	x, y, err := f.centreOf(control)
-	if err != nil {
-		return s, err
+//
+// `gap` is the pause between presses, and it is recorded as a real pause: a routine that presses
+// twice six seconds apart is the only way to be INSIDE a run while it is still going, which is
+// what interrupting one requires. The gap survives into the routine because the recording states
+// that it captures coordinates — the wait cap that applies when the anchor stack is on would
+// otherwise flatten every pause to 50ms, which is the quieter half of what ADR-254 is about.
+func seedPresses(f *fixtureRun, art *artifacts, name string, gap time.Duration,
+	controls ...string) (seededRoutine, error) {
+
+	s := seededRoutine{name: name, controls: controls}
+	if len(controls) == 0 {
+		return s, fmt.Errorf("a seeded routine has to press something")
 	}
-	s.at = [2]int{x, y}
+	for _, control := range controls {
+		x, y, err := f.centreOf(control)
+		if err != nil {
+			return s, err
+		}
+		s.at = append(s.at, [2]int{x, y})
+	}
 
 	// THE WINDOW AS MARCO MEASURES IT, through Marco's own function.
 	left, top, w, h, dpi, ok := winctx.WindowShape(f.hwnd)
 	if !ok {
 		return s, fmt.Errorf("Marco cannot measure the fixture's window, so a guarded "+
-			"press of %q cannot be recorded", control)
+			"press of %v cannot be recorded", s.controls)
 	}
 	s.window, s.dpi = rect{X: left, Y: top, W: w, H: h}, dpi
 
@@ -117,16 +130,21 @@ func seedPressOf(f *fixtureRun, art *artifacts, name, control string) (seededRou
 	// attribution on both edges — which is what `newClick` does and why: a release lands
 	// wherever the press did, so it is about no rectangle, but both edges have an owner and
 	// the strip that removes the trailing stop walks back through them.
-	t0 := time.Now().Add(-2 * time.Second)
-	events := []recorder.RecordedEvent{
-		{Kind: recorder.EvAppSwitch, KeyName: app, T: t0},
-		{Kind: recorder.EvClick, Button: "left", Down: true, X: x, Y: y,
-			App: app, PID: f.pid, RelTo: macroir.RelToWindow,
-			RelX: x - left, RelY: y - top, WinRel: true,
-			WinW: w, WinH: h, Dpi: dpi, Process: image,
-			T: t0.Add(400 * time.Millisecond)},
-		{Kind: recorder.EvClick, Button: "left", Down: false, X: x, Y: y,
-			App: app, PID: f.pid, T: t0.Add(440 * time.Millisecond)},
+	t0 := time.Now().Add(-time.Minute)
+	events := []recorder.RecordedEvent{{Kind: recorder.EvAppSwitch, KeyName: app, T: t0}}
+	at := t0.Add(400 * time.Millisecond)
+	for _, p := range s.at {
+		x, y := p[0], p[1]
+		events = append(events,
+			recorder.RecordedEvent{Kind: recorder.EvClick, Button: "left",
+				Down: true, X: x, Y: y,
+				App: app, PID: f.pid, RelTo: macroir.RelToWindow,
+				RelX: x - left, RelY: y - top, WinRel: true,
+				WinW: w, WinH: h, Dpi: dpi, Process: image, T: at},
+			recorder.RecordedEvent{Kind: recorder.EvClick, Button: "left",
+				Down: false, X: x, Y: y,
+				App: app, PID: f.pid, T: at.Add(40 * time.Millisecond)})
+		at = at.Add(gap)
 	}
 
 	// AND THE PRODUCTION SAVE. Deps carries the library and the stated mode; nothing else
@@ -139,7 +157,7 @@ func seedPressOf(f *fixtureRun, art *artifacts, name, control string) (seededRou
 	dr := d.DraftOf(name, events, app, "seeded by the harness", orchestrator.Coordinates)
 	if dr.Pressable() == 0 {
 		return s, fmt.Errorf("the seeded demonstration of %q produced no step that "+
-			"presses anything, so there is nothing to play", control)
+			"presses anything, so there is nothing to play", s.controls)
 	}
 	rt, err := d.Save(dr, orchestrator.ScopeAppAnywhere, app)
 	if err != nil {
@@ -155,8 +173,8 @@ func seedPressOf(f *fixtureRun, art *artifacts, name, control string) (seededRou
 	contract, _ := orchestrator.ContractOf(src)
 	s.contract = string(contract)
 	art.keep("seeded-"+rt.Slug+".marco", []byte(src))
-	art.step("seeded %q as %s/%s (%s), pressing %q at %d,%d in a window of %s",
-		name, rt.App, rt.Slug, s.contract, control, x, y, s.window)
+	art.step("seeded %q as %s/%s (%s), pressing %v at %v in a window of %s",
+		name, rt.App, rt.Slug, s.contract, s.controls, s.at, s.window)
 	if s.contract != string(orchestrator.Guarded) {
 		return s, fmt.Errorf("the seeded routine came out %s rather than guarded, so "+
 			"it would not check the window it was recorded in", s.contract)

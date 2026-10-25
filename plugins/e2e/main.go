@@ -126,12 +126,21 @@ func main() {
 	}
 
 	var results []result
-	for _, s := range scenarios() {
+	// ONE WORLD, AND A NUMBER PER SCENARIO.
+	//
+	// The number is what keeps each scenario's store, oracles and artifacts apart. A world
+	// built fresh per scenario had the counter reset with it, so every scenario used store 1
+	// and read the previous one's files — and the first symptom was four refusals in a row
+	// about a window that had already closed.
+	w := &world{b: b, art: art, store: store, machine: m}
+	for i, s := range scenarios() {
 		if *only != "" && !strings.Contains(s.name, *only) {
 			continue
 		}
 		fmt.Printf("\n%s — %s\n", s.name, s.about)
-		r := s.run(&world{b: b, art: art, store: store, machine: m})
+		w.scenarioN = i + 1
+		w.art = art.scope(fmt.Sprintf("%02d-%s", i+1, slug(s.name)))
+		r := s.run(w)
 		r.name, r.layer, r.about = s.name, s.layer, s.about
 		results = append(results, r)
 		if r.skipped {
@@ -157,6 +166,8 @@ type world struct {
 	art     *artifacts
 	store   string
 	machine machine
+	// scenarioN numbers the stores, so each scenario gets a library of its own.
+	scenarioN int
 }
 
 // scenario is one thing this harness can establish.
@@ -235,4 +246,18 @@ func finish(art *artifacts, m machine, results []result, err error, started time
 	}
 	art.close()
 	os.Exit(code)
+}
+
+// slug is a name as a directory can hold it.
+func slug(name string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(name) {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			b.WriteRune(r)
+		default:
+			b.WriteByte('-')
+		}
+	}
+	return strings.Trim(b.String(), "-")
 }

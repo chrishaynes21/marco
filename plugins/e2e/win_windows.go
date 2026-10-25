@@ -25,6 +25,8 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"strings"
 	"syscall"
 	"unsafe"
 )
@@ -199,4 +201,47 @@ func place(hwnd uintptr, x, y, w, h int) error {
 func closeWindow(hwnd uintptr) {
 	const wmClose = 0x0010
 	procPostMessageW.Call(hwnd, wmClose, 0, 0)
+}
+
+// childOf is the process id of this process's child with the given image name.
+//
+// BY PARENT, which is the whole reason this exists. A scenario that killed `marco.exe` by name
+// would end a run the OWNER had started if they happened to be performing something at that
+// moment — and the harness would then be reporting about a process it did not own, having
+// interfered with somebody's work to do it. The runner this run may kill is the one its own
+// Studio spawned.
+//
+// Refuses an ambiguous answer rather than picking one: two children of one name means the
+// question did not identify a process.
+func childOf(parent uint32, image string) (uint32, bool) {
+	snap, err := syscall.CreateToolhelp32Snapshot(syscall.TH32CS_SNAPPROCESS, 0)
+	if err != nil {
+		return 0, false
+	}
+	defer syscall.CloseHandle(snap)
+	var e syscall.ProcessEntry32
+	e.Size = uint32(unsafe.Sizeof(e))
+	found, n := uint32(0), 0
+	for err = syscall.Process32First(snap, &e); err == nil; err = syscall.Process32Next(snap, &e) {
+		if e.ParentProcessID != parent {
+			continue
+		}
+		if !strings.EqualFold(syscall.UTF16ToString(e.ExeFile[:]), image) {
+			continue
+		}
+		found, n = e.ProcessID, n+1
+	}
+	return found, n == 1
+}
+
+// killPid ends one process, by the id a caller has already established is theirs to end.
+func killPid(pid uint32) error {
+	p, err := os.FindProcess(int(pid))
+	if err != nil {
+		return fmt.Errorf("pid %d: %w", pid, err)
+	}
+	if err := p.Kill(); err != nil {
+		return fmt.Errorf("killing pid %d: %w", pid, err)
+	}
+	return nil
 }

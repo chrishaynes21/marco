@@ -259,3 +259,17 @@ func (f *fixtureRun) close() {
 	_, _ = f.cmd.Process.Wait()
 	f.cmd = nil
 }
+
+// mustRead is the oracle as it stands, with an unreadable one noted rather than returned.
+//
+// A scenario comparing two readings has to be able to take them inline, and an oracle it could
+// not read is caught by the comparison rather than swallowed: the zero value has no control
+// rectangles, which `outsideTheControl` reports as not being able to place the press, and no
+// press counts, which every count assertion reports as not having moved.
+func (f *fixtureRun) mustRead() fixtureState {
+	s, err := f.read()
+	if err != nil {
+		f.art.note("oracle", "unreadable: %v", err)
+	}
+	return s
+}

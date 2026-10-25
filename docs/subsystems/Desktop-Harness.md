@@ -70,6 +70,22 @@ can read a file", and every scenario would still pass.
    Everything after the first disagreement is consequence, and listing consequences as findings is
    how a report becomes something nobody reads.
 
+## What it establishes today
+
+Nine scenarios, about 36 seconds, one command.
+
+| | |
+|---|---|
+| a seeded routine presses the application | all three channels: what the fixture received, what the record says, and what the window itself says |
+| a moved window still gets the press | a guarded press re-bases onto the window where it is now |
+| a resized window is refused | and the application receives NOTHING, which only the event log can establish |
+| two runs are two records | distinct references, both accounted for |
+| Stop ends a run as cancelled | and the press after the stop never arrives |
+| a killed runner leaves an unfinished record | `started` with no `ended`, and only the runner this run owns is killed |
+| readiness notices a missing sibling | the one readiness case that never fails loudly |
+| a routine saved while the window is open appears | the library is read rather than remembered |
+| the recording path | 25 named scripted-recorder tests, labelled apart and never totalled with the rest |
+
 ## The limit it prints every time
 
 Marco's recorder discards injected input in both hooks, on purpose. So nothing here can establish

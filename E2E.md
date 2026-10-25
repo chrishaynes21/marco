@@ -1536,6 +1536,26 @@ automated evidence covers what the window hands the command and what it makes of
 it cannot cover a press landing on a game. The one defect this trial has found so far was
 invisible to a green suite, and so was the stale window that hid its fix.
 
+> **MUCH OF THE MECHANISM BELOW IS NOW CHECKED BY A HARNESS, AND THE RECORDING IS NOT.**
+>
+> `plugins\e2e\run.cmd` drives the real Studio against a deterministic application on the real
+> desktop, unattended, in about half a minute. It covers **playing** a routine end to end and
+> asserts what the application actually received, a **moved** window keeping the press, a
+> **resized** window being refused with nothing sent, **two runs** leaving two distinct
+> references, **Stop** ending a run as cancelled with nothing arriving afterwards, a **killed
+> runner** leaving an unfinished record, **readiness** noticing its own sibling binary moved
+> aside, and a routine **saved while the window is open** appearing in it.
+>
+> It cannot cover the recording itself. Marco's hooks discard injected input on purpose, so no
+> automated run can establish that Windows captured a physical gesture — and every report the
+> harness prints ends with that sentence, on a green run as much as a red one. The routines it
+> plays are **seeded**, written into a test library through the production generator, and are
+> labelled seeded wherever they are reported.
+>
+> So what is still worth your hands is the part that begins with a demonstration: **Record,
+> Stop, the review, Save, Record again, and the refusals around replacing.** Everything from
+> the saved routine onwards has an automated account of itself now.
+
 **Close Studio first**, then build:
 
 ```sh

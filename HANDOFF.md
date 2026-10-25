@@ -8180,3 +8180,32 @@ log as well and allows the two harnesses as directories rather than as a list of
 extends without thinking about it.
 
 See [[ADR-257-a-desktop-harness-that-says-what-it-did-not-prove]] and [[Desktop-Harness]].
+
+**And then eight desktop scenarios and one recording layer, 9 of 9 in about 36 seconds.** The
+moved window keeps the press (the guarded offset re-based onto the window where it is now); the
+resized window is refused with **nothing at all sent**, which only the new event log can
+establish; two runs produce two distinct references; **Stop during a run ends it as cancelled and
+the press after the stop never arrives**; the `marco.exe` whose parent is this run's own Studio,
+killed mid-run, leaves `started` with no `ended`; readiness notices its own sibling moved aside;
+and a routine saved while the window is open appears in it beside the one that was already there.
+The recording path is the second layer: 25 named scripted-recorder tests, run explicitly, because
+a `-run` pattern that matches nothing is the quietest possible green and a skip is not a pass.
+
+Two observations came out of it, neither changed. **A guarded press refused because the window
+changed size is recorded as `failed`, not `refused`** — and `activityOutcome` writes the
+distinction down itself: *a door saying no is not a thing going wrong, and the whole reason the
+vocabulary separates refused from failed is so a person can tell them apart.* A window of another
+size is a door saying no, and what the person is told is that their routine stopped at something
+that did not happen. The scenario accepts either word for "nothing was pressed" and reports which
+it got; which word is right is a product decision. **And the stale-binary trap is live on this
+machine**: with the sibling moved aside the panel answered with its third case, not its second —
+`D:\Macros\marco\marco.exe is on PATH, so Play would run whichever marco.exe is on PATH, which may
+be a different build of a different age`. The repo root is on PATH here, so the readiness case that
+never fails loudly is not hypothetical.
+
+One defect in the harness, found by the harness. Four scenarios refused in a row with *the fixture
+says its window is 716x529 and Marco reads it as 626x469* — because a `world` built fresh per
+scenario reset the counter that keeps their stores apart, so every scenario used store 1 AND the
+same artifact paths. The second scenario's wait for *the fixture wrote its oracle* was satisfied
+instantly by the first scenario's file, and everything it then read described a window that had
+already closed. One world, a number per scenario, and a scope per scenario's artifacts.
