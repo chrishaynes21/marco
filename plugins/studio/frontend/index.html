@@ -1622,8 +1622,26 @@
    routines.forEach(r => {
      const card = document.createElement('div')
      card.className = 'card pick' + (r.id === chosenRoutine ? ' on' : '')
-     card.onclick = () => {
+     // A CARD YOU PRESS IS A CONTROL, and it was not one.
+     //
+     // It was a bare div with an onclick: no name, no role, no way to reach it with a
+     // keyboard, and nothing for a screen reader or any other assistive technology to
+     // announce or activate. A person who cannot use a mouse could record a routine in
+     // this window and then not be able to select it.
+     //
+     // So it says what it is and takes a key. The id is built from the route's whole
+     // identity, which is already unique by construction — `settings` saved for two
+     // applications under two scopes is two routines and two ids — so it is also the
+     // address anything outside this window can use to find exactly one card.
+     card.id = 'routine-' + r.id.replace(/[^a-z0-9]+/gi, '-')
+     card.setAttribute('role', 'button')
+     card.tabIndex = 0
+     const choose = () => {
        chosenRoutine = r.id; shownRoutines = ''; drawRoutines()
+     }
+     card.onclick = choose
+     card.onkeydown = (e) => {
+       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose() }
      }
      // WHERE IT WORKS AND WHEN IT WAS KEPT. Both, because a person who has just
      // recorded the same thing twice tells them apart by the clock and nothing else.

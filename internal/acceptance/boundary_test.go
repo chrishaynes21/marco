@@ -44,15 +44,20 @@ func TestMarcoCannotReadTheOracle(t *testing.T) {
 	// paths because the point is knowledge of the thing, not a particular directory.
 	oracles := []string{"fixture-state", "fixture-events"}
 
-	// Where the oracle is ALLOWED to be known. Two places: the application that writes it, and
-	// the harness that reads it. Each is named with the reason it is here.
+	// Where the oracles are ALLOWED to be known: the application that writes them, and the
+	// two harnesses that read them. Each is named with the reason it is here.
+	//
+	// A trailing slash means the whole directory, and the two that have one are harnesses
+	// rather than product — neither is reachable from anything Marco runs, and both grow
+	// files as scenarios are added. A per-file list over a harness would be a list somebody
+	// extends without thinking about it, which is the opposite of what this is for; the
+	// invariant being held is that no PRODUCTION package names either file.
 	allowed := map[string]string{
-		"plugins/fixture/Fixture.cs":           "writes it",
-		"internal/acceptance/acceptance.go":    "reads it, after Marco has finished",
-		"internal/acceptance/report.go":        "renders it",
-		"internal/acceptance/desktop_test.go":  "asserts on it",
-		"internal/acceptance/boundary_test.go": "this test",
-		"internal/acceptance/harness_test.go":  "exercises the harness",
+		"plugins/fixture/Fixture.cs": "writes both",
+		"internal/acceptance/": "the first harness: reads the state file after Marco " +
+			"has finished",
+		"plugins/e2e/": "the desktop harness: reads both, and keeps copies of them " +
+			"beside its report",
 	}
 
 	var offenders []string
@@ -68,7 +73,7 @@ func TestMarcoCannotReadTheOracle(t *testing.T) {
 		if strings.HasPrefix(rel, "_dl/") {
 			return nil
 		}
-		if _, ok := allowed[rel]; ok {
+		if permitted(allowed, rel) {
 			return nil
 		}
 		b, readErr := os.ReadFile(path)
@@ -204,4 +209,24 @@ func codeOnly(t *testing.T, path string) string {
 		t.Fatalf("printing %s: %v", path, err)
 	}
 	return b.String()
+}
+
+// permitted reports whether this file is one of the places an oracle may be named.
+//
+// An exact path, or a directory when the entry ends in a slash. Two forms rather than one,
+// because they carry different intentions: a file is a decision about that file, and a directory
+// is a decision about a harness.
+func permitted(allowed map[string]string, rel string) bool {
+	for place := range allowed {
+		if strings.HasSuffix(place, "/") {
+			if strings.HasPrefix(rel, place) {
+				return true
+			}
+			continue
+		}
+		if rel == place {
+			return true
+		}
+	}
+	return false
 }

@@ -95,6 +95,10 @@ succeeding. [[Learned-Plays]] is the note; ADRs 023–032 are the constraints.
 - [[Visibility]] — the one account of what Marco is doing, rendered as Normal, Watch and
   Diagnostics
 
+**Being checked**
+- [[Desktop-Harness]] — the two harnesses that drive a real desktop, the application that keeps
+  its own account of what it received, and the one thing neither can establish
+
 ## Decisions
 
 The full index is [[Decisions]]. The load-bearing ones are ADR-001 through ADR-005; the

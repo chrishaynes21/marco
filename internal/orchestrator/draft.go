@@ -573,12 +573,8 @@ func (d Deps) Resave(u Unrunnable) (routes.Route, error) {
 		return routes.Route{}, fmt.Errorf("%q: its demonstration could not be "+
 			"read back: %w", u.Name, err)
 	}
-	name, argNames := routes.SplitArgs(u.Name)
-	opts := d.learnOptions()
-	opts.ArgNames = argNames
-	dr := &Draft{Name: name, Args: argNames,
-		Steps: simplify.Simplify(events, opts), Events: events,
-		App: u.Route.App, StoppedBy: "a repair"}
+	dr := d.DraftOf(u.Name, events, u.Route.App, "a repair", Unstated)
+	name := dr.Name
 	app := u.Route.App
 	if app == "" {
 		app = firstActivateApp(dr.Steps)
@@ -777,4 +773,39 @@ func ContractOf(src string) (Contract, []string) {
 		}
 	}
 	return Incomplete, lacks
+}
+
+// DraftOf is a draft made from a demonstration this process did not capture.
+//
+// # Why this exists apart from Capture.Finish
+//
+// Because a demonstration and a CAPTURE are different things. `Finish` has a recorder to wait
+// for, a stop to classify, Studio's own window to strip out of the stream and anchors to enrich;
+// all of that is about having been the process whose hooks were installed. What is left when none
+// of it applies is the part that turns events into a routine — the learn options, `simplify`, and
+// the four fields a draft carries — and there are two callers for that.
+//
+// `Resave` is one: it rebuilds a routine from the demonstration saved beside it, which happened in
+// some process that has long since exited. `plugins/e2e` is the other: it seeds a routine into a
+// test library from events it measured off a real window, so that the half of the product after
+// the save — generation, the file, the contract, the executor, the input path, the guard, the run
+// record — can be played against a real application without a person's hands.
+//
+// Said once rather than twice, because the alternative is a harness with its own idea of what a
+// draft is. A seeded routine is worth playing only if it is byte-for-byte the routine the product
+// would have written from the same demonstration, and that is not a property anybody can keep by
+// remembering to.
+//
+// IT IS NOT A RECORDER. Nothing here captures anything; `events` is a demonstration that already
+// happened, and a caller that invents one is seeding rather than recording — a distinction
+// `plugins/e2e` carries all the way into its report.
+func (d Deps) DraftOf(name string, events []recorder.RecordedEvent, app, stoppedBy string,
+	mode RecordedAs) *Draft {
+
+	base, argNames := routes.SplitArgs(name)
+	opts := d.learnOptions()
+	opts.ArgNames = argNames
+	return &Draft{Name: base, Args: argNames,
+		Steps: simplify.Simplify(events, opts), Events: events,
+		App: app, StoppedBy: stoppedBy, Mode: mode}
 }

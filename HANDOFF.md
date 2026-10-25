@@ -8116,3 +8116,67 @@ Four consecutive runs green, about 1.8s each. See [[ADR-113-learning-is-inside-w
 settles or may not; it is written down here because it is how the fixture was understood, and it is
 explicitly not a reason to reopen perception work or to hold up the coordinate MVP. And this closes
 the one identified test defect — it is not a claim that the suite cannot flake.
+
+## 38W — a desktop harness, and the one thing it prints on every green run
+
+Studio's flow was testable in two places and provable in neither. The browser tests render the
+real page with the Go bindings STUBBED; the backend tests drive the real backend with the recorder
+and the desktop REPLACED. Between them sat the whole product path — page, binding, backend,
+library, generated Marco, child executor, native input, window guard, run record — and the only
+thing that had ever exercised it was the owner working through E2E.md by hand, eighteen bullets at
+a time, after every change.
+
+`plugins/e2e` is that path, run by one command. Its own module, so `go test ./...` at the root
+never sees it: a harness that performs real input into a window on the real screen should not be
+something anybody can start by accident, and an environment gate is a thing to remember where a
+separate module is a fact about the tree.
+
+**The investigation came first, and two of its three findings changed the brief.** The controlled
+application already existed — `plugins/fixture`, fixed title, fixed layout, fixed control names,
+an oracle Marco may never read — so it was extended rather than replaced (§38V's commit before
+this one: an input witness, keyboard observation, and a geometry/DPI channel). Studio's controls
+turned out to be pressable through the OS: `go-webview2` deliberately clears
+`WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` so no debug port can be opened, but Chromium publishes the
+page to UI Automation, `plugins/uia` already reads that, and **AutomationId is the DOM id** — so
+`rail-scenes` and `routinePlayBtn` are addressable, `Invoke` runs the page's own handler, and a
+snapshot is the operating system's account of the window rather than the backend being asked what
+it would have rendered.
+
+**And the third finding is a wall.** Both recorder hooks test the injected flag and discard what
+they find, by design, because attributing Marco's own presses to a person would let a replay be
+learned as a demonstration. There is no switch and there must not be one, so no unattended run can
+demonstrate anything. Three options went to the Architect — operator-assisted recording, a USB HID
+device, or a gated door in the recorder — and the answer was none of them: build the unattended
+harness, put native recording outside its first coverage boundary, and SAY SO. A VM with
+host-controlled virtual input is parked as a later investigation, to be measured before it is
+claimed.
+
+So routines are SEEDED through the production generator and labelled seeded. `Deps.DraftOf` is new
+and shared with `Resave`: events, `simplify`, `codegen`, `routes.Registry` — the same four steps
+through the same functions, so a seeded routine is the routine the product would have written from
+the same demonstration. The events are measured rather than invented: the press point comes from
+the fixture's own account of where its control is, and the window on the press from
+`winctx.WindowShape`, the identical call the recorder makes at the identical moment.
+
+**The spine runs in 3.6 seconds, unattended.** A bundle built fresh into its own directory, an
+isolated store, the fixture up, a guarded routine seeded at a measured coordinate, the real Studio
+launched and its page reporting that it rendered, `rail-scenes` pressed, the card chosen by
+identity, Play pressed — and then the two accounts: the fixture received `left_down on "Save"` at
+45,14 into the control, and Marco wrote `outcome="performed" mode=coordinates contract=guarded
+input_actions=1 build=<rev>`. Both agree, which is the only ending this calls passed.
+
+Every report carries three lines, and the third is a limit rather than a score: passed desktop
+scenarios, passed recording-integration scenarios, and `physical recording capture: NOT
+EXERCISED`. Printed on a green run in the same words, because a limit mentioned only beside a
+failure is a limit nobody reads — and a single total over the two layers would read as "the
+recording path works on Windows", which is the one thing nothing here establishes.
+
+Two smaller things came with it. The routine cards were bare `div`s with an `onclick` — no name,
+no role, no keyboard path, nothing for assistive technology to announce or activate, so a person
+who cannot use a mouse could record a routine and then be unable to select it; they are controls
+now, with ids built from the route's whole identity. And `internal/acceptance`'s oracle boundary
+test, which already refused any production file that named the state file, now covers the event
+log as well and allows the two harnesses as directories rather than as a list of files somebody
+extends without thinking about it.
+
+See [[ADR-257-a-desktop-harness-that-says-what-it-did-not-prove]] and [[Desktop-Harness]].
