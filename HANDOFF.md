@@ -8110,3 +8110,9 @@ state built by hand, asked forty times so no map order can answer it.
 Mutated to confirm it still holds what it is for: `PlaceNamesToRecord` reading the tally instead of
 what settled out of it is **killed** 2 of 2, naming the word and the Place it was written for.
 Four consecutive runs green, about 1.8s each. See [[ADR-113-learning-is-inside-watching]].
+
+**The two screen states are PARKED by the Architect.** One scripted screen produced `state_1` and
+`state_2` with a sighting dropped between them, which may be ordinary flapping before a state
+settles or may not; it is written down here because it is how the fixture was understood, and it is
+explicitly not a reason to reopen perception work or to hold up the coordinate MVP. And this closes
+the one identified test defect — it is not a claim that the suite cannot flake.
