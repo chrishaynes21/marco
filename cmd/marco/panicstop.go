@@ -120,29 +120,79 @@ type ran struct {
 // where saying `legacy` would be a reading of something nobody read.
 const contractUnstated = "unstated"
 
-// runRoute runs a saved play, substituting named/positional args into its
-// {{name}}/{{N}} placeholders. With no placeholders/args it's the same as running
-// the file.
-func runRoute(ctx context.Context, d orchestrator.Deps, rt routes.Route, named map[string]string, positional []string) (ran, error) {
-	path := d.Reg.Path(rt)
-	mlog.Debug("run: reading route", "route", rt.Slug, "path", path)
-	src, err := os.ReadFile(path)
+// snapshot is one read of a saved routine: the bytes, what they become, and what they are.
+//
+// # Why it is taken before the reference is claimed
+//
+// Because the record left in that reference has to say WHAT was running, and the moment that
+// matters most is the moment the run never reaches its end — a killed child, a machine that went
+// down, a stop that did not unwind. The identity used to be worked out from what the performance
+// returned and written only at the end, so the one attempt a person has to ask somebody about was
+// the one whose record said nothing but that something started.
+//
+// # And it is the same bytes that execute
+//
+// One read, not two. Reading the file to describe it and reading it again to perform it is two
+// answers about one file, and a save can land between them — after which the record cites the
+// digest of source that did not run. That is exactly the confusion `describeRoutine` prints a
+// warning about, except arrived at by Marco's own hand rather than by somebody re-recording.
+//
+// A snapshot that could not be read carries its reason and runs nothing. It is still an attempt
+// and still gets a reference, because "your routine is not where the library says it is" is
+// something a person needs to be able to cite.
+type snapshot struct {
+	rt    routes.Route
+	path  string
+	named map[string]string
+	// filled is the source with arguments substituted — what actually executes. The
+	// arguments themselves are never in `did`, and so never in the record: somebody's
+	// password arriving as an argument is not a thing to write into a durable file.
+	filled string
+	// did is the identity of what is about to run, and the identity the finished record
+	// carries. One value, written twice, so the provisional record and the final one
+	// cannot describe two different programs.
+	did ran
+	// contract is the same reading `did.Contract` holds, kept in its own type because the
+	// rule at the end of the performance acts on it. The record wants a word and the rule
+	// wants the thing; one read answers both.
+	contract orchestrator.Contract
+	// err is why there is nothing to perform.
+	err error
+}
+
+// take reads the routine once and says what is about to run.
+func take(d orchestrator.Deps, rt routes.Route, named map[string]string, positional []string) snapshot {
+	s := snapshot{rt: rt, path: d.Reg.Path(rt), named: named}
+	mlog.Debug("run: reading route", "route", rt.Slug, "path", s.path)
+	src, err := os.ReadFile(s.path)
 	if err != nil {
-		mlog.Error("run: read failed", "path", path, "err", err)
-		return ran{Contract: contractUnstated}, fmt.Errorf("read %s: %w", path, err)
+		mlog.Error("run: read failed", "path", s.path, "err", err)
+		s.did = ran{Contract: contractUnstated}
+		s.err = fmt.Errorf("read %s: %w", s.path, err)
+		return s
+	}
+	s.filled = routes.ApplyArgs(string(src), named, positional)
+	// WHAT IS ABOUT TO RUN, DESCRIBED ONCE. See `ran`.
+	s.contract, _ = orchestrator.ContractOf(s.filled)
+	s.did = ran{Digest: routes.DigestOf(string(src)), Contract: string(s.contract)}
+	return s
+}
+
+// runRoute performs a snapshot: the source already read, with its args already substituted into
+// its {{name}}/{{N}} placeholders.
+func runRoute(ctx context.Context, d orchestrator.Deps, s snapshot) error {
+	if s.err != nil {
+		return s.err
 	}
 	// Expose the named args to the OS host so a secret-typed arg (password/pin/…) can
 	// be provided inline and remembered (see oshost.doSecret).
 	if h, ok := d.Hosts["*"].(*oshost.Host); ok {
-		h.SetArgs(named)
+		h.SetArgs(s.named)
 	}
-	filled := routes.ApplyArgs(string(src), named, positional)
-	// WHAT IS ABOUT TO RUN, DESCRIBED ONCE. See `ran`.
-	contract, _ := orchestrator.ContractOf(filled)
-	did := ran{Digest: routes.DigestOf(string(src)), Contract: string(contract)}
-	mlog.Info("run: executing", "route", rt.Slug, "scope", rt.App, "named_args", len(named), "positional_args", len(positional))
-	if err := driver.RunSourceWithHostsCtx(ctx, filled, filepath.Dir(path), path, os.Stdout, d.Hosts); err != nil {
-		return did, err
+	rt, path := s.rt, s.path
+	mlog.Info("run: executing", "route", rt.Slug, "scope", rt.App, "named_args", len(s.named))
+	if err := driver.RunSourceWithHostsCtx(ctx, s.filled, filepath.Dir(path), path, os.Stdout, d.Hosts); err != nil {
+		return err
 	}
 	// ── AND A ROUTINE THAT DID NOT HAPPEN IS NOT A ROUTINE THAT RAN ──
 	//
@@ -171,16 +221,16 @@ func runRoute(ctx context.Context, d orchestrator.Deps, rt routes.Route, named m
 	// window and refuses the press naming what it lacks. Skipping the account for it would
 	// let exactly that refusal pass as a successful run — the case ADR-251 made a third
 	// contract for. Held by TestAnIncompleteRoutinesRefusalStillFailsTheCommand.
-	if contract == orchestrator.Legacy {
-		return did, nil
+	if s.contract == orchestrator.Legacy {
+		return nil
 	}
 	if h, ok := d.Hosts["*"].(unperformer); ok {
 		if undone := h.Unperformed(); len(undone) > 0 {
 			mlog.Error("run: stopped", "route", rt.Slug, "why", undone[0])
-			return did, fmt.Errorf("%s stopped: %s", rt.Slug, undone[0])
+			return fmt.Errorf("%s stopped: %s", rt.Slug, undone[0])
 		}
 	}
-	return did, nil
+	return nil
 }
 
 // unperformer is a host that can say what it did not do.

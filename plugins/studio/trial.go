@@ -488,7 +488,15 @@ func (t *trials) performed(act, reference string, live bool, rec record, had boo
 		Paused: paused}
 	if had {
 		n.Outcome, n.Because = rec.Outcome, rec.Because
-		n.Sent, n.Verified = rec.ActionsSent, rec.Verified
+		// A COUNT THE RECORD DID NOT STATE IS LEFT AT ZERO HERE, as it always
+		// was: `trialNote.Sent` is `omitempty`, so the note simply does not
+		// carry it, and `trialcheck`'s pause rule reads it the way it has. The
+		// window's own listing is where absence has to survive — see
+		// PastRun.Sent — because that is what a person reads.
+		if rec.ActionsSent != nil {
+			n.Sent = *rec.ActionsSent
+		}
+		n.Verified = rec.Verified
 		n.Ran, n.Application = rec.Build, rec.Application
 	}
 	t.note(n)

@@ -308,6 +308,33 @@ the record's digest to the file's. Re-recording is exactly what somebody does be
 and reporting it, so that is the likely case; without the warning a reader compares the run to a
 program that never ran.
 
+**A review of the above found three places where an absent value was read as a stated one**, and
+all three of them turned a blank into a false claim rather than into a blank.
+
+*The report attached whichever transcript the window was holding.* The transcript is one window's
+memory of one child, replaced every time anything runs, and it was copied in without asking which
+run it belonged to — so playing B and then reporting A produced a file with A's reference, A's
+record and **B's output** under *WHAT IT SAID AS IT RAN*. The lines now have an owner and it is
+asked; when it does not match, the section says so rather than being left out. The Act section had
+the identical shape, found by whichever Act was open, and is now found by the record too.
+
+*A routine's row said `input disabled`.* `live` is a field only the supervised record carries, and
+a routine's states no liveness because `marco do` has no mode to distinguish — read as a plain
+bool it was `false`, and the page said a run that had just typed a password never touched the
+machine. The count had the mirror defect: `input_actions` is absent in the provisional record a
+killed `marco.exe` leaves, and **that attempt may already have sent input**, so rendering it as `0`
+put the three-zeroes claim on screen about the run a person is most likely asking about. Both are
+pointers now, absent all the way through to a page that renders absence as absence; a routine's row
+says which kind of run it was where the badge would be, and an Act that really had input disabled
+still says so.
+
+*And an interrupted record identified the hour and not the program.* `build`, `source_digest` and
+`contract` were written only after the performance returned — the half of a run that may never
+happen — so a killed child left a reference naming a routine and a time and nothing about what was
+running. The saved source is now read **once**, into a snapshot taken before the reference is
+claimed; the provisional record carries all three; and the same snapshot is what executes, so no
+second reading of the file can make the record cite source the run never performed.
+
 ## Validated by
 
 - `internal/director/demo` unit tests (`demo.go`, `record.go`, `validate.go`)

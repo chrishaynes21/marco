@@ -252,6 +252,12 @@ the warning, a reader compares the run to a program that never ran. A routine th
 entirely is said so rather than left out, because a section quietly missing looks like a report
 that forgot.
 
+The Act half of that function was left reading whichever Act the window had open, and the review
+found it. Both halves are now found by the record, and the transcript with them — see *Three
+things the review found*, below. The lesson is the narrow one: the correction was applied to the
+kind being added and not to the kind beside it, and a fix that leaves its own sibling wrong is the
+shape this repository keeps catching.
+
 ## Why the claim is guarded at the start and not at the end
 
 Because it was guarded at the end, and the guard held while the thing it was protecting was
@@ -273,6 +279,16 @@ the supervised provisional record, `saveRun` stamps the build and hands the reco
 whole implementation would have been a refactor nobody asked for, and the field it would have had
 to generalise — the three verification counts — is the field that must not be generalised.
 
+**And it has the same two defects the review found in a routine's, unfixed and stated here.** The
+supervised provisional record declares `actions_sent` and `live` without `omitempty`, so a
+reference claimed and never finalised holds `"actions_sent": 0` and `"live": false` — it does not
+merely omit them, it *states* them, which is why fixing the reader does not reach it. And it has no
+`build`, for the same reason a routine's did not: `saveRun` stamps the revision at finalisation.
+The fix is not the same shape as the routine's, because `live: false` on a FINISHED supervised
+record is a real and load-bearing fact, so the field would have to become a pointer and the
+provisional and final writes separated. That is a change to the supervised wire contract, which
+Studio and the trial journal both read, and it is not this ADR's to make.
+
 **The reader.** `plugins/studio/history.go` already reads records by their JSON *names* rather than
 through a writer's type, because `RunRecord` lives in a `main` package and nothing can import it.
 That accident is what lets one window list two kinds: a record carrying a field it does not know is
@@ -291,7 +307,101 @@ question was never asked. The same rule covers confirmed delivery: `SendInput` r
 says the queue took the press, not that the application acted on it, so that field is not written
 rather than being filled in with the attempted count.
 
+## Three things the review found, and the one thing they had in common
+
+R1–R3 were reviewed and three gaps came back. They are worth keeping together, because they are
+one mistake made in three places: **a value that was absent was read as a value that was zero, or
+false, or somebody else's** — and in all three the result was not a blank space on a screen but a
+confident false claim, offered to the person in the moment they had least ability to check it.
+
+### A report attached whichever transcript the window was holding
+
+`Report` copied `a.transcript` into the file without asking which run it belonged to. The
+transcript is this window's memory of ONE child, cleared and refilled every time anything runs. So
+play B, report A, and the file held A's reference and A's record with **B's output** underneath,
+headed *WHAT IT SAID AS IT RAN*. Nothing in the file said otherwise, and the person attaching it to
+an email could not tell.
+
+A wrong transcript is worse than none. It is evidence about the wrong run, in the one file somebody
+sends precisely because they cannot explain what happened themselves. The lines now have an owner
+— an Act's reference lives in `a.reference` and a routine's in `a.routine.reference`, and `said`
+returns both together under one lock, because a transcript read now and a reference read a moment
+later could be two different runs'. When it does not match, the section is written and says it is
+unavailable: a section silently missing reads as a report that forgot.
+
+The Act half of the same function had the identical shape and was fixed with it. *THE ACT, AS IT
+STANDS NOW* was found by matching whichever Act the window had open, so reporting this morning's
+run after moving on to another Act printed **that other Act's** composition. It is now found by the
+record — which is what the routine half had already been corrected to do one increment earlier, and
+exactly the sibling the earlier fix should have taken with it.
+
+### A routine's row said input was disabled
+
+`live` is a field only the SUPERVISED record carries. A routine's record states no liveness at all,
+because `marco do` has no *write it down instead* mode for it to distinguish. Read into a plain
+`bool` it came back `false`, and the page printed **input disabled** beside a run that had just
+typed somebody's password.
+
+That is not a missing field rendered badly. It is the window telling a person their routine never
+touched their machine, next to a row where the same words are true.
+
+And the count beside it had the same defect from the other end. `input_actions` is absent in the
+provisional record a killed `marco.exe` leaves — and that attempt **may already have sent input**.
+Read as an `int` it rendered `0 input actions asked for`: the three-zeroes claim this ADR exists to
+refuse, reappearing at the one end of the wire that had been careful not to make it, about the one
+run a person is most likely to be asking somebody else about.
+
+Both now survive as absence the whole way: `*int` and `*bool` in the record and in `PastRun`,
+`omitempty` so the key does not reach the page, and a page that renders what was never written down
+as exactly that. A routine's row says which kind of run it was in the badge's place, which is what
+makes its numbers read differently from an Act's rather than reading as an Act's with a field
+missing. An Act that genuinely had input disabled still says so, and that direction is asserted
+too — the claim is being made *absent*, not *false*.
+
+### An interrupted record identified the hour and not the program
+
+`build`, `source_digest` and `contract` were worked out from what the performance returned and
+written only at the end — the half of a run that may never happen. Kill the child at its first
+press and the reference held a record naming a routine and an hour and **nothing about what was
+running**: not which `marco`, not which source, not whether its presses checked the window they
+were recorded in. That is the attempt somebody has to ask about, and it was the one whose record
+said least.
+
+All three are knowable before the first input, so they are written before it. The saved source is
+read ONCE, into a `snapshot`, before the reference is claimed; the digest and the contract come off
+those bytes; the provisional record carries them; and the same `snapshot` is what executes. One
+read, not two — reading the file to describe it and reading it again to perform it is two answers
+about one file, and a save can land between them, after which the record cites the digest of source
+that did not run. That is precisely the confusion the report prints a warning about, arrived at by
+Marco's own hand instead of by somebody re-recording.
+
 ## Enforced by
+
+### R1–R3 — what the review found
+
+- `plugins/studio` `TestReportingOneRunDoesNotAttachAnotherRunsOutput` — two runs cite two
+  references; the older one's report holds its own record and **not** the newer one's output, and
+  says the transcript is unavailable. The other direction is asserted in the same test: a `Report`
+  that withheld every transcript would pass the first half and have taken away what the file is for.
+- `plugins/studio` `TestAReportDescribesTheActTheRunNamesAndNotTheOneOnScreen` — falsified with an
+  Act the record names and the library no longer holds, so the old reading would print the loaded
+  Act's interactions under that heading.
+- `plugins/studio` `TestARoutinesRunIsListedInARoutinesWords` — extended: a routine's row is given
+  no liveness, because its record states none.
+- `plugins/studio` `TestAnUnfinishedRoutineAttemptSaysSoAndNotThatItWorked` — extended: an
+  interrupted attempt is credited with neither a count nor a mode.
+- `plugins/studio` `TestARowDoesNotSayInputWasDisabledWhenNothingSaidSo` — **in a browser**, four
+  rows: a routine that asked for four input actions, an Act with input enabled, an interrupted
+  routine that counted nothing, and an Act that really had input disabled. Each claim can be wrong
+  in both directions and both directions are asserted.
+- `cmd/marco` `TestTheRecordInFlightSaysWhatWasRunning` — measured from inside the run, on the
+  FIELDS: the record already in the store when the first action is asked for carries `build`,
+  `source_digest` and `contract`, the contract is the one the source states rather than a default,
+  and the finished record carries the same three **after the routine was saved over mid-run**. That
+  last clause is what makes one-read a falsifiable claim rather than a structural one.
+- `cmd/marco` `TestARunThatNeverFinishedSaysSoAndNotThatItWorked` — extended: the provisional
+  record a killed child leaves cites the source and the contract it was given, and says which
+  `marco` was performing it.
 
 ### R1 — the shared claim
 
@@ -533,6 +643,38 @@ The runs tests and the four supervised-runner tests above were run against each 
   tests. Those assertions are deliberate — a problem report is a document somebody greps and
   pastes, so its section names are part of what it is — but it is a kill, not a no-op, and is not
   claimed as one.
+
+### The review's three fixes — eight mutations, all killed, plus a no-op control
+
+- **M1 — `Report` copies the transcript whatever run is being asked about** → killed. Reported in
+  a form that builds: the first attempt left `owner` declared and unused, which the compiler
+  refuses, so the mutation was redone with the value discarded explicitly rather than recorded
+  against a tree that would not compile.
+- **M2 — the Act section is found by whichever Act the window has open** → killed. The sibling
+  test added for exactly this; `TestReportingAProblemWritesTheRunAndTheActIntoOneFile` passes under
+  this mutation, because in that case the open Act and the recorded one are the same, which is why
+  it could not have caught it.
+- **M3 — a routine is given `live: false`** → killed.
+- **M4 — the page prints the live badge unconditionally** → killed, three counters at once: the
+  performing routine's row says `input disabled`, it loses its kind, and the interrupted attempt's
+  row says `input disabled` too.
+- **M5 — the page prints the count unconditionally** → killed. Worth recording precisely: with the
+  backend fixed, the absent count renders as the literal word `undefined`, not as `0`, so the
+  `0 input action` counter alone does **not** catch it. The assertion that does is the positive one
+  — that the row says the count was never written down — which is why the test asserts what the row
+  must say and not only what it must not.
+- **M6 — an absent count is filled in with zero on the way to the page** → killed.
+- **M7 — `build`, `source_digest` and `contract` are written only at the end** → killed by two
+  tests, naming all three fields in flight and all three again as differing between the two writes.
+- **M8 — the finished record re-reads the file for its digest** → killed, all three assertions
+  including the saved-over one. **The first attempt at this mutation was unfalsifiable**: it guessed
+  the route's path by hand, the read failed, the digest was left untouched and nothing changed. It
+  is recorded as unfalsifiable and redone through `routes.Registry.Path`, with a panic on a failed
+  read so a silent miss could not be mistaken for a survivor a second time.
+- **CONTROL — the tail of the *not available* sentence is reworded** → SURVIVED, as intended. The
+  tests assert the phrase that tells a reader the section is empty, not the sentence that explains
+  why.
+
 ## Related
 
 - [[ADR-246-a-trial-collects-its-own-evidence]] — the supervised record, and the reference it is

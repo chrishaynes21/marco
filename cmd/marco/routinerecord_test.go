@@ -227,9 +227,11 @@ func TestARunThatNeverFinishedSaysSoAndNotThatItWorked(t *testing.T) {
 	t.Setenv("MARCO_ROUTES", t.TempDir())
 	rt := routes.Route{Slug: "a-routine", App: anAbsentApplication, Focus: true}
 
+	// WHAT WAS ABOUT TO RUN, as `take` reads it before the claim is made.
+	did := ran{Digest: "f85ca17e96485e1f", Contract: string(orchestrator.Guarded)}
 	var ref runref.Reference
 	said, _ := captureStdout(t, func() error {
-		res := citeRoutineRun(time.Now(), rt)
+		res := citeRoutineRun(time.Now(), rt, did)
 		if res.ID == "" {
 			t.Fatal("nothing was reserved")
 		}
@@ -250,6 +252,17 @@ func TestARunThatNeverFinishedSaysSoAndNotThatItWorked(t *testing.T) {
 	}
 	if m["kind"] != kindRoutine {
 		t.Errorf("an interrupted attempt does not say which kind it is: %v", m["kind"])
+	}
+	// AND IT SAYS WHAT WAS RUNNING, which is what an interrupted attempt is asked about.
+	// See TestTheRecordInFlightSaysWhatWasRunning, which measures it from inside a run.
+	if m["source_digest"] != did.Digest || m["contract"] != did.Contract {
+		t.Errorf("an interrupted attempt cites source %v under contract %v, and the "+
+			"run was of %q under %q", m["source_digest"], m["contract"],
+			did.Digest, did.Contract)
+	}
+	if s, _ := m["build"].(string); s == "" {
+		t.Errorf("an interrupted attempt does not say which marco was performing "+
+			"it:\n%s", raw)
 	}
 	// AND IT NEVER READS AS A RUN THAT WORKED.
 	if strings.Contains(raw, string(OutcomePerformed)) {
@@ -298,6 +311,19 @@ func TestAHostThatCannotSayHowMuchItSentLeavesTheFieldOut(t *testing.T) {
 type aHostThatLooksForItsOwnRecord struct {
 	asked   int
 	atFirst int
+	// inFlight is the record the store held when the run asked for its first action,
+	// READ and not merely counted. "A reference exists" and "the reference says what was
+	// running" are different claims, and the second is the one an interrupted attempt is
+	// reported with.
+	inFlight map[string]any
+	// saveOver and source rewrite the routine on the first action, when set.
+	//
+	// Which is what makes the identity in the record a falsifiable claim rather than a
+	// structural one: this is the moment somebody re-records between a failure and
+	// reporting it, and a record assembled from a second read of the file at the end
+	// would cite source this run never performed.
+	saveOver string
+	source   string
 }
 
 func (h *aHostThatLooksForItsOwnRecord) Invoke(c runtime.HostCall) (string, runtime.Value, error) {
@@ -305,9 +331,21 @@ func (h *aHostThatLooksForItsOwnRecord) Invoke(c runtime.HostCall) (string, runt
 	if h.asked == 1 {
 		entries, _ := os.ReadDir(runs.Dir())
 		for _, e := range entries {
-			if strings.HasSuffix(e.Name(), ".json") {
-				h.atFirst++
+			if !strings.HasSuffix(e.Name(), ".json") {
+				continue
 			}
+			h.atFirst++
+			raw, err := os.ReadFile(filepath.Join(runs.Dir(), e.Name()))
+			if err != nil {
+				continue
+			}
+			var m map[string]any
+			if json.Unmarshal(raw, &m) == nil {
+				h.inFlight = m
+			}
+		}
+		if h.saveOver != "" {
+			_ = os.WriteFile(h.saveOver, []byte(h.source), 0o644)
 		}
 	}
 	return "failed", runtime.Absent(), nil
@@ -341,6 +379,73 @@ func TestTheReferenceIsClaimedBeforeTheFirstInput(t *testing.T) {
 	}
 	if ref.ID == "" {
 		t.Error("the run cited nothing")
+	}
+}
+
+// AND THE RECORD THAT IS ALREADY THERE SAYS WHAT WAS RUNNING.
+//
+// Existence is not identity, and this is the gap: `build`, `source_digest` and `contract` used to
+// be worked out from what the performance returned and written only at the end — the half of a run
+// that may never happen. Kill the child at its first press and the reference held a record naming
+// a routine and an hour and NOTHING about the program: not which `marco`, not which source, not
+// whether its presses checked the window they were recorded in. That is the attempt somebody has
+// to ask about, and the one whose record said least.
+//
+// Measured from inside the run, like the claim above, and asserted on the FIELDS.
+//
+// # And the identity does not change between the two writes
+//
+// The routine is saved over while the run is in flight, which is exactly what a person does
+// between a failure and reporting it. A record assembled from a second read of the file at the end
+// would cite the new source — source this run never performed — and `describeRoutine`'s warning to
+// the reader would then be comparing the file against a digest of itself. One read, one answer.
+func TestTheRecordInFlightSaysWhatWasRunning(t *testing.T) {
+	d, rt := aLibraryWith(t, aGuardedRoutine)
+	watcher := &aHostThatLooksForItsOwnRecord{
+		saveOver: d.Reg.Path(rt), source: aRoutineWithAnArgument}
+	d.Hosts = map[string]runtime.Host{"*": watcher}
+	_, _, ref := aRunOf(t, d, rt)
+
+	if watcher.inFlight == nil {
+		t.Fatal("there was no record to read when the run asked for its first " +
+			"action; this case measures nothing")
+	}
+	for _, want := range []struct{ key, why string }{
+		{"build", "nothing says which marco was performing it"},
+		{"source_digest", "nothing says which source was running, so nobody can " +
+			"compare the library against what ran"},
+		{"contract", "nothing says whether its presses checked the window they " +
+			"were recorded in"},
+	} {
+		if s, _ := watcher.inFlight[want.key].(string); s == "" {
+			t.Errorf("the record already in the store at the first input: %s "+
+				"(%q is %v)", want.why, want.key, watcher.inFlight[want.key])
+		}
+	}
+	// AND THE CONTRACT IS READ RATHER THAN DEFAULTED. `aGuardedRoutine` states the window
+	// it was recorded in; a record that said `unstated` here would be describing a run
+	// nobody had looked at.
+	if watcher.inFlight["contract"] != string(orchestrator.Guarded) {
+		t.Errorf("the record in flight says the contract is %v, and the routine "+
+			"states the window it was recorded in", watcher.inFlight["contract"])
+	}
+	// AND IT IS THE SAME SOURCE THE FINISHED RECORD CITES, after the file underneath it
+	// was replaced.
+	done, raw := recordAt(t, ref.ID)
+	for _, key := range []string{"build", "source_digest", "contract"} {
+		if watcher.inFlight[key] != done[key] {
+			t.Errorf("the record said %q was %v while the run was in flight and "+
+				"%v once it ended:\n%s", key, watcher.inFlight[key], done[key],
+				raw)
+		}
+	}
+	if done["source_digest"] != routes.DigestOf(aGuardedRoutine) {
+		t.Errorf("the record cites source %v, and what ran was %q",
+			done["source_digest"], routes.DigestOf(aGuardedRoutine))
+	}
+	if done["source_digest"] == routes.DigestOf(aRoutineWithAnArgument) {
+		t.Error("the record cites the source that was saved over it mid-run, which " +
+			"is source this run never performed")
 	}
 }
 

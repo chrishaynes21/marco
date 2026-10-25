@@ -728,12 +728,17 @@ window.go = {main: {
     Library: () => Promise.resolve({dir: 'C:/x/routes'}),
     History: () => Promise.resolve([
       {reference: 'run-a', kind: 'routine', routine: 'ark-graphics',
-       outcome: 'performed', when: '2026-10-24 16:05', live: true, sent: 4,
-       verified: 0,
+       outcome: 'performed', when: '2026-10-24 16:05', sent: 4, verified: 0,
        said: 'Marco performed "ark graphics" — every press happened. Nothing here ' +
              'checked that the application did what you wanted.'},
       {reference: 'run-b', act: 'the audio page', outcome: 'verified',
        when: '2026-10-24 15:00', live: true, sent: 2, verified: 2,
+       said: 'It worked. Marco performed "the audio page" and the screen changed.'},
+      {reference: 'run-c', kind: 'routine', routine: 'ark-graphics',
+       outcome: 'started', when: '2026-10-24 14:00', unfinished: true,
+       said: 'Marco started "ark graphics" and never said how it ended.'},
+      {reference: 'run-d', act: 'the audio page', outcome: 'verified',
+       when: '2026-10-24 13:00', live: false, sent: 0, verified: 0,
        said: 'It worked. Marco performed "the audio page" and the screen changed.'},
     ]),
   },
@@ -746,9 +751,16 @@ setTimeout(() => {
     ' routinenochecks=' + (textOf(0).includes('nothing checked afterwards') ? 1 : 0) +
     ' routinezero=' + (textOf(0).includes('0 checked') ? 1 : 0) +
     ' routinepresses=' + (textOf(0).includes('presses sent') ? 1 : 0) +
+    ' routinedisabled=' + (textOf(0).includes('input disabled') ? 1 : 0) +
+    ' routinetag=' + (textOf(0).includes('ROUTINE') ? 1 : 0) +
     ' actchecked=' + (textOf(1).includes('2 checked') ? 1 : 0) +
     ' actpresses=' + (textOf(1).includes('2 presses sent') ? 1 : 0) +
-    ' actasked=' + (textOf(1).includes('asked for') ? 1 : 0)
+    ' actasked=' + (textOf(1).includes('asked for') ? 1 : 0) +
+    ' actlive=' + (textOf(1).includes('LIVE') ? 1 : 0) +
+    ' killedzero=' + (textOf(2).includes('0 input action') ? 1 : 0) +
+    ' killeddisabled=' + (textOf(2).includes('input disabled') ? 1 : 0) +
+    ' killedunknown=' + (textOf(2).includes('never written down') ? 1 : 0) +
+    ' dryrundisabled=' + (textOf(3).includes('input disabled') ? 1 : 0)
 }, 4500)
 `
 
@@ -777,8 +789,8 @@ func TestARoutinesRowDoesNotClaimToHaveCheckedAnything(t *testing.T) {
 		v, _ := strconv.Atoi(m[1])
 		return v
 	}
-	if got := n("cards"); got != 2 {
-		t.Fatalf("the history drew %d of 2 runs: %q", got, title)
+	if got := n("cards"); got != 4 {
+		t.Fatalf("the history drew %d of 4 runs: %q", got, title)
 	}
 	// ── THE ROUTINE'S ROW ──
 	if n("routinezero") == 1 {
@@ -804,5 +816,70 @@ func TestARoutinesRowDoesNotClaimToHaveCheckedAnything(t *testing.T) {
 	}
 	if n("actasked") == 1 {
 		t.Errorf("an Act's row was given a routine's wording: %q", title)
+	}
+}
+
+// A ROW SAYS NOTHING ABOUT TOUCHING THE MACHINE THAT ITS RECORD DID NOT SAY.
+//
+// Rendered, because both halves of this were invisible to every backend test and plain on screen.
+//
+//	`live` is a field only a SUPERVISED record carries. A routine's record states no
+//	liveness — `marco do` has no "write it down instead" mode to distinguish — so the
+//	field arrived absent, read as a falsy bool, and the row labelled a routine that had
+//	just typed somebody's password `input disabled`.
+//
+//	`sent` is absent in the provisional record a killed `marco.exe` leaves, and that
+//	attempt may already have sent input. Read as an int it rendered `0 input actions
+//	asked for`: the same false claim, about the one run a person is most likely to be
+//	asking somebody else about.
+//
+// Four rows, because each claim can be wrong in both directions: a routine that really pressed
+// things, an Act with input enabled, an interrupted routine that counted nothing, and an Act that
+// genuinely had input disabled — which must still say so.
+func TestARowDoesNotSayInputWasDisabledWhenNothingSaidSo(t *testing.T) {
+	browser := aBrowser()
+	if browser == "" {
+		t.Skip("no headless Chromium on this machine to render the page in")
+	}
+	title := renderForCounters(t, browser, historyHarness)
+	n := func(key string) int {
+		m := regexp.MustCompile(key + `=(\d+)`).FindStringSubmatch(title)
+		if m == nil {
+			t.Fatalf("no %s in %q", key, title)
+		}
+		v, _ := strconv.Atoi(m[1])
+		return v
+	}
+	if got := n("cards"); got != 4 {
+		t.Fatalf("the history drew %d of 4 runs: %q", got, title)
+	}
+	// ── A ROUTINE THAT PRESSED FOUR THINGS ──
+	if n("routinedisabled") == 1 {
+		t.Errorf("a routine's row says `input disabled` about a run that asked "+
+			"for four input actions: %q", title)
+	}
+	if n("routinetag") != 1 {
+		t.Errorf("a routine's row says nothing about which kind of run it was, so "+
+			"its numbers read as an Act's with a field missing: %q", title)
+	}
+	// ── AN INTERRUPTED ROUTINE, WHICH MAY ALREADY HAVE SENT INPUT ──
+	if n("killedzero") == 1 {
+		t.Errorf("an interrupted attempt's row counts `0 input actions`, and no "+
+			"count was ever written down: %q", title)
+	}
+	if n("killeddisabled") == 1 {
+		t.Errorf("an interrupted attempt's row says `input disabled`: %q", title)
+	}
+	if n("killedunknown") != 1 {
+		t.Errorf("an interrupted attempt's row does not say that the count was "+
+			"never written down: %q", title)
+	}
+	// ── AND THE TWO ACTS, WHICH DO STATE IT, IN BOTH DIRECTIONS ──
+	if n("actlive") != 1 {
+		t.Errorf("an Act's run with input enabled no longer says LIVE: %q", title)
+	}
+	if n("dryrundisabled") != 1 {
+		t.Errorf("an Act's run that really had input disabled no longer says so, "+
+			"which is the claim being made absent rather than false: %q", title)
 	}
 }

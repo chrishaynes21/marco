@@ -488,13 +488,16 @@ func performOnePlay(d orchestrator.Deps, p playInvocation) (Outcome, error) {
 	// reached the machine, so there is no attempt to account for; the refusal is the
 	// decision's own and is said in its own sentence.
 	began := time.Now()
-	res := citeRoutineRun(began, p.rt)
+	// WHAT IS ABOUT TO RUN, READ ONCE AND BEFORE THE CLAIM. The reservation's provisional
+	// record carries this identity, so an attempt that is killed leaves a reference that
+	// still says which routine, which revision, which source and which contract — and the
+	// bytes described are the bytes performed. See `snapshot`.
+	s := take(d, p.rt, p.named, p.positional)
+	res := citeRoutineRun(began, p.rt, s.did)
 
 	var cancelled bool
-	var did ran
 	err := stopper(true, func(ctx context.Context) error {
-		var e error
-		did, e = runRoute(ctx, d, p.rt, p.named, p.positional)
+		e := runRoute(ctx, d, s)
 		// A CANCELLED RUN IS NOT A FINISHED ONE.
 		//
 		// `runFromEntryCtx` returns whatever the script left behind, and a script that was
@@ -515,7 +518,8 @@ func performOnePlay(d orchestrator.Deps, p playInvocation) (Outcome, error) {
 	case err != nil:
 		out, because = OutcomeFailed, err.Error()
 	}
-	// AND WHAT BECAME OF IT, INTO THE REFERENCE THAT WAS ALREADY PRINTED.
-	keepRoutineRun(res, began, p.rt, did, out, because, askedOf(d))
+	// AND WHAT BECAME OF IT, INTO THE REFERENCE THAT WAS ALREADY PRINTED. The same
+	// identity the reservation was given, not a second reading of the file.
+	keepRoutineRun(res, began, p.rt, s.did, out, because, askedOf(d))
 	return out, err
 }

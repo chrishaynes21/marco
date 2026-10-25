@@ -51,12 +51,26 @@ type PastRun struct {
 	Next string `json:"next,omitempty"`
 	// When is the local time it started, written to be read rather than parsed.
 	When string `json:"when,omitempty"`
-	Live bool   `json:"live"`
-	// Sent is how many presses actually went out, and Verified how many were checked.
-	// The first is the one that matters after something went wrong: it is the answer to
-	// "did it touch my machine".
-	Sent     int `json:"sent"`
-	Verified int `json:"verified"`
+	// Live is whether the run was allowed to touch the machine, WHEN THE RECORD SAYS SO.
+	//
+	// A pointer, and the defect that made it one: a routine's record states no liveness at
+	// all — `marco do` has no "write it down instead" mode to distinguish, so there was
+	// nothing to state — and a plain bool read `false` for it. The page then labelled a
+	// routine that really pressed things `input disabled`, which is not a missing field
+	// rendered badly but a false claim about somebody's machine. Absent is not "no".
+	//
+	// A supervised record always states it, so an Act's row is unchanged.
+	Live *bool `json:"live,omitempty"`
+	// Sent is how many presses actually went out, or ABSENT when the record does not say,
+	// and Verified how many were checked. The first is the one that matters after
+	// something went wrong: it is the answer to "did it touch my machine".
+	//
+	// A pointer for the same reason `routineRun.Asked` is one where it is written: an
+	// attempt that was interrupted may already have sent input and nobody wrote the number
+	// down. Zero there is not a count, it is the claim that nothing was pressed — and it
+	// would be shown for exactly the run a person is most likely to be asking about.
+	Sent     *int `json:"sent,omitempty"`
+	Verified int  `json:"verified"`
 	// Authority is who authorised it, in words — "the person who pressed Play in Studio
 	// at 16:05:44, authorising …" — which is the difference between a granted run and
 	// one answered by key.
@@ -89,10 +103,13 @@ type record struct {
 	// Not shown in the window's own listing — a person reading what happened last week
 	// is not asking which binary it was — and read by the trial journal, which is
 	// exactly that question. See trial.go.
-	Build       string `json:"build,omitempty"`
-	ActionsSent int    `json:"actions_sent"`
+	Build string `json:"build,omitempty"`
+	// ActionsSent and Live are POINTERS because a record that does not carry them is a
+	// record that does not say, and the zero value of each is a claim: no presses went
+	// out, and the machine was never touched. See PastRun.Sent and PastRun.Live.
+	ActionsSent *int   `json:"actions_sent"`
 	Verified    int    `json:"verified"`
-	Live        bool   `json:"live"`
+	Live        *bool  `json:"live"`
 	Authority   string `json:"authority"`
 	// Routine is the slug a ROUTINE's record names itself by.
 	//
@@ -105,13 +122,19 @@ type record struct {
 	// Absent therefore MEANS supervised, and that asymmetry is deliberate: inventing a
 	// kind for the records already on somebody's machine would be rewriting them.
 	Kind string `json:"kind,omitempty"`
-	// InputActions is how many input actions a ROUTINE's run asked the machine for.
+	// InputActions is how many input actions a ROUTINE's run asked the machine for, or
+	// nil when the record does not say.
 	//
 	// Its own key, not `actions_sent`. The supervised record's number is how many
 	// programs reached a computer and this one is how many input actions were asked
 	// for; they are close enough to be added up by a reader and different enough that
 	// the sum would mean nothing. One key per meaning. See oshost.Host.InputActions.
-	InputActions int `json:"input_actions"`
+	//
+	// A pointer because it is WRITTEN as one: `marco` omits it when no host could be
+	// asked, and an interrupted attempt's provisional record has not reached the count
+	// yet. Reading that absence as an int put the three-zeroes claim back at the one end
+	// of the wire that had been careful not to make it.
+	InputActions *int `json:"input_actions"`
 }
 
 // routine reports whether a record was written by a routine's run.
@@ -187,6 +210,11 @@ func aPastRun(r record) PastRun {
 	// `saidOfRoutine` already exists and already says the load-bearing thing — every
 	// press happened, and nothing here checked that the application did what you wanted.
 	// So the only new thing is asking which kind this was. See ADR-253.
+	//
+	// AND NEITHER KIND IS GIVEN A NUMBER OR A MODE IT DID NOT STATE. `Sent` and `Live`
+	// are carried across as the record wrote them — present or absent — because the page
+	// renders the absence as absence. See PastRun.Live, which is the field a routine's
+	// run was being labelled `input disabled` by.
 	if r.routine() {
 		p.Routine = r.RoutineName
 		p.Sent = r.InputActions
@@ -241,13 +269,28 @@ func (a *Acts) Report(reference string) Reported {
 	b.WriteString("THE RUN'S OWN RECORD\n")
 	b.WriteString(indented(string(raw)))
 
-	a.mu.Lock()
-	lines := append([]string(nil), a.transcript...)
-	act := a.act
-	a.mu.Unlock()
-	if len(lines) > 0 {
-		b.WriteString("\nWHAT IT SAID AS IT RAN\n")
+	// ── AND WHAT IT SAID, ONLY WHEN IT WAS THIS RUN THAT SAID IT ──
+	//
+	// The transcript is this window's memory of ONE child, cleared and refilled every time
+	// something runs. Copying it in unconditionally meant that playing B and then reporting
+	// A wrote a file holding A's reference and A's record with B's output underneath,
+	// headed as what A said — and the person attaching it to an email has no way to tell.
+	// A wrong transcript is worse than none: it is evidence about the wrong run, and this
+	// is the file somebody sends when they cannot explain what happened.
+	//
+	// So the lines have an owner and it is asked. See `said`.
+	lines, owner := a.said()
+	b.WriteString("\nWHAT IT SAID AS IT RAN\n")
+	if len(lines) > 0 && owner == reference {
 		b.WriteString(indented(strings.Join(lines, "\n")))
+	} else {
+		// SAID, AND NOT LEFT OUT. A section silently missing reads as a report that
+		// forgot, and the reason is worth a line: a run older than this window has
+		// no transcript here, and one that has been replaced is somebody else's.
+		b.WriteString("  not available. This window keeps only what the run in " +
+			"front of it said, and that is not this run's output — either " +
+			"something has run since, or this run was never watched from " +
+			"here. The record above is the durable account.\n")
 	}
 	// ── AND THE THING IT WAS A RUN OF, AS IT STANDS NOW ──
 	//
@@ -257,15 +300,8 @@ func (a *Acts) Report(reference string) Reported {
 	// this window happens to have open.
 	if kind, said := rec["kind"].(string); said && kind == runs.KindRoutine {
 		a.describeRoutine(&b, rec)
-	} else if act != "" {
-		for _, c := range a.Saved() {
-			if !strings.EqualFold(c.Name, act) {
-				continue
-			}
-			shown, _ := json.MarshalIndent(c, "", "  ")
-			b.WriteString("\nTHE ACT, AS IT STANDS NOW\n")
-			b.WriteString(indented(string(shown)))
-		}
+	} else {
+		a.describeAct(&b, rec)
 	}
 
 	dir := filepath.Join(a.home, "reports")
@@ -279,6 +315,56 @@ func (a *Acts) Report(reference string) Reported {
 	return Reported{Path: p, Holds: "the run's record, what it said as it ran, and " +
 		"the routine or Act as it stands now. Nothing has been sent anywhere — open it, add " +
 		"what you expected to happen, and send it yourself."}
+}
+
+// said is this window's live transcript and the reference it belongs to.
+//
+// # Why the owner comes back with the lines
+//
+// Because the pair is the whole answer. A transcript read now and a reference read a moment later
+// could be two different runs', and the question `Report` is asking — "is this still the run whose
+// output I am holding" — cannot be answered with half of it.
+//
+// Each kind of run keeps its reference in its own place: an Act's is read off the child's citation
+// into `a.reference`, a routine's into `a.routine.reference`, and `reserve` clears both when a new
+// run claims the slot. Whichever is set owns whatever is in `a.transcript`.
+func (a *Acts) said() (lines []string, owner string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	lines = append([]string(nil), a.transcript...)
+	owner = a.reference
+	if owner == "" && a.routine != nil {
+		owner = a.routine.reference
+	}
+	return lines, owner
+}
+
+// describeAct writes the Act a run was a run OF into the report, as it stands now.
+//
+// Named by the RECORD and not by whichever Act this window has open — the same correction the
+// transcript needed one section up, for the same reason: a report written an hour later about a
+// run from this morning has to describe the Act that ran. Reporting an older run while a different
+// Act was loaded printed that other Act's composition under this heading.
+//
+// A record with no Act in it was not a run of one, and nothing is printed for it.
+func (a *Acts) describeAct(b *strings.Builder, rec map[string]any) {
+	name, _ := rec["act"].(string)
+	if name == "" {
+		return
+	}
+	for _, c := range a.Saved() {
+		if !strings.EqualFold(c.Name, name) {
+			continue
+		}
+		shown, _ := json.MarshalIndent(c, "", "  ")
+		b.WriteString("\nTHE ACT, AS IT STANDS NOW\n")
+		b.WriteString(indented(string(shown)))
+		return
+	}
+	// GONE. Worth saying for the reason the routine's own section says it: a report with
+	// the section silently missing looks like a report that forgot to gather it.
+	fmt.Fprintf(b, "\nTHE ACT, AS IT STANDS NOW\n  %q is not composed in this library "+
+		"any more, so there is nothing to show beside the run.\n", name)
 }
 
 func indented(s string) string {

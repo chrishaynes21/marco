@@ -118,12 +118,24 @@ type routineRun struct {
 // Made once and filled in afterwards, so the provisional record left in the reservation and the
 // finished record describe the same attempt. Two separately assembled records would be two
 // answers to "which routine was this", and the one a person reads is whichever the run got to.
-func aRoutineRun(id string, at time.Time, rt routes.Route) routineRun {
+//
+// # And the identity is ALL of it, including before the run
+//
+// `build`, `source_digest` and `contract` used to be added after the performance returned, which
+// is the half of the run that may never happen. Kill the child and the reference held a record
+// naming the routine and the hour and nothing about WHAT was running — no revision of `marco`, no
+// digest of the source, no contract — which is the information an interrupted attempt is the one
+// that most needs. They are knowable before the first input, so they are written before it: the
+// revision is this binary's, and the digest and contract come off the one read `take` took. See
+// `snapshot`.
+func aRoutineRun(id string, at time.Time, rt routes.Route, did ran) routineRun {
 	return routineRun{
 		Version: 1, Kind: kindRoutine, Run: id,
+		Build:   buildid.Revision(),
 		Routine: rt.Slug, Application: rt.App, Scope: scopeOf(rt),
 		Library: marcopaths.Routes(),
 		Mode:    modeUnstated,
+		Source:  did.Digest, Contract: did.Contract,
 		Started: at.Format(time.RFC3339),
 	}
 }
@@ -138,9 +150,9 @@ func aRoutineRun(id string, at time.Time, rt routes.Route) routineRun {
 //
 // The citation is printed BEFORE the first input, because the thing it is most needed for is a run
 // that then went wrong in a way that left nothing behind.
-func citeRoutineRun(at time.Time, rt routes.Route) runs.Reservation {
+func citeRoutineRun(at time.Time, rt routes.Route, did ran) runs.Reservation {
 	got, err := runs.Reserve(runs.Claim{At: at, Provisional: func(id string) any {
-		r := aRoutineRun(id, at, rt)
+		r := aRoutineRun(id, at, rt, did)
 		// NOT AN OUTCOME. See runs.Unfinished: the attempt has not finished, and
 		// `ended` is absent, which is the pair a reader reads.
 		r.Outcome = runs.Unfinished
@@ -175,9 +187,10 @@ func keepRoutineRun(res runs.Reservation, at time.Time, rt routes.Route, did ran
 	if res.ID == "" {
 		return
 	}
-	r := aRoutineRun(res.ID, at, rt)
-	r.Build = buildid.Revision()
-	r.Source, r.Contract = did.Digest, did.Contract
+	// THE SAME IDENTITY THE RESERVATION WAS GIVEN, from the same `did`. Nothing is
+	// re-derived here: a second reading of the file would be a second answer, and a save
+	// between the two would make the finished record cite source the run never saw.
+	r := aRoutineRun(res.ID, at, rt, did)
 	r.Ended = time.Now().Format(time.RFC3339)
 	// THE RUN'S OWN WORD, UNCONVERTED. Nothing here turns `performed` into `verified`:
 	// this run pressed what it was shown and looked at nothing afterwards.

@@ -403,7 +403,15 @@ func TestMain(m *testing.M) {
 		fmt.Println("ARGS " + strings.Join(os.Args[1:], " "))
 		// AND IT CITES A RUN, in the shared format, so the surface's reading of
 		// the canonical reference is exercised rather than assumed.
-		fmt.Println(runref.Cite("run-20261019-000000-aaaa", "nowhere.json"))
+		//
+		// Settable, so a test can have two runs cite two references — which is
+		// what reporting the OLDER of two runs needs, and the transcript a
+		// report attaches is the thing that was getting it wrong.
+		cited := os.Getenv("STUDIO_STANDIN_REF")
+		if cited == "" {
+			cited = "run-20261019-000000-aaaa"
+		}
+		fmt.Println(runref.Cite(cited, "nowhere.json"))
 		if n := os.Getenv("STUDIO_STANDIN_LINES"); n != "" {
 			// A LOT OF OUTPUT AND THEN AN IMMEDIATE EXIT, which is how a test
 			// sees whether the surface waits for the pipe to drain before it

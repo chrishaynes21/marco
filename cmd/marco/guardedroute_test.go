@@ -56,7 +56,7 @@ func performed(t *testing.T, reg routes.Registry, rt routes.Route) error {
 	t.Helper()
 	d := orchestrator.Deps{Reg: reg, Out: &strings.Builder{},
 		Hosts: map[string]runtime.Host{"*": oshost.New()}}
-	_, err := runRoute(context.Background(), d, rt, nil, nil)
+	err := runRoute(context.Background(), d, take(d, rt, nil, nil))
 	return err
 }
 
@@ -163,7 +163,7 @@ func TestAPressTheMachineRefusedFailsTheCommand(t *testing.T) {
 
 	d := orchestrator.Deps{Reg: reg, Out: &strings.Builder{},
 		Hosts: map[string]runtime.Host{"*": machine}}
-	_, err := runRoute(context.Background(), d, rt, nil, nil)
+	err := runRoute(context.Background(), d, take(d, rt, nil, nil))
 
 	if err == nil {
 		t.Fatal("the command reported success about a press the machine refused")
@@ -189,7 +189,7 @@ func TestALegacyRoutineWhosePressFailedReportsWhatItAlwaysDid(t *testing.T) {
 
 	d := orchestrator.Deps{Reg: reg, Out: &strings.Builder{},
 		Hosts: map[string]runtime.Host{"*": &aHostThatWillNotDeliver{}}}
-	if _, err := runRoute(context.Background(), d, rt, nil, nil); err != nil {
+	if err := runRoute(context.Background(), d, take(d, rt, nil, nil)); err != nil {
 		t.Fatalf("a routine saved before any of this now fails where it used to "+
 			"carry on: %v", err)
 	}
@@ -345,7 +345,7 @@ func TestAKeyTheMachineRefusedFailsTheCommand(t *testing.T) {
 
 	d := orchestrator.Deps{Reg: reg, Out: &strings.Builder{},
 		Hosts: map[string]runtime.Host{"*": machine}}
-	_, err := runRoute(context.Background(), d, rt, nil, nil)
+	err := runRoute(context.Background(), d, take(d, rt, nil, nil))
 
 	if err == nil {
 		t.Fatal("the command reported success about a keystroke the machine dropped")
@@ -376,7 +376,7 @@ func TestALegacyRoutineWhoseKeyFailedReportsWhatItAlwaysDid(t *testing.T) {
 
 	d := orchestrator.Deps{Reg: reg, Out: &strings.Builder{},
 		Hosts: map[string]runtime.Host{"*": machine}}
-	if _, err := runRoute(context.Background(), d, rt, nil, nil); err != nil {
+	if err := runRoute(context.Background(), d, take(d, rt, nil, nil)); err != nil {
 		t.Fatalf("a routine saved before any of this now fails where it used to "+
 			"carry on: %v", err)
 	}

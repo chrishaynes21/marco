@@ -1844,8 +1844,21 @@
        card.innerHTML = '<div class="row"><span class="grow">' +
          '<b>' + esc(h.act || h.routine || h.reference) + '</b> ' +
          '<span class="muted">' + esc(h.when || '') + '</span></span>' +
-         '<span class="tag ' + (h.live ? 'live' : '') + '">' +
-           (h.live ? 'LIVE' : 'input disabled') + '</span>' +
+         // WHAT THE RECORD SAYS ABOUT TOUCHING THE MACHINE, AND NOTHING WHEN IT
+         // DOES NOT SAY.
+         //
+         // `h.live` arrives ABSENT for a routine, because a routine's record states
+         // no liveness — `marco do` has no "write it down instead" mode for it to
+         // distinguish. Read as a falsy bool it labelled every real performance
+         // `input disabled`, which is not an empty field rendered badly: it is the
+         // page telling somebody their routine never touched their machine. A
+         // routine says which KIND of run it was instead, which is what makes its
+         // numbers below read differently.
+         (h.live === undefined || h.live === null
+           ? '<span class="tag">' + (h.kind === 'routine' ? 'ROUTINE' : '') +
+             '</span>'
+           : '<span class="tag ' + (h.live ? 'live' : '') + '">' +
+             (h.live ? 'LIVE' : 'input disabled') + '</span>') +
          '<span class="tag">' + esc(h.outcome) + '</span></div>' +
          '<div class="muted">' + esc(h.said || '') + '</div>' +
          (h.unfinished ? '<div class="warn">it never said how it ended</div>' : '') +
@@ -1855,11 +1868,21 @@
          // "0 checked" beside it is not a count — it is the claim that it checked
          // and found nothing, sitting in a row next to an Act that really did check
          // two things. The question was never asked, and that is what it says.
+         //
+         // AND A COUNT THE RECORD DOES NOT CARRY IS NOT ZERO. An attempt that was
+         // interrupted may already have sent input; nobody wrote the number down.
+         // Rendering that as `0 input actions asked for` is the same false claim as
+         // the badge above, about the one run somebody is most likely asking about.
          '<div class="muted">' + (h.kind === 'routine'
-           ? h.sent + ' input action' + (h.sent === 1 ? '' : 's') +
-             ' asked for · nothing checked afterwards'
-           : h.sent + ' press' + (h.sent === 1 ? '' : 'es') +
-             ' sent · ' + h.verified + ' checked') + '</div>'
+           ? (h.sent === undefined || h.sent === null
+               ? 'how many input actions it asked for was never written down'
+               : h.sent + ' input action' + (h.sent === 1 ? '' : 's') +
+                 ' asked for') +
+             ' · nothing checked afterwards'
+           : (h.sent === undefined || h.sent === null
+               ? 'how many presses went out was never written down'
+               : h.sent + ' press' + (h.sent === 1 ? '' : 'es') + ' sent') +
+             ' · ' + h.verified + ' checked') + '</div>'
        list.appendChild(card)
      })
      renderRun()

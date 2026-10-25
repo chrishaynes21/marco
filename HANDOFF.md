@@ -7848,3 +7848,58 @@ the unlikely one, because re-recording is what somebody does between a failure a
 Nine mutations killed and a no-op control surviving; one of the kills is a test that exists only
 because the gate found its absence — an unfinished ROUTINE record, which is acceptance check 9.
 One rewording recorded as a kill rather than claimed as a control.
+
+## 38R — changes requested on R1–R3, and what they had in common
+
+R1–R3 were reviewed and three gaps came back. One mistake in three places: a value that was
+ABSENT was read as a value that was zero, or false, or somebody else's — and in every one of them
+the result on screen or in a file was not a blank but a confident false claim, offered to the
+person at the moment they had least ability to check it.
+
+**A report attached whichever transcript the window was holding.** `Report` copied `a.transcript`
+without asking which run it belonged to, and the transcript is this window's memory of ONE child,
+cleared and refilled every time anything runs. Play B, report A, and the file carried A's
+reference and A's record with B's output underneath, headed *WHAT IT SAID AS IT RAN*. A wrong
+transcript is worse than none — it is evidence about the wrong run, in the one file somebody sends
+precisely because they cannot explain what happened. The lines have an owner now, read under the
+same lock as the lines themselves, and a run that does not own them is told the section is
+unavailable rather than being handed somebody else's. The ACT section had the identical shape,
+found by whichever Act was open, and is found by the record now too: the routine half had been
+corrected one increment earlier and the fix did not take its own sibling with it, which is a shape
+this repository keeps catching.
+
+**A routine's row said `input disabled`.** `live` belongs to the supervised record; a routine's
+states no liveness, because `marco do` has no *write it down instead* mode to distinguish. Read
+into a plain `bool` it was `false`, and the page printed those words beside a run that had just
+typed somebody's password. The count had the mirror defect: `input_actions` is absent in the
+provisional record a killed `marco.exe` leaves, and **that attempt may already have sent input**,
+so an `int` rendered `0 input actions asked for` — the three-zeroes claim, on screen, about the run
+a person is most likely to be asking somebody else about. Both are pointers through the record,
+`PastRun`, the JSON and the page; a routine says which KIND of run it was where the badge would be;
+and an Act that genuinely had input disabled still says so, which is the direction that proves the
+claim was made absent rather than false.
+
+**And an interrupted record identified the hour and not the program.** `build`, `source_digest` and
+`contract` were derived from what the performance returned and written at the end — the half of a
+run that may never happen. The saved source is read ONCE now, into a `snapshot` taken before the
+reference is claimed, and the provisional record carries all three. The same snapshot executes, so
+no second read can make the record cite source the run never performed. Held by saving the routine
+OVER ITSELF from inside the first host action and requiring the two writes to agree.
+
+**And the director suite's intermittent failure has a cause now.** `cmd/director`'s
+`TestAnUnsettledNameIsNotWrittenDownByWatching` fails under full-suite load and passes in
+isolation, and this corrects what §38Q said about it. It is **not** production deciding a tie by map order: `observe.settledPlaceName`
+refuses a tie and returns the same answer for every map iteration order, which was checked by hand
+over the cases. It is the TEST. Its wait loop breaks the instant both words have been SEEN, then
+asserts about what the ambient sampler decides from a session that is still running and still
+counting — and the precondition is measured on a shadow snapshot that is not the tally the decision
+reads. Inserting a 600ms sleep in that gap fails it **6 of 6 times**, which is the cause
+established rather than inferred: under load the scheduler supplies the same gap. The fix is the
+test's — stop the session before sampling, or wait on the tally the rule actually reads — and it is
+not applied here, because R1–R3 is what was under review.
+
+Eight mutations killed and a no-op control surviving. Two are worth the record: one was
+**unfalsifiable** on its first attempt (it guessed a route path by hand, the read failed and
+nothing changed) and was redone through the registry with a panic on a failed read; and the page's
+absent count renders as the literal word `undefined` rather than as `0`, so the negative assertion
+alone does not catch it — the test asserts what the row MUST say, not only what it must not.

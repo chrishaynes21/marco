@@ -1656,6 +1656,28 @@ What to check, and what each failure would mean:
   `marco.exe` Studio spawned from Task Manager before it finishes. The history row says it never
   said how it ended; the record still says `started` with the sentence the reservation wrote; and
   nothing anywhere says it performed. This is the one check that needs an outside tool.
+- **And that killed attempt still says WHAT was running.** Open its record from the same kill: it
+  must carry `build`, `source_digest` and `contract` even though nothing finalised it. A record
+  holding only the routine's name and the hour is the attempt a person has to ask somebody about,
+  identifying nothing — not which `marco`, not which source, not whether its presses checked the
+  window they were recorded in.
+- **And its row invents no count.** The same row must not read `0 input actions asked for`. Nobody
+  counted; the attempt may already have sent input. It should say the count was never written
+  down. `undefined input actions` is the same defect from the other side.
+- **A routine's row never says `input disabled`.** Play a routine for real and read its row: it
+  says `ROUTINE`, not `input disabled`. Those words beside a run that just typed into a game are
+  the window telling you it never touched your machine. An Act run with input disabled must still
+  say so — that is the half that proves the claim is absent rather than false.
+- **Reporting the older of two runs does not attach the newer one's output.** Play a routine or an
+  Act, play something again, then select the FIRST run in the history and press Report a problem.
+  Under *WHAT IT SAID AS IT RAN* the file must say the transcript is unavailable — not print the
+  second run's lines. A wrong transcript is worse than none: it is evidence about the wrong run in
+  the file you are about to send to somebody. Then report the run you just did: that one must
+  carry its own lines, because a report that withheld every transcript would pass this check and
+  have taken away what the file is for.
+- **And the Act it describes is the one the run names.** Run an Act, open a different one, then
+  report the first run. *THE ACT, AS IT STANDS NOW* must describe the Act that ran, not the one on
+  screen.
 
 Then: `studio-console.exe -trial <store>` reads back what this trial recorded about itself,
 including which build, which contract the routine ran under, and the run's own answer. A routine's

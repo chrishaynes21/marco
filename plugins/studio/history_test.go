@@ -73,9 +73,18 @@ func TestTheRunsThisMachineKeptAreListedNewestFirst(t *testing.T) {
 
 	first := got[0]
 	if first.Act != "ark graphics act" || first.Routine != "ark graphics live" ||
-		first.Application != "arkascended" || first.Outcome != "refused" ||
-		first.Sent != 0 || !first.Live {
+		first.Application != "arkascended" || first.Outcome != "refused" {
 		t.Errorf("the record is read back as %+v", first)
+	}
+	// AND THE NUMBER AND THE MODE IT STATED, as it stated them. This record says no
+	// presses went out and that input was enabled; both are read back rather than
+	// defaulted, which is what makes a record that states NEITHER distinguishable. See
+	// PastRun.Sent and PastRun.Live.
+	if first.Sent == nil || *first.Sent != 0 {
+		t.Errorf("the record says 0 presses went out and the row says %v", first.Sent)
+	}
+	if first.Live == nil || !*first.Live {
+		t.Errorf("the record says input was enabled and the row says %v", first.Live)
 	}
 	// WHAT IT MEANS AND WHAT TO DO, from the same two functions the live run screen
 	// uses, so a run reads the same way an hour later as it did in front of somebody.
@@ -140,7 +149,11 @@ func TestReportingAProblemWritesTheRunAndTheActIntoOneFile(t *testing.T) {
 	  "started": "2026-10-20T16:05:45-07:00", "outcome": "refused",
 	  "because": "refused — 0 of 1 interaction(s) verified", "actions_sent": 0
 	}`)
-	// A RUN THIS WINDOW WATCHED, so the transcript is part of what it gathers.
+	// A RUN THIS WINDOW WATCHED, so the transcript is part of what it gathers — and the
+	// run cites the reference the record is under, because a transcript now belongs to a
+	// reference and is withheld when it does not match. See
+	// TestReportingOneRunDoesNotAttachAnotherRunsOutput.
+	t.Setenv("STUDIO_STANDIN_REF", "run-20261020-160545-4006")
 	if err := a.Play("the audio page", false, false, ""); err != "" {
 		t.Fatalf("Play would not start: %s", err)
 	}
@@ -173,6 +186,125 @@ func TestReportingAProblemWritesTheRunAndTheActIntoOneFile(t *testing.T) {
 	if !strings.Contains(r.Holds, "Nothing has been sent") {
 		t.Errorf("the report does not say that nothing was sent: %q", r.Holds)
 	}
+}
+
+// REPORTING ONE RUN DOES NOT ATTACH ANOTHER RUN'S OUTPUT.
+//
+// The transcript is this window's memory of ONE child, cleared and refilled every time something
+// runs, and `Report` copied whatever was in it into whatever run was being asked about. So: play
+// A, play B, report A — and the file held A's reference and A's record with B's output underneath
+// it, headed WHAT IT SAID AS IT RAN. The person attaching that to an email has no way to tell,
+// and the people reading it have no reason to doubt it.
+//
+// A wrong transcript is worse than none. It is evidence about the wrong run, in the one file
+// somebody sends precisely because they cannot explain what happened themselves.
+func TestReportingOneRunDoesNotAttachAnotherRunsOutput(t *testing.T) {
+	a := aPlayableAct(t, "the audio page")
+	const older, newer = "run-20261024-100000-old1", "run-20261024-110000-new2"
+	for _, ref := range []string{older, newer} {
+		aRecordOf(t, a, ref, fmt.Sprintf(`{
+		  "version": 1, "run": %q, "act": "the audio page",
+		  "workflow": "ark graphics live",
+		  "started": "2026-10-24T10:00:00-07:00", "outcome": "refused",
+		  "because": "refused — 0 of 1 interaction(s) verified",
+		  "actions_sent": 0, "live": true, "verified": 0
+		}`, ref))
+	}
+	// TWO RUNS, EACH CITING ITS OWN REFERENCE. That citation is in the transcript, so
+	// each run's output says which run it is — which is how a report holding the wrong
+	// one can be caught at all.
+	for _, ref := range []string{older, newer} {
+		t.Setenv("STUDIO_STANDIN_REF", ref)
+		if err := a.Play("the audio page", false, false, ""); err != "" {
+			t.Fatalf("Play would not start: %s", err)
+		}
+		waitForTranscript(t, a)
+	}
+
+	// ── THE OLDER RUN: ITS OWN RECORD, AND NOBODY ELSE'S OUTPUT ──
+	first := reportText(t, a, older)
+	if strings.Contains(first, newer) {
+		t.Errorf("the report of %s holds the output of %s:\n%s", older, newer, first)
+	}
+	// `ARGS perform-workflow` is the stand-in child's own first line, so it is in a
+	// transcript and nowhere else in the file. Asserted rather than the heading, which is
+	// written either way.
+	if strings.Contains(first, "ARGS perform-workflow") {
+		t.Errorf("the report of %s holds a transcript, and the only one this window "+
+			"has belongs to a later run:\n%s", older, first)
+	}
+	if !strings.Contains(first, "not available") {
+		t.Errorf("the report of %s does not say that what it said as it ran is "+
+			"unavailable, so the section reads as a run that printed nothing:\n%s",
+			older, first)
+	}
+	// ── AND THE RUN THIS WINDOW IS ACTUALLY HOLDING STILL GATHERS ITS OWN ──
+	//
+	// The other direction. A `Report` that withheld every transcript would pass the
+	// assertions above and would have taken away the thing the file is for.
+	second := reportText(t, a, newer)
+	if !strings.Contains(second, "ARGS perform-workflow") {
+		t.Errorf("the report of the run in front of somebody holds no transcript at "+
+			"all:\n%s", second)
+	}
+}
+
+// AND THE ACT IT DESCRIBES IS THE ONE THE RUN NAMES, NOT THE ONE ON SCREEN.
+//
+// The sibling of the transcript above, and the same shape: the Act section was found by matching
+// whichever Act this window happened to have open, so a report about this morning's run, written
+// after somebody had moved on to a different Act, printed that other Act's composition under
+// THE ACT, AS IT STANDS NOW. The routine half of `Report` was already found by the record; this is
+// the half that was not.
+//
+// Falsified with an Act the record names and the library does not hold: the old reading would
+// print the loaded Act's interactions here, and the correct one says the named Act is gone.
+func TestAReportDescribesTheActTheRunNamesAndNotTheOneOnScreen(t *testing.T) {
+	a := aPlayableAct(t, "the audio page")
+	const ref = "run-20261024-090000-else"
+	aRecordOf(t, a, ref, `{
+	  "version": 1, "run": "run-20261024-090000-else", "act": "a different act",
+	  "started": "2026-10-24T09:00:00-07:00", "outcome": "refused",
+	  "because": "refused — 0 of 1 interaction(s) verified",
+	  "actions_sent": 0, "live": true, "verified": 0
+	}`)
+	// SOMETHING ELSE IS LOADED, which is the situation: a person runs an Act, then opens
+	// another, then goes back to report the first.
+	t.Setenv("STUDIO_STANDIN_REF", "run-20261024-120000-aact")
+	if err := a.Play("the audio page", false, false, ""); err != "" {
+		t.Fatalf("Play would not start: %s", err)
+	}
+	waitForTranscript(t, a)
+
+	report := reportText(t, a, ref)
+	// `the audio tab` is the composed Act's own interaction, so it is in that Act's
+	// composition and nowhere else in the file.
+	if strings.Contains(report, "the audio tab") {
+		t.Errorf("the report of a run of %q describes the Act this window has open "+
+			"instead:\n%s", "a different act", report)
+	}
+	if !strings.Contains(report, "a different act") {
+		t.Errorf("the report does not name the Act the run was a run of:\n%s", report)
+	}
+	if !strings.Contains(report, "not composed") {
+		t.Errorf("the report does not say that the Act the run names is no longer "+
+			"in the library, so the section reads as one that was forgotten:\n%s",
+			report)
+	}
+}
+
+// reportText writes a problem report and reads it back.
+func reportText(t *testing.T, a *Acts, reference string) string {
+	t.Helper()
+	r := a.Report(reference)
+	if r.Error != "" {
+		t.Fatalf("the report of %s was not written: %s", reference, r.Error)
+	}
+	raw, err := os.ReadFile(r.Path)
+	if err != nil {
+		t.Fatalf("the report it says it wrote cannot be read: %v", err)
+	}
+	return string(raw)
 }
 
 func TestAProblemWithNoRunToReportIsRefused(t *testing.T) {
@@ -381,7 +513,10 @@ func TestDeletingARunThatIsNotThereSaysSo(t *testing.T) {
 // Written by hand rather than by running the command, for the reason the Act records above are:
 // what is under test is what a person is SHOWN about a record, and generating one would make
 // these tests about the writer instead.
-func aRoutinesRecord(reference, said, because string, asked int) string {
+// `more` is whatever else the record carries, which for a routine is the count — and for an
+// attempt nobody could count is NOTHING. A fixture that always wrote one could not express the
+// record a killed `marco.exe` leaves, which is the record the page was inventing a zero for.
+func aRoutinesRecord(reference, said, because, more string) string {
 	return fmt.Sprintf(`{
 	  "version": 1, "kind": "routine", "run": %q,
 	  "build": "deadbeef", "routine": "ark-graphics", "application": "arkascended",
@@ -389,9 +524,12 @@ func aRoutinesRecord(reference, said, because string, asked int) string {
 	  "library": "/home/somebody/.config/marco/routes",
 	  "mode": "unstated", "contract": "guarded",
 	  "started": "2026-10-24T16:05:45-07:00", "ended": "2026-10-24T16:05:47-07:00",
-	  "outcome": %q, "because": %q, "input_actions": %d
-	}`, reference, said, because, asked)
+	  "outcome": %q, "because": %q%s
+	}`, reference, said, because, more)
 }
+
+// askedFor is the `input_actions` a routine's record states, as aRoutinesRecord's tail.
+func askedFor(n int) string { return fmt.Sprintf(`, "input_actions": %d`, n) }
 
 // A ROUTINE'S RUN IS READ BACK IN A ROUTINE'S WORDS, AND NEVER IN AN ACT'S.
 //
@@ -402,7 +540,7 @@ func aRoutinesRecord(reference, said, because string, asked int) string {
 func TestARoutinesRunIsListedInARoutinesWords(t *testing.T) {
 	a, _ := aStoreWithADemonstration(t)
 	aRecordOf(t, a, "run-20261024-160545-ab12",
-		aRoutinesRecord("run-20261024-160545-ab12", "performed", "", 4))
+		aRoutinesRecord("run-20261024-160545-ab12", "performed", "", askedFor(4)))
 
 	got := a.History()
 	if len(got) != 1 {
@@ -435,8 +573,17 @@ func TestARoutinesRunIsListedInARoutinesWords(t *testing.T) {
 	}
 	// AND THE NUMBER COMES OFF ITS OWN KEY. A routine writes `input_actions`; reading
 	// `actions_sent` would show zero presses for a run that made four.
-	if p.Sent != 4 {
-		t.Errorf("the row says %d input actions, want 4", p.Sent)
+	if p.Sent == nil || *p.Sent != 4 {
+		t.Errorf("the row says %v input actions, want 4", p.Sent)
+	}
+	// AND IT IS NOT GIVEN A MODE ITS RECORD NEVER STATED. `live` belongs to the
+	// SUPERVISED record; a routine's states no liveness, because `marco do` has no
+	// "write it down instead" mode to distinguish. Read as a plain bool it came back
+	// false, and the page labelled a run that asked for four input actions `input
+	// disabled`. See PastRun.Live and TestARowDoesNotSayInputWasDisabledWhenNothingSaidSo.
+	if p.Live != nil {
+		t.Errorf("a routine's row was given a liveness of %v, and its record states "+
+			"none", *p.Live)
 	}
 }
 
@@ -450,7 +597,7 @@ func TestARefusedRoutinesRemedyIsAboutTheWindowAndNotADemonstration(t *testing.T
 	said := "ark-graphics stopped: the window this was recorded in was 1920x1080 and " +
 		"is now 1280x720"
 	aRecordOf(t, a, "run-20261024-160545-cd34",
-		aRoutinesRecord("run-20261024-160545-cd34", "refused", said, 1))
+		aRoutinesRecord("run-20261024-160545-cd34", "refused", said, askedFor(1)))
 
 	got := a.History()
 	if len(got) != 1 {
@@ -496,8 +643,8 @@ func TestAnActsRunStillReadsInTheSupervisedWords(t *testing.T) {
 	if !strings.Contains(p.Said, "It worked") {
 		t.Errorf("a verified Act's run reads as %q", p.Said)
 	}
-	if p.Sent != 2 || p.Verified != 2 {
-		t.Errorf("an Act's counts read as sent=%d verified=%d, want 2 and 2",
+	if p.Sent == nil || *p.Sent != 2 || p.Verified != 2 {
+		t.Errorf("an Act's counts read as sent=%v verified=%d, want 2 and 2",
 			p.Sent, p.Verified)
 	}
 	if p.Routine != "ark graphics live" {
@@ -669,5 +816,18 @@ func TestAnUnfinishedRoutineAttemptSaysSoAndNotThatItWorked(t *testing.T) {
 	}
 	if p.Next == "" {
 		t.Error("an unfinished attempt is given nothing to do about it")
+	}
+	// AND IT IS GIVEN NEITHER A COUNT NOR A MODE, because it states neither.
+	//
+	// This is the record that matters most for both: an attempt killed mid-run may ALREADY
+	// HAVE SENT INPUT, and nobody wrote the number down. Zero there is not a count, it is
+	// the claim that nothing was pressed — offered about the one run a person is most
+	// likely to be asking somebody else about.
+	if p.Sent != nil {
+		t.Errorf("an interrupted attempt is credited with %d input actions, and no "+
+			"count was ever written down", *p.Sent)
+	}
+	if p.Live != nil {
+		t.Errorf("an interrupted attempt is given a liveness of %v", *p.Live)
 	}
 }
