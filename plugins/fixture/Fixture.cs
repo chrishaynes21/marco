@@ -50,6 +50,21 @@
 // swallowed exception). In that mode Marco's own verification must fail. If it passes, Marco is
 // claiming an outcome it did not get.
 //
+// # The drain barrier
+//
+//	--state <p> also answers a question: the harness writes <p>.drain and the window
+//	writes <p>.drained once its message loop has gone empty.
+//
+// An input log is written when the window PROCESSES a message, not when the system accepts it.
+// So a harness that read the log the moment the thing sending input stopped would be reading a
+// window that may still have presses queued, and "nothing arrived" would be "nothing has arrived
+// YET" — which is the false green a refusal scenario is entirely made of. The barrier is the
+// window saying, from inside its own loop, that there was nothing left to process.
+//
+//	--selftest   stage a press in this window's own queue and stop processing until
+//	             released, so a harness can prove its barrier against a window that
+//	             really is behind. Never used by an acceptance.
+//
 // Build:  powershell -File plugins/fixture/build.ps1
 // Run:    plugins/fixture/fixture.exe --state <path> [--stubborn] [--view second]
 
@@ -72,6 +87,7 @@ namespace MarcoFixture
             string state = null;
             string events = null;
             bool stubborn = false;
+            bool selftest = false;
             for (int i = 0; i < args.Length; i++)
             {
                 switch (args[i])
@@ -85,6 +101,9 @@ namespace MarcoFixture
                     case "--stubborn":
                         stubborn = true;
                         break;
+                    case "--selftest":
+                        selftest = true;
+                        break;
                     default:
                         Console.Error.WriteLine("fixture: unknown argument " + args[i]);
                         return 2;
@@ -92,14 +111,14 @@ namespace MarcoFixture
             }
             if (string.IsNullOrEmpty(state))
             {
-                Console.Error.WriteLine(
-                    "usage: fixture.exe --state <path> [--events <path>] [--stubborn]");
+                Console.Error.WriteLine("usage: fixture.exe --state <path> " +
+                    "[--events <path>] [--stubborn] [--selftest]");
                 return 2;
             }
 
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new FixtureForm(state, stubborn, events));
+            Application.Run(new FixtureForm(state, stubborn, events, selftest));
             return 0;
         }
     }
@@ -136,6 +155,65 @@ namespace MarcoFixture
         private readonly Stopwatch clock = Stopwatch.StartNew();
         private int dpi = 96;
         private Rectangle lastWindow = Rectangle.Empty;
+
+        // ── THE DRAIN BARRIER: "IS THERE ANYTHING YOU HAVE NOT PROCESSED YET?" ──
+        //
+        // # The false green this exists to close
+        //
+        // Input is logged when this window's message loop DISPATCHES it, which is not when the
+        // system accepted it. So between a press being sent and this window writing it down
+        // there is an interval in which the press exists and the log does not mention it. A
+        // harness that read the log as soon as the thing sending input finished would be
+        // reading that interval and calling it absence — and every scenario whose claim is
+        // "nothing arrived" is exactly one that reads the log after the sender stops.
+        //
+        // An interval would not fix it either: waiting two seconds and finding silence
+        // establishes that nothing has arrived YET.
+        //
+        // # Why it is an idle and not an acknowledged message
+        //
+        // Because a POSTED message is retrieved AHEAD of queued input — `GetMessage` serves
+        // sent, then posted, then input — so a sentinel posted to this window would come back
+        // with the presses still waiting behind it, which is worse than no barrier at all: it
+        // would look like proof. What this counts instead is the loop running OUT of
+        // everything. An idle after the request means the queue held no input at that moment,
+        // so whatever was in it has been dispatched and written down.
+        //
+        // # And what it carries
+        //
+        // A token and nothing else. The answer says "the thing you asked about has happened"
+        // and says nothing about what this window received, which stays where it belongs: in
+        // the two oracles the harness reads for itself. A channel that reported facts would be
+        // a channel the harness could be tempted to believe instead of looking.
+        private readonly string drainRequest;
+        private readonly string drainAnswer;
+        private int idles;
+        private string drainToken;
+        private int drainAt;
+
+        // ── AND THE MODE THAT PROVES THE BARRIER IS ONE ──
+        //
+        // A barrier nobody has seen hold is an assumption with a function name. This mode makes
+        // this window genuinely behind: it puts a press in its own queue and then stops
+        // processing anything until the harness releases it, so the harness can read the log
+        // while a press is pending (it must not be there), cross the barrier, and read it again
+        // (it must). Without the barrier, the first read is the false green in person.
+        //
+        // THE PRESS IS POSTED, BY THIS WINDOW, INTO ITS OWN QUEUE. It is not input: nothing is
+        // injected into the desktop, no pointer moves, and nothing Marco can reach is told that
+        // a person did anything. What is under test here is the HARNESS's synchronisation, not
+        // Marco — so the thing that has to be pending is a message, and the cheapest honest way
+        // to have one pending is for this window to put it there.
+        //
+        // Not done with a real run instead, which was the first design: a window that stops
+        // pumping for more than about five seconds gets GHOSTED by Windows — a stand-in window
+        // with its own handle takes its place in the foreground — and the run would then be
+        // refused by Marco's own window guard for a reason that has nothing to do with the
+        // barrier.
+        private readonly bool selftest;
+        private readonly string selftestRequest;
+        private readonly string selftestBlocked;
+        private readonly string selftestRelease;
 
         private readonly TextBox name = new TextBox();
         private readonly TextBox notes = new TextBox();
@@ -176,11 +254,17 @@ namespace MarcoFixture
         private int collapseEvents;
         private bool documentsExpanded;
 
-        internal FixtureForm(string statePath, bool stubborn, string eventsPath)
+        internal FixtureForm(string statePath, bool stubborn, string eventsPath, bool selftest)
         {
             this.statePath = statePath;
             this.stubborn = stubborn;
             this.eventsPath = eventsPath;
+            this.selftest = selftest;
+            drainRequest = statePath + ".drain";
+            drainAnswer = statePath + ".drained";
+            selftestRequest = statePath + ".selftest";
+            selftestBlocked = statePath + ".blocked";
+            selftestRelease = statePath + ".release";
 
             // THE TITLE IS FIXED AND UNIQUE. Marco finds its application by name, and a title
             // carrying a document, a count or a dirty marker would make "which window" a moving
@@ -405,6 +489,18 @@ namespace MarcoFixture
             // begin with records no hand produced.
             OpenEvents();
             Application.AddMessageFilter(new Witness(this));
+
+            // ── AND THE COUNT OF TIMES THIS LOOP RAN OUT OF WORK ──
+            //
+            // Idle is raised when the pump finds nothing left to dispatch — no sent message, no
+            // posted message, and no input. That is the only observation in this process that
+            // means "the queue is empty", which is the one thing the barrier has to establish.
+            Application.Idle += delegate { idles++; };
+            var asked = new Timer();
+            asked.Interval = 50;
+            asked.Tick += delegate { Drain(); Stage(); };
+            asked.Start();
+
             Shown += delegate { NoteWindow("shown"); };
             Move += delegate { NoteWindow("moved"); };
             Resize += delegate { NoteWindow("resized"); };
@@ -726,6 +822,112 @@ namespace MarcoFixture
             {
                 File.WriteAllText(request.Substring(0, request.Length - ".raise".Length)
                     + ".raised", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture));
+            }
+            catch (IOException)
+            {
+            }
+        }
+
+        /// <summary>Answers the harness's drain request, once this loop has run out of work.</summary>
+        ///
+        /// Two ticks at least, and that is the whole mechanism. The first notices the request and
+        /// writes down the idle count it must get PAST; a later one answers, once an idle has
+        /// happened after that. An idle strictly after the request means the queue was empty
+        /// after the question was asked, so anything that had been queued when it was asked has
+        /// been dispatched — and dispatched is when the witness writes it down.
+        ///
+        /// What this does NOT establish, said here because the harness quotes it: input the
+        /// system has accepted but not yet placed in this queue. That handoff is done by a system
+        /// thread and is not observable from inside this process at all.
+        private void Drain()
+        {
+            if (drainToken == null)
+            {
+                string token;
+                try
+                {
+                    if (!File.Exists(drainRequest)) { return; }
+                    token = File.ReadAllText(drainRequest).Trim();
+                    File.Delete(drainRequest);
+                }
+                catch (IOException)
+                {
+                    return;
+                }
+                if (token.Length == 0) { return; }
+                drainToken = token;
+                // THE IDLE THIS ANSWER WAITS FOR IS A LATER ONE. Read inside a tick, so the
+                // pump is demonstrably not idle now, and the next increment can only come
+                // from the loop emptying after this moment.
+                drainAt = idles + 1;
+                return;
+            }
+            if (idles < drainAt) { return; }
+            try
+            {
+                File.WriteAllText(drainAnswer, drainToken, new UTF8Encoding(false));
+            }
+            catch (IOException)
+            {
+                return;
+            }
+            drainToken = null;
+        }
+
+        [DllImport("user32.dll")]
+        private static extern bool PostMessage(IntPtr h, int msg, IntPtr w, IntPtr l);
+
+        /// <summary>Makes this window genuinely behind, so a harness can prove its barrier.</summary>
+        ///
+        /// A press goes into this window's own queue and then the loop stops running until the
+        /// harness releases it. While it is stopped the press exists and the log does not mention
+        /// it, which is the state every absence assertion is read in — so a harness can look
+        /// there (and must see nothing), cross the barrier, and look again (and must see it).
+        ///
+        /// Blocking is the point. Nothing is pumped here: a `DoEvents` would dispatch the very
+        /// message this is holding, and a window that answered while it was behind would be the
+        /// bug this mode exists to detect.
+        private void Stage()
+        {
+            if (!selftest) { return; }
+            try
+            {
+                if (!File.Exists(selftestRequest)) { return; }
+                File.Delete(selftestRequest);
+            }
+            catch (IOException)
+            {
+                return;
+            }
+
+            const int WmLButtonDown = 0x0201, WmLButtonUp = 0x0202;
+            const int MkLButton = 0x0001;
+            int at = (save.ClientSize.Height / 2) << 16 | (save.ClientSize.Width / 2);
+            PostMessage(save.Handle, WmLButtonDown, (IntPtr)MkLButton, (IntPtr)at);
+            PostMessage(save.Handle, WmLButtonUp, IntPtr.Zero, (IntPtr)at);
+
+            // AND THE HARNESS IS TOLD THAT IT IS NOW SAFE TO LOOK.
+            //
+            // Written after the press is queued and before anything is dispatched, so the file
+            // appearing means exactly one thing: there is a press in this window that this
+            // window has not seen. A harness that had to guess that instant would be timing.
+            try
+            {
+                File.WriteAllText(selftestBlocked, "a press is queued and unprocessed",
+                    new UTF8Encoding(false));
+            }
+            catch (IOException)
+            {
+            }
+            var waited = Stopwatch.StartNew();
+            while (!File.Exists(selftestRelease) && waited.ElapsedMilliseconds < 60000)
+            {
+                System.Threading.Thread.Sleep(25);
+            }
+            try
+            {
+                if (File.Exists(selftestRelease)) { File.Delete(selftestRelease); }
+                File.Delete(selftestBlocked);
             }
             catch (IOException)
             {
