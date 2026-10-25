@@ -135,6 +135,9 @@
 
  /* Machine vocabulary, wherever it is unavoidable. */
  .mach,pre,.tag{font-family:var(--mach);font-variant-ligatures:none}
+ /* The machine line is two lines: what this build is, and what it has NOT established.
+    pre-line so the second half is not run onto the end of the first. */
+ #readyMachine{white-space:pre-line;line-height:1.5}
 
  /* A PICTURE OF WHAT WAS SHOWN. Bounded in CSS as well as on the way in, so a
     thumbnail kept at a bigger size than this build expects cannot push the text
@@ -352,6 +355,23 @@
 <!-- ────────────────────────── SCENES ────────────────────────── -->
 <section id="view-scenes" class="hide">
   <h1>Scenes</h1>
+
+  <!-- WHETHER THIS WINDOW CAN DO EITHER OF THE THINGS IT IS FOR, BEFORE SOMEBODY TRIES.
+       Above Record and above Your routines, because every problem it names is one that
+       otherwise arrives at Stop, at Save or at Play — after a whole demonstration, or
+       over a game somebody has just arranged. One of them does not arrive at all: a
+       missing sibling marco.exe falls back to the bare name and plays whichever one is
+       on PATH, which is the stale-binary trap that cost a day of recordings.
+
+       Hidden entirely when nothing is wrong, except for the machine line, which is
+       always there: it is what somebody reads when the window and the command disagree
+       about what exists. And the limits sentence is always there too — a panel that
+       dropped it when everything passed would read as a promise exactly when somebody
+       was most likely to believe one. See readiness.go. -->
+  <div class="card hide" id="readyCard">
+    <div id="readyProblems"></div>
+  </div>
+  <div class="muted mach" style="font-size:11.5px;margin-bottom:14px" id="readyMachine"></div>
   <p class="sub">A Scene is one interaction — one click, and what should happen afterward.
     An Act puts Scenes in order. These are the interactions Marco has watched you perform.</p>
 
@@ -799,6 +819,8 @@
  // keys are revisions rather than counters: a routine demonstrated again has a new `saved_at`
  // and must NOT be served the previous recording's pictures, which is the same rule
  // `demo.Store` enforces on disk.
+ let shownReady = ''
+ let captureActive = false
  let shownReview = ''
  let shownAct = ''
  let shownRunSteps = ''
@@ -817,6 +839,16 @@
    paintLive(); show('acts'); loadActs(); loadDemos(); loadHistory(); loadApps()
    loadLibrary()
    poll(); pollLearning(); pollCapture(); pollRepairs(); pollRoutines()
+   // AND READINESS ON THE NEXT TICK, WHICH IS NOT A STYLE CHOICE.
+   //
+   // This callback runs SYNCHRONOUSLY when the bindings are already there, part-way
+   // down a script whose later `let` declarations are therefore still in their
+   // temporal dead zone. `pollReady` reads `runActive` before it does anything else,
+   // so calling it here threw a ReferenceError that took the whole bootstrap with it
+   // — every poll above it included, and silently, because a `-H windowsgui` binary
+   // has no console to print it to. The other five polls survive it only because
+   // everything they touch is inside a `.then`.
+   setTimeout(pollReady, 0)
    // THE PAGE REPORTS ITSELF, LAST. A `-H windowsgui` binary has no console, so this
    // callback is the only evidence that the window opened, WebView2 came up, the embedded
    // asset was served, this script ran, and the Go bindings are reachable from it.
@@ -1320,6 +1352,12 @@
  // Scene review uses, for the same reason.
  function pollCapture(){
    acts.Recording().then(r => {
+     // AND WHETHER THE HOOKS ARE WATCHING, FOR THE POLLS THAT MUST NOT RUN NOW.
+     //
+     // A recording happens in THIS process, so a diagnostic that writes a file into
+     // somebody's library while the keyboard is being watched is work done on the
+     // one thread that has to stay out of the way. See pollReady.
+     captureActive = !!r.active
      showing($('captureCard'), !r.active && !r.review)
      showing($('capturing'), !!r.active)
      showing($('capReview'), !!r.review)
@@ -1469,6 +1507,57 @@
  // AND THE ROWS ARE REBUILT ONLY WHEN THEY CHANGED. Two and a half seconds is plenty for a
  // list nobody is editing, and a subtree rebuilt under somebody's cursor is a selection
  // that will not stay chosen.
+ // WHAT THIS WINDOW CAN ESTABLISH ABOUT ITSELF, ON ITS OWN SLOW CADENCE.
+ //
+ // Ten seconds, not the 400ms and 2.5s the other polls use, and not once at start-up either.
+ // Not once, because every one of these changes while the window is open — a build script
+ // replaces the sibling binaries, a drive fills up, somebody moves the library — and a panel
+ // answered at start-up would describe the machine as it was then, in the place somebody goes
+ // to rule exactly that out. And not often, because the library check WRITES a file and
+ // removes it, which is the only honest way to learn whether a routine could be kept there.
+ //
+ // NOT WHILE SOMETHING IS BEING RECORDED OR RUN. The hooks are watching the keyboard and the
+ // mouse in this very process during a recording, and a run has a game in front; neither is a
+ // moment to touch somebody's library for a diagnostic. The answer on screen stays as it was,
+ // which is what it was a few seconds ago.
+ function pollReady(){
+   const busy = captureActive || runActive
+   const next = () => setTimeout(pollReady, 10000)
+   if (busy) { next(); return }
+   acts.Ready().then(r => {
+     const sig = JSON.stringify(r)
+     if (sig === shownReady) { return }
+     shownReady = sig
+     drawReady(r)
+   }).finally(next)
+ }
+
+ function drawReady(r){
+   const problems = r.problems || []
+   showing($('readyCard'), problems.length > 0)
+   const box = $('readyProblems')
+   box.innerHTML = ''
+   problems.forEach(p => {
+     const div = document.createElement('div')
+     div.style.marginBottom = '8px'
+     // WHAT IS WRONG, WHAT IT STOPS, AND WHAT TO DO — three parts, and the third is
+     // the one a diagnostic usually withholds. Every problem here has exactly one
+     // answer, so leaving somebody to work it out makes a report into a riddle.
+     div.innerHTML = '<div class="no">' + esc(p.says) + '</div>' +
+       (p.blocks ? '<div class="muted">This stops ' + esc(p.blocks) + '.</div>' : '') +
+       (p.do ? '<div class="muted">' + esc(p.do) + '.</div>' : '')
+     box.appendChild(div)
+   })
+   // AND WHAT WAS NOT ESTABLISHED, WHATEVER THE ANSWER ABOVE WAS. Installing the hooks
+   // takes the keyboard and the mouse of the whole desktop, so nothing here has tried
+   // it; and nothing here has looked at a screen, started an application or sent a
+   // press. A readiness panel that implied otherwise would be a false claim in the one
+   // place somebody trusts before they start.
+   text($('readyMachine'), 'studio ' + (r.build || '?') + '  ·  marco ' + (r.marco || '?') +
+     '  ·  director ' + (r.director || '?') + '  ·  library ' + (r.library || '?') +
+     '\n' + (r.limits || ''))
+ }
+
  let shownRoutines = ''
  function pollRoutines(){
    acts.Routines().then(rs => {

@@ -366,6 +366,30 @@ echoed into a record as something verified; and the page renders a blank as a bl
 those captured depended on the environment of a process that has since exited.
 [[ADR-254-what-a-recording-captures-is-stated]]
 
+## Readiness is what has been checked, and it says what it has not
+
+Five ways of being unable to record or to play, each of which used to be discovered by hitting it:
+no input recorder on this platform, learned at **Stop** after a whole demonstration; no `marco.exe`
+to play with, learned at **Play** over a game somebody had just arranged; a library that cannot be
+written, learned at **Save**, which is the one instant a recording exists nowhere else; a window
+that cannot name its own build, learned by comparing file timestamps; and the silent one — a
+`marco.exe` **on PATH but not beside the window**, which is never learned at all, because
+`marcoBin` falls back to the bare name, the spawn resolves it, and playback runs a binary of
+another age perfectly successfully.
+
+So Studio answers each by *acting*: the recorder is a platform fact, each executable is an
+`os.Stat` beside this binary and then the `exec.LookPath` the spawn itself performs, the library is
+a file created and removed in it, and the build is this binary's own stamp or the honest word
+`unknown`. Each problem carries what is wrong, what it **stops**, and what to **do** — every one of
+them has exactly one answer, and withholding it makes a diagnostic into a riddle.
+
+And the panel says what it did **not** establish, unconditionally, including when nothing is wrong:
+that the hooks will install, that the application is running, that a press will land, that anything
+looked at a screen. Installing the hooks takes the keyboard and the mouse of the whole desktop, so
+nothing there can have tried it. A panel that dropped the caveat on a clean machine would be read
+as a promise at exactly the moment somebody believed one.
+[[ADR-255-readiness-is-what-has-been-checked]]
+
 ## Validated by
 
 - `internal/director/demo` unit tests (`demo.go`, `record.go`, `validate.go`)

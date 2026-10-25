@@ -1682,6 +1682,26 @@ What to check, and what each failure would mean:
   report the first run. *THE ACT, AS IT STANDS NOW* must describe the Act that ran, not the one on
   screen.
 
+- **The machine line is under the Scenes heading, and it names four things.** `studio <rev>`,
+  `marco <path>`, `director <path>`, `library <path>`, and under them the sentence saying what has
+  NOT been checked. It must be there even when nothing is wrong — that is the point of it, because
+  a clean machine is when a readiness panel gets believed. If the paths are not the ones you
+  expect, that is the whole reason the line exists.
+- **No red box above Record when everything is in place.** A freshly built tree shows the machine
+  line and nothing else. A card listing problems over a working Studio is the panel complaining
+  about itself.
+- **And it catches the silent one.** Worth staging once, because it is the defect that cost a day:
+  rename the `marco.exe` beside `studio.exe` out of the way, leave another on PATH, and reopen
+  Studio. It must say *there is no marco.exe beside this window*, name the one on PATH, and say a
+  different build of a different age would run. Before this, Play just worked — with the wrong
+  binary. Put the file back afterwards.
+- **A library it cannot write to is reported before Save, not at it.** Point `MARCO_ROUTES` at a
+  directory you have no write permission on and reopen Studio: it must say so, say that keeping a
+  recording is what stops, and say what to do. The old behaviour was to find out at Save, holding a
+  recording that existed nowhere else.
+- **And nothing is left in your library.** The write check creates a file and removes it. After an
+  hour with the window open there must be nothing in the library but your routines — no
+  `.studio-can-write-*` anywhere, and nothing extra on the *Your routines* list.
 - **It says what it will capture, BEFORE you press Record.** Under *Record a routine*: *Where you
   press and how long you pause, and nothing about how the screen looked. It does not take a
   picture of anything.* That sentence is the window's claim about what it tells the recorder, so

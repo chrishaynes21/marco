@@ -630,3 +630,11 @@ func captureFullFrameRGBA() *image.RGBA {
 	}
 	return img
 }
+
+// Available says whether this platform has an input-capture backend at all.
+//
+// A PLATFORM fact and nothing more. It does not say the hooks will install: that can only be
+// known by installing them, which takes the keyboard and the mouse of the whole desktop, so a
+// readiness check claiming it would be claiming something it had not done. See Start, and the
+// note on `anchorKey` for what Windows does to a hook it does not like.
+func Available() bool { return true }

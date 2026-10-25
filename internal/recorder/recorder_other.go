@@ -19,3 +19,11 @@ func (stubRecorder) Events() <-chan RecordedEvent { return nil }
 // suppress. It is here so this backend satisfies `Stated` and a caller does not have to ask which
 // platform it is on before stating what it wants — see recorder.Mode.
 func (stubRecorder) Capture(Mode) {}
+
+// Available says whether this platform has an input-capture backend at all. It does not.
+//
+// macOS and Linux are future work (CGEventTap, evdev/libinput). Said as a platform fact so a
+// surface can report it BEFORE somebody demonstrates something, rather than after: `Start`
+// refusing with ErrUnsupported is the same answer arriving once their hands are already off the
+// keyboard. See recorder.Available on Windows.
+func Available() bool { return false }

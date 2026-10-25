@@ -7958,3 +7958,58 @@ which is the whole point of running them:
   back to inheriting them. The page's word is a COPY of what the recorder was told.
 
 See [[ADR-254-what-a-recording-captures-is-stated]]. Readiness and Record again are not started.
+
+## 38T — readiness is what has been checked, and it says what it has not
+
+The second of the three authorized Studio pieces. Record again is not started.
+
+Five ways of being unable to record or play, and every one of them used to be found by hitting it:
+the recorder refusing a platform at **Stop**, after a whole demonstration; a missing `marco.exe` at
+**Play**, over a game somebody had just arranged; a library that cannot be written at **Save**,
+which is the one instant a recording exists nowhere else; a window that cannot name its own build,
+found by comparing file timestamps.
+
+The fifth was never found at all. `marcoBin` and `directorBin` fall back to the bare name when the
+sibling is missing, `exec.Command` resolves it on PATH, and playback runs whichever binary that
+finds — a different build of a different age, performing somebody's routine, successfully. It is
+the trap `internal/buildid` exists because of, and it cost a day of recordings.
+
+So `Acts.Ready` answers each by DOING something: the recorder is a platform fact
+(`recorder.Available`, which explicitly does not claim the hooks will install — that can only be
+known by installing them and taking the whole desktop's keyboard); each executable is an `os.Stat`
+beside this binary and then the `exec.LookPath` the spawn itself performs, giving THREE answers
+rather than two, of which "on PATH but not beside" is the silent one; the library is a file created
+and removed in it, because a directory that exists is not a directory that can be written to; and
+the build is this binary's stamp or the honest word `unknown`.
+
+Each problem carries what is wrong, what it **stops**, and what to **do**, because every one of
+them has exactly one answer. And `Limits` is UNCONDITIONAL — the hooks installing, the application
+running, a press landing, a screen being looked at are all named as things NOT established, on a
+clean machine as much as a broken one, because a clean machine is when a readiness panel is
+believed.
+
+Asked again rather than once, because the binaries and the disk change while the window is open.
+On its own slow cadence and never during a recording or a run, because the library check writes and
+a recording is watching the keyboard in this same process.
+
+Seven mutations, all killed, plus a surviving control. **One changed the tests rather than the
+code**: replacing the library write-probe with `os.Stat` SURVIVED, because the only library test
+then in place was caught by `MkdirAll` failing and never exercised the write. A second test was
+written — a real directory with an `icacls` deny, so `MkdirAll` succeeds and only putting a file in
+it finds out — and the mutation is killed by that.
+
+**And the browser test found a defect no mutation would have.** Starting the readiness poll inside
+the bindings callback threw a `ReferenceError`: that callback runs SYNCHRONOUSLY part-way down a
+script whose later `let` declarations are still in their temporal dead zone, and the poll reads
+`runActive` first thing. It took the WHOLE bootstrap with it — every other poll included — and
+silently, because a `-H windowsgui` binary has no console to print it to. The other five polls
+survive that ordering only because everything they touch sits inside a `.then`. The readiness poll
+starts on the next tick now, with the reason written beside it.
+
+No button was disabled: the ask was to show actionable problems, and a control greyed out with its
+explanation somewhere else is worse than one that refuses and says why. Nothing runs a child to ask
+its build either — `marco.exe` and `director.exe` have no version flag, and a panel polled all
+session must not start a process that performs real input, so the panel names their LOCATIONS and a
+run record names the `marco` that performed it.
+
+See [[ADR-255-readiness-is-what-has-been-checked]].
