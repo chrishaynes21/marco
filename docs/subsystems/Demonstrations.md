@@ -401,7 +401,9 @@ So the routine offers it. The route's whole **identity** goes to the backend, no
 `settings` can be saved for two applications under two scopes, and a window holding the word would
 start a recording of whichever it found first and then offer to replace *that* — and the backend
 looks the identity up again at the moment the button is pressed, because a card can be on screen
-for a routine somebody has just deleted.
+for a routine somebody has just deleted. It reads the library **once** for that and keeps what it
+matched: an index established in one listing and applied to a second reading of the same directory
+is a namesake, or a panic, the moment anything is added or removed between the two.
 
 **It carries no authority to replace anything.** There is no new save path: Save goes through the
 same check every other recording does, which asks what is at the target, refuses a collision, and

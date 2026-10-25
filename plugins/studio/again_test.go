@@ -330,3 +330,119 @@ func TestRecordAgainRefusesWhileSomethingElseIsHappening(t *testing.T) {
 		t.Fatal(why)
 	}
 }
+
+// AND THE ROUTINE IT STARTS FROM IS THE ONE THAT WAS MATCHED, WHILE THE LIBRARY CHANGES UNDER IT.
+//
+// The lookup took the index out of the listing it had matched in and applied it to a SECOND reading
+// of the library. The two are the same answer only while nothing changes — and routines are added,
+// removed and renamed from a terminal, by another window, and by this one. A routine that vanishes
+// from the front of the listing moves everything after it, so the index that had identified the
+// right route identifies a NAMESAKE one position along, or nothing at all: a recording started
+// under another routine's name and application, offering to replace it, or a panic out of the end
+// of a shorter slice.
+//
+// So this churns the first routine in the listing while asking for the ones behind it, and requires
+// every recording that starts to be a recording of what was asked for. The first routine is the one
+// that moves and is never the one asked about, because the question here is not what happens to a
+// routine that goes — TestRecordAgainRefusesARoutineThatIsGone is that — but whether a routine that
+// is still there can be mistaken for its neighbour.
+func TestRecordAgainKeepsTheRoutineItMatchedWhileTheLibraryChanges(t *testing.T) {
+	a, rs := aLibraryOfThreeRoutines(t)
+	first, middle, last := rs[0], rs[1], rs[2]
+	src, err := os.ReadFile(first.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// THE FIRST ROUTINE COMING AND GOING, as a routine deleted and restored from a
+	// terminal does. Nothing here touches the window — the library is a directory and
+	// that is the whole of what changes.
+	stop, stopped := make(chan struct{}), make(chan struct{})
+	go func() {
+		defer close(stopped)
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			_ = os.Remove(first.Path)
+			_ = os.WriteFile(first.Path, src, 0o644)
+		}
+	}()
+	defer func() {
+		close(stop)
+		<-stopped
+		_ = os.WriteFile(first.Path, src, 0o644)
+	}()
+
+	owner, ownerApp := uint32(os.Getpid()), winctx.Self()
+	for pass := 0; pass < 25; pass++ {
+		// THE MIDDLE ONE AND THE LAST ONE IN TURN. The middle is where a shorter
+		// listing hands back its neighbour and nothing says so; the last is where it
+		// hands back nothing at all.
+		want := middle
+		if pass%2 == 1 {
+			want = last
+		}
+		a.recording = func() recorder.Recorder {
+			return &heldRecorder{
+				events: aDemonstrationIn("arkascended", owner, ownerApp)}
+		}
+		if why := a.RecordAgain(want.ID); why != "" {
+			t.Fatalf("pass %d: RecordAgain refused a routine that is in the "+
+				"library: %s", pass, why)
+		}
+		got := a.Recording()
+		if got.Again != want.ID || got.AgainName != want.Name || got.Name != want.Name {
+			t.Fatalf("pass %d: asked for %q and it started a recording called %q "+
+				"of %q (%q)", pass, want.ID, got.Name, got.Again, got.AgainName)
+		}
+		if why := a.StopRecording(); why != "" {
+			t.Fatalf("pass %d: StopRecording: %s", pass, why)
+		}
+		if why := a.CancelRecording(); why != "" {
+			t.Fatalf("pass %d: Cancel: %s", pass, why)
+		}
+	}
+}
+
+// aLibraryOfThreeRoutines saves three routines in one library, named so the order is known.
+//
+// Three because the shape being tested needs a routine in front of the one asked about and a
+// routine behind it: the one in front is what moves, and the one behind is what a stale index lands
+// on. All three are saved for one application under one scope, so the only thing that distinguishes
+// them is the identity — which is what the lookup is supposed to match on.
+func aLibraryOfThreeRoutines(t *testing.T) (*Acts, []Routine) {
+	t.Helper()
+	a, _ := aStudioRecording(t, "a thing")
+	if why := a.SaveDraft(string(orchestrator.ScopeAppAnywhere), ""); why != "" {
+		t.Fatalf("saving the first routine refused: %s", why)
+	}
+	owner, ownerApp := uint32(os.Getpid()), winctx.Self()
+	for _, name := range []string{"b thing", "c thing"} {
+		a.recording = func() recorder.Recorder {
+			return &heldRecorder{
+				events: aDemonstrationIn("arkascended", owner, ownerApp)}
+		}
+		if why := a.StartRecording(name); why != "" {
+			t.Fatalf("recording %q refused: %s", name, why)
+		}
+		if why := a.StopRecording(); why != "" {
+			t.Fatalf("recording %q: StopRecording: %s", name, why)
+		}
+		if why := a.SaveDraft(string(orchestrator.ScopeAppAnywhere), ""); why != "" {
+			t.Fatalf("saving %q refused: %s", name, why)
+		}
+	}
+	rs := a.Routines()
+	if len(rs) != 3 {
+		t.Fatalf("the library holds %d routines after three saves", len(rs))
+	}
+	for i, want := range []string{"a thing", "b thing", "c thing"} {
+		if rs[i].Name != want {
+			t.Fatalf("the listing is %q at %d, and this test rests on the order "+
+				"being by name", rs[i].Name, i)
+		}
+	}
+	return a, rs
+}

@@ -83,10 +83,20 @@ func (a *Acts) RecordAgain(id string) string {
 	}
 	// THE ROUTINE AS IT IS RIGHT NOW, through the listing the page chose from, so what
 	// is remembered is one answer about one route and not a second derivation of it.
+	//
+	// ONE LISTING, AND THE MATCH ITSELF. This took the index out of the listing it had
+	// matched in and applied it to a SECOND `a.Routines()` — which reads the library
+	// again. A routine added, removed or renamed between the two reads moves everything
+	// after it, so the index that had identified the right route identified a namesake
+	// one position along, or nothing at all: a recording started under another routine's
+	// name and application, or a panic out of the end of a shorter slice. The same shape
+	// as PlayRoutine's own finding — a check that is correct about the wrong subject —
+	// and the same remedy, which is to keep what was matched.
 	var found *Routine
-	for i, r := range a.Routines() {
+	for _, r := range a.Routines() {
 		if r.ID == id {
-			found = &a.Routines()[i]
+			got := r
+			found = &got
 			break
 		}
 	}

@@ -8056,6 +8056,18 @@ invisible today only because `.no` and `.muted` are colour-only classes, which i
 this page's CSS and not of its logic. The rendered tests assert the box's presence as well as its
 text now, with that reason written beside the helper.
 
+**And review found a ninth, in the lookup.** The loop matched the identity against one
+`a.Routines()` and then took `a.Routines()[i]` — a SECOND reading of the library, indexed by a
+position established in the first. They agree only while nothing changes, and a library changes: a
+routine that goes from the front of the listing moves everything behind it, so the index that had
+identified the right route identifies a namesake one position along, or runs off the end of a
+shorter slice and panics. The fix keeps the match rather than its index, which is what
+`PlayRoutine` already does for the same reason. None of the eight mutations could have found it:
+every one of them changed what the code says, and this was a disagreement between two readings of
+something outside the process. `TestRecordAgainKeepsTheRoutineItMatchedWhileTheLibraryChanges`
+removes and restores the first routine in the listing while asking for the ones behind it, and it
+fails on the old form within two passes.
+
 See [[ADR-256-recording-a-routine-again]]. All three authorized pieces are in. R4's explicit
 coordinate mode is the mode STATEMENT only: there is no second mode to choose between and no
 control that offers one, because the other mode is the anchor stack and that is the open question

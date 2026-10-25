@@ -32,7 +32,10 @@ So the routine offers it. The identity goes to the backend — **not the name**,
 can be saved for two applications under two scopes, and a window that handed over the word would
 start a recording of whichever one it found first and then offer to replace *that*. The backend
 looks the identity up at the moment the button is pressed, because a card can be on screen for a
-routine somebody has just deleted from a terminal.
+routine somebody has just deleted from a terminal. **Once**, and what it keeps is the match itself:
+the first form of this took the index out of the listing it had matched in and applied it to a
+second reading of the library, which is the same answer only while nothing changes. See the
+mutation note below — it was found in review, not by the gate.
 
 ## And what it emphatically does not buy
 
@@ -102,6 +105,12 @@ recording's name becomes a declaration in any play composed over it.
 - `plugins/studio` `TestARecordingMadeInAnotherApplicationSaysSoBeforeSave` — both directions: the
   mismatch is reported, and a re-recording made where the routine lives says nothing, because a
   warning on every re-recording is a warning nobody reads.
+- `plugins/studio` `TestRecordAgainKeepsTheRoutineItMatchedWhileTheLibraryChanges` — the first
+  routine in the listing removed and restored from under the lookup while the ones behind it are
+  asked for, twenty-five times. Every recording that starts must be a recording of what was asked
+  for, by identity AND by name. The routine that churns is never the one asked about: the question
+  is not what happens to a routine that goes, which is the test below, but whether one that is
+  still there can be mistaken for its neighbour.
 - `plugins/studio` `TestRecordAgainRefusesARoutineThatIsGone` — and the window can still record
   something else afterwards, asked as that rather than as `a.capture == nil`, which was this
   assertion's first form and was wrong: the saved capture from the previous recording is held on
@@ -131,6 +140,7 @@ for the third time in this slice-set.
 | P6 | the review ignores the remembered scope | **killed** in the browser |
 | P7 | the page shows the *recorded elsewhere* warning unconditionally | **SURVIVED on its first run**, because the claim-level assertion cannot tell an empty shown box from an absent one. The rendered tests now assert the box's presence as well as its text, and P7 is **killed** |
 | P8 | the page shows the *second recording of* line unconditionally | same, and **killed** by the same addition |
+| P9 | the lookup takes its index from one listing and reads the library a second time | **killed** — added after the review found it, see below |
 | CONTROL | the wording of one refusal is changed | **survived**, as intended |
 
 P7 and P8 are worth the note. An element shown with no text in it is invisible today only because
@@ -138,3 +148,17 @@ P7 and P8 are worth the note. An element shown with no text in it is invisible t
 Give either a border or a background and an empty box becomes a visible artifact above the Save
 button on every ordinary recording. So the tests assert both, with that reason written beside the
 helper.
+
+P9 is the one the gate did not find, and it was in the lookup itself. The loop matched `r.ID`
+against one `a.Routines()` and then took `a.Routines()[i]` — a **second** reading of the library,
+indexed by a position established in the first. The two agree only while nothing changes, and a
+library changes: from a terminal, from another window, and from this one. A routine that goes from
+the front of the listing moves everything behind it, so the index that had identified the right
+route identifies a namesake one position along — a recording started under another routine's name
+and application, offering to replace it — or runs off the end of a shorter slice and panics.
+
+It is the same shape as `PlayRoutine`'s own finding, which is a check that is correct about the
+wrong subject, and it is why that function keeps the match rather than its index. Nothing about the
+mutations above could have caught it: every one of them changed what the code *says*, and this one
+was a disagreement between two readings of something outside the process. The regression test holds
+it by changing the library while the lookup runs, and it fails on the old form within two passes.
