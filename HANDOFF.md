@@ -8188,7 +8188,7 @@ establish; two runs produce two distinct references; **Stop during a run ends it
 the press after the stop never arrives**; the `marco.exe` whose parent is this run's own Studio,
 killed mid-run, leaves `started` with no `ended`; readiness notices its own sibling moved aside;
 and a routine saved while the window is open appears in it beside the one that was already there.
-The recording path is the second layer: 25 named scripted-recorder tests, run explicitly, because
+The recording path is the second layer: 24 named scripted-recorder tests, run explicitly, because
 a `-run` pattern that matches nothing is the quietest possible green and a skip is not a pass.
 
 Two observations came out of it, neither changed. **A guarded press refused because the window

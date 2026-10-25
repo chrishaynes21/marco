@@ -84,7 +84,7 @@ Nine scenarios, about 36 seconds, one command.
 | a killed runner leaves an unfinished record | `started` with no `ended`, and only the runner this run owns is killed |
 | readiness notices a missing sibling | the one readiness case that never fails loudly |
 | a routine saved while the window is open appears | the library is read rather than remembered |
-| the recording path | 25 named scripted-recorder tests, labelled apart and never totalled with the rest |
+| the recording path | the named scripted-recorder tests, labelled apart and never totalled with the rest |
 
 ## The limit it prints every time
 

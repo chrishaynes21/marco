@@ -196,7 +196,7 @@ Nine scenarios, eight desktop and one recording, in about 36 seconds.
   same thing either way.
 - `plugins/e2e` `window/a routine saved while open appears` — the library is read rather than
   remembered, and the one that was already there is still there.
-- `plugins/e2e` `recording/draft, review, Save, again and replacement` — the second layer: 25
+- `plugins/e2e` `recording/draft, review, Save, again and replacement` — the second layer: the
   named scripted-recorder tests, run explicitly, where a name that matched nothing would be the
   quietest possible green and a skip is not a pass. Labelled apart from the desktop layer and
   never totalled with it.
